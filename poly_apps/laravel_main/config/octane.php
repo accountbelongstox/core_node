@@ -1,6 +1,7 @@
 <?php
 
 use App\Providers\PathMapper;
+use App\Support\ServiceContract;
 use App\Support\WebServerPlane;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Events\RequestHandled;
@@ -27,6 +28,7 @@ $swooleLogFile = PathMapper::mapWebPath('logs', 'swoole_http.log');
 $webServerPlane = WebServerPlane::current();
 $octaneServer = $webServerPlane === WebServerPlane::FRANKENPHP ? 'frankenphp' : 'swoole';
 $octaneHttps = $webServerPlane === WebServerPlane::FRANKENPHP;
+$maxExecutionTime = ServiceContract::positiveInt('php_runtime.max_execution_time_seconds');
 
 return [
 
@@ -171,6 +173,7 @@ return [
             'run_count' => 'int',
             'error_count' => 'int',
             'last_duration' => 'float',
+            'last_error' => 'string:1024',
         ],
     ],
 
@@ -242,7 +245,7 @@ return [
     |
     */
 
-    'max_execution_time' => 30,
+    'max_execution_time' => $maxExecutionTime,
 
     /*
     |--------------------------------------------------------------------------

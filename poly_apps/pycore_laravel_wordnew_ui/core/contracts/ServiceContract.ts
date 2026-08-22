@@ -26,5 +26,6 @@ export const GLOBAL_VAR_DIR_NAME: string = contractDocument.paths.global_var_dir
 export const FRANKENPHP_ROOT_POSIX: string = contractDocument.paths.frankenphp_root_posix;
 export const UI_ALLOWED_HOSTS_FILE_NAME: string = contractDocument.files.ui_allowed_hosts;
 export const UI_DOMAIN_CONFIG_FILE_NAME: string = contractDocument.files.ui_domain_config;
-export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
+export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
+export const MERCURE_CORS_ORIGINS: readonly string[] = contractDocument.realtime.mercure_cors_origins;

@@ -1,353 +1,157 @@
-# DESIGN 20260817 2115 - Pycore UI Relay Groups via Laravel Central Server + HTTP/3 Everywhere - PART 3 (Implementation plan)
+# Pycore UI Relay Groups and HTTP/3 — Part 3: Implementation Record
 
-Date: 2026-08-17 21:15
-Document split 2026-08-17 into four parts (see PART_0 for the index).
-Appended after PART_2 per working order. Fully restated under the **Mercure
-pivot**: Mercure topics are THE wake/control transport; Reverb is fully
-removed (2026-08-17, no Phase 5 - the removal shipped with the same change
-set). Execution order is BINDING: Phase 0 (PART_0) -> backend -> pycore
-library -> UI -> audit; norms PART_1 1.9 govern every phase.
+Original design date: 2026-08-17 21:15  
+As-built audit: 2026-08-21
 
-## Basic norms (binding for this part)
+## Outcome
 
-- Build from the underlying architecture, not patches; never thin-compatibility
-  layers; follow the latest specifications.
-- Merge common libraries and duplicate implementations; consult the official
-  documentation before introducing anything new.
-- Do not use multiple agents.
-- Develop strictly per the specification (this design's four parts).
-- Shell scripts: never use exit codes / return-value chaining; trust the
-  previous function's execution result; detect binaries directly by probing
-  the file system (no stale command-hash probing).
+The former phase checklist has been replaced by this implementation record. The relay plane, shared queue workers, durable history/cache, remote-first endpoint selection, realtime updates, HTTP/3 transaction transport, and UI protocol diagnostics exist in current source. Remaining limitations are listed explicitly rather than represented as unchecked historical plan items.
 
----
+No FrankenPHP installation, deployment, or Laravel Manager implementation was modified in this audit because those components were already complete.
 
-## 3.0 Design decision
+## Shared contracts and ownership
 
-**Relay = Mercure wake/control plane (server-published SSE topics) + Laravel
-HTTP store-and-fetch data plane.** Rationale:
+`config/service_contract.json` owns server-plane versions, ports, protocol configuration, Mercure ownership, and the Early Hints preload link.
 
-- pycore is an outbound-only client behind NAT: the Mercure downstream is SSE
-  - plain outbound HTTPS - so it fits the same single-egress posture as the
-  existing result upload. The UI is already a Laravel HTTP client; browsers
-  consume SSE natively (`EventSource`).
-- Only the server publishes (browsers never publish): `mercure_publish()` is
-  in-process - zero extra daemons, zero network hops for wake frames. The
-  single `octane:frankenphp` process hosts API + hub + UI + relay entry on
-  one h3 listener (PART_0).
-- **The hub has no application presence** (PART_2 2.2.3): the
-  both-ends-online gate (R3) is the heartbeat registry pair
-  (RelayMachineRegistry + RelayPairRegistry) - server-side truth, immediate
-  `peer-offline` refusal, independent of connection flaps.
-- Wake updates stay tiny (8 KB cap); bodies and blobs transfer through
-  Laravel HTTP endpoints keyed by `request_id` (same shape as the Queue
-  Center wake + HTTP-pull pattern the four ends already implement).
+`config/queue_center_contract.json` owns queue, relay, topic, machine, pairing, heartbeat, TTL, endpoint, and capability names.
 
-## 3.1 Topic layout and registries
+Feature code consumes these contracts. It does not carry parallel port tables or a second realtime protocol vocabulary.
 
-| Topic | Update visibility | Subscribers | Purpose |
-|-------|-------------------|-------------|---------|
-| `pycore.machines` | public update (`private=0`), subscribe requires JWT | UI sessions (machines optionally) | roster announcements - `roster.update` deltas on registry transitions |
-| `pycore.pair.{machineId}` | **private** update | that pycore machine + UI sessions paired to it | G2 paired group: wake events `relay.request` / `relay.response` |
-| `queue-center` (migration target) | public update | pycore, mcp-chrome, UI | queue revision events - Phase 2 migrates the WS consumer here |
+## Laravel implementation
 
-- `machineId` = existing hostname-stable worker identity (worker_id family) -
-  no new identity scheme.
-- Reserved update `type` values (SSE event field): `relay.request`,
-  `relay.response`, `roster.update` (the spec forbids the reserved `mercure`
-  type; these are ours).
-- Registries (Laravel, database cache store family):
-  - `RelayMachineRegistry` (WRITTEN): register / heartbeat (20 s) /
-    unregister / isOnline / listOnline, offline after 45 s stale TTL,
-    `relay:machines:index` roster key.
-  - `RelayPairRegistry` (new): active pair per machineId (UI session id,
-    TTL 60 s refreshed on activity); the R3 gate = machine heartbeat fresh
-    AND pair active.
-- Roster announcements: registry transitions (online/offline) publish
-  `roster.update` `{machine_id, online, capabilities}` on `pycore.machines`;
-  the UI re-syncs from `GET /api/relay/machines` (truth) on (re)connect.
+The relay domain is centralized under `poly_apps/laravel_main/app/Services/Relay/`:
 
-### Capability-provider registry (PART_1 1.8)
+- `RelayRequestStore` persists requests and responses;
+- `RelayPairRegistry` owns pairing state;
+- `RelayMachineRegistry` owns registration and liveness;
+- `RelayHubPublisher`, `RelayHubKeyProvisioner`, and `RelayHubJwt` own Mercure integration;
+- `RelayHubAuthService` owns subscriber authorization;
+- `RelayDispatcher` owns routing;
+- `RelayCapabilityRegistry` owns supported capability declarations;
+- `RelayBlobStore` owns bounded binary payloads.
 
-The same contract declares each end's PROVIDABLE capabilities. In code:
+`poly_apps/laravel_main/routes/api/relay.php` binds these services to protected dashboard and machine routes.
 
-- Laravel: `RelayCapabilityRegistry` (contract-driven) - resolves which
-  group/class may provide which roster entries, topics, route families.
-- pycore: capability flags published with its registry member record and in
-  `roster.update` payloads (machine class + provided route families).
-- UI: `core/contracts/RelayCapabilities.ts` - renders declared providers;
-  laravel-manager (G3) and wordnew (G4) are DECLARED here but not wired to
-  any provider integration this pass; mcp-chrome is declared as a future
-  machine class. Only the pycore pair (G2) implements end-to-end.
+The global audio queue uses explicit queue-position overrides first. Without an override, sentence claims prioritize English work before other languages. Wordnew-triggered audio requests pass through the unified Laravel gateway and return a structured queue receipt containing head-adjustment, position, progress, and ETA fields.
 
-## 3.2 Relay protocol (v1)
+The existing FrankenPHP Caddyfile builder emits the public `h1 h2 h3` server configuration, HTML-only 103 Early Hints, and the Mercure topology.
 
-1. UI -> Laravel: `POST /api/relay/{machineId}/requests`
-   `{ method, path, headers?, body_ref? }` where large bodies were first
-   `POST /api/relay/{machineId}/blobs` (chunked) -> `body_ref`. Laravel:
-   - verifies the gate (machine heartbeat fresh AND pair active) else
-     **HTTP 409 `peer-offline` immediately** (R3, A2);
-   - stores the request (QueueCenterCacheStore-family store, short TTL);
-   - publishes the wake frame in-process:
-     `mercure_publish('pycore.pair.{machineId}', json_encode([request_id,
-     method, path, size]), private: true, type: 'relay.request')`
-     (hub POST with the publisher JWT as fallback path).
-2. pycore relay consumer wakes on the `relay.request` update, fetches
-   `GET /api/relay/{machineId}/requests/{request_id}` (body included when
-   small; blob refs fetched via `GET .../blobs/{ref}`), executes it against
-   `127.0.0.1:59000` through the existing local HTTP stack (route contract
-   untouched - R6), then `POST /api/relay/{machineId}/responses`
-   `{request_id, status, headers, body | body_ref}`.
-3. UI receives the response either on the pair topic (`relay.response`
-   `{request_id, status, size}` private wake update) or by its in-flight
-   HTTP poll `GET /api/relay/{machineId}/responses/{request_id}?wait=1`
-   (long-poll, bounded ~25 s). v1 ships the long-poll (simpler, no UI
-   callback routing); the wake update stays as the latency optimization hook.
-4. Resilience: pycore keeps a bounded fallback poll (400 ms, contract
-   `poll_interval_ms`) while a pair is active - covers SSE gaps/reconnects;
-   the hub's Last-Event-ID replay covers missed frames on reconnect.
-5. Timeouts: request TTL 60 s; pair TTL 60 s; no store-and-forward across
-   offline peers (the pair REFUSES when offline - b.txt's offline-message
-   branch is deliberately NOT taken for interactive RPC; offline work
-   already belongs to Queue Center tasks).
-6. Size caps (contract-declared): control update <= 8 KB, inline JSON body
-   <= 256 KB, blob chunks <= 4 MB, per-request total <= 32 MB (terminal/
-   code-sync/audio bounded accordingly).
+## Pycore implementation
 
-## 3.3 Transport engagement (R8, A1, A5, A7)
+### Queue runtime
 
-`pycoreTarget.ts` is REBUILT (not patched) to carry full backend URLs
-(scheme + host + optional port), replacing the mode-by-origin model:
+`pycore/pyctl/queue_center/` owns snapshots, lane registration, lifecycle controls, and task-center sections. Workers publish compact state instead of making the UI reconstruct backend lifecycle from log text.
 
-- Selected backend starts with `https://` (no :59000 port; the entry is the
-  server-side reverse proxy of the relay) -> **relay scheme**: notify (badge +
-  pairing handshake result), bind the relay transport to that endpoint, then
-  pair per 3.4.
-- Selected backend is `http://<host>:59000` -> direct, byte-for-byte today's
-  behavior (origin/local/remote presets render to this form).
-- The always-on Laravel link (HTTP API + roster topic SSE) runs in BOTH
-  modes; the roster view and machine designation are available even while
-  direct.
-- Pair entry: user designates an online machine from the roster -> register
-  the pair + acquire pair-topic auth (`hub-auth`) -> paired-state badge;
-  forwarding is gated by the registry pair (R3).
+Queue Center reads the cached aggregate TTS status and never starts a cold all-engine scan from the snapshot request. Qwen capability discovery is populated by the asynchronous engine warm-up and snapshot reads use only its cached value. This keeps UI polling independent from model startup and synthesis locks.
 
-## 3.4 Machine designation in the UI (R4, A3, A4, A7)
+`pycore/pyutils/common/diff_task_segments.py` owns persistent diff segments. `has_pending()` prevents an unchanged remote diff from discarding an unacknowledged priority instruction. `move_to_head()` applies the backend directive to the shared ordered queue.
 
-`PcPycoreTargetSwitcher` gains a relay section fed by the always-on roster:
-online machines from `GET /api/relay/machines` + `roster.update` deltas
-(roster topic SSE), showing machine label + since/latency; **designation** of
-a machine enters the paired state and persists (`PycoreStorageKeys`,
-existing pattern); switching re-binds the transport to
-`pycore.pair.{machineId}`. Two machines online -> two entries; traffic never
-leaves the selected pair topic + registry pair (isolation, A4). While
-unpaired/https-selected, the switcher shows why forwarding is unavailable
-(no online machine / not designated).
+`pycore/pyctl/tts/laravel_audio_worker.py` is the common persistent kernel for word, sentence, and composed article work. It owns:
 
-## 3.5 Security (R7)
+- ordered admission and explicit head moves;
+- bounded parallel execution through shared task groups;
+- provider selection and engine provenance;
+- local word and sentence cache lookup;
+- synthesis progress stages;
+- atomic staging into the shared audio-delivery outbox;
+- independent parallel multipart audio reporting;
+- independent Laravel global-result reporting;
+- bounded retry scheduling without occupying synthesis lanes;
+- restart recovery, monotonic delivery checkpoints, and explicit dead-letter retry.
 
-- **`/api/relay/hub-auth`** (renamed from channel-auth; same route family):
-  `POST` with the caller's identity (UI session: Sanctum / loopback-debug
-  pattern; machine: enrollment credential per
-  `DESIGN_20260814_QUEUE_CENTER_MACHINE_AUTHENTICATION.md` - first phase may
-  gate on the existing InstallationAccessCode while enrollment lands).
-  Returns a **short-lived HS256 RFC 9068 subscriber access token** (`typ:
-  at+jwt`, TTL 600 s, contract `relay.hub.token_ttl_seconds`) with `iss`
-  (the trusted issuer), `aud` (the hub URL), `sub`, `client_id`, `iat`,
-  `exp`, `jti` and an RFC 9396 `authorization_details` grant
-  (`actions: ["subscribe"]`, exact-match `topics` = the topics allowed for
-  that identity) - roster topic for any authenticated end; pair topic only
-  for the paired machine/session.
-- **Browser delivery**: EventSource cannot set headers - the endpoint also
-  sets `Set-Cookie: __Secure-mercure_access_token=<jwt>;
-  Path=/.well-known/mercure; HttpOnly; Secure; SameSite=Strict;
-  Max-Age=600` (the 1.0 default cookie name, PART_2 2.2.3; same-origin hub,
-  so the cookie rides the SSE request). Tokens NEVER appear in URLs.
-  The client refreshes via `hub-auth` before expiry (live streams continue
-  past token expiry; only new connections authorize; the hub also closes
-  connections at `exp`, so the refresh hook is mandatory).
-- **pycore delivery**: `Authorization: Bearer <jwt>` on its SSE HTTP client
-  (machines are not browsers).
-- **Publisher path**: `mercure_publish()` in-process (no JWT handling in
-  PHP); the fallback hub POST uses the publisher JWT read from the secret
-  store. The publisher JWT key NEVER leaves the server - supersedes the
-  REVERB_APP_SECRET rule.
-- **Hub mode**: `anonymous` disabled (off by default in 1.0) - every
-  subscriber presents a token for private updates; private pair updates are
-  enforced by the hub.
-- **JWT signing**: `lcobucci/jwt` alone (vendored; RFC 9068 tokens built by
-  `RelayHubJwt` - the symfony/mercure component targets the v0.x token
-  shape and is NOT used).
-- Hub keys (`MERCURE_PUBLISHER_JWT`, `MERCURE_SUBSCRIBER_JWT`) plus the
-  trusted issuer (`MERCURE_TRUSTED_ISSUERS` = `https://api.<region>.<domain>`,
-  derived per launch) provisioned by 132/the runtime branch into the
-  secret store and injected as process env (`{env...}` references,
-  PART_0 §0.5/0.6) - same lifecycle the former REVERB_APP_* keys had.
+`pycore/pyutils/tts/audio_delivery_outbox.py` is the single durable delivery repository for both worker lanes. Rows contain the cached path, engine provenance, task attempt, selected Laravel endpoint, distinct domain-delivery/domain-success checkpoints, result-acceptance state, history-persistence state, retry schedule, and a process-aware lease. A terminal domain 4xx no longer blocks the audio-bearing global result fallback. Result acceptance is persisted before local history, and history uses a stable delivery-derived record identifier before final outbox removal. `ui/queue_center/retry_audio_delivery` is the common diagnostic/control surface. Queue Center shows pending domain uploads, terminal results, history writes, dead letters, and whether a delivery group is running.
 
-## 3.6 HTTP/3 work (H1, H2, A6; plane-aware - PART_0)
+Sentence synthesis reuses the managed Qwen service also used by Agent History. Single sentences enter the sentence queue directly. Articles are split into sentences and composed, while history retains the multi-sentence marker.
 
-- `/api/relay/*`, the hub SSE stream (`/.well-known/mercure`), the UI, and
-  the **selected HTTPS pycore backend** all ride the SAME 443 listener with
-  h3 (Caddy default; nginx stanza on the compat plane) - no API-surface
-  change needed for H1.
-- **No WebSocket, no `/app/*` rule on any plane**: SSE rides h3
-  (PART_2 2.2.6 deletes the old wss exception). The relay is simply not
-  served on the compat plane (R9).
-- The UI preset for the HTTPS backend is added to the contract-rendered
-  preset list, not hardcoded in the bundle.
-- `RealtimeConnectionService` RE-SCOPED: returns
-  `{ hub_url: https://api.<region>.<domain>/.well-known/mercure, topics,
-  auth_mode: "jwt", token_ttl }` - pycore and the UI both consume it; no
-  Reverb key distribution remains (the Reverb path is deleted).
+### History and cache
 
-## 3.7 File-touch list (planned) + written-artifact sync
+`pycore/pyctl/task_history/` and `pycore/pyutils/common/task_history_repository.py` own durable history. Records are searchable by task ID, content ID, engine, path, and detail. They include progress, engine, cache, composition, upload, and result-acceptance fields.
 
-### Already written pre-pivot (2026-08-17) - required SYNC renames (Phase 1 start)
+`pycore/pyctl/task_history/archive.py` owns bounded completed-task cache metadata. `task_history/service.py` exposes cached audio only when the resolved file remains inside the managed cache root and has an allowed audio extension.
 
-- `config/queue_center_contract.json` (schema 25): relay `channels` key ->
-  **`topics`** (`pycore.machines`, `pycore.pair.{machine_id}`); endpoint
-  `/api/relay/channel-auth` -> **`/api/relay/hub-auth`**; add `hub` block
-  (`protocol: mercure-1.0`, `token_ttl_seconds: 600`, cookie
-  `__Secure-mercure_access_token`, control-frame cap); `events` entries
-  become update `type` values.
-- `config/service_contract.json`: the former `reverb_backend: 8080` is
-  REMOVED; Phase 0 adds the `frankenphp_http/https/admin` ports.
-- `app/Support/QueueCenterContract.php`: rename `relayChannel()` ->
-  `relayTopic()`; add `relayHub()` accessors.
-- `app/Services/Relay/RelayMachineRegistry.php`: unchanged (already
-  presence-truth shaped).
+### Laravel transport
 
-### Laravel (`poly_apps/laravel_main`) - BACKEND FIRST
+`pycore/pyutils/laravel/client.py` is the single Pycore-to-Laravel gateway. `pycore/pyutils/laravel/transport.py` owns protocol selection and payload adaptation:
 
-- `config/queue_center_contract.json`: sync renames above + `hub` block.
-- `app/Services/Relay/` (new): **RelayPairRegistry**, RelayRequestStore,
-  RelayBlobStore (disk-backed, chunked), **RelayDispatcher** (gate check +
-  `mercure_publish`, hub-POST fallback), **RelayHubAuthService** (subscriber
-  JWT + cookie), **RelayCapabilityRegistry** (contract-driven, 1.8).
-- `app/Http/Controllers/RelayController.php` (new): the 12 endpoints incl.
-  `hub-auth`.
-- `routes/api.php`: `/api/relay/*` group (PycoreClientOnly header middleware
-  for machine endpoints; session middleware for hub-auth).
-- `app/Services/Realtime/RealtimeConnectionService.php`: hub form (3.6).
-- `config/octane.php`: frankenphp server entry + `'mercure'` block (with
-  132/W3).
-- `composer.json`: `symfony/mercure` + `lcobucci/jwt`.
-- `ServerManagerV1FrankenPhpManagerCtl` + Caddyfile builder (Part 0; carries
-  the `mercure` block).
-- REMOVED from the pre-pivot plan: `routes/channels.php` relay channels,
-  `config/reverb.php` allowed_origins work - the relay uses no
-  `/broadcasting/auth` channel (and `config/reverb.php` is deleted).
+- HTTPS transactional requests and Mercure SSE prefer `curl_cffi` with `http_version=\"v3\"`;
+- SSE retains reconnect, JWT refresh, Last-Event-ID resume, and bounded read behavior in the shared subscriber;
+- the transport is selected before sending, so POST is never replayed merely to change protocol libraries;
+- requests-style form fields and files are converted to one native `CurlMime` body;
+- transport and negotiated protocol are sent to the common HTTP recorder.
 
-### pycore (`pycore/`) - LIBRARY EXTENSION (after backend complete; norm 1.9 merge)
+`curl_cffi>=0.12,<1` is declared in the Python package policy. Version 0.16.0 was installed in the audited runtime.
 
-- EXTRACT ONE shared realtime client -> `pyutils/common/mercure_client.py`:
-  SSE HTTP consumer (GET hub URL + `topic` params, `Authorization: Bearer`),
-  EventSource-like lifecycle, **Last-Event-ID resume**, reconnect/backoff,
-  token refresh hook - single definition, consumed by BOTH queue events and
-  the relay (the pusher WS handshake is retired; the lifecycle/backoff
-  structure survives from snapshot_service).
-- `pyctl/queue_center/snapshot_service.py`: migrated onto the shared client
-  (queue events become a topic subscription on the frankenphp plane).
-- New `pyctl/relay/` (thin consumer): registry loop (register/heartbeat/
-  unregister), roster + pair topic subscriptions, `relay.request` consumer,
-  response poster; executor reuses the local `:59000` HTTP client.
-- `pyutils/common/queue_center_contract.py`: relay endpoint renderer reuse.
+The read-only route `ui/assist/laravel_transport_probe` executes the normal Laravel client path and returns endpoint, status, selected transport, negotiated protocol, and an HTTP/3 boolean. It is a diagnostic surface, not a separate probe implementation with different networking behavior.
 
-### UI (`poly_apps/pycore_laravel_wordnew_ui`) - LAST
+The endpoint repository records whether `current` came from an explicit user selection. Legacy unmarked HTTP defaults migrate to the configured HTTPS API, while future explicit selections remain persistent. Relay registration follows the active resolved endpoint rather than a stale stored value.
 
-- `core/integrations/pycore/pycoreTarget.ts`: REBUILT to full backend URLs
-  (https selection -> relay scheme + notification; http -> direct) per 3.3.
-- `core/integrations/pycore/` new `PycoreRelayTransport.ts` implementing the
-  same surface as `PycoreApiTransport` (domain layers untouched).
-- `core/integrations/laravel/LaravelAPI.ts`: relay route methods + `hub-auth`
-  fetch/refresh.
-- `core/integrations/laravel/` new `LaravelMercureConnection.ts`: native
-  `EventSource` wrapper + roster topic subscription + token refresh
-  (replaces the deleted LaravelReverbConnection).
-- `core/contracts/RelayCapabilities.ts` (new): declared capability providers
-  (G3/G4/mcp-chrome) - rendered, NOT wired this pass (1.8).
-- `apps/pycore-manager/components/PcPycoreTargetSwitcher.tsx`: https backend
-  entry + preset, machine designation from roster, transport/pair badges,
-  peer-offline surfacing.
+## UI and Wordnew implementation
 
-### Shell (scripts)
+`poly_apps/pycore_laravel_wordnew_ui/core/network/ProtocolFetch.ts` is the common browser/WebView/native request path. It owns:
 
-- Phase 0 (PART_0): `49_install_frankenphp.sh` + `common/frankenphp_manager.sh`
-  + `132` plane branch + `selector_common.sh` MENU_CONFIG + 32-35 plane flows
-  + service-contract ports - all under the shell norms (1.9).
-- Phase 1: nothing nginx-side (relay is plane-gated; the Caddyfile builder is
-  the only front-server change).
+- one HTTP transport policy;
+- standard Fetch dispatch for browsers and streaming SSE;
+- Android HTTPS API dispatch through an app-local Cronet plugin;
+- browser, Capacitor WebView, and Capacitor Cronet runtime identification;
+- bounded Resource Timing or native negotiated-protocol observations;
+- subscription and snapshot access for diagnostics.
 
-## 3.8 Execution order (binding; each phase independently shippable)
+It is reused by:
 
-0. **Phase 0 - FrankenPHP server plane (PART_0)**: shared plane constants +
-   `28` + `frankenphp_manager.sh` + dual-end FrankenPHP Server Manager +
-   `132` plane branch + menu/toolchain (32-35) + service-contract ports.
-   Verify: P0-A1..P0-A6.
-1. **Backend complete FIRST (Laravel)**: sync renames (3.7) + `hub` block,
-   registries, stores, dispatcher (`mercure_publish`), hub-auth service,
-   controller + routes, RealtimeConnectionService hub form, octane mercure
-   config, Caddyfile builder (SYNC CONTRACT both ends). Verify: tinker-level
-   publish reaches an authorized SSE subscriber (curl); relay request vs a
-   fake machine -> 409 peer-offline; Caddy validate + reload; h3 on the hub.
-2. **pycore library extension SECOND**: extract the ONE shared
-   `mercure_client.py` (merge the snapshot consumer - no duplicate
-   implementation), then the thin `pyctl/relay/` consumer. Verify: manual
-   pair with curl as the "UI"; full pycore route smoke via relay; kill
-   pycore -> 409 within the heartbeat window; queue-events consumer still
-   works on the new client (merge regression check).
-3. **UI LAST**: target rebuild (https -> relay + notify, http -> direct),
-   always-on Laravel link + roster, designation -> paired state, relay
-   transport, switcher, capability-provider declarations (rendered only).
-   Verify: A1-A7 walkthrough.
-4. **HTTP/3 + SSE audit**: h3 on API + UI + hub + the HTTPS pycore backend
-   (`curl --http3` / devtools), roster `EventSource` over h3, publish ->
-   receive latency sanity, A6.
-5. **Reverb removal** (SHIPPED 2026-08-17 with the backend phase, ahead of the
-   original Phase 5 slot): supervision dropped from the compat branch;
-   `reverb_backend` deleted from the service contract; `queue-center`
-   broadcast channel + legacy `channels.php` entries dropped;
-   `wordnew.social.{userId}` migrated to a Mercure topic (private);
-   `LaravelReverbConnection` scheduled for deletion in the UI phase.
+- `core/network/api-client/MasterApiClient.ts`;
+- `core/integrations/laravel/transport/BaseAPI.ts`;
+- `core/integrations/laravel/LaravelMercureConnection.ts`;
+- `apps/wordnew/api/WfNewApiTransport.ts`;
+- `apps/wordnew/api/WfNewAdminApi.ts`;
+- `apps/wordnew/platform/capabilities/CapNetwork.ts`.
 
-## 3.9 Risks / mitigations
+The Pycore HTTP debugger displays the recorded transport and protocol. Queue Center displays worker and frontend progress, backend upload state, priority receipts, and ETA information. Shared route constants connect the UI to the transport probe and protected cached-audio resource.
 
-- Registry TTL vs SSE connection flaps -> roster truth is the registry
-  (never the stream); SSE is push-only; 400 ms bounded poll covers gaps.
-- Token expiry mid-stream -> live streams continue; only new connections
-  authorize; `hub-auth` refresh before expiry; `Max-Age` aligned with TTL.
-- SSE buffering by intermediaries -> Caddy streams natively; same-origin hub;
-  EventSource auto-retry; the poll fallback bounds worst-case latency.
-- Hub restart -> EventSource auto-reconnect + Last-Event-ID replay + poll
-  fallback; request TTLs survive the restart window.
-- Browser connection limits -> h2/h3 multiplexes all streams (incl. SSE) on
-  one connection; the old HTTP/1.1 6-per-host concern does not apply.
-- Cookie-auth CSRF on the hub -> `SameSite=Strict` + same-origin UI + short
-  TTL + spec's Origin/Referer check noted; no tokens in URLs, ever.
-- Single-process CPU under many pairs -> one-digit machines (current scale);
-  the Go hub side is efficient; no Redis scale-out needed.
-- mcp-chrome as a future consumer gates the Phase 5 close of the window ->
-  it is a DECLARED provider (1.8); its migration is tracked separately.
+Capacitor HTTP patching remains disabled because its installed Android implementation uses `HttpURLConnection`. The existing `native/wordnew/android` project instead registers `ProtocolHttpPlugin` from `MainActivity` and depends on Google Play Services Cronet 18.1.1. Non-streaming HTTPS API requests use Cronet with QUIC/HTTP2 enabled; Mercure/SSE remains on Chromium WebView. The shared TypeScript layer falls back only on provider initialization failure before send, exposes final responses as standard `Response` objects, and records Cronet's negotiated protocol. Both native and WebView transports consume 103 internally.
 
-## 3.10 Verification checklist (manual; no tests created - project rule)
+## Live verification record
 
-- [ ] A1 select https backend -> notified relay engagement, full
-      pycore-manager via relay from any origin
-- [ ] A2 pycore down -> immediate `peer-offline` (409), no hanging requests
-- [ ] A3 pycore restart -> pair restored within one reconnect cycle
-- [ ] A4 two machines online, designation switch isolates traffic
-- [ ] A5 `http://...:59000` selections unchanged (direct, no relay hop)
-- [ ] A6 `h3` on API + UI + hub SSE + HTTPS pycore backend; roster
-      `EventSource` receives a server-published update on the same domain
-- [ ] A7 always-on roster without https selection; designation -> paired
-      state
-- [ ] `hub-auth`: browser cookie path works (EventSource same-origin);
-      pycore Bearer path works; refresh before expiry is seamless
-- [ ] blobs (audio preview, code-sync zip) through relay within caps
-- [ ] terminal stream (long-running) via relay long-poll within TTL
-- [ ] queue events consumed via the shared Mercure client after Phase 2
-- [ ] no realtime sidecar process on any plane (P0-A4)
+The following checks used actual running services rather than mocks:
 
----
+- Queue Center UI assets were served from `http://127.0.0.1:13054/pycore-manager/queue-center`.
+- Pycore RPC was queried at `http://127.0.0.1:59000/api/...`.
+- The snapshot reported Laravel reachable at `https://api.si.12gm.com` and realtime connected.
+- The transport probe completed `/api/health` with status 200 over `curl_cffi` and HTTP/3.
+- Public hub authorization returned `https://api.si.12gm.com/.well-known/mercure`; an authenticated Mercure SSE connection returned status 200 with libcurl HTTP version 30 (HTTP/3) and remained open until the six-second diagnostic timeout.
+- After the final process reload, the live Queue Center snapshot reported the HTTPS default and `realtime_detail=... transport=curl_cffi protocol=HTTP/3`; 37 persisted sentence tasks remained queued and one was processing.
+- A Wordnew-prioritized sentence task (`task_e81b8e52-…`) moved through received, processing, and completed states using Qwen3-TTS.
+- Its cached MP3 resource returned 200 and 11,756 bytes; an attempted path outside the cache root was rejected.
+- A word-audio task completed using Edge and Laravel accepted its upload.
+- After the HTTP/3 transport was introduced, live verification found multipart uploads retrying because `curl_cffi` does not accept the requests-style `files` argument. The shared transport was corrected to use `CurlMime`; the same previously blocked task (`task_014950bf-…`) then emitted `upload_done` on its first post-reload attempt and completed with `backend_upload=ok; result=ok`.
+- Agent History contained 1,187 records in the audited snapshot, including 1,030 cached audio records and 322 multi-sentence records; reported records were uploaded.
+- Qwen work from Queue Center and Agent History coexisted in the managed queue and continued to progress.
+- During a natural Laravel synchronization restart, Pycore retained work and later uploaded results when Laravel returned.
+- The public response advertised `h3` through Alt-Svc and identified FrankenPHP/Caddy.
+- After the final hot-reload window, three consecutive Queue Center snapshots completed in 205–323 ms while the live word and sentence queues contained 23 and 73 tasks respectively.
+- In the 2026-08-21 continuation audit, the Queue Center page and the transformed `ProtocolFetch.ts`/delivery-status modules were served from port 13054, and the public Laravel health and Queue Center overview endpoints returned 200. The overview reported 513 pending word-audio rows and 545 pending sentence-audio rows.
 
-End of PART_3. Prerequisite: PART_0. Requirements: PART_1. Research: PART_2.
+No test suite or application build was run, in accordance with repository rules. Verification used live API requests, served-module inspection, and current source inspection.
+
+## Open verification boundaries
+
+- No controllable in-app browser session was available, so visual interactions and transient progress rendering were not click-tested.
+- During the 2026-08-21 continuation probe, the local Pycore RPC listener on port 59000 was not running and Laravel reported both Pycore audio workers offline. The new outbox checkpoints and retry controller therefore remain source-verified but were not exercised in that process state.
+- The native Android project and Cronet integration are present, but no APK build or Android device was available; device-level HTTP/3 negotiation remains unverified.
+- The deployed HTML request did not expose an interim 103 through the observed outer proxy path. Source and generated configuration support 103, but proxy-by-proxy delivery still requires deployment-level capture.
+- Authenticated relay pairing was inspected end to end in source but was not mutated during this audit because doing so would create external pairing state.
+
+## Official references
+
+- [RFC 8297 — 103 Early Hints](https://www.rfc-editor.org/rfc/rfc8297.html)
+- [FrankenPHP Early Hints](https://frankenphp.dev/docs/early-hints/)
+- [FrankenPHP Mercure](https://frankenphp.dev/docs/mercure/)
+- [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy)
+- [curl_cffi API](https://curl-cffi.readthedocs.io/en/stable/api.html)
+- [curl HTTP/3](https://curl.se/docs/http3.html)
+- [Capacitor HTTP](https://capacitorjs.com/docs/apis/http)
+- [Capacitor custom native Android code](https://capacitorjs.com/docs/android/custom-code)
+- [Android Cronet overview](https://developer.android.com/develop/connectivity/cronet)
+- [Android Cronet setup](https://developer.android.com/develop/connectivity/cronet/start)
+- [Cronet UrlResponseInfo](https://developer.android.com/develop/connectivity/cronet/reference/org/chromium/net/UrlResponseInfo)
+- [Google Play Services CronetProviderInstaller](https://developers.google.com/android/reference/com/google/android/gms/net/CronetProviderInstaller)
+- [Cronet UploadDataProvider](https://developer.android.com/develop/connectivity/cronet/reference/org/chromium/net/UploadDataProvider)

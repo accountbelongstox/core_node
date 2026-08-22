@@ -80,12 +80,18 @@ class QueueCenterRealtimeService
         $current = $cursor > 0 ? $cursor : AppQyV1TranslationEventModel::maxId();
         $events = [];
         $rows = [];
+        $allowedEvents = [];
+
+        $allowedEvents = array_merge(
+            QueueCenterContract::realtimeEvents(),
+            AppQyV1TranslationEventModel::applicationEvents()
+        );
 
         if ($cursor > 0) {
             $rows = AppQyV1TranslationEventModel::since($cursor, $limit);
             foreach ($rows as $row) {
                 $current = max($current, (int) $row['id']);
-                if (!in_array($row['event'], QueueCenterContract::realtimeEvents(), true)) {
+                if (!in_array($row['event'], $allowedEvents, true)) {
                     continue;
                 }
                 $payload = $row['data'];

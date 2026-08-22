@@ -19,7 +19,7 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Relay controller: the 12 contract endpoints under /api/relay/*.
+ * Relay controller: the contract endpoints under /api/relay/*.
  *
  * Machine-side reads/writes run behind PycoreClientOnly; session-side calls
  * resolve a UI identity (Sanctum user or loopback debug) once per request.
@@ -95,7 +95,6 @@ class RelayController extends Controller
     public function hubAuth(Request $request): JsonResponse
     {
         $mode = (string) $request->json('mode', 'session');
-        $token = null;
 
         if ($mode === 'machine') {
             if (!PycoreClientOnly::isMachineCall($request)) {
@@ -105,8 +104,8 @@ class RelayController extends Controller
             if (!RelayMachineRegistry::isValidId($machineId) || !RelayMachineRegistry::isOnline($machineId)) {
                 return $this->conflict(__('relay.machine_not_online'), ['machine_id' => $machineId]);
             }
-            $token = RelayHubAuthService::issueForMachine($machineId);
-            return $this->success($token);
+
+            return $this->success(RelayHubAuthService::issueForMachine($machineId));
         }
 
         if (!self::isSessionCall($request)) {

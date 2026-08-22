@@ -133,7 +133,6 @@ class TerminalStateRepository:
             NEXT_NUMBER_KEY,
             str(max(reserved_terminal_numbers, default=0) + 1),
         )
-        values, records, _next_number = self._scan_records()
         for live_window, terminal_number, window_key in assignments:
             record = records[terminal_number]
             record["window_key"] = window_key
@@ -147,8 +146,9 @@ class TerminalStateRepository:
                 self._decorate_live_window(live_window, record)
             )
 
-        for terminal_number in sorted(records):
-            record = records[terminal_number]
+        active_records = self._active_records(records)
+        for terminal_number in sorted(active_records):
+            record = active_records[terminal_number]
             if str(record.get("platform") or "") != platform_name:
                 continue
             if terminal_number in claimed_terminal_numbers:
@@ -377,7 +377,7 @@ class TerminalStateRepository:
         source_number = int(source["terminal_number"])
         target_draft_size = int(target.get("draft") or 0)
         source_draft_size = int(source.get("draft") or 0)
-        target_logs = target.get("logs_by_id") or {}
+        target_logs = target.setdefault("logs_by_id", {})
         source_logs = source.get("logs_by_id") or {}
 
         if target_draft_size == 0 and source_draft_size > 0:
@@ -389,6 +389,7 @@ class TerminalStateRepository:
                 self._terminal_key(target_number, "draft"),
                 source_draft,
             )
+            target["draft"] = str(len(source_draft.encode("utf-8")))
 
         if str(source.get("preview_expanded") or "0") == "1":
             self._write_value(
@@ -396,6 +397,7 @@ class TerminalStateRepository:
                 self._terminal_key(target_number, "preview_expanded"),
                 "1",
             )
+            target["preview_expanded"] = "1"
 
         self._merge_nested_entries(
             values,
@@ -406,16 +408,19 @@ class TerminalStateRepository:
             target_logs,
             source_logs,
         )
+        target["updated_at"] = now
         self._write_value(
             values,
             self._terminal_key(target_number, "updated_at"),
             now,
         )
+        source["merged_into"] = str(target_number)
         self._write_value(
             values,
             self._terminal_key(source_number, "merged_into"),
             str(target_number),
         )
+        self._refresh_record_logs(target)
 
     def _merge_nested_entries(
         self,
@@ -430,6 +435,7 @@ class TerminalStateRepository:
         for entry_id, entry_values in source_entries.items():
             if entry_id in target_entries:
                 continue
+            merged_entry: Dict[str, str] = {}
             for field in entry_fields:
                 source_key = self._terminal_key(
                     source_number,
@@ -442,14 +448,21 @@ class TerminalStateRepository:
                 )
                 if value is None:
                     continue
+                stored_value = str(value)
                 self._write_value(
                     values,
                     self._terminal_key(
                         target_number,
                         f"{entry_kind}.{entry_id}.{field}",
                     ),
-                    str(value),
+                    stored_value,
                 )
+                merged_entry[field] = (
+                    str(len(stored_value.encode("utf-8")))
+                    if source_key.endswith(SIZE_ONLY_KEY_SUFFIXES)
+                    else stored_value
+                )
+            target_entries[entry_id] = merged_entry
 
     def _scan_records(
         self,
@@ -487,17 +500,15 @@ class TerminalStateRepository:
             else DEFAULT_TERMINAL_NUMBER
         )
         next_number = max(next_number, maximum_terminal_number + 1)
-        for terminal_number, record in records.items():
-            logs_by_id = record.get("logs_by_id") or {}
-            record["logs"] = [
-                self._log_metadata(terminal_number, log_id, log_values)
-                for log_id, log_values in sorted(
-                    logs_by_id.items(),
-                    key=lambda item: int(item[0]),
-                    reverse=True,
-                )
-            ]
-        records = {
+        for record in records.values():
+            self._refresh_record_logs(record)
+        return values, self._active_records(records), next_number
+
+    @staticmethod
+    def _active_records(
+        records: Dict[int, Dict[str, Any]],
+    ) -> Dict[int, Dict[str, Any]]:
+        return {
             terminal_number: record
             for terminal_number, record in records.items()
             if not (
@@ -506,7 +517,18 @@ class TerminalStateRepository:
                 and int(record["merged_into"]) in records
             )
         }
-        return values, records, next_number
+
+    def _refresh_record_logs(self, record: Dict[str, Any]) -> None:
+        terminal_number = int(record["terminal_number"])
+        logs_by_id = record.get("logs_by_id") or {}
+        record["logs"] = [
+            self._log_metadata(terminal_number, log_id, log_values)
+            for log_id, log_values in sorted(
+                logs_by_id.items(),
+                key=lambda item: int(item[0]),
+                reverse=True,
+            )
+        ]
 
     def _scan_values(self) -> Dict[str, str]:
         return self._store.scan(SIZE_ONLY_KEY_SUFFIXES)

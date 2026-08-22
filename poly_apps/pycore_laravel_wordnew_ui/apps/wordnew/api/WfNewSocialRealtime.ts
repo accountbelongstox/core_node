@@ -1,8 +1,5 @@
-/** WordNew social realtime client: private Mercure topic plus cursor recovery. */
-import {
-  LaravelMercureConnection,
-  type LaravelMercureAuthorization,
-} from '../../../core/integrations/laravel/LaravelMercureConnection';
+/** WordNew social realtime client: authorized private Mercure plus replay. */
+import { LaravelMercureConnection } from '../../../core/integrations/laravel/LaravelMercureConnection';
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
 import {
@@ -19,11 +16,9 @@ export type WfNewSocialEvent =
 interface SocialRealtimeConnection {
   hub_url: string;
   topics: string[];
+  subscribe_url: string;
   token: string;
   token_ttl_seconds: number;
-  subscribe_url: string;
-  auth_mode: string;
-  protocol: string;
   cookie: string;
   events: string[];
 }
@@ -58,9 +53,7 @@ class WfNewSocialRealtime {
   private attempts = 0;
   private lastId: number | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private replaying = false;
-  private fallbackReplayActive = false;
-  private pendingFrames: SocialFrame[] = [];
+  private replayFlight: Promise<void> | null = null;
   private allowedEvents = new Set<string>();
   private handlers = new Map<string, Set<Handler>>();
 
@@ -133,17 +126,13 @@ class WfNewSocialRealtime {
     this.emit(frame.event, payload);
   }
 
-  private handleEvent(_transportEvent: string, value: unknown): void {
-    // Hub updates arrive as {event, data} envelopes; the envelope event is
-    // the canonical name the roster gate checks.
+  private handleEvent(transportEvent: string, value: unknown): void {
     const envelope = this.parseObject(value);
-    if (!envelope || typeof envelope.event !== 'string') return;
-    if (!this.allowedEvents.has(envelope.event)) return;
+    if (!envelope) return;
+    const event = typeof envelope.event === 'string' ? envelope.event : transportEvent;
+    if (!this.allowedEvents.has(event)) return;
     const payload = this.parseObject(envelope.data) ?? envelope;
-    if (!payload) return;
-    const frame = { event: envelope.event, payload };
-    if (this.replaying) this.pendingFrames.push(frame);
-    else this.dispatchFrame(frame);
+    this.dispatchFrame({ event, payload });
   }
 
   private async replay(): Promise<void> {
@@ -162,41 +151,24 @@ class WfNewSocialRealtime {
     }
   }
 
-  /**
-   * The authenticated connection endpoint is the single authorize step: it
-   * returns the hub contract and a bearer token for the private social topic.
-   */
-  private async authorize(): Promise<LaravelMercureAuthorization> {
-    const config = await authedGetJSON<SocialRealtimeConnection>(
-      WfNewApiPaths.socialRealtimeConnection,
-      null as unknown as SocialRealtimeConnection,
-    );
-    if (!config?.subscribe_url) throw new Error('SOCIAL_REALTIME_UNAVAILABLE');
-    this.allowedEvents = new Set(config.events || []);
-    return {
-      subscribe_url: config.subscribe_url,
-      token: config.token,
-      token_ttl_seconds: config.token_ttl_seconds,
-    };
+  private replaySerialized(): Promise<void> {
+    if (this.replayFlight) return this.replayFlight;
+    this.replayFlight = this.replay().finally(() => {
+      this.replayFlight = null;
+    });
+    return this.replayFlight;
   }
 
   private async subscribed(generation: number): Promise<void> {
     this.attempts = 0;
-    this.replaying = true;
-    await this.replay();
+    await this.replaySerialized();
     if (!this.started || this.generation !== generation) return;
-    this.replaying = false;
     this.connected = true;
-    const pending = this.pendingFrames;
-    this.pendingFrames = [];
-    pending.forEach((frame) => this.dispatchFrame(frame));
   }
 
   private closeSocket(): void {
     this.transport.close();
     this.connected = false;
-    this.replaying = false;
-    this.pendingFrames = [];
   }
 
   private scheduleReconnect(delayMs: number): void {
@@ -209,19 +181,17 @@ class WfNewSocialRealtime {
 
   private reconnectAfterFailure(): void {
     if (!this.started || !loadToken()) return;
-    this.replayFallback();
+    this.replayFromSignal();
     this.attempts += 1;
     const backoff = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** (this.attempts - 1));
     const jitter = Math.floor(Math.random() * RECONNECT_BASE_MS);
     this.scheduleReconnect(backoff + jitter);
   }
 
-  private replayFallback(): void {
-    if (this.fallbackReplayActive || this.allowedEvents.size === 0) return;
-    this.fallbackReplayActive = true;
-    void this.replay()
-      .catch((error) => console.warn('[wfnew-social-realtime] fallback replay failed', error))
-      .finally(() => { this.fallbackReplayActive = false; });
+  private replayFromSignal(): void {
+    if (this.allowedEvents.size === 0) return;
+    void this.replaySerialized()
+      .catch((error) => console.warn('[wfnew-social-realtime] signal replay failed', error));
   }
 
   private async openSocket(): Promise<void> {
@@ -238,10 +208,10 @@ class WfNewSocialRealtime {
         throw new Error('SOCIAL_REALTIME_CONFIGURATION_UNAVAILABLE');
       }
       this.allowedEvents = new Set(config.events || []);
-      await this.replay();
+      await this.replaySerialized();
       if (!this.started || generation !== this.generation) return;
-      this.transport.connect(wfNewEndpoints.getCurrentBaseUrl(), config, {
-        authorize: () => this.authorize(),
+      this.transport.connect(config, {
+        authorize: async () => config,
         onSubscribed: () => {
           void this.subscribed(generation).catch((error) => {
             console.warn('[wfnew-social-realtime] cursor replay failed', error);
@@ -252,8 +222,6 @@ class WfNewSocialRealtime {
         onEvent: (event, data) => this.handleEvent(event, data),
         onClose: () => {
           this.connected = false;
-          this.replaying = false;
-          this.pendingFrames = [];
           this.reconnectAfterFailure();
         },
       });

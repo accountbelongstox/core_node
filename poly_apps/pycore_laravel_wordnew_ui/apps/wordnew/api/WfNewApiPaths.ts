@@ -89,6 +89,8 @@ export const WfNewApiPaths = {
   // ---- AI Tools: TTS (AppQyV1AITools.php — prefix app_qy_v1/ai_tools/tts, PUBLIC) ----
   /** Available TTS voices = the Laravel audio library. GET → data.voices = { lang: voice_id }. */
   ttsVoices: p('/ai_tools/tts/voices'),
+  agentArticles: (limit = 100, offset = 0): string =>
+    p(`/ai_tools/articles?category=daily&limit=${limit}&offset=${offset}`),
   recentAgentArticles: (limit = 20): string => p(`/ai_tools/article/worker/recent?limit=${limit}`),
 
   // ---- Sentence audio (book reader on-demand TTS) ----

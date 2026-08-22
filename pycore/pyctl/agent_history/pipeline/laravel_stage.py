@@ -4,12 +4,14 @@ from typing import Any, Dict
 from pycore.pyutils.laravel.article_contract import compose_worker_text_fields
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyctl.agent_history.pipeline.config import get_config
 
 
 _ARTICLE_TYPE = "daily"
 _ARTICLE_SOURCE = "agent_history"
 _ARTICLE_WORKER_API = "/api/app_qy_v1/ai_tools/article/worker"
+_ARTICLE_WORKER_TIMEOUT = 30.0
 
 
 def _parse_worker_response(resp: Any, action: str) -> Dict[str, Any]:
@@ -51,7 +53,6 @@ def upload_to_laravel(
     if not base:
         raise RuntimeError("No active Laravel endpoint available")
 
-    client = laravel_client
     fields = compose_worker_text_fields(article, raw_text)
 
     payload = {
@@ -71,10 +72,11 @@ def upload_to_laravel(
         "openrouter_model": article.get("model"),
     }
     
-    resp = client.post(
+    resp = laravel_client.post(
         f"{_ARTICLE_WORKER_API}/submit",
+        base_url=base,
         json=payload,
-        timeout=30,
+        timeout=_ARTICLE_WORKER_TIMEOUT,
     )
 
     data = _parse_worker_response(resp, "upload")
@@ -92,14 +94,14 @@ def upload_to_laravel(
 
 def replace_audio_on_laravel(
     record: Dict[str, Any],
-    audio: Dict[str, Any],
+    audio_bytes: bytes,
 ) -> Dict[str, Any]:
     """Replace the published audio of an already-uploaded agent-history article.
 
     Laravel stores article audio at the deterministic <article_id>.mp3 path,
     so the replacement keeps the public audio_url stable; only the bytes and
-    the provenance metadata move. Targets the Laravel record by
-    laravel_article_id, falling back to the record's reading date.
+    the provenance metadata move. Targets the Laravel record by its stored
+    Laravel id or the stable Pycore source-record identity.
     """
     base = laravel_endpoint_manager.resolve()
     if not base:
@@ -107,25 +109,27 @@ def replace_audio_on_laravel(
 
     payload = {
         "article_id": record.get("laravel_article_id"),
-        "reading_date": str(record.get("created_at") or "")[:10],
-        "audio_base64": audio.get("audio_base64"),
-        "tts_engine": audio.get("engine"),
-        "tts_model": audio.get("model"),
-        "tts_chunked": bool(audio.get("chunked")),
+        "source_record_id": record.get("id"),
+        "tts_engine": record.get("tts_engine") or "local",
+        "tts_model": record.get("tts_model"),
+        "tts_chunked": 1 if record.get("tts_chunked") else 0,
     }
-    if not payload["article_id"] and not payload["reading_date"]:
-        raise RuntimeError("record has neither laravel_article_id nor a reading date")
-    if not payload["audio_base64"]:
+    if not payload["article_id"] and not payload["source_record_id"]:
+        raise RuntimeError("record has neither laravel_article_id nor source identity")
+    if not audio_bytes:
         raise RuntimeError("empty replacement audio")
 
-    resp = laravel_client.post(
+    data = laravel_progress_uploader.upload(
         f"{_ARTICLE_WORKER_API}/replace-audio",
-        json=payload,
-        timeout=30,
+        audio_bytes,
+        base_url=base,
+        params=payload,
     )
-    data = _parse_worker_response(resp, "audio replace")
     return {
         "article_id": data.get("article_id"),
         "audio_url": data.get("audio_url"),
-        "audio_status": "ready",
+        "audio_status": "finalizing" if data.get("writeback_pending") else "ready",
+        "result_sha256": data.get("result_sha256"),
+        "writeback_pending": bool(data.get("writeback_pending")),
+        "idempotent": bool(data.get("idempotent")),
     }

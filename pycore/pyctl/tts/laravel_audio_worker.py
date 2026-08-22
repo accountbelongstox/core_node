@@ -35,15 +35,15 @@ Laravel typed pull/accept/result contract
                variant_key?, accent?, gender?, source?, voice_type?,
                provider?, error?}
 
-  The completed global-task result ALSO carries audio_base64 (the Laravel
-  task processors ingest it idempotently, fill-missing), so the audio lands
-  even when a domain report endpoint cannot be addressed.
+  The completed global-task result carries audio_base64 only when a domain
+  report endpoint cannot be addressed. A successful domain upload is the
+  durable audio step; the result then carries identity and provenance only.
 
 ------------------------------------------------------------------------------
 Architecture (persistent worker kernel)
 ------------------------------------------------------------------------------
-  * Singleton per lane on top of BaseLaravelWorkerService (result upload with
-    retry + circuit breaker).
+  * Singleton per lane on top of BaseLaravelWorkerService, plus one shared
+    durable delivery outbox for domain uploads, terminal results, and history.
   * Typed pull or the compatibility accept_task() entry records the task
     type/endpoint, pushes it into ONE shared ordered heap, and starts ONE drain
     (non-reentrant via a THREAD_BUS signal). Serial engines drain on one lane,
@@ -64,6 +64,7 @@ import os
 import shutil
 import time
 from collections import deque
+from functools import partial
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
@@ -80,6 +81,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 # Unified pycore->Laravel HTTP gateway (times + logs + records every request).
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
     TTS_SENTENCE_WORKER_CONCURRENCY,
@@ -90,7 +92,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_TYPES_BY_KEY,
     QUEUE_CENTER_DIFF_DELIVERY,
-    queue_consumer_slice_limit,
+    http_transfer_contract,
     task_execution_type,
     task_types_for_claimant,
 )
@@ -114,21 +116,18 @@ from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.audio_task_queue import AudioTaskQueue
+from pycore.pyutils.tts.audio_delivery_outbox import (
+    AUDIO_DELIVERY_PROCESS_ID,
+    audio_delivery_outbox,
+)
 
 
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #
-# Report uploads carry a small MP3; give them room (retired-worker value).
-_REPORT_TIMEOUT = 60
-
-# Hard caps so a stuck engine fails the task and frees the lane instead of
-# wedging the cycle thread forever (_cycle_signal would never clear otherwise).
-_TASK_TIMEOUT_DEFAULT_SECONDS = 300.0
-_TASK_TIMEOUT_MAX_SECONDS = 900.0
-_TASK_TIMEOUT_GRACE_SECONDS = 30.0
-# Bound for ONE parallel synth-lane wait (map_bus_tasks timeout).
-_SYNTH_LANE_TIMEOUT_SECONDS = 300.0
+_OUTBOX_BATCH_LIMIT = 32
+_OUTBOX_PARALLEL_LIMIT = 4
+_OUTBOX_IDLE_WAIT_SECONDS = 15.0
 
 # TTL for the cached engine probe (tts_status() probes EVERY engine; far too
 # expensive per task). Retired-worker value.
@@ -137,10 +136,6 @@ _ENGINE_PROBE_TTL_S = 60.0
 _SENTENCE_CONCURRENCY_LIMIT = max(
     1,
     int(QUEUE_CENTER_DIFF_DELIVERY["consumer_batch_limits"]["sentence_audio"]),
-)
-_SENTENCE_TASK_TIMEOUT_SECONDS = max(
-    1,
-    int(QUEUE_CENTER_DIFF_DELIVERY["consumer_task_timeout_seconds"]["sentence_audio"]),
 )
 _UPLOAD_RETRY_INITIAL_SECONDS = max(
     1.0,
@@ -198,10 +193,10 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     }
 
 
-def _run_single_claimed(payload: Dict[str, Any]) -> bool:
-    """Run ONE claimed task on a bus thread (bounded by the caller's timeout)."""
+def _run_audio_delivery(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Deliver one durable outbox row on a shared task-group lane."""
     worker = payload["worker"]
-    return bool(worker._process_claimed(payload["task"]))
+    return worker._deliver_outbox_row(payload["record"])
 
 
 class BaseLaravelAudioWorker(BaseLaravelWorkerService):
@@ -213,7 +208,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
       the shared ordered heap -> start ONE background drain cycle (skipped
       while the previous cycle runs) -> drain by queue order (one serial lane
       or bounded parallel lanes) -> per task: cache check -> synthesize ->
-      validate -> domain report upload -> global task result.
+      validate -> durable cache/outbox. Independent delivery task groups send
+      domain reports and global results without blocking synthesis lanes.
     """
 
     # ---- lane config (overridden by the concrete subclasses) ----
@@ -232,8 +228,6 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
     CONCURRENCY_LIMIT = 8
-    TASK_TIMEOUT_MIN_SECONDS = 0
-    BOUNDED_PROCESSING = True
     PROGRESS_EVENTS_ENABLED = False
 
     def __init__(self, laravel_api_url: str = ""):
@@ -258,6 +252,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
         self._cycle_signal = f"laravel_audio_worker.cycle_running.{self.LANE}"
         THREAD_BUS.signal(self._cycle_signal, False)
+        self._outbox_signal = f"laravel_audio_worker.outbox_running.{self.LANE}"
+        THREAD_BUS.signal(self._outbox_signal, False)
 
         # Engine probe cache (60s TTL) — see _planned_engine().
         self._engine_probe_cache: Optional[str] = None
@@ -270,6 +266,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         self._processing = 0
         self._current_tasks: Dict[Any, Dict[str, Any]] = {}
         self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
+        self._event_revision = 0
         self._last_cycle_summary: Dict[str, Any] = {}
         # Throttle marker for the idle event (epoch seconds of the last one).
         self._last_idle_event_ts = 0.0
@@ -279,6 +276,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         self._cache_dir = str(get_app_cache_dir() / "sentence_audio")
 
         self._initialized = True
+        self._start_outbox_drain()
         ColorPrint.green(
             f"{self._log_prefix} Service initialized (worker_id={self.worker_id}, "
             f"enabled={assist_capability_enabled(self.ASSIST_CAPABILITY)})"
@@ -304,16 +302,15 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     def _pull_capacity(self) -> int:
         concurrency, _engine = self._effective_concurrency()
-        slice_limit = queue_consumer_slice_limit(self.QUEUE_KEY)
-        reserve = max(0, int(QUEUE_CENTER_DIFF_DELIVERY.get("head_reserve") or 0))
-        target = max(concurrency, concurrency + max(1, slice_limit) - reserve)
-        return max(0, target - self._queue.active_count())
+        return max(0, concurrency - self._queue.active_count())
 
     def _diff_pull_capacity(self) -> int:
         concurrency, _engine = self._effective_concurrency()
-        slice_limit = queue_consumer_slice_limit(self.QUEUE_KEY)
-        target = concurrency + max(1, slice_limit)
-        return max(0, target - self._queue.active_count())
+        return max(0, concurrency - self._queue.active_count())
+
+    def _lease_capacity(self) -> int:
+        concurrency, _engine = self._effective_concurrency()
+        return concurrency
 
     def _is_enabled(self) -> bool:
         """Lane enable state: the persisted assist capability (UI toggle).
@@ -427,6 +424,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             "kind": kind,
             "detail": (detail or "")[:240],
         }
+        self._event_revision += 1
+        entry["id"] = self._event_revision
         if info:
             entry["task_id"] = info.get("task_id")
             entry["task_display_id"] = self._display_task_id(info.get("task_id"))
@@ -452,6 +451,16 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 )
             if info.get("current_provider"):
                 entry["current_provider"] = info.get("current_provider")
+            if info.get("upload_transferred_bytes") is not None:
+                entry["upload_transferred_bytes"] = int(
+                    info.get("upload_transferred_bytes") or 0
+                )
+                entry["upload_total_bytes"] = int(
+                    info.get("upload_total_bytes") or 0
+                )
+                entry["upload_progress"] = float(
+                    info.get("upload_progress") or 0.0
+                )
             if self.LANE == "word":
                 entry["backend_progress_current"] = int(
                     info.get("backend_progress_current") or 0
@@ -531,6 +540,144 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         return changed
 
     @serialized_method
+    def _mark_qwen_progress(
+        self,
+        task_id: Any,
+        attempt: Optional[int],
+        progress: int,
+        value: Dict[str, Any],
+    ) -> bool:
+        current = self._current_tasks.get(self._current_task_key(task_id, attempt))
+        if current is None:
+            return False
+        revision = int(value.get("progress_revision") or 0)
+        changed = (
+            int(current.get("qwen_progress_revision") or 0) != revision
+            or int(current.get("progress") or 0) != progress
+        )
+        current["stage"] = "synthesizing"
+        current["progress"] = progress
+        current["current_provider"] = QWEN3TTS_ENGINE
+        current["qwen_progress_revision"] = revision
+        current["qwen_progress"] = int(value.get("progress") or 0)
+        current["qwen_progress_total"] = int(value.get("progress_total") or 0)
+        current["qwen_progress_phase"] = str(value.get("progress_phase") or "")
+        return changed
+
+    def _report_qwen_progress(
+        self,
+        info: Dict[str, Any],
+        value: Dict[str, Any],
+    ) -> None:
+        completed = max(0, int(value.get("progress") or 0))
+        total = max(0, int(value.get("progress_total") or 0))
+        base = int(GLOBAL_TASK_PROGRESS_STAGES["synthesizing"])
+        ceiling = int(GLOBAL_TASK_PROGRESS_STAGES["uploading"]) - 1
+        progress = (
+            base + round((ceiling - base) * min(1.0, completed / total))
+            if total > 0
+            else base
+        )
+        phase = str(value.get("progress_phase") or value.get("status") or "queued")
+        info["stage"] = "synthesizing"
+        info["progress"] = progress
+        info["progress_total"] = _PROGRESS_TOTAL
+        info["current_provider"] = QWEN3TTS_ENGINE
+        info["qwen_progress_revision"] = int(value.get("progress_revision") or 0)
+        info["qwen_progress"] = completed
+        info["qwen_progress_total"] = total
+        info["qwen_progress_phase"] = phase
+        changed = self._mark_qwen_progress(
+            info.get("task_id"),
+            info.get("attempt"),
+            progress,
+            value,
+        )
+        if not changed:
+            return
+        self._log_event(
+            "progress",
+            f"qwen phase={phase} chunks={completed}/{total}",
+            info,
+            mirror=self.LANE != "word",
+        )
+        self._post_result(
+            info.get("task_id"),
+            "processing",
+            result={
+                "stage": "synthesizing",
+                "engine": QWEN3TTS_ENGINE,
+                "qwen_progress_revision": int(value.get("progress_revision") or 0),
+                "qwen_progress": completed,
+                "qwen_progress_total": total,
+                "qwen_progress_phase": phase,
+            },
+            progress=progress,
+            attempts=1,
+            attempt=info.get("attempt"),
+        )
+
+    @serialized_method
+    def _mark_upload_progress(
+        self,
+        task_id: Any,
+        attempt: Optional[int],
+        progress: int,
+        record: Dict[str, Any],
+        provider: str,
+    ) -> bool:
+        current = self._current_tasks.get(self._current_task_key(task_id, attempt))
+        if current is None:
+            return False
+        transferred = int(record.get("transferred_bytes") or 0)
+        changed = int(current.get("upload_transferred_bytes") or 0) != transferred
+        current["stage"] = "uploading"
+        current["progress"] = progress
+        current["current_provider"] = provider
+        current["upload_transferred_bytes"] = transferred
+        current["upload_total_bytes"] = int(record.get("total_bytes") or 0)
+        current["upload_progress"] = float(record.get("progress") or 0.0)
+        return changed
+
+    def _report_upload_progress(
+        self,
+        info: Dict[str, Any],
+        provider: str,
+        record: Dict[str, Any],
+    ) -> None:
+        upload_progress = min(100.0, max(0.0, float(record.get("progress") or 0.0)))
+        transferred_bytes = int(record.get("transferred_bytes") or 0)
+        previous_transferred_bytes = int(info.get("upload_transferred_bytes") or 0)
+        base = int(GLOBAL_TASK_PROGRESS_STAGES["uploading"])
+        ceiling = int(GLOBAL_TASK_PROGRESS_STAGES["finalizing"]) - 1
+        progress = base + round((ceiling - base) * upload_progress / 100.0)
+        info["stage"] = "uploading"
+        info["progress"] = progress
+        info["progress_total"] = _PROGRESS_TOTAL
+        info["current_provider"] = provider
+        info["upload_transferred_bytes"] = transferred_bytes
+        info["upload_total_bytes"] = int(record.get("total_bytes") or 0)
+        info["upload_progress"] = upload_progress
+        current_changed = self._mark_upload_progress(
+            info.get("task_id"),
+            info.get("attempt"),
+            progress,
+            record,
+            provider,
+        )
+        changed = current_changed or transferred_bytes != previous_transferred_bytes
+        if changed:
+            self._log_event(
+                "progress",
+                (
+                    f"upload={upload_progress:g}% "
+                    f"bytes={info['upload_transferred_bytes']}/{info['upload_total_bytes']}"
+                ),
+                info,
+                mirror=self.LANE != "word",
+            )
+
+    @serialized_method
     def _mark_backend_result(
         self,
         task_id: Any,
@@ -584,11 +731,33 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         return {
             "processing": self._processing,
             "current_tasks": current_tasks,
-            "events": [dict(event) for event in list(self._events)[:40]],
+            "event_count": len(self._events),
+            "event_revision": self._event_revision,
             "total_claimed": self._total_claimed,
             "total_succeeded": self._total_succeeded,
             "total_failed": self._total_failed,
             "last_cycle": dict(self._last_cycle_summary),
+        }
+
+    def get_event_page(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
+        """Return one newest-first worker-event page without bloating status."""
+        normalized_page = max(1, int(page or 1))
+        normalized_size = min(40, max(5, int(page_size or 20)))
+        events = list(self._events)
+        total = len(events)
+        page_count = max(1, (total + normalized_size - 1) // normalized_size)
+        normalized_page = min(normalized_page, page_count)
+        offset = (normalized_page - 1) * normalized_size
+        return {
+            "items": [
+                dict(event)
+                for event in events[offset:offset + normalized_size]
+            ],
+            "page": normalized_page,
+            "page_size": normalized_size,
+            "pages": page_count,
+            "total": total,
+            "revision": self._event_revision,
         }
 
     # -------------------- inflight guard --------------------
@@ -597,20 +766,14 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     def _claim_inflight(self, task: Dict[str, Any]) -> bool:
         """Mark one task in-flight; False when a duplicate is already running.
 
-        Entries carry a deadline (now + task.timeout_seconds, default
-        INFLIGHT_DEFAULT_TTL) and expired entries are purged before the check,
-        so a re-offered task (after Laravel's lease timeout) can be claimed
-        again even if an earlier executor hung (base pattern).
+        Audio work owns its entry until the minimum task step releases it. A
+        fixed deadline can expire during valid Qwen or upload progress and run
+        the same idempotency key concurrently inside one Pycore process.
         """
-        now = time.monotonic()
-        expired = [tid for tid, dl in list(self._inflight.items()) if dl <= now]
-        for tid in expired:
-            self._inflight.pop(tid, None)
         task_key = self._task_execution_key(task)
         if task_key in self._inflight:
             return False
-        ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
-        self._inflight[task_key] = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
+        self._inflight[task_key] = float("inf")
         return True
 
     @serialized_method
@@ -761,6 +924,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 client_job_id=(
                     f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"
                 ),
+                progress_callback=partial(self._report_qwen_progress, info),
             )
             provider = result.get("engine") or QWEN3TTS_ENGINE
             if not result.get("success"):
@@ -790,6 +954,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 client_job_id=(
                     f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"
                 ),
+                progress_callback=partial(self._report_qwen_progress, info),
             )
             provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
             if not result.get("success"):
@@ -806,12 +971,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
                 ok_cache, _why = validate_mp3(cache_path)
                 if ok_cache:
-                    os.makedirs(self._tmp_dir, exist_ok=True)
-                    out_path = os.path.join(
-                        self._tmp_dir, f"{info.get('task_id')}_{info.get('md5') or 'audio'}.mp3"
-                    )
-                    shutil.copy2(cache_path, out_path)
-                    return True, out_path, planned_engine, "", True
+                    return True, cache_path, planned_engine, "", False
 
         os.makedirs(self._tmp_dir, exist_ok=True)
         out_path = os.path.join(
@@ -834,6 +994,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             return False, out_path, provider, f"invalid audio from {provider}: {why}", True
         if kind == "word":
             save_to_cache(info["word"], language, provider, out_path)
+            cache_path = get_cache_path(info["word"], language, provider)
+            if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+                try:
+                    os.remove(out_path)
+                except OSError:
+                    pass
+                return True, cache_path, provider, "", False
         return True, out_path, provider, "", True
 
     # -------------------- domain report endpoints (file transport) --------------------
@@ -876,26 +1043,33 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         error: str = "",
         audio_path: str = "",
     ) -> Tuple[bool, str]:
-        """POST this lane's report endpoint (multipart upload on success,
-        fields-only on failure). Returns ``(accepted, detail)``; never raises."""
+        """POST one report through the shared durable offset upload contract."""
         fields = self._report_fields(info, success, provider, error)
         report_base_url = self._task_base_url(info.get("task_id"))
         try:
             if success:
-                with open(audio_path, "rb") as fh:
-                    resp = laravel_client.post(
-                        self.REPORT_PATH,
-                        base_url=report_base_url,
-                        data=fields,
-                        files={"audio": (os.path.basename(audio_path), fh, "audio/mpeg")},
-                        timeout=_REPORT_TIMEOUT,
-                    )
+                audio_bytes = Path(audio_path).read_bytes()
+                receipt = laravel_progress_uploader.upload(
+                    self.REPORT_PATH,
+                    audio_bytes,
+                    base_url=report_base_url,
+                    params=fields,
+                    progress_callback=partial(
+                        self._report_upload_progress,
+                        info,
+                        provider,
+                    ),
+                )
+                return (
+                    bool(receipt.get("upload_complete")),
+                    "ok" if receipt.get("upload_complete") else "upload incomplete",
+                )
             else:
                 resp = laravel_client.post(
                     self.REPORT_PATH,
                     base_url=report_base_url,
                     data=fields,
-                    timeout=_REPORT_TIMEOUT,
+                    activity_timeout=http_transfer_contract(),
                 )
         except Exception as e:
             return False, self._short_err(e)
@@ -907,7 +1081,12 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             return False, "unknown task on server (404)"
         return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
-    def _upload_report(self, info: Dict[str, Any], provider: str, audio_path: str) -> Optional[Tuple[bool, str]]:
+    def _upload_report(
+        self,
+        info: Dict[str, Any],
+        provider: str,
+        audio_path: str,
+    ) -> Optional[Tuple[bool, str]]:
         """Upload the MP3 to the domain report endpoint.
 
         Returns ``(ok, detail)``, or None when the lane has no addressable
@@ -915,10 +1094,20 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         the audio then travels ONLY inside the global task result.
         """
         if self.LANE == "sentence":
-            return self._post_report(info, True, provider, audio_path=audio_path)
+            return self._post_report(
+                info,
+                True,
+                provider,
+                audio_path=audio_path,
+            )
         if info["kind"] != "word" or not info.get("dict_row_id"):
             return None
-        return self._post_report(info, True, provider, audio_path=audio_path)
+        return self._post_report(
+            info,
+            True,
+            provider,
+            audio_path=audio_path,
+        )
 
     def _set_task_progress(
         self,
@@ -973,90 +1162,313 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             attempt=info.get("attempt"),
         )
 
-    def _upload_report_until_accepted(
+    @staticmethod
+    def _outbox_retry_delay(attempts: int) -> float:
+        exponent = max(0, min(int(attempts) - 1, 8))
+        return min(_UPLOAD_RETRY_MAX_SECONDS, _UPLOAD_RETRY_INITIAL_SECONDS * (2 ** exponent))
+
+    @staticmethod
+    def _terminal_report_error(detail: str) -> bool:
+        normalized = str(detail or "").lower()
+        return normalized.startswith("server validation rejected") or normalized.startswith(
+            "unknown task on server"
+        ) or normalized.startswith("http 4")
+
+    def _stage_delivery(
         self,
         info: Dict[str, Any],
         provider: str,
         audio_path: str,
-    ) -> Tuple[bool, str]:
-        """Retry the durable backend audio upload until accepted or shutdown."""
-        attempt = 0
-        delay = _UPLOAD_RETRY_INITIAL_SECONDS
-        while not THREAD_BUS.is_shutdown_requested():
-            attempt += 1
-            uploaded = self._upload_report(info, provider, audio_path)
-            if uploaded is None:
-                info["backend_uploaded"] = True
-                return True, "not_required"
-            if uploaded[0]:
-                info["backend_uploaded"] = True
+        local_task_id: Optional[str],
+    ) -> Dict[str, Any]:
+        delivery_id = audio_delivery_outbox.delivery_id(
+            self.LANE,
+            info.get("task_id"),
+            int(info.get("attempt") or 0),
+        )
+        cache_root = Path(get_app_cache_dir()).resolve()
+        source_path = Path(audio_path).resolve()
+        source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        retained_audio_path = (
+            cache_root
+            / "audio_delivery"
+            / self.LANE
+            / hashlib.sha1(delivery_id.encode("utf-8")).hexdigest()
+            / f"{source_sha256}.mp3"
+        )
+        retained_audio_path.parent.mkdir(parents=True, exist_ok=True)
+        if not retained_audio_path.is_file():
+            shutil.copy2(str(source_path), str(retained_audio_path))
+        record = {
+            "delivery_id": delivery_id,
+            "lane": self.LANE,
+            "task_id": info.get("task_id"),
+            "task_type": info.get("task_type") or self.QUEUE_KEY,
+            "attempt": int(info.get("attempt") or 0),
+            "base_url": self._task_base_url(info.get("task_id")),
+            "provider": provider,
+            "audio_path": str(retained_audio_path),
+            "audio_sha256": source_sha256,
+            "info": dict(info),
+            "local_task_id": local_task_id or "",
+            "local_process_id": AUDIO_DELIVERY_PROCESS_ID,
+            "status": "pending",
+            "domain_uploaded": False,
+            "domain_delivery_finished": False,
+            "result_accepted": False,
+            "history_recorded": False,
+        }
+
+        return audio_delivery_outbox.put(record)
+
+    def _start_outbox_drain(self) -> None:
+        if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._outbox_signal, False):
+            return
+        THREAD_BUS.signal(self._outbox_signal, True)
+        try:
+            start_bus_task(
+                self._drain_delivery_outbox,
+                thread_name=f"{self.LANE}-audio-delivery-outbox",
+            )
+        except Exception as exc:  # noqa: BLE001
+            THREAD_BUS.signal(self._outbox_signal, False)
+            ColorPrint.red(f"{self._log_prefix} outbox start error: {exc}")
+
+    def retry_delivery_outbox(self) -> Dict[str, Any]:
+        retried = audio_delivery_outbox.retry_dead_letters(self.LANE)
+        self._start_outbox_drain()
+        return {"success": True, "retried": retried, "outbox": audio_delivery_outbox.stats(self.LANE)}
+
+    def _drain_delivery_outbox(self) -> None:
+        try:
+            while not THREAD_BUS.is_shutdown_requested():
+                stats = audio_delivery_outbox.stats(self.LANE)
+                if int(stats.get("pending") or 0) <= 0:
+                    return
+                ready = audio_delivery_outbox.list_ready(self.LANE, _OUTBOX_BATCH_LIMIT)
+                if not ready:
+                    time.sleep(_OUTBOX_IDLE_WAIT_SECONDS)
+                    continue
+                lane_count = min(_OUTBOX_PARALLEL_LIMIT, len(ready))
+                map_bus_tasks(
+                    _run_audio_delivery,
+                    [{"worker": self, "record": row} for row in ready],
+                    max_workers=lane_count,
+                    thread_prefix=f"{self.LANE.title()}AudioDelivery",
+                )
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.red(f"{self._log_prefix} outbox cycle error: {exc}")
+        finally:
+            THREAD_BUS.signal(self._outbox_signal, False)
+            if (
+                not THREAD_BUS.is_shutdown_requested()
+                and int(audio_delivery_outbox.stats(self.LANE).get("pending") or 0) > 0
+            ):
+                self._start_outbox_drain()
+
+    def _deliver_outbox_row(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        delivery_id = str(record.get("delivery_id") or "")
+        owner = f"{AUDIO_DELIVERY_PROCESS_ID}:{delivery_id}:{time.monotonic_ns()}"
+        claimed = audio_delivery_outbox.claim(delivery_id, owner)
+        if not claimed:
+            return {"delivery_id": delivery_id, "processed": False}
+
+        info = dict(claimed.get("info") or {})
+        task_id = claimed.get("task_id")
+        provider = str(claimed.get("provider") or "")
+        audio_path = str(claimed.get("audio_path") or "")
+        task_type = str(claimed.get("task_type") or self.QUEUE_KEY)
+        base_url = str(claimed.get("base_url") or self.api_url)
+        attempts = int(claimed.get("delivery_attempts") or 0) + 1
+        retry_delay = self._outbox_retry_delay(attempts)
+        audio_delivery_outbox.patch(
+            delivery_id,
+            {"delivery_attempts": attempts, "last_attempt_at": time.time()},
+            owner=owner,
+        )
+        self._remember_task_types(
+            [{"task_id": task_id, "task_type": task_type}],
+            base_url,
+        )
+
+        if not audio_path or not os.path.isfile(audio_path):
+            error = "cached audio is missing"
+            audio_delivery_outbox.mark_dead_letter(delivery_id, owner, error)
+            self._append_delivery_failure_history(
+                info,
+                provider,
+                audio_path,
+                error,
+                delivery_id,
+            )
+            return {"delivery_id": delivery_id, "processed": True, "success": False}
+
+        domain_uploaded = bool(claimed.get("domain_uploaded"))
+        domain_delivery_finished = bool(
+            claimed.get("domain_delivery_finished", domain_uploaded)
+        )
+        domain_error = str(claimed.get("domain_upload_error") or "")
+        if not domain_delivery_finished:
+            uploaded = self._upload_report(
+                info,
+                provider,
+                audio_path,
+            )
+            if uploaded is not None and not uploaded[0]:
+                error = uploaded[1]
+                if self._terminal_report_error(error):
+                    domain_delivery_finished = True
+                    domain_error = error
+                    audio_delivery_outbox.patch(
+                        delivery_id,
+                        {
+                            "domain_delivery_finished": True,
+                            "domain_uploaded": False,
+                            "domain_upload_error": error,
+                            "last_error": "",
+                        },
+                        owner=owner,
+                    )
+                    self._log_event(
+                        "upload_terminal",
+                        f"domain upload unavailable; global result fallback: {error}",
+                        info,
+                        mirror=self.LANE != "word",
+                    )
+                else:
+                    audio_delivery_outbox.release(
+                        delivery_id,
+                        owner,
+                        error=error,
+                        retry_at=time.time() + retry_delay,
+                    )
+                    self._log_event(
+                        "upload_retry",
+                        f"attempt={attempts} retry_in={retry_delay:.0f}s error={error}",
+                        info,
+                    )
+                    return {"delivery_id": delivery_id, "processed": True, "success": False}
+            else:
+                domain_delivery_finished = True
+                domain_uploaded = uploaded is not None
+                domain_error = ""
+                audio_delivery_outbox.patch(
+                    delivery_id,
+                    {
+                        "domain_delivery_finished": True,
+                        "domain_uploaded": domain_uploaded,
+                        "domain_upload_error": "",
+                        "last_error": "",
+                    },
+                    owner=owner,
+                )
                 self._log_event(
-                    "upload_done",
-                    f"backend accepted audio (attempt={attempt})",
+                    "upload_done" if domain_uploaded else "upload_skipped",
+                    (
+                        f"backend accepted audio (attempt={attempts})"
+                        if domain_uploaded
+                        else "domain upload is not required; using global result"
+                    ),
                     info,
                     mirror=self.LANE != "word",
                 )
-                return True, uploaded[1]
-            info["backend_uploaded"] = False
-            self._log_event(
-                "upload_retry",
-                f"attempt={attempt} retry_in={delay:.0f}s error={uploaded[1]}",
-                info,
-            )
-            self._report_progress(
-                info,
-                "uploading",
-                provider,
-            )
-            time.sleep(delay)
-            delay = min(_UPLOAD_RETRY_MAX_SECONDS, delay * 2)
-        return False, "shutdown requested before backend upload completed"
 
-    def _post_completed_until_accepted(
-        self,
-        info: Dict[str, Any],
-        result: Dict[str, Any],
-        provider: str,
-    ) -> bool:
-        """Retry the terminal Queue Center result until accepted or ownership is lost."""
-        task_id = info.get("task_id")
-        delay = _UPLOAD_RETRY_INITIAL_SECONDS
-        attempt = 0
-        while not THREAD_BUS.is_shutdown_requested():
-            attempt += 1
-            if self._post_result(
+        info["backend_uploaded"] = domain_uploaded
+        if domain_error:
+            info["backend_upload_error"] = domain_error
+
+        result_accepted = bool(claimed.get("result_accepted"))
+        if not result_accepted:
+            result = self._build_success_result(
+                info,
+                provider,
+                audio_path,
+                include_audio=not (
+                    domain_uploaded
+                    and str(info.get("kind") or "") in ("word", "sentence")
+                ),
+            )
+            posted = self._post_result(
                 task_id,
                 "completed",
                 result=result,
                 progress=100,
+                attempts=1,
                 attempt=info.get("attempt"),
-            ):
-                info["backend_result_accepted"] = True
-                self._mark_backend_result(task_id, True, info.get("attempt"))
-                self._set_task_progress(info, "completed", provider)
-                return True
-            info["backend_result_accepted"] = False
-            self._mark_backend_result(task_id, False, info.get("attempt"))
-            if str(task_id) not in self._task_type_by_id:
-                self._log_event(
-                    "result_reassigned",
-                    "completed result stopped because task ownership changed",
-                    info,
+            )
+            if not posted:
+                info["backend_result_accepted"] = False
+                self._mark_backend_result(task_id, False, info.get("attempt"))
+                if str(task_id) not in self._task_type_by_id:
+                    error = "completed result rejected because task ownership changed"
+                    audio_delivery_outbox.mark_dead_letter(delivery_id, owner, error)
+                    self._append_delivery_failure_history(
+                        info,
+                        provider,
+                        audio_path,
+                        error,
+                        delivery_id,
+                    )
+                    return {"delivery_id": delivery_id, "processed": True, "success": False}
+                audio_delivery_outbox.release(
+                    delivery_id,
+                    owner,
+                    error="Laravel result endpoint unavailable",
+                    retry_at=time.time() + retry_delay,
                 )
-                return False
-            self._log_event(
-                "result_retry",
-                f"attempt={attempt} retry_in={delay:.0f}s",
-                info,
+                return {"delivery_id": delivery_id, "processed": True, "success": False}
+            result_accepted = True
+            audio_delivery_outbox.patch(
+                delivery_id,
+                {"result_accepted": True, "last_error": ""},
+                owner=owner,
             )
-            self._report_progress(
+
+        info["backend_uploaded"] = domain_uploaded
+        info["backend_result_accepted"] = result_accepted
+        self._mark_backend_result(task_id, True, info.get("attempt"))
+        self._set_task_progress(info, "completed", provider)
+        history_recorded = bool(claimed.get("history_recorded"))
+        if not history_recorded:
+            history_recorded = self._append_history(
                 info,
-                "finalizing",
                 provider,
+                audio_path,
+                delivery_id,
             )
-            time.sleep(delay)
-            delay = min(_UPLOAD_RETRY_MAX_SECONDS, delay * 2)
-        return False
+            if not history_recorded:
+                audio_delivery_outbox.release(
+                    delivery_id,
+                    owner,
+                    error="local task history is unavailable",
+                    retry_at=time.time() + retry_delay,
+                )
+                return {"delivery_id": delivery_id, "processed": True, "success": False}
+            audio_delivery_outbox.patch(
+                delivery_id,
+                {"history_recorded": True, "last_error": ""},
+                owner=owner,
+            )
+        audio_delivery_outbox.complete(delivery_id, owner)
+        local_task_id = str(claimed.get("local_task_id") or "")
+        if str(claimed.get("local_process_id") or "") == AUDIO_DELIVERY_PROCESS_ID:
+            self._finish_local_task(
+                local_task_id or None,
+                True,
+                provider=provider,
+                audio_path=audio_path,
+                text=(info.get("text") or "")[:120],
+                language=info.get("language") or "",
+            )
+        if self.LANE == "word":
+            word_audio_backend_progress.record_result(True)
+        self._log_event(
+            "delivery_done",
+            f"via {provider}; backend_upload={'ok' if domain_uploaded else 'fallback'}; result=ok",
+            info,
+            mirror=self.LANE != "word",
+        )
+        return {"delivery_id": delivery_id, "processed": True, "success": True}
 
     def _report_failure(self, info: Optional[Dict[str, Any]], provider: str, error: str) -> None:
         """Best-effort domain failure report so the canonical row fails fast
@@ -1078,16 +1490,24 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     # -------------------- global task result --------------------
 
-    def _build_success_result(self, info: Dict[str, Any], provider: str, audio_path: str) -> Dict[str, Any]:
-        """Completed-result body; carries audio_base64 so the Laravel task
-        processor can ingest the audio idempotently (fill-missing) even when
-        the domain report endpoint was not addressable."""
-        with open(audio_path, "rb") as fh:
-            audio_base64 = base64.b64encode(fh.read()).decode("ascii")
+    def _build_success_result(
+        self,
+        info: Dict[str, Any],
+        provider: str,
+        audio_path: str,
+        include_audio: bool = True,
+    ) -> Dict[str, Any]:
+        """Build the minimum completed-result step after durable audio delivery."""
+        audio_base64 = ""
+
+        if include_audio:
+            with open(audio_path, "rb") as fh:
+                audio_base64 = base64.b64encode(fh.read()).decode("ascii")
 
         if self.LANE == "sentence":
             result: Dict[str, Any] = {
                 "audio_base64": audio_base64,
+                "domain_audio_persisted": not include_audio,
                 "mime": "audio/mpeg",
                 "provider": provider,
                 "source": "tts",
@@ -1108,15 +1528,17 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 "provider": provider,
             }
 
+        translation = {
+            "word": info["word"],
+            "md5": info.get("md5") or "",
+            "provider": provider,
+            "accent": info.get("accent") or "unknown",
+        }
+        if include_audio:
+            translation["audio_base64"] = audio_base64
+            translation["audio_mime"] = "audio/mpeg"
         return {
-            "translations": [{
-                "word": info["word"],
-                "md5": info.get("md5") or "",
-                "audio_base64": audio_base64,
-                "audio_mime": "audio/mpeg",
-                "provider": provider,
-                "accent": info.get("accent") or "unknown",
-            }],
+            "translations": [translation],
             "provider": provider,
         }
 
@@ -1136,9 +1558,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             self._release_inflight(task)
 
     def _process_task(self, task: Dict[str, Any]) -> bool:
-        """Synthesize + upload + complete ONE claimed task. Runs on a lane
-        thread (off the heartbeat thread). Any failure -> POST 'failed' so
-        Laravel re-routes/re-pends; nothing is ever silently dropped."""
+        """Synthesize one task and stage its independent durable delivery."""
         task_id = task.get("task_id")
         info: Optional[Dict[str, Any]] = None
         local_id: Optional[str] = None
@@ -1221,43 +1641,21 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     self._finish_local_task(local_id, False, provider=provider, error=err)
                     return False
 
+                delivery = self._stage_delivery(info, provider, audio_path, local_id)
+                task["_delivery_staged"] = True
                 self._report_progress(
                     info,
                     "uploading",
                     provider,
                 )
-                uploaded, detail = self._upload_report_until_accepted(info, provider, audio_path)
-                if not uploaded:
-                    self._report_failure(info, provider, f"audio upload rejected: {detail}")
-                    self._post_result(
-                        task_id,
-                        "failed",
-                        error=f"audio upload failed: {detail}",
-                        attempt=info.get("attempt"),
-                    )
-                    self._log_event("report_reject", detail, info)
-                    self._finish_local_task(local_id, False, provider=provider, error=detail)
-                    return False
-
-                self._report_progress(
-                    info,
-                    "finalizing",
-                    provider,
-                )
-                result = self._build_success_result(info, provider, audio_path)
-                posted = self._post_completed_until_accepted(info, result, provider)
                 self._log_event(
-                    "synth_done",
-                    f"via {provider}; backend_upload=ok; result={'ok' if posted else 'not_accepted'}",
+                    "delivery_queued",
+                    f"via {provider}; delivery_id={delivery.get('delivery_id')}",
                     info,
                     mirror=self.LANE != "word",
                 )
-                self._append_history(info, provider, audio_path)
-                self._finish_local_task(
-                    local_id, True, provider=provider, audio_path=audio_path,
-                    text=(info.get("text") or "")[:120], language=info.get("language") or "",
-                )
-                return posted
+                self._start_outbox_drain()
+                return True
             finally:
                 if cleanup and audio_path:
                     try:
@@ -1340,7 +1738,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         except Exception:  # noqa: BLE001
             pass
 
-    def _append_history(self, info: Dict[str, Any], provider: str, audio_path: str) -> None:
+    def _append_history(
+        self,
+        info: Dict[str, Any],
+        provider: str,
+        audio_path: str,
+        delivery_id: str,
+    ) -> bool:
         """Persist one completed audio record with cache and upload attribution."""
         history_audio_path = audio_path
         if info.get("kind") == "word":
@@ -1354,6 +1758,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         )
         try:
             append_record({
+                "record_id": f"audio-delivery:{delivery_id}",
                 "task_id": info.get("task_id"),
                 "task_type": info.get("task_type") or self.QUEUE_KEY,
                 "worker": "tts_sentence_worker" if self.LANE == "sentence" else "tts_queue_poller",
@@ -1374,8 +1779,52 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     "audio_kind": info.get("kind"),
                     "multi_sentence_audio": tts_orchestrator.engine_chunked(provider),
                     "laravel_audio_uploaded": bool(info.get("backend_uploaded")),
+                    "laravel_audio_upload_error": info.get("backend_upload_error") or "",
                     "laravel_result_accepted": bool(info.get("backend_result_accepted")),
                     "text": (info.get("text") or "")[:120],
+                },
+            })
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _append_delivery_failure_history(
+        self,
+        info: Dict[str, Any],
+        provider: str,
+        audio_path: str,
+        error: str,
+        delivery_id: str,
+    ) -> None:
+        """Persist a non-retryable delivery failure without deleting cached audio."""
+        audio_bytes = (
+            os.path.getsize(audio_path)
+            if audio_path and os.path.exists(audio_path)
+            else 0
+        )
+        if self.LANE == "word":
+            word_audio_backend_progress.record_result(False)
+        try:
+            append_record({
+                "record_id": f"audio-delivery:{delivery_id}",
+                "task_id": info.get("task_id"),
+                "task_type": info.get("task_type") or self.QUEUE_KEY,
+                "worker": "tts_sentence_worker" if self.LANE == "sentence" else "tts_queue_poller",
+                "title": (info.get("text") or "")[:120],
+                "content": info.get("text"),
+                "language": info.get("language"),
+                "success": False,
+                "error": str(error or "")[:500],
+                "detail": {
+                    "provider": provider,
+                    "engine": provider,
+                    "audio_path": audio_path,
+                    "audio_bytes": audio_bytes,
+                    "audio_kind": info.get("kind"),
+                    "multi_sentence_audio": tts_orchestrator.engine_chunked(provider),
+                    "laravel_audio_uploaded": bool(info.get("backend_uploaded")),
+                    "laravel_result_accepted": False,
+                    "delivery_status": "dead_letter",
                 },
             })
         except Exception:  # noqa: BLE001
@@ -1386,6 +1835,19 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     def _log_cycle_task_result(self, task: Dict[str, Any], success: bool) -> None:
         """Write one compact terminal line with canonical backend-table progress."""
         if self.LANE != "word":
+            return
+        if bool(task.get("_delivery_staged")):
+            self._log_event(
+                "delivery_staged",
+                "audio cached; durable Laravel delivery is pending",
+                {
+                    "task_id": task.get("task_id"),
+                    "stage": "uploading",
+                    "progress": int(GLOBAL_TASK_PROGRESS_STAGES["uploading"]),
+                    "progress_total": _PROGRESS_TOTAL,
+                    "current_provider": task.get("_terminal_provider"),
+                },
+            )
             return
         backend_progress = word_audio_backend_progress.record_result(success)
         payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
@@ -1438,8 +1900,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 }
             concurrency, _engine = self._effective_concurrency()
             local_load = self._queue.active_count()
-            slice_limit = queue_consumer_slice_limit(self.QUEUE_KEY)
-            local_capacity = concurrency + max(1, slice_limit)
+            local_capacity = concurrency
             if local_load >= local_capacity:
                 return {
                     "success": False,
@@ -1475,43 +1936,6 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             THREAD_BUS.signal(self._cycle_signal, False)
             ColorPrint.red(f"{self._log_prefix} drain start error: {e}")
 
-    def _task_time_cap(self, task: Dict[str, Any]) -> float:
-        """Hard cap for ONE queued task: the server-side timeout_seconds
-        (bounded to a sane ceiling) plus a small grace for the result upload."""
-        try:
-            server_cap = float((task or {}).get("timeout_seconds") or 0)
-        except (TypeError, ValueError):
-            server_cap = 0.0
-        if server_cap <= 0:
-            server_cap = _TASK_TIMEOUT_DEFAULT_SECONDS
-        server_cap = max(server_cap, float(self.TASK_TIMEOUT_MIN_SECONDS))
-        return min(server_cap, _TASK_TIMEOUT_MAX_SECONDS) + _TASK_TIMEOUT_GRACE_SECONDS
-
-    def _process_claimed_bounded(self, task: Dict[str, Any]) -> bool:
-        """Process ONE queued task on a bus thread under a hard time cap.
-
-        A stuck engine must fail the task and free the lane — an unbounded
-        inline call would wedge the cycle thread and _cycle_signal would never
-        clear, killing the lane until restart."""
-        if not self.BOUNDED_PROCESSING:
-            return self._process_claimed(task)
-        cap = self._task_time_cap(task)
-        try:
-            results = map_bus_tasks(
-                _run_single_claimed,
-                [{"worker": self, "task": task}],
-                max_workers=1,
-                thread_prefix=f"{self.LANE.title()}AudioTask",
-                timeout=cap,
-            )
-        except Exception as e:  # noqa: BLE001 — hard cap or lane failure
-            ColorPrint.red(
-                f"{self._log_prefix} Task exceeded its {cap:.0f}s hard cap "
-                f"({e}); failing it to free the lane"
-            )
-            return False
-        return bool(results and results[0])
-
     def _drop_queued_tasks(self) -> List[Dict[str, Any]]:
         """Pop every queued-but-unstarted heap task for an immediate stop."""
         dropped: List[Dict[str, Any]] = []
@@ -1540,7 +1964,6 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     payloads,
                     max_workers=concurrency,
                     thread_prefix=f"{self.LANE.title()}AudioSynth",
-                    timeout=_SYNTH_LANE_TIMEOUT_SECONDS,
                 )
                 for result in results:
                     processed += int(result.get("processed") or 0)
@@ -1556,7 +1979,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     processed += 1
                     success = False
                     try:
-                        success = self._process_claimed_bounded(task)
+                        success = self._process_claimed(task)
                         if success:
                             succeeded += 1
                         else:
@@ -1625,7 +2048,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             "current_task": current,
             "current_tasks": current_tasks,
             "current_keys": current_keys,
-            "events": state["events"],
+            "event_count": state["event_count"],
+            "event_revision": state["event_revision"],
             "total_claimed": state["total_claimed"],
             "total_succeeded": state["total_succeeded"],
             "total_failed": state["total_failed"],
@@ -1634,6 +2058,10 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             "circuit_open": self._circuit_is_open(),
             "result_5xx_streak": self._result_5xx_streak,
             "initialized": self._initialized,
+            "delivery_outbox_running": bool(
+                THREAD_BUS.get_signal(self._outbox_signal, False)
+            ),
+            "delivery_outbox": audio_delivery_outbox.stats(self.LANE),
         }
         if self.LANE == "word":
             status["backend_progress"] = word_audio_backend_progress.snapshot()
@@ -1687,9 +2115,7 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     STATE_OWNER_NAME = "SentenceAudioWorkerState"
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
     CONCURRENCY_DEFAULT = TTS_SENTENCE_WORKER_CONCURRENCY
-    CONCURRENCY_LIMIT = _SENTENCE_CONCURRENCY_LIMIT
-    TASK_TIMEOUT_MIN_SECONDS = _SENTENCE_TASK_TIMEOUT_SECONDS
-    BOUNDED_PROCESSING = False
+    CONCURRENCY_LIMIT = 1
 
 
 laravel_word_audio_worker = LaravelWordAudioWorker(LARAVEL_WORKER_API_URL)

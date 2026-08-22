@@ -528,6 +528,9 @@ export const wfNewApiMock: WfNewApi = {
     return { words, books, subtitles, libraries, documents };
   },
 
+  getAgentArticlesPage: (limit = 100, offset = 0): Promise<import('./WfNewApiTypes').WfNewAgentArticlePage> =>
+    delay({ items: [], total: 0, limit, offset }),
+
   getRecentAgentArticles: (): Promise<import('./WfNewApiTypes').WfNewAgentArticle[]> => delay([]),
 
   // ---- Book reading (book -> chapter -> verses) ----

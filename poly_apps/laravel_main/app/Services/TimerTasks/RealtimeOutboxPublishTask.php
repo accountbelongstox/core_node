@@ -3,7 +3,6 @@
 namespace App\Services\TimerTasks;
 
 use App\Services\Realtime\RealtimeOutboxPublisher;
-use Laravel\Octane\Facades\Octane;
 
 final class RealtimeOutboxPublishTask extends OctaneTimerTaskAbstract
 {
@@ -14,8 +13,6 @@ final class RealtimeOutboxPublishTask extends OctaneTimerTaskAbstract
 
     public function exec(): void
     {
-        Octane::concurrently([
-            static fn (): array => app(RealtimeOutboxPublisher::class)->publishPending(),
-        ], 30000);
+        app(RealtimeOutboxPublisher::class)->publishPending();
     }
 }

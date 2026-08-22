@@ -21,6 +21,7 @@ PHP_BIN="${PHP_BIN:-$(command -v php)}"
 COMPOSER_CMD="${COMPOSER_CMD:-$(command -v composer)}"
 
 LARAVEL_13_TARGET_MAJOR="13"
+LARAVEL_13_UPGRADE_READY="no"
 
 laravel_framework_major() {
     local autoload_path="${LARAVEL_DIR}/vendor/autoload.php"
@@ -59,25 +60,27 @@ upgrade_laravel_to_13() {
     local vendor_real=""
     local upgraded_major=""
 
+    LARAVEL_13_UPGRADE_READY="no"
     current_major="$(laravel_framework_major)"
     if [ -z "$current_major" ] || [ "$current_major" = "$LARAVEL_13_TARGET_MAJOR" ]; then
-        return 0
+        LARAVEL_13_UPGRADE_READY="yes"
+        return
     fi
 
     if [ "$current_major" != "12" ]; then
         echo "ERROR: Unsupported Laravel framework major detected: ${current_major}. Laravel 13 is required."
-        return 1
+        return
     fi
 
     if [ -t 0 ] && [ -r /dev/tty ]; then
         printf 'Laravel 12 detected. Upgrade to Laravel 13? [y/N] ' > /dev/tty
-        read -r answer < /dev/tty || answer=""
+        read -r answer < /dev/tty
     fi
     case "$answer" in
         [Yy]*) ;;
         *)
             echo "Laravel 13 upgrade declined. Startup stopped because Laravel 12 is unsupported."
-            return 1
+            return
             ;;
     esac
 
@@ -87,27 +90,26 @@ upgrade_laravel_to_13() {
         vendor_real="$(cd "$vendor_path" && pwd -P)"
         if [ "$vendor_real" != "$vendor_path" ]; then
             echo "ERROR: Refusing to remove an unexpected vendor path: $vendor_real"
-            return 1
+            return
         fi
 
         echo "Removing Laravel 12 dependencies: $vendor_real"
-        if ! rm -rf -- "$vendor_real"; then
+        rm -rf -- "$vendor_real"
+        if [ -d "$vendor_real" ]; then
             echo "ERROR: Laravel 12 vendor removal failed: $vendor_real"
-            return 1
+            return
         fi
     fi
 
     echo "Resolving the Laravel 13 dependency graph..."
-    if ! $COMPOSER_CMD --working-dir="$laravel_real" update --with-all-dependencies --no-interaction; then
-        echo "ERROR: Composer could not install Laravel 13 dependencies."
-        return 1
-    fi
+    $COMPOSER_CMD --working-dir="$laravel_real" update --with-all-dependencies --no-interaction
 
     upgraded_major="$(laravel_framework_major)"
     if [ "$upgraded_major" != "$LARAVEL_13_TARGET_MAJOR" ]; then
         echo "ERROR: Composer completed without installing Laravel 13."
-        return 1
+        return
     fi
 
+    LARAVEL_13_UPGRADE_READY="yes"
     echo "Laravel 13 dependencies installed successfully."
 }

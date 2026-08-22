@@ -67,7 +67,11 @@ def _warm_sentence_engine() -> None:
     (server_enabled / server_auto_manage) still apply inside the lease."""
     try:
         with managed_services.lease(SENTENCE_AUDIO_ENGINE):
-            status_snapshot_cache.invalidate(STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY)
+            capabilities = qwen_engine.get_capabilities() or {}
+            status_snapshot_cache.put(
+                STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY,
+                capabilities,
+            )
         ColorPrint.green("[SentenceAudioAuto] qwen3tts server warm — model loaded")
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[SentenceAudioAuto] qwen3tts warm-up failed ({exc})")
@@ -142,13 +146,9 @@ def get_status() -> Dict[str, Any]:
         concurrency_status = laravel_sentence_audio_worker.concurrency_status()
     except Exception:
         pass
-    try:
-        qwen_capabilities = status_snapshot_cache.get(
-            STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY,
-            lambda: qwen_engine.get_capabilities() or {},
-        )
-    except Exception:
-        qwen_capabilities = {}
+    qwen_capabilities = (
+        status_snapshot_cache.peek(STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY) or {}
+    )
     return {
         "auto_start": cfg["auto_start"],
         "concurrency": concurrency_status.get("concurrency", cfg["concurrency"]),

@@ -6,20 +6,20 @@ voice-subtitle cache stores `.mp3`. These helpers write a WAV from raw samples
 and transcode WAV -> MP3 via ffmpeg (already a runtime dependency for whisper).
 """
 
-import shutil
 import wave
 from pathlib import Path
 from typing import Any, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
-
 from pycore.pyfoundations.third_party.api import get_third_package_numpy
+from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
+from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
 
 
 def ffmpeg_available() -> bool:
-    return shutil.which("ffmpeg") is not None
+    return ffmpeg_runtime.available()
 
 
 def write_wav(samples: Any, sample_rate: int, out_path: Path) -> bool:
@@ -46,33 +46,24 @@ def wav_to_mp3(wav_path: Path, mp3_path: Path) -> bool:
         ColorPrint.yellow("[tts.audio] ffmpeg not on PATH; cannot transcode WAV -> MP3")
         return False
     mp3_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-loglevel",
-                "error",
-                "-i",
-                str(wav_path),
-                "-codec:a",
-                "libmp3lame",
-                "-qscale:a",
-                "2",
-                str(mp3_path),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if getattr(result, "returncode", 1) == 0 and mp3_path.exists():
-            return True
-        ColorPrint.red(
-            f"[tts.audio] ffmpeg failed: {getattr(result, 'stderr', '')[:200]}"
-        )
-        return False
-    except Exception as e:
-        ColorPrint.red(f"[tts.audio] ffmpeg transcode error: {e}")
-        return False
+    arguments = ffmpeg_command_builder.extract_audio(
+        wav_path,
+        encoder="libmp3lame",
+        bitrate="192k",
+        sample_rate=44100,
+        mono=True,
+    )
+    result = ffmpeg_runtime.execute_output_step(
+        arguments,
+        mp3_path,
+        expected_streams=("audio",),
+        output_validator=ffmpeg_output_validator.audio("mp3", 44100, 1),
+    )
+    if result.success:
+        return True
+    detail = result.process.stderr[:200] if result.process else result.error_code
+    ColorPrint.red(f"[tts.audio] ffmpeg failed: {detail}")
+    return False
 
 
 def samples_to_mp3(

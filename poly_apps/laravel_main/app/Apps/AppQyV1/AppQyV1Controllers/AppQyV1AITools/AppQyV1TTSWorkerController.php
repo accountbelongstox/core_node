@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,10 +26,12 @@ use Illuminate\Support\Facades\Validator;
 class AppQyV1TTSWorkerController extends Controller
 {
     private AppQyV1DictionaryTTSCoordinator $coordinator;
+    private AppQyV1DurableOffsetUploadService $uploadService;
 
-    public function __construct()
+    public function __construct(?AppQyV1DurableOffsetUploadService $uploadService = null)
     {
         $this->coordinator = new AppQyV1DictionaryTTSCoordinator();
+        $this->uploadService = $uploadService ?: new AppQyV1DurableOffsetUploadService();
     }
 
     /**
@@ -99,6 +102,13 @@ class AppQyV1TTSWorkerController extends Controller
      */
     public function report(Request $request): JsonResponse
     {
+        $success = false;
+        $audioBinary = null;
+        $offsetReceipt = null;
+        $publicReceipt = [];
+        $result = [];
+        $httpStatus = 0;
+
         $validator = Validator::make($request->all(), [
             'task_id' => 'required|integer|min:1',
             'worker_id' => 'required|string|max:100',
@@ -106,6 +116,11 @@ class AppQyV1TTSWorkerController extends Controller
             'provider' => 'nullable|string|max:100',
             'error' => 'nullable|string|max:2000',
             'audio_base64' => 'nullable|string',
+            'upload_protocol' => 'nullable|string|in:offset-v1',
+            'upload_offset' => 'required_with:upload_protocol|integer|min:0',
+            'upload_length' => 'required_with:upload_protocol|integer|min:100',
+            'audio_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'chunk_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
         ]);
 
         if ($validator->fails()) {
@@ -117,9 +132,29 @@ class AppQyV1TTSWorkerController extends Controller
 
         $success = filter_var($request->input('success'), FILTER_VALIDATE_BOOLEAN);
 
-        $audioBinary = null;
         if ($success) {
-            if ($request->hasFile('audio')) {
+            if ($request->filled('upload_protocol')) {
+                $offsetReceipt = $this->uploadService->receive(
+                    'word_tts',
+                    (string) $request->input('task_id'),
+                    (string) $request->getContent(),
+                    (int) $request->input('upload_offset'),
+                    (int) $request->input('upload_length'),
+                    (string) $request->input('audio_sha256'),
+                    (string) $request->input('chunk_sha256')
+                );
+                if ($offsetReceipt === null) {
+                    return response()->json(['success' => false, 'error' => 'Invalid durable audio chunk'], 422);
+                }
+                $publicReceipt = $this->uploadService->publicReceipt($offsetReceipt);
+                if (!($offsetReceipt['upload_complete'] ?? false)) {
+                    return response()->json(['success' => true, 'data' => $publicReceipt]);
+                }
+                $audioBinary = $this->uploadService->completedBytes($offsetReceipt);
+                if ($audioBinary === false) {
+                    return response()->json(['success' => false, 'error' => 'Completed audio upload is unreadable'], 500);
+                }
+            } elseif ($request->hasFile('audio')) {
                 $file = $request->file('audio');
                 if (!$file->isValid()) {
                     return response()->json(['success' => false, 'error' => 'Audio upload failed'], 422);
@@ -159,6 +194,12 @@ class AppQyV1TTSWorkerController extends Controller
 
         $httpStatus = $result['http_status'] ?? ($result['success'] ? 200 : 500);
         unset($result['http_status']);
+        if ($offsetReceipt !== null) {
+            return response()->json([
+                'success' => (bool) ($result['success'] ?? false),
+                'data' => array_merge($publicReceipt, $result),
+            ], $httpStatus);
+        }
 
         return response()->json($result, $httpStatus);
     }

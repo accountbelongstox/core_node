@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -41,14 +42,17 @@ class AppQyV1SentenceAudioController extends Controller
 
     private AppQyV1SentenceAudioService $service;
     private AppQyV1AudioGateway $audioGateway;
+    private AppQyV1DurableOffsetUploadService $uploadService;
 
     public function __construct(
         ?AppQyV1SentenceAudioService $service = null,
-        ?AppQyV1AudioGateway $audioGateway = null
+        ?AppQyV1AudioGateway $audioGateway = null,
+        ?AppQyV1DurableOffsetUploadService $uploadService = null
     )
     {
         $this->service = $service ?: new AppQyV1SentenceAudioService();
         $this->audioGateway = $audioGateway ?: new AppQyV1AudioGateway(null, $this->service);
+        $this->uploadService = $uploadService ?: new AppQyV1DurableOffsetUploadService();
     }
 
     /**
@@ -102,6 +106,15 @@ class AppQyV1SentenceAudioController extends Controller
      */
     public function report(Request $request): JsonResponse
     {
+        $success = false;
+        $audioBinary = null;
+        $contentId = null;
+        $offsetReceipt = null;
+        $publicReceipt = [];
+        $variantMeta = [];
+        $result = [];
+        $httpStatus = 0;
+
         $validator = Validator::make($request->all(), [
             'content_id' => 'nullable|string|max:64',
             'hash' => 'nullable|string|max:64',
@@ -117,6 +130,11 @@ class AppQyV1SentenceAudioController extends Controller
             'gender' => 'nullable|string|max:16',
             'source' => 'nullable|string|max:32',
             'voice_type' => 'nullable|string|max:32',
+            'upload_protocol' => 'nullable|string|in:offset-v1',
+            'upload_offset' => 'required_with:upload_protocol|integer|min:0',
+            'upload_length' => 'required_with:upload_protocol|integer|min:100',
+            'audio_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'chunk_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
         ]);
 
         if ($validator->fails()) {
@@ -127,10 +145,40 @@ class AppQyV1SentenceAudioController extends Controller
         }
 
         $success = filter_var($request->input('success'), FILTER_VALIDATE_BOOLEAN);
+        $contentId = $request->input('content_id')
+            ?? $request->input('hash')
+            ?? $request->input('sentence_id');
+        if ($contentId === null || $contentId === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'Provide content_id (or hash)',
+            ], 422);
+        }
 
-        $audioBinary = null;
         if ($success) {
-            if ($request->hasFile('audio')) {
+            if ($request->filled('upload_protocol')) {
+                $offsetReceipt = $this->uploadService->receive(
+                    'sentence_tts',
+                    (string) $contentId . ':' . (string) $request->input('language')
+                        . ':' . (string) $request->input('variant_key', ''),
+                    (string) $request->getContent(),
+                    (int) $request->input('upload_offset'),
+                    (int) $request->input('upload_length'),
+                    (string) $request->input('audio_sha256'),
+                    (string) $request->input('chunk_sha256')
+                );
+                if ($offsetReceipt === null) {
+                    return response()->json(['success' => false, 'error' => 'Invalid durable audio chunk'], 422);
+                }
+                $publicReceipt = $this->uploadService->publicReceipt($offsetReceipt);
+                if (!($offsetReceipt['upload_complete'] ?? false)) {
+                    return response()->json(['success' => true, 'data' => $publicReceipt]);
+                }
+                $audioBinary = $this->uploadService->completedBytes($offsetReceipt);
+                if ($audioBinary === false) {
+                    return response()->json(['success' => false, 'error' => 'Completed audio upload is unreadable'], 500);
+                }
+            } elseif ($request->hasFile('audio')) {
                 $file = $request->file('audio');
                 if (!$file->isValid()) {
                     return response()->json(['success' => false, 'error' => 'Audio upload failed'], 422);
@@ -150,18 +198,6 @@ class AppQyV1SentenceAudioController extends Controller
             // NOTE: a missing file is NOT rejected here — the report path is
             // idempotent and acks already_done when the file is already on disk
             // (a worker re-reporting a sentence pycore already generated).
-        }
-
-        // Canonical key is content_id; accept `hash` / legacy `sentence_id` as
-        // aliases for the same value.
-        $contentId = $request->input('content_id')
-            ?? $request->input('hash')
-            ?? $request->input('sentence_id');
-        if ($contentId === null || $contentId === '') {
-            return response()->json([
-                'success' => false,
-                'error' => 'Provide content_id (or hash)',
-            ], 422);
         }
 
         try {
@@ -195,6 +231,12 @@ class AppQyV1SentenceAudioController extends Controller
         unset($result['http_status']);
         if (($result['error'] ?? null) === null) {
             unset($result['error']);
+        }
+        if ($offsetReceipt !== null) {
+            return response()->json([
+                'success' => (bool) ($result['ok'] ?? false),
+                'data' => array_merge($publicReceipt, $result),
+            ], $httpStatus);
         }
 
         return response()->json($result, $httpStatus);

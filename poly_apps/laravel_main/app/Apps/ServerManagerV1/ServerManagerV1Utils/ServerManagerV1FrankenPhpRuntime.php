@@ -75,6 +75,7 @@ class ServerManagerV1FrankenPhpRuntime
 
     public static function reload(bool $force = false): array
     {
+        $ensure = [];
         $validation = [];
         $content = false;
         $headers = [];
@@ -82,6 +83,15 @@ class ServerManagerV1FrankenPhpRuntime
         $probe = null;
         $url = self::adminUrl('/load');
 
+        $ensure = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
+        if (($ensure['canonical'] ?? false) !== true) {
+            return [
+                'success' => false,
+                'action' => 'reload',
+                'valid' => false,
+                'error' => (string) ($ensure['error'] ?? 'Unable to render the canonical Caddyfile.'),
+            ];
+        }
         $validation = ServerManagerV1FrankenPhpCaddyfileBuilder::validate();
         if (($validation['success'] ?? false) !== true) {
             return [

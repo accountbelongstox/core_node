@@ -643,6 +643,21 @@ class StateRepository:
             )
             return [OperationEvent.from_row(row) for row in cursor.fetchall()]
 
+    def get_recent_events(
+        self, op_id: str, limit: int = 100
+    ) -> List[OperationEvent]:
+        """Return the newest operation events in display order."""
+        with self.read_transaction() as cursor:
+            cursor.execute(
+                """
+                SELECT * FROM operation_events
+                WHERE operation_id = ?
+                ORDER BY seq DESC LIMIT ?
+                """,
+                (op_id, limit),
+            )
+            return [OperationEvent.from_row(row) for row in cursor.fetchall()]
+
     # --- System Events ---
 
     def insert_system_event(self, event: SystemEvent) -> None:

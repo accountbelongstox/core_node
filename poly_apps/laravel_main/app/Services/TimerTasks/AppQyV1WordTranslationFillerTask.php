@@ -3,7 +3,6 @@
 namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
-use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
@@ -29,7 +28,7 @@ use App\Services\UserConfig\UserConfigService;
  * into WordTranslationTaskProcessor, which writes translations[target_language]
  * into the dictionary. On total failure the task is reported failed for retry.
  */
-class AppQyV1WordTranslationFillerTask extends OctaneTimerTaskAbstract
+class AppQyV1WordTranslationFillerTask extends TaskManagerTimerTaskAbstract
 {
     private const WORKER_ID = 'laravel-internal-ai';
     private const WORKER_NAME = 'Laravel Internal AI Filler';
@@ -43,13 +42,11 @@ class AppQyV1WordTranslationFillerTask extends OctaneTimerTaskAbstract
     // provider transparently falls through to the next.
     private const TRANSLATION_TYPE = 'general';
 
-    private $taskManager;
-    private $workerManager;
-    private $registered = false;
+    private WorkerManagerService $workerManager;
 
     public function __construct()
     {
-        $this->taskManager = app(TaskManagerService::class);
+        parent::__construct();
         $this->workerManager = app(WorkerManagerService::class);
     }
 
@@ -223,6 +220,5 @@ class AppQyV1WordTranslationFillerTask extends OctaneTimerTaskAbstract
             'laravel-octane',
             ['internal' => true, 'role' => 'word_translation_ai_filler']
         );
-        $this->registered = true;
     }
 }

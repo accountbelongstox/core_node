@@ -52,9 +52,13 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
     QUEUE_CENTER_DIFF_DELIVERY,
+    http_transfer_contract,
     queue_center_endpoint,
 )
-from pycore.pyutils.common.service_config import PYCORE_WORKER_INSTANCE
+from pycore.pyutils.common.service_config import (
+    LARAVEL_WORKER_API_URL,
+    PYCORE_WORKER_INSTANCE,
+)
 
 
 class BaseLaravelWorkerService:
@@ -239,7 +243,7 @@ class BaseLaravelWorkerService:
         if not ordered and fb:
             ordered.append(fb)
         if not ordered:
-            ordered.append("http://127.0.0.1:9000")
+            ordered.append(LARAVEL_WORKER_API_URL)
         self._candidates = ordered
         if not getattr(self, "_registered", False):
             self.api_url = ordered[0]
@@ -303,12 +307,20 @@ class BaseLaravelWorkerService:
             "hostname": self.hostname,
             "platform": self.platform,
             "limit": max(1, min(int(limit), GLOBAL_TASK_LIMITS["worker_pull"])),
+            "lease_capacity": max(
+                1,
+                min(int(self._lease_capacity()), GLOBAL_TASK_LIMITS["worker_pull"]),
+            ),
         }
         for index, processor_type in enumerate(processor_types):
             params[f"processor_types[{index}]"] = processor_type
         for index, capability in enumerate(capabilities):
             params[f"capabilities[{index}]"] = capability
         return params
+
+    def _lease_capacity(self) -> int:
+        """Maximum live Laravel leases owned by this worker instance."""
+        return max(1, int(self.PULL_LIMIT))
 
     def poll_diff_once(self) -> Dict[str, Any]:
         """Poll compact queue revisions and pull only when the front slice changed."""
@@ -379,7 +391,12 @@ class BaseLaravelWorkerService:
         data = payload.get("data")
         return data if isinstance(data, dict) else payload
 
-    def _accept_pulled_task(self, task_type: str, task_id: str, base_url: str) -> bool:
+    def _validate_recovered_claim(
+        self,
+        task_type: str,
+        task_id: str,
+        base_url: str,
+    ) -> bool:
         response = laravel_client.post(
             queue_center_endpoint("worker_task_accept", task_type=task_type),
             base_url=base_url,
@@ -400,6 +417,7 @@ class BaseLaravelWorkerService:
         tasks: List[Dict[str, Any]],
         base_url: str,
         scope: str,
+        validate_claim: bool = False,
     ) -> int:
         if self._lane_halt_requested():
             # A stop landed while this pull was in flight: hand the staged
@@ -411,27 +429,29 @@ class BaseLaravelWorkerService:
                 self._release_claimed_tasks(releasable)
             return 0
         dispatched = 0
-        retry_ids: List[Any] = []
         for task in tasks:
             task_id = str(task.get("task_id") or "")
             task_type = str(task.get("task_type") or "")
             if not task_id or not task_type:
                 continue
-            if not self._accept_pulled_task(task_type, task_id, base_url):
+            if validate_claim and not self._validate_recovered_claim(
+                task_type,
+                task_id,
+                base_url,
+            ):
                 diff_task_segment_store.consume(scope, task_id)
                 continue
             accepted = self.accept_task(task, base_url)
             if accepted.get("success"):
                 dispatched += 1
                 continue
-            retry_ids.append(task_id)
+            self._release_claimed_tasks([task])
+            diff_task_segment_store.consume(scope, task_id)
             ColorPrint.yellow(
-                f"{self._log_prefix} Local dispatch deferred for task "
+                f"{self._log_prefix} Local dispatch rejected task "
                 f"{self._display_task_id(task_id)}: "
                 f"{accepted.get('error') or 'worker busy'}"
             )
-        if retry_ids:
-            diff_task_segment_store.release(scope, retry_ids)
         return dispatched
 
     def request_pull(self, prefer_remote: bool = False) -> None:
@@ -586,7 +606,12 @@ class BaseLaravelWorkerService:
         if recovered:
             self._remember_task_types(recovered, base_url)
             recovered_count = len(recovered)
-            processed += self._dispatch_staged_tasks(recovered, base_url, scope)
+            processed += self._dispatch_staged_tasks(
+                recovered,
+                base_url,
+                scope,
+                validate_claim=True,
+            )
             capacity = max(0, capacity - recovered_count)
 
         remote_capacity = min(
@@ -643,7 +668,12 @@ class BaseLaravelWorkerService:
             if recovered:
                 self._remember_task_types(recovered, base_url)
                 recovered_count += len(recovered)
-                processed += self._dispatch_staged_tasks(recovered, base_url, scope)
+                processed += self._dispatch_staged_tasks(
+                    recovered,
+                    base_url,
+                    scope,
+                    validate_claim=True,
+                )
         if pulled:
             progress = self._queue_progress.get(task_types[0], {}) if task_types else {}
             progress_label = (
@@ -772,6 +802,7 @@ class BaseLaravelWorkerService:
         last_note = ""
         last_was_5xx = False
         max_attempts = self.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
+        activity_contract = http_transfer_contract()
         for attempt in range(1, max_attempts + 1):
             if THREAD_BUS.is_shutdown_requested() and not terminal_result:
                 ColorPrint.yellow(
@@ -784,7 +815,7 @@ class BaseLaravelWorkerService:
                     result_url,
                     base_url=result_base_url,
                     json=body,
-                    timeout=self.RESULT_HTTP_TIMEOUT,
+                    activity_timeout=activity_contract,
                 )
                 if resp.status_code in (200, 201):
                     if self.LOG_ACCEPTED_RESULTS:

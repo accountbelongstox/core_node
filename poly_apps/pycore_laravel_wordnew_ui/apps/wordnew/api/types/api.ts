@@ -1,7 +1,7 @@
 /** types/api.ts - the WfNewApi interface (method contract shared by WfNewApiHttp + WfNewApiMock). (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
 import type { Word, WordGroup, BentoGroup, UserStats, WfNewStatistics, UserProfile, WfNewContentKind, WfNewContentGroup, WfNewHomeContent, WfNewLanguage, WfNewLanguageSelection } from './core';
-import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAudioVariant, WfNewWordMedia, WfNewWordMediaOptions, WordNewAudioFileVariant, WfNewQueueCommandResult, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
+import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewAgentArticlePage, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAudioVariant, WfNewWordMedia, WfNewWordMediaOptions, WordNewAudioFileVariant, WfNewQueueCommandResult, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
 import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPayload, WfNewSocialCredential, WfNewProfileUpdate, WfNewAvatarResult, WfNewSocialStats } from './user';
 import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewNearbyUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
@@ -214,6 +214,7 @@ export interface WfNewApi {
   getDocumentGroups(): Promise<WfNewContentGroup[]>;
   /** All five home categories at once (parallel; partial-tolerant — a failed category resolves to []). */
   getHomeContent(): Promise<WfNewHomeContent>;
+  getAgentArticlesPage(limit?: number, offset?: number): Promise<WfNewAgentArticlePage>;
   getRecentAgentArticles(limit?: number): Promise<WfNewAgentArticle[]>;
 
   // ---- Book reading (book -> chapter -> verses) ----

@@ -146,28 +146,28 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       id: 'loopback',
       url: '127.0.0.1',
       protocol: 'http',
-      port: 9000,
+      port: FIXED_API_PORT,
       priority: 7,
       isLocal: true,
-      description: 'Loopback 127.0.0.1:9000'
+      description: `Loopback 127.0.0.1:${FIXED_API_PORT}`
     },
     {
       id: 'tailnet-1',
       url: '100.101.149.39',
       protocol: 'http',
-      port: 9000,
+      port: FIXED_API_PORT,
       priority: 8,
       isLocal: true,
-      description: 'Mesh node 100.101.149.39:9000'
+      description: `Mesh node 100.101.149.39:${FIXED_API_PORT}`
     },
     {
       id: 'tailnet-2',
       url: '100.106.85.16',
       protocol: 'http',
-      port: 9000,
+      port: FIXED_API_PORT,
       priority: 9,
       isLocal: true,
-      description: 'Mesh node 100.106.85.16:9000'
+      description: `Mesh node 100.106.85.16:${FIXED_API_PORT}`
     }
   ],
   // Default ALL-Offline retry interval for this end (laravel-manager). While

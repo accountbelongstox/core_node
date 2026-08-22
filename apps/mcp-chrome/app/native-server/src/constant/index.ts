@@ -29,6 +29,7 @@ export const HTTP_STATUS = {
   OK: 200,
   NO_CONTENT: 204,
   BAD_REQUEST: 400,
+  SERVICE_UNAVAILABLE: 503,
   // 404 is the MCP Streamable HTTP signal for an unknown/expired session: a
   // spec-compliant client re-initializes when it sees it (a 400 is NOT treated
   // as recoverable). Keep them distinct — see the /mcp handlers.
@@ -42,6 +43,7 @@ export const ERROR_MESSAGES = {
   NATIVE_HOST_NOT_AVAILABLE: 'Native host connection not established.',
   SERVER_NOT_RUNNING: 'Server is not actively running.',
   REQUEST_TIMEOUT: 'Request to extension timed out.',
+  EXTENSION_NOT_CONNECTED: 'Browser extension is not connected.',
   INVALID_MCP_REQUEST: 'Invalid MCP request or session.',
   // Returned (HTTP 404) when a request carries a session id the server no longer
   // knows — the client should re-initialize a fresh session.

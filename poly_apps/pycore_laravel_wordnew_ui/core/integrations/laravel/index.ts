@@ -5,13 +5,15 @@ export { laravelRelayRoster } from './LaravelRelayRoster';
 export type { RelayRosterEntry, RelayRosterUpdate } from './LaravelRelayRoster';
 export { LaravelMercureConnection } from './LaravelMercureConnection';
 export type {
-  LaravelMercureAuthorization,
   LaravelMercureCallbacks,
+  LaravelMercureAuthorization,
   LaravelMercureHubConfig,
 } from './LaravelMercureConnection';
 export type {
   LaravelRealtimeEventName,
   LaravelRealtimeEventPayloadMap,
+  LaravelArticleAudioReadyEvent,
+  LaravelArticlePublishedEvent,
   LaravelWorkerPresenceEvent,
 } from './LaravelRealtime';
 export { API_HEALTH_EVENT, apiManager } from './ApiManager';

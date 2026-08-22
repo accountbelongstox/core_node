@@ -6,6 +6,7 @@ import { appendLog } from '../../../logstore/logStore';
 import { coordinateRequest } from '../../../network/RequestCoordinator';
 import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
+import { protocolFetch } from '../../../network/ProtocolFetch';
 
 /**
  * Endpoints excluded from the global log panel: high-frequency background
@@ -313,7 +314,7 @@ export class BaseAPI {
     }
 
     try {
-      const response = await fetch(url, requestConfig);
+      const response = await protocolFetch(url, requestConfig);
 
       // Check content type
       const contentType = response.headers.get('content-type');
@@ -446,7 +447,7 @@ export class BaseAPI {
     let response: Response;
 
     try {
-      response = await fetch(url, { ...init, method, headers, signal: init.signal || abortController.signal });
+      response = await protocolFetch(url, { ...init, method, headers, signal: init.signal || abortController.signal });
       logRequestOutcome(method, url, response.status, performance.now() - startedAt, response.ok ? null : response.statusText);
       return response;
     } catch (error: any) {

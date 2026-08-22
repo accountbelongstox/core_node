@@ -102,6 +102,7 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_schedule_entry_not_found: 'terminal.errors.scheduleEntry',
   terminal_schedule_json_invalid: 'terminal.errors.scheduleJsonInvalid',
   terminal_schedule_json_not_cleared: 'terminal.errors.scheduleJsonNotCleared',
+  terminal_schedule_runtime_not_cleared: 'terminal.errors.scheduleRuntimeNotCleared',
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',

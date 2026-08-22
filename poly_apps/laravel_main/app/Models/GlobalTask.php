@@ -270,6 +270,26 @@ class GlobalTask extends Model
             ->pluck('total', 'task_type');
     }
 
+    public static function liveTaskCountForWorker(string $workerId): int
+    {
+        return self::query()
+            ->where('assigned_to', $workerId)
+            ->whereIn('status', self::statuses('live'))
+            ->count();
+    }
+
+    public static function pendingResultWritebackTaskIds(int $limit): array
+    {
+        return self::query()
+            ->where('status', self::status('processing'))
+            ->where('steps->result_writeback->state', 'pending')
+            ->orderBy('updated_at')
+            ->limit(max(1, $limit))
+            ->pluck('task_id')
+            ->map(static fn ($taskId): string => (string) $taskId)
+            ->all();
+    }
+
     public static function cachedCountsByTaskType(string $cacheKey, int $ttlSeconds, array $statuses): Collection
     {
         $versionedCacheKey = $cacheKey . self::CACHE_ARRAY_PAYLOAD_VERSION;
@@ -368,7 +388,7 @@ class GlobalTask extends Model
             $update = [];
             $isAudio = QueueCenterContract::isQueuePositionOrdered((string) $this->task_type);
             $isImage = $this->capability === self::capability('image')
-                || in_array($this->task_type, ['word_media', 'gemini_image'], true);
+                || $this->task_type === 'gemini_image';
 
             if ($isAudio && $schema->hasColumn($table, 'tts_status')) {
                 $hasAudio = isset($row->has_audio) ? (bool) $row->has_audio : false;

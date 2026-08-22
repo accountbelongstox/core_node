@@ -30,10 +30,13 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+POSTFIX_CLEANUP_COMMON="$PARENT_DIR_LEVEL_2/common/postfix_cleanup_common.sh"
+POSTFIX_LOG_PREFIX="[$SCRIPT_INDEX] [POSTFIX]"
 
 # Source gvar_common.sh (trust-based coding)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/fs_perm_helpers.sh"
+source "$POSTFIX_CLEANUP_COMMON"
 # Mount library: single fstab entry per UUID, real-time remount
 source "$PARENT_DIR_LEVEL_2/common/mount_common.sh"
 # Repository manager (merged from former 12_update.sh: repo repair + management).
@@ -145,28 +148,12 @@ stop_mail_services() {
         info "exim4.service does not exist, skipping."
     fi
 
-    # Stop postfix service
-    if systemctl list-units --full -all | grep -Fq "postfix.service"; then
-        info "postfix.service exists, stopping the service..."
-        $USE_SUDO systemctl stop postfix.service 2>/dev/null || true
-    else
-        info "postfix.service does not exist, skipping."
-    fi
-
     # Disable exim4 service
     if systemctl list-units --full -all | grep -Fq "exim4.service"; then
         info "exim4.service exists, disabling the service..."
         $USE_SUDO systemctl disable exim4.service 2>/dev/null || true
     else
         info "exim4.service does not exist, skipping."
-    fi
-
-    # Disable postfix service
-    if systemctl list-units --full -all | grep -Fq "postfix.service"; then
-        info "postfix.service exists, disabling the service..."
-        $USE_SUDO systemctl disable postfix.service 2>/dev/null || true
-    else
-        info "postfix.service does not exist, skipping."
     fi
 
     # Legacy service command support
@@ -176,11 +163,9 @@ stop_mail_services() {
             service exim4 stop 2>/dev/null || true
         fi
 
-        if [ -f "/etc/init.d/postfix" ]; then
-            info "postfix.service exists (init.d), stopping the service..."
-            service postfix stop 2>/dev/null || true
-        fi
     fi
+
+    postfix_stop_and_disable
 
     log "Mail service control completed"
 }

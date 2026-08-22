@@ -1,15 +1,17 @@
 /**
- * Shared authenticated Mercure SSE transport for Laravel clients.
+ * Shared authorized Mercure SSE transport for Laravel clients.
  *
  * The pinned hub uses repeated `topic` parameters and topic-scoped Mercure
- * JWTs. Browser clients consume the stream through fetch so the bearer token
- * stays scoped to this connection and cross-origin cookies are unnecessary.
+ * selectors. Every connection obtains a fresh topic-scoped subscriber token
+ * from Laravel and presents it as an Authorization Bearer header.
  */
+
+import { protocolFetch } from '../../network/ProtocolFetch';
 
 export interface LaravelMercureHubConfig {
   hub_url: string;
   topics: string[];
-  token_ttl_seconds: number;
+  subscribe_url?: string;
 }
 
 export interface LaravelMercureAuthorization {
@@ -32,7 +34,6 @@ export class LaravelMercureConnection {
   private lastEventId: string | null = null;
 
   connect(
-    _baseURL: string,
     config: LaravelMercureHubConfig,
     callbacks: LaravelMercureCallbacks,
   ): void {
@@ -65,16 +66,19 @@ export class LaravelMercureConnection {
   ): Promise<void> {
     const authorization = await callbacks.authorize();
     if (this.generation !== generation) return;
+    if (!authorization.token) throw new Error('MERCURE_SUBSCRIBER_TOKEN_UNAVAILABLE');
     const controller = new AbortController();
     const headers: Record<string, string> = {
       Accept: 'text/event-stream',
       Authorization: `Bearer ${authorization.token}`,
       'Cache-Control': 'no-cache',
     };
-    if (this.lastEventId) headers['Last-Event-ID'] = this.lastEventId;
     this.controller = controller;
 
-    const response = await fetch(authorization.subscribe_url || this.subscribeUrl(config), {
+    const response = await protocolFetch(this.resumeUrl(
+      authorization.subscribe_url || config.subscribe_url || this.subscribeUrl(config),
+    ), {
+      credentials: 'omit',
       headers,
       signal: controller.signal,
     });
@@ -149,6 +153,13 @@ export class LaravelMercureConnection {
   private subscribeUrl(config: LaravelMercureHubConfig): string {
     const url = new URL(config.hub_url);
     for (const topic of config.topics) url.searchParams.append('topic', topic);
+    return url.toString();
+  }
+
+  private resumeUrl(value: string): string {
+    if (!this.lastEventId) return value;
+    const url = new URL(value);
+    url.searchParams.set('lastEventID', this.lastEventId);
     return url.toString();
   }
 

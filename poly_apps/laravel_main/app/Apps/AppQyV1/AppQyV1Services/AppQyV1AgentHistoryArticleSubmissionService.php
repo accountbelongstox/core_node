@@ -15,8 +15,6 @@ final class AppQyV1AgentHistoryArticleSubmissionService
 {
     private const ARTICLE_ID_PREFIX = 'article_';
     private const ARTICLE_ID_HASH_LENGTH = 40;
-    private const PUBLICATION_EVENT = 'article.published';
-
     private AppQyV1DailyReadingService $dailyReadingService;
 
     public function __construct(AppQyV1DailyReadingService $dailyReadingService)
@@ -27,12 +25,38 @@ final class AppQyV1AgentHistoryArticleSubmissionService
     public function submit(array $input): array
     {
         $articleText = (string) $input['article_text'];
+        $identityHashes = [];
+        $sourceArticle = null;
+        $contentArticle = null;
+        $existingArticle = null;
         $language = AppQyV1TableMaps::normalizeLangCode((string) ($input['language'] ?? 'en'));
         $language = $language !== '' ? $language : 'en';
         $titleEn = trim((string) ($input['title_en'] ?? $input['title'] ?? ''));
         $titleEn = $titleEn !== '' ? $titleEn : __('article.default_daily_title', [], 'en');
         $idempotencyKey = trim((string) ($input['idempotency_key'] ?? ''));
-        $articleId = $this->articleId($idempotencyKey);
+        $identityHashes = AppQyV1Article::identityHashes($titleEn, $articleText);
+        $sourceArticle = $idempotencyKey !== ''
+            ? AppQyV1Article::findAgentHistoryBySourceRecordId($idempotencyKey)
+            : null;
+        $contentArticle = AppQyV1Article::findCanonicalByIdentityHashes(
+            0,
+            $identityHashes['title_md5'],
+            $identityHashes['content_md5']
+        );
+        if ($sourceArticle !== null
+            && $contentArticle !== null
+            && $sourceArticle->article_id !== $contentArticle->article_id) {
+            $contentArticle = AppQyV1Article::aliasArticleToCanonical($sourceArticle, $contentArticle);
+        }
+        $existingArticle = $contentArticle ?? $sourceArticle;
+        $articleId = $this->articleId(
+            0,
+            $identityHashes['title_md5'],
+            $identityHashes['content_md5']
+        );
+        if ($existingArticle !== null) {
+            $articleId = (string) $existingArticle->article_id;
+        }
         $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
         $submissionMetadata = $this->submissionMetadata(
             $input,
@@ -41,16 +65,36 @@ final class AppQyV1AgentHistoryArticleSubmissionService
             $titleEn,
             $idempotencyKey
         );
-        $article = $this->ensureArticle(
+        [$article, $inserted] = $this->ensureArticle(
             $articleId,
             $articleText,
             $language,
             $titleEn,
             $parsedResult,
-            $submissionMetadata
+            $submissionMetadata,
+            $identityHashes
         );
 
-        $article = $this->syncSubmissionMetadata($article, $submissionMetadata, $idempotencyKey !== '');
+        $syncResult = AppQyV1Article::replaceAgentHistorySubmission(
+            $articleId,
+            [
+                'title' => $titleEn,
+                'content' => $articleText,
+                'title_md5' => $identityHashes['title_md5'],
+                'content_md5' => $identityHashes['content_md5'],
+                'canonical_article_id' => null,
+                'language' => $language,
+                'article_type' => AppQyV1Article::TYPE_DAILY,
+                'source' => AppQyV1Article::SOURCE_AGENT_HISTORY,
+                'word_count' => $parsedResult['total_words'],
+                'unique_word_count' => $parsedResult['unique_words'],
+                'sentence_count' => $parsedResult['total_sentences'],
+                'is_daily_reading' => true,
+                'tts_generated' => true,
+            ],
+            $submissionMetadata
+        );
+        $article = $syncResult['article'];
         $audioUrl = $this->dailyReadingService->replaceAudio(
             $article,
             (string) $input['audio_base64'],
@@ -59,6 +103,7 @@ final class AppQyV1AgentHistoryArticleSubmissionService
                 'tts_model' => $input['tts_model'] ?? null,
                 'tts_chunked' => (bool) ($input['tts_chunked'] ?? false),
                 'tts_accent' => $input['tts_accent'] ?? null,
+                'source_record_id' => $idempotencyKey !== '' ? $idempotencyKey : null,
             ]
         );
         if ($audioUrl === null) {
@@ -82,7 +127,12 @@ final class AppQyV1AgentHistoryArticleSubmissionService
             throw new RuntimeException(__('article.worker_document_store_failed'));
         }
 
-        $this->ensurePublicationEvent($articleId, $audioUrl, $documentId);
+        $this->ensurePublicationEvent(
+            $articleId,
+            $audioUrl,
+            $documentId,
+            (string) $submissionMetadata['submission_fingerprint']
+        );
 
         return [
             'article_id' => $articleId,
@@ -95,14 +145,12 @@ final class AppQyV1AgentHistoryArticleSubmissionService
         ];
     }
 
-    private function articleId(string $idempotencyKey): string
+    private function articleId(int $userId, string $titleMd5, string $contentMd5): string
     {
-        if ($idempotencyKey === '') {
-            return self::ARTICLE_ID_PREFIX . Str::uuid();
-        }
+        $identity = $userId . ':' . $titleMd5 . ':' . $contentMd5;
 
         return self::ARTICLE_ID_PREFIX
-            . substr(hash('sha256', $idempotencyKey), 0, self::ARTICLE_ID_HASH_LENGTH);
+            . substr(hash('sha256', $identity), 0, self::ARTICLE_ID_HASH_LENGTH);
     }
 
     private function submissionMetadata(
@@ -136,6 +184,8 @@ final class AppQyV1AgentHistoryArticleSubmissionService
             'raw_word_count' => (int) ($input['raw_word_count'] ?? 0),
             'openrouter_model' => $input['openrouter_model'] ?? null,
             'submission_source' => AppQyV1Article::SOURCE_AGENT_HISTORY,
+            'source_record_id' => $idempotencyKey !== '' ? $idempotencyKey : null,
+            'source_record_ids' => $idempotencyKey !== '' ? [$idempotencyKey] : [],
             'idempotency_key_hash' => $idempotencyKey !== '' ? hash('sha256', $idempotencyKey) : null,
             'submission_fingerprint' => hash('sha256', $identityJson),
         ];
@@ -147,16 +197,21 @@ final class AppQyV1AgentHistoryArticleSubmissionService
         string $language,
         string $titleEn,
         array $parsedResult,
-        array $metadata
-    ): AppQyV1Article {
+        array $metadata,
+        array $identityHashes
+    ): array {
         $now = now();
         $article = null;
+        $inserted = 0;
 
-        AppQyV1Article::query()->insertOrIgnore([[
+        $inserted = AppQyV1Article::query()->insertOrIgnore([[
             'article_id' => $articleId,
             'user_id' => 0,
             'title' => $titleEn,
             'content' => $articleText,
+            'title_md5' => $identityHashes['title_md5'],
+            'content_md5' => $identityHashes['content_md5'],
+            'canonical_article_id' => null,
             'language' => $language,
             'article_type' => AppQyV1Article::TYPE_DAILY,
             'source' => AppQyV1Article::SOURCE_AGENT_HISTORY,
@@ -178,51 +233,38 @@ final class AppQyV1AgentHistoryArticleSubmissionService
         if ($article === null) {
             throw new RuntimeException(__('article.worker_article_store_failed'));
         }
-        if (!$article->isAgentHistoryDaily()) {
+        if (!$article->isManagedDaily()) {
             throw new ConflictHttpException(__('article.worker_identity_conflict'));
         }
 
-        return $article;
+        return [$article, $inserted > 0];
     }
 
-    private function syncSubmissionMetadata(
-        AppQyV1Article $article,
-        array $submissionMetadata,
-        bool $enforceFingerprint
-    ): AppQyV1Article {
-        return AppQyV1Article::mutateMetadataByArticleId(
-            (string) $article->article_id,
-            static function (array $metadata) use ($submissionMetadata, $enforceFingerprint): array {
-                $storedFingerprint = (string) ($metadata['submission_fingerprint'] ?? '');
-                $incomingFingerprint = (string) $submissionMetadata['submission_fingerprint'];
-
-                if ($enforceFingerprint
-                    && $storedFingerprint !== ''
-                    && !hash_equals($storedFingerprint, $incomingFingerprint)) {
-                    throw new ConflictHttpException(__('article.worker_idempotency_conflict'));
-                }
-
-                return array_replace($metadata, $submissionMetadata);
-            }
-        );
-    }
-
-    private function ensurePublicationEvent(string $articleId, string $audioUrl, int $documentId): void
+    private function ensurePublicationEvent(
+        string $articleId,
+        string $audioUrl,
+        int $documentId,
+        string $submissionFingerprint
+    ): void
     {
         AppQyV1Article::mutateMetadataByArticleId(
             $articleId,
             static function (array $metadata, AppQyV1Article $article) use (
                 $articleId,
                 $audioUrl,
-                $documentId
+                $documentId,
+                $submissionFingerprint
             ): array {
-                if (($metadata['publication_event_emitted'] ?? false) === true) {
+                if (hash_equals(
+                    (string) ($metadata['publication_event_fingerprint'] ?? ''),
+                    $submissionFingerprint
+                )) {
                     return $metadata;
                 }
 
                 AppQyV1TranslationEventModel::emitOnce(
-                    self::PUBLICATION_EVENT,
-                    $articleId,
+                    AppQyV1TranslationEventModel::EVENT_ARTICLE_PUBLISHED,
+                    $articleId . ':' . $submissionFingerprint,
                     [
                         'article_id' => $articleId,
                         'source_key' => $articleId,
@@ -237,6 +279,7 @@ final class AppQyV1AgentHistoryArticleSubmissionService
 
                 $metadata['publication_event_emitted'] = true;
                 $metadata['publication_event_emitted_at'] = now()->toIso8601String();
+                $metadata['publication_event_fingerprint'] = $submissionFingerprint;
 
                 return $metadata;
             }

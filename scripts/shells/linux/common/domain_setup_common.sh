@@ -66,16 +66,20 @@ DOMAIN_UI_DOMAIN_CONFIG_FILE="$DOMAIN_SETUP_GLOBAL_VAR_DIR/$(sc_get files.ui_dom
 domain_api_backend_url() {
     local host
     local port
-    host=$(sc_require hosts.loopback) || return 1
-    port=$(sc_require ports.laravel_api_backend) || return 1
-    echo "http://$host:$port"
+    host=$(sc_require hosts.loopback)
+    port=$(sc_require ports.laravel_api_backend)
+    if [ -n "$host" ] && [ -n "$port" ]; then
+        echo "http://$host:$port"
+    fi
 }
 domain_ui_backend_url() {
     local host
     local port
-    host=$(sc_require hosts.loopback) || return 1
-    port=$(sc_require ports.nexus_dash_frontend) || return 1
-    echo "http://$host:$port"
+    host=$(sc_require hosts.loopback)
+    port=$(sc_require ports.nexus_dash_frontend)
+    if [ -n "$host" ] && [ -n "$port" ]; then
+        echo "http://$host:$port"
+    fi
 }
 DOMAIN_SETUP_VALID_REGIONS="si sh sz hk"
 DOMAIN_SETUP_LARAVEL_DIR="$DOMAIN_SETUP_CORE_NODE_DIR/poly_apps/laravel_main"

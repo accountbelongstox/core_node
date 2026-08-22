@@ -124,6 +124,13 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
         status: Number(data?.status) || 0,
         ms: Number(data?.ms) || 0,
         error: data?.error ? String(data.error) : null,
+        transport: typeof data?.transport === 'string' ? data.transport : undefined,
+        httpVersion: typeof data?.http_version === 'string' ? data.http_version : undefined,
+        progress: Number.isFinite(Number(data?.progress)) ? Number(data.progress) : undefined,
+        transferredBytes: Number.isFinite(Number(data?.transferred_bytes)) ? Number(data.transferred_bytes) : undefined,
+        totalBytes: Number.isFinite(Number(data?.total_bytes)) ? Number(data.total_bytes) : undefined,
+        transferId: typeof data?.transfer_id === 'string' ? data.transfer_id : undefined,
+        phase: typeof data?.phase === 'string' ? data.phase : undefined,
       });
     });
 

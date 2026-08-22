@@ -78,10 +78,15 @@ final class QueueCenterContract
         return self::document()['diff_delivery'] ?? [];
     }
 
+    public static function httpTransfer(): array
+    {
+        return self::document()['http_transfer'] ?? [];
+    }
+
     /**
      * Word-validity verification defaults (batch size, default languages, the
-     * validity_source marker written for AI-verified rows, and the chrome
-     * runner's idle re-poll cadence once the backlog is drained).
+     * validity_source marker written for AI-verified rows, and browser request
+     * timing for the shared worker lane).
      */
     public static function wordValidity(): array
     {
@@ -90,7 +95,14 @@ final class QueueCenterContract
 
     public static function wordValidityBatchSize(): int
     {
-        return (int) (self::wordValidity()['batch_size'] ?? 150);
+        return (int) (self::wordValidity()['batch_size'] ?? 20);
+    }
+
+    public static function wordValidityRequestTimeoutSeconds(): int
+    {
+        $milliseconds = (int) (self::wordValidity()['request_timeout_ms'] ?? 120000);
+
+        return max(10, (int) ceil($milliseconds / 1000));
     }
 
     public static function wordValiditySourceMarker(): string
@@ -195,8 +207,7 @@ final class QueueCenterContract
     }
 
     /**
-     * Mercure hub block: path, subscriber-token TTL, browser cookie name,
-     * anonymous flag (always false - every subscriber presents a JWT).
+     * Mercure hub block: protocol and well-known subscription path.
      */
     public static function relayHub(): array
     {
@@ -350,6 +361,15 @@ final class QueueCenterContract
             throw new RuntimeException("Unknown global-task priority: {$name}");
         }
         return (int) $priorities[$name];
+    }
+
+    public static function taskProgressStage(string $name): int
+    {
+        $stages = self::taskContract()['progress_stages'] ?? [];
+        if (!array_key_exists($name, $stages)) {
+            throw new RuntimeException("Unknown global-task progress stage: {$name}");
+        }
+        return (int) $stages[$name];
     }
 
     public static function taskLimit(string $name): int
@@ -667,11 +687,18 @@ final class QueueCenterContract
         foreach (self::categories() as $definition) {
             $key = (string) ($definition['key'] ?? '');
             $metrics = is_array($metricsByKey[$key] ?? null) ? $metricsByKey[$key] : [];
-            $tokens = array_values(array_filter([$key, $definition['capability'] ?? null]));
+            $taskDefinition = self::taskTypeDefinition($key);
+            $tokens = array_values(array_filter([
+                $key,
+                $definition['capability'] ?? null,
+                $taskDefinition['execution_type'] ?? null,
+            ]));
             $primaryHandler = (string) ($definition['primary_handler'] ?? 'pycore');
-            $claimants = ($definition['capability'] ?? null) === null
-                ? [$primaryHandler]
-                : self::claimantsForCapability((string) $definition['capability']);
+            $claimants = is_array($taskDefinition['claimants'] ?? null)
+                ? array_values($taskDefinition['claimants'])
+                : (($definition['capability'] ?? null) === null
+                    ? [$primaryHandler]
+                    : self::claimantsForCapability((string) $definition['capability']));
             $activeHandlers = [];
             foreach ($workers as $worker) {
                 $processors = is_array($worker['processor_types'] ?? null) ? $worker['processor_types'] : [];

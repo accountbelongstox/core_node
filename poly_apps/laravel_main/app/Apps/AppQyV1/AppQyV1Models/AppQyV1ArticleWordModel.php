@@ -63,6 +63,7 @@ class AppQyV1ArticleWordModel extends AppQyV1Model
 
         $insertData = [];
         $dictionaryWords = [];
+        $wordMd5s = [];
 
         $dictionaryInfo = AppQyV1DictionaryService::queryAndAdd($language, $words);
 
@@ -82,7 +83,15 @@ class AppQyV1ArticleWordModel extends AppQyV1Model
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
+            $wordMd5s[] = $wordMd5;
         }
+
+        $wordMd5s = array_values(array_unique($wordMd5s));
+        $staleQuery = self::query()->where('article_id', $articleId);
+        if ($wordMd5s !== []) {
+            $staleQuery->whereNotIn('word_md5', $wordMd5s);
+        }
+        $staleQuery->delete();
 
         if (!empty($insertData)) {
             self::upsert(

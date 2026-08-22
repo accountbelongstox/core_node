@@ -10,6 +10,8 @@ from pathlib import Path
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
 from pycore.pyutils.whisper_stt.audio_processor import AudioProcessor
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import ERROR_BINARY_NOT_FOUND
+from pycore.pyutils.media_processing.media_processor import media_processor
 
 
 
@@ -49,13 +51,10 @@ class VideoProcessor:
                     "execution_time": time.time() - start_time
                 }
 
-            # Check ffmpeg availability
-            try:
-                pass
-            except ImportError:
+            if not media_processor.available():
                 return {
                     "success": False,
-                    "error": "ffmpeg-python not available. Install with: pip install ffmpeg-python",
+                    "error": ERROR_BINARY_NOT_FOUND,
                     "execution_time": time.time() - start_time
                 }
 
@@ -130,15 +129,25 @@ class VideoProcessor:
             video_name = Path(video_path).stem
             audio_path = self.output_dir / f"{video_name}_audio.{audio_format}"
 
-            # Extract audio
-            stream = ffmpeg.input(video_path)
-            stream = ffmpeg.output(stream, str(audio_path), **{"q:a": 0, "map": "a"})
-            ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+            if audio_format == "wav":
+                process_result = media_processor.convert_pcm(
+                    video_path, audio_path, sample_rate=44100, channels=2)
+            else:
+                codec = {
+                    "aac": ("aac", "128k"),
+                    "m4a": ("aac", "128k"),
+                    "mp3": ("libmp3lame", "192k"),
+                    "ogg": ("libvorbis", "160k"),
+                    "opus": ("libopus", "96k"),
+                }.get(audio_format, ("libmp3lame", "192k"))
+                process_result = media_processor.extract_audio(
+                    video_path, audio_path, codec[0], codec[1], 44100, False)
+            if not process_result.success:
+                return {"success": False, "error": process_result.error_code}
 
-            # Get audio duration
-            probe = ffmpeg.probe(str(audio_path))
-            audio_duration = float(probe["format"]["duration"])
-            audio_size = int(probe["format"]["size"])
+            probe = media_processor.probe(audio_path)
+            audio_duration = probe.duration
+            audio_size = probe.size
 
             return {
                 "success": True,
@@ -162,16 +171,15 @@ class VideoProcessor:
             video_name = Path(video_path).stem
             output_path = self.output_dir / f"{video_name}_compressed.mp4"
 
-            # Compress video
-            stream = ffmpeg.input(video_path)
-            stream = ffmpeg.output(
-                stream,
-                str(output_path),
-                vcodec="libx264",
-                crf=crf,
-                preset="medium"
+            process_result = media_processor.compress_video(
+                video_path,
+                output_path,
+                encoder="libx264",
+                preset="medium",
+                quality=crf,
             )
-            ffmpeg.run(stream, overwrite_output=True, capture_stdout=True, capture_stderr=True)
+            if not process_result.success:
+                return {"success": False, "error": process_result.error_code}
 
             # Get file sizes
             original_size = Path(video_path).stat().st_size
@@ -196,20 +204,20 @@ class VideoProcessor:
         """Get video metadata using ffprobe"""
         try:
 
-            probe = ffmpeg.probe(video_path)
-            video_stream = next((s for s in probe["streams"] if s["codec_type"] == "video"), None)
+            probe = media_processor.probe(video_path)
+            video_stream = probe.first_stream("video")
 
             if not video_stream:
                 return {}
 
             return {
-                "duration": float(probe["format"]["duration"]),
-                "width": int(video_stream["width"]),
-                "height": int(video_stream["height"]),
-                "fps": eval(video_stream.get("r_frame_rate", "30/1")),
-                "codec": video_stream.get("codec_name"),
-                "bitrate": int(probe["format"].get("bit_rate", 0)) // 1000,  # Convert to kbps
-                "file_size": int(probe["format"]["size"])
+                "duration": probe.duration,
+                "width": video_stream.width,
+                "height": video_stream.height,
+                "fps": video_stream.frame_rate,
+                "codec": video_stream.codec_name,
+                "bitrate": probe.bit_rate // 1000,
+                "file_size": probe.size,
             }
 
         except Exception as e:

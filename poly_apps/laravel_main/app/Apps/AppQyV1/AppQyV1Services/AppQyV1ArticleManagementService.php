@@ -27,13 +27,17 @@ class AppQyV1ArticleManagementService
         $categoryRows = null;
         $items = [];
         $categories = [];
+        $statistics = [];
         $total = 0;
+        $rawTotal = 0;
 
         $limit = max(1, min($limit, 100));
         $offset = max(0, $offset);
         $category = $category !== null ? trim($category) : null;
         $page = AppQyV1Article::managementPage($category, $offset, $limit);
         $total = $page['total'];
+        $rawTotal = $page['raw_total'];
+        $statistics = $page['statistics'];
         $rows = $page['rows'];
         foreach ($rows as $row) {
             $items[] = $this->mapArticle($row);
@@ -50,13 +54,18 @@ class AppQyV1ArticleManagementService
             $categories[$rowCategory] = ($categories[$rowCategory] ?? 0) + (int) $row->aggregate;
         }
         ksort($categories);
+        if ($category === 'daily') {
+            $categories['daily'] = $total;
+        }
 
         return [
             'items' => $items,
             'total' => $total,
+            'raw_total' => $rawTotal,
             'limit' => $limit,
             'offset' => $offset,
             'categories' => $categories,
+            'statistics' => $statistics,
         ];
     }
 
@@ -67,6 +76,10 @@ class AppQyV1ArticleManagementService
         $audioUrl = null;
         $audioReady = false;
         $audioStatus = 'queued';
+        $ttsChunked = false;
+        $audioGenerationType = 'legacy';
+        $sourceIdentity = null;
+        $audioRebuiltAt = null;
 
         $metadata = is_array($article->metadata) ? $article->metadata : [];
         $category = $this->categoryFromValues(
@@ -81,6 +94,14 @@ class AppQyV1ArticleManagementService
         $audioStatus = $audioReady
             ? 'ready'
             : (is_string($metadata['audio_status'] ?? null) ? $metadata['audio_status'] : 'queued');
+        $ttsChunked = ($metadata['tts_chunked'] ?? false) === true;
+        $audioGenerationType = $ttsChunked ? 'multi_sentence' : 'legacy';
+        $sourceIdentity = is_string($metadata['idempotency_key_hash'] ?? null)
+            ? $metadata['idempotency_key_hash']
+            : null;
+        $audioRebuiltAt = is_string($metadata['audio_rebuilt_at'] ?? null)
+            ? $metadata['audio_rebuilt_at']
+            : null;
 
         return [
             'id' => $article->article_id,
@@ -88,6 +109,7 @@ class AppQyV1ArticleManagementService
             'source_key' => $article->article_id,
             'category' => $category,
             'source' => $article->source,
+            'source_identity' => $sourceIdentity,
             'article_type' => $article->article_type,
             'title' => $article->title,
             'title_en' => $metadata['title_en'] ?? $article->title,
@@ -105,6 +127,11 @@ class AppQyV1ArticleManagementService
             'audio_url' => $audioUrl,
             'audio_ready' => $audioReady,
             'audio_status' => $audioStatus,
+            'tts_engine' => is_string($metadata['tts_engine'] ?? null) ? $metadata['tts_engine'] : null,
+            'tts_model' => is_string($metadata['tts_model'] ?? null) ? $metadata['tts_model'] : null,
+            'tts_chunked' => $ttsChunked,
+            'audio_generation_type' => $audioGenerationType,
+            'audio_rebuilt_at' => $audioRebuiltAt,
             'document_id' => $metadata['document_id'] ?? null,
             'reading_date' => $article->reading_date ? $article->reading_date->toDateString() : null,
             'created_at' => $article->created_at ? $article->created_at->toIso8601String() : null,

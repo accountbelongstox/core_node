@@ -180,9 +180,13 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     {
         $publisherKey = RuntimeConfigurationStore::get(RelayHubJwt::PUBLISHER_KEY);
         $subscriberKey = RuntimeConfigurationStore::get(RelayHubJwt::SUBSCRIBER_KEY);
+        $corsOrigins = ServiceContract::stringList('realtime.mercure_cors_origins');
 
-        if ($publisherKey === null || $subscriberKey === null
-            || trim($publisherKey) === '' || trim($subscriberKey) === '') {
+        if ($publisherKey === null
+            || trim($publisherKey) === ''
+            || $subscriberKey === null
+            || trim($subscriberKey) === ''
+        ) {
             return '';
         }
 
@@ -190,6 +194,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\ttransport ".ServiceContract::string('realtime.mercure_transport')."\n"
             . "\t\tpublisher_jwt {$publisherKey} HS256\n"
             . "\t\tsubscriber_jwt {$subscriberKey} HS256\n"
+            . "\t\tcors_origins ".implode(' ', $corsOrigins)."\n"
             . "\t\tcookie_name ".ServiceContract::string('realtime.mercure_cookie')."\n"
             . "\t}\n"
             . "\n";
@@ -203,6 +208,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\tphp_server {\n"
             . "\t\t\tindex frankenphp-worker.php\n"
             . "\t\t\ttry_files {path} frankenphp-worker.php\n"
+            . "\t\t\trequest_body_timeout ".ServiceContract::string('php_runtime.request_body_timeout')."\n"
             . "\t\t\tresolve_root_symlink\n"
             . "\t\t}\n"
             . "\t}\n";
@@ -424,6 +430,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         return "\tphp_server {\n"
             . "\t\tindex frankenphp-worker.php\n"
             . "\t\ttry_files {path} frankenphp-worker.php\n"
+            . "\t\trequest_body_timeout ".ServiceContract::string('php_runtime.request_body_timeout')."\n"
             . "\t\tresolve_root_symlink\n"
             . "\t}\n";
     }

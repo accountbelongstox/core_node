@@ -150,12 +150,38 @@ frankenphp_install_pipeline_retire_nonowners() {
 }
 
 frankenphp_install_pipeline_finalize() {
+    local expected_binary=""
+    local stored_binary=""
+    local stored_https_port=""
+    local stored_admin_port=""
+
     fm_caddyfile_ensure \
         "$FRANKENPHP_LARAVEL_PUBLIC_DIR" \
         "$FRANKENPHP_SITE_PORT" \
         "$FRANKENPHP_ADMIN_PORT" \
         "${FRANKENPHP_CADDYFILE_DIR}/Caddyfile"
+    if [ "$FM_CADDYFILE_READY" != "yes" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] canonical Caddyfile is not ready"
+        return
+    fi
+
     fm_store_info
+    expected_binary="$(fm_resolve_binary_path "$(fm_variant_binary)")"
+    stored_binary="$(get_global_var "FRANKENPHP_BINARY_PATH" "")"
+    stored_binary="$(fm_resolve_binary_path "$stored_binary")"
+    stored_https_port="$(get_global_var "FRANKENPHP_HTTPS_PORT" "")"
+    stored_admin_port="$(get_global_var "FRANKENPHP_ADMIN_PORT" "")"
+    if [ "$(fm_runtime_contract_ready "$FRANKENPHP_INSTALL_MODE")" != "yes" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] runtime contract is not ready after finalization"
+        return
+    fi
+    if [ -z "$expected_binary" ] || [ "$stored_binary" != "$expected_binary" ] \
+        || [ "$stored_https_port" != "$FRANKENPHP_SITE_PORT" ] \
+        || [ "$stored_admin_port" != "$FRANKENPHP_ADMIN_PORT" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] persisted FrankenPHP state is not canonical"
+        return
+    fi
+
     fm_verify
 
     echo "[$FRANKENPHP_INSTALL_INDEX] =============================================="

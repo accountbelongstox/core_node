@@ -11,6 +11,10 @@ use App\Services\QueueCenter\QueueCenterRealtimeService;
 final class TaskCenterSummaryService
 {
     private const TIMER_QUEUE_ROLES = [
+        'appqyv1_word_validity_scan' => [
+            'role' => 'producer',
+            'target' => 'word_validity',
+        ],
         'app_qy_v1_word_translation_scan_task' => [
             'role' => 'producer',
             'target' => 'word_translation',

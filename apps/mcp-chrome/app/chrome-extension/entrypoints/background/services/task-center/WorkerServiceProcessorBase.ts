@@ -20,6 +20,7 @@ export interface WorkerServiceProcessorOptions {
   capabilities?: WorkerCapability[];
   concurrency?: number;
   batchSize?: number;
+  maxBatchSize?: number;
   start?: (config: ProcessorConfig) => Promise<void>;
 }
 
@@ -34,6 +35,7 @@ export class WorkerServiceProcessorBase implements ITaskProcessor {
   private readonly service: any;
   private readonly taskTypes: Set<string> | null;
   private readonly batchSize: number;
+  private readonly maxBatchSize: number | null;
   private readonly customStart: ((config: ProcessorConfig) => Promise<void>) | null;
 
   constructor(options: WorkerServiceProcessorOptions) {
@@ -46,6 +48,7 @@ export class WorkerServiceProcessorBase implements ITaskProcessor {
     this.service = options.service;
     this.taskTypes = options.taskTypes ? new Set(options.taskTypes) : null;
     this.batchSize = options.batchSize ?? 1;
+    this.maxBatchSize = options.maxBatchSize ?? null;
     this.customStart = options.start ?? null;
   }
 
@@ -54,12 +57,16 @@ export class WorkerServiceProcessorBase implements ITaskProcessor {
       await this.customStart(config);
       return;
     }
+    const configuredBatchSize = config.batchSize ?? this.batchSize;
+    const batchSize = this.maxBatchSize === null
+      ? configuredBatchSize
+      : Math.min(configuredBatchSize, this.maxBatchSize);
     await this.service.start({
       apiUrl: config.apiUrl,
       workerName: config.workerName || this.workerName,
       pollWait: config.pollWait,
       heartbeatInterval: config.heartbeatInterval,
-      batchSize: config.batchSize ?? this.batchSize,
+      batchSize,
     });
   }
 

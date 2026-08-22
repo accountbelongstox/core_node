@@ -18,7 +18,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
  * the unified GlobalTask system, so the unified view has full history before any
  * read/timer cutover.
  *
- * For every word row ({prefix}_tts_cache_{lang}) with audio and/or image state,
+ * For every word row ({prefix}_tts_cache_{lang}) with audio state,
  * and every article row ({prefix}_{lang}_article_library) with audio state, it
  * UPSERTs a GlobalTask keyed by a DETERMINISTIC task_id ('dict_' + md5(table|id|
  * kind)) — so the command is fully idempotent and interrupt/resume safe — and
@@ -35,7 +35,7 @@ class AppQyV1BackfillGlobalTasks extends Command
         {--lang= : Restrict to a single language code (default: all supported)}
         {--dry-run : Report counts without writing anything}';
 
-    protected $description = 'Backfill existing AppQyV1 dictionary audio/image state into the GlobalTask system (idempotent).';
+    protected $description = 'Backfill existing AppQyV1 dictionary audio state into the GlobalTask system (idempotent).';
 
     public function handle(): int
     {
@@ -50,10 +50,10 @@ class AppQyV1BackfillGlobalTasks extends Command
             $languages = array_values(array_filter($languages, fn ($l) => $l === $onlyLang));
         }
 
-        $totals = ['audio' => 0, 'image' => 0, 'article_audio' => 0];
+        $totals = ['audio' => 0, 'article_audio' => 0];
 
         foreach ($languages as $lang) {
-            // --- Word table (audio + image) ---
+            // --- Word table (audio only) ---
             try {
                 $wordTable = AppQyV1LangDictionaryModel::forLanguage($lang)->getTable();
             } catch (\Throwable $e) {
@@ -63,32 +63,23 @@ class AppQyV1BackfillGlobalTasks extends Command
 
             if ($wordTable && Schema::connection($connName)->hasTable($wordTable)) {
                 $hasTts = Schema::connection($connName)->hasColumn($wordTable, 'tts_status');
-                $hasImg = Schema::connection($connName)->hasColumn($wordTable, 'image_status');
+                $this->info("Word table {$wordTable} (lang={$lang}) — audio=" . ($hasTts ? 'y' : 'n'));
 
-                $this->info("Word table {$wordTable} (lang={$lang}) — audio=" . ($hasTts ? 'y' : 'n') . " image=" . ($hasImg ? 'y' : 'n'));
-
-                DB::connection($connName)->table($wordTable)
-                    ->where(function ($q) use ($hasTts, $hasImg) {
-                        if ($hasTts) {
-                            $q->whereNotNull('tts_status')->orWhere('has_audio', true);
-                        }
-                        if ($hasImg) {
-                            $q->orWhereNotNull('image_status')->orWhere('has_image', true);
-                        }
+                if ($hasTts) {
+                    DB::connection($connName)->table($wordTable)
+                    ->where(function ($q) {
+                        $q->whereNotNull('tts_status')->orWhere('has_audio', true);
                     })
                     ->orderBy('id')
-                    ->chunkById($chunk, function ($rows) use ($lang, $wordTable, $connName, $hasTts, $hasImg, $dryRun, &$totals) {
+                    ->chunkById($chunk, function ($rows) use ($lang, $wordTable, $connName, $dryRun, &$totals) {
                         foreach ($rows as $row) {
-                            if ($hasTts && ($row->tts_status !== null || !empty($row->has_audio))) {
-                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'audio', 'word_audio', GlobalTask::executionType('remote_audio'), GlobalTask::capability('audio'), $dryRun);
+                            if ($row->tts_status !== null || !empty($row->has_audio)) {
+                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, $dryRun);
                                 $totals['audio']++;
-                            }
-                            if ($hasImg && ($row->image_status !== null || !empty($row->has_image))) {
-                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'image', 'word_media', GlobalTask::executionType('remote_fast'), GlobalTask::capability('image'), $dryRun);
-                                $totals['image']++;
                             }
                         }
                     });
+                }
             }
 
             // --- Article table (audio only) ---
@@ -119,13 +110,13 @@ class AppQyV1BackfillGlobalTasks extends Command
 
         $this->newLine();
         $this->info(($dryRun ? '[DRY RUN] Would backfill' : 'Backfilled')
-            . " — word audio: {$totals['audio']}, word image: {$totals['image']}, article audio: {$totals['article_audio']}");
+            . " — word audio: {$totals['audio']}, article audio: {$totals['article_audio']}");
 
         return self::SUCCESS;
     }
 
     /**
-     * Idempotently UPSERT one backfill GlobalTask for a dict row + kind, and link
+     * Idempotently UPSERT one audio GlobalTask for a dictionary row and link
      * the row back. Keyed by a deterministic task_id so re-runs converge.
      *
      * @param object $row Raw DB row (stdClass)
@@ -135,26 +126,10 @@ class AppQyV1BackfillGlobalTasks extends Command
         string $table,
         $row,
         string $language,
-        string $kind,                 // 'audio' | 'image'
-        string $taskType,
-        string $executionType,
-        string $capability,
         bool $dryRun
     ): void {
-        $detId = 'dict_' . md5($table . '|' . $row->id . '|' . $kind);
-
-        $hasMedia = $kind === 'audio'
-            ? !empty($row->has_audio)
-            : !empty($row->has_image);
-
-        $dictStatus = $kind === 'audio'
-            ? ($row->tts_status ?? null)
-            : ($row->image_status ?? null);
-
-        $status = $this->mapStatus($dictStatus, $hasMedia);
-        $priority = $kind === 'audio'
-            ? 0
-            : (int) ($row->image_priority ?? 0);
+        $detId = 'dict_' . md5($table . '|' . $row->id . '|audio');
+        $status = $this->mapStatus($row->tts_status ?? null, !empty($row->has_audio));
 
         if ($dryRun) {
             return;
@@ -164,11 +139,11 @@ class AppQyV1BackfillGlobalTasks extends Command
             ['task_id' => $detId],
             [
                 'app_name' => 'AppQyV1',
-                'task_type' => $taskType,
-                'execution_type' => $executionType,
+                'task_type' => 'word_audio',
+                'execution_type' => GlobalTask::executionType('remote_audio'),
                 'status' => $status,
-                'priority' => $priority,
-                'capability' => $capability,
+                'priority' => 0,
+                'capability' => GlobalTask::capability('audio'),
                 'is_fast_tier' => false,
                 'progress' => $status === GlobalTask::status('completed') ? 100.0 : 0.0,
                 'payload' => [
@@ -189,7 +164,7 @@ class AppQyV1BackfillGlobalTasks extends Command
         );
 
         // Link the dict row back (only if the column exists).
-        $linkColumn = $kind === 'audio' ? 'tts_global_task_id' : 'image_global_task_id';
+        $linkColumn = 'tts_global_task_id';
         if (Schema::connection($connName)->hasColumn($table, $linkColumn)) {
             DB::connection($connName)->table($table)
                 ->where('id', $row->id)

@@ -2,34 +2,35 @@
 import serverInstance from './server';
 import nativeMessagingHostInstance from './native-messaging-host';
 
-try {
-  serverInstance.setNativeHost(nativeMessagingHostInstance); // Server needs setNativeHost method
-  nativeMessagingHostInstance.setServer(serverInstance); // NativeHost needs setServer method
-  nativeMessagingHostInstance.start();
-} catch (error) {
-  process.exit(1);
+function shutdown(reason: string, exitCode: number): void {
+  void nativeMessagingHostInstance.shutdown(reason, exitCode);
 }
 
-process.on('error', (error) => {
-  process.exit(1);
+try {
+  serverInstance.setNativeHost(nativeMessagingHostInstance);
+  nativeMessagingHostInstance.setServer(serverInstance);
+  nativeMessagingHostInstance.start();
+} catch (error) {
+  shutdown('Native host initialization failed.', 1);
+}
+
+process.on('error', () => {
+  shutdown('Native host process error.', 1);
 });
 
 // Handle process signals and uncaught exceptions
 process.on('SIGINT', () => {
-  process.exit(0);
+  shutdown('Native host received SIGINT.', 0);
 });
 
 process.on('SIGTERM', () => {
-  process.exit(0);
+  shutdown('Native host received SIGTERM.', 0);
 });
 
-process.on('exit', (code) => {
+process.on('uncaughtException', () => {
+  shutdown('Native host encountered an uncaught exception.', 1);
 });
 
-process.on('uncaughtException', (error) => {
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason) => {
-  // Don't exit immediately, let the program continue running
+process.on('unhandledRejection', () => {
+  shutdown('Native host encountered an unhandled rejection.', 1);
 });

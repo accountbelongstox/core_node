@@ -318,11 +318,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
 
         $lastPage = max(1, (int) ceil($total / $perPage));
 
-        // On-page media prioritization (P5): bump the page's words that still
-        // lack image OR audio to the FRONT of the word_media queue so the visible
-        // page resolves first. Capped + non-blocking; the service swallows its
-        // own failures. The dictionary rows are already hydrated, so the
-        // missing-media check adds no extra queries.
+        // Prioritize pronunciation for visible words that still lack audio.
         $this->bumpPageMediaToFront($dictRows, $library->languageCode());
 
         return $this->success([
@@ -347,11 +343,8 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
     }
 
     /**
-     * Bump the page's words that lack image OR audio to the FRONT of the
-     * word_media queue (P5 on-query prioritization). Operates on the already
-     * hydrated dictionary rows (no extra read), capped at MAX_PAGE_MEDIA_BUMP so
-     * a large page never floods the queue. Non-blocking: per-word failures are
-     * swallowed by the service.
+     * Bump visible words that lack audio. The operation is capped so a large
+     * page never floods the queue.
      *
      * @param iterable $dictRows Hydrated AppQyV1LangDictionaryModel rows.
      * @param string|null $langCode Library language code (null -> skip).
@@ -376,15 +369,12 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                 continue;
             }
 
-            $hasImage = $service->resolveImageUrl($row) !== null;
             $hasAudio = $service->resolveAudioUrl($row) !== null;
-            if ($hasImage && $hasAudio) {
+            if ($hasAudio) {
                 continue;
             }
 
-            // No target language at the page level; image/audio are language
-            // agnostic and translation coverage is bumped by per-word lookups.
-            $service->bumpQueriedWord($row, (string) $row->content, $langCode, null);
+            $service->bumpQueriedWordAudio($row, (string) $row->content, $langCode);
             $bumped++;
         }
     }

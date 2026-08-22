@@ -97,6 +97,56 @@ final class ServiceContract
         return $value;
     }
 
+    public static function positiveInt(string $path): int
+    {
+        $value = self::document();
+        foreach (explode('.', $path) as $segment) {
+            $value = is_array($value) && array_key_exists($segment, $value)
+                ? $value[$segment]
+                : null;
+        }
+        if (!is_int($value) || $value < 1) {
+            throw new RuntimeException("Unknown service contract positive integer: {$path}");
+        }
+
+        return $value;
+    }
+
+    public static function boolean(string $path): bool
+    {
+        $value = self::document();
+        foreach (explode('.', $path) as $segment) {
+            $value = is_array($value) && array_key_exists($segment, $value)
+                ? $value[$segment]
+                : null;
+        }
+        if (!is_bool($value)) {
+            throw new RuntimeException("Unknown service contract boolean: {$path}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function stringList(string $path): array
+    {
+        $value = self::document();
+        foreach (explode('.', $path) as $segment) {
+            $value = is_array($value) && array_key_exists($segment, $value)
+                ? $value[$segment]
+                : null;
+        }
+        if (!is_array($value)
+            || $value === []
+            || array_filter($value, static fn (mixed $item): bool => !is_string($item) || $item === '') !== []) {
+            throw new RuntimeException("Unknown service contract string list: {$path}");
+        }
+
+        return array_values($value);
+    }
+
     public static function laravelApiBackendUrl(): string
     {
         return 'http://'.self::host('loopback').':'.self::port('laravel_api_backend');

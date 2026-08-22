@@ -11,10 +11,25 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/service_contract_common.sh"
+
+PHP_COMMON_PERMISSION_READY="no"
+PHP_COMMON_LARAVEL_CONFIG_READY="no"
+PHP_COMMON_LARAVEL_CONFIG_SEEN="no"
+PHP_COMMON_NETWORK_READY="no"
+PHP_COMMON_FPM_STATE="unknown"
+PHP_COMMON_SYMLINK_STATE="unknown"
+PHP_COMMON_FPM_POOL_READY="no"
+PHP_COMMON_SOCKET_READY="no"
+PHP_RUNTIME_UPLOAD_MAX_FILESIZE="$(sc_require php_runtime.upload_max_filesize)"
+PHP_RUNTIME_POST_MAX_SIZE="$(sc_require php_runtime.post_max_size)"
+PHP_RUNTIME_MAX_EXECUTION_TIME="$(sc_require php_runtime.max_execution_time_seconds)"
+PHP_RUNTIME_MAX_INPUT_TIME="$(sc_require php_runtime.max_input_time_seconds)"
 
 # Check network connectivity with multiple test hosts
 check_network_connectivity_from_php_common() {
     local script_index="${1:-[NETWORK]}"
+    PHP_COMMON_NETWORK_READY="no"
     print_step_from_common_functions "$script_index Checking network connectivity..."
     
     # Test multiple servers
@@ -32,10 +47,10 @@ check_network_connectivity_from_php_common() {
     if [ "$connected" = false ]; then
         print_error_from_common_functions "$script_index Network connectivity failed"
         print_step_from_common_functions "$script_index Attempting to use offline/cached packages"
-        return 1
+        return
     fi
-    
-    return 0
+
+    PHP_COMMON_NETWORK_READY="yes"
 }
 
 # Check PHP-FPM installation and service status
@@ -45,12 +60,14 @@ check_php_fpm_status_from_php_common() {
     local fpm_service="php${php_version}-fpm"
     local socket_path="/run/php/php${php_version}-fpm.sock"
     
+    PHP_COMMON_FPM_STATE="unknown"
     print_step_from_common_functions "$script_index Checking PHP-FPM service status..."
     
     # Check if service exists
     if ! systemctl list-unit-files | grep -q "$fpm_service"; then
         print_error_from_common_functions "$script_index PHP-FPM service not installed: $fpm_service"
-        return 3
+        PHP_COMMON_FPM_STATE="not_installed"
+        return
     fi
     
     # Check if service is enabled
@@ -63,7 +80,8 @@ check_php_fpm_status_from_php_common() {
         print_success_from_common_functions "$script_index PHP-FPM service is running: $fpm_service"
     else
         print_error_from_common_functions "$script_index PHP-FPM service not running: $fpm_service"
-        return 1
+        PHP_COMMON_FPM_STATE="not_running"
+        return
     fi
     
     # Check socket file
@@ -73,10 +91,11 @@ check_php_fpm_status_from_php_common() {
         print_info_from_common_functions "$script_index Socket permissions: $socket_perms"
     else
         print_error_from_common_functions "$script_index PHP-FPM socket not found: $socket_path"
-        return 2
+        PHP_COMMON_FPM_STATE="socket_missing"
+        return
     fi
-    
-    return 0
+
+    PHP_COMMON_FPM_STATE="ready"
 }
 
 # Check symbolic link integrity for universal PHP paths
@@ -87,6 +106,7 @@ check_symbolic_link_from_php_common() {
     local target_link="/usr/local/bin/$binary_name"
     local expected_binary="/usr/bin/${binary_name}${expected_version}"
     
+    PHP_COMMON_SYMLINK_STATE="unknown"
     print_step_from_common_functions "$script_index Checking symbolic link: $target_link"
     
     if [ -L "$target_link" ]; then
@@ -95,17 +115,21 @@ check_symbolic_link_from_php_common() {
         
         if [ "$current_target" = "$expected_binary" ]; then
             print_success_from_common_functions "$script_index Symlink is correct: $target_link -> $current_target"
-            return 0
+            PHP_COMMON_SYMLINK_STATE="ready"
+            return
         else
             print_warning_from_common_functions "$script_index Symlink points to wrong version: $current_target (expected: $expected_binary)"
-            return 1
+            PHP_COMMON_SYMLINK_STATE="wrong_target"
+            return
         fi
     elif [ -f "$target_link" ]; then
         print_warning_from_common_functions "$script_index Target exists but is not a symlink: $target_link"
-        return 1
+        PHP_COMMON_SYMLINK_STATE="not_symlink"
+        return
     else
         print_error_from_common_functions "$script_index Symlink not found: $target_link"
-        return 2
+        PHP_COMMON_SYMLINK_STATE="missing"
+        return
     fi
 }
 
@@ -131,7 +155,7 @@ prevent_apache2_conflicts_from_php_common() {
     $USE_SUDO apt-mark hold apache2 apache2-bin apache2-data apache2-utils libapache2-mod-php* 2>/dev/null || true
     
     print_success_from_common_functions "$script_index Apache2 conflicts prevented"
-    return 0
+    return
 }
 
 # Set directory permissions for web applications
@@ -142,6 +166,7 @@ set_directory_permissions_from_php_common() {
     local target_group=""
     local permission_ready=""
 
+    PHP_COMMON_PERMISSION_READY="no"
     print_step_from_common_functions "$script_index Setting directory permissions for: $target_dir"
 
     # Create directory if it doesn't exist
@@ -162,10 +187,40 @@ set_directory_permissions_from_php_common() {
     fi
 
     if [ "$permission_ready" = "yes" ]; then
+        PHP_COMMON_PERMISSION_READY="yes"
         print_success_from_common_functions "$script_index Directory root permissions are ready"
     else
         print_error_from_common_functions "$script_index Directory root permissions are not ready"
     fi
+}
+
+php_laravel_ini_ready_from_php_common() {
+    local ini_file="$1"
+    local ready="yes"
+    local expected_line=""
+
+    if [ ! -f "$ini_file" ]; then
+        ready="no"
+    fi
+    for expected_line in \
+        'disable_functions =' \
+        'memory_limit = 512M' \
+        "upload_max_filesize = $PHP_RUNTIME_UPLOAD_MAX_FILESIZE" \
+        "post_max_size = $PHP_RUNTIME_POST_MAX_SIZE" \
+        "max_execution_time = $PHP_RUNTIME_MAX_EXECUTION_TIME" \
+        "max_input_time = $PHP_RUNTIME_MAX_INPUT_TIME" \
+        'opcache.enable = 1' \
+        'opcache.memory_consumption = 256' \
+        'open_basedir = none'; do
+        if [ "$ready" = "yes" ] && [ -z "$(grep -F -x "$expected_line" "$ini_file" 2>/dev/null)" ]; then
+            ready="no"
+        fi
+    done
+    expected_line="error_log = \"$PHP_ERROR_LOG_PATH\""
+    if [ "$ready" = "yes" ] && [ -z "$(grep -F -x "$expected_line" "$ini_file" 2>/dev/null)" ]; then
+        ready="no"
+    fi
+    printf '%s' "$ready"
 }
 
 # Configure PHP-FPM pool
@@ -174,6 +229,7 @@ configure_php_fpm_pool_from_php_common() {
     local socket_path="${2:-/run/php/php8.5-fpm.sock}"
     local script_index="${3:-[PHP_FPM_POOL]}"
     
+    PHP_COMMON_FPM_POOL_READY="no"
     print_step_from_common_functions "$script_index Configuring PHP-FPM pool for version $version"
     
     local pool_config="/etc/php/$version/fpm/pool.d/www.conf"
@@ -206,10 +262,11 @@ configure_php_fpm_pool_from_php_common() {
         $USE_SUDO sed -i '/^;php_admin_value\[open_basedir\]/d' "$pool_config"
         
         print_success_from_common_functions "$script_index PHP-FPM pool configured successfully"
-        return 0
+        PHP_COMMON_FPM_POOL_READY="yes"
+        return
     else
         print_error_from_common_functions "$script_index PHP-FPM pool configuration file not found: $pool_config"
-        return 1
+        return
     fi
 }
 
@@ -231,7 +288,7 @@ ensure_socket_directory_from_php_common() {
     $USE_SUDO chown root:root "$socket_dir"
     
     print_success_from_common_functions "$script_index Socket directory ready: $socket_dir"
-    return 0
+    return
 }
 
 # Verify PHP-FPM socket with retry mechanism
@@ -241,6 +298,7 @@ verify_php_fpm_socket_from_php_common() {
     local max_attempts=10
     local attempt=1
     
+    PHP_COMMON_SOCKET_READY="no"
     print_step_from_common_functions "$script_index Verifying PHP-FPM socket: $socket_path"
     
     while [ $attempt -le $max_attempts ]; do
@@ -248,7 +306,8 @@ verify_php_fpm_socket_from_php_common() {
             print_success_from_common_functions "$script_index Socket verified: $socket_path"
             local socket_perms=$(stat -c "%a" "$socket_path" 2>/dev/null || echo "unknown")
             print_info_from_common_functions "$script_index Socket permissions: $socket_perms"
-            return 0
+            PHP_COMMON_SOCKET_READY="yes"
+            return
         fi
         
         print_step_from_common_functions "$script_index Attempt $attempt/$max_attempts: Socket not ready, waiting..."
@@ -257,7 +316,7 @@ verify_php_fpm_socket_from_php_common() {
     done
     
     print_error_from_common_functions "$script_index Socket verification failed after $max_attempts attempts"
-    return 1
+    return
 }
 
 # Update Nginx configuration for PHP
@@ -271,12 +330,12 @@ update_nginx_config_from_php_common() {
     
     if [ "$install_nginx" != "true" ]; then
         print_info_from_common_functions "$script_index Nginx installation not enabled, skipping configuration"
-        return 0
+        return
     fi
     
     if ! command -v nginx >/dev/null 2>&1; then
         print_warning_from_common_functions "$script_index Nginx not installed, skipping configuration"
-        return 0
+        return
     fi
     
     # Update nginx configuration to use correct socket path
@@ -290,7 +349,7 @@ update_nginx_config_from_php_common() {
         print_success_from_common_functions "$script_index Nginx configuration updated"
     fi
     
-    return 0
+    return
 }
 
 # Update Caddy configuration for PHP
@@ -304,7 +363,7 @@ update_caddy_config_from_php_common() {
     
     if ! command -v caddy >/dev/null 2>&1; then
         print_info_from_common_functions "$script_index Caddy not installed, skipping configuration"
-        return 0
+        return
     fi
     
     # Update Caddy configuration
@@ -318,69 +377,73 @@ update_caddy_config_from_php_common() {
         print_success_from_common_functions "$script_index Caddy configuration updated"
     fi
     
-    return 0
+    return
 }
 
 # Configure PHP for Laravel with proper open_basedir
 configure_php_for_laravel_from_php_common() {
     local script_index="${1:-[LARAVEL_CONFIG]}"
     local ini_file=""
-    local active_error_log_count=""
-    local configured_error_log=""
-    local desired_error_log="error_log = \"$PHP_ERROR_LOG_PATH\""
+    local rendered_file=""
+    local backup_file=""
+    local managed_block=""
     
+    PHP_COMMON_LARAVEL_CONFIG_READY="yes"
+    PHP_COMMON_LARAVEL_CONFIG_SEEN="no"
     print_step_from_common_functions "$script_index Configuring PHP for Laravel requirements"
     
     for ini_file in "${PHP_INI_FILES[@]}"; do
         if [ -f "$ini_file" ]; then
+            PHP_COMMON_LARAVEL_CONFIG_SEEN="yes"
             print_step_from_common_functions "$script_index Configuring $ini_file"
-            
-            # Backup original
-            $USE_SUDO cp "$ini_file" "${ini_file}.backup.$(date +%Y%m%d_%H%M%S)"
-            
-            # Enable shell execution for Laravel
-            $USE_SUDO sed -i 's/^disable_functions.*/disable_functions = /' "$ini_file"
-            
-            # Set memory limits for Laravel
-            $USE_SUDO sed -i 's/^memory_limit.*/memory_limit = 512M/' "$ini_file"
-            
-            # Set upload limits
-            $USE_SUDO sed -i 's/^upload_max_filesize.*/upload_max_filesize = 64M/' "$ini_file"
-            $USE_SUDO sed -i 's/^post_max_size.*/post_max_size = 64M/' "$ini_file"
-            
-            # Set execution time
-            $USE_SUDO sed -i 's/^max_execution_time.*/max_execution_time = 300/' "$ini_file"
-            
-            # Enable opcache for performance
-            $USE_SUDO sed -i 's/^;opcache.enable=.*/opcache.enable=1/' "$ini_file"
-            $USE_SUDO sed -i 's/^;opcache.memory_consumption.*/opcache.memory_consumption=256/' "$ini_file"
-            
-            # Disable open_basedir for maximum compatibility
-            # Remove any existing open_basedir settings
-            $USE_SUDO sed -i '/^open_basedir/d' "$ini_file"
-            $USE_SUDO sed -i '/^;open_basedir/d' "$ini_file"
-            # Add new open_basedir = none setting
-            echo "open_basedir = none" | $USE_SUDO tee -a "$ini_file" > /dev/null
-
-            # Keep PHP errors in the mapped PHP directory instead of the caller's CWD.
-            active_error_log_count=$(grep -E '^[[:space:]]*error_log[[:space:]]*=' "$ini_file" 2>/dev/null | wc -l)
-            configured_error_log=$(grep -E '^[[:space:]]*error_log[[:space:]]*=' "$ini_file" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/[[:space:]]*$//; s/^"//; s/"$//')
-            if [ "$active_error_log_count" -ne 1 ] || [ "$configured_error_log" != "$PHP_ERROR_LOG_PATH" ]; then
-                $USE_SUDO sed -i '/^[[:space:]]*error_log[[:space:]]*=/d' "$ini_file"
-                printf '%s\n' "$desired_error_log" | $USE_SUDO tee -a "$ini_file" > /dev/null
+            rendered_file="$(mktemp)"
+            backup_file="${ini_file}.backup.$(date +%Y%m%d_%H%M%S)"
+            managed_block="disable_functions =
+memory_limit = 512M
+upload_max_filesize = $PHP_RUNTIME_UPLOAD_MAX_FILESIZE
+post_max_size = $PHP_RUNTIME_POST_MAX_SIZE
+max_execution_time = $PHP_RUNTIME_MAX_EXECUTION_TIME
+max_input_time = $PHP_RUNTIME_MAX_INPUT_TIME
+opcache.enable = 1
+opcache.memory_consumption = 256
+open_basedir = none
+error_log = \"$PHP_ERROR_LOG_PATH\""
+            awk '
+                /^[[:space:]]*;?[[:space:]]*(disable_functions|memory_limit|upload_max_filesize|post_max_size|max_execution_time|max_input_time|opcache\.enable|opcache\.memory_consumption|open_basedir|error_log)[[:space:]]*=/ { next }
+                /^[[:space:]]*$/ { trailing = trailing $0 ORS; next }
+                { printf "%s", trailing; trailing = ""; print }
+            ' "$ini_file" > "$rendered_file"
+            printf '\n%s\n' "$managed_block" >> "$rendered_file"
+            if cmp -s "$rendered_file" "$ini_file"; then
+                print_success_from_common_functions "$script_index Already canonical: $ini_file"
+            else
+                $USE_SUDO cp "$ini_file" "$backup_file"
+                $USE_SUDO cp "$rendered_file" "$ini_file"
+                print_success_from_common_functions "$script_index Configured $ini_file"
             fi
-            
-            print_success_from_common_functions "$script_index Configured $ini_file"
+            rm -f "$rendered_file"
+            if [ "$(php_laravel_ini_ready_from_php_common "$ini_file")" != "yes" ]; then
+                PHP_COMMON_LARAVEL_CONFIG_READY="no"
+            fi
+        else
+            PHP_COMMON_LARAVEL_CONFIG_READY="no"
+            print_error_from_common_functions "$script_index PHP configuration file not found: $ini_file"
         fi
     done
-    
-    print_success_from_common_functions "$script_index PHP Laravel configuration completed"
+
+    if [ "$PHP_COMMON_LARAVEL_CONFIG_SEEN" != "yes" ]; then
+        PHP_COMMON_LARAVEL_CONFIG_READY="no"
+    fi
+    if [ "$PHP_COMMON_LARAVEL_CONFIG_READY" = "yes" ]; then
+        print_success_from_common_functions "$script_index PHP Laravel configuration completed"
+    else
+        print_error_from_common_functions "$script_index PHP Laravel configuration remains incomplete"
+    fi
 
     # NOTE: PHP-FPM reload DISABLED - Using Swoole with Laravel Octane
     # PHP-FPM is not installed when using Swoole
     # force_reload_php_fpm_from_php_common "$script_index"  # DISABLED
 
-    return 0
 }
 
 # Force reload PHP-FPM service to apply configuration changes
@@ -392,7 +455,7 @@ force_reload_php_fpm_from_php_common() {
     print_step_from_common_functions "$script_index PHP-FPM is not installed in Swoole configuration"
 
     # No need to restart PHP-FPM as it's not used with Swoole
-    return 0
+    return
 }
 
 # Verify open_basedir configuration
@@ -419,5 +482,5 @@ verify_open_basedir_config_from_php_common() {
         fi
     done
     
-    return 0
+    return
 }

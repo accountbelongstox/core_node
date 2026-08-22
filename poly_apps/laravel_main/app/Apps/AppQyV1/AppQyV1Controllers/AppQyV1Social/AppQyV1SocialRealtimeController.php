@@ -29,9 +29,6 @@ class AppQyV1SocialRealtimeController extends Controller
     public function connection(Request $request): JsonResponse
     {
         $userId = (int) $request->user()->id;
-        // One authenticated round trip carries both the hub contract and the
-        // topic-scoped bearer token for this user's private social topic;
-        // the shared browser SSE transport sends it in Authorization.
         $token = RelayHubAuthService::issueForTopics(
             'social:'.$userId,
             [AppQyV1SocialEventModel::topic($userId)]

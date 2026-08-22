@@ -612,8 +612,7 @@ class OperationService:
             if include_items
             else []
         )
-        events = self.repo.get_events(op.id, limit=60)
-        events.sort(key=lambda e: e.seq, reverse=True)
+        events = self.repo.get_recent_events(op.id, limit=60)
         current_item = None
         for event in events:
             detail = event.payload_json or {}

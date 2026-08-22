@@ -262,6 +262,23 @@ class AppQyV1DictionaryTTSCoordinator
             return ['success' => true, 'status' => self::statusOf($entry->freshRecord() ?? $entry)];
         }
 
+        $relativePath = $this->ttsService->buildRelativePath($entry->content, $lang, 'word');
+        $fullPath = $this->ttsService->getAudioBaseDir() . '/' . $relativePath;
+        $existingBytes = FileSystemManager::readFile($fullPath);
+        if ($existingBytes !== false
+            && strlen($existingBytes) >= 100
+            && self::looksLikeMp3($existingBytes)
+        ) {
+            $this->markWordCompleted($entry, $relativePath, $provider ?: ('worker:' . $workerId));
+            return [
+                'success' => true,
+                'status' => self::STATUS_COMPLETED,
+                'already_done' => true,
+                'audio_path' => $relativePath,
+                'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
+            ];
+        }
+
         // --- Result validation (never trust the wire) ---
         if ($audioBinary === null || strlen($audioBinary) < 100) {
             $this->markWordFailed($entry, $lang, 'Rejected: empty or undersized audio payload', $workerId);
@@ -273,8 +290,6 @@ class AppQyV1DictionaryTTSCoordinator
         }
 
         // --- Persist to the deterministic path, then re-verify on disk ---
-        $relativePath = $this->ttsService->buildRelativePath($entry->content, $lang, 'word');
-        $fullPath = $this->ttsService->getAudioBaseDir() . '/' . $relativePath;
         FileSystemManager::ensureDirectoryExists(dirname($fullPath));
 
         if (@file_put_contents($fullPath, $audioBinary) === false) {

@@ -9,9 +9,10 @@ import { laravelApi, pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } fro
 import type { TtsEngine, TtsStatus } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
+import { PcAudioDeliveryOutboxStatus } from './PcAudioDeliveryOutboxStatus';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
-const LOG_LIMIT = 1000;
+import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 
 export function PcWordAudioPanel(): ReactElement {
   const { t } = useTranslation('pc');
@@ -21,7 +22,6 @@ export function PcWordAudioPanel(): ReactElement {
   const [concurrencyInput, setConcurrencyInput] = useState(
     () => StorageManager.getRaw(StorageKeys.PYCORE_WORD_TTS_CONCURRENCY) ?? '',
   );
-  const [logClearedAt, setLogClearedAt] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const ttsRaw = hub.tts as TtsStatus | null;
@@ -52,11 +52,16 @@ export function PcWordAudioPanel(): ReactElement {
   const workerRunning = wordSection.lifecycle === 'on';
   const workerConfigured = workerOn && wordSection.lifecycle !== 'off';
   const heartbeatOn = wordSection.worker.online || worker?.heartbeat_enabled || false;
-  const pending = hub.voiceWord?.laravel?.pending;
-  const leased = hub.voiceWord?.laravel?.leased;
+  const pending = wordSection.queue.pending;
+  const leased = wordSection.queue.leased;
   const effectiveConcurrency = hub.voiceWord?.concurrency;
   const recommendedConcurrency = hub.voiceWord?.concurrency_recommended;
   const queueProgress = worker?.queue_progress;
+  const eventPage = useQueueWorkerEventPage(
+    'word',
+    expanded,
+    worker?.event_revision ?? 0,
+  );
 
   const sectionWorkerLabel = workerOn
     ? (wordSection.lifecycle === 'starting' ? 'starting' : workerRunning ? 'running' : workerConfigured ? 'configured' : 'off')
@@ -101,7 +106,7 @@ export function PcWordAudioPanel(): ReactElement {
       .catch((error: any) => setActionError(error?.message || 'Concurrency save failed'));
   }, [hub, workerOn]);
 
-  const rows = useMemo<PcWordAudioLogRow[]>(() => (worker?.events ?? [])
+  const rows = useMemo<PcWordAudioLogRow[]>(() => eventPage.items
     .map((event) => ({
       at: (event.at ?? 0) * 1000,
       kind: event.kind || 'event',
@@ -114,9 +119,7 @@ export function PcWordAudioPanel(): ReactElement {
       progressTotal: event.progress_total,
       playable: Boolean(event.text_preview && event.language && event.kind === 'ok'),
     }))
-    .filter((row) => row.at > logClearedAt)
-    .sort((left, right) => right.at - left.at)
-    .slice(0, LOG_LIMIT), [logClearedAt, worker?.events]);
+    .sort((left, right) => right.at - left.at), [eventPage.items]);
 
   const playRow = useCallback(async (row: PcWordAudioLogRow) => {
     if (!row.text || !row.lang) return;
@@ -199,17 +202,34 @@ export function PcWordAudioPanel(): ReactElement {
           </span>
         </div>
 
+          <PcAudioDeliveryOutboxStatus
+            lane="word"
+            running={worker?.delivery_outbox_running}
+            status={worker?.delivery_outbox}
+            onChanged={hub.refreshHub}
+          />
+
           <p className="rounded border border-sky-700/40 bg-sky-950/20 px-2 py-1 text-[10px] text-sky-300/90">
             One Pycore worker claims canonical missing-audio rows from Laravel. Engine priority and concurrency apply to
             that worker; the section ON/OFF switch is its only lifecycle control.
           </p>
           {actionError && <p className="text-[10px] text-rose-400">{actionError}</p>}
+          {eventPage.error && (
+            <p className="text-[10px] text-rose-400">
+              {t('queueCenter.logPagination.unavailable')} {eventPage.error}
+            </p>
+          )}
           <PcWordAudioLog
             rows={rows}
+            title={t('queueCenter.wordAudioQueue.logTitle')}
             progressLabel={t('queueCenter.wordAudioQueue.progress')}
             stageLabel={(stage) => t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}
-            onClear={() => setLogClearedAt(Date.now())}
             onPlay={playRow}
+            page={eventPage.page}
+            pages={eventPage.pages}
+            total={eventPage.total}
+            loading={eventPage.loading}
+            onPage={eventPage.setPage}
           />
         </div>
       )}

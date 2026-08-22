@@ -63,14 +63,13 @@ class WordTranslationTaskProcessor extends AbstractTaskProcessor
 
     protected function taskTypeRoles(): array
     {
-        // word_media (chrome/remote_fast) and word_audio (pycore/remote_audio)
-        // are the media-on-demand twins of word_translation: every worker result
-        // carries the SAME shape (translations[] with optional image_base64 /
+        // word_audio is the pronunciation twin of word_translation: every worker
+        // result carries the SAME shape (translations[] with optional
         // audio_base64 + phonetics) and is persisted by the SAME
         // AppQyV1WordTranslationWriteback::apply (fill-missing/idempotent — it
-        // fills image/audio even when a translation already exists, never
-        // early-returns, so concurrent chrome+pycore completion is safe).
-        return ['word_translation', 'word_media', 'word_audio'];
+        // fills audio even when a translation already exists and never
+        // early-returns, so concurrent workers remain safe).
+        return ['word_translation', 'word_audio'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int

@@ -75,7 +75,7 @@ else
     SYSTEM_VERSION=$(uname -r)
 fi
 
-COMPILE_DIR="/usr/.dev_$SYSTEM_VERSION"
+COMPILE_DIR="/usr/_${SYSTEM_NAME}_$(echo "${SYSTEM_VERSION}" | cut -d. -f1)"
 get_system_info() {
     echo "${SYSTEM_NAME}_${SYSTEM_VERSION}"
 }

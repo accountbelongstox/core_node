@@ -39,8 +39,8 @@ import type {
   LaravelTranslationStackResult,
   LaravelVocabTranslateRequest,
   LaravelVocabTtsGenerateRequest,
-  RelayHubToken,
   RelayMachinesResponse,
+  RelayHubToken,
   RelayPairResponse,
   RelayRequestFrame,
   RelayRequestResponse,
@@ -344,26 +344,16 @@ const laravelMethods = {
     return unwrapData<QueueCenterOverviewResponse>(payload);
   },
 
-  /**
-   * Relay plane (pycore UI <-> machine relay through the central server).
-   *
-   * hub-auth runs in session mode: the server resolves the UI identity,
-   * grants the roster/queue-center (+ paired machine) topics. The shared SSE
-   * transport sends the returned token in its Authorization header.
-   */
-  relayHubAuth: async (machineId?: string): Promise<RelayHubToken> => {
-    const response = await laravelHttp.rawRequest(ROUTES.relayHubAuth, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'session', ...(machineId ? { machine_id: machineId } : {}) }),
-      credentials: 'include',
-    });
-    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
-    return unwrapData<RelayHubToken>(await response.json());
-  },
   getRelayMachines: async (): Promise<RelayMachinesResponse> => {
     const payload = await requestLaravel<any>('GET', ROUTES.relayMachines);
     return unwrapData<RelayMachinesResponse>(payload);
+  },
+  relayHubAuth: async (machineId?: string): Promise<RelayHubToken> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayHubAuth, {
+      mode: 'session',
+      ...(machineId ? { machine_id: machineId } : {}),
+    });
+    return unwrapData<RelayHubToken>(payload);
   },
   relayPair: async (machineId: string): Promise<RelayPairResponse> => {
     const payload = await requestLaravel<any>('POST', ROUTES.relayPair(machineId));

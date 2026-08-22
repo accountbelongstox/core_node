@@ -2,36 +2,17 @@
 
 namespace App\Services\TimerTasks;
 
-use App\Models\GlobalTask;
 use App\Services\QueueCenter\DiffIdPageCatalog;
-use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 
-abstract class DiffQueueFeederTaskAbstract extends OctaneTimerTaskAbstract
+abstract class DiffQueueFeederTaskAbstract extends QueueFeederTaskAbstract
 {
     protected DiffIdPageCatalog $diffIds;
-    protected TaskManagerService $taskManager;
 
     public function __construct()
     {
+        parent::__construct();
         $this->diffIds = new DiffIdPageCatalog();
-        $this->taskManager = app(TaskManagerService::class);
-    }
-
-    protected function liveTaskCount(string $taskType, ?string $language = null): int
-    {
-        $payloadFilters = $language === null ? [] : ['language' => $language];
-
-        return GlobalTask::liveTaskCount(
-            'AppQyV1',
-            [$taskType],
-            [
-                GlobalTask::status('pending'),
-                GlobalTask::status('assigned'),
-                GlobalTask::status('processing'),
-            ],
-            $payloadFilters
-        );
     }
 
     /**

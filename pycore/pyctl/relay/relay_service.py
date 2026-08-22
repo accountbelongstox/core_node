@@ -7,10 +7,8 @@ One facility owns the whole machine plane of the relay (PART_3 §3.4):
   capabilities rendered from the shared contract.
 - Registry: register -> heartbeat -> unregister through the contract
   endpoints; endpoint changes re-register against the new Laravel winner.
-- Hub tokens: the register response seeds a Mercure 1.0 subscriber token;
-  ``hub_token()`` is the single token provider for EVERY local subscriber
-  (roster/pair stream here, Queue Center stream in snapshot_service) and
-  refreshes it through /api/relay/hub-auth before expiry.
+- Hub tokens: registration seeds a short-lived subscriber token. The shared
+  provider refreshes it for every local Mercure subscriber before expiry.
 - Subscriptions: machines roster topic + this machine's pair topic.
 - Request execution: relay.request frames on the pair topic fetch the full
   request, replay it against the LOCAL pycore HTTP server (RPC v2 :59000)
@@ -26,7 +24,6 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.machine_id import get_machine_id
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -51,15 +48,13 @@ from pycore.pyutils.common.queue_center_contract import (
     relay_topic,
 )
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.identity import get_pycore_machine_id
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 
 RELAY_STOP_SIGNAL = "relay.runtime.stop"
 RELAY_ROSTER_SIGNAL = "relay.roster.changed"
-RELAY_MACHINE_ID_PREFIX = "pycore-"
 RELAY_HTTP_TIMEOUT_SECONDS = 8.0
-# Refresh tokens once three quarters of the TTL have elapsed (the hub also
-# closes streams at exp, so early refresh keeps reconnects seamless).
 RELAY_TOKEN_LIFETIME_FRACTION = 0.75
 RELAY_REGISTER_RETRY_MIN_SECONDS = 2.0
 RELAY_REGISTER_RETRY_MAX_SECONDS = 60.0
@@ -89,11 +84,10 @@ class RelayService:
             "relay.runtime.state",
             "RelayRuntimeStateThread",
         )
-        self._machine_id = RELAY_MACHINE_ID_PREFIX + get_machine_id()[:12]
+        self._machine_id = get_pycore_machine_id()
         self._threads: List[threading.Thread] = []
         self._token = ""
         self._token_expires_at = 0.0
-        self._token_lock = threading.Lock()
         self._hub_url = ""
         self._roster: Dict[str, Dict[str, Any]] = {}
         self._registered_endpoint = ""
@@ -153,22 +147,22 @@ class RelayService:
         provides = mine.get("provides") if isinstance(mine, dict) else None
         return [str(item) for item in (provides or []) if item]
 
-    # ------------------------------------------------------------ hub tokens
+    # ----------------------------------------------------------- hub tokens
 
+    @serialized_method
     def hub_token(self, force_refresh: bool = False) -> str:
-        """Token provider for every local Mercure subscriber (shared auth)."""
-        with self._token_lock:
-            if (
-                not force_refresh
-                and self._token
-                and time.time() < self._token_expires_at
-            ):
-                return self._token
+        """Return the shared subscriber token, refreshing it when required."""
+        if (
+            not force_refresh
+            and self._token
+            and time.time() < self._token_expires_at
+        ):
+            return self._token
+
         token = self._request_machine_token()
-        with self._token_lock:
-            self._token = token
-            ttl = max(1, relay_hub_int("token_ttl_seconds") or 600)
-            self._token_expires_at = time.time() + ttl * RELAY_TOKEN_LIFETIME_FRACTION
+        ttl = max(1, relay_hub_int("token_ttl_seconds") or 600)
+        self._token = token
+        self._token_expires_at = time.time() + ttl * RELAY_TOKEN_LIFETIME_FRACTION
         return token
 
     # ---------------------------------------------------------------- roster
@@ -186,14 +180,18 @@ class RelayService:
     def _pause(self, seconds: float) -> None:
         THREAD_BUS.wait_signal(RELAY_STOP_SIGNAL, timeout=seconds)
 
-    def _on_endpoint_changed(self, base_url: str) -> None:
+    @serialized_method
+    def _on_endpoint_changed(self, _base_url: str) -> None:
         # A new Laravel winner invalidates registration + roster state; the
         # registry loop re-registers on its next tick.
         self._registered_endpoint = ""
+        self._hub_url = ""
+        self._token = ""
+        self._token_expires_at = 0.0
 
     def _endpoint(self) -> str:
-        stored = laravel_endpoint_manager.peek_stored_base_url()
-        return str(stored or "").rstrip("/")
+        active = laravel_endpoint_manager.get_active_base_url()
+        return str(active or "").rstrip("/")
 
     def _registry_loop(self) -> None:
         retry_seconds = RELAY_REGISTER_RETRY_MIN_SECONDS
@@ -230,21 +228,22 @@ class RelayService:
             )
         )
         hub = data.get("hub") if isinstance(data.get("hub"), dict) else {}
-        with self._token_lock:
-            if hub.get("token"):
-                self._token = str(hub["token"])
-                ttl = int(hub.get("token_ttl_seconds") or 0) or relay_hub_int(
-                    "token_ttl_seconds"
-                ) or 600
-                self._token_expires_at = (
-                    time.time() + ttl * RELAY_TOKEN_LIFETIME_FRACTION
-                )
-            if hub.get("hub_url"):
-                self._hub_url = str(hub["hub_url"])
-        self._registered_endpoint = endpoint
+        self._remember_hub_authorization(hub, endpoint)
         ColorPrint.green(
             f"[Relay] registered {self._machine_id} at {endpoint}"
         )
+
+    @serialized_method
+    def _remember_hub_authorization(self, hub: Dict[str, Any], endpoint: str) -> None:
+        if hub.get("token"):
+            ttl = int(hub.get("token_ttl_seconds") or 0) or relay_hub_int(
+                "token_ttl_seconds"
+            ) or 600
+            self._token = str(hub["token"])
+            self._token_expires_at = time.time() + ttl * RELAY_TOKEN_LIFETIME_FRACTION
+        if hub.get("hub_url"):
+            self._hub_url = str(hub["hub_url"])
+        self._registered_endpoint = endpoint
 
     def _heartbeat_until_restart(self, endpoint: str) -> None:
         interval = max(5.0, float(relay_int("machine_heartbeat_seconds") or 20))
@@ -277,6 +276,8 @@ class RelayService:
         except Exception:  # noqa: BLE001 - shutdown path
             pass
 
+    # ----------------------------------------------------------- subscriber
+
     def _request_machine_token(self) -> str:
         endpoint = self._registered_endpoint or self._endpoint()
         if not endpoint:
@@ -294,8 +295,6 @@ class RelayService:
         if data.get("hub_url"):
             self._hub_url = str(data["hub_url"])
         return str(data["token"])
-
-    # ----------------------------------------------------------- subscriber
 
     def _subscriber_loop(self) -> None:
         while not self._should_stop():

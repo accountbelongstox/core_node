@@ -21,7 +21,7 @@ final class RelayDispatcher
     }
 
     /**
-     * Wake the machine side: private relay.request on the pair topic.
+     * Deliver the complete private relay.request control frame.
      */
     public static function dispatchRequest(string $machineId, array $frame): ?string
     {
@@ -34,7 +34,7 @@ final class RelayDispatcher
     }
 
     /**
-     * Wake the UI side: private relay.response on the pair topic.
+     * Deliver the complete private relay.response control frame.
      */
     public static function dispatchResponse(string $machineId, array $frame): ?string
     {

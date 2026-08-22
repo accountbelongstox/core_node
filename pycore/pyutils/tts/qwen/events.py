@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
 from typing import Any, Dict
 
@@ -24,14 +25,20 @@ _MIN_BACKOFF_S = 1.0
 _MAX_BACKOFF_S = 30.0
 _POLL_TIMEOUT_S = 20.0
 _CLIENT_ID = f"pycore-qwen-events-{uuid.uuid4().hex}"
+_START_LOCK = threading.Lock()
 
 
 def start_qwen3tts_http_events() -> None:
-    THREAD_BUS.clear_signal(_STOP_SIGNAL)
-    if THREAD_BUS.get_signal(_RUNNING_SIGNAL, False):
-        return
-    THREAD_BUS.signal(_RUNNING_SIGNAL, True)
-    start_bus_task(_listener_loop, thread_name="Qwen3TtsHttpEventsThread")
+    with _START_LOCK:
+        THREAD_BUS.clear_signal(_STOP_SIGNAL)
+        if THREAD_BUS.get_signal(_RUNNING_SIGNAL, False):
+            return
+        THREAD_BUS.signal(_RUNNING_SIGNAL, True)
+        try:
+            start_bus_task(_listener_loop, thread_name="Qwen3TtsHttpEventsThread")
+        except Exception:
+            THREAD_BUS.signal(_RUNNING_SIGNAL, False)
+            raise
 
 
 def stop_qwen3tts_http_events() -> None:
@@ -44,15 +51,22 @@ def listener_running() -> bool:
 
 def _listener_loop() -> None:
     backoff_seconds = _MIN_BACKOFF_S
+    connected = False
+    last_error = ""
     try:
         while not THREAD_BUS.get_signal(_STOP_SIGNAL, False):
             try:
                 _poll_once()
+                connected = True
+                last_error = ""
                 backoff_seconds = _MIN_BACKOFF_S
             except Exception as exc:  # noqa: BLE001
                 if THREAD_BUS.get_signal(_STOP_SIGNAL, False):
                     break
-                ColorPrint.yellow(f"[qwen3tts-events] HTTP poll failed: {exc}")
+                message = str(exc)
+                if connected and message != last_error:
+                    ColorPrint.yellow(f"[qwen3tts-events] HTTP poll failed: {message}")
+                last_error = message
                 THREAD_BUS.wait_signal(_STOP_SIGNAL, timeout=backoff_seconds)
                 backoff_seconds = min(_MAX_BACKOFF_S, backoff_seconds * 2.0)
     finally:

@@ -266,10 +266,21 @@ class Worker extends Model
     /**
      * Release current task
      */
-    public function releaseTask()
+    public function releaseTask(?string $taskId = null)
     {
-        $this->current_task_id = null;
-        $this->status = self::STATUS_ONLINE;
+        $nextTaskId = GlobalTask::query()
+            ->where('assigned_to', $this->worker_id)
+            ->whereIn('status', GlobalTask::statuses('live'))
+            ->when($taskId !== null, static function (Builder $query) use ($taskId): void {
+                $query->where('task_id', '!=', $taskId);
+            })
+            ->orderBy('assigned_at')
+            ->value('task_id');
+
+        $this->current_task_id = is_string($nextTaskId) ? $nextTaskId : null;
+        $this->status = $this->current_task_id === null
+            ? self::STATUS_ONLINE
+            : self::STATUS_BUSY;
         $this->save();
     }
 

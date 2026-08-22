@@ -8,31 +8,33 @@ registration (event_handlers), settings->runtime sync (capability_sync), the
 control entry point (task_center_service), and the realtime wake path
 (snapshot_service).
 
-Workers resolve lazily through importlib because this module loads before the
-worker singletons are constructed.
+Worker singletons are bound explicitly so a missing lane fails visibly during
+startup instead of being omitted forever after one swallowed import error.
 """
 
-import importlib
 from typing import Any, Dict, Optional
 
-LANE_REGISTRY: Dict[str, Dict[str, str]] = {
+from pycore.pyctl.translation.worker.worker import translation_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
+
+LANE_REGISTRY: Dict[str, Dict[str, Any]] = {
     "assist_translation": {
         "heartbeat_callback": "translation_worker",
         "capability": "translation",
-        "worker_module": "pycore.pyctl.translation.worker.worker",
-        "worker_attribute": "translation_worker_service",
+        "worker": translation_worker_service,
     },
     "word_audio": {
         "heartbeat_callback": "tts_queue_poller",
         "capability": "tts",
-        "worker_module": "pycore.pyctl.tts.laravel_audio_worker",
-        "worker_attribute": "laravel_word_audio_worker",
+        "worker": laravel_word_audio_worker,
     },
     "sentence_audio": {
         "heartbeat_callback": "tts_sentence_worker",
         "capability": "sentence_audio",
-        "worker_module": "pycore.pyctl.tts.laravel_audio_worker",
-        "worker_attribute": "laravel_sentence_audio_worker",
+        "worker": laravel_sentence_audio_worker,
     },
 }
 
@@ -43,15 +45,9 @@ LANE_BY_CALLBACK: Dict[str, str] = {
 
 
 def lane_worker(control_name: str) -> Optional[Any]:
-    """Resolve one lane's worker singleton (None when unavailable)."""
+    """Return one explicitly registered lane worker singleton."""
     entry = LANE_REGISTRY.get(str(control_name or ""))
-    if entry is None:
-        return None
-    try:
-        module = importlib.import_module(entry["worker_module"])
-        return getattr(module, entry["worker_attribute"], None)
-    except Exception:  # noqa: BLE001 - registry resolution must never raise
-        return None
+    return entry.get("worker") if entry else None
 
 
 def lane_capability(control_name: str) -> str:

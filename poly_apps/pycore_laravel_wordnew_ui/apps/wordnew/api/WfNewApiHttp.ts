@@ -319,12 +319,15 @@ export const wfNewApiHttp: WfNewApi = {
     return { words, books, subtitles, libraries, documents };
   },
 
-  async getRecentAgentArticles(limit = 20): Promise<import('./WfNewApiTypes').WfNewAgentArticle[]> {
-    const res = await getJSON<any>(WfNewApiPaths.recentAgentArticles(limit));
+  async getAgentArticlesPage(
+    limit = 100,
+    offset = 0,
+  ): Promise<import('./WfNewApiTypes').WfNewAgentArticlePage> {
+    const res = await getJSON<any>(WfNewApiPaths.agentArticles(limit, offset));
     const rows = Array.isArray(res?.articles)
       ? res.articles
       : Array.isArray(res?.rows) ? res.rows : Array.isArray(res?.items) ? res.items : [];
-    return rows.map((item: any, index: number) => {
+    const items = rows.map((item: any, index: number) => {
       const articleId = item?.article_id ?? item?.source_key ?? null;
       const language = String(item?.language ?? 'en').toLowerCase();
       const actualAudioUrl = item?.audio_url ? (absUrl(item.audio_url) ?? null) : null;
@@ -342,9 +345,15 @@ export const wfNewApiHttp: WfNewApi = {
         article_en: item?.article_en ?? null,
         source_key: item?.source_key ?? item?.article_id ?? null,
         article_id: articleId,
+        source_identity: typeof item?.source_identity === 'string' ? item.source_identity : null,
         audio_url: actualAudioUrl ?? expectedAudioUrl,
         audio_ready: audioReady,
         audio_status: audioReady ? 'ready' : String(item?.audio_status ?? 'queued'),
+        tts_engine: typeof item?.tts_engine === 'string' ? item.tts_engine : null,
+        tts_model: typeof item?.tts_model === 'string' ? item.tts_model : null,
+        tts_chunked: item?.tts_chunked === true,
+        audio_generation_type: item?.tts_chunked === true ? 'multi_sentence' : 'legacy',
+        audio_rebuilt_at: typeof item?.audio_rebuilt_at === 'string' ? item.audio_rebuilt_at : null,
         language,
         tts_generated: Boolean(item?.tts_generated),
         word_count: item?.word_count ?? null,
@@ -354,6 +363,25 @@ export const wfNewApiHttp: WfNewApi = {
         document_id: item?.document_id ?? null,
       };
     });
+    return {
+      items,
+      total: Number(res?.total ?? items.length),
+      limit: Number(res?.limit ?? limit),
+      offset: Number(res?.offset ?? offset),
+      statistics: {
+        total: Number(res?.statistics?.total ?? res?.total ?? items.length),
+        rawTotal: Number(res?.statistics?.raw_total ?? res?.total ?? items.length),
+        historicalDuplicates: Number(res?.statistics?.historical_duplicates ?? 0),
+        multiSentence: Number(res?.statistics?.multi_sentence ?? 0),
+        legacyAudio: Number(res?.statistics?.legacy_audio ?? 0),
+        rebuilt: Number(res?.statistics?.rebuilt ?? 0),
+      },
+    };
+  },
+
+  async getRecentAgentArticles(limit = 20): Promise<import('./WfNewApiTypes').WfNewAgentArticle[]> {
+    const page = await this.getAgentArticlesPage(limit, 0);
+    return page.items;
   },
 
   // ---- Book reading (book -> chapter -> verses) ----

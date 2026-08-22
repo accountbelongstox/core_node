@@ -1,8 +1,8 @@
 /**
  * Submit Outbox — a persistent, background-only retry queue for WRITE requests.
  *
- * When the backend is interrupted, a write (worker result / validity report /
- * assist cover-or-poster submit) is cached to chrome.storage.local and retried
+ * When the backend is interrupted, a write (worker result or assist
+ * cover-or-poster submit) is cached to chrome.storage.local and retried
  * with exponential backoff FOREVER until it succeeds — EXCEPT terminal errors,
  * which are dropped because they can never succeed.
  *
@@ -10,8 +10,7 @@
  *   - worker_result re-delivery is keyed by task attempt. Laravel acknowledges
  *     stale attempts without mutating the current lease; a remaining 409 means
  *     this exact attempt belongs to another worker and is terminal.
- *   - assist submit is fill-missing/idempotent (already_done=true on repeat) and
- *     validity report is md5-keyed upsert -> both safe to retry forever.
+ *   - assist submit is fill-missing/idempotent (already_done=true on repeat).
  *
  * Persistence mirrors utils/deepseek-task-queue.ts TaskQueueManager: an in-memory
  * Map hydrated in initialize(), object-serialized saveAll(), a singleton, and an
@@ -20,7 +19,6 @@
 
 import { WorkerApiClient, type TaskResult } from '../../api/WorkerApiClient';
 import { ApiError } from '../../api/BaseApiClient';
-import { ValidityApiClient } from '../word-validity/word-validity-runner-service';
 import {
   submitAssistCover,
   submitAssistPoster,
@@ -45,12 +43,10 @@ const IDLE_LOOP_MS = 60000;
 
 // ─────────────────────────── Record shapes ───────────────────────────
 // Payloads REUSE the existing request types (never redeclared): TaskResult from
-// WorkerApiClient, the validity report body from ValidityApiClient.report, and
-// the assist submit extras from assist-image-api's submit functions.
+// Payloads reuse WorkerApiClient and assist-image-api request types.
 
-export type OutboxKind = 'worker_result' | 'validity_report' | 'assist_submit';
+export type OutboxKind = 'worker_result' | 'assist_submit';
 
-type ValidityReportBody = Parameters<ValidityApiClient['report']>[0];
 type CoverExtras = Parameters<typeof submitAssistCover>[4];
 type PosterExtras = Parameters<typeof submitAssistPoster>[5];
 
@@ -76,12 +72,10 @@ interface OutboxBase {
 
 export type OutboxRecord =
   | (OutboxBase & { kind: 'worker_result'; taskType: string; payload: TaskResult })
-  | (OutboxBase & { kind: 'validity_report'; payload: ValidityReportBody })
   | (OutboxBase & { kind: 'assist_submit'; payload: AssistSubmitPayload });
 
 export type OutboxEnqueueInput =
   | { kind: 'worker_result'; baseUrl: string; taskType: string; payload: TaskResult }
-  | { kind: 'validity_report'; baseUrl: string; payload: ValidityReportBody }
   | { kind: 'assist_submit'; baseUrl: string; payload: AssistSubmitPayload };
 
 // ─────────────────────────── Terminal-error rule ───────────────────────────
@@ -106,27 +100,11 @@ function describeError(error: unknown): string {
   return e?.message ? String(e.message) : String(e ?? 'unknown error');
 }
 
-/** Stable, order-independent signature of a validity report's md5 set. */
-function md5Signature(results: Array<{ md5?: string; word?: string }>): string {
-  const keys = (results || [])
-    .map((r) => r.md5 || r.word || '')
-    .filter(Boolean)
-    .sort();
-  let h = 5381;
-  const joined = keys.join('|');
-  for (let i = 0; i < joined.length; i++) {
-    h = ((h << 5) + h) ^ joined.charCodeAt(i);
-  }
-  return (h >>> 0).toString(36);
-}
-
 /** Dedup id = Map key. One record per logical write. */
 function computeId(input: OutboxEnqueueInput): string {
   switch (input.kind) {
     case 'worker_result':
       return `worker_result:${input.payload.task_id}:${input.payload.attempt ?? 'legacy'}:${input.payload.status}`;
-    case 'validity_report':
-      return `validity_report:${input.payload.language}:${md5Signature(input.payload.results as any)}`;
     case 'assist_submit': {
       const p = input.payload;
       return p.type === 'poster'
@@ -157,7 +135,9 @@ class SubmitOutbox {
       const stored = result?.[STORAGE_KEY] as Record<string, OutboxRecord> | undefined;
       if (stored) {
         for (const [id, record] of Object.entries(stored)) {
-          this.records.set(id, record);
+          if (record.kind === 'worker_result' || record.kind === 'assist_submit') {
+            this.records.set(id, record);
+          }
         }
       }
     } catch {
@@ -258,8 +238,6 @@ class SubmitOutbox {
     switch (record.kind) {
       case 'worker_result':
         return this.dispatchWorkerResult(record);
-      case 'validity_report':
-        return this.dispatchValidityReport(record);
       case 'assist_submit':
         return this.dispatchAssistSubmit(record);
     }
@@ -283,20 +261,6 @@ class SubmitOutbox {
       if (isTerminalWorkerResultError(error)) {
         return this.dropTerminal(record, describeError(error));
       }
-      return this.scheduleRetry(record, describeError(error));
-    }
-  }
-
-  private async dispatchValidityReport(
-    record: OutboxRecord & { kind: 'validity_report' },
-  ): Promise<void> {
-    const client = new ValidityApiClient(record.baseUrl);
-    try {
-      const resp = await client.report(record.payload);
-      if (resp?.success) return this.remove(record.id);
-      // md5-keyed upsert — safe to retry forever.
-      return this.scheduleRetry(record, resp?.message || 'validity report rejected');
-    } catch (error) {
       return this.scheduleRetry(record, describeError(error));
     }
   }

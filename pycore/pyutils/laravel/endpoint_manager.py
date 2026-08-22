@@ -9,17 +9,18 @@ MULTI_API_URL_SYSTEM.md) on the pycore side, with the STORED-FIRST policy:
   2. resolve() first probes ONLY the stored/current endpoint (cheap happy path);
   3. if that fails, it sweeps EVERY candidate in parallel (3s probe cap) and
      picks the first healthy one in candidate order;
-  4. the winner is persisted as the user's choice and cached in-process;
+  4. the winner is cached in-process; only an explicit UI selection persists;
   5. the cache is invalidated whenever the list changes (add/remove/select).
 
 Persistence lives in the backend data directory as
 ``laravel_endpoint_cache.json`` under the ``laravel_api`` section:
 
     "laravel_api": {
-        "backend_endpoints": ["http://127.0.0.1:9000", ...],
+        "backend_endpoints": ["https://api.si.12gm.com", ...],
         "frontend_endpoints": ["https://frontend-default.example", ...],
-        "endpoints": ["http://127.0.0.1:9000", ...],
-        "current": "http://127.0.0.1:9000"        # or null
+        "endpoints": ["https://api.si.12gm.com", ...],
+        "current": "https://api.si.12gm.com",     # or null
+        "selection_explicit": false
     }
 
 The pycore-manager frontend owns the prepared endpoint catalog and supplies it
@@ -155,7 +156,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         result["error"] = "empty url"
         return result
     started = time.monotonic()
-    session, transport_options, transport = create_laravel_http_session(url)
+    session, transport_options, transport = create_laravel_http_session()
     http_version = ""
     try:
         resp = session.get(
@@ -247,8 +248,9 @@ class LaravelEndpointManager:
         """Load backend state and optionally synchronize the frontend catalog.
 
         Backend-owned endpoints are ordered before frontend defaults. A supplied
-        frontend catalog replaces the previous frontend snapshot, while custom
-        backend entries and the backend-selected current URL are preserved.
+        frontend catalog replaces the previous frontend snapshot. Legacy implicit
+        selections migrate to the configured default once; explicit UI choices
+        remain persistent.
         """
         cache_file_exists = endpoint_cache_store.path.is_file()
         section = endpoint_cache_store.get_section(ENDPOINT_CACHE_SECTION) or {}
@@ -277,6 +279,10 @@ class LaravelEndpointManager:
         configured = self._configured_candidates()
         backend_endpoints = self._merge_candidates(configured, backend_endpoints)
         current = _normalize(section.get("current")) or None
+        selection_explicit = section.get("selection_explicit") is True
+        configured_default = configured[0] if configured else None
+        if not selection_explicit and configured_default:
+            current = configured_default
         if current and current not in backend_endpoints and current not in active_frontend:
             backend_endpoints.insert(0, current)
         if not backend_endpoints and not active_frontend:
@@ -289,9 +295,16 @@ class LaravelEndpointManager:
             or section.get("frontend_endpoints") != active_frontend
             or section.get("endpoints") != endpoints
             or section.get("current") != current
+            or "selection_explicit" not in section
+            or bool(section.get("selection_explicit")) != selection_explicit
         )
         if cached_state_changed:
-            self._save(backend_endpoints, active_frontend, current)
+            self._save(
+                backend_endpoints,
+                active_frontend,
+                current,
+                selection_explicit,
+            )
             if migrated:
                 ColorPrint.blue(
                     "[LaravelEndpoints] Migrated endpoint cache to backend data directory"
@@ -301,6 +314,7 @@ class LaravelEndpointManager:
             "frontend_endpoints": active_frontend,
             "endpoints": endpoints,
             "current": current,
+            "selection_explicit": selection_explicit,
         }
 
     @staticmethod
@@ -308,6 +322,7 @@ class LaravelEndpointManager:
         backend_endpoints: List[str],
         frontend_endpoints: List[str],
         current: Optional[str],
+        selection_explicit: bool,
     ) -> None:
         """Persist backend overrides and the frontend catalog snapshot."""
         endpoints = LaravelEndpointManager._merge_candidates(
@@ -321,6 +336,7 @@ class LaravelEndpointManager:
                 "frontend_endpoints": list(frontend_endpoints),
                 "endpoints": endpoints,
                 "current": current,
+                "selection_explicit": bool(selection_explicit),
             },
         )
 
@@ -641,6 +657,7 @@ class LaravelEndpointManager:
                 backend_endpoints,
                 state["frontend_endpoints"],
                 state["current"],
+                state["selection_explicit"],
             )
             endpoints = self._merge_candidates(
                 backend_endpoints,
@@ -667,15 +684,22 @@ class LaravelEndpointManager:
             return {"success": False, "error": "protected endpoint cannot be removed"}
         backend_endpoints = [e for e in state["backend_endpoints"] if e != u]
         current = state["current"]
+        selection_explicit = state["selection_explicit"]
         if current == u:
             current = None
+            selection_explicit = False
         if not backend_endpoints and not state["frontend_endpoints"]:
             backend_endpoints = [FALLBACK_ENDPOINT]
         endpoints = self._merge_candidates(
             backend_endpoints,
             state["frontend_endpoints"],
         )
-        self._save(backend_endpoints, state["frontend_endpoints"], current)
+        self._save(
+            backend_endpoints,
+            state["frontend_endpoints"],
+            current,
+            selection_explicit,
+        )
         self.invalidate()
         ColorPrint.blue(f"[LaravelEndpoints] Removed endpoint {u}")
         return {"success": True,
@@ -704,7 +728,12 @@ class LaravelEndpointManager:
             )
         else:
             backend_endpoints = state["backend_endpoints"]
-        self._save(backend_endpoints, state["frontend_endpoints"], u)
+        self._save(
+            backend_endpoints,
+            state["frontend_endpoints"],
+            u,
+            True,
+        )
         self.invalidate()
         if probe:
             start_bus_task(lambda: self._finish_select(u), thread_name="laravel-endpoint-select")

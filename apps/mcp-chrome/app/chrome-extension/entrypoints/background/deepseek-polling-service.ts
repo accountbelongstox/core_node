@@ -381,10 +381,6 @@ export class DeepSeekPollingService {
         return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
       }
 
-      if (!result) {
-        return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
-      }
-
       if (result.hasError) {
         return {
           isCompleted: false,

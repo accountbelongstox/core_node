@@ -47,7 +47,9 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
   }
 
   const categories = data.categories ?? [];
-  const workers = data.workers ?? [];
+  const workers = (data.workers ?? []).filter(
+    (worker) => worker.online && (worker.kind === 'chrome' || worker.kind === 'pycore'),
+  );
   // Reachability comes ONLY from the hub's task-center fields — the cached
   // snapshot above may be days old and must never supply the flag.
   const laravelReachable = hub.laravelReachable === true;
@@ -120,6 +122,10 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
           {categories.map((c: PcQueueCategory) => {
             const hs = HANDLER_STYLE[c.primary_handler] ?? HANDLER_STYLE.pycore;
             const HIcon = hs.Icon;
+            const pycoreHandled = c.claimants.includes('pycore');
+            const handlerLabel = pycoreHandled
+              ? c.primary_handler
+              : t('queueCenter.overview.uiHandled');
             const langs = c.by_language ? Object.entries(c.by_language).filter(([, n]) => n > 0) : [];
             const samples = c.sample ?? [];
             const isOpen = !!expanded[c.key];
@@ -128,13 +134,15 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={c.label}>{c.label}</span>
                   <span className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide shrink-0 ${hs.chip}`}
-                    title={`Eligible: ${c.claimants.join(', ') || 'none'}`}>
-                    <HIcon className="w-3 h-3" /> {c.primary_handler}
+                    title={`${t('queueCenter.overview.eligible')}: ${c.claimants.join(', ') || t('queueCenter.overview.none')}`}>
+                    <HIcon className="w-3 h-3" /> {handlerLabel}
                   </span>
                 </div>
                 <div className="text-[9px] text-slate-400">
-                  eligible {c.claimants.join(' · ') || 'none'}
-                  {c.active_handlers.length > 0 ? ` · active ${c.active_handlers.join(' · ')}` : ''}
+                  {t('queueCenter.overview.eligible')} {c.claimants.join(' · ') || t('queueCenter.overview.none')}
+                  {c.active_handlers.length > 0
+                    ? ` · ${t('queueCenter.overview.active')} ${c.active_handlers.join(' · ')}`
+                    : ''}
                 </div>
                 <div className="grid grid-cols-4 gap-1">
                   {num(c.pending, 'text-sky-500', t('queueCenter.overview.pending'))}
@@ -197,10 +205,9 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
                 <div key={w.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5">
                   <WIcon className={`w-3.5 h-3.5 ${w.kind === 'chrome' ? 'text-amber-500' : 'text-indigo-500'}`} />
                   <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[10rem]" title={w.id}>{w.id}</span>
-                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide ${
-                    w.online ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${w.online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                    {w.online ? t('queueCenter.workers.online') : t('queueCenter.workers.offline')}
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide bg-emerald-500/15 text-emerald-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    {t('queueCenter.workers.online')}
                   </span>
                   <span className="text-[10px] font-mono text-slate-500">
                     {t('queueCenter.workers.claimed')} <b className="text-violet-500">{w.claimed}</b>

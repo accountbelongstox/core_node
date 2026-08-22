@@ -37,6 +37,7 @@ class WorkerController extends Controller
      */
     public function register(Request $request): JsonResponse
     {
+        $pullLimit = QueueCenterContract::taskLimit('worker_pull');
         $validated = $request->validate([
             'worker_id' => 'required|string',
             'worker_name' => 'required|string',
@@ -52,6 +53,7 @@ class WorkerController extends Controller
             'hostname' => 'nullable|string',
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',
+            'lease_capacity' => "nullable|integer|min:1|max:{$pullLimit}",
         ]);
 
         $hostname = null;
@@ -67,6 +69,9 @@ class WorkerController extends Controller
         $metadata = [];
         if (isset($validated['metadata'])) {
             $metadata = $validated['metadata'];
+        }
+        if (isset($validated['lease_capacity'])) {
+            $metadata['lease_capacity'] = (int) $validated['lease_capacity'];
         }
 
         $capabilities = $validated['capabilities'] ?? null;
@@ -199,6 +204,7 @@ class WorkerController extends Controller
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',
             'limit' => "nullable|integer|min:1|max:{$pullLimit}",
+            'lease_capacity' => "nullable|integer|min:1|max:{$pullLimit}",
         ]);
 
         $workerId = $validated['worker_id'];
@@ -207,6 +213,10 @@ class WorkerController extends Controller
             (int) ($validated['limit'] ?? QueueCenterContract::taskLimit('worker_pull_default')),
             $sliceLimit
         );
+        $metadata = $validated['metadata'] ?? [];
+        if (isset($validated['lease_capacity'])) {
+            $metadata['lease_capacity'] = (int) $validated['lease_capacity'];
+        }
 
         // Queue consumers advertise their identity on the pull itself. This keeps
         // worker discovery, capability refresh, and queue claiming in one request
@@ -220,7 +230,7 @@ class WorkerController extends Controller
                 $validated['processor_types'],
                 $validated['hostname'] ?? null,
                 $validated['platform'] ?? null,
-                $validated['metadata'] ?? [],
+                $metadata,
                 isset($validated['capabilities_present'])
                     ? ($validated['capabilities'] ?? [])
                     : null,
@@ -233,7 +243,12 @@ class WorkerController extends Controller
             );
         }
 
-        $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
+        $tasks = $this->taskManager->pullAndAssignTasksForWorker(
+            $workerId,
+            $limit,
+            $taskType,
+            (int) ($validated['lease_capacity'] ?? $limit)
+        );
 
         // Notify signal in the pull response too: the urgent backlog STILL waiting
         // after this pull (other high-priority tasks of this type beyond the

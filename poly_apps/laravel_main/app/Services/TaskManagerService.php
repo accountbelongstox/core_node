@@ -24,6 +24,8 @@ use App\Services\TaskProcessors\ArticleAudioTaskProcessor;
 use App\Services\QueueCenter\DiffIdPageCatalog;
 use App\Services\QueueCenter\QueueSliceDiffService;
 use App\Services\QueueCenter\QueueWorkerPresenceService;
+use Throwable;
+use function Illuminate\Support\defer;
 
 class TaskManagerService
 {
@@ -53,7 +55,9 @@ class TaskManagerService
     // sequential php -S requests (unlike the per-bootstrap `array` store).
     private const STATS_CACHE_STORE = 'file';
     private const RESULT_SUBMISSION_LOCK_SECONDS = 900;
-    private const RESULT_PROCESSING_LEASE_SECONDS = 900;
+    private const RESULT_WRITEBACK_BATCH_LIMIT = 8;
+    private const RESULT_WRITEBACK_MAX_ATTEMPTS = 3;
+    private const RESULT_WRITEBACK_STEP = 'result_writeback';
 
     /**
      * Shared audio in-flight lock (contract item 5). A word+language pair is
@@ -267,15 +271,21 @@ class TaskManagerService
      *   shared-fast-lane block are skipped: pending tasks are claimed by
      *   task_type alone (any execution lane, fast tier included), still
      *   capability-filtered against the worker.
+     * @param int|null $leaseCapacity Maximum live leases owned by this worker
      * @return array Array of assigned tasks
      */
-    public function pullAndAssignTasksForWorker(string $workerId, int $limit, ?string $taskType = null): array
+    public function pullAndAssignTasksForWorker(
+        string $workerId,
+        int $limit,
+        ?string $taskType = null,
+        ?int $leaseCapacity = null
+    ): array
     {
         // Use single transaction for all operations. LOCK ORDER: worker row
         // first, then task rows — submitResult() acquires its locks in the SAME
         // order, so a concurrent pull and result-submit for one worker serialize
         // instead of deadlocking (opposite orders deadlock on Postgres).
-        $assignedTasks = GlobalTask::runInTransaction(function () use ($workerId, $limit, $taskType) {
+        $assignedTasks = GlobalTask::runInTransaction(function () use ($workerId, $limit, $taskType, $leaseCapacity) {
             // Lock worker for update
             $worker = Worker::lockByWorkerId($workerId);
 
@@ -284,6 +294,12 @@ class TaskManagerService
             }
 
             $assignedTasks = [];
+            $capacity = max(1, (int) ($leaseCapacity ?? $limit));
+            $heldCount = GlobalTask::liveTaskCountForWorker($workerId);
+            $limit = min($limit, max(0, $capacity - $heldCount));
+            if ($limit <= 0) {
+                return $assignedTasks;
+            }
 
             // Type-scoped claim (typed worker route): one locked query on
             // task_type, capability-matched in PHP (same over-fetch idiom as
@@ -864,6 +880,11 @@ class TaskManagerService
                 return 'not_found';
             }
 
+            $writebackMarker = $this->resultWritebackMarker($task);
+            if (($writebackMarker['state'] ?? '') === 'pending') {
+                return 'not_cancellable';
+            }
+
             $cancellable = [
                 GlobalTask::status('pending'),
                 GlobalTask::status('assigned'),
@@ -1155,8 +1176,8 @@ class TaskManagerService
     }
 
     /**
-     * Process a completed result without retaining task ownership row locks
-     * across processor database work, decoding, or file output.
+     * Persist a completed-result receipt and defer processor writeback until
+     * after the response. The durable receipt is the recovery source.
      */
     private function submitCompletedResult(
         string $taskId,
@@ -1165,121 +1186,224 @@ class TaskManagerService
         ?int $attempt,
         array &$outcome
     ): bool {
+        $resultHash = $this->resultPayloadHash($result);
+        $changedTaskType = null;
+        $staged = GlobalTask::runInTransaction(function () use (
+            $taskId,
+            $workerId,
+            $result,
+            $resultHash,
+            $attempt,
+            &$outcome,
+            &$changedTaskType
+        ): array {
+            $worker = Worker::lockByWorkerId($workerId);
+            $task = GlobalTask::lockByTaskId($taskId);
+
+            if (!$worker || !$task) {
+                return ['accepted' => false, 'queued' => false];
+            }
+
+            $marker = $this->resultWritebackMarker($task);
+            $executionAttempt = $attempt ?? (int) $task->retry_count;
+            if ($marker !== null) {
+                $sameSubmission = (string) ($marker['worker_id'] ?? '') === $workerId
+                    && (int) ($marker['attempt'] ?? -1) === $executionAttempt
+                    && (string) ($marker['result_sha256'] ?? '') === $resultHash;
+                if (!$sameSubmission) {
+                    return ['accepted' => false, 'queued' => false];
+                }
+
+                $outcome = [
+                    'status' => $task->status,
+                    'stored_count' => (int) ($marker['stored_count'] ?? 0),
+                    'failed_count' => (int) ($marker['failed_count'] ?? 0),
+                    'writeback_pending' => ($marker['state'] ?? '') === 'pending',
+                    'idempotent' => true,
+                    'result_sha256' => $resultHash,
+                ];
+                return [
+                    'accepted' => true,
+                    'queued' => ($marker['state'] ?? '') === 'pending',
+                ];
+            }
+
+            if ($attempt !== null && (int) $task->retry_count !== $attempt) {
+                $outcome = [
+                    'status' => $task->status,
+                    'stored_count' => 0,
+                    'failed_count' => 0,
+                    'stale_attempt' => true,
+                    'attempt' => (int) $task->retry_count,
+                ];
+                return ['accepted' => true, 'queued' => false];
+            }
+            if (in_array($task->status, QueueCenterContract::taskStatuses('terminal'), true)) {
+                $outcome['status'] = $task->status;
+                return ['accepted' => true, 'queued' => false];
+            }
+            if ($task->assigned_to !== $workerId) {
+                return ['accepted' => false, 'queued' => false];
+            }
+
+            $isDemoMode = (bool) ($result['is_demo_mode']
+                ?? ($task->payload['is_demo_mode'] ?? false));
+            $shapeError = $isDemoMode ? null : $this->validateResultShape($task, $result);
+            if ($shapeError !== null) {
+                $this->failTaskInTransaction(
+                    $task,
+                    $worker,
+                    $shapeError,
+                    $workerId,
+                    $outcome,
+                    'invalid_shape'
+                );
+                $changedTaskType = (string) $task->task_type;
+                return ['accepted' => true, 'queued' => false];
+            }
+
+            $steps = is_array($task->steps) ? $task->steps : [];
+            $steps[self::RESULT_WRITEBACK_STEP] = [
+                'state' => 'pending',
+                'worker_id' => $workerId,
+                'attempt' => $executionAttempt,
+                'result_sha256' => $resultHash,
+                'writeback_attempts' => 0,
+                'received_at' => now()->toIso8601String(),
+            ];
+            $task->steps = $steps;
+            $task->result = $result;
+            $task->status = GlobalTask::status('processing');
+            $task->progress = max(
+                (float) $task->progress,
+                (float) QueueCenterContract::taskProgressStage('finalizing')
+            );
+            $task->assigned_to = null;
+            $task->assigned_at = null;
+            $task->timeout_at = null;
+            $task->saveRecord();
+            $worker->releaseTask($taskId);
+
+            $outcome = [
+                'status' => $task->status,
+                'stored_count' => 0,
+                'failed_count' => 0,
+                'writeback_pending' => true,
+                'idempotent' => false,
+                'result_sha256' => $resultHash,
+            ];
+
+            return ['accepted' => true, 'queued' => true];
+        }, self::TRANSACTION_ATTEMPTS);
+
+        if (!($staged['accepted'] ?? false)) {
+            return false;
+        }
+        if ($changedTaskType !== null && $changedTaskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+        }
+        if ($staged['queued'] ?? false) {
+            defer(
+                fn (): bool => $this->finalizeStagedResult($taskId),
+                'global-task-result-' . sha1($taskId)
+            );
+        }
+
+        return true;
+    }
+
+    public function finalizePendingResults(int $limit = self::RESULT_WRITEBACK_BATCH_LIMIT): int
+    {
+        $completed = 0;
+        $taskIds = GlobalTask::pendingResultWritebackTaskIds($limit);
+        foreach ($taskIds as $taskId) {
+            if ($this->finalizeStagedResult($taskId)) {
+                $completed++;
+            }
+        }
+        return $completed;
+    }
+
+    public function finalizeStagedResult(string $taskId): bool
+    {
         $lock = Cache::store(self::STATS_CACHE_STORE)->lock(
             'globaltasks:result:' . sha1($taskId),
             self::RESULT_SUBMISSION_LOCK_SECONDS
         );
-
         if (!$lock->get()) {
             return false;
         }
 
-        $changedTaskType = null;
+        $staged = null;
         try {
-            $staged = GlobalTask::runInTransaction(function () use (
-                $taskId,
-                $workerId,
-                $result,
-                $attempt,
-                &$outcome,
-                &$changedTaskType
-            ): array {
-                $worker = Worker::lockByWorkerId($workerId);
+            $staged = GlobalTask::runInTransaction(function () use ($taskId): ?array {
                 $task = GlobalTask::lockByTaskId($taskId);
-
-                if (!$worker || !$task) {
-                    return ['accepted' => false];
-                }
-                if ($attempt !== null && (int) $task->retry_count !== $attempt) {
-                    $outcome = [
-                        'status' => $task->status,
-                        'stored_count' => 0,
-                        'failed_count' => 0,
-                        'stale_attempt' => true,
-                        'attempt' => (int) $task->retry_count,
-                    ];
-                    return ['accepted' => true, 'finished' => true];
-                }
-                if ($task->assigned_to !== $workerId) {
-                    return ['accepted' => false];
-                }
-                if (in_array($task->status, QueueCenterContract::taskStatuses('terminal'), true)) {
-                    $outcome['status'] = $task->status;
-                    return ['accepted' => true, 'finished' => true];
+                if (!$task) {
+                    return null;
                 }
 
-                $isDemoMode = (bool) ($result['is_demo_mode']
-                    ?? ($task->payload['is_demo_mode'] ?? false));
-                $shapeError = $isDemoMode ? null : $this->validateResultShape($task, $result);
-                if ($shapeError !== null) {
-                    $this->failTaskInTransaction(
-                        $task,
-                        $worker,
-                        $shapeError,
-                        $workerId,
-                        $outcome,
-                        'invalid_shape'
-                    );
-                    $changedTaskType = (string) $task->task_type;
-                    return ['accepted' => true, 'finished' => true];
+                $marker = $this->resultWritebackMarker($task);
+                if ($marker === null || ($marker['state'] ?? '') !== 'pending') {
+                    return null;
                 }
 
-                $task->status = GlobalTask::status('processing');
-                $task->timeout_at = now()->addSeconds(max(
-                    self::RESULT_PROCESSING_LEASE_SECONDS,
-                    (int) $task->timeout_seconds
-                ));
+                $marker['writeback_attempts'] = (int) ($marker['writeback_attempts'] ?? 0) + 1;
+                $marker['last_attempt_at'] = now()->toIso8601String();
+                $steps = is_array($task->steps) ? $task->steps : [];
+                $steps[self::RESULT_WRITEBACK_STEP] = $marker;
+                $task->steps = $steps;
                 $task->saveRecord();
 
                 return [
-                    'accepted' => true,
-                    'finished' => false,
                     'task' => $task,
-                    'demo' => $isDemoMode,
+                    'result' => is_array($task->result) ? $task->result : [],
+                    'marker' => $marker,
+                    'demo' => (bool) (($task->result['is_demo_mode'] ?? null)
+                        ?? ($task->payload['is_demo_mode'] ?? false)),
                 ];
             }, self::TRANSACTION_ATTEMPTS);
 
-            if (!($staged['accepted'] ?? false)) {
-                return false;
-            }
-            if ($staged['finished'] ?? false) {
-                if ($changedTaskType !== null && $changedTaskType !== '') {
-                    app(QueueSliceDiffService::class)->markChanged($changedTaskType);
-                }
+            if ($staged === null) {
                 return true;
             }
 
-            $task = $staged['task'];
-            $isDemoMode = (bool) $staged['demo'];
             $writebackBreakdown = null;
             $storedCount = $this->processTaskResult(
-                $task,
-                $result,
-                $isDemoMode,
+                $staged['task'],
+                $staged['result'],
+                (bool) $staged['demo'],
                 $writebackBreakdown
             );
-
+            $outcome = ['status' => GlobalTask::status('processing'), 'stored_count' => 0, 'failed_count' => 0];
             $completed = GlobalTask::runInTransaction(function () use (
                 $taskId,
-                $workerId,
-                $result,
-                $attempt,
-                $isDemoMode,
+                $staged,
                 $storedCount,
                 $writebackBreakdown,
-                &$outcome,
-                &$changedTaskType
-            ): array {
-                $worker = Worker::lockByWorkerId($workerId);
+                &$outcome
+            ): ?GlobalTask {
+                $marker = $staged['marker'];
+                $workerId = (string) ($marker['worker_id'] ?? '');
+                $worker = $workerId !== '' ? Worker::lockByWorkerId($workerId) : null;
                 $task = GlobalTask::lockByTaskId($taskId);
+                if (!$task) {
+                    return null;
+                }
 
-                if (!$worker || !$task || $task->assigned_to !== $workerId) {
-                    return ['accepted' => false, 'task' => null];
+                $currentMarker = $this->resultWritebackMarker($task);
+                if ($currentMarker === null
+                    || (string) ($currentMarker['result_sha256'] ?? '') !== (string) ($marker['result_sha256'] ?? '')) {
+                    return null;
                 }
-                if ($attempt !== null && (int) $task->retry_count !== $attempt) {
-                    return ['accepted' => false, 'task' => null];
+                if (in_array($task->status, QueueCenterContract::taskStatuses('terminal'), true)) {
+                    return $task;
                 }
+
+                $isDemoMode = (bool) $staged['demo'];
                 if (!$isDemoMode && $storedCount !== null && $storedCount <= 0) {
+                    $steps = is_array($task->steps) ? $task->steps : [];
+                    unset($steps[self::RESULT_WRITEBACK_STEP]);
+                    $task->steps = $steps;
                     $emptyError = 'Worker reported completed but writeback stored 0 items'
                         . ' (execution_type=' . $task->execution_type . ')';
                     $this->failTaskInTransaction(
@@ -1290,22 +1414,26 @@ class TaskManagerService
                         $outcome,
                         'empty_store'
                     );
-                    $changedTaskType = (string) $task->task_type;
-                    return ['accepted' => true, 'task' => null];
+                    return null;
                 }
 
+                $currentMarker['state'] = 'completed';
+                $currentMarker['completed_at'] = now()->toIso8601String();
+                $currentMarker['stored_count'] = $storedCount === null ? 0 : (int) $storedCount;
+                $currentMarker['failed_count'] = 0;
+                $steps = is_array($task->steps) ? $task->steps : [];
+                $steps[self::RESULT_WRITEBACK_STEP] = $currentMarker;
+                $task->steps = $steps;
                 $task->status = $isDemoMode
                     ? GlobalTask::status('completed_demo')
                     : GlobalTask::status('completed');
-                $task->progress = 100.0;
-                $task->result = $result;
+                $task->progress = (float) QueueCenterContract::taskProgressStage('completed');
                 $task->completed_at = now();
                 $task->timeout_at = null;
                 $task->saveRecord();
-                $changedTaskType = (string) $task->task_type;
 
                 $outcome['status'] = $task->status;
-                $outcome['stored_count'] = $storedCount === null ? 0 : (int) $storedCount;
+                $outcome['stored_count'] = $currentMarker['stored_count'];
                 $outcome['failed_count'] = 0;
                 if (is_array($writebackBreakdown)) {
                     $outcome['saved'] = (int) ($writebackBreakdown['saved'] ?? 0);
@@ -1314,41 +1442,120 @@ class TaskManagerService
                     $outcome['images_saved'] = (int) ($writebackBreakdown['images_saved'] ?? 0);
                 }
 
-                $worker->incrementCompleted();
-                $worker->releaseTask();
+                if ($worker) {
+                    $worker->incrementCompleted();
+                }
                 GlobalTaskEvent::record(
                     $taskId,
                     GlobalTaskEvent::event('completed'),
-                    $workerId,
+                    $workerId !== '' ? $workerId : null,
                     (int) $task->retry_count,
                     [
-                        'worker_id' => $workerId,
+                        'worker_id' => $workerId !== '' ? $workerId : null,
                         'execution_type' => $task->execution_type,
                         'stored_count' => $outcome['stored_count'],
                         'demo_mode' => $isDemoMode,
                     ]
                 );
 
-                return ['accepted' => true, 'task' => $task];
+                return $task;
             }, self::TRANSACTION_ATTEMPTS);
 
-            if (!($completed['accepted'] ?? false)) {
-                return false;
+            $taskType = (string) ($staged['task']->task_type ?? '');
+            if ($taskType !== '') {
+                app(QueueSliceDiffService::class)->markChanged($taskType);
             }
-
-            if ($changedTaskType !== null && $changedTaskType !== '') {
-                app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+            if (!$staged['demo'] && $completed instanceof GlobalTask && $completed->dict_row_id) {
+                $completed->syncToDictRow();
             }
-
-            $completedTask = $completed['task'] ?? null;
-            if (!$isDemoMode && $completedTask instanceof GlobalTask && $completedTask->dict_row_id) {
-                $outcome['synced_to_dict'] = $completedTask->syncToDictRow();
-            }
-
             return true;
+        } catch (Throwable $exception) {
+            $this->recordResultWritebackFailure($taskId, $exception->getMessage());
+            return false;
         } finally {
             $lock->release();
         }
+    }
+
+    private function recordResultWritebackFailure(string $taskId, string $error): void
+    {
+        $taskSnapshot = GlobalTask::findByTaskId($taskId);
+        $snapshotMarker = $taskSnapshot ? $this->resultWritebackMarker($taskSnapshot) : null;
+        $workerId = (string) ($snapshotMarker['worker_id'] ?? '');
+        $changedTaskType = GlobalTask::runInTransaction(function () use ($taskId, $error, $workerId): ?string {
+            $worker = $workerId !== '' ? Worker::lockByWorkerId($workerId) : null;
+            $task = GlobalTask::lockByTaskId($taskId);
+            if (!$task) {
+                return null;
+            }
+            $marker = $this->resultWritebackMarker($task);
+            if ($marker === null || ($marker['state'] ?? '') !== 'pending') {
+                return null;
+            }
+
+            $attempts = (int) ($marker['writeback_attempts'] ?? 0);
+            if ($attempts >= self::RESULT_WRITEBACK_MAX_ATTEMPTS) {
+                $steps = is_array($task->steps) ? $task->steps : [];
+                unset($steps[self::RESULT_WRITEBACK_STEP]);
+                $task->steps = $steps;
+                $outcome = [];
+                $this->failTaskInTransaction(
+                    $task,
+                    $worker,
+                    'Backend result writeback failed: ' . $error,
+                    $workerId,
+                    $outcome,
+                    'writeback_error'
+                );
+                return (string) $task->task_type;
+            }
+
+            $marker['last_error'] = mb_substr($error, 0, 1000);
+            $steps = is_array($task->steps) ? $task->steps : [];
+            $steps[self::RESULT_WRITEBACK_STEP] = $marker;
+            $task->steps = $steps;
+            $task->saveRecord();
+            return null;
+        }, self::TRANSACTION_ATTEMPTS);
+
+        if ($changedTaskType !== null && $changedTaskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+        }
+
+        Log::error('Deferred task result writeback failed', [
+            'task_id' => $taskId,
+            'error' => $error,
+        ]);
+    }
+
+    private function resultWritebackMarker(GlobalTask $task): ?array
+    {
+        $steps = is_array($task->steps) ? $task->steps : [];
+        $marker = $steps[self::RESULT_WRITEBACK_STEP] ?? null;
+        return is_array($marker) ? $marker : null;
+    }
+
+    private function resultPayloadHash(array $result): string
+    {
+        $normalized = $this->normalizeResultForHash($result);
+        return hash('sha256', json_encode(
+            $normalized,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        ));
+    }
+
+    private function normalizeResultForHash(array $value): array
+    {
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[$key] = is_array($item)
+                ? $this->normalizeResultForHash($item)
+                : $item;
+        }
+        if (!array_is_list($normalized)) {
+            ksort($normalized);
+        }
+        return $normalized;
     }
 
     /**
@@ -1861,7 +2068,7 @@ class TaskManagerService
      * caller's $outcome.
      *
      * @param GlobalTask $task     Task model (already locked, already in this tx)
-     * @param Worker     $worker   Owning worker (already locked)
+     * @param Worker|null $worker  Reporting worker when it still exists
      * @param string     $error    Human-readable failure reason surfaced to the task
      * @param string     $workerId Reporting worker id
      * @param array      $outcome  Caller outcome accumulator (by reference)
@@ -1869,7 +2076,7 @@ class TaskManagerService
      */
     protected function failTaskInTransaction(
         GlobalTask $task,
-        Worker $worker,
+        ?Worker $worker,
         string $error,
         string $workerId,
         array &$outcome,
@@ -1882,10 +2089,12 @@ class TaskManagerService
 
         // Only a PERMANENT failure counts against the worker's failed tally,
         // matching the reported-'failed' branch.
-        if (!$willRetry) {
+        if (!$willRetry && $worker) {
             $worker->incrementFailed();
         }
-        $worker->releaseTask();
+        if ($worker) {
+            $worker->releaseTask($task->task_id);
+        }
 
         if ($willRetry) {
             // Re-queue for another attempt (sets status back to pending and

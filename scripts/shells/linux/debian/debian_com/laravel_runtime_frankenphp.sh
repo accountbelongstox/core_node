@@ -21,7 +21,7 @@
 # Mercure hub material (the pinned embedded Mercure runtime): the HMAC keys
 # are provisioned (never rotated) by the laravel_main RelayHubKeyProvisioner into the
 # RuntimeConfigurationStore constant directory (outside the repo - git
-# safe) and embedded as LITERAL publisher_jwt/subscriber_jwt values in the
+# safe) and embedded as the literal publisher_jwt value in the
 # canonical Caddyfile (0600) before launch - no process env, no .env. The
 # trusted issuer (the `iss` the app signs with) is store-only material for
 # the app-side signer.
@@ -93,13 +93,13 @@ FRANKENPHP_ADMIN_PORT="$(sc_get ports.frankenphp_admin)"
 FRANKENPHP_ACME_RELOAD_CMD="curl -fsS -m 5 -X POST -H 'Content-Type: text/caddyfile' --data-binary @${FRANKENPHP_CADDYFILE} http://127.0.0.1:${FRANKENPHP_ADMIN_PORT}/load || true"
 
 # Mercure hub keys: provisioned (never rotated) BEFORE the canonical
-# Caddyfile render so the literal publisher_jwt/subscriber_jwt values are
-# always present at render time. The trusted issuer self-bootstraps from
+# Caddyfile render so the literal publisher_jwt/subscriber_jwt values are present.
+# The trusted issuer self-bootstraps from
 # the site host when absent (single source: the store, mirrored back on
 # derivation) for the app-side token signer.
 runtime_config_ensure_mercure_keys
 if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
-    echo "[laravel-runtime-frankenphp] [ERROR] Mercure key provisioning failed (RelayHubKeyProvisioner); check the PHP runtime"
+    echo "[laravel-runtime-frankenphp] [ERROR] Mercure hub key provisioning failed; check the PHP runtime"
     exit 1
 fi
 MERCURE_CANONICAL_ISSUER="https://${FRANKENPHP_SITE_HOST}"

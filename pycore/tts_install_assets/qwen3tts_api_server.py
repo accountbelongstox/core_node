@@ -18,6 +18,9 @@ Env:
                                    staging/weights path when available; the HF
                                    id fallback is for standalone use only.
   QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto)
+  QWEN3TTS_MODEL_VARIANT         - installed model size (0.6B | 1.7B), supplied
+                                   by the managed launcher for local paths
+  QWEN3TTS_PHYSICAL_GPU_INDEX    - physical NVIDIA index selected at launch
   QWEN3TTS_SPEED                 - default playback-speed factor for every
                                    generation (default: the shared constant
                                    QWEN3TTS_DEFAULT_SPEED = 0.75; 1.0 = natural
@@ -31,10 +34,10 @@ Env:
                                    of the task reuse that voice.
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
   QWEN3TTS_MAX_PARALLEL          - override auto GPU-tuned batch size
-  QWEN3TTS_QUEUE_MAX             - active queued/running jobs (default 200)
+  The service accepts one active job. GPU capacity is used inside that job for
+  native sentence-chunk batching; callers retain and retry additional work.
   QWEN3TTS_QUEUE_RESULT_TTL_S    - completed result retention (default 900)
   QWEN3TTS_QUEUE_RESULT_MAX      - maximum retained terminal jobs (default 200)
-  QWEN3TTS_TASK_TIMEOUT_S        - queued batch timeout (default 900)
   QWEN3TTS_CHUNK_MAX_CHARS       - per-chunk character budget at speed 1.0
                                    (default 280, ~20s); sentence merging stays
                                    within ~60% of it, and slower speeds shrink
@@ -81,6 +84,7 @@ restart by timing out and resubmitting the same client_job_id.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
 import io
 import os
@@ -102,7 +106,7 @@ import torch
 import transformers
 import uvicorn
 
-from qwen3tts_gpu import detect_model_variant, estimate_max_parallel, query_gpu_snapshot
+from qwen3tts_gpu import build_capacity_plan, detect_model_variant, query_gpu_snapshot
 from qwen3tts_queue import QueueFullError, QwenQueue
 from qwen3tts_synthesis import QwenSynthesis
 from qwen3tts_web import (
@@ -175,9 +179,19 @@ http_event = _load_source_module(_HTTP_EVENT_MODULE_NAME, _HTTP_EVENT_MODULE_PAT
 _model = None
 _model_lock = threading.Lock()
 _device: Optional[str] = None
+_attention_backend = "uninitialized"
 _load_error: Optional[str] = None
 _QUEUE: Optional[QwenQueue] = None
 _SYNTHESIS: Optional[QwenSynthesis] = None
+_CAPACITY_PLAN: Dict[str, Any] = {
+    "initialized": False,
+    "source": "startup_pending",
+    "batch_size": 1,
+}
+_GPU_SNAPSHOT_CACHE: Dict[str, Any] = {}
+_GPU_SNAPSHOT_CACHED_AT = 0.0
+_GPU_SNAPSHOT_CACHE_SECONDS = 1.0
+_GPU_SNAPSHOT_LOCK = threading.Lock()
 
 
 @asynccontextmanager
@@ -185,6 +199,7 @@ async def _lifespan(_app: FastAPI):
     loop: Optional[asyncio.AbstractEventLoop] = None
     previous = None
 
+    await asyncio.to_thread(_get_model)
     await _get_queue().start()
     if os.name == "nt":
         loop = asyncio.get_running_loop()
@@ -335,6 +350,11 @@ def _model_id() -> str:
     return (os.environ.get("QWEN3TTS_MODEL") or "").strip() or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 
 
+def _model_variant() -> str:
+    configured = (os.environ.get("QWEN3TTS_MODEL_VARIANT") or "").strip()
+    return configured if configured in {"0.6B", "1.7B"} else detect_model_variant(_model_id())
+
+
 def _model_ready(model) -> bool:
     return model is not None
 
@@ -349,18 +369,111 @@ def _attention_implementation(device: str, dtype) -> str:
     return "sdpa"
 
 
+def _logical_gpu_index() -> int:
+    device = _device or _resolve_device()
+    suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
+    return int(suffix) if suffix.isdigit() else 0
+
+
+def _physical_gpu_index() -> int:
+    configured = (os.environ.get("QWEN3TTS_PHYSICAL_GPU_INDEX") or "").strip()
+    return int(configured) if configured.isdigit() else _logical_gpu_index()
+
+
+def _cuda_properties() -> Dict[str, Any]:
+    device = _device or _resolve_device()
+    if not device.startswith("cuda") or not torch.cuda.is_available():
+        return {}
+    logical_index = _logical_gpu_index()
+    properties = torch.cuda.get_device_properties(logical_index)
+    free_bytes, total_bytes = torch.cuda.mem_get_info(logical_index)
+    return {
+        "logical_index": logical_index,
+        "name": properties.name,
+        "major": int(properties.major),
+        "minor": int(properties.minor),
+        "multiprocessor_count": int(properties.multi_processor_count),
+        "mem_free_mb": round(int(free_bytes) / (1024 * 1024)),
+        "mem_total_mb": round(int(total_bytes) / (1024 * 1024)),
+    }
+
+
+def _initialize_capacity_plan() -> Dict[str, Any]:
+    global _CAPACITY_PLAN, _GPU_SNAPSHOT_CACHE, _GPU_SNAPSHOT_CACHED_AT
+    if _CAPACITY_PLAN.get("initialized"):
+        return dict(_CAPACITY_PLAN)
+    gpu = query_gpu_snapshot(_physical_gpu_index())
+    properties = _cuda_properties()
+    _CAPACITY_PLAN = build_capacity_plan(
+        _model_variant(),
+        _device or _resolve_device(),
+        gpu,
+        properties,
+    )
+    _GPU_SNAPSHOT_CACHE = dict(gpu)
+    _GPU_SNAPSHOT_CACHED_AT = time.monotonic()
+    _log(
+        "[api] startup GPU capacity plan: "
+        f"physical_gpu={_CAPACITY_PLAN.get('physical_gpu_index')} "
+        f"name={_CAPACITY_PLAN.get('gpu_name') or '-'} "
+        f"compute={_CAPACITY_PLAN.get('compute_capability') or '-'} "
+        f"sms={int(_CAPACITY_PLAN.get('multiprocessor_count') or 0)} "
+        f"memory={int(_CAPACITY_PLAN.get('memory_used_at_start_mb') or 0)}/"
+        f"{int(_CAPACITY_PLAN.get('memory_total_mb') or 0)}MB "
+        f"native_batch={int(_CAPACITY_PLAN.get('batch_size') or 1)}"
+    )
+    return dict(_CAPACITY_PLAN)
+
+
+def _capacity_plan_snapshot() -> Dict[str, Any]:
+    return dict(_CAPACITY_PLAN)
+
+
+def _runtime_gpu_snapshot() -> Dict[str, Any]:
+    global _GPU_SNAPSHOT_CACHE, _GPU_SNAPSHOT_CACHED_AT
+    now = time.monotonic()
+    with _GPU_SNAPSHOT_LOCK:
+        if now - _GPU_SNAPSHOT_CACHED_AT >= _GPU_SNAPSHOT_CACHE_SECONDS:
+            _GPU_SNAPSHOT_CACHE = query_gpu_snapshot(_physical_gpu_index())
+            _GPU_SNAPSHOT_CACHED_AT = now
+        snapshot = dict(_GPU_SNAPSHOT_CACHE)
+    snapshot["logical_device"] = _device or _resolve_device()
+    snapshot["physical_index"] = int(
+        _CAPACITY_PLAN.get("physical_gpu_index") or _physical_gpu_index()
+    )
+    snapshot["compute_capability"] = _CAPACITY_PLAN.get("compute_capability")
+    snapshot["multiprocessor_count"] = int(
+        _CAPACITY_PLAN.get("multiprocessor_count") or 0
+    )
+    if not snapshot.get("name"):
+        snapshot["name"] = _CAPACITY_PLAN.get("gpu_name")
+    return snapshot
+
+
+def _service_runtime_snapshot() -> Dict[str, Any]:
+    capacity_plan = _capacity_plan_snapshot()
+    return {
+        "gpu": _runtime_gpu_snapshot(),
+        "capacity_plan": capacity_plan,
+        "max_parallel": max(1, int(capacity_plan.get("batch_size") or 1)),
+        "attention_implementation": _attention_backend,
+        "synthesis_runtime": _get_synthesis().runtime(),
+    }
+
+
 def _load_model():
-    global _device, _load_error
+    global _attention_backend, _device, _load_error
 
     _device = _resolve_device()
     model_id = _model_id()
     dtype = torch.float32 if _device == "cpu" else torch.bfloat16
     attention_implementation = _attention_implementation(_device, dtype)
+    _attention_backend = attention_implementation
     _log(f"[api] loading Qwen3-TTS model: {model_id}")
     _log(f"[api] device={_device} dtype={dtype} "
          f"attention={attention_implementation} "
          f"(cuda_available={torch.cuda.is_available()})")
-    t0 = time.time()
+    t0 = time.monotonic()
     try:
         model = Qwen3TTSModel.from_pretrained(
             model_id,
@@ -368,12 +481,13 @@ def _load_model():
             dtype=dtype,
             attn_implementation=attention_implementation,
         )
-        _log(f"[api] model loaded in {time.time() - t0:.1f}s")
+        _log(f"[api] model loaded in {time.monotonic() - t0:.1f}s")
         _refresh_capabilities(model)
+        _initialize_capacity_plan()
         return model
     except Exception as exc:  # noqa: BLE001
         _load_error = str(exc)
-        _log(f"[api] model load FAILED after {time.time() - t0:.1f}s: {exc}")
+        _log(f"[api] model load FAILED after {time.monotonic() - t0:.1f}s: {exc}")
         raise
 
 
@@ -445,6 +559,7 @@ def _resolve_speaker(
     gender: str = "female",
     index: int = 0,
     random_default: bool = False,
+    stable_identity: str = "",
 ) -> Dict[str, Any]:
     """Resolve a model speaker id.
 
@@ -452,8 +567,8 @@ def _resolve_speaker(
     The default is either an ordered preset pick (variant previews: distinct
     voice per variant index) or - with ``random_default`` - a uniform random
     pick from the language's NATIVE speaker pool (official model card), one
-    random voice per TASK: callers resolve once per job so every sentence
-    chunk of that job reuses the same voice, while distinct tasks vary it."""
+    voice per TASK. Queued jobs derive the choice from their stable id so an
+    idempotent resubmission keeps the same voice across service restarts."""
     caps = _get_capabilities()
     speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
     supported = list(caps.get("speakers") or [])
@@ -487,7 +602,12 @@ def _resolve_speaker(
                 "retryable": False,
                 "supported_speakers": [],
             }
-        picked = random.choice(pool)
+        identity = str(stable_identity or "").strip()
+        if identity:
+            digest = hashlib.sha256(identity.encode("utf-8")).digest()
+            picked = pool[int.from_bytes(digest[:8], "big") % len(pool)]
+        else:
+            picked = random.choice(pool)
         return {
             "ok": True,
             "requested_speaker": picked,
@@ -589,22 +709,8 @@ class QueueCancelRequest(BaseModel):
     job_id: str
 
 
-def _gpu_index() -> int:
-    device = _device or _resolve_device()
-    if ":" not in device:
-        return 0
-    suffix = device.rsplit(":", 1)[-1]
-    return int(suffix) if suffix.isdigit() else 0
-
-
 def _max_parallel_snapshot() -> int:
-    snapshot = query_gpu_snapshot(_gpu_index())
-    return estimate_max_parallel(
-        detect_model_variant(_model_id()),
-        snapshot.get("mem_total_mb") or 0,
-        snapshot.get("mem_used_mb") or 0,
-        snapshot.get("util_percent"),
-    )
+    return max(1, int(_CAPACITY_PLAN.get("batch_size") or 1))
 
 
 def _default_speed() -> float:
@@ -631,11 +737,7 @@ def _get_synthesis() -> QwenSynthesis:
             resolve_speaker=_resolve_speaker,
             speaker_for_variant=_speaker_for_variant,
             qwen_language=_qwen_language,
-            query_gpu_snapshot=query_gpu_snapshot,
-            estimate_max_parallel=estimate_max_parallel,
-            detect_model_variant=detect_model_variant,
-            model_id=_model_id,
-            device=lambda: _device or _resolve_device(),
+            capacity_plan=_capacity_plan_snapshot,
             logger=_log,
             default_speed=_default_speed,
         )
@@ -653,6 +755,8 @@ def _get_queue() -> QwenQueue:
             _max_parallel_snapshot,
             _log,
             event_publisher=publish_event,
+            batchable=_get_synthesis().queue_batchable,
+            progress_snapshot=_get_synthesis().runtime,
         )
     return _QUEUE
 
@@ -663,7 +767,9 @@ def health():
     return {
         "ok": True,
         "device": _device or _resolve_device(),
+        "physical_gpu_index": _physical_gpu_index(),
         "model_loaded": ready,
+        "capacity_plan": _capacity_plan_snapshot(),
         "load_error": None if ready else _load_error,
     }
 
@@ -704,7 +810,7 @@ def web_javascript():
 
 @app.get("/status")
 async def status():
-    gpu = await asyncio.to_thread(query_gpu_snapshot, _gpu_index())
+    runtime = await asyncio.to_thread(_service_runtime_snapshot)
     queue = _get_queue().status()
     direct = _get_synthesis().stats()
     queue_count = int(queue.get("synthesized_count") or 0)
@@ -715,12 +821,6 @@ async def status():
         + int(direct.get("average_elapsed_ms") or 0) * direct_count
     )
     dtype = "float32" if (_device or _resolve_device()) == "cpu" else "bfloat16"
-    max_parallel = estimate_max_parallel(
-        detect_model_variant(_model_id()),
-        gpu.get("mem_total_mb") or 0,
-        gpu.get("mem_used_mb") or 0,
-        gpu.get("util_percent"),
-    )
     return {
         "ok": True,
         "model_loaded": _model_ready(_model),
@@ -731,8 +831,7 @@ async def status():
         "device": _device or _resolve_device(),
         "dtype": dtype,
         "load_error": _load_error,
-        "gpu": gpu,
-        "max_parallel": max_parallel,
+        **runtime,
         "synthesized_count": total_count,
         "failed_count": int(queue.get("failed_count") or 0) + int(direct.get("failed_count") or 0),
         "average_elapsed_ms": round(total_elapsed / total_count) if total_count else 0,
@@ -744,7 +843,7 @@ async def status():
 def load():
     """Warm up the model without synthesizing, so the loading process is visible
     on the console before the first /synthesize call."""
-    t0 = time.time()
+    t0 = time.monotonic()
     try:
         _get_model()
         return {
@@ -752,7 +851,8 @@ def load():
             "model_loaded": True,
             "device": _device or _resolve_device(),
             "model_id": _model_id(),
-            "elapsed_ms": round((time.time() - t0) * 1000),
+            "capacity_plan": _capacity_plan_snapshot(),
+            "elapsed_ms": round((time.monotonic() - t0) * 1000),
         }
     except Exception as exc:  # noqa: BLE001
         return JSONResponse(
@@ -807,10 +907,12 @@ def synthesize_batch(req: BatchSynthRequest):
 async def queue_submit(req: QueueSubmitRequest):
     try:
         job = await _get_queue().submit(req.model_dump())
+        runtime = await asyncio.to_thread(_service_runtime_snapshot)
         return {
             "ok": True,
             "event_instance_id": http_service.events.instance_id,
             **job,
+            **runtime,
         }
     except QueueFullError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=429)
@@ -820,7 +922,12 @@ async def queue_submit(req: QueueSubmitRequest):
 
 @app.get("/queue/status")
 async def queue_status():
-    return {"ok": True, **_get_queue().status()}
+    runtime = await asyncio.to_thread(_service_runtime_snapshot)
+    return {
+        "ok": True,
+        **runtime,
+        **_get_queue().status(),
+    }
 
 
 @app.post("/queue/cancel")

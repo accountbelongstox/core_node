@@ -29,7 +29,7 @@ use App\Support\QueueCenterContract;
  * Registered automatically by the auto-discovering OctaneTimerServiceProvider
  * (sys:init wires it in). Default ON; user-data settings can still disable it.
  */
-class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
+class AppQyV1WordValidityScanTask extends QueueFeederTaskAbstract
 {
     private const PRIORITY_LOW = 0;
     private const MAX_RETRIES = 3;
@@ -60,35 +60,25 @@ class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 
         foreach ($languages as $langCode) {
             // Don't pile up: one in-flight validity batch per language is enough.
-            if ($this->countPendingForLanguage($langCode) > 0) {
+            if ($this->liveTaskCount('word_validity', ['language' => $langCode]) > 0) {
                 continue;
             }
 
-            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
-            $scope = 'word_validity:' . $langCode . ':' . $model->getTable();
             $batchSize = QueueCenterContract::wordValidityBatchSize();
-            $page = $this->rowsForPendingPage(
-                $scope,
-                $model,
-                $batchSize,
-                static fn (array $ids): array => AppQyV1LangDictionaryModel::pendingValidityScanRows(
-                    $langCode,
-                    $ids
-                ),
-                // The validity batch size is contract-owned; the generic
-                // data-segment clamp must not shrink it.
+            $ids = AppQyV1LangDictionaryModel::pendingValidityPageIds(
+                $langCode,
+                '',
+                0,
                 $batchSize
             );
-            if ($page['rows'] === [] && ($page['page'] ?? 0) === 0) {
+            $words = AppQyV1LangDictionaryModel::pendingValidityScanRows($langCode, $ids);
+            if ($words === []) {
                 continue;
             }
 
             try {
-                if ($page['rows'] !== []) {
-                    $this->createTask($langCode, $page['rows']);
-                    $totalCreated++;
-                }
-                $this->consumePendingPage($scope, $page);
+                $this->createTask($langCode, $words);
+                $totalCreated++;
             } catch (\Throwable $e) {
                 $this->logWarning('Background word_validity page failed', [
                     'language' => $langCode,
@@ -102,20 +92,6 @@ class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
                 'total_tasks' => $totalCreated,
             ]);
         }
-    }
-
-    private function countPendingForLanguage(string $langCode): int
-    {
-        return GlobalTask::liveTaskCount(
-            'AppQyV1',
-            ['word_validity'],
-            [
-                GlobalTask::status('pending'),
-                GlobalTask::status('assigned'),
-                GlobalTask::status('processing'),
-            ],
-            ['language' => $langCode]
-        );
     }
 
     private function createTask(string $langCode, array $words): void
@@ -138,7 +114,7 @@ class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
             'word_validity',
             GlobalTask::executionType('remote_validity'),
             $payload,
-            600,
+            QueueCenterContract::wordValidityRequestTimeoutSeconds() + 60,
             self::PRIORITY_LOW,
             self::MAX_RETRIES
         );

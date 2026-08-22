@@ -7,7 +7,7 @@ import json
 import time
 import urllib.parse
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyutils.common.http_client import HttpClient
 from pycore.pyutils.tts.qwen.config import (
@@ -37,6 +37,7 @@ _HTTP_CLIENT = HttpClient(
     default_timeout=_DEFAULT_TIMEOUT_S,
     default_headers={"Accept": "*/*"},
 )
+ProgressCallback = Callable[[Dict[str, Any]], None]
 
 
 def request(
@@ -231,123 +232,37 @@ def queue_cancel(
     return bool(ok and isinstance(response, dict) and response.get("cancelled"))
 
 
-def _wait_timeout_error(
-    timeout: float,
-    job_id: str,
-    client_job_id: str,
-    last_poll_error: Optional[str],
-    *,
-    service_base_url: Optional[str] = None,
-) -> str:
-    """Full-detail wait-timeout diagnostics instead of a bare "timed out".
-
-    Carries the job's live state, the queue snapshot, the last poll error,
-    and an explicit actionable hint when the service is unreachable or its
-    worker is stalled (e.g. paused in a debugger): the operator fixes the
-    cause, and the idempotent resubmit on retry simply continues the same
-    queued job. Nothing is swallowed - a failed status probe is reported
-    as the unreachable-service cause itself.
-    """
-    base = f"qwen3tts queue wait timed out after {timeout:g}s"
-    if last_poll_error:
-        base += f" (last poll error: {last_poll_error})"
-    status = queue_status(
-        timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
-        service_base_url=service_base_url,
-    )
-    if not status.get("ok") and "error" in status:
-        return (
-            f"{base}: qwen3tts service unreachable - stopped or paused for "
-            f"DEBUG? restart/resume it; this item auto-retries and the "
-            f"idempotent job resumes where it left off"
-        )
-    counts = status.get("counts") if isinstance(status.get("counts"), dict) else {}
-    jobs = status.get("jobs") if isinstance(status.get("jobs"), list) else []
-    job = next(
-        (
-            j for j in jobs
-            if isinstance(j, dict) and (
-                str(j.get("job_id") or "") == job_id
-                or str(j.get("client_job_id") or "") == client_job_id
-            )
-        ),
-        None,
-    )
-    queue_summary = (
-        f"pending={int(counts.get('pending') or 0)} "
-        f"running={int(counts.get('running') or 0)} "
-        f"consumer_running={bool(status.get('consumer_running'))} "
-        f"stalled={bool(status.get('stalled'))}"
-    )
-    if job is None:
-        return (
-            f"{base} [{queue_summary}] job not in queue snapshot anymore "
-            f"(job_id={job_id or '-'} client_job_id={client_job_id}) - "
-            f"finished while its event was missed; the retry resubmits "
-            f"idempotently"
-        )
-    job_status = str(job.get("status") or "unknown")
-    parts = [f"job_id={job_id or '-'}", f"status={job_status}"]
-    if job_status == "pending":
-        submitted = str(job.get("submitted_at") or "")
-        ahead = sum(
-            1
-            for j in jobs
-            if isinstance(j, dict)
-            and str(j.get("status")) == "pending"
-            and str(j.get("submitted_at") or "") < submitted
-        )
-        parts.append(f"queue_position={ahead + 1}")
-    if job_status == "running" and job.get("running_elapsed_ms") is not None:
-        parts.append(f"running_ms={int(job['running_elapsed_ms'])}")
-    detail = f"{base} [{queue_summary}; {' '.join(parts)}]"
-    if bool(status.get("stalled")) or not bool(status.get("consumer_running")):
-        return (
-            f"{detail} - qwen3tts worker STALLED (paused in a debugger?): "
-            f"resume/continue the service; the queued job completes on its "
-            f"own and this item auto-retries"
-        )
-    if job_status == "running":
-        return (
-            f"{detail} - synthesis is still in progress server-side; the "
-            f"retry resubmits idempotently and picks up the finished audio"
-        )
-    return f"{detail}"
+def _notify_progress(
+    callback: Optional[ProgressCallback],
+    value: Dict[str, Any],
+) -> None:
+    if callback is not None:
+        callback(dict(value))
 
 
 def queue_submit_and_wait(
     payload: Dict[str, Any],
     client_job_id: str,
-    timeout: float = _DEFAULT_TIMEOUT_S,
     *,
+    progress_callback: Optional[ProgressCallback] = None,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, bytes, Optional[str]]:
     stable_id = str(client_job_id or "").strip() or uuid.uuid4().hex
     request_payload = dict(payload or {})
     request_payload["client_job_id"] = stable_id
-    deadline = time.monotonic() + max(0.1, float(timeout))
     ok, job, error = _submit_with_recovery(
         request_payload,
         stable_id,
-        deadline,
+        progress_callback=progress_callback,
         service_base_url=service_base_url,
     )
     if not ok or not isinstance(job, dict):
         return False, b"", error or "qwen3tts queue submit failed"
     job_id = str(job.get("job_id") or "")
+    _notify_progress(progress_callback, job)
     if job.get("status") == "done":
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return False, b"", _wait_timeout_error(
-                timeout,
-                job_id,
-                stable_id,
-                None,
-                service_base_url=service_base_url,
-            )
         return fetch_queue_result(
             job_id,
-            remaining,
             service_base_url=service_base_url,
         )
     if job.get("status") in {"failed", "cancelled"}:
@@ -356,49 +271,36 @@ def queue_submit_and_wait(
     poll_client_id = f"pycore-qwen-wait-{stable_id}"
     cursor = 0
     instance_id = str(job.get("event_instance_id") or "")
-    last_poll_error: Optional[str] = None
     recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return False, b"", _wait_timeout_error(
-                timeout,
-                job_id,
-                stable_id,
-                last_poll_error,
-                service_base_url=service_base_url,
-            )
         response = queue_events(
             poll_client_id,
             cursor,
-            min(20.0, max(0.0, remaining - 0.5)),
-            request_timeout=remaining,
+            20.0,
+            request_timeout=25.0,
             service_base_url=service_base_url,
         )
         if not response.get("success"):
             poll_error = str(response.get("error") or "queue event poll failed")
-            last_poll_error = poll_error
             reconciled = find_queue_job(
                 job_id,
                 stable_id,
-                timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
+                timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
                 service_base_url=service_base_url,
             )
             if reconciled is not None:
                 job_id = str(reconciled.get("job_id") or job_id)
+                _notify_progress(progress_callback, reconciled)
                 terminal = _terminal_result(
                     reconciled,
                     job_id,
-                    deadline - time.monotonic(),
                     service_base_url=service_base_url,
                 )
                 if terminal is not None:
                     return terminal
             if not _is_retryable_queue_error(poll_error):
                 return False, b"", poll_error
-            time.sleep(
-                min(recovery_backoff, max(0.0, deadline - time.monotonic()))
-            )
+            time.sleep(recovery_backoff)
             recovery_backoff = min(
                 _QUEUE_RECOVERY_MAX_BACKOFF_S,
                 recovery_backoff * 2.0,
@@ -410,15 +312,15 @@ def queue_submit_and_wait(
             reconciled = find_queue_job(
                 job_id,
                 stable_id,
-                timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
+                timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
                 service_base_url=service_base_url,
             )
             if reconciled is not None:
                 job_id = str(reconciled.get("job_id") or job_id)
+                _notify_progress(progress_callback, reconciled)
                 terminal = _terminal_result(
                     reconciled,
                     job_id,
-                    deadline - time.monotonic(),
                     service_base_url=service_base_url,
                 )
                 if terminal is not None:
@@ -427,16 +329,16 @@ def queue_submit_and_wait(
                 resubmit_ok, resubmitted, resubmit_error = _submit_with_recovery(
                     request_payload,
                     stable_id,
-                    deadline,
+                    progress_callback=progress_callback,
                     service_base_url=service_base_url,
                 )
                 if not resubmit_ok or not isinstance(resubmitted, dict):
                     return False, b"", resubmit_error or "qwen3tts queue recovery failed"
                 job_id = str(resubmitted.get("job_id") or job_id)
+                _notify_progress(progress_callback, resubmitted)
                 terminal = _terminal_result(
                     resubmitted,
                     job_id,
-                    deadline - time.monotonic(),
                     service_base_url=service_base_url,
                 )
                 if terminal is not None:
@@ -449,10 +351,7 @@ def queue_submit_and_wait(
                 acknowledge_events(
                     poll_client_id,
                     cursor,
-                    timeout=min(
-                        10.0,
-                        max(0.1, deadline - time.monotonic()),
-                    ),
+                    timeout=10.0,
                     service_base_url=service_base_url,
                 )
             instance_id = next_instance
@@ -469,10 +368,11 @@ def queue_submit_and_wait(
             if event_job_id != job_id and event_client_job_id != stable_id:
                 continue
             job_id = event_job_id or job_id
+            progress = event.get("job") if isinstance(event.get("job"), dict) else event
+            _notify_progress(progress_callback, progress)
             terminal = _terminal_result(
                 event,
                 job_id,
-                deadline - time.monotonic(),
                 service_base_url=service_base_url,
             )
             if terminal is not None:
@@ -481,35 +381,23 @@ def queue_submit_and_wait(
             acknowledge_events(
                 poll_client_id,
                 cursor,
-                timeout=min(
-                    10.0,
-                    max(0.1, deadline - time.monotonic()),
-                ),
+                timeout=10.0,
                 service_base_url=service_base_url,
             )
 
 
 def fetch_queue_result(
     job_id: str,
-    timeout: float,
     *,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, bytes, Optional[str]]:
-    deadline = time.monotonic() + max(0.1, float(timeout))
     delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     result_path = f"/queue/result/{urllib.parse.quote(str(job_id or ''), safe='')}"
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return False, b"", (
-                f"qwen3tts result fetch timed out after {timeout:g}s "
-                f"(job_id={job_id}) - synthesis already finished; the retry "
-                f"resubmits idempotently and refetches the retained result"
-            )
         status, _headers, body, transport_error = request(
             "GET",
             result_path,
-            timeout=min(_QUEUE_RESULT_REQUEST_TIMEOUT_S, remaining),
+            timeout=_QUEUE_RESULT_REQUEST_TIMEOUT_S,
             service_base_url=service_base_url,
         )
         if 200 <= status < 300 and body:
@@ -518,7 +406,7 @@ def fetch_queue_result(
         retryable = bool(transport_error and _is_retryable_queue_error(error)) or status == 409
         if not retryable:
             return False, b"", error
-        time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+        time.sleep(delay)
         delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
 
 
@@ -561,36 +449,45 @@ def inspect_queue_job(
 def _submit_with_recovery(
     payload: Dict[str, Any],
     client_job_id: str,
-    deadline: float,
     *,
+    progress_callback: Optional[ProgressCallback] = None,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
     delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     last_error = "qwen3tts queue submit failed"
+    wait_revision = 0
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return False, None, last_error
         ok, job, error = queue_submit(
             payload,
-            timeout=min(30.0, remaining),
+            timeout=30.0,
             service_base_url=service_base_url,
         )
         if ok and isinstance(job, dict):
             return True, job, None
         last_error = str(error or last_error)
-        remaining = deadline - time.monotonic()
-        if remaining <= 0 or not _is_retryable_queue_error(last_error):
+        if not _is_retryable_queue_error(last_error):
             return False, None, last_error
         reconciled = find_queue_job(
             "",
             client_job_id,
-            timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
+            timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
             service_base_url=service_base_url,
         )
         if reconciled is not None:
             return True, reconciled, None
-        time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+        wait_revision += 1
+        _notify_progress(progress_callback, {
+            "status": "pending",
+            "progress_revision": wait_revision,
+            "progress": 0,
+            "progress_total": 0,
+            "progress_phase": (
+                "queue_capacity_wait"
+                if is_queue_capacity_error(last_error)
+                else "queue_recovery"
+            ),
+        })
+        time.sleep(delay)
         delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
 
 
@@ -607,20 +504,22 @@ def _is_retryable_queue_error(error: Optional[str]) -> bool:
     return any(marker in normalized for marker in _RETRYABLE_QUEUE_ERROR_MARKERS)
 
 
+def is_queue_capacity_error(error: Optional[str]) -> bool:
+    """Return whether the single active Qwen job currently owns capacity."""
+    normalized = str(error or "").strip().lower()
+    return normalized.startswith("http 429") or "queue full" in normalized
+
+
 def _terminal_result(
     value: Dict[str, Any],
     job_id: str,
-    timeout: float,
     *,
     service_base_url: Optional[str] = None,
 ) -> Optional[Tuple[bool, bytes, Optional[str]]]:
     status = str(value.get("status") or "")
     if status == "done":
-        if timeout <= 0:
-            return False, b"", "qwen3tts result fetch deadline expired"
         return fetch_queue_result(
             job_id,
-            timeout,
             service_base_url=service_base_url,
         )
     if status in {"failed", "cancelled"}:

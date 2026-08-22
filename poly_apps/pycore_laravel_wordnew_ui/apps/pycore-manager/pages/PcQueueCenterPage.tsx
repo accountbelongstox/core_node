@@ -18,11 +18,13 @@ import {
   getPycoreHealth,
   PYCORE_HEALTH_EVENT,
   PYCORE_HTTP_DEFAULTS,
+  useAgentHistoryRuntime,
 } from '@/apps/pycore-manager/api';
 import PcSentenceQueuePanel from './PcSentenceQueuePanel';
 import { PcWordAudioPanel } from '../components/PcWordAudioPanel';
 import PcQueueOverviewPanel from './PcQueueOverviewPanel';
 import PcRecentTasksPanel from './PcRecentTasksPanel';
+import PcAgentHistoryQueuePanel from './PcAgentHistoryQueuePanel';
 import PcAssistStrip from '../components/PcAssistStrip';
 import PcQueueBumpToasts from '../components/PcQueueBumpToasts';
 import PcCapabilityDrawer from '../components/PcCapabilityDrawer';
@@ -145,6 +147,7 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
 const QueueCenterBody: React.FC = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
+  const agentHistoryRuntime = useAgentHistoryRuntime();
   const auto = hub.autoRefresh;
   const setAuto = hub.setAutoRefresh;
   const [searchParams] = useSearchParams();
@@ -175,6 +178,7 @@ const QueueCenterBody: React.FC = () => {
   );
   const wordPending = sectionContracts.word_audio.queue.pending;
   const sentenceCount = sectionContracts.sentence_audio.queue.pending;
+  const agentHistoryPending = Number(agentHistoryRuntime.articleSummary?.total_pending || 0);
 
   // Legacy ?tab= links → scroll to the section anchor + a brief highlight.
   const [highlight, setHighlight] = useState<QcSection | null>(null);
@@ -278,7 +282,10 @@ const QueueCenterBody: React.FC = () => {
             {t('queueCenter.auto')} {auto ? t('queueCenter.autoOn') : t('queueCenter.autoOff')}
           </button>
           <button
-            onClick={() => { void hub.refreshHub(); }}
+            onClick={() => {
+              void hub.refreshHub();
+              void agentHistoryRuntime.refresh();
+            }}
             disabled={hub.loading}
             className="p-2 rounded-xl pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
             title={t('queueCenter.refreshActive')}>
@@ -303,6 +310,18 @@ const QueueCenterBody: React.FC = () => {
         highlight={highlight === 'overview'}>
         <PcAssistStrip />
         <PcQueueOverviewPanel />
+      </QcSectionCard>
+
+      <QcSectionCard
+        section="agentHistory"
+        count={agentHistoryPending}
+        highlight={highlight === 'agentHistory'}>
+        <PcAgentHistoryQueuePanel
+          articleConfig={agentHistoryRuntime.articleConfig}
+          articleSummary={agentHistoryRuntime.articleSummary}
+          operationSnapshot={agentHistoryRuntime.operationSnapshot}
+          loading={agentHistoryRuntime.configLoading || agentHistoryRuntime.operationLoading}
+        />
       </QcSectionCard>
 
       <QcSectionCard

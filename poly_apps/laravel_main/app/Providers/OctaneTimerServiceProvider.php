@@ -65,7 +65,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
     {
         $tasks = $catalog->discover();
         $registeredCount = 0;
-        $skippedCount = 0;
+        $disabledCount = 0;
 
         foreach ($tasks as $definition) {
             if (isset($definition['error'])) {
@@ -84,8 +84,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
                         'task' => $definition['name'],
                         'class' => $definition['class'],
                     ]);
-                    $skippedCount++;
-                    continue;
+                    $disabledCount++;
                 }
 
                 OctaneTimerService::register(
@@ -93,7 +92,10 @@ class OctaneTimerServiceProvider extends ServiceProvider
                     function () use ($task) {
                         $task->exec();
                     },
-                    $definition['interval']
+                    $definition['interval'],
+                    static function () use ($task): bool {
+                        return $task->isEnabled();
+                    }
                 );
 
                 Log::info('OctaneTimerServiceProvider: Task registered', [
@@ -114,7 +116,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
 
         Log::info('OctaneTimerServiceProvider: Auto-discovery completed', [
             'registered' => $registeredCount,
-            'skipped' => $skippedCount,
+            'disabled' => $disabledCount,
             'total_tasks' => count($tasks)
         ]);
     }

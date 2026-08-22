@@ -73,11 +73,11 @@ initialize_runtime_configuration_store() {
         if [ "$config_state" != "ready" ]; then
             echo "ERROR: Failed to provision APP_KEY."
         else
-            # Mercure hub keys are provisioned independently and then
+            # The Mercure hub keys are provisioned independently and then
             # re-probed from the canonical store.
             runtime_config_ensure_mercure_keys
             if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
-                echo "ERROR: Failed to provision Mercure hub keys."
+                echo "ERROR: Failed to provision the Mercure hub keys."
             else
                 RUNTIME_CONFIGURATION_READY="yes"
                 echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"

@@ -113,8 +113,8 @@ class RuntimeConfigurationServiceProvider extends ServiceProvider
     }
 
     /**
-     * Mercure hub keys (HS256): provisioned once into the private store;
-     * RelayHubJwt reads them directly. They never enter the Laravel config
+     * Mercure publisher/subscriber keys (HS256): provisioned once into the
+     * private store; RelayHubJwt reads them directly. They never enter the Laravel config
      * tree, env files or any client-facing surface.
      */
     private function injectMercureKeys(): void

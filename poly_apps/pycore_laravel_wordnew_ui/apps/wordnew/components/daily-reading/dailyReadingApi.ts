@@ -2,6 +2,8 @@
  * Pycore push only invalidates this query; Laravel remains the data authority.
  * Field fallbacks retain compatibility with older agent-history payloads. */
 import { wfNewApi, type WfNewAgentArticle } from '../../api';
+import { absUrl } from '../../api/WfNewApiMappers';
+import type { LaravelArticleAudioReadyEvent } from '../../../../core/integrations/laravel';
 
 export interface DailyReadingRow extends WfNewAgentArticle {
   category: 'daily';
@@ -21,6 +23,11 @@ function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyRea
     audio_url: typeof item.audio_url === 'string' ? item.audio_url : null,
     audio_ready: item.audio_ready === true,
     audio_status: typeof item.audio_status === 'string' ? item.audio_status : null,
+    tts_engine: typeof item.tts_engine === 'string' ? item.tts_engine : null,
+    tts_model: typeof item.tts_model === 'string' ? item.tts_model : null,
+    tts_chunked: item.tts_chunked === true,
+    audio_generation_type: item.tts_chunked === true ? 'multi_sentence' : 'legacy',
+    audio_rebuilt_at: typeof item.audio_rebuilt_at === 'string' ? item.audio_rebuilt_at : null,
     reading_date: typeof item.reading_date === 'string'
       ? item.reading_date
       : (typeof item.published_at === 'string' ? item.published_at : null),
@@ -29,9 +36,54 @@ function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyRea
   };
 }
 
-export async function fetchDailyReadings(limit = 20): Promise<DailyReadingRow[]> {
-  const items = await wfNewApi.getRecentAgentArticles(limit);
-  return items.map(normalizeDailyReading);
+export interface DailyReadingPage {
+  items: DailyReadingRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  statistics: {
+    total: number;
+    rawTotal: number;
+    historicalDuplicates: number;
+    multiSentence: number;
+    legacyAudio: number;
+    rebuilt: number;
+  };
+}
+
+export async function fetchDailyReadings(limit = 100, offset = 0): Promise<DailyReadingPage> {
+  const page = await wfNewApi.getAgentArticlesPage(limit, offset);
+  return {
+    ...page,
+    items: page.items.map((item, index) => normalizeDailyReading(item, offset + index)),
+    statistics: page.statistics ?? {
+      total: page.total,
+      rawTotal: page.total,
+      historicalDuplicates: 0,
+      multiSentence: 0,
+      legacyAudio: 0,
+      rebuilt: 0,
+    },
+  };
+}
+
+export function applyDailyReadingAudioReady(
+  row: DailyReadingRow,
+  payload: LaravelArticleAudioReadyEvent,
+): DailyReadingRow {
+  if (row.id !== payload.article_id && row.article_id !== payload.article_id) return row;
+  const audioUrl = payload.audio_url ? (absUrl(payload.audio_url) ?? row.audio_url) : row.audio_url;
+  return {
+    ...row,
+    audio_url: audioUrl,
+    audio_ready: true,
+    audio_status: 'ready',
+    tts_engine: payload.tts_engine ?? row.tts_engine,
+    tts_model: payload.tts_model ?? row.tts_model,
+    tts_chunked: payload.tts_chunked ?? row.tts_chunked,
+    audio_generation_type: payload.tts_chunked === true ? 'multi_sentence' : row.audio_generation_type,
+    audio_rebuilt_at: payload.audio_rebuilt_at ?? row.audio_rebuilt_at,
+  };
 }
 
 export async function requestDailyReadingAudio(row: DailyReadingRow): Promise<void> {

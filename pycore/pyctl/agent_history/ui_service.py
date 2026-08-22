@@ -26,12 +26,15 @@ from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 from pycore.pyutils.common.usage_rollup import usage_rollup
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
+import pycore.pyutils.tts.qwen.engine as qwen_engine
 
 
 _AI_USAGE_SOURCES = {"agent_history_article", "agent_history_translate"}
 _AI_USAGE_CACHE_KEY = "agent_history.ai_usage_dashboard"
 _AI_USAGE_RETAINED_LIMIT = 5000
 _AI_USAGE_VISIBLE_LIMIT = 400
+_QWEN_RUNTIME_CACHE_KEY = "tts.engine.qwen3tts.agent_history_runtime"
+_QWEN_RUNTIME_CACHE_SECONDS = 1.0
 
 
 def _decorate_ai_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -241,22 +244,7 @@ def status(params: Any, _request_id: str) -> Dict[str, Any]:
     }
     if tools:
         config = get_config()
-        cursors = {}
-        for item in tools:
-            cursor = get_tool_cursor(config, item)
-            target = get_tool_backfill_target(config, item)
-            live_cursor = get_tool_live_cursor(config, item)
-            lane_aware = bool(target) and bool(live_cursor)
-            cursors[item] = {
-                "after_ts": int(cursor.get("after_ts") or 0),
-                "after_fragment_id": str(cursor.get("after_fragment_id") or ""),
-                "backfill_target_ts": int(target.get("after_ts") or 0),
-                "backfill_target_fragment_id": str(target.get("after_fragment_id") or ""),
-                "live_after_ts": int(live_cursor.get("after_ts") or 0),
-                "live_after_fragment_id": str(live_cursor.get("after_fragment_id") or ""),
-                "lane_aware": lane_aware,
-            }
-        histories = agent_history_service.read_tool_statistics_many(cursors)
+        histories = _tool_history_snapshot(config, tools)
         data["tool_histories"] = histories
         if tool and len(histories) == 1:
             data["tool_history"] = histories[0]
@@ -274,9 +262,32 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
         include_results=False,
     )
     summary = article_record_store.summarize_records()
+    tools = [
+        str(item)
+        for item in (config.get("enabled_tools") or [])
+        if str(item) in SUPPORTED_TOOLS
+    ]
+    histories = _tool_history_snapshot(config, tools)
+    history_records = sum(int(item.get("history_records") or 0) for item in histories)
+    history_content_records = sum(int(item.get("content_records") or 0) for item in histories)
+    history_replies = sum(int(item.get("replies") or 0) for item in histories)
+    history_processed = sum(int(item.get("processed") or 0) for item in histories)
+    history_pending = sum(int(item.get("pending") or 0) for item in histories)
     # Independent counters for local multi-sentence regeneration and
     # published legacy audio awaiting network replacement.
     summary["rebuild_pending"] = audio_rebuild.pending_rebuild_count()
+    summary["history_records"] = history_records
+    summary["history_content_records"] = history_content_records
+    summary["history_replies"] = history_replies
+    summary["history_processed"] = history_processed
+    summary["history_pending"] = history_pending
+    summary["total_pending"] = int(summary["rebuild_pending"]) + history_pending
+    summary["tool_histories"] = histories
+    summary["qwen"] = status_snapshot_cache.get(
+        _QWEN_RUNTIME_CACHE_KEY,
+        lambda: qwen_engine.get_status() or {"ok": False},
+        ttl_seconds=_QWEN_RUNTIME_CACHE_SECONDS,
+    )
     return {
         "success": True,
         "data": {
@@ -286,6 +297,31 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
             "ai_dashboard": _agent_history_ai_dashboard(config),
         },
     }
+
+
+def _tool_history_snapshot(
+    config: Dict[str, Any],
+    tools: List[str],
+) -> List[Dict[str, Any]]:
+    cursors: Dict[str, Dict[str, Any]] = {}
+    for item in tools:
+        cursor = get_tool_cursor(config, item)
+        target = get_tool_backfill_target(config, item)
+        live_cursor = get_tool_live_cursor(config, item)
+        cursors[item] = {
+            "after_ts": int(cursor.get("after_ts") or 0),
+            "after_fragment_id": str(cursor.get("after_fragment_id") or ""),
+            "backfill_target_ts": int(target.get("after_ts") or 0),
+            "backfill_target_fragment_id": str(
+                target.get("after_fragment_id") or ""
+            ),
+            "live_after_ts": int(live_cursor.get("after_ts") or 0),
+            "live_after_fragment_id": str(
+                live_cursor.get("after_fragment_id") or ""
+            ),
+            "lane_aware": bool(target) and bool(live_cursor),
+        }
+    return agent_history_service.read_tool_statistics_many(cursors)
 
 def article_config_post(params: Any, request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
@@ -325,18 +361,17 @@ def article_record_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
             "success": True,
             "data": {"revision": revision, "unchanged": True},
         }
-    rows = article_record_store.list_record_metadata(500)
-    total = len(rows)
-    page_count = max(1, -(-total // page_size))
-    page = max(1, min(int(request.get("page") or 1), page_count))
-    start = (page - 1) * page_size
+    page_data = article_record_store.record_metadata_page(
+        int(request.get("page") or 1),
+        page_size,
+    )
     data: Dict[str, Any] = {
         "revision": revision,
-        "total": total,
-        "page": page,
-        "page_count": page_count,
+        "total": page_data["total"],
+        "page": page_data["page"],
+        "page_count": page_data["page_count"],
     }
-    data["items"] = rows[start:start + page_size]
+    data["items"] = page_data["items"]
     return {"success": True, "data": data}
 
 def article_record_page(params: Any, _request_id: str) -> Dict[str, Any]:

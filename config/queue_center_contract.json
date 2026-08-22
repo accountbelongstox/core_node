@@ -1,5 +1,5 @@
 {
-  "schema_version": 26,
+  "schema_version": 30,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "word_validity": {
@@ -8,6 +8,14 @@
     "default_languages": ["en"],
     "source_marker": "ai_ensure",
     "idle_poll_seconds": 60
+  },
+  "http_transfer": {
+    "protocol": "offset-v1",
+    "chunk_bytes": 262144,
+    "maximum_chunk_bytes": 1048576,
+    "connect_timeout_seconds": 15,
+    "idle_timeout_seconds": 30,
+    "retry_interval_ms": 250
   },
   "realtime": {
     "transport": "mercure",
@@ -95,6 +103,10 @@
       "protocol": "mercure",
       "path": "/.well-known/mercure",
       "token_ttl_seconds": 600
+    },
+    "device_identity": {
+      "clock_skew_seconds": 300,
+      "nonce_ttl_seconds": 600
     },
     "topics": {
       "machines": "pycore.machines",
@@ -340,7 +352,7 @@
         "storage_key": "tkCapValidity",
         "label": "Word validity and translation",
         "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
-        "processors": ["word_validity_web"]
+        "processors": ["bing_dictionary", "word_validity_web"]
       },
       "notebooklm": {
         "storage_key": "tkCapNotebooklm",
@@ -386,7 +398,7 @@
         "total", "pending", "assigned", "processing", "completed", "completed_demo", "failed", "cancelled"
       ],
       "worker_registration": [
-        "worker_id", "worker_name", "processor_types", "capabilities", "hostname", "platform", "metadata"
+        "worker_id", "worker_name", "processor_types", "capabilities", "hostname", "platform", "metadata", "lease_capacity"
       ],
       "worker_result": ["task_id", "worker_id", "attempt", "status", "progress", "result", "error"]
     },

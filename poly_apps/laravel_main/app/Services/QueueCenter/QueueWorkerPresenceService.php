@@ -51,15 +51,19 @@ class QueueWorkerPresenceService
                     $processorTypes = is_array($row->processor_types) ? array_values($row->processor_types) : [];
                     $capabilities = is_array($row->capabilities) ? array_values($row->capabilities) : [];
                     $name = (string) ($row->worker_name ?? '');
+                    $online = $row->status !== Worker::STATUS_OFFLINE
+                        && $row->last_heartbeat_at !== null
+                        && $row->last_heartbeat_at >= $heartbeatFloor;
+                    if (! $online) {
+                        continue;
+                    }
                     $workers[] = [
                         'id' => (string) $row->worker_id,
                         'kind' => $this->kind($name, $processorTypes),
                         'name' => $name,
                         'processor_types' => $processorTypes,
                         'capabilities' => $capabilities,
-                        'online' => $row->status !== Worker::STATUS_OFFLINE
-                            && $row->last_heartbeat_at !== null
-                            && $row->last_heartbeat_at >= $heartbeatFloor,
+                        'online' => true,
                         'last_seen' => $row->last_heartbeat_at?->toIso8601String(),
                         'claimed' => (int) ($claimedByWorker->get($row->worker_id) ?? 0),
                         'hostname' => $row->hostname !== null ? (string) $row->hostname : null,

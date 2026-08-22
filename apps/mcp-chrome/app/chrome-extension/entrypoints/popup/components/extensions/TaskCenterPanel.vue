@@ -1,11 +1,5 @@
 <template>
   <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
-    <TaskCapabilitySelector
-      :title="getMessage('taskCenterProductionTitle')"
-      :description="getMessage('taskCenterProductionDescription')"
-      compact
-    />
-
     <div class="tk-cap-summary">
       <span>{{ readinessHint }}</span>
       <strong>{{ getMessage('taskCenterSelectedCount', [String(checkedCapabilityKeys.length)]) }}</strong>
@@ -148,13 +142,11 @@
 </template>
 
 <script lang="ts" setup>
-import { nextTick, onMounted, ref, computed, watch } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { useTaskCenter } from '../../composables/useTaskCenter';
 import { useTaskCapabilities } from '../../composables/useTaskCapabilities';
 import { usePersistedRef } from '@/composables/usePersistedRef';
-import { CAPABILITIES, type CapabilityKey } from '@/utils/task-capabilities';
 import { getMessage } from '@/utils/i18n';
-import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
 import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
 const {
@@ -164,7 +156,6 @@ const {
   isStarting,
   startTaskCenter,
   stopTaskCenter,
-  setCapability,
   formatTimestamp,
   initialize,
 } = useTaskCenter();
@@ -175,16 +166,7 @@ const unifiedRef = ref<{ loadAll: () => Promise<void> } | null>(null);
 // Collapse the long per-processor list by default (persisted). The 4-tile
 // summary bento above stays visible; only the 12-row detail folds.
 const showProcessors = usePersistedRef('tkShowProcessors', false);
-const suppressedCapabilityChanges = new Set<CapabilityKey>();
-const capabilityRequestVersions = new Map<CapabilityKey, number>();
-const capabilityRequestQueues = new Map<CapabilityKey, Promise<void>>();
-
-// ── Capability checkboxes ─────────────────────────────────────────────
-// Rendered straight from the shared catalog so the popup UI and the background
-// scheduler can never drift on which lanes a checkbox turns on. One persisted
-// ref per capability (survives popup blur/close), keyed by its catalog storageKey.
 const {
-  capabilityState: capState,
   enabledKeys: checkedCapabilityKeys,
 } = useTaskCapabilities();
 
@@ -206,34 +188,6 @@ const readinessHint = computed(() =>
     ? 'taskCenterReadyWithTasksHint'
     : 'taskCenterReadyOnlyHint'),
 );
-
-// Live switches: WHILE running, toggling a checkbox flips that lane
-// on/off immediately via set_capability — no full restart. While stopped, the
-// persisted ref just remembers the choice for the next Start.
-for (const def of CAPABILITIES) {
-  watch(capState[def.key], (enabled) => {
-    if (!state.value.isRunning || suppressedCapabilityChanges.has(def.key)) return;
-    const version = (capabilityRequestVersions.get(def.key) || 0) + 1;
-    capabilityRequestVersions.set(def.key, version);
-    const previous = capabilityRequestQueues.get(def.key) || Promise.resolve();
-    const request = previous.then(async () => {
-      const accepted = await setCapability(def.key, enabled);
-      if (accepted || capabilityRequestVersions.get(def.key) !== version) return;
-
-      suppressedCapabilityChanges.add(def.key);
-      capState[def.key].value = state.value.activeCapabilities.includes(def.key);
-      await nextTick();
-      suppressedCapabilityChanges.delete(def.key);
-    });
-    const cleanup = () => {
-      if (capabilityRequestQueues.get(def.key) === request) {
-        capabilityRequestQueues.delete(def.key);
-      }
-    };
-    capabilityRequestQueues.set(def.key, request);
-    void request.then(cleanup, cleanup);
-  });
-}
 
 // Backend REQUEST-layer status strip.
 const backendOnline = computed(() => state.value.backend?.online === true);
@@ -271,15 +225,6 @@ const getProcessorName = (type: string): string => {
 
 onMounted(async () => {
   await initialize();
-  if (state.value.isRunning) {
-    const active = new Set(state.value.activeCapabilities);
-    for (const capability of CAPABILITIES) {
-      suppressedCapabilityChanges.add(capability.key);
-      capState[capability.key].value = active.has(capability.key);
-    }
-    await nextTick();
-    suppressedCapabilityChanges.clear();
-  }
 });
 </script>
 

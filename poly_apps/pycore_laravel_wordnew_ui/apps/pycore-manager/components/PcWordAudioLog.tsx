@@ -1,4 +1,5 @@
 import React from 'react';
+import { PcQueueLogPagination } from './PcQueueLogPagination';
 
 export interface PcWordAudioLogRow {
   at: number;
@@ -18,24 +19,34 @@ export interface PcWordAudioLogRow {
 
 interface PcWordAudioLogProps {
   rows: PcWordAudioLogRow[];
+  title: string;
   progressLabel: string;
   stageLabel: (stage: string) => string;
-  onClear: () => void;
   onPlay: (row: PcWordAudioLogRow) => void;
+  page: number;
+  pages: number;
+  total: number;
+  loading: boolean;
+  onPage: (page: number) => void;
 }
 
 export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({
-  rows, progressLabel, stageLabel, onClear, onPlay,
+  rows, title, progressLabel, stageLabel, onPlay,
+  page, pages, total, loading, onPage,
 }) => {
-  if (rows.length === 0) return null;
   return (
     <div className="mt-1 max-h-56 overflow-y-auto rounded border border-slate-800 bg-slate-950/60">
       <div className="sticky top-0 bg-slate-900/90 px-2 py-1 text-[10px] font-semibold text-slate-500 flex items-center gap-2">
-        <span>Unified log ({rows.length})</span>
-        <button onClick={onClear}
-          className="ml-auto rounded bg-slate-700 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-600">
-          Clear
-        </button>
+        <span>{title}</span>
+        <span className="ml-auto">
+          <PcQueueLogPagination
+            page={page}
+            pages={pages}
+            total={total}
+            loading={loading}
+            onPage={onPage}
+          />
+        </span>
       </div>
       {rows.map((row, index) => (
         <div key={`${row.md5 || row.kind}-${row.at}-${index}`}

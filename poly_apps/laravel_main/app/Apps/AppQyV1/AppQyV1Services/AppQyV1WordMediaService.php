@@ -12,54 +12,24 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
-use App\Models\GlobalTask;
 use App\Providers\PathMapper;
-use App\Services\TaskManagerService;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Word-media on-demand resolution + assist-queue prioritization.
+ * Word resource resolution and queue prioritization.
  *
- * Single source of truth for the "resolve a word's media, enqueue what is
- * missing, and bump it to the front" behavior shared by the resolve endpoint
- * (GET /word/{lang}/{word}/media), the smart image-serve route, and the
- * on-query prioritization hooks (words/search, words/public, vocabulary library
- * words, the resolve endpoint itself).
+ * Single source of truth for resolving historical word resources and enqueuing
+ * missing translation or pronunciation work.
  *
- * FILE-FIRST: image_url / audio_url are reported only when the file is on disk.
- * When media is missing the word becomes a 'word_media' global task (pulled via
- * the existing worker channel GET /api/worker/tasks/pull -> POST
- * /api/worker/tasks/result -> AppQyV1WordTranslationWriteback::apply) AND is
- * enqueued onto the per-language image queue and canonical audio gateway. A
- * query moves missing word audio to the global queue head.
+ * FILE-FIRST: historical image_url and current audio_url values are reported
+ * only when their files exist. Single words never create image work.
  *
  * PRIORITY model:
  *   - global_tasks.priority (higher = sooner): PRIORITY_FRONT on bump.
- *   - dictionary image_priority: PRIORITY_FRONT on bump.
  *   - word_audio: global_tasks.queue_position head ticket.
  */
 class AppQyV1WordMediaService
 {
-    /** word_media global_tasks.priority used when bumping a queried word. */
-    const TASK_PRIORITY_FRONT = 100;
-
-    /** Default word_media global_tasks.priority for a backfill enqueue. */
-    const TASK_PRIORITY_DEFAULT = 30;
-
-    /** Per-repeat escalation step for a word_media task that is
-     *  already at the front and gets requested again (visible-page re-request).
-     *  Lets repeated/visible requests outrank one-shot page bumps (target #2)
-     *  without unbounded growth. */
-    const TASK_PRIORITY_REPEAT_STEP = 5;
-
-    /** Ceiling for the repeat-escalation ladder. Stays under the hard 1000 cap
-     *  in bumpTaskPriority; pending_urgent (count of priority >= 100) semantics
-     *  are unchanged since every escalated task is already >= FRONT. */
-    const TASK_PRIORITY_REPEAT_CAP = 500;
-
-    /** Max words bundled into one word_media global task. */
-    const MAX_WORDS_PER_TASK = 40;
-
     /**
      * Legacy metadata keys inside the translations json that are NOT target
      * translations: the top-level 'word' holds the SOURCE headword, the rest are
@@ -79,15 +49,13 @@ class AppQyV1WordMediaService
         'voice_files',
     ];
 
-    protected TaskManagerService $taskManager;
-    protected AppQyV1WordImageQueueService $imageQueue;
     protected AppQyV1AudioGateway $audioGateway;
+    protected AppQyV1WordTranslationQueueService $translationQueue;
 
     public function __construct()
     {
-        $this->taskManager = app(TaskManagerService::class);
-        $this->imageQueue = new AppQyV1WordImageQueueService();
         $this->audioGateway = new AppQyV1AudioGateway();
+        $this->translationQueue = app(AppQyV1WordTranslationQueueService::class);
     }
 
     public function fixWordText(string $md5, string $language, string $cleanedWord): array
@@ -214,42 +182,24 @@ class AppQyV1WordMediaService
 
         $hasImage = $imageUrl !== null;
         $hasAudio = $audioUrl !== null;
-        $mcpImageSubmitted = $row
-            && $row->getAttribute('image_mcp_submitted_at') !== null;
-
         // Translation presence for the requested target (when one is supplied).
         $translations = $this->extractTranslations($row);
         $hasTranslation = $this->hasTranslationFor($row, $targetLang);
 
-        $needsImage = false;
+        $hasTargetLanguage = is_string($targetLang) && trim($targetLang) !== '';
+        $needsTranslation = $hasTargetLanguage && !$hasTranslation;
 
-        $needsMedia = $needsImage || !$hasAudio || !$hasTranslation;
-
-        if ($needsMedia && $enqueueMissing) {
-            // Enqueue the per-resource queues (idempotent; bump to front on query).
-            $position = $bumpFront ? 'beginning' : 'end';
-
-            // Single words do not own image tasks. Translation and pronunciation
-            // remain independent lanes.
-            $this->ensureWordMediaTask(
-                $word,
-                $md5,
-                $langCode,
-                $targetLang,
-                $bumpFront,
-                $needsImage,
-                !$hasTranslation
-            );
+        if ($needsTranslation && $enqueueMissing) {
+            $priority = $bumpFront
+                ? AppQyV1WordTranslationQueueService::PRIORITY_ELEVATED
+                : AppQyV1WordTranslationQueueService::PRIORITY_HIGH;
+            $this->translationQueue->stackWords([$word], $langCode, $targetLang, $priority);
 
             // Re-read the row (a queue add may have just created it) so the
             // returned md5/phonetics reflect the canonical row.
             if (!$row) {
                 $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
             }
-        } else {
-            // Even a fully-resolved word counts query interest; bump only when the
-            // user is actively querying AND something might still benefit. No-op
-            // here keeps a hot word cheap.
         }
 
         $audioFilesPayload = $audioState['audio_files'];
@@ -281,16 +231,13 @@ class AppQyV1WordMediaService
     }
 
     /**
-     * On-query prioritization hook: bump a queried word's media to the front of
-     * every queue layer when it lacks image OR audio OR translation. Cheap,
-     * non-blocking — callers must never let a queue bump break a lookup.
+     * On-query prioritization hook for missing pronunciation work.
      *
      * @param AppQyV1LangDictionaryModel|null $row Resolved row (may be null).
      * @param string $word Queried word.
      * @param string $language Source language (code or name).
-     * @param string|null $targetLanguage Target/native language (code or name).
      */
-    public function bumpQueriedWord($row, string $word, string $language, ?string $targetLanguage = null): void
+    public function bumpQueriedWordAudio($row, string $word, string $language): void
     {
         $word = trim($word);
         if ($word === '') {
@@ -299,29 +246,12 @@ class AppQyV1WordMediaService
 
         try {
             $langCode = AppQyV1DictionaryService::getLanguageCode($language);
-            $md5 = md5($word);
-
             $hasAudio = $row ? ($this->resolveAudioUrl($row) !== null) : false;
-            $hasTranslation = $this->hasTranslationFor($row, $targetLanguage);
-            $needsImage = false;
-
-            if (!$needsImage && $hasAudio && $hasTranslation) {
-                return; // Nothing left to prioritize (image settled or present).
+            if ($hasAudio) {
+                return;
             }
 
-            if (!$hasAudio) {
-                $this->audioGateway->request($word, $langCode, null, true, true);
-            }
-
-            $this->ensureWordMediaTask(
-                $word,
-                $md5,
-                $langCode,
-                $targetLanguage,
-                true,
-                $needsImage,
-                !$hasTranslation
-            );
+            $this->audioGateway->request($word, $langCode, null, true, true);
         } catch (\Throwable $e) {
             // Non-blocking: never let a media bump break a lookup.
             Log::warning('[AppQyV1WordMedia] query bump failed', [
@@ -329,254 +259,6 @@ class AppQyV1WordMediaService
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Interactive image fast-lane bump: ensure ONLY the canonical word_media
-     * image task for $word is promoted onto the shared remote_fast lane
-     * (capability=image, is_fast_tier) so the first idle chrome worker drains it
-     * sub-second. Idempotent and no-op when the image is already on disk.
-     *
-     * Reuses the single canonical creator (ensureWordMediaTask -> ensureWordTask):
-     * word_media + bumpFront already rewrites the task onto remote_fast with
-     * capability=image, so there is no separate routing here and exactly ONE
-     * word_media task per word (ensureWordTask's existing-owner branch). Audio is
-     * untouched (needsAudio=false); the audio fast path stays the assist
-     * queue-head gateway.
-     *
-     * Non-blocking: a bump must never break the caller, so the body is wrapped in
-     * try/catch that swallows + logs (mirroring bumpQueriedWord).
-     */
-    public function ensureImageFastTasks(array $words): void
-    {
-        $prepared = [];
-        $hashesByLanguage = [];
-        $rowsByLanguage = [];
-
-        foreach ($words as $item) {
-            $word = is_array($item) ? trim((string) ($item['word'] ?? '')) : '';
-            $language = is_array($item) ? (string) ($item['language'] ?? '') : '';
-            if ($word === '' || $language === '') {
-                continue;
-            }
-
-            $langCode = AppQyV1DictionaryService::getLanguageCode($language);
-            $hash = md5($word);
-            $prepared[] = [
-                'word' => $word,
-                'language' => $langCode,
-                'hash' => $hash,
-            ];
-            $hashesByLanguage[$langCode][] = $hash;
-        }
-
-        foreach ($hashesByLanguage as $langCode => $hashes) {
-            $rowsByLanguage[$langCode] = AppQyV1LangDictionaryModel::rowsByHashes($langCode, $hashes)
-                ->keyBy('md5');
-        }
-
-        foreach ($prepared as $item) {
-            $row = $rowsByLanguage[$item['language']]->get($item['hash']);
-            $this->ensureImageFastTask($item['word'], $item['language'], $row);
-        }
-    }
-
-    public function ensureImageFastTask(
-        string $word,
-        string $language,
-        ?AppQyV1LangDictionaryModel $row = null
-    ): void
-    {
-        $word = trim($word);
-        if ($word === '') {
-            return;
-        }
-
-        try {
-            $langCode = AppQyV1DictionaryService::getLanguageCode($language);
-            $md5 = md5($word);
-
-            if ($row === null) {
-                $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
-            }
-            $hasImage = $row && $this->resolveImageUrl($row) !== null;
-            $mcpImageSubmitted = $row
-                && $row->getAttribute('image_mcp_submitted_at') !== null;
-            if ($hasImage && $mcpImageSubmitted) {
-                return; // Image already present — idempotent no-op.
-            }
-
-            // Promote ONLY the image (word_media) lane onto remote_fast.
-            $this->ensureWordMediaTask(
-                $word,
-                $md5,
-                $langCode,
-                null,   // targetLang: image gap only.
-                true,   // bumpFront: triggers the interactive remote_fast/image rewrite.
-                true,   // needsImage: image lane.
-                false   // needsTranslation: untouched.
-            );
-        } catch (\Throwable $e) {
-            // Non-blocking: a queue bump must never break the caller.
-            Log::warning('[AppQyV1WordMedia] image fast bump failed', [
-                'word' => $word,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Ensure the right assist task(s) cover a word that is missing media, then
-     * (when $bumpFront) raise their priority to the front. Two task lanes are
-     * independent so each worker owns its own queue:
-     *
-     *   - word_media / remote_fast (mcp-chrome): created for missing images.
-     *   - word_translation / remote_translation (pycore): created for missing
-     *     target translations and processed by the Google-first worker chain.
-     * Word audio is NOT created here: it is owned by the queue center
-     * (App\Services\QueueCenter\QueueCenterService) and enqueued/bumped through
-     * AppQyV1AudioGateway, which keeps
-     * the canonical dict row pending AND the deduped word_audio global task.
-     *
-     * A word missing multiple resources gets independent tasks whose write-back
-     * remains fill-missing and idempotent.
-     *
-     * Idempotent: a word already covered by a pending task of the same type is
-     * only bumped, never duplicated.
-     *
-     * @param bool $needsImage True when the word needs mcp-chrome image search.
-     * @param bool $needsTranslation True when the word needs pycore Google translation.
-     */
-    public function ensureWordMediaTask(
-        string $word,
-        string $md5,
-        string $langCode,
-        ?string $targetLanguage,
-        bool $bumpFront,
-        bool $needsImage = true,
-        bool $needsTranslation = true
-    ): void {
-        if ($needsTranslation) {
-            $this->ensureWordTask(
-                'word_translation',
-                GlobalTask::executionType('remote_translation'),
-                $word,
-                $md5,
-                $langCode,
-                $targetLanguage,
-                $bumpFront
-            );
-        }
-    }
-
-    /**
-     * Ensure a pending global task of $taskType / $executionType covers $word,
-     * creating one when none does and (when $bumpFront) raising its priority to
-     * the front. Idempotent per task type: a word already owned by a pending task
-     * of this type is only bumped, never duplicated. Payload is identical across
-     * both lanes: { words:[{word,md5}], language, target_language? }.
-     */
-    private function ensureWordTask(
-        string $taskType,
-        string $executionType,
-        string $word,
-        string $md5,
-        string $langCode,
-        ?string $targetLanguage,
-        bool $bumpFront
-    ): void {
-        $targetCode = null;
-        if (is_string($targetLanguage) && trim($targetLanguage) !== '') {
-            $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
-        }
-        // Find an existing pending task of THIS type that already owns this word.
-        $existing = GlobalTask::pendingPayloadTasks('AppQyV1', $taskType, $langCode);
-
-        $ownerTaskId = null;
-        foreach ($existing as $task) {
-            $payload = $task->payload;
-            $words = is_array($payload) && is_array($payload['words'] ?? null)
-                ? $payload['words']
-                : [(is_array($payload) ? ($payload['content'] ?? null) : null)];
-            if (!is_array($words)) {
-                continue;
-            }
-            foreach ($words as $w) {
-                $wWord = is_array($w) ? ($w['word'] ?? null) : $w;
-                if ($wWord === $word) {
-                    $ownerTaskId = $task->task_id;
-                    break 2;
-                }
-            }
-        }
-
-        if ($ownerTaskId !== null) {
-            if ($bumpFront) {
-                // Repeat-request escalation (target #2): a fresh bump jumps to
-                // FRONT (100); a REPEAT request on a task already at/above FRONT
-                // escalates +STEP up to REPEAT_CAP so visible/re-requested words
-                // outrank one-shot page bumps. The CASE handles both in one
-                // update; pending_urgent (priority >= 100) is unaffected.
-                GlobalTask::escalatePendingPriority(
-                    $ownerTaskId,
-                    self::TASK_PRIORITY_FRONT,
-                    self::TASK_PRIORITY_REPEAT_STEP,
-                    self::TASK_PRIORITY_REPEAT_CAP
-                );
-            }
-            return;
-        }
-
-        // Create a fresh single-word task. The worker channel pulls it via
-        // /api/worker/tasks/pull (WHERE execution_type = the worker's processor
-        // type) and the result flows back through WordTranslationTaskProcessor ->
-        // AppQyV1WordTranslationWriteback::apply.
-        $priority = $bumpFront ? self::TASK_PRIORITY_FRONT : self::TASK_PRIORITY_DEFAULT;
-
-        $payload = [
-            'words' => [['word' => $word, 'md5' => $md5]],
-            'language' => $langCode,
-            'word_count' => 1,
-        ];
-        if ($targetCode !== null) {
-            $payload['target_language'] = $targetCode;
-        }
-        // IMAGE lane: word_media always uses remote_fast + capability=image, so
-        // only the enabled mcp-chrome media worker can claim it. Pycore skips it.
-        //
-        // Keep the priority/is_fast_tier difference:
-        //   - bumpFront  -> interactive=true: createTask rewrites execution_type ->
-        //     remote_fast, raises priority to PRIORITY_FAST (top) and sets
-        //     is_fast_tier=1.
-        //   - backfill   -> interactive=false but execution_type set to remote_fast
-        //     here, so it keeps its normal TASK_PRIORITY_DEFAULT priority (createTask
-        //     only raises priority when interactive) on the same drained lane.
-        $interactive = false;
-        $capability = null;
-        if ($taskType === 'word_media') {
-            $capability = GlobalTask::capability('image');
-            if ($bumpFront) {
-                $interactive = true;
-            } else {
-                // Non-interactive backfill keeps its normal default priority.
-                $executionType = GlobalTask::executionType('remote_fast');
-            }
-        } elseif ($taskType === 'word_translation') {
-            $capability = GlobalTask::capability('translate');
-            $executionType = GlobalTask::executionType('remote_translation');
-        }
-
-        $this->taskManager->createTask(
-            'AppQyV1',
-            $taskType,
-            $executionType,
-            $payload,
-            120,
-            $priority,
-            3,
-            $interactive,
-            $capability
-        );
     }
 
     /**

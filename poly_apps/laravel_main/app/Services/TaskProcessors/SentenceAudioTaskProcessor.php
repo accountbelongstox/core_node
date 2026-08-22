@@ -111,6 +111,7 @@ class SentenceAudioTaskProcessor extends AbstractTaskProcessor
         $source = $audioPayload['source'] ?? self::strOrNull($payload['source'] ?? null);
         $voiceType = $audioPayload['voice_type'] ?? self::strOrNull($payload['voice_type'] ?? null);
         $provider = $audioPayload['provider'] ?? self::strOrNull($payload['provider'] ?? null);
+        $domainAudioPersisted = (bool) ($inner['domain_audio_persisted'] ?? false);
 
         $variantMeta = array_filter([
             'accent' => $accent,
@@ -120,6 +121,23 @@ class SentenceAudioTaskProcessor extends AbstractTaskProcessor
         ], static fn ($v) => $v !== null && $v !== '');
 
         if ($audioBase64 === null || $audioBase64 === '') {
+            if ($domainAudioPersisted && empty($payload['target_kind'])) {
+                $applied = $this->sentenceAudioService->report(
+                    $contentId,
+                    $language,
+                    'task:' . (string) $task->task_id,
+                    true,
+                    null,
+                    is_string($provider) ? $provider : null,
+                    null,
+                    $variantKey,
+                    $variantMeta ?: null
+                );
+                return ($applied['ok'] ?? false)
+                    && ($applied['status'] ?? null) === 'completed'
+                    ? 1
+                    : 0;
+            }
             Log::warning('[SentenceAudioTaskProcessor] No audio bytes in result, nothing stored', [
                 'task_id' => $task->task_id,
                 'content_id' => $contentId,

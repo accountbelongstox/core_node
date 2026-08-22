@@ -36,6 +36,9 @@ class AppQyV1ArticleModel extends AppQyV1Model
         'user_id',
         'title',
         'content',
+        'title_md5',
+        'content_md5',
+        'canonical_article_id',
         'language',
         'article_type',
         'source',
@@ -66,6 +69,22 @@ class AppQyV1ArticleModel extends AppQyV1Model
             && $this->article_type === self::TYPE_DAILY;
     }
 
+    public function isManagedDaily(): bool
+    {
+        return $this->isAgentHistoryDaily()
+            || $this->source === self::TYPE_DAILY
+            || $this->article_type === self::TYPE_DAILY
+            || (bool) $this->is_daily_reading;
+    }
+
+    public static function identityHashes(string $title, string $content): array
+    {
+        return [
+            'title_md5' => md5($title),
+            'content_md5' => md5($content),
+        ];
+    }
+
     public static function migrateDailyShortTypeInPlace(): int
     {
         $model = new static();
@@ -83,6 +102,31 @@ class AppQyV1ArticleModel extends AppQyV1Model
 
     public static function managementPage(?string $category, int $offset, int $limit): array
     {
+        $query = self::managementQuery($category);
+        $canonicalQuery = null;
+        $rows = null;
+        $rawTotal = 0;
+        $total = 0;
+
+        $rawTotal = (clone $query)->count();
+        $canonicalQuery = (clone $query)->whereNull('canonical_article_id');
+        $total = (clone $canonicalQuery)->count();
+        $rows = (clone $canonicalQuery)
+            ->latest('id')
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        return [
+            'total' => $total,
+            'raw_total' => $rawTotal,
+            'statistics' => self::managementStatistics($canonicalQuery, $rawTotal),
+            'rows' => $rows->all(),
+        ];
+    }
+
+    private static function managementQuery(?string $category)
+    {
         $query = self::query();
 
         if ($category !== null && $category !== '') {
@@ -97,15 +141,42 @@ class AppQyV1ArticleModel extends AppQyV1Model
             }
         }
 
+        return $query;
+    }
+
+    private static function managementStatistics($query, int $rawTotal): array
+    {
+        $rows = null;
+        $total = 0;
+        $multiSentence = 0;
+        $rebuilt = 0;
+
+        $rows = (clone $query)->select(['metadata'])->get();
+        $total = $rows->count();
+        foreach ($rows as $row) {
+            $metadata = is_array($row->metadata) ? $row->metadata : [];
+            if (($metadata['tts_chunked'] ?? false) === true) {
+                $multiSentence++;
+            }
+            if (trim((string) ($metadata['audio_rebuilt_at'] ?? '')) !== '') {
+                $rebuilt++;
+            }
+        }
+
         return [
-            'total' => (clone $query)->count(),
-            'rows' => $query->latest('id')->offset($offset)->limit($limit)->get(),
+            'total' => $total,
+            'raw_total' => $rawTotal,
+            'historical_duplicates' => max(0, $rawTotal - $total),
+            'multi_sentence' => $multiSentence,
+            'legacy_audio' => max(0, $total - $multiSentence),
+            'rebuilt' => $rebuilt,
         ];
     }
 
     public static function managementCategoryRows()
     {
         return self::query()
+            ->whereNull('canonical_article_id')
             ->select(['article_type', 'source', 'is_daily_reading'])
             ->selectRaw('COUNT(*) as aggregate')
             ->groupBy(['article_type', 'source', 'is_daily_reading'])
@@ -115,6 +186,181 @@ class AppQyV1ArticleModel extends AppQyV1Model
     public static function findByArticleId(string $articleId): ?self
     {
         return self::query()->where('article_id', $articleId)->first();
+    }
+
+    public static function findAgentHistoryBySourceRecordId(string $sourceRecordId): ?self
+    {
+        $identityHash = hash('sha256', $sourceRecordId);
+        $article = null;
+
+        $article = self::query()
+            ->where('source', self::SOURCE_AGENT_HISTORY)
+            ->where('article_type', self::TYPE_DAILY)
+            ->where(function ($query) use ($identityHash, $sourceRecordId): void {
+                $query->where('metadata->idempotency_key_hash', $identityHash)
+                    ->orWhere('metadata->source_record_id', $sourceRecordId)
+                    ->orWhere('metadata->idempotency_key', $sourceRecordId)
+                    ->orWhereJsonContains('metadata->source_record_ids', $sourceRecordId);
+            })
+            ->orderByRaw('CASE WHEN canonical_article_id IS NULL THEN 0 ELSE 1 END')
+            ->latest('id')
+            ->first();
+
+        return $article !== null ? self::resolveCanonicalArticle($article) : null;
+    }
+
+    public static function findCanonicalByIdentityHashes(
+        int $userId,
+        string $titleMd5,
+        string $contentMd5
+    ): ?self {
+        return self::query()
+            ->where('user_id', $userId)
+            ->where('title_md5', $titleMd5)
+            ->where('content_md5', $contentMd5)
+            ->whereNull('canonical_article_id')
+            ->where(function ($query): void {
+                $query->where('source', self::SOURCE_AGENT_HISTORY)
+                    ->orWhere('source', self::TYPE_DAILY)
+                    ->orWhere('article_type', self::TYPE_DAILY)
+                    ->orWhere('is_daily_reading', true);
+            })
+            ->latest('id')
+            ->first();
+    }
+
+    public static function resolveCanonicalArticle(self $article): self
+    {
+        $seen = [];
+        $canonicalId = '';
+        $canonical = null;
+
+        while (trim((string) $article->canonical_article_id) !== '') {
+            $canonicalId = trim((string) $article->canonical_article_id);
+            if (isset($seen[$canonicalId])) {
+                break;
+            }
+            $seen[$canonicalId] = true;
+            $canonical = self::query()->where('article_id', $canonicalId)->first();
+            if ($canonical === null) {
+                break;
+            }
+            $article = $canonical;
+        }
+
+        return $article;
+    }
+
+    public static function aliasArticleToCanonical(
+        self $aliasArticle,
+        self $canonicalArticle,
+        int $attempts = 5
+    ): self {
+        $model = new static();
+        $aliasId = (string) $aliasArticle->article_id;
+        $canonicalId = (string) self::resolveCanonicalArticle($canonicalArticle)->article_id;
+
+        if ($aliasId === $canonicalId) {
+            return self::resolveCanonicalArticle($canonicalArticle);
+        }
+
+        return $model->getConnection()->transaction(
+            static function () use ($aliasId, $canonicalId): self {
+                $alias = static::query()->where('article_id', $aliasId)->lockForUpdate()->firstOrFail();
+                $canonical = static::query()
+                    ->where('article_id', $canonicalId)
+                    ->whereNull('canonical_article_id')
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $aliasMetadata = is_array($alias->metadata) ? $alias->metadata : [];
+                $canonicalMetadata = is_array($canonical->metadata) ? $canonical->metadata : [];
+                $mergedMetadata = static::mergeIdentityMetadata($aliasMetadata, $canonicalMetadata);
+
+                if ($mergedMetadata !== $canonicalMetadata) {
+                    $canonical->metadata = $mergedMetadata;
+                }
+                if ($canonical->isDirty()) {
+                    $canonical->saveRecord();
+                }
+                if ((string) $alias->canonical_article_id !== $canonicalId) {
+                    $alias->canonical_article_id = $canonicalId;
+                    $alias->saveRecord();
+                }
+
+                return $canonical;
+            },
+            $attempts
+        );
+    }
+
+    public static function mergeIdentityMetadata(array $base, array $incoming): array
+    {
+        $merged = array_replace($base, $incoming);
+        $sourceRecordIds = [];
+        $metadataSets = [$base, $incoming];
+
+        foreach ($metadataSets as $metadata) {
+            $listedIds = is_array($metadata['source_record_ids'] ?? null)
+                ? $metadata['source_record_ids']
+                : [];
+            foreach ($listedIds as $listedId) {
+                $listedId = trim((string) $listedId);
+                if ($listedId !== '') {
+                    $sourceRecordIds[$listedId] = true;
+                }
+            }
+            foreach (['source_record_id', 'idempotency_key'] as $key) {
+                $sourceRecordId = trim((string) ($metadata[$key] ?? ''));
+                if ($sourceRecordId !== '') {
+                    $sourceRecordIds[$sourceRecordId] = true;
+                }
+            }
+        }
+        if ($sourceRecordIds !== []) {
+            $merged['source_record_ids'] = array_keys($sourceRecordIds);
+        }
+
+        return $merged;
+    }
+
+    public static function replaceAgentHistorySubmission(
+        string $articleId,
+        array $attributes,
+        array $submissionMetadata,
+        int $attempts = 5
+    ): array {
+        $model = new static();
+
+        return $model->getConnection()->transaction(
+            static function () use ($articleId, $attributes, $submissionMetadata): array {
+                $article = static::query()
+                    ->where('article_id', $articleId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $metadata = is_array($article->metadata) ? $article->metadata : [];
+                $contentChanged = false;
+
+                foreach ($attributes as $key => $value) {
+                    if ($article->getAttribute($key) !== $value) {
+                        $article->setAttribute($key, $value);
+                        $contentChanged = true;
+                    }
+                }
+                $updatedMetadata = static::mergeIdentityMetadata($metadata, $submissionMetadata);
+                if ($updatedMetadata !== $metadata) {
+                    $article->metadata = $updatedMetadata;
+                }
+                if ($article->isDirty()) {
+                    $article->saveRecord();
+                }
+
+                return [
+                    'article' => $article,
+                    'content_changed' => $contentChanged,
+                ];
+            },
+            $attempts
+        );
     }
 
     public static function findByTaskId(string $taskId): ?self
@@ -167,13 +413,15 @@ class AppQyV1ArticleModel extends AppQyV1Model
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function sentenceAudioQueueEligible(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
-        return $query->where(function ($eligibleQuery): void {
+        return $query
+            ->whereNull('canonical_article_id')
+            ->where(function ($eligibleQuery): void {
             $eligibleQuery
                 ->whereNull('source')
                 ->orWhere('source', '<>', self::SOURCE_AGENT_HISTORY)
                 ->orWhereNull('article_type')
                 ->orWhere('article_type', '<>', self::TYPE_DAILY);
-        });
+            });
     }
 
     public function diffIdUpperBound(): int

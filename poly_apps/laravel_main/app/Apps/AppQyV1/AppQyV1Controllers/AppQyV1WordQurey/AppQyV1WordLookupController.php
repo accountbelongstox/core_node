@@ -7,9 +7,9 @@ use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationQueueService;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordLookupController extends Controller
@@ -41,7 +41,7 @@ class AppQyV1WordLookupController extends Controller
             }
         }
 
-        app(AppQyV1TranslationQueueController::class)->bumpQueriedWord($word, $language, $targetLanguage);
+        app(AppQyV1WordTranslationQueueService::class)->bumpQueriedWord($word, $language, $targetLanguage);
     }
 
     /**

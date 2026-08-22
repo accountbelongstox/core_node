@@ -26,6 +26,18 @@ QueueCenterScope = str
 QueueCenterSectionLifecycle = Literal["off", "starting", "on", "error"]
 
 
+def http_transfer_contract() -> Dict[str, Any]:
+    values = _CONTRACT_DOCUMENT.get("http_transfer") or {}
+    return {
+        "protocol": str(values.get("protocol") or "offset-v1"),
+        "chunk_bytes": int(values.get("chunk_bytes") or 262144),
+        "maximum_chunk_bytes": int(values.get("maximum_chunk_bytes") or 1048576),
+        "connect_timeout_seconds": int(values.get("connect_timeout_seconds") or 15),
+        "idle_timeout_seconds": int(values.get("idle_timeout_seconds") or 30),
+        "retry_interval_ms": int(values.get("retry_interval_ms") or 250),
+    }
+
+
 class QueueCenterToggleEnvelope(TypedDict):
     requested_by: Optional[str]
     enabled: bool
@@ -148,6 +160,7 @@ class GlobalTaskWorkerRegistration(TypedDict, total=False):
     hostname: str
     platform: str
     metadata: Dict[str, Any]
+    lease_capacity: int
 
 
 class GlobalTaskWorkerResult(TypedDict, total=False):
@@ -693,6 +706,7 @@ __all__ = [
     "build_empty_queue_contract",
     "category_keys_for_scope",
     "get_queue_center_contract",
+    "http_transfer_contract",
     "is_queue_position_ordered",
     "normalize_task_history_type",
     "project_task_record",

@@ -18,6 +18,7 @@ import {
 import { getDeepSeekPollingService } from '../../deepseek-polling-service';
 import { tabController } from '../../services/tab-controller';
 import { inspectDeepSeekPage, type DeepSeekPageObservation } from '@/utils/deepseek-page';
+import { waitForTabComplete } from '@/utils/tab-readiness';
 
 const DEEPSEEK_URL = 'https://chat.deepseek.com/';
 const deepSeekConversationMutex = new AsyncMutex();
@@ -70,15 +71,27 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
     attachments?: string[];
     waitForCompletion?: boolean;
     timeout?: number;
+    timeoutMs?: number;
     autoRetry?: boolean;
+    newConversation?: boolean;
+    model?: string;
+    deepThink?: boolean;
+    search?: boolean;
   }): Promise<ToolResult> {
     const {
       prompt,
       attachments,
       waitForCompletion = false,
-      timeout = 300000,
+      timeout,
+      timeoutMs,
       autoRetry = true,
+      newConversation = false,
+      model,
+      deepThink,
+      search = false,
     } = args;
+    const resolvedTimeout = Math.max(1000, Number(timeoutMs ?? timeout ?? 300000));
+    const resolvedDeepThink = deepThink ?? /reasoner|deep[-_ ]?think|r1/i.test(String(model || ''));
 
     if (!prompt || prompt.trim().length === 0) {
       return createErrorResponse('Prompt is required');
@@ -98,7 +111,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       // Create task
       const options: DeepSeekOptions = {
         waitForCompletion,
-        timeout,
+        timeout: resolvedTimeout,
         autoRetry,
         attachFiles: (attachments && attachments.length > 0) || false,
       };
@@ -109,11 +122,15 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       let tab: chrome.tabs.Tab;
       const existingTabs = await chrome.tabs.query({ url: DEEPSEEK_URL + '*' });
 
-      if (existingTabs.length > 0 && existingTabs[0].id) {
+      const existingTab = existingTabs[0];
+      if (existingTab?.id) {
         // Reuse existing tab in the BACKGROUND — do NOT foreground it. Prompt
         // injection + result capture run via executeScript, which works on an
         // inactive tab, so the user's focus is never stolen.
-        tab = existingTabs[0];
+        tab = existingTab;
+        if (newConversation) {
+          await chrome.tabs.update(existingTab.id, { url: DEEPSEEK_URL });
+        }
       } else {
         // Create the worker tab in the BACKGROUND (active:false) — no focus steal.
         tab = await tabController.openBackgroundTab(DEEPSEEK_URL);
@@ -131,7 +148,11 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       await taskManager.updateTask(task.id, { tabId: tab.id });
 
       // Wait for page to load
-      await waitForDelay(3000);
+      await waitForTabComplete(tab.id, {
+        timeoutMs: 20000,
+        settleDelayMs: 600,
+        statusProbeDelayMs: 700,
+      });
 
       // Update status to sending
       await taskManager.updateTask(task.id, { status: TaskStatus.SENDING });
@@ -151,7 +172,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
           // fallback when no send button is present. Returns a structured
           // {success, reason?} instead of throwing so the caller can report a
           // clean message.
-          func: async (promptText: string) => {
+          func: async (promptText: string, useDeepThink: boolean, useSearch: boolean) => {
             const isVisible = (el: any): boolean => {
               if (!el) return false;
               const r = el.getBoundingClientRect();
@@ -175,6 +196,19 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               '[role="textbox"]',
             ]);
             if (!input) return { success: false, reason: 'input control not found' };
+            const setToggle = async (labels: string[], enabled: boolean): Promise<void> => {
+              const toggle = Array.from(document.querySelectorAll('[aria-pressed]')).find(
+                (element) => labels.includes(String(element.textContent || '').trim()),
+              ) as HTMLElement | undefined;
+              if (!toggle) return;
+              const selected = toggle.getAttribute('aria-pressed') === 'true';
+              if (selected === enabled) return;
+              toggle.click();
+              await new Promise((resolve) => window.setTimeout(resolve, 250));
+            };
+
+            await setToggle(['DeepThink', 'Deep Think', '深度思考'], useDeepThink);
+            await setToggle(['Search', 'Web Search', '智能搜索'], useSearch);
             const tag = input.tagName;
             if (tag === 'TEXTAREA' || tag === 'INPUT') {
               // React overrides the value setter — go through the native one so
@@ -184,17 +218,26 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
                   ? window.HTMLTextAreaElement.prototype
                   : window.HTMLInputElement.prototype;
               const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+              const previousValue = String(input.value || '');
               if (desc && desc.set) desc.set.call(input, promptText);
               else input.value = promptText;
+              const valueTracker = input._valueTracker;
+              if (valueTracker && typeof valueTracker.setValue === 'function') {
+                valueTracker.setValue(previousValue);
+              }
             } else {
               input.focus();
               input.textContent = promptText;
             }
-            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new InputEvent('input', {
+              bubbles: true,
+              data: promptText,
+              inputType: 'insertText',
+            }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
 
             // Let the framework react (enable the send button) before sending.
-            await new Promise((resolve) => window.setTimeout(resolve, 200));
+            await new Promise((resolve) => window.setTimeout(resolve, 750));
 
             const sendBtn: any = pick(
               [
@@ -204,6 +247,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
                 'button[aria-label*="Send" i]',
                 'button[aria-label*="发送"]',
                 'div[role="button"][aria-label*="Send" i]',
+                '[role="button"].ds-button--primary.ds-button--circle',
               ],
               (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true',
             );
@@ -212,12 +256,22 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               ? Array.from(inputContainer.querySelectorAll('button,[role="button"]')).filter(
                   (el: any) => isVisible(el)
                     && !el.disabled
-                    && el.getAttribute('aria-disabled') !== 'true',
+                    && el.getAttribute('aria-disabled') !== 'true'
+                    && (
+                      el.matches('button[type="submit"]')
+                      || el.matches('.ds-button--primary.ds-button--circle')
+                      || /send|发送/i.test(String(el.getAttribute('aria-label') || ''))
+                    ),
                 )
               : [];
             const resolvedSendBtn: any = sendBtn || containerButtons[containerButtons.length - 1] || null;
             if (resolvedSendBtn) {
               resolvedSendBtn.click();
+              return {
+                success: true,
+                conversationUrl: window.location.href,
+                sentVia: 'button',
+              };
             } else {
               const opts: any = {
                 key: 'Enter',
@@ -232,10 +286,13 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               input.dispatchEvent(new KeyboardEvent('keyup', opts));
             }
 
-            await new Promise((resolve) => window.setTimeout(resolve, 400));
-            const remainingValue = tag === 'TEXTAREA' || tag === 'INPUT'
-              ? String(input.value || '').trim()
-              : String(input.textContent || '').trim();
+            let remainingValue = promptText.trim();
+            for (let attempt = 0; attempt < 10 && remainingValue === promptText.trim(); attempt++) {
+              await new Promise((resolve) => window.setTimeout(resolve, 200));
+              remainingValue = tag === 'TEXTAREA' || tag === 'INPUT'
+                ? String(input.value || '').trim()
+                : String(input.textContent || '').trim();
+            }
             if (remainingValue === promptText.trim()) {
               return { success: false, reason: 'send action did not submit the prompt' };
             }
@@ -243,10 +300,10 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
             return {
               success: true,
               conversationUrl: window.location.href,
-              sentVia: resolvedSendBtn ? 'button' : 'enter',
+              sentVia: 'enter',
             };
           },
-          args: [prompt],
+          args: [prompt, resolvedDeepThink, search],
         });
 
         // executeScript returns result[0].result = null when the injected func
@@ -281,7 +338,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
 
         // If waitForCompletion, wait for result
         if (waitForCompletion) {
-          const completedTask = await waitForTaskCompletion(task.id, timeout);
+          const completedTask = await waitForTaskCompletion(task.id, resolvedTimeout);
           releaseConversation();
           ownsConversation = false;
 
@@ -293,7 +350,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
           });
         }
 
-        void waitForTaskCompletion(task.id, timeout)
+        void waitForTaskCompletion(task.id, resolvedTimeout)
           .catch(() => undefined)
           .finally(releaseConversation);
         ownsConversation = false;
@@ -301,7 +358,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         // Return task ID immediately
         return createJsonResponse({
           taskId: task.id,
-          status: task.status,
+          status: TaskStatus.PENDING,
           conversationUrl,
         });
       } catch (error) {

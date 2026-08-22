@@ -5,12 +5,15 @@ import platform
 import time
 from typing import Any, Dict, Optional
 
+from pycore.pyctl.terminal.terminal_screenshot_cache import (
+    TerminalScreenshotCache,
+    terminal_screenshot_cache,
+)
 from pycore.pyctl.terminal.terminal_state_repository import (
     TerminalStateRepository,
     terminal_state_repository,
 )
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
-from pycore.pyutils.window.screen_capture import capture_screen_regions_base64
 from pycore.pyutils.window.terminal_backend import (
     TERMINAL_SCROLL_MODES,
     TerminalWindowBackend,
@@ -38,9 +41,11 @@ class TerminalService:
         self,
         backend: TerminalWindowBackend | None,
         state_repository: TerminalStateRepository,
+        screenshot_cache: TerminalScreenshotCache,
     ) -> None:
         self._backend = backend
         self._state_repository = state_repository
+        self._screenshot_cache = screenshot_cache
 
     def snapshot(self) -> Dict[str, Any]:
         if self._backend is None:
@@ -321,27 +326,26 @@ class TerminalService:
         )
         return {**action, "log": log_entry}
 
-    @staticmethod
-    def _attach_window_screenshots(snapshot: Dict[str, Any]) -> None:
+    def _attach_window_screenshots(self, snapshot: Dict[str, Any]) -> None:
         windows = snapshot.get("windows") or []
         regions = [
             TerminalService._window_capture_region(window)
             for window in windows
             if bool(window.get("online"))
         ]
-        screenshots = capture_screen_regions_base64(regions)
+        screenshots = self._screenshot_cache.read_and_refresh(regions)
         for window in windows:
             if bool(window.get("online")):
                 window["screenshot"] = screenshots.get(str(window.get("id") or ""))
 
-    @staticmethod
     def _capture_window_screenshot(
+        self,
         window: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         window_id = str(window.get("id") or "")
         if not window_id:
             return None
-        screenshots = capture_screen_regions_base64([
+        screenshots = self._screenshot_cache.capture_now([
             TerminalService._window_capture_region(window),
         ])
         return screenshots.get(window_id)
@@ -362,4 +366,8 @@ class TerminalService:
         return {"success": False, "error_code": error_code}
 
 
-terminal_service = TerminalService(terminal_backend, terminal_state_repository)
+terminal_service = TerminalService(
+    terminal_backend,
+    terminal_state_repository,
+    terminal_screenshot_cache,
+)
