@@ -14,18 +14,20 @@ CIRCULAR-IMPORT SAFE: imports stdlib + pyutils.stt (lazy) + ColorPrint + the sib
 import base64
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
+from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.laravel.client import laravel_client
 
 import pycore.pyctl.translation.worker.lane_gating as lane_gating
 
 import pycore.pyutils.stt.stt_orchestrator as stt_orchestrator
-import shutil
-import subprocess
 
 
 
@@ -150,21 +152,14 @@ def _stt_to_wav(src: Path) -> Optional[Path]:
 
     Returns the wav path, or None when ffmpeg is unavailable / conversion fails.
     """
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
+    if not ffmpeg_runtime.available():
         return None
-    fd, wav_path = tempfile.mkstemp(
-        prefix="worker_stt_", suffix=".wav", dir=str(TMP_DIR)
+    wav_path = Path(TMP_DIR) / f"worker_stt_{uuid.uuid4().hex}.wav"
+    arguments = ffmpeg_command_builder.convert_pcm(src, 16000, 1)
+    result = ffmpeg_runtime.execute_output_step(
+        arguments,
+        wav_path,
+        expected_streams=("audio",),
+        output_validator=ffmpeg_output_validator.audio("pcm_s16le", 16000, 1),
     )
-    os.close(fd)
-    try:
-        rc = subprocess.run(
-            [ffmpeg, "-y", "-i", str(src), "-ar", "16000", "-ac", "1",
-             "-f", "wav", str(wav_path)],
-            capture_output=True, timeout=120,
-        ).returncode
-        if rc != 0 or not os.path.isfile(wav_path) or os.path.getsize(wav_path) == 0:
-            return None
-        return Path(wav_path)
-    except Exception:
-        return None
+    return wav_path if result.success else None

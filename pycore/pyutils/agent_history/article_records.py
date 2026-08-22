@@ -458,8 +458,10 @@ def mark_rebuild_uploaded(
     rec["rebuild_uploaded"] = True
     rec["rebuild_uploaded_at"] = stamped_at
     rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
+    rec["rebuild_writeback_pending"] = False
     fields = [
         "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
+        "rebuild_writeback_pending",
         *_reset_delivery_state(rec, "rebuild_upload"),
     ]
     if isinstance(laravel_data, dict):
@@ -473,6 +475,37 @@ def mark_rebuild_uploaded(
         fields += [
             "uploaded", "uploaded_at", *_reset_delivery_state(rec, "upload"),
         ]
+    return _commit_record(rec, fields)
+
+
+def mark_rebuild_upload_received(
+    record_id: str,
+    laravel_data: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Persist the minimum durable-receipt step without claiming publication.
+
+    Laravel owns the staged artifact and writeback marker at this point. The
+    next upload heartbeat polls the same idempotent resource until Laravel
+    confirms that metadata and the public file are aligned.
+    """
+    rec = get_record(record_id)
+    if rec is None:
+        return None
+    rec["rebuild_writeback_pending"] = True
+    rec["rebuild_upload_attempts"] = 0
+    rec["rebuild_upload_not_before"] = time.time() + _DELIVERY_RETRY_BASE_SECONDS
+    rec["rebuild_upload_last_error"] = None
+    fields = [
+        "rebuild_writeback_pending",
+        "rebuild_upload_attempts",
+        "rebuild_upload_not_before",
+        "rebuild_upload_last_error",
+    ]
+    if isinstance(laravel_data, dict):
+        rec["laravel_article_id"] = laravel_data.get("article_id") or rec.get("laravel_article_id")
+        rec["audio_url"] = laravel_data.get("audio_url") or rec.get("audio_url")
+        rec["rebuild_result_sha256"] = laravel_data.get("result_sha256")
+        fields += ["laravel_article_id", "audio_url", "rebuild_result_sha256"]
     return _commit_record(rec, fields)
 
 

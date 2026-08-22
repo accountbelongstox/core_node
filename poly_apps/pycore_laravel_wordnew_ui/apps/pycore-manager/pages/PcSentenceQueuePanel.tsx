@@ -19,6 +19,8 @@ import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
 import { PcAudioDeliveryOutboxStatus } from '../components/PcAudioDeliveryOutboxStatus';
+import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
+import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
@@ -67,7 +69,12 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
 
 
   const items = snap?.queue?.items ?? [];
-  const events = snap?.worker?.events ?? [];
+  const eventPage = useQueueWorkerEventPage(
+    'sentence',
+    logOpen,
+    snap?.worker?.event_revision ?? 0,
+  );
+  const events = eventPage.items;
   // Concurrent worker exposes a LIST of in-flight tasks; older builds a single dict.
   const currentRaw = snap?.worker?.current_task;
   const inFlight: SentenceWorkerTask[] = Array.isArray(currentRaw)
@@ -367,6 +374,20 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
         </button>
         {logOpen && (
           <div>
+            <div className="flex items-center justify-end border-b border-slate-500/10 px-3 py-1">
+              <PcQueueLogPagination
+                page={eventPage.page}
+                pages={eventPage.pages}
+                total={eventPage.total}
+                loading={eventPage.loading}
+                onPage={eventPage.setPage}
+              />
+            </div>
+            {eventPage.error && (
+              <p className="px-3 py-1 text-[10px] text-rose-500">
+                {t('queueCenter.logPagination.unavailable')} {eventPage.error}
+              </p>
+            )}
             <ul className="divide-y divide-slate-500/10 max-h-[220px] overflow-y-auto text-[10px] font-mono">
               {!events.length ? (
                 <li className="px-3 py-2 text-slate-400">{t('queueCenter.sentenceQueue.noLog')}</li>

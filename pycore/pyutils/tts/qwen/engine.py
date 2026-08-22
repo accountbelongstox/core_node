@@ -20,14 +20,13 @@ Config:
   QWEN3TTS_INSTRUCT             - optional style/emotion instruction
   QWEN3TTS_QUEUE_MAX            - maximum active queued/running jobs
   QWEN3TTS_QUEUE_RESULT_TTL_S   - completed audio retention in seconds
-  QWEN3TTS_TASK_TIMEOUT_S       - queued batch timeout in seconds
 """
 
 import base64
 import hashlib
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
@@ -51,8 +50,8 @@ from pycore.pyutils.tts.qwen.config import (
 )
 
 _HEALTH_TIMEOUT_S = 3.0
-_RESULT_FETCH_TIMEOUT_S = 30.0
 _REQUEST_TIMEOUT_S = request_timeout_seconds()
+ProgressCallback = Callable[[Dict[str, Any]], None]
 
 _LAST_SYNTH_ERROR = SerializedValue(None, "Qwen3TTSErrorState")
 
@@ -78,6 +77,12 @@ def last_synth_error() -> Optional[str]:
 def health() -> Optional[Dict[str, Any]]:
     ok, info, _error = http_get_json("/health", timeout=_HEALTH_TIMEOUT_S)
     return info if ok and isinstance(info, dict) else None
+
+
+def service_healthy() -> bool:
+    """Return HTTP service reachability without conflating queue readiness."""
+    info = health()
+    return bool(info and info.get("ok"))
 
 
 def is_model_loaded() -> bool:
@@ -292,7 +297,8 @@ def _queue_runtime_fields(snapshot: Dict[str, Any]) -> Dict[str, Any]:
             else snapshot.get("queue_running") or 0
         ),
         "average_elapsed_ms": int(snapshot.get("average_elapsed_ms") or 0),
-        "task_timeout_s": float(snapshot.get("task_timeout_s") or 0.0),
+        "progress_age_ms": int(snapshot.get("progress_age_ms") or 0),
+        "progress_revision": int(snapshot.get("progress_revision") or 0),
         "max_parallel": int(
             snapshot.get("max_parallel") or capacity.get("batch_size") or 1
         ),
@@ -331,7 +337,7 @@ def _queue_runtime_fields(snapshot: Dict[str, Any]) -> Dict[str, Any]:
 
 def fetch_queued_synthesis(job_id: str) -> tuple[bool, bytes, Optional[str]]:
     """Fetch retained bytes after the job was observed in the done state."""
-    return fetch_queue_result(job_id, _RESULT_FETCH_TIMEOUT_S)
+    return fetch_queue_result(job_id)
 
 
 def synthesize(
@@ -342,6 +348,7 @@ def synthesize(
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> bool:
     """Queue one normal Pycore synthesis and write its retained audio result.
 
@@ -357,9 +364,9 @@ def synthesize(
         output_mp3,
         speed=speed,
         client_job_id=client_job_id,
-        timeout=_REQUEST_TIMEOUT_S,
         speaker=speaker,
         instruct=(instruct or os.environ.get("QWEN3TTS_INSTRUCT") or ""),
+        progress_callback=progress_callback,
     )
 
 
@@ -368,10 +375,10 @@ def synthesize_queued(
     lang: str,
     output_path: Path,
     client_job_id: Optional[str] = None,
-    timeout: float = _REQUEST_TIMEOUT_S,
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
     speed: Optional[float] = None,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> bool:
     """Submit through the FIFO service queue, long poll, and write audio."""
 
@@ -390,7 +397,11 @@ def synthesize_queued(
         instruct,
         client_job_id,
     )
-    ok, audio, error = queue_submit_and_wait(payload, stable_id, timeout)
+    ok, audio, error = queue_submit_and_wait(
+        payload,
+        stable_id,
+        progress_callback=progress_callback,
+    )
     if not ok or not audio:
         _LAST_SYNTH_ERROR.set(error or "qwen3tts queued synthesis failed")
         return False
@@ -471,6 +482,7 @@ __all__ = [
     "get_capabilities",
     "get_status",
     "get_queue_status",
+    "service_healthy",
     "queue_healthy",
     "health",
     "load_model",

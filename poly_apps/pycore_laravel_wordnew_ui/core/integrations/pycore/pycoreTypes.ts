@@ -1962,6 +1962,7 @@ export interface SentenceWorkerTask {
   content_id?: string;
   language?: string;
   priority?: number;
+  queue_position?: number;
   content?: string;
   variant_count?: number;
   current_variant_index?: number;
@@ -1985,6 +1986,35 @@ export interface AudioDeliveryOutboxStatus {
   dead_letter: number;
   oldest_pending_at?: number | null;
   next_retry_at?: number | null;
+}
+
+export interface QueueWorkerEvent {
+  id?: number;
+  at?: number;
+  kind?: string;
+  detail?: string;
+  task_id?: number | string;
+  task_display_id?: string;
+  text_preview?: string;
+  language?: string;
+  stage?: string;
+  progress?: number;
+  progress_total?: number;
+  elapsed_seconds?: number;
+  backend_uploaded?: boolean;
+  backend_result_accepted?: boolean;
+  backend_progress_current?: number;
+  backend_progress_total?: number;
+  current_provider?: string;
+}
+
+export interface QueueWorkerEventPage {
+  items: QueueWorkerEvent[];
+  page: number;
+  page_size: number;
+  pages: number;
+  total: number;
+  revision: number;
 }
 
 /** HTTP API sentence-audio status — auto-start, worker, and Laravel counts. */
@@ -2024,6 +2054,8 @@ export interface SentenceAudioAutoStatus {
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
+    event_count?: number;
+    event_revision?: number;
     queue_progress?: {
       completed?: number;
       total?: number;
@@ -2039,17 +2071,6 @@ export interface SentenceAudioAutoStatus {
     current_task?: SentenceWorkerTask | SentenceWorkerTask[] | null;
     /** "lang:content_id" keys of the in-flight tasks (queue-row spinner marker). */
     current_keys?: string[];
-    events?: Array<{
-      at?: number;
-      kind?: string;
-      detail?: string;
-      text_preview?: string;
-      language?: string;
-      priority?: number;
-      elapsed_seconds?: number;
-      backend_uploaded?: boolean;
-      backend_result_accepted?: boolean;
-    }>;
   };
 }
 
@@ -2153,6 +2174,8 @@ export interface WordTtsAutoStatus {
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
+    event_count?: number;
+    event_revision?: number;
     last_tick?: Record<string, unknown>;
     /** Legacy worker flag retained for older queue snapshots. */
     heartbeat_enabled?: boolean;
@@ -2180,22 +2203,6 @@ export interface WordTtsAutoStatus {
       processing?: number;
       failed?: number;
     };
-    /** Recent processing records ({at, kind, detail, ...}), same shape as the sentence worker's. */
-    events?: Array<{
-      at?: number;
-      kind?: string;
-      detail?: string;
-      task_id?: number | string;
-      task_display_id?: string;
-      text_preview?: string;
-      language?: string;
-      stage?: string;
-      progress?: number;
-      progress_total?: number;
-      backend_progress_current?: number;
-      backend_progress_total?: number;
-      current_provider?: string;
-    }>;
   };
 }
 

@@ -4,6 +4,7 @@ from typing import Any, Dict
 from pycore.pyutils.laravel.article_contract import compose_worker_text_fields
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyctl.agent_history.pipeline.config import get_config
 
 
@@ -93,7 +94,7 @@ def upload_to_laravel(
 
 def replace_audio_on_laravel(
     record: Dict[str, Any],
-    audio: Dict[str, Any],
+    audio_bytes: bytes,
 ) -> Dict[str, Any]:
     """Replace the published audio of an already-uploaded agent-history article.
 
@@ -109,25 +110,26 @@ def replace_audio_on_laravel(
     payload = {
         "article_id": record.get("laravel_article_id"),
         "source_record_id": record.get("id"),
-        "audio_base64": audio.get("audio_base64"),
-        "tts_engine": audio.get("engine"),
-        "tts_model": audio.get("model"),
-        "tts_chunked": bool(audio.get("chunked")),
+        "tts_engine": record.get("tts_engine") or "local",
+        "tts_model": record.get("tts_model"),
+        "tts_chunked": 1 if record.get("tts_chunked") else 0,
     }
     if not payload["article_id"] and not payload["source_record_id"]:
         raise RuntimeError("record has neither laravel_article_id nor source identity")
-    if not payload["audio_base64"]:
+    if not audio_bytes:
         raise RuntimeError("empty replacement audio")
 
-    resp = laravel_client.post(
+    data = laravel_progress_uploader.upload(
         f"{_ARTICLE_WORKER_API}/replace-audio",
+        audio_bytes,
         base_url=base,
-        json=payload,
-        timeout=_ARTICLE_WORKER_TIMEOUT,
+        params=payload,
     )
-    data = _parse_worker_response(resp, "audio replace")
     return {
         "article_id": data.get("article_id"),
         "audio_url": data.get("audio_url"),
-        "audio_status": "ready",
+        "audio_status": "finalizing" if data.get("writeback_pending") else "ready",
+        "result_sha256": data.get("result_sha256"),
+        "writeback_pending": bool(data.get("writeback_pending")),
+        "idempotent": bool(data.get("idempotent")),
     }

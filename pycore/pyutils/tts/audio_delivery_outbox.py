@@ -99,6 +99,10 @@ class AudioDeliveryOutbox:
                 int(current.get("delivery_attempts") or 0),
                 int(row.get("delivery_attempts") or 0),
             )
+            current_audio_path = str(current.get("audio_path") or "")
+            if current_audio_path and os.path.isfile(current_audio_path):
+                row["audio_path"] = current_audio_path
+                row["audio_sha256"] = str(current.get("audio_sha256") or "")
             for lease_key in ("lease_owner", "lease_process", "lease_until"):
                 if lease_key in current:
                     row[lease_key] = current[lease_key]

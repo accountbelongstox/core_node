@@ -42,19 +42,80 @@ class AppQyV1DailyReadingService
         return $artifact['url'] ?? null;
     }
 
+    public function audioUrlFor(AppQyV1Article $article): string
+    {
+        $artifact = $this->audioArtifact(
+            (string) $article->article_id,
+            (string) $article->language
+        );
+
+        return $artifact['url'];
+    }
+
+    public function isPublishedAudio(AppQyV1Article $article, string $sha256): bool
+    {
+        $artifact = [];
+        $metadata = [];
+        $publishedHash = '';
+        $fileHash = '';
+
+        $article = AppQyV1Article::resolveCanonicalArticle($article);
+        $metadata = is_array($article->metadata) ? $article->metadata : [];
+        $publishedHash = (string) ($metadata['audio_sha256'] ?? '');
+        if ($publishedHash === '' || !hash_equals($publishedHash, $sha256)) {
+            return false;
+        }
+
+        $artifact = $this->audioArtifact(
+            (string) $article->article_id,
+            (string) $article->language
+        );
+        if (!is_file($artifact['path'])) {
+            return false;
+        }
+
+        $fileHash = (string) hash_file('sha256', $artifact['path']);
+
+        return $fileHash !== '' && hash_equals($sha256, $fileHash);
+    }
+
     private function writeAudioArtifact(string $articleId, string $language, string $audioBase64): ?array
     {
         $binary = null;
+
+        $binary = base64_decode($audioBase64, true);
+        if ($binary === false) {
+            return null;
+        }
+
+        return $this->writeAudioArtifactBytes($articleId, $language, $binary);
+    }
+
+    private function writeAudioArtifactBytes(string $articleId, string $language, string $binary): ?array
+    {
+        $artifact = [];
+
+        if (strlen($binary) < 128) {
+            return null;
+        }
+
+        $artifact = $this->audioArtifact($articleId, $language);
+        if (!FileSystemManager::writeFile($artifact['path'], $binary)) {
+            return null;
+        }
+
+        $artifact['sha256'] = hash('sha256', $binary);
+
+        return $artifact;
+    }
+
+    private function audioArtifact(string $articleId, string $language): array
+    {
         $languageCode = '';
         $safeId = '';
         $filename = '';
         $directory = '';
         $path = '';
-
-        $binary = base64_decode($audioBase64, true);
-        if ($binary === false || strlen($binary) < 128) {
-            return null;
-        }
 
         $languageCode = AppQyV1TableMaps::normalizeLangCode($language);
         $languageCode = $languageCode !== '' ? $languageCode : 'en';
@@ -63,16 +124,12 @@ class AppQyV1DailyReadingService
         $directory = PathMapper::getAppQyV1AudioBaseDir('daily/' . $languageCode);
         $path = $directory . DIRECTORY_SEPARATOR . $filename;
 
-        if (!FileSystemManager::writeFile($path, $binary)) {
-            return null;
-        }
-
         return [
             'url' => '/static/app_qy_v1/audio/daily/'
                 . rawurlencode($languageCode)
                 . '/'
                 . rawurlencode($filename),
-            'sha256' => hash('sha256', $binary),
+            'path' => $path,
         ];
     }
 
@@ -85,13 +142,25 @@ class AppQyV1DailyReadingService
      */
     public function replaceAudio(AppQyV1Article $article, string $audioBase64, array $provenance = []): ?string
     {
+        $binary = null;
+
+        $binary = base64_decode($audioBase64, true);
+        if ($binary === false) {
+            return null;
+        }
+
+        return $this->replaceAudioBytes($article, $binary, $provenance);
+    }
+
+    public function replaceAudioBytes(AppQyV1Article $article, string $binary, array $provenance = []): ?string
+    {
         $audioRebuiltAt = null;
         $eventIdentity = '';
         $article = AppQyV1Article::resolveCanonicalArticle($article);
-        $artifact = $this->writeAudioArtifact(
+        $artifact = $this->writeAudioArtifactBytes(
             (string) $article->article_id,
             (string) $article->language,
-            $audioBase64
+            $binary
         );
         if ($artifact === null) {
             return null;

@@ -290,7 +290,7 @@ class LaravelRealtime {
       this.activeBaseURL = baseURL;
       await this.replay();
       if (!this.started || generation !== this.generation) return;
-      this.transport.connect(baseURL, realtime, {
+      this.transport.connect(realtime, {
         authorize: () => laravelApi.relayHubAuth(),
         onSubscribed: () => {
           void this.subscribed(generation).catch((error) => {

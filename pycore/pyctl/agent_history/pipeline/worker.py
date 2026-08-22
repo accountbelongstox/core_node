@@ -344,13 +344,15 @@ def _drain_rebuild_uploads() -> None:
             return
         laravel_data = replace_audio_on_laravel(
             record,
-            {
-                "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
-                "engine": record.get("tts_engine") or "local",
-                "model": record.get("tts_model"),
-                "chunked": bool(record.get("tts_chunked")),
-            },
+            audio_bytes,
         )
+        if laravel_data.get("writeback_pending"):
+            records.mark_rebuild_upload_received(record_id, laravel_data)
+            ColorPrint.gray(
+                f"[AgentHistoryPipeline] rebuilt audio durably received by Laravel "
+                f"for record {record_id}; publication is finalizing"
+            )
+            return
         records.mark_rebuild_uploaded(record_id, laravel_data)
         ColorPrint.green(
             f"[AgentHistoryPipeline] rebuilt audio replaced on Laravel for record {record_id}: "

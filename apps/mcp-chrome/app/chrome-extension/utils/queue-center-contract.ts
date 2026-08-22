@@ -173,6 +173,7 @@ export interface WorkerRegistration {
   hostname?: string;
   platform?: string;
   metadata?: Record<string, any>;
+  lease_capacity?: number;
 }
 
 export interface WorkerSubmitOutcome {
@@ -184,6 +185,9 @@ export interface WorkerSubmitOutcome {
   invalid?: number;
   audio_saved?: number;
   images_saved?: number;
+  writeback_pending?: boolean;
+  idempotent?: boolean;
+  result_sha256?: string;
 }
 
 export interface WorkerReleaseOutcome {
@@ -243,8 +247,18 @@ export interface QueueLiveCounts {
   processing: number;
 }
 
+export interface QueueCenterHttpTransfer {
+  protocol: string;
+  chunk_bytes: number;
+  maximum_chunk_bytes: number;
+  connect_timeout_seconds: number;
+  idle_timeout_seconds: number;
+  retry_interval_ms: number;
+}
+
 interface ContractDocument {
   schema_version: number;
+  http_transfer: QueueCenterHttpTransfer;
   realtime: {
     transport: string;
     channel: string;
@@ -354,7 +368,7 @@ const TASK_WIRE_DTO_FIELDS = {
   ] as const satisfies readonly (keyof TaskStatsRecord)[],
   worker_registration: [
     'worker_id', 'worker_name', 'processor_types', 'capabilities', 'hostname',
-    'platform', 'metadata',
+    'platform', 'metadata', 'lease_capacity',
   ] as const satisfies readonly (keyof WorkerRegistration)[],
   worker_result: [
     'task_id', 'worker_id', 'attempt', 'status', 'progress', 'result', 'error',
@@ -363,6 +377,7 @@ const TASK_WIRE_DTO_FIELDS = {
 
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
+export const QUEUE_CENTER_HTTP_TRANSFER = QUEUE_CENTER_CONTRACT.http_transfer;
 export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
 export type QueueCenterEndpointRole = keyof typeof contractDocument.endpoints;
 

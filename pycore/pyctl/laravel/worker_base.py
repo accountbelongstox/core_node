@@ -52,6 +52,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
     QUEUE_CENTER_DIFF_DELIVERY,
+    http_transfer_contract,
     queue_center_endpoint,
 )
 from pycore.pyutils.common.service_config import (
@@ -306,12 +307,20 @@ class BaseLaravelWorkerService:
             "hostname": self.hostname,
             "platform": self.platform,
             "limit": max(1, min(int(limit), GLOBAL_TASK_LIMITS["worker_pull"])),
+            "lease_capacity": max(
+                1,
+                min(int(self._lease_capacity()), GLOBAL_TASK_LIMITS["worker_pull"]),
+            ),
         }
         for index, processor_type in enumerate(processor_types):
             params[f"processor_types[{index}]"] = processor_type
         for index, capability in enumerate(capabilities):
             params[f"capabilities[{index}]"] = capability
         return params
+
+    def _lease_capacity(self) -> int:
+        """Maximum live Laravel leases owned by this worker instance."""
+        return max(1, int(self.PULL_LIMIT))
 
     def poll_diff_once(self) -> Dict[str, Any]:
         """Poll compact queue revisions and pull only when the front slice changed."""
@@ -727,7 +736,6 @@ class BaseLaravelWorkerService:
         progress: Optional[int] = None,
         attempts: Optional[int] = None,
         attempt: Optional[int] = None,
-        timeout_seconds: Optional[float] = None,
     ) -> bool:
         """
         POST a task result (processing/completed/failed) back to Laravel.
@@ -794,11 +802,7 @@ class BaseLaravelWorkerService:
         last_note = ""
         last_was_5xx = False
         max_attempts = self.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
-        request_timeout = (
-            self.RESULT_HTTP_TIMEOUT
-            if timeout_seconds is None
-            else max(1.0, float(timeout_seconds))
-        )
+        activity_contract = http_transfer_contract()
         for attempt in range(1, max_attempts + 1):
             if THREAD_BUS.is_shutdown_requested() and not terminal_result:
                 ColorPrint.yellow(
@@ -811,7 +815,7 @@ class BaseLaravelWorkerService:
                     result_url,
                     base_url=result_base_url,
                     json=body,
-                    timeout=request_timeout,
+                    activity_timeout=activity_contract,
                 )
                 if resp.status_code in (200, 201):
                     if self.LOG_ACCEPTED_RESULTS:

@@ -21,18 +21,16 @@ from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import Commander
-from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyutils.common.robust_downloader import RobustDownloader
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import WINDOWS_INSTALL_ROOTS
 
 # FFmpeg download URLs (gyan.dev builds - updated 2025-12-18)
 # Source: https://www.gyan.dev/ffmpeg/builds/
 FFMPEG_WINDOWS_URL = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-2025-12-10-git-4f947880bd-essentials_build.7z"
 FFMPEG_WINDOWS_FALLBACK_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z"
 
-# Installation directories
-# Windows: D:\_win10\ffmpeg\ or D:\_win11\ffmpeg\
-# Linux: /mnt/d/_ubuntu24/ffmpeg/ or similar
-FFMPEG_INSTALL_DIR = map_web_path("compile_dir", "ffmpeg")
+# Matches Step21_InstallApplications.ps1; Linux installation is system-managed.
+FFMPEG_INSTALL_DIR = str(WINDOWS_INSTALL_ROOTS[0]) if os.name == "nt" else "/usr/local/bin"
 
 
 def get_system_platform():

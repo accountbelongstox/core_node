@@ -9,8 +9,6 @@
   
 以下部分已经由另一个AI正在修改：···注意本项目不使用env，所有配置全部硬编码，有些配置可以在start shell中修改，所以实际上是一个组合，注意在代码中注释，···
 
-
-	 
 注意从底层构架，不要薄兼容，代码从底层重构，同时搜索官方文档，按规范修改，shell不要使用返回码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂等需要拆为最小步、而不是从一大个入口就幂等跳过。
 复用重复实现类库。同时搜索官方文档，搜索官方文档。
 
@@ -19,10 +17,10 @@
 继续实现、注意要看实际代码，而不是看文档，文档只是参考，同时要根据代码来更新文档，搜索官方文档
 docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_0.md
 docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_1.md
-docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_3.md
+docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_3.mdF
 ，按规范，搜索官方文档，如果已经全部完成，则不必再继续。注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类
 注意，
-1：注意frankenPHP安装部署，以及UI管理已经完成，根据代码直接更新文档。不要再修改相关代码，
+1：注意frankenPHP安装部署，以及UI管理已经完成，根据代码直接更新文档。不要再修改相关代码，s
 2：pycore端和laravemain端，根据当前代码全面升级为HTTP3 / 103 early等。并对接新的API，搜索代码，而不是.md，更新.md，如果完成了跳过。
 3：pycore UI / pycore UI / pycore-manager / laravel-manager / wordnew 全面升级为支持http3 / 103early，重构底层类库，在现在的代码的基础上，搜索代码，而不是.md，更新.md，如果完成了跳过。
 wordnew 要capacitor搜索官方文档，在编译为安卓时支持http3 / 103early。
@@ -108,3 +106,23 @@ Pending
  2：单词验证为什么没有一直递归 运行。
  3：类库是否全部复用，必须全部复用。
  4：UI不能有重复的显示，所有UI不要做无效显示，同时设置要全局生效。
+
+
+需要测试pycore http://127.0.0.1:13054/pycore-manager/queue-center 所有功能，如果都正常可用，忽略本次提示：
+1：同时laravel main的代码会实时同步到服务器，可能 会2分钟生效-中间服务器可能 重启暂时中断1-2分钟，要求测试所能功能可用，所以修改后等待服务器更新并测试，
+2：Laravel endpoint API https://api.si.12gm.com 无端口为默认API，并直接测试，http://127.0.0.1:13054/pycore-manager/queue-center 即使在127.0.0.1下也默认用该API测试。
+3：需要测试，单词音频生成，请求laravel main，并根据diff调整队首，并生成回传功能。
+4：需要测试，句子音频生成，请求laravel main，并根据diff调整队首，并生成回传功能。句子默认使用千问TTS，注意千问TTS同时也给 /pycore-manager/agent-history 后台提供服务，请使用队列和并行运行。短文使用多句子合成，句子队列直接生成。复用代码和队列组。
+5：句子任务中心默认先生成完所有英文，再生成其他语言，当然后端驱动插入队首的除外，同时laravel main后端也由UI wordnew 驱动。
+6：检测 wordnew 是否在请示任何音频，单词音频、句子音频时，laravel main会由统一网关触发队列首调整，并立即通知pycore
+7：wordnew默认添加API为  https://api.si.12gm.com ，并使用最新的 HTTP3 / 301early协议，更新所有类库和复用组件，搜索官方文档。
+8：wordnew 在访问音频时，要得到pycore是否调整队首的返回信息，并显示，预期得到音频的时间。
+9：laravel wordnew pycore 的通信全部升级库支持 HTTP3 / 301early 以及 mersuce协议 frankenPHP.
+10:pycore http://127.0.0.1:13054/pycore-manager/queue-center / pycore 必须优化，后端无阻塞卡顿的保持任务组，并根据diff的API实时调整队列首。
+11： http://127.0.0.1:13054/pycore-manager/queue-center 增加更详细的日志历史 记录，可以使用sqlite，生成的音频本地要缓存，并记录是由那个引擎生成，并能播放，是否是multe句子合成，laravel main是否接收上传成功，
+12：pycore保存一组任务，在laravel main离线时继续生成，当在线时捎带上传没有上传的记录。
+13：pycore去掉冗余代码，合并必要的类库，并实时的显示后端的进度状态，前端的进度状态。
+以上需要调整pycore / pycore UI / laravel main / wordnew的底层类库，注意支持HTTP3 FRANKENPHP ERRLY 301 ，
+如果codex无法验证上面的功能，就先给pycore加上可调试的接口或探测API调用。除非以上全部验证完才可忽略本条提示，否则将底层重构，搜索官方文档。
+注意从底层构架，不要薄兼容，代码从底层重构，同时搜索官方文档，按规范修改，shell不要使用返回码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂等需要拆为最小步、而不是从一大个入口就幂等跳过。
+复用重复实现类库。同时搜索官方文档，搜索官方文档。

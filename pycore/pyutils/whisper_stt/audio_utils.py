@@ -13,16 +13,16 @@ Dependencies:
 - ffmpeg (command line tool, must be installed on system)
 """
 
-import os
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
-import platform
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
+from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
 import time
 
@@ -53,18 +53,9 @@ def get_ffmpeg_path() -> Optional[str]:
     Returns:
         str: Path to ffmpeg executable, or None if not found
     """
-    # Check if ffmpeg is in PATH
-    ffmpeg_cmd = "ffmpeg.exe" if platform.system() == "Windows" else "ffmpeg"
-
-    # Try to find ffmpeg
-    result = exec_silent(
-        ["where" if platform.system() == "Windows" else "which", ffmpeg_cmd],
-        capture_output=True,
-        text=True
-    )
-
-    if result.return_code == 0:
-        return result.stdout.strip().split('\n')[0]
+    binaries = ffmpeg_runtime.binaries()
+    if binaries.ffmpeg is not None:
+        return str(binaries.ffmpeg)
 
     ColorPrint.red("[AudioUtils] ffmpeg not found in PATH")
     ColorPrint.yellow("[AudioUtils] Please install ffmpeg:")
@@ -96,8 +87,7 @@ def convert_to_whisper_format(
         ColorPrint.red(f"[AudioUtils] Input file not found: {input_path}")
         return None
 
-    ffmpeg = get_ffmpeg_path()
-    if not ffmpeg:
+    if not get_ffmpeg_path():
         return None
 
     # Generate output path if not provided
@@ -105,23 +95,17 @@ def convert_to_whisper_format(
         cache_dir = get_whisper_cache_dir()
         output_path = cache_dir / f"{input_path.stem}_converted.{WHISPER_FORMAT}"
 
-    # Build ffmpeg command
-    cmd = [
-        ffmpeg,
-        "-y",  # Overwrite output
-        "-i", str(input_path),
-        "-ar", str(sample_rate),  # Sample rate
-        "-ac", str(channels),  # Channels
-        "-c:a", "pcm_s16le",  # 16-bit PCM
-        str(output_path)
-    ]
-
     ColorPrint.blue(f"[AudioUtils] Converting {input_path.name} to Whisper format...")
-
-    result = exec_silent(cmd, capture_output=True, text=True)
-
-    if result.return_code != 0:
-        ColorPrint.red(f"[AudioUtils] Conversion failed: {result.stderr}")
+    arguments = ffmpeg_command_builder.convert_pcm(input_path, sample_rate, channels)
+    result = ffmpeg_runtime.execute_output_step(
+        arguments,
+        output_path,
+        expected_streams=("audio",),
+        output_validator=ffmpeg_output_validator.audio("pcm_s16le", sample_rate, channels),
+    )
+    if not result.success:
+        detail = result.process.stderr if result.process else result.error_code
+        ColorPrint.red(f"[AudioUtils] Conversion failed: {detail}")
         return None
 
     ColorPrint.green(f"[AudioUtils] Converted: {output_path}")
@@ -148,8 +132,7 @@ def extract_audio_from_video(
         ColorPrint.red(f"[AudioUtils] Video file not found: {video_path}")
         return None
 
-    ffmpeg = get_ffmpeg_path()
-    if not ffmpeg:
+    if not get_ffmpeg_path():
         return None
 
     # Generate output path if not provided
@@ -157,29 +140,22 @@ def extract_audio_from_video(
         cache_dir = get_whisper_cache_dir()
         output_path = cache_dir / f"{video_path.stem}_audio.{WHISPER_FORMAT}"
 
-    # Build ffmpeg command
-    cmd = [
-        ffmpeg,
-        "-y",  # Overwrite output
-        "-i", str(video_path),
-        "-vn",  # No video
-        "-ar", str(WHISPER_SAMPLE_RATE),
-        "-ac", str(WHISPER_CHANNELS),
-        "-c:a", "pcm_s16le",
-    ]
-
-    if compress:
-        # Use lower quality for smaller file
-        cmd.extend(["-q:a", "5"])
-
-    cmd.append(str(output_path))
-
     ColorPrint.blue(f"[AudioUtils] Extracting audio from {video_path.name}...")
-
-    result = exec_silent(cmd, capture_output=True, text=True)
-
-    if result.return_code != 0:
-        ColorPrint.red(f"[AudioUtils] Audio extraction failed: {result.stderr}")
+    arguments = ffmpeg_command_builder.convert_pcm(
+        video_path,
+        WHISPER_SAMPLE_RATE,
+        WHISPER_CHANNELS,
+    )
+    result = ffmpeg_runtime.execute_output_step(
+        arguments,
+        output_path,
+        expected_streams=("audio",),
+        output_validator=ffmpeg_output_validator.audio(
+            "pcm_s16le", WHISPER_SAMPLE_RATE, WHISPER_CHANNELS),
+    )
+    if not result.success:
+        detail = result.process.stderr if result.process else result.error_code
+        ColorPrint.red(f"[AudioUtils] Audio extraction failed: {detail}")
         return None
 
     ColorPrint.green(f"[AudioUtils] Extracted audio: {output_path}")
@@ -253,26 +229,10 @@ def get_audio_duration(audio_path: Path) -> Optional[float]:
     Returns:
         Duration in seconds, or None on failure
     """
-    ffmpeg = get_ffmpeg_path()
-    if not ffmpeg:
+    if not get_ffmpeg_path():
         return None
-
-    ffprobe = ffmpeg.replace("ffmpeg", "ffprobe")
-
-    cmd = [
-        ffprobe,
-        "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        str(audio_path)
-    ]
-
-    result = exec_silent(cmd, capture_output=True, text=True)
-
-    if result.return_code != 0:
-        return None
-
-    return float(result.stdout.strip())
+    result = ffmpeg_runtime.probe(audio_path)
+    return result.duration if result.success else None
 
 
 def is_audio_file(file_path: Path) -> bool:

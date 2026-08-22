@@ -19,13 +19,14 @@ bridge) goes through here. Each request:
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.
 
 Uses one isolated session per request, so no mutable HTTP state crosses threads.
-HTTPS calls prefer HTTP/3 through curl_cffi/libcurl with protocol fallback.
+All calls use the shared Python Requests transport.
 Streaming responses retain their owning session until the response is closed.
 
 Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorder
 lives in its own zero-dep module so the endpoint manager can import it too without
 cycling back here. No function-level internal imports.
 """
+import json as json_module
 import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
@@ -38,8 +39,7 @@ from pycore.pyutils.laravel.http_recorder import (
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import build_pycore_identity_headers
 from pycore.pyutils.laravel.transport import (
-    TRANSPORT_CURL_CFFI,
-    create_curl_multipart,
+    TRANSPORT_REQUESTS,
     create_laravel_http_session,
     response_http_version,
 )
@@ -173,6 +173,7 @@ class LaravelClient:
     def request(self, method: str, path: str, *, base_url: Optional[str] = None,
                 params: Any = None, data: Any = None, json: Any = None,
                 files: Any = None, headers: Any = None, timeout: Any = None,
+                activity_timeout: Optional[Dict[str, int]] = None,
                 stream: bool = False, allow_redirects: bool = True,
                 log_line: bool = True, **kwargs):
         """Issue a Laravel HTTP request, log + record it, return the raw Response.
@@ -190,30 +191,42 @@ class LaravelClient:
         summary = _summarize_params(params, data, json, files)
         if timeout is None:
             timeout = _DEFAULT_TIMEOUT
-        request_headers = build_pycore_identity_headers(url)
-        request_headers.update(dict(headers or {}))
+        request_headers = dict(headers or {})
         started = time.perf_counter()
         status = 0
-        session, transport_options, transport = create_laravel_http_session(url, stream)
+        session, transport_options, transport = create_laravel_http_session()
         request_options = dict(transport_options)
         request_options.update(kwargs)
-        multipart = None
         request_data = data
+        request_json = json
         request_files = files
         http_version = ""
+        if json is not None and data is None and files is None:
+            request_data = json_module.dumps(json, allow_nan=False).encode("utf-8")
+            request_json = None
+            request_headers.setdefault("Content-Type", "application/json")
+        identity_body = (
+            request_data
+            if isinstance(request_data, bytes)
+            else str(request_data).encode("utf-8")
+            if request_data is not None
+            else b""
+        )
+        request_headers.update(build_pycore_identity_headers(url, method, identity_body))
+        if activity_timeout:
+            connect_timeout = max(1, int(activity_timeout.get("connect_timeout_seconds") or 15))
+            if transport == TRANSPORT_REQUESTS:
+                timeout = (connect_timeout, None)
         try:
-            if files and transport == TRANSPORT_CURL_CFFI:
-                multipart = create_curl_multipart(data, files)
-                request_data = None
-                request_files = None
-                request_options["multipart"] = multipart
             resp = session.request(
                 method, url,
-                params=params, data=request_data, json=json, files=request_files,
+                params=params, data=request_data, json=request_json, files=request_files,
                 headers=request_headers, timeout=timeout, stream=stream,
                 allow_redirects=allow_redirects, **request_options,
             )
             http_version = response_http_version(resp)
+            resp.pycore_transport = transport
+            resp.pycore_http_version = http_version
             if stream:
                 original_close = resp.close
 
@@ -258,9 +271,6 @@ class LaravelClient:
                 "transport": transport, "http_version": http_version,
             })
             raise
-        finally:
-            if multipart is not None:
-                multipart.close()
 
     def get(self, path: str, **kwargs):
         return self.request("GET", path, **kwargs)

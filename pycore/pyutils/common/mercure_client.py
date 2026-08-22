@@ -6,10 +6,8 @@ FrankenPHP runtime:
 
 - Subscription = ``GET <hub>?topic=<selector>`` with one ``topic`` query
   parameter per topic (repeated), ``Accept: text/event-stream``.
-- Authorization = a topic-scoped Mercure JWT in the ``Authorization: Bearer``
-  header for non-browser clients; the hub closes streams at token ``exp``,
-  so the token provider is re-asked on
-  every (re)connection and forced on 401/403.
+- Subscription authorization = ``Authorization: Bearer <subscriber JWT>``.
+  The injected token provider refreshes credentials after a 401/403 response.
 - Reconciliation = ``Last-Event-ID`` request header on reconnects; the
   initial cursor rides the ``lastEventID`` query parameter.
 
@@ -17,9 +15,8 @@ Parsing follows the SSE spec: ``event``/``data``/``id``/``retry`` fields,
 ``:`` comment lines (hub heartbeat), CRLF/LF/CR line endings, dispatch on
 blank lines, multi-line data joined with ``\\n``.
 
-HTTPS subscriptions reuse the Pycore-to-Laravel libcurl transport and prefer
-HTTP/3. Lifecycle is injected (``should_stop`` / ``sleep``) so any thread model
-can drive it.
+HTTPS subscriptions reuse the shared Python-native Laravel transport. Lifecycle
+is injected (``should_stop`` / ``sleep``) so any thread model can drive it.
 """
 
 from __future__ import annotations
@@ -40,11 +37,11 @@ MERCURE_STATE_CONNECTING = "connecting"
 MERCURE_STATE_ONLINE = "online"
 MERCURE_STATE_OFFLINE = "offline"
 
-TokenProvider = Callable[[bool], str]
 UpdateCallback = Callable[["MercureUpdate"], None]
 StateCallback = Callable[[str, str], None]
 StopCheck = Callable[[], bool]
 Sleeper = Callable[[float], None]
+TokenProvider = Callable[[bool], str]
 
 
 class MercureUpdate:
@@ -71,8 +68,8 @@ def mercure_subscribe_url(
 ) -> str:
     """Build the subscription URL with repeated ``topic`` parameters.
 
-    ``last_event_id`` is only honored for the INITIAL cursor (spec query
-    parameter); reconnects use the ``Last-Event-ID`` header instead.
+    The initial cursor uses the pinned hub's ``lastEventID`` parameter;
+    reconnects use the ``Last-Event-ID`` header.
     """
     query: List[Tuple[str, str]] = [("topic", str(topic)) for topic in topics if topic]
     if last_event_id:
@@ -82,18 +79,13 @@ def mercure_subscribe_url(
 
 
 class MercureSubscriber:
-    """Drive one Mercure subscription with reconnect, resume and refresh.
-
-    ``token_provider(force_refresh)`` returns the current Bearer token
-    (``""`` for anonymous hubs); it is called once per connection attempt
-    and forced after a 401/403 so short-lived tokens refresh transparently.
-    """
+    """Drive one authorized Mercure subscription with reconnect and resume."""
 
     def __init__(
         self,
         hub_url: str,
         topics: List[str],
-        token_provider: Optional[TokenProvider] = None,
+        token_provider: TokenProvider,
         on_update: Optional[UpdateCallback] = None,
         on_state_change: Optional[StateCallback] = None,
         reconnect_min_seconds: float = 1.0,
@@ -117,7 +109,11 @@ class MercureSubscriber:
         # streams always yield heartbeat comment lines before this fires.
         self.read_timeout = max(1.0, float(read_timeout))
         self.max_redirects = max(0, int(max_redirects))
-        self.extra_headers = dict(extra_headers or {})
+        self.extra_headers = {
+            key: value
+            for key, value in dict(extra_headers or {}).items()
+            if key.lower() != "authorization"
+        }
         self.last_event_id = ""
         self._retry_delay_override = 0.0
 
@@ -154,7 +150,7 @@ class MercureSubscriber:
             if reason == "stop":
                 return
             if reason == "closed":
-                # Clean server close (token expiry window) - resume at once.
+                # Clean server close - resume at once.
                 reconnect_seconds = self.reconnect_min_seconds
             delay = self._retry_delay_override or reconnect_seconds
             self._retry_delay_override = 0.0
@@ -174,10 +170,7 @@ class MercureSubscriber:
         url = mercure_subscribe_url(self.hub_url, self.topics, initial_cursor)
         while True:
             request_headers = self._request_headers(token, resume=not initial_cursor)
-            session, transport_options, transport = create_laravel_http_session(
-                url,
-                stream=True,
-            )
+            session, transport_options, transport = create_laravel_http_session()
             connection: Dict[str, Any] = {
                 "session": session,
                 "response": None,
@@ -231,8 +224,6 @@ class MercureSubscriber:
         return headers
 
     def _token(self, force: bool) -> str:
-        if self.token_provider is None:
-            return ""
         return str(self.token_provider(force) or "")
 
     # ---------------------------------------------------------------- stream
@@ -336,12 +327,13 @@ class MercureSubscriber:
 
 
 class _MercureAuthError(Exception):
-    """Hub rejected the presented token (401/403) - refresh and retry."""
+    """The hub rejected the subscriber token and requested a refresh."""
 
 
 __all__ = [
     "MercureUpdate",
     "MercureSubscriber",
+    "TokenProvider",
     "mercure_subscribe_url",
     "MERCURE_DEFAULT_EVENT_TYPE",
     "MERCURE_STATE_CONNECTING",

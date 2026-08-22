@@ -22,8 +22,8 @@ package. This file is now the slim ORCHESTRATOR plus a FACADE: it re-exports the
 public names sibling files already import from this path, so book_processor.py,
 laravel_media_sync.py and video_extract_controller.py need NO import changes.
   * common/strtools/filename_sanitizer.py - ASCII filename transcoding.
-  * ffmpeg_ops.py          - ffmpeg/ffprobe wrappers + codec constants
-    (VIDEO_EXTENSIONS, CODECS, resolve_ffmpeg, ...).
+  * common/ffmpeg          - shared binary, probe, command, runner, and runtime core.
+  * media_processor.py     - media operations over the shared FFmpeg runtime.
   * whisper_runtime.py     - GPU detect + model/runtime resolution + UI caps
     (whisper_capabilities, resolve_whisper_runtime, ...).
   * srt_utils.py           - pure SRT parse/plan (_parse_srt_segments,
@@ -37,6 +37,7 @@ The import chain is one-directional (sub-modules never import back here).
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -50,19 +51,11 @@ from pycore.pyutils.common.strtools.filename_sanitizer import (  # re-exported
     to_english_ascii,
     _load_backends,
 )
-from pycore.pyutils.media_processing.ffmpeg_ops import (  # VIDEO_EXTENSIONS re-exported
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (  # VIDEO_EXTENSIONS re-exported
     VIDEO_EXTENSIONS,
-    CODECS,
-    resolve_ffmpeg,
-    resolve_ffprobe,
-    has_audio_stream,
-    is_already_tiny_mp4,
-    make_tiny_mp4,
-    compress_full_video,
-    extract_audio,
-    _file_size,
-    _mb,
+    AUDIO_CODECS,
 )
+from pycore.pyutils.media_processing.media_processor import media_processor
 from pycore.pyutils.media_processing.whisper_runtime import (  # whisper_capabilities re-exported
     resolve_whisper_runtime,
     detect_gpu_vram_mb,
@@ -93,6 +86,15 @@ def _format_duration(seconds: float) -> str:
     if h > 0:
         return "%dh %02dm %02ds" % (h, m, s)
     return "%dm %02ds" % (m, s)
+
+
+def _file_size(path: str) -> int:
+    file_path = Path(path)
+    return file_path.stat().st_size if file_path.is_file() else 0
+
+
+def _mb(num_bytes: int) -> float:
+    return num_bytes / (1024.0 * 1024.0)
 
 
 # --------------------------------------------------------------------------- #
@@ -162,7 +164,7 @@ class VideoExtractProcessor:
         codecs = []
         for c in (formats or ["mp3"]):
             c = (c or "").strip().lower()
-            if c in CODECS and c not in codecs:
+            if c in AUDIO_CODECS and c not in codecs:
                 codecs.append(c)
         return codecs or ["mp3"]
 
@@ -181,7 +183,7 @@ class VideoExtractProcessor:
         except ValueError as e:
             return {"success": False, "error": str(e)}
 
-        ffmpeg = resolve_ffmpeg()
+        ffmpeg_found = media_processor.available()
         engine = config.get("engine", "faster-whisper")
         wdevice, _wc = resolve_whisper_runtime(
             config.get("whisper_device", "auto"), config.get("whisper_compute", "auto"))
@@ -198,12 +200,12 @@ class VideoExtractProcessor:
             "output": output_dir,
             "videos": rels,
             "count": len(rels),
-            "ffmpeg_found": bool(ffmpeg),
+            "ffmpeg_found": ffmpeg_found,
             "engine": engine,
             "model": wmodel,
             "device": wdevice,
             "message": f"{len(rels)} video(s) found ({mode} mode)."
-                       + ("" if ffmpeg else " WARNING: ffmpeg not found."),
+                       + ("" if ffmpeg_found else " WARNING: ffmpeg not found."),
         }
 
     # ----- segments mapping lookup ----------------------------------------- #
@@ -283,11 +285,9 @@ class VideoExtractProcessor:
         if videos_override is not None:
             videos = videos_override
 
-        ffmpeg = resolve_ffmpeg()
-        if not ffmpeg:
+        if not media_processor.available():
             return {"success": False, "error": "ffmpeg not found on PATH.",
                     "execution_time": time.time() - start_time}
-        ffprobe = resolve_ffprobe(ffmpeg)
 
         codecs = self._parse_codecs(config.get("formats"))
         backends = _load_backends(bool(config.get("translate")))
@@ -388,7 +388,7 @@ class VideoExtractProcessor:
                 os.makedirs(target_dir, exist_ok=True)
 
             # no audio -> skip
-            if has_audio_stream(ffprobe, src) is False:
+            if media_processor.has_audio_stream(src) is False:
                 stats["no_audio"] += 1
                 item["status"] = "no_audio"
                 items.append(item)
@@ -405,24 +405,20 @@ class VideoExtractProcessor:
             # tiny mp4
             if make_mp4:
                 mp4_path = os.path.join(target_dir, stem + ".mp4")
-                exists = os.path.isfile(mp4_path) and os.path.getsize(mp4_path) > 0
-                if exists and is_already_tiny_mp4(ffprobe, mp4_path, src):
-                    stats["mp4_skip"] += 1
-                    item["mp4"] = mp4_path
-                    sz = _file_size(mp4_path)
-                    current["mp4"] = mp4_path
-                    log(f"    mp4: skip (already tiny, {_mb(sz):.2f} MB)")
-                elif dry_run:
+                if dry_run:
                     item["mp4"] = "(would create)"
                     log("    mp4: would create tiny ai-mp4")
                 else:
-                    mp4_bitrate = bitrate_override or CODECS["aac"]["default_bitrate"]
-                    if make_tiny_mp4(ffmpeg, src, mp4_path, mp4_bitrate, sample_rate, mono):
-                        stats["mp4_done"] += 1
+                    mp4_bitrate = bitrate_override or AUDIO_CODECS["aac"]["bitrate"]
+                    mp4_result = media_processor.make_tiny_video(
+                        src, mp4_path, mp4_bitrate, sample_rate, mono)
+                    if mp4_result.success:
+                        stats["mp4_skip" if mp4_result.skipped else "mp4_done"] += 1
                         item["mp4"] = mp4_path
                         sz = _file_size(mp4_path)
                         current["mp4"] = mp4_path
-                        log(f"    mp4: created ({_mb(sz):.2f} MB, {_pct_of_src(sz)} of original)")
+                        action = "skip" if mp4_result.skipped else "created"
+                        log(f"    mp4: {action} ({_mb(sz):.2f} MB, {_pct_of_src(sz)} of original)")
                     else:
                         stats["mp4_fail"] += 1
                         item["status"] = "mp4_failed"
@@ -437,39 +433,37 @@ class VideoExtractProcessor:
                 if dry_run:
                     item["full_mp4"] = "(would create)"
                     log("    full: would create compressed full video")
-                elif os.path.isfile(full_mp4_path) and os.path.getsize(full_mp4_path) > 0:
-                    stats["full_skip"] += 1
-                    item["full_mp4"] = full_mp4_path
-                    current["full_mp4"] = full_mp4_path
-                    compress_full_video(ffmpeg, ffprobe, src, full_mp4_path, log=log)
-                elif compress_full_video(ffmpeg, ffprobe, src, full_mp4_path, log=log):
-                    stats["full_done"] += 1
-                    item["full_mp4"] = full_mp4_path
-                    current["full_mp4"] = full_mp4_path
                 else:
-                    stats["full_fail"] += 1
+                    full_result = media_processor.compress_full_video(src, full_mp4_path)
+                    if full_result.success:
+                        stats["full_skip" if full_result.skipped else "full_done"] += 1
+                        item["full_mp4"] = full_mp4_path
+                        current["full_mp4"] = full_mp4_path
+                        full_size = _file_size(full_mp4_path)
+                        action = "skip" if full_result.skipped else "created"
+                        log(f"    full: {action} ({_mb(full_size):.2f} MB, {_pct_of_src(full_size)} of original)")
+                    else:
+                        stats["full_fail"] += 1
+                        log("    full: FAILED")
 
             # audio per codec (idempotent)
             for c in codecs:
-                info = CODECS[c]
-                audio_path = os.path.join(target_dir, stem + info["ext"])
-                bitrate = bitrate_override or info["default_bitrate"]
-                if os.path.isfile(audio_path) and os.path.getsize(audio_path) > 0:
-                    per_codec[c]["skip"] += 1
-                    item["audio"][c] = audio_path
-                    sz = _file_size(audio_path)
-                    current["audios"].append({"path": audio_path, "size": sz})
-                    log(f"    {c}: skip (exists, {_mb(sz):.2f} MB, {_pct_of_src(sz)} of original)")
-                elif dry_run:
+                info = AUDIO_CODECS[c]
+                audio_path = os.path.join(target_dir, stem + info["extension"])
+                bitrate = bitrate_override or info["bitrate"]
+                if dry_run:
                     item["audio"][c] = "(would extract)"
-                    log(f"    {c}: would extract {info['ext']}")
+                    log(f"    {c}: would extract {info['extension']}")
                 else:
-                    if extract_audio(ffmpeg, src, audio_path, info["encoder"], bitrate, sample_rate, mono):
-                        per_codec[c]["done"] += 1
+                    audio_result = media_processor.extract_audio(
+                        src, audio_path, info["encoder"], bitrate, sample_rate, mono)
+                    if audio_result.success:
+                        per_codec[c]["skip" if audio_result.skipped else "done"] += 1
                         item["audio"][c] = audio_path
                         sz = _file_size(audio_path)
                         current["audios"].append({"path": audio_path, "size": sz})
-                        log(f"    {c}: extracted {info['ext']} ({_mb(sz):.2f} MB, {_pct_of_src(sz)} of original)")
+                        action = "skip" if audio_result.skipped else "extracted"
+                        log(f"    {c}: {action} {info['extension']} ({_mb(sz):.2f} MB, {_pct_of_src(sz)} of original)")
                     else:
                         per_codec[c]["fail"] += 1
                         log(f"    {c}: FAILED")
@@ -480,14 +474,14 @@ class VideoExtractProcessor:
             srt_path = os.path.join(target_dir, stem + ".srt")
             vid_duration = 0.0
             if whisper_model is not None and not dry_run:
-                vid_duration = _probe_duration(ffprobe, src)
+                vid_duration = _probe_duration(src)
 
                 def _srt_progress(pct, _cur=current, _idx=idx):
                     _cur["srt_pct"] = round(pct, 1)
                     emit(_idx, _cur)
 
                 res = transcribe_to_srt_faster(
-                    whisper_model, src, srt_path, lang, log=log, ffmpeg=ffmpeg,
+                    whisper_model, src, srt_path, lang, log=log,
                     duration=vid_duration, on_progress=_srt_progress)
                 if res == "complete":
                     stats["srt_skip"] += 1
@@ -525,7 +519,7 @@ class VideoExtractProcessor:
             full_mp4 = os.path.join(target_dir, stem + ".full.mp4")
             mp3_path = os.path.join(target_dir, stem + ".mp3")
             if not vid_duration:
-                vid_duration = _probe_duration(ffprobe, src)
+                vid_duration = _probe_duration(src)
             need_segments = (
                 not dry_run
                 and vid_duration > 300.0
@@ -539,8 +533,9 @@ class VideoExtractProcessor:
                 if segments:
                     full_src = full_mp4 if (os.path.isfile(full_mp4)
                                             and os.path.getsize(full_mp4) > 0) else None
-                    seg_stats = cut_segments(segments, tiny_mp4, mp3_path, seg_dir, ffmpeg,
-                                             full_mp4=full_src, log=log, ffprobe=ffprobe)
+                    seg_stats = cut_segments(
+                        segments, tiny_mp4, mp3_path, seg_dir,
+                        full_mp4=full_src, log=log)
                     _write_segments_mapping(
                         seg_dir, src, root, stem, vid_duration, segments,
                         full_mp4=full_mp4, tiny_mp4=tiny_mp4, mp3_path=mp3_path,

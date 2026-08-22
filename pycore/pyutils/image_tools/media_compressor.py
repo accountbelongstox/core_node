@@ -27,7 +27,6 @@ media_compressor (and via pycore.pyutils) keep working unchanged.
 """
 
 import time
-import subprocess
 import uuid
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Union, List, Callable
@@ -36,6 +35,9 @@ from pycore.pyfoundations.third_party.api import get_third_package_cv2
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, start_bus_task
+from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
+from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
 # Re-exported data contracts (kept importable from this module for backwards
 # compatibility with callers that import them from media_compressor).
@@ -271,83 +273,25 @@ class MediaCompressor:
             else:
                 encoder = 'libx264'
 
-        # Build FFmpeg command
-        cmd = [
-            'ffmpeg',
-            '-y',  # Overwrite output
-            '-i', str(input_path),
-            '-c:v', encoder,
-        ]
-
-        # Add encoder-specific options
-        if 'nvenc' in encoder:
-            cmd.extend([
-                '-preset', preset,
-                '-cq', str(crf),  # Use -cq for NVENC instead of -crf
-                '-b:v', '0',  # Variable bitrate
-            ])
-        else:
-            cmd.extend([
-                '-preset', preset,
-                '-crf', str(crf),
-            ])
-
-        # Add resolution scaling if requested
-        if resolution is not None:
-            width, height = resolution
-            if 'nvenc' in encoder:
-                # Use GPU scaling for hardware encoding
-                cmd.extend(['-vf', f'scale_cuda={width}:{height}'])
-            else:
-                cmd.extend(['-vf', f'scale={width}:{height}'])
-
-        # Copy audio stream
-        cmd.extend(['-c:a', 'copy'])
-
-        # Output file
-        cmd.append(str(output_path))
-
-        # Execute FFmpeg with real-time output
-        try:
-            self._print(f"Running FFmpeg command: {' '.join(cmd)}")
-
-            # Use Popen for real-time output
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
-
-            # Stream output in real-time
-            for line in process.stdout:
-                if self.verbose:
-                    # Print FFmpeg progress output
-                    line = line.strip()
-                    if line and ('frame=' in line or 'time=' in line or 'speed=' in line):
-                        ColorPrint.plain(f"  {line}", end='\r')
-
-            # Wait for process to complete
-            process.wait()
-
-            if self.verbose:
-                ColorPrint.plain()  # New line after progress
-
-            if process.return_code != 0:
-                ColorPrint.red(f"FFmpeg process failed with code {process.return_code}")
-                return CompressionStats()
-
-        except subprocess.TimeoutExpired:
-            ColorPrint.red("FFmpeg timeout (> 1 hour)")
-            try:
-                process.kill()
-            except:
-                pass
-            return CompressionStats()
-        except Exception as e:
-            ColorPrint.red(f"FFmpeg execution failed: {e}")
+        arguments = ffmpeg_command_builder.compress_video(
+            input_path,
+            encoder=encoder,
+            preset=preset,
+            quality=crf,
+            resolution=resolution,
+        )
+        result = ffmpeg_runtime.execute_output_step(
+            arguments,
+            output_path,
+            expected_streams=("video",),
+            output_validator=ffmpeg_output_validator.video(
+                "hevc" if encoder in {"libx265", "hevc_nvenc"} else "h264",
+                resolution=resolution,
+            ),
+        )
+        if not result.success:
+            detail = result.process.stderr if result.process else result.error_code
+            ColorPrint.red(f"FFmpeg execution failed: {detail}")
             return CompressionStats()
 
         # Verify output file exists and has valid size

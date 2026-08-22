@@ -180,12 +180,20 @@ export const PcHttpDebugger: React.FC = () => {
                               <div className="truncate text-slate-200" title={r.fullUrl || r.path}>
                                 {r.path}
                               </div>
+                              {typeof r.progress === 'number' && (
+                                <div className="mt-1 h-1 rounded-full bg-slate-700 overflow-hidden">
+                                  <div
+                                    className="h-full bg-cyan-400 transition-[width]"
+                                    style={{ width: `${Math.max(0, Math.min(100, r.progress))}%` }}
+                                  />
+                                </div>
+                              )}
                               {r.route && r.route !== r.path && (
                                 <div className="text-[9px] text-slate-500 truncate">{r.route}</div>
                               )}
                             </td>
                             <td className="px-1.5 py-1 whitespace-nowrap text-right" style={{ color: statusColor(r.status) }}>
-                              {r.status || 'ERR'}
+                              {typeof r.progress === 'number' ? `${r.progress.toFixed(1)}%` : (r.status || 'ERR')}
                             </td>
                             <td className="px-1.5 py-1 whitespace-nowrap text-right text-cyan-400">
                               {r.httpVersion || r.transport || '—'}
@@ -210,6 +218,12 @@ export const PcHttpDebugger: React.FC = () => {
                                 {(r.transport || r.httpVersion) && (
                                   <div className="text-cyan-500 break-all mt-1">
                                     {[r.transport, r.httpVersion].filter(Boolean).join(' / ')}
+                                  </div>
+                                )}
+                                {typeof r.transferredBytes === 'number' && typeof r.totalBytes === 'number' && (
+                                  <div className="text-cyan-400 break-all mt-1">
+                                    {r.transferredBytes}/{r.totalBytes} B
+                                    {r.phase ? ` · ${r.phase}` : ''}
                                   </div>
                                 )}
                               </td>

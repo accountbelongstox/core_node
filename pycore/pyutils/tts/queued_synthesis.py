@@ -15,6 +15,7 @@ from pycore.pyutils.common.managed_service import (
 from pycore.pyutils.common.managed_service_facade import managed_model_load_context
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME
 import pycore.pyutils.tts.qwen.engine as qwen_engine
+from pycore.pyutils.tts.qwen.client import is_queue_capacity_error
 
 
 _MAX_POLL_FAILURES = 6
@@ -83,10 +84,22 @@ class QueuedTtsSynthesis:
             }
 
         if not observed.get("ok"):
+            error = str(observed.get("error") or "queue unavailable")
+            if is_queue_capacity_error(error):
+                return {
+                    "status": "waiting",
+                    "poll_after_s": _POLL_MIN_SECONDS,
+                    "job": {
+                        **state,
+                        "client_job_id": client_job_id,
+                        "status": "capacity_wait",
+                        "last_error": error,
+                    },
+                }
             result = self._failure_result(
                 state,
                 client_job_id,
-                str(observed.get("error") or "queue unavailable"),
+                error,
             )
             if result.get("status") == "failed":
                 managed_services.release_async(ENGINE_NAME, client_job_id)

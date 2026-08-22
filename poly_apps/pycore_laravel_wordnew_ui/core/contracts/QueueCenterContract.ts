@@ -34,6 +34,15 @@ export type GlobalTaskCapability = string;
 export type GlobalTaskPayload = Record<string, unknown>;
 export type GlobalTaskResult = Record<string, unknown>;
 
+export interface QueueCenterHttpTransfer {
+  protocol: string;
+  chunk_bytes: number;
+  maximum_chunk_bytes: number;
+  connect_timeout_seconds: number;
+  idle_timeout_seconds: number;
+  retry_interval_ms: number;
+}
+
 export interface GlobalTaskCreateResult {
   task_id: string;
   execution_type: GlobalTaskExecutionType;
@@ -164,6 +173,8 @@ export interface QueueCenterRealtimeConnection {
   topics: string[];
   auth_mode: string;
   protocol: string;
+  subscribe_url: string;
+  token: string;
   token_ttl_seconds: number;
   cookie: string;
   event: string;
@@ -238,6 +249,7 @@ export interface GlobalTaskWorkerRegistration {
   hostname?: string;
   platform?: string;
   metadata?: Record<string, unknown>;
+  lease_capacity?: number;
 }
 
 export interface GlobalTaskWorkerResult {
@@ -409,6 +421,7 @@ export interface PcQueueOverview {
 
 interface ContractDocument {
   schema_version: number;
+  http_transfer: QueueCenterHttpTransfer;
   realtime: {
     transport: string;
     topic: string;
@@ -439,8 +452,10 @@ interface ContractDocument {
     hub: {
       protocol: string;
       path: string;
-      token_ttl_seconds: number;
-      cookie: string;
+    };
+    device_identity: {
+      clock_skew_seconds: number;
+      nonce_ttl_seconds: number;
     };
     topics: Record<'machines' | 'pair', string>;
     events: Record<'request' | 'response' | 'roster', string>;
@@ -557,7 +572,7 @@ const GLOBAL_TASK_WIRE_DTO_FIELDS = {
   ] as const satisfies readonly (keyof GlobalTaskStatsRecord)[],
   worker_registration: [
     'worker_id', 'worker_name', 'processor_types', 'capabilities', 'hostname',
-    'platform', 'metadata',
+    'platform', 'metadata', 'lease_capacity',
   ] as const satisfies readonly (keyof GlobalTaskWorkerRegistration)[],
   worker_result: [
     'task_id', 'worker_id', 'attempt', 'status', 'progress', 'result', 'error',
@@ -566,6 +581,7 @@ const GLOBAL_TASK_WIRE_DTO_FIELDS = {
 
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
+export const QUEUE_CENTER_HTTP_TRANSFER = QUEUE_CENTER_CONTRACT.http_transfer;
 export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
 export const QUEUE_CENTER_RELAY = QUEUE_CENTER_CONTRACT.relay;
 export type QueueCenterEndpointRole = keyof typeof contractDocument.endpoints;

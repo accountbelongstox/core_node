@@ -3,13 +3,27 @@
 
 import time
 import uuid
+from functools import partial
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.common.operation_service import operation_service as operations
 from pycore.pyutils.tts.qwen.client import queue_cancel, queue_submit_and_wait
-from pycore.pyutils.tts.qwen.config import ENGINE_NAME, request_timeout_seconds
+from pycore.pyutils.tts.qwen.config import ENGINE_NAME
+
+
+def _publish_progress(item_id: str, value: Dict[str, Any]) -> None:
+    completed = max(0, int(value.get("progress") or 0))
+    total = max(0, int(value.get("progress_total") or 0))
+    phase = str(value.get("progress_phase") or value.get("status") or "queued")
+    ratio = min(0.99, completed / total) if total > 0 else 0.0
+    operations.update_item_progress(
+        item_id,
+        ratio,
+        phase,
+        f"Qwen synthesis progress {completed}/{total}",
+    )
 
 
 def submit(scope: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -88,7 +102,7 @@ def _run(
             success, audio, error = queue_submit_and_wait(
                 payload,
                 client_job_id=f"{operation_id}:{item_key}",
-                timeout=request_timeout_seconds(),
+                progress_callback=partial(_publish_progress, item.id),
             )
     except Exception as exc:  # noqa: BLE001
         success = False

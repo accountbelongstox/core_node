@@ -1,19 +1,4140 @@
-需要测试pycore http://127.0.0.1:13054/pycore-manager/queue-center 所有功能，如果都正常可用，忽略本次提示：
-现在的问题是，开启的任务为什么没有自动跑，不管浏览器是否重启，只要激活如果是开启状态应该自动跑。
-1：同时laravel main的代码会实时同步到服务器，可能 会2分钟生效-中间服务器可能 重启暂时中断1-2分钟，要求测试所能功能可用，所以修改后等待服务器更新并测试，
-2：Laravel endpoint API https://api.si.12gm.com 无端口为默认API，并直接测试，http://127.0.0.1:13054/pycore-manager/queue-center 即使在127.0.0.1下也默认用该API测试。
-3：需要测试，单词音频生成，请求laravel main，并根据diff调整队首，并生成回传功能。
-4：需要测试，句子音频生成，请求laravel main，并根据diff调整队首，并生成回传功能。句子默认使用千问TTS，注意千问TTS同时也给 /pycore-manager/agent-history 后台提供服务，请使用队列和并行运行。短文使用多句子合成，句子队列直接生成。复用代码和队列组。
-5：句子任务中心默认先生成完所有英文，再生成其他语言，当然后端驱动插入队首的除外，同时laravel main后端也由UI wordnew 驱动。
-6：检测 wordnew 是否在请示任何音频，单词音频、句子音频时，laravel main会由统一网关触发队列首调整，并立即通知pycore
-7：wordnew默认添加API为  https://api.si.12gm.com ，并使用最新的 HTTP3 / 301early协议，更新所有类库和复用组件，搜索官方文档。
-8：wordnew 在访问音频时，要得到pycore是否调整队首的返回信息，并显示，预期得到音频的时间。
-9：laravel wordnew pycore 的通信全部升级库支持 HTTP3 / 301early 以及 mersuce协议 frankenPHP.
-10:pycore http://127.0.0.1:13054/pycore-manager/queue-center / pycore 必须优化，后端无阻塞卡顿的保持任务组，并根据diff的API实时调整队列首。
-11： http://127.0.0.1:13054/pycore-manager/queue-center 增加更详细的日志历史 记录，可以使用sqlite，生成的音频本地要缓存，并记录是由那个引擎生成，并能播放，是否是multe句子合成，laravel main是否接收上传成功，
-12：pycore保存一组任务，在laravel main离线时继续生成，当在线时捎带上传没有上传的记录。
-13：pycore去掉冗余代码，合并必要的类库，并实时的显示后端的进度状态，前端的进度状态。
-以上需要调整pycore / pycore UI / laravel main / wordnew的底层类库，注意支持HTTP3 FRANKENPHP ERRLY 301 ，
-如果codex无法验证上面的功能，就先给pycore加上可调试的接口或探测API调用。除非以上全部验证完才可忽略本条提示，否则将底层重构，搜索官方文档。
-注意从底层构架，不要薄兼容，代码从底层重构，同时搜索官方文档，按规范修改，shell不要使用返回码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂等需要拆为最小步、而不是从一大个入口就幂等跳过。
-复用重复实现类库。同时搜索官方文档，搜索官方文档。
+› Authorization 是不是必须携带的，如何明确支持*。*，如果是无
+  头请求，根本没有origin-url，如何支持，查看官方文档。
+
+
+• 这个问题分两层：JWT 鉴权与浏览器 CORS 不是一回事。我会按
+  Mercure 官方规范确认发布者、私有订阅者、匿名订阅者以及“不带
+  Origin 的无头客户端”各自的要求，再决定契约应表达“授权模
+  式”还是“允许源列表”，不会把 *.* 当成合法 CORS 语法直接写进
+  去。
+
+• Searching the web
+
+• Searched the web for site:mercure.rocks/docs/hub/config
+  anonymous directive cors_origins Caddyfile Mercure
+  official ...
+
+• Edited 3 files (+30 -19)
+  └ scripts\shells\linux\common\frankenphp_manager.sh (+13
+  -7)
+      91  FRANKENPHP_MERCURE_VERSION="$(sc_require versions.m
+          ercure)"
+      92 +PHP_RUNTIME_UPLOAD_MAX_FILESIZE="$(sc_require php_r
+          untime.upload_max_filesize)"
+      93 +PHP_RUNTIME_POST_MAX_SIZE="$(sc_require php_runtime
+          .post_max_size)"
+      94 +PHP_RUNTIME_MAX_EXECUTION_TIME="$(sc_require php_ru
+          ntime.max_execution_time_seconds)"
+      95 +PHP_RUNTIME_MAX_INPUT_TIME="$(sc_require php_runtim
+          e.max_input_time_seconds)"
+      96 +FRANKENPHP_REQUEST_BODY_TIMEOUT="$(sc_require php_r
+          untime.request_body_timeout)"
+      97  # Official static-build xcaddy args (frankenphp.dev
+          /docs/static): a custom
+         ⋮
+     680  memory_limit = 512M
+     676 -upload_max_filesize = 10G
+     677 -post_max_size = 10G
+     678 -max_execution_time = 1200
+     679 -max_input_time = 1200
+     681 +upload_max_filesize = ${PHP_RUNTIME_UPLOAD_MAX_FILE
+          SIZE}
+     682 +post_max_size = ${PHP_RUNTIME_POST_MAX_SIZE}
+     683 +max_execution_time = ${PHP_RUNTIME_MAX_EXECUTION_TI
+          ME}
+     684 +max_input_time = ${PHP_RUNTIME_MAX_INPUT_TIME}
+     685  opcache.enable_cli = 1"
+         ⋮
+    1213  fm_octane_php_server_stanza() {
+    1209 -    printf -v FM_OCTANE_PHP_SERVER_STANZA '\tphp_se
+          rver {\n\t\tindex frankenphp-worker.php\n\t\ttry_fi
+          les {path} frankenphp-worker.php\n\t\tresolve_root_
+          symlink\n\t}\n'
+    1214 +    printf -v FM_OCTANE_PHP_SERVER_STANZA '\tphp_se
+          rver {\n\t\tindex frankenphp-worker.php\n\t\ttry_fi
+          les {path} frankenphp-worker.php\n\t\trequest_body_
+          timeout %s\n\t\tresolve_root_symlink\n\t}\n' \
+    1215 +        "$FRANKENPHP_REQUEST_BODY_TIMEOUT"
+    1216  }
+         ⋮
+    1261      mercure_stanza="$FM_MERCURE_STANZA"
+    1256 -    printf -v mercure_proxy '\troute {\n\t\t@mercur
+          e path /.well-known/mercure*\n\t\treverse_proxy @me
+          rcure http://%s:%s\n\t\tphp_server {\n\t\t\tindex f
+          rankenphp-worker.php\n\t\t\ttry_files {path} franke
+          nphp-worker.php\n\t\t\tresolve_root_symlink\n\t\t}\
+          n\t}\n' \
+    1257 -        "$(sc_require hosts.loopback)" "$backend_po
+          rt"
+    1262 +    printf -v mercure_proxy '\troute {\n\t\t@mercur
+          e path /.well-known/mercure*\n\t\treverse_proxy @me
+          rcure http://%s:%s\n\t\tphp_server {\n\t\t\tindex f
+          rankenphp-worker.php\n\t\t\ttry_files {path} franke
+          nphp-worker.php\n\t\t\trequest_body_timeout %s\n\t\
+          t\tresolve_root_symlink\n\t\t}\n\t}\n' \
+    1263 +        "$(sc_require hosts.loopback)" "$backend_po
+          rt" "$FRANKENPHP_REQUEST_BODY_TIMEOUT"
+    1264      fm_octane_php_server_stanza
+
+  └
+  scripts\shells\linux\debian\debian_com\php_common_functions
+  .sh (+13 -8)
+     13  source "$PARENT_DIR_LEVEL_2/common/common_functions.
+         sh"
+     14 +source "$PARENT_DIR_LEVEL_2/common/service_contract_
+         common.sh"
+     15
+        ⋮
+     23  PHP_COMMON_SOCKET_READY="no"
+     24 +PHP_RUNTIME_UPLOAD_MAX_FILESIZE="$(sc_require php_ru
+         ntime.upload_max_filesize)"
+     25 +PHP_RUNTIME_POST_MAX_SIZE="$(sc_require php_runtime.
+         post_max_size)"
+     26 +PHP_RUNTIME_MAX_EXECUTION_TIME="$(sc_require php_run
+         time.max_execution_time_seconds)"
+     27 +PHP_RUNTIME_MAX_INPUT_TIME="$(sc_require php_runtime
+         .max_input_time_seconds)"
+     28
+        ⋮
+    207          'memory_limit = 512M' \
+    203 -        'upload_max_filesize = 10G' \
+    204 -        'post_max_size = 10G' \
+    205 -        'max_execution_time = 1200' \
+    206 -        'max_input_time = 1200' \
+    208 +        "upload_max_filesize = $PHP_RUNTIME_UPLOAD_M
+         AX_FILESIZE" \
+    209 +        "post_max_size = $PHP_RUNTIME_POST_MAX_SIZE"
+          \
+    210 +        "max_execution_time = $PHP_RUNTIME_MAX_EXECU
+         TION_TIME" \
+    211 +        "max_input_time = $PHP_RUNTIME_MAX_INPUT_TIM
+         E" \
+    212          'opcache.enable = 1' \
+        ⋮
+    402  memory_limit = 512M
+    398 -upload_max_filesize = 10G
+    399 -post_max_size = 10G
+    400 -max_execution_time = 1200
+    401 -max_input_time = 1200
+    403 +upload_max_filesize = $PHP_RUNTIME_UPLOAD_MAX_FILESI
+         ZE
+    404 +post_max_size = $PHP_RUNTIME_POST_MAX_SIZE
+    405 +max_execution_time = $PHP_RUNTIME_MAX_EXECUTION_TIME
+    406 +max_input_time = $PHP_RUNTIME_MAX_INPUT_TIME
+    407  opcache.enable = 1
+
+  └
+  scripts\shells\linux\debian\install_shells\96_configure_php
+  85.sh (+4 -4)
+    66          && grep -Fq 'memory_limit = 512M' "$PHP_FRANK
+        ENPHP_INI" \
+    67 -        && grep -Fq 'upload_max_filesize = 10G' "$PHP
+        _FRANKENPHP_INI" \
+    68 -        && grep -Fq 'post_max_size = 10G' "$PHP_FRANK
+        ENPHP_INI" \
+    69 -        && grep -Fq 'max_execution_time = 1200' "$PHP
+        _FRANKENPHP_INI" \
+    70 -        && grep -Fq 'max_input_time = 1200' "$PHP_FRA
+        NKENPHP_INI"; then
+    67 +        && grep -Fq "upload_max_filesize = $PHP_RUNTI
+        ME_UPLOAD_MAX_FILESIZE" "$PHP_FRANKENPHP_INI" \
+    68 +        && grep -Fq "post_max_size = $PHP_RUNTIME_POS
+        T_MAX_SIZE" "$PHP_FRANKENPHP_INI" \
+    69 +        && grep -Fq "max_execution_time = $PHP_RUNTIM
+        E_MAX_EXECUTION_TIME" "$PHP_FRANKENPHP_INI" \
+    70 +        && grep -Fq "max_input_time = $PHP_RUNTIME_MA
+        X_INPUT_TIME" "$PHP_FRANKENPHP_INI"; then
+    71          PHP_RUNTIME_READY="yes"
+
+
+› 如何支持*。*
+
+
+• *.* 不是合法的 CORS 值；合法的全匹配只有 *。
+
+  Mercure 中只有这一种明确支持方式：
+
+  mercure {
+      anonymous
+      cors_origins *
+  }
+
+  但它只允许匿名订阅公开消息；浏览器请求必须不携带 Cookie/
+  Authorization。发布者仍必须携带发布 JWT，私有消息的订阅者仍
+  必须携带订阅 JWT，而这两种浏览器鉴权场景都不能与
+  cors_origins * 共用。无头客户端没有 Origin 时不受 CORS 限
+  制，按发布/私有订阅规则携带 JWT 即可。
+
+  当前前端明确发送 Authorization，所以若要保留私有订阅，官方
+  允许的方案只有“明确 Origin 白名单”或“改成同源反向代理”，不
+  存在安全且规范的“鉴权 + 任意浏览器域名”。我不会把无效的 *.*
+  写入配置。
+
+• Ran Get-Content poly_apps/laravel_main/app/Apps/
+  │ ServerManagerV1/ServerManagerV1Utils/
+  │ ServerManagerV1FrankenPhpCaddyfileBuilder.php |
+  │ … +5 lines
+  └ (no output)
+
+• Edited
+poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManager
+V1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder.php (+2 -0)
+    207              . "\t\t\ttry_files {path} frankenphp-wor
+         ker.php\n"
+    208 +            . "\t\t\trequest_body_timeout ".ServiceC
+         ontract::string('php_runtime.request_body_timeout').
+         "\n"
+    209              . "\t\t\tresolve_root_symlink\n"
+        ⋮
+    429              . "\t\ttry_files {path} frankenphp-worke
+         r.php\n"
+    430 +            . "\t\trequest_body_timeout ".ServiceCon
+         tract::string('php_runtime.request_body_timeout')."\
+         n"
+    431              . "\t\tresolve_root_symlink\n"
+
+• Ran rg -n "(10G|1200|20m|request_body_timeout|
+  │ php_runtime\.)" config/service_contract.json scripts/
+  │ shells/linux/common/frankenphp_manager.sh scripts/
+  │ … +11 lines
+  └ poly_apps/laravel_main/app/Apps/ServerManagerV1/
+    ServerManagerV1Utils/
+    … +36 lines (ctrl + t to view transcript)
+    config/service_contract.json:35:
+    "request_body_timeout": "20m"
+
+─────────────────────────────────────────────────────────────
+
+• *.* 不是合法 CORS 写法，合法通配符只有 *。
+
+  根据 Mercure 官方规则：
+
+   场景            浏览器匿名订阅公开消息
+   Authorization   不需要
+   cors_origins *  支持
+  ───────────────────────────────────────────────────────────
+   场景            浏览器订阅私有消息
+   Authorization   必须
+   cors_origins *  不支持，必须明确列出 Origin
+  ───────────────────────────────────────────────────────────
+   场景            发布消息
+   Authorization   原则上必须提供发布 JWT
+   cors_origins *  不应配合任意来源
+  ───────────────────────────────────────────────────────────
+   场景            无头客户端、服务间请求
+   Authorization   按发布/私有订阅规则携带
+   cors_origins *  CORS 不生效，无需 Origin
+
+  允许所有浏览器来源的配置只能是：
+
+  mercure {
+      anonymous
+      cors_origins *
+  }
+
+  同时前端订阅请求必须不发送 Cookie 或
+  Authorization。匿名订阅者只能收到公开消息。当前前端会发送
+  Authorization，因此不能改成 *；Mercure
+  规范还明确禁止对鉴权请求动态反射任意 Origin。Mercure CORS
+  排障
+  (https://mercure.rocks/docs/hub/troubleshooting)、Mercure
+  规范 (https://mercure.rocks/spec)、Mercure 配置
+  (https://mercure.rocks/docs/hub/config)。
+
+  无头请求没有 Origin 是正常情况：CORS 是浏览器安全机制，
+  Mercure 不需要为“空 Origin”配置特殊值，JWT 鉴权照常工作。
+
+  上传限制已统一为：
+
+  upload_max_filesize = 10G
+  post_max_size = 10G
+  max_execution_time = 1200
+  max_input_time = 1200
+
+  同时：
+
+  - Laravel Octane 请求上限为 1200 秒。
+  - FrankenPHP request_body_timeout 为 20m。
+  - 所有值集中在 config/service_contract.json:30，不再多处硬
+    编码。
+
+  - PHP 官方要求 post_max_size 大于
+    upload_max_filesize。目前严格按你的要求都设为 10G；考虑
+    multipart 开销，单文件实际无法完整达到
+    10G。若必须允许完整 10G 文件，应把 POST 调成略大于
+    10G，例如 11G。PHP 官方说明
+    (https://www.php.net/manual/en/ini.core.php)
+
+  未运行服务、构建或测试。
+
+─ Worked for 4m 27s ─────────────────────────────────────────
+
+
+› 修复pycore UI / 所有子APP的连接到LARAVEL 的，全部改为支持
+  cors_origins * 无Authorization 模型，1：修改部署脚本，2：
+  修改laravel,3,修改pycore UI / pycoro UI laravel-manager /
+  Pycore UI pycore-manager / pycore UI wordnew / pycore
+  Python 的网络基本类库，注意从底层构架，不要薄兼容，代码从
+  底层重构，同时搜索官方文档，按规范修改，shell不要使用返回
+  码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂等
+  需要拆为最小步、而不是从一大个入口就幂等跳过。
+  复用重复实现类库。同时搜索官方文档，搜索官方文档。
+
+
+• 我会把范围理解为：所有 Pycore UI 子应用与 Pycore Python 基
+  础网络层访问 Laravel/Mercure 时，统一采用匿名公开订阅，不再
+  生成或发送 Authorization；部署端渲染 anonymous 与
+  cors_origins *；Laravel 发布端不再把这些 UI 事件标记为
+  private。会从共享连接库和服务契约下沉，不在各子 APP 加兼容
+  分支。按项目规则只做静态检查，不运行测试、构建或服务。
+
+• Updated Plan
+  └ □ Read Pycore/Laravel/Shell rules and inventory all
+      Laravel/Mercure connection paths
+    □ Verify official Mercure anonymous/CORS/authentication
+      requirements
+    □ Refactor shared contracts, deployment renderers,
+      Laravel publishing, UI and Python network foundations
+    □ Perform read-only consistency scans for Authorization/
+      private/CORS drift
+
+• Ran 4 commands · ctrl + t to view transcript
+• Ran rg -n 'MercureSubscriber\(|token_provider|relayHubAuth|
+  │ relay_hub|hub-auth|SocialRealtimeConnection|private'
+  │ pycore poly_apps/pycore_laravel_wordnew_ui poly_apps/
+  │ … +3 lines
+  └ poly_apps/laravel_main/
+    app\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\Voice
+    … +706 lines (ctrl + t to view transcript)
+    app\Http\Controllers\MediaBrowseController.php:593:
+    private function preloadLangRows($links): array
+
+• Ran 5 commands · ctrl + t to view transcript
+
+■ Conversation interrupted - tell the model what to do
+differently. Something went wrong? Hit `/feedback` to report
+the issue.
+
+
+› 先查看不无Authorization时，能在切换IP的时候继续被认领为同
+  一个客户端吗
+
+
+• Context compacted
+
+• 我先只做只读确认，不改代码。重点区分三件事：Mercure 连接身
+  份、断线续传，以及 Laravel/Pycore 自己的客户端认领身份；这
+  三者不能混为一个机制。
+
+◦ Searching the web
+
+• Searched the web for site:mercure.rocks/docs anonymous
+  subscribers JWT Last-Event-ID reconnection Mercure
+  official ...
+
+─────────────────────────────────────────────────────────────
+
+• 官方协议结论已经明确：无 Authorization 时，Mercure 只把它
+  当“匿名订阅连接”，不会用 IP 维持客户端身份。我再对照本项目
+  的 machine/session/client_id 认领链路，确认切换 IP 后业务层
+  是否另有稳定标识。
+
+• Ran 5 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 结论：切换 IP 后可以“继续使用同一个业务客户端 ID”，但无
+  Authorization 的 Mercure 本身不能证明或认领“这是同一个客户
+  端”。
+
+  当前代码实际分三层：
+
+  - Pycore 机器身份：由 OS 安装 ID 生成稳定的 machine_id，与
+    IP 无关。因此同一系统切换 Wi‑Fi、移动网络或公网 IP 后，仍
+    会提交相同 machine_id，Laravel 会更新同一个注册记录。
+    pycore/pyctl/relay/relay_service.py:92 pycore/
+    pyfoundations/machine_id.py:166
+
+  - UI 客户端身份：browser_id、client_id 保存在本地存储中，切
+    换 IP 不影响；但清除浏览器数据、无痕模式、换浏览器或换
+    Origin 后会变成新客户端。poly_apps/
+    pycore_laravel_wordnew_ui/core/integrations/pycore/
+    PycoreClient.ts:61
+
+  - Mercure 匿名 SSE：断线后可以携带 Last-Event-ID 继续消费遗
+    漏事件，但它只是事件游标，不是客户端身份证明。poly_apps/
+    pycore_laravel_wordnew_ui/core/integrations/laravel/
+    LaravelMercureConnection.ts:76
+
+  官方规范明确说明：
+
+  - 匿名订阅者只能接收 public updates。
+  - 重连使用 Last-Event-ID 恢复事件。
+  - Hub 的 subscriber 标识应当是每条连接独立的随机标识。
+  - 未认证渠道不能允许客户端指定 subscriber
+    身份，否则会产生冒充和连接劫持风险。Mercure 官方规范
+    (https://mercure.rocks/spec) Mercure 配置
+    (https://mercure.rocks/docs/hub/config)
+
+  当前项目还有一个安全问题：Laravel 的 PycoreClientOnly 只检
+  查固定的两个请求头，没有密码学证明；其他调用者可以伪造请求
+  头和已有 machine_id。poly_apps/laravel_main/app/Http/
+  Middleware/PycoreClientOnly.php:64
+
+  因此准确答案是：
+
+  - IP 切换：可以保持相同 machine_id/client_id。
+  - 匿名 Mercure 自动续流：可以，通过 Last-Event-ID，受 Hub
+    历史保留范围限制。
+
+  - 安全地证明“仍是原客户端”：不可以，当前无可信认领证明。
+  - cors_origins *：只决定浏览器能否跨域读取，不提供身份，也
+    不影响无 Origin 的 Python/无头请求。
+
+  建议底层结构是：Mercure 只负责匿名 public 通知；Laravel 控
+  制面用持久设备密钥或不可伪造的恢复凭证认领稳定 machine_id，
+  且不绑定 IP。这样切换 IP 后仍是同一个客户端，同时避免别人仅
+  复制 machine_id 就冒充。此次只完成了只读检查，没有修改代
+  码。
+
+─ Worked for 2m 50s ─────────────────────────────────────────
+
+
+› 修复pycore UI / 所有子APP的连接到LARAVEL 的，全部改为支持
+  cors_origins * 无Authorization 模型，1：修改部署脚本，2：
+  修改laravel,3,修改pycore UI / pycoro UI laravel-manager /
+  Pycore UI pycore-manager / pycore UI wordnew / pycore
+  Python 的网络基本类库，注意从底层构架，不要薄兼容，代码从
+  底层重构，同时搜索官方文档，按规范修改，shell不要使用返回
+  码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂等
+  需要拆为最小步、而不是从一大个入口就幂等跳过。
+  复用重复实现类库。同时搜索官方文档，搜索官方文档。但是要增
+  强和修复 ··· 结论：切换 IP 后可以“继续使用同一个业务客户端
+  ID”，但无
+    Authorization 的 Mercure 本身不能证明或认领“这是同一个客
+  户
+    端”。
+
+    当前代码实际分三层：
+
+    - Pycore 机器身份：由 OS 安装 ID 生成稳定的 machine_id，
+  与
+      IP 无关。因此同一系统切换 Wi‑Fi、移动网络或公网 IP
+  后，仍
+      会提交相同 machine_id，Laravel 会更新同一个注册记录。
+      pycore/pyctl/relay/relay_service.py:92 pycore/
+      pyfoundations/machine_id.py:166
+
+    - UI 客户端身份：browser_id、client_id 保存在本地存储
+  中，切
+      换 IP 不影响；但清除浏览器数据、无痕模式、换浏览器或换
+      Origin 后会变成新客户端。poly_apps/
+      pycore_laravel_wordnew_ui/core/integrations/pycore/
+      PycoreClient.ts:61
+
+    - Mercure 匿名 SSE：断线后可以携带 Last-Event-ID 继续消
+  费遗
+      漏事件，但它只是事件游标，不是客户端身份证明。
+  poly_apps/
+      pycore_laravel_wordnew_ui/core/integrations/laravel/
+      LaravelMercureConnection.ts:76
+
+    官方规范明确说明：
+
+    - 匿名订阅者只能接收 public updates。
+    - 重连使用 Last-Event-ID 恢复事件。
+    - Hub 的 subscriber 标识应当是每条连接独立的随机标识。
+    - 未认证渠道不能允许客户端指定 subscriber
+      身份，否则会产生冒充和连接劫持风险。Mercure 官方规范
+      (https://mercure.rocks/spec) Mercure 配置
+      (https://mercure.rocks/docs/hub/config)
+
+    当前项目还有一个安全问题：Laravel 的 PycoreClientOnly 只
+  检
+    查固定的两个请求头，没有密码学证明；其他调用者可以伪造请
+  求
+    头和已有 machine_id。poly_apps/laravel_main/app/Http/
+    Middleware/PycoreClientOnly.php:64
+
+    因此准确答案是：
+
+    - IP 切换：可以保持相同 machine_id/client_id。
+    - 匿名 Mercure 自动续流：可以，通过 Last-Event-ID，受
+  Hub
+      历史保留范围限制。
+
+    - 安全地证明“仍是原客户端”：不可以，当前无可信认领证明。
+    - cors_origins *：只决定浏览器能否跨域读取，不提供身份，
+  也
+      不影响无 Origin 的 Python/无头请求。
+
+    建议底层结构是：Mercure 只负责匿名 public 通知；Laravel
+  控
+    制面用持久设备密钥或不可伪造的恢复凭证认领稳定
+  machine_id，
+    且不绑定 IP。这样切换 IP 后仍是同一个客户端，同时避免别
+  人仅
+    复制 machine_id 就冒充。此次只完成了只读检查，没有修改代
+    码。···
+
+
+• 我会按“匿名数据通知 + 独立可信控制面身份”落地：Mercure 订阅
+  不再发送 Authorization，只发布 public updates，并允许
+  cors_origins *；Pycore/Laravel 的机器认领改为与 IP 无关的持
+  久设备密钥签名，避免复制 machine_id 冒充。普通用户 REST 登
+  录不会被错误删除，因为它承担的是业务用户权限，不是 Mercure
+  订阅认证。先核对现有共享契约和密钥配置，再从底层公共层统一
+  改。
+
+• Updated Plan
+  └ 按匿名 Mercure 与独立设备身份两条边界实施，避免把 CORS、
+    SSE 游标和客户端认领混为一层。
+    □ 核对共享契约、Mercure 配置、设备身份与所有调用点
+    □ 依据官方规范重构部署脚本和 Laravel 匿名 public 实时层
+    □ 重构 UI/Python 共享网络层并增强稳定设备认领
+    □ 只读扫描跨项目一致性与遗留 Authorization 路径
+
+• Ran rg -n --hidden --glob '!vendor/**' --glob '!
+  │ node_modules/**' "mercure_cookie|mercure_cors|
+  │ MERCURE_SUBSCRIBER|subscriber_jwt|RelayHubAuthService|
+  │ … +6 lines
+  └ config\queue_center_contract.json:92:
+    "relay_hub_auth": "/api/relay/hub-auth",
+    … +201 lines (ctrl + t to view transcript)
+    HS256\n\t\tcors_origins %s\n\t\tcookie_name %s\n\t}\n\n'
+    \
+
+─────────────────────────────────────────────────────────────
+
+• 身份增强不能靠 IP，也不能把设备密钥塞进 Mercure URL。我正在
+  核对项目现有持久存储层，准备让 Python 在共享 Laravel HTTP
+  网关统一签名请求、Laravel 中间件统一验签；注册只做首次设备
+  密钥绑定，心跳与数据面都复用同一验证逻辑。这样不是给每个子
+  APP 加兼容补丁。
+
+• Ran 8 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 官方 Mercure 配置确认了两项必须同时成立：anonymous 才允许无
+  JWT 订阅；匿名订阅只能收到未标记 private 的更新。
+  cors_origins * 只适用于无凭据跨域读取。发布端仍必须保留服务
+  器内部 publisher JWT，这不会下发给 UI/Python。现在开始先改
+  这一条底层链路。
+
+• Edited 6 files (+29 -68)
+  └ config\queue_center_contract.json (+9 -7)
+      1  {
+      2 -  "schema_version": 28,
+      2 +  "schema_version": 29,
+      3    "contract": "queue_center",
+        ⋮
+     91      "relay_machine_unregister": "/api/relay/machine/
+         unregister",
+     92 -    "relay_hub_auth": "/api/relay/hub-auth",
+     92      "relay_pair_announce": "/api/relay/{machine_id}/
+         pair",
+        ⋮
+    100    "relay": {
+    102 -    "hub": {
+    103 -      "protocol": "mercure",
+    104 -      "path": "/.well-known/mercure",
+    105 -      "token_ttl_seconds": 600
+    106 -    },
+    101 +    "hub": {
+    102 +      "protocol": "mercure",
+    103 +      "path": "/.well-known/mercure"
+    104 +    },
+    105 +    "device_identity": {
+    106 +      "clock_skew_seconds": 300,
+    107 +      "nonce_ttl_seconds": 600
+    108 +    },
+    109      "topics": {
+
+  └ config\service_contract.json (+2 -5)
+    22      "realtime": {
+    23 -        "mercure_cookie": "mercureAuthorization",
+    23          "mercure_transport": "local",
+    25 -        "mercure_cors_origins": [
+    26 -            "http://127.0.0.1:13054",
+    27 -            "http://localhost:13054"
+    28 -        ]
+    24 +        "mercure_anonymous_subscribers": true,
+    25 +        "mercure_cors_origins": ["*"]
+    26      },
+
+  └
+  poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManag
+  erV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder.php (+3
+  -6)
+    110       * Render the canonical Caddyfile. The Mercure H
+         S256 keys are embedded
+    111 -     * as literal publisher_jwt/subscriber_jwt value
+         s (single source: the
+    111 +     * as a literal publisher_jwt value (single sour
+         ce: the
+    112       * private RuntimeConfigurationStore; the file i
+         s 0600) - no process
+        ⋮
+    181          $publisherKey = RuntimeConfigurationStore::g
+         et(RelayHubJwt::PUBLISHER_KEY);
+    182 -        $subscriberKey = RuntimeConfigurationStore::
+         get(RelayHubJwt::SUBSCRIBER_KEY);
+    182          $corsOrigins = ServiceContract::stringList('
+         realtime.mercure_cors_origins');
+    183
+    185 -        if ($publisherKey === null || $subscriberKey
+          === null
+    186 -            || trim($publisherKey) === '' || trim($s
+         ubscriberKey) === '') {
+    184 +        if ($publisherKey === null || trim($publishe
+         rKey) === '') {
+    185              return '';
+        ⋮
+    190              . "\t\tpublisher_jwt {$publisherKey} HS2
+         56\n"
+    193 -            . "\t\tsubscriber_jwt {$subscriberKey} H
+         S256\n"
+    191 +            . "\t\tanonymous\n"
+    192              . "\t\tcors_origins ".implode(' ', $cors
+         Origins)."\n"
+    195 -            . "\t\tcookie_name ".ServiceContract::st
+         ring('realtime.mercure_cookie')."\n"
+    193              . "\t}\n"
+
+  └ poly_apps\laravel_main\app\Services\Relay\RelayHubJwt.php
+  (+4 -27)
+     4
+     5 -use App\Http\Middleware\PycoreClientOnly;
+     6 -use App\Support\QueueCenterContract;
+     5  use App\Support\RuntimeConfigurationStore;
+       ⋮
+    15   * the `mercure.publish` / `mercure.subscribe` claim.
+         One HS256 signer and one
+    18 - * key source are shared by every relay publisher and
+         subscriber.
+    16 + * key source are shared by every Laravel publisher.
+        Subscribers are anonymous
+    17 + * and receive public updates only.
+    18   */
+       ⋮
+    21      public const PUBLISHER_KEY = 'MERCURE_PUBLISHER_J
+        WT';
+    23 -    public const SUBSCRIBER_KEY = 'MERCURE_SUBSCRIBER
+        _JWT';
+    22      public const TRUSTED_ISSUER_KEY = 'MERCURE_TRUSTE
+        D_ISSUERS';
+       ⋮
+    35
+    38 -    /**
+    39 -     * @param array<int, string> $topics
+    40 -     */
+    41 -    public static function subscriberToken(string $su
+        bject, array $topics, ?string $hubUrl = null): string
+    42 -    {
+    43 -        return self::build(
+    44 -            $subject,
+    45 -            ['subscribe' => array_values(array_unique
+        ($topics))],
+    46 -            QueueCenterContract::relayHubInt('token_t
+        tl_seconds'),
+    47 -            self::SUBSCRIBER_KEY,
+    48 -            $hubUrl
+    49 -        );
+    50 -    }
+    51 -
+    36      public static function hubUrl(): string
+       ⋮
+    49          $request = null;
+    66 -        $serviceOrigin = null;
+    50          $issuer = '';
+       ⋮
+    54              if ($request instanceof Request) {
+    72 -                $serviceOrigin = PycoreClientOnly::se
+        rviceOrigin($request);
+    73 -                if ($serviceOrigin !== null) {
+    74 -                    return $serviceOrigin;
+    55 +                if ($request->server->has('HTTP_HOST'
+        ) && $request->getHost() !== '') {
+    56 +                    return $request->getSchemeAndHttp
+        Host();
+    57                  }
+    76 -            }
+    77 -            if ($request instanceof Request
+    78 -                && $request->server->has('HTTP_HOST')
+    79 -                && $request->getHost() !== '') {
+    80 -                return $request->getSchemeAndHttpHost
+        ();
+    58              }
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayHubKeyProvis
+  ioner.php (+6 -14)
+    15   * fm_mercure_config on the shell end) embed the stor
+        ed values as literal
+    16 - * publisher_jwt/subscriber_jwt directives after prov
+        isioning.
+    16 + * publisher_jwt directive after provisioning.
+    17   */
+       ⋮
+    22      /**
+    23 -     * Ensure both hub keys exist.
+    23 +     * Ensure the publisher hub key exists.
+    24       *
+       ⋮
+    30
+    31 -        foreach ([RelayHubJwt::PUBLISHER_KEY, RelayHu
+        bJwt::SUBSCRIBER_KEY] as $key) {
+    32 -            $result[$key] = self::ensureKey($key);
+    33 -        }
+    31 +        $result[RelayHubJwt::PUBLISHER_KEY] = self::e
+        nsureKey(RelayHubJwt::PUBLISHER_KEY);
+    32
+       ⋮
+    36      /**
+    39 -     * True when both hub keys are present and non-em
+        pty.
+    37 +     * True when the publisher hub key is present and
+         non-empty.
+    38       */
+       ⋮
+    40      {
+    43 -        foreach ([RelayHubJwt::PUBLISHER_KEY, RelayHu
+        bJwt::SUBSCRIBER_KEY] as $key) {
+    44 -            $value = RuntimeConfigurationStore::get($
+        key);
+    41 +        $value = RuntimeConfigurationStore::get(Relay
+        HubJwt::PUBLISHER_KEY);
+    42
+    46 -            if ($value === null || trim($value) === '
+        ') {
+    47 -                return false;
+    48 -            }
+    49 -        }
+    50 -
+    51 -        return true;
+    43 +        return $value !== null && trim($value) !== ''
+        ;
+    44      }
+
+  └ scripts\shells\linux\common\frankenphp_manager.sh (+5 -9)
+    1177
+    1178 -# Single Mercure hub stanza: literal HS256 keys fro
+          m the
+    1178 +# Single Mercure hub stanza: literal publisher HS25
+          6 key from the
+    1179  # RuntimeConfigurationStore (official flat syntax o
+          f the embedded
+         ⋮
+    1186      local publisher_key=""
+    1187 -    local subscriber_key=""
+    1188 -    local cookie_name=""
+    1187      local cors_origins=""
+         ⋮
+    1195      publisher_key="$(runtime_config_get "MERCURE_PU
+          BLISHER_JWT" 2>/dev/null)"
+    1198 -    subscriber_key="$(runtime_config_get "MERCURE_S
+          UBSCRIBER_JWT" 2>/dev/null)"
+    1199 -    if [ -z "$publisher_key" ] || [ -z "$subscriber
+          _key" ]; then
+    1196 +    if [ -z "$publisher_key" ]; then
+    1197          return
+    1198      fi
+    1202 -    cookie_name="$(sc_require realtime.mercure_cook
+          ie)"
+    1199      mercure_transport="$(sc_require realtime.mercur
+          e_transport)"
+    1200      cors_origins="$(sc_list realtime.mercure_cors_o
+          rigins)"
+    1205 -    if [ -z "$cookie_name" ] || [ -z "$mercure_tran
+          sport" ] || [ -z "$cors_origins" ]; then
+    1201 +    if [ -z "$mercure_transport" ] || [ -z "$cors_o
+          rigins" ]; then
+    1202          echo "[$SCRIPT_INDEX] [ERROR] Mercure servi
+          ce contract is incomplete"
+    1203      else
+    1208 -        printf -v FM_MERCURE_STANZA '\tmercure {\n\
+          t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tsu
+          bscriber_jwt %s HS256\n\t\tcors_origins %s\n\t\tcoo
+          kie_name %s\n\t}\n\n' \
+    1209 -            "$mercure_transport" "$publisher_key" "
+          $subscriber_key" "$cors_origins" "$cookie_name"
+    1204 +        printf -v FM_MERCURE_STANZA '\tmercure {\n\
+          t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tan
+          onymous\n\t\tcors_origins %s\n\t}\n\n' \
+    1205 +            "$mercure_transport" "$publisher_key" "
+          $cors_origins"
+    1206      fi
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 5 files (+42 -29)
+  └
+  poly_apps\laravel_main\app\Apps\AppQyV1\AppQyV1Controllers\
+  AppQyV1Social\AppQyV1SocialRealtimeController.php (+11 -12)
+    17  use App\Http\Controllers\Controller;
+    18 -use App\Services\Relay\RelayHubAuthService;
+    18 +use App\Services\Realtime\RealtimeConnectionService;
+    19  use App\Traits\ApiResponse;
+       ⋮
+    27      private const BATCH_LIMIT = 200;
+    28 +    private RealtimeConnectionService $connections;
+    29 +
+    30 +    public function __construct(RealtimeConnectionSer
+        vice $connections)
+    31 +    {
+    32 +        $this->connections = $connections;
+    33 +    }
+    34
+       ⋮
+    37          $userId = (int) $request->user()->id;
+    32 -        // One authenticated round trip carries both
+        the hub contract and the
+    33 -        // topic-scoped bearer token for this user's
+        private social topic;
+    34 -        // the shared browser SSE transport sends it
+        in Authorization.
+    35 -        $token = RelayHubAuthService::issueForTopics(
+    36 -            'social:'.$userId,
+    37 -            [AppQyV1SocialEventModel::topic($userId)]
+    38 +        $connection = $this->connections->hubConnecti
+        on(
+    39 +            [AppQyV1SocialEventModel::topic($userId)]
+        ,
+    40 +            ['events' => AppQyV1SocialEventModel::eve
+        ntNames()]
+    41          );
+    39 -        $token['events'] = AppQyV1SocialEventModel::e
+        ventNames();
+    42
+    41 -        return RelayHubAuthService::withHubCookie(
+    42 -            $this->success($token, __('relay.social_r
+        ealtime_connection')),
+    43 -            $token
+    44 -        );
+    43 +        return $this->success($connection, __('relay.
+        social_realtime_connection'));
+    44      }
+
+  └
+  poly_apps\laravel_main\app\Services\Realtime\RealtimeConnec
+  tionService.php (+25 -7)
+     4
+     5 -use App\Services\Relay\RelayHubAuthService;
+     5 +use App\Services\Relay\RelayHubJwt;
+     6  use App\Support\QueueCenterContract;
+       ⋮
+    10      /**
+    11 -     * Mercure hub connection form (the realtime plan
+        e on the frankenphp
+    12 -     * server): hub URL, exact topics and a short-liv
+        ed subscriber token.
+    13 -     * Queue Center is a public control plane, but th
+        e hub stays closed to
+    14 -     * anonymous subscribers; the token grants only t
+        he requested topics.
+    11 +     * Anonymous Mercure connection form shared by ev
+        ery realtime consumer.
+    12 +     * Topics route public updates; they are not an a
+        uthorization boundary.
+    13       */
+       ⋮
+    15      {
+    18 -        return array_merge(RelayHubAuthService::issue
+        ForTopics('queue-center', $topics), [
+    19 -            'auth_mode' => 'jwt',
+    16 +        $hubUrl = RelayHubJwt::hubUrl();
+    17 +        $topics = array_values(array_unique(array_fil
+        ter($topics, 'is_string')));
+    18 +
+    19 +        return array_merge([
+    20 +            'transport' => 'mercure',
+    21 +            'hub_url' => $hubUrl,
+    22 +            'topics' => $topics,
+    23 +            'subscribe_url' => self::subscribeUrl($hu
+        bUrl, $topics),
+    24 +            'auth_mode' => 'anonymous',
+    25              'protocol' => QueueCenterContract::relayH
+        ubString('protocol'),
+       ⋮
+    27      }
+    28 +
+    29 +    /**
+    30 +     * @param array<int, string> $topics
+    31 +     */
+    32 +    private static function subscribeUrl(string $hubU
+        rl, array $topics): string
+    33 +    {
+    34 +        $query = array_map(
+    35 +            static fn (string $topic): string => 'top
+        ic='.rawurlencode($topic),
+    36 +            $topics
+    37 +        );
+    38 +
+    39 +        return $hubUrl.'?'.implode('&', $query);
+    40 +    }
+    41  }
+
+  └
+  poly_apps\laravel_main\app\Services\Realtime\RealtimeOutbox
+  Publisher.php (+2 -4)
+    54              static fn (): string => $topic,
+    55 -            false,
+    55              'queue_center'
+       ⋮
+    65              static fn ($row): string => AppQyV1Social
+        EventModel::topic((int) $row->user_id),
+    67 -            true,
+    66              'social'
+       ⋮
+    69
+    72 -    private function publishRows(iterable $rows, call
+        able $topicResolver, bool $private, string $stream):
+        int
+    70 +    private function publishRows(iterable $rows, call
+        able $topicResolver, string $stream): int
+    71      {
+       ⋮
+    82                      json_encode(['event' => (string)
+        $row->event, 'data' => $payload], JSON_UNESCAPED_SLAS
+        HES),
+    85 -                    $private,
+    83 +                    false,
+    84                      (string) $row->event
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayDispatcher.p
+  hp (+4 -4)
+    23      /**
+    24 -     * Wake the machine side: private relay.request o
+        n the pair topic.
+    24 +     * Wake the machine side with a public relay.requ
+        est notification.
+    25       */
+       ⋮
+    30              self::frame($frame),
+    31 -            true,
+    31 +            false,
+    32              \App\Support\QueueCenterContract::relayEv
+        ent('request')
+       ⋮
+    36      /**
+    37 -     * Wake the UI side: private relay.response on th
+        e pair topic.
+    37 +     * Wake the UI side with a public relay.response
+        notification.
+    38       */
+       ⋮
+    43              self::frame($frame),
+    44 -            true,
+    44 +            false,
+    45              \App\Support\QueueCenterContract::relayEv
+        ent('response')
+
+  └ poly_apps\laravel_main\routes\api\relay.php (+0 -2)
+    22  Route::prefix('relay')->group(function (): void {
+    23 -    Route::post('hub-auth', [RelayController::class,
+        'hubAuth']);
+    24 -
+    23      Route::middleware(PycoreClientOnly::class)->group
+        (function (): void {
+
+• Ran rg -n "RelayHubAuthService|public function __construct|
+  │ function hubAuth|function isSessionCall|function
+  │ resolveSession" 'D:
+  │ … +6 lines
+  └
+            return $this->success(['response' => $response]);
+    … +95 lines (ctrl + t to view transcript)
+        }
+    }
+
+• Edited 2 files (+17 -167)
+  └
+  poly_apps\laravel_main\app\Http\Controllers\RelayController
+  .php (+17 -32)
+      9  use App\Services\Relay\RelayDispatcher;
+     10 -use App\Services\Relay\RelayHubAuthService;
+     10  use App\Services\Relay\RelayMachineRegistry;
+        ⋮
+     12  use App\Services\Relay\RelayRequestStore;
+     13 +use App\Services\Realtime\RealtimeConnectionService;
+     14  use App\Traits\ApiResponse;
+        ⋮
+     34      private const WAIT_MAX_SECONDS = 25;
+     35 +    private RealtimeConnectionService $connections;
+     36
+     37 +    public function __construct(RealtimeConnectionSe
+         rvice $connections)
+     38 +    {
+     39 +        $this->connections = $connections;
+     40 +    }
+     41 +
+     42      public function machines(): JsonResponse
+        ⋮
+     68              'heartbeat_seconds' => RelayMachineRegis
+         try::heartbeatSeconds(),
+     63 -            'hub' => RelayHubAuthService::issueForMa
+         chine($machineId),
+     69 +            'hub' => $this->connections->hubConnecti
+         on([
+     70 +                RelayDispatcher::machinesTopic(),
+     71 +                RelayDispatcher::pairTopic($machineI
+         d),
+     72 +                (string) (\App\Support\QueueCenterCo
+         ntract::realtime()['topic'] ?? ''),
+     73 +            ]),
+     74          ]);
+        ⋮
+    103      }
+     94 -
+     95 -    public function hubAuth(Request $request): JsonR
+         esponse
+     96 -    {
+     97 -        $mode = (string) $request->json('mode', 'ses
+         sion');
+     98 -        $token = null;
+    104
+    100 -        if ($mode === 'machine') {
+    101 -            if (!PycoreClientOnly::isMachineCall($re
+         quest)) {
+    102 -                return $this->forbidden(__('relay.ma
+         chine_auth_required'));
+    103 -            }
+    104 -            $machineId = (string) $request->json('ma
+         chine_id', '');
+    105 -            if (!RelayMachineRegistry::isValidId($ma
+         chineId) || !RelayMachineRegistry::isOnline($machine
+         Id)) {
+    106 -                return $this->conflict(__('relay.mac
+         hine_not_online'), ['machine_id' => $machineId]);
+    107 -            }
+    108 -            $token = RelayHubAuthService::issueForMa
+         chine($machineId);
+    109 -            return $this->success($token);
+    110 -        }
+    111 -
+    112 -        if (!self::isSessionCall($request)) {
+    113 -            return $this->unauthorized(__('relay.ses
+         sion_auth_required'));
+    114 -        }
+    115 -        $session = self::resolveSession($request);
+    116 -        $token = RelayHubAuthService::issueForSessio
+         n(
+    117 -            $request->filled('machine_id') ? (string
+         ) $request->json('machine_id') : null,
+    118 -            $session['id']
+    119 -        );
+    120 -
+    121 -        return RelayHubAuthService::withHubCookie($t
+         his->success($token), $token);
+    122 -    }
+    123 -
+    105      public function pair(Request $request, string $m
+         achineId): JsonResponse
+        ⋮
+    115              'pair' => $record,
+    135 -            'hub' => RelayHubAuthService::issueForSe
+         ssion($machineId, $session['id']),
+    116 +            'hub' => $this->connections->hubConnecti
+         on([
+    117 +                RelayDispatcher::machinesTopic(),
+    118 +                RelayDispatcher::pairTopic($machineI
+         d),
+    119 +                (string) (\App\Support\QueueCenterCo
+         ntract::realtime()['topic'] ?? ''),
+    120 +            ]),
+    121          ]);
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayHubAuthServi
+  ce.php (+0 -135)
+      1 -<?php
+      2 -
+      3 -namespace App\Services\Relay;
+      4 -
+      5 -use App\Support\ServiceContract;
+      6 -
+      7 -/**
+      8 - * Relay hub auth: short-lived, topic-scoped Mercure
+          subscriber tokens.
+      9 - *
+     10 - * Identity resolves once (UI session or machine); t
+         he granted topic set is
+     11 - * computed server-side from that identity - never e
+         choed from the request.
+     12 - * Non-browser clients (pycore) present the token as
+          an Authorization Bearer
+     13 - * header; browsers additionally receive the hub-pat
+         h cookie so a native
+     14 - * EventSource can subscribe through the configured
+         secure cookie.
+     15 - */
+     16 -final class RelayHubAuthService
+     17 -{
+     18 -    public static function issueForMachine(string $m
+         achineId): array
+     19 -    {
+     20 -        if (!RelayMachineRegistry::isValidId($machin
+         eId)) {
+     21 -            throw new \InvalidArgumentException(__('
+         relay.invalid_machine_id'));
+     22 -        }
+     23 -
+     24 -        return self::issue($machineId, array_merge(
+     25 -            [
+     26 -                RelayDispatcher::machinesTopic(),
+     27 -                RelayDispatcher::pairTopic($machineI
+         d),
+     28 -            ],
+     29 -            self::queueCenterTopics()
+     30 -        ));
+     31 -    }
+     32 -
+     33 -    public static function issueForSession(?string $
+         machineId, ?string $subject = null): array
+     34 -    {
+     35 -        $resolvedSubject = $subject !== null && $sub
+         ject !== '' ? $subject : 'session';
+     36 -        $topics = array_merge([RelayDispatcher::mach
+         inesTopic()], self::queueCenterTopics());
+     37 -        if ($machineId !== null && RelayPairRegistry
+         ::isActive($machineId, $resolvedSubject)) {
+     38 -            $topics[] = RelayDispatcher::pairTopic($
+         machineId);
+     39 -        }
+     40 -
+     41 -        return self::issue($resolvedSubject, $topics
+         );
+     42 -    }
+     43 -
+     44 -    /**
+     45 -     * Queue Center realtime topics ride the same hu
+         b and the same token
+     46 -     * surface (exact-match grants) - one authorizat
+         ion path for machines,
+     47 -     * UI sessions and the Queue Center consumers.
+     48 -     *
+     49 -     * @return array<int, string>
+     50 -     */
+     51 -    private static function queueCenterTopics(): arr
+         ay
+     52 -    {
+     53 -        $topic = (string) (\App\Support\QueueCenterC
+         ontract::realtime()['topic'] ?? '');
+     54 -
+     55 -        return $topic !== '' ? [$topic] : [];
+     56 -    }
+     57 -
+     58 -    /**
+     59 -     * Generic issuer for authenticated app scopes (
+         wordnew social, future
+     60 -     * consumers): exact-match grants, same token/co
+         okie surface as machines
+     61 -     * and UI sessions.
+     62 -     *
+     63 -     * @param array<int, string> $topics
+     64 -     */
+     65 -    public static function issueForTopics(string $su
+         bject, array $topics): array
+     66 -    {
+     67 -        return self::issue($subject, $topics);
+     68 -    }
+     69 -
+     70 -    /**
+     71 -     * Attach the configured hub-path cookie to a JS
+         ON response so a
+     72 -     * browser EventSource can authorize without hea
+         ders.
+     73 -     *
+     74 -     * @param array<string, mixed> $token
+     75 -     */
+     76 -    public static function withHubCookie(\Illuminate
+         \Http\JsonResponse $response, array $token): \Illumi
+         nate\Http\JsonResponse
+     77 -    {
+     78 -        return $response->cookie(
+     79 -            new \Symfony\Component\HttpFoundation\Co
+         okie(
+     80 -                $token['cookie'],
+     81 -                $token['token'],
+     82 -                now()->addSeconds((int) $token['toke
+         n_ttl_seconds'])->timestamp,
+     83 -                parse_url($token['hub_url'], PHP_URL
+         _PATH) ?: '/.well-known/mercure',
+     84 -                null,
+     85 -                parse_url($token['hub_url'], PHP_URL
+         _SCHEME) === 'https',
+     86 -                true,
+     87 -                false,
+     88 -                'strict'
+     89 -            )
+     90 -        );
+     91 -    }
+     92 -
+     93 -    /**
+     94 -     * Mercure subscription URL: one `topic` query p
+         arameter per selector.
+     95 -     *
+     96 -     * @param array<string, mixed> $token
+     97 -     */
+     98 -    public static function subscribeUrl(array $token
+         ): string
+     99 -    {
+    100 -        return self::buildSubscribeUrl($token['hub_u
+         rl'], $token['topics']);
+    101 -    }
+    102 -
+    103 -    /**
+    104 -     * @param array<int, string> $topics
+    105 -     */
+    106 -    private static function issue(string $subject, a
+         rray $topics): array
+    107 -    {
+    108 -        $topics = array_values(array_unique($topics)
+         );
+    109 -        $hubUrl = RelayHubJwt::hubUrl();
+    110 -        $token = RelayHubJwt::subscriberToken($subje
+         ct, $topics, $hubUrl);
+    111 -
+    112 -        return [
+    113 -            'transport' => 'mercure',
+    114 -            'hub_url' => $hubUrl,
+    115 -            'topics' => $topics,
+    116 -            'token' => $token,
+    117 -            'token_ttl_seconds' => \App\Support\Queu
+         eCenterContract::relayHubInt('token_ttl_seconds'),
+    118 -            'cookie' => ServiceContract::string('rea
+         ltime.mercure_cookie'),
+    119 -            'subscribe_url' => self::buildSubscribeU
+         rl($hubUrl, $topics),
+    120 -        ];
+    121 -    }
+    122 -
+    123 -    /**
+    124 -     * @param array<int, string> $topics
+    125 -     */
+    126 -    private static function buildSubscribeUrl(string
+          $hubUrl, array $topics): string
+    127 -    {
+    128 -        $query = array_map(
+    129 -            static fn (string $topic): string => 'to
+         pic='.rawurlencode($topic),
+    130 -            $topics
+    131 -        );
+    132 -
+    133 -        return $hubUrl.'?'.implode('&', $query);
+    134 -    }
+    135 -}
+
+• Ran rg -n "function relay|relayHub|device_identity" 'D:
+  │ \programing\core_node\poly_apps\laravel_main\app\Suppor
+  │ t\QueueCenterContract.php'; Get-Content -LiteralPath
+  │ … +7 lines
+  └     }
+
+    … +155 lines (ctrl + t to view transcript)
+        }
+
+
+• Edited 2 files (+149 -3)
+  └
+  poly_apps\laravel_main\app\Http\Middleware\PycoreClientOnly
+  .php (+4 -3)
+     5  use App\Services\Dashboard\DebugAuthService;
+     6 +use App\Services\Relay\RelayDeviceIdentity;
+     7  use Closure;
+       ⋮
+    28          return DebugAuthService::isLoopback($request)
+    28 -            || self::hasPycoreIdentity($request);
+    29 +            || (self::hasPycoreIdentity($request) &&
+        RelayDeviceIdentity::verify($request));
+    30      }
+       ⋮
+    78                  'success' => false,
+    78 -                'error' => 'Access denied. A recogniz
+        ed Pycore client is required.',
+    79 -                'message' => 'Access denied. A recogn
+        ized Pycore client is required.',
+    79 +                'error' => __('relay.machine_identity
+        _invalid'),
+    80 +                'message' => __('relay.machine_identi
+        ty_invalid'),
+    81                  'code' => 403,
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayDeviceIdenti
+  ty.php (+145 -0)
+      1 +<?php
+      2 +
+      3 +namespace App\Services\Relay;
+      4 +
+      5 +use App\Services\QueueCenter\QueueCenterCacheStore;
+      6 +use App\Support\QueueCenterContract;
+      7 +use Illuminate\Http\Request;
+      8 +
+      9 +final class RelayDeviceIdentity
+     10 +{
+     11 +    public const MACHINE_HEADER = 'X-Core-Node-Machi
+         ne-ID';
+     12 +    public const TIMESTAMP_HEADER = 'X-Core-Node-Tim
+         estamp';
+     13 +    public const NONCE_HEADER = 'X-Core-Node-Nonce';
+     14 +    public const CONTENT_SHA256_HEADER = 'X-Core-Nod
+         e-Content-SHA256';
+     15 +    public const SIGNATURE_HEADER = 'X-Core-Node-Sig
+         nature';
+     16 +    public const ENROLLMENT_SECRET_HEADER = 'X-Core-
+         Node-Enrollment-Secret';
+     17 +
+     18 +    private const CLAIM_PREFIX = 'relay:device-ident
+         ity:';
+     19 +    private const NONCE_PREFIX = 'relay:device-nonce
+         :';
+     20 +
+     21 +    public static function verify(Request $request):
+          bool
+     22 +    {
+     23 +        $cached = $request->attributes->get('core_no
+         de_machine_verified');
+     24 +        $machineId = trim((string) $request->header(
+         self::MACHINE_HEADER, ''));
+     25 +        $timestamp = (string) $request->header(self:
+         :TIMESTAMP_HEADER, '');
+     26 +        $nonce = trim((string) $request->header(self
+         ::NONCE_HEADER, ''));
+     27 +        $contentSha256 = strtolower((string) $reques
+         t->header(self::CONTENT_SHA256_HEADER, ''));
+     28 +        $signature = trim((string) $request->header(
+         self::SIGNATURE_HEADER, ''));
+     29 +        $secret = null;
+     30 +        $decodedSecret = null;
+     31 +        $expected = '';
+     32 +        $canonical = '';
+     33 +        $clockSkew = self::contractInt('clock_skew_s
+         econds');
+     34 +        $nonceTtl = self::contractInt('nonce_ttl_sec
+         onds');
+     35 +
+     36 +        if (is_bool($cached)) {
+     37 +            return $cached;
+     38 +        }
+     39 +        if (!RelayMachineRegistry::isValidId($machin
+         eId)
+     40 +            || !ctype_digit($timestamp)
+     41 +            || abs(time() - (int) $timestamp) > $clo
+         ckSkew
+     42 +            || $nonce === '' || strlen($nonce) > 128
+     43 +            || !preg_match('/^[a-f0-9]{64}$/', $cont
+         entSha256)
+     44 +            || $signature === '') {
+     45 +            return self::remember($request, false);
+     46 +        }
+     47 +        if (!hash_equals(hash('sha256', (string) $re
+         quest->getContent()), $contentSha256)) {
+     48 +            return self::remember($request, false);
+     49 +        }
+     50 +
+     51 +        $secret = self::claimedSecret($machineId);
+     52 +        if ($secret === null && self::isRegistration
+         ($request)) {
+     53 +            $secret = trim((string) $request->header
+         (self::ENROLLMENT_SECRET_HEADER, ''));
+     54 +        }
+     55 +        $decodedSecret = $secret === null ? null : s
+         elf::decodeSecret($secret);
+     56 +        if ($secret === null || $decodedSecret === n
+         ull) {
+     57 +            return self::remember($request, false);
+     58 +        }
+     59 +
+     60 +        $canonical = implode("\n", [
+     61 +            strtoupper($request->getMethod()),
+     62 +            '/'.$request->path(),
+     63 +            $machineId,
+     64 +            $timestamp,
+     65 +            $nonce,
+     66 +            $contentSha256,
+     67 +        ]);
+     68 +        $expected = self::encode(hash_hmac('sha256',
+          $canonical, $decodedSecret, true));
+     69 +        if (!hash_equals($expected, $signature) || !
+         self::claim($machineId, $secret)) {
+     70 +            return self::remember($request, false);
+     71 +        }
+     72 +        if (!QueueCenterCacheStore::get()->add(
+     73 +            self::NONCE_PREFIX.hash('sha256', $machi
+         neId."\0".$nonce),
+     74 +            true,
+     75 +            $nonceTtl
+     76 +        )) {
+     77 +            return self::remember($request, false);
+     78 +        }
+     79 +
+     80 +        $request->attributes->set('core_node_machine
+         _id', $machineId);
+     81 +
+     82 +        return self::remember($request, true);
+     83 +    }
+     84 +
+     85 +    private static function claim(string $machineId,
+          string $secret): bool
+     86 +    {
+     87 +        $cache = QueueCenterCacheStore::get();
+     88 +        $key = self::CLAIM_PREFIX.$machineId;
+     89 +        $existing = $cache->get($key);
+     90 +
+     91 +        if (is_string($existing) && $existing !== ''
+         ) {
+     92 +            return hash_equals($existing, $secret);
+     93 +        }
+     94 +        $cache->add($key, $secret);
+     95 +        $existing = $cache->get($key);
+     96 +
+     97 +        return is_string($existing) && hash_equals($
+         existing, $secret);
+     98 +    }
+     99 +
+    100 +    private static function claimedSecret(string $ma
+         chineId): ?string
+    101 +    {
+    102 +        $value = QueueCenterCacheStore::get()->get(s
+         elf::CLAIM_PREFIX.$machineId);
+    103 +
+    104 +        return is_string($value) && $value !== '' ?
+         $value : null;
+    105 +    }
+    106 +
+    107 +    private static function contractInt(string $key)
+         : int
+    108 +    {
+    109 +        $value = QueueCenterContract::relay()['devic
+         e_identity'][$key] ?? null;
+    110 +        if (!is_int($value) || $value < 1) {
+    111 +            throw new \RuntimeException("Unknown rel
+         ay device identity setting: {$key}");
+    112 +        }
+    113 +
+    114 +        return $value;
+    115 +    }
+    116 +
+    117 +    private static function isRegistration(Request $
+         request): bool
+    118 +    {
+    119 +        return $request->is('api/relay/machine/regis
+         ter');
+    120 +    }
+    121 +
+    122 +    private static function decodeSecret(string $val
+         ue): ?string
+    123 +    {
+    124 +        $padding = (4 - strlen($value) % 4) % 4;
+    125 +        $decoded = base64_decode(strtr($value, '-_',
+          '+/').str_repeat('=', $padding), true);
+    126 +
+    127 +        return is_string($decoded) && strlen($decode
+         d) >= 32 ? $decoded : null;
+    128 +    }
+    129 +
+    130 +    private static function encode(string $value): s
+         tring
+    131 +    {
+    132 +        return rtrim(strtr(base64_encode($value), '+
+         /', '-_'), '=');
+    133 +    }
+    134 +
+    135 +    private static function remember(Request $reques
+         t, bool $verified): bool
+    136 +    {
+    137 +        $request->attributes->set('core_node_machine
+         _verified', $verified);
+    138 +
+    139 +        return $verified;
+    140 +    }
+    141 +
+    142 +    private function __construct()
+    143 +    {
+    144 +    }
+    145 +}
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\poly_apps\laravel_main\lang\en\re
+  │ lay.php' -TotalCount 20; Get-Content -LiteralPath 'D:
+  │ … +2 lines
+  └ <?php
+
+    … +39 lines (ctrl + t to view transcript)
+        'machine_not_registered' => '机器尚未注册。',
+        'peer_offline' => '对端不在线或配对会话已过期。',
+
+• Edited 2 files (+2 -0)
+  └ poly_apps\laravel_main\lang\en\relay.php (+1 -0)
+    17      'machine_auth_required' => 'A recognized Pycore c
+        lient is required.',
+    18 +    'machine_identity_invalid' => 'A valid Pycore dev
+        ice signature is required.',
+    19      'machine_not_online' => 'Machine is not online.',
+
+  └ poly_apps\laravel_main\lang\zh_CN\relay.php (+1 -0)
+    17      'machine_auth_required' => '需要可识别的 Pycore
+        客户端。',
+    18 +    'machine_identity_invalid' => '需要有效的 Pycore
+        设备签名。',
+    19      'machine_not_online' => '机器不在线。',
+
+• Edited 2 files (+104 -22)
+  └ pycore\pyctl\relay\relay_service.py (+3 -4)
+    28
+    29 -from pycore.pyfoundations.machine_id import get_machi
+        ne_id
+    29  from pycore.pyfoundations.network_constants import HT
+        TP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+       ⋮
+    51  )
+    53 -from pycore.pyutils.laravel.client import laravel_cli
+        ent
+    52 +from pycore.pyutils.laravel.client import laravel_cli
+        ent
+    53 +from pycore.pyutils.laravel.identity import get_pycor
+        e_machine_id
+    54  from pycore.pyutils.laravel.endpoint_manager import l
+        aravel_endpoint_manager
+       ⋮
+    58  RELAY_ROSTER_SIGNAL = "relay.roster.changed"
+    59 -RELAY_MACHINE_ID_PREFIX = "pycore-"
+    59  RELAY_HTTP_TIMEOUT_SECONDS = 8.0
+       ⋮
+    90          )
+    92 -        self._machine_id = RELAY_MACHINE_ID_PREFIX +
+        get_machine_id()[:12]
+    91 +        self._machine_id = get_pycore_machine_id()
+    92          self._threads: List[threading.Thread] = []
+
+  └ pycore\pyutils\laravel\identity.py (+101 -18)
+      1 -# -*- coding: utf-8 -*-
+      2 -from typing import Dict
+      3 -from urllib.parse import urlsplit
+      4 -
+      5 -PYCORE_CLIENT_HEADER = "X-Core-Node-Client"
+      6 -PYCORE_CLIENT_ID = "pycore"
+      7 -CORE_NODE_PROTOCOL_HEADER = "X-Core-Node-Protocol"
+      8 -CORE_NODE_PROTOCOL_VERSION = "1"
+      9 -CORE_NODE_SERVICE_ORIGIN_HEADER = "X-Core-Node-Servi
+         ce-Origin"
+     10 -LARAVEL_SERVICE_HEADER = "X-Core-Node-Service"
+     11 -LARAVEL_SERVICE_ID = "laravel_main"
+     12 -LARAVEL_HEALTH_SERVICE = "Laravel API"
+      1 +# -*- coding: utf-8 -*-
+      2 +import base64
+      3 +import hashlib
+      4 +import hmac
+      5 +import os
+      6 +import secrets
+      7 +import threading
+      8 +import time
+      9 +from typing import Dict
+     10 +from urllib.parse import urlsplit
+     11 +
+     12 +from pycore.pyfoundations.atomic_json_store import A
+         tomicJsonStore
+     13 +from pycore.pyfoundations.machine_id import get_mach
+         ine_id
+     14 +from pycore.pyfoundations.system_paths import APP_CO
+         NFIG_DIR
+     15 +
+     16 +PYCORE_CLIENT_HEADER = "X-Core-Node-Client"
+     17 +PYCORE_CLIENT_ID = "pycore"
+     18 +CORE_NODE_PROTOCOL_HEADER = "X-Core-Node-Protocol"
+     19 +CORE_NODE_PROTOCOL_VERSION = "1"
+     20 +CORE_NODE_SERVICE_ORIGIN_HEADER = "X-Core-Node-Servi
+         ce-Origin"
+     21 +CORE_NODE_MACHINE_HEADER = "X-Core-Node-Machine-ID"
+     22 +CORE_NODE_TIMESTAMP_HEADER = "X-Core-Node-Timestamp"
+     23 +CORE_NODE_NONCE_HEADER = "X-Core-Node-Nonce"
+     24 +CORE_NODE_CONTENT_SHA256_HEADER = "X-Core-Node-Conte
+         nt-SHA256"
+     25 +CORE_NODE_SIGNATURE_HEADER = "X-Core-Node-Signature"
+     26 +CORE_NODE_ENROLLMENT_SECRET_HEADER = "X-Core-Node-En
+         rollment-Secret"
+     27 +LARAVEL_SERVICE_HEADER = "X-Core-Node-Service"
+     28 +LARAVEL_SERVICE_ID = "laravel_main"
+     29 +LARAVEL_HEALTH_SERVICE = "Laravel API"
+     30 +PYCORE_MACHINE_ID_PREFIX = "pycore-"
+     31 +DEVICE_IDENTITY_FILE_NAME = "laravel_device_identity
+         .json"
+     32 +DEVICE_SECRET_BYTES = 48
+     33 +DEVICE_IDENTITY_STORE = AtomicJsonStore(
+     34 +    APP_CONFIG_DIR / DEVICE_IDENTITY_FILE_NAME,
+     35 +    lambda: {},
+     36 +)
+     37 +DEVICE_IDENTITY_LOCK = threading.Lock()
+     38
+        ⋮
+     48
+     24 -def build_pycore_identity_headers(service_url: str =
+          "") -> Dict[str, str]:
+     25 -    headers = {
+     26 -        PYCORE_CLIENT_HEADER: PYCORE_CLIENT_ID,
+     27 -        CORE_NODE_PROTOCOL_HEADER: CORE_NODE_PROTOCO
+         L_VERSION,
+     28 -    }
+     49 +def get_pycore_machine_id() -> str:
+     50 +    return PYCORE_MACHINE_ID_PREFIX + get_machine_id
+         ()[:12]
+     51 +
+     52 +
+     53 +def _encode(value: bytes) -> str:
+     54 +    return base64.urlsafe_b64encode(value).decode("a
+         scii").rstrip("=")
+     55 +
+     56 +
+     57 +def _device_secret() -> str:
+     58 +    with DEVICE_IDENTITY_LOCK:
+     59 +        document = DEVICE_IDENTITY_STORE.read()
+     60 +        secret = str(document.get("secret") or "")
+     61 +        if secret:
+     62 +            return secret
+     63 +        secret = _encode(secrets.token_bytes(DEVICE_
+         SECRET_BYTES))
+     64 +        DEVICE_IDENTITY_STORE.write({"secret": secre
+         t})
+     65 +        if os.name != "nt":
+     66 +            os.chmod(DEVICE_IDENTITY_STORE.path, 0o6
+         00)
+     67 +        return secret
+     68 +
+     69 +
+     70 +def _request_path(service_url: str) -> str:
+     71 +    parsed = urlsplit(str(service_url or ""))
+     72 +    return parsed.path or "/"
+     73 +
+     74 +
+     75 +def build_pycore_identity_headers(
+     76 +    service_url: str = "",
+     77 +    method: str = "GET",
+     78 +    body: bytes = b"",
+     79 +) -> Dict[str, str]:
+     80 +    machine_id = get_pycore_machine_id()
+     81 +    timestamp = str(int(time.time()))
+     82 +    nonce = secrets.token_urlsafe(24)
+     83 +    content_sha256 = hashlib.sha256(body).hexdigest(
+         )
+     84 +    secret = _device_secret()
+     85 +    canonical = "\n".join([
+     86 +        str(method or "GET").upper(),
+     87 +        _request_path(service_url),
+     88 +        machine_id,
+     89 +        timestamp,
+     90 +        nonce,
+     91 +        content_sha256,
+     92 +    ])
+     93 +    signature = _encode(hmac.new(
+     94 +        base64.urlsafe_b64decode(secret + "=" * (-le
+         n(secret) % 4)),
+     95 +        canonical.encode("utf-8"),
+     96 +        hashlib.sha256,
+     97 +    ).digest())
+     98 +    headers = {
+     99 +        PYCORE_CLIENT_HEADER: PYCORE_CLIENT_ID,
+    100 +        CORE_NODE_PROTOCOL_HEADER: CORE_NODE_PROTOCO
+         L_VERSION,
+    101 +        CORE_NODE_MACHINE_HEADER: machine_id,
+    102 +        CORE_NODE_TIMESTAMP_HEADER: timestamp,
+    103 +        CORE_NODE_NONCE_HEADER: nonce,
+    104 +        CORE_NODE_CONTENT_SHA256_HEADER: content_sha
+         256,
+    105 +        CORE_NODE_SIGNATURE_HEADER: signature,
+    106 +    }
+    107 +    if _request_path(service_url) == "/api/relay/mac
+         hine/register":
+    108 +        headers[CORE_NODE_ENROLLMENT_SECRET_HEADER]
+         = secret
+    109      origin = _service_origin(service_url)
+        ⋮
+    111          headers[CORE_NODE_SERVICE_ORIGIN_HEADER] = o
+         rigin
+     32 -    return headers
+    112 +    return headers
+    113 +
+    114 +
+    115 +__all__ = ["build_pycore_identity_headers", "get_pyc
+         ore_machine_id"]
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\pycore\pyutils\laravel\client.py'
+  │ | Select-Object -Skip 165 -First 80
+  └                 sp = urlsplit(path)
+                    return (sp.path or "/") + (("?" +
+    … +81 lines (ctrl + t to view transcript)
+                    "transport": transport, "http_version":
+    http_version,
+
+• Edited pycore\pyutils\laravel\client.py (+17 -4)
+     28  """
+     29 -import time
+     29 +import json as json_module
+     30 +import time
+     31  from typing import Any, Dict, Optional
+        ⋮
+    193              timeout = _DEFAULT_TIMEOUT
+    193 -        request_headers = build_pycore_identity_head
+         ers(url)
+    194 -        request_headers.update(dict(headers or {}))
+    194 +        request_headers = dict(headers or {})
+    195          started = time.perf_counter()
+        ⋮
+    200          request_data = data
+    201 +        request_json = json
+    202          request_files = files
+    203          http_version = ""
+    204 +        if json is not None and data is None and fil
+         es is None:
+    205 +            request_data = json_module.dumps(json, a
+         llow_nan=False).encode("utf-8")
+    206 +            request_json = None
+    207 +            request_headers.setdefault("Content-Type
+         ", "application/json")
+    208 +        identity_body = (
+    209 +            request_data
+    210 +            if isinstance(request_data, bytes)
+    211 +            else str(request_data).encode("utf-8")
+    212 +            if request_data is not None
+    213 +            else b""
+    214 +        )
+    215 +        request_headers.update(build_pycore_identity
+         _headers(url, method, identity_body))
+    216          if activity_timeout:
+        ⋮
+    222                  method, url,
+    210 -                params=params, data=request_data, js
+         on=json, files=request_files,
+    223 +                params=params, data=request_data, js
+         on=request_json, files=request_files,
+    224                  headers=request_headers, timeout=tim
+         eout, stream=stream,
+
+• Edited
+poly_apps\laravel_main\app\Http\Middleware\PycoreClientOnly.p
+hp (+1 -3)
+     4
+     5 -use App\Services\Dashboard\DebugAuthService;
+     5  use App\Services\Relay\RelayDeviceIdentity;
+       ⋮
+    26      {
+    28 -        return DebugAuthService::isLoopback($request)
+    29 -            || (self::hasPycoreIdentity($request) &&
+        RelayDeviceIdentity::verify($request));
+    27 +        return self::hasPycoreIdentity($request) && R
+        elayDeviceIdentity::verify($request);
+    28      }
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 7 files (+51 -93)
+  └
+  poly_apps\pycore_laravel_wordnew_ui\apps\wordnew\api\WfNewS
+  ocialRealtime.ts (+4 -29)
+      1 -/** WordNew social realtime client: private Mercure
+         topic plus cursor recovery. */
+      2 -import {
+      3 -  LaravelMercureConnection,
+      4 -  type LaravelMercureAuthorization,
+      5 -} from '../../../core/integrations/laravel/LaravelMe
+         rcureConnection';
+      1 +/** WordNew social realtime client: public Mercure w
+         ake-up plus authenticated replay. */
+      2 +import { LaravelMercureConnection } from '../../../c
+         ore/integrations/laravel/LaravelMercureConnection';
+      3  import { wfNewEndpoints } from './WfNewEndpoints';
+        ⋮
+     18    topics: string[];
+     22 -  token: string;
+     23 -  token_ttl_seconds: number;
+     24 -  subscribe_url: string;
+     19 +  subscribe_url: string;
+     20    auth_mode: string;
+     21    protocol: string;
+     27 -  cookie: string;
+     22    events: string[];
+        ⋮
+    158
+    165 -  /**
+    166 -   * The authenticated connection endpoint is the si
+         ngle authorize step: it
+    167 -   * returns the hub contract and a bearer token for
+          the private social topic.
+    168 -   */
+    169 -  private async authorize(): Promise<LaravelMercureA
+         uthorization> {
+    170 -    const config = await authedGetJSON<SocialRealtim
+         eConnection>(
+    171 -      WfNewApiPaths.socialRealtimeConnection,
+    172 -      null as unknown as SocialRealtimeConnection,
+    173 -    );
+    174 -    if (!config?.subscribe_url) throw new Error('SOC
+         IAL_REALTIME_UNAVAILABLE');
+    175 -    this.allowedEvents = new Set(config.events || []
+         );
+    176 -    return {
+    177 -      subscribe_url: config.subscribe_url,
+    178 -      token: config.token,
+    179 -      token_ttl_seconds: config.token_ttl_seconds,
+    180 -    };
+    181 -  }
+    182 -
+    159    private async subscribed(generation: number): Prom
+         ise<void> {
+        ⋮
+    218        if (!this.started || generation !== this.gener
+         ation) return;
+    243 -      this.transport.connect(wfNewEndpoints.getCurre
+         ntBaseUrl(), config, {
+    244 -        authorize: () => this.authorize(),
+    219 +      this.transport.connect(config, {
+    220          onSubscribed: () => {
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\core\contracts\QueueCen
+  terContract.ts (+11 -10)
+    173    topics: string[];
+    174 -  auth_mode: string;
+    175 -  protocol: string;
+    176 -  token_ttl_seconds: number;
+    177 -  cookie: string;
+    174 +  auth_mode: string;
+    175 +  protocol: string;
+    176 +  subscribe_url: string;
+    177    event: string;
+        ⋮
+    448    relay: {
+    450 -    hub: {
+    451 -      protocol: string;
+    452 -      path: string;
+    453 -      token_ttl_seconds: number;
+    454 -      cookie: string;
+    455 -    };
+    449 +    hub: {
+    450 +      protocol: string;
+    451 +      path: string;
+    452 +    };
+    453 +    device_identity: {
+    454 +      clock_skew_seconds: number;
+    455 +      nonce_ttl_seconds: number;
+    456 +    };
+    457      topics: Record<'machines' | 'pair', string>;
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\core\integrations\larav
+  el\LaravelMercureConnection.ts (+17 -28)
+     1  /**
+     2 - * Shared authenticated Mercure SSE transport for Lar
+        avel clients.
+     2 + * Shared anonymous Mercure SSE transport for Laravel
+         clients.
+     3   *
+     4   * The pinned hub uses repeated `topic` parameters an
+        d topic-scoped Mercure
+     5 - * JWTs. Browser clients consume the stream through f
+        etch so the bearer token
+     6 - * stays scoped to this connection and cross-origin c
+        ookies are unnecessary.
+     5 + * selectors. Browser and headless clients consume pu
+        blic updates without
+     6 + * credentials; application identity remains on the L
+        aravel HTTP control plane.
+     7   */
+       ⋮
+    11  export interface LaravelMercureHubConfig {
+    12 -  hub_url: string;
+    13 -  topics: string[];
+    14 -  token_ttl_seconds: number;
+    15 -}
+    16 -
+    17 -export interface LaravelMercureAuthorization {
+    18 -  subscribe_url: string;
+    19 -  token: string;
+    20 -  token_ttl_seconds: number;
+    21 -}
+    22 -
+    23 -export interface LaravelMercureCallbacks {
+    24 -  authorize: () => Promise<LaravelMercureAuthorizatio
+        n>;
+    25 -  onSubscribed: () => void;
+    12 +  hub_url: string;
+    13 +  topics: string[];
+    14 +  subscribe_url?: string;
+    15 +}
+    16 +
+    17 +export interface LaravelMercureCallbacks {
+    18 +  onSubscribed: () => void;
+    19    onEvent: (event: string, data: unknown) => void;
+       ⋮
+    28
+    36 -  connect(
+    37 -    _baseURL: string,
+    38 -    config: LaravelMercureHubConfig,
+    29 +  connect(
+    30 +    config: LaravelMercureHubConfig,
+    31      callbacks: LaravelMercureCallbacks,
+       ⋮
+    59    ): Promise<void> {
+    68 -    const authorization = await callbacks.authorize()
+        ;
+    69 -    if (this.generation !== generation) return;
+    70 -    const controller = new AbortController();
+    71 -    const headers: Record<string, string> = {
+    72 -      Accept: 'text/event-stream',
+    73 -      Authorization: `Bearer ${authorization.token}`,
+    74 -      'Cache-Control': 'no-cache',
+    60 +    const controller = new AbortController();
+    61 +    const headers: Record<string, string> = {
+    62 +      Accept: 'text/event-stream',
+    63 +      'Cache-Control': 'no-cache',
+    64      };
+       ⋮
+    67
+    79 -    const response = await protocolFetch(authorizatio
+        n.subscribe_url || this.subscribeUrl(config), {
+    68 +    const response = await protocolFetch(config.subsc
+        ribe_url || this.subscribeUrl(config), {
+    69        headers,
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\core\integrations\larav
+  el\LaravelRealtime.ts (+1 -2)
+    292        if (!this.started || generation !== this.gener
+         ation) return;
+    293 -      this.transport.connect(baseURL, realtime, {
+    294 -        authorize: () => laravelApi.relayHubAuth(),
+    293 +      this.transport.connect(realtime, {
+    294          onSubscribed: () => {
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\core\integrations\larav
+  el\LaravelRelayRoster.ts (+6 -10)
+      6   * forward by `roster.update` deltas on the public `
+         pycore.machines` topic
+      7 - * (Bearer SSE through the shared Mercure connection
+         , session hub-auth). The link
+      7 + * (anonymous SSE through the shared Mercure connect
+         ion). The link
+      8   * runs in BOTH transport modes - designation and th
+         e roster view stay
+        ⋮
+    103      const base = getSharedBaseURL();
+    104 -    // The connection prefers the authorize() answer
+         's subscribe_url; the
+    105 -    // config hub_url is only its fallback, so it mu
+         st still be absolute.
+    106 -    this.transport.connect('', {
+    107 -      hub_url: base ? new URL(HUB_FALLBACK_PATH, bas
+         e).toString() : HUB_FALLBACK_PATH,
+    108 -      topics: [relayTopic('machines')],
+    109 -      token_ttl_seconds: 600,
+    110 -    }, {
+    111 -      authorize: () => laravelApi.relayHubAuth(),
+    104 +    this.transport.connect({
+    105 +      hub_url: base ? new URL(HUB_FALLBACK_PATH, bas
+         e).toString() : HUB_FALLBACK_PATH,
+    106 +      topics: [relayTopic('machines')],
+    107 +    }, {
+    108        onSubscribed: () => undefined,
+        ⋮
+    111          if (!this.started) return;
+    116 -        // Re-open on the next refresh tick with a n
+         ewly issued bearer token.
+    112 +        // Re-open on the next refresh tick after th
+         e server is reachable.
+    113          void this.refresh();
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\core\integrations\larav
+  el\LaravelTypes.ts (+9 -10)
+    180
+    181 -export interface RelayHubToken {
+    182 -  transport: string;
+    183 -  hub_url: string;
+    184 -  topics: string[];
+    185 -  token: string;
+    186 -  token_ttl_seconds: number;
+    187 -  cookie: string;
+    188 -  subscribe_url: string;
+    189 -}
+    181 +export interface RelayHubConnection {
+    182 +  transport: string;
+    183 +  hub_url: string;
+    184 +  topics: string[];
+    185 +  subscribe_url: string;
+    186 +  auth_mode: string;
+    187 +  protocol: string;
+    188 +}
+    189
+        ⋮
+    191    pair: { machine_id: string; session_id: string; ex
+         pires_at: string };
+    193 -  hub: RelayHubToken;
+    192 +  hub: RelayHubConnection;
+    193  }
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\core\integrations\larav
+  el\index.ts (+3 -4)
+    5  export type { RelayRosterEntry, RelayRosterUpdate } fr
+       om './LaravelRelayRoster';
+    6 -export { LaravelMercureConnection } from './LaravelMer
+       cureConnection';
+    7 -export type {
+    8 -  LaravelMercureAuthorization,
+    9 -  LaravelMercureCallbacks,
+    6 +export { LaravelMercureConnection } from './LaravelMer
+       cureConnection';
+    7 +export type {
+    8 +  LaravelMercureCallbacks,
+    9    LaravelMercureHubConfig,
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\poly_apps\pycore_laravel_wordnew_
+  │ ui\core\integrations\laravel\LaravelAPI.ts' -TotalCount
+  │ … +3 lines
+  └ (no output)
+
+• Edited
+poly_apps\pycore_laravel_wordnew_ui\core\integrations\laravel
+\LaravelAPI.ts (+0 -19)
+     41    LaravelVocabTtsGenerateRequest,
+     42 -  RelayHubToken,
+     42    RelayMachinesResponse,
+        ⋮
+    115    relayMachines: queueCenterEndpoint('relay_machines
+         '),
+    117 -  relayHubAuth: queueCenterEndpoint('relay_hub_auth'
+         ),
+    116    relayPair: (machineId: string): string =>
+        ⋮
+    344
+    347 -  /**
+    348 -   * Relay plane (pycore UI <-> machine relay throug
+         h the central server).
+    349 -   *
+    350 -   * hub-auth runs in session mode: the server resol
+         ves the UI identity,
+    351 -   * grants the roster/queue-center (+ paired machin
+         e) topics. The shared SSE
+    352 -   * transport sends the returned token in its Autho
+         rization header.
+    353 -   */
+    354 -  relayHubAuth: async (machineId?: string): Promise<
+         RelayHubToken> => {
+    355 -    const response = await laravelHttp.rawRequest(RO
+         UTES.relayHubAuth, {
+    356 -      method: 'POST',
+    357 -      headers: { 'Content-Type': 'application/json'
+         },
+    358 -      body: JSON.stringify({ mode: 'session', ...(ma
+         chineId ? { machine_id: machineId } : {}) }),
+    359 -      credentials: 'include',
+    360 -    });
+    361 -    if (!response.ok) throw new Error(`LARAVEL_HTTP_
+         ${response.status}`);
+    362 -    return unwrapData<RelayHubToken>(await response.
+         json());
+    363 -  },
+    345    getRelayMachines: async (): Promise<RelayMachinesR
+         esponse> => {
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\poly_apps\pycore_laravel_wordnew_
+  │ ui\core\contracts\ServiceContract.ts'; rg -n
+  │ … +4 lines
+  └ (no output)
+
+• Edited
+poly_apps\pycore_laravel_wordnew_ui\core\contracts\ServiceCon
+tract.ts (+1 -1)
+    28  export const UI_DOMAIN_CONFIG_FILE_NAME: string = con
+        tractDocument.files.ui_domain_config;
+    29 -export const MERCURE_COOKIE_NAME: string = contractDo
+        cument.realtime.mercure_cookie;
+    29  export const MERCURE_TRANSPORT_NAME: string = contrac
+        tDocument.realtime.mercure_transport;
+    30 +export const MERCURE_ANONYMOUS_SUBSCRIBERS: boolean =
+         contractDocument.realtime.mercure_anonymous_subscrib
+        ers;
+    31  export const MERCURE_CORS_ORIGINS: readonly string[]
+        = contractDocument.realtime.mercure_cors_origins;
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 2 files (+19 -47)
+  └ pycore\pyctl\queue_center\snapshot_service.py (+1 -2)
+    127      The shared ``MercureSubscriber`` owns reconnects
+         , Last-Event-ID resume
+    128 -    and token refresh; this thread only gates on end
+         point health, re-derives
+    128 +    and anonymous cursor recovery; this thread only
+         gates on endpoint health, re-derives
+    129      the server-issued hub connection per start, and
+         reconciles missed rows
+        ⋮
+    158                      [str(topic) for topic in (connec
+         tion.get("topics") or [])],
+    159 -                    token_provider=relay_service.hub
+         _token,
+    159                      on_update=self._dispatch_update,
+
+  └ pycore\pyutils\common\mercure_client.py (+18 -45)
+      8    parameter per topic (repeated), ``Accept: text/eve
+         nt-stream``.
+      9 -- Authorization = a topic-scoped Mercure JWT in the
+         ``Authorization: Bearer``
+     10 -  header for non-browser clients; the hub closes str
+         eams at token ``exp``,
+     11 -  so the token provider is re-asked on
+     12 -  every (re)connection and forced on 401/403.
+      9 +- Subscription authorization is anonymous. Only publ
+         ic updates are delivered;
+     10 +  application identity stays on the Laravel HTTP con
+         trol plane.
+     11  - Reconciliation = ``Last-Event-ID`` request header
+         on reconnects; the
+        ⋮
+     40
+     43 -TokenProvider = Callable[[bool], str]
+     44 -UpdateCallback = Callable[["MercureUpdate"], None]
+     41 +UpdateCallback = Callable[["MercureUpdate"], None]
+     42  StateCallback = Callable[[str, str], None]
+        ⋮
+     80
+     84 -class MercureSubscriber:
+     85 -    """Drive one Mercure subscription with reconnect
+         , resume and refresh.
+     86 -
+     87 -    ``token_provider(force_refresh)`` returns the cu
+         rrent Bearer token
+     88 -    (``""`` for anonymous hubs); it is called once p
+         er connection attempt
+     89 -    and forced after a 401/403 so short-lived tokens
+          refresh transparently.
+     90 -    """
+     81 +class MercureSubscriber:
+     82 +    """Drive one anonymous Mercure subscription with
+          reconnect and resume."""
+     83
+        ⋮
+     87          topics: List[str],
+     96 -        token_provider: Optional[TokenProvider] = No
+         ne,
+     97 -        on_update: Optional[UpdateCallback] = None,
+     88 +        on_update: Optional[UpdateCallback] = None,
+     89          on_state_change: Optional[StateCallback] = N
+         one,
+        ⋮
+    100              raise ValueError("MercureSubscriber requ
+         ires a hub URL and at least one topic")
+    110 -        self.token_provider = token_provider
+    101          self.on_update = on_update
+        ⋮
+    134                  reason = self._consume_stream(connec
+         tion, should_stop)
+    145 -            except _MercureAuthError as exc:
+    146 -                reason = "unauthorized"
+    147 -                self._notify(MERCURE_STATE_OFFLINE,
+         f"hub rejected the token: {exc}")
+    148 -                reconnect_seconds = self.reconnect_m
+         in_seconds
+    135              except Exception as exc:  # noqa: BLE001
+          - reconnect owns transport failures
+        ⋮
+    142              if reason == "closed":
+    157 -                # Clean server close (token expiry w
+         indow) - resume at once.
+    143 +                # Clean server close - resume at onc
+         e.
+    144                  reconnect_seconds = self.reconnect_m
+         in_seconds
+        ⋮
+    157      ) -> Tuple[Dict[str, Any], str, Dict[str, str]]:
+    172 -        token = self._token(force=False)
+    173 -        redirects_left = self.max_redirects
+    158 +        redirects_left = self.max_redirects
+    159          url = mercure_subscribe_url(self.hub_url, se
+         lf.topics, initial_cursor)
+    160          while True:
+    176 -            request_headers = self._request_headers(
+         token, resume=not initial_cursor)
+    161 +            request_headers = self._request_headers(
+         resume=not initial_cursor)
+    162              session, transport_options, transport =
+         create_laravel_http_session()
+        ⋮
+    191                  continue
+    207 -            if status in (401, 403):
+    208 -                body = self._short_body(response)
+    209 -                self._close(connection)
+    210 -                self._token(force=True)
+    211 -                raise _MercureAuthError(f"HTTP {stat
+         us} {body[:120]}")
+    192              if status != 200:
+        ⋮
+    197
+    218 -    def _request_headers(self, token: str, resume: b
+         ool) -> Dict[str, str]:
+    198 +    def _request_headers(self, resume: bool) -> Dict
+         [str, str]:
+    199          headers = {
+        ⋮
+    202          }
+    223 -        if token:
+    224 -            headers["Authorization"] = f"Bearer {tok
+         en}"
+    225 -        if resume and self.last_event_id:
+    226 -            headers["Last-Event-ID"] = self.last_eve
+         nt_id
+    227 -        headers.update(self.extra_headers)
+    228 -        return headers
+    229 -
+    230 -    def _token(self, force: bool) -> str:
+    231 -        if self.token_provider is None:
+    232 -            return ""
+    233 -        return str(self.token_provider(force) or "")
+    203 +        if resume and self.last_event_id:
+    204 +            headers["Last-Event-ID"] = self.last_eve
+         nt_id
+    205 +        headers.update({
+    206 +            key: value
+    207 +            for key, value in self.extra_headers.ite
+         ms()
+    208 +            if key.lower() != "authorization"
+    209 +        })
+    210 +        return headers
+    211
+        ⋮
+    309              pass
+    333 -
+    334 -
+    335 -class _MercureAuthError(Exception):
+    336 -    """Hub rejected the presented token (401/403) -
+         refresh and retry."""
+    310
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 2 files (+7 -65)
+  └ pycore\pyctl\queue_center\snapshot_service.py (+0 -2)
+    41  )
+    42 -from pycore.pyctl.relay import relay_service
+    43 -
+    42  from pycore.pyutils.common.status_snapshot_cache impo
+        rt (
+
+  └ pycore\pyctl\relay\relay_service.py (+7 -63)
+      9    endpoints; endpoint changes re-register against th
+         e new Laravel winner.
+     10 -- Hub tokens: the register response seeds a Mercure
+         1.0 subscriber token;
+     11 -  ``hub_token()`` is the single token provider for E
+         VERY local subscriber
+     12 -  (roster/pair stream here, Queue Center stream in s
+         napshot_service) and
+     13 -  refreshes it through /api/relay/hub-auth before ex
+         piry.
+     10 +- Hub connection: registration returns the anonymous
+          Mercure URL and public
+     11 +  topics shared by the roster, pair and Queue Center
+          subscribers.
+     12  - Subscriptions: machines roster topic + this machin
+         e's pair topic.
+        ⋮
+     23  import threading
+     26 -import time
+     24  from typing import Any, Dict, List, Optional, Tuple
+        ⋮
+     44      relay_event,
+     48 -    relay_hub_int,
+     45      relay_int,
+        ⋮
+     55  RELAY_HTTP_TIMEOUT_SECONDS = 8.0
+     60 -# Refresh tokens once three quarters of the TTL have
+          elapsed (the hub also
+     61 -# closes streams at exp, so early refresh keeps reco
+         nnects seamless).
+     62 -RELAY_TOKEN_LIFETIME_FRACTION = 0.75
+     56  RELAY_REGISTER_RETRY_MIN_SECONDS = 2.0
+        ⋮
+     85          self._threads: List[threading.Thread] = []
+     93 -        self._token = ""
+     94 -        self._token_expires_at = 0.0
+     95 -        self._token_lock = threading.Lock()
+     96 -        self._hub_url = ""
+     86 +        self._hub_url = ""
+     87          self._roster: Dict[str, Dict[str, Any]] = {}
+        ⋮
+    143          return [str(item) for item in (provides or [
+         ]) if item]
+    154 -
+    155 -    # ----------------------------------------------
+         -------------- hub tokens
+    144
+    157 -    def hub_token(self, force_refresh: bool = False)
+          -> str:
+    158 -        """Token provider for every local Mercure su
+         bscriber (shared auth)."""
+    159 -        with self._token_lock:
+    160 -            if (
+    161 -                not force_refresh
+    162 -                and self._token
+    163 -                and time.time() < self._token_expire
+         s_at
+    164 -            ):
+    165 -                return self._token
+    166 -        token = self._request_machine_token()
+    167 -        with self._token_lock:
+    168 -            self._token = token
+    169 -            ttl = max(1, relay_hub_int("token_ttl_se
+         conds") or 600)
+    170 -            self._token_expires_at = time.time() + t
+         tl * RELAY_TOKEN_LIFETIME_FRACTION
+    171 -        return token
+    172 -
+    145      # ----------------------------------------------
+         ------------------ roster
+        ⋮
+    201              )
+    230 -        )
+    231 -        hub = data.get("hub") if isinstance(data.get
+         ("hub"), dict) else {}
+    232 -        with self._token_lock:
+    233 -            if hub.get("token"):
+    234 -                self._token = str(hub["token"])
+    235 -                ttl = int(hub.get("token_ttl_seconds
+         ") or 0) or relay_hub_int(
+    236 -                    "token_ttl_seconds"
+    237 -                ) or 600
+    238 -                self._token_expires_at = (
+    239 -                    time.time() + ttl * RELAY_TOKEN_
+         LIFETIME_FRACTION
+    240 -                )
+    241 -            if hub.get("hub_url"):
+    242 -                self._hub_url = str(hub["hub_url"])
+    202 +        )
+    203 +        hub = data.get("hub") if isinstance(data.get
+         ("hub"), dict) else {}
+    204 +        if hub.get("hub_url"):
+    205 +            self._hub_url = str(hub["hub_url"])
+    206          self._registered_endpoint = endpoint
+        ⋮
+    241
+    279 -    def _request_machine_token(self) -> str:
+    280 -        endpoint = self._registered_endpoint or self
+         ._endpoint()
+    281 -        if not endpoint:
+    282 -            raise RuntimeError("Laravel endpoint is
+         unavailable")
+    283 -        data = _response_data(
+    284 -            laravel_client.post(
+    285 -                queue_center_endpoint("relay_hub_aut
+         h"),
+    286 -                base_url=endpoint,
+    287 -                json={"mode": "machine", "machine_id
+         ": self._machine_id},
+    288 -                timeout=RELAY_HTTP_TIMEOUT_SECONDS,
+    289 -            )
+    290 -        )
+    291 -        if not data.get("token"):
+    292 -            raise RuntimeError("Relay hub-auth retur
+         ned no token")
+    293 -        if data.get("hub_url"):
+    294 -            self._hub_url = str(data["hub_url"])
+    295 -        return str(data["token"])
+    296 -
+    242      # ----------------------------------------------
+         ------------- subscriber
+        ⋮
+    255                  ],
+    311 -                token_provider=self.hub_token,
+    256                  on_update=self._on_update,
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\scripts\shells\linux\debian\insta
+  │ ll_shells\175_laravel_main_start.sh' | Select-Object
+  │ … +7 lines
+  └         fi
+        fi
+    … +102 lines (ctrl + t to view transcript)
+    echo "=== Laravel Production Service ==="
+    echo "Project: $APP_NAME"
+
+• Edited 4 files (+17 -17)
+  └ scripts\shells\linux\common\runtime_config_common.sh (+3
+  -3)
+     89
+     90 -# Ensure the Mercure hub keys exist in the store. Si
+         ngle writer: the
+     90 +# Ensure the Mercure publisher key exists in the sto
+         re. Single writer: the
+     91  # laravel_main provisioner (App\Services\Relay\Relay
+         HubKeyProvisioner) -
+        ⋮
+     94  # Callers invoke the provisioner and then re-probe t
+         he persisted keys.
+     95 -runtime_config_ensure_mercure_keys() {
+     95 +runtime_config_ensure_mercure_publisher_key() {
+     96      RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTST
+         RAP="$BOOTSTRAP_APP" \
+        ⋮
+    105
+    106 -runtime_config_mercure_keys_ready() {
+    106 +runtime_config_mercure_publisher_key_ready() {
+    107      RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTST
+         RAP="$BOOTSTRAP_APP" \
+
+  └
+  scripts\shells\linux\debian\debian_com\laravel_runtime_fran
+  kenphp.sh (+6 -6)
+     94
+     95 -# Mercure hub keys: provisioned (never rotated) BEFO
+         RE the canonical
+     96 -# Caddyfile render so the literal publisher_jwt/subs
+         criber_jwt values are
+     97 -# always present at render time. The trusted issuer
+         self-bootstraps from
+     95 +# Mercure publisher key: provisioned (never rotated)
+          BEFORE the canonical
+     96 +# Caddyfile render so the literal publisher_jwt valu
+         e is always present.
+     97 +# The trusted issuer self-bootstraps from
+     98  # the site host when absent (single source: the stor
+         e, mirrored back on
+     99  # derivation) for the app-side token signer.
+    100 -runtime_config_ensure_mercure_keys
+    101 -if [ "$(runtime_config_mercure_keys_ready)" != "yes"
+          ]; then
+    102 -    echo "[laravel-runtime-frankenphp] [ERROR] Mercu
+         re key provisioning failed (RelayHubKeyProvisioner);
+          check the PHP runtime"
+    100 +runtime_config_ensure_mercure_publisher_key
+    101 +if [ "$(runtime_config_mercure_publisher_key_ready)"
+          != "yes" ]; then
+    102 +    echo "[laravel-runtime-frankenphp] [ERROR] Mercu
+         re publisher key provisioning failed; check the PHP
+         runtime"
+    103      exit 1
+
+  └
+  scripts\shells\linux\debian\debian_com\laravel_start_servic
+  e.sh (+4 -4)
+    75          else
+    76 -            # Mercure hub keys are provisioned indepe
+        ndently and then
+    76 +            # The Mercure publisher key is provisione
+        d independently and then
+    77              # re-probed from the canonical store.
+    78 -            runtime_config_ensure_mercure_keys
+    79 -            if [ "$(runtime_config_mercure_keys_ready
+        )" != "yes" ]; then
+    80 -                echo "ERROR: Failed to provision Merc
+        ure hub keys."
+    78 +            runtime_config_ensure_mercure_publisher_k
+        ey
+    79 +            if [ "$(runtime_config_mercure_publisher_
+        key_ready)" != "yes" ]; then
+    80 +                echo "ERROR: Failed to provision the
+        Mercure publisher key."
+    81              else
+
+  └
+  scripts\shells\linux\debian\install_shells\175_laravel_main
+  _start.sh (+4 -4)
+    476              else
+    477 -                # Mercure keys are converged indepen
+         dently and then re-probed.
+    478 -                runtime_config_ensure_mercure_keys
+    479 -                if [ "$(runtime_config_mercure_keys_
+         ready)" != "yes" ]; then
+    480 -                    echo "ERROR: Failed to provision
+          Mercure hub keys (RelayHubKeyProvisioner)."
+    477 +                # The publisher key is converged ind
+         ependently and then re-probed.
+    478 +                runtime_config_ensure_mercure_publis
+         her_key
+    479 +                if [ "$(runtime_config_mercure_publi
+         sher_key_ready)" != "yes" ]; then
+    480 +                    echo "ERROR: Failed to provision
+          the Mercure publisher key."
+    481                  else
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 4 files (+4 -4)
+  └
+  poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManag
+  erV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder.php (+1
+  -1)
+    23   * Any change to the global admin block, the https si
+        te block, the Mercure
+    24 - * publisher_jwt/subscriber_jwt stanza, the php_serve
+        r/file_server pair, or
+    24 + * publisher_jwt/anonymous stanza, the php_server/fil
+        e_server pair, or
+    25   * the env placeholder names MUST be applied to both
+        ends in the same
+
+  └ poly_apps\laravel_main\routes\channels.php (+1 -1)
+    3  // Realtime is the Mercure hub (App\Services\Relay): t
+       opic authorization is
+    4 -// identity-scoped JWT issuance in RelayHubAuthService
+       , not channel auth -
+    4 +// Mercure subscriptions are anonymous public streams,
+        not channel auth -
+    5  // no broadcast channel registrations remain.
+
+  └ scripts\shells\linux\common\frankenphp_manager.sh (+1 -1)
+    51  # RuntimeConfigurationStore and embedded as LITERAL p
+        ublisher_jwt /
+    52 -# subscriber_jwt values (official flat syntax of the
+        embedded
+    52 +# anonymous subscriber mode (official flat syntax of
+        the embedded
+    53  # mercure/caddy module v0.24.x) - the 0600 Caddyfile
+        is the only on-disk
+
+  └
+  scripts\shells\linux\debian\debian_com\laravel_runtime_fran
+  kenphp.sh (+1 -1)
+    23  # RuntimeConfigurationStore constant directory (outsi
+        de the repo - git
+    24 -# safe) and embedded as LITERAL publisher_jwt/subscri
+        ber_jwt values in the
+    24 +# safe) and embedded as the literal publisher_jwt val
+        ue in the
+    25  # canonical Caddyfile (0600) before launch - no proce
+        ss env, no .env. The
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 4 files (+6 -9)
+  └
+  poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManag
+  erV1Controllers\ServerManagerV1FrankenPhpManagerCtl.php (+1
+  -2)
+     90                  'publisher_key_provisioned' => Runti
+         meConfigurationStore::get(\App\Services\Relay\RelayH
+         ubJwt::PUBLISHER_KEY) !== null,
+     91 -                'subscriber_key_provisioned' => Runt
+         imeConfigurationStore::get(\App\Services\Relay\Relay
+         HubJwt::SUBSCRIBER_KEY) !== null,
+     91                  'trusted_issuers_provisioned' => Run
+         timeConfigurationStore::get('MERCURE_TRUSTED_ISSUERS
+         ') !== null,
+        ⋮
+    452          return preg_replace(
+    454 -            '/^(\s*(?:publisher|subscriber)_jwt\s+)\
+         S+(\s+HS256\s*)$/m',
+    453 +            '/^(\s*publisher_jwt\s+)\S+(\s+HS256\s*)
+         $/m',
+    454              '$1<redacted>$2',
+
+  └
+  poly_apps\laravel_main\app\Support\QueueCenterContract.php
+  (+1 -2)
+    209      /**
+    210 -     * Mercure hub block: path, subscriber-token TTL
+         , browser cookie name,
+    211 -     * anonymous flag (always false - every subscrib
+         er presents a JWT).
+    210 +     * Mercure hub block: protocol and well-known su
+         bscription path.
+    211       */
+
+  └ poly_apps\pycore_laravel_wordnew_ui\apps\laravel-
+  manager\components\server-
+  manager\panels\FrankenPhpPanel.tsx (+1 -1)
+    295                  <p className="text-xs text-slate-500
+          dark:text-slate-400">
+    296 -                  {t.dns01}: {status.data.dns01.mana
+         ger} · {t.mercure}: {status.data.mercure.publisher_k
+         ey_provisioned && status.data.mercure.subscriber_key
+         _provisioned ? t.ready : t.not_ready}
+    296 +                  {t.dns01}: {status.data.dns01.mana
+         ger} · {t.mercure}: {status.data.mercure.publisher_k
+         ey_provisioned ? t.ready : t.not_ready}
+    297                  </p>
+
+  └ poly_apps\pycore_laravel_wordnew_ui\apps\laravel-
+  manager\uiTypes.ts (+3 -4)
+    788    caddyfile: { path: string; exists: boolean; canoni
+         cal: boolean };
+    789 -  mercure: {
+    790 -    publisher_key_provisioned: boolean;
+    791 -    subscriber_key_provisioned: boolean;
+    792 -    trusted_issuers_provisioned: boolean;
+    789 +  mercure: {
+    790 +    publisher_key_provisioned: boolean;
+    791 +    trusted_issuers_provisioned: boolean;
+    792      hub_path: string;
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited
+poly_apps\laravel_main\app\Services\Relay\RelayHubJwt.php (+2
+-2)
+     4
+     5 +use App\Support\QueueCenterContract;
+     6  use App\Support\RuntimeConfigurationStore;
+       ⋮
+    42      /**
+    42 -     * Origin the hub is reached through: the live re
+        quest's scheme + host
+    43 -     * (same-origin SSE rule - the cookie and the str
+        eam ride one origin),
+    43 +     * Origin the hub is reached through: the live re
+        quest's scheme + host,
+    44       * falling back to the configured app URL outside
+         request context
+
+• Edited
+poly_apps\laravel_main\app\Services\Realtime\RealtimeConnecti
+onService.php (+4 -1)
+    16          $hubUrl = RelayHubJwt::hubUrl();
+    17 -        $topics = array_values(array_unique(array_fil
+        ter($topics, 'is_string')));
+    17 +        $topics = array_values(array_unique(array_fil
+        ter(
+    18 +            $topics,
+    19 +            static fn (mixed $topic): bool => is_stri
+        ng($topic) && $topic !== ''
+    20 +        )));
+    21
+
+• Ran rg -n "relay\.request|relay\.response|onEvent|
+  │ request_id" poly_apps/pycore_laravel_wordnew_ui/core/
+  │ integrations/pycore/PycoreRelayTransport.ts poly_apps/
+  │ … +3 lines
+  └ (no output)
+
+─────────────────────────────────────────────────────────────
+
+• 匿名订阅意味着 topic 不是权限边界。为避免把 WordNew 私信/社
+  交正文公开到 Hub，我把 Mercure 定位为“只发唤醒元数据”，真实
+  社交数据仍通过已登录的 Laravel REST 回放；Relay 也只广播
+  request_id，请求正文仍由设备签名后的 HTTP 数据面读取。这是
+  匿名模型下必须做的安全边界。
+
+• Edited 3 files (+22 -23)
+  └
+  poly_apps\laravel_main\app\Services\Realtime\RealtimeOutbox
+  Publisher.php (+5 -2)
+    54              static fn (): string => $topic,
+    55 +            false,
+    56              'queue_center'
+       ⋮
+    66              static fn ($row): string => AppQyV1Social
+        EventModel::topic((int) $row->user_id),
+    67 +            true,
+    68              'social'
+       ⋮
+    71
+    70 -    private function publishRows(iterable $rows, call
+        able $topicResolver, string $stream): int
+    72 +    private function publishRows(iterable $rows, call
+        able $topicResolver, bool $wakeOnly, string $stream):
+         int
+    73      {
+       ⋮
+    79              $payload['_id'] = (int) $row->id;
+    80 +            $wirePayload = $wakeOnly ? ['_id' => (int
+        ) $row->id] : $payload;
+    81
+       ⋮
+    84                      $topicResolver($row),
+    82 -                    json_encode(['event' => (string)
+        $row->event, 'data' => $payload], JSON_UNESCAPED_SLAS
+        HES),
+    85 +                    json_encode(['event' => (string)
+        $row->event, 'data' => $wirePayload], JSON_UNESCAPED_
+        SLASHES),
+    86                      false,
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayDispatcher.p
+  hp (+2 -2)
+    29              self::pairTopic($machineId),
+    30 -            self::frame($frame),
+    30 +            self::frame(['request_id' => (string) ($f
+        rame['request_id'] ?? '')]),
+    31              false,
+       ⋮
+    42              self::pairTopic($machineId),
+    43 -            self::frame($frame),
+    43 +            self::frame(['request_id' => (string) ($f
+        rame['request_id'] ?? '')]),
+    44              false,
+
+  └
+  poly_apps\pycore_laravel_wordnew_ui\apps\wordnew\api\WfNewS
+  ocialRealtime.ts (+15 -19)
+     55    private replaying = false;
+     56 -  private fallbackReplayActive = false;
+     56 +  private signalReplayActive = false;
+     57    private pendingFrames: SocialFrame[] = [];
+        ⋮
+    129
+    130 -  private handleEvent(_transportEvent: string, value
+         : unknown): void {
+    131 -    // Hub updates arrive as {event, data} envelopes
+         ; the envelope event is
+    132 -    // the canonical name the roster gate checks.
+    133 -    const envelope = this.parseObject(value);
+    134 -    if (!envelope || typeof envelope.event !== 'stri
+         ng') return;
+    135 -    if (!this.allowedEvents.has(envelope.event)) ret
+         urn;
+    136 -    const payload = this.parseObject(envelope.data)
+         ?? envelope;
+    137 -    if (!payload) return;
+    138 -    const frame = { event: envelope.event, payload }
+         ;
+    139 -    if (this.replaying) this.pendingFrames.push(fram
+         e);
+    140 -    else this.dispatchFrame(frame);
+    130 +  private handleEvent(_transportEvent: string, value
+         : unknown): void {
+    131 +    // Anonymous Hub updates contain wake-up metadat
+         a only. The authenticated
+    132 +    // replay endpoint remains the source of social
+         payloads.
+    133 +    const envelope = this.parseObject(value);
+    134 +    if (!envelope || typeof envelope.event !== 'stri
+         ng') return;
+    135 +    if (!this.allowedEvents.has(envelope.event)) ret
+         urn;
+    136 +    this.replayFromSignal();
+    137    }
+        ⋮
+    183      if (!this.started || !loadToken()) return;
+    188 -    this.replayFallback();
+    184 +    this.replayFromSignal();
+    185      this.attempts += 1;
+        ⋮
+    190
+    195 -  private replayFallback(): void {
+    196 -    if (this.fallbackReplayActive || this.allowedEve
+         nts.size === 0) return;
+    197 -    this.fallbackReplayActive = true;
+    198 -    void this.replay()
+    199 -      .catch((error) => console.warn('[wfnew-social-
+         realtime] fallback replay failed', error))
+    200 -      .finally(() => { this.fallbackReplayActive = f
+         alse; });
+    191 +  private replayFromSignal(): void {
+    192 +    if (this.signalReplayActive || this.allowedEvent
+         s.size === 0) return;
+    193 +    this.signalReplayActive = true;
+    194 +    void this.replay()
+    195 +      .catch((error) => console.warn('[wfnew-social-
+         realtime] signal replay failed', error))
+    196 +      .finally(() => { this.signalReplayActive = fal
+         se; });
+    197    }
+
+• Ran 2 commands · ctrl + t to view transcript
+
+• Edited 2 files (+0 -47)
+  └
+  poly_apps\laravel_main\app\Http\Middleware\PycoreClientOnly
+  .php (+0 -34)
+    15      private const PROTOCOL_VERSION = '1';
+    16 -    private const SERVICE_ORIGIN_HEADER = 'X-Core-Nod
+        e-Service-Origin';
+    16      private const SERVICE_HEADER = 'X-Core-Node-Servi
+        ce';
+       ⋮
+    26          return self::hasPycoreIdentity($request) && R
+        elayDeviceIdentity::verify($request);
+    28 -    }
+    29 -
+    30 -    public static function serviceOrigin(Request $req
+        uest): ?string
+    31 -    {
+    32 -        $origin = trim((string) $request->header(self
+        ::SERVICE_ORIGIN_HEADER, ''));
+    33 -        $parts = [];
+    34 -        $scheme = '';
+    35 -        $host = '';
+    36 -        $authority = '';
+    37 -        $port = null;
+    38 -
+    39 -        if ($origin === '' || !self::hasPycoreIdentit
+        y($request)) {
+    40 -            return null;
+    41 -        }
+    42 -
+    43 -        $parts = parse_url($origin);
+    44 -        if (!is_array($parts)) {
+    45 -            return null;
+    46 -        }
+    47 -        $scheme = strtolower((string) ($parts['scheme
+        '] ?? ''));
+    48 -        $host = (string) ($parts['host'] ?? '');
+    49 -        $port = isset($parts['port']) ? (int) $parts[
+        'port'] : null;
+    50 -        if (!in_array($scheme, ['http', 'https'], tru
+        e) || $host === '') {
+    51 -            return null;
+    52 -        }
+    53 -        if (isset($parts['user']) || isset($parts['pa
+        ss']) || isset($parts['path'])
+    54 -            || isset($parts['query']) || isset($parts
+        ['fragment'])) {
+    55 -            return null;
+    56 -        }
+    57 -
+    58 -        $authority = str_contains($host, ':') ? '['.$
+        host.']' : $host;
+    59 -
+    60 -        return $scheme.'://'.$authority.($port !== nu
+        ll ? ':'.$port : '');
+    27      }
+
+  └ pycore\pyutils\laravel\identity.py (+0 -13)
+     19  CORE_NODE_PROTOCOL_VERSION = "1"
+     20 -CORE_NODE_SERVICE_ORIGIN_HEADER = "X-Core-Node-Servi
+         ce-Origin"
+     20  CORE_NODE_MACHINE_HEADER = "X-Core-Node-Machine-ID"
+        ⋮
+     38
+     40 -def _service_origin(service_url: str) -> str:
+     41 -    parsed = urlsplit(str(service_url or "").strip()
+         )
+     42 -    if parsed.scheme not in {"http", "https"} or not
+          parsed.hostname:
+     43 -        return ""
+     44 -    host = f"[{parsed.hostname}]" if ":" in parsed.h
+         ostname else parsed.hostname
+     45 -    port = f":{parsed.port}" if parsed.port is not N
+         one else ""
+     46 -    return f"{parsed.scheme}://{host}{port}"
+     47 -
+     48 -
+     39  def get_pycore_machine_id() -> str:
+        ⋮
+     98          headers[CORE_NODE_ENROLLMENT_SECRET_HEADER]
+         = secret
+    109 -    origin = _service_origin(service_url)
+    110 -    if origin:
+    111 -        headers[CORE_NODE_SERVICE_ORIGIN_HEADER] = o
+         rigin
+     99      return headers
+
+─────────────────────────────────────────────────────────────
+
+• 设备认领已改为稳定 machine_id + 持久随机设备密钥的 HMAC 请
+  求证明，并加入时间窗、nonce 去重和正文 SHA‑256；IP 不进入签
+  名，所以换 IP 可继续认领，复制 machine_id 或固定请求头则不
+  能。首次注册原子绑定密钥，离线/注销只清在线状态，不清设备认
+  领。接下来做官方规范对照和全局静态一致性扫描。
+
+◦ Searching the web
+
+• Searched the web for site:mercure.rocks/docs/hub/config
+  anonymous cors_origins official Mercure ...
+
+• Ran rg -n "replaying|pendingFrames|SocialFrame|
+  │ signalReplayActive" 'D:
+  │ \programing\core_node\poly_apps\pycore_laravel_wordnew_
+  │ … +10 lines
+  └ (no output)
+
+• Edited
+poly_apps\pycore_laravel_wordnew_ui\apps\wordnew\api\WfNewSoc
+ialRealtime.ts (+23 -28)
+     54    private reconnectTimer: ReturnType<typeof setTimeo
+         ut> | null = null;
+     55 -  private replaying = false;
+     56 -  private signalReplayActive = false;
+     57 -  private pendingFrames: SocialFrame[] = [];
+     55 +  private replayFlight: Promise<void> | null = null;
+     56    private allowedEvents = new Set<string>();
+        ⋮
+    136
+    139 -  private async replay(): Promise<void> {
+    137 +  private async replay(): Promise<void> {
+    138      let hasMore = true;
+        ⋮
+    150      }
+    153 -  }
+    151 +  }
+    152 +
+    153 +  private replaySerialized(): Promise<void> {
+    154 +    if (this.replayFlight) return this.replayFlight;
+    155 +    this.replayFlight = this.replay().finally(() =>
+         {
+    156 +      this.replayFlight = null;
+    157 +    });
+    158 +    return this.replayFlight;
+    159 +  }
+    160
+    161    private async subscribed(generation: number): Prom
+         ise<void> {
+    156 -    this.attempts = 0;
+    157 -    this.replaying = true;
+    158 -    await this.replay();
+    159 -    if (!this.started || this.generation !== generat
+         ion) return;
+    160 -    this.replaying = false;
+    161 -    this.connected = true;
+    162 -    const pending = this.pendingFrames;
+    163 -    this.pendingFrames = [];
+    164 -    pending.forEach((frame) => this.dispatchFrame(fr
+         ame));
+    162 +    this.attempts = 0;
+    163 +    await this.replaySerialized();
+    164 +    if (!this.started || this.generation !== generat
+         ion) return;
+    165 +    this.connected = true;
+    166    }
+        ⋮
+    168    private closeSocket(): void {
+    168 -    this.transport.close();
+    169 -    this.connected = false;
+    170 -    this.replaying = false;
+    171 -    this.pendingFrames = [];
+    169 +    this.transport.close();
+    170 +    this.connected = false;
+    171    }
+        ⋮
+    190    private replayFromSignal(): void {
+    192 -    if (this.signalReplayActive || this.allowedEvent
+         s.size === 0) return;
+    193 -    this.signalReplayActive = true;
+    194 -    void this.replay()
+    195 -      .catch((error) => console.warn('[wfnew-social-
+         realtime] signal replay failed', error))
+    196 -      .finally(() => { this.signalReplayActive = fal
+         se; });
+    191 +    if (this.allowedEvents.size === 0) return;
+    192 +    void this.replaySerialized()
+    193 +      .catch((error) => console.warn('[wfnew-social-
+         realtime] signal replay failed', error));
+    194    }
+        ⋮
+    209        this.allowedEvents = new Set(config.events ||
+         []);
+    213 -      await this.replay();
+    210 +      await this.replaySerialized();
+    211        if (!this.started || generation !== this.gener
+         ation) return;
+        ⋮
+    221          onClose: () => {
+    225 -          this.connected = false;
+    226 -          this.replaying = false;
+    227 -          this.pendingFrames = [];
+    228 -          this.reconnectAfterFailure();
+    222 +          this.connected = false;
+    223 +          this.reconnectAfterFailure();
+    224          },
+
+• Ran rg -n --glob '*.ts' --glob '*.py' "Authorization|
+  │ authorization|token_provider|hub_token|relayHubAuth|
+  │ relay_hub_auth" poly_apps/pycore_laravel_wordnew_ui/
+  │ … +14 lines
+  └ (no output)
+
+• Edited
+poly_apps\laravel_main\app\Services\Relay\RelayDeviceIdentity
+.php (+13 -0)
+     24          $machineId = trim((string) $request->header(
+         self::MACHINE_HEADER, ''));
+     25 +        $requestMachineId = self::requestMachineId($
+         request);
+     26          $timestamp = (string) $request->header(self:
+         :TIMESTAMP_HEADER, '');
+        ⋮
+     40          if (!RelayMachineRegistry::isValidId($machin
+         eId)
+     41 +            || $requestMachineId === null || !hash_e
+         quals($machineId, $requestMachineId)
+     42              || !ctype_digit($timestamp)
+        ⋮
+    123
+    124 +    private static function requestMachineId(Request
+          $request): ?string
+    125 +    {
+    126 +        $routeMachineId = $request->route('machineId
+         ');
+    127 +        $bodyMachineId = $request->json('machine_id'
+         );
+    128 +        $value = is_string($routeMachineId) && $rout
+         eMachineId !== ''
+    129 +            ? $routeMachineId
+    130 +            : (is_string($bodyMachineId) ? $bodyMach
+         ineId : '');
+    131 +
+    132 +        return RelayMachineRegistry::isValidId($valu
+         e) ? $value : null;
+    133 +    }
+    134 +
+    135      private static function decodeSecret(string $val
+         ue): ?string
+
+• Edited
+poly_apps\pycore_laravel_wordnew_ui\core\integrations\laravel
+\LaravelMercureConnection.ts (+2 -1)
+    68      const response = await protocolFetch(config.subsc
+        ribe_url || this.subscribeUrl(config), {
+    69 -      headers,
+    69 +      credentials: 'omit',
+    70 +      headers,
+    71        signal: controller.signal,
+
+⚠ Heads up, you have less than 10% of your weekly limit left.
+  Run /status for a breakdown.
+
+• Edited
+poly_apps\pycore_laravel_wordnew_ui\core\integrations\laravel
+\LaravelMercureConnection.ts (+17 -9)
+     62        Accept: 'text/event-stream',
+     63 -      'Cache-Control': 'no-cache',
+     64 -    };
+     65 -    if (this.lastEventId) headers['Last-Event-ID'] =
+          this.lastEventId;
+     66 -    this.controller = controller;
+     67 -
+     68 -    const response = await protocolFetch(config.subs
+         cribe_url || this.subscribeUrl(config), {
+     63 +    };
+     64 +    this.controller = controller;
+     65 +
+     66 +    const response = await protocolFetch(this.resume
+         Url(
+     67 +      config.subscribe_url || this.subscribeUrl(conf
+         ig),
+     68 +    ), {
+     69        credentials: 'omit',
+        ⋮
+    140
+    141 -  private subscribeUrl(config: LaravelMercureHubConf
+         ig): string {
+    141 +  private subscribeUrl(config: LaravelMercureHubConf
+         ig): string {
+    142      const url = new URL(config.hub_url);
+    143      for (const topic of config.topics) url.searchPar
+         ams.append('topic', topic);
+    144 -    return url.toString();
+    145 -  }
+    144 +    return url.toString();
+    145 +  }
+    146 +
+    147 +  private resumeUrl(value: string): string {
+    148 +    if (!this.lastEventId) return value;
+    149 +    const url = new URL(value);
+    150 +    url.searchParams.set('lastEventID', this.lastEve
+         ntId);
+    151 +    url.searchParams.set('last_event_id', this.lastE
+         ventId);
+    152 +    return url.toString();
+    153 +  }
+    154
+
+• Ran 2 commands · ctrl + t to view transcript
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\poly_apps\laravel_main\app\Apps\S
+  │ erverManagerV1\ServerManagerV1Utils\ServerManagerV1Fran
+  │ … +5 lines
+  └      * The single Mercure hub lives on the direct backend
+    site. HTTPS and
+    … +24 lines (ctrl + t to view transcript)
+                . "\t\tcors_origins ".implode(' ',
+    $corsOrigins)."\n"
+
+• Ran 4 commands · ctrl + t to view transcript
+
+• Edited 6 files (+23 -38)
+  └
+  poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManag
+  erV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder.php (+2
+  -4)
+    181          $publisherKey = RuntimeConfigurationStore::g
+         et(RelayHubJwt::PUBLISHER_KEY);
+    182 -        $subscriberKey = RuntimeConfigurationStore::
+         get(RelayHubJwt::SUBSCRIBER_KEY);
+    182          $corsOrigins = ServiceContract::stringList('
+         realtime.mercure_cors_origins');
+        ⋮
+    185              || trim($publisherKey) === ''
+    187 -            || $subscriberKey === null
+    188 -            || trim($subscriberKey) === ''
+    186 +            || !ServiceContract::boolean('realtime.m
+         ercure_anonymous_subscribers')
+    187          ) {
+        ⋮
+    193              . "\t\tpublisher_jwt {$publisherKey} HS2
+         56\n"
+    196 -            . "\t\tsubscriber_jwt {$subscriberKey} H
+         S256\n"
+    194 +            . "\t\tanonymous\n"
+    195              . "\t\tcors_origins ".implode(' ', $cors
+         Origins)."\n"
+
+  └
+  poly_apps\laravel_main\app\Services\Realtime\RealtimeConnec
+  tionService.php (+1 -4)
+    26              'subscribe_url' => self::subscribeUrl($hu
+        bUrl, $topics),
+    27 -            'auth_mode' => 'bearer',
+    28 -            'token' => RelayHubJwt::subscriberToken($
+        topics, $hubUrl),
+    29 -            'token_ttl_seconds' => RelayHubJwt::subsc
+        riberTtlSeconds(),
+    30 -            'cookie' => 'mercureAuthorization',
+    27 +            'auth_mode' => 'anonymous',
+    28              'protocol' => QueueCenterContract::relayH
+        ubString('protocol'),
+
+  └ poly_apps\laravel_main\app\Services\Relay\RelayHubJwt.php
+  (+0 -23)
+    22      public const PUBLISHER_KEY = 'MERCURE_PUBLISHER_J
+        WT';
+    23 -    public const SUBSCRIBER_KEY = 'MERCURE_SUBSCRIBER
+        _JWT';
+    23      public const TRUSTED_ISSUER_KEY = 'MERCURE_TRUSTE
+        D_ISSUERS';
+    24      private const PUBLISHER_TTL_SECONDS = 300;
+    26 -    private const SUBSCRIBER_TTL_SECONDS = 600;
+    25
+       ⋮
+    34          );
+    37 -    }
+    38 -
+    39 -    public static function subscriberToken(array $top
+        ics, ?string $hubUrl = null): string
+    40 -    {
+    41 -        $selectors = array_values(array_unique(array_
+        filter(
+    42 -            $topics,
+    43 -            static fn (mixed $topic): bool => is_stri
+        ng($topic) && $topic !== ''
+    44 -        )));
+    45 -
+    46 -        return self::build(
+    47 -            'subscriber',
+    48 -            ['subscribe' => $selectors],
+    49 -            self::SUBSCRIBER_TTL_SECONDS,
+    50 -            self::SUBSCRIBER_KEY,
+    51 -            $hubUrl
+    52 -        );
+    53 -    }
+    54 -
+    55 -    public static function subscriberTtlSeconds(): in
+        t
+    56 -    {
+    57 -        return self::SUBSCRIBER_TTL_SECONDS;
+    35      }
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayHubKeyProvis
+  ioner.php (+1 -6)
+    31          $result[RelayHubJwt::PUBLISHER_KEY] = self::e
+        nsureKey(RelayHubJwt::PUBLISHER_KEY);
+    32 -        $result[RelayHubJwt::SUBSCRIBER_KEY] = self::
+        ensureKey(RelayHubJwt::SUBSCRIBER_KEY);
+    32
+       ⋮
+    41          $publisher = RuntimeConfigurationStore::get(R
+        elayHubJwt::PUBLISHER_KEY);
+    43 -        $subscriber = RuntimeConfigurationStore::get(
+        RelayHubJwt::SUBSCRIBER_KEY);
+    42
+    45 -        return $publisher !== null
+    46 -            && trim($publisher) !== ''
+    47 -            && $subscriber !== null
+    48 -            && trim($subscriber) !== '';
+    43 +        return $publisher !== null && trim($publisher
+        ) !== '';
+    44      }
+
+  └ poly_apps\laravel_main\app\Support\ServiceContract.php
+  (+15 -0)
+    114
+    115 +    public static function boolean(string $path): bo
+         ol
+    116 +    {
+    117 +        $value = self::document();
+    118 +        foreach (explode('.', $path) as $segment) {
+    119 +            $value = is_array($value) && array_key_e
+         xists($segment, $value)
+    120 +                ? $value[$segment]
+    121 +                : null;
+    122 +        }
+    123 +        if (!is_bool($value)) {
+    124 +            throw new RuntimeException("Unknown serv
+         ice contract boolean: {$path}");
+    125 +        }
+    126 +
+    127 +        return $value;
+    128 +    }
+    129 +
+    130      /**
+
+  └ scripts\shells\linux\common\frankenphp_manager.sh (+4 -1)
+    1187      local cors_origins=""
+    1188 +    local anonymous_subscribers=""
+    1189
+         ⋮
+    1201      cors_origins="$(sc_list realtime.mercure_cors_o
+          rigins)"
+    1201 -    if [ -z "$mercure_transport" ] || [ -z "$cors_o
+          rigins" ]; then
+    1202 +    anonymous_subscribers="$(sc_require realtime.me
+          rcure_anonymous_subscribers)"
+    1203 +    if [ -z "$mercure_transport" ] || [ -z "$cors_o
+          rigins" ] \
+    1204 +        || [ "$anonymous_subscribers" != "true" ];
+          then
+    1205          echo "[$SCRIPT_INDEX] [ERROR] Mercure servi
+          ce contract is incomplete"
+
+• Ran rg -n --glob '*.php' --glob '*.sh' --glob '*.py' --glob
+  │ '*.ts' --glob '*.json' "subscriberToken|SUBSCRIBER_KEY|
+  │ subscriber_jwt|auth_mode.*bearer|mercureAuthorization|
+  │ … +14 lines
+  └ (no output)
+
+• Edited config\service_contract.json (+1 -1)
+    24          "mercure_anonymous_subscribers": true,
+    25 -        "mercure_cors_origins": ["http://localhost:13
+        054", "http://127.0.0.1:13054"]
+    25 +        "mercure_cors_origins": ["*"]
+    26      },
+
+• Ran rg -n "schema_version|relay_hub_auth|token_ttl_seconds|
+  │ device_identity" config/queue_center_contract.json
+  │ poly_apps/pycore_laravel_wordnew_ui/core/contracts/
+  │ … +5 lines
+  └ (no output)
+
+• Ran 4 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 我发现工作区有外部写入正在反复把 Mercure 配置改回
+  subscriber JWT 和本地 Origin 白名单：静态扫描前已确认是匿名
+  配置，数秒后同一批文件又被恢复为相反内容。UI/Python 改动没
+  有被恢复，冲突集中在 service_contract.json 与 Laravel
+  Mercure 配置类。我先定位这个写入来源，避免最后留下互相矛盾
+  的配置。
+
+• Ran 5 commands · ctrl + t to view transcript
+
+• Edited config\service_contract.json (+2 -2)
+    23          "mercure_transport": "local",
+    24 -        "mercure_anonymous_subscribers": false,
+    25 -        "mercure_cors_origins": ["http://127.0.0.1:13
+        054", "http://localhost:13054"]
+    24 +        "mercure_anonymous_subscribers": true,
+    25 +        "mercure_cors_origins": ["*"]
+    26      },
+
+• Edited
+poly_apps\laravel_main\app\Services\Realtime\RealtimeConnecti
+onService.php (+1 -4)
+    23              'subscribe_url' => self::subscribeUrl($hu
+        bUrl, $topics),
+    24 -            'auth_mode' => 'bearer',
+    25 -            'token' => RelayHubJwt::subscriberToken($
+        topics, $hubUrl),
+    26 -            'token_ttl_seconds' => RelayHubJwt::subsc
+        riberTtlSeconds(),
+    27 -            'cookie' => null,
+    24 +            'auth_mode' => 'anonymous',
+    25              'protocol' => QueueCenterContract::relayH
+        ubString('protocol'),
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\poly_apps\laravel_main\app\Servic
+  │ es\Relay\RelayHubKeyProvisioner.php' | Select-Object
+  │ … +3 lines
+  └ namespace App\Services\Relay;
+
+    … +132 lines (ctrl + t to view transcript)
+        {
+            $request = null;
+
+
+› 继续，已经暂停了另一个AI的写入。
+
+
+• 收到，冲突源已停。我会以当前磁盘内容为准重新收敛这几处被覆
+  盖的 Laravel/Mercure 文件，然后完成只读一致性扫描；不会运行
+  测试、构建或服务。
+
+• Edited 2 files (+6 -34)
+  └ poly_apps\laravel_main\app\Services\Relay\RelayHubJwt.php
+  (+2 -26)
+    15   * FrankenPHP v1.12.7 embeds dunglas/mercure v0.24.2,
+         whose native grant is
+    16 - * the `mercure.publish` / `mercure.subscribe` claim.
+         Publisher and subscriber
+    17 - * keys are isolated so a browser or machine subscrib
+        er can never publish.
+    16 + * the `mercure.publish` claim. The key is server-onl
+        y; subscribers are
+    17 + * anonymous and receive public updates only.
+    18   */
+       ⋮
+    21      public const PUBLISHER_KEY = 'MERCURE_PUBLISHER_J
+        WT';
+    22 -    public const SUBSCRIBER_KEY = 'MERCURE_SUBSCRIBER
+        _JWT';
+    22      public const TRUSTED_ISSUER_KEY = 'MERCURE_TRUSTE
+        D_ISSUERS';
+    23      private const PUBLISHER_TTL_SECONDS = 300;
+    25 -    private const SUBSCRIBER_TTL_SECONDS = 600;
+    24
+       ⋮
+    31              self::PUBLISHER_KEY,
+    34 -            $hubUrl
+    35 -        );
+    36 -    }
+    37 -
+    38 -    /** @param array<int, string> $topics */
+    39 -    public static function subscriberToken(array $top
+        ics, ?string $hubUrl = null): string
+    40 -    {
+    41 -        $topics = array_values(array_unique(array_fil
+        ter(
+    42 -            $topics,
+    43 -            static fn (mixed $topic): bool => is_stri
+        ng($topic) && $topic !== ''
+    44 -        )));
+    45 -
+    46 -        return self::build(
+    47 -            'subscriber',
+    48 -            ['subscribe' => $topics],
+    49 -            self::SUBSCRIBER_TTL_SECONDS,
+    50 -            self::SUBSCRIBER_KEY,
+    32              $hubUrl
+    33          );
+    53 -    }
+    54 -
+    55 -    public static function subscriberTtlSeconds(): in
+        t
+    56 -    {
+    57 -        return self::SUBSCRIBER_TTL_SECONDS;
+    34      }
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayHubKeyProvis
+  ioner.php (+4 -8)
+    15   * fm_mercure_config on the shell end) embed the stor
+        ed values as literal
+    16 - * publisher_jwt and subscriber_jwt directives after
+        provisioning.
+    16 + * publisher_jwt directive after provisioning.
+    17   */
+       ⋮
+    22      /**
+    23 -     * Ensure both isolated hub keys exist.
+    23 +     * Ensure the publisher hub key exists.
+    24       *
+       ⋮
+    31          $result[RelayHubJwt::PUBLISHER_KEY] = self::e
+        nsureKey(RelayHubJwt::PUBLISHER_KEY);
+    32 -        $result[RelayHubJwt::SUBSCRIBER_KEY] = self::
+        ensureKey(RelayHubJwt::SUBSCRIBER_KEY);
+    32
+       ⋮
+    36      /**
+    38 -     * True when both hub keys are present and non-em
+        pty.
+    37 +     * True when the publisher hub key is present and
+         non-empty.
+    38       */
+       ⋮
+    41          $publisher = RuntimeConfigurationStore::get(R
+        elayHubJwt::PUBLISHER_KEY);
+    43 -        $subscriber = RuntimeConfigurationStore::get(
+        RelayHubJwt::SUBSCRIBER_KEY);
+    44 -
+    45 -        return $publisher !== null && trim($publisher
+        ) !== ''
+    46 -            && $subscriber !== null && trim($subscrib
+        er) !== '';
+    42 +        return $publisher !== null && trim($publisher
+        ) !== '';
+    43      }
+
+• Context compacted
+
+─────────────────────────────────────────────────────────────
+
+• 我继续按已确定的底层方案收口：先确认暂停写入后的实际文件状
+  态，修正可能被覆盖的 Mercure/Caddy 配置，再做全局静态一致性
+  扫描。按项目规则不运行测试、构建或服务。
+
+• Updated Plan
+  └ □ 核对暂停覆盖后的配置与核心实现状态
+    □ 修正部署脚本与 Laravel 匿名 Mercure 配置
+    □ 核对 UI/Python 共享连接层与设备身份签名
+    □ 执行只读静态一致性扫描并收口
+
+• Ran $files = @('config/service_contract.json','config/
+  │ queue_center_contract.json','scripts/shells/linux/
+  │ common/frankenphp_manager.sh','poly_apps/laravel_main/
+  │ … +10 lines
+  └ 21:    "transport": "mercure",
+    102:      "protocol": "mercure",
+    … +62 lines (ctrl + t to view transcript)
+    ServerManagerV1FrankenPhpCaddyfileBuilder.php: The system
+    cannot find the path specified. (os error 3)
+
+─────────────────────────────────────────────────────────────
+
+• 配置和主要运行时文件没有再次被覆盖：当前是 anonymous +
+  cors_origins *，且只保留服务端 publisher JWT。Laravel 的
+  Caddyfile 构建器路径与先前记录不一致，我正在定位真实文件并
+  检查是否还残留 subscriber 配置。
+
+• Ran rg --files poly_apps/laravel_main | rg
+  │ 'ServerManagerV1FrankenPhpCaddyfileBuilder\.php$|
+  │ CaddyfileBuilder\.php$'; rg -n --glob '*.php' --glob
+  │ … +6 lines
+  └ The string is missing the terminator: ".
+        + CategoryInfo          : ParserError: (:) [],
+    … +4 lines (ctrl + t to view transcript)
+       ng
+
+
+• Ran 1 command · ctrl + t to view transcript
+• Ran rg --files poly_apps/laravel_main | rg
+  │ "ServerManagerV1FrankenPhpCaddyfileBuilder\.php$|
+  │ CaddyfileBuilder\.php$"
+  └ (no output)
+
+─────────────────────────────────────────────────────────────
+
+• 静态扫描发现两处确实仍是旧模型：Laravel 管理器生成的
+  Caddyfile 仍写 subscriber_jwt，Python 公共 Mercure 客户端仍
+  保留 token provider/401 刷新逻辑。我会直接在这两个共享底层
+  实现修正，避免在各子应用加兼容分支。
+
+• Ran 3 commands · ctrl + t to view transcript
+
+• Edited 2 files (+18 -34)
+  └
+  poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManag
+  erV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder.php (+6
+  -7)
+     23   * Any change to the global admin block, the https s
+         ite block, the Mercure
+     24 - * publisher_jwt/subscriber_jwt stanza, the php_serv
+         er/file_server pair, or
+     24 + * publisher_jwt/anonymous stanza, the php_server/fi
+         le_server pair, or
+     25   * the env placeholder names MUST be applied to both
+          ends in the same
+        ⋮
+    109      /**
+    110 -     * Render the canonical Caddyfile. The Mercure H
+         S256 keys are embedded
+    111 -     * as literal publisher_jwt/subscriber_jwt value
+         s (single source: the
+    110 +     * Render the canonical Caddyfile. The Mercure H
+         S256 publisher key is
+    111 +     * embedded as a literal publisher_jwt value (si
+         ngle source: the
+    112       * private RuntimeConfigurationStore; the file i
+         s 0600) - no process
+        ⋮
+    181          $publisherKey = RuntimeConfigurationStore::g
+         et(RelayHubJwt::PUBLISHER_KEY);
+    182 -        $subscriberKey = RuntimeConfigurationStore::
+         get(RelayHubJwt::SUBSCRIBER_KEY);
+    182          $corsOrigins = ServiceContract::stringList('
+         realtime.mercure_cors_origins');
+    183 +        $anonymousSubscribers = ServiceContract::boo
+         lean('realtime.mercure_anonymous_subscribers');
+    184
+        ⋮
+    186              || trim($publisherKey) === ''
+    187 -            || $subscriberKey === null
+    188 -            || trim($subscriberKey) === ''
+    187 +            || !$anonymousSubscribers
+    188          ) {
+        ⋮
+    194              . "\t\tpublisher_jwt {$publisherKey} HS2
+         56\n"
+    196 -            . "\t\tsubscriber_jwt {$subscriberKey} H
+         S256\n"
+    195 +            . "\t\tanonymous\n"
+    196              . "\t\tcors_origins ".implode(' ', $cors
+         Origins)."\n"
+
+  └ pycore\pyutils\common\mercure_client.py (+12 -27)
+      8    parameter per topic (repeated), ``Accept: text/eve
+         nt-stream``.
+      9 -- Subscription authorization uses a topic-scoped bea
+         rer token issued by the
+     10 -  Laravel control plane. A 401 refreshes that token
+         once before reconnecting.
+      9 +- Subscriptions are anonymous and therefore receive
+         public updates only.
+     10  - Reconciliation = ``Last-Event-ID`` request header
+         on reconnects; the
+        ⋮
+     42  Sleeper = Callable[[float], None]
+     44 -TokenProvider = Callable[[bool], str]
+     43
+        ⋮
+     79  class MercureSubscriber:
+     82 -    """Drive one authenticated Mercure subscription
+         with reconnect and resume."""
+     80 +    """Drive one anonymous Mercure subscription with
+          reconnect and resume."""
+     81
+        ⋮
+     90          connect_timeout: float = 10.0,
+     93 -        read_timeout: float = 90.0,
+     91 +        read_timeout: float = 90.0,
+     92          max_redirects: int = 3,
+     93          extra_headers: Optional[Dict[str, str]] = No
+         ne,
+     96 -        token_provider: Optional[TokenProvider] = No
+         ne,
+     97 -    ) -> None:
+     94 +    ) -> None:
+     95          self.hub_url = str(hub_url or "").rstrip("/"
+         )
+        ⋮
+    107          self.max_redirects = max(0, int(max_redirect
+         s))
+    111 -        self.extra_headers = dict(extra_headers or {
+         })
+    112 -        self.token_provider = token_provider
+    108 +        self.extra_headers = {
+    109 +            key: value
+    110 +            for key, value in dict(extra_headers or
+         {}).items()
+    111 +            if key.lower() != "authorization"
+    112 +        }
+    113          self.last_event_id = ""
+        ⋮
+    161          url = mercure_subscribe_url(self.hub_url, se
+         lf.topics, initial_cursor)
+    162 -        auth_refreshed = False
+    162          while True:
+    164 -            request_headers = self._request_headers(
+    165 -                resume=not initial_cursor,
+    166 -                force_token=auth_refreshed,
+    167 -            )
+    163 +            request_headers = self._request_headers(
+         resume=not initial_cursor)
+    164              session, transport_options, transport =
+         create_laravel_http_session()
+        ⋮
+    192                  url = urllib.parse.urljoin(url, loca
+         tion)
+    197 -                continue
+    198 -            if status == 401 and self.token_provider
+          is not None and not auth_refreshed:
+    199 -                self._close(connection)
+    200 -                auth_refreshed = True
+    193                  continue
+        ⋮
+    199
+    208 -    def _request_headers(self, resume: bool, force_t
+         oken: bool = False) -> Dict[str, str]:
+    200 +    def _request_headers(self, resume: bool) -> Dict
+         [str, str]:
+    201          headers = {
+        ⋮
+    204          }
+    213 -        token = self.token_provider(force_token) if
+         self.token_provider is not None else ""
+    205          if resume and self.last_event_id:
+    206              headers["Last-Event-ID"] = self.last_eve
+         nt_id
+    216 -        headers.update({
+    217 -            key: value
+    218 -            for key, value in self.extra_headers.ite
+         ms()
+    219 -            if key.lower() != "authorization"
+    220 -        })
+    221 -        if token:
+    222 -            headers["Authorization"] = f"Bearer {tok
+         en}"
+    207 +        headers.update(self.extra_headers)
+    208          return headers
+
+• Ran 1 command · ctrl + t to view transcript
+• Ran rg -n --glob "*.php" --glob "*.ts" --glob "*.tsx"
+  │ --glob "*.py" --glob "*.sh" --glob "*.json"
+  │ "SUBSCRIBER_KEY|subscriber_jwt|subscriberToken|
+  │ … +4 lines
+  └ (no output)
+
+• Ran 2 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 旧订阅认证残留已从两个共享实现移除；普通 Laravel REST 的
+  credentials/include 与业务 Bearer 鉴权仍保留，它们不属于
+  Mercure 订阅认证。接下来我核对匿名事件是否只承载唤醒信息，
+  以及跨 IP 设备签名是否在注册、重连和所有 Pycore 请求上统一
+  生效。
+
+• Ran 4 commands · ctrl + t to view transcript
+• Ran Get-Content -LiteralPath 'poly_apps/laravel_main/
+  │ routes/api/relay.php'; Get-Content -LiteralPath
+  │ 'poly_apps/laravel_main/app/Http/Controllers/Api/
+  │ … +1 lines
+  └ <?php
+
+    … +64 lines (ctrl + t to view transcript)
+       hell.Commands.GetContentCommand
+
+
+• Ran 3 commands · ctrl + t to view transcript
+• Ran rg -n -C 8 "MercureSubscriber|hub_url|token|register|
+  │ heartbeat|machine_id" pycore/pyctl/relay/
+  │ relay_service.py; Get-Content -LiteralPath 'pycore/
+  │ … +1 lines
+  └ Get-Content : Cannot find path
+    'pycore/pyctl/relay/snapshot_service.py' because it does
+    … +12 lines (ctrl + t to view transcript)
+       hell.Commands.GetContentCommand
+
+
+• Ran rg --files poly_apps/laravel_main/app/Http/Controllers
+  │ | rg "RelayController\.php$|
+  │ SocialRealtimeController\.php$"
+  └ (no output)
+
+• Ran Get-Content -LiteralPath 'poly_apps/
+  │ pycore_laravel_wordnew_ui/core/integrations/laravel/
+  │ WfNewSocialRealtime.ts'; Get-Content -LiteralPath
+  │ … +2 lines
+  └ Get-Content : Cannot find path 'poly_apps/
+    pycore_laravel_wor
+    … +27 lines (ctrl + t to view transcript)
+       hell.Commands.GetContentCommand
+
+
+• Ran 8 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 核心链路目前一致：匿名 Hub 只作为公开推送通道；社会数据在
+  Hub 中仅发送游标唤醒，正文通过已登录的 Laravel REST 回放；
+  机器端只从 Hub 收 request_id，再用设备签名请求 Laravel 取完
+  整内容。现在我同步修正文档性注释，并按 Mercure 官方配置/规
+  范再次核对通配 CORS、匿名订阅和 publisher JWT 的边界。
+
+• Edited 6 files (+12 -11)
+  └
+  poly_apps\laravel_main\app\Http\Controllers\RelayController
+  .php (+1 -1)
+    21  /**
+    22 - * Relay controller: the 12 contract endpoints under
+        /api/relay/*.
+    22 + * Relay controller: the contract endpoints under /ap
+        i/relay/*.
+    23   *
+
+  └
+  poly_apps\laravel_main\app\Http\Middleware\PycoreClientOnly
+  .php (+2 -1)
+    19      /**
+    20 -     * Recognized machine identity: pycore header pai
+        r or loopback debug.
+    20 +     * Recognized machine identity: the pycore protoc
+        ol headers plus the
+    21 +     * request-bound device signature.
+    22       * Shared with dual-identity endpoints (relay blo
+        b reads) so the same
+
+  └
+  poly_apps\laravel_main\app\Providers\RuntimeConfigurationSe
+  rviceProvider.php (+2 -2)
+    115      /**
+    116 -     * Mercure hub keys (HS256): provisioned once in
+         to the private store;
+    117 -     * RelayHubJwt reads them directly. They never e
+         nter the Laravel config
+    116 +     * Mercure publisher key (HS256): provisioned on
+         ce into the private store;
+    117 +     * RelayHubJwt reads it directly. It never enter
+         s the Laravel config
+    118       * tree, env files or any client-facing surface.
+
+  └
+  poly_apps\laravel_main\app\Services\Relay\RelayHubKeyProvis
+  ioner.php (+4 -4)
+     7  /**
+     8 - * Mercure hub key provisioner - the single writer fo
+        r the HS256 hub
+     9 - * secrets. Keys live ONLY in the RuntimeConfiguratio
+        nStore constant
+     8 + * Mercure hub key provisioner - the single writer fo
+        r the HS256 publisher
+     9 + * secret. The key lives ONLY in the RuntimeConfigura
+        tionStore constant
+    10   * directory (outside the repository tree): never in
+        code, config, env
+    11 - * files or git. Idempotent: present keys are never r
+        otated (issued tokens
+    12 - * keep validating across restarts); missing keys are
+         generated once.
+    11 + * files or git. Idempotent: a present key is never r
+        otated (issued tokens
+    12 + * keep validating across restarts); a missing key is
+         generated once.
+    13   *
+
+  └ poly_apps\laravel_main\routes\api\relay.php (+1 -1)
+    18  // (relay_*); that block is the single source pycore
+        / the UIs render.
+    19 -// Machine-side endpoints run behind PycoreClientOnly
+         (header identity);
+    19 +// Machine-side endpoints run behind PycoreClientOnly
+         (signed device identity);
+    20  // session-side endpoints resolve the UI identity in
+        the controller.
+
+  └
+  scripts\shells\linux\debian\debian_com\laravel_runtime_fran
+  kenphp.sh (+2 -2)
+    20  #
+    21 -# Mercure hub material (the pinned embedded Mercure r
+        untime): the HMAC keys
+    22 -# are provisioned (never rotated) by the laravel_main
+         RelayHubKeyProvisioner into the
+    21 +# Mercure hub material (the pinned embedded Mercure r
+        untime): the publisher
+    22 +# HMAC key is provisioned (never rotated) by the lara
+        vel_main RelayHubKeyProvisioner into the
+    23  # RuntimeConfigurationStore constant directory (outsi
+        de the repo - git
+
+◦ Searching the web
+
+• Searched the web for site:mercure.rocks/docs/hub/config
+  anonymous cors_origins wildcard Mercure ...
+
+• Ran Get-Content -LiteralPath 'poly_apps/
+  │ pycore_laravel_wordnew_ui/core/network/
+  │ ProtocolFetch.ts'; rg -n -C 5 "protocolFetch"
+  │ … +5 lines
+  └ poly_apps/pycore_laravel_wordnew_ui/core/
+    network\ProtocolFetch.ts-213-/**
+    … +65 lines (ctrl + t to view transcript)
+    SocialRealtimeController.php:38:        $connection =
+    $this->connections->hubConnection(
+
+• Edited pycore\pyutils\common\mercure_client.py (+7 -5)
+    68
+    69 -    ``last_event_id`` is only honored for the INITIAL
+         cursor (spec query
+    70 -    parameter); reconnects use the ``Last-Event-ID``
+        header instead.
+    69 +    The initial cursor uses both the current ``last_e
+        vent_id`` parameter and
+    70 +    the pinned hub's legacy ``lastEventID`` spelling;
+         reconnects use the
+    71 +    ``Last-Event-ID`` header.
+    72      """
+    72 -    query: List[Tuple[str, str]] = [("topic", str(top
+        ic)) for topic in topics if topic]
+    73 -    if last_event_id:
+    74 -        query.append(("lastEventID", str(last_event_i
+        d)))
+    73 +    query: List[Tuple[str, str]] = [("topic", str(top
+        ic)) for topic in topics if topic]
+    74 +    if last_event_id:
+    75 +        query.append(("last_event_id", str(last_event
+        _id)))
+    76 +        query.append(("lastEventID", str(last_event_i
+        d)))
+    77      separator = "&" if "?" in hub_url else "?"
+
+• Ran 2 commands · ctrl + t to view transcript
+• Ran rg -n --glob "*.php" --glob "*.ts" --glob "*.tsx"
+  │ --glob "*.py" --glob "*.sh" --glob "*.json"
+  │ "subscriber_jwt|SUBSCRIBER_KEY|mercureAuthorization|
+  │ … +3 lines
+  └ (no output)
+
+• Ran 2 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 官方文档与当前实现吻合：cors_origins * 仅适合匿名订阅；匿名
+  订阅只能接收 public update；发布端仍必须携带有效 JWT。客户
+  端续流采用规范的 last_event_id，同时保留当前固定 Hub 的旧拼
+  写。下一步只检查用户点名的 PHP/Composer/FrankenPHP 安装脚本
+  是否按“逐小步探测后收敛”实现，并确认未改 Java。
+
+• Ran 4 commands · ctrl + t to view transcript
+• Ran rg -n "runtime_config_ensure_mercure|
+  │ runtime_config_mercure_publisher|composer.*ensure|
+  │ frankenphp.*ensure" scripts/shells/linux/common/*.sh
+  │ … +1 lines
+  └ rg: scripts/shells/linux/common/*.sh: The filename,
+    directory name, or volume label syntax is incorrect. (os
+    … +2 lines (ctrl + t to view transcript)
+    filename, directory name, or volume label syntax is
+    incorrect. (os error 123)
+
+• Ran 3 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 安装层检查发现一处需要收紧：FrankenPHP 管线完成 Caddyfile
+  和运行时状态写入后，原来直接打印 READY，没有分别复查持久状
+  态。我会把最终阶段拆成 Caddyfile、运行时契约、状态文件三个
+  独立探测；Laravel 启动脚本对 PHP/Composer 调用后也只依据重
+  新探测结果判断，不依据脚本存在性或上一函数结果。
+
+• Edited 2 files (+33 -14)
+  └
+  scripts\shells\linux\common\frankenphp_install_pipeline.sh
+  (+25 -0)
+    152  frankenphp_install_pipeline_finalize() {
+    153 +    local expected_binary=""
+    154 +    local stored_binary=""
+    155 +    local stored_https_port=""
+    156 +    local stored_admin_port=""
+    157 +
+    158      fm_caddyfile_ensure \
+        ⋮
+    162          "${FRANKENPHP_CADDYFILE_DIR}/Caddyfile"
+    163 +    if [ "$FM_CADDYFILE_READY" != "yes" ]; then
+    164 +        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] ca
+         nonical Caddyfile is not ready"
+    165 +        return
+    166 +    fi
+    167 +
+    168      fm_store_info
+    169 +    expected_binary="$(fm_resolve_binary_path "$(fm_
+         variant_binary)")"
+    170 +    stored_binary="$(fm_resolve_binary_path "$(get_g
+         lobal_var "FRANKENPHP_BINARY_PATH" "")")"
+    171 +    stored_https_port="$(get_global_var "FRANKENPHP_
+         HTTPS_PORT" "")"
+    172 +    stored_admin_port="$(get_global_var "FRANKENPHP_
+         ADMIN_PORT" "")"
+    173 +    if [ "$(fm_runtime_contract_ready "$FRANKENPHP_I
+         NSTALL_MODE")" != "yes" ]; then
+    174 +        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] ru
+         ntime contract is not ready after finalization"
+    175 +        return
+    176 +    fi
+    177 +    if [ -z "$expected_binary" ] || [ "$stored_binar
+         y" != "$expected_binary" ] \
+    178 +        || [ "$stored_https_port" != "$FRANKENPHP_SI
+         TE_PORT" ] \
+    179 +        || [ "$stored_admin_port" != "$FRANKENPHP_AD
+         MIN_PORT" ]; then
+    180 +        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] pe
+         rsisted FrankenPHP state is not canonical"
+    181 +        return
+    182 +    fi
+    183 +
+    184      fm_verify
+
+  └
+  scripts\shells\linux\debian\install_shells\175_laravel_main
+  _start.sh (+8 -14)
+    867      fi
+    868 -    echo "php not found. Invoking init-ensure instal
+         ler:"
+    869 -    echo "  $PHP_ENSURE_SCRIPT"
+    870 -    if [ -n "$PHP_ENSURE_SCRIPT" ] && [ -f "$PHP_ENS
+         URE_SCRIPT" ]; then
+    868 +    if [ -n "$PHP_ENSURE_SCRIPT" ]; then
+    869 +        echo "php not found. Invoking init-ensure in
+         staller:"
+    870 +        echo "  $PHP_ENSURE_SCRIPT"
+    871          bash "$PHP_ENSURE_SCRIPT"
+        ⋮
+    894      echo "  $COMPOSER_INSTALL_SCRIPT"
+    895 -    if [ -f "$COMPOSER_INSTALL_SCRIPT" ]; then
+    896 -        bash "$COMPOSER_INSTALL_SCRIPT"
+    897 -        resolve_composer
+    898 -        composer_command_healthy "$COMPOSER_CMD"
+    899 -        if [ "$COMPOSER_COMMAND_READY" != "yes" ]; t
+         hen
+    900 -            echo "ERROR: Composer init-ensure instal
+         ler failed or left composer missing ($COMPOSER_INSTA
+         LL_SCRIPT)"
+    901 -            return
+    902 -        fi
+    903 -    else
+    904 -        echo "ERROR: composer not found and installe
+         r missing: $COMPOSER_INSTALL_SCRIPT"
+    905 -        echo "  Manual (Debian/Ubuntu/WSL): sudo apt
+          update && sudo apt install -y composer"
+    895 +    bash "$COMPOSER_INSTALL_SCRIPT"
+    896 +    resolve_composer
+    897 +    composer_command_healthy "$COMPOSER_CMD"
+    898 +    if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
+    899 +        echo "ERROR: Composer init-ensure installer
+         failed or left composer missing ($COMPOSER_INSTALL_S
+         CRIPT)"
+    900          return
+
+• Ran 3 commands · ctrl + t to view transcript
+
+─────────────────────────────────────────────────────────────
+
+• 设备认领复查发现一个底层并发点：Laravel Cache::add 在未传
+  TTL 时会退化为“先读再永久写”，不保证首次认领原子性。为避免
+  两台设备同时抢同一 machine_id 时短暂双通过，我会把首次绑定
+  改为数据库缓存的原子锁内永久写入；以后仍按已绑定 secret 校
+  验，IP 不参与身份。
+
+• Searching the web
+
+• Searched the web for site:laravel.com/docs cache atomic
+  locks database driver Cache::lock ...
+
+• Edited
+poly_apps\laravel_main\app\Services\Relay\RelayDeviceIdentity
+.php (+19 -2)
+     18      private const CLAIM_PREFIX = 'relay:device-ident
+         ity:';
+     19 +    private const CLAIM_LOCK_PREFIX = 'relay:device-
+         identity-lock:';
+     20 +    private const CLAIM_LOCK_SECONDS = 5;
+     21      private const NONCE_PREFIX = 'relay:device-nonce
+         :';
+        ⋮
+     93          $existing = $cache->get($key);
+     94 +        $lock = null;
+     95
+        ⋮
+     98          }
+     96 -        $cache->add($key, $secret);
+     97 -        $existing = $cache->get($key);
+     99 +        $lock = $cache->lock(
+    100 +            self::CLAIM_LOCK_PREFIX.hash('sha256', $
+         machineId),
+    101 +            self::CLAIM_LOCK_SECONDS
+    102 +        );
+    103 +        if (!$lock->get()) {
+    104 +            return false;
+    105 +        }
+    106 +        try {
+    107 +            $existing = $cache->get($key);
+    108 +            if (!is_string($existing) || $existing =
+         == '') {
+    109 +                $cache->forever($key, $secret);
+    110 +                $existing = $cache->get($key);
+    111 +            }
+    112 +        } finally {
+    113 +            $lock->release();
+    114 +        }
+    115
+
+• Ran rg -n --glob "*.ts" --glob "*.tsx" --glob "*.py" --glob
+  │ "*.php" --glob "*.sh" "Authorization.*Mercure|
+  │ Mercure.*Authorization|withCredentials.*true|
+  │ … +3 lines
+  └ (no output)
+
+• Ran 2 commands · ctrl + t to view transcript
+• Ran rg -n "mercure|frankenphp|composer|php_runtime"
+  │ scripts/shells/linux/debian/
+  │ install_shells/93_install_java.sh scripts/shells/linux/
+  │ … +1 lines
+  └ (no output)
+
+• Ran 2 commands · ctrl + t to view transcript
+• Ran rg -n --glob "*.php" "RelayHubPublisher::publish"
+  │ poly_apps/laravel_main/app; rg -n --glob "*.php"
+  │ "RelayHubPublisher::publish\([\s\S]*true" poly_apps/
+  │ … +1 lines
+  └ (no output)
+
+• Ran 4 commands · ctrl + t to view transcript
+
+• Edited 4 files (+5 -5)
+  └
+  poly_apps\laravel_main\app\Apps\ServerManagerV1\ServerManag
+  erV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder.php (+1
+  -1)
+    230                  'canonical' => false,
+    231 -                'error' => __('relay.mercure_keys_mi
+         ssing'),
+    231 +                'error' => __('relay.mercure_publish
+         er_key_missing'),
+    232              ];
+
+  └
+  poly_apps\laravel_main\app\Providers\RuntimeConfigurationSe
+  rviceProvider.php (+2 -2)
+     48          $this->injectDatabasePassword();
+     49 -        $this->injectMercureKeys();
+     49 +        $this->injectMercurePublisherKey();
+     50          $this->injectAuthenticationTokens();
+        ⋮
+    119       */
+    120 -    private function injectMercureKeys(): void
+    120 +    private function injectMercurePublisherKey(): vo
+         id
+    121      {
+
+  └ poly_apps\laravel_main\lang\en\relay.php (+1 -1)
+    25      'mercure_key_missing' => 'Mercure key :key is not
+         provisioned.',
+    26 -    'mercure_keys_missing' => 'Mercure hub keys are n
+        ot provisioned.',
+    26 +    'mercure_publisher_key_missing' => 'The Mercure p
+        ublisher key is not provisioned.',
+    27      'private_file_directory_failed' => 'Unable to cre
+        ate directory :path.',
+
+  └ poly_apps\laravel_main\lang\zh_CN\relay.php (+1 -1)
+    25      'mercure_key_missing' => 'Mercure 密钥 :key 尚未
+        配置。',
+    26 -    'mercure_keys_missing' => 'Mercure Hub 密钥尚未配
+        置。',
+    26 +    'mercure_publisher_key_missing' => 'Mercure 发布
+        端密钥尚未配置。',
+    27      'private_file_directory_failed' => '无法创建目录
+        :path。',
+
+• Ran Get-Content -LiteralPath 'scripts/shells/linux/common/
+  │ frankenphp_install_pipeline.sh' | Select-Object -Skip
+  │ 148 -First 48; Get-Content -LiteralPath 'poly_apps/
+  │ … +10 lines
+  └ (no output)
+
+• Edited
+scripts\shells\linux\common\frankenphp_install_pipeline.sh
+(+2 -1)
+    169      expected_binary="$(fm_resolve_binary_path "$(fm_
+         variant_binary)")"
+    170 -    stored_binary="$(fm_resolve_binary_path "$(get_g
+         lobal_var "FRANKENPHP_BINARY_PATH" "")")"
+    170 +    stored_binary="$(get_global_var "FRANKENPHP_BINA
+         RY_PATH" "")"
+    171 +    stored_binary="$(fm_resolve_binary_path "$stored
+         _binary")"
+    172      stored_https_port="$(get_global_var "FRANKENPHP_
+         HTTPS_PORT" "")"
+
+• Ran 3 commands · ctrl + t to view transcript
+
+• Updated Plan
+  └ 部署、Laravel、共享 UI/Python 连接层与设备身份已完成收
+    口；正在进行最后的只读一致性检查。
+    ✔ 核对暂停覆盖后的配置与核心实现状态
+    ✔ 修正部署脚本与 Laravel 匿名 Mercure 配置
+    ✔ 核对 UI/Python 共享连接层与设备身份签名
+    □ 执行只读静态一致性扫描并收口
+
+─────────────────────────────────────────────────────────────
+
+• 最后收口检查会只验证文本契约：旧 subscriber/token/cookie 路
+  径应为零；Shell 与 Laravel 生成的 Hub stanza 应同时是
+  publisher JWT + anonymous + *；上传限制应保持 10GB/20 分
+  钟；设备签名头、时间窗和 nonce 防重放应在 Python/Laravel 两
+  端成对存在。不会执行测试、构建或服务。
+
+• Ran 2 commands · ctrl + t to view transcript
+• Ran rg -n --glob "*.php" --glob "*.ts" --glob "*.tsx"
+  │ --glob "*.py" --glob "*.sh" --glob "*.json"
+  │ "SUBSCRIBER_KEY|subscriber_jwt|mercureAuthorization|
+  │ … +5 lines
+  └ (no output)
+
+• Ran 1 command · ctrl + t to view transcript
+• Ran rg -n "return [0-9]|\$\?" scripts/shells/linux/debian/
+  │ install_shells/93_install_frankenphp.sh scripts/shells/
+  │ linux/debian/install_shells/94_install_composer.sh
+  │ … +7 lines
+  └ (no output)
+
+• Edited scripts\shells\linux\common\frankenphp_manager.sh
+(+2 -2)
+    49  #
+    50 -# SECRETS: the Mercure HS256 keys are read from the
+    50 +# SECRETS: the Mercure HS256 publisher key is read fr
+        om the
+    51  # RuntimeConfigurationStore and embedded as LITERAL p
+        ublisher_jwt /
+       ⋮
+    53  # mercure/caddy module v0.24.x) - the 0600 Caddyfile
+        is the only on-disk
+    54 -# copy next to the store itself; no process env, no .
+        env. Keys are
+    54 +# copy next to the store itself; no process env, no .
+        env. The key is
+    55  # provisioned (never rotated) by the laravel_main pro
+        visioner
+
+■ Conversation interrupted - tell the model what to do
+differently. Something went wrong? Hit `/feedback` to report
+the issue.
+
+
+› 恢复刚才修改的所有代码，恢复为 mercure  配置多个域名，并恢
+  复为 无Authorization 模型，1：修改部署脚本，2：
+    修改laravel,3,修改pycore UI / pycoro UI laravel-
+  manager /
+    Pycore UI pycore-manager / pycore UI wordnew / pycore
+    Python 的网络基本类库，注意从底层构架，不要薄兼容，代码
+  从
+    底层重构，同时搜索官方文档，按规范修改，shell不要使用返
+  回
+    码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂
+  等
+    需要拆为最小步、而不是从一大个入口就幂等跳过。
+    复用重复实现类库。同时搜索官方文档，搜索官方文档。恢复
+  刚才的修改代码恢复。
+
+
+• 我先核对当前磁盘是否又被覆盖，并恢复上一轮的底层匿名订阅架
+  构；这次把 Mercure CORS 从 * 改为合同集中维护的多个明确
+  Origin，同时继续保持订阅端无 Authorization。Laravel 的服务
+  端 publisher JWT 仍必须保留，这是 Mercure 官方要求。按规则
+  只做静态检查，不运行测试、构建或服务。
+
+• Updated Plan
+  └ □ 核对当前文件与上一轮架构的偏差
+    □ 恢复部署脚本与 Laravel 匿名多 Origin Mercure
+    □ 恢复共享 UI/Python 无 Authorization 连接层和设备身份
+    □ 完成只读静态一致性检查
+
+• Ran 1 command · ctrl + t to view transcript
+• Ran rg -n --glob "*.php" --glob "*.ts" --glob "*.tsx"
+  │ --glob "*.py" --glob "*.sh" --glob "*.json"
+  │ "SUBSCRIBER_KEY|subscriber_jwt|mercureAuthorization|
+  │ … +5 lines
+  └ (no output)
+
+• Ran rg -n "mercure_anonymous_subscribers|
+  │ mercure_cors_origins|publisher_jwt|anonymous|
+  │ cors_origins|auth_mode|credentials: 'omit'|
+  │ … +4 lines
+  └ scripts/shells/linux/common/frankenphp_manager.sh:51:#
+    RuntimeConfigurationStore and embedded as LITERAL
+    … +67 lines (ctrl + t to view transcript)
+    pycore_laravel_wordnew_ui\apps\wordnew\api\WfNewSocialRea
+    ltime.ts:20:  auth_mode: string;
+
+─────────────────────────────────────────────────────────────
+
+• 当前代码没有再次退回 subscriber JWT：部署、Laravel、共享
+  UI/Python、设备 HMAC 认领都还在。实际需要恢复的是 CORS
+  合同，我将其改成两个明确 Origin：http://127.0.0.1:13054 与
+  http://localhost:13054；所有生成端继续从同一合同读取，不在
+  Shell、PHP、UI 分别硬编码。
+
+• Edited config\service_contract.json (+4 -1)
+    24          "mercure_anonymous_subscribers": true,
+    25 -        "mercure_cors_origins": ["*"]
+    25 +        "mercure_cors_origins": [
+    26 +            "http://127.0.0.1:13054",
+    27 +            "http://localhost:13054"

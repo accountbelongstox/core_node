@@ -8,9 +8,10 @@ import importlib.metadata
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
@@ -62,6 +63,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
 )
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavailable_reason
 from pycore.pyutils.tts.tts_service_manager import (
+    get_server_settings,
     is_server_engine,
     server_runtime_status,
 )
@@ -75,6 +77,8 @@ import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 
 _TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
+_REQUIRED_ENGINE_RETRY_INITIAL_SECONDS = 0.5
+_REQUIRED_ENGINE_RETRY_MAX_SECONDS = 10.0
 
 
 def _dist_version(dist: str) -> Optional[str]:
@@ -94,6 +98,18 @@ def _edge_in_cooldown() -> bool:
 
 def _set_edge_cooldown() -> None:
     cooldown = mark_edge_cooldown()
+
+
+def _managed_required_engine_recoverable(name: str) -> bool:
+    """Return whether a required managed engine may recover without user action."""
+    spec = managed_services.spec(name)
+    settings = get_server_settings()
+    enabled = settings.get("server_enabled") or {}
+    if spec is None or not spec.installed() or not spec.config_ready():
+        return False
+    if not bool(enabled.get(name, True)):
+        return False
+    return bool(settings.get("server_auto_manage", True)) or managed_services.is_running(name)
     ColorPrint.yellow(
         f"[tts] edge-tts cooling down for {cooldown:.0f}s; using offline engine meanwhile"
     )
@@ -299,6 +315,7 @@ def _synthesis_request(
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
+    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> TTSSynthesisRequest:
     return TTSSynthesisRequest(
         text=text,
@@ -312,6 +329,7 @@ def _synthesis_request(
         speaker=speaker,
         instruct=instruct,
         client_job_id=client_job_id,
+        progress_callback=progress_callback,
     )
 
 
@@ -355,6 +373,7 @@ def synthesize(
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
     excluded_engines: Optional[Tuple[str, ...]] = None,
+    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     """Synthesize text with one required engine or the selected fallback profile."""
     cleaned = (text or "").strip()
@@ -459,26 +478,58 @@ def synthesize(
             speaker,
             instruct,
             client_job_id,
+            progress_callback,
         )
         synth_command = describe_synth_command(
             name, cleaned, language, output_path, want_accent, rate, gender
         )
-        try:
-            with managed_services.lease(name), managed_model_load_context(name):
-                tried.append(name)
-                last_synth_command = synth_command
-                ok = adapter.synthesize(request)
-        except ManagedServiceUnavailable as exc:
-            last_error = f"{name}: {exc}"
-            ColorPrint.gray(f"[tts] {name} unavailable; trying next engine")
-            continue
-        except Exception as e:  # noqa: BLE001— fall through to next engine
-            last_error = f"{name}: {e}"
-            ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")
-            ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
-            if name == "edge":
-                _set_edge_cooldown()
-            continue
+        recovery_delay = _REQUIRED_ENGINE_RETRY_INITIAL_SECONDS
+        recovery_revision = 0
+        while True:
+            try:
+                with managed_services.lease(name), managed_model_load_context(name):
+                    tried.append(name)
+                    last_synth_command = synth_command
+                    ok = adapter.synthesize(request)
+                break
+            except ManagedServiceUnavailable as exc:
+                last_error = f"{name}: {exc}"
+                if not engine_name or name != engine_name:
+                    ColorPrint.gray(f"[tts] {name} unavailable; trying next engine")
+                    ok = False
+                    break
+                if not _managed_required_engine_recoverable(name):
+                    ok = False
+                    break
+                if THREAD_BUS.is_shutdown_requested():
+                    ok = False
+                    break
+                recovery_revision += 1
+                if progress_callback is not None:
+                    progress_callback({
+                        "status": "running",
+                        "progress_revision": recovery_revision,
+                        "progress": 0,
+                        "progress_total": 0,
+                        "progress_phase": "service_recovery",
+                    })
+                ColorPrint.gray(
+                    f"[tts] required {name} service recovering; "
+                    f"retrying in {recovery_delay:g}s"
+                )
+                time.sleep(recovery_delay)
+                recovery_delay = min(
+                    _REQUIRED_ENGINE_RETRY_MAX_SECONDS,
+                    recovery_delay * 2.0,
+                )
+            except Exception as e:  # noqa: BLE001— fall through to next engine
+                last_error = f"{name}: {e}"
+                ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")
+                ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
+                if name == "edge":
+                    _set_edge_cooldown()
+                ok = False
+                break
         if ok and output_path.exists() and output_path.stat().st_size > 0:
             # Populate the sentence cache under the engine that ACTUALLY
             # produced the audio so the next identical request is a hit.

@@ -224,13 +224,18 @@ class FileSystemManager
             return ['success' => false, 'offset' => 0];
         }
 
-        flock($handle, LOCK_EX);
+        if (!flock($handle, LOCK_EX | LOCK_NB)) {
+            clearstatcache(true, $mappedPath);
+            $currentSize = (int) (@filesize($mappedPath) ?: 0);
+            fclose($handle);
+            return ['success' => false, 'offset' => $currentSize, 'busy' => true];
+        }
         fseek($handle, 0, SEEK_END);
         $currentSize = ftell($handle);
         if ($currentSize !== $expectedOffset) {
             flock($handle, LOCK_UN);
             fclose($handle);
-            return ['success' => false, 'offset' => $currentSize];
+            return ['success' => false, 'offset' => $currentSize, 'busy' => false];
         }
 
         $written = fwrite($handle, $content);
@@ -239,11 +244,11 @@ class FileSystemManager
         fclose($handle);
 
         if ($written === false || $written !== strlen($content)) {
-            return ['success' => false, 'offset' => $currentSize];
+            return ['success' => false, 'offset' => $currentSize, 'busy' => false];
         }
 
         self::fixPermissions($mappedPath);
-        return ['success' => true, 'offset' => $currentSize + $written];
+        return ['success' => true, 'offset' => $currentSize + $written, 'busy' => false];
     }
 
     public static function runWithExclusiveFileLock(string $path, callable $callback, bool $blocking = false): array

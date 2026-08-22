@@ -3,8 +3,8 @@
  * (DESIGN_20260817_2115 PART_3 §3.3/§3.4).
  *
  * Roster truth is the server registry (`GET /api/relay/machines`), pushed
- * forward by `roster.update` deltas on the public `pycore.machines` topic
- * (Bearer SSE through the shared Mercure connection, session hub-auth). The link
+ * forward by `roster.update` deltas on the `pycore.machines` topic through
+ * the shared authorized Mercure connection. The link
  * runs in BOTH transport modes - designation and the roster view stay
  * available even while the pycore backend is direct. A bounded refresh (the
  * offline window) covers SSE gaps/reconnects; deltas never override a
@@ -101,19 +101,16 @@ class LaravelRelayRoster {
 
   private openStream(): void {
     const base = getSharedBaseURL();
-    // The connection prefers the authorize() answer's subscribe_url; the
-    // config hub_url is only its fallback, so it must still be absolute.
-    this.transport.connect('', {
+    this.transport.connect({
       hub_url: base ? new URL(HUB_FALLBACK_PATH, base).toString() : HUB_FALLBACK_PATH,
       topics: [relayTopic('machines')],
-      token_ttl_seconds: 600,
     }, {
       authorize: () => laravelApi.relayHubAuth(),
       onSubscribed: () => undefined,
       onEvent: (event, data) => this.applyDelta(event, data),
       onClose: () => {
         if (!this.started) return;
-        // Re-open on the next refresh tick with a newly issued bearer token.
+        // Re-open on the next refresh tick after the server is reachable.
         void this.refresh();
       },
     });

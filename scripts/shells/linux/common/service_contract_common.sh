@@ -33,26 +33,34 @@ sc_get() {
     local key="$1"
     if command -v node >/dev/null 2>&1; then
         node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(v==null?"":String(v));' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
-        return 0
+        return
     fi
     if command -v php >/dev/null 2>&1; then
         SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php_script_run '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}echo $c===null?"":$c;' 2>/dev/null
-        return 0
+        return
     fi
-    return 0
+    return
+}
+
+sc_list() {
+    local key="$1"
+    if command -v node >/dev/null 2>&1; then
+        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(Array.isArray(v)&&v.every(x=>typeof x==="string"&&x!=="")?v.join(" "):"");' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
+    elif command -v php >/dev/null 2>&1; then
+        SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php_script_run '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}echo is_array($c)&&count($c)>0&&count(array_filter($c,fn($v)=>!is_string($v)||$v===""))===0?implode(" ",$c):"";' 2>/dev/null
+    fi
 }
 
 # Print one REQUIRED value from the service contract. When the resolved value
 # is empty (broken file path, missing key, unavailable extractors) a [FAIL] is
-# emitted on stderr and a non-zero status returned, so consumers abort instead
-# of silently rendering "server :;" or launching a server on a default port.
+# emitted on stderr. Consumers inspect the resulting value before rendering.
 sc_require() {
     local key="$1"
     local value
     value=$(sc_get "$key")
     if [ -z "$value" ]; then
         echo "[sc] [FAIL] service contract value empty: $key ($SERVICE_CONTRACT_FILE)" >&2
-        return 1
+        return
     fi
     printf '%s' "$value"
 }

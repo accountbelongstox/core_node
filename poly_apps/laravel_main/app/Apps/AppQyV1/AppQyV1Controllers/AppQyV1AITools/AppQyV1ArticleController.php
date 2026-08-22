@@ -26,6 +26,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWordModel as AppQyV1ArticleWord
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1WorkerArticleSubmitRequest;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AgentHistoryArticleSubmissionService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AgentHistoryAudioWritebackService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
@@ -45,18 +46,22 @@ class AppQyV1ArticleController extends Controller
 
     protected AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService;
 
+    protected AppQyV1AgentHistoryAudioWritebackService $agentHistoryAudioWritebackService;
+
     public function __construct(
         BookTextStatsService $stats,
         MediaIngestService $ingestService,
         AppQyV1DailyReadingService $dailyReadingService,
         AppQyV1ArticleSentenceAudioService $articleAudioService,
-        AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService
+        AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService,
+        AppQyV1AgentHistoryAudioWritebackService $agentHistoryAudioWritebackService
     ) {
         $this->stats = $stats;
         $this->ingestService = $ingestService;
         $this->dailyReadingService = $dailyReadingService;
         $this->articleAudioService = $articleAudioService;
         $this->agentHistorySubmissionService = $agentHistorySubmissionService;
+        $this->agentHistoryAudioWritebackService = $agentHistoryAudioWritebackService;
     }
 
     /**
@@ -579,10 +584,10 @@ class AppQyV1ArticleController extends Controller
     }
 
     /**
-     * Worker-facing audio replacement (no auth — pycore Agent History legacy
-     * audio rebuild lane). Overwrites the deterministic <article_id>.mp3 file
-     * of an existing agent_history article and refreshes its provenance
-     * metadata; the public audio_url stays stable.
+     * Worker-facing durable audio replacement receipt (no auth — pycore Agent
+     * History rebuild lane). The request persists one content-addressed audio
+     * artifact and a per-article writeback marker before returning. Publication
+     * is finalized after the response and recovered by the Octane timer.
      *
      * POST /api/app_qy_v1/ai_tools/article/worker/replace-audio
      */
@@ -591,7 +596,11 @@ class AppQyV1ArticleController extends Controller
         $validator = Validator::make($request->all(), [
             'article_id' => 'nullable|string|max:100|required_without:source_record_id',
             'source_record_id' => 'nullable|string|max:255|required_without:article_id',
-            'audio_base64' => 'required|string',
+            'upload_protocol' => 'required|string|in:offset-v1',
+            'upload_offset' => 'required|integer|min:0',
+            'upload_length' => 'required|integer|min:128',
+            'audio_sha256' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'chunk_sha256' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'tts_engine' => 'nullable|string|max:100',
             'tts_model' => 'nullable|string|max:200',
             'tts_chunked' => 'nullable|boolean',
@@ -604,26 +613,14 @@ class AppQyV1ArticleController extends Controller
         $articleId = trim((string) $request->input('article_id', ''));
         $sourceRecordId = trim((string) $request->input('source_record_id', ''));
 
-        $article = null;
-        if ($articleId !== '') {
-            $article = AppQyV1Article::query()
-                ->where('article_id', $articleId)
-                ->where('source', AppQyV1Article::SOURCE_AGENT_HISTORY)
-                ->first();
-        }
-        if ($article === null && $sourceRecordId !== '') {
-            $article = AppQyV1Article::findAgentHistoryBySourceRecordId($sourceRecordId);
-        }
-        if ($article !== null) {
-            $article = AppQyV1Article::resolveCanonicalArticle($article);
-        }
-        if ($article === null) {
-            return $this->error('Agent history article not found for audio replacement', 404);
-        }
-
-        $audioUrl = $this->dailyReadingService->replaceAudio(
-            $article,
-            (string) $request->input('audio_base64'),
+        $receipt = $this->agentHistoryAudioWritebackService->receiveChunk(
+            $articleId,
+            $sourceRecordId,
+            (string) $request->getContent(),
+            (int) $request->input('upload_offset'),
+            (int) $request->input('upload_length'),
+            (string) $request->input('audio_sha256'),
+            (string) $request->input('chunk_sha256'),
             [
                 'tts_engine' => $request->input('tts_engine'),
                 'tts_model' => $request->input('tts_model'),
@@ -632,14 +629,11 @@ class AppQyV1ArticleController extends Controller
                 'audio_rebuild' => true,
             ]
         );
-        if ($audioUrl === null) {
-            return $this->error('Replacement audio could not be stored', 500);
+        if ($receipt === null) {
+            return $this->error(__('article.worker_audio_store_failed'), 500);
         }
 
-        return $this->success([
-            'article_id' => $article->article_id,
-            'audio_url' => $audioUrl,
-        ], 'Agent history article audio replaced');
+        return $this->success($receipt, __('article.worker_audio_received'));
     }
 
     /**

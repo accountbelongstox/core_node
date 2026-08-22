@@ -108,6 +108,7 @@ LARAVEL_RUNTIME_DIRS=(
 PHP_BIN=""
 PHP_PDO_PGSQL_READY="no"
 COMPOSER_CMD=""
+COMPOSER_COMMAND_READY="no"
 NPX_BIN=""
 PHP_CANDIDATE=""
 COMPOSER_CANDIDATE=""
@@ -159,12 +160,31 @@ LARAVEL_SERVICE_PLANE_NAME=""
 LARAVEL_SERVICE_PLANE_LAUNCHER=""
 LARAVEL_SERVICE_EXEC_STOP=""
 LARAVEL_SERVICE_TIMEOUT_STOP=""
+LARAVEL_SERVICE_READY="no"
+LARAVEL_SERVICE_ENABLED_STATE=""
+LARAVEL_SERVICE_ACTIVE_STATE=""
 _opposite_service=""
 _old_service=""
 ARG=""
 HELP_REQUESTED="no"
 SHOW_SUPER_CODE="no"
 STORED_SUPER_CODE=""
+GLOBAL_VAR_WRITE_READY="no"
+PROMPT_ANSWER="no"
+DOCKER_PUBLISHER_STOPPED="no"
+PORT_READY="no"
+POSTGRES_READY="no"
+SYSTEMD_READY="no"
+WSL_READY="no"
+SSH_READY="no"
+PSQL_BIN=""
+DB_EXISTS=""
+UNZIP_BIN=""
+SEVEN_Z_BIN=""
+NODE_BIN=""
+CONFIG_CACHE_FILE="${LARAVEL_DIR}/bootstrap/cache/config.php"
+PHP_MODULES=""
+SWOOLE_MODULE=""
 
 # Domain/SSL/nginx phases. RUNTIME_START: no skips the foreground server and the
 # service-registration prompt (the old 132/133 behaviour). DOMAIN_SCOPE:
@@ -183,7 +203,7 @@ UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 # USE_SUDO and CORE_NODE_DATA_DIR defaults).
 . "$GVAR_COMMON_SCRIPT"
 source "$COMMON_DIR/common_functions.sh"
-init_global_vars >/dev/null 2>&1 || true
+init_global_vars >/dev/null 2>&1
 FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 
 # domain_setup_common pulls in the canonical file_ops_common.sh writer
@@ -200,7 +220,9 @@ PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
 cleanup_runtime() {
     local shown_code="$GENERATED_ACCESS_CODE"
     local stored_code=""
-    cd "$ORIGINAL_DIR" || true
+    if [ -d "$ORIGINAL_DIR" ]; then
+        cd "$ORIGINAL_DIR"
+    fi
     echo ""
     echo "Restored to initial directory: $ORIGINAL_DIR"
     echo ""
@@ -208,8 +230,10 @@ cleanup_runtime() {
     # laravel_data_dir); show the STORED value when resolvable - it wins over
     # this run's candidate once provisioned (the code is stable across runs).
     if [ -n "$PHP_BIN" ]; then
-        stored_code="$(runtime_config_get "INSTALLATION_ACCESS_CODE" 2>/dev/null || true)"
-        [ -n "$stored_code" ] && shown_code="$stored_code"
+        stored_code="$(runtime_config_get "INSTALLATION_ACCESS_CODE" 2>/dev/null)"
+        if [ -n "$stored_code" ]; then
+            shown_code="$stored_code"
+        fi
     fi
     echo "Installation access value: ${shown_code}"
 }
@@ -235,14 +259,15 @@ print_usage() {
 # InstallationAccessCode.php only reads it and is never regenerated.
 read_stored_super_code() {
     local stored_code=""
-    if ! resolve_php; then
+    resolve_php
+    if [ -z "$PHP_BIN" ]; then
         echo "ERROR: php not found; cannot read the runtime configuration store." >&2
-        return 1
+        return
     fi
-    stored_code="$(runtime_config_get "INSTALLATION_ACCESS_CODE" 2>/dev/null || true)"
+    stored_code="$(runtime_config_get "INSTALLATION_ACCESS_CODE" 2>/dev/null)"
     if [ -z "$stored_code" ]; then
         echo "ERROR: Installation access code not provisioned yet; run the full start once." >&2
-        return 1
+        return
     fi
     STORED_SUPER_CODE="$stored_code"
 }
@@ -265,11 +290,12 @@ done
 
 if [ "$HELP_REQUESTED" = "yes" ]; then
     print_usage
-    exit 0
 fi
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
-trap cleanup_runtime EXIT
+if [ "$HELP_REQUESTED" != "yes" ]; then
+    trap cleanup_runtime EXIT
+fi
 
 # --- Functions ---
 
@@ -285,21 +311,19 @@ new_installation_access_code() {
 persist_global_var_file_value() {
     local key="$1"
     local value="$2"
-
-    if [ -z "$key" ]; then
-        return 1
-    fi
-
-    if declare -F set_global_var >/dev/null 2>&1; then
-        set_global_var "$key" "$value"
-        return 0
-    fi
-
     local gdir="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}"
-    $USE_SUDO mkdir -p "$gdir" 2>/dev/null || true
-    printf '%s\n' "$value" | $USE_SUDO tee "$gdir/$key" >/dev/null 2>&1 || printf '%s\n' "$value" > "$gdir/$key"
-    $USE_SUDO chmod 777 "$gdir/$key" 2>/dev/null || chmod 777 "$gdir/$key" 2>/dev/null || true
-    return 0
+
+    GLOBAL_VAR_WRITE_READY="no"
+    if [ -n "$key" ] && declare -F set_global_var >/dev/null 2>&1; then
+        set_global_var "$key" "$value"
+    elif [ -n "$key" ]; then
+        $USE_SUDO mkdir -p "$gdir" 2>/dev/null
+        printf '%s\n' "$value" | $USE_SUDO tee "$gdir/$key" >/dev/null 2>&1
+        $USE_SUDO chmod 777 "$gdir/$key" 2>/dev/null
+    fi
+    if [ -n "$key" ] && [ -f "$gdir/$key" ] && [ "$(tr -d '\r\n' < "$gdir/$key")" = "$value" ]; then
+        GLOBAL_VAR_WRITE_READY="yes"
+    fi
 }
 
 # Resolve php into PHP_BIN: PATH -> known bin locations.
@@ -307,64 +331,30 @@ persist_global_var_file_value() {
 resolve_php() {
     local runtime_plane=""
     local resolved_php=""
-    local candidate=""
-    local candidate_subcmd=""
-    local probe_file=""
 
     PHP_BIN=""
-    runtime_plane="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    runtime_plane="$(php_runtime_plane)"
 
     if [ "$runtime_plane" = "frankenphp" ]; then
+        fm_runtime_converge
         fm_ensure_php_cli_shim
-        for candidate in \
-            "$FRANKENPHP_PHP_CLI_SHIM_PATH" \
-            "$FRANKENPHP_PHP_SHIM_PATH" \
-            "$(fm_get_binary)"; do
-            candidate_subcmd=""
-            if [ ! -x "$candidate" ]; then
-                continue
+        if [ -x "$FRANKENPHP_PHP_CLI_SHIM_PATH" ]; then
+            PHP_BIN="$FRANKENPHP_PHP_CLI_SHIM_PATH"
+        elif [ -x "$FRANKENPHP_PHP_SHIM_PATH" ]; then
+            PHP_BIN="$FRANKENPHP_PHP_SHIM_PATH"
+        else
+            echo "WARNING: frankenphp plane detected but the PHP CLI shim is missing."
+        fi
+    else
+        for resolved_php in \
+            "/usr/local/bin/php" \
+            "/usr/bin/php8.5" \
+            "/usr/bin/php"; do
+            if [ -x "$resolved_php" ] && [ -z "$PHP_BIN" ]; then
+                PHP_BIN="$resolved_php"
             fi
-            if [ "$candidate" != "$FRANKENPHP_PHP_CLI_SHIM_PATH" ] && [ "$candidate" != "$FRANKENPHP_PHP_SHIM_PATH" ]; then
-                candidate_subcmd="$FRANKENPHP_PHP_RUNTIME_SUBCMD"
-            fi
-            probe_file="$(mktemp "${TMPDIR:-/tmp}/frankenphp-resolve.XXXXXX.php")"
-            printf '<?php echo 1;' > "$probe_file"
-            if [ "$candidate_subcmd" = "$FRANKENPHP_PHP_RUNTIME_SUBCMD" ]; then
-                if "$candidate" "$candidate_subcmd" "$probe_file" >/dev/null 2>&1; then
-                    rm -f "$probe_file"
-                    PHP_BIN="$candidate"
-                    return 0
-                fi
-            else
-                if "$candidate" "$probe_file" >/dev/null 2>&1; then
-                    rm -f "$probe_file"
-                    PHP_BIN="$candidate"
-                    return 0
-                fi
-            fi
-            rm -f "$probe_file"
         done
-        echo "WARNING: frankenphp plane detected but no executable php candidate passed probe."
-        return 1
     fi
-
-    if command -v php >/dev/null 2>&1; then
-        resolved_php="$(command -v php)"
-        if [ -x "$resolved_php" ]; then
-            PHP_BIN="$resolved_php"
-            return 0
-        fi
-    fi
-    for resolved_php in \
-        "$HOME/.local/bin/php" \
-        "/usr/local/bin/php" \
-        "/usr/bin/php"; do
-        if [ -x "$resolved_php" ]; then
-            PHP_BIN="$resolved_php"
-            return 0
-        fi
-    done
-    return 1
 }
 
 # Converge the PostgreSQL PDO contract before Composer or Laravel bootstrap.
@@ -374,7 +364,10 @@ ensure_php_pdo_pgsql() {
     local runtime_binary=""
 
     PHP_PDO_PGSQL_READY="no"
-    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null)"
+    if [ -z "$CURRENT_WEB_SERVER_PLANE" ]; then
+        CURRENT_WEB_SERVER_PLANE="frankenphp"
+    fi
     if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
         runtime_binary="$(fm_variant_binary)"
         if [ "$(fm_php_runtime_extensions_ready "$runtime_binary")" = "yes" ]; then
@@ -409,20 +402,20 @@ resolve_composer() {
     local runtime_plane=""
 
     COMPOSER_CMD=""
-    runtime_plane="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    runtime_plane="$(php_runtime_plane)"
 
     if [ "$runtime_plane" = "frankenphp" ] && [ -x "/usr/local/bin/composer" ]; then
         COMPOSER_CMD="/usr/local/bin/composer"
-        return 0
+        return
     fi
 
     if [ -n "$PHP_BIN" ] && [ -f "${LARAVEL_DIR}/composer.phar" ]; then
         COMPOSER_CMD="${PHP_BIN} ${LARAVEL_DIR}/composer.phar"
-        return 0
+        return
     fi
     if [ -n "$PHP_BIN" ] && [ -f "${REPO_ROOT}/composer.phar" ]; then
         COMPOSER_CMD="${PHP_BIN} ${REPO_ROOT}/composer.phar"
-        return 0
+        return
     fi
 
     for COMPOSER_CANDIDATE in \
@@ -431,43 +424,32 @@ resolve_composer() {
         "$HOME/.composer/vendor/bin/composer"; do
         if [ -x "$COMPOSER_CANDIDATE" ]; then
             COMPOSER_CMD="$COMPOSER_CANDIDATE"
-            return 0
+            return
         fi
     done
 
     if [ "$runtime_plane" != "frankenphp" ] && [ -x "/usr/bin/composer" ]; then
         COMPOSER_CMD="/usr/bin/composer"
-        return 0
+        return
     fi
 
-    return 1
 }
 
-# Composer command is considered healthy only when --version is executable.
 composer_command_healthy() {
     local command_line="$1"
-    local runtime_plane=""
-    [ -n "$command_line" ] || return 1
+    local command_path=""
 
-    local cmd=( $command_line )
-    if [ ${#cmd[@]} -eq 0 ]; then
-        return 1
-    fi
-
-    runtime_plane="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
-    if [ "${cmd[0]}" = "/usr/local/bin/composer" ] && [ "$runtime_plane" = "frankenphp" ]; then
-        if [ ! -x "$FRANKENPHP_COMPOSER_RUNTIME_SHIM" ]; then
-            return 1
-        fi
-        if ! grep -Fq "export PHP_BINARY=\"${FRANKENPHP_COMPOSER_RUNTIME_SHIM}\"" /usr/local/bin/composer 2>/dev/null; then
-            return 1
+    COMPOSER_COMMAND_READY="no"
+    command_path="${command_line%% *}"
+    if [ -x "$command_path" ]; then
+        if [ "$command_path" = "/usr/local/bin/composer" ]; then
+            if [ -s "/usr/local/lib/composer/composer.phar" ]; then
+                COMPOSER_COMMAND_READY="yes"
+            fi
+        else
+            COMPOSER_COMMAND_READY="yes"
         fi
     fi
-
-    if "${cmd[@]}" --version >/dev/null 2>&1; then
-        return 0
-    fi
-    return 1
 }
 
 # Shared RuntimeConfigurationStore adapter (central source in runtime_config_common;
@@ -492,10 +474,10 @@ initialize_runtime_configuration_store() {
             if [ "$config_state" != "ready" ]; then
                 echo "ERROR: Failed to provision APP_KEY."
             else
-                # Mercure keys are converged independently and then re-probed.
+                # The Mercure hub keys are converged independently and then re-probed.
                 runtime_config_ensure_mercure_keys
                 if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
-                    echo "ERROR: Failed to provision Mercure hub keys (RelayHubKeyProvisioner)."
+                    echo "ERROR: Failed to provision the Mercure hub keys."
                 else
                     # Installation access code is its own idempotent step.
                     config_state="$(ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE")"
@@ -515,24 +497,27 @@ initialize_runtime_configuration_store() {
 resolve_npx() {
     NPX_BIN=""
     # Drop any stale command hash so a freshly-installed npx is seen this shell.
-    hash -r 2>/dev/null || true
+    hash -r 2>/dev/null
     if command -v npx >/dev/null 2>&1; then
         NPX_BIN="$(command -v npx)"
-        return 0
     fi
     # 17_install_node_toolchain_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
     for NPX_CANDIDATE in "/usr/local/bin/npx" "/usr/bin/npx" "$HOME/.local/bin/npx"; do
-        if [ -x "$NPX_CANDIDATE" ]; then
+        if [ -x "$NPX_CANDIDATE" ] && [ -z "$NPX_BIN" ]; then
             NPX_BIN="$NPX_CANDIDATE"
-            return 0
         fi
     done
-    return 1
 }
 
-# True when the local PostgreSQL server is accepting connections.
 pg_is_ready() {
-    command -v pg_isready >/dev/null 2>&1 && pg_isready -q >/dev/null 2>&1
+    local ready_output=""
+    POSTGRES_READY="no"
+    if command -v pg_isready >/dev/null 2>&1; then
+        ready_output="$(pg_isready 2>/dev/null)"
+    fi
+    case "$ready_output" in
+        *"accepting connections"*) POSTGRES_READY="yes" ;;
+    esac
 }
 
 # Run a command as the postgres OS user (peer auth, no password). Root- and
@@ -552,12 +537,18 @@ pg_run_as_postgres() {
 # PORT_CONFLICT_AUTO_STOP=yes (pre-confirm) or =no (force No).
 prompt_default_no() {
     local msg="$1" reply=""
-    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
-    fi
-    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
+    PROMPT_ANSWER="no"
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in
+        [Yy]*) PROMPT_ANSWER="yes" ;;
+        [Nn]*) PROMPT_ANSWER="no" ;;
+        *)
+            if [ -t 0 ] && [ -r /dev/tty ]; then
+                printf '%s [y/N] ' "$msg" > /dev/tty
+                read -r reply < /dev/tty
+            fi
+            case "$reply" in [Yy]*) PROMPT_ANSWER="yes" ;; esac
+            ;;
+    esac
 }
 
 # If a Docker container PUBLISHES <port> (e.g. MinIO on :9000, pgvector on :5432),
@@ -566,19 +557,22 @@ prompt_default_no() {
 # Detection/stop primitives come from the shared port guard (port_guard_common.sh).
 stop_docker_publisher() {
     local port="$1" row="" cid="" cname=""
+    DOCKER_PUBLISHER_STOPPED="no"
     row=$(pg_docker_publisher_container "$port")
-    [ -n "$row" ] || return 1
-    cid=$(printf '%s' "$row" | awk '{print $1}')
-    cname=$(printf '%s' "$row" | awk '{print $2}')
-    echo "  Port ${port} is published by Docker container: ${cname:-$cid}"
-    if prompt_default_no "  Stop container ${cname:-$cid} and disable its auto-startup to free port ${port}?"; then
-        echo "  Stopping container ${cname:-$cid} ..."
-        pg_docker_container_stop "$cid"
-        echo "  Container ${cname:-$cid} stopped and auto-startup disabled."
-        return 0
+    if [ -n "$row" ]; then
+        cid=$(printf '%s' "$row" | awk '{print $1}')
+        cname=$(printf '%s' "$row" | awk '{print $2}')
+        echo "  Port ${port} is published by Docker container: ${cname:-$cid}"
+        prompt_default_no "  Stop container ${cname:-$cid} and disable its auto-startup to free port ${port}?"
+        if [ "$PROMPT_ANSWER" = "yes" ]; then
+            echo "  Stopping container ${cname:-$cid} ..."
+            pg_docker_container_stop "$cid"
+            DOCKER_PUBLISHER_STOPPED="yes"
+            echo "  Container ${cname:-$cid} stopped and auto-startup disabled."
+        else
+            echo "  Left container ${cname:-$cid} running; port ${port} still occupied."
+        fi
     fi
-    echo "  Left container ${cname:-$cid} running; port ${port} still occupied."
-    return 1
 }
 
 # Free the runtime PORT before starting (idempotent restart). Stops ONLY
@@ -589,7 +583,8 @@ ensure_port_free() {
     local php_bin="$2"
     local pids="" pid="" cmd=""
 
-    "$php_bin" artisan octane:stop >/dev/null 2>&1 || true
+    PORT_READY="no"
+    "$php_bin" artisan octane:stop >/dev/null 2>&1
     sleep 1
 
     if command -v ss >/dev/null 2>&1; then
@@ -598,11 +593,10 @@ ensure_port_free() {
     if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
         pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
     fi
-    if [ -z "$pids" ]; then
-        return 0
+    if [ -n "$pids" ]; then
+        stop_docker_publisher "$port"
     fi
-
-    if stop_docker_publisher "$port"; then
+    if [ "$DOCKER_PUBLISHER_STOPPED" = "yes" ]; then
         sleep 2
         if command -v ss >/dev/null 2>&1; then
             pids=$(ss -ltnpH 2>/dev/null | grep -E "[:.]${port}[[:space:]]" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
@@ -610,25 +604,31 @@ ensure_port_free() {
         if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
             pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
         fi
-        [ -z "$pids" ] && return 0
     fi
 
     for pid in $pids; do
         cmd=$(ps -p "$pid" -o args= 2>/dev/null)
         if echo "$cmd" | grep -qiE 'octane|swoole|artisan serve'; then
             echo "  Port ${port}: stopping stale app server PID ${pid}"
-            kill "$pid" 2>/dev/null || ${USE_SUDO:-} kill "$pid" 2>/dev/null || true
+            kill "$pid" 2>/dev/null
+            if [ -d "/proc/$pid" ]; then
+                ${USE_SUDO:-} kill "$pid" 2>/dev/null
+            fi
         else
             echo "  *** Port ${port} held by non-app PID ${pid}: ${cmd}"
         fi
     done
     sleep 2
 
-    if command -v ss >/dev/null 2>&1 && ss -ltnH 2>/dev/null | grep -qE "[:.]${port}[[:space:]]"; then
-        echo "  *** ACTION REQUIRED: port ${port} still in use. Stop the holder, or start with another port: PORT=<other> bash $0"
-        return 1
+    pids=""
+    if command -v ss >/dev/null 2>&1; then
+        pids="$(ss -ltnH 2>/dev/null | grep -E "[:.]${port}[[:space:]]")"
     fi
-    return 0
+    if [ -n "$pids" ]; then
+        echo "  *** ACTION REQUIRED: port ${port} still in use. Stop the holder, or start with another port: PORT=<other> bash $0"
+    else
+        PORT_READY="yes"
+    fi
 }
 
 # schedule:work binds NO port, so ensure_port_free() can never catch a stale
@@ -640,32 +640,38 @@ ensure_schedule_work_stopped() {
     else
         pids=$(ps -eo pid,args 2>/dev/null | grep 'artisan schedule:work' | grep -v grep | awk '{print $1}')
     fi
-    [ -z "$pids" ] && return 0
-    for pid in $pids; do
-        echo "  Stopping stale schedule:work PID ${pid}"
-        kill "$pid" 2>/dev/null || ${USE_SUDO:-} kill "$pid" 2>/dev/null || true
-    done
-    sleep 1
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            echo "  Stopping stale schedule:work PID ${pid}"
+            kill "$pid" 2>/dev/null
+            if [ -d "/proc/$pid" ]; then
+                ${USE_SUDO:-} kill "$pid" 2>/dev/null
+            fi
+        done
+        sleep 1
+    fi
 }
 
 # DEFAULT YES prompt on the controlling TTY; no TTY -> yes.
 ask_default_yes() {
     local msg="$1" reply=""
+    PROMPT_ANSWER="yes"
     if [ -t 0 ] && [ -r /dev/tty ]; then
         printf '%s [Y/n] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
+        read -r reply < /dev/tty
     fi
-    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+    case "$reply" in [Nn]*) PROMPT_ANSWER="no" ;; esac
 }
 
 # DEFAULT NO prompt on the controlling TTY; no TTY -> no.
 ask_default_no() {
     local msg="$1" reply=""
+    PROMPT_ANSWER="no"
     if [ -t 0 ] && [ -r /dev/tty ]; then
         printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
+        read -r reply < /dev/tty
     fi
-    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
+    case "$reply" in [Yy]*) PROMPT_ANSWER="yes" ;; esac
 }
 
 # Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
@@ -674,22 +680,36 @@ compute_mem_limit() {
     local cap_mb="$1"
     local total_kb total_mb half
     total_kb=$(grep -m1 MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
-    [ -n "$total_kb" ] || total_kb=0
+    if [ -z "$total_kb" ]; then
+        total_kb=0
+    fi
     total_mb=$(( total_kb / 1024 ))
     half=$(( total_mb / 2 ))
     [ "$half" -lt 200 ] && half=200
     if [ "$half" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${half}M"; fi
 }
 
-# True (0) when this distro is running under WSL (any of the standard markers).
+# Resolve WSL state from the standard kernel and environment markers.
 is_wsl() {
-    grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null \
-        || [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]
+    local kernel_version=""
+    WSL_READY="no"
+    kernel_version="$(tr '[:upper:]' '[:lower:]' < /proc/version 2>/dev/null)"
+    case "$kernel_version" in
+        *microsoft*|*wsl*) WSL_READY="yes" ;;
+    esac
+    if [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]; then
+        WSL_READY="yes"
+    fi
 }
 
-# True (0) when systemd is the active init (PID 1) and systemctl can actually operate.
+# Resolve whether systemd is the active init and systemctl is available.
 systemd_available() {
-    [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
+    local systemctl_path=""
+    SYSTEMD_READY="no"
+    systemctl_path="$(command -v systemctl 2>/dev/null)"
+    if [ -d /run/systemd/system ] && [ -n "$systemctl_path" ]; then
+        SYSTEMD_READY="yes"
+    fi
 }
 
 # Resolve the plane-specific service name, description, and launcher script
@@ -731,72 +751,86 @@ _resolve_laravel_service_plane() {
 # Default: hot-reload (OCTANE_WATCH=1).
 register_laravel_service() {
     local exec_cmd="$1"
-    if [ ! -f "$SERVICE_MANAGER" ]; then echo "ERROR: systemd_service_manager not found: $SERVICE_MANAGER"; return 1; fi
-    if [ ! -f "$LARAVEL_SERVICE_PLANE_LAUNCHER" ]; then echo "ERROR: service launcher missing: $LARAVEL_SERVICE_PLANE_LAUNCHER"; return 1; fi
-    if [ "$(id -u)" -eq 0 ]; then
+    LARAVEL_SERVICE_READY="no"
+    if [ ! -f "$SERVICE_MANAGER" ]; then
+        echo "ERROR: systemd_service_manager not found: $SERVICE_MANAGER"
+    elif [ ! -f "$LARAVEL_SERVICE_PLANE_LAUNCHER" ]; then
+        echo "ERROR: service launcher missing: $LARAVEL_SERVICE_PLANE_LAUNCHER"
+    elif [ "$(id -u)" -eq 0 ]; then
         (
             # shellcheck disable=SC1090
             source "$SERVICE_MANAGER"
             create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "" "900s" "no" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP"
-        ) || return 1
-        systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" >/dev/null 2>&1 || true
-        systemctl restart "$LARAVEL_SERVICE_PLANE_NAME" || return 1
-        systemctl status "$LARAVEL_SERVICE_PLANE_NAME" --no-pager -l || true
-        return 0
-    fi
-    if command -v sudo >/dev/null 2>&1; then
+        )
+        systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" >/dev/null 2>&1
+        systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
+        systemctl status "$LARAVEL_SERVICE_PLANE_NAME" --no-pager -l
+    elif command -v sudo >/dev/null 2>&1; then
         sudo bash -c '
             source "$1"
             create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7" "" "900s" no "$8" "$9"
-            systemctl enable "$2" >/dev/null 2>&1 || true
+            systemctl enable "$2" >/dev/null 2>&1
             systemctl restart "$2"
-            systemctl status "$2" --no-pager -l || true
+            systemctl status "$2" --no-pager -l
         ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP"
-        return $?
+    else
+        echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
     fi
-    echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
-    return 1
+    LARAVEL_SERVICE_ENABLED_STATE="$(systemctl is-enabled "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null)"
+    LARAVEL_SERVICE_ACTIVE_STATE="$(systemctl is-active "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null)"
+    if [ "$LARAVEL_SERVICE_ENABLED_STATE" = "enabled" ] && [ "$LARAVEL_SERVICE_ACTIVE_STATE" = "active" ]; then
+        LARAVEL_SERVICE_READY="yes"
+    fi
 }
 
 # Ensure the SSH server exists (fine-grained idempotent: binary check first,
 # installer 23_setup_ssh_remote.sh carries its own persistent completion flag).
 ensure_ssh_server() {
+    SSH_READY="no"
     if [ "$SKIP_SSH" = "yes" ]; then
-        return 0
+        SSH_READY="yes"
+        return
     fi
-    if command -v sshd >/dev/null 2>&1 || [ -x /usr/sbin/sshd ]; then
+    if [ -n "$(command -v sshd 2>/dev/null)" ] || [ -x /usr/sbin/sshd ]; then
         echo "SSH server present."
-        return 0
+        SSH_READY="yes"
+        return
     fi
     if [ ! -f "$SSH_SETUP_SCRIPT" ]; then
         echo "  Warning: SSH setup script missing: $SSH_SETUP_SCRIPT"
-        return 0
+        return
     fi
-    if ask_default_yes "SSH server (sshd) not found. Install and configure remote SSH now?"; then
-        bash "$SSH_SETUP_SCRIPT" || echo "  Warning: SSH setup reported failure (continuing)."
+    ask_default_yes "SSH server (sshd) not found. Install and configure remote SSH now?"
+    if [ "$PROMPT_ANSWER" = "yes" ]; then
+        bash "$SSH_SETUP_SCRIPT"
+        if [ -n "$(command -v sshd 2>/dev/null)" ] || [ -x /usr/sbin/sshd ]; then
+            SSH_READY="yes"
+        else
+            echo "  Warning: SSH server is still unavailable after setup."
+        fi
     else
         echo "  SSH installation skipped."
     fi
-    return 0
 }
 
+laravel_main_run() {
 # --show-super-code runs HERE: it needs resolve_php + runtime_config_get,
 # which are defined in the function section above. Cleanup trap is skipped
 # for this read-only query.
 if [ "$SHOW_SUPER_CODE" = "yes" ]; then
     trap - EXIT
-    if read_stored_super_code; then
+    read_stored_super_code
+    if [ -n "$STORED_SUPER_CODE" ]; then
         echo "Super code: $STORED_SUPER_CODE"
-        exit 0
     fi
-    exit 1
+    return
 fi
 
 # Fail loud on an unreadable service contract: an empty PORT would start
 # Octane on its default and render the domain backend as "http://127.0.0.1:".
 if [ -z "$PORT" ]; then
     echo "ERROR: service contract unreadable (ports.laravel_api_backend empty; check config/service_contract.json and common/service_contract_common.sh)." >&2
-    exit 1
+    return
 fi
 
 echo "Initial directory (invocation): $ORIGINAL_DIR"
@@ -804,7 +838,11 @@ echo "Working directory (Laravel root): $LARAVEL_DIR"
 echo "Repo root (dynamic): $REPO_ROOT"
 echo ""
 
-cd "$LARAVEL_DIR" || exit 1
+if [ ! -d "$LARAVEL_DIR" ]; then
+    echo "ERROR: Laravel directory is missing: $LARAVEL_DIR"
+    return
+fi
+cd "$LARAVEL_DIR"
 
 # --- Ensure php (auto-install via init-ensure script if missing) ---
 # Candidate access code for THIS provisioning run; persisted into the
@@ -813,64 +851,53 @@ cd "$LARAVEL_DIR" || exit 1
 # InstallationAccessCode.php repository file is never rewritten).
 GENERATED_ACCESS_CODE="$(new_installation_access_code)"
 
-if ! resolve_php; then
+resolve_php
+if [ -z "$PHP_BIN" ]; then
     # Plane-aware init-ensure: the frankenphp plane provisions php through
     # the frankenphp pipeline (php-cli shims ship with the binary); the
     # nginx plane has no canonical system-PHP installer -> apt hint.
-    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null)"
+    if [ -z "$CURRENT_WEB_SERVER_PLANE" ]; then
+        CURRENT_WEB_SERVER_PLANE="frankenphp"
+    fi
     if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
         PHP_ENSURE_SCRIPT="$PHP_ENSURE_SCRIPT_FRANKENPHP"
     else
         PHP_ENSURE_SCRIPT="$PHP_ENSURE_SCRIPT_SYSTEM"
     fi
-    echo "php not found. Invoking init-ensure installer:"
-    echo "  $PHP_ENSURE_SCRIPT"
-    if [ -n "$PHP_ENSURE_SCRIPT" ] && [ -f "$PHP_ENSURE_SCRIPT" ]; then
-        bash "$PHP_ENSURE_SCRIPT" || true
-        if ! resolve_php; then
+    if [ -n "$PHP_ENSURE_SCRIPT" ]; then
+        echo "php not found. Invoking init-ensure installer:"
+        echo "  $PHP_ENSURE_SCRIPT"
+        bash "$PHP_ENSURE_SCRIPT"
+        resolve_php
+        if [ -z "$PHP_BIN" ]; then
             echo "ERROR: PHP init-ensure installer failed or left php missing ($PHP_ENSURE_SCRIPT)"
-            exit 1
+            return
         fi
     else
         echo "ERROR: php not found and no canonical system-PHP installer on this plane"
         echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y php-cli php-xml php-mbstring php-sqlite3"
-        exit 1
+        return
     fi
 fi
 
 ensure_php_pdo_pgsql
 if [ "$PHP_PDO_PGSQL_READY" != "yes" ]; then
-    exit 1
+    return
 fi
 
 # --- Ensure composer (auto-install via init-ensure script if missing or wrapper broken) ---
-if ! resolve_composer; then
+resolve_composer
+composer_command_healthy "$COMPOSER_CMD"
+if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
     echo "composer not found. Invoking init-ensure installer:"
     echo "  $COMPOSER_INSTALL_SCRIPT"
-    if [ -f "$COMPOSER_INSTALL_SCRIPT" ]; then
-        bash "$COMPOSER_INSTALL_SCRIPT" || true
-        if ! resolve_composer; then
-            echo "ERROR: Composer init-ensure installer failed or left composer missing ($COMPOSER_INSTALL_SCRIPT)"
-            exit 1
-        fi
-    else
-        echo "ERROR: composer not found and installer missing: $COMPOSER_INSTALL_SCRIPT"
-        echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y composer"
-        exit 1
-    fi
-elif ! composer_command_healthy "$COMPOSER_CMD"; then
-    echo "composer command found but not runnable. Re-running init-ensure installer for repair:"
-    echo "  $COMPOSER_INSTALL_SCRIPT"
-    if [ -f "$COMPOSER_INSTALL_SCRIPT" ]; then
-        bash "$COMPOSER_INSTALL_SCRIPT" || true
-        if ! resolve_composer || ! composer_command_healthy "$COMPOSER_CMD"; then
-            echo "ERROR: Composer init-ensure installer failed while repairing wrapper ($COMPOSER_INSTALL_SCRIPT)"
-            exit 1
-        fi
-    else
-        echo "ERROR: composer repair requested but installer missing: $COMPOSER_INSTALL_SCRIPT"
-        echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y composer"
-        exit 1
+    bash "$COMPOSER_INSTALL_SCRIPT"
+    resolve_composer
+    composer_command_healthy "$COMPOSER_CMD"
+    if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
+        echo "ERROR: Composer init-ensure installer failed or left composer missing ($COMPOSER_INSTALL_SCRIPT)"
+        return
     fi
 fi
 
@@ -882,11 +909,16 @@ echo "Web server plane: $CURRENT_WEB_SERVER_PLANE"
 ensure_ssh_server
 
 # --- Best-effort: ensure unzip (composer warns and is slower without it) ---
-if ! command -v unzip >/dev/null 2>&1; then
-    if command -v apt-get >/dev/null 2>&1; then
+UNZIP_BIN="$(command -v unzip 2>/dev/null)"
+if [ -z "$UNZIP_BIN" ]; then
+    if [ -n "$(command -v apt-get 2>/dev/null)" ]; then
         echo "unzip not found; installing (best-effort)..."
-        apt-get update -y >/dev/null 2>&1 || true
-        apt-get install -y unzip >/dev/null 2>&1 || echo "  Warning: unzip install failed (continuing; composer will use PHP zip)."
+        apt-get update -y >/dev/null 2>&1
+        apt-get install -y unzip >/dev/null 2>&1
+        UNZIP_BIN="$(command -v unzip 2>/dev/null)"
+        if [ -z "$UNZIP_BIN" ]; then
+            echo "  Warning: unzip is still unavailable; Composer will use PHP zip if available."
+        fi
     fi
 fi
 
@@ -895,10 +927,11 @@ echo "Ensuring Laravel runtime directories..."
 for RUNTIME_DIR in "${LARAVEL_RUNTIME_DIRS[@]}"; do
     mkdir -p "${LARAVEL_DIR}/${RUNTIME_DIR}"
 done
-chmod -R u+rwX,g+rwX "${LARAVEL_DIR}/bootstrap/cache" "${LARAVEL_DIR}/storage" 2>/dev/null || true
+chmod -R u+rwX,g+rwX "${LARAVEL_DIR}/bootstrap/cache" "${LARAVEL_DIR}/storage" 2>/dev/null
 
-if ! upgrade_laravel_to_13; then
-    exit 1
+upgrade_laravel_to_13
+if [ "$LARAVEL_13_UPGRADE_READY" != "yes" ]; then
+    return
 fi
 
 # Ensure vendor/ matches composer.lock AND the autoloader actually loads before
@@ -906,7 +939,7 @@ fi
 ensure_composer_vendor "$LARAVEL_DIR"
 if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
     echo "ERROR: composer vendor setup failed"
-    exit 1
+    return
 fi
 
 # Initialize each canonical runtime-store value and probe the resulting state
@@ -914,13 +947,13 @@ fi
 initialize_runtime_configuration_store
 if [ "$RUNTIME_CONFIGURATION_READY" != "yes" ]; then
     echo "ERROR: Runtime configuration store initialization failed."
-    exit 1
+    return
 fi
 
 # --- PostgreSQL cross-environment sync adapter ---
 _PG_SYNC_ADAPTER="${REPO_ROOT}/pycore/pyfoundations/pg_sync_adapter.py"
 if command -v python3 >/dev/null 2>&1 && [ -f "$_PG_SYNC_ADAPTER" ]; then
-    python3 "$_PG_SYNC_ADAPTER" --startup || true
+    python3 "$_PG_SYNC_ADAPTER" --startup
 fi
 unset _PG_SYNC_ADAPTER
 
@@ -940,7 +973,7 @@ fi
 persist_global_var_file_value "START_POSTGRESQL" "true"
 CURRENT_INSTALL_MODE=""
 if [ -f "$GLOBAL_VAR_DIR/INSTALL_MODE" ]; then
-    CURRENT_INSTALL_MODE="$(tr -d '[:space:]' < "$GLOBAL_VAR_DIR/INSTALL_MODE" 2>/dev/null || echo "")"
+    CURRENT_INSTALL_MODE="$(tr -d '[:space:]' < "$GLOBAL_VAR_DIR/INSTALL_MODE" 2>/dev/null)"
 fi
 if [ -z "$CURRENT_INSTALL_MODE" ] || [ "$CURRENT_INSTALL_MODE" = "base" ]; then
     persist_global_var_file_value "INSTALL_MODE" "server"
@@ -951,34 +984,49 @@ fi
 if [ -f "$POSTGRES_INSTALL_SCRIPT" ]; then
     echo "  Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):"
     echo "    $POSTGRES_INSTALL_SCRIPT"
-    bash "$POSTGRES_INSTALL_SCRIPT" || echo "  Warning: PostgreSQL ensurer reported a failure (continuing)."
+    bash "$POSTGRES_INSTALL_SCRIPT"
 else
     echo "  *** ACTION REQUIRED: PostgreSQL ensurer missing: $POSTGRES_INSTALL_SCRIPT"
     echo "  *** Install manually: sudo apt-get install -y postgresql postgresql-contrib"
 fi
 
-# Idempotent WSL-safe start: systemd -> sysv service -> Debian cluster tool.
-if ! pg_is_ready; then
+# Idempotent WSL-safe start: each launcher is followed by a fresh state probe.
+pg_is_ready
+if [ "$POSTGRES_READY" != "yes" ]; then
     echo "  PostgreSQL not accepting connections yet; attempting to start..."
     PG_VER="$(ls -1 /etc/postgresql 2>/dev/null | sed -n '/^[0-9]\+$/p' | sort -n | tail -1)"
-    ${USE_SUDO:-} systemctl start postgresql 2>/dev/null \
-        || ${USE_SUDO:-} service postgresql start 2>/dev/null \
-        || { [ -n "$PG_VER" ] && ${USE_SUDO:-} pg_ctlcluster "$PG_VER" main start 2>/dev/null; } \
-        || true
+    ${USE_SUDO:-} systemctl start postgresql 2>/dev/null
+    pg_is_ready
+    if [ "$POSTGRES_READY" != "yes" ]; then
+        ${USE_SUDO:-} service postgresql start 2>/dev/null
+        pg_is_ready
+    fi
+    if [ "$POSTGRES_READY" != "yes" ] && [ -n "$PG_VER" ]; then
+        ${USE_SUDO:-} pg_ctlcluster "$PG_VER" main start 2>/dev/null
+        pg_is_ready
+    fi
     for PG_READY_WAIT in 1 2 3 4 5 6 7 8 9 10; do
-        if pg_is_ready; then break; fi
+        pg_is_ready
+        if [ "$POSTGRES_READY" = "yes" ]; then
+            break
+        fi
         sleep 1
     done
 fi
 
 # Create each per-app database if missing (idempotent; peer auth as postgres).
-if command -v psql >/dev/null 2>&1 && pg_is_ready; then
+PSQL_BIN="$(command -v psql 2>/dev/null)"
+pg_is_ready
+if [ -n "$PSQL_BIN" ] && [ "$POSTGRES_READY" = "yes" ]; then
     for DB_NAME in $APP_DB_NAMES; do
-        if pg_run_as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null | grep -q 1; then
-            : # already exists
-        else
+        DB_EXISTS="$(pg_run_as_postgres "$PSQL_BIN" -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null | tr -d '[:space:]')"
+        if [ "$DB_EXISTS" != "1" ]; then
             echo "  Creating database: ${DB_NAME}"
-            pg_run_as_postgres createdb "${DB_NAME}" 2>/dev/null || echo "    Warning: failed to create ${DB_NAME}"
+            pg_run_as_postgres createdb "${DB_NAME}" 2>/dev/null
+            DB_EXISTS="$(pg_run_as_postgres "$PSQL_BIN" -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null | tr -d '[:space:]')"
+            if [ "$DB_EXISTS" != "1" ]; then
+                echo "    Warning: failed to create ${DB_NAME}"
+            fi
         fi
     done
     echo "  Per-app PostgreSQL databases ensured."
@@ -1011,22 +1059,29 @@ echo "Listing routes..."
 "$PHP_BIN" artisan route:list
 
 # Runtime credentials must never be serialized into Laravel's configuration cache.
-"$PHP_BIN" artisan config:clear >/dev/null 2>&1 || true
+"$PHP_BIN" artisan config:clear >/dev/null 2>&1
+if [ -f "$CONFIG_CACHE_FILE" ]; then
+    echo "  Warning: Laravel configuration cache remains present: $CONFIG_CACHE_FILE"
+fi
 
 # --- Ensure Swoole (nginx plane ONLY: the Octane swoole driver; the
 # frankenphp plane embeds its app server in the static binary - Swoole is
 # never probed, installed or required there) ---
+PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
+SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
 if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
     echo "frankenphp plane -> Swoole not required (octane:frankenphp embeds the app server)."
-elif "$PHP_BIN" -m 2>/dev/null | grep -qi '^swoole$'; then
+elif [ -n "$SWOOLE_MODULE" ]; then
     OCTANE_AVAILABLE=1
     echo "Swoole extension present -> Octane runtime available."
 else
     echo "Swoole extension not loaded. Invoking init-ensure installer:"
     echo "  $SWOOLE_INSTALL_SCRIPT"
     if [ -f "$SWOOLE_INSTALL_SCRIPT" ]; then
-        bash "$SWOOLE_INSTALL_SCRIPT" || echo "  Warning: Swoole installer reported failure (will fall back)."
-        if "$PHP_BIN" -m 2>/dev/null | grep -qi '^swoole$'; then
+        bash "$SWOOLE_INSTALL_SCRIPT"
+        PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
+        SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
+        if [ -n "$SWOOLE_MODULE" ]; then
             OCTANE_AVAILABLE=1
             echo "Swoole installed -> Octane runtime available."
         else
@@ -1040,14 +1095,28 @@ else
 fi
 
 # --- Ensure 7z (p7zip) for dictionary translation extraction ---
-if command -v 7z >/dev/null 2>&1 || command -v 7za >/dev/null 2>&1 || command -v 7zr >/dev/null 2>&1; then
+SEVEN_Z_BIN="$(command -v 7z 2>/dev/null)"
+if [ -z "$SEVEN_Z_BIN" ]; then
+    SEVEN_Z_BIN="$(command -v 7za 2>/dev/null)"
+fi
+if [ -z "$SEVEN_Z_BIN" ]; then
+    SEVEN_Z_BIN="$(command -v 7zr 2>/dev/null)"
+fi
+if [ -n "$SEVEN_Z_BIN" ]; then
     echo "7z present -> dictionary translations can be extracted."
 else
     echo "7z not found. Invoking init-ensure installer:"
     echo "  $P7ZIP_INSTALL_SCRIPT"
     if [ -f "$P7ZIP_INSTALL_SCRIPT" ]; then
-        bash "$P7ZIP_INSTALL_SCRIPT" || echo "  Warning: p7zip installer reported failure."
-        if command -v 7z >/dev/null 2>&1 || command -v 7za >/dev/null 2>&1 || command -v 7zr >/dev/null 2>&1; then
+        bash "$P7ZIP_INSTALL_SCRIPT"
+        SEVEN_Z_BIN="$(command -v 7z 2>/dev/null)"
+        if [ -z "$SEVEN_Z_BIN" ]; then
+            SEVEN_Z_BIN="$(command -v 7za 2>/dev/null)"
+        fi
+        if [ -z "$SEVEN_Z_BIN" ]; then
+            SEVEN_Z_BIN="$(command -v 7zr 2>/dev/null)"
+        fi
+        if [ -n "$SEVEN_Z_BIN" ]; then
             echo "p7zip installed -> 7z available."
         else
             echo "  *** ACTION REQUIRED: 7z still missing -> dictionary translations will NOT import."
@@ -1060,20 +1129,22 @@ else
 fi
 
 # --- Ensure Node.js BEFORE sys:init (hot-reload dependency) ---
-if ! node --version >/dev/null 2>&1; then
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [ -z "$NODE_BIN" ]; then
     if [ -f "$NODE_INSTALL_SCRIPT" ]; then
         NODE_GLOBAL_VAR_DIR="$GLOBAL_VAR_DIR"
         persist_global_var_file_value "INSTALL_NODE" "true"
         echo "node not found/working. Invoking init-ensure installer (INSTALL_NODE=true):"
         echo "  $NODE_INSTALL_SCRIPT"
-        bash "$NODE_INSTALL_SCRIPT" || echo "  Warning: node init-ensure installer failed (continuing)."
-        hash -r 2>/dev/null || true
+        bash "$NODE_INSTALL_SCRIPT"
+        hash -r 2>/dev/null
     else
         echo "  Warning: node installer missing: $NODE_INSTALL_SCRIPT"
     fi
 fi
-resolve_npx || true
-if node --version >/dev/null 2>&1; then
+resolve_npx
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [ -n "$NODE_BIN" ]; then
     echo "node present -> Octane hot-reload chokidar can be enabled."
 else
     echo "  *** node still unavailable -> Octane runs without --watch hot reload."
@@ -1085,14 +1156,11 @@ REAL_USER="${SUDO_USER:-$(id -un)}"
 LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo \App\Providers\PathMapper::mapWebPath("laravel_data_dir");')"
 if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && [ -n "$LARAVEL_DATA_DIR" ] && [ -d "$LARAVEL_DATA_DIR" ]; then
     echo "Ensuring ownership of web data dir for '$REAL_USER': $LARAVEL_DATA_DIR"
-    $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null || true
+    $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null
 fi
 
 echo "Initializing system (php artisan sys:init)..."
-if ! "$PHP_BIN" artisan sys:init; then
-    echo "ERROR: sys:init failed; Laravel runtime startup stopped."
-    exit 1
-fi
+"$PHP_BIN" artisan sys:init
 
 # --- Plane-specific web/domain phases (merged 132_prepare_domain_setup +
 # 133_setup_domain_ssl behaviour): dispatched per plane, idempotent and
@@ -1116,7 +1184,7 @@ fi
 if [ "$RUNTIME_START" != "yes" ]; then
     echo ""
     echo "Setup-only mode complete (runtime start skipped: --domains-only/--ssl-only)."
-    exit 0
+    return
 fi
 
 echo "Detecting local IPs (excluding loopback)..."
@@ -1126,7 +1194,7 @@ if command -v ip >/dev/null 2>&1; then
 elif command -v ifconfig >/dev/null 2>&1; then
     IP_LIST=$(ifconfig | grep -E 'inet [0-9]' | grep -v 127.0.0.1 | awk '{print $2}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
 else
-    IP_LIST=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -vE '^127\.|^0\.|^$' || echo "Unable to detect IP")
+    IP_LIST=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -vE '^127\.|^0\.|^$')
 fi
 
 echo "Accessible URLs (ready to copy):"
@@ -1143,7 +1211,8 @@ echo "Note: Running in headless API mode - web.php serves only API debug interfa
 echo "Press Ctrl+C to stop all services"
 
 # --- WSL2 reachability hint (Tailscale / external LAN access to :PORT) ---
-if is_wsl; then
+is_wsl
+if [ "$WSL_READY" = "yes" ]; then
     WIN_SCRIPT_PATH=""
     case "$LARAVEL_SCRIPTS_DIR" in
         /mnt/[a-z]/*)
@@ -1168,18 +1237,25 @@ if is_wsl; then
 fi
 
 # --- Ensure node/npx (composer dev / dev:win use 'npx concurrently') ---
-if ! resolve_npx; then
+resolve_npx
+if [ -z "$NPX_BIN" ]; then
     if [ -f "$NODE_INSTALL_SCRIPT" ]; then
         echo "npx not found. Invoking init-ensure installer:"
         echo "  $NODE_INSTALL_SCRIPT"
-        bash "$NODE_INSTALL_SCRIPT" || echo "  Warning: node init-ensure installer failed (continuing)."
-        resolve_npx || true
+        bash "$NODE_INSTALL_SCRIPT"
+        resolve_npx
+        if [ -z "$NPX_BIN" ]; then
+            echo "  Warning: npx is still unavailable after the installer."
+        fi
     fi
 fi
 
 # --- Ensure the runtime port is free (idempotent restart) ---
 echo "Ensuring port ${PORT} is free..."
-ensure_port_free "$PORT" "$PHP_BIN" || echo "  Continuing; the runtime may fail to bind if the port is truly occupied."
+ensure_port_free "$PORT" "$PHP_BIN"
+if [ "$PORT_READY" != "yes" ]; then
+    echo "  Continuing; the runtime may fail to bind if the port is truly occupied."
+fi
 
 # schedule:work binds no port -- its own idempotent cleanup (single tick source).
 ensure_schedule_work_stopped
@@ -1188,9 +1264,11 @@ ensure_schedule_work_stopped
 # The service ExecStart is a plane-specific runtime launcher that does only
 # minimal convergence + octane (NO init, NO domain setup, NO installers).
 # 175 init is the ONE-TIME setup; the service is "just start octane".
-if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
+systemd_available
+if [ "$AS_SERVICE" != "no" ] && [ "$SYSTEMD_READY" != "yes" ]; then
     echo ""
-    if is_wsl; then
+    is_wsl
+    if [ "$WSL_READY" = "yes" ]; then
         echo "Background systemd service unavailable: this WSL distro was not booted with systemd."
         echo "    (systemctl would fail with 'System has not been booted with systemd as init system'.)"
         echo "    To enable it (optional): add the following to /etc/wsl.conf, then run 'wsl --shutdown'"
@@ -1207,14 +1285,17 @@ if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
 fi
 if [ -z "$AS_SERVICE" ]; then
     _resolve_laravel_service_plane
-    if ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (${LARAVEL_SERVICE_PLANE_NAME}, via systemd_service_manager)?"; then
+    ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (${LARAVEL_SERVICE_PLANE_NAME}, via systemd_service_manager)?"
+    if [ "$PROMPT_ANSWER" = "yes" ]; then
         AS_SERVICE="yes"
     else
         AS_SERVICE="no"
     fi
 fi
 if [ "$AS_SERVICE" = "yes" ]; then
-    [ -n "$LARAVEL_SERVICE_MEM" ] || LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
+    if [ -z "$LARAVEL_SERVICE_MEM" ]; then
+        LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
+    fi
     _resolve_laravel_service_plane
     echo "Registering systemd service $LARAVEL_SERVICE_PLANE_NAME (plane=$LARAVEL_SERVICE_PLANE, CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
     echo "  ExecStart: $LARAVEL_SERVICE_PLANE_LAUNCHER (runtime-only, init-free, hot-reload default)"
@@ -1229,15 +1310,14 @@ if [ "$AS_SERVICE" = "yes" ]; then
         *)          _opposite_service="" ;;
     esac
     for _old_service in "$_opposite_service" "${LARAVEL_SERVICE_NAME_BASE}-main"; do
-        [ -n "$_old_service" ] || continue
-        if [ -f "/etc/systemd/system/${_old_service}.service" ]; then
+        if [ -n "$_old_service" ] && [ -f "/etc/systemd/system/${_old_service}.service" ]; then
             echo "  Removing opposite-plane service: $_old_service"
-            systemctl stop "$_old_service" 2>/dev/null || true
-            systemctl disable "$_old_service" 2>/dev/null || true
+            systemctl stop "$_old_service" 2>/dev/null
+            systemctl disable "$_old_service" 2>/dev/null
             rm -f "/etc/systemd/system/${_old_service}.service"
         fi
     done
-    systemctl daemon-reload 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null
 
     # PHP_BIN defaults to "php" (the frankenphp php-cli shim); WORKERS and
     # MAX_REQUESTS use the runtime launcher's own defaults.
@@ -1247,7 +1327,8 @@ if [ "$AS_SERVICE" = "yes" ]; then
     # localhost for public certs). Resolved here, where the domain phase's
     # scope + persisted gvar state are live.
     SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} FRANKENPHP_SITE_HOST=$(fm_site_host) bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
-    if register_laravel_service "$SERVICE_EXEC_CMD"; then
+    register_laravel_service "$SERVICE_EXEC_CMD"
+    if [ "$LARAVEL_SERVICE_READY" = "yes" ]; then
         echo "Service $LARAVEL_SERVICE_PLANE_NAME registered and started."
         echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
         echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_PLANE_NAME"
@@ -1255,7 +1336,12 @@ if [ "$AS_SERVICE" = "yes" ]; then
 
             # --- Optional: also bring the nexus-dash UI up as its own background service ---
             if [ -z "$INCLUDE_UI" ]; then
-                if [ -f "$UI_START" ] && ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"; then
+                if [ -f "$UI_START" ]; then
+                    ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
+                else
+                    PROMPT_ANSWER="no"
+                fi
+                if [ "$PROMPT_ANSWER" = "yes" ]; then
                     INCLUDE_UI="yes"
                 else
                     INCLUDE_UI="no"
@@ -1264,7 +1350,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
             if [ "$INCLUDE_UI" = "yes" ]; then
                 if [ -f "$UI_START" ]; then
                     echo "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..."
-                    bash "$UI_START" --no-backend --service || echo "  Warning: UI dashboard service registration failed (continuing)."
+                    bash "$UI_START" --no-backend --service
                     # Dashboard domain binding: shared state and allowed-host
                     # inputs, followed by the active plane's canonical route
                     # renderer. --with-ui is explicit intent and does not
@@ -1273,15 +1359,18 @@ if [ "$AS_SERVICE" = "yes" ]; then
                     if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
                         PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
                             /bin/bash "$LARAVEL_START_FRANKENPHP_SUB" ui-binding
-                    elif ask_default_yes "Bind <domain>, www.<domain>, <prefix>.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"; then
-                        domain_setup_enable_ui_binding
+                    else
+                        ask_default_yes "Bind <domain>, www.<domain>, <prefix>.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"
+                        if [ "$PROMPT_ANSWER" = "yes" ]; then
+                            domain_setup_enable_ui_binding
+                        fi
                     fi
                 else
                     echo "  Warning: UI start script not found: $UI_START (skipping)."
                 fi
             fi
 
-            exit 0
+            return
         else
             echo "Service registration failed; continuing in the foreground."
         fi
@@ -1307,4 +1396,9 @@ else
         LARAVEL_RUNTIME_NGINX_SCRIPT="$LARAVEL_RUNTIME_NGINX_SCRIPT" \
         OCTANE_RUNTIME_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_RUNTIME_POLL="$OCTANE_RUNTIME_POLL" \
         /bin/bash "$LARAVEL_START_NGINX_SUB" runtime
+fi
+}
+
+if [ "$HELP_REQUESTED" != "yes" ]; then
+    laravel_main_run
 fi

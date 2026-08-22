@@ -7,16 +7,16 @@ use App\Support\QueueCenterContract;
 
 class RealtimeConnectionService
 {
-    /**
-     * Mercure hub connection form (the realtime plane on the frankenphp
-     * server): hub URL, exact topics and a short-lived subscriber token.
-     * Queue Center is a public control plane, but the hub stays closed to
-     * anonymous subscribers; the token grants only the requested topics.
-     */
+    /** Topic-scoped Mercure authorization shared by every realtime consumer. */
     public function hubConnection(array $topics = [], array $extra = []): array
     {
+        $topics = array_values(array_unique(array_filter(
+            $topics,
+            static fn (mixed $topic): bool => is_string($topic) && $topic !== ''
+        )));
+
         return array_merge(RelayHubAuthService::issueForTopics('queue-center', $topics), [
-            'auth_mode' => 'jwt',
+            'auth_mode' => 'bearer',
             'protocol' => QueueCenterContract::relayHubString('protocol'),
         ], $extra);
     }

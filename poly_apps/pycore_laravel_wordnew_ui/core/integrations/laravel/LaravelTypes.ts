@@ -182,10 +182,10 @@ export interface RelayHubToken {
   transport: string;
   hub_url: string;
   topics: string[];
+  subscribe_url: string;
   token: string;
   token_ttl_seconds: number;
   cookie: string;
-  subscribe_url: string;
 }
 
 export interface RelayPairResponse {

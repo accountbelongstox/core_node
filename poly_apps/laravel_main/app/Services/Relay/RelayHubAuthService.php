@@ -2,16 +2,14 @@
 
 namespace App\Services\Relay;
 
+use App\Support\QueueCenterContract;
 use App\Support\ServiceContract;
+use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\Cookie;
 
 /**
- * Relay hub auth: short-lived, topic-scoped Mercure subscriber tokens.
- *
- * Identity resolves once (UI session or machine); the granted topic set is
- * computed server-side from that identity - never echoed from the request.
- * Non-browser clients (pycore) present the token as an Authorization Bearer
- * header; browsers additionally receive the hub-path cookie so a native
- * EventSource can subscribe through the configured secure cookie.
+ * Issues short-lived, identity-scoped Mercure subscriber credentials.
+ * Topic grants are derived server-side and never accepted from clients.
  */
 final class RelayHubAuthService
 {
@@ -34,6 +32,7 @@ final class RelayHubAuthService
     {
         $resolvedSubject = $subject !== null && $subject !== '' ? $subject : 'session';
         $topics = array_merge([RelayDispatcher::machinesTopic()], self::queueCenterTopics());
+
         if ($machineId !== null && RelayPairRegistry::isActive($machineId, $resolvedSubject)) {
             $topics[] = RelayDispatcher::pairTopic($machineId);
         }
@@ -42,24 +41,6 @@ final class RelayHubAuthService
     }
 
     /**
-     * Queue Center realtime topics ride the same hub and the same token
-     * surface (exact-match grants) - one authorization path for machines,
-     * UI sessions and the Queue Center consumers.
-     *
-     * @return array<int, string>
-     */
-    private static function queueCenterTopics(): array
-    {
-        $topic = (string) (\App\Support\QueueCenterContract::realtime()['topic'] ?? '');
-
-        return $topic !== '' ? [$topic] : [];
-    }
-
-    /**
-     * Generic issuer for authenticated app scopes (wordnew social, future
-     * consumers): exact-match grants, same token/cookie surface as machines
-     * and UI sessions.
-     *
      * @param array<int, string> $topics
      */
     public static function issueForTopics(string $subject, array $topics): array
@@ -68,36 +49,39 @@ final class RelayHubAuthService
     }
 
     /**
-     * Attach the configured hub-path cookie to a JSON response so a
-     * browser EventSource can authorize without headers.
-     *
      * @param array<string, mixed> $token
      */
-    public static function withHubCookie(\Illuminate\Http\JsonResponse $response, array $token): \Illuminate\Http\JsonResponse
+    public static function withHubCookie(JsonResponse $response, array $token): JsonResponse
     {
-        return $response->cookie(
-            new \Symfony\Component\HttpFoundation\Cookie(
-                $token['cookie'],
-                $token['token'],
-                now()->addSeconds((int) $token['token_ttl_seconds'])->timestamp,
-                parse_url($token['hub_url'], PHP_URL_PATH) ?: '/.well-known/mercure',
-                null,
-                parse_url($token['hub_url'], PHP_URL_SCHEME) === 'https',
-                true,
-                false,
-                'strict'
-            )
-        );
+        return $response->cookie(new Cookie(
+            (string) $token['cookie'],
+            (string) $token['token'],
+            now()->addSeconds((int) $token['token_ttl_seconds'])->timestamp,
+            parse_url((string) $token['hub_url'], PHP_URL_PATH) ?: '/.well-known/mercure',
+            null,
+            parse_url((string) $token['hub_url'], PHP_URL_SCHEME) === 'https',
+            true,
+            false,
+            'strict'
+        ));
     }
 
     /**
-     * Mercure subscription URL: one `topic` query parameter per selector.
-     *
      * @param array<string, mixed> $token
      */
     public static function subscribeUrl(array $token): string
     {
-        return self::buildSubscribeUrl($token['hub_url'], $token['topics']);
+        return self::buildSubscribeUrl((string) $token['hub_url'], (array) $token['topics']);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function queueCenterTopics(): array
+    {
+        $topic = (string) (QueueCenterContract::realtime()['topic'] ?? '');
+
+        return $topic !== '' ? [$topic] : [];
     }
 
     /**
@@ -105,16 +89,18 @@ final class RelayHubAuthService
      */
     private static function issue(string $subject, array $topics): array
     {
-        $topics = array_values(array_unique($topics));
+        $topics = array_values(array_unique(array_filter(
+            $topics,
+            static fn (mixed $topic): bool => is_string($topic) && $topic !== ''
+        )));
         $hubUrl = RelayHubJwt::hubUrl();
-        $token = RelayHubJwt::subscriberToken($subject, $topics, $hubUrl);
 
         return [
             'transport' => 'mercure',
             'hub_url' => $hubUrl,
             'topics' => $topics,
-            'token' => $token,
-            'token_ttl_seconds' => \App\Support\QueueCenterContract::relayHubInt('token_ttl_seconds'),
+            'token' => RelayHubJwt::subscriberToken($subject, $topics, $hubUrl),
+            'token_ttl_seconds' => QueueCenterContract::relayHubInt('token_ttl_seconds'),
             'cookie' => ServiceContract::string('realtime.mercure_cookie'),
             'subscribe_url' => self::buildSubscribeUrl($hubUrl, $topics),
         ];

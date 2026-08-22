@@ -34,10 +34,10 @@ Env:
                                    of the task reuse that voice.
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
   QWEN3TTS_MAX_PARALLEL          - override auto GPU-tuned batch size
-  QWEN3TTS_QUEUE_MAX             - active queued/running jobs (default 200)
+  The service accepts one active job. GPU capacity is used inside that job for
+  native sentence-chunk batching; callers retain and retry additional work.
   QWEN3TTS_QUEUE_RESULT_TTL_S    - completed result retention (default 900)
   QWEN3TTS_QUEUE_RESULT_MAX      - maximum retained terminal jobs (default 200)
-  QWEN3TTS_TASK_TIMEOUT_S        - queued batch timeout (default 900)
   QWEN3TTS_CHUNK_MAX_CHARS       - per-chunk character budget at speed 1.0
                                    (default 280, ~20s); sentence merging stays
                                    within ~60% of it, and slower speeds shrink
@@ -756,6 +756,7 @@ def _get_queue() -> QwenQueue:
             _log,
             event_publisher=publish_event,
             batchable=_get_synthesis().queue_batchable,
+            progress_snapshot=_get_synthesis().runtime,
         )
     return _QUEUE
 

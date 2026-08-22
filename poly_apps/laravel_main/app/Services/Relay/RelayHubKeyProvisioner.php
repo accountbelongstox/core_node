@@ -5,11 +5,11 @@ namespace App\Services\Relay;
 use App\Support\RuntimeConfigurationStore;
 
 /**
- * Mercure hub key provisioner - the single writer for the HS256 hub
- * secrets. Keys live ONLY in the RuntimeConfigurationStore constant
+ * Mercure hub key provisioner - the single writer for the HS256 publisher
+ * and subscriber secrets. The keys live ONLY in the RuntimeConfigurationStore constant
  * directory (outside the repository tree): never in code, config, env
- * files or git. Idempotent: present keys are never rotated (issued tokens
- * keep validating across restarts); missing keys are generated once.
+ * files or git. Idempotent: a present key is never rotated (issued tokens
+ * keep validating across restarts); a missing key is generated once.
  *
  * The Caddyfile renderers (ServerManagerV1FrankenPhpCaddyfileBuilder here,
  * fm_mercure_config on the shell end) embed the stored values as literal
@@ -42,7 +42,6 @@ final class RelayHubKeyProvisioner
     {
         foreach ([RelayHubJwt::PUBLISHER_KEY, RelayHubJwt::SUBSCRIBER_KEY] as $key) {
             $value = RuntimeConfigurationStore::get($key);
-
             if ($value === null || trim($value) === '') {
                 return false;
             }

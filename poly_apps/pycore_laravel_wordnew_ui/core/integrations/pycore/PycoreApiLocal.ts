@@ -23,6 +23,7 @@ import type {
   QueueCenterControlName, QueueCenterControlResponse,
   PcCapabilitySaveResponse, PcCapabilityOptions,
   PcTaskRecentResponse, PcTaskClearResponse,
+  QueueWorkerEventPage,
   AutostartStatus, AutostartTarget,
 } from './pycoreTypes';
 import {
@@ -285,6 +286,16 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterSnapshot, { refresh }) as Promise<{
       success: boolean;
       data?: Record<string, unknown>;
+      error?: string;
+    }>,
+  getQueueCenterEventPage: (lane: 'word' | 'sentence', page = 1, pageSize = 20) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterEventPage, {
+      lane,
+      page,
+      page_size: pageSize,
+    }) as Promise<{
+      success: boolean;
+      data?: QueueWorkerEventPage;
       error?: string;
     }>,
   retryAudioDelivery: (lane: 'all' | 'word' | 'sentence' = 'all') =>

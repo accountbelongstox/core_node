@@ -21,7 +21,18 @@
     },
     "realtime": {
         "mercure_cookie": "mercureAuthorization",
-        "mercure_transport": "local"
+        "mercure_transport": "local",
+        "mercure_cors_origins": [
+            "http://127.0.0.1:13054",
+            "http://localhost:13054"
+        ]
+    },
+    "php_runtime": {
+        "upload_max_filesize": "10G",
+        "post_max_size": "10G",
+        "max_execution_time_seconds": 1200,
+        "max_input_time_seconds": 1200,
+        "request_body_timeout": "20m"
     },
     "http": {
         "ui_early_hints_link": "<https://fonts.googleapis.com>; rel=preconnect, <https://fonts.gstatic.com>; rel=preconnect; crossorigin"

@@ -11,18 +11,16 @@ REUSE-FIRST: GPU detection reuses compute_caps.CUDADetector (the project-wide
 CUDA detection kernel) as the canonical nvidia-smi fallback instead of a
 private subprocess probe. PyTorch (via the third_party lazy accessor) and
 OpenCV CUDA are still probed first because they yield the most accurate device
-name + memory. FFmpeg probes keep commander.exec_silent.
+name + memory. FFmpeg capabilities use the shared runtime.
 """
-import subprocess
+import os
 from typing import Optional, Dict
 
-from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_torch
-
-import os
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
 
 cv2 = get_third_package_cv2()
@@ -172,37 +170,22 @@ class MediaCapabilityDetector:
 
     def _detect_ffmpeg(self):
         """Detect FFmpeg availability and CUDA support"""
-        try:
-            # Check if ffmpeg exists
-            result = exec_silent(
-                ["ffmpeg", "-version"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.return_code == 0:
-                self.ffmpeg_available = True
-                self._print("✅ FFmpeg detected")
-
-                # Check for NVIDIA codec support
-                if self.cuda_available:
-                    codec_result = exec_silent(
-                        ["ffmpeg", "-hide_banner", "-encoders"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    if codec_result.return_code == 0:
-                        output = codec_result.stdout
-                        # Check for NVIDIA hardware encoders
-                        if 'h264_nvenc' in output or 'hevc_nvenc' in output:
-                            self.ffmpeg_cuda_support = True
-                            self._print("✅ FFmpeg NVIDIA hardware encoding support detected")
-                        else:
-                            self._print("ℹ️  FFmpeg CUDA encoders not available")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
+        self.ffmpeg_available = ffmpeg_runtime.available()
+        if not self.ffmpeg_available:
             self._print("⚠️  FFmpeg not found, video compression will be limited")
             self._print("   Install FFmpeg: https://ffmpeg.org/download.html")
+            return
+        self._print("✅ FFmpeg detected")
+        if not self.cuda_available:
+            return
+        self.ffmpeg_cuda_support = (
+            ffmpeg_runtime.supports_encoder("h264_nvenc")
+            or ffmpeg_runtime.supports_encoder("hevc_nvenc")
+        )
+        if self.ffmpeg_cuda_support:
+            self._print("✅ FFmpeg NVIDIA hardware encoding support detected")
+        else:
+            self._print("ℹ️  FFmpeg CUDA encoders not available")
 
     def _print_capabilities_summary(self):
         """Print capabilities summary"""

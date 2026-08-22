@@ -44,6 +44,24 @@ def register_local_task_center_routes(server) -> None:
             "data": get_queue_center_snapshot(bool(request.get("refresh"))),
         }
 
+    def event_page_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        lane = str(request.get("lane") or "").strip().lower()
+        workers = {
+            "word": laravel_word_audio_worker,
+            "sentence": laravel_sentence_audio_worker,
+        }
+        worker = workers.get(lane)
+        if worker is None:
+            return {"success": False, "error": "lane must be word or sentence"}
+        return {
+            "success": True,
+            "data": worker.get_event_page(
+                int(request.get("page") or 1),
+                int(request.get("page_size") or 20),
+            ),
+        }
+
     def retry_audio_delivery_handler(params, _request_id, _context):
         request = params if isinstance(params, dict) else {}
         lane = str(request.get("lane") or "all").strip().lower()
@@ -58,6 +76,7 @@ def register_local_task_center_routes(server) -> None:
 
     routes = (
         (route_names.UI_QUEUE_CENTER_SNAPSHOT, snapshot_handler),
+        (route_names.UI_QUEUE_CENTER_EVENT_PAGE, event_page_handler),
         (route_names.UI_QUEUE_CENTER_RETRY_AUDIO_DELIVERY, retry_audio_delivery_handler),
         (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),
         (route_names.UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL, local_detail_handler),

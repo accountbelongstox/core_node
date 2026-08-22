@@ -93,7 +93,7 @@ export class QueueCenterExchangeAPI {
     const errors: Record<string, string> = {};
 
     const localSnapshot = this._unwrapLocal(localResult, errors);
-    const overview = this._unwrapOverview(overviewResult, errors);
+    let overview = this._unwrapOverview(overviewResult, errors);
     const translation = this._unwrapTranslation(translationResult, errors);
     const sentenceQueue = this._unwrapSentenceQueue(sentenceResult, errors);
     const queueCenterOverview = queueCenterResult.status === 'fulfilled'
@@ -114,6 +114,28 @@ export class QueueCenterExchangeAPI {
     // browser fetched directly.
     if (queueCenterOverview !== null) {
       const queues = queueCenterOverview.queues || {};
+      if (overview !== null) {
+        overview = {
+          ...overview,
+          workers: Array.isArray(queueCenterOverview.workers)
+            ? queueCenterOverview.workers
+            : overview.workers,
+          categories: (overview.categories || []).map((category) => {
+            const stats = queues[category.key];
+            if (!stats) return category;
+            const pending = Number(stats.pending || 0);
+            const leased = Number(stats.assigned || 0);
+            const processing = Number(stats.processing || 0);
+            return {
+              ...category,
+              pending,
+              leased,
+              processing,
+              total: Number(stats.total ?? pending + leased + processing),
+            };
+          }),
+        };
+      }
       for (const scope of QUEUE_CENTER_QUEUE_POSITION_CONTROLS) {
         const stats = queues[scope];
         if (!stats || !sectionContracts[scope]) {

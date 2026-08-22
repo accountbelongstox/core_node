@@ -522,10 +522,8 @@ persist_base_data_directory() {
 #   3. Else fall back to the largest secondary disk (get_base_data_directory).
 # WSL keeps its data-disk design (root / is the ephemeral vhdx).
 get_dev_compile_base() {
-    local sys_name sys_version suffix root_free min_gb min_bytes
-    sys_name="${SYSTEM_NAME}"
-    sys_version="$(echo "${SYSTEM_VERSION}" | cut -d. -f1)"
-    suffix="_${sys_name}_${sys_version}"
+    local suffix root_free min_gb min_bytes
+    suffix="$SYS_DIR"
     min_gb="${DEV_ROOT_MIN_FREE_GB:-50}"
 
     if [ "${IS_WSL:-false}" != "true" ]; then
@@ -922,7 +920,6 @@ export CORE_NODE_DATA_DIR
 export CORE_NODE_SHARED_DOWNLOADS
 
 # System detection variables (merged from gvar_common.sh)
-PRE_COMPILE_DIR=".dev"
 OS_ID=""
 OS_VERSION_ID=""
 OS_NAME=""
@@ -941,46 +938,40 @@ if [ -f /etc/os-release ]; then
     "centos" | "rhel" | "fedora")
         SYSTEM_NAME="centos"
         SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_centos${OS_VERSION_ID}"
         ;;
     "ubuntu")
         SYSTEM_NAME="ubuntu"
         SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_ubuntu${OS_VERSION_ID}"
         ;;
     "debian")
         SYSTEM_NAME="debian"
         SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_debian${OS_VERSION_ID}"
         ;;
     "almalinux" | "rocky")
         SYSTEM_NAME="centos" # Treat AlmaLinux/Rocky as CentOS for compatibility
         SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_centos${OS_VERSION_ID}"
         ;;
     *)
         SYSTEM_NAME="$OS_ID"
         SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_${OS_ID}${OS_VERSION_ID}"
         ;;
     esac
 elif [ -f /etc/redhat-release ]; then
     # Older RedHat-based systems
     SYSTEM_NAME="centos"
     SYSTEM_VERSION=$(cat /etc/redhat-release | sed -e 's/.*release \([0-9]\+\).*/\1/')
-    SYS_DIR="${PRE_COMPILE_DIR}_centos${SYSTEM_VERSION}"
 elif [ -f /etc/lsb-release ]; then
     # Older Ubuntu systems
     . /etc/lsb-release
     SYSTEM_NAME="${DISTRIB_ID,,}"
     SYSTEM_VERSION="$DISTRIB_RELEASE"
-    SYS_DIR="${PRE_COMPILE_DIR}_${SYSTEM_NAME}${SYSTEM_VERSION}"
 else
     # Fallback to uname
     SYSTEM_NAME=$(uname -s | tr '[:upper:]' '[:lower:]')
     SYSTEM_VERSION=$(uname -r)
-    SYS_DIR="${PRE_COMPILE_DIR}_${SYSTEM_NAME}${SYSTEM_VERSION}"
 fi
+
+SYS_DIR="_${SYSTEM_NAME}_$(echo "${SYSTEM_VERSION}" | cut -d. -f1)"
 
 # Directory variables will be set after map_web_path function is defined
 
@@ -1012,7 +1003,6 @@ get_system_info() {
 }
 
 # Export additional variables (merged from gvar_common.sh)
-export PRE_COMPILE_DIR
 export OS_ID
 export OS_VERSION_ID
 export OS_NAME
@@ -1204,9 +1194,10 @@ map_web_path() {
     local sub_path="${2:-}"
     local mapped_path=""
     local base_path=""
+    local data_base=""
 
     # Get optimal base directory
-    local data_base=$(get_base_data_directory)
+    data_base=$(get_base_data_directory)
 
     # Determine the web base. The selected disk (a large/Windows-NTFS DATA disk, or
     # root) is honored AS-IS so web data lives ON that disk: a Windows NTFS DATA disk
@@ -1263,21 +1254,17 @@ map_web_path() {
             # Format: _ubuntu_24, _debian_13, _kali_2026 (underscore prefix).
             # Base prefers /opt when root has >50G free (or /opt dir already in use);
             # see get_dev_compile_base. NOT the web data base.
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_dev_compile_base)
+            data_base=$(get_dev_compile_base)
 
             # Use base_dir/_system_version for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}"
+            mapped_path="${data_base}/${SYS_DIR}"
             ;;
         "applications_dir")
             # Applications directory - same location as compile_dir for consistency
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_dev_compile_base)
+            data_base=$(get_dev_compile_base)
 
             # Use base_dir/_system_version/applications for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
+            mapped_path="${data_base}/${SYS_DIR}/applications"
             ;;
         "nginx")
             # Keep /etc/nginx in Linux filesystem
@@ -1320,21 +1307,17 @@ map_web_path() {
             ;;
         "npm_global")
             # NPM global packages directory (inside the dev compile_dir -> same base).
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_dev_compile_base)
+            data_base=$(get_dev_compile_base)
 
             # Use base_dir/_system_version/npm-global for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
+            mapped_path="${data_base}/${SYS_DIR}/npm-global"
             ;;
         "dev_system")
             # Development system directory (same as compile_dir -> same base).
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_dev_compile_base)
+            data_base=$(get_dev_compile_base)
 
             # Use base_dir/_system_version for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}"
+            mapped_path="${data_base}/${SYS_DIR}"
             ;;
         *)
             # Default: return the key as-is (assume it's already a path)

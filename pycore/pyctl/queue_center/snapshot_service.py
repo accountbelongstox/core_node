@@ -39,8 +39,6 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_REALTIME_EVENTS,
     queue_center_endpoint,
 )
-from pycore.pyctl.relay import relay_service
-
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
     STATUS_SNAPSHOT_TTS_KEY,
@@ -121,11 +119,35 @@ def _queue_metrics(queue_overview: Dict[str, Any], scope: str) -> Optional[Dict[
     }
 
 
+class _QueueCenterTokenProvider:
+    """Own the Queue Center topic token independently from machine relay."""
+
+    def __init__(
+        self,
+        service: "_QueueCenterSnapshotService",
+        endpoint: str,
+        connection: Dict[str, Any],
+    ) -> None:
+        self._service = service
+        self._endpoint = endpoint
+        self._token = str(connection.get("token") or "")
+
+    def __call__(self, force_refresh: bool = False) -> str:
+        connection: Dict[str, Any] = {}
+
+        if force_refresh or not self._token:
+            connection = self._service.realtime_connection(self._endpoint)
+            self._token = str(connection.get("token") or "")
+        if not self._token:
+            raise RuntimeError("Laravel Queue Center subscriber token is unavailable")
+        return self._token
+
+
 class _QueueCenterRealtimeThread(threading.Thread):
     """Consume Queue Center Mercure updates without occupying a Laravel worker.
 
     The shared ``MercureSubscriber`` owns reconnects, Last-Event-ID resume
-    and token refresh; this thread only gates on endpoint health, re-derives
+    and authorized cursor recovery; this thread only gates on endpoint health, re-derives
     the server-issued hub connection per start, and reconciles missed rows
     over the events endpoint around every reconnect.
     """
@@ -156,7 +178,11 @@ class _QueueCenterRealtimeThread(threading.Thread):
                 subscriber = MercureSubscriber(
                     str(connection["hub_url"]),
                     [str(topic) for topic in (connection.get("topics") or [])],
-                    token_provider=relay_service.hub_token,
+                    token_provider=_QueueCenterTokenProvider(
+                        self._service,
+                        endpoint,
+                        connection,
+                    ),
                     on_update=self._dispatch_update,
                     on_state_change=lambda state, detail: self._on_hub_state(
                         endpoint, state, detail

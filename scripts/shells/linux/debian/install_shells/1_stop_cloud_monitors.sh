@@ -2,6 +2,7 @@
 # Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
+POSTFIX_CLEANUP_COMMON="$COMMON_DIR/postfix_cleanup_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 
 # ### AI SPECIAL ATTENTION RULES START ###
@@ -28,9 +29,11 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 ALIYUN_WORK_DIR=""
 TENCENT_TEMP_DIR=""
 TENCENT_REMOVE_SCRIPT=""
+POSTFIX_LOG_PREFIX="[$SCRIPT_INDEX] [POSTFIX]"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$POSTFIX_CLEANUP_COMMON"
 
 # -----------------------------------------------------------------------------
 # Aliyun: Aegis / CloudMonitor / assist-daemon
@@ -200,6 +203,9 @@ stop_tencent_agents() {
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
+echo "[$SCRIPT_INDEX] Stopping, disabling, and cleaning Postfix..."
+postfix_stop_disable_and_cleanup
+echo ""
 echo "[$SCRIPT_INDEX] Stopping cloud-provider monitoring agents (Aliyun / Huawei / Tencent)..."
 echo ""
 stop_aliyun_cloudmonitor

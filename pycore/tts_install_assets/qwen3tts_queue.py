@@ -14,10 +14,10 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Callable, Deque, Dict, List, Optional
 
-DEFAULT_QUEUE_MAX = 200
+DEFAULT_QUEUE_MAX = 1
 DEFAULT_RESULT_TTL_S = 900.0
 DEFAULT_RESULT_MAX = 200
-DEFAULT_TASK_TIMEOUT_S = 900.0
+PROGRESS_POLL_SECONDS = 0.25
 TERMINAL_STATES = {"done", "failed", "cancelled"}
 
 
@@ -55,20 +55,19 @@ class QwenQueue:
         logger: Callable[[str], None],
         event_publisher: Optional[Callable[[str, Dict[str, Any]], None]] = None,
         batchable: Optional[Callable[[Dict[str, Any]], bool]] = None,
+        progress_snapshot: Optional[Callable[[], Dict[str, Any]]] = None,
     ) -> None:
         self._synthesize_batch = synthesize_batch
         self._max_parallel = max_parallel
         self._logger = logger
         self._event_publisher = event_publisher
         self._batchable = batchable or (lambda _job: True)
-        self._queue_max = _env_int("QWEN3TTS_QUEUE_MAX", DEFAULT_QUEUE_MAX)
+        self._progress_snapshot = progress_snapshot or (lambda: {})
+        self._queue_max = DEFAULT_QUEUE_MAX
         self._result_ttl_s = _env_float(
             "QWEN3TTS_QUEUE_RESULT_TTL_S", DEFAULT_RESULT_TTL_S
         )
         self._result_max = _env_int("QWEN3TTS_QUEUE_RESULT_MAX", DEFAULT_RESULT_MAX)
-        self._task_timeout_s = _env_float(
-            "QWEN3TTS_TASK_TIMEOUT_S", DEFAULT_TASK_TIMEOUT_S
-        )
         self._jobs: Dict[str, Dict[str, Any]] = {}
         self._client_jobs: Dict[str, str] = {}
         self._queue: Deque[str] = deque()
@@ -84,10 +83,6 @@ class QwenQueue:
     @property
     def queue_max(self) -> int:
         return self._queue_max
-
-    @property
-    def task_timeout_s(self) -> float:
-        return self._task_timeout_s
 
     async def start(self) -> None:
         if self._consumer is not None and not self._consumer.done():
@@ -149,6 +144,12 @@ class QwenQueue:
             "_media_type": None,
             "_terminal_monotonic": None,
             "_started_monotonic": None,
+            "_progress_monotonic": None,
+            "_progress_marker": None,
+            "progress_revision": 0,
+            "progress": 0,
+            "progress_total": 0,
+            "progress_phase": "queued",
             "_cancel_requested": False,
         }
         self._jobs[job_id] = job
@@ -197,22 +198,30 @@ class QwenQueue:
             if job.get("status") == "running" and job.get("_started_monotonic")
         ]
         oldest_running_ms = max(running_elapsed, default=0)
+        progress_ages = [
+            max(
+                0,
+                round(
+                    (time.monotonic() - float(job.get("_progress_monotonic") or 0))
+                    * 1000
+                ),
+            )
+            for job in jobs
+            if job.get("status") == "running" and job.get("_progress_monotonic")
+        ]
         consumer_running = bool(
             self._consumer is not None and not self._consumer.done()
         )
         runtime = self._runtime_metrics()
         return {
             "queue_max": self._queue_max,
-            "task_timeout_s": self._task_timeout_s,
             "result_ttl_s": self._result_ttl_s,
             "seq": self._seq,
             "instance_id": self._instance_id,
             "consumer_running": consumer_running,
             "oldest_running_ms": oldest_running_ms,
-            "stalled": bool(
-                not consumer_running
-                or oldest_running_ms > round(self._task_timeout_s * 1000)
-            ),
+            "oldest_progress_age_ms": max(progress_ages, default=0),
+            "stalled": not consumer_running,
             "counts": counts,
             "jobs": [self._public_job(job, runtime=runtime) for job in jobs],
             "synthesized_count": synthesized,
@@ -237,17 +246,47 @@ class QwenQueue:
                 job["status"] = "running"
                 job["started_at"] = _utc_now()
                 job["_started_monotonic"] = time.monotonic()
+                job["_progress_monotonic"] = time.monotonic()
+                job["_progress_marker"] = ("starting", "", 0, 0, 0)
+                job["progress_revision"] = int(job.get("progress_revision") or 0) + 1
+                job["progress"] = 0
+                job["progress_total"] = 0
+                job["progress_phase"] = "starting"
                 self._emit("queue.job.running", job)
             try:
-                results = await asyncio.wait_for(
-                    asyncio.to_thread(self._synthesize_batch, batch),
-                    timeout=self._task_timeout_s,
+                synthesis_task = asyncio.create_task(
+                    asyncio.to_thread(self._synthesize_batch, batch)
                 )
+                while not synthesis_task.done():
+                    self._publish_batch_progress(batch)
+                    await asyncio.sleep(PROGRESS_POLL_SECONDS)
+                results = await synthesis_task
                 self._apply_results(batch, results, started)
-            except asyncio.TimeoutError:
-                self._fail_batch(batch, f"task timed out after {self._task_timeout_s:g}s", started)
             except Exception as exc:  # noqa: BLE001
                 self._fail_batch(batch, str(exc), started)
+
+    def _publish_batch_progress(self, batch: List[Dict[str, Any]]) -> None:
+        snapshot = dict(self._progress_snapshot() or {})
+        phase = str(snapshot.get("phase") or "running")
+        completed = max(0, int(snapshot.get("chunks_completed") or 0))
+        total = max(0, int(snapshot.get("chunks_total") or 0))
+        marker = (
+            phase,
+            str(snapshot.get("work_kind") or ""),
+            completed,
+            total,
+            max(0, int(snapshot.get("active_native_batch") or 0)),
+        )
+        for job in batch:
+            if job.get("_progress_marker") == marker:
+                continue
+            job["_progress_marker"] = marker
+            job["_progress_monotonic"] = time.monotonic()
+            job["progress_revision"] = int(job.get("progress_revision") or 0) + 1
+            job["progress"] = completed
+            job["progress_total"] = total
+            job["progress_phase"] = phase
+            self._emit("queue.job.progress", job)
 
     def _take_batch(self, max_parallel: int) -> List[Dict[str, Any]]:
         first = self._pop_pending()
@@ -298,6 +337,16 @@ class QwenQueue:
             if result.get("ok"):
                 audio = result.get("audio") or b""
                 job["status"] = "done"
+                progress_total = max(
+                    1,
+                    int(job.get("progress_total") or 0),
+                    int(job.get("progress") or 0),
+                )
+                job["progress_revision"] = int(job.get("progress_revision") or 0) + 1
+                job["progress"] = progress_total
+                job["progress_total"] = progress_total
+                job["progress_phase"] = "completed"
+                job["_progress_monotonic"] = time.monotonic()
                 job["_audio"] = audio
                 job["_media_type"] = result.get("media_type") or "application/octet-stream"
                 job["speaker"] = result.get("speaker") or job.get("speaker")
@@ -311,6 +360,9 @@ class QwenQueue:
                 self._emit("queue.job.completed", job)
             else:
                 job["status"] = "failed"
+                job["progress_revision"] = int(job.get("progress_revision") or 0) + 1
+                job["progress_phase"] = "failed"
+                job["_progress_monotonic"] = time.monotonic()
                 job["error"] = str(result.get("error") or "synthesis failed")
                 self._failed_count += 1
                 self._total_elapsed_ms += elapsed_ms
@@ -326,6 +378,9 @@ class QwenQueue:
                 self._finish_cancelled(job, elapsed_ms)
                 continue
             job["status"] = "failed"
+            job["progress_revision"] = int(job.get("progress_revision") or 0) + 1
+            job["progress_phase"] = "failed"
+            job["_progress_monotonic"] = time.monotonic()
             job["error"] = error
             job["elapsed_ms"] = elapsed_ms
             job["finished_at"] = _utc_now()
@@ -336,6 +391,9 @@ class QwenQueue:
 
     def _finish_cancelled(self, job: Dict[str, Any], elapsed_ms: int = 0) -> None:
         job["status"] = "cancelled"
+        job["progress_revision"] = int(job.get("progress_revision") or 0) + 1
+        job["progress_phase"] = "cancelled"
+        job["_progress_monotonic"] = time.monotonic()
         job["elapsed_ms"] = elapsed_ms
         job["finished_at"] = _utc_now()
         job["_terminal_monotonic"] = time.monotonic()
@@ -395,6 +453,23 @@ class QwenQueue:
                     ),
                 )
                 if job.get("status") == "running" and job.get("_started_monotonic")
+                else None
+            ),
+            "progress_revision": int(job.get("progress_revision") or 0),
+            "progress": int(job.get("progress") or 0),
+            "progress_total": int(job.get("progress_total") or 0),
+            "progress_phase": str(job.get("progress_phase") or ""),
+            "progress_age_ms": (
+                max(
+                    0,
+                    round(
+                        (
+                            time.monotonic()
+                            - float(job.get("_progress_monotonic") or 0)
+                        ) * 1000
+                    ),
+                )
+                if job.get("status") == "running" and job.get("_progress_monotonic")
                 else None
             ),
             "error": job.get("error"),

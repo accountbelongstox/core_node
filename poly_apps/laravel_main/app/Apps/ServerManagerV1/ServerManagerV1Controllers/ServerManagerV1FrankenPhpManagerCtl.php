@@ -451,7 +451,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         return preg_replace(
-            '/^(\s*(?:publisher|subscriber)_jwt\s+)\S+(\s+HS256\s*)$/m',
+            '/^(\s*(?:publisher_jwt|subscriber_jwt)\s+)\S+(\s+HS256\s*)$/m',
             '$1<redacted>$2',
             $content
         );

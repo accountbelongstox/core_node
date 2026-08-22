@@ -78,6 +78,11 @@ final class QueueCenterContract
         return self::document()['diff_delivery'] ?? [];
     }
 
+    public static function httpTransfer(): array
+    {
+        return self::document()['http_transfer'] ?? [];
+    }
+
     /**
      * Word-validity verification defaults (batch size, default languages, the
      * validity_source marker written for AI-verified rows, and browser request
@@ -202,8 +207,7 @@ final class QueueCenterContract
     }
 
     /**
-     * Mercure hub block: path, subscriber-token TTL, browser cookie name,
-     * anonymous flag (always false - every subscriber presents a JWT).
+     * Mercure hub block: protocol and well-known subscription path.
      */
     public static function relayHub(): array
     {
@@ -357,6 +361,15 @@ final class QueueCenterContract
             throw new RuntimeException("Unknown global-task priority: {$name}");
         }
         return (int) $priorities[$name];
+    }
+
+    public static function taskProgressStage(string $name): int
+    {
+        $stages = self::taskContract()['progress_stages'] ?? [];
+        if (!array_key_exists($name, $stages)) {
+            throw new RuntimeException("Unknown global-task progress stage: {$name}");
+        }
+        return (int) $stages[$name];
     }
 
     public static function taskLimit(string $name): int

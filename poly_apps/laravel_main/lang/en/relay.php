@@ -15,6 +15,7 @@ return [
     'invalid_blob_id' => 'Invalid blob ID.',
     'invalid_machine_id' => 'Invalid machine ID.',
     'machine_auth_required' => 'A recognized Pycore client is required.',
+    'machine_identity_invalid' => 'A valid Pycore device signature is required.',
     'machine_not_online' => 'Machine is not online.',
     'machine_not_registered' => 'Machine is not registered.',
     'peer_offline' => 'Peer is offline or the pair session expired.',

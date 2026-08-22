@@ -18,8 +18,6 @@
 detect_system_version() {
     if [ -s /.dockerenv ]; then
         echo "Running inside Docker container"
-        SYSTEM_VERSION="Docker"
-        SYSTEM_NAME="Docker"
         set_global_var "CURRENT_SYSTEM" "DOCKER"
         return
     fi
@@ -32,28 +30,20 @@ detect_system_version() {
     . /etc/os-release
     case "$ID" in
         ubuntu)
-            SYSTEM_VERSION="ubuntu_$(echo $VERSION_ID | cut -d. -f1)"
-            SYSTEM_NAME="debian"
             echo -e "\033[32mUbuntu $(echo $VERSION_ID) detected - using Debian-compatible scripts\033[0m"
             set_global_var "CURRENT_SYSTEM" "UBUNTU_$(echo $VERSION_ID | cut -d. -f1)"
             ;;
         debian)
-            SYSTEM_VERSION="debian_$(echo $VERSION_ID | cut -d. -f1)"
-            SYSTEM_NAME="debian"
             echo -e "\033[32mDebian $(echo $VERSION_ID) detected\033[0m"
             set_global_var "CURRENT_SYSTEM" "DEBIAN_$(echo $VERSION_ID | cut -d. -f1)"
             ;;
         kali)
-            SYSTEM_VERSION="kali_$(echo ${VERSION_ID:-0} | cut -d. -f1)"
-            SYSTEM_NAME="debian"
             echo -e "\033[32mKali ${VERSION_ID:-rolling} detected - using Debian-compatible scripts\033[0m"
             set_global_var "CURRENT_SYSTEM" "KALI_$(echo ${VERSION_ID:-0} | cut -d. -f1)"
             ;;
         *)
             # Accept any other Debian-family derivative (ID_LIKE contains "debian").
             if echo " ${ID_LIKE:-} " | grep -q " debian "; then
-                SYSTEM_VERSION="${ID}_$(echo ${VERSION_ID:-0} | cut -d. -f1)"
-                SYSTEM_NAME="debian"
                 echo -e "\033[32m${ID} ${VERSION_ID:-} detected (Debian-compatible via ID_LIKE) - using Debian scripts\033[0m"
                 set_global_var "CURRENT_SYSTEM" "$(echo ${ID} | tr '[:lower:]' '[:upper:]')_$(echo ${VERSION_ID:-0} | cut -d. -f1)"
             else

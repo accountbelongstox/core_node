@@ -11,8 +11,8 @@ probe in has_nvidia_gpu: its device count is the authoritative "can STT
 actually use CUDA right now" answer. A physical GPU alone does not override the
 centralized CUDA-major compatibility policy.
 
-Pure business logic: no HTTP/FastAPI. Imports only ffmpeg_ops (for
-resolve_ffmpeg in whisper_capabilities) - no import back into the processors
+Pure business logic: no HTTP/FastAPI. Imports only media_processor for
+FFmpeg capability reporting - no import back into the processors
 package otherwise.
 """
 
@@ -28,7 +28,7 @@ from pycore.pyutils.common.model_tiers import (
     runtime_faster_whisper_device,
     whisper_model,
 )
-from pycore.pyutils.media_processing.ffmpeg_ops import resolve_ffmpeg
+from pycore.pyutils.media_processing.media_processor import media_processor
 
 try:
     from faster_whisper.tokenizer import _LANGUAGE_CODES
@@ -199,7 +199,7 @@ def whisper_capabilities() -> Dict[str, Any]:
         "default_model": best_installed_model(installed) or "auto",
         "languages": list_supported_languages(),
         "default_lang": "en",
-        "ffmpeg_found": bool(resolve_ffmpeg()),
+        "ffmpeg_found": media_processor.available(),
     }
 
 

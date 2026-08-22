@@ -68,6 +68,7 @@ class TTSSynthesisRequest:
     speaker: Optional[str] = None
     instruct: Optional[str] = None
     client_job_id: Optional[str] = None
+    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
 
 
 class TTSEngineAdapter(EngineAdapter):
@@ -201,6 +202,7 @@ class QwenTTSEngineAdapter(SpeedTTSEngineAdapter):
             speaker=request.speaker,
             instruct=request.instruct,
             client_job_id=request.client_job_id,
+            progress_callback=request.progress_callback,
         ))
 
 
@@ -292,7 +294,7 @@ _ENGINE_ADAPTERS = (
         qwen_engine,
         managed_kind="server",
         health_paths=("/health", "/"),
-        health_probe=qwen_engine.queue_healthy,
+        health_probe=qwen_engine.service_healthy,
         note="Qwen3-TTS class-C HTTP server (isolated venv; managed lifecycle)",
         tiered=True,
     ),

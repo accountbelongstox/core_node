@@ -188,6 +188,7 @@ export const PYCORE_HTTP_ROUTES = {
   sentenceAudioStatus: 'ui/sentence_audio/status',
   sentenceAudioConfig: 'ui/sentence_audio/config',
   queueCenterAcceptTask: 'ui/queue_center/accept_task',
+  queueCenterEventPage: 'ui/queue_center/event_page',
   queueCenterSnapshot: 'ui/queue_center/snapshot',
   queueCenterRetryAudioDelivery: 'ui/queue_center/retry_audio_delivery',
   speechHistoryHistory: 'ui/speech_history/history',

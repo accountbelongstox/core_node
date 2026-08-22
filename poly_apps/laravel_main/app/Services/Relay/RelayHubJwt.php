@@ -2,7 +2,6 @@
 
 namespace App\Services\Relay;
 
-use App\Http\Middleware\PycoreClientOnly;
 use App\Support\QueueCenterContract;
 use App\Support\RuntimeConfigurationStore;
 use Illuminate\Http\Request;
@@ -14,8 +13,8 @@ use Lcobucci\JWT\Signer\Key\InMemory;
  * Shared JWT facility for the Mercure hub embedded in FrankenPHP.
  *
  * FrankenPHP v1.12.7 embeds dunglas/mercure v0.24.2, whose native grant is
- * the `mercure.publish` / `mercure.subscribe` claim. One HS256 signer and one
- * key source are shared by every relay publisher and subscriber.
+ * the `mercure.publish` and `mercure.subscribe` claims. Separate HS256 keys
+ * keep publisher and subscriber authority isolated.
  */
 final class RelayHubJwt
 {
@@ -55,29 +54,21 @@ final class RelayHubJwt
     }
 
     /**
-     * Origin the hub is reached through: the live request's scheme + host
-     * (same-origin SSE rule - the cookie and the stream ride one origin),
+     * Origin the hub is reached through: the live request's scheme + host,
      * falling back to the configured app URL outside request context
      * (CLI, queues). One derivation for aud, hub_url and subscribe URLs.
      */
     public static function servingOrigin(): string
     {
         $request = null;
-        $serviceOrigin = null;
         $issuer = '';
 
         if (function_exists('app') && app()->bound('request')) {
             $request = app('request');
             if ($request instanceof Request) {
-                $serviceOrigin = PycoreClientOnly::serviceOrigin($request);
-                if ($serviceOrigin !== null) {
-                    return $serviceOrigin;
+                if ($request->server->has('HTTP_HOST') && $request->getHost() !== '') {
+                    return $request->getSchemeAndHttpHost();
                 }
-            }
-            if ($request instanceof Request
-                && $request->server->has('HTTP_HOST')
-                && $request->getHost() !== '') {
-                return $request->getSchemeAndHttpHost();
             }
         }
 

@@ -477,17 +477,28 @@ export const pcEn = {
       hideSamples: 'Hide samples',
       noSamples: 'No sample rows.',
       empty: 'No categories reported.',
+      uiHandled: 'UI',
+      eligible: 'eligible',
+      active: 'active',
+      none: 'none',
     },
     // Workers registry.
     workers: {
       title: 'Workers',
       hint: 'Online chrome / pycore workers and how many items each has claimed.',
-      none: 'No workers registered.',
+      none: 'No online Chrome or Pycore workers.',
       online: 'online',
       offline: 'offline',
       claimed: 'claimed',
       lastSeen: 'last seen {{time}}',
       processes: 'handles',
+    },
+    logPagination: {
+      total: '{{total}} events',
+      page: '{{page}} / {{pages}}',
+      previous: 'Previous log page',
+      next: 'Next log page',
+      unavailable: 'Worker event page is unavailable.',
     },
     // Right-side capability settings drawer.
     drawer: {
@@ -561,6 +572,7 @@ export const pcEn = {
       queuePosition: 'Queue position',
       task: 'Task',
       progress: 'Progress',
+      logTitle: 'Worker events',
     },
     sentenceQueue: {
       title: 'Sentence Audio Queue',

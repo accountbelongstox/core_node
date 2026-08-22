@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 
 // Relay plane: paths mirror config/queue_center_contract.json `endpoints`
 // (relay_*); that block is the single source pycore / the UIs render.
-// Machine-side endpoints run behind PycoreClientOnly (header identity);
+// Machine-side endpoints run behind PycoreClientOnly (signed device identity);
 // session-side endpoints resolve the UI identity in the controller.
 
 Route::prefix('relay')->group(function (): void {

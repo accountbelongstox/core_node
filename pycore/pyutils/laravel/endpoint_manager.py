@@ -156,7 +156,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         result["error"] = "empty url"
         return result
     started = time.monotonic()
-    session, transport_options, transport = create_laravel_http_session(url)
+    session, transport_options, transport = create_laravel_http_session()
     http_version = ""
     try:
         resp = session.get(

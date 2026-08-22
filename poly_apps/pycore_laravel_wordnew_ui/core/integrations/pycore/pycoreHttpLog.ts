@@ -35,6 +35,11 @@ export interface HttpDebugRecord {
   error?: string | null;
   transport?: string;
   httpVersion?: string;
+  progress?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  transferId?: string;
+  phase?: string;
 }
 
 export const MAX_HTTP_ENTRIES = 500;
