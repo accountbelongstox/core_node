@@ -2,7 +2,10 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
-from pycore.pyutils.common.ffmpeg.ffmpeg_constants import OPUS_SAMPLE_RATES
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (
+    OPUS_PROBE_SAMPLE_RATE,
+    OPUS_SAMPLE_RATES,
+)
 from pycore.pyutils.common.ffmpeg.ffmpeg_models import (
     FFmpegCommandResult,
     MediaProbeResult,
@@ -49,13 +52,14 @@ class MediaProcessor:
             mono,
         )
         output_rate = min(OPUS_SAMPLE_RATES, key=lambda rate: abs(rate - sample_rate)) if encoder == "libopus" else sample_rate
+        probe_rate = OPUS_PROBE_SAMPLE_RATE if encoder == "libopus" else output_rate
         codec_name = {
             "aac": "aac",
             "libmp3lame": "mp3",
             "libopus": "opus",
             "libvorbis": "vorbis",
         }.get(encoder, encoder)
-        validator = ffmpeg_output_validator.audio(codec_name, output_rate, 1 if mono else 2)
+        validator = ffmpeg_output_validator.audio(codec_name, probe_rate, 1 if mono else 2)
         return ffmpeg_runtime.execute_output_step(
             arguments,
             output,
