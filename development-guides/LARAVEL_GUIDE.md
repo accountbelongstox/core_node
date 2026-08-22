@@ -1,8 +1,16 @@
+<<<<<<< HEAD
 <!-- Project root is ../ ; laravel_main = ../poly_apps/laravel_main -->
 # Laravel Aggregated Application — Core Development Guide
 
 Core rules for `laravel_main`. Follow the existing code style; English only; reuse before adding.
 
+=======
+<!-- Project root is ../ ; laravel_main = ../poly_apps/laravel_main -->
+# Laravel Aggregated Application — Core Development Guide
+
+Core rules for `laravel_main`. Follow the existing code style; English only; reuse before adding.
+
+>>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
 ## 1. Framework & boot
 - **Runtime upgrade override:** `laravel_main` runs as a FrankenPHP worker with HTTPS/HTTP/3 and 103 Early Hints; `wordnew`, the shared Pycore UI, `pycore-manager`, and `laravel-manager` must consume this capability through centralized contracts and transports; this supersedes the Swoole runtime references below.
 - Laravel 13 on PHP 8.4+, pure headless API on port **9000**. `routes/web.php` is the immutable debug entry (`/`, `/api_info`) — never modify it, `app/Console`, or `app/Events`.
