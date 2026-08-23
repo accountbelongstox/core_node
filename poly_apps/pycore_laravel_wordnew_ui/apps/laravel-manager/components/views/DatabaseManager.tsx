@@ -1,83 +1,33 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { api } from '@/apps/laravel-manager/api';
 import {
-  DbConnectionInfo,
-  DbStatus,
-  DbTableInfo,
-  DbStructureColumn,
-  DbTableDataResponse,
-  DbBackup,
-  DbCredentialInfo,
-  DbAccountCreateResult,
-  ExportFormat,
-  ImportMode
+  api, DbConnectionInfo, DbStatus, DbTableInfo, DbStructureColumn,
+  DbTableDataResponse, ExportFormat, ImportMode, DbBackup,
+  DbCredentialInfo, DbAccountCreateResult,
 } from '@/apps/laravel-manager/api';
 import { commonClasses } from '@/shared/styles/theme';
 import { Modal } from '../admin/Modal';
 import { useToast } from '../admin';
-import { LoadingBlock, InlineSpinner, AlertBox, EmptyState, StatusBadge, Field, CopyButton } from '../common';
+import {
+  LoadingBlock, InlineSpinner, AlertBox, EmptyState, StatusBadge, Field, CopyButton,
+} from '../common';
 import type { StatusTone } from '../common';
 import { CenteredPage, CenteredTabBar } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
 import { useApiResource } from '@/apps/laravel-manager/hooks';
 import {
-  DatabaseZap,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Upload,
-  Save,
-  RotateCcw,
-  Trash2,
-  HardDrive,
-  Server,
-  Layers,
-  KeyRound,
-  ShieldAlert,
-  Search,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
-  Columns3,
-  Table2,
-  Clock3,
-  Maximize2,
-  Minimize2,
-  Eye,
-  EyeOff,
-  Users,
-  UserPlus
+  DatabaseZap, Layers, RefreshCw, ChevronLeft, ChevronRight, Search,
+  ArrowUp, ArrowDown, ArrowUpDown, Columns3, Table2, Clock3,
+  Maximize2, Minimize2, Download, Upload, Save, RotateCcw,
+  Trash2, HardDrive, KeyRound, ShieldAlert, Eye, EyeOff, Users, UserPlus,
 } from 'lucide-react';
-import { Language } from '@/apps/laravel-manager/uiTypes';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_Z } from '@/shared/styles/overlay';
 import { logInfo, logSuccess, logError } from '@/core/logstore/logStore';
+import { Language } from '@/apps/laravel-manager/uiTypes';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { DataSyncTab } from './database-manager/DataSyncTab';
 
-/** Default page size for the table browser; user-adjustable up to MAX_PER_PAGE. */
 const DEFAULT_PER_PAGE = 1000;
 const MAX_PER_PAGE = 5000;
-
-interface DatabaseManagerProps {
-  lang: Language;
-}
-
-type TabKey = 'tables' | 'io' | 'backup' | 'sync' | 'credentials';
-
-/** Human label for the backup mechanism implied by a driver. */
-function backupMechanism(driver: string): string {
-  switch (driver) {
-    case 'pgsql':
-      return 'pg_dump';
-    case 'mysql':
-      return 'mysqldump';
-    case 'sqlite':
-      return 'file-copy';
-    default:
-      return driver;
-  }
-}
 
 /** Semantic tone for a driver name (driver words don't auto-map, so override). */
 function driverTone(driver: string): StatusTone {
@@ -741,6 +691,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
 };
 
 // ────────────────────────────── Import/Export tab ──────────────────────────────
+
 const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
   const toast = useToast();
   const [table, setTable] = useState('');
@@ -956,6 +907,20 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
 };
 
 // ─────────────────────────────── Backup tab ───────────────────────────────
+
+function backupMechanism(driver: string): string {
+  switch (driver) {
+    case 'pgsql':
+      return 'pg_dump';
+    case 'mysql':
+      return 'mysqldump';
+    case 'sqlite':
+      return 'file-copy';
+    default:
+      return driver;
+  }
+}
+
 const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -1864,6 +1829,13 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
 
 // ─────────────────────────────── Root view ───────────────────────────────
 // Status was merged into the Tables tab (compact StatusStrip above the browser).
+
+interface DatabaseManagerProps {
+  lang: Language;
+}
+
+type TabKey = 'tables' | 'io' | 'backup' | 'sync' | 'credentials';
+
 const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
   const { t } = useTranslation();
   const [selectedKey, setSelectedKey] = useState<string>('');

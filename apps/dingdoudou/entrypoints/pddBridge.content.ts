@@ -176,9 +176,9 @@ function scrapeVisibleOrders(): ScrapedOrder[] {
 export default defineContentScript({
   matches: ['https://mobile.yangkeduo.com/*'],
   runAt: 'document_idle',
-  main() {
+  main(ctx) {
     // Action handler: DOM-fallback order scrape.
-    onAction({
+    onAction(ctx, {
       scrapeVisibleOrders(): ActionResult {
         const orders = scrapeVisibleOrders();
         return { success: true, detail: `scraped ${orders.length} rows`, orders };
@@ -191,11 +191,11 @@ export default defineContentScript({
 
     // Report page readiness once the DOM exists, then again shortly after to
     // catch the SPA hydrating its login state.
-    void domReady().then(() => {
+    void domReady(8000, ctx).then(() => {
       const report = () =>
         sendDdEvent('pddPageReady', { href: location.href, loggedIn: detectLoggedIn() });
       report();
-      setTimeout(report, 1500);
+      ctx.setTimeout(report, 1500);
     });
   },
 });

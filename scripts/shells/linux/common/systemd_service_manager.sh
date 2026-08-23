@@ -12,149 +12,19 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# ============================================================================
-# AI DIRECT CALL INTERFACE - READ THIS FIRST
-# ============================================================================
-#
-# Universal systemd service manager for core_node (Ubuntu / Debian / Kali).
-# Creates and manages systemd services with the ncore-* naming convention.
-# AI can directly call functions or use the command-line interface WITHOUT
-# modifying the code.
-#
-# USAGE METHODS:
-# --------------
-#
-# METHOD 1: Source and Call Functions Directly (Recommended for AI)
-#   source /path/to/systemd_service_manager.sh
-#   create_ncore_service "/path/to/script.sh" "service_name" "Description" "20%" "200M"
-#   remove_ncore_service "service_name"
-#   check_service_status "service_name"
-#   list_ncore_services
-#   update_service_resources "service_name"
-#
-# METHOD 2: Execute as Command-Line Script
-#   bash systemd_service_manager.sh create /path/to/script.sh
-#   bash systemd_service_manager.sh create /path/to/script.sh myapp "My App" "50%" "1G"
-#   bash systemd_service_manager.sh remove myapp
-#   bash systemd_service_manager.sh status myapp
-#   bash systemd_service_manager.sh list
-#   bash systemd_service_manager.sh update
-#   bash systemd_service_manager.sh update myapp
-#
-# AVAILABLE FUNCTIONS (Can be called directly after sourcing):
-# -----------------------------------------------------------
-#
-# 1. create_systemd_service(service_name, description, exec_command, working_dir, [user], [restart], [restart_sec], [cpu_limit], [memory_limit], [log_file])
-#    - Creates a generic systemd service (not limited to ncore-* naming)
-#    - ALL services are created with CPU and memory restrictions by default
-#    - Parameters:
-#      * service_name (required): Full service name (e.g., "pycore-module-caller", "my-service")
-#      * description (required): Service description
-#      * exec_command (required): Full command to execute (e.g., "/usr/bin/python3 /path/to/script.py")
-#      * working_dir (required): Working directory for the service
-#      * user (optional): User to run service as (default: "root")
-#      * restart (optional): Restart policy (default: "always")
-#      * restart_sec (optional): Restart delay (default: "10s")
-#      * cpu_limit (optional): CPU limit like "20%" (default: auto-calculated based on system)
-#      * memory_limit (optional): Memory limit like "200M" or "1G" (default: auto-calculated based on system RAM)
-#    - Default limits are applied automatically if not specified
-#    - Optional log_file (10th arg): if set, StandardOutput/StandardError append to this absolute path (otherwise journal).
-#    - Example: create_systemd_service "my-service" "My Service" "/usr/bin/python3 /app/main.py" "/app" "ubuntu"
-#
-# 2. create_ncore_service(script_path, [custom_name], [description], [cpu_limit], [memory_limit])
-#    - Creates or updates a systemd service with ncore-* naming convention
-#    - Parameters:
-#      * script_path (required): Full path to the script file
-#      * custom_name (optional): Custom service name (without ncore- prefix)
-#      * description (optional): Service description
-#      * cpu_limit (optional): CPU limit like "20%" (default: "20%")
-#      * memory_limit (optional): Memory limit like "200M" or "1G" (default: auto-calculated)
-#    - Example: create_ncore_service "/www/apps/myapp/start.sh" "myapp" "My Application" "30%" "500M"
-#
-# 3. remove_ncore_service(service_name)
-#    - Removes a systemd service
-#    - Parameters:
-#      * service_name (required): Service name (with or without ncore- prefix)
-#    - Example: remove_ncore_service "myapp"
-#
-# 4. check_service_status(service_name)
-#    - Shows detailed service status
-#    - Parameters:
-#      * service_name (required): Service name (with or without ncore- prefix)
-#    - Example: check_service_status "myapp"
-#
-# 5. list_ncore_services()
-#    - Lists all ncore-* services with their status
-#    - No parameters required
-#    - Example: list_ncore_services
-#
-# 6. update_service_resources(service_name)
-#    - Updates resource limits for a specific service
-#    - Parameters:
-#      * service_name (required): Service name (with or without ncore- prefix)
-#    - Example: update_service_resources "myapp"
-#
-# 7. update_all_services_resources()
-#    - Updates resource limits for all ncore services
-#    - No parameters required
-#    - Example: update_all_services_resources
-#
-# RESOURCE LIMITS:
-# ----------------
-# - CPU limits: Format "XX%" (e.g., "20%", "50%", "100%")
-# - Memory limits: Format "XXXM" or "XG" (e.g., "200M", "500M", "1G", "2G")
-# - Default CPU: "20%"
-# - Default Memory: Auto-calculated based on system RAM:
-#   * <=2GB RAM: 200M
-#   * 2-4GB RAM: 300M
-#   * 4-8GB RAM: 500M
-#   * >8GB RAM: 1G
-#
-# SERVICE NAMING:
-# ---------------
-# - All services are prefixed with "ncore-"
-# - If custom_name is provided, service will be "ncore-{custom_name}"
-# - If not provided, service name is derived from script filename
-#
-# SUPPORTED SCRIPT TYPES:
-# -----------------------
-# - .sh files: Executed with bash
-# - .py files: Executed with python3
-# - .js/.mjs files: Executed with node
-# - .pl files: Executed with perl
-# - .rb files: Executed with ruby
-# - Other files: Executed directly
-#
-# WORKING DIRECTORY:
-# ------------------
-# - For poly_apps: /path/to/poly_apps/app_name/scripts/deploy.sh -> /path/to/poly_apps/app_name
-# - For ncore apps: /path/to/apps/app_name/scripts/deploy.sh -> /path/to/apps/app_name
-# - Other: Uses script directory
-#
-# IMPORTANT NOTES FOR AI:
-# -----------------------
-# - This script is idempotent: safe to run multiple times
-# - Services are automatically stopped before update
-# - Resource limits are validated before application
-# - Systemd daemon is automatically reloaded after changes
-# - All functions return 0 on success, non-zero on failure
-# - No code modification needed - just source and call functions
-#
-# ============================================================================
-
+# Shared systemd service lifecycle library for core_node applications.
 # Universal systemd Service Manager for core_node applications.
 # Supports Ubuntu / Debian / Kali (any systemd-based distro).
 # Manages systemd services with ncore-* naming convention.
 
 # Source gvar_common.sh for path mapping functions (trust-based coding)
 # Only source if not already sourced (check for map_web_path function)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEMD_SERVICE_MANAGER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! type map_web_path >/dev/null 2>&1; then
-    source "$SCRIPT_DIR/gvar_common.sh"
+    source "$SYSTEMD_SERVICE_MANAGER_DIR/gvar_common.sh"
 fi
 
 # Variables declaration
-PROJECT_ROOT="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 SERVICE_PREFIX="ncore-"
 SYSTEMD_DIR="/etc/systemd/system"  # System directory, keep as-is
 # Use map_web_path for path mapping (except /etc which is system directory)
@@ -163,6 +33,9 @@ SERVICES_LOG_DIR=$(map_web_path "www" "services_log" 2>/dev/null || echo "/www/s
 DEFAULT_CPU_LIMIT="20%"
 DEFAULT_MEMORY_LIMIT="200M"
 REQUIRED_PACKAGES="systemd cgroup-tools"
+SYSTEMD_SCHEDULER_SCRIPT="$SYSTEMD_SERVICE_MANAGER_DIR/systemd_scheduler.sh"
+
+source "$SYSTEMD_SCHEDULER_SCRIPT"
 
 # Service template with resource limits
 SERVICE_TEMPLATE='[Unit]
@@ -914,199 +787,9 @@ EOF
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Timer / oneshot primitives (content-hash idempotent).
-# Used by the certificate self-heal layer (cert_selfheal_common.sh) and any
-# scheduled maintenance unit. The unit file is rewritten only when its content
-# changed; daemon-reload runs only on change; the resulting state is verified
-# by direct file detection and published in DSM_UNIT_CHANGED ("yes"/"no") -
-# never inferred from a command exit code.
-# ---------------------------------------------------------------------------
-DSM_UNIT_CHANGED="no"
 
-# dsm_write_unit <unit_file> <content> - write only when changed.
-dsm_write_unit() {
-    local unit_file="$1"
-    local content="$2"
-
-    DSM_UNIT_CHANGED="no"
-    if [ -f "$unit_file" ] && printf '%s' "$content" | cmp -s - "$unit_file" 2>/dev/null; then
-        echo "[INFO] Unit unchanged: $unit_file"
-    else
-        printf '%s' "$content" > "$unit_file"
-        DSM_UNIT_CHANGED="yes"
-        systemctl daemon-reload 2>/dev/null || true
-        echo "[INFO] Unit written: $unit_file"
-    fi
-}
-
-# Create (or content-update) a Type=oneshot service unit. No Restart policy,
-# no [Install] wanted target - it is activated by its timer or manually.
-# Usage: create_systemd_oneshot_service <name> <description> <exec_command> [working_dir]
-create_systemd_oneshot_service() {
-    local service_name="$1"
-    local description="$2"
-    local exec_command="$3"
-    local working_dir="${4:-/}"
-    local service_file="$SYSTEMD_DIR/${service_name}.service"
-
-    dsm_write_unit "$service_file" "[Unit]
-Description=$description
-After=network.target
-
-[Service]
-Type=oneshot
-User=root
-WorkingDirectory=$working_dir
-ExecStart=$exec_command
-Environment=\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"
-"
-    if [ -f "$service_file" ]; then
-        echo "[INFO] oneshot service ready: $service_name (changed: $DSM_UNIT_CHANGED)"
-    else
-        echo "[ERROR] oneshot service could not be written: $service_file"
-    fi
-}
-
-# Create (or content-update) a systemd timer pairing with the same-name
-# oneshot service, then enable + start the timer (no-op when already active).
-# Usage: create_systemd_timer <name> <description> <oncalendar...> [randomized_delay]
-#   oncalendar: one or more OnCalendar expressions as separate arguments.
-create_systemd_timer() {
-    local timer_name="$1"
-    local description="$2"
-    shift
-    shift
-    local randomized_delay="0"
-    local calendar_lines=""
-    local entry=""
-    local timer_file="$SYSTEMD_DIR/${timer_name}.timer"
-
-    for entry in "$@"; do
-        case "$entry" in
-            RandomizedDelaySec=*) randomized_delay="${entry#RandomizedDelaySec=}" ;;
-            *) calendar_lines="${calendar_lines}OnCalendar=$entry
-" ;;
-        esac
-    done
-
-    dsm_write_unit "$timer_file" "[Unit]
-Description=$description
-
-[Timer]
-${calendar_lines}RandomizedDelaySec=$randomized_delay
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-"
-    if [ ! -f "$timer_file" ]; then
-        echo "[ERROR] timer could not be written: $timer_file"
-    else
-        systemctl enable --now "${timer_name}.timer" 2>/dev/null || true
-        if systemctl is-enabled --quiet "${timer_name}.timer" 2>/dev/null; then
-            echo "[INFO] timer enabled: ${timer_name}.timer (changed: $DSM_UNIT_CHANGED)"
-        else
-            echo "[ERROR] timer not enabled: ${timer_name}.timer"
-        fi
-    fi
-}
-
-# Function to show help
-show_help() {
-    cat << EOF
-NCore Systemd Service Manager (Ubuntu / Debian / Kali)
-
-Usage: $0 COMMAND [OPTIONS]
-
-Commands:
-  create SCRIPT_PATH [NAME] [DESCRIPTION] [CPU_LIMIT] [MEMORY_LIMIT]
-    Create or update a ncore service
-    
-  remove SERVICE_NAME
-    Remove a ncore service
-    
-  status SERVICE_NAME
-    Show service status
-    
-  list
-    List all ncore services
-
-  update [SERVICE_NAME]
-    Update resource limits for service(s)
-    If no service name provided, updates all services
-
-  help
-    Show this help message
-
-Examples:
-  $0 create /path/to/script.sh
-  $0 create /path/to/script.sh myapp "My Application" "50%" "1G"
-  $0 remove myapp
-  $0 status myapp
-  $0 list
-  $0 update
-  $0 update myapp
-
-EOF
-}
-
-# Main function
-main() {
-    if [ $# -eq 0 ]; then
-        show_help
-        exit 1
-    fi
-    
-    local command="$1"
-    shift
-    
-    case "$command" in
-        create)
-            if [ $# -lt 1 ]; then
-                echo "[ERROR] Script path required for create command"
-                exit 1
-            fi
-            create_ncore_service "$@"
-            ;;
-        remove)
-            if [ $# -lt 1 ]; then
-                echo "[ERROR] Service name required for remove command"
-                exit 1
-            fi
-            remove_ncore_service "$1"
-            ;;
-        status)
-            if [ $# -lt 1 ]; then
-                echo "[ERROR] Service name required for status command"
-                exit 1
-            fi
-            check_service_status "$1"
-            ;;
-        list)
-            list_ncore_services
-            ;;
-        update)
-            if [ $# -lt 1 ]; then
-                echo "[INFO] Updating all services with new resource limits"
-                update_all_services_resources
-            else
-                echo "[INFO] Updating service: $1"
-                update_service_resources "$1"
-            fi
-            ;;
-        help|--help|-h)
-            show_help
-            ;;
-        *)
-            echo "[ERROR] Unknown command: $command"
-            show_help
-            exit 1
-            ;;
-    esac
-}
-
-# Execute main function if script is run directly
+# Load the command-line interface only for direct execution.
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-    main "$@"
+    source "$SYSTEMD_SERVICE_MANAGER_DIR/systemd_service_cli.sh"
+    systemd_service_cli_main "$@"
 fi

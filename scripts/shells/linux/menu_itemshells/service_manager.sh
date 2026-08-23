@@ -16,20 +16,16 @@
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
-PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
-INSTALL_SHELLS_DIR="$PARENT_DIR_LEVEL_1/debian/install_shells"
-SERVER_MANAGER_DIR="$PARENT_DIR_LEVEL_1/debian/server_manager"
-# Repo root and the canonical Laravel Octane entrypoint (PARENT_DIR_LEVEL_3 == scripts/).
-REPO_ROOT="$(dirname "$PARENT_DIR_LEVEL_3")"
-LARAVEL_DIR="$REPO_ROOT/poly_apps/laravel_main"
-LARAVEL_START_SCRIPT="$LARAVEL_DIR/scripts/start.sh"
+SERVICE_MANAGER_REGISTRY_SCRIPT="$SCRIPT_CURRENT_DIR/service_manager_registry.sh"
+SERVICE_MANAGER_UI_SCRIPT="$SCRIPT_CURRENT_DIR/service_manager_ui.sh"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_1/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_1/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_1/common/arrow_menu.sh"
 source "$PARENT_DIR_LEVEL_1/common/runtime_service_policy.sh"
+source "$SERVICE_MANAGER_REGISTRY_SCRIPT"
+source "$SERVICE_MANAGER_UI_SCRIPT"
 
 # Color codes
 RED='\033[0;31m'
@@ -37,91 +33,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
-
-# Service definitions
-declare -A SERVICE_NAME
-declare -A SERVICE_SYSTEMD
-declare -A SERVICE_INSTALL_SCRIPT
-declare -A SERVICE_MANAGER_SCRIPT
-
-SERVICE_NAME["redis"]="Redis"
-SERVICE_SYSTEMD["redis"]="redis-server"
-SERVICE_INSTALL_SCRIPT["redis"]="73_install_redis.sh"
-SERVICE_MANAGER_SCRIPT["redis"]="$SERVER_MANAGER_DIR/redis_manager.sh"
-
-SERVICE_NAME["postgresql"]="PostgreSQL"
-SERVICE_SYSTEMD["postgresql"]="postgresql"
-SERVICE_INSTALL_SCRIPT["postgresql"]="75_install_postgresql.sh"
-SERVICE_MANAGER_SCRIPT["postgresql"]="$SERVER_MANAGER_DIR/postgresql_manager.sh"
-
-SERVICE_NAME["docker"]="Docker"
-SERVICE_SYSTEMD["docker"]="docker"
-SERVICE_INSTALL_SCRIPT["docker"]="79_install_docker.sh"
-SERVICE_MANAGER_SCRIPT["docker"]="$SERVER_MANAGER_DIR/docker_manager.sh"
-
-SERVICE_NAME["mysql"]="MySQL"
-SERVICE_SYSTEMD["mysql"]="mariadb"
-SERVICE_INSTALL_SCRIPT["mysql"]="85_install_mysql.sh"
-SERVICE_MANAGER_SCRIPT["mysql"]="$SERVER_MANAGER_DIR/mysql_manager.sh"
-
-SERVICE_NAME["nginx"]="Nginx"
-SERVICE_SYSTEMD["nginx"]="nginx"
-SERVICE_INSTALL_SCRIPT["nginx"]="33_install_nginx.sh"
-SERVICE_MANAGER_SCRIPT["nginx"]="$SERVER_MANAGER_DIR/nginx_manager.sh"
-
-SERVICE_NAME["ssh"]="SSH Server"
-SERVICE_SYSTEMD["ssh"]="ssh"
-SERVICE_INSTALL_SCRIPT["ssh"]="23_setup_ssh_remote.sh"
-SERVICE_MANAGER_SCRIPT["ssh"]="$SERVER_MANAGER_DIR/ssh_manager.sh"
-
-SERVICE_NAME["pycore"]="Pycore HTTP"
-SERVICE_SYSTEMD["pycore"]="$CORE_RUNTIME_PYCORE_SERVICE"
-SERVICE_INSTALL_SCRIPT["pycore"]="189_install_pycore_http_service.sh"
-SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
-
-SERVICE_NAME["laravel"]="Laravel Octane"
-# Canonical units registered by 175_laravel_main_start.sh --service.
-# Plane-aware: frankenphp -> ncore-laravel-frankenphp, nginx -> ncore-laravel-nginx.
-# Legacy ncore-laravel-main (pre-plane) is also recognized.
-SERVICE_SYSTEMD["laravel"]="ncore-laravel-main"
-# Install/reinstall is special-cased to run 175_laravel_main_start.sh (see reinstall_service).
-SERVICE_INSTALL_SCRIPT["laravel"]="134_setup_api_domains.sh"
-SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
-# Laravel service grep pattern: plane-aware (ncore-laravel-frankenphp, ncore-laravel-nginx) +
-# canonical (ncore-laravel-main) + legacy app_manager (app-manager-laravel*) +
-# legacy octane-* multi-domain units.
-LARAVEL_SERVICE_PATTERN="ncore-laravel\|app-manager-laravel\|octane-.*"
-
-SERVICE_NAME["unified_apps"]="Unified Apps"
-SERVICE_SYSTEMD["unified_apps"]=""
-SERVICE_INSTALL_SCRIPT["unified_apps"]=""
-SERVICE_MANAGER_SCRIPT["unified_apps"]="$SCRIPT_CURRENT_DIR/unified_app_service_manager.sh"
-
-# Core Node services: auto-discovered ncore-*/pycore*/codesync/octane-*/app-manager-*
-# units created by the various Linux service-manager shells. No single systemd unit
-# (the manager scans all matching prefixes), no single install script.
-SERVICE_NAME["core_services"]="Core Node Services"
-SERVICE_SYSTEMD["core_services"]=""
-SERVICE_INSTALL_SCRIPT["core_services"]=""
-SERVICE_MANAGER_SCRIPT["core_services"]="$SCRIPT_CURRENT_DIR/core_service_manager.sh"
-# Prefixes scanned for the aggregate Core Node services status (mirrors core_service_manager.sh).
-CORE_SERVICE_PREFIXES=("ncore-" "pycore" "codesync" "octane-" "app-manager-")
-
-# Build the precise unit-name regex for a core prefix: hyphen-terminated prefixes
-# (ncore-/octane-/app-manager-) match any suffix; bare stems (pycore/codesync) must
-# hit a name boundary so unrelated units like pycoredb/codesyncd are NOT swept in.
-# Kept in sync with core_service_manager.sh.
-core_prefix_pattern() {
-    local prefix="$1"
-    if [[ "$prefix" == *- ]]; then
-        echo "^${prefix}[A-Za-z0-9_.@-]*\.service$"
-    else
-        echo "^${prefix}(-[A-Za-z0-9_.@-]*)?\.service$"
-    fi
-}
-
-# Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel" "unified_apps" "core_services")
 
 # Function to check if service is installed
 is_service_installed() {
@@ -142,10 +53,10 @@ is_service_installed() {
     # Special handling for Core Node services (auto-discovered across all prefixes)
     if [ "$service" = "core_services" ]; then
         local prefix match
-        for prefix in "${CORE_SERVICE_PREFIXES[@]}"; do
+        for prefix in "${CORE_RUNTIME_SERVICE_PREFIXES[@]}"; do
             # Exclude the internal app-manager-log-trim housekeeping unit.
             match=$(systemctl list-unit-files --type=service 2>/dev/null | awk '{print $1}' \
-                | grep -E "$(core_prefix_pattern "$prefix")" | grep -v '^app-manager-log-trim\.service$')
+                | grep -E "$(runtime_service_policy_core_prefix_pattern "$prefix")" | grep -v '^app-manager-log-trim\.service$')
             if [ -n "$match" ]; then
                 return 0
             fi
@@ -238,8 +149,8 @@ get_service_status() {
         local seen=" "
         local prefix svc
 
-        for prefix in "${CORE_SERVICE_PREFIXES[@]}"; do
-            local services=$(systemctl list-unit-files --type=service 2>/dev/null | awk '{print $1}' | grep -E "$(core_prefix_pattern "$prefix")" | sed 's/\.service$//')
+        for prefix in "${CORE_RUNTIME_SERVICE_PREFIXES[@]}"; do
+            local services=$(systemctl list-unit-files --type=service 2>/dev/null | awk '{print $1}' | grep -E "$(runtime_service_policy_core_prefix_pattern "$prefix")" | sed 's/\.service$//')
             if [ -n "$services" ]; then
                 while IFS= read -r svc; do
                     [ -z "$svc" ] && continue
@@ -544,8 +455,8 @@ show_service_logs() {
     local service_name="${SERVICE_NAME[$service]}"
     local selected_index=0
     local log_choice=0
-    local swoole_log="$LARAVEL_DIR/storage/logs/swoole_http.log"
-    local state_file="$LARAVEL_DIR/storage/logs/octane-server-state.json"
+    local swoole_log="$SERVICE_MANAGER_LARAVEL_DIR/storage/logs/swoole_http.log"
+    local state_file="$SERVICE_MANAGER_LARAVEL_DIR/storage/logs/octane-server-state.json"
     local menu_items=(
         "Systemd Journal (All Laravel services)"
         "Laravel Log File (storage/logs/swoole_http.log)"
@@ -664,6 +575,8 @@ reinstall_service() {
     local service="$1"
     local install_script="${SERVICE_INSTALL_SCRIPT[$service]}"
     local service_name="${SERVICE_NAME[$service]}"
+    local confirm=""
+    local script_path="$SERVICE_MANAGER_INSTALL_SHELLS_DIR/$install_script"
 
     # Special handling for Laravel Octane: the canonical installer is the app's own
     # start.sh, which runs the full prerequisite setup and registers the
@@ -676,13 +589,13 @@ reinstall_service() {
         echo "================================================"
         echo ""
         echo "Canonical installer:"
-        echo "  $LARAVEL_START_SCRIPT --service"
+        echo "  $SERVICE_MANAGER_LARAVEL_START_SCRIPT --service"
         echo ""
         echo "This runs the full prerequisite setup (php/composer/pg/swoole/migrate/"
         echo "sys:init) and registers/restarts the ncore-laravel-main systemd service."
         echo ""
-        if [ ! -f "$LARAVEL_START_SCRIPT" ]; then
-            echo -e "${RED}Error: start.sh not found: $LARAVEL_START_SCRIPT${NC}"
+        if [ ! -f "$SERVICE_MANAGER_LARAVEL_START_SCRIPT" ]; then
+            echo -e "${RED}Error: start.sh not found: $SERVICE_MANAGER_LARAVEL_START_SCRIPT${NC}"
             return 1
         fi
         read -p "Run it now? (Y/n): " confirm
@@ -691,9 +604,9 @@ reinstall_service() {
             return 0
         fi
         echo ""
-        echo "Executing: bash $LARAVEL_START_SCRIPT --service"
+        echo "Executing: bash $SERVICE_MANAGER_LARAVEL_START_SCRIPT --service"
         echo ""
-        bash "$LARAVEL_START_SCRIPT" --service
+        bash "$SERVICE_MANAGER_LARAVEL_START_SCRIPT" --service
         return 0
     fi
 
@@ -716,13 +629,7 @@ reinstall_service() {
         echo ""
         read -p "Press Enter to continue..."
 
-        local unified_manager="$PARENT_DIR_LEVEL_3/scripts/unified_manager/unified_manager.sh"
-        if [ -f "$unified_manager" ]; then
-            bash "$unified_manager"
-        else
-            echo -e "${RED}Error: Unified Manager not found at $unified_manager${NC}"
-            return 1
-        fi
+        bash "$SERVICE_MANAGER_UNIFIED_MANAGER_SCRIPT"
         return 0
     fi
 
@@ -768,7 +675,6 @@ reinstall_service() {
         fi
     fi
 
-    local script_path="$INSTALL_SHELLS_DIR/$install_script"
     if [ ! -f "$script_path" ]; then
         echo -e "${RED}Error: Installation script not found: $script_path${NC}"
         return 1
@@ -881,183 +787,6 @@ manage_service() {
                 ;;
         esac
 
-        echo ""
-        read -p "Press Enter to continue..."
-    done
-}
-
-# Function to show all services status
-show_all_services_status() {
-    echo ""
-    echo "================================================"
-    echo "All Services Status"
-    echo "================================================"
-    echo ""
-
-    for service in "${SERVICES[@]}"; do
-        local service_name="${SERVICE_NAME[$service]}"
-        printf "%-15s : " "$service_name"
-        print_status "$service"
-    done
-}
-
-# Function to start all services
-start_all_services() {
-    echo ""
-    echo "================================================"
-    echo "Starting All Services"
-    echo "================================================"
-    echo ""
-    read -p "Do you want to start all installed services? (y/N): " confirm
-
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Operation cancelled"
-        return 0
-    fi
-
-    for service in "${SERVICES[@]}"; do
-        if is_service_installed "$service"; then
-            start_service "$service"
-            echo ""
-        fi
-    done
-
-    echo ""
-    echo -e "${GREEN}All services started${NC}"
-}
-
-# Function to stop all services
-stop_all_services() {
-    echo ""
-    echo "================================================"
-    echo "Stopping All Services"
-    echo "================================================"
-    echo ""
-    read -p "Do you want to stop all running services? (y/N): " confirm
-
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Operation cancelled"
-        return 0
-    fi
-
-    for service in "${SERVICES[@]}"; do
-        if is_service_installed "$service"; then
-            stop_service "$service"
-            echo ""
-        fi
-    done
-
-    echo ""
-    echo -e "${GREEN}All services stopped${NC}"
-}
-
-# Main menu
-restart_all_services() {
-    local service=""
-    local confirm=""
-
-    echo ""
-    read -p "Do you want to restart all installed services? (y/N): " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Operation cancelled"
-        return 0
-    fi
-    for service in "${SERVICES[@]}"; do
-        if is_service_installed "$service"; then
-            restart_service "$service"
-            echo ""
-        fi
-    done
-    echo -e "${GREEN}All services restarted${NC}"
-}
-
-show_service_action_menu() {
-    local service="$1"
-    local service_name="${SERVICE_NAME[$service]}"
-    local status="$(get_service_status "$service")"
-    local systemd_name="${SERVICE_SYSTEMD[$service]}"
-    local selected_index=0
-    local selected_action=""
-    local menu_items=()
-    local action_keys=()
-
-    if [ -z "$systemd_name" ] && has_advanced_manager "$service"; then
-        menu_items=("Open Manager" "Back to Service List")
-        action_keys=("manage" "back")
-    elif [ "$status" = "NOT_INSTALLED" ]; then
-        menu_items=("Install Service")
-        action_keys=("reinstall")
-        if has_advanced_manager "$service"; then
-            menu_items+=("Open Advanced Manager")
-            action_keys+=("manage")
-        fi
-        menu_items+=("Back to Service List")
-        action_keys+=("back")
-    else
-        menu_items=(
-            "Start Service"
-            "Stop Service"
-            "Restart Service"
-            "Reinstall Service"
-            "Show Logs"
-            "Open Manager"
-            "Back to Service List"
-        )
-        action_keys=("start" "stop" "restart" "reinstall" "logs" "manage" "back")
-    fi
-
-    arrow_menu_select "$service_name [$status]" menu_items 0 "$((${#menu_items[@]} - 1))"
-    selected_index="$ARROW_MENU_SELECTED_INDEX"
-    selected_action="${action_keys[$selected_index]}"
-    case "$selected_action" in
-        start) start_service "$service" ;;
-        stop) stop_service "$service" ;;
-        restart) restart_service "$service" ;;
-        reinstall) reinstall_service "$service" ;;
-        logs) show_service_logs "$service" ;;
-        manage) manage_service "$service"; return 0 ;;
-        back) return 0 ;;
-    esac
-    echo ""
-    read -p "Press Enter to continue..."
-}
-
-show_main_menu() {
-    local selected_index=0
-    local service_count="${#SERVICES[@]}"
-    local service=""
-    local service_name=""
-    local status=""
-    local menu_items=()
-
-    while true; do
-        menu_items=()
-        for service in "${SERVICES[@]}"; do
-            service_name="${SERVICE_NAME[$service]}"
-            status="$(get_service_status "$service")"
-            menu_items+=("$service_name [$status]")
-        done
-        menu_items+=(
-            "Show All Services Status"
-            "Start All Installed Services"
-            "Stop All Running Services"
-            "Restart All Installed Services"
-            "Back to Linux Management"
-        )
-
-        arrow_menu_select "Service Manager" menu_items "$selected_index" "$((${#menu_items[@]} - 1))"
-        selected_index="$ARROW_MENU_SELECTED_INDEX"
-        if [ "$selected_index" -lt "$service_count" ]; then
-            show_service_action_menu "${SERVICES[$selected_index]}"
-            continue
-        fi
-        case "$((selected_index - service_count))" in
-            0) show_all_services_status ;;
-            1) start_all_services ;;
-            2) stop_all_services ;;
-            3) restart_all_services ;;
-            4) echo "Exiting Service Manager..."; exit 0 ;;
-        esac
         echo ""
         read -p "Press Enter to continue..."
     done

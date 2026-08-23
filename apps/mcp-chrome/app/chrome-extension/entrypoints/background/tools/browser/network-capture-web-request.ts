@@ -11,6 +11,7 @@ import {
   analyzeCommonHeaders,
   filterOutCommonHeaders,
 } from './network-capture-utils';
+import { NetworkCaptureStopExecutor } from './network-capture-stop';
 
 interface NetworkCaptureStartToolParams {
   url?: string; // URL to navigate to or focus. If not provided, uses active tab.
@@ -58,7 +59,7 @@ interface CaptureInfo {
 /**
  * Network Capture Start Tool V2 - Uses Chrome webRequest API to start capturing network requests
  */
-class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
+export class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.NETWORK_CAPTURE_START;
   public static instance: NetworkCaptureStartTool | null = null;
   public captureData: Map<number, CaptureInfo> = new Map(); // tabId -> capture data
@@ -498,6 +499,14 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
    * @param tabId Tab ID
    * @param stopReason Explicit cause of the stop, surfaced as `stoppedBy` in the result
    */
+  activeCaptureTabIds(): number[] {
+    return Array.from(this.captureData.keys());
+  }
+
+  hasCapture(tabId: number): boolean {
+    return this.captureData.has(tabId);
+  }
+
   public async stopCapture(
     tabId: number,
     stopReason: StopReason = 'user_request',
@@ -672,132 +681,9 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
   }
 }
 
-/**
- * Network capture stop tool V2 - Stop webRequest API capture and return results
- */
-class NetworkCaptureStopTool extends BaseBrowserToolExecutor {
-  name = TOOL_NAMES.BROWSER.NETWORK_CAPTURE_STOP;
-  public static instance: NetworkCaptureStopTool | null = null;
-
-  constructor() {
-    super();
-    if (NetworkCaptureStopTool.instance) {
-      return NetworkCaptureStopTool.instance;
-    }
-    NetworkCaptureStopTool.instance = this;
-  }
-
-  async execute(args?: { tabId?: number }): Promise<ToolResult> {
-    const explicitTabId = args?.tabId;
-    console.log(`NetworkCaptureStopTool: Executing. tabId=${explicitTabId}`);
-
-    try {
-      const startTool = NetworkCaptureStartTool.instance;
-
-      if (!startTool) {
-        return createErrorResponse('Network capture V2 start tool instance not found');
-      }
-
-      // Get all tabs currently capturing
-      const ongoingCaptures = Array.from(startTool.captureData.keys());
-      console.log(
-        `NetworkCaptureStopTool: Found ${ongoingCaptures.length} ongoing captures: ${ongoingCaptures.join(', ')}`,
-      );
-
-      if (ongoingCaptures.length === 0) {
-        return createErrorResponse('No active network captures found in any tab.');
-      }
-
-      // Determine the primary tab to stop
-      let primaryTabId: number;
-
-      if (explicitTabId != null && startTool.captureData.has(explicitTabId)) {
-        // Explicit tabId from the unified tool takes highest priority
-        primaryTabId = explicitTabId;
-        console.log(
-          `NetworkCaptureStopTool: Explicit tabId ${explicitTabId} is capturing, stopping it.`,
-        );
-      } else if (explicitTabId != null) {
-        // Explicit tabId provided but not currently capturing
-        return createErrorResponse(
-          `No active network capture found for tab ${explicitTabId}. Active captures: ${ongoingCaptures.join(', ')}`,
-        );
-      } else {
-        // No explicit tabId: fall back to active tab or first capture
-        const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const activeTabId = activeTabs[0]?.id;
-
-        if (activeTabId && startTool.captureData.has(activeTabId)) {
-          // If current active tab is capturing, prioritize stopping it
-          primaryTabId = activeTabId;
-          console.log(
-            `NetworkCaptureStopTool: Active tab ${activeTabId} is capturing, will stop it first.`,
-          );
-        } else if (ongoingCaptures.length === 1) {
-          // If only one tab is capturing, stop it
-          primaryTabId = ongoingCaptures[0];
-          console.log(
-            `NetworkCaptureStopTool: Only one tab ${primaryTabId} is capturing, stopping it.`,
-          );
-        } else {
-          // If multiple tabs are capturing but current active tab is not among them, stop the first one
-          primaryTabId = ongoingCaptures[0];
-          console.log(
-            `NetworkCaptureStopTool: Multiple tabs capturing, active tab not among them. Stopping tab ${primaryTabId} first.`,
-          );
-        }
-      }
-
-      const stopResult = await startTool.stopCapture(primaryTabId);
-
-      if (!stopResult.success) {
-        return createErrorResponse(
-          stopResult.message || `Failed to stop network capture for tab ${primaryTabId}`,
-        );
-      }
-
-      // If multiple tabs are capturing, stop other tabs
-      if (ongoingCaptures.length > 1) {
-        const otherTabIds = ongoingCaptures.filter((id) => id !== primaryTabId);
-        console.log(
-          `NetworkCaptureStopTool: Stopping ${otherTabIds.length} additional captures: ${otherTabIds.join(', ')}`,
-        );
-
-        for (const tabId of otherTabIds) {
-          try {
-            await startTool.stopCapture(tabId);
-          } catch (error) {
-            console.error(`NetworkCaptureStopTool: Error stopping capture on tab ${tabId}:`, error);
-          }
-        }
-      }
-      return createJsonResponse({
-        success: true,
-        message: `Capture complete. ${stopResult.data?.requestCount || 0} requests captured.`,
-        tabId: primaryTabId,
-        tabUrl: stopResult.data?.tabUrl || 'N/A',
-        tabTitle: stopResult.data?.tabTitle || 'Unknown Tab',
-        requestCount: stopResult.data?.requestCount || 0,
-        commonRequestHeaders: stopResult.data?.commonRequestHeaders || {},
-        commonResponseHeaders: stopResult.data?.commonResponseHeaders || {},
-        requests: stopResult.data?.requests || [],
-        captureStartTime: stopResult.data?.captureStartTime,
-        captureEndTime: stopResult.data?.captureEndTime,
-        totalDurationMs: stopResult.data?.totalDurationMs,
-        settingsUsed: stopResult.data?.settingsUsed || {},
-        totalRequestsReceived: stopResult.data?.totalRequestsReceived || 0,
-        requestLimitReached: stopResult.data?.requestLimitReached || false,
-        stoppedBy: stopResult.data?.stoppedBy || 'user_request',
-        remainingCaptures: Array.from(startTool.captureData.keys()),
-      });
-    } catch (error: any) {
-      console.error('NetworkCaptureStopTool: Critical error:', error);
-      return createErrorResponse(
-        `Error in NetworkCaptureStopTool: ${error.message || String(error)}`,
-      );
-    }
-  }
-}
-
 export const networkCaptureStartTool = new NetworkCaptureStartTool();
-export const networkCaptureStopTool = new NetworkCaptureStopTool();
+export const networkCaptureStopTool = new NetworkCaptureStopExecutor({
+  name: TOOL_NAMES.BROWSER.NETWORK_CAPTURE_STOP,
+  label: 'NetworkCaptureStopTool',
+  controller: () => NetworkCaptureStartTool.instance,
+});

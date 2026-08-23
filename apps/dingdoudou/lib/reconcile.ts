@@ -30,7 +30,7 @@ export interface OrderRef {
 
 export interface ReconcileRow {
   tracking: string; // display value
-  key: string; // normalized key
+  key: string; // stable row key
   inOrders: boolean;
   batchIds: string[]; // which batches contain this number
   order?: OrderRef;
@@ -52,11 +52,17 @@ export interface ReconcileResult {
   extra: ReconcileRow[]; // in orders, NOT in any batch
   totals: {
     batchNumbers: number; // distinct numbers across selected batches
-    orderNumbers: number; // distinct order tracking numbers
+    orderNumbers: number; // distinct orders with an order number or tracking number
     matched: number;
     missing: number;
     extra: number;
   };
+}
+
+interface IndexedOrder {
+  identity: string;
+  matchKeys: string[];
+  order: Order;
 }
 
 // Normalize a tracking number for comparison: drop surrounding noise, upper-case,
@@ -93,18 +99,33 @@ function orderRef(o: Order): OrderRef {
   };
 }
 
+function indexOrders(orders: Order[]): {
+  entries: IndexedOrder[];
+  byMatchKey: Map<string, Order>;
+} {
+  const entries: IndexedOrder[] = [];
+  const byMatchKey = new Map<string, Order>();
+  const seen = new Set<string>();
+  for (const order of orders) {
+    const matchKeys = [normalizeTracking(order.expressNumber || ''), normalizeTracking(order.id)]
+      .filter((key, index, keys) => key && keys.indexOf(key) === index);
+    if (!matchKeys.length) continue;
+    const identity = `${order.pddUserId ?? order.accountName}:${order.id || matchKeys[0]}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    entries.push({ identity, matchKeys, order });
+    for (const key of matchKeys) {
+      if (!byMatchKey.has(key)) byMatchKey.set(key, order);
+    }
+  }
+  return { entries, byMatchKey };
+}
+
 // Reconcile the given batches against the orders. An input number is treated as
 // a hit when it equals EITHER an order's express/tracking number OR its order
 // number (order_sn) — "逐一和订单号和快递号对比，只有有一个对上就提示".
 export function reconcile(batches: ReconcileBatch[], orders: Order[]): ReconcileResult {
-  // Map normalized key -> order, indexing BOTH the express number and the order id.
-  const orderByKey = new Map<string, Order>();
-  for (const o of orders) {
-    const ek = normalizeTracking(o.expressNumber || '');
-    const ik = normalizeTracking(o.id || '');
-    if (ek) orderByKey.set(ek, o);
-    if (ik) orderByKey.set(ik, o);
-  }
+  const orderIndex = indexOrders(orders);
 
   // Collect batch numbers: key -> { display, batchIds }
   const batchByKey = new Map<string, { display: string; batchIds: string[] }>();
@@ -124,7 +145,7 @@ export function reconcile(batches: ReconcileBatch[], orders: Order[]): Reconcile
   const matched: ReconcileRow[] = [];
   const missing: ReconcileRow[] = [];
   for (const [key, info] of batchByKey) {
-    const order = orderByKey.get(key);
+    const order = orderIndex.byMatchKey.get(key);
     const row: ReconcileRow = {
       tracking: info.display,
       key,
@@ -136,16 +157,17 @@ export function reconcile(batches: ReconcileBatch[], orders: Order[]): Reconcile
     else missing.push(row);
   }
 
-  // Extra: order numbers not present in any selected batch.
+  // Extra is calculated once per order. An order is covered when either its
+  // order number or tracking number appears in a selected batch.
   const extra: ReconcileRow[] = [];
-  for (const [key, o] of orderByKey) {
-    if (!batchByKey.has(key)) {
+  for (const entry of orderIndex.entries) {
+    if (!entry.matchKeys.some((key) => batchByKey.has(key))) {
       extra.push({
-        tracking: o.expressNumber || '',
-        key,
+        tracking: entry.order.expressNumber || entry.order.id,
+        key: entry.identity,
         inOrders: true,
         batchIds: [],
-        order: orderRef(o),
+        order: orderRef(entry.order),
       });
     }
   }
@@ -159,7 +181,7 @@ export function reconcile(batches: ReconcileBatch[], orders: Order[]): Reconcile
       if (!key || counted.has(key)) continue;
       counted.add(key);
       total++;
-      if (orderByKey.has(key)) m++;
+      if (orderIndex.byMatchKey.has(key)) m++;
     }
     return { batchId: b.id, batchName: b.name, total, matched: m, missing: total - m };
   });
@@ -172,7 +194,7 @@ export function reconcile(batches: ReconcileBatch[], orders: Order[]): Reconcile
     extra,
     totals: {
       batchNumbers: batchByKey.size,
-      orderNumbers: orderByKey.size,
+      orderNumbers: orderIndex.entries.length,
       matched: matched.length,
       missing: missing.length,
       extra: extra.length,

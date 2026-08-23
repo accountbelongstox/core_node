@@ -284,3 +284,45 @@ export function filterOutCommonHeaders(
 
   return specificHeaders;
 }
+
+export interface NetworkDebuggerStartToolParams {
+  url?: string; // URL to navigate to or focus. If not provided, uses active tab.
+  maxCaptureTime?: number;
+  inactivityTimeout?: number; // Inactivity timeout (milliseconds)
+  includeStatic?: boolean; // if include static resources
+  tabId?: number; // Specific tab to capture; bypasses URL query / active-tab lookup.
+}
+
+// Network request object interface
+export interface NetworkRequestInfo {
+  requestId: string;
+  url: string;
+  method: string;
+  requestHeaders?: Record<string, string>; // Will be removed after common headers extraction
+  responseHeaders?: Record<string, string>; // Will be removed after common headers extraction
+  requestTime?: number; // Timestamp of the request
+  responseTime?: number; // Timestamp of the response
+  type: string; // Resource type (e.g., Document, XHR, Fetch, Script, Stylesheet)
+  status: string; // 'pending', 'complete', 'error'
+  statusCode?: number;
+  statusText?: string;
+  requestBody?: string;
+  responseBody?: string;
+  base64Encoded?: boolean; // For responseBody
+  encodedDataLength?: number; // Actual bytes received
+  errorText?: string; // If loading failed
+  canceled?: boolean; // If loading was canceled
+  mimeType?: string;
+  specificRequestHeaders?: Record<string, string>; // Headers unique to this request
+  specificResponseHeaders?: Record<string, string>; // Headers unique to this response
+  [key: string]: any; // Allow other properties from debugger events
+}
+
+export const DEBUGGER_PROTOCOL_VERSION = '1.3';
+export const MAX_RESPONSE_BODY_SIZE_BYTES = 1 * 1024 * 1024; // 1MB
+export const DEFAULT_MAX_CAPTURE_TIME_MS = 3 * 60 * 1000; // 3 minutes
+export const DEFAULT_INACTIVITY_TIMEOUT_MS = 60 * 1000; // 1 minute
+export const FIREFOX_UNSUPPORTED_MESSAGE =
+  'This tool relies on the Chrome debugger (CDP) API, which does not exist on Firefox. ' +
+  'Use chrome_network_capture_start / chrome_network_capture_stop (or chrome_network_capture) instead: ' +
+  'on Firefox they capture response bodies via webRequest stream filters.';

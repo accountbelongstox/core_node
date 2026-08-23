@@ -562,7 +562,15 @@ export class ContentIndexer {
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: ['inject-scripts/web-fetcher-helper.js'],
+        files: [
+          'inject-scripts/web-fetcher-readability.js',
+          'inject-scripts/web-fetcher-readability-article.js',
+          'inject-scripts/web-fetcher-readability-metadata.js',
+          'inject-scripts/web-fetcher-readability-cleanup.js',
+          'inject-scripts/web-fetcher-readability-visibility.js',
+          'inject-scripts/web-fetcher-readability-finalize.js',
+          'inject-scripts/web-fetcher-helper.js',
+        ],
       });
 
       const response = await chrome.tabs.sendMessage(tabId, {

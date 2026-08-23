@@ -10,6 +10,13 @@
 // Hard rule: a content script must NEVER crash or block the host page. Every
 // function below guards DOM and chrome.* access and swallows its own errors.
 
+import type { ContentScriptContext } from 'wxt/utils/content-script-context';
+
+export type AutomationContext = Pick<
+  ContentScriptContext,
+  'isInvalid' | 'onInvalidated' | 'setInterval' | 'setTimeout'
+>;
+
 export interface ActionResult {
   success: boolean;
   detail?: string;
@@ -26,15 +33,32 @@ export type ActionHandler = (
 // --- timing ---------------------------------------------------------------
 
 // Resolve after `ms` milliseconds.
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+export function sleep(ms: number, ctx?: AutomationContext): Promise<void> {
+  if (ctx?.isInvalid) return Promise.resolve();
+  return new Promise((resolve) => {
+    if (!ctx) {
+      setTimeout(resolve, Math.max(0, ms));
+      return;
+    }
+    let settled = false;
+    let removeInvalidationListener: (() => void) | null = null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (removeInvalidationListener) removeInvalidationListener();
+      resolve();
+    };
+    removeInvalidationListener = ctx.onInvalidated(finish);
+    ctx.setTimeout(finish, Math.max(0, ms));
+  });
 }
 
 // Resolve once the document body exists (content scripts can run at
 // document_start, before <body> is parsed).
-export function domReady(timeoutMs = 8000): Promise<boolean> {
+export function domReady(timeoutMs = 8000, ctx?: AutomationContext): Promise<boolean> {
+  if (ctx?.isInvalid) return Promise.resolve(false);
   if (document.body) return Promise.resolve(true);
-  return waitFor(() => !!document.body, timeoutMs).then((v) => !!v);
+  return waitFor(() => !!document.body, timeoutMs, 200, ctx).then((value) => !!value);
 }
 
 // --- querying -------------------------------------------------------------
@@ -144,6 +168,7 @@ export function waitFor<T>(
   probe: string | (() => T | null | undefined | false),
   timeoutMs = 8000,
   intervalMs = 200,
+  ctx?: AutomationContext,
 ): Promise<T | null> {
   const evaluate = (): T | null => {
     try {
@@ -157,6 +182,8 @@ export function waitFor<T>(
     }
   };
 
+  if (ctx?.isInvalid) return Promise.resolve(null);
+
   return new Promise((resolve) => {
     const first = evaluate();
     if (first) return resolve(first);
@@ -165,11 +192,13 @@ export function waitFor<T>(
     let observer: MutationObserver | null = null;
     let poll: ReturnType<typeof setInterval> | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let removeInvalidationListener: (() => void) | null = null;
 
     const cleanup = () => {
       if (poll) clearInterval(poll);
       if (timer) clearTimeout(timer);
       if (observer) observer.disconnect();
+      if (removeInvalidationListener) removeInvalidationListener();
     };
     const finish = (val: T | null) => {
       if (done) return;
@@ -178,11 +207,17 @@ export function waitFor<T>(
       resolve(val);
     };
 
-    poll = setInterval(() => {
+    const pollHandler = () => {
       const v = evaluate();
       if (v) finish(v);
-    }, Math.max(50, intervalMs));
-    timer = setTimeout(() => finish(null), Math.max(0, timeoutMs));
+    };
+    poll = ctx
+      ? ctx.setInterval(pollHandler, Math.max(50, intervalMs))
+      : setInterval(pollHandler, Math.max(50, intervalMs));
+    timer = ctx
+      ? ctx.setTimeout(() => finish(null), Math.max(0, timeoutMs))
+      : setTimeout(() => finish(null), Math.max(0, timeoutMs));
+    if (ctx) removeInvalidationListener = ctx.onInvalidated(() => finish(null));
 
     try {
       observer = new MutationObserver(() => {
@@ -359,9 +394,16 @@ export function sendDdEvent(name: string, payload: Record<string, unknown> = {})
 // Register a map of action-string handlers on chrome.runtime.onMessage. Unknown
 // actions are ignored (return false) so other content scripts sharing the tab
 // can still answer them. Handler results are normalized to ActionResult.
-export function onAction(handlers: Record<string, ActionHandler>): void {
+export function onAction(
+  ctx: AutomationContext,
+  handlers: Record<string, ActionHandler>,
+): void {
   if (typeof chrome === 'undefined' || !chrome.runtime?.onMessage) return;
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  const listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] = (
+    msg,
+    sender,
+    sendResponse,
+  ) => {
     const action =
       msg && typeof msg === 'object' ? (msg as { action?: unknown }).action : undefined;
     if (typeof action !== 'string') return false;
@@ -377,7 +419,9 @@ export function onAction(handlers: Record<string, ActionHandler>): void {
         }),
       );
     return true; // keep the channel open for the async sendResponse
-  });
+  };
+  chrome.runtime.onMessage.addListener(listener);
+  ctx.onInvalidated(() => chrome.runtime.onMessage.removeListener(listener));
 }
 
 function normalizeResult(res: ActionResult | void): ActionResult {
@@ -397,7 +441,7 @@ function safeHref(): string {
 
 // Lightweight non-blocking toast (used by the 'showAlert' action instead of
 // window.alert, which would freeze the automation loop).
-export function toast(message: string, ms = 3200): void {
+export function toast(message: string, ms = 3200, ctx?: AutomationContext): void {
   try {
     if (!document.body) return;
     const id = '__dd_toast__';
@@ -428,14 +472,16 @@ export function toast(message: string, ms = 3200): void {
     host.textContent = message;
     host.style.opacity = '1';
     const el = host;
-    window.setTimeout(() => {
+    const hide = () => {
       try {
         el.style.transition = 'opacity .4s';
         el.style.opacity = '0';
       } catch {
         /* ignore */
       }
-    }, Math.max(400, ms));
+    };
+    if (ctx) ctx.setTimeout(hide, Math.max(400, ms));
+    else window.setTimeout(hide, Math.max(400, ms));
   } catch {
     /* ignore — feedback is non-critical */
   }

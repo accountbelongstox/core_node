@@ -26,6 +26,7 @@ import {
   getLicense,
   submitSuperCode,
   loginMember,
+  requestBackendAccess,
   clearLicense,
   listAccounts,
   captureActiveTab,
@@ -37,14 +38,9 @@ import {
   patchSettings,
 } from '@/lib/dashboardBridge';
 import { isLicenseActive } from '@/lib/superCode';
-import { nextLanguage, popupText, type UiLanguage } from '@/lib/uiI18n';
+import { localizedErrorText, nextLanguage, popupText, type UiLanguage } from '@/lib/uiI18n';
 import type { LicenseState, PinduoduoAccount } from '@/lib/types';
-
-const DEFAULT_BASE_URL = 'http://127.0.0.1:9000';
-
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e ?? '');
-}
+import { DEFAULT_BACKEND_URL } from '@/lib/backendUrl';
 
 type ChipKind = 'super' | 'member' | 'locked';
 
@@ -70,7 +66,7 @@ export function Popup() {
   const [activating, setActivating] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BACKEND_URL);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
@@ -100,7 +96,7 @@ export function Popup() {
       setAccounts(payload.accounts);
       setActivePddUserId(payload.activePddUserId);
     } catch (e) {
-      setAccountError(errMsg(e));
+      setAccountError(localizedErrorText(lang, e, text.genericError));
     }
   }, []);
 
@@ -144,7 +140,7 @@ export function Popup() {
       setSuperCode('');
       showToast(text.activated);
     } catch (e) {
-      setLicenseError(errMsg(e) || text.invalidSuperCode);
+      setLicenseError(localizedErrorText(lang, e, text.invalidSuperCode));
     } finally {
       setActivating(false);
     }
@@ -158,12 +154,15 @@ export function Popup() {
     setLoggingIn(true);
     setLicenseError(null);
     try {
+      if (!(await requestBackendAccess(baseUrl.trim()))) {
+        throw new Error(text.backendPermissionDenied);
+      }
       const lic = await loginMember(baseUrl.trim(), username.trim(), password);
       setLicense(lic);
       setPassword('');
       showToast(text.loginSucceeded);
     } catch (e) {
-      setLicenseError(errMsg(e) || text.loginFailed);
+      setLicenseError(localizedErrorText(lang, e, text.loginFailed));
     } finally {
       setLoggingIn(false);
     }
@@ -177,7 +176,7 @@ export function Popup() {
       setLicense(null);
       showToast(text.loggedOut);
     } catch (e) {
-      setLicenseError(errMsg(e));
+      setLicenseError(localizedErrorText(lang, e, text.genericError));
     } finally {
       setClearing(false);
     }
@@ -189,12 +188,18 @@ export function Popup() {
     setAccountError(null);
     try {
       const cap = await captureActiveTab();
-      const payload = await bindAccount(cap.pddUserId, cap.accessToken, cap.nickname, cap.avatar);
+      const payload = await bindAccount(
+        cap.pddUserId,
+        cap.accessToken,
+        cap.cookie,
+        cap.nickname,
+        cap.avatar,
+      );
       setAccounts(payload.accounts);
       setActivePddUserId(payload.activePddUserId);
       showToast(text.bound(cap.nickname || cap.pddUserId));
     } catch (e) {
-      setAccountError(errMsg(e) || text.captureFromPdd);
+      setAccountError(localizedErrorText(lang, e, text.captureFromPdd));
     } finally {
       setCapturing(false);
     }
@@ -209,7 +214,7 @@ export function Popup() {
       setAccounts(payload.accounts);
       setActivePddUserId(payload.activePddUserId);
     } catch (e) {
-      setAccountError(errMsg(e));
+      setAccountError(localizedErrorText(lang, e, text.genericError));
     } finally {
       setBusyAccountId(null);
     }
@@ -226,7 +231,7 @@ export function Popup() {
       setActivePddUserId(payload.activePddUserId);
       showToast(text.removed);
     } catch (err) {
-      setAccountError(errMsg(err));
+      setAccountError(localizedErrorText(lang, err, text.genericError));
     } finally {
       setBusyAccountId(null);
     }
@@ -243,7 +248,7 @@ export function Popup() {
       const result = await syncOrders();
       showToast(text.synced(result.fetched));
     } catch (e) {
-      setAccountError(errMsg(e) || text.syncFailed);
+      setAccountError(localizedErrorText(lang, e, text.syncFailed));
     } finally {
       setSyncing(false);
     }

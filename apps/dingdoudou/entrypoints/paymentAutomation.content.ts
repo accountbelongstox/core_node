@@ -20,6 +20,7 @@ import {
   toast,
   typeDigits,
   waitFor,
+  type AutomationContext,
   type ActionMessage,
   type ActionResult,
 } from '@/lib/domAuto';
@@ -79,12 +80,12 @@ function detectStep(): PaymentStep {
 
 // --- action implementations -----------------------------------------------
 
-async function clickPayButton(): Promise<ActionResult> {
+async function clickPayButton(ctx: AutomationContext): Promise<ActionResult> {
   // Prefer a stable selector match, then fall back to visible text.
   const bySelector = queryAll<HTMLElement>(PAY_SELECTORS).find(isVisible);
   const target =
     bySelector ||
-    (await waitFor(() => findByText(PAY_TEXT), 6000)) ||
+    (await waitFor(() => findByText(PAY_TEXT), 6000, 200, ctx)) ||
     findByText(PAY_TEXT, { selector: 'div, button, a, span' });
   if (!target) return { success: false, detail: 'pay button not found' };
   const clicked = clickEl(target);
@@ -92,7 +93,10 @@ async function clickPayButton(): Promise<ActionResult> {
   return { success: clicked, detail: clicked ? 'pay button clicked' : 'pay click failed' };
 }
 
-async function inputPaymentPassword(msg: ActionMessage): Promise<ActionResult> {
+async function inputPaymentPassword(
+  msg: ActionMessage,
+  ctx: AutomationContext,
+): Promise<ActionResult> {
   // The password is supplied by the background (never stored in this script).
   const password = String(
     (msg.password as string) ?? (msg.digits as string) ?? (msg.value as string) ?? '',
@@ -100,7 +104,12 @@ async function inputPaymentPassword(msg: ActionMessage): Promise<ActionResult> {
   if (!password) return { success: false, detail: 'no password provided' };
 
   // Wait for the passcode UI to mount (it animates in after the pay click).
-  await waitFor(() => query(PASSCODE_CELL_SELECTOR) || query(PASSWORD_INPUT_SELECTOR), 6000);
+  await waitFor(
+    () => query(PASSCODE_CELL_SELECTOR) || query(PASSWORD_INPUT_SELECTOR),
+    6000,
+    200,
+    ctx,
+  );
 
   // Case 1: a single password/PIN input.
   const single = query<HTMLInputElement>(PASSWORD_INPUT_SELECTOR);
@@ -126,9 +135,9 @@ async function inputPaymentPassword(msg: ActionMessage): Promise<ActionResult> {
   return { success: false, detail: 'password field not found' };
 }
 
-async function clickConfirmPayment(): Promise<ActionResult> {
+async function clickConfirmPayment(ctx: AutomationContext): Promise<ActionResult> {
   const target =
-    (await waitFor(() => findByText(CONFIRM_TEXT), 6000)) ||
+    (await waitFor(() => findByText(CONFIRM_TEXT), 6000, 200, ctx)) ||
     query<HTMLElement>('div.pay-confirm-btn, .pay-confirm-btn');
   if (!target) return { success: false, detail: 'confirm button not found' };
   const clicked = clickEl(target);
@@ -136,8 +145,8 @@ async function clickConfirmPayment(): Promise<ActionResult> {
   return { success: clicked, detail: clicked ? 'confirm clicked' : 'confirm click failed' };
 }
 
-async function proceedToNextOrder(): Promise<ActionResult> {
-  const target = await waitFor(() => findByText(NEXT_TEXT), 4000);
+async function proceedToNextOrder(ctx: AutomationContext): Promise<ActionResult> {
+  const target = await waitFor(() => findByText(NEXT_TEXT), 4000, 200, ctx);
   if (!target) {
     // Not finding a "next" control is a valid terminal state, not an error.
     sendDdEvent('paymentStep', { step: 'no-next' });
@@ -156,15 +165,15 @@ function updatePaymentStep(msg: ActionMessage): ActionResult {
   return { success: true, detail: `step=${detected}`, step: detected };
 }
 
-function showAlert(msg: ActionMessage): ActionResult {
+function showAlert(msg: ActionMessage, ctx: AutomationContext): ActionResult {
   const message = String((msg.message as string) ?? (msg.text as string) ?? '');
-  toast(message || '订多多', Number(msg.duration) || 3200);
+  toast(message || 'DingDuoDuo', Number(msg.duration) || 3200, ctx);
   return { success: true, detail: 'alert shown' };
 }
 
-function reloadPage(): ActionResult {
+function reloadPage(ctx: AutomationContext): ActionResult {
   // Reply first, then reload on the next tick so the response is delivered.
-  setTimeout(() => {
+  ctx.setTimeout(() => {
     try {
       location.reload();
     } catch {
@@ -184,23 +193,23 @@ export default defineContentScript({
   ],
   runAt: 'document_start',
   allFrames: true,
-  main() {
-    onAction({
-      clickPayButton,
-      inputPaymentPassword,
-      clickConfirmPayment,
-      proceedToNextOrder,
+  main(ctx) {
+    onAction(ctx, {
+      clickPayButton: () => clickPayButton(ctx),
+      inputPaymentPassword: (message) => inputPaymentPassword(message, ctx),
+      clickConfirmPayment: () => clickConfirmPayment(ctx),
+      proceedToNextOrder: () => proceedToNextOrder(ctx),
       updatePaymentStep,
-      showAlert,
-      reload: reloadPage,
+      showAlert: (message) => showAlert(message, ctx),
+      reload: () => reloadPage(ctx),
     });
 
     // Proactively report the detected step once the page is ready and whenever
     // a result phrase appears, so the background can advance its state machine.
-    void domReady().then(() => {
+    void domReady(8000, ctx).then(() => {
       const report = () => sendDdEvent('paymentStep', { step: detectStep() });
       report();
-      setTimeout(report, 1200);
+      ctx.setTimeout(report, 1200);
 
       // Watch for late-arriving result text only (a cheap body-text scan,
       // debounced) — full step detection runs on demand via updatePaymentStep.
@@ -227,10 +236,13 @@ export default defineContentScript({
         const observer = new MutationObserver(() => {
           if (scheduled) return;
           scheduled = true;
-          setTimeout(scan, 300);
+          ctx.setTimeout(scan, 300);
         });
         const target = document.body || document.documentElement;
-        if (target) observer.observe(target, { childList: true, subtree: true });
+        if (target) {
+          observer.observe(target, { childList: true, subtree: true });
+          ctx.onInvalidated(() => observer.disconnect());
+        }
       } catch {
         /* observer is an optimization only */
       }

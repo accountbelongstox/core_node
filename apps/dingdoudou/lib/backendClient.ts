@@ -9,6 +9,9 @@
 //   POST recharge/create    { token, package_id }   -> { pay_url }
 
 import type { BackendConfig, LicenseState } from './types';
+import { errorText } from './value';
+import { normalizeBackendUrl } from './backendUrl';
+import { AppError } from './appError';
 
 interface BackendLicenseDTO {
   mode?: 'member' | 'locked';
@@ -24,27 +27,6 @@ interface BackendLicenseDTO {
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
-
-function normalizeBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value.trim());
-  } catch {
-    throw new Error('后台地址格式无效');
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('后台地址仅支持 HTTP 或 HTTPS');
-  }
-  return url.toString().replace(/\/$/, '');
-}
-
-function errorMessage(value: unknown, fallback: string): string {
-  if (value && typeof value === 'object' && 'message' in value) {
-    const message = (value as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
-  }
-  return fallback;
-}
 
 function toLicense(dto: BackendLicenseDTO, token?: string): LicenseState {
   let expiresAt: number | null = null;
@@ -66,7 +48,7 @@ function toLicense(dto: BackendLicenseDTO, token?: string): LicenseState {
 }
 
 async function call<T>(cfg: BackendConfig, path: string, body?: unknown): Promise<T> {
-  const url = `${normalizeBaseUrl(cfg.baseUrl)}/api/ding_duo_duo_v1/${path}`;
+  const url = `${normalizeBackendUrl(cfg.baseUrl)}/api/ding_duo_duo_v1/${path}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -82,10 +64,14 @@ async function call<T>(cfg: BackendConfig, path: string, body?: unknown): Promis
     });
     const json: unknown = await res.json().catch(() => null);
     if (!res.ok) {
-      throw new Error(errorMessage(json, `后台请求失败（HTTP ${res.status}）`));
+      const message = errorText(json);
+      if (message) throw new Error(message);
+      throw new AppError('backend.requestFailed', { status: res.status });
     }
     if (json && typeof json === 'object' && 'success' in json && json.success === false) {
-      throw new Error(errorMessage(json, `后台请求 ${path} 失败`));
+      const message = errorText(json);
+      if (message) throw new Error(message);
+      throw new AppError('backend.requestFailed');
     }
     if (json && typeof json === 'object' && 'data' in json) {
       return (json as { data: T }).data;
@@ -93,7 +79,7 @@ async function call<T>(cfg: BackendConfig, path: string, body?: unknown): Promis
     return json as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('后台连接超时');
+      throw new AppError('backend.timeout');
     }
     throw error;
   } finally {

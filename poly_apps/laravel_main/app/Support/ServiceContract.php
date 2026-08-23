@@ -190,6 +190,13 @@ final class ServiceContract
         return 'http://'.self::host('loopback').':'.self::port('laravel_api_backend');
     }
 
+    public static function frankenPhpRoot(): string
+    {
+        return PathMapper::isWindows()
+            ? PathMapper::mapWebPath('www', self::string('paths.frankenphp_root_windows_subpath'))
+            : self::path('frankenphp_root_posix');
+    }
+
     public static function pycoreBackendUrl(?string $host = null): string
     {
         return 'http://'.($host ?? self::host('loopback')).':'.self::port('pycore_backend');

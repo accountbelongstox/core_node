@@ -19,6 +19,7 @@ import {
   sleep,
   textOf,
   waitFor,
+  type AutomationContext,
   type ActionMessage,
   type ActionResult,
 } from '@/lib/domAuto';
@@ -48,7 +49,7 @@ function findFieldInput(patterns: RegExp): HTMLInputElement | null {
   return null;
 }
 
-async function applyInvoice(msg: ActionMessage): Promise<ActionResult> {
+async function applyInvoice(msg: ActionMessage, ctx: AutomationContext): Promise<ActionResult> {
   const title = msg.title != null ? String(msg.title) : '';
   const taxNo = msg.taxNo != null ? String(msg.taxNo) : '';
 
@@ -56,6 +57,8 @@ async function applyInvoice(msg: ActionMessage): Promise<ActionResult> {
   await waitFor(
     () => query('input[type="text"], input[type="tel"], textarea, input:not([type])'),
     6000,
+    200,
+    ctx,
   );
 
   const filled: string[] = [];
@@ -73,14 +76,14 @@ async function applyInvoice(msg: ActionMessage): Promise<ActionResult> {
     });
     if (companyToggle && isVisible(companyToggle)) {
       clickEl(companyToggle);
-      await sleep(200);
+      await sleep(200, ctx);
     }
     const taxInput = findFieldInput(/(税号|纳税人识别号|统一社会信用代码)/);
     if (taxInput && setInputValue(taxInput, taxNo)) filled.push('taxNo');
   }
 
   // Submit.
-  const submit = await waitFor(() => findByText(SUBMIT_TEXT), 3000);
+  const submit = await waitFor(() => findByText(SUBMIT_TEXT), 3000, 200, ctx);
   let submitted = false;
   if (submit) submitted = clickEl(submit);
 
@@ -96,9 +99,11 @@ async function applyInvoice(msg: ActionMessage): Promise<ActionResult> {
 export default defineContentScript({
   matches: ['https://mobile.yangkeduo.com/transac_modify_invoice.html*'],
   runAt: 'document_idle',
-  main() {
-    onAction({ applyInvoice });
+  main(ctx) {
+    onAction(ctx, { applyInvoice: (message) => applyInvoice(message, ctx) });
 
-    void domReady().then(() => sendDdEvent('invoicePageReady', { href: location.href }));
+    void domReady(8000, ctx).then(() =>
+      sendDdEvent('invoicePageReady', { href: location.href }),
+    );
   },
 });

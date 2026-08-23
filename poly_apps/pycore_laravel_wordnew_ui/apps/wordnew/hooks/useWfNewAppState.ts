@@ -52,8 +52,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const [wordGroupRouteId, setWordGroupRouteId] = useState<string | null>(null);
   const [hashRouteReady, setHashRouteReady] = useState(false);
 
-  // Refs mirror the latest values so the navigation callbacks can stay stable
-  // (empty-deps useCallback) without nesting one state setter inside another.
   const activeTabRef = useRef<WordNewTab>(activeTab);
   const navStackRef = useRef<WordNewTab[]>(navStack);
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);

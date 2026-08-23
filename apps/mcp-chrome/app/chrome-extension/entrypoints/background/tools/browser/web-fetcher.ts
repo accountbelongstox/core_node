@@ -103,7 +103,15 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
         title: tab.title,
       };
 
-      await this.injectContentScript(tab.id, ['inject-scripts/web-fetcher-helper.js']);
+      await this.injectContentScript(tab.id, [
+        'inject-scripts/web-fetcher-readability.js',
+        'inject-scripts/web-fetcher-readability-article.js',
+        'inject-scripts/web-fetcher-readability-metadata.js',
+        'inject-scripts/web-fetcher-readability-cleanup.js',
+        'inject-scripts/web-fetcher-readability-visibility.js',
+        'inject-scripts/web-fetcher-readability-finalize.js',
+        'inject-scripts/web-fetcher-helper.js',
+      ]);
 
       // Get HTML content if requested
       if (htmlContent) {

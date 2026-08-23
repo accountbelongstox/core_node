@@ -1,4 +1,63 @@
+import { isAppError, type AppErrorCode } from './appError';
+import { errorText } from './value';
+
 export type UiLanguage = 'zh' | 'en';
+
+const ERROR_MESSAGES = {
+  zh: {
+    'account.bindLimit': '账号绑定数量已达到授权上限',
+    'account.credentialMissing': '该账号缺少登录凭证，请从已登录的拼多多页面重新绑定',
+    'account.invalidCredential': '拼多多账号凭证无效',
+    'account.notBound': '该拼多多账号尚未绑定',
+    'account.removedDuringSync': '同步完成前账号已被移除',
+    'account.required': '请先绑定并选择一个拼多多账号',
+    'backend.credentialsRequired': '请填写后台地址与账号',
+    'backend.requestFailed': '后台请求失败',
+    'backend.timeout': '后台连接超时',
+    'backend.urlCredentials': '后台地址不能包含用户名或密码',
+    'backend.urlInvalid': '后台地址格式无效',
+    'backend.urlProtocol': '后台地址仅支持 HTTP 或 HTTPS',
+    'license.featureUnavailable': '当前授权不包含此功能',
+    'license.inactive': '授权无效或已过期',
+    'license.memberInactive': '会员授权已过期或不可用',
+    'license.superCodeInvalid': '超级码无效',
+    'message.unknown': '扩展收到未知请求',
+    'order.selectionRequired': '请选择需要退款的订单',
+    'pdd.loginRequired': '未检测到已登录的拼多多账号，请先在拼多多页面登录',
+    'pdd.requestFailed': '拼多多订单请求失败',
+  },
+  en: {
+    'account.bindLimit': 'The account binding limit has been reached',
+    'account.credentialMissing': 'This account has no login credentials; bind it again from a signed-in PDD page',
+    'account.invalidCredential': 'The PDD account credentials are invalid',
+    'account.notBound': 'This PDD account is not bound',
+    'account.removedDuringSync': 'The account was removed before synchronization completed',
+    'account.required': 'Bind and select a PDD account first',
+    'backend.credentialsRequired': 'Enter the backend URL and account',
+    'backend.requestFailed': 'The backend request failed',
+    'backend.timeout': 'The backend connection timed out',
+    'backend.urlCredentials': 'The backend URL must not contain a username or password',
+    'backend.urlInvalid': 'The backend URL is invalid',
+    'backend.urlProtocol': 'The backend URL must use HTTP or HTTPS',
+    'license.featureUnavailable': 'The current license does not include this feature',
+    'license.inactive': 'The license is invalid or expired',
+    'license.memberInactive': 'The member license is expired or unavailable',
+    'license.superCodeInvalid': 'The super code is invalid',
+    'message.unknown': 'The extension received an unknown request',
+    'order.selectionRequired': 'Select orders to refund',
+    'pdd.loginRequired': 'No signed-in PDD account was detected; sign in to PDD first',
+    'pdd.requestFailed': 'The PDD order request failed',
+  },
+} as const satisfies Record<UiLanguage, Record<AppErrorCode, string>>;
+
+export function localizedErrorText(
+  lang: UiLanguage,
+  error: unknown,
+  fallback: string,
+): string {
+  if (isAppError(error)) return ERROR_MESSAGES[lang][error.code];
+  return errorText(error, fallback);
+}
 
 export function nextLanguage(lang: UiLanguage): UiLanguage {
   return lang === 'zh' ? 'en' : 'zh';
@@ -39,6 +98,8 @@ const DASHBOARD_MESSAGES = {
     noExportOrders: '没有可导出的订单',
     reorderOnPdd: '请在拼多多商品页重新下单',
     missingOwner: '缺少所属账号',
+    backendPermissionDenied: '未授予后台地址访问权限',
+    genericError: '操作失败',
   },
   en: {
     licenseVerification: 'License verification',
@@ -70,6 +131,8 @@ const DASHBOARD_MESSAGES = {
     noExportOrders: 'No orders to export',
     reorderOnPdd: 'Reorder from the PDD product page',
     missingOwner: 'has no owning account',
+    backendPermissionDenied: 'Backend access permission was not granted',
+    genericError: 'Operation failed',
   },
 } as const;
 
@@ -97,6 +160,8 @@ const POPUP_MESSAGES = {
     remove: '移除账号', capture: '捕获当前拼多多账号', sync: '同步当前账号订单', dashboard: '打开订单管理终端',
     enterSuperCode: '请输入超级码', activated: '授权成功', invalidSuperCode: '超级码无效',
     enterBackendCredentials: '请填写后台地址、用户名与密码', loginSucceeded: '会员登录成功', loginFailed: '登录失败',
+    backendPermissionDenied: '未授予后台地址访问权限',
+    genericError: '操作失败',
     loggedOut: '已退出授权', captureFromPdd: '请先在已登录的拼多多页面打开此插件', removed: '已移除账号',
     selectAccountFirst: '请先捕获并选择一个拼多多账号', syncFailed: '同步失败',
   },
@@ -109,6 +174,8 @@ const POPUP_MESSAGES = {
     remove: 'Remove account', capture: 'Capture current PDD account', sync: 'Sync current account', dashboard: 'Open order dashboard',
     enterSuperCode: 'Enter a super code', activated: 'License activated', invalidSuperCode: 'Invalid super code',
     enterBackendCredentials: 'Enter the backend URL, username, and password', loginSucceeded: 'Member login succeeded', loginFailed: 'Login failed',
+    backendPermissionDenied: 'Backend access permission was not granted',
+    genericError: 'Operation failed',
     loggedOut: 'Logged out', captureFromPdd: 'Open the extension from a signed-in PDD page', removed: 'Account removed',
     selectAccountFirst: 'Capture and select a PDD account first', syncFailed: 'Sync failed',
   },
@@ -148,6 +215,7 @@ const RECONCILIATION_MESSAGES = {
     batchNumbers: '批次单号', orderNumbers: '订单单号', matched: '命中', missing: '缺失', extra: '多余', perBatch: '各批次命中情况',
     batchMissing: '批次缺失', orderExtra: '订单多余', tracking: '快递单号', batches: '所属批次', order: '订单号',
     account: '账号', status: '状态', noData: '无数据', compareHint: '核对对象为系统中已同步的全部订单快递单号。',
+    loadFailed: '加载核算数据失败', saveFailed: '保存批次失败', removeFailed: '删除批次失败',
   },
   en: {
     batch: 'Batch', title: 'Order Reconciliation · Tracking Audit', print: 'Print Report', add: 'Batch add tracking numbers',
@@ -156,6 +224,7 @@ const RECONCILIATION_MESSAGES = {
     batchNumbers: 'Batch', orderNumbers: 'Orders', matched: 'Matched', missing: 'Missing', extra: 'Extra', perBatch: 'Per-batch',
     batchMissing: 'Missing', orderExtra: 'Unaccounted', tracking: 'Tracking', batches: 'Batches', order: 'Order',
     account: 'Account', status: 'Status', noData: 'No data', compareHint: 'Compared against tracking numbers of all synced orders.',
+    loadFailed: 'Unable to load reconciliation data', saveFailed: 'Unable to save batch', removeFailed: 'Unable to remove batch',
   },
 } as const;
 
@@ -164,6 +233,7 @@ export function reconciliationText(lang: UiLanguage) {
   return {
     ...messages,
     parsed: (count: number) => lang === 'zh' ? `已解析 ${count} 个去重单号` : `${count} unique numbers`,
+    missingCount: (count: number) => lang === 'zh' ? `缺 ${count}` : `${count} missing`,
   };
 }
 

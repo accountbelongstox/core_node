@@ -13,10 +13,13 @@
 // so the platform treats the request as that buyer (cross-user management).
 
 import type { PddCredential } from './types';
+import { asRecord } from './value';
+import { AppError } from './appError';
 
 const PDD_HOST = 'mobile.yangkeduo.com';
 const PDD_ORIGIN = `https://${PDD_HOST}`;
 const COOKIE_DOMAIN = '.yangkeduo.com';
+const PDD_TAB_PATTERNS = ['https://*.yangkeduo.com/*'];
 
 const MOBILE_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1';
@@ -60,12 +63,28 @@ async function setCookie(name: string, value: string): Promise<void> {
   }
 }
 
-// Read the current logged-in account's credentials straight from the browser cookie jar.
+async function recentPddTabUrl(): Promise<string | null> {
+  const tabs = await chrome.tabs.query({ url: PDD_TAB_PATTERNS });
+  const candidates = tabs
+    .filter((tab): tab is chrome.tabs.Tab & { url: string } => typeof tab.url === 'string')
+    .sort((left, right) => {
+      const accessOrder = (right.lastAccessed ?? 0) - (left.lastAccessed ?? 0);
+      if (accessOrder) return accessOrder;
+      if (left.active !== right.active) return left.active ? -1 : 1;
+      return left.index - right.index;
+    });
+  return candidates[0]?.url ?? null;
+}
+
+// Read credentials only when a Pinduoduo tab exists. This prevents the popup
+// from silently binding whichever site-wide cookie happens to be in the jar.
 export async function readActiveCredential(): Promise<PddCredential | null> {
-  const uidCookie = await chrome.cookies.get({ url: PDD_ORIGIN, name: 'pdd_user_id' });
-  const tokenCookie = await chrome.cookies.get({ url: PDD_ORIGIN, name: 'PDDAccessToken' });
+  const tabUrl = await recentPddTabUrl();
+  if (!tabUrl) return null;
+  const uidCookie = await chrome.cookies.get({ url: tabUrl, name: 'pdd_user_id' });
+  const tokenCookie = await chrome.cookies.get({ url: tabUrl, name: 'PDDAccessToken' });
   if (!uidCookie?.value || !tokenCookie?.value) return null;
-  const all = await chrome.cookies.getAll({ domain: COOKIE_DOMAIN });
+  const all = await chrome.cookies.getAll({ url: tabUrl });
   const cookie = all
     .filter((c) => SESSION_COOKIE_NAMES.includes(c.name))
     .map((c) => `${c.name}=${c.value}`)
@@ -138,15 +157,9 @@ export async function fetchOrderListPage(
     type: '0',
   });
   const res = await pddFetch(cred, `/proxy/api/api/aristotle/order_list_v4?${qs.toString()}`);
-  if (!res.ok) throw new Error(`order_list_v4 HTTP ${res.status}`);
+  if (!res.ok) throw new AppError('pdd.requestFailed', { status: res.status });
   const json = await res.json().catch(() => ({}));
   return unwrapOrders(json);
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 function unwrapOrders(json: unknown): PddRawOrder[] {

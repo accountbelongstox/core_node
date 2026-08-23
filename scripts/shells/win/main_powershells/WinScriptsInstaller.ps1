@@ -12,6 +12,7 @@
 
 # Declare all variables at the beginning of the file
 $FILES = @(
+    'config/service_contract.json',
     'scripts/shells/win/dd.ps1',
     'scripts/shells/win/main_powershells/EnvironmentDetection.ps1',
     'scripts/shells/win/win_common/CommonFunc.ps1',
@@ -26,6 +27,10 @@ $FILES = @(
     'scripts/shells/win/win_common/SimpleIconExtractor.ps1',
     'scripts/shells/win/win_common/WindowsPathFunction.ps1',
     'scripts/shells/win/win_common/WindowsServiceManager.ps1',
+    'scripts/shells/win/win_common/FrankenPhpManager.ps1',
+    'scripts/shells/win/win_common/FrankenPhpCertificateManager.ps1',
+    'scripts/shells/win/win_common/ServiceContract.ps1',
+    'scripts/shells/win/win_common/WinswServiceManager.ps1',
     'scripts/shells/win/win_common/PackageManagerInvokes.ps1',
     'scripts/shells/win/win_common/PostInstallCallbackProcessor.ps1',
     'scripts/shells/win/win_common/CudaIndex.ps1',
@@ -89,6 +94,11 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step59_InstallBark.ps1',
     'scripts/shells/win/install_powershells/Step60_InstallParler.ps1',
     'scripts/shells/win/install_powershells/Step61_InstallQwen3Tts.ps1',
+    'scripts/shells/win/install_powershells/Step62_InstallAndroidSdkPackages.ps1',
+    'scripts/shells/win/install_powershells/Step93_InstallFrankenPHP.ps1',
+    'scripts/shells/win/install_powershells/Step94_InstallComposer.ps1',
+    'scripts/shells/win/install_powershells/Step96_ConfigurePHP85.ps1',
+    'scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1',
     'scripts/shells/win/main_powershells/PreparePycorePrerequisites.ps1',
     'scripts/shells/win/main_powershells/PycorePrerequisitesList.ps1',
     'scripts/shells/win/install_powershells/postinstall/WeChatInstallProcessor.ps1',

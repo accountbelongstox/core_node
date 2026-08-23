@@ -33,13 +33,21 @@ import {
   patchSettings,
   refundOrders,
   removeAccount,
+  requestBackendAccess,
   setActiveAccount,
   submitSuperCode,
   syncOrders,
 } from '@/lib/dashboardBridge';
 import { downloadCsv } from '@/lib/exportCsv';
 import { hasFeature } from '@/lib/superCode';
-import { dashboardText, localeFor, nextLanguage, orderCardText } from '@/lib/uiI18n';
+import { DEFAULT_BACKEND_URL } from '@/lib/backendUrl';
+import {
+  dashboardText,
+  localizedErrorText,
+  localeFor,
+  nextLanguage,
+  orderCardText,
+} from '@/lib/uiI18n';
 import { AccountPanel } from './components/AccountPanel';
 import { LogisticsModal } from './components/LogisticsModal';
 import { OrderCard } from './components/OrderCard';
@@ -52,7 +60,6 @@ const LOCAL_ACCOUNTS_KEY = 'dingduoduo_accounts_v2';
 const LOCAL_STATS_KEY = 'dingduoduo_stats_v2';
 const LOCAL_LANG_KEY = 'dingduoduo_lang_v2';
 const LOCAL_THEME_KEY = 'dingduoduo_theme_v2';
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:9000';
 const ALL_RECIPIENTS = '__all__';
 
 type Theme = 'light' | 'dark';
@@ -201,8 +208,8 @@ export default function App() {
         setActiveAccountState(active);
         await loadOrders(accountScope, active);
       })
-      .catch((error) => notify(error instanceof Error ? error.message : String(error), 'error'));
-  }, [accountScope, extensionMode, license, loadOrders, notify]);
+      .catch((error) => notify(localizedErrorText(lang, error, ui.genericError), 'error'));
+  }, [accountScope, extensionMode, lang, license, loadOrders, notify]);
 
   const recipients = useMemo(() => {
     return [...new Set(orders.map((order) => order.recipientName.trim()).filter(Boolean))]
@@ -254,7 +261,7 @@ export default function App() {
     try {
       setLicense(await submitSuperCode(superCode.trim()));
     } catch (error) {
-      setGateError(error instanceof Error ? error.message : String(error));
+      setGateError(localizedErrorText(lang, error, ui.genericError));
     } finally {
       setGateBusy(false);
     }
@@ -265,9 +272,12 @@ export default function App() {
     setGateBusy(true);
     setGateError('');
     try {
+      if (!(await requestBackendAccess(backendUrl.trim()))) {
+        throw new Error(ui.backendPermissionDenied);
+      }
       setLicense(await loginMember(backendUrl.trim(), backendUser.trim(), backendPassword));
     } catch (error) {
-      setGateError(error instanceof Error ? error.message : String(error));
+      setGateError(localizedErrorText(lang, error, ui.genericError));
     } finally {
       setGateBusy(false);
     }
@@ -280,6 +290,7 @@ export default function App() {
       const payload = await bindAccount(
         captured.pddUserId,
         captured.accessToken,
+        captured.cookie,
         captured.nickname,
         captured.avatar,
       );
@@ -290,7 +301,7 @@ export default function App() {
       await loadOrders('active', active);
       notify(ui.accountBound(active?.name ?? captured.pddUserId));
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     } finally {
       setCapturing(false);
     }
@@ -304,17 +315,12 @@ export default function App() {
       await setActiveAccount(account.pddUserId);
       await loadOrders('active', account);
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     }
   };
 
-  const handleScope = async (scope: AccountScope) => {
+  const handleScope = (scope: AccountScope) => {
     setAccountScope(scope);
-    try {
-      await loadOrders(scope, activeAccount);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
-    }
   };
 
   const handleSync = async () => {
@@ -333,7 +339,7 @@ export default function App() {
       await loadOrders(accountScope, activeAccount);
       notify(ui.synced(count));
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     } finally {
       setSyncing(false);
     }
@@ -374,7 +380,7 @@ export default function App() {
         : order));
       notify(ui.refunded(refunded.size));
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     } finally {
       setRefunding(false);
     }
@@ -417,7 +423,7 @@ export default function App() {
         localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(remaining));
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     }
   };
 
@@ -523,7 +529,7 @@ export default function App() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/30 bg-white/50 p-4 shadow-xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/50">
             <div className="flex items-center gap-2">
-              <select value={accountScope} onChange={(event) => void handleScope(event.target.value as AccountScope)} className="rounded-lg border bg-transparent p-2 text-xs"><option value="active">{ui.currentAccount}</option><option value="all" disabled={extensionMode && !hasFeature(license, 'account.cross')}>{ui.allAccounts}</option></select>
+              <select value={accountScope} onChange={(event) => handleScope(event.target.value as AccountScope)} className="rounded-lg border bg-transparent p-2 text-xs"><option value="active">{ui.currentAccount}</option><option value="all" disabled={extensionMode && !hasFeature(license, 'account.cross')}>{ui.allAccounts}</option></select>
               <span className="text-xs text-slate-500">{filteredOrders.length} {t.unit} · {new Set(filteredOrders.map((order) => order.recipientName)).size} {ui.recipientUnit}</span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -560,7 +566,13 @@ export default function App() {
       </main>
 
       <LogisticsModal order={selectedDetails} onClose={() => setSelectedDetails(null)} onCopyText={(text, label) => void handleCopy(text, label)} lang={lang} />
-      <ReconciliationModal open={showReconcile} onClose={() => setShowReconcile(false)} lang={lang} fallbackOrders={orders} />
+      <ReconciliationModal
+        open={showReconcile}
+        onClose={() => setShowReconcile(false)}
+        lang={lang}
+        fallbackOrders={orders}
+        useAllOrders={accountScope === 'all'}
+      />
     </div>
   );
 }

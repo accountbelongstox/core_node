@@ -7,6 +7,10 @@ $script:ServiceContractConfigDirectory = Join-Path $script:ServiceContractReposi
 $script:ServiceContractPath = Join-Path $script:ServiceContractConfigDirectory "service_contract.json"
 $script:ServiceContractDocument = Get-Content -Raw -LiteralPath $script:ServiceContractPath | ConvertFrom-Json
 
+function Get-ServiceContractDocument {
+    return $script:ServiceContractDocument
+}
+
 function Get-ServiceContractValue {
     param(
         [Parameter(Mandatory = $true)]

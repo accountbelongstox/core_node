@@ -1,26 +1,27 @@
-// Thin typed wrappers over chrome.storage.local for 订多多.
-// Single namespace of keys so every context reads/writes the same shapes.
-
 import type {
-  Order,
-  PinduoduoAccount,
-  PddCredential,
-  LicenseState,
+  AccountState,
   BackendConfig,
+  LicenseState,
+  Order,
+  PddCredential,
+  PinduoduoAccount,
 } from './types';
 import type { ReconcileBatch } from './reconcile';
+import { AppError } from './appError';
 
 const KEYS = {
   accounts: 'dd_accounts_v1',
-  credentials: 'dd_credentials_v1', // map<pddUserId, PddCredential>
+  credentials: 'dd_credentials_v1',
   license: 'dd_license_v1',
   backend: 'dd_backend_v1',
-  orders: 'dd_orders_cache_v1', // map<pddUserId, Order[]>
+  orders: 'dd_orders_cache_v1',
   settings: 'dd_settings_v1',
-  reconcileBatches: 'dd_reconcile_batches_v1', // ReconcileBatch[]
+  reconcileBatches: 'dd_reconcile_batches_v1',
 } as const;
 
-const writeQueues = new Map<string, Promise<void>>();
+const DEFAULT_SETTINGS: AppSettings = { lang: 'zh', theme: 'dark' };
+
+let writeQueue: Promise<void> = Promise.resolve();
 
 export interface AppSettings {
   lang: 'zh' | 'en';
@@ -28,126 +29,258 @@ export interface AppSettings {
   activePddUserId?: string;
 }
 
+function storedValue<T>(values: Record<string, unknown>, key: string, fallback: T): T {
+  return (values[key] as T) ?? fallback;
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+async function rawGet<T>(key: string, fallback: T): Promise<T> {
+  const values = await chrome.storage.local.get(key);
+  return storedValue(values, key, fallback);
+}
+
 async function get<T>(key: string, fallback: T): Promise<T> {
-  const out = await chrome.storage.local.get(key);
-  return (out[key] as T) ?? fallback;
+  await writeQueue;
+  return rawGet(key, fallback);
+}
+
+function enqueue<T>(operation: () => Promise<T>): Promise<T> {
+  const queued = writeQueue.then(operation);
+  writeQueue = queued.then(
+    () => undefined,
+    () => undefined,
+  );
+  return queued;
 }
 
 async function set(key: string, value: unknown): Promise<void> {
-  await chrome.storage.local.set({ [key]: value });
+  await enqueue(async () => {
+    const current = await rawGet<unknown>(key, undefined);
+    if (valuesEqual(current, value)) return;
+    await chrome.storage.local.set({ [key]: value });
+  });
 }
 
 async function mutate<T>(key: string, fallback: T, update: (current: T) => T): Promise<T> {
-  const previous = writeQueues.get(key) ?? Promise.resolve();
-  let result!: T;
-  const operation = previous.catch(() => undefined).then(async () => {
-    result = update(await get(key, fallback));
-    await set(key, result);
+  return enqueue(async () => {
+    const current = await rawGet(key, fallback);
+    const next = update(current);
+    if (!valuesEqual(current, next)) await chrome.storage.local.set({ [key]: next });
+    return next;
   });
-  writeQueues.set(key, operation);
-  try {
-    await operation;
-    return result;
-  } finally {
-    if (writeQueues.get(key) === operation) writeQueues.delete(key);
-  }
 }
 
-// --- Accounts ---
+function withActiveAccount(settings: AppSettings, activePddUserId?: string): AppSettings {
+  const next = { ...settings };
+  if (activePddUserId) next.activePddUserId = activePddUserId;
+  else delete next.activePddUserId;
+  return next;
+}
+
+export async function restrictLocalStorageAccess(): Promise<void> {
+  await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+}
+
+export async function getAccountState(): Promise<AccountState> {
+  return enqueue(async () => {
+    const values = await chrome.storage.local.get([KEYS.accounts, KEYS.settings]);
+    const accounts = storedValue<PinduoduoAccount[]>(values, KEYS.accounts, []);
+    const settings = storedValue<AppSettings>(values, KEYS.settings, DEFAULT_SETTINGS);
+    const activePddUserId = accounts.some(
+      (account) => account.pddUserId === settings.activePddUserId,
+    )
+      ? settings.activePddUserId
+      : accounts[0]?.pddUserId;
+    const nextSettings = withActiveAccount(settings, activePddUserId);
+    if (!valuesEqual(settings, nextSettings)) {
+      await chrome.storage.local.set({ [KEYS.settings]: nextSettings });
+    }
+    return { accounts, activePddUserId };
+  });
+}
+
+export async function bindAccount(
+  account: PinduoduoAccount,
+  credential: PddCredential,
+  maxBinds: number,
+): Promise<AccountState> {
+  return enqueue(async () => {
+    const values = await chrome.storage.local.get([
+      KEYS.accounts,
+      KEYS.credentials,
+      KEYS.settings,
+    ]);
+    const accounts = storedValue<PinduoduoAccount[]>(values, KEYS.accounts, []);
+    const credentials = storedValue<Record<string, PddCredential>>(
+      values,
+      KEYS.credentials,
+      {},
+    );
+    const settings = storedValue<AppSettings>(values, KEYS.settings, DEFAULT_SETTINGS);
+    const index = accounts.findIndex((item) => item.pddUserId === account.pddUserId);
+    if (index < 0 && accounts.length >= maxBinds) throw new AppError('account.bindLimit');
+
+    const nextAccounts = [...accounts];
+    const existingAccount = nextAccounts[index];
+    const nextAccount = existingAccount
+      ? {
+          ...existingAccount,
+          ...account,
+          id: existingAccount.id,
+          bindTime: existingAccount.bindTime,
+        }
+      : account;
+    if (index < 0) nextAccounts.push(nextAccount);
+    else nextAccounts[index] = nextAccount;
+
+    const existingCredential = credentials[credential.pddUserId];
+    const credentialChanged =
+      !existingCredential ||
+      existingCredential.accessToken !== credential.accessToken ||
+      existingCredential.cookie !== credential.cookie;
+    const nextCredentials = credentialChanged
+      ? { ...credentials, [credential.pddUserId]: credential }
+      : credentials;
+    const activeAccountIsBound = nextAccounts.some(
+      (item) => item.pddUserId === settings.activePddUserId,
+    );
+    const nextSettings = activeAccountIsBound
+      ? settings
+      : { ...settings, activePddUserId: account.pddUserId };
+    const changes: Record<string, unknown> = {};
+    if (!valuesEqual(accounts, nextAccounts)) changes[KEYS.accounts] = nextAccounts;
+    if (credentialChanged) changes[KEYS.credentials] = nextCredentials;
+    if (!valuesEqual(settings, nextSettings)) changes[KEYS.settings] = nextSettings;
+    if (Object.keys(changes).length) await chrome.storage.local.set(changes);
+    return { accounts: nextAccounts, activePddUserId: nextSettings.activePddUserId };
+  });
+}
+
+export async function removeAccount(pddUserId: string): Promise<AccountState> {
+  return enqueue(async () => {
+    const values = await chrome.storage.local.get([
+      KEYS.accounts,
+      KEYS.credentials,
+      KEYS.orders,
+      KEYS.settings,
+    ]);
+    const accounts = storedValue<PinduoduoAccount[]>(values, KEYS.accounts, []);
+    const credentials = storedValue<Record<string, PddCredential>>(
+      values,
+      KEYS.credentials,
+      {},
+    );
+    const orders = storedValue<Record<string, Order[]>>(values, KEYS.orders, {});
+    const settings = storedValue<AppSettings>(values, KEYS.settings, DEFAULT_SETTINGS);
+    const nextAccounts = accounts.filter((item) => item.pddUserId !== pddUserId);
+    const nextCredentials = { ...credentials };
+    const nextOrders = { ...orders };
+    delete nextCredentials[pddUserId];
+    delete nextOrders[pddUserId];
+    const nextActivePddUserId = nextAccounts.some(
+      (account) => account.pddUserId === settings.activePddUserId,
+    )
+      ? settings.activePddUserId
+      : nextAccounts[0]?.pddUserId;
+    const nextSettings = withActiveAccount(settings, nextActivePddUserId);
+    const changes: Record<string, unknown> = {};
+    if (!valuesEqual(accounts, nextAccounts)) changes[KEYS.accounts] = nextAccounts;
+    if (!valuesEqual(credentials, nextCredentials)) changes[KEYS.credentials] = nextCredentials;
+    if (!valuesEqual(orders, nextOrders)) changes[KEYS.orders] = nextOrders;
+    if (!valuesEqual(settings, nextSettings)) changes[KEYS.settings] = nextSettings;
+    if (Object.keys(changes).length) await chrome.storage.local.set(changes);
+    return { accounts: nextAccounts, activePddUserId: nextSettings.activePddUserId };
+  });
+}
+
+export async function setActiveAccount(pddUserId: string): Promise<AccountState> {
+  return enqueue(async () => {
+    const values = await chrome.storage.local.get([KEYS.accounts, KEYS.settings]);
+    const accounts = storedValue<PinduoduoAccount[]>(values, KEYS.accounts, []);
+    const settings = storedValue<AppSettings>(values, KEYS.settings, DEFAULT_SETTINGS);
+    if (!accounts.some((item) => item.pddUserId === pddUserId)) {
+      throw new AppError('account.notBound');
+    }
+    const nextSettings = { ...settings, activePddUserId: pddUserId };
+    if (!valuesEqual(settings, nextSettings)) {
+      await chrome.storage.local.set({ [KEYS.settings]: nextSettings });
+    }
+    return { accounts, activePddUserId: pddUserId };
+  });
+}
+
 export const getAccounts = () => get<PinduoduoAccount[]>(KEYS.accounts, []);
-export const setAccounts = (a: PinduoduoAccount[]) => set(KEYS.accounts, a);
-
-export async function upsertAccount(acc: PinduoduoAccount): Promise<PinduoduoAccount[]> {
-  return mutate<PinduoduoAccount[]>(KEYS.accounts, [], (current) => {
-    const list = [...current];
-    const idx = list.findIndex((x) => x.pddUserId === acc.pddUserId);
-    if (idx >= 0) list[idx] = { ...list[idx], ...acc };
-    else list.push(acc);
-    return list;
-  });
-}
-
-export async function removeAccount(pddUserId: string): Promise<PinduoduoAccount[]> {
-  const list = await mutate<PinduoduoAccount[]>(KEYS.accounts, [], (current) =>
-    current.filter((x) => x.pddUserId !== pddUserId),
-  );
-  await mutate<Record<string, PddCredential>>(KEYS.credentials, {}, (current) => {
-    const next = { ...current };
-    delete next[pddUserId];
-    return next;
-  });
-  await mutate<Record<string, Order[]>>(KEYS.orders, {}, (current) => {
-    const next = { ...current };
-    delete next[pddUserId];
-    return next;
-  });
-  return list;
-}
-
-// --- Credentials (PDDAccessToken + pdd_user_id) ---
-export const getCredentials = () => get<Record<string, PddCredential>>(KEYS.credentials, {});
-export const setCredentials = (c: Record<string, PddCredential>) => set(KEYS.credentials, c);
-
-export async function saveCredential(cred: PddCredential): Promise<void> {
-  await mutate<Record<string, PddCredential>>(KEYS.credentials, {}, (current) => ({
-    ...current,
-    [cred.pddUserId]: cred,
-  }));
-}
 
 export async function getCredential(pddUserId: string): Promise<PddCredential | undefined> {
-  return (await getCredentials())[pddUserId];
+  const credentials = await get<Record<string, PddCredential>>(KEYS.credentials, {});
+  return credentials[pddUserId];
 }
 
-// --- License ---
 export const getLicense = () => get<LicenseState | null>(KEYS.license, null);
-export const setLicense = (l: LicenseState | null) => set(KEYS.license, l);
+export const setLicense = (license: LicenseState | null) => set(KEYS.license, license);
 
-// --- Backend config ---
 export const getBackend = () => get<BackendConfig | null>(KEYS.backend, null);
-export const setBackend = (b: BackendConfig | null) => set(KEYS.backend, b);
+export const setBackend = (backend: BackendConfig | null) => set(KEYS.backend, backend);
+export function updateBackend(
+  update: (current: BackendConfig | null) => BackendConfig,
+): Promise<BackendConfig> {
+  return enqueue(async () => {
+    const current = await rawGet<BackendConfig | null>(KEYS.backend, null);
+    const next = update(current);
+    if (!valuesEqual(current, next)) await chrome.storage.local.set({ [KEYS.backend]: next });
+    return next;
+  });
+}
 
-// --- Cached orders per account ---
-export const getOrdersCache = () => get<Record<string, Order[]>>(KEYS.orders, {});
-export async function setOrdersFor(pddUserId: string, orders: Order[]): Promise<void> {
-  await mutate<Record<string, Order[]>>(KEYS.orders, {}, (current) => ({
-    ...current,
-    [pddUserId]: orders,
-  }));
+export async function setOrdersForBoundAccount(
+  pddUserId: string,
+  orders: Order[],
+): Promise<void> {
+  await enqueue(async () => {
+    const values = await chrome.storage.local.get([KEYS.accounts, KEYS.orders]);
+    const accounts = storedValue<PinduoduoAccount[]>(values, KEYS.accounts, []);
+    if (!accounts.some((account) => account.pddUserId === pddUserId)) {
+      throw new AppError('account.removedDuringSync');
+    }
+    const current = storedValue<Record<string, Order[]>>(values, KEYS.orders, {});
+    const next = { ...current, [pddUserId]: orders };
+    if (!valuesEqual(current, next)) await chrome.storage.local.set({ [KEYS.orders]: next });
+  });
 }
+
 export async function getOrdersFor(pddUserId: string): Promise<Order[]> {
-  return (await getOrdersCache())[pddUserId] ?? [];
+  const cache = await get<Record<string, Order[]>>(KEYS.orders, {});
+  return cache[pddUserId] ?? [];
 }
-// All cached orders across every bound account (for cross-account reconciliation).
+
 export async function getAllCachedOrders(): Promise<Order[]> {
-  const cache = await getOrdersCache();
+  const cache = await get<Record<string, Order[]>>(KEYS.orders, {});
   return Object.values(cache).flat();
 }
 
-// --- Reconciliation batches (订单核算) ---
 export const getBatches = () => get<ReconcileBatch[]>(KEYS.reconcileBatches, []);
-export const setBatches = (b: ReconcileBatch[]) => set(KEYS.reconcileBatches, b);
 export async function saveBatch(batch: ReconcileBatch): Promise<ReconcileBatch[]> {
   return mutate<ReconcileBatch[]>(KEYS.reconcileBatches, [], (current) => {
     const list = [...current];
-    const idx = list.findIndex((x) => x.id === batch.id);
-    if (idx >= 0) list[idx] = batch;
+    const index = list.findIndex((item) => item.id === batch.id);
+    if (index >= 0) list[index] = batch;
     else list.unshift(batch);
     return list;
   });
 }
+
 export async function removeBatch(id: string): Promise<ReconcileBatch[]> {
   return mutate<ReconcileBatch[]>(KEYS.reconcileBatches, [], (current) =>
-    current.filter((x) => x.id !== id),
+    current.filter((batch) => batch.id !== id),
   );
 }
 
-// --- Settings ---
-export const getSettings = () =>
-  get<AppSettings>(KEYS.settings, { lang: 'zh', theme: 'dark' });
-export const setSettings = (s: AppSettings) => set(KEYS.settings, s);
+export const getSettings = () => get<AppSettings>(KEYS.settings, DEFAULT_SETTINGS);
 export async function patchSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
-  return mutate<AppSettings>(KEYS.settings, { lang: 'zh', theme: 'dark' }, (current) => ({
+  return mutate<AppSettings>(KEYS.settings, DEFAULT_SETTINGS, (current) => ({
     ...current,
     ...patch,
   }));

@@ -24,6 +24,7 @@ export const CORE_NODE_DATA_DIR_POSIX: string = contractDocument.paths.core_node
 export const CORE_NODE_DATA_DIR_WINDOWS_SUBPATH: string = contractDocument.paths.core_node_data_dir_windows_subpath;
 export const GLOBAL_VAR_DIR_NAME: string = contractDocument.paths.global_var_dir_name;
 export const FRANKENPHP_ROOT_POSIX: string = contractDocument.paths.frankenphp_root_posix;
+export const FRANKENPHP_ROOT_WINDOWS_SUBPATH: string = contractDocument.paths.frankenphp_root_windows_subpath;
 export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_access_config;
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
 export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
