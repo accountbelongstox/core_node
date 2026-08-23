@@ -17,6 +17,7 @@ const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
 export interface AgentHistoryRuntimeState {
   articleConfig: Record<string, any> | null;
+  configStoragePath: string;
   articleSummary: Record<string, any> | null;
   operationSnapshot: Record<string, any> | null;
   aiDashboard: Record<string, any> | null;
@@ -30,6 +31,7 @@ export interface AgentHistoryRuntimeState {
 
 let state: AgentHistoryRuntimeState = {
   articleConfig: null,
+  configStoragePath: '',
   articleSummary: null,
   operationSnapshot: null,
   aiDashboard: null,
@@ -47,6 +49,7 @@ const recovered = pycoreRouteRecoveryStore.read<AgentHistoryRuntimeState>(
 if (recovered?.data) {
   state = {
     ...recovered.data,
+    configStoragePath: String(recovered.data.configStoragePath || ''),
     configLoading: false,
     operationLoading: false,
     initialized: true,
@@ -60,6 +63,7 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeUnsubscribers: Array<() => void> = [];
 let consumerCount = 0;
 let lastOperationReadAt = 0;
+let configMutationTail: Promise<void> = Promise.resolve();
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -102,6 +106,32 @@ export function setAgentHistoryArticleConfig(config: Record<string, any>): void 
   patch({ articleConfig: config, configError: null });
 }
 
+export interface AgentHistoryConfigSaveResult {
+  success: boolean;
+  data?: Record<string, any>;
+  error?: string | null;
+}
+
+export function persistAgentHistoryArticleConfig(
+  configPatch: Record<string, unknown>,
+): Promise<AgentHistoryConfigSaveResult> {
+  const patchValue = { ...configPatch };
+  const optimistic = { ...(state.articleConfig || {}), ...patchValue };
+  patch({ articleConfig: optimistic, configError: null });
+  const execute = async (): Promise<AgentHistoryConfigSaveResult> => {
+    const response = await pycoreApi.saveAgentHistoryArticleConfig(patchValue);
+    if (response.success && response.data) {
+      patch({ articleConfig: response.data, configError: null, authoritative: true });
+      return response;
+    }
+    patch({ configError: response.error || 'AGENT_HISTORY_CONFIG_SAVE_FAILED' });
+    return response;
+  };
+  const request = configMutationTail.then(execute, execute);
+  configMutationTail = request.then(() => undefined, () => undefined);
+  return request;
+}
+
 export async function refreshAgentHistoryRuntime(): Promise<void> {
   if (runtimeFlight) return runtimeFlight;
   patch({ configLoading: true, operationLoading: true });
@@ -114,6 +144,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
       }
       patch({
         articleConfig: response.data.article_config || null,
+        configStoragePath: String(response.data.article_config_storage_path || ''),
         articleSummary: response.data.article_summary || null,
         operationSnapshot: response.data.operation_snapshot || null,
         aiDashboard: response.data.ai_dashboard || null,

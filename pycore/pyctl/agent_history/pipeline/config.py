@@ -2,6 +2,7 @@
 from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_records
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.user_data_store import user_data_store
 
 _SECTION = "agent_history_article"
@@ -139,7 +140,7 @@ def mark_tool_live_item_completed(
         "after_fragment_id": str(after_fragment_id or ""),
     }
 
-def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
+def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
     cfg = get_config()
     for key in (
         "enabled", "extract_as_article", "reference_lang", "target_lang",
@@ -178,6 +179,28 @@ def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
             cfg["phase"] = "live"
     user_data_store.set_section(_SECTION, cfg)
     return cfg
+
+
+class _AgentHistoryConfigOwner:
+    """Serialize read-normalize-write config transactions across all transports."""
+
+    def __init__(self) -> None:
+        init_serialized_owner(
+            self,
+            "agent_history.config",
+            "AgentHistoryConfig",
+        )
+
+    @serialized_method
+    def save(self, patch: Dict[str, Any]) -> Dict[str, Any]:
+        return _save_config_owned(dict(patch or {}))
+
+
+_agent_history_config_owner = _AgentHistoryConfigOwner()
+
+
+def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
+    return _agent_history_config_owner.save(patch)
 
 def get_status() -> Dict[str, Any]:
     cfg = get_config()

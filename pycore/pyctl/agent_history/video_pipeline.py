@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import textwrap
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -32,6 +33,18 @@ VIDEO_RESOURCE_ROUTE = "/api/app_qy_v1/user/agent-history/{article_id}/video-res
 VIDEO_RESOLUTION = DEFAULT_MOBILE_VIDEO_RESOLUTION
 VIDEO_SAMPLE_RATE = 48000
 VIDEO_CHANNELS = 2
+VIDEO_PROGRESS = {
+    "pending": 0.0,
+    "requesting_resources": 0.1,
+    "waiting_resources": 0.2,
+    "resource_ready": 0.25,
+    "media_ready": 0.4,
+    "plan_ready": 0.6,
+    "audio_ready": 0.75,
+    "rendering": 0.85,
+    "completed": 1.0,
+    "failed": 0.0,
+}
 
 
 def _timestamp() -> str:
@@ -62,10 +75,51 @@ def _job_id(record_id: str, username: str, batch_name: str) -> str:
 
 def _update_job(job: Dict[str, Any], status: str, **patch: Any) -> Dict[str, Any]:
     updated = dict(job)
+    events = [item for item in (updated.get("events") or []) if isinstance(item, dict)]
+    steps = dict(updated.get("steps") or {})
+    event_payload = {
+        key: value
+        for key, value in patch.items()
+        if key not in ("traceback",) and value is not None
+    }
+    event_identity = json.dumps(
+        {"status": status, "payload": event_payload},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    last_identity = str(events[-1].get("identity") or "") if events else ""
+    timestamp = _timestamp()
     updated.update(patch)
     updated["status"] = status
-    updated["updated_at"] = _timestamp()
+    updated["progress"] = float(VIDEO_PROGRESS.get(status, 0.0))
+    updated["updated_at"] = timestamp
+    steps[status] = {
+        "status": status,
+        "progress": updated["progress"],
+        "updated_at": timestamp,
+        **event_payload,
+    }
+    if event_identity != last_identity:
+        events.append({
+            "sequence": len(events) + 1,
+            "identity": event_identity,
+            "status": status,
+            "progress": updated["progress"],
+            "created_at": timestamp,
+            "payload": event_payload,
+            "error": patch.get("error"),
+            "traceback": patch.get("traceback"),
+        })
+    updated["steps"] = steps
+    updated["events"] = events[-200:]
     article_records.mark_video_job(str(updated["record_id"]), updated)
+    THREAD_BUS.trigger_event(BusSignals.AGENT_HISTORY_VIDEO_CHANGED, {
+        "job_id": str(updated.get("id") or ""),
+        "record_id": str(updated.get("record_id") or ""),
+        "status": status,
+        "progress": updated["progress"],
+        "updated_at": timestamp,
+    })
     return updated
 
 
@@ -297,7 +351,7 @@ def _timed_text(plan: List[Dict[str, Any]]) -> List[TimedTextCue]:
     return cues
 
 
-def generate_video(record: Dict[str, Any]) -> Dict[str, Any]:
+def _generate_video_steps(record: Dict[str, Any]) -> Dict[str, Any]:
     config = get_config()
     record_id = str(record.get("id") or "")
     username = str(config.get("video_username") or "").strip()
@@ -356,6 +410,33 @@ def generate_video(record: Dict[str, Any]) -> Dict[str, Any]:
     )
     THREAD_BUS.trigger_event(BusSignals.ARTICLE_PUBLISHED, {"record_id": record_id, "video": True})
     return job
+
+
+def generate_video(record: Dict[str, Any]) -> Dict[str, Any]:
+    config = get_config()
+    record_id = str(record.get("id") or "")
+    username = str(config.get("video_username") or "").strip()
+    batch_name = str(config.get("video_batch_name") or "default").strip() or "default"
+    job_id = _job_id(record_id, username, batch_name)
+    job = article_records.load_video_job(job_id) or {
+        "id": job_id,
+        "contract": VIDEO_CONTRACT,
+        "record_id": record_id,
+        "article_id": str(record.get("laravel_article_id") or ""),
+        "username": username,
+        "batch_name": batch_name,
+        "created_at": _timestamp(),
+    }
+    try:
+        return _generate_video_steps(record)
+    except Exception as exc:
+        current = article_records.load_video_job(job_id) or job
+        return _update_job(
+            current,
+            "failed",
+            error=str(exc),
+            traceback=traceback.format_exc(),
+        )
 
 
 def tick_video() -> Dict[str, Any]:

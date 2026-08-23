@@ -423,7 +423,11 @@ const PcAgentHistoryPage: React.FC = () => {
     setTab(tab);
     setSessionPage(1);
     setPromptPage(1);
-    listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
   }, []);
 
   const promptLabels = {

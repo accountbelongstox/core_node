@@ -63,6 +63,7 @@ def register_thread_bus_routes(server):
         BusSignals.ENGINE_LOAD_STATUS_UPDATE,
         BusSignals.ARTICLE_PUBLISHED,
         BusSignals.AGENT_HISTORY_SESSIONS_CHANGED,
+        BusSignals.AGENT_HISTORY_VIDEO_CHANGED,
         BusSignals.LARAVEL_LOGS_CHANGED,
         BusSignals.SUBTITLE_LANGUAGE_FILL,
         BusSignals.VIDEO_EXTRACT_SYNC,

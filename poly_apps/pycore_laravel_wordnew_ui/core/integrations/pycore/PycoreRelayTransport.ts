@@ -84,13 +84,15 @@ export async function relayDesignate(deviceId: string): Promise<RelayV2Pairing> 
   const inFlight = pairFlights.get(deviceId);
   if (inFlight) return inFlight;
   const request = (current
-    ? laravelApi.renewRelayV2Pairing(current.pairing_id).catch(() => (
-        laravelApi.createRelayV2Pairing(deviceId, state.client_instance_id)
-      ))
+    ? laravelApi.renewRelayV2Pairing(current.pairing_id).catch((error: any) => {
+        if (error?.status === 404 || error?.status === 409) {
+          return laravelApi.createRelayV2Pairing(deviceId, state.client_instance_id);
+        }
+        throw error;
+      })
     : laravelApi.createRelayV2Pairing(deviceId, state.client_instance_id))
     .then((pairing) => {
       state.pairings[deviceId] = pairing;
-      state.selected_device_id = deviceId;
       persistRelayState();
       return pairing;
     })
@@ -103,11 +105,11 @@ export async function relayUndesignate(): Promise<void> {
   const state = loadRelayState();
   const deviceId = state.selected_device_id;
   const pairing = deviceId ? state.pairings[deviceId] : undefined;
+  if (pairing) {
+    await laravelApi.revokeRelayV2Pairing(pairing.pairing_id);
+    delete state.pairings[pairing.device_id];
+  }
   state.selected_device_id = null;
-  persistRelayState();
-  if (!pairing) return;
-  await laravelApi.revokeRelayV2Pairing(pairing.pairing_id);
-  delete state.pairings[pairing.device_id];
   persistRelayState();
 }
 

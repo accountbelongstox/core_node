@@ -125,6 +125,7 @@ export const PYCORE_HTTP_ROUTES = {
   agentHistoryArticleRecordIdPages: 'ui/agent_history/article_record_id_pages',
   agentHistoryArticleRecordPage: 'ui/agent_history/article_record_page',
   agentHistoryArticleVideoMedia: 'ui/agent_history/article_video_media',
+  agentHistoryArticleVideoLogs: 'ui/agent_history/article_video_logs',
   agentHistoryTestExtract: 'ui/agent_history/test_extract',
   translateStatus: 'ui/translate/status',
   translateTranslate: 'ui/translate/translate',

@@ -74,7 +74,7 @@ class AppQyV1BookReadingProgressTableService
                     'batch_name' => ['type' => 'string', 'length' => 64, 'nullable' => false],
                     'language_code' => ['type' => 'string', 'length' => 16, 'nullable' => false],
                     'words' => ['type' => 'json', 'nullable' => false],
-                    'requests' => ['type' => 'json', 'nullable' => false],
+                    'requests' => ['type' => 'json', 'nullable' => true],
                     'total_words' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
                     'created_at' => ['type' => 'timestamp', 'nullable' => true],
                     'updated_at' => ['type' => 'timestamp', 'nullable' => true],

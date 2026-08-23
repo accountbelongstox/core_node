@@ -4,6 +4,7 @@ Word audio persistent cache.
 """
 import os
 import shutil
+import uuid
 from pathlib import Path
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
@@ -40,7 +41,7 @@ def find_cached(word: str, language: str) -> Path | None:
 
 def store_bytes(word: str, language: str, provider: str, content: bytes) -> Path:
     output = Path(get_cache_path(word, language, provider)).resolve()
-    temporary = output.with_name(f"{output.name}.partial")
+    temporary = output.with_name(f"{output.name}.partial.{uuid.uuid4().hex}")
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary.write_bytes(content)
     os.replace(temporary, output)

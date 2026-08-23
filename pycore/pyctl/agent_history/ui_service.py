@@ -293,6 +293,7 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
         "success": True,
         "data": {
             "article_config": config,
+            "article_config_storage_path": str(user_data_store.path),
             "article_summary": summary,
             "operation_snapshot": operation,
             "ai_dashboard": _agent_history_ai_dashboard(config),
@@ -396,6 +397,23 @@ def article_video_media(params: Any, _request_id: str) -> Dict[str, Any]:
         },
     }
 
+def article_video_logs(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    revision = article_record_store.video_records_revision()
+    since_revision = str(request.get("since_revision") or request.get("sinceRevision") or "")
+    if since_revision and since_revision == revision:
+        return {"success": True, "data": {"revision": revision, "unchanged": True}}
+    jobs = article_record_store.list_video_jobs(int(request.get("limit") or 100))
+    return {
+        "success": True,
+        "data": {
+            "revision": revision,
+            "unchanged": False,
+            "jobs": jobs,
+            "summary": article_record_store.summarize_records(),
+        },
+    }
+
 def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
     tool = str(request.get("tool") or "")
@@ -404,4 +422,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "test_extract"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract"]

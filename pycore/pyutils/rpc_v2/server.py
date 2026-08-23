@@ -226,6 +226,25 @@ class HttpServer:
             )
 
     def _register_protocol_routes(self) -> None:
+        self.dispatcher.register(
+            "status",
+            self._protocol_status,
+            methods=("GET",),
+            description="Read the Pycore HTTP protocol status.",
+        )
+        self.dispatcher.register(
+            "info",
+            self._protocol_info,
+            methods=("GET",),
+            description="Read the Pycore HTTP protocol descriptor.",
+        )
+        self.dispatcher.register(
+            "routes",
+            self._protocol_routes,
+            methods=("GET",),
+            description="List registered Pycore RPC routes.",
+        )
+
         @self.app.post(HTTP_CLIENT_ID_PATH)
         async def client_id(request: Request) -> Dict[str, Any]:
             payload = await request.json()
@@ -245,35 +264,63 @@ class HttpServer:
 
         @self.app.get(HTTP_STATUS_PATH)
         async def status() -> Dict[str, Any]:
-            return {
-                "is_http_service": True,
-                "protocol_version": HTTP_PROTOCOL_VERSION,
-                "service": "HttpServer",
-                "transport": "http",
-            }
+            return self._protocol_status()
 
         @self.app.get(HTTP_INFO_PATH)
         async def info() -> Dict[str, Any]:
-            journal = self.event_service.events if self.event_service is not None else None
-            return {
-                "service": "HttpServer",
-                "protocol_version": HTTP_PROTOCOL_VERSION,
-                "host": self.host,
-                "port": self.port,
-                "transports": {
-                    "http": True,
-                },
-                "routes": self.list_routes(),
-                "events": {
-                    "enabled": journal is not None,
-                    "instance_id": journal.instance_id if journal is not None else None,
-                    "seq": journal.seq if journal is not None else 0,
-                },
-            }
+            return self._protocol_info()
 
         @self.app.get(HTTP_ROUTES_PATH)
         async def routes() -> Dict[str, Any]:
-            return {"routes": self.list_routes()}
+            return self._protocol_routes()
+
+    def _protocol_status(
+        self,
+        _params: Optional[Dict[str, Any]] = None,
+        _request_id: str = "",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        execution_context = context or {}
+        return {
+            "is_http_service": True,
+            "protocol_version": HTTP_PROTOCOL_VERSION,
+            "service": "HttpServer",
+            "transport": str(execution_context.get("transport") or "http"),
+        }
+
+    def _protocol_info(
+        self,
+        _params: Optional[Dict[str, Any]] = None,
+        _request_id: str = "",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        journal = self.event_service.events if self.event_service is not None else None
+        execution_context = context or {}
+        transport = str(execution_context.get("transport") or "http")
+        return {
+            "service": "HttpServer",
+            "protocol_version": HTTP_PROTOCOL_VERSION,
+            "host": self.host,
+            "port": self.port,
+            "transports": {
+                "http": True,
+                "relay": transport == "relay",
+            },
+            "routes": self.list_routes(),
+            "events": {
+                "enabled": journal is not None,
+                "instance_id": journal.instance_id if journal is not None else None,
+                "seq": journal.seq if journal is not None else 0,
+            },
+        }
+
+    def _protocol_routes(
+        self,
+        _params: Optional[Dict[str, Any]] = None,
+        _request_id: str = "",
+        _context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return {"routes": self.list_routes()}
 
     def _register_http_routes(self) -> None:
         @self.app.api_route(

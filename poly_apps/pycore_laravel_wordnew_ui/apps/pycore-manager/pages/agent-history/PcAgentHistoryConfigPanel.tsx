@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  pycoreApi,
-  setAgentHistoryArticleConfig,
+  persistAgentHistoryArticleConfig,
   useAgentHistoryRuntime,
 } from '@/apps/pycore-manager/api';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
+import PcAgentHistoryVideoLogPanel from './PcAgentHistoryVideoLogPanel';
 import PcAgentHistoryAiPanel from './PcAgentHistoryAiPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
 import { AGENT_HISTORY_TOOLS } from './presentation';
@@ -45,6 +45,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
     articleSummary,
     operationSnapshot,
     configError,
+    configStoragePath,
     authoritative,
   } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
@@ -106,36 +107,34 @@ const PcAgentHistoryConfigPanel: React.FC<{
         ? tk('phaseRunning')
         : tk('phaseWaiting');
 
-  const saveConfig = async (enabledOverride?: boolean, toolsOverride?: string[]) => {
+  const persistConfig = async (patch: Record<string, unknown>) => {
     setBusy(true);
     setMsg(null);
-    const on = enabledOverride ?? enabled;
-    const tools = toolsOverride ?? enabledTools;
     try {
-      const res = await pycoreApi.saveAgentHistoryArticleConfig({
-        extract_as_article: on,
-        enabled: on,
-        reference_lang: REFERENCE_LANGUAGE,
-        target_lang: TARGET_LANGUAGE,
-        min_raw_words: minRawWords,
-        live_listen: true,
-        enabled_tools: tools,
-        video_enabled: videoEnabled,
-        video_username: videoUsername.trim(),
-        video_batch_name: videoBatchName.trim() || 'default',
-        video_concurrency: videoConcurrency,
-      });
-      if (res.success && res.data) {
-        setAgentHistoryArticleConfig(res.data);
-        setMsg(tk('settingsSaved'));
-      } else {
-        setMsg(res.error || tk('loadError'));
-      }
+      const res = await persistAgentHistoryArticleConfig(patch);
+      if (res.success) setMsg(tk('settingsSaved'));
+      else setMsg(res.error || tk('loadError'));
     } catch (e) {
       setMsg(e instanceof Error ? e.message : tk('loadError'));
     } finally {
       setBusy(false);
     }
+  };
+
+  const saveConfig = async () => {
+    await persistConfig({
+        extract_as_article: enabled,
+        enabled,
+        reference_lang: REFERENCE_LANGUAGE,
+        target_lang: TARGET_LANGUAGE,
+        min_raw_words: minRawWords,
+        live_listen: true,
+        enabled_tools: enabledTools,
+        video_enabled: videoEnabled,
+        video_username: videoUsername.trim(),
+        video_batch_name: videoBatchName.trim() || 'default',
+        video_concurrency: videoConcurrency,
+    });
   };
 
   const handleToolToggle = (tool: string, checked: boolean) => {
@@ -144,7 +143,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
       : enabledTools.filter((t) => t !== tool);
     setEnabledTools(tools);
     onEnabledToolsChange?.(tools);
-    void saveConfig(undefined, tools);
+    void persistConfig({ enabled_tools: tools });
   };
 
   const inputCls = 'mt-1 w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm';
@@ -165,7 +164,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
             onClick={() => {
               const on = !enabled;
               setEnabled(on);
-              void saveConfig(on);
+              void persistConfig({ enabled: on, extract_as_article: on, live_listen: true });
             }}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
               enabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-white/15'
@@ -231,7 +230,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
             </div>
           </label>
           <div className="flex items-end">
-            <button type="button" onClick={() => saveConfig()} disabled={busy}
+            <button type="button" onClick={() => void saveConfig()} disabled={busy}
               className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 dark:border-white/10">
               {tk('saveSettings')}
             </button>
@@ -244,7 +243,11 @@ const PcAgentHistoryConfigPanel: React.FC<{
               role="switch"
               aria-checked={videoEnabled}
               disabled={busy}
-              onClick={() => setVideoEnabled((value) => !value)}
+              onClick={() => {
+                const next = !videoEnabled;
+                setVideoEnabled(next);
+                void persistConfig({ video_enabled: next });
+              }}
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${videoEnabled ? 'bg-sky-600' : 'bg-slate-300 dark:bg-white/15'}`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${videoEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
@@ -255,18 +258,23 @@ const PcAgentHistoryConfigPanel: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="text-xs text-slate-500">
               {tk('videoUsername')}
-              <input value={videoUsername} onChange={(event) => setVideoUsername(event.target.value)} className={inputCls} />
+              <input value={videoUsername} onChange={(event) => setVideoUsername(event.target.value)} onBlur={(event) => void persistConfig({ video_username: event.currentTarget.value.trim() })} className={inputCls} />
             </label>
             <label className="text-xs text-slate-500">
               {tk('videoBatchName')}
-              <input value={videoBatchName} onChange={(event) => setVideoBatchName(event.target.value)} className={inputCls} />
+              <input value={videoBatchName} onChange={(event) => setVideoBatchName(event.target.value)} onBlur={(event) => void persistConfig({ video_batch_name: event.currentTarget.value.trim() || 'default' })} className={inputCls} />
             </label>
             <label className="text-xs text-slate-500">
               {tk('videoConcurrency')}
-              <input type="number" min={1} max={4} value={videoConcurrency} onChange={(event) => setVideoConcurrency(Math.max(1, Math.min(4, Number(event.target.value) || 2)))} className={inputCls} />
+              <input type="number" min={1} max={4} value={videoConcurrency} onChange={(event) => setVideoConcurrency(Math.max(1, Math.min(4, Number(event.target.value) || 2)))} onBlur={(event) => void persistConfig({ video_concurrency: Math.max(1, Math.min(4, Number(event.currentTarget.value) || 2)) })} className={inputCls} />
             </label>
           </div>
         </div>
+        {configStoragePath && (
+          <div className="truncate text-[10px] font-mono text-slate-400" title={configStoragePath}>
+            {tk('backendConfigStored')}: {configStoragePath}
+          </div>
+        )}
         <PcAgentHistoryToolCheckboxes
           tk={tk}
           enabledTools={enabledTools}
@@ -293,7 +301,12 @@ const PcAgentHistoryConfigPanel: React.FC<{
         )}
       </section>
 
-      {enabled && <PcAgentHistoryLogPanel tk={tk} />}
+      {(enabled || videoEnabled) && (
+        <div className="grid grid-cols-1 gap-0 lg:grid-cols-2">
+          <PcAgentHistoryLogPanel tk={tk} className="rounded-b-none lg:rounded-bl-2xl lg:rounded-r-none" />
+          <PcAgentHistoryVideoLogPanel tk={tk} className="rounded-t-none border-t-0 lg:rounded-l-none lg:rounded-tr-2xl lg:border-l-0 lg:border-t" />
+        </div>
+      )}
     </>
   );
 };

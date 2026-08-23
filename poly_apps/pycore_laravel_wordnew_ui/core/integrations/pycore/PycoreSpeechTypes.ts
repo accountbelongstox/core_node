@@ -496,6 +496,48 @@ export interface AgentHistoryArticleVideoMediaResponse {
   error?: string | null;
 }
 
+export interface AgentHistoryVideoEvent {
+  sequence: number;
+  status: string;
+  progress: number;
+  created_at: string;
+  payload?: Record<string, unknown>;
+  error?: string | null;
+  traceback?: string | null;
+}
+
+export interface AgentHistoryVideoJob {
+  id: string;
+  record_id: string;
+  article_id?: string;
+  title_en?: string;
+  title_cn?: string;
+  username: string;
+  batch_name: string;
+  status: string;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+  duration?: number;
+  error?: string | null;
+  waiting_word?: string | null;
+  video_available?: boolean;
+  steps?: Record<string, Record<string, unknown>>;
+  events?: AgentHistoryVideoEvent[];
+}
+
+export interface AgentHistoryVideoLogsResponse {
+  success: boolean;
+  data?: {
+    revision: string;
+    unchanged?: boolean;
+    jobs?: AgentHistoryVideoJob[];
+    summary?: Record<string, number>;
+  };
+  error?: string | null;
+}
+
 export interface AgentHistoryTestExtractResponse {
   success?: boolean;
   data?: {
