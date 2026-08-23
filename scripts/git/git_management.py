@@ -48,24 +48,39 @@ class GitManagement:
 
     def show_menu(self):
         """Display the Git Management menu"""
+        option_number = 1
+
         os.system('cls' if self.is_windows else 'clear')
         print()
         print("\033[36m==================== Git Management ====================\033[0m")
-        print("  1. Get the latest git version (backup + commit + pull)")
-        print("  2. Force overwrite local with remote (backup local first)")
-        print("  3. Cleanup Git repository with BFG (remove large files)")
-        print("  4. Remove directories from Git history (e.g., .venv, node_modules)")
-        print("  5. Git time travel")
-        print("  6. Back to main menu")
+        if not self.is_windows:
+            print(f"  {option_number}. Push to git")
+            option_number += 1
+        print(f"  {option_number}. Get the latest git version (backup + commit + pull)")
+        print(f"  {option_number + 1}. Force overwrite local with remote (backup local first)")
+        print(f"  {option_number + 2}. Cleanup Git repository with BFG (remove large files)")
+        print(f"  {option_number + 3}. Remove directories from Git history (e.g., .venv, node_modules)")
+        print(f"  {option_number + 4}. Git time travel")
+        print(f"  {option_number + 5}. Back to main menu")
         print("\033[36m========================================================\033[0m")
 
     def get_user_choice(self) -> str:
         """Get user menu choice"""
+        option_count = 6 if self.is_windows else 7
+
         try:
-            choice = input("Select an option (1-6): ").strip()
+            choice = input(f"Select an option (1-{option_count}): ").strip()
             return choice
         except (KeyboardInterrupt, EOFError):
-            return "6"
+            return str(option_count)
+
+    def handle_push(self):
+        """Handle Git push"""
+        gitput_script = self.core_node_root / "scripts" / "git" / "gitput_unified.sh"
+
+        self.vars.set_var(GitVarKeys.OPERATION_TYPE, "push")
+        self.vars.set_var(GitVarKeys.SHELL_SCRIPT, f'bash "{gitput_script}"')
+        self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_PENDING)
 
     def handle_safe_pull(self):
         """Handle option 1: Safe git pull"""
@@ -829,6 +844,8 @@ class GitManagement:
 
     def run_menu_loop(self):
         """Main menu loop"""
+        option_offset = 0 if self.is_windows else 1
+
         while True:
             self.show_menu()
             choice = self.get_user_choice()
@@ -836,16 +853,19 @@ class GitManagement:
             # Save menu choice
             self.vars.set_var(GitVarKeys.MENU_CHOICE, choice)
 
-            if choice == "1":
+            if not self.is_windows and choice == "1":
+                self.handle_push()
+                break
+            elif choice == str(1 + option_offset):
                 self.handle_safe_pull()
                 break
-            elif choice == "2":
+            elif choice == str(2 + option_offset):
                 self.handle_force_overwrite()
                 break
-            elif choice == "3":
+            elif choice == str(3 + option_offset):
                 self.handle_bfg_cleanup()
                 break
-            elif choice == "4":
+            elif choice == str(4 + option_offset):
                 try:
                     self.handle_directory_cleanup()
                 except Exception as e:
@@ -855,10 +875,10 @@ class GitManagement:
                     traceback.print_exc()
                     print()
                     input("\033[33mPress Enter to continue...\033[0m")
-            elif choice == "5":
+            elif choice == str(5 + option_offset):
                 self.handle_git_time_travel()
                 break
-            elif choice == "6":
+            elif choice == str(6 + option_offset):
                 self.handle_back_to_menu()
                 break
             else:

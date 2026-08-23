@@ -251,7 +251,6 @@ test_win_common_files() {
         "WindowsPathFunction.ps1"
         "WindowsServiceManager.ps1"
         "CommonFunc.7z.gz.js"
-        "applicationsXml/ApplicationsList.xml"
     )
     
     local missing_files=()
