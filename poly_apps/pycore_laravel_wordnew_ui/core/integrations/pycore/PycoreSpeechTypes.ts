@@ -480,6 +480,20 @@ export interface AgentHistoryArticleRecord {
   laravel_article_id?: string | null;
   uploaded: boolean;
   uploaded_at?: string | null;
+  video_job_id?: string | null;
+  video_status?: string | null;
+  video_error?: string | null;
+  video_duration?: number;
+  video_generated_at?: string | null;
+  video_batch_name?: string | null;
+  video_username?: string | null;
+  video_available?: boolean;
+}
+
+export interface AgentHistoryArticleVideoMediaResponse {
+  success: boolean;
+  data?: { media_type: string; content_base64: string; bytes: number };
+  error?: string | null;
 }
 
 export interface AgentHistoryTestExtractResponse {
@@ -608,4 +622,3 @@ export interface LlmServerActionResponse {
   error?: string;
   note?: string;
 }
-

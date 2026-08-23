@@ -21,8 +21,9 @@
 # /laravel-manager#/task-center aligned when either side's task categories change.
 #
 # Usage:
-#   ./pyservice.sh                       # install prereqs, then launch 0.0.0.0:59000
-#   ./pyservice.sh --no-install          # skip prereqs, just launch
+#   ./pyservice.sh 1                     # current local UI mode (default)
+#   ./pyservice.sh 2                     # Relay UI intermediary mode
+#   ./pyservice.sh 1 --no-install        # skip prereqs, just launch
 #   ./pyservice.sh --port 8000 --debug   # launch on port 8000 in debug mode
 #   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
@@ -124,6 +125,8 @@ RELOAD=1
 NO_INSTALL=0
 ONLY=0
 NO_UI=0
+SERVICE_MODE="1"
+UI_MODE="dashboard (pycore-manager)"
 UI_BUILD=0
 UI_PORT="13054"
 PREPARE_ARGS=()
@@ -132,6 +135,7 @@ UI_START="$SCRIPT_DIR/poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh"
 UI_PID=""
 UI_READY=0
 UI_START_ARGS=()
+ORIGINAL_ARGS=("$@")
 
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
@@ -188,7 +192,11 @@ print_usage() {
 pyservice.sh - entry point for the Pycore Module Caller
 
 Usage:
-  ./pyservice.sh [SUBCOMMAND] [options]
+  ./pyservice.sh [1|2|SUBCOMMAND] [options]
+
+Modes:
+  1            Current local UI mode (default)
+  2            Relay UI intermediary mode
 
 Subcommands:
   run          Launch the service (default if no subcommand is given)
@@ -223,10 +231,11 @@ Options (apply to 'run'):
   --               Everything after a bare -- is forwarded to prepare.sh
 
 Examples:
-  ./pyservice.sh                              # run: install prereqs, launch 0.0.0.0:59000
-  ./pyservice.sh run --no-ui --port 8000      # run on port 8000, legacy UI
-  ./pyservice.sh --port 8000                  # no subcommand == run
-  ./pyservice.sh --no-install                   # run without prerequisite installers
+  ./pyservice.sh 1                            # run current local UI mode
+  ./pyservice.sh 2                            # run Relay UI intermediary mode
+  ./pyservice.sh 1 --no-ui --port 8000        # run on port 8000, legacy UI
+  ./pyservice.sh 1 --port 8000                # run mode 1 on a custom port
+  ./pyservice.sh 1 --no-install               # run without prerequisite installers
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
@@ -238,11 +247,19 @@ EOF
 # otherwise default to 'run' (so existing flag-first invocations keep working).
 CMD="run"
 case "${1:-}" in
+    1|2)
+        SERVICE_MODE="$1"; shift ;;
+    [0-9]*)
+        SERVICE_MODE="$1"; shift ;;
     run|config|codesync|install|start|stop|restart|status|uninstall)
         CMD="$1"; shift ;;
     help|-h|--help)
         print_usage; exit 0 ;;
 esac
+if [[ "$CMD" == "run" && "${1:-}" =~ ^[0-9]+$ ]]; then
+    SERVICE_MODE="$1"
+    shift
+fi
 
 # --- self-elevation (Linux) --------------------------------------------- #
 # Service subcommands (install/start/stop/...) need root to write systemd
@@ -278,7 +295,7 @@ _pyservice_maybe_elevate() {
     echo "[i] Elevating to root (sudo) so all subsequent steps run privileged ..."
     exec sudo env "${env_args[@]}" bash "$0" "$@"
 }
-_pyservice_maybe_elevate
+_pyservice_maybe_elevate "${ORIGINAL_ARGS[@]}"
 
 # AI SAFETY: Do not modify the `./pyservice.sh codesync` dispatch chain unless
 # the user explicitly requests that specific change. This is a compatibility
@@ -382,6 +399,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+case "$SERVICE_MODE" in
+    1) ;;
+    2) NO_UI=1 ;;
+    *) echo "[!] Invalid service mode: $SERVICE_MODE" >&2; exit 2 ;;
+esac
+
 if [[ "$IS_HEADLESS_SERVER" == true ]]; then
     echo "[i] Headless server detected; Pycore runtime is disabled by server policy."
     exit 0
@@ -390,7 +413,14 @@ fi
 echo "======================================================"
 echo " Pycore Service - entry point"
 echo "======================================================"
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT ui=$([[ "$NO_UI" -eq 1 ]] && echo legacy || echo 'dashboard (pycore-manager)') prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled))"
+if [[ "$SERVICE_MODE" == "2" ]]; then
+    UI_MODE="relay"
+elif [[ "$NO_UI" -eq 1 ]]; then
+    UI_MODE="legacy"
+else
+    UI_MODE="dashboard (pycore-manager)"
+fi
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -475,7 +505,9 @@ stop_docker_publisher() {
 # --- 2) launch the unified dashboard UI (unless --no-ui) ----------------- #
 # Delegate frontend lifecycle to its canonical idempotent start script.
 
-if [[ "$NO_UI" -eq 1 ]]; then
+if [[ "$SERVICE_MODE" == "2" ]]; then
+    echo "[i] Relay UI intermediary mode: local dashboard launch is disabled."
+elif [[ "$NO_UI" -eq 1 ]]; then
     echo "[i] --no-ui: using legacy /web/subtitle UI."
 elif [[ ! -f "$UI_START" ]]; then
     echo "[i] dashboard start.sh not found; using legacy /web/subtitle UI."
@@ -552,7 +584,7 @@ if [[ "$(uname)" == "Linux" ]]; then
     fi
 fi
 
-PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT")
+PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT" --service-mode "$SERVICE_MODE")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
 
@@ -562,6 +594,4 @@ stop_docker_publisher "$PORT" || true
 echo ""
 echo "[>] Launching worker: $WORKER_REL"
 echo ""
-"$PY" "${PY_ARGS[@]}"
-CODE=$?
-exit $CODE
+exec "$PY" "${PY_ARGS[@]}"

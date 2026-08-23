@@ -30,12 +30,13 @@ final class RelayV2HubService
     private function authorization(string $subject, array $topics): array
     {
         $ttl = RelayV2Contract::duration('subscriber_token_seconds');
+        $hubUrl = RelayV2Contract::publicUrl('mercure_hub');
 
         return [
-            'url' => RelayHubJwt::hubUrl(),
+            'url' => $hubUrl,
             'topic' => (string) ($topics[0] ?? ''),
             'topics' => array_values(array_unique($topics)),
-            'subscriber_token' => RelayHubJwt::subscriberTokenForTtl($subject, $topics, $ttl),
+            'subscriber_token' => RelayHubJwt::subscriberTokenForTtl($subject, $topics, $ttl, $hubUrl),
             'expires_in_seconds' => $ttl,
             'contract_digest' => RelayV2Contract::digest(),
         ];

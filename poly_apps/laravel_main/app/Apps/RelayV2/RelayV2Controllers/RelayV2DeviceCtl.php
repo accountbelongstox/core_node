@@ -166,7 +166,8 @@ final class RelayV2DeviceCtl extends Controller
 
     public function requestBlob(Request $request, string $blob_id): Response
     {
-        $bytes = $this->blobs->readDeviceRequest($this->deviceId($request), $blob_id);
+        $generation = $this->validateGenerationQuery($request, 'device_request_blob_download');
+        $bytes = $this->blobs->readDeviceRequest($this->deviceId($request), $blob_id, $generation);
 
         return response($bytes, 200, [
             'Content-Type' => 'application/octet-stream',
@@ -198,13 +199,20 @@ final class RelayV2DeviceCtl extends Controller
     public function responseBlobChunk(Request $request, string $blob_id, string $chunk_index): JsonResponse
     {
         $chunkIndex = ctype_digit($chunk_index) ? (int) $chunk_index : -1;
+        $generation = $this->validateGenerationQuery($request, 'device_response_blob_chunk');
 
         if ($chunkIndex < 0) {
             throw new RelayV2DomainException('blob_chunk_index_invalid', 422);
         }
 
         return $this->success(
-            $this->blobs->storeDeviceChunk($this->deviceId($request), $blob_id, $chunkIndex, (string) $request->getContent()),
+            $this->blobs->storeDeviceChunk(
+                $this->deviceId($request),
+                $blob_id,
+                $chunkIndex,
+                $generation,
+                (string) $request->getContent()
+            ),
             __('relay_v2.success')
         );
     }
@@ -259,6 +267,44 @@ final class RelayV2DeviceCtl extends Controller
         }
 
         return $deviceId;
+    }
+
+    private function validateGenerationQuery(Request $request, string $endpointName): array
+    {
+        $fields = RelayV2Contract::generationFields($endpointName);
+        $query = $request->query();
+        $queryNames = array_keys($query);
+        $requiredNames = $fields;
+        $revisionField = (string) $fields[0];
+        $epochField = (string) $fields[1];
+        $ownerField = (string) $fields[2];
+        $revisionValue = $query[$revisionField] ?? null;
+        $epochValue = $query[$epochField] ?? null;
+        $leaseOwnerValue = $query[$ownerField] ?? null;
+        $revision = is_string($revisionValue) ? $revisionValue : '';
+        $epoch = is_string($epochValue) ? $epochValue : '';
+        $leaseOwner = is_string($leaseOwnerValue) ? $leaseOwnerValue : '';
+
+        sort($queryNames, SORT_STRING);
+        sort($requiredNames, SORT_STRING);
+        if ($queryNames !== $requiredNames
+            || !is_string($revisionValue)
+            || !is_string($epochValue)
+            || !is_string($leaseOwnerValue)
+            || !ctype_digit($revision)
+            || (int) $revision < 1
+            || !ctype_digit($epoch)
+            || (int) $epoch < 1
+            || $leaseOwner === ''
+            || strlen($leaseOwner) > 128) {
+            throw new RelayV2DomainException('operation_generation_invalid', 422);
+        }
+
+        return [
+            'operation_revision' => (int) $revision,
+            'claim_epoch' => (int) $epoch,
+            'lease_owner' => $leaseOwner,
+        ];
     }
 
     private function assertBodyDevice(string $signedDeviceId, string $bodyDeviceId): void

@@ -14,6 +14,33 @@ import PcPager from './PcPager';
 
 const RECORD_PAGE_SIZE = 10;
 
+const RecordVideo: React.FC<{ record: AgentHistoryArticleRecord; tk: (k: string) => string }> = ({ record, tk }) => {
+  const [src, setSrc] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const loadVideo = async () => {
+    setLoading(true);
+    setError('');
+    const response = await pycoreApi.getAgentHistoryArticleVideoMedia(record.id);
+    if (response.success && response.data?.content_base64) {
+      setSrc(`data:${response.data.media_type || 'video/mp4'};base64,${response.data.content_base64}`);
+    } else {
+      setError(response.error || tk('videoLoadFailed'));
+    }
+    setLoading(false);
+  };
+  if (!record.video_available) return null;
+  if (src) return <video controls preload="metadata" src={src} className="w-full max-h-[560px] rounded-lg bg-black" />;
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={() => void loadVideo()} disabled={loading} className="rounded-lg border border-sky-500/30 px-3 py-1.5 text-xs text-sky-600 dark:text-sky-300 disabled:opacity-50">
+        {loading ? tk('videoLoading') : tk('videoLoad')}
+      </button>
+      {error && <span className="text-[11px] text-rose-500">{error}</span>}
+    </div>
+  );
+};
+
 /**
  * Article audio streams straight from Laravel: the record's audio_url rebased
  * onto the active Laravel endpoint. Queued audio (Laravel answers 202) shows
@@ -184,6 +211,11 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
                       {r.audio_status === 'ready' ? tk('audioReady') : tk('audioQueued')}
                     </span>
                   )}
+                  {r.video_status && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${r.video_status === 'completed' ? 'bg-sky-500/15 text-sky-600 dark:text-sky-300 border-sky-500/30' : r.video_status === 'failed' ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30' : 'bg-violet-500/15 text-violet-600 dark:text-violet-300 border-violet-500/30'}`}>
+                      {r.video_status === 'completed' ? tk('videoReady') : r.video_status === 'failed' ? tk('videoFailed') : tk('videoPending')}
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-500">
                   <span>{r.created_at}</span>
@@ -225,6 +257,8 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
                   )}
                 </div>
                 {r.audio_available && <RecordAudio record={r} tk={tk} />}
+                <RecordVideo record={r} tk={tk} />
+                {r.video_error && <div className="text-[11px] text-rose-500">{r.video_error}</div>}
 
                 {(r.reference_cn || r.article_en) && (
                   <div className="mt-2 space-y-3 pl-2 border-l-2 border-indigo-200 dark:border-indigo-900 max-h-[300px] overflow-y-auto pr-2 text-sm">

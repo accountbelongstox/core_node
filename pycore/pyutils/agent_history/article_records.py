@@ -65,6 +65,21 @@ def audio_dir() -> Path:
     return d
 
 
+def video_dir() -> Path:
+    d = records_dir() / "videos"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def video_job_dir(job_id: str) -> Path:
+    normalized = str(job_id or "")
+    if not normalized or not _ID_RE.match(normalized):
+        raise ValueError("invalid video job id")
+    directory = video_dir() / normalized
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
 def _index_path() -> Path:
     return records_dir() / _INDEX_FILE_NAME
 
@@ -235,6 +250,9 @@ def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
     out["audio_status"] = "ready" if local_audio else str(out.get("audio_status") or "queued")
     out["uploaded"] = bool(out.get("uploaded"))
     out["rebuild_uploaded"] = is_rebuild_upload_current(out)
+    video_job_id = str(out.get("video_job_id") or "")
+    video_file = video_dir() / video_job_id / "video.mp4" if video_job_id else None
+    out["video_available"] = bool(video_file is not None and video_file.is_file())
     return out
 
 
@@ -323,6 +341,9 @@ def summarize_records() -> Dict[str, int]:
             and bool(row.get("tts_chunked"))
             and not is_rebuild_upload_current(row)
         ),
+        "video_ready": sum(1 for row in rows if str(row.get("video_status") or "") == "completed"),
+        "video_pending": sum(1 for row in rows if str(row.get("video_status") or "") not in ("", "completed", "failed")),
+        "video_failed": sum(1 for row in rows if str(row.get("video_status") or "") == "failed"),
     }
 
 
@@ -373,6 +394,45 @@ def _commit_record(rec: Dict[str, Any], index_fields: List[str]) -> Dict[str, An
                 r[field] = rec.get(field)
     _atomic_write_json(_index_path(), {"records": rows})
     return rec
+
+
+def load_video_job(job_id: str) -> Optional[Dict[str, Any]]:
+    normalized = str(job_id or "")
+    if not normalized or not _ID_RE.match(normalized):
+        return None
+    return _read_record_path(video_dir() / normalized / "job.json")
+
+
+def mark_video_job(record_id: str, job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    record = get_record(record_id)
+    job_id = str(job.get("id") or "")
+    if record is None or not job_id or not _ID_RE.match(job_id):
+        return None
+    _atomic_write_json(video_job_dir(job_id) / "job.json", job)
+    fields = [
+        "video_job_id", "video_status", "video_error", "video_duration",
+        "video_generated_at", "video_batch_name", "video_username",
+    ]
+    record["video_job_id"] = job_id
+    record["video_status"] = str(job.get("status") or "pending")
+    record["video_error"] = job.get("error")
+    record["video_duration"] = float(job.get("duration") or 0.0)
+    record["video_generated_at"] = job.get("completed_at")
+    record["video_batch_name"] = job.get("batch_name")
+    record["video_username"] = job.get("username")
+    return _commit_record(record, fields)
+
+
+def video_path(record_id: str) -> Optional[Path]:
+    record = get_record(record_id)
+    job_id = str((record or {}).get("video_job_id") or "")
+    path = video_dir() / job_id / "video.mp4" if job_id else None
+    return path if path is not None and path.is_file() else None
+
+
+def read_video(record_id: str) -> Optional[bytes]:
+    path = video_path(record_id)
+    return path.read_bytes() if path is not None else None
 
 
 def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:

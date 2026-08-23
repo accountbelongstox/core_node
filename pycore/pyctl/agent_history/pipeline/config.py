@@ -144,12 +144,16 @@ def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
     for key in (
         "enabled", "extract_as_article", "reference_lang", "target_lang",
         "min_raw_words", "openrouter_model",
-        "live_listen", "phase",
+        "live_listen", "phase", "video_enabled", "video_username",
+        "video_batch_name", "video_concurrency",
     ):
         if key in patch:
             cfg[key] = patch[key]
     if "enabled_tools" in patch:
         cfg["enabled_tools"] = normalize_enabled_tools(patch.get("enabled_tools"))
+    cfg["video_username"] = str(cfg.get("video_username") or "").strip()[:255]
+    cfg["video_batch_name"] = str(cfg.get("video_batch_name") or "default").strip()[:64] or "default"
+    cfg["video_concurrency"] = max(1, min(4, int(cfg.get("video_concurrency") or 2)))
     # Cursor state is written by the pipeline worker (per-tool advance +
     # rotation) — pass it through explicitly; nested-dict side effects are
     # not a persistence mechanism.

@@ -161,26 +161,33 @@ final class RelayV2BlobService
         }, 3);
     }
 
-    public function storeDeviceChunk(string $deviceId, string $blobId, int $chunkIndex, string $bytes): array
+    public function storeDeviceChunk(
+        string $deviceId,
+        string $blobId,
+        int $chunkIndex,
+        array $generation,
+        string $bytes
+    ): array
     {
         $snapshot = RelayV2BlobModel::query()->where('blob_id', $blobId)->first();
-        $beforeLock = function () use ($snapshot, $deviceId): void {
+        $beforeLock = function () use ($snapshot, $deviceId, $generation): void {
             if ($snapshot === null) {
                 throw new RelayV2DomainException('blob_not_found', 404);
             }
             $this->lockedExecutingOperation(
                 $deviceId,
                 (string) $snapshot->operation_id,
-                (int) $snapshot->operation_revision,
-                (int) $snapshot->claim_epoch,
-                (string) $snapshot->lease_owner
+                (int) $generation['operation_revision'],
+                (int) $generation['claim_epoch'],
+                (string) $generation['lease_owner']
             );
         };
 
-        return $this->storeChunk($blobId, $chunkIndex, $bytes, static function (RelayV2BlobModel $blob) use ($deviceId): void {
+        return $this->storeChunk($blobId, $chunkIndex, $bytes, function (RelayV2BlobModel $blob) use ($deviceId, $generation): void {
             if ((string) $blob->device_id !== $deviceId || (string) $blob->direction !== RelayV2Constants::BLOB_RESPONSE) {
                 throw new RelayV2DomainException('blob_not_found', 404);
             }
+            $this->assertBlobGeneration($blob, $generation);
         }, $beforeLock);
     }
 
@@ -230,7 +237,7 @@ final class RelayV2BlobService
         });
     }
 
-    public function readDeviceRequest(string $deviceId, string $blobId): string
+    public function readDeviceRequest(string $deviceId, string $blobId, array $generation): string
     {
         $blob = RelayV2BlobModel::query()
             ->where('blob_id', $blobId)
@@ -245,10 +252,14 @@ final class RelayV2BlobService
         }
         $operation = RelayV2OperationModel::query()
             ->where('operation_id', (string) $blob->operation_id)
+            ->where('request_blob_id', $blobId)
             ->where('user_id', (int) $blob->owner_user_id)
             ->where('device_id', $deviceId)
             ->where('pairing_id', (string) $blob->pairing_id)
             ->whereIn('state', [RelayV2Constants::STATE_LEASED, RelayV2Constants::STATE_EXECUTING])
+            ->where('revision', (int) $generation['operation_revision'])
+            ->where('claim_epoch', (int) $generation['claim_epoch'])
+            ->where('lease_owner', (string) $generation['lease_owner'])
             ->where('lease_expires_at', '>', now())
             ->first();
         if ($operation === null) {
@@ -526,6 +537,15 @@ final class RelayV2BlobService
         }
 
         return $operation;
+    }
+
+    private function assertBlobGeneration(RelayV2BlobModel $blob, array $generation): void
+    {
+        if ((int) $blob->operation_revision !== (int) $generation['operation_revision']
+            || (int) $blob->claim_epoch !== (int) $generation['claim_epoch']
+            || !hash_equals((string) $blob->lease_owner, (string) $generation['lease_owner'])) {
+            throw new RelayV2DomainException('blob_claim_stale', 409);
+        }
     }
 
     private function assertExpectedMetadata(string $sha256, int $length, string $limitName): void

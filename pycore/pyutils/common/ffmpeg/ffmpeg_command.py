@@ -14,6 +14,31 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_subtitle import ass_subtitle_writer
 
 
 class FFmpegCommandBuilder:
+    @staticmethod
+    def normalize_audio(
+        source: str | Path,
+        rate: float,
+        sample_rate: int,
+        channels: int,
+    ) -> Tuple[str, ...]:
+        filters = FFmpegCommandBuilder._atempo_filters(rate)
+        arguments = [
+            "-y", "-i", str(source), "-vn", "-map", "0:a:0?",
+            "-ar", str(sample_rate), "-ac", str(channels),
+        ]
+        if filters:
+            arguments.extend(("-af", ",".join(filters)))
+        arguments.extend(("-c:a", "aac", "-b:a", "128k"))
+        return tuple(arguments)
+
+    @staticmethod
+    def concat_audio(manifest: str | Path, sample_rate: int, channels: int) -> Tuple[str, ...]:
+        return (
+            "-y", "-f", "concat", "-safe", "0", "-i", str(manifest),
+            "-vn", "-ar", str(sample_rate), "-ac", str(channels),
+            "-c:a", "aac", "-b:a", "128k",
+        )
+
     def extract_audio(
         self,
         source: str | Path,
@@ -232,6 +257,20 @@ class FFmpegCommandBuilder:
     def _video_color(value: str) -> str:
         color = value.strip()
         return f"0x{color[1:]}" if color.startswith("#") else color
+
+    @staticmethod
+    def _atempo_filters(rate: float) -> Tuple[str, ...]:
+        remaining = max(0.25, min(4.0, float(rate or 1.0)))
+        values = []
+        while remaining < 0.5:
+            values.append(0.5)
+            remaining /= 0.5
+        while remaining > 2.0:
+            values.append(2.0)
+            remaining /= 2.0
+        if abs(remaining - 1.0) > 0.0001:
+            values.append(remaining)
+        return tuple(f"atempo={value:.6f}" for value in values)
 
 
 ffmpeg_command_builder = FFmpegCommandBuilder()

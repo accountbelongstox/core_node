@@ -61,9 +61,13 @@ class AppQyV1SentenceWordTableService
             $playCount = $userId === null
                 ? $localPlayCount
                 : (int) ($shelfState['read_count'] ?? 0);
-            $inTargetGroup = $userId !== null && $shelfState !== null;
+            $inTargetGroup = $userId !== null && ($shelfState['in_target_group'] ?? false) === true;
+            $media['dictionary_word_id'] = isset($shelfState['dictionary_word_id'])
+                ? (int) $shelfState['dictionary_word_id']
+                : null;
             $media['played'] = $playCount > 0;
             $media['play_count'] = $playCount;
+            $media['group_read_count'] = $playCount;
             $media['in_target_group'] = $inTargetGroup;
             $media['added_to_target_group'] = false;
             $media['in_default_group'] = $inTargetGroup;
@@ -149,25 +153,21 @@ class AppQyV1SentenceWordTableService
             return [];
         }
         $targetGroup = $this->resolveTargetGroup($userId, $language, $groupId);
-        if ($targetGroup === null) {
-            return [];
-        }
-        $progressRow = AppQyV1GroupWordProgressModel::findForUserGroup($userId, (int) $targetGroup->id);
-        if ($progressRow === null) {
-            return [];
-        }
+        $progressRow = $targetGroup === null
+            ? null
+            : AppQyV1GroupWordProgressModel::findForUserGroup($userId, (int) $targetGroup->id);
         $dictionaryRows = AppQyV1LangDictionaryModel::rowsByHashes($language, $md5s, ['id', 'md5']);
-        $idsByMd5 = $dictionaryRows->pluck('id', 'md5');
-        $wordsMap = $progressRow->getWordsMap();
+        $wordsMap = $progressRow?->getWordsMap() ?? [];
         $states = [];
 
-        foreach ($idsByMd5 as $md5 => $wordId) {
+        foreach ($dictionaryRows as $dictionaryRow) {
+            $wordId = (int) $dictionaryRow->id;
             $entry = $wordsMap[(string) $wordId] ?? null;
-            if (is_array($entry)) {
-                $states[(string) $md5] = [
-                    'read_count' => (int) ($entry['rc'] ?? 0),
-                ];
-            }
+            $states[(string) $dictionaryRow->md5] = [
+                'dictionary_word_id' => $wordId,
+                'in_target_group' => is_array($entry),
+                'read_count' => is_array($entry) ? (int) ($entry['rc'] ?? 0) : 0,
+            ];
         }
         return $states;
     }

@@ -15,8 +15,7 @@ final class RelayV2OperationService
     public function __construct(
         private readonly RelayV2DeviceService $devices,
         private readonly RelayV2AuthorizationService $authorization,
-        private readonly RelayV2OutboxRepository $outbox,
-        private readonly RelayV2TopicService $topics,
+        private readonly RelayV2OperationEventService $events,
         private readonly RelayV2BlobService $blobs,
         private readonly RelayV2PairingService $pairings
     ) {
@@ -226,7 +225,8 @@ final class RelayV2OperationService
             if ($blob !== null && $blob->operation_id === null) {
                 $blob->forceFill(['operation_id' => $operationId, 'updated_at' => now()])->save();
             }
-            $this->appendWake($existing);
+            $this->events->wake($existing);
+            $this->events->status($existing);
 
             return ['operation' => $this->ownerDescriptor($existing)];
         }, 3);
@@ -292,6 +292,9 @@ final class RelayV2OperationService
                 $operation->lease_expires_at = $leaseExpiresAt;
                 $operation->updated_at = now();
                 $operation->save();
+                if ((string) $operation->state === RelayV2Constants::STATE_LEASED) {
+                    $this->events->status($operation);
+                }
                 $operations[] = $this->claimDescriptor($operation);
             }
 
@@ -317,6 +320,7 @@ final class RelayV2OperationService
             if ((string) $operation->state === RelayV2Constants::STATE_EXECUTING
                 && ($requestRevision === (int) $operation->revision
                     || $requestRevision + 1 === (int) $operation->revision)) {
+                $this->events->status($operation);
                 return ['operation' => $this->leaseDescriptor($operation)];
             }
             if ((string) $operation->state !== RelayV2Constants::STATE_LEASED
@@ -332,6 +336,7 @@ final class RelayV2OperationService
                 'lease_expires_at' => now()->addSeconds(RelayV2Contract::duration('operation_lease_seconds')),
                 'updated_at' => now(),
             ])->save();
+            $this->events->status($operation);
 
             return ['operation' => $this->leaseDescriptor($operation)];
         }, 3);
@@ -380,7 +385,10 @@ final class RelayV2OperationService
             $responseBlob = null;
 
             if (in_array((string) $operation->state, $this->terminalStates(), true)) {
-                return ['operation' => $this->resolveResultDuplicate($operation, $payload)];
+                $descriptor = $this->resolveResultDuplicate($operation, $payload);
+                $this->events->status($operation);
+
+                return ['operation' => $descriptor];
             }
             $this->assertClaimIdentity($operation, (int) $payload['claim_epoch'], (string) $payload['lease_owner']);
             if ((int) $operation->revision !== (int) $payload['operation_revision']) {
@@ -441,6 +449,7 @@ final class RelayV2OperationService
                 'lease_expires_at' => null,
                 'updated_at' => now(),
             ])->save();
+            $this->events->status($operation);
 
             return ['operation' => $this->ownerDescriptor($operation)];
         }, 3);
@@ -476,6 +485,10 @@ final class RelayV2OperationService
             }
             if (in_array((string) $operation->state, $this->terminalStates(), true)
                 || (string) $operation->state === RelayV2Constants::STATE_CANCEL_REQUESTED) {
+                if ((string) $operation->state === RelayV2Constants::STATE_CANCEL_REQUESTED) {
+                    $this->events->wake($operation);
+                }
+                $this->events->status($operation);
                 return ['operation' => $this->ownerDescriptor($operation)];
             }
             if (!RelayV2Contract::transitionAllowed((string) $operation->state, RelayV2Constants::STATE_CANCEL_REQUESTED)) {
@@ -486,7 +499,8 @@ final class RelayV2OperationService
                 'revision' => (int) $operation->revision + 1,
                 'updated_at' => now(),
             ])->save();
-            $this->appendWake($operation);
+            $this->events->wake($operation);
+            $this->events->status($operation);
 
             return ['operation' => $this->ownerDescriptor($operation)];
         }, 3);
@@ -549,6 +563,13 @@ final class RelayV2OperationService
             || !hash_equals((string) $operation->request_digest, $requestDigest)) {
             throw new RelayV2DomainException('idempotency_conflict', 409);
         }
+        if (in_array((string) $operation->state, [
+            RelayV2Constants::STATE_ACCEPTED,
+            RelayV2Constants::STATE_CANCEL_REQUESTED,
+        ], true)) {
+            $this->events->wake($operation);
+        }
+        $this->events->status($operation);
 
         return $this->ownerDescriptor($operation);
     }
@@ -576,6 +597,7 @@ final class RelayV2OperationService
             'lease_expires_at' => null,
             'updated_at' => now(),
         ])->save();
+        $this->events->status($operation);
     }
 
     private function transitionExpiredExecutionToUnknown(RelayV2OperationModel $operation): void
@@ -588,6 +610,7 @@ final class RelayV2OperationService
             'lease_expires_at' => null,
             'updated_at' => now(),
         ])->save();
+        $this->events->status($operation);
     }
 
     private function lockedDeviceOperation(string $deviceId, string $operationId): RelayV2OperationModel
@@ -690,23 +713,6 @@ final class RelayV2OperationService
         }
 
         return $this->ownerDescriptor($operation);
-    }
-
-    private function appendWake(RelayV2OperationModel $operation): void
-    {
-        $this->outbox->append(
-            'operation',
-            (string) $operation->operation_id,
-            (int) $operation->revision,
-            RelayV2Contract::event('operation_available'),
-            'device',
-            $this->topics->device((string) $operation->device_id),
-            [
-                'operation_id' => (string) $operation->operation_id,
-                'revision' => (int) $operation->revision,
-                'state' => (string) $operation->state,
-            ]
-        );
     }
 
     private function claimDescriptor(RelayV2OperationModel $operation): array

@@ -264,6 +264,17 @@ agentHistory: {
     audioRebuilt: '已重建',
     audioRebuiltHint: '音频已由固定的千问 TTS 多句合成管线重新生成，并已替换 Laravel 上的音频，时间：',
     rebuildPending: '待重建音频',
+    videoGeneration: '生成学习视频',
+    videoGenerationHint: '复用选定用户的播放设置，并与千问任务独立并行。',
+    videoUsername: '学习用户名',
+    videoBatchName: '虚拟已读批次',
+    videoConcurrency: '视频并发数',
+    videoReady: '视频已就绪',
+    videoPending: '视频处理中',
+    videoFailed: '视频失败',
+    videoLoad: '加载生成视频',
+    videoLoading: '正在加载视频…',
+    videoLoadFailed: '视频加载失败',
     loadingAudio: '正在加载音频…',
     waitingAudio: '等待音频生成…',
     audioLoadFailed: '音频加载失败',
@@ -356,4 +367,3 @@ agentHistory: {
     stale: '陈旧',
   }
 } as const;
-

@@ -763,12 +763,13 @@ export const wfNewApiHttp: WfNewApi = {
     }
   },
 
-  async previewDailyReadingResources(articleId, settings, groupId = null) {
+  async previewDailyReadingResources(articleId, settings, groupId = null, batchName) {
     const raw = await authedPostJSON<any>(
       WfNewApiPaths.userDailyReadingResourcePreview(articleId),
       {
         settings,
         ...(groupId ? { group_id: groupId } : {}),
+        ...(batchName?.trim() ? { batch_name: batchName.trim() } : {}),
       },
     );
     const payload = unwrapEnvelope(raw);
@@ -776,6 +777,7 @@ export const wfNewApiHttp: WfNewApi = {
       resource: payload.resource,
       apiUrl: payload.api_url,
       expiresAt: payload.expires_at,
+      batchName: payload.batch_name,
     };
   },
 

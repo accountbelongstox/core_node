@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\DB;
 
 final class RelayV2MaintenanceService
 {
-    private const SLICE_LIMIT = 100;
-    private const BLOB_SLICE_LIMIT = 20;
-
-    public function __construct(private readonly RelayV2NonceRepository $nonces)
-    {
+    public function __construct(
+        private readonly RelayV2NonceRepository $nonces,
+        private readonly RelayV2OperationEventService $operationEvents,
+        private readonly RelayV2PairingEventService $pairingEvents,
+        private readonly RelayV2OutboxRepository $outbox
+    ) {
     }
 
     public function runSlice(): array
@@ -30,13 +31,15 @@ final class RelayV2MaintenanceService
             'enrollments' => 0,
             'nonces' => 0,
             'blobs' => 0,
+            'outbox' => 0,
         ];
 
         $result['operations'] = $this->expireOperations();
         $result['pairings'] = $this->expirePairings();
         $result['enrollments'] = $this->expireEnrollments();
-        $result['nonces'] = $this->nonces->pruneExpired(self::SLICE_LIMIT);
+        $result['nonces'] = $this->nonces->pruneExpired(RelayV2Contract::limit('maintenance_row_batch'));
         $result['blobs'] = $this->pruneBlobs();
+        $result['outbox'] = $this->outbox->pruneRetained(RelayV2Contract::limit('maintenance_row_batch'));
 
         return $result;
     }
@@ -50,7 +53,7 @@ final class RelayV2MaintenanceService
                 ->where('expires_at', '<=', now())
                 ->whereNotIn('state', $this->terminalStates())
                 ->orderBy('id')
-                ->limit(self::SLICE_LIMIT)
+                ->limit(RelayV2Contract::limit('maintenance_row_batch'))
                 ->lock('for update skip locked')
                 ->get();
             $count = 0;
@@ -70,6 +73,7 @@ final class RelayV2MaintenanceService
                     'lease_expires_at' => null,
                     'updated_at' => now(),
                 ])->save();
+                $this->operationEvents->status($operation);
                 $count++;
             }
 
@@ -86,7 +90,7 @@ final class RelayV2MaintenanceService
                 ->where('state', RelayV2Constants::PAIRING_ACTIVE)
                 ->where('expires_at', '<=', now())
                 ->orderBy('id')
-                ->limit(self::SLICE_LIMIT)
+                ->limit(RelayV2Contract::limit('maintenance_row_batch'))
                 ->lock('for update skip locked')
                 ->get();
             $count = 0;
@@ -97,6 +101,7 @@ final class RelayV2MaintenanceService
                     'revision' => (int) $pairing->revision + 1,
                     'updated_at' => now(),
                 ])->save();
+                $this->pairingEvents->changed($pairing);
                 $count++;
             }
 
@@ -113,7 +118,7 @@ final class RelayV2MaintenanceService
                 ->where('state', RelayV2Constants::ENROLLMENT_PENDING)
                 ->where('expires_at', '<=', now())
                 ->orderBy('id')
-                ->limit(self::SLICE_LIMIT)
+                ->limit(RelayV2Contract::limit('maintenance_row_batch'))
                 ->lock('for update skip locked')
                 ->get();
             $count = 0;
@@ -137,7 +142,7 @@ final class RelayV2MaintenanceService
         $blobIds = RelayV2BlobModel::query()
             ->where('expires_at', '<=', now())
             ->orderBy('id')
-            ->limit(self::BLOB_SLICE_LIMIT)
+            ->limit(RelayV2Contract::limit('maintenance_blob_batch'))
             ->pluck('blob_id')
             ->map(static fn (mixed $value): string => (string) $value)
             ->all();

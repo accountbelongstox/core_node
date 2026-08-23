@@ -30,6 +30,7 @@ from pycore.pyctl.agent_history.heartbeat import (
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.relay import relay_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
+from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.assist.assist_settings import (
     assist_callback_states,
     load_assist_settings,
@@ -405,14 +406,15 @@ def register_runtime_workers() -> None:
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
     apply_assist_runtime(assist_settings)
-    # The relay runtime registers this machine on the central server first:
-    # its machine token feeds both the roster/pair stream and the Queue
-    # Center hub subscription that starts right after.
     service_steps = (
-        ("relay_service", relay_service.start),
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("agent_history", register_agent_history_extraction),
     )
+    if pyservice_mode_service.relay_enabled():
+        service_steps = (
+            ("relay_service", relay_service.start),
+            *service_steps,
+        )
     for step_name, step in service_steps:
         if step_name in _RUNTIME_STEPS_COMPLETED:
             continue

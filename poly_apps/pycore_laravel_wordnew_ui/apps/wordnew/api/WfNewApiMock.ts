@@ -798,7 +798,7 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async previewDailyReadingResources(articleId, settings, groupId = null) {
+  async previewDailyReadingResources(articleId, settings, groupId = null, batchName = 'default') {
     const resource = {
       user: { id: 1, username: 'mock-user' },
       article: {
@@ -814,6 +814,16 @@ export const wfNewApiMock: WfNewApi = {
         language: 'en',
         is_language_default: false,
       } : null,
+      virtual_read_batch: {
+        name: batchName,
+        language: 'en',
+        consumed: false,
+        recorded_word_count: 0,
+        read_word_count_before: 0,
+        read_word_count_after: 0,
+        read_event_count_before: 0,
+        read_event_count_after: 0,
+      },
       settings,
       resources: {
         new_words: [],
@@ -827,6 +837,7 @@ export const wfNewApiMock: WfNewApi = {
       resource,
       apiUrl: '',
       expiresAt: '',
+      batchName,
     });
   },
 

@@ -51,6 +51,10 @@ const PcAgentHistoryConfigPanel: React.FC<{
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [minRawWords, setMinRawWords] = useState(200);
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [videoUsername, setVideoUsername] = useState('');
+  const [videoBatchName, setVideoBatchName] = useState('default');
+  const [videoConcurrency, setVideoConcurrency] = useState(2);
   const [enabledTools, setEnabledTools] = useState<string[]>(restoredEnabledTools);
   const toolsHydrated = useRef(false);
 
@@ -58,6 +62,10 @@ const PcAgentHistoryConfigPanel: React.FC<{
     if (!articleCfg) return;
     setEnabled(!!articleCfg.enabled);
     setMinRawWords(Number(articleCfg.min_raw_words || 200));
+    setVideoEnabled(Boolean(articleCfg.video_enabled));
+    setVideoUsername(String(articleCfg.video_username || ''));
+    setVideoBatchName(String(articleCfg.video_batch_name || 'default'));
+    setVideoConcurrency(Math.max(1, Math.min(4, Number(articleCfg.video_concurrency || 2))));
     if (!authoritative) return;
     const tools = Array.isArray(articleCfg.enabled_tools)
       ? (articleCfg.enabled_tools as unknown[])
@@ -112,6 +120,10 @@ const PcAgentHistoryConfigPanel: React.FC<{
         min_raw_words: minRawWords,
         live_listen: true,
         enabled_tools: tools,
+        video_enabled: videoEnabled,
+        video_username: videoUsername.trim(),
+        video_batch_name: videoBatchName.trim() || 'default',
+        video_concurrency: videoConcurrency,
       });
       if (res.success && res.data) {
         setAgentHistoryArticleConfig(res.data);
@@ -225,6 +237,36 @@ const PcAgentHistoryConfigPanel: React.FC<{
             </button>
           </div>
         </div>
+        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={videoEnabled}
+              disabled={busy}
+              onClick={() => setVideoEnabled((value) => !value)}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${videoEnabled ? 'bg-sky-600' : 'bg-slate-300 dark:bg-white/15'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${videoEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+            </button>
+            <span className="text-sm text-slate-700 dark:text-slate-200">{tk('videoGeneration')}</span>
+            <span className="text-[11px] text-slate-500">{tk('videoGenerationHint')}</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="text-xs text-slate-500">
+              {tk('videoUsername')}
+              <input value={videoUsername} onChange={(event) => setVideoUsername(event.target.value)} className={inputCls} />
+            </label>
+            <label className="text-xs text-slate-500">
+              {tk('videoBatchName')}
+              <input value={videoBatchName} onChange={(event) => setVideoBatchName(event.target.value)} className={inputCls} />
+            </label>
+            <label className="text-xs text-slate-500">
+              {tk('videoConcurrency')}
+              <input type="number" min={1} max={4} value={videoConcurrency} onChange={(event) => setVideoConcurrency(Math.max(1, Math.min(4, Number(event.target.value) || 2)))} className={inputCls} />
+            </label>
+          </div>
+        </div>
         <PcAgentHistoryToolCheckboxes
           tk={tk}
           enabledTools={enabledTools}
@@ -242,6 +284,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
         {articleCfg && (
           <div className="text-[11px] font-mono text-slate-500">
             {tk('publishedArticles')}: {Number(articleSummary?.uploaded || 0)} · {tk('recordsTitle')}: {Number(articleSummary?.total || 0)} · {tk('multiSentence')}: {Number(articleSummary?.multi_sentence || 0)} · {tk('legacyAudio')}: {Number(articleSummary?.legacy_audio || 0)} · {tk('audioRebuilt')}: {Number(articleSummary?.rebuilt || 0)} · {tk('pendingUpload')}: {Number(articleSummary?.pending_upload || 0)} · {tk('rebuildPending')}: {Number(articleSummary?.rebuild_pending || 0)}
+            {' · '}{tk('videoReady')}: {Number(articleSummary?.video_ready || 0)} · {tk('videoPending')}: {Number(articleSummary?.video_pending || 0)}
           </div>
         )}
         {msg && <p className="text-xs text-indigo-600 dark:text-indigo-300">{msg}</p>}

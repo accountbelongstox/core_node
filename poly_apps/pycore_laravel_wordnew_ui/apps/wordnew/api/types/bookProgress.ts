@@ -10,6 +10,8 @@ export interface WfNewBookReadingProgress {
 
 export type WfNewDailyReadingSelectionMode = 'latest' | 'resume' | 'random';
 
+export const WF_NEW_DAILY_READING_DEFAULT_BATCH_NAME = 'default';
+
 export interface WfNewDailyReadingProgress {
   articleId: string | null;
   selectionMode: WfNewDailyReadingSelectionMode;
@@ -48,6 +50,16 @@ export interface WfNewDailyReadingResourcePreview {
     language: string;
     is_language_default: boolean;
   } | null;
+  virtual_read_batch: {
+    name: string;
+    language: string;
+    consumed: boolean;
+    recorded_word_count: number;
+    read_word_count_before: number;
+    read_word_count_after: number;
+    read_event_count_before: number;
+    read_event_count_after: number;
+  };
   settings: WfNewDailyReadingResourcePreviewSettings;
   resources: {
     new_words: Array<Record<string, unknown>>;
@@ -62,6 +74,7 @@ export interface WfNewDailyReadingResourcePreviewResult {
   resource: WfNewDailyReadingResourcePreview;
   apiUrl: string;
   expiresAt: string;
+  batchName: string;
 }
 
 /** One step in the bilingual playback sequence (lang + repeat count). */

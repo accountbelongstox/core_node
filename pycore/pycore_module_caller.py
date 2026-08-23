@@ -72,6 +72,7 @@ from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, build_tray_service_config
 from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
 from pycore.pyctl.runtime.event_handlers import register_event_handlers
+from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 
 # Set when a NEWER instance supersedes this (running PRIMARY) one via the
 # singleton port protocol. It drives the PROCESS EXIT CODE: a superseded instance
@@ -88,6 +89,7 @@ def main(
     port: int = PYCORE_HTTP_PORT,
     debug: bool = False,
     reload: bool = True,
+    service_mode: str = "",
 ):
     """
     Main entry point
@@ -99,12 +101,18 @@ def main(
         reload: Dev hot-reload. Watch the pycore package's .py files and restart
             (via the existing THREAD_BUS restart -> os.execv path) on any change.
     """
+    pyservice_mode_service.configure(service_mode)
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Starting")
     ColorPrint.blue("=" * 70)
 
     # 1. Build configuration (callmodule layer - only config, no threads)
-    config = build_launcher_config(host=host, port=port, debug=debug)
+    config = build_launcher_config(
+        host=host,
+        port=port,
+        debug=debug,
+        local_ui_enabled=pyservice_mode_service.local_ui_enabled(),
+    )
 
     # 2. Start services (pylauncher layer - singleton + service launching)
     launcher = ServiceLauncher(config)
@@ -150,11 +158,11 @@ def main(
     #     (pyservice.ps1/.sh = dashboard UI dev server + worker). Launchers
     #     written by older versions started the bare worker only, so the UI dev
     #     server never came up in boot mode (webview -> ERR_CONNECTION_REFUSED).
-    if refresh_startup_launcher():
+    if pyservice_mode_service.local_ui_enabled() and refresh_startup_launcher():
         ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
 
     # 4. Update tray menu with singleton port (callmodule layer - config update)
-    if singleton_port:
+    if singleton_port and pyservice_mode_service.local_ui_enabled():
         update_tray_menu_with_singleton(launcher, port, singleton_port)
 
     ColorPrint.green("=" * 70)
@@ -202,6 +210,11 @@ if __name__ == '__main__':
                         help='Hot-reload is ON by default; this flag is kept for compatibility')
     parser.add_argument('--no-reload', action='store_true',
                         help='Disable hot-reload: do not restart backend on .py changes')
+    parser.add_argument(
+        '--service-mode',
+        choices=pyservice_mode_service.allowed_modes(),
+        default=pyservice_mode_service.mode(),
+    )
 
     args = parser.parse_args()
     reload_enabled = True
@@ -211,7 +224,13 @@ if __name__ == '__main__':
         reload_enabled = False
     if args.reload:
         reload_enabled = True
-    main(host=args.host, port=args.port, debug=args.debug, reload=reload_enabled)
+    main(
+        host=args.host,
+        port=args.port,
+        debug=args.debug,
+        reload=reload_enabled,
+        service_mode=args.service_mode,
+    )
 
     # ---- Process-level exit / restart -------------------------------------
     # main() returns only AFTER a graceful shutdown (launcher.stop() done, ports

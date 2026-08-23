@@ -133,6 +133,7 @@ class AppQyV1TableMaps extends TableMaps
             'group_id' => 'group_id',
             'language_code' => 'language_code',
             'words' => 'words',
+            'requests' => 'requests',
             'total_words' => 'total_words',
             'shuffled_at' => 'shuffled_at',
             'created_at' => 'created_at',
@@ -152,6 +153,20 @@ class AppQyV1TableMaps extends TableMaps
             'page' => 'page',
             'article_id' => 'article_id',
             'selection_mode' => 'selection_mode',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ]
+    ];
+
+    public const app_qy_v1_DAILY_READING_VIRTUAL_PROGRESS = [
+        'tablename' => 'daily_reading_virtual_progress',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'batch_name' => 'batch_name',
+            'language_code' => 'language_code',
+            'words' => 'words',
+            'total_words' => 'total_words',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at',
         ]

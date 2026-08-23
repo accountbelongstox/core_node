@@ -49,6 +49,7 @@ import type {
   AgentHistoryPromptPageResponse,
   AgentHistoryArticleRecordIdPagesResponse,
   AgentHistoryArticleRecordPageResponse,
+  AgentHistoryArticleVideoMediaResponse,
 } from './PycoreSpeechTypes';
 import type {
   AutostartStatus,
@@ -256,6 +257,8 @@ export const pycoreApiLocal = {
     }) as Promise<AgentHistoryArticleRecordIdPagesResponse>,
   getAgentHistoryArticleRecordPage: (ids: string[]) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleRecordPage, { ids }) as Promise<AgentHistoryArticleRecordPageResponse>,
+  getAgentHistoryArticleVideoMedia: (id: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleVideoMedia, { id }) as Promise<AgentHistoryArticleVideoMediaResponse>,
   refreshAgentHistory: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryRefresh, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }

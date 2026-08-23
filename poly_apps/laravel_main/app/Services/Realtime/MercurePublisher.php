@@ -17,20 +17,28 @@ final class MercurePublisher
         string $data,
         bool $private = false,
         ?string $type = null,
-        ?string $id = null
+        ?string $id = null,
+        ?string $hubUrl = null
     ): ?string {
         $updateId = null;
 
         if (strlen($data) > self::MAX_UPDATE_BYTES) {
             throw new \InvalidArgumentException(__('relay.control_frame_too_large'));
         }
-        if (function_exists('mercure_publish')) {
+        if ($hubUrl === null && function_exists('mercure_publish')) {
             $updateId = mercure_publish($topics, $data, $private, $id, $type);
 
             return is_string($updateId) && $updateId !== '' ? $updateId : null;
         }
 
-        return self::postToHub(is_array($topics) ? $topics : [$topics], $data, $private, $type, $id);
+        return self::postToHub(
+            is_array($topics) ? $topics : [$topics],
+            $data,
+            $private,
+            $type,
+            $id,
+            $hubUrl
+        );
     }
 
     private static function postToHub(
@@ -38,9 +46,10 @@ final class MercurePublisher
         string $data,
         bool $private,
         ?string $type,
-        ?string $id
+        ?string $id,
+        ?string $hubUrl
     ): ?string {
-        $hubUrl = RelayHubJwt::hubUrl();
+        $resolvedHubUrl = $hubUrl ?? RelayHubJwt::hubUrl();
         $form = ['data' => $data];
         $parts = [];
         $response = null;
@@ -59,10 +68,10 @@ final class MercurePublisher
         foreach (array_values(array_unique($topics)) as $topic) {
             $parts[] = 'topic='.rawurlencode((string) $topic);
         }
-        $response = Http::withToken(self::publisherJwt($hubUrl))
+        $response = Http::withToken(self::publisherJwt($resolvedHubUrl))
             ->withBody(implode('&', $parts), 'application/x-www-form-urlencoded')
             ->timeout(5)
-            ->post($hubUrl);
+            ->post($resolvedHubUrl);
         if (!$response->successful()) {
             return null;
         }
