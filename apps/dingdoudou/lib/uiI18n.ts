@@ -39,6 +39,7 @@ const DASHBOARD_MESSAGES = {
     noExportOrders: '没有可导出的订单',
     reorderOnPdd: '请在拼多多商品页重新下单',
     missingOwner: '缺少所属账号',
+    backendPermissionDenied: '未授予后台地址访问权限',
   },
   en: {
     licenseVerification: 'License verification',
@@ -70,6 +71,7 @@ const DASHBOARD_MESSAGES = {
     noExportOrders: 'No orders to export',
     reorderOnPdd: 'Reorder from the PDD product page',
     missingOwner: 'has no owning account',
+    backendPermissionDenied: 'Backend access permission was not granted',
   },
 } as const;
 
@@ -97,6 +99,7 @@ const POPUP_MESSAGES = {
     remove: '移除账号', capture: '捕获当前拼多多账号', sync: '同步当前账号订单', dashboard: '打开订单管理终端',
     enterSuperCode: '请输入超级码', activated: '授权成功', invalidSuperCode: '超级码无效',
     enterBackendCredentials: '请填写后台地址、用户名与密码', loginSucceeded: '会员登录成功', loginFailed: '登录失败',
+    backendPermissionDenied: '未授予后台地址访问权限',
     loggedOut: '已退出授权', captureFromPdd: '请先在已登录的拼多多页面打开此插件', removed: '已移除账号',
     selectAccountFirst: '请先捕获并选择一个拼多多账号', syncFailed: '同步失败',
   },
@@ -109,6 +112,7 @@ const POPUP_MESSAGES = {
     remove: 'Remove account', capture: 'Capture current PDD account', sync: 'Sync current account', dashboard: 'Open order dashboard',
     enterSuperCode: 'Enter a super code', activated: 'License activated', invalidSuperCode: 'Invalid super code',
     enterBackendCredentials: 'Enter the backend URL, username, and password', loginSucceeded: 'Member login succeeded', loginFailed: 'Login failed',
+    backendPermissionDenied: 'Backend access permission was not granted',
     loggedOut: 'Logged out', captureFromPdd: 'Open the extension from a signed-in PDD page', removed: 'Account removed',
     selectAccountFirst: 'Capture and select a PDD account first', syncFailed: 'Sync failed',
   },
@@ -148,6 +152,7 @@ const RECONCILIATION_MESSAGES = {
     batchNumbers: '批次单号', orderNumbers: '订单单号', matched: '命中', missing: '缺失', extra: '多余', perBatch: '各批次命中情况',
     batchMissing: '批次缺失', orderExtra: '订单多余', tracking: '快递单号', batches: '所属批次', order: '订单号',
     account: '账号', status: '状态', noData: '无数据', compareHint: '核对对象为系统中已同步的全部订单快递单号。',
+    loadFailed: '加载核算数据失败', saveFailed: '保存批次失败', removeFailed: '删除批次失败',
   },
   en: {
     batch: 'Batch', title: 'Order Reconciliation · Tracking Audit', print: 'Print Report', add: 'Batch add tracking numbers',
@@ -156,6 +161,7 @@ const RECONCILIATION_MESSAGES = {
     batchNumbers: 'Batch', orderNumbers: 'Orders', matched: 'Matched', missing: 'Missing', extra: 'Extra', perBatch: 'Per-batch',
     batchMissing: 'Missing', orderExtra: 'Unaccounted', tracking: 'Tracking', batches: 'Batches', order: 'Order',
     account: 'Account', status: 'Status', noData: 'No data', compareHint: 'Compared against tracking numbers of all synced orders.',
+    loadFailed: 'Unable to load reconciliation data', saveFailed: 'Unable to save batch', removeFailed: 'Unable to remove batch',
   },
 } as const;
 
@@ -164,6 +170,7 @@ export function reconciliationText(lang: UiLanguage) {
   return {
     ...messages,
     parsed: (count: number) => lang === 'zh' ? `已解析 ${count} 个去重单号` : `${count} unique numbers`,
+    missingCount: (count: number) => lang === 'zh' ? `缺 ${count}` : `${count} missing`,
   };
 }
 

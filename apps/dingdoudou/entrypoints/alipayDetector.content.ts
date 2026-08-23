@@ -71,9 +71,9 @@ export default defineContentScript({
   matches: ['https://mclient.alipay.com/h5pay/*'],
   runAt: 'document_start',
   allFrames: true,
-  main() {
+  main(ctx) {
     // Allow the background to ask for the current status on demand.
-    onAction({
+    onAction(ctx, {
       detectAlipayStatus(): ActionResult {
         const status = detectStatus();
         return { success: true, detail: `status=${status}`, status };
@@ -100,10 +100,12 @@ export default defineContentScript({
     // Initial sweep with staggered retries — the cashier hydrates lazily.
     const kick = () => {
       report(true);
-      [400, 1000, 2000, 3500, 6000].forEach((d) => setTimeout(() => report(), d));
+      [400, 1000, 2000, 3500, 6000].forEach((delay) =>
+        ctx.setTimeout(() => report(), delay),
+      );
     };
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', kick, { once: true });
+      ctx.addEventListener(document, 'DOMContentLoaded', kick, { once: true });
     } else {
       kick();
     }
@@ -113,17 +115,20 @@ export default defineContentScript({
       try {
         const observer = new MutationObserver(() => report());
         const target = document.body || document.documentElement;
-        if (target) observer.observe(target, { childList: true, subtree: true, characterData: true });
+        if (target) {
+          observer.observe(target, { childList: true, subtree: true, characterData: true });
+          ctx.onInvalidated(() => observer.disconnect());
+        }
       } catch {
         /* polling below still covers it */
       }
     };
     if (document.body) startObserver();
-    else setTimeout(startObserver, 800);
+    else ctx.setTimeout(startObserver, 800);
 
     // SPA URL changes (e.g. unifiedLogin → result) don't always trigger
     // mutations on our root, so poll the URL as a backstop.
-    setInterval(() => {
+    ctx.setInterval(() => {
       let href = '';
       try {
         href = location.href;

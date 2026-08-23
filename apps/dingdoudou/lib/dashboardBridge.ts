@@ -7,14 +7,25 @@ import type { AccountsPayload, SyncResult, CaptureResult } from './messaging';
 import type { Order, PinduoduoAccount, LicenseState, BackendConfig } from './types';
 import type { AppSettings } from './storage';
 import type { ReconcileBatch } from './reconcile';
+import { requestBackendOrigin } from './backendUrl';
+import { AppError } from './appError';
 
 // Is the dashboard running inside the extension (vs. a plain web preview)?
 export function inExtension(): boolean {
   return typeof chrome !== 'undefined' && !!chrome.runtime?.id;
 }
 
-function unwrap<T>(res: { ok: boolean; data?: T; error?: string }): T {
-  if (!res.ok) throw new Error(res.error || 'background error');
+function unwrap<T>(res: {
+  ok: boolean;
+  data?: T;
+  error?: string;
+  errorCode?: ConstructorParameters<typeof AppError>[0];
+  errorDetails?: ConstructorParameters<typeof AppError>[1];
+}): T {
+  if (!res.ok) {
+    if (res.errorCode) throw new AppError(res.errorCode, res.errorDetails);
+    throw new Error(res.error || 'background error');
+  }
   return res.data as T;
 }
 
@@ -52,12 +63,23 @@ export async function captureActiveTab(): Promise<CaptureResult> {
 export async function bindAccount(
   pddUserId: string,
   accessToken: string,
+  cookie?: string,
   nickname?: string,
   avatar?: string,
 ): Promise<AccountsPayload> {
   return unwrap(
-    await sendToBackground({ type: 'accounts.bind', pddUserId, accessToken, nickname, avatar }),
+    await sendToBackground({
+      type: 'accounts.bind',
+      pddUserId,
+      accessToken,
+      cookie,
+      nickname,
+      avatar,
+    }),
   );
+}
+export function requestBackendAccess(baseUrl: string): Promise<boolean> {
+  return requestBackendOrigin(baseUrl);
 }
 export async function removeAccount(pddUserId: string): Promise<AccountsPayload> {
   return unwrap(await sendToBackground({ type: 'accounts.remove', pddUserId }));

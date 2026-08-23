@@ -3,6 +3,13 @@ import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { delay as waitForDelay } from '@/utils/async';
 import {
+  DEBUGGER_PROTOCOL_VERSION,
+  MAX_RESPONSE_BODY_SIZE_BYTES,
+  DEFAULT_MAX_CAPTURE_TIME_MS,
+  DEFAULT_INACTIVITY_TIMEOUT_MS,
+  FIREFOX_UNSUPPORTED_MESSAGE,
+  type NetworkDebuggerStartToolParams,
+  type NetworkRequestInfo,
   STATIC_MIME_TYPES_TO_FILTER,
   API_MIME_TYPES,
   StopReason,
@@ -11,53 +18,12 @@ import {
   analyzeCommonHeaders,
   filterOutCommonHeaders,
 } from './network-capture-utils';
-
-interface NetworkDebuggerStartToolParams {
-  url?: string; // URL to navigate to or focus. If not provided, uses active tab.
-  maxCaptureTime?: number;
-  inactivityTimeout?: number; // Inactivity timeout (milliseconds)
-  includeStatic?: boolean; // if include static resources
-  tabId?: number; // Specific tab to capture; bypasses URL query / active-tab lookup.
-}
-
-// Network request object interface
-interface NetworkRequestInfo {
-  requestId: string;
-  url: string;
-  method: string;
-  requestHeaders?: Record<string, string>; // Will be removed after common headers extraction
-  responseHeaders?: Record<string, string>; // Will be removed after common headers extraction
-  requestTime?: number; // Timestamp of the request
-  responseTime?: number; // Timestamp of the response
-  type: string; // Resource type (e.g., Document, XHR, Fetch, Script, Stylesheet)
-  status: string; // 'pending', 'complete', 'error'
-  statusCode?: number;
-  statusText?: string;
-  requestBody?: string;
-  responseBody?: string;
-  base64Encoded?: boolean; // For responseBody
-  encodedDataLength?: number; // Actual bytes received
-  errorText?: string; // If loading failed
-  canceled?: boolean; // If loading was canceled
-  mimeType?: string;
-  specificRequestHeaders?: Record<string, string>; // Headers unique to this request
-  specificResponseHeaders?: Record<string, string>; // Headers unique to this response
-  [key: string]: any; // Allow other properties from debugger events
-}
-
-const DEBUGGER_PROTOCOL_VERSION = '1.3';
-const MAX_RESPONSE_BODY_SIZE_BYTES = 1 * 1024 * 1024; // 1MB
-const DEFAULT_MAX_CAPTURE_TIME_MS = 3 * 60 * 1000; // 3 minutes
-const DEFAULT_INACTIVITY_TIMEOUT_MS = 60 * 1000; // 1 minute
-const FIREFOX_UNSUPPORTED_MESSAGE =
-  'This tool relies on the Chrome debugger (CDP) API, which does not exist on Firefox. ' +
-  'Use chrome_network_capture_start / chrome_network_capture_stop (or chrome_network_capture) instead: ' +
-  'on Firefox they capture response bodies via webRequest stream filters.';
+import { NetworkCaptureStopExecutor } from './network-capture-stop';
 
 /**
  * Network capture start tool - uses Chrome Debugger API to start capturing network requests
  */
-class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
+export class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.NETWORK_DEBUGGER_START;
   private captureData: Map<number, any> = new Map(); // tabId -> capture data
   private captureTimers: Map<number, NodeJS.Timeout> = new Map(); // tabId -> max capture timer
@@ -603,6 +569,14 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
   }
 
   // stopReason is the explicit cause of the stop, surfaced as `stoppedBy` in the result.
+  activeCaptureTabIds(): number[] {
+    return Array.from(this.captureData.keys());
+  }
+
+  hasCapture(tabId: number): boolean {
+    return this.captureData.has(tabId);
+  }
+
   async stopCapture(tabId: number, stopReason: StopReason = 'user_request'): Promise<any> {
     const captureInfo = this.captureData.get(tabId);
     if (!captureInfo) {
@@ -813,156 +787,10 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
   }
 }
 
-/**
- * Network capture stop tool - stops capture and returns results for the active tab
- */
-class NetworkDebuggerStopTool extends BaseBrowserToolExecutor {
-  name = TOOL_NAMES.BROWSER.NETWORK_DEBUGGER_STOP;
-  public static instance: NetworkDebuggerStopTool | null = null;
-
-  constructor() {
-    super();
-    if (NetworkDebuggerStopTool.instance) {
-      return NetworkDebuggerStopTool.instance;
-    }
-    NetworkDebuggerStopTool.instance = this;
-  }
-
-  async execute(args?: { tabId?: number }): Promise<ToolResult> {
-    if (import.meta.env.FIREFOX) {
-      return createErrorResponse(FIREFOX_UNSUPPORTED_MESSAGE);
-    }
-
-    const explicitTabId = args?.tabId;
-    console.log(`NetworkDebuggerStopTool: Executing command. tabId=${explicitTabId}`);
-
-    const startTool = NetworkDebuggerStartTool.instance;
-    if (!startTool) {
-      return createErrorResponse(
-        'NetworkDebuggerStartTool instance not available. Cannot stop capture.',
-      );
-    }
-
-    // Get all tabs currently capturing
-    const ongoingCaptures = Array.from(startTool['captureData'].keys());
-    console.log(
-      `NetworkDebuggerStopTool: Found ${ongoingCaptures.length} ongoing captures: ${ongoingCaptures.join(', ')}`,
-    );
-
-    if (ongoingCaptures.length === 0) {
-      return createErrorResponse('No active network captures found in any tab.');
-    }
-
-    // Determine the primary tab to stop
-    let primaryTabId: number;
-
-    if (explicitTabId != null && startTool['captureData'].has(explicitTabId)) {
-      // Explicit tabId from the unified tool takes highest priority
-      primaryTabId = explicitTabId;
-      console.log(
-        `NetworkDebuggerStopTool: Explicit tabId ${explicitTabId} is capturing, stopping it.`,
-      );
-    } else if (explicitTabId != null) {
-      // Explicit tabId provided but not currently capturing
-      return createErrorResponse(
-        `No active network capture found for tab ${explicitTabId}. Active captures: ${ongoingCaptures.join(', ')}`,
-      );
-    } else {
-      // No explicit tabId: fall back to active tab or first capture
-      const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const activeTabId = activeTabs[0]?.id;
-
-      if (activeTabId && startTool['captureData'].has(activeTabId)) {
-        // If current active tab is capturing, prioritize stopping it
-        primaryTabId = activeTabId;
-        console.log(
-          `NetworkDebuggerStopTool: Active tab ${activeTabId} is capturing, will stop it first.`,
-        );
-      } else if (ongoingCaptures.length === 1) {
-        // If only one tab is capturing, stop it
-        primaryTabId = ongoingCaptures[0];
-        console.log(
-          `NetworkDebuggerStopTool: Only one tab ${primaryTabId} is capturing, stopping it.`,
-        );
-      } else {
-        // If multiple tabs are capturing but current active tab is not among them, stop the first one
-        primaryTabId = ongoingCaptures[0];
-        console.log(
-          `NetworkDebuggerStopTool: Multiple tabs capturing, active tab not among them. Stopping tab ${primaryTabId} first.`,
-        );
-      }
-    }
-
-    // Stop capture for the primary tab
-    const result = await this.performStop(startTool, primaryTabId);
-
-    // If multiple tabs are capturing, stop other tabs
-    if (ongoingCaptures.length > 1) {
-      const otherTabIds = ongoingCaptures.filter((id) => id !== primaryTabId);
-      console.log(
-        `NetworkDebuggerStopTool: Stopping ${otherTabIds.length} additional captures: ${otherTabIds.join(', ')}`,
-      );
-
-      for (const tabId of otherTabIds) {
-        try {
-          await startTool.stopCapture(tabId);
-        } catch (error) {
-          console.error(`NetworkDebuggerStopTool: Error stopping capture on tab ${tabId}:`, error);
-        }
-      }
-    }
-
-    return result;
-  }
-
-  private async performStop(
-    startTool: NetworkDebuggerStartTool,
-    tabId: number,
-  ): Promise<ToolResult> {
-    console.log(`NetworkDebuggerStopTool: Attempting to stop capture for tab ${tabId}.`);
-    const stopResult = await startTool.stopCapture(tabId);
-
-    if (!stopResult?.success) {
-      return createErrorResponse(
-        stopResult?.message ||
-          `Failed to stop network capture for tab ${tabId}. It might not have been capturing.`,
-      );
-    }
-
-    const resultData = stopResult.data || {};
-
-    // Get all tabs still capturing (there might be other tabs still capturing after stopping)
-    const remainingCaptures = Array.from(startTool['captureData'].keys());
-
-    // Sort requests by time
-    if (resultData.requests && Array.isArray(resultData.requests)) {
-      resultData.requests.sort(
-        (a: NetworkRequestInfo, b: NetworkRequestInfo) =>
-          (a.requestTime || 0) - (b.requestTime || 0),
-      );
-    }
-
-    return createJsonResponse({
-      success: true,
-      message: `Capture for tab ${tabId} (${resultData.tabUrl || 'N/A'}) stopped. ${resultData.requestCount || 0} requests captured.`,
-      tabId,
-      tabUrl: resultData.tabUrl || 'N/A',
-      tabTitle: resultData.tabTitle || 'Unknown Tab',
-      requestCount: resultData.requestCount || 0,
-      commonRequestHeaders: resultData.commonRequestHeaders || {},
-      commonResponseHeaders: resultData.commonResponseHeaders || {},
-      requests: resultData.requests || [],
-      captureStartTime: resultData.captureStartTime,
-      captureEndTime: resultData.captureEndTime,
-      totalDurationMs: resultData.totalDurationMs,
-      settingsUsed: resultData.settingsUsed || {},
-      remainingCaptures,
-      totalRequestsReceived: resultData.totalRequestsReceived || resultData.requestCount || 0,
-      requestLimitReached: resultData.requestLimitReached || false,
-      stoppedBy: resultData.stoppedBy || 'user_request',
-    });
-  }
-}
-
 export const networkDebuggerStartTool = new NetworkDebuggerStartTool();
-export const networkDebuggerStopTool = new NetworkDebuggerStopTool();
+export const networkDebuggerStopTool = new NetworkCaptureStopExecutor({
+  name: TOOL_NAMES.BROWSER.NETWORK_DEBUGGER_STOP,
+  label: 'NetworkDebuggerStopTool',
+  controller: () => NetworkDebuggerStartTool.instance,
+  unsupportedMessage: FIREFOX_UNSUPPORTED_MESSAGE,
+});

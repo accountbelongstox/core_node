@@ -1,8 +1,3 @@
-/** useWfNewAppState - the wordnew shell's state + effects + handlers, lifted
- * out of WfNewApp so the component stays a thin view under the 800-line modular
- * limit. Returns every binding the JSX reads; WfNewApp destructures them with the
- * same names so the `return (…)` block is byte-identical (behavior preserved).
- * WordNewTab + wfNewPageHeader move here too (the hook computes `pageHeader`). */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT,
@@ -37,26 +32,17 @@ import {
 } from '../routing/WordNewHashRoutes';
 import { synchronizeDailyReadingWordGroups } from '../components/daily-reading/dailyReadingWordGroupStore';
 
-<<<<<<< HEAD
-import { type WordNewTab } from './WordNewNavigation';
-=======
-/** Every navigable page/tab in the wordnew shell (drives the history stack). */
 export type { WordNewTab } from '../routing/WordNewHashRoutes';
->>>>>>> 2c3cb0347f4b73c2bdd6901a93908f0cf9a45044
 
 export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const { shellLang, dark } = deps;
 
-  // Selected atmospheric theme state (persisted via the shared settings store)
   const [activeThemeId, setActiveThemeId] = useState<string>(() => wfNewSettings.get('themeId'));
 
   const activeTheme = useMemo(() => {
     return CUSTOM_THEMES.find(t => t.id === activeThemeId) || CUSTOM_THEMES[0];
   }, [activeThemeId]);
 
-  // Tab navigation states + a page HISTORY STACK so "back" returns to the page
-  // you came from (not always home). Forward navigations push the page you leave;
-  // goBack() pops to it; goHome() clears the stack and jumps straight home.
   const [activeTab, setActiveTabRaw] = useState<WordNewTab>('home');
   const [navStack, setNavStack] = useState<WordNewTab[]>([]);
   // The vocabulary library currently open in the dedicated word-browser, with its
@@ -68,8 +54,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const [wordGroupRouteId, setWordGroupRouteId] = useState<string | null>(null);
   const [hashRouteReady, setHashRouteReady] = useState(false);
 
-  // Refs mirror the latest values so the navigation callbacks can stay stable
-  // (empty-deps useCallback) without nesting one state setter inside another.
   const activeTabRef = useRef<WordNewTab>(activeTab);
   const navStackRef = useRef<WordNewTab[]>(navStack);
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);

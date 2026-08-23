@@ -12,6 +12,7 @@ RUNTIME_SERVICE_POLICY_SUDO=""
 RUNTIME_SERVICE_POLICY_UNIT=""
 RUNTIME_SERVICE_POLICY_BLOCKED=false
 CORE_RUNTIME_PYCORE_UNITS=("$CORE_RUNTIME_PYCORE_SERVICE" "$CORE_RUNTIME_LEGACY_PYCORE_SERVICE")
+CORE_RUNTIME_SERVICE_PREFIXES=("ncore-" "pycore" "codesync" "octane-" "app-manager-")
 
 if [ -z "${IS_HEADLESS_SERVER+x}" ]; then
     source "$RUNTIME_ENVIRONMENT_SCRIPT"
@@ -85,6 +86,16 @@ runtime_service_policy_classify_unit() {
                 RUNTIME_SERVICE_POLICY_BLOCKED=true
                 ;;
         esac
+    fi
+}
+
+runtime_service_policy_core_prefix_pattern() {
+    local prefix="$1"
+
+    if [[ "$prefix" == *- ]]; then
+        echo "^${prefix}[A-Za-z0-9_.@-]*\.service$"
+    else
+        echo "^${prefix}(-[A-Za-z0-9_.@-]*)?\.service$"
     fi
 }
 

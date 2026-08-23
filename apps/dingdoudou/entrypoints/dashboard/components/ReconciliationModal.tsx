@@ -24,6 +24,7 @@ import {
 import {
   inExtension, getAllOrders, listBatches, saveBatch, removeBatch,
 } from '@/lib/dashboardBridge';
+import { errorText } from '@/lib/value';
 
 const LOCAL_KEY = 'dd_reconcile_batches_local';
 
@@ -32,6 +33,7 @@ interface Props {
   onClose: () => void;
   lang: 'zh' | 'en';
   fallbackOrders: Order[];
+  useAllOrders: boolean;
 }
 
 // Local persistence used only in a plain web preview (no extension storage).
@@ -50,7 +52,13 @@ function saveLocalBatches(list: ReconcileBatch[]): void {
   }
 }
 
-export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fallbackOrders }) => {
+export const ReconciliationModal: React.FC<Props> = ({
+  open,
+  onClose,
+  lang,
+  fallbackOrders,
+  useAllOrders,
+}) => {
   const ui = reconciliationText(lang);
   const [batches, setBatches] = useState<ReconcileBatch[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -58,6 +66,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
   const [name, setName] = useState('');
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'matched' | 'missing' | 'extra'>('missing');
 
   const ext = inExtension();
@@ -67,16 +76,19 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
     if (!open) return;
     let alive = true;
     setLoading(true);
+    setError('');
     (async () => {
       try {
         const [b, o] = await Promise.all([
-          ext ? listBatches().catch(() => loadLocalBatches()) : Promise.resolve(loadLocalBatches()),
-          ext ? getAllOrders().catch(() => fallbackOrders) : Promise.resolve(fallbackOrders),
+          ext ? listBatches() : Promise.resolve(loadLocalBatches()),
+          ext && useAllOrders ? getAllOrders() : Promise.resolve(fallbackOrders),
         ]);
         if (!alive) return;
         setBatches(b);
         setOrders(o && o.length ? o : fallbackOrders);
         setSelectedIds(b.map((x) => x.id));
+      } catch (loadError) {
+        if (alive) setError(errorText(loadError, ui.loadFailed));
       } finally {
         if (alive) setLoading(false);
       }
@@ -84,7 +96,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
     return () => {
       alive = false;
     };
-  }, [open, ext, fallbackOrders]);
+  }, [open, ext, fallbackOrders, ui.loadFailed, useAllOrders]);
 
   const parsed = useMemo(() => parseTrackingInput(text), [text]);
 
@@ -100,15 +112,6 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
 
   if (!open) return null;
 
-  const persist = async (next: ReconcileBatch[]) => {
-    setBatches(next);
-    if (ext) {
-      // bridge ops return the authoritative list; we already optimistically set
-    } else {
-      saveLocalBatches(next);
-    }
-  };
-
   const handleAdd = async () => {
     if (parsed.length === 0) return;
     const batch: ReconcileBatch = {
@@ -118,11 +121,13 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
       createdAt: Date.now(),
     };
     let next = [batch, ...batches];
+    setError('');
     if (ext) {
       try {
         next = await saveBatch(batch);
-      } catch {
-        // fall back to optimistic local
+      } catch (saveError) {
+        setError(errorText(saveError, ui.saveFailed));
+        return;
       }
     } else {
       saveLocalBatches(next);
@@ -135,11 +140,13 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
 
   const handleRemove = async (id: string) => {
     let next = batches.filter((b) => b.id !== id);
+    setError('');
     if (ext) {
       try {
         next = await removeBatch(id);
-      } catch {
-        // optimistic local
+      } catch (removeError) {
+        setError(errorText(removeError, ui.removeFailed));
+        return;
       }
     } else {
       saveLocalBatches(next);
@@ -218,6 +225,11 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
         </div>
 
         <div className="flex-1 overflow-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {error && (
+            <div className="lg:col-span-12 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-300">
+              {error}
+            </div>
+          )}
           {/* Left: add batch + cached batches */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-4 space-y-2.5">
@@ -320,7 +332,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
                       <span className="font-mono shrink-0 ml-2">
                         <span className="text-emerald-600 dark:text-emerald-400 font-bold">{s.matched}</span>
                         <span className="text-slate-400"> / {s.total}</span>
-                        {s.missing > 0 && <span className="text-rose-500 font-bold"> · 缺{s.missing}</span>}
+                        {s.missing > 0 && <span className="text-rose-500 font-bold"> · {ui.missingCount(s.missing)}</span>}
                       </span>
                     </div>
                   ))}

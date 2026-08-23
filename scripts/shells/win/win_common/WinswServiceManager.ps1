@@ -96,24 +96,49 @@ function Register-WinswService {
         [Parameter(Mandatory = $true)][string]$WorkingDirectory,
         [string[]]$EnvironmentExtra = @(),
         [string]$StdoutLog = "",
-        [string]$StderrLog = ""
+        [string]$StderrLog = "",
+        [string]$ServiceDirectory = ""
     )
 
-    $serviceDir = Join-Path $WorkingDirectory "winsw"
-    if (-not (Test-Path -LiteralPath $serviceDir)) { New-Item -ItemType Directory -Force -Path $serviceDir | Out-Null }
+    $serviceDir = if ([string]::IsNullOrWhiteSpace($ServiceDirectory)) {
+        Join-Path $WorkingDirectory "winsw"
+    } else {
+        [System.IO.Path]::GetFullPath($ServiceDirectory)
+    }
     $serviceExe = Join-Path $serviceDir "$ServiceName.exe"
     $serviceXml = Join-Path $serviceDir "$ServiceName.xml"
-    Copy-Item -LiteralPath $WinswExePath -Destination $serviceExe -Force
-
+    $envLineItems = @()
     $envLines = ""
+    $parts = @()
+    $logDirective = ""
+    $logDir = ""
+    $xmlContent = ""
+    $existingContent = $null
+    $configurationChanged = $false
+    $service = $null
+    $attempt = 0
+
+    if (-not (Test-Path -LiteralPath $serviceDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $serviceDir | Out-Null
+    }
+    if (-not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) {
+        Copy-Item -LiteralPath $WinswExePath -Destination $serviceExe
+    }
+    if (-not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) {
+        Write-Host "[WinswServiceManager] Wrapper postcondition failed: $serviceExe" -ForegroundColor Red
+        return $false
+    }
+
     foreach ($entry in $EnvironmentExtra) {
         $parts = $entry -split "=", 2
         if ($parts.Count -eq 2) {
-            $envLines += "  <env name=`"$(ConvertTo-WinswXmlText $parts[0])`" value=`"$(ConvertTo-WinswXmlText $parts[1])`"/>`r`n"
+            $envLineItems = @($envLineItems) + @("  <env name=`"$(ConvertTo-WinswXmlText $parts[0])`" value=`"$(ConvertTo-WinswXmlText $parts[1])`"/>")
         }
     }
+    if ($envLineItems.Count -gt 0) {
+        $envLines = "{0}`r`n" -f ($envLineItems -join "`r`n")
+    }
 
-    $logDirective = ""
     if ($StdoutLog -or $StderrLog) {
         $logDir = Split-Path -Parent $StdoutLog
         if (-not $logDir) { $logDir = Split-Path -Parent $StderrLog }
@@ -134,31 +159,56 @@ function Register-WinswService {
   <hidewindow>true</hidewindow>
 $envLines$logDirective</service>
 "@
-    [System.IO.File]::WriteAllText($serviceXml, $xmlContent)
-
-    $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if ($existing) {
-        Write-Host "[WinswServiceManager] Service $ServiceName already registered -> stopping/reinstalling with refreshed configuration." -ForegroundColor Yellow
-        & $serviceExe stop 2>&1 | Out-Null
-        & $serviceExe uninstall 2>&1 | Out-Null
-    } else {
-        Write-Host "[WinswServiceManager] Installing service: $ServiceName" -ForegroundColor Cyan
+    if (Test-Path -LiteralPath $serviceXml -PathType Leaf) {
+        $existingContent = Get-Content -LiteralPath $serviceXml -Raw
     }
-    & $serviceExe install
-
-    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if (-not $svc) {
-        Write-Host "[WinswServiceManager] winsw install failed for $ServiceName (service not registered)" -ForegroundColor Red
+    if ($existingContent -cne $xmlContent) {
+        [System.IO.File]::WriteAllText($serviceXml, $xmlContent, [System.Text.UTF8Encoding]::new($false))
+        $configurationChanged = $true
+    }
+    if (-not (Test-Path -LiteralPath $serviceXml -PathType Leaf) -or
+        (Get-Content -LiteralPath $serviceXml -Raw) -cne $xmlContent) {
+        Write-Host "[WinswServiceManager] Configuration postcondition failed: $serviceXml" -ForegroundColor Red
         return $false
     }
-    if (-not $svc) {
+
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($null -eq $service) {
+        Write-Host "[WinswServiceManager] Installing service: $ServiceName" -ForegroundColor Cyan
+        & $serviceExe install
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    }
+    elseif ($configurationChanged) {
+        Write-Host "[WinswServiceManager] Refreshing changed service configuration: $ServiceName" -ForegroundColor Cyan
+        & $serviceExe refresh
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $service) {
         Write-Host "[WinswServiceManager] Service $ServiceName not found after registration." -ForegroundColor Red
         return $false
     }
-    Write-Host "[WinswServiceManager] Starting service: $ServiceName" -ForegroundColor Cyan
-    & $serviceExe start
-    Start-Sleep -Seconds 1
-    $svc.Refresh()
-    Write-Host "[WinswServiceManager] Service $ServiceName status: $($svc.Status)" -ForegroundColor Green
+
+    if ($configurationChanged -and $service.Status -eq 'Running') {
+        Write-Host "[WinswServiceManager] Restarting changed service: $ServiceName" -ForegroundColor Cyan
+        & $serviceExe restart
+    }
+    elseif ($service.Status -ne 'Running') {
+        Write-Host "[WinswServiceManager] Starting service: $ServiceName" -ForegroundColor Cyan
+        & $serviceExe start
+    }
+
+    for ($attempt = 0; $attempt -lt 20; $attempt++) {
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($null -ne $service -and $service.Status -eq 'Running') {
+            break
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($null -eq $service -or $service.Status -ne 'Running') {
+        Write-Host "[WinswServiceManager] Service start postcondition failed: $ServiceName" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "[WinswServiceManager] Service $ServiceName status: $($service.Status)" -ForegroundColor Green
     return $true
 }

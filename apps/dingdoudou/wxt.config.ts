@@ -25,29 +25,14 @@ export default defineConfig({
     permissions: [
       'cookies',
       'storage',
-      'activeTab',
-      'tabs',
-      'windows',
       'unlimitedStorage',
-      'downloads',
-      'scripting',
-      'declarativeNetRequest',
     ],
     host_permissions: [
-      'https://mobile.yangkeduo.com/*',
       'https://*.yangkeduo.com/*',
-      'https://mclient.alipay.com/*',
-      'https://air.1688.com/*',
       'http://localhost/*',
       'http://127.0.0.1/*',
-      'http://*:9000/*',
     ],
-    web_accessible_resources: [
-      {
-        resources: ['dashboard.html', 'templates/*', 'icon/*'],
-        matches: ['<all_urls>'],
-      },
-    ],
+    optional_host_permissions: ['http://*/*', 'https://*/*'],
     incognito: 'split',
   },
   vite: () => ({

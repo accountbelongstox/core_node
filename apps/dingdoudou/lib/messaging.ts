@@ -4,12 +4,13 @@
 
 import type {
   Order,
-  PinduoduoAccount,
+  AccountState,
   LicenseState,
   BackendConfig,
 } from './types';
 import type { AppSettings } from './storage';
 import type { ReconcileBatch } from './reconcile';
+import type { AppErrorCode, AppErrorDetails } from './appError';
 
 export type BgRequest =
   // licensing
@@ -21,8 +22,8 @@ export type BgRequest =
   | { type: 'backend.set'; config: Partial<BackendConfig> }
   // accounts
   | { type: 'accounts.list' }
-  | { type: 'accounts.captureActiveTab' } // read PDD creds from the active yangkeduo tab
-  | { type: 'accounts.bind'; pddUserId: string; accessToken: string; nickname?: string; avatar?: string }
+  | { type: 'accounts.captureActiveTab' } // read PDD credentials for the most recently used PDD tab
+  | { type: 'accounts.bind'; pddUserId: string; accessToken: string; cookie?: string; nickname?: string; avatar?: string }
   | { type: 'accounts.remove'; pddUserId: string }
   | { type: 'accounts.setActive'; pddUserId: string }
   // orders
@@ -45,6 +46,8 @@ export interface BgResponse<T = unknown> {
   ok: boolean;
   data?: T;
   error?: string;
+  errorCode?: AppErrorCode;
+  errorDetails?: AppErrorDetails;
 }
 
 export interface SyncResult {
@@ -53,14 +56,12 @@ export interface SyncResult {
   fetched: number;
 }
 
-export interface AccountsPayload {
-  accounts: PinduoduoAccount[];
-  activePddUserId?: string;
-}
+export type AccountsPayload = AccountState;
 
 export interface CaptureResult {
   pddUserId: string;
   accessToken: string;
+  cookie?: string;
   nickname?: string;
   avatar?: string;
 }

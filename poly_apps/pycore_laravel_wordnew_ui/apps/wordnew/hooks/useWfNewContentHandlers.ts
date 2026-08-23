@@ -17,7 +17,7 @@ import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
-import { wfNewPageHeader, type WordNewTab } from './WordNewNavigation';
+import { wordNewPageHeader, type WordNewTab } from '../routing/WordNewHashRoutes';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
 export function useWfNewContentHandlers(deps: Record<string, any>) {
@@ -745,7 +745,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   // Current page's header (big title + subtitle) for the global nav's fixed-width
   // info block beside the back/logo control. Recomputed each render from the
   // active tab; null on pages with no header (home / shelf / practice / labs).
-  const pageHeader = wfNewPageHeader(activeTab, trans, {
+  const pageHeader = wordNewPageHeader(activeTab, trans, {
     contentListKind,
     wordGroupTitle: selectedCourse?.name,
     libraryTitle: libraryRoute?.title,

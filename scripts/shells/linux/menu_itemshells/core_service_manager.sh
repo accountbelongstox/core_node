@@ -46,11 +46,6 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Service name prefixes created by the core_node service-manager shells.
-# Note: "pycore" matches both "pycore" and "pycore-module-caller"; "codesync"
-# matches the bare "codesync" unit. Anchored at start-of-name when matched.
-CORE_SERVICE_PREFIXES=("ncore-" "pycore" "codesync" "octane-" "app-manager-")
-
 # Privilege escalation: empty when root, "sudo" otherwise. We deliberately do NOT
 # source gvar_common.sh (its top-level side effects scan disks / can block on a
 # sudo prompt); plain sudo is all this manager needs.
@@ -59,26 +54,14 @@ if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 fi
 
-# Build the precise unit-name regex for a prefix: hyphen-terminated prefixes
-# (ncore-/octane-/app-manager-) match any suffix; bare stems (pycore/codesync)
-# must hit a name boundary so unrelated units like pycoredb/codesyncd are NOT swept in.
-core_prefix_pattern() {
-    local prefix="$1"
-    if [[ "$prefix" == *- ]]; then
-        echo "^${prefix}[A-Za-z0-9_.@-]*\.service$"
-    else
-        echo "^${prefix}(-[A-Za-z0-9_.@-]*)?\.service$"
-    fi
-}
-
 # Detect all core_node services across every managed prefix (deduplicated, sorted).
 detect_core_services() {
     local services=()
     local seen=" "
     local prefix pat found svc
 
-    for prefix in "${CORE_SERVICE_PREFIXES[@]}"; do
-        pat="$(core_prefix_pattern "$prefix")"
+    for prefix in "${CORE_RUNTIME_SERVICE_PREFIXES[@]}"; do
+        pat="$(runtime_service_policy_core_prefix_pattern "$prefix")"
         # Union installed unit files with loaded-but-not-installed (transient) units.
         found=$( { systemctl list-unit-files --type=service --no-pager --no-legend 2>/dev/null
                    systemctl list-units --type=service --all --no-pager --no-legend 2>/dev/null; } \

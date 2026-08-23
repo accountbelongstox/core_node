@@ -33,6 +33,7 @@ import {
   patchSettings,
   refundOrders,
   removeAccount,
+  requestBackendAccess,
   setActiveAccount,
   submitSuperCode,
   syncOrders,
@@ -265,6 +266,9 @@ export default function App() {
     setGateBusy(true);
     setGateError('');
     try {
+      if (!(await requestBackendAccess(backendUrl.trim()))) {
+        throw new Error(ui.backendPermissionDenied);
+      }
       setLicense(await loginMember(backendUrl.trim(), backendUser.trim(), backendPassword));
     } catch (error) {
       setGateError(error instanceof Error ? error.message : String(error));
@@ -280,6 +284,7 @@ export default function App() {
       const payload = await bindAccount(
         captured.pddUserId,
         captured.accessToken,
+        captured.cookie,
         captured.nickname,
         captured.avatar,
       );
@@ -308,13 +313,8 @@ export default function App() {
     }
   };
 
-  const handleScope = async (scope: AccountScope) => {
+  const handleScope = (scope: AccountScope) => {
     setAccountScope(scope);
-    try {
-      await loadOrders(scope, activeAccount);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
-    }
   };
 
   const handleSync = async () => {
@@ -523,7 +523,7 @@ export default function App() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/30 bg-white/50 p-4 shadow-xl backdrop-blur-2xl dark:border-white/10 dark:bg-slate-900/50">
             <div className="flex items-center gap-2">
-              <select value={accountScope} onChange={(event) => void handleScope(event.target.value as AccountScope)} className="rounded-lg border bg-transparent p-2 text-xs"><option value="active">{ui.currentAccount}</option><option value="all" disabled={extensionMode && !hasFeature(license, 'account.cross')}>{ui.allAccounts}</option></select>
+              <select value={accountScope} onChange={(event) => handleScope(event.target.value as AccountScope)} className="rounded-lg border bg-transparent p-2 text-xs"><option value="active">{ui.currentAccount}</option><option value="all" disabled={extensionMode && !hasFeature(license, 'account.cross')}>{ui.allAccounts}</option></select>
               <span className="text-xs text-slate-500">{filteredOrders.length} {t.unit} · {new Set(filteredOrders.map((order) => order.recipientName)).size} {ui.recipientUnit}</span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -560,7 +560,13 @@ export default function App() {
       </main>
 
       <LogisticsModal order={selectedDetails} onClose={() => setSelectedDetails(null)} onCopyText={(text, label) => void handleCopy(text, label)} lang={lang} />
-      <ReconciliationModal open={showReconcile} onClose={() => setShowReconcile(false)} lang={lang} fallbackOrders={orders} />
+      <ReconciliationModal
+        open={showReconcile}
+        onClose={() => setShowReconcile(false)}
+        lang={lang}
+        fallbackOrders={orders}
+        useAllOrders={accountScope === 'all'}
+      />
     </div>
   );
 }

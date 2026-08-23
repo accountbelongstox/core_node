@@ -54,6 +54,11 @@ export interface PinduoduoAccount {
   mobileBind?: string;
 }
 
+export interface AccountState {
+  accounts: PinduoduoAccount[];
+  activePddUserId?: string;
+}
+
 // Credentials captured from a logged-in Pinduoduo tab. Stored locally only.
 export interface PddCredential {
   pddUserId: string;

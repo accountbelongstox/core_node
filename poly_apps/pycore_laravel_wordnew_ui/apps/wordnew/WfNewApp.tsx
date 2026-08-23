@@ -35,10 +35,7 @@ import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime'
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
 import { useWfNewAppState } from './hooks/useWfNewAppState';
-<<<<<<< HEAD
-import type { WordNewTab } from './hooks/WordNewNavigation';
-=======
->>>>>>> 2c3cb0347f4b73c2bdd6901a93908f0cf9a45044
+import type { WordNewTab } from './routing/WordNewHashRoutes';
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();

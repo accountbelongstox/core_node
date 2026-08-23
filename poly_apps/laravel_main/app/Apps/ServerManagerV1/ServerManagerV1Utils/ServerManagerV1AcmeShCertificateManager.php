@@ -9,17 +9,22 @@ use App\Utils\FileSystemManager;
 class ServerManagerV1AcmeShCertificateManager
 {
     private const TIMER_UNIT = 'ncore-acme-cert.timer';
+    private const WINDOWS_RENEWAL_TASK = 'ncore-frankenphp-certificate-renewal';
     private const HOME_ARGUMENTS = ['--home', 'home', '--config-home', 'home/.acme.sh'];
 
     public static function status(): array
     {
         $binary = self::binary();
         $version = null;
-        $timerActive = self::systemdProperty(self::TIMER_UNIT, 'ActiveState');
-        $timerEnabled = self::systemdEnabled(self::TIMER_UNIT);
+        $timerActive = PathMapper::isWindows()
+            ? self::windowsTaskState()
+            : self::systemdProperty(self::TIMER_UNIT, 'ActiveState');
+        $timerEnabled = PathMapper::isWindows()
+            ? $timerActive
+            : self::systemdEnabled(self::TIMER_UNIT);
         $versionResult = [];
 
-        if ($binary !== null) {
+        if ($binary !== null && !PathMapper::isWindows()) {
             $versionResult = ServerManagerV1Utils::executeCommand($binary, ['--version'], 15);
             if (preg_match('/v?\d{8}|v?\d+\.\d+\.\d+/', (string) ($versionResult['output'] ?? ''), $matches)) {
                 $version = $matches[0];
@@ -27,14 +32,14 @@ class ServerManagerV1AcmeShCertificateManager
         }
 
         return [
-            'manager' => 'acme.sh',
+            'manager' => PathMapper::isWindows() ? 'Posh-ACME' : 'acme.sh',
             'installed' => $binary !== null,
             'path' => $binary,
             'version' => $version,
             'timer' => [
-                'unit' => self::TIMER_UNIT,
+                'unit' => PathMapper::isWindows() ? self::WINDOWS_RENEWAL_TASK : self::TIMER_UNIT,
                 'active' => $timerActive === 'active',
-                'enabled' => $timerEnabled === 'enabled',
+                'enabled' => $timerEnabled === 'enabled' || $timerEnabled === 'active',
             ],
             'certificate_directory' => self::certificateRoot(),
         ];
@@ -42,6 +47,10 @@ class ServerManagerV1AcmeShCertificateManager
 
     public static function install(): array
     {
+        if (PathMapper::isWindows()) {
+            return self::runWindowsCertificateStep();
+        }
+
         $script = self::installerScript();
         $commandResult = ServerManagerV1Utils::executeCommand(
             'bash',
@@ -101,6 +110,9 @@ class ServerManagerV1AcmeShCertificateManager
         $daysUntilExpiry = 0;
         $domains = [];
         $issuer = null;
+        $certificateContents = false;
+        $parsedCertificate = false;
+        $subjectAltName = '';
 
         if (!self::validDomain($normalizedDomain)) {
             return null;
@@ -112,20 +124,28 @@ class ServerManagerV1AcmeShCertificateManager
             return null;
         }
 
-        $result = ServerManagerV1Utils::executeCommand('openssl', [
-            'x509', '-in', $certificatePath, '-noout', '-issuer', '-startdate', '-enddate', '-ext', 'subjectAltName',
-        ], 15);
-        $output = (string) ($result['output'] ?? '');
-        if (preg_match('/^notBefore=(.+)$/mi', $output, $matches)) {
-            $notBefore = trim($matches[1]);
+        $certificateContents = FileSystemManager::readFile($certificatePath, false);
+        $parsedCertificate = is_string($certificateContents)
+            ? openssl_x509_parse($certificateContents, false)
+            : false;
+        if (!is_array($parsedCertificate)) {
+            return null;
         }
-        if (preg_match('/^notAfter=(.+)$/mi', $output, $matches)) {
-            $notAfter = trim($matches[1]);
-        }
-        if (preg_match('/^issuer=(.+)$/mi', $output, $matches)) {
-            $issuer = trim($matches[1]);
-        }
-        if (preg_match_all('/DNS:([^,\s]+)/', $output, $matches)) {
+        $notBefore = isset($parsedCertificate['validFrom_time_t'])
+            ? date(DATE_RFC2822, (int) $parsedCertificate['validFrom_time_t'])
+            : null;
+        $notAfter = isset($parsedCertificate['validTo_time_t'])
+            ? date(DATE_RFC2822, (int) $parsedCertificate['validTo_time_t'])
+            : null;
+        $issuer = is_array($parsedCertificate['issuer'] ?? null)
+            ? implode(', ', array_map(
+                static fn (string $key, mixed $value): string => $key.'='.$value,
+                array_keys($parsedCertificate['issuer']),
+                array_values($parsedCertificate['issuer'])
+            ))
+            : null;
+        $subjectAltName = (string) ($parsedCertificate['extensions']['subjectAltName'] ?? '');
+        if (preg_match_all('/DNS:([^,\s]+)/', $subjectAltName, $matches)) {
             $domains = array_values(array_unique(array_map('strtolower', $matches[1])));
         }
 
@@ -148,8 +168,8 @@ class ServerManagerV1AcmeShCertificateManager
             'valid' => $daysUntilExpiry > 0 && $domains !== [],
             'certificate_path' => $certificatePath,
             'private_key_path' => $keyPath,
-            'source' => 'acme.sh',
-            'manager' => 'acme.sh',
+            'source' => PathMapper::isWindows() ? 'Posh-ACME' : 'acme.sh',
+            'manager' => PathMapper::isWindows() ? 'Posh-ACME' : 'acme.sh',
         ];
     }
 
@@ -162,6 +182,19 @@ class ServerManagerV1AcmeShCertificateManager
 
         if (!self::validDomain($normalizedDomain)) {
             return self::failure('Invalid certificate domain.', 422);
+        }
+        if (PathMapper::isWindows()) {
+            $result = self::runWindowsCertificateStep();
+            $certificate = self::certificate($normalizedDomain);
+
+            return [
+                'success' => ($certificate['valid'] ?? false) === true,
+                'certificate' => $certificate,
+                'reloaded' => (bool) ($result['success'] ?? false),
+                'error' => ($certificate['valid'] ?? false) === true
+                    ? ''
+                    : (string) ($result['error'] ?? 'Windows certificate postcondition failed.'),
+            ];
         }
 
         $commandResult = ServerManagerV1Utils::executeCommand(
@@ -202,6 +235,10 @@ class ServerManagerV1AcmeShCertificateManager
 
     public static function renew(?string $domain = null): array
     {
+        if (PathMapper::isWindows()) {
+            return self::runWindowsCertificateStep();
+        }
+
         $binary = self::binary();
         $normalizedDomain = $domain !== null ? strtolower(trim($domain)) : null;
         $arguments = [];
@@ -262,6 +299,17 @@ class ServerManagerV1AcmeShCertificateManager
 
     private static function binary(): ?string
     {
+        if (PathMapper::isWindows()) {
+            $modulePattern = ServiceContract::frankenPhpRoot().DIRECTORY_SEPARATOR.'modules'
+                .DIRECTORY_SEPARATOR.'Posh-ACME'.DIRECTORY_SEPARATOR.'*'
+                .DIRECTORY_SEPARATOR.'Posh-ACME.psd1';
+            $manifests = glob($modulePattern);
+
+            return is_array($manifests) && $manifests !== []
+                ? 'powershell.exe'
+                : null;
+        }
+
         $candidates = [
             '/usr/local/bin/acme.sh',
             self::acmeRoot().DIRECTORY_SEPARATOR.'home'.DIRECTORY_SEPARATOR.'acme.sh',
@@ -288,16 +336,23 @@ class ServerManagerV1AcmeShCertificateManager
 
     private static function acmeRoot(): string
     {
-        return ServiceContract::path('frankenphp_root_posix').DIRECTORY_SEPARATOR.'acme.sh';
+        return ServiceContract::frankenPhpRoot().DIRECTORY_SEPARATOR.'acme.sh';
     }
 
     private static function certificateRoot(): string
     {
-        return ServiceContract::path('frankenphp_root_posix').DIRECTORY_SEPARATOR.'certs';
+        return ServiceContract::frankenPhpRoot().DIRECTORY_SEPARATOR.'certs';
     }
 
     private static function installerScript(): string
     {
+        if (PathMapper::isWindows()) {
+            return PathMapper::getCoreNodeDir()
+                .DIRECTORY_SEPARATOR.'scripts'.DIRECTORY_SEPARATOR.'shells'.DIRECTORY_SEPARATOR.'win'
+                .DIRECTORY_SEPARATOR.'install_powershells'
+                .DIRECTORY_SEPARATOR.'Step175_LaravelMainStart.ps1';
+        }
+
         return PathMapper::getCoreNodeDir()
             .DIRECTORY_SEPARATOR.'scripts'.DIRECTORY_SEPARATOR.'shells'.DIRECTORY_SEPARATOR.'linux'
             .DIRECTORY_SEPARATOR.'common'.DIRECTORY_SEPARATOR.'frankenphp_acme_sh_install.sh';
@@ -339,5 +394,46 @@ class ServerManagerV1AcmeShCertificateManager
     private static function failure(string $message, int $status = 500, string $output = ''): array
     {
         return ['success' => false, 'error' => $message, 'status' => $status, 'output' => $output];
+    }
+
+    private static function windowsTaskState(): string
+    {
+        $script = 'if (Get-ScheduledTask -TaskName '
+            .json_encode(self::WINDOWS_RENEWAL_TASK, JSON_UNESCAPED_SLASHES)
+            .' -ErrorAction SilentlyContinue) { ''active'' } else { ''inactive'' }';
+        $result = ServerManagerV1Utils::executeCommand(
+            'powershell.exe',
+            ['-NoProfile', '-NonInteractive', '-Command', $script],
+            15
+        );
+
+        return trim((string) ($result['output'] ?? ''));
+    }
+
+    private static function runWindowsCertificateStep(): array
+    {
+        $script = self::installerScript();
+        $result = ServerManagerV1Utils::executeCommand(
+            'powershell.exe',
+            ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                '-File', $script, '-CertificatesOnly'],
+            900
+        );
+        $certificates = self::list();
+        $valid = $certificates !== [];
+
+        foreach ($certificates as $certificate) {
+            if (($certificate['valid'] ?? false) !== true) {
+                $valid = false;
+                break;
+            }
+        }
+
+        return [
+            'success' => $valid,
+            'certificates' => $certificates,
+            'output' => trim((string) ($result['output'] ?? '')),
+            'error' => $valid ? '' : trim((string) ($result['error'] ?? 'Windows certificate postcondition failed.')),
+        ];
     }
 }

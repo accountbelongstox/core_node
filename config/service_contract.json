@@ -115,7 +115,8 @@
         "core_node_data_dir_posix": "/var/_core_node",
         "core_node_data_dir_windows_subpath": "var/_core_node",
         "global_var_dir_name": "global_var",
-        "frankenphp_root_posix": "/www/programing/frankenphp"
+        "frankenphp_root_posix": "/www/programing/frankenphp",
+        "frankenphp_root_windows_subpath": "frankenphp"
     },
     "files": {
         "web_access_config": "web_access_config.json"

@@ -20,6 +20,8 @@ use App\Utils\FileSystemManager;
  *     (fm_caddyfile_ensure / fm_caddyfile_path defaults / fm_php_ini_dir)
  *   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
  *     (launch: frankenphp run -c <canonical Caddyfile>)
+ *   scripts/shells/win/win_common/FrankenPhpManager.ps1
+ *     (native Windows render, routes and WinSW launch contract)
  * Any change to the global admin block, the https site block, the Mercure
  * publisher_jwt/subscriber_jwt stanza, the php_server/file_server pair, or
  * the env placeholder names MUST be applied to both ends in the same
@@ -59,7 +61,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
     public static function acmeCertificateDirectory(string $domain): string
     {
-        return ServiceContract::path('frankenphp_root_posix')
+        return ServiceContract::frankenPhpRoot()
             .DIRECTORY_SEPARATOR.'certs'.DIRECTORY_SEPARATOR.strtolower($domain);
     }
 
@@ -84,7 +86,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         return "# managed-by: {$managedBy}\n\n"
             .implode(', ', $httpsAddresses)." {\n"
-            ."\ttls {$certificateDirectory}/fullchain.pem {$certificateDirectory}/key.pem\n"
+            ."\ttls ".self::caddyPath($certificateDirectory.DIRECTORY_SEPARATOR.'fullchain.pem').' '
+                .self::caddyPath($certificateDirectory.DIRECTORY_SEPARATOR.'key.pem')."\n"
             .$handlers
             ."}\n\n"
             .implode(', ', $httpAddresses)." {\n"
@@ -119,7 +122,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         ?int $httpsPort = null,
         ?int $adminPort = null,
     ): string {
-        $publicDir = $laravelPublicDir ?? self::defaultPublicDir();
+        $publicDir = self::caddyPath($laravelPublicDir ?? self::defaultPublicDir());
         $host = ServiceContract::host('localhost');
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
@@ -130,7 +133,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         // Per-domain route import, gated on file presence (caddy errors on
         // an unmatched import glob). Mirrors the shell end.
-        $routesDir = self::routesDirectory();
+        $routesDir = self::caddyPath(self::routesDirectory());
         $importStanza = !self::hasRouteFiles($routesDir)
             ? ''
             : "\n# Per-domain route files (managed by fm_domain_ensure_route_file)\nimport {$routesDir}/*.caddy\n";
@@ -313,6 +316,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     public static function binary(): ?string
     {
         $selectedBinary = getenv(self::ENV_BINARY_PATH);
+        $candidates = self::BINARY_CANDIDATES;
+
         if ($selectedBinary !== false && $selectedBinary !== '') {
             return is_executable($selectedBinary) ? $selectedBinary : null;
         }
@@ -320,7 +325,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             return null;
         }
 
-        foreach (self::BINARY_CANDIDATES as $candidate) {
+        if (PathMapper::isWindows()) {
+            $candidates = [
+                ServiceContract::frankenPhpRoot().DIRECTORY_SEPARATOR.'bin'
+                    .DIRECTORY_SEPARATOR.'frankenphp.exe',
+            ];
+        }
+
+        foreach ($candidates as $candidate) {
             if (is_executable($candidate)) {
                 return $candidate;
             }
@@ -425,6 +437,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     private static function defaultPublicDir(): string
     {
         return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'public';
+    }
+
+    private static function caddyPath(string $path): string
+    {
+        return str_replace('\\', '/', $path);
     }
 
     private static function octanePhpServerStanza(): string

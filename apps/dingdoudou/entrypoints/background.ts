@@ -23,49 +23,56 @@ import {
 import { mapRawOrders } from '@/lib/orderMapper';
 import type { PinduoduoAccount, BackendConfig, FeatureFlag } from '@/lib/types';
 import * as store from '@/lib/storage';
+import { errorText } from '@/lib/value';
+import { AppError, isAppError } from '@/lib/appError';
+
+const DEFAULT_BACKEND_URL = 'http://127.0.0.1:9000';
 
 function ok<T>(data: T): BgResponse<T> {
   return { ok: true, data };
 }
 function fail(error: unknown): BgResponse {
-  return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  if (isAppError(error)) {
+    return {
+      ok: false,
+      error: error.message,
+      errorCode: error.code,
+      errorDetails: error.details,
+    };
+  }
+  return { ok: false, error: errorText(error, 'Unknown background error') };
 }
 
 async function ensureDeviceId(): Promise<string> {
-  const backend = await store.getBackend();
-  if (backend?.deviceId) return backend.deviceId;
-  const id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-  await store.setBackend({ baseUrl: backend?.baseUrl || 'http://127.0.0.1:9000', deviceId: id });
-  return id;
-}
-
-async function accountsPayload() {
-  const accounts = await store.getAccounts();
-  const settings = await store.getSettings();
-  return { accounts, activePddUserId: settings.activePddUserId };
+  const backend = await store.updateBackend((current) => ({
+    baseUrl: current?.baseUrl || DEFAULT_BACKEND_URL,
+    memberToken: current?.memberToken,
+    deviceId: current?.deviceId || `dev_${crypto.randomUUID()}`,
+  }));
+  return backend.deviceId;
 }
 
 async function requireActiveLicense(): Promise<NonNullable<Awaited<ReturnType<typeof store.getLicense>>>> {
   const license = await store.getLicense();
-  if (!isLicenseActive(license)) throw new Error('授权无效或已过期');
+  if (!isLicenseActive(license)) throw new AppError('license.inactive');
   return license;
 }
 
 async function requireFeature(feature: FeatureFlag): Promise<void> {
   const license = await requireActiveLicense();
-  if (!hasFeature(license, feature)) throw new Error(`当前授权不包含功能：${feature}`);
+  if (!hasFeature(license, feature)) {
+    throw new AppError('license.featureUnavailable', { feature });
+  }
 }
 
 // Sync orders for a single account (must have stored credentials).
 async function syncAccount(pddUserId: string, pages: number) {
   const cred = await store.getCredential(pddUserId);
-  if (!cred) throw new Error('该账号未捕获登录凭证，请在已登录的拼多多页面重新绑定');
+  if (!cred) throw new AppError('account.credentialMissing');
   const account = (await store.getAccounts()).find((a) => a.pddUserId === pddUserId);
   const raw = await fetchAllOrders(cred, pages);
   const orders = mapRawOrders(raw, account?.name || pddUserId, pddUserId);
-  const stillBound = (await store.getAccounts()).some((item) => item.pddUserId === pddUserId);
-  if (!stillBound) throw new Error('账号已解绑，同步结果未写入缓存');
-  await store.setOrdersFor(pddUserId, orders);
+  await store.setOrdersForBoundAccount(pddUserId, orders);
   return { pddUserId, orders, fetched: orders.length };
 }
 
@@ -94,7 +101,7 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       return ok(lic);
     }
     case 'license.submitSuperCode': {
-      if (!verifySuperCode(req.code)) throw new Error('超级码无效');
+      if (!verifySuperCode(req.code)) throw new AppError('license.superCodeInvalid');
       const lic = superLicense(req.code);
       await store.setLicense(lic);
       return ok(lic);
@@ -102,10 +109,10 @@ async function handle(req: BgRequest): Promise<BgResponse> {
     case 'license.loginMember': {
       const deviceId = await ensureDeviceId();
       const baseUrl = req.baseUrl.trim();
-      if (!baseUrl || !req.username.trim()) throw new Error('请填写后台地址与账号');
+      if (!baseUrl || !req.username.trim()) throw new AppError('backend.credentialsRequired');
       const cfg: BackendConfig = { baseUrl, deviceId };
       const lic = await memberLogin(cfg, req.username, req.password);
-      if (!isLicenseActive(lic)) throw new Error('会员授权已过期或不可用');
+      if (!isLicenseActive(lic)) throw new AppError('license.memberInactive');
       await store.setBackend({ baseUrl, deviceId, memberToken: lic.token });
       await store.setLicense(lic);
       return ok(lic);
@@ -118,84 +125,67 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       return ok(await store.getBackend());
     case 'backend.set': {
       const deviceId = await ensureDeviceId();
-      const cur = await store.getBackend();
-      const next: BackendConfig = {
-        baseUrl: req.config.baseUrl || cur?.baseUrl || 'http://127.0.0.1:9000',
+      const next = await store.updateBackend((current) => ({
+        baseUrl: req.config.baseUrl || current?.baseUrl || DEFAULT_BACKEND_URL,
         deviceId: req.config.deviceId || deviceId,
-        memberToken: req.config.memberToken ?? cur?.memberToken,
-      };
-      await store.setBackend(next);
+        memberToken: req.config.memberToken ?? current?.memberToken,
+      }));
       return ok(next);
     }
 
     // ---- Accounts ----
     case 'accounts.list':
-      return ok(await accountsPayload());
+      return ok(await store.getAccountState());
 
     case 'accounts.captureActiveTab': {
       await requireActiveLicense();
       const cred = await readActiveCredential();
-      if (!cred) throw new Error('未检测到已登录的拼多多账号，请先在拼多多页面登录');
-      await store.saveCredential(cred);
+      if (!cred) throw new AppError('pdd.loginRequired');
       const profile = await fetchProfile(cred);
       return ok({
         pddUserId: cred.pddUserId,
         accessToken: cred.accessToken,
+        cookie: cred.cookie,
         nickname: profile.nickname,
         avatar: profile.avatar,
       });
     }
 
     case 'accounts.bind': {
-      await requireActiveLicense();
       if (!req.pddUserId.trim() || !req.accessToken.trim()) {
-        throw new Error('拼多多账号凭证无效');
+        throw new AppError('account.invalidCredential');
       }
-      const license = await store.getLicense();
-      const accounts = await store.getAccounts();
-      const alreadyBound = accounts.some((account) => account.pddUserId === req.pddUserId);
-      if (!alreadyBound && license && accounts.length >= license.maxBinds) {
-        throw new Error('已达到当前授权允许绑定的账号数量');
-      }
-      const existing = await store.getCredential(req.pddUserId);
-      if (!existing || existing.accessToken !== req.accessToken) {
-        await store.saveCredential({
-          pddUserId: req.pddUserId,
-          accessToken: req.accessToken,
-          capturedAt: Date.now(),
-        });
-      }
+      const license = await requireActiveLicense();
       const acc: PinduoduoAccount = {
         id: `pdd_${req.pddUserId}`,
         pddUserId: req.pddUserId,
-        name: req.nickname || `拼多多用户_${req.pddUserId.slice(-6)}`,
+        name: req.nickname || `PDD user ${req.pddUserId.slice(-6)}`,
         avatar: req.avatar || '',
-        bindTime: new Date().toLocaleString('zh-CN'),
+        bindTime: new Date().toISOString(),
         status: 'ACTIVE',
       };
-      await store.upsertAccount(acc);
-      const settings = await store.getSettings();
-      if (!settings.activePddUserId) await store.patchSettings({ activePddUserId: req.pddUserId });
-      return ok(await accountsPayload());
+      return ok(
+        await store.bindAccount(
+          acc,
+          {
+            pddUserId: req.pddUserId,
+            accessToken: req.accessToken,
+            cookie: req.cookie,
+            capturedAt: Date.now(),
+          },
+          license.maxBinds,
+        ),
+      );
     }
 
     case 'accounts.remove': {
       await requireActiveLicense();
-      await store.removeAccount(req.pddUserId);
-      const settings = await store.getSettings();
-      if (settings.activePddUserId === req.pddUserId) {
-        const rest = await store.getAccounts();
-        await store.patchSettings({ activePddUserId: rest[0]?.pddUserId });
-      }
-      return ok(await accountsPayload());
+      return ok(await store.removeAccount(req.pddUserId));
     }
 
     case 'accounts.setActive': {
       await requireActiveLicense();
-      const account = (await store.getAccounts()).find((item) => item.pddUserId === req.pddUserId);
-      if (!account) throw new Error('指定的拼多多账号不存在或已解绑');
-      await store.patchSettings({ activePddUserId: req.pddUserId });
-      return ok(await accountsPayload());
+      return ok(await store.setActiveAccount(req.pddUserId));
     }
 
     // ---- Orders ----
@@ -215,7 +205,7 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       await requireFeature('order.sync');
       const settings = await store.getSettings();
       const uid = req.pddUserId || settings.activePddUserId;
-      if (!uid) throw new Error('请先绑定并选择一个拼多多账号');
+      if (!uid) throw new AppError('account.required');
       const pages = Math.min(Math.max(Math.trunc(req.pages ?? 5), 1), 100);
       return ok(await syncAccount(uid, pages));
     }
@@ -223,9 +213,9 @@ async function handle(req: BgRequest): Promise<BgResponse> {
     case 'orders.refund': {
       await requireFeature('order.refund');
       const cred = await store.getCredential(req.pddUserId);
-      if (!cred) throw new Error('该账号未捕获登录凭证');
+      if (!cred) throw new AppError('account.credentialMissing');
       const orderIds = [...new Set(req.orderIds.map((id) => id.trim()).filter(Boolean))];
-      if (!orderIds.length) throw new Error('请选择需要退款的订单');
+      if (!orderIds.length) throw new AppError('order.selectionRequired');
       const updated: string[] = [];
       for (const id of orderIds) {
         if (await createAfterSale(cred, id)) updated.push(id);
@@ -236,7 +226,7 @@ async function handle(req: BgRequest): Promise<BgResponse> {
     case 'orders.memo': {
       await requireFeature('order.batch');
       const cred = await store.getCredential(req.pddUserId);
-      if (!cred) throw new Error('该账号未捕获登录凭证');
+      if (!cred) throw new AppError('account.credentialMissing');
       await updateBuyerMemo(cred, req.orderId, req.memo);
       return ok({ ok: true as const });
     }
@@ -256,11 +246,17 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       return ok(await store.patchSettings(req.patch));
 
     default:
-      return fail(`unknown message: ${(req as { type?: string }).type}`);
+      return fail(
+        new AppError('message.unknown', {
+          type: String((req as { type?: string }).type ?? ''),
+        }),
+      );
   }
 }
 
 export default defineBackground(() => {
+  void store.restrictLocalStorageAccess().catch(() => undefined);
+
   chrome.runtime.onMessage.addListener((req: BgRequest, _sender, sendResponse) => {
     // Content scripts broadcast { ddEvent: ... } notifications with no `type`.
     // They expect no reply — ignore them so they don't get error responses.
@@ -271,7 +267,7 @@ export default defineBackground(() => {
     return true; // async response
   });
 
-  chrome.runtime.onInstalled.addListener(async () => {
-    await ensureDeviceId();
+  chrome.runtime.onInstalled.addListener(() => {
+    void ensureDeviceId();
   });
 });

@@ -18,6 +18,7 @@ import {
   sleep,
   textOf,
   waitFor,
+  type AutomationContext,
   type ActionMessage,
   type ActionResult,
 } from '@/lib/domAuto';
@@ -57,12 +58,15 @@ function collectRowButtons(): HTMLElement[] {
   return out;
 }
 
-async function startBatchCheckout(msg: ActionMessage): Promise<ActionResult> {
+async function startBatchCheckout(
+  msg: ActionMessage,
+  ctx: AutomationContext,
+): Promise<ActionResult> {
   if (!onBatchPage()) {
     return { success: false, detail: 'not on batch-checkout page' };
   }
 
-  await waitFor(() => (collectRowButtons().length ? true : null), 6000);
+  await waitFor(() => (collectRowButtons().length ? true : null), 6000, 200, ctx);
   const buttons = collectRowButtons();
   const requested = Number(msg.count);
   const total =
@@ -91,7 +95,7 @@ async function startBatchCheckout(msg: ActionMessage): Promise<ActionResult> {
       skipped: !live,
     });
     // Pace the clicks so each navigation/render settles before the next row.
-    await sleep(1200);
+    await sleep(1200, ctx);
   }
 
   return {
@@ -104,15 +108,15 @@ async function startBatchCheckout(msg: ActionMessage): Promise<ActionResult> {
 
 export default defineContentScript({
   matches: [
-    '*://mobile.yangkeduo.com/transac_batch_checkout.html*',
-    '*://mobile.yangkeduo.com/addresses.html*',
+    'https://mobile.yangkeduo.com/transac_batch_checkout.html*',
+    'https://mobile.yangkeduo.com/addresses.html*',
   ],
   runAt: 'document_end',
-  main() {
-    onAction({ startBatchCheckout });
+  main(ctx) {
+    onAction(ctx, { startBatchCheckout: (message) => startBatchCheckout(message, ctx) });
 
     if (onBatchPage()) {
-      void domReady().then(() =>
+      void domReady(8000, ctx).then(() =>
         sendDdEvent('batchCheckoutReady', { rows: collectRowButtons().length }),
       );
     }

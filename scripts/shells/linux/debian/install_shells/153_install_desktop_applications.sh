@@ -39,6 +39,8 @@ SCRIPT_INDEX="121"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+DESKTOP_APPLICATION_INSTALLER="$PARENT_DIR_LEVEL_2/common/desktop_application_installer.sh"
+DESKTOP_APPLICATION_REPORTING="$PARENT_DIR_LEVEL_2/common/desktop_application_reporting.sh"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -74,14 +76,15 @@ else
     ENVIRONMENT_TYPE="desktop"
 fi
 
+INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS" "false")
+source "$DESKTOP_APPLICATION_INSTALLER"
+source "$DESKTOP_APPLICATION_REPORTING"
+
 # Logging function
 log_message() {
     local message="$1"
     echo "[$SCRIPT_INDEX][$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
 }
-
-# Get AI tools installation flag
-INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS" "false")
 
 # Function to check if command exists
 command_exists() {
@@ -143,130 +146,6 @@ resolve_pnpm_global_bin_dir() {
     fi
 }
 
-# Function to install package via snap
-install_via_snap() {
-    local package_id="$1"
-    local app_name="$2"
-    local confinement="${3:-}"
-
-    if ! command_exists snap; then
-        log_message "Snap is not installed. Installing snapd..."
-        log_message "Updating package lists with timeout..."
-        if timeout 300 $USE_SUDO apt update; then
-            log_message "Package lists updated successfully"
-        else
-            log_message "Warning: Package update timed out or failed, continuing anyway"
-        fi
-
-        log_message "Installing snapd..."
-        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" snapd; then
-            log_message "snapd installed successfully"
-        else
-            log_message "Error: Failed to install snapd"
-            return 1
-        fi
-
-        # Enable snap services
-        log_message "Enabling snap services..."
-        $USE_SUDO systemctl enable --now snapd.socket || {
-            log_message "Warning: Failed to enable snapd.socket"
-        }
-        $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
-    fi
-
-    # Build snap install command with confinement option if specified
-    local snap_install_cmd="$USE_SUDO snap install"
-    if [ -n "$confinement" ] && [ "$confinement" = "classic" ]; then
-        snap_install_cmd="$snap_install_cmd --classic"
-        log_message "Installing $app_name via snap (classic confinement): $package_id"
-    else
-        log_message "Installing $app_name via snap: $package_id"
-    fi
-
-    if $snap_install_cmd $package_id; then
-        log_message "Successfully installed $app_name via snap"
-        return 0
-    else
-        log_message "Failed to install $app_name via snap"
-        return 1
-    fi
-}
-
-# Function to install package via apt
-install_via_apt() {
-    local package_id="$1"
-    local app_name="$2"
-    
-    log_message "Installing $app_name via apt: $package_id"
-    log_message "Updating package lists with timeout..."
-    if timeout 300 $USE_SUDO apt update; then
-        log_message "Package lists updated successfully"
-    else
-        log_message "Warning: Package update timed out or failed, continuing anyway"
-    fi
-    
-    log_message "Installing package with timeout..."
-    if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$package_id"; then
-        log_message "Successfully installed $app_name via apt"
-        return 0
-    else
-        log_message "Failed to install $app_name via apt"
-        return 1
-    fi
-}
-
-# Function to install package via flatpak
-install_via_flatpak() {
-    local package_id="$1"
-    local app_name="$2"
-    
-    if ! command_exists flatpak; then
-        log_message "Flatpak is not installed. Installing flatpak..."
-        log_message "Updating package lists with timeout..."
-        if timeout 300 $USE_SUDO apt update; then
-            log_message "Package lists updated successfully"
-        else
-            log_message "Warning: Package update timed out or failed, continuing anyway"
-        fi
-
-        log_message "Installing flatpak..."
-        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" flatpak; then
-            log_message "flatpak installed successfully"
-        else
-            log_message "Error: Failed to install flatpak"
-            return 1
-        fi
-        
-        # Add flathub repository
-        log_message "Adding flathub repository..."
-        if timeout 120 $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
-            log_message "Flathub repository added successfully"
-        else
-            log_message "Warning: Failed to add flathub repository, trying alternative method..."
-            if timeout 120 $USE_SUDO flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
-                log_message "Flathub repository added successfully (user mode)"
-            else
-                log_message "Error: Failed to add flathub repository"
-                return 1
-            fi
-        fi
-    fi
-    
-    log_message "Installing $app_name via flatpak: $package_id"
-    if $USE_SUDO flatpak install -y flathub "$package_id"; then
-        log_message "Successfully installed $app_name via flatpak"
-        return 0
-    else
-        log_message "Failed to install $app_name via flatpak (system), trying user mode..."
-        if flatpak install --user -y flathub "$package_id"; then
-            log_message "Successfully installed $app_name via flatpak (user mode)"
-            return 0
-        else
-            log_message "Failed to install $app_name via flatpak"
-            return 1
-        fi
-    fi
-}
 
 # Function to install AppImage
 install_via_appimage() {
@@ -503,35 +382,6 @@ WRAPPER_EOF
     fi
 }
 
-# Function to install via web download (deb packages)
-install_via_web() {
-    local download_url="$1"
-    local app_name="$2"
-    local temp_file="$SCRIPT_TEMP_DIR/$(basename "$download_url")"
-    
-    log_message "Installing $app_name via web download from: $download_url"
-    
-    # Download package
-    if wget -O "$temp_file" "$download_url"; then
-        # Install deb package
-        if $USE_SUDO dpkg -i "$temp_file"; then
-            log_message "Successfully installed $app_name from web"
-            # Fix any dependency issues
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" 2>/dev/null || true
-        else
-            log_message "Failed to install $app_name deb package"
-            # Try to fix dependencies and retry
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
-            if $USE_SUDO dpkg -i "$temp_file"; then
-                log_message "Successfully installed $app_name after fixing dependencies"
-            else
-                log_message "Failed to install $app_name even after fixing dependencies"
-            fi
-        fi
-    else
-        log_message "Failed to download $app_name package"
-    fi
-}
 
 
 
@@ -564,131 +414,6 @@ fix_pnpm_permissions() {
     fi
 }
 
-# Function to install/upgrade via pnpm (absolute PNPM_BIN)
-install_via_pnpm() {
-    local package_id="$1"
-    local app_name="$2"
-    local pnpm_bin=""
-    local pnpm_global_bin=""
-    local pnpm_run_path=""
-    local package_basename=""
-    local binary_path=""
-
-    pnpm_bin="$(resolve_pnpm_binary_path)"
-    if [ -z "$pnpm_bin" ]; then
-        log_message "pnpm not found. Run 17_install_node_toolchain_24.sh first. Cannot install $app_name"
-        return
-    fi
-
-    pnpm_global_bin="$(resolve_pnpm_global_bin_dir "$pnpm_bin")"
-    pnpm_run_path="${NODE_BIN_DIR:-$(dirname "$pnpm_bin")}:${pnpm_global_bin:-}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-    log_message "Upgrading $app_name via pnpm ($pnpm_bin): $package_id"
-    export npm_config_confirm_modules_purge=false
-    package_basename=$(echo "$package_id" | sed 's|.*/||' | sed 's|@.*||')
-    if timeout 300 env "PATH=$pnpm_run_path" "npm_config_confirm_modules_purge=false" \
-        "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
-        log_message "Successfully upgraded $app_name via pnpm"
-        if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin" ]; then
-            $USE_SUDO find "$pnpm_global_bin" -type f -exec chmod +x {} \; 2>/dev/null || true
-            binary_path="$pnpm_global_bin/$package_basename"
-            if [ -f "$binary_path" ]; then
-                $USE_SUDO chmod +x "$binary_path" 2>/dev/null || true
-            fi
-        fi
-        fix_pnpm_permissions
-    else
-        log_message "Failed to upgrade $app_name via pnpm"
-    fi
-}
-
-# Function to install via uv tool
-install_via_uv_tool() {
-    local package_id="$1"
-    local app_name="$2"
-
-    if ! command_exists uv; then
-        log_message "uv is not installed. Cannot install $app_name"
-        return
-    fi
-
-    log_message "Installing $app_name via uv tool: $package_id"
-    if timeout 300 uv tool install "$package_id"; then
-        log_message "Successfully installed $app_name via uv tool"
-    else
-        log_message "Failed to install $app_name via uv tool"
-    fi
-}
-
-# Function to install via pipx
-install_via_pipx() {
-    local package_id="$1"
-    local app_name="$2"
-
-    if ! command_exists pipx; then
-        log_message "pipx is not installed. Cannot install $app_name"
-        return
-    fi
-
-    log_message "Installing $app_name via pipx: $package_id"
-    if timeout 300 pipx install "$package_id"; then
-        log_message "Successfully installed $app_name via pipx"
-    else
-        log_message "Failed to install $app_name via pipx"
-    fi
-}
-
-# Function to install via curl (download and install)
-install_via_curl() {
-    local download_url="$1"
-    local app_name="$2"
-    local exec_name="$3"
-
-    if ! command_exists curl; then
-        log_message "curl is not installed. Installing curl..."
-        if ! $USE_SUDO apt update && $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl; then
-            log_message "Failed to install curl. Cannot install $app_name"
-            return 1
-        fi
-    fi
-
-    log_message "Installing $app_name via curl from: $download_url"
-
-    # Create temporary file
-    local temp_file="$SCRIPT_TEMP_DIR/${exec_name}_install_$(date +%s)"
-
-    # Download the installation script or binary
-    if curl -fsSL "$download_url" -o "$temp_file"; then
-        # Make executable if it's a script
-        chmod +x "$temp_file"
-
-        # If it's an installation script, run it
-        if head -n 1 "$temp_file" | grep -q "^#!"; then
-            log_message "Executing installation script for $app_name"
-            if bash "$temp_file"; then
-                log_message "Successfully installed $app_name via curl script"
-                return 0
-            else
-                log_message "Failed to execute installation script for $app_name"
-                return 1
-            fi
-        else
-            # If it's a binary, install it directly
-            local install_path="/usr/local/bin/$exec_name"
-            log_message "Installing $app_name binary to $install_path"
-            if $USE_SUDO cp "$temp_file" "$install_path" && $USE_SUDO chmod +x "$install_path"; then
-                log_message "Successfully installed $app_name binary via curl"
-                return 0
-            else
-                log_message "Failed to install $app_name binary"
-                return 1
-            fi
-        fi
-    else
-        log_message "Failed to download $app_name from: $download_url"
-        return 1
-    fi
-}
 
 # Function to create symlink to /usr/local/bin
 create_symlink_usr_local_bin() {

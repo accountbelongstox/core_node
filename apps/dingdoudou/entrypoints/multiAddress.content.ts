@@ -18,6 +18,7 @@ import {
   sleep,
   textOf,
   waitFor,
+  type AutomationContext,
   type ActionMessage,
   type ActionResult,
 } from '@/lib/domAuto';
@@ -55,13 +56,13 @@ function collectAddressRows(): HTMLElement[] {
   return all.filter((el) => !all.some((other) => other !== el && set.has(other) && el.contains(other)));
 }
 
-async function selectAddress(msg: ActionMessage): Promise<ActionResult> {
+async function selectAddress(msg: ActionMessage, ctx: AutomationContext): Promise<ActionResult> {
   const keyword = String((msg.keyword as string) ?? (msg.text as string) ?? '').trim();
   if (!keyword) return { success: false, detail: 'no keyword provided' };
 
   // Wait for the address list to render (it can lazy-load on checkout).
-  await waitFor(() => (collectAddressRows().length ? true : null), 6000);
-  await sleep(150);
+  await waitFor(() => (collectAddressRows().length ? true : null), 6000, 200, ctx);
+  await sleep(150, ctx);
 
   const rows = collectAddressRows();
   let match = rows.find((row) => textOf(row).includes(keyword)) || null;
@@ -95,10 +96,10 @@ export default defineContentScript({
   ],
   runAt: 'document_start',
   allFrames: true,
-  main() {
-    onAction({ selectAddress });
+  main(ctx) {
+    onAction(ctx, { selectAddress: (message) => selectAddress(message, ctx) });
 
-    void domReady().then(() => {
+    void domReady(8000, ctx).then(() => {
       sendDdEvent('addressPageReady', { rows: collectAddressRows().length });
     });
   },

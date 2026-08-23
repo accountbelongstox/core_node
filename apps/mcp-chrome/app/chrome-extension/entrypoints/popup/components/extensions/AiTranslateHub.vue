@@ -192,3 +192,4 @@ onMounted(async () => {
 </script>
 
 <style scoped src="./bing-dictionary/client-mode-styles.css"></style>
+<style scoped src="./bing-dictionary/client-mode-runtime-styles.css"></style>
