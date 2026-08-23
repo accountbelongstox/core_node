@@ -11,8 +11,13 @@ import urllib.parse
 import uuid
 from typing import Any, Dict, List
 
-from pycore.pyctl.relay.relay_processor import relay_operation_processor
-from pycore.pyctl.relay.relay_transport import RelayHttpError, relay_transport
+from pycore.pyctl.relay.laravel_relay_operation_processor import (
+    laravel_relay_operation_processor,
+)
+from pycore.pyctl.relay.laravel_relay_transport import (
+    RelayHttpError,
+    laravel_relay_transport,
+)
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -47,8 +52,8 @@ RELAY_OPERATION_BATCH_THREAD = "RelayV2OperationBatchThread"
 RELAY_TOKEN_LIFETIME_FRACTION = 0.8
 
 
-class RelayService:
-    """Coordinate enrollment, heartbeat, wake subscription, and recovery claims."""
+class LaravelRelayAgentService:
+    """Coordinate the Pycore device agent with Laravel Relay V2."""
 
     def __init__(self) -> None:
         init_serialized_owner(
@@ -296,7 +301,7 @@ class RelayService:
         force_claim = True
         relay_activity_log.info("control.loop.started")
         while not self._should_stop():
-            endpoint = relay_transport.endpoint()
+            endpoint = laravel_relay_transport.endpoint()
             if not endpoint:
                 relay_activity_log.warning(
                     "coordinator.endpoint.unavailable",
@@ -353,6 +358,7 @@ class RelayService:
                     "control.http.failed",
                     status=exc.status_code,
                     action_name=exc.action,
+                    error_code=exc.error_code,
                     retry_seconds=retry_seconds,
                 )
                 self._wait_control(retry_seconds)
@@ -394,7 +400,7 @@ class RelayService:
                 socket.gethostname() or relay_device_identity.device_id(),
                 platform.platform(),
             )
-            data = relay_transport.request_json(
+            data = laravel_relay_transport.request_json(
                 "POST",
                 relay_contract.endpoint("enrollment_create"),
                 {"device": descriptor},
@@ -402,7 +408,7 @@ class RelayService:
                 coordinator_url=endpoint,
             )
         else:
-            data = relay_transport.request_json(
+            data = laravel_relay_transport.request_json(
                 "GET",
                 relay_contract.endpoint(
                     "enrollment_status",
@@ -477,7 +483,7 @@ class RelayService:
         )
 
     def _heartbeat(self, coordinator_url: str) -> None:
-        data = relay_transport.request_json(
+        data = laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint("device_heartbeat"),
             {
@@ -517,7 +523,7 @@ class RelayService:
                 topic=snapshot.get("topic"),
             )
             return
-        data = relay_transport.request_json(
+        data = laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint("device_hub_authorization"),
             {
@@ -533,7 +539,7 @@ class RelayService:
         self._remember_hub(hub, coordinator_url)
 
     def _claim_operations(self, coordinator_url: str) -> None:
-        data = relay_transport.request_json(
+        data = laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint("operation_claim"),
             {
@@ -603,7 +609,7 @@ class RelayService:
         lease_owner: str,
     ) -> None:
         try:
-            relay_operation_processor.process_many(descriptors, lease_owner)
+            laravel_relay_operation_processor.process_many(descriptors, lease_owner)
         finally:
             self._release_operation_batch()
             THREAD_BUS.signal(
@@ -628,7 +634,7 @@ class RelayService:
             )
             return
         try:
-            relay_transport.request_json(
+            laravel_relay_transport.request_json(
                 "POST",
                 relay_contract.endpoint("device_event"),
                 {
@@ -788,7 +794,7 @@ class RelayService:
         )
 
 
-relay_service = RelayService()
+laravel_relay_agent_service = LaravelRelayAgentService()
 
 
-__all__ = ["RelayService", "relay_service"]
+__all__ = ["laravel_relay_agent_service"]

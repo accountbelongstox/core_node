@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Signed outbound-only Laravel transport for the Pycore Relay V2 agent."""
+"""Signed outbound-only transport for the Laravel Relay V2 coordinator."""
 
 from __future__ import annotations
 
@@ -22,14 +22,21 @@ RELAY_BINARY_CONTENT_TYPE = "application/octet-stream"
 class RelayHttpError(RuntimeError):
     """One coordinator response outside the successful HTTP range."""
 
-    def __init__(self, status_code: int, action: str) -> None:
-        super().__init__(f"relay_http_{status_code}:{action}")
+    def __init__(
+        self,
+        status_code: int,
+        action: str,
+        error_code: str = "",
+    ) -> None:
+        detail = str(error_code or f"relay_http_{status_code}")
+        super().__init__(f"{detail}:{action}")
         self.status_code = int(status_code)
         self.action = str(action)
+        self.error_code = str(error_code)
 
 
-class RelayTransport:
-    """Encode exact request bytes, sign them, and retain raw response bytes."""
+class LaravelRelayTransport:
+    """Encode exact request bytes for the Laravel Relay V2 coordinator."""
 
     @staticmethod
     def endpoint() -> str:
@@ -147,14 +154,24 @@ class RelayTransport:
         status = int(getattr(response, "status_code", 0) or 0)
         elapsed_ms = (time.perf_counter() - started) * 1000
         if status < 200 or status >= 300:
+            response_type = str(
+                getattr(response, "headers", {}).get("Content-Type") or ""
+            ).lower()
+            error_document = response.json() if "json" in response_type else {}
+            error_code = (
+                str(error_document.get("error_code") or "")
+                if isinstance(error_document, dict)
+                else ""
+            )
             relay_activity_log.error(
                 action + ".failed",
                 method=normalized_method,
                 path=path,
                 status=status,
+                error_code=error_code,
                 duration_ms=f"{elapsed_ms:.1f}",
             )
-            raise RelayHttpError(status, action)
+            raise RelayHttpError(status, action, error_code)
         content = bytes(getattr(response, "content", b"") or b"")
         relay_activity_log.success(
             action + ".completed",
@@ -168,7 +185,7 @@ class RelayTransport:
         return response
 
 
-relay_transport = RelayTransport()
+laravel_relay_transport = LaravelRelayTransport()
 
 
-__all__ = ["RelayHttpError", "relay_transport"]
+__all__ = ["RelayHttpError", "laravel_relay_transport"]

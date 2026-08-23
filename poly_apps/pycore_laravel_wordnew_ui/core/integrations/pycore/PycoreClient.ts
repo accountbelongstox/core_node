@@ -2,8 +2,8 @@ import { MasterApiClient, type MasterRequestOptions } from '../../network/api-cl
 import { StorageManager } from '../../persistence';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { normalizePycorePath } from './pycoreEndpoints';
-import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
-import { relayDeliver } from './PycoreRelayTransport';
+import { rewritePycoreEndpoint } from './pycoreTarget';
+import { pycoreTransportSelector } from './PycoreTransportSelector';
 import {
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
@@ -42,8 +42,12 @@ export class PycoreMasterClient extends MasterApiClient {
    * of the master client apply unchanged on either leg.
    */
   protected deliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
-    if (isPycoreRelayMode()) return relayDeliver(url, init, signal);
-    return super.deliver(url, init, signal);
+    return pycoreTransportSelector.deliver(
+      url,
+      init,
+      signal,
+      () => super.deliver(url, init, signal),
+    );
   }
 
   isReachable(): boolean {
@@ -81,7 +85,7 @@ export class PycoreMasterClient extends MasterApiClient {
       this.clientId = stored;
       return stored;
     }
-    if (isPycoreRelayMode()) {
+    if (pycoreTransportSelector.usesLaravelRelay()) {
       this.clientId = `relay-${this.getBrowserId()}`;
       StorageManager.setRaw(StorageKeys.HTTP_CLIENT_ID, this.clientId);
       return this.clientId;

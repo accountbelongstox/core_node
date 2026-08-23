@@ -10,6 +10,7 @@ use App\Apps\RelayV2\RelayV2Models\RelayV2EnrollmentModel;
 use App\Apps\RelayV2\RelayV2TablesMaps\RelayV2TablesMaps;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 final class RelayV2EnrollmentService
@@ -32,13 +33,33 @@ final class RelayV2EnrollmentService
         sort($capabilities, SORT_STRING);
         $capabilityDigest = hash('sha256', implode("\n", $capabilities));
         if (!hash_equals(RelayV2Contract::digest(), (string) $device['contract_digest'])) {
+            Log::warning('[RelayV2] Enrollment contract digest rejected', [
+                'device_id' => $deviceId,
+                'expected_digest' => RelayV2Contract::digest(),
+                'received_digest' => (string) $device['contract_digest'],
+            ]);
             throw new RelayV2DomainException('contract_digest_conflict', 409);
         }
         if (!hash_equals($capabilityDigest, strtolower((string) $device['capability_digest']))) {
+            Log::warning('[RelayV2] Enrollment capability digest rejected', [
+                'device_id' => $deviceId,
+                'expected_digest' => $capabilityDigest,
+                'received_digest' => strtolower((string) $device['capability_digest']),
+            ]);
             throw new RelayV2DomainException('capability_digest_conflict', 409);
         }
 
-        return $connection->transaction(function () use ($device, $deviceId, $publicKey, $capabilities): array {
+        return $connection->transaction(function () use (
+            $connection,
+            $device,
+            $deviceId,
+            $publicKey,
+            $capabilities
+        ): array {
+            $connection->select(
+                'SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text), 0))',
+                [$deviceId]
+            );
             $enrollment = RelayV2EnrollmentModel::query()
                 ->where('device_id', $deviceId)
                 ->where('public_key', $publicKey)

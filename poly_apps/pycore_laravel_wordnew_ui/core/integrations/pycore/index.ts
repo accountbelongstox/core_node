@@ -71,10 +71,14 @@ export {
 } from './pycoreTarget';
 export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
 export {
-  relayDeliver, relayDesignate, relayUndesignate, relayPairedMachineId,
-  isRelayForwardingAvailable, isPycoreRelayError,
-} from './PycoreRelayTransport';
-export type { PycoreRelayError, PycoreRelayErrorKind } from './PycoreRelayTransport';
+  deliverThroughLaravelRelay, designateLaravelRelayDevice,
+  clearLaravelRelayDevice, laravelRelayDeviceId,
+  isLaravelRelayReady, isPycoreRelayError,
+} from './PycoreLaravelRelayTransport';
+export type {
+  PycoreRelayError,
+  PycoreRelayErrorKind,
+} from './PycoreLaravelRelayTransport';
 
 export {
   PYCORE_PORT, PycorePaths,

@@ -67,15 +67,15 @@ function pairingFresh(pairing: RelayV2Pairing | undefined): boolean {
   return Number.isFinite(expiresAt) && expiresAt - Date.now() > PAIR_RENEW_MARGIN_MS;
 }
 
-export function relayPairedMachineId(): string | null {
+export function laravelRelayDeviceId(): string | null {
   return loadRelayState().selected_device_id;
 }
 
-export function isRelayForwardingAvailable(): boolean {
-  return isPycoreRelayMode() && relayPairedMachineId() !== null;
+export function isLaravelRelayReady(): boolean {
+  return isPycoreRelayMode() && laravelRelayDeviceId() !== null;
 }
 
-export async function relayDesignate(deviceId: string): Promise<RelayV2Pairing> {
+export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayV2Pairing> {
   const state = loadRelayState();
   state.selected_device_id = deviceId;
   persistRelayState();
@@ -101,7 +101,7 @@ export async function relayDesignate(deviceId: string): Promise<RelayV2Pairing> 
   return request;
 }
 
-export async function relayUndesignate(): Promise<void> {
+export async function clearLaravelRelayDevice(): Promise<void> {
   const state = loadRelayState();
   const deviceId = state.selected_device_id;
   const pairing = deviceId ? state.pairings[deviceId] : undefined;
@@ -126,7 +126,7 @@ async function ensurePair(): Promise<RelayV2Pairing> {
     if (onlineDevices.length === 1) deviceId = onlineDevices[0].device_id;
     else throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
   }
-  return relayDesignate(deviceId).catch((error: any) => {
+  return designateLaravelRelayDevice(deviceId).catch((error: any) => {
     if (error?.status === 404 || error?.status === 409) {
       throw new PycoreRelayError('peer-offline', 'RELAY_DEVICE_UNAVAILABLE', error.status);
     }
@@ -234,7 +234,11 @@ async function responseBytes(operation: RelayV2Operation): Promise<Uint8Array | 
   return bytes;
 }
 
-export async function relayDeliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+export async function deliverThroughLaravelRelay(
+  url: string,
+  init: RequestInit,
+  signal?: AbortSignal,
+): Promise<Response> {
   abortGuard(signal);
   const pairing = await ensurePair();
   const parsed = new URL(url);

@@ -37,7 +37,20 @@ final class RelayV2PairingService
         $clientHash = $this->clientHash($userId, $clientInstanceId);
         $connection = DB::connection(RelayV2TablesMaps::connection());
 
-        return $connection->transaction(function () use ($userId, $deviceId, $clientHash): array {
+        return $connection->transaction(function () use (
+            $connection,
+            $userId,
+            $deviceId,
+            $clientHash
+        ): array {
+            $pairing = null;
+            $expiresAt = null;
+            $requiresEvent = false;
+
+            $connection->select(
+                'SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text), 0))',
+                [$userId."\0".$deviceId."\0".$clientHash]
+            );
             $device = $this->ownedDevice($userId, $deviceId);
             $pairing = RelayV2PairingModel::query()
                 ->where('user_id', $userId)
@@ -59,6 +72,7 @@ final class RelayV2PairingService
                     'last_seen_at' => now(),
                     'expires_at' => $expiresAt,
                 ]);
+                $requiresEvent = true;
             } elseif ((string) $pairing->state !== RelayV2Constants::PAIRING_ACTIVE
                 || (int) $pairing->credential_version !== (int) $device->current_credential_version
                 || $pairing->expires_at->lte(now())) {
@@ -70,8 +84,11 @@ final class RelayV2PairingService
                     'expires_at' => $expiresAt,
                     'revoked_at' => null,
                 ])->save();
+                $requiresEvent = true;
             }
-            $this->events->changed($pairing);
+            if ($requiresEvent) {
+                $this->events->changed($pairing);
+            }
 
             return ['pairing' => $this->descriptor($pairing)];
         }, 3);
@@ -197,7 +214,9 @@ final class RelayV2PairingService
                     'revoked_at' => $targetState === RelayV2Constants::PAIRING_REVOKED ? now() : null,
                 ])->save();
             }
-            $this->events->changed($pairing);
+            if ($requiresMutation) {
+                $this->events->changed($pairing);
+            }
 
             return ['pairing' => $this->descriptor($pairing)];
         }, 3);
