@@ -46,9 +46,7 @@ REQUIRED_WIN_COMMON_FILES = [
     "WindowsPathFunction.ps1",
     "WindowsServiceManager.ps1",
     "CommonFunc.7z.gz.js",
-    "applicationsXml/ApplicationsList.xml",
 ]
 
 # Default branch
 DEFAULT_BRANCH = "main"
-

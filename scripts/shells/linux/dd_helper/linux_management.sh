@@ -617,7 +617,7 @@ show_slim_disk_submenu() {
 # Function to show Linux system tools submenu
 show_linux_system_tools_submenu() {
     local selected=0
-    local total=10
+    local total=12
     local old_settings=$(stty -g)
     local char=""
     local seq=""
@@ -631,6 +631,8 @@ show_linux_system_tools_submenu() {
         "RustDesk Server Install Info (Key & Ports)"
         "APP Install"
         "Slim & Disk Cleanup (scan + GPU/Snap/Apache/Server slim)"
+        "Management & Backup"
+        "User Management"
         "Back to Linux Management"
     )
 
@@ -704,6 +706,12 @@ show_linux_system_tools_submenu() {
                         show_slim_disk_submenu
                         ;;
                     9)
+                        show_management_and_backup
+                        ;;
+                    10)
+                        show_linux_user_management_menu
+                        ;;
+                    11)
                         return 0
                         ;;
                 esac
@@ -821,7 +829,7 @@ show_linux_user_management_menu() {
 # Function to show the consolidated Linux management submenu.
 show_linux_management_submenu() {
     local selected=0
-    local total=12
+    local total=9
     local old_settings="$(stty -g)"
     local char=""
     local seq=""
@@ -830,12 +838,9 @@ show_linux_management_submenu() {
         "Git Management"
         "System Information & Variables"
         "Unified App Manager"
-        "Set Special Software Environment Variables (like AI)"
-        "Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH)"
-        "Management & Backup"
-        "AI & MCP Management (status/install/sync 8 tools)"
-        "Push to git [all]"
-        "User Management"
+        "Special Software Environment"
+        "Service Manager"
+        "AI & MCP Management"
         "Linux System Tools"
         "Exit Linux Management"
     )
@@ -877,12 +882,9 @@ show_linux_management_submenu() {
                     3) (cd "$CORE_NODE_ROOT_DIR" && bash "$UNIFIED_MANAGER_SCRIPT_PATH") ;;
                     4) show_special_software_env_menu ;;
                     5) show_service_manager ;;
-                    6) show_management_and_backup ;;
-                    7) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
-                    8) handle_menu_action "push_git" "all" "GIT_PUSH_TARGET" ;;
-                    9) show_linux_user_management_menu ;;
-                    10) show_linux_system_tools_submenu ;;
-                    11) return 0 ;;
+                    6) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
+                    7) show_linux_system_tools_submenu ;;
+                    8) return 0 ;;
                 esac
                 stty -icanon -echo
                 ;;
