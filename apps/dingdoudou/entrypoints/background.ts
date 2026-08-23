@@ -82,16 +82,14 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       const lic = await store.getLicense();
       if (lic && !isLicenseActive(lic) && lic.mode !== 'locked') {
         const locked = lockedLicense();
-        await store.setLicense(locked);
-        return ok(locked);
+        return ok(await store.setLicenseIfCurrent(lic, locked));
       }
       if (lic?.mode === 'member') {
         const backend = await store.getBackend();
         if (backend?.memberToken) {
           try {
             const refreshed = await heartbeat(backend);
-            await store.setLicense(refreshed);
-            return ok(refreshed);
+            return ok(await store.setLicenseIfCurrent(lic, refreshed));
           } catch {
             return ok(lic);
           }
@@ -102,7 +100,7 @@ async function handle(req: BgRequest): Promise<BgResponse> {
     case 'license.submitSuperCode': {
       if (!verifySuperCode(req.code)) throw new AppError('license.superCodeInvalid');
       const lic = superLicense(req.code);
-      await store.setLicense(lic);
+      await store.setOfflineLicense(lic);
       return ok(lic);
     }
     case 'license.loginMember': {
@@ -113,27 +111,15 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       const cfg: BackendConfig = { baseUrl, deviceId };
       const lic = await memberLogin(cfg, req.username, req.password);
       if (!isLicenseActive(lic)) throw new AppError('license.memberInactive');
-      await store.setBackend({ baseUrl, deviceId, memberToken: lic.token });
-      await store.setLicense(lic);
+      await store.setMemberSession({ baseUrl, deviceId, memberToken: lic.token }, lic);
       return ok(lic);
     }
     case 'license.clear': {
-      await store.setLicense(null);
+      await store.clearLicenseSession();
       return ok(null);
     }
     case 'backend.get':
       return ok(await store.getBackend());
-    case 'backend.set': {
-      const deviceId = await ensureDeviceId();
-      const next = await store.updateBackend((current) => ({
-        baseUrl: req.config.baseUrl
-          ? normalizeBackendUrl(req.config.baseUrl)
-          : current?.baseUrl || DEFAULT_BACKEND_URL,
-        deviceId: req.config.deviceId || deviceId,
-        memberToken: req.config.memberToken ?? current?.memberToken,
-      }));
-      return ok(next);
-    }
 
     // ---- Accounts ----
     case 'accounts.list':

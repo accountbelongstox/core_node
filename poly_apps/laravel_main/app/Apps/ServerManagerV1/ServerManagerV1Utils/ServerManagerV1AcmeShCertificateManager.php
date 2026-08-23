@@ -193,7 +193,7 @@ class ServerManagerV1AcmeShCertificateManager
                 'reloaded' => (bool) ($result['success'] ?? false),
                 'error' => ($certificate['valid'] ?? false) === true
                     ? ''
-                    : (string) ($result['error'] ?? 'Windows certificate postcondition failed.'),
+                    : (string) ($result['error'] ?? __('runtime.frankenphp_certificate_postcondition_failed')),
             ];
         }
 
@@ -433,7 +433,9 @@ class ServerManagerV1AcmeShCertificateManager
             'success' => $valid,
             'certificates' => $certificates,
             'output' => trim((string) ($result['output'] ?? '')),
-            'error' => $valid ? '' : trim((string) ($result['error'] ?? 'Windows certificate postcondition failed.')),
+            'error' => $valid
+                ? ''
+                : trim((string) ($result['error'] ?? __('runtime.frankenphp_certificate_postcondition_failed'))),
         ];
     }
 }

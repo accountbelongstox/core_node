@@ -19,7 +19,6 @@ export type BgRequest =
   | { type: 'license.loginMember'; baseUrl: string; username: string; password: string }
   | { type: 'license.clear' }
   | { type: 'backend.get' }
-  | { type: 'backend.set'; config: Partial<BackendConfig> }
   // accounts
   | { type: 'accounts.list' }
   | { type: 'accounts.captureActiveTab' } // read PDD credentials for the most recently used PDD tab
@@ -73,7 +72,6 @@ export interface ResponseMap {
   'license.loginMember': LicenseState;
   'license.clear': null;
   'backend.get': BackendConfig | null;
-  'backend.set': BackendConfig;
   'accounts.list': AccountsPayload;
   'accounts.captureActiveTab': CaptureResult;
   'accounts.bind': AccountsPayload;

@@ -97,6 +97,8 @@ fm_domain_render_route() {
     local ui_http_addresses=""
     local api_handlers=""
     local ui_handlers=""
+    local api_http_redirect=""
+    local ui_http_redirect=""
 
     # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
     # pinned explicitly); the dnspod module stanza is the fallback.
@@ -132,6 +134,8 @@ fm_domain_render_route() {
     ui_http_addresses="http://${domain}:${FM_DOMAIN_HTTP_PORT}, http://www.${domain}:${FM_DOMAIN_HTTP_PORT}, http://${prefix}.${domain}:${FM_DOMAIN_HTTP_PORT}, http://www.${prefix}.${domain}:${FM_DOMAIN_HTTP_PORT}"
     api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL" "$FM_DOMAIN_API_EARLY_HINTS_LINK")"
     ui_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_UI_BACKEND_URL" "$FM_DOMAIN_UI_EARLY_HINTS_LINK")"
+    api_http_redirect="redir https://${api_host}{uri} permanent"
+    ui_http_redirect="redir https://{host}{uri} permanent"
     cat <<EOF
 # ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
 
@@ -144,11 +148,11 @@ ${tls_directive}${ui_handlers}
 }
 
 ${api_http_address} {
-${api_handlers}
+${api_http_redirect}
 }
 
 ${ui_http_addresses} {
-${ui_handlers}
+${ui_http_redirect}
 }
 EOF
 }

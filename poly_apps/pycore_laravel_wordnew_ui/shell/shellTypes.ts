@@ -10,7 +10,7 @@
  * the architecture (which end a file implements) is visible in its name.
  */
 
-export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 'vortex';
+export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 'vortex' | 'codemart';
 
 export type ThemeId = 'nexus' | 'pycore' | 'iris';
 
@@ -21,6 +21,7 @@ export const END_THEME: Record<EndId, ThemeId> = {
   'pycore-manager': 'pycore',
   'wordnew': 'iris',
   'vortex': 'pycore',
+  'codemart': 'nexus',
 };
 
 export const END_META: Record<Exclude<EndId, 'home'>, { label: string; path: string; theme: ThemeId }> = {
@@ -28,6 +29,7 @@ export const END_META: Record<Exclude<EndId, 'home'>, { label: string; path: str
   'pycore-manager': { label: 'Pycore Manager', path: '/pycore-manager', theme: 'pycore' },
   'wordnew': { label: 'WordNew', path: '/wordnew', theme: 'iris' },
   'vortex': { label: 'Vortex Sandbox', path: '/vortex', theme: 'pycore' },
+  'codemart': { label: 'CodeMart', path: '/codemart', theme: 'nexus' },
 };
 
 /**
@@ -45,6 +47,7 @@ export const END_USES_PYCORE: Record<EndId, boolean> = {
   'pycore-manager': true,
   'wordnew': false,   // pycore bus connects ONLY under pycore routes (paused, state kept)
   'vortex': true,      // OKX panels drive the pycore RPC bus
+  'codemart': false,
   // 'pdd-manager': false, // Archived: admin console talks only to laravel_main :9000, no pycore bus.
 };
 

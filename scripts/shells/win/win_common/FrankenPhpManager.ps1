@@ -14,7 +14,6 @@ $script:FrankenPhpCommonDirectory = Split-Path -Parent $PSCommandPath
 $script:FrankenPhpWinDirectory = Split-Path -Parent $script:FrankenPhpCommonDirectory
 $script:FrankenPhpShellsDirectory = Split-Path -Parent $script:FrankenPhpWinDirectory
 $script:FrankenPhpScriptsDirectory = Split-Path -Parent $script:FrankenPhpShellsDirectory
-$script:FrankenPhpRepositoryRoot = Split-Path -Parent $script:FrankenPhpScriptsDirectory
 $script:FrankenPhpGlobalVarsPath = Join-Path $script:FrankenPhpCommonDirectory 'GlobalVars.ps1'
 $script:FrankenPhpServiceContractPath = Join-Path $script:FrankenPhpCommonDirectory 'ServiceContract.ps1'
 $script:FrankenPhpWindowsPathPath = Join-Path $script:FrankenPhpCommonDirectory 'WindowsPathFunction.ps1'
@@ -22,6 +21,7 @@ $script:FrankenPhpWinswManagerPath = Join-Path $script:FrankenPhpCommonDirectory
 . $script:FrankenPhpGlobalVarsPath
 . $script:FrankenPhpServiceContractPath
 
+$script:FrankenPhpRepositoryRoot = [System.IO.Path]::GetFullPath([string]$Global:PROJECT_DIR)
 $script:FrankenPhpWebRoot = 'D:\www'
 $script:FrankenPhpRootSubpath = [string](Get-ServiceContractValue -ContractPath 'paths.frankenphp_root_windows_subpath')
 $script:FrankenPhpRoot = Join-Path $script:FrankenPhpWebRoot $script:FrankenPhpRootSubpath
@@ -303,10 +303,18 @@ function Ensure-FrankenPhpRuntimeSecret {
             $randomGenerator.Dispose()
         }
     }
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        return $null
+    return (Get-FrankenPhpRuntimeSecret -Name $Name)
+}
+
+function Get-FrankenPhpRuntimeSecret {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $path = Join-Path $script:FrankenPhpRuntimeSecretDirectory $Name
+    $value = ''
+
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        $value = [string](Get-Content -LiteralPath $path -Raw)
     }
-    $value = [string](Get-Content -LiteralPath $path -Raw)
     if ([string]::IsNullOrWhiteSpace($value)) {
         return $null
     }
@@ -450,6 +458,59 @@ function Get-FrankenPhpReverseProxyHandlers {
 "@
 }
 
+function Get-FrankenPhpExpectedRoutePaths {
+    $access = Get-FrankenPhpAccessConfiguration
+    $paths = @()
+    $domain = ''
+
+    foreach ($domain in @($access.Domains)) {
+        $domain = ([string]$domain).Trim().ToLowerInvariant()
+        if (-not [string]::IsNullOrWhiteSpace($domain)) {
+            $paths = @($paths) + @(Join-Path $script:FrankenPhpLaravelRoutesDirectory ("{0}.caddy" -f $domain))
+        }
+    }
+    return $paths
+}
+
+function Remove-FrankenPhpStaleDomainRoutes {
+    $expectedPaths = @(Get-FrankenPhpExpectedRoutePaths)
+    $routeFiles = @(Get-ChildItem -LiteralPath $script:FrankenPhpLaravelRoutesDirectory -Filter '*.caddy' -File -ErrorAction SilentlyContinue)
+    $routeFile = $null
+    $firstLine = ''
+
+    foreach ($routeFile in $routeFiles) {
+        if ($expectedPaths -contains $routeFile.FullName) {
+            continue
+        }
+        $firstLine = [string](Get-Content -LiteralPath $routeFile.FullName -TotalCount 1)
+        if ($firstLine -like '# managed-by: frankenphp_domain_common *') {
+            Remove-Item -LiteralPath $routeFile.FullName -Force
+        }
+    }
+}
+
+function Test-FrankenPhpDomainRoutesReady {
+    $expectedPaths = @(Get-FrankenPhpExpectedRoutePaths)
+    $routeFiles = @(Get-ChildItem -LiteralPath $script:FrankenPhpLaravelRoutesDirectory -Filter '*.caddy' -File -ErrorAction SilentlyContinue)
+    $expectedPath = ''
+    $routeFile = $null
+    $firstLine = ''
+
+    foreach ($expectedPath in $expectedPaths) {
+        if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
+            return $false
+        }
+    }
+    foreach ($routeFile in $routeFiles) {
+        $firstLine = [string](Get-Content -LiteralPath $routeFile.FullName -TotalCount 1)
+        if ($firstLine -like '# managed-by: frankenphp_domain_common *' -and
+            $expectedPaths -notcontains $routeFile.FullName) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Ensure-FrankenPhpDomainRoutes {
     $access = Get-FrankenPhpAccessConfiguration
     $prefix = [string]$access.Prefix
@@ -498,10 +559,12 @@ $domain`:$httpsPort, www.$domain`:$httpsPort, $prefix.$domain`:$httpsPort, www.$
 $tlsLine$uiHandlers}
 
 http://$apiHost`:$httpPort {
-$apiHandlers}
+	redir https://$apiHost{uri} permanent
+}
 
 http://$domain`:$httpPort, http://www.$domain`:$httpPort, http://$prefix.$domain`:$httpPort, http://www.$prefix.$domain`:$httpPort {
-$uiHandlers}
+	redir https://{host}{uri} permanent
+}
 "@
         $routePath = Join-Path $script:FrankenPhpLaravelRoutesDirectory ("{0}.caddy" -f $domain)
         Set-FrankenPhpFileContent -Path $routePath -Content $content | Out-Null
@@ -509,14 +572,20 @@ $uiHandlers}
             $ready = $false
         }
     }
+    Remove-FrankenPhpStaleDomainRoutes
+    if (-not (Test-FrankenPhpDomainRoutesReady)) {
+        $ready = $false
+    }
     return $ready
 }
 
 function Ensure-FrankenPhpCaddyfile {
     Ensure-FrankenPhpWebAccessConfiguration | Out-Null
     $access = Get-FrankenPhpAccessConfiguration
-    $publisherKey = Ensure-FrankenPhpRuntimeSecret -Name $script:FrankenPhpPublisherKeyName
-    $subscriberKey = Ensure-FrankenPhpRuntimeSecret -Name $script:FrankenPhpSubscriberKeyName
+    Ensure-FrankenPhpRuntimeSecret -Name $script:FrankenPhpPublisherKeyName | Out-Null
+    Ensure-FrankenPhpRuntimeSecret -Name $script:FrankenPhpSubscriberKeyName | Out-Null
+    $publisherKey = Get-FrankenPhpRuntimeSecret -Name $script:FrankenPhpPublisherKeyName
+    $subscriberKey = Get-FrankenPhpRuntimeSecret -Name $script:FrankenPhpSubscriberKeyName
     $httpsPort = Get-ServiceContractPort -Name 'frankenphp_https'
     $adminPort = Get-ServiceContractPort -Name 'frankenphp_admin'
     $backendPort = Get-ServiceContractPort -Name 'laravel_api_backend'
@@ -630,7 +699,8 @@ function Ensure-FrankenPhpWindowsService {
     $service = $null
 
     . $script:FrankenPhpWinswManagerPath
-    $winswPath = Ensure-Winsw -RepoRootDir $script:FrankenPhpRepositoryRoot
+    Ensure-Winsw -RepoRootDir $script:FrankenPhpRepositoryRoot | Out-Null
+    $winswPath = Find-WinswExe -RepoRootDir $script:FrankenPhpRepositoryRoot
     if ([string]::IsNullOrWhiteSpace([string]$winswPath) -or
         -not (Test-Path -LiteralPath $winswPath -PathType Leaf)) {
         Write-FrankenPhpLog -Message 'WinSW binary postcondition failed.' -Type 'Error'

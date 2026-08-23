@@ -29,5 +29,5 @@ export function requestBackendOrigin(value: string): Promise<boolean> {
   if (url.protocol === 'http:' && REQUIRED_HTTP_HOSTS.has(url.hostname)) {
     return Promise.resolve(true);
   }
-  return chrome.permissions.request({ origins: [`${url.origin}/*`] });
+  return chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] });
 }

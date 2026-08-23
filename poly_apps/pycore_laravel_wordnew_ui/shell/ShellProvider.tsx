@@ -33,6 +33,7 @@ function endFromPath(pathname: string): EndId {
   if (pathname.startsWith('/pycore-manager')) return 'pycore-manager';
   if (pathname.startsWith('/wordnew')) return 'wordnew';
   if (pathname.startsWith('/vortex')) return 'vortex';
+  if (pathname.startsWith('/codemart')) return 'codemart';
   return 'home';
 }
 

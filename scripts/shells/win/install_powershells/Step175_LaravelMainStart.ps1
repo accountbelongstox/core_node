@@ -90,7 +90,8 @@ Ensure-FrankenPhpCaddyfile | Out-Null
 
 if ((Test-Path -LiteralPath $vendorAutoloadPath -PathType Leaf) -and
     (Test-Path -LiteralPath $workerPath -PathType Leaf) -and
-    (Test-Path -LiteralPath (Get-FrankenPhpCaddyfilePath) -PathType Leaf)) {
+    (Test-Path -LiteralPath (Get-FrankenPhpCaddyfilePath) -PathType Leaf) -and
+    (Test-FrankenPhpDomainRoutesReady)) {
     Ensure-FrankenPhpWindowsService | Out-Null
 }
 $service = Get-Service -Name (Get-FrankenPhpServiceName) -ErrorAction SilentlyContinue
