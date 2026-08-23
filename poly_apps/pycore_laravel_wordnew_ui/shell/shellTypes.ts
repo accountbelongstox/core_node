@@ -1,11 +1,13 @@
 /**
  * Unified shell — shared contracts.
  *
- * This single front-end ("nexus-dash" dashboard, upgraded to a shell) hosts three
+ * This single front-end ("nexus-dash" dashboard, upgraded to a shell) hosts
+ * multiple local application ends, including:
  * ends, each with its own prefixed API library, theme, and pages:
  *   - laravel-manager  (Lm*)  manages the Laravel app  -> Nexus theme
  *   - pycore-manager   (Pc*)  manages the pycore service -> Pycore theme
  *   - wordnew          (WfNew*) manages the WordNew client -> Iris theme
+ *   - codemart         (Cm*) manages software delivery -> Nexus theme
  * The home route is a cross-end summary. Files/components carry the end prefix so
  * the architecture (which end a file implements) is visible in its name.
  */
@@ -51,7 +53,7 @@ export const END_USES_PYCORE: Record<EndId, boolean> = {
   // 'pdd-manager': false, // Archived: admin console talks only to laravel_main :9000, no pycore bus.
 };
 
-/** Languages supported across the union of the three ends. */
+/** Languages supported across the union of registered application ends. */
 export const SHELL_LANGUAGES: { code: string; label: string }[] = [
   { code: 'en', label: 'English' },
   { code: 'zh', label: '中文' },

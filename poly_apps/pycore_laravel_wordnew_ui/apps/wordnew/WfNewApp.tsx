@@ -52,6 +52,7 @@ export const WfNewApp: React.FC = () => {
     setActiveThemeId,
     activeTheme,
     activeTab,
+    setIsSearchOverlayOpen,
     navStack,
     libraryRoute,
     setLibraryRoute,

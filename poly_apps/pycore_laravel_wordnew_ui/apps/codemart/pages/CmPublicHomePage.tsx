@@ -10,8 +10,6 @@ import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicFooter } from '../components/public-home/CmPublicFooter';
 import { CmPublicHeader } from '../components/public-home/CmPublicHeader';
 import { CmTestimonials } from '../components/public-home/CmTestimonials';
-import '../styles/cm-public-home.css';
-
 const CmPublicHomePage: React.FC = () => {
   const navigate = useNavigate();
   const authenticated = useAuthSession();

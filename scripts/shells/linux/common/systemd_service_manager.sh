@@ -12,19 +12,11 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Shared systemd service lifecycle library for core_node applications.
-# Universal systemd Service Manager for core_node applications.
-# Supports Ubuntu / Debian / Kali (any systemd-based distro).
-# Manages systemd services with ncore-* naming convention.
-
-# Source gvar_common.sh for path mapping functions (trust-based coding)
-# Only source if not already sourced (check for map_web_path function)
 SYSTEMD_SERVICE_MANAGER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! type map_web_path >/dev/null 2>&1; then
     source "$SYSTEMD_SERVICE_MANAGER_DIR/gvar_common.sh"
 fi
 
-# Variables declaration
 SERVICE_PREFIX="ncore-"
 SYSTEMD_DIR="/etc/systemd/system"  # System directory, keep as-is
 # Use map_web_path for path mapping (except /etc which is system directory)
@@ -34,6 +26,12 @@ DEFAULT_CPU_LIMIT="20%"
 DEFAULT_MEMORY_LIMIT="200M"
 REQUIRED_PACKAGES="systemd cgroup-tools"
 SYSTEMD_SCHEDULER_SCRIPT="$SYSTEMD_SERVICE_MANAGER_DIR/systemd_scheduler.sh"
+SYSTEMD_DEPENDENCIES_READY=false
+SYSTEMD_RESOURCE_LIMITS_VALID=false
+SYSTEMD_SUPPORT_LEVEL="unknown"
+SYSTEMD_SERVICE_FILE_READY=false
+SYSTEMD_SERVICE_MATCH=""
+SYSTEMD_OPERATION_READY=false
 
 source "$SYSTEMD_SCHEDULER_SCRIPT"
 
@@ -59,7 +57,6 @@ StandardError=journal
 [Install]
 WantedBy=multi-user.target'
 
-# Function to calculate memory limits based on system memory
 calculate_memory_limits() {
     local total_memory_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
     local total_memory_mb=$((total_memory_kb / 1024))
@@ -95,10 +92,11 @@ calculate_memory_limits() {
     esac
 }
 
-# Function to check and install required packages
 ensure_dependencies() {
     local missing_packages=""
-    
+    local package=""
+
+    SYSTEMD_DEPENDENCIES_READY=false
     for package in $REQUIRED_PACKAGES; do
         if ! dpkg -l | grep -q "^ii  $package "; then
             missing_packages="$missing_packages $package"
@@ -108,18 +106,22 @@ ensure_dependencies() {
     if [ -n "$missing_packages" ]; then
         echo "[INFO] Installing required packages:$missing_packages"
         apt-get update -qq
-        apt-get install -y $missing_packages
-        
-        if [ $? -ne 0 ]; then
-            echo "[ERROR] Failed to install required packages"
-            return 1
-        fi
+        apt-get install -y $missing_packages || true
     fi
-    
-    return 0
+
+    missing_packages=""
+    for package in $REQUIRED_PACKAGES; do
+        if ! dpkg -l | grep -q "^ii  $package "; then
+            missing_packages="$missing_packages $package"
+        fi
+    done
+    if [ -z "$missing_packages" ]; then
+        SYSTEMD_DEPENDENCIES_READY=true
+    else
+        echo "[ERROR] Required packages remain missing:$missing_packages"
+    fi
 }
 
-# Function to get mapped paths (ensures paths are always correctly mapped)
 get_mapped_log_dir() {
     map_web_path "logs" "ncore_services"
 }
@@ -128,7 +130,6 @@ get_mapped_services_log_dir() {
     map_web_path "www" "services_log"
 }
 
-# Function to ensure required directories exist
 ensure_directories() {
     # Recalculate paths to ensure they're correctly mapped
     local log_dir=$(get_mapped_log_dir)
@@ -142,54 +143,48 @@ ensure_directories() {
     SERVICES_LOG_DIR="$services_log_dir"
 }
 
-# Function to check systemd version and resource limit support
 check_systemd_support() {
     local systemd_version
     systemd_version=$(systemctl --version | head -n1 | awk '{print $2}')
 
     echo "[INFO] Systemd version: $systemd_version"
+    SYSTEMD_SUPPORT_LEVEL="legacy"
 
     # Check if systemd supports the resource limit features we use
     if [ "$systemd_version" -ge 230 ]; then
         echo "[INFO] Systemd supports MemoryMax and CPUQuota"
-        return 0
+        SYSTEMD_SUPPORT_LEVEL="supported"
     elif [ "$systemd_version" -ge 220 ]; then
         echo "[WARNING] Systemd version may have limited resource control support"
-        return 0
+        SYSTEMD_SUPPORT_LEVEL="limited"
     else
         echo "[WARNING] Systemd version is old, resource limits may not work properly"
-        return 1
     fi
 }
 
-# Function to validate resource limit format
 validate_resource_limits() {
     local cpu_limit="$1"
     local memory_limit="$2"
 
-    # Validate CPU limit (should end with %)
+    SYSTEMD_RESOURCE_LIMITS_VALID=true
     if [[ ! "$cpu_limit" =~ ^[0-9]+%$ ]]; then
         echo "[ERROR] Invalid CPU limit format: $cpu_limit (expected: 30%)"
-        return 1
+        SYSTEMD_RESOURCE_LIMITS_VALID=false
     fi
 
     # Validate memory limit (should end with K, M, or G)
     if [[ ! "$memory_limit" =~ ^[0-9]+[KMG]$ ]]; then
         echo "[ERROR] Invalid memory limit format: $memory_limit (expected: 500M, 1G, etc.)"
-        return 1
+        SYSTEMD_RESOURCE_LIMITS_VALID=false
     fi
-
-    return 0
 }
 
-# Function to get service name from script path
 get_service_name() {
     local script_path="$1"
     local basename_name=$(basename "$script_path" .sh)
     echo "${SERVICE_PREFIX}${basename_name}"
 }
 
-# Function to get execution command based on file extension
 get_exec_command() {
     local filepath="$1"
     local ext="${filepath##*.}"
@@ -216,7 +211,6 @@ get_exec_command() {
     esac
 }
 
-# Function to get appropriate working directory for different app types
 get_working_directory() {
     local script_path="$1"
     local script_dir=$(dirname "$script_path")
@@ -234,7 +228,6 @@ get_working_directory() {
     fi
 }
 
-# Function to create systemd service file
 create_service_file() {
     local service_name="$1"
     local script_path="$2"
@@ -243,14 +236,16 @@ create_service_file() {
     local memory_limit="${5:-$DEFAULT_MEMORY_LIMIT}"
 
     # Validate resource limits
-    if ! validate_resource_limits "$cpu_limit" "$memory_limit"; then
+    validate_resource_limits "$cpu_limit" "$memory_limit"
+    if [ "$SYSTEMD_RESOURCE_LIMITS_VALID" != true ]; then
         echo "[ERROR] Invalid resource limits, using defaults"
         cpu_limit="$DEFAULT_CPU_LIMIT"
         memory_limit="$DEFAULT_MEMORY_LIMIT"
     fi
 
     # Check systemd support
-    if ! check_systemd_support; then
+    check_systemd_support
+    if [ "$SYSTEMD_SUPPORT_LEVEL" = "legacy" ]; then
         echo "[WARNING] Systemd may not fully support resource limits"
     fi
 
@@ -283,18 +278,17 @@ create_service_file() {
     service_content="${service_content//\{memory_limit\}/$memory_limit}"
     service_content="${service_content//\{memory_high\}/$memory_high}"
     
-    echo "$service_content" > "$service_file"
-    
-    if [ $? -eq 0 ]; then
+    SYSTEMD_SERVICE_FILE_READY=false
+    echo "$service_content" > "$service_file" || true
+
+    if [ -s "$service_file" ]; then
+        SYSTEMD_SERVICE_FILE_READY=true
         echo "[SUCCESS] Service file created successfully"
-        return 0
     else
         echo "[ERROR] Failed to create service file"
-        return 1
     fi
 }
 
-# Function to list all ncore services
 list_ncore_services() {
     echo "[INFO] Listing all ncore-* services:"
     systemctl list-units --type=service --state=loaded | grep "^  ${SERVICE_PREFIX}" | while read -r line; do
@@ -305,28 +299,30 @@ list_ncore_services() {
     done
 }
 
-# Function to get service info by script path
 get_service_by_script() {
     local script_path="$1"
     local abs_script_path=$(realpath "$script_path" 2>/dev/null || echo "$script_path")
     
+    local service_file=""
+    local exec_start=""
+    local service_script=""
+    local abs_service_script=""
+
+    SYSTEMD_SERVICE_MATCH=""
     for service_file in "$SYSTEMD_DIR"/${SERVICE_PREFIX}*.service; do
         if [ -f "$service_file" ]; then
-            local exec_start=$(grep "^ExecStart=" "$service_file" | cut -d'=' -f2-)
-            local service_script=$(echo "$exec_start" | awk '{print $NF}')
-            local abs_service_script=$(realpath "$service_script" 2>/dev/null || echo "$service_script")
+            exec_start=$(grep "^ExecStart=" "$service_file" | cut -d'=' -f2-)
+            service_script=$(echo "$exec_start" | awk '{print $NF}')
+            abs_service_script=$(realpath "$service_script" 2>/dev/null || echo "$service_script")
             
             if [ "$abs_script_path" = "$abs_service_script" ]; then
-                echo "$(basename "$service_file" .service)"
-                return 0
+                SYSTEMD_SERVICE_MATCH="$(basename "$service_file" .service)"
+                break
             fi
         fi
     done
-    
-    return 1
 }
 
-# Function to apply resource limits to service file (reusable)
 apply_resource_limits() {
     local service_file="$1"
     local cpu_limit="$2"
@@ -351,7 +347,6 @@ apply_resource_limits() {
     fi
 }
 
-# Function to create generic systemd service (not limited to ncore-*)
 create_systemd_service() {
     local service_name="$1"
     local description="$2"
@@ -367,10 +362,13 @@ create_systemd_service() {
     local restart_existing="${12:-yes}"
     local exec_stop="${13:-}"
     local timeout_stop="${14:-}"
+    local required_unit="${15:-}"
+    local hardening="${16:-no}"
 
+    SYSTEMD_OPERATION_READY=false
     if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
         echo "[ERROR] service_name, description, and exec_command are required"
-        return 1
+        return
     fi
 
     if [ -z "$working_dir" ]; then
@@ -426,6 +424,13 @@ create_systemd_service() {
 [Unit]
 Description=$description
 After=network.target
+EOF
+
+    if [ -n "$required_unit" ]; then
+        printf 'Requires=%s\nAfter=%s\n' "$required_unit" "$required_unit" >> "$service_file"
+    fi
+
+    cat >> "$service_file" << EOF
 
 [Service]
 Type=simple
@@ -468,13 +473,20 @@ EOF
 
     apply_resource_limits "$service_file" "$cpu_limit" "$memory_limit"
 
+    if [ "$hardening" = "yes" ]; then
+        printf 'PrivateTmp=true\nNoNewPrivileges=true\nProtectSystem=full\n' >> "$service_file"
+    fi
+
     cat >> "$service_file" << EOF
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    if [ $? -eq 0 ]; then
+    SYSTEMD_SERVICE_FILE_READY=false
+    if [ -s "$service_file" ]; then
+        SYSTEMD_SERVICE_FILE_READY=true
+        SYSTEMD_OPERATION_READY=true
         echo "[SUCCESS] Service file created: $service_file"
         systemctl daemon-reload
         # The caller may own the restart when it must perform one final
@@ -485,14 +497,11 @@ EOF
         elif [ "$unit_preexisted" = "yes" ]; then
             echo "[INFO] Existing service restart deferred to caller: $service_name"
         fi
-        return 0
     else
         echo "[ERROR] Failed to create service file"
-        return 1
     fi
 }
 
-# Function to create or update ncore service
 create_ncore_service() {
     local script_path="$1"
     local custom_name="$2"
@@ -500,14 +509,22 @@ create_ncore_service() {
     local cpu_limit="$4"
     local memory_limit="$5"
     
+    local service_name=""
+    local service_file=""
+    local service_exists=false
+    local wait_count=0
+    local existing_service=""
+
+    SYSTEMD_OPERATION_READY=false
     if [ ! -f "$script_path" ]; then
         echo "[ERROR] Script file not found: $script_path"
-        return 1
+        return
     fi
     
     # Ensure dependencies are installed
-    if ! ensure_dependencies; then
-        return 1
+    ensure_dependencies
+    if [ "$SYSTEMD_DEPENDENCIES_READY" != true ]; then
+        return
     fi
 
     ensure_directories
@@ -516,7 +533,6 @@ create_ncore_service() {
     calculate_memory_limits
     
     # Determine service name
-    local service_name
     if [ -n "$custom_name" ]; then
         service_name="${SERVICE_PREFIX}${custom_name}"
     else
@@ -532,8 +548,7 @@ create_ncore_service() {
     echo "[INFO] Script: $script_path"
     
     # Check if service already exists
-    local service_file="$SYSTEMD_DIR/${service_name}.service"
-    local service_exists=false
+    service_file="$SYSTEMD_DIR/${service_name}.service"
 
     if [ -f "$service_file" ]; then
         service_exists=true
@@ -544,7 +559,6 @@ create_ncore_service() {
         systemctl stop "$service_name" 2>/dev/null
 
         # Wait for service to fully stop (up to 30 seconds)
-        local wait_count=0
         while systemctl is-active "$service_name" >/dev/null 2>&1 && [ $wait_count -lt 30 ]; do
             echo "[INFO] Waiting for service to stop... ($wait_count/30)"
             sleep 1
@@ -562,7 +576,8 @@ create_ncore_service() {
     fi
     
     # Check for conflicting services with same script
-    local existing_service=$(get_service_by_script "$script_path")
+    get_service_by_script "$script_path"
+    existing_service="$SYSTEMD_SERVICE_MATCH"
     if [ -n "$existing_service" ] && [ "$existing_service" != "$service_name" ]; then
         echo "[INFO] Found existing service '$existing_service' for same script"
         echo "[INFO] Removing old service: $existing_service"
@@ -580,7 +595,8 @@ create_ncore_service() {
     echo "[INFO] Resource limits: CPU=$cpu_limit, Memory=$memory_limit"
 
     # Create service file
-    if create_service_file "$service_name" "$script_path" "$description" "$cpu_limit" "$memory_limit"; then
+    create_service_file "$service_name" "$script_path" "$description" "$cpu_limit" "$memory_limit"
+    if [ "$SYSTEMD_SERVICE_FILE_READY" = true ]; then
         # Reload systemd and enable service
         echo "[INFO] Reloading systemd daemon..."
         systemctl daemon-reload
@@ -589,42 +605,37 @@ create_ncore_service() {
         systemctl enable "$service_name"
 
         echo "[INFO] Starting service..."
-        if systemctl start "$service_name"; then
-            # Wait a moment for service to initialize
-            sleep 2
-
-            # Check if service started successfully
-            if systemctl is-active "$service_name" >/dev/null 2>&1; then
-                echo "[SUCCESS] Service started successfully"
-            else
-                echo "[WARNING] Service may not have started properly"
-            fi
+        systemctl start "$service_name" || true
+        sleep 2
+        if systemctl is-active "$service_name" >/dev/null 2>&1; then
+            SYSTEMD_OPERATION_READY=true
+            echo "[SUCCESS] Service started successfully"
         else
             echo "[ERROR] Failed to start service"
-            return 1
         fi
 
         # Log service creation
         log_service_action "$service_name" "$script_path" "UPDATE"
         
-        echo "[SUCCESS] Service '$service_name' created and started successfully"
-        echo "[INFO] Service status:"
-        systemctl status "$service_name" --no-pager -l
-        
-        return 0
+        if [ "$SYSTEMD_OPERATION_READY" = true ]; then
+            echo "[SUCCESS] Service '$service_name' created and started successfully"
+            echo "[INFO] Service status:"
+            systemctl status "$service_name" --no-pager -l
+        fi
     else
         echo "[ERROR] Failed to create service"
-        return 1
     fi
 }
 
-# Function to update service resource limits
 update_service_resources() {
     local service_name="$1"
 
+    local service_file=""
+
+    SYSTEMD_OPERATION_READY=false
     if [ -z "$service_name" ]; then
         echo "[ERROR] Service name is required"
-        return 1
+        return
     fi
 
     # Add service prefix if not present
@@ -632,11 +643,11 @@ update_service_resources() {
         service_name="${SERVICE_PREFIX}${service_name}"
     fi
 
-    local service_file="$SYSTEMD_DIR/${service_name}.service"
+    service_file="$SYSTEMD_DIR/${service_name}.service"
 
     if [ ! -f "$service_file" ]; then
         echo "[ERROR] Service file not found: $service_file"
-        return 1
+        return
     fi
 
     echo "[INFO] Updating resource limits for service: $service_name"
@@ -660,21 +671,19 @@ update_service_resources() {
     systemctl daemon-reload
     if systemctl is-active --quiet "$service_name"; then
         echo "[INFO] Restarting service to apply new limits..."
-        systemctl restart "$service_name"
-        if [ $? -eq 0 ]; then
+        systemctl restart "$service_name" || true
+        if systemctl is-active --quiet "$service_name"; then
+            SYSTEMD_OPERATION_READY=true
             echo "[SUCCESS] Service $service_name updated and restarted successfully"
         else
             echo "[ERROR] Failed to restart service $service_name"
-            return 1
         fi
     else
+        SYSTEMD_OPERATION_READY=true
         echo "[INFO] Service is not running, limits will apply on next start"
     fi
-
-    return 0
 }
 
-# Function to update all ncore services with new resource limits
 update_all_services_resources() {
     echo "[INFO] Updating resource limits for all ncore services..."
 
@@ -687,7 +696,8 @@ update_all_services_resources() {
             local service_name=$(basename "$service_file" .service)
             echo ""
             echo "----------------------------------------"
-            if update_service_resources "$service_name"; then
+            update_service_resources "$service_name"
+            if [ "$SYSTEMD_OPERATION_READY" = true ]; then
                 ((services_updated++))
             else
                 ((services_failed++))
@@ -701,65 +711,40 @@ update_all_services_resources() {
     echo "[INFO] Services updated: $services_updated"
     echo "[INFO] Services failed: $services_failed"
     echo "========================================"
-
-    return 0
 }
 
-# Function to remove ncore service
 remove_ncore_service() {
     local service_name="$1"
-    
-    # Add prefix if not present
+
     if [[ ! "$service_name" =~ ^${SERVICE_PREFIX} ]]; then
         service_name="${SERVICE_PREFIX}${service_name}"
     fi
-    
-    local service_file="$SYSTEMD_DIR/${service_name}.service"
-    
-    if [ ! -f "$service_file" ]; then
-        echo "[ERROR] Service not found: $service_name"
-        return 1
-    fi
-    
+
     echo "[INFO] Removing service: $service_name"
-    
-    # Stop and disable service
-    systemctl stop "$service_name" 2>/dev/null
-    systemctl disable "$service_name" 2>/dev/null
-    
-    # Remove service file
-    rm -f "$service_file"
-    
-    # Reload systemd
-    systemctl daemon-reload
-    
-    # Log service removal
-    log_service_action "$service_name" "" "REMOVE"
-    
-    echo "[SUCCESS] Service '$service_name' removed successfully"
-    return 0
+    remove_systemd_service "$service_name"
+    if [ "$SYSTEMD_OPERATION_READY" = true ]; then
+        log_service_action "$service_name" "" "REMOVE"
+    fi
 }
 
-# Function to check service status
 check_service_status() {
     local service_name="$1"
-    
+    SYSTEMD_OPERATION_READY=false
+
     # Add prefix if not present
     if [[ ! "$service_name" =~ ^${SERVICE_PREFIX} ]]; then
         service_name="${SERVICE_PREFIX}${service_name}"
     fi
     
     if systemctl list-units --type=service | grep -q "$service_name"; then
+        SYSTEMD_OPERATION_READY=true
         echo "[INFO] Service status for: $service_name"
         systemctl status "$service_name" --no-pager -l
-        return 0
     else
         echo "[ERROR] Service not found: $service_name"
-        return 1
     fi
 }
 
-# Function to log service actions
 log_service_action() {
     local service_name="$1"
     local script_path="$2"

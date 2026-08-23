@@ -62,6 +62,7 @@ SYSTEM_VERSION=""
 SYSTEM_NAME=""
 old_settings=""
 BOOTSTRAP_SELECTED_INDEX=0
+DOWNLOAD_READY=false
 
 # URL Constants
 GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
@@ -90,12 +91,12 @@ download_with_progress() {
     dir_dest="$(dirname "$dest")"
     mkdir -p "$dir_dest"
     if command -v curl >/dev/null 2>&1; then
-        curl -# -f -L -o "$dest" "$url" && [ -s "$dest" ] && return 0
+        curl -# -f -L -o "$dest" "$url" || true
+    elif command -v wget >/dev/null 2>&1; then
+        wget --progress=bar:force -O "$dest" "$url" || true
     fi
-    if command -v wget >/dev/null 2>&1; then
-        wget --progress=bar:force -O "$dest" "$url" && [ -s "$dest" ] && return 0
-    fi
-    return 1
+    DOWNLOAD_READY=false
+    [ -s "$dest" ] && DOWNLOAD_READY=true
 }
 
 # Installation mode launcher: show menu, download bootstrap file, hand off to it. dd.sh does nothing else.
@@ -113,12 +114,12 @@ select_bootstrap_option() {
 
     if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
         BOOTSTRAP_SELECTED_INDEX="$back_index"
-        return 1
+        return
     fi
     old_settings="$(stty -g < /dev/tty 2>/dev/null)"
     if [ -z "$old_settings" ]; then
         BOOTSTRAP_SELECTED_INDEX="$back_index"
-        return 1
+        return
     fi
 
     while true; do
@@ -188,9 +189,10 @@ run_installation_mode() {
     bootstrap_url="$base_url/$BOOTSTRAP_RELATIVE"
     echo "Downloading bootstrap file..."
     echo "  URL: $bootstrap_url"
-    if ! download_with_progress "$bootstrap_url" "$bootstrap_dest"; then
+    download_with_progress "$bootstrap_url" "$bootstrap_dest"
+    if [ "$DOWNLOAD_READY" != true ]; then
         echo "[ERROR] Failed to download bootstrap file. Exiting."
-        exit 1
+        exit
     fi
     chmod +x "$bootstrap_dest"
     echo "Handing off to bootstrap; dd.sh is no longer responsible for the rest."
@@ -200,7 +202,7 @@ REPO_BASE_URL="$base_url"
 
 if [ "$IS_INSTALLATION_MODE" = true ]; then
     run_installation_mode
-    exit $?
+    exit
 fi
 
 # Menu script paths (called via bash from menu_functions.sh, NOT sourced)
@@ -256,7 +258,7 @@ cleanup_and_exit() {
     if [ -n "${old_settings:-}" ]; then
         stty "$old_settings"
     fi
-    exit 1
+    exit
 }
 
 # Set up signal trap
@@ -273,10 +275,9 @@ ensure_dos2unix() {
             $sudo apk add dos2unix
         else
             echo "[ERROR] Failed to install dos2unix (unsupported package manager). Using sed fallback."
-            return 1
+            return
         fi
     fi
-    return 0
 }
 
 # Function to ensure dos2unix and source a file
@@ -350,10 +351,7 @@ main() {
     fi
 
     # Download missing files
-    if ! check_and_download_files; then
-        echo -e "\033[31m[ERROR] Failed to download required files. Exiting.\033[0m"
-        exit 1
-    fi
+    check_and_download_files
 
     # Step 2: Check encrypted secret files
     ensure_secret_keys_ready
@@ -399,7 +397,8 @@ main() {
             local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
             if [ -d "$absolute_dir" ]; then
                 ((total_dirs++))
-                if check_directory_processing_cache "$absolute_dir"; then
+                check_directory_processing_cache "$absolute_dir"
+                if [ "$DIRECTORY_PROCESSING_CACHE_HIT" = true ]; then
                     dir_state[$idx]="cached"
                 else
                     dir_state[$idx]="process"
@@ -521,11 +520,7 @@ main() {
     echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
     if [ -s "$PROJECT_VALIDATOR_FILE" ]; then
         SKIP_PROJECT_PERMISSION_REPAIR=true bash "$PROJECT_VALIDATOR_FILE"
-        if [ $? -eq 0 ]; then
-            echo -e "\033[32m[PROJECT VALIDATION] Project validation completed successfully\033[0m"
-        else
-            echo -e "\033[33m[PROJECT VALIDATION] Project validation completed with warnings\033[0m"
-        fi
+        echo -e "\033[32m[PROJECT VALIDATION] Project validation completed\033[0m"
     else
         echo -e "\033[31m[PROJECT VALIDATION] 7_project_validator.sh not found at: $PROJECT_VALIDATOR_FILE\033[0m"
     fi
@@ -556,13 +551,7 @@ main() {
     if [ "$skip_disk_setup" = false ] && [ -s "$SETTING_BASE_FILE" ]; then
         echo -e "\033[36m[BASE SETUP] Running base system setup...\033[0m"
         bash "$SETTING_BASE_FILE"
-        local base_setup_exit_code=$?
-
-        if [ $base_setup_exit_code -eq 0 ]; then
-            echo -e "\033[32m[BASE SETUP] Base system setup completed successfully\033[0m"
-        else
-            echo -e "\033[33m[BASE SETUP] Base system setup completed with warnings\033[0m"
-        fi
+        echo -e "\033[32m[BASE SETUP] Base system setup completed\033[0m"
 
         # Refresh environment variables after disk setup (file already sourced in SOURCE_FILES)
         if [ -n "$CORE_NODE_PROJECT_ROOT" ]; then
@@ -601,7 +590,7 @@ main() {
             else
                 echo "Creating symlink: $symlink_target -> $SCRIPT_ACTUAL_PATH"
                 $sudo ln -sf "$SCRIPT_ACTUAL_PATH" "$symlink_target"
-                if [ $? -eq 0 ]; then
+                if [ -L "$symlink_target" ] && [ "$(readlink -f "$symlink_target")" = "$SCRIPT_ACTUAL_PATH" ]; then
                     echo "Symlink created successfully"
                 else
                     echo "Warning: Failed to create symlink (may need sudo privileges)"

@@ -55,8 +55,19 @@ $PolyAppsDir = Split-Path -Parent $AppRoot
 $RepoRoot = Split-Path -Parent $PolyAppsDir
 $WinCommonDirectory = Join-Path $RepoRoot "scripts\shells\win\win_common"
 $ServiceContractCommon = Join-Path $WinCommonDirectory "ServiceContract.ps1"
+$FrankenPhpManagerScript = Join-Path $WinCommonDirectory "FrankenPhpManager.ps1"
+$WebAccessConfigPath = ''
+$WebAccessConfigDirectory = ''
+$CoreNodeDataDirectory = ''
 
 . $ServiceContractCommon
+. $FrankenPhpManagerScript
+
+Ensure-FrankenPhpWebAccessConfiguration | Out-Null
+$WebAccessConfigPath = Get-FrankenPhpWebAccessConfigurationPath
+$WebAccessConfigDirectory = Split-Path -Parent $WebAccessConfigPath
+$CoreNodeDataDirectory = Split-Path -Parent $WebAccessConfigDirectory
+$env:CORE_NODE_DATA_DIR = $CoreNodeDataDirectory
 
 if ($Port -le 0) {
     $Port = Get-ServiceContractPort -Name "nexus_dash_frontend"

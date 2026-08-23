@@ -75,30 +75,13 @@ delete_unified_service() {
     local daemon_service_name="webapp-${app_name}-daemon"
     local services_deleted=0
 
-    # Delete daemon service first (if exists)
     if systemctl list-unit-files "$daemon_service_name.service" >/dev/null 2>&1; then
         echo ""
         echo -e "\033[33m--- Deleting Daemon Service ---\033[0m"
         echo -e "\033[90mService: $daemon_service_name\033[0m"
 
-        # Stop daemon service
-        if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
-            echo -e "\033[90mStopping daemon service...\033[0m"
-            sudo systemctl stop "$daemon_service_name" 2>/dev/null || true
-        fi
-
-        # Disable daemon service
-        if systemctl is-enabled "$daemon_service_name" >/dev/null 2>&1; then
-            echo -e "\033[90mDisabling daemon service...\033[0m"
-            sudo systemctl disable "$daemon_service_name" 2>/dev/null || true
-        fi
-
-        # Remove daemon service file
-        echo -e "\033[90mRemoving daemon service file...\033[0m"
-        sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
-
-        echo -e "\033[32m[OK] Daemon service deleted\033[0m"
-        services_deleted=$((services_deleted + 1))
+        remove_systemd_service "$daemon_service_name"
+        [ "$SYSTEMD_OPERATION_READY" = true ] && services_deleted=$((services_deleted + 1))
     fi
 
     # Delete main service
@@ -107,37 +90,17 @@ delete_unified_service() {
         echo -e "\033[33m--- Deleting Main Service ---\033[0m"
         echo -e "\033[90mService: $main_service_name\033[0m"
 
-        # Stop main service
-        if systemctl is-active "$main_service_name" >/dev/null 2>&1; then
-            echo -e "\033[90mStopping main service...\033[0m"
-            sudo systemctl stop "$main_service_name" 2>/dev/null || true
-        fi
-
-        # Disable main service
-        if systemctl is-enabled "$main_service_name" >/dev/null 2>&1; then
-            echo -e "\033[90mDisabling main service...\033[0m"
-            sudo systemctl disable "$main_service_name" 2>/dev/null || true
-        fi
-
-        # Remove main service file
-        echo -e "\033[90mRemoving main service file...\033[0m"
-        sudo rm -f "/etc/systemd/system/$main_service_name.service"
-
-        echo -e "\033[32m[OK] Main service deleted\033[0m"
-        services_deleted=$((services_deleted + 1))
+        remove_systemd_service "$main_service_name"
+        [ "$SYSTEMD_OPERATION_READY" = true ] && services_deleted=$((services_deleted + 1))
     fi
 
     # Reload systemd if any service was deleted
     if [ $services_deleted -gt 0 ]; then
         echo ""
-        echo -e "\033[90mReloading systemd daemon...\033[0m"
-        sudo systemctl daemon-reload
         echo -e "\033[32m[OK] Total services deleted: $services_deleted\033[0m"
-        return 0
     else
         echo ""
         echo -e "\033[33m[WARN] No services found for $app_name\033[0m"
-        return 1
     fi
 }
 
@@ -151,7 +114,7 @@ auto_replace_debug_service() {
     local debug_mode="$6"
 
     if [ "$debug_mode" = "false" ]; then
-        return 0  # Not in debug mode, no replacement needed
+        return
     fi
 
     echo ""
@@ -170,7 +133,7 @@ auto_replace_debug_service() {
 
     if [ ${#found_services[@]} -eq 0 ]; then
         echo -e "\033[90mNo existing compiled services found for $app_name\033[0m"
-        return 0
+        return
     fi
 
     echo -e "\033[33mFound existing compiled services:\033[0m"
@@ -184,19 +147,18 @@ auto_replace_debug_service() {
     for service in "${found_services[@]}"; do
         if systemctl is-active "$service" >/dev/null 2>&1; then
             echo -e "\033[90mStopping $service.service...\033[0m"
-            sudo systemctl stop "$service"
+            $USE_SUDO systemctl stop "$service"
         fi
 
         if systemctl is-enabled "$service" >/dev/null 2>&1; then
             echo -e "\033[90mDisabling $service.service...\033[0m"
-            sudo systemctl disable "$service"
+            $USE_SUDO systemctl disable "$service"
         fi
     done
 
     echo -e "\033[32mCompiled services stopped\033[0m"
     echo -e "\033[32mCreating debug service replacement...\033[0m"
 
-    return 0
 }
 
 
@@ -236,16 +198,11 @@ create_unified_service() {
         
         local laravel_service_manager="$SERVICE_MANAGER_ROOT_DIR/scripts/unified_manager/modules/laravel_service_manager.sh"
         
-        if [ ! -f "$laravel_service_manager" ]; then
-            echo -e "\033[31mError: Laravel service manager not found: $laravel_service_manager\033[0m"
-            return 1
-        fi
-        
-        # Source the Laravel service manager (USE_SUDO is already a shell variable when set)
         source "$laravel_service_manager"
         
         # Install Laravel service using poly app method
-        if install_laravel_service "$app_name"; then
+        install_laravel_service "$app_name"
+        if [ "$LARAVEL_SERVICE_READY" = true ]; then
             echo -e "\033[32m[OK] Laravel service installed successfully (poly app method)\033[0m"
             local _lport
             _lport=$(get_laravel_port "$app_name" 2>/dev/null || echo "9000")
@@ -255,18 +212,18 @@ create_unified_service() {
             if [ -n "$domain" ]; then
                 echo ""
                 echo -e "\033[36m=== Adding Laravel Website Configuration ===\033[0m"
-                if add_laravel_website "$app_name" "$domain" "auto"; then
+                add_laravel_website "$app_name" "$domain" "auto"
+                if [ "$LARAVEL_WEBSITE_READY" = true ]; then
                     echo -e "\033[32m[OK] Laravel website added successfully: $domain\033[0m"
                 else
                     echo -e "\033[33m[WARN] Laravel website addition failed (service is still installed)\033[0m"
                 fi
             fi
             
-            return 0
         else
             echo -e "\033[31m[ERROR] Laravel service installation failed\033[0m"
-            return 1
         fi
+        return
     fi
 
     # Check if service already exists
@@ -287,7 +244,7 @@ create_unified_service() {
         "reactNativeStart")
             echo -e "\033[33mReact Native apps typically don't run as system services\033[0m"
             echo -e "\033[33mUse mobile development tools for deployment\033[0m"
-            return 0
+            return
             ;;
         *)
             service_name="app-$app_name"
@@ -303,16 +260,11 @@ create_unified_service() {
 
         if [[ ! "$replace_choice" =~ ^[Nn]$ ]]; then
             echo -e "\033[90mStopping existing service...\033[0m"
-            sudo systemctl stop "$service_name" 2>/dev/null || true
-            echo -e "\033[90mDisabling existing service...\033[0m"
-            sudo systemctl disable "$service_name" 2>/dev/null || true
-            echo -e "\033[90mRemoving existing service file...\033[0m"
-            sudo rm -f "/etc/systemd/system/$service_name.service"
-            sudo systemctl daemon-reload
+            remove_systemd_service "$service_name"
             echo -e "\033[32mExisting service cleaned up\033[0m"
         else
             echo -e "\033[33mKeeping existing service, operation cancelled\033[0m"
-            return 0
+            return
         fi
     fi
 
@@ -331,19 +283,7 @@ create_unified_service() {
             echo -e "\033[33m[WARN] Daemon script not found, but daemon service exists\033[0m"
             echo -e "\033[90mCleaning up orphaned daemon service: $daemon_service_name\033[0m"
 
-            # Stop and remove orphaned daemon service
-            if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
-                sudo systemctl stop "$daemon_service_name" 2>/dev/null || true
-            fi
-
-            if systemctl is-enabled "$daemon_service_name" >/dev/null 2>&1; then
-                sudo systemctl disable "$daemon_service_name" 2>/dev/null || true
-            fi
-
-            sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
-            sudo systemctl daemon-reload
-
-            echo -e "\033[32m[OK] Orphaned daemon service removed\033[0m"
+            remove_systemd_service "$daemon_service_name"
         fi
     fi
 
@@ -359,7 +299,7 @@ create_unified_service() {
     # Check if launcher_generator exists
     if [ ! -f "$launcher_generator" ]; then
         echo -e "\033[31mLauncher generator not found: $launcher_generator\033[0m"
-        return 1
+        return
     fi
 
     echo -e "\033[90mLauncher generator: $launcher_generator\033[0m"
@@ -387,19 +327,17 @@ launcher_path = generator.generate_launcher(
     debug_mode=$python_debug_mode
 )
 print(launcher_path)
-" 2>&1)
+" 2>&1 || true)
 
-    local gen_result=$?
-
-    if [ $gen_result -ne 0 ] || [ -z "$launcher_script" ]; then
+    if [ -z "$launcher_script" ]; then
         echo -e "\033[31mFailed to generate launcher script\033[0m"
         echo -e "\033[90mError output: $launcher_script\033[0m"
-        return 1
+        return
     fi
 
     if [ ! -f "$launcher_script" ]; then
         echo -e "\033[31mLauncher script was not created: $launcher_script\033[0m"
-        return 1
+        return
     fi
 
     echo -e "\033[32mLauncher script generated\033[0m"
@@ -423,11 +361,10 @@ print(launcher_path)
 
     # Call the function from common service manager directly
     create_systemd_service "$service_name" "$service_description" "$service_command" "$working_dir" "root" "always" "5" "50%" "1G"
-    local result=$?
 
     echo ""
     echo -e "\033[36m=== Service Creation Status ===\033[0m"
-    if [ $result -eq 0 ]; then
+    if [ "$SYSTEMD_SERVICE_FILE_READY" = true ]; then
         echo -e "\033[32mService created successfully\033[0m"
 
         # Display service file content
@@ -470,10 +407,10 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Starting Service ===\033[0m"
         echo -e "\033[90mEnabling service...\033[0m"
-        sudo systemctl enable "$service_name"
+        $USE_SUDO systemctl enable "$service_name"
 
         echo -e "\033[90mStarting service...\033[0m"
-        sudo systemctl start "$service_name"
+        $USE_SUDO systemctl start "$service_name"
 
         sleep 2
 
@@ -487,7 +424,7 @@ print(launcher_path)
         else
             echo -e "\033[31mService failed to start\033[0m"
             echo -e "\033[33mChecking logs...\033[0m"
-            local error_logs=$(sudo journalctl -u "$service_name" --no-pager -l --since="1 minute ago" | tail -5)
+            local error_logs=$($USE_SUDO journalctl -u "$service_name" --no-pager -l --since="1 minute ago" | tail -5)
             echo -e "\033[90m$error_logs\033[0m"
         fi
 
@@ -517,9 +454,7 @@ print(launcher_path)
             echo -e "\033[90m No daemon script found (checked: scripts/daemon.{sh,py,js})\033[0m"
         fi
 
-        return 0
     else
         echo -e "\033[31mFailed to create service\033[0m"
-        return 1
     fi
 }

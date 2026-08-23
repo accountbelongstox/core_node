@@ -11,10 +11,6 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# DEPRECATED: This Linux shell layer (Python core) is deprecated.
-# New implementation (no Python): scripts/app_manager/linux_sh/app_manager.sh
-# dd.sh already launches the new script; this file is kept for backward compatibility.
-#
 # Unified App Manager - Linux Shell Layer (Simplified)
 # Execution layer that calls Python for menu and executes final commands
 
@@ -112,7 +108,7 @@ print_service_info() {
     else
         log_error "[ERROR] Service failed to start: $service_name"
         log_info "Check logs: journalctl -u $service_name -f"
-        return 1
+        return
     fi
 
     echo ""
@@ -196,24 +192,14 @@ execute_command() {
         log_info "Working directory: $working_dir"
         cd "$working_dir" || {
             log_error "Failed to change to directory: $working_dir"
-            return 1
+            return
         }
     fi
 
     log_info "Executing: $command"
     echo ""
 
-    # Execute the command
     eval "$command"
-    local exit_code=$?
-
-    if [[ $exit_code -ne 0 ]]; then
-        echo ""
-        log_error "Command failed with exit code: $exit_code"
-        return $exit_code
-    fi
-
-    return 0
 }
 
 # Main program loop
@@ -221,19 +207,19 @@ main() {
     # Check Python availability
     if ! command -v python3 >/dev/null 2>&1; then
         log_error "Python 3 is required but not installed"
-        exit 1
+        return
     fi
 
     # Check Python core exists
     if [[ ! -f "$PYTHON_CORE" ]]; then
         log_error "Python core not found: $PYTHON_CORE"
-        exit 1
+        return
     fi
 
     # Change to root directory
     cd "$ROOT_DIR" || {
         log_error "Failed to change to root directory: $ROOT_DIR"
-        exit 1
+        return
     }
 
     while true; do
@@ -247,7 +233,7 @@ main() {
 
         if [[ "$status" == "${STATUS_VALUES[MENU_EXIT]}" ]]; then
             # User chose to quit
-            exit 0
+            break
 
         elif [[ "$status" == "${STATUS_VALUES[EXECUTE_READY]}" ]]; then
             # Python prepared a command to execute
@@ -276,7 +262,7 @@ main() {
         else
             # Unknown status
             log_error "Unknown status from Python: $status"
-            exit 1
+            break
         fi
     done
 }

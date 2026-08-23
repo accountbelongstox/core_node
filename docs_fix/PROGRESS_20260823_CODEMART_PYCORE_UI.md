@@ -19,12 +19,13 @@ notes.
 
 ## Current status
 
-Status: not started; source and reference-UI audits complete; design baseline
-available.
+Status: UI foundation, shell registration, public landing page, authenticated
+workspace shell, and route-level domain surfaces are source-complete. Live
+domain binding remains blocked by the Laravel contracts listed below.
 
-No React/TypeScript source, shell registration, flavor, build output, or test
-source was changed while creating this document. No build, test, or service was
-run.
+React/TypeScript, CSS, SVG flavor assets, and shell registration were changed.
+No build output or test source was changed. No build, test, service, migration,
+or runtime verification command was run.
 
 ## Existing reusable components
 
@@ -40,6 +41,10 @@ run.
   notification components.
 - `apps/pdd-manager` and `apps/pycore-manager` page-registry patterns.
 - Flavor-based standalone build support.
+- Shared `createAppRouteElements()` now centralizes the React Router 7 registry
+  typing previously duplicated by the Pycore and PDD applications.
+- Shared AuthSession now exposes a `useSyncExternalStore` subscription for
+  application-neutral authentication rendering.
 
 ## Binding UI decisions
 
@@ -82,7 +87,7 @@ counters and any approved testimonial records.
 
 ### Phase UI-0: contract preparation
 
-- [ ] Read the latest integration and Laravel progress documents.
+- [x] Read the latest integration and Laravel progress documents.
 - [ ] Freeze the bootstrap DTO, API envelope, pagination convention, stable
   error codes, and canonical state strings.
 - [ ] Define `CmApiTypes.ts` from the accepted backend serializers.
@@ -90,29 +95,31 @@ counters and any approved testimonial records.
 
 ### Phase UI-1: shell and foundation
 
-- [ ] Add `CmApp.tsx`, `CmLayout.tsx`, and `cmPages.tsx`.
-- [ ] Register the CodeMart end in shell type, route, provider, home, controls,
+- [x] Add `CmApp.tsx`, `CmLayout.tsx`, and `cmPages.tsx`.
+- [x] Register the CodeMart end in shell type, route, provider, home, controls,
   and app switcher ownership points.
-- [ ] Set `END_USES_PYCORE.codemart` to `false`.
-- [ ] Add English and Chinese locale registration.
-- [ ] Add `CmApi`, bootstrap context, access gate, shared page states, and
-  namespaced draft/query persistence.
-- [ ] Add `CmPublicHomePage`, `CmPublicHeader`, `CmHero`, `CmPlatformStats`,
+- [x] Set `END_USES_PYCORE.codemart` to `false`.
+- [x] Add English and Chinese locale registration.
+- [ ] Add the full bootstrap context, shared page states, and namespaced
+  draft/query persistence. `CmApi`, the public-home query, and access gate are
+  complete.
+- [x] Add `CmPublicHomePage`, `CmPublicHeader`, `CmHero`, `CmPlatformStats`,
   `CmDeliveryFlow`, `CmTestimonials`, `CmPublicCta`, and `CmPublicFooter`.
-- [ ] Add CodeMart-scoped public-home CSS tokens and local visual assets; do
+- [x] Add CodeMart-scoped public-home CSS tokens and local visual assets; do
   not import or hotlink reference-site CSS, images, logo, or fonts.
-- [ ] Implement the 980px desktop geometry, full-bleed section surfaces,
+- [x] Implement the 980px desktop geometry, full-bleed section surfaces,
   keyboard-accessible hero/testimonial controls, and reduced-motion behavior.
-- [ ] Implement the responsive header, stacked CTAs, wrapping metrics, and
-  single-column delivery steps after the mobile baseline is captured.
+- [x] Implement the responsive header, stacked CTAs, wrapping metrics, and
+  single-column delivery steps. Exact mobile-reference parity remains pending.
 
 ### Phase UI-2: onboarding and dashboard
 
 - [ ] Implement bootstrap loading and incompatible-contract handling.
-- [ ] Implement role-aware dashboard cards and next-action summary.
+- [ ] Bind role-aware dashboard cards and next-action summary to bootstrap.
+  The responsive dashboard surface and delivery-lane navigation are complete.
 - [ ] Implement phone, KYC, role, and deposit onboarding views from server
   status.
-- [ ] Reuse the global login host and shared endpoint selector.
+- [x] Reuse the global login host and shared endpoint selector.
 
 ### Phase UI-3: projects and AI proposal
 
@@ -168,6 +175,9 @@ counters and any approved testimonial records.
 - Current Flutter and Laravel state enums and deposit values disagree.
 - Current Laravel responses are not yet guaranteed to use stable serializers
   and one pagination shape.
+- Source-level domain pages intentionally show contract-aware empty states and
+  keep project submission disabled. They must not be marked functionally
+  complete until their matching Laravel slice is accepted.
 
 These blockers must be resolved in Laravel or the integration contract. They
 must not be hidden by permanent frontend fallback values.
@@ -189,4 +199,21 @@ must not be hidden by permanent frontend fallback values.
   hotlinking.
 - Split the public landing route (`/codemart`) from the authenticated dashboard
   route (`/codemart/dashboard`).
-- No implementation files were changed.
+- Added the CodeMart shell end, standalone flavor, local SVG identity, shared
+  authentication subscription, and `/api/codemart/v1` transport prefix.
+- Implemented the local visual-parity landing page with a 640px hero, 980px
+  content geometry, metrics, five delivery steps, optional approved
+  testimonials, final CTA, footer, responsive layout, and reduced motion.
+- Implemented the official accessible carousel controls: manual start/stop,
+  focus pause, hover pause, native buttons, accessible labels, and slide state.
+- Added the authenticated workspace layout, single page registry, access gate,
+  dashboard, marketplace filters, project brief surface, and all accepted
+  domain routes without inventing backend records.
+- Refactored duplicate Pycore/PDD route element generation into one shared
+  React Router helper and changed locale registration to per-language
+  idempotent add/update steps.
+- Kept every new source file below 800 lines; the largest is the scoped public
+  landing stylesheet at 793 lines.
+- Consulted the official React lazy/Suspense, React Router declarative routing,
+  i18next resource-bundle, and W3C carousel-pattern documentation.
+- No build, test, service, migration, or runtime verification command was run.

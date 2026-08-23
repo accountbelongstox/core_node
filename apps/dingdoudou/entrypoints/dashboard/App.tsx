@@ -30,6 +30,7 @@ import {
   inExtension,
   listAccounts,
   loginMember,
+  registerMember,
   patchSettings,
   refundOrders,
   removeAccount,
@@ -114,8 +115,11 @@ export default function App() {
   const [gateTab, setGateTab] = useState<'super' | 'backend'>('super');
   const [superCode, setSuperCode] = useState('');
   const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND_URL);
+  const [backendAuthMode, setBackendAuthMode] = useState<'login' | 'register'>('login');
   const [backendUser, setBackendUser] = useState('');
+  const [backendEmail, setBackendEmail] = useState('');
   const [backendPassword, setBackendPassword] = useState('');
+  const [backendPasswordConfirmation, setBackendPasswordConfirmation] = useState('');
   const [gateError, setGateError] = useState('');
   const [gateBusy, setGateBusy] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -276,6 +280,32 @@ export default function App() {
         throw new Error(ui.backendPermissionDenied);
       }
       setLicense(await loginMember(backendUrl.trim(), backendUser.trim(), backendPassword));
+    } catch (error) {
+      setGateError(localizedErrorText(lang, error, ui.genericError));
+    } finally {
+      setGateBusy(false);
+    }
+  };
+
+  const handleMemberRegister = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (backendPassword !== backendPasswordConfirmation) {
+      setGateError(ui.passwordMismatch);
+      return;
+    }
+    setGateBusy(true);
+    setGateError('');
+    try {
+      if (!(await requestBackendAccess(backendUrl.trim()))) {
+        throw new Error(ui.backendPermissionDenied);
+      }
+      setLicense(await registerMember(
+        backendUrl.trim(),
+        backendUser.trim(),
+        backendPassword,
+        backendPasswordConfirmation,
+        backendEmail.trim() || undefined,
+      ));
     } catch (error) {
       setGateError(localizedErrorText(lang, error, ui.genericError));
     } finally {
@@ -478,12 +508,40 @@ export default function App() {
               <button disabled={gateBusy} className="w-full rounded-lg bg-blue-600 p-2.5 text-sm font-bold text-white">{gateBusy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : ui.offlineActivate}</button>
             </form>
           ) : (
-            <form onSubmit={handleMemberLogin} className="space-y-3">
-              <input value={backendUrl} onChange={(event) => setBackendUrl(event.target.value)} required className="w-full rounded-lg border bg-transparent p-2 text-sm" />
-              <input value={backendUser} onChange={(event) => setBackendUser(event.target.value)} required placeholder={ui.account} className="w-full rounded-lg border bg-transparent p-2 text-sm" />
-              <input type="password" value={backendPassword} onChange={(event) => setBackendPassword(event.target.value)} placeholder={ui.password} className="w-full rounded-lg border bg-transparent p-2 text-sm" />
-              <button disabled={gateBusy} className="w-full rounded-lg bg-blue-600 p-2.5 text-sm font-bold text-white"><LogIn className="mr-1 inline h-4 w-4" />{ui.login}</button>
-            </form>
+              <form
+                onSubmit={backendAuthMode === 'login' ? handleMemberLogin : handleMemberRegister}
+                className="space-y-3"
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBackendAuthMode('login')}
+                    className="rounded-lg border p-2 text-xs font-bold"
+                  >
+                    <LogIn className="mr-1 inline h-4 w-4" />{ui.login}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBackendAuthMode('register')}
+                    className="rounded-lg border p-2 text-xs font-bold"
+                  >
+                    <UserPlus className="mr-1 inline h-4 w-4" />{ui.register}
+                  </button>
+                </div>
+                <input value={backendUrl} onChange={(event) => setBackendUrl(event.target.value)} required className="w-full rounded-lg border bg-transparent p-2 text-sm" />
+                <input value={backendUser} onChange={(event) => setBackendUser(event.target.value)} required placeholder={ui.account} className="w-full rounded-lg border bg-transparent p-2 text-sm" />
+                {backendAuthMode === 'register' && (
+                  <input type="email" value={backendEmail} onChange={(event) => setBackendEmail(event.target.value)} placeholder={ui.email} className="w-full rounded-lg border bg-transparent p-2 text-sm" />
+                )}
+                <input type="password" value={backendPassword} onChange={(event) => setBackendPassword(event.target.value)} placeholder={ui.password} autoComplete={backendAuthMode === 'login' ? 'current-password' : 'new-password'} className="w-full rounded-lg border bg-transparent p-2 text-sm" />
+                {backendAuthMode === 'register' && (
+                  <input type="password" value={backendPasswordConfirmation} onChange={(event) => setBackendPasswordConfirmation(event.target.value)} placeholder={ui.confirmPassword} autoComplete="new-password" className="w-full rounded-lg border bg-transparent p-2 text-sm" />
+                )}
+                <button disabled={gateBusy} className="w-full rounded-lg bg-blue-600 p-2.5 text-sm font-bold text-white">
+                  {backendAuthMode === 'login' ? <LogIn className="mr-1 inline h-4 w-4" /> : <UserPlus className="mr-1 inline h-4 w-4" />}
+                  {backendAuthMode === 'login' ? ui.login : ui.register}
+                </button>
+              </form>
           )}
           {gateError && <p className="mt-3 flex items-center gap-1 text-xs text-rose-500"><AlertCircle className="h-4 w-4" />{gateError}</p>}
         </div>

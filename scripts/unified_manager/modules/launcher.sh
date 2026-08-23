@@ -13,6 +13,10 @@
 
 # App Launcher Module
 # Provides app launching functions for unified manager
+LAUNCHER_MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCHER_ARROW_MENU="$LAUNCHER_MODULE_DIR/../../shells/linux/common/arrow_menu.sh"
+
+source "$LAUNCHER_ARROW_MENU"
 
 # Show service installation options for current app
 show_service_installation_options() {
@@ -22,45 +26,31 @@ show_service_installation_options() {
     local current_script="$4"
     local working_dir="$5"
     local command="$6"
+    local options=(
+        "Just run temporarily (development mode)"
+        "Install as system service"
+        "Install as system service + Laravel reverse proxy (with domain)"
+        "Back to main menu"
+    )
 
-    echo -e "\033[36m=== Installation Options ================\033[0m"
-    echo -e "\033[33m1)\033[0m Just run temporarily (development mode)"
-    echo -e "\033[33m2)\033[0m Install as system service"
-    echo -e "\033[33m3)\033[0m Install as system service + Laravel reverse proxy (with domain)"
-    echo -e "\033[33m4)\033[0m Back to main menu"
-    echo ""
-    echo -ne "\033[36mSelect installation option (1-4): \033[0m"
-
-    while true; do
-        read -n 1 -r option
-        echo ""
-
-        case "$option" in
-            "1")
+    arrow_menu_select "Installation Options" options 0 3
+    case "$ARROW_MENU_SELECTED_INDEX" in
+            0)
                 echo -e "\033[32mRunning temporarily in development mode...\033[0m"
                 run_app_temporarily "$app_name" "$app_path" "$current_script" "$working_dir" "$command"
-                return 0
                 ;;
-            "2")
+            1)
                 echo -e "\033[32mInstalling as system service...\033[0m"
                 install_as_system_service "$app_name" "$app_path" "$app_type" "$current_script"
-                return 0
                 ;;
-            "3")
+            2)
                 echo -e "\033[32mInstalling as system service with Laravel reverse proxy...\033[0m"
                 install_with_laravel_proxy "$app_name" "$app_path" "$app_type" "$current_script"
-                return 0
                 ;;
-            "4")
+            3)
                 echo -e "\033[33mReturning to main menu...\033[0m"
-                return 0
                 ;;
-            *)
-                echo -e "\033[31mInvalid option. Please select 1-4.\033[0m"
-                echo -ne "\033[36mSelect installation option (1-4): \033[0m"
-                ;;
-        esac
-    done
+    esac
 }
 
 # Run app temporarily without installing as service
@@ -480,22 +470,10 @@ launch_current_app() {
         local script_path="$app_path/scripts/$current_script"
 
         if [ -f "$script_path" ]; then
-            echo ""
-            echo -e "\033[36m=== Script Execution =====================\033[0m"
-            echo -e "\033[33mScript Path:\033[0m $script_path"
-            echo ""
-            echo -e "\033[33mScript Execution Options:\033[0m"
-            echo -e "\033[33m1)\033[0m Run script directly"
-            echo -e "\033[33m2)\033[0m Back to main menu"
-            echo ""
-            echo -ne "\033[36mSelect option (1-2): \033[0m"
-
-            while true; do
-                read -n 1 -r option
-                echo ""
-
-                case "$option" in
-                    "1")
+            local script_options=("Run script directly" "Back to main menu")
+            arrow_menu_select "Script Execution: $script_path" script_options 0 1
+            case "$ARROW_MENU_SELECTED_INDEX" in
+                    0)
                         echo -e "\033[32mExecuting script...\033[0m"
                         echo ""
 
@@ -506,18 +484,11 @@ launch_current_app() {
                         echo ""
                         echo -e "\033[36mScript finished. Press any key to return to menu...\033[0m"
                         read -n 1 -r
-                        return 0
                         ;;
-                    "2")
+                    1)
                         echo -e "\033[33mReturning to main menu...\033[0m"
-                        return 0
                         ;;
-                    *)
-                        echo -e "\033[31mInvalid option. Please select 1 or 2.\033[0m"
-                        echo -ne "\033[36mSelect option (1-2): \033[0m"
-                        ;;
-                esac
-            done
+            esac
         else
             echo -e "\033[31mScript not found: $script_path\033[0m"
             read -p "Press Enter to continue..."

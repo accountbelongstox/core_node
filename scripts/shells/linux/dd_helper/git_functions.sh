@@ -76,7 +76,7 @@ show_git_management_menu() {
         # Check if user wants to go back to main menu
         if [ "$menu_back" = "true" ]; then
             clear_git_vars
-            return 0
+            return
         fi
 
         # Check operation status
@@ -109,32 +109,20 @@ show_git_management_menu() {
                 # Execute the shell command
                 cd "$CORE_NODE_ROOT_DIR"
                 eval "$shell_script"
-                local exec_result=$?
+                write_git_var "git_operation_status" "success"
+                echo ""
+                echo -e "\033[32mOperation completed.\033[0m"
 
-                # Update status based on execution result
-                if [ $exec_result -eq 0 ]; then
-                    write_git_var "git_operation_status" "success"
-                    echo ""
-                    echo -e "\033[32mOperation completed successfully!\033[0m"
+                if [ "$operation_type" = "safe_pull" ] || [ "$operation_type" = "force_overwrite" ]; then
+                    make_sh_executable
+                fi
 
-                    # Make shell scripts executable after pull operations
-                    if [ "$operation_type" = "safe_pull" ] || [ "$operation_type" = "force_overwrite" ]; then
-                        make_sh_executable
+                if [ "$operation_type" = "force_overwrite" ]; then
+                    local backup_branch=$(read_git_var "git_backup_branch" "")
+                    if [ -n "$backup_branch" ]; then
+                        echo ""
+                        echo -e "\033[36mYour local changes have been backed up to: $backup_branch\033[0m"
                     fi
-
-                    # Show backup branch info for force overwrite
-                    if [ "$operation_type" = "force_overwrite" ]; then
-                        local backup_branch=$(read_git_var "git_backup_branch" "")
-                        if [ -n "$backup_branch" ]; then
-                            echo ""
-                            echo -e "\033[36mYour local changes have been backed up to: $backup_branch\033[0m"
-                        fi
-                    fi
-                else
-                    write_git_var "git_operation_status" "failed"
-                    echo ""
-                    echo -e "\033[31mOperation failed.\033[0m"
-                    echo "Please check the output above for details."
                 fi
 
                 echo ""

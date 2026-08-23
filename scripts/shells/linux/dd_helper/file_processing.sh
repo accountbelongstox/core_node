@@ -36,7 +36,8 @@ process_sh_files() {
 
     while IFS= read -r -d '' file; do
         ((total_files++))
-        if check_file_cache "$file"; then
+        check_file_cache "$file"
+        if [ "$FILE_CACHE_HIT" = true ]; then
             files_to_skip+=("$file")
             ((skipped_files++))
         else

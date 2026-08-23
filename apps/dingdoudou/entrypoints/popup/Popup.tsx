@@ -26,6 +26,7 @@ import {
   getLicense,
   submitSuperCode,
   loginMember,
+  registerMember,
   requestBackendAccess,
   clearLicense,
   listAccounts,
@@ -67,8 +68,11 @@ export function Popup() {
   const [clearing, setClearing] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BACKEND_URL);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
   const [licenseError, setLicenseError] = useState<string | null>(null);
 
@@ -163,6 +167,39 @@ export function Popup() {
       showToast(text.loginSucceeded);
     } catch (e) {
       setLicenseError(localizedErrorText(lang, e, text.loginFailed));
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function handleRegister() {
+    if (!baseUrl.trim() || !username.trim() || !password) {
+      setLicenseError(text.enterBackendCredentials);
+      return;
+    }
+    if (password !== passwordConfirmation) {
+      setLicenseError(text.passwordMismatch);
+      return;
+    }
+    setLoggingIn(true);
+    setLicenseError(null);
+    try {
+      if (!(await requestBackendAccess(baseUrl.trim()))) {
+        throw new Error(text.backendPermissionDenied);
+      }
+      const lic = await registerMember(
+        baseUrl.trim(),
+        username.trim(),
+        password,
+        passwordConfirmation,
+        email.trim() || undefined,
+      );
+      setLicense(lic);
+      setPassword('');
+      setPasswordConfirmation('');
+      showToast(text.registrationSucceeded);
+    } catch (e) {
+      setLicenseError(localizedErrorText(lang, e, text.registrationFailed));
     } finally {
       setLoggingIn(false);
     }
@@ -371,6 +408,22 @@ export function Popup() {
               </button>
               {showBackend && (
                 <div className="mt-2 space-y-2">
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-900/70 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('login')}
+                      className={`rounded-md px-2 py-1 text-xs ${authMode === 'login' ? 'bg-slate-700 text-slate-100' : 'text-slate-400'}`}
+                    >
+                      {text.login}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode('register')}
+                      className={`rounded-md px-2 py-1 text-xs ${authMode === 'register' ? 'bg-slate-700 text-slate-100' : 'text-slate-400'}`}
+                    >
+                      {text.register}
+                    </button>
+                  </div>
                   <input
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
@@ -385,23 +438,44 @@ export function Popup() {
                     autoComplete="username"
                     className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
                   />
+                  {authMode === 'register' && (
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={text.email}
+                      autoComplete="email"
+                      className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
+                    />
+                  )}
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                    onKeyDown={(e) => e.key === 'Enter' && authMode === 'login' && handleLogin()}
                     placeholder={text.password}
                     autoComplete="current-password"
                     className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
                   />
+                  {authMode === 'register' && (
+                    <input
+                      type="password"
+                      value={passwordConfirmation}
+                      onChange={(e) => setPasswordConfirmation(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
+                      placeholder={text.confirmPassword}
+                      autoComplete="new-password"
+                      className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
+                    />
+                  )}
                   <button
                     type="button"
-                    onClick={handleLogin}
+                    onClick={authMode === 'login' ? handleLogin : handleRegister}
                     disabled={loggingIn}
                     className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-600/60 bg-slate-700/50 px-3 py-1.5 font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
                   >
                     {loggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    {text.login}
+                    {authMode === 'login' ? text.login : text.register}
                   </button>
                 </div>
               )}

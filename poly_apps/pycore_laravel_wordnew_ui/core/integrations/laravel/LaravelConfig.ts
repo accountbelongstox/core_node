@@ -1,9 +1,11 @@
-export const DEFAULT_API_PORT = 9000;
+import {
+  DEFAULT_LARAVEL_API_ORIGIN,
+  LARAVEL_API_BACKEND_PORT,
+} from '../../contracts/ServiceContract';
+
+export const DEFAULT_API_PORT = LARAVEL_API_BACKEND_PORT;
 export const DEFAULT_API_TIMEOUT = 30000;
 
 export function getDefaultBaseURL(): string {
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:${DEFAULT_API_PORT}`;
-  }
-  return `http://localhost:${DEFAULT_API_PORT}`;
+  return DEFAULT_LARAVEL_API_ORIGIN;
 }

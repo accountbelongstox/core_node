@@ -23,6 +23,7 @@ source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
 PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
 RUSTDESK_INSTALL_INFO_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/server_manager/rustdesk_install_info.sh"
+LINUX_MANAGED_USER_VALID=false
 
 # Function to disable Ubuntu automatic updates
 disable_ubuntu_auto_updates() {
@@ -32,14 +33,10 @@ disable_ubuntu_auto_updates() {
     
     if [ -s "$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH" ]; then
         bash "$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH"
-        if [ $? -eq 0 ]; then
-            echo "Ubuntu automatic updates disabled successfully"
-        else
-            echo "Failed to disable Ubuntu automatic updates"
-        fi
+        echo "Ubuntu automatic update configuration completed"
     else
         echo "Error: Script not found at: $DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH"
-        return 1
+        return
     fi
     
     echo ""
@@ -60,7 +57,7 @@ show_permissions_repair_menu() {
         echo ""
         echo "Press Enter to continue..."
         read
-        return 1
+        return
     fi
 }
 
@@ -87,15 +84,8 @@ manage_natgateway() {
     fi
     
     bash "$natgateway_script"
-    
-    local exit_code=$?
     echo ""
-    
-    if [ $exit_code -eq 0 ]; then
-        echo "NAT Gateway configuration completed successfully."
-    else
-        echo "NAT Gateway configuration exited with code: $exit_code"
-    fi
+    echo "NAT Gateway configuration completed."
     
     echo ""
     echo "Press Enter to continue..."
@@ -140,7 +130,7 @@ restart_gnome_rdp() {
         echo ""
         echo "Press Enter to continue..."
         read
-        return 1
+        return
     fi
 
     # Detect desktop user
@@ -159,7 +149,7 @@ restart_gnome_rdp() {
             echo ""
             echo "Press Enter to continue..."
             read
-            return 1
+            return
         fi
     fi
 
@@ -176,7 +166,7 @@ restart_gnome_rdp() {
         echo ""
         echo "Press Enter to continue..."
         read
-        return 1
+        return
     fi
 
     echo "  [OK] Desktop session found (PID: $DBUS_SESSION)"
@@ -189,7 +179,7 @@ restart_gnome_rdp() {
         echo ""
         echo "Press Enter to continue..."
         read
-        return 1
+        return
     fi
 
     echo "  [OK] D-Bus session detected"
@@ -361,7 +351,7 @@ _slim_sudo() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 _do_snap_slim() {
     if ! command -v snap >/dev/null 2>&1; then
         echo "snap is not installed; nothing to slim."
-        return 0
+        return
     fi
     local s app_snaps=(flutter dotnet-sdk docker chromium android-studio)
     for s in "${app_snaps[@]}"; do
@@ -486,7 +476,7 @@ scan_large_paths() {
         echo ""
         echo "Press Enter to continue..."
         read
-        return 0
+        return
     fi
     echo "Root: $root  (single filesystem; apparent disk usage)"
     echo "Scanning - this can take a while on a large tree ..."
@@ -566,7 +556,7 @@ show_slim_disk_submenu() {
             5) remove_desktop_apps ;;
             6) block_and_remove_apache ;;
             7) cap_var_core_node_logs ;;
-            8) return 0 ;;
+            8) return ;;
         esac
     done
 }
@@ -604,7 +594,7 @@ show_linux_system_tools_submenu() {
             8) show_slim_disk_submenu ;;
             9) show_management_and_backup ;;
             10) show_linux_user_management_menu ;;
-            11) return 0 ;;
+            11) return ;;
         esac
     done
 }
@@ -612,9 +602,11 @@ show_linux_system_tools_submenu() {
 linux_managed_user_is_valid() {
     local username="$1"
 
-    [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || return 1
-    system_user_is_excluded "$username" && return 1
-    return 0
+    LINUX_MANAGED_USER_VALID=false
+    [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || return
+    system_user_is_excluded "$username"
+    [ "$SYSTEM_USER_EXCLUDED" = false ] || return
+    LINUX_MANAGED_USER_VALID=true
 }
 
 list_linux_managed_users() {
@@ -627,7 +619,8 @@ list_linux_managed_users() {
     while IFS=: read -r username _ uid _ _ home_dir shell; do
         [ "$uid" -ge 1000 ] 2>/dev/null || continue
         [ "$uid" -lt 65534 ] 2>/dev/null || continue
-        linux_managed_user_is_valid "$username" || continue
+        linux_managed_user_is_valid "$username"
+        [ "$LINUX_MANAGED_USER_VALID" = true ] || continue
         case "$shell" in
             */nologin|*/false) continue ;;
         esac
@@ -641,17 +634,18 @@ add_linux_managed_user() {
 
     printf "New username: "
     read -r username
-    if ! linux_managed_user_is_valid "$username"; then
+    linux_managed_user_is_valid "$username"
+    if [ "$LINUX_MANAGED_USER_VALID" != true ]; then
         echo "Invalid or reserved username: $username"
-        return 1
+        return
     fi
     if id "$username" >/dev/null 2>&1; then
         echo "User already exists: $username"
-        return 1
+        return
     fi
     printf "Create user '%s' with a home directory? [y/N]: " "$username"
     read -r confirm
-    [[ "$confirm" =~ ^[Yy]$ ]] || return 0
+    [[ "$confirm" =~ ^[Yy]$ ]] || return
     $USE_SUDO useradd -m -U -s /bin/bash "$username"
     echo "User created: $username"
 }
@@ -665,23 +659,26 @@ delete_linux_managed_user() {
     echo ""
     printf "Username to delete (home directory will be preserved): "
     read -r username
-    if ! linux_managed_user_is_valid "$username" || ! system_user_candidate_is_active_regular "$username"; then
+    linux_managed_user_is_valid "$username"
+    system_user_candidate_is_active_regular "$username"
+    if [ "$LINUX_MANAGED_USER_VALID" != true ] || [ "$SYSTEM_USER_ACTIVE_REGULAR" != true ]; then
         echo "Managed user not found: $username"
-        return 1
+        return
     fi
     active_user="$(id -un 2>/dev/null || true)"
-    if [ "$active_user" = "root" ] && system_user_candidate_is_active_regular "${SUDO_USER:-}"; then
+    system_user_candidate_is_active_regular "${SUDO_USER:-}"
+    if [ "$active_user" = "root" ] && [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
         active_user="$SUDO_USER"
     elif [ "$active_user" = "root" ]; then
         active_user="$(who 2>/dev/null | awk 'NF { print $1; exit }')"
     fi
     if [ "$username" = "$active_user" ]; then
         echo "Refusing to delete the active user: $username"
-        return 1
+        return
     fi
     printf "Type DELETE to remove account '%s': " "$username"
     read -r confirm
-    [ "$confirm" = "DELETE" ] || return 0
+    [ "$confirm" = "DELETE" ] || return
     $USE_SUDO userdel "$username"
     echo "User account deleted; home directory preserved: $username"
 }
@@ -700,7 +697,7 @@ show_linux_user_management_menu() {
         case "$selected_index" in
             0) add_linux_managed_user ;;
             1) delete_linux_managed_user ;;
-            2) return 0 ;;
+            2) return ;;
         esac
         echo ""
         echo "Press Enter to continue..."
@@ -735,7 +732,7 @@ show_linux_management_submenu() {
             5) show_service_manager ;;
             6) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
             7) show_linux_system_tools_submenu ;;
-            8) return 0 ;;
+            8) return ;;
         esac
     done
 }

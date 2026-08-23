@@ -23,6 +23,7 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Public\DingDuoDuoV
 */
 
 Route::prefix('ding_duo_duo_v1')->group(function () {
+    Route::post('member/register', [DingDuoDuoV1MemberAuthController::class, 'register']);
     Route::post('member/login', [DingDuoDuoV1MemberAuthController::class, 'login']);
     Route::get('member/me', [DingDuoDuoV1MemberAuthController::class, 'me']);
 });

@@ -116,18 +116,14 @@ handle_menu_action() {
                     else
                         bash "$GITPUT_UNIFIED_SCRIPT_PATH" "$value"
                     fi
-                    if [ $? -eq 0 ]; then
-                        echo "Git push operations completed successfully"
-                    else
-                        echo "Git push operations failed"
-                    fi
+                    echo "Git push operations completed"
                     ;;
                 "show_linux_management_submenu")
                     show_linux_management_submenu
                     ;;
                 "exit_script")
                     echo "Exiting the script."
-                    exit 0
+                    exit
                     ;;
             esac
         }

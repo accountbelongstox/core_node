@@ -197,7 +197,8 @@ if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Pat
     $reqFile = Join-Path $targetDir 'requirements.txt'
     if (Test-Path $reqFile) {
         Write-Host "$SCRIPT_INDEX [..] building/verifying isolated gptsovits venv (ensure_venv -r requirements.txt; first build takes minutes) ..." -ForegroundColor Yellow
-        $gptsovitsVenvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits' -PipPackages @('-r', $reqFile) -HealthImports 'import torch, transformers' -Force:$Force
+        Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits' -PipPackages @('-r', $reqFile) -HealthImports 'import torch, transformers' -Force:$Force
+        $gptsovitsVenvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
     } else {
         Write-Host "$SCRIPT_INDEX [!] requirements.txt not found in the cloned repo; cannot build the isolated venv." -ForegroundColor DarkYellow
     }

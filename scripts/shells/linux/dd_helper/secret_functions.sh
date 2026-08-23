@@ -118,7 +118,8 @@ ensure_secret_keys_ready() {
 
     # Check for encrypted files with content changes (before checking missing files)
     if [ -d "$encrypted_dir" ]; then
-        if get_encrypted_files_needing_redecryption "$encrypted_dir" "$raw_dir"; then
+        get_encrypted_files_needing_redecryption "$encrypted_dir" "$raw_dir"
+        if [ "$SECRET_REDECRYPTION_REQUESTED" = true ]; then
             # Some encrypted files were updated and user chose to re-decrypt
             # The function already removed outdated raw files
             echo -e "\033[36m[CACHE UPDATE] Starting re-decryption after content changes...\033[0m"

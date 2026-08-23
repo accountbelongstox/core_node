@@ -23,8 +23,10 @@ APPS_DIR="$DD_SH_DIR/apps"
 POLY_APPS_DIR="$DD_SH_DIR/poly_apps"
 COMPOSER_VENDOR_COMMON="$(cd "${SCRIPT_DIR}/../../common" && pwd)/composer_vendor_common.sh"
 RUN_APP_RUNTIMES="$SCRIPT_DIR/run_app_runtimes.sh"
+RUN_APP_ARROW_MENU="$(cd "${SCRIPT_DIR}/../.." && pwd)/common/arrow_menu.sh"
 
 . "$COMPOSER_VENDOR_COMMON"
+. "$RUN_APP_ARROW_MENU"
 . "$RUN_APP_RUNTIMES"
 
 # Colors for output
@@ -592,24 +594,24 @@ run_app_by_type() {
             ;;
         "Unknown")
             log_warning "Unknown project type for $app_name"
-            echo "Available options:"
-            echo "1. Try as Vue project"
-            echo "2. Try as Laravel project"
-            echo "3. Try as Node.js project"
-            echo "4. Try as Flutter project"
-            echo "5. Try as Python project"
-            echo "0. Cancel"
-            echo ""
-            read -p "Enter your choice (0-5): " manual_choice
+            local manual_options=(
+                "Try as Vue project"
+                "Try as Laravel project"
+                "Try as Node.js project"
+                "Try as Flutter project"
+                "Try as Python project"
+                "Cancel"
+            )
+            arrow_menu_select "Select Project Runtime" manual_options 0 5
+            manual_choice="$ARROW_MENU_SELECTED_INDEX"
             
             case $manual_choice in
-                1) run_vue_debug "$app_dir" "${args[@]}" ;;
-                2) run_laravel_app "$app_dir" "${args[@]}" ;;
-                3) run_nodejs_app "$app_name" "${args[@]}" ;;
-                4) run_flutter_app "$app_dir" "${args[@]}" ;;
-                5) run_python_app "$app_dir" "${args[@]}" ;;
-                0) log_info "Cancelled" ;;
-                *) log_error "Invalid choice" ;;
+                0) run_vue_debug "$app_dir" "${args[@]}" ;;
+                1) run_laravel_app "$app_dir" "${args[@]}" ;;
+                2) run_nodejs_app "$app_name" "${args[@]}" ;;
+                3) run_flutter_app "$app_dir" "${args[@]}" ;;
+                4) run_python_app "$app_dir" "${args[@]}" ;;
+                5) log_info "Cancelled" ;;
             esac
             ;;
         *)

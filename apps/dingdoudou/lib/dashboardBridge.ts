@@ -43,6 +43,22 @@ export async function loginMember(
 ): Promise<LicenseState> {
   return unwrap(await sendToBackground({ type: 'license.loginMember', baseUrl, username, password }));
 }
+export async function registerMember(
+  baseUrl: string,
+  username: string,
+  password: string,
+  passwordConfirmation: string,
+  email?: string,
+): Promise<LicenseState> {
+  return unwrap(await sendToBackground({
+    type: 'license.registerMember',
+    baseUrl,
+    username,
+    password,
+    passwordConfirmation,
+    email,
+  }));
+}
 export async function clearLicense(): Promise<void> {
   unwrap(await sendToBackground({ type: 'license.clear' }));
 }

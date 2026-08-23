@@ -46,7 +46,7 @@ function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
     id: index === 0 ? 'primary-remote' : index === 1 ? 'secondary-remote' : `remote-domain-${index + 1}`,
     url: `api.${config.apiRegionPrefix}.${domain}`,
     protocol: 'https',
-    priority: index === 0 ? 1 : index === 1 ? 6 : 10 + index,
+    priority: index === 0 ? 0 : index === 1 ? 6 : 10 + index,
     isLocal: false,
     description: domain,
   }));
@@ -87,7 +87,7 @@ function createCurrentOriginEndpoint(
       id: `${CURRENT_URL_TYPE}:${apiHost}`,
       url: apiHost,
       protocol,
-      priority: 0,
+      priority: 5,
       isLocal: false,
       description: `Current URL - this site (${protocol}://${apiHost})`,
     };
@@ -98,7 +98,7 @@ function createCurrentOriginEndpoint(
     url: hostname,
     protocol,
     port: FIXED_API_PORT,
-    priority: 0,
+    priority: 5,
     isLocal,
     description: `Current URL — this site (${protocol}://${hostname}:${FIXED_API_PORT})`,
   };

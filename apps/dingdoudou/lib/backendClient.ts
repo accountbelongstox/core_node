@@ -4,6 +4,7 @@
 // Base routes (Laravel): /api/ding_duo_duo_v1/...
 //   POST license/verify     { device_id, token? }  -> license payload
 //   POST license/heartbeat  { device_id, token }   -> refreshed license
+//   POST member/register    { username, password, password_confirmation, email?, device_id } -> { token, member }
 //   POST member/login       { username, password, device_id } -> { token, member }
 //   GET  recharge/packages                          -> packages[]
 //   POST recharge/create    { token, package_id }   -> { pay_url }
@@ -95,6 +96,23 @@ export async function memberLogin(
   const data = await call<{ token: string; member: BackendLicenseDTO }>(cfg, 'member/login', {
     username,
     password,
+    device_id: cfg.deviceId,
+  });
+  return toLicense(data.member ?? {}, data.token);
+}
+
+export async function memberRegister(
+  cfg: BackendConfig,
+  username: string,
+  password: string,
+  passwordConfirmation: string,
+  email?: string,
+): Promise<LicenseState> {
+  const data = await call<{ token: string; member: BackendLicenseDTO }>(cfg, 'member/register', {
+    username,
+    password,
+    password_confirmation: passwordConfirmation,
+    email: email || undefined,
     device_id: cfg.deviceId,
   });
   return toLicense(data.member ?? {}, data.token);
