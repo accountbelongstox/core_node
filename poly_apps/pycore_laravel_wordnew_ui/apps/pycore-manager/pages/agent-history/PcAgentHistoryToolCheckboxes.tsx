@@ -154,7 +154,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
               />
               <button
                 type="button"
-                onClick={() => handleSelect(tool)}
+                onClick={() => openHistory(tool, 'prompts')}
                 className="inline-flex items-center gap-1.5"
               >
                 <span>{TOOL_LABELS[tool] || tool}</span>
@@ -184,7 +184,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                 <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-700 dark:text-slate-200">
                   <button
                     type="button"
-                    onClick={() => handleSelect(tool)}
+                    onClick={() => openHistory(tool, 'prompts')}
                     className="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-300"
                   >
                     <span>{TOOL_LABELS[tool] || tool}</span>
@@ -205,7 +205,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                       </button>
                       <button
                         type="button"
-                        onClick={() => openHistory(tool, 'sessions')}
+                        onClick={() => openHistory(tool, 'prompts')}
                         title={`${tk('replyCount')} · ${TOOL_LABELS[tool] || tool}`}
                         className={`${statBtnCls} bg-cyan-500/10`}
                       >
@@ -232,7 +232,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                       </button>
                     </div>
                     <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1">
-                      <button type="button" onClick={() => openHistory(tool, 'sessions')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
+                      <button type="button" onClick={() => openHistory(tool, 'prompts')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
                         {item.sessions} {tk('sessionCount')}
                       </button>
                     </div>

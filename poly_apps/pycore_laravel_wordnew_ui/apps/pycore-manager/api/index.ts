@@ -9,6 +9,7 @@ export { fetchPycoreBlobUrl } from '../../../core/integrations/pycore/PycoreBlob
 export * from '../../../core/integrations/pycore/pycoreHttpLog';
 export * from './PycoreCapabilityStore';
 export * from './AgentHistoryRuntimeStore';
+export * from './AgentHistoryVideoRuntimeStore';
 export * from './CodeSyncRuntimeStore';
 export * from './LlmStatusRuntimeStore';
 export * from './TerminalScheduleStore';

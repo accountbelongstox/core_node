@@ -9,7 +9,7 @@ import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
  * failures that means the error object and its FULL traceback, exactly as
  * recorded server-side. Nothing is clipped or summarized away.
  */
-const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
+const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string; className?: string }> = ({ tk, className = '' }) => {
   const {
     operationSnapshot: data,
     operationLoading: loading,
@@ -79,7 +79,7 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-white/[0.02] p-4 space-y-3">
+    <section className={`rounded-2xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-white/[0.02] p-4 space-y-3 ${className}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
           <Radio className="w-3.5 h-3.5 text-indigo-500" />

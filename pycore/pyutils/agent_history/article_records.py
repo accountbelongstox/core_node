@@ -265,6 +265,38 @@ def records_revision() -> str:
         return "0:0"
 
 
+def video_records_revision() -> str:
+    files = [path for path in video_dir().glob("*/job.json") if path.is_file()]
+    if not files:
+        return "0:0:0"
+    latest = max(path.stat().st_mtime_ns for path in files)
+    total_size = sum(path.stat().st_size for path in files)
+    return f"{latest}:{len(files)}:{total_size}"
+
+
+def list_video_jobs(limit: int = 100) -> List[Dict[str, Any]]:
+    jobs: List[Dict[str, Any]] = []
+    record = None
+    normalized_limit = max(1, min(int(limit or 100), _LIST_CAP))
+    for path in video_dir().glob("*/job.json"):
+        job = _read_record_path(path)
+        if job is None:
+            continue
+        record = get_record(str(job.get("record_id") or ""))
+        job["title_en"] = str((record or {}).get("title_en") or "")
+        job["title_cn"] = str((record or {}).get("title_cn") or "")
+        job["video_available"] = (path.parent / "video.mp4").is_file()
+        jobs.append(job)
+    jobs.sort(
+        key=lambda item: (
+            str(item.get("updated_at") or item.get("created_at") or ""),
+            str(item.get("id") or ""),
+        ),
+        reverse=True,
+    )
+    return jobs[:normalized_limit]
+
+
 def list_record_metadata(limit: int = 100) -> List[Dict[str, Any]]:
     """ID-page rows, newest first: full metadata minus the heavy text bodies."""
     page = record_metadata_page(1, max(1, min(int(limit or 100), _LIST_CAP)))

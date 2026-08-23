@@ -35,20 +35,20 @@ def _config_enabled() -> bool:
 
 
 def set_agent_history_callbacks_enabled(pipeline_enabled: bool) -> None:
-    """Toggle article processing without stopping continuous TXT extraction."""
+    """Apply independent pipeline and video lanes from persisted config."""
     heartbeat = shared_heartbeat_system
+    config = user_data_store.get_section("agent_history_article") or {}
+    video_enabled = bool(config.get("video_enabled", False))
     heartbeat.enable_callback(CALLBACK_EXTRACT)
     if pipeline_enabled:
         heartbeat.enable_callback(CALLBACK_PIPELINE)
         heartbeat.enable_callback(CALLBACK_UPLOAD)
-        config = user_data_store.get_section("agent_history_article") or {}
-        if bool(config.get("video_enabled", False)):
-            heartbeat.enable_callback(CALLBACK_VIDEO)
-        else:
-            heartbeat.disable_callback(CALLBACK_VIDEO)
     else:
         heartbeat.disable_callback(CALLBACK_PIPELINE)
         heartbeat.disable_callback(CALLBACK_UPLOAD)
+    if video_enabled:
+        heartbeat.enable_callback(CALLBACK_VIDEO)
+    else:
         heartbeat.disable_callback(CALLBACK_VIDEO)
 
 
@@ -63,6 +63,7 @@ def register_agent_history_extraction() -> None:
     heartbeat = shared_heartbeat_system
     service = agent_history_tick_service
     pipeline_on = _config_enabled()
+    video_on = bool((user_data_store.get_section("agent_history_article") or {}).get("video_enabled", False))
     extract_on = True
 
     heartbeat.register_callback(
@@ -81,7 +82,7 @@ def register_agent_history_extraction() -> None:
         name=CALLBACK_VIDEO,
         callback=tick_video,
         interval=VIDEO_INTERVAL,
-        enabled=pipeline_on and bool((user_data_store.get_section("agent_history_article") or {}).get("video_enabled", False)),
+        enabled=video_on,
     )
     heartbeat.register_callback(
         name=CALLBACK_UPLOAD,
@@ -94,4 +95,4 @@ def register_agent_history_extraction() -> None:
     ColorPrint.blue(f"  - {CALLBACK_EXTRACT}: every {EXTRACT_INTERVAL}s ({'on' if extract_on else 'off'})")
     ColorPrint.blue(f"  - {CALLBACK_PIPELINE}: every {PIPELINE_INTERVAL}s ({'on' if pipeline_on else 'off'})")
     ColorPrint.blue(f"  - {CALLBACK_UPLOAD}: every {UPLOAD_INTERVAL}s ({'on' if pipeline_on else 'off'})")
-    ColorPrint.blue(f"  - {CALLBACK_VIDEO}: every {VIDEO_INTERVAL}s")
+    ColorPrint.blue(f"  - {CALLBACK_VIDEO}: every {VIDEO_INTERVAL}s ({'on' if video_on else 'off'})")
