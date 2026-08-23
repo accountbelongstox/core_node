@@ -358,6 +358,7 @@ const validityLanguages = ref<string[]>(['en']);
 const CATEGORY_PAGE_SIZE = 20;
 const WORD_VALIDITY_PAGE_SIZE = WORD_VALIDITY_CONFIG.view_page_size;
 const validityPageCache = new Map<string, ValidityQueuePage>();
+const validityPageRequests = new Map<string, Promise<ValidityQueuePage>>();
 
 let taskCenterApi: TaskCenterApiClient | null = null;
 let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -536,16 +537,21 @@ const getValidityPage = async (start: number, search: string): Promise<ValidityQ
   const cacheKey = validityPageCacheKey(start, search);
   const cached = validityPageCache.get(cacheKey);
   if (cached) return cached;
+  const pending = validityPageRequests.get(cacheKey);
+  if (pending) return pending;
 
-  const page = await apiClient().listValidityQueue(
+  const request = apiClient().listValidityQueue(
     validityLanguages.value,
     start,
     WORD_VALIDITY_PAGE_SIZE,
     search,
-  );
-  updateValidityRevision(page.revision);
-  validityPageCache.set(cacheKey, page);
-  return page;
+  ).then((page) => {
+    updateValidityRevision(page.revision);
+    validityPageCache.set(cacheKey, page);
+    return page;
+  }).finally(() => validityPageRequests.delete(cacheKey));
+  validityPageRequests.set(cacheKey, request);
+  return request;
 };
 
 const categoryPageRange = computed(() => {
@@ -601,20 +607,17 @@ const loadCategoryPage = async (): Promise<void> => {
   }
 };
 
-const openCategory = async (category: SummaryCat): Promise<void> => {
+const openCategoryWithStatus = async (category: SummaryCat, status: string): Promise<void> => {
   selectedCategory.value = category;
-  categoryStatus.value = 'pending';
+  categoryStatus.value = status;
   categoryStart.value = 0;
   categorySearchInput.value = '';
   categorySearch.value = '';
   await loadCategoryPage();
 };
 
-const openCategoryWithStatus = async (category: SummaryCat, status: string): Promise<void> => {
-  await openCategory(category);
-  categoryStatus.value = status;
-  await loadCategoryPage();
-};
+const openCategory = (category: SummaryCat): Promise<void> =>
+  openCategoryWithStatus(category, 'pending');
 
 const closeCategory = (): void => {
   selectedCategory.value = null;
