@@ -3,6 +3,7 @@ import { LaravelMercureConnection } from '../../../core/integrations/laravel/Lar
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
 import {
+  authedGetFreshJSON,
   authedGetJSON,
   loadToken,
 } from './WfNewApiTransport';
@@ -21,6 +22,7 @@ interface SocialRealtimeConnection {
   token_ttl_seconds: number;
   cookie: string;
   events: string[];
+  cursor: number;
 }
 
 interface SocialRealtimeEvent {
@@ -199,7 +201,7 @@ class WfNewSocialRealtime {
     const generation = ++this.generation;
     try {
       await wfNewEndpoints.whenReady();
-      const config = await authedGetJSON<SocialRealtimeConnection>(
+      const config = await authedGetFreshJSON<SocialRealtimeConnection>(
         WfNewApiPaths.socialRealtimeConnection,
         null as unknown as SocialRealtimeConnection,
       );
@@ -208,8 +210,9 @@ class WfNewSocialRealtime {
         throw new Error('SOCIAL_REALTIME_CONFIGURATION_UNAVAILABLE');
       }
       this.allowedEvents = new Set(config.events || []);
-      await this.replaySerialized();
-      if (!this.started || generation !== this.generation) return;
+      if (this.lastId === null && Number.isFinite(config.cursor)) {
+        this.lastId = Math.max(0, config.cursor);
+      }
       this.transport.connect(config, {
         authorize: async () => config,
         onSubscribed: () => {

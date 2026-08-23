@@ -28,6 +28,7 @@ import { StorageManager } from '../../../core/persistence';
 import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { dailyReadingHash, parseWordGroupHash, wordGroupHash } from '../routing/WordNewHashRoutes';
+import { synchronizeDailyReadingWordGroups } from '../components/daily-reading/dailyReadingWordGroupStore';
 
 /** Every navigable page/tab in the wordnew shell (drives the history stack). */
 export type WordNewTab =
@@ -39,14 +40,19 @@ export type WordNewTab =
 /**
  * Per-tab header (big title + optional subtitle) shown in the global nav beside
  * the back/logo control (WfNewNavLogo's fixed-width, overflow-hidden info block).
- * Returns null for pages with no header (home / shelf / practice / labs) so only
- * the logo shows. Dynamic pages (content-list / library / book-reader) take their
+ * Returns null for pages with no header (home / practice / labs) so only the
+ * logo shows. Dynamic pages (word group / content-list / library / book-reader) take their
  * title from the active route state.
  */
 export function wfNewPageHeader(
   tab: WordNewTab,
   trans: (key: string, replacements?: Record<string, string | number>) => string,
-  dyn: { contentListKind: WfNewContentKind | null; libraryTitle?: string; bookTitle?: string },
+  dyn: {
+    contentListKind: WfNewContentKind | null;
+    wordGroupTitle?: string;
+    libraryTitle?: string;
+    bookTitle?: string;
+  },
 ): { title: string; subtitle?: string } | null {
   switch (tab) {
     case 'walkman': return { title: trans('hdr.walkman'), subtitle: trans('hdr.walkmanSub') };
@@ -64,6 +70,10 @@ export function wfNewPageHeader(
     case 'daily-reading': return {
       title: trans('home.dailyReading.title'),
       subtitle: trans('home.dailyReading.pageSubtitle'),
+    };
+    case 'shelf': return {
+      title: dyn.wordGroupTitle || trans('library.title'),
+      subtitle: trans('library.subtitle'),
     };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
@@ -100,6 +110,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     id: string; page: number; view: 'dash' | 'table'; title?: string; language?: string;
   } | null>(null);
   const [wordGroupRouteId, setWordGroupRouteId] = useState<string | null>(null);
+  const [hashRouteReady, setHashRouteReady] = useState(false);
 
   // Refs mirror the latest values so the navigation callbacks can stay stable
   // (empty-deps useCallback) without nesting one state setter inside another.
@@ -153,68 +164,73 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // keeps you on the page); on every change, write the hash back. Lightweight
   // hash routing (no react-router restructure of the whole shell).
   useEffect(() => {
-    const fromHash = (typeof window !== 'undefined' ? window.location.hash : '').replace(/^#\/?/, '');
     const ALL: WordNewTab[] = [
       'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
       'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
       'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
       'daily-reading', 'admin',
     ];
-    const wordGroupRoute = parseWordGroupHash(
-      typeof window !== 'undefined' ? window.location.hash : '',
-    );
-    if (wordGroupRoute.matched) {
-      setWordGroupRouteId(wordGroupRoute.groupId);
-      setActiveTabRaw('shelf');
-      return;
-    }
-    if (fromHash === 'daily-reading' || fromHash.startsWith('daily-reading?') || fromHash.startsWith('daily-reading/')) {
-      setActiveTabRaw('daily-reading');
-      return;
-    }
-    // Deep-link to the read-along reader: #/book-reader/<sourceKey> restores
-    // the reader from the URL alone (no in-app state needed).
-    if (fromHash.startsWith('book-reader/')) {
-      const key = decodeURIComponent(fromHash.slice('book-reader/'.length)).trim();
-      if (!key) {
-        setActiveTabRaw('home');
+    const applyHashRoute = (trackNavigation: boolean): void => {
+      const fromHash = window.location.hash.replace(/^#\/?/, '');
+      const wordGroupRoute = parseWordGroupHash(window.location.hash);
+      const activate = (tab: WordNewTab): void => {
+        if (trackNavigation) setActiveTab(tab);
+        else setActiveTabRaw(tab);
+      };
+
+      if (wordGroupRoute.matched) {
+        setWordGroupRouteId(wordGroupRoute.groupId);
+        activate('shelf');
         return;
       }
-      setBookReader({ sourceKey: key, title: '' });
-      setActiveTabRaw('book-reader');
-      return;
-    }
-    // Deep-link to a vocabulary library: #/library/<id>?page=N&view=dash|table
-    if (fromHash.startsWith('library/')) {
-      const [path, query = ''] = fromHash.split('?');
-      const id = decodeURIComponent(path.slice('library/'.length)).trim();
-      if (!id) {
-        setActiveTabRaw('home');
+      if (fromHash === 'daily-reading' || fromHash.startsWith('daily-reading?') || fromHash.startsWith('daily-reading/')) {
+        activate('daily-reading');
         return;
       }
-      const params = new URLSearchParams(query);
-      const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
-      const view = params.get('view') === 'dash' ? 'dash' : 'table';
-      setLibraryRoute({ id, page, view });
-      setActiveTabRaw('library');
-      return;
-    }
-    // book-reader requires in-app state (sourceKey); bare hash cannot restore.
-    if (fromHash === 'book-reader') {
-      setActiveTabRaw('home');
-      return;
-    }
-    if (fromHash && (ALL as string[]).includes(fromHash) && fromHash !== 'home') {
-      setActiveTabRaw(fromHash as WordNewTab);
-      return;
-    }
-    if (fromHash && fromHash !== 'home') {
-      setActiveTabRaw('home');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
+      if (fromHash.startsWith('book-reader/')) {
+        const key = decodeURIComponent(fromHash.slice('book-reader/'.length)).trim();
+        if (!key) {
+          activate('home');
+          return;
+        }
+        setBookReader({ sourceKey: key, title: '' });
+        activate('book-reader');
+        return;
+      }
+      if (fromHash.startsWith('library/')) {
+        const [path, query = ''] = fromHash.split('?');
+        const id = decodeURIComponent(path.slice('library/'.length)).trim();
+        if (!id) {
+          activate('home');
+          return;
+        }
+        const params = new URLSearchParams(query);
+        const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
+        const view = params.get('view') === 'dash' ? 'dash' : 'table';
+        setLibraryRoute({ id, page, view });
+        activate('library');
+        return;
+      }
+      if (fromHash === 'book-reader') {
+        activate('home');
+        return;
+      }
+      if (fromHash && (ALL as string[]).includes(fromHash) && fromHash !== 'home') {
+        activate(fromHash as WordNewTab);
+        return;
+      }
+      activate('home');
+    };
+    const handleHashChange = (): void => applyHashRoute(true);
+
     if (typeof window === 'undefined') return;
+    applyHashRoute(false);
+    setHashRouteReady(true);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [setActiveTab]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hashRouteReady) return;
     let next = `#/${activeTab}`;
     // The library page carries its id/page/view in the URL so refresh/deep-link
     // restores the exact word-browser state.
@@ -234,7 +250,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);
     }
-  }, [activeTab, libraryRoute, wordGroupRouteId]);
+  }, [activeTab, hashRouteReady, libraryRoute, wordGroupRouteId]);
 
   // Unified global auth user state (persisted via the shared settings store)
   const [currentUser, setCurrentUser] = useState(() => {
@@ -340,6 +356,12 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // without re-subscribing.
   const isLoggedInRef = useRef(currentUser.isLoggedIn);
   useEffect(() => { isLoggedInRef.current = currentUser.isLoggedIn; }, [currentUser.isLoggedIn]);
+
+  useEffect(() => {
+    void synchronizeDailyReadingWordGroups(currentUser.isLoggedIn).catch((error: unknown) => {
+      console.warn('[WordNewDailyReading] Global word-group synchronization skipped:', error);
+    });
+  }, [currentUser.isLoggedIn]);
 
   // ---- Cache scoping (cross-user / cross-endpoint isolation) ------------------
   // The local cache must be NAMESPACED by (endpoint, user) so that switching

@@ -445,11 +445,12 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => startPlayer(row.id, true)}
-                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-400/30 bg-indigo-500/10 px-3 py-2 text-indigo-200 hover:border-indigo-300/60 hover:bg-indigo-500/20 transition-colors"
                         title={trans('home.dailyReading.playFrom')}
+                        aria-label={trans('home.dailyReading.playFrom')}
                       >
                         <Headphones className="w-4 h-4" />
-                        {routeMode && <span className="text-[10px] font-bold">{trans('home.dailyReading.play')}</span>}
+                        <span className="text-[10px] font-bold">{trans('home.dailyReading.playFrom')}</span>
                       </button>
                     )}
                     {row.audio_url && !row.audio_ready && (

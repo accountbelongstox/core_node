@@ -11,8 +11,8 @@ from pycore.pyctl.terminal.terminal_schedule_json_repository import (
     SCHEDULE_ACTIVE_MODES,
     terminal_schedule_json_repository,
 )
+from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_service import terminal_service
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -161,16 +161,19 @@ class TerminalScheduler:
         terminal_number = int(outcome["terminal_number"])
         entry_id = str(outcome["entry_id"])
         if outcome.get("success"):
-            ColorPrint.blue(
-                f"[TerminalScheduler] Sent frontend-synchronized message to "
-                f"terminal #{terminal_number} (entry={entry_id}, "
-                f"mode={outcome['mode']})."
+            terminal_activity_log.success(
+                "schedule.dispatch.completed",
+                terminal_number=terminal_number,
+                entry_id=entry_id,
+                schedule_mode=outcome["mode"],
             )
             return
-        ColorPrint.yellow(
-            f"[TerminalScheduler] Frontend-synchronized message to terminal "
-            f"#{terminal_number} (entry={entry_id}) failed: "
-            f"{outcome.get('error_code')}; retry retained."
+        terminal_activity_log.warning(
+            "schedule.dispatch.failed",
+            terminal_number=terminal_number,
+            entry_id=entry_id,
+            error_code=outcome.get("error_code"),
+            retry_retained=True,
         )
 
     def sync_from_json(self, terminal_number: int = 0) -> Dict[str, Any]:

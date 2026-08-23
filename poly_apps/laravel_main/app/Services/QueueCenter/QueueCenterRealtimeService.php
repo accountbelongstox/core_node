@@ -9,6 +9,8 @@ use App\Support\QueueCenterContract;
 class QueueCenterRealtimeService
 {
     private const REVISION_KEY = 'queue_center:realtime:revision';
+    private const CURSOR_KEY = 'queue_center:realtime:cursor';
+    private const CURSOR_CACHE_SECONDS = 1;
     private RealtimeConnectionService $connections;
 
     public function __construct(?RealtimeConnectionService $connections = null)
@@ -71,13 +73,23 @@ class QueueCenterRealtimeService
             [
                 'event' => (string) ($contract['event'] ?? 'queue.changed'),
                 'revision' => $this->revision(),
+                'cursor' => $this->cursor(),
             ]
+        );
+    }
+
+    public function cursor(): int
+    {
+        return (int) QueueCenterCacheStore::get()->remember(
+            self::CURSOR_KEY,
+            self::CURSOR_CACHE_SECONDS,
+            static fn (): int => AppQyV1TranslationEventModel::maxId()
         );
     }
 
     public function replay(int $cursor, int $limit): array
     {
-        $current = $cursor > 0 ? $cursor : AppQyV1TranslationEventModel::maxId();
+        $current = $cursor > 0 ? $cursor : $this->cursor();
         $events = [];
         $rows = [];
         $allowedEvents = [];

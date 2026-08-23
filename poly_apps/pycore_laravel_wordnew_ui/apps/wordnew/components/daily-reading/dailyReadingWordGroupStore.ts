@@ -1,5 +1,9 @@
 import { wfNewApi } from '../../api';
-import type { WordGroup } from '../../api/types/core';
+import {
+  DEFAULT_VOCAB_GROUP_NAME,
+  isDefaultVocabularyGroup,
+  type WordGroup,
+} from '../../api/types/core';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
@@ -21,6 +25,7 @@ type StoreListener = () => void;
 
 const listeners = new Set<StoreListener>();
 let loadPromise: Promise<WordGroup[]> | null = null;
+let synchronizePromise: Promise<WordGroup[]> | null = null;
 let syncVersion = 0;
 
 function readStoredSelection(): StoredSelection {
@@ -65,6 +70,32 @@ function persistSelection(selection: StoredSelection): void {
 function timestamp(value: string | null): number {
   const parsed = value ? Date.parse(value) : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function syntheticDefaultGroup(): WordGroup {
+  return {
+    id: DEFAULT_VOCAB_GROUP_NAME,
+    name: DEFAULT_VOCAB_GROUP_NAME,
+    count: 0,
+  };
+}
+
+export function dailyReadingWordGroups(groups: WordGroup[]): WordGroup[] {
+  const filtered = groups.filter((group) => {
+    const language = group.language?.trim().toLowerCase();
+    return !language
+      || language === 'en'
+      || language === 'english'
+      || isDefaultVocabularyGroup(group);
+  });
+  const normalized = filtered.some(isDefaultVocabularyGroup)
+    ? [...filtered]
+    : [syntheticDefaultGroup(), ...filtered];
+
+  return normalized.sort(
+    (first, second) => Number(isDefaultVocabularyGroup(second))
+      - Number(isDefaultVocabularyGroup(first)),
+  );
 }
 
 export function subscribeDailyReadingWordGroups(listener: StoreListener): () => void {
@@ -178,4 +209,37 @@ export async function pullDailyReadingWordGroup(): Promise<string | null> {
     console.warn('[WordNewDailyReading] Word-group roam pull skipped:', error);
     return snapshot.id;
   }
+}
+
+export function synchronizeDailyReadingWordGroups(force = false): Promise<WordGroup[]> {
+  if (synchronizePromise) {
+    return force
+      ? synchronizePromise.then(() => synchronizeDailyReadingWordGroups(true))
+      : synchronizePromise;
+  }
+
+  synchronizePromise = loadDailyReadingWordGroups(force)
+    .then(async (groups) => {
+      const availableGroups = dailyReadingWordGroups(groups);
+      const availableIds = new Set(availableGroups.map((group) => group.id));
+      const localSelection = readStoredSelection();
+
+      if (localSelection.id && !availableIds.has(localSelection.id)) {
+        const emptySelection = { id: null, updatedAt: null };
+        emit({ ...emptySelection, error: null });
+        persistSelection(emptySelection);
+      }
+
+      await pullDailyReadingWordGroup();
+
+      if (snapshot.id && availableIds.has(snapshot.id)) return groups;
+      const fallback = availableGroups.find(isDefaultVocabularyGroup) ?? availableGroups[0];
+      if (fallback) selectDailyReadingWordGroup(fallback.id);
+      return groups;
+    })
+    .finally(() => {
+      synchronizePromise = null;
+    });
+
+  return synchronizePromise;
 }

@@ -2,8 +2,7 @@
 
 namespace App\Services\Relay;
 
-use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Http;
+use App\Services\Realtime\MercurePublisher;
 
 /**
  * Mercure publish primitive: in-process first, hub POST fallback.
@@ -17,75 +16,12 @@ use Illuminate\Support\Facades\Http;
  */
 final class RelayHubPublisher
 {
-    private const PUBLISHER_CACHE_SECONDS = 240;
-
-    /** @var array{token: string, expires_at: int, hub_url: string}|null */
-    private static ?array $cachedPublisher = null;
-
     /**
      * Publish an update; returns the update id, or null when the hub path is
      * unavailable (the relay data plane keeps working through HTTP reads).
      */
     public static function publish(string|array $topics, string $data, bool $private = false, ?string $type = null, ?string $id = null): ?string
     {
-        if (strlen($data) > QueueCenterContract::relayCap('control_frame_bytes')) {
-            throw new \InvalidArgumentException(__('relay.control_frame_too_large'));
-        }
-
-        if (function_exists('mercure_publish')) {
-            $updateId = mercure_publish($topics, $data, $private, $id, $type);
-
-            return is_string($updateId) && $updateId !== '' ? $updateId : null;
-        }
-
-        return self::postToHub(is_array($topics) ? $topics : [$topics], $data, $private, $type, $id);
-    }
-
-    private static function postToHub(array $topics, string $data, bool $private, ?string $type, ?string $id): ?string
-    {
-        $hubUrl = RelayHubJwt::hubUrl();
-        $form = ['data' => $data];
-        $parts = [];
-        if ($private) {
-            $form['private'] = '1';
-        }
-        if ($type !== null && $type !== '') {
-            $form['type'] = $type;
-        }
-        if ($id !== null && $id !== '') {
-            $form['id'] = $id;
-        }
-        $parts[] = http_build_query($form, '', '&', PHP_QUERY_RFC3986);
-        foreach (array_values(array_unique($topics)) as $topic) {
-            $parts[] = 'topic='.rawurlencode($topic);
-        }
-
-        $response = Http::withToken(self::publisherJwt($hubUrl))
-            ->withBody(implode('&', $parts), 'application/x-www-form-urlencoded')
-            ->timeout(5)
-            ->post($hubUrl);
-        if (!$response->successful()) {
-            return null;
-        }
-        $updateId = trim((string) $response->body());
-
-        return $updateId !== '' ? $updateId : null;
-    }
-
-    private static function publisherJwt(string $hubUrl): string
-    {
-        if (self::$cachedPublisher !== null
-            && self::$cachedPublisher['hub_url'] === $hubUrl
-            && time() < self::$cachedPublisher['expires_at']) {
-            return self::$cachedPublisher['token'];
-        }
-
-        self::$cachedPublisher = [
-            'token' => RelayHubJwt::publisherToken($hubUrl),
-            'expires_at' => time() + self::PUBLISHER_CACHE_SECONDS,
-            'hub_url' => $hubUrl,
-        ];
-
-        return self::$cachedPublisher['token'];
+        return MercurePublisher::publish($topics, $data, $private, $type, $id);
     }
 }

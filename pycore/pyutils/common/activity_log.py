@@ -13,11 +13,13 @@ ACTIVITY_LOG_VALUE_LIMIT = 320
 ACTIVITY_LOG_REDACTED = "<redacted>"
 ACTIVITY_LOG_SENSITIVE_PARTS = (
     "authorization",
+    "claim_code",
     "credential",
     "private",
     "secret",
     "signature",
     "subscriber_token",
+    "token",
 )
 
 

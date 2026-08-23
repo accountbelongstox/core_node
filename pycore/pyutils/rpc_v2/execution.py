@@ -124,6 +124,8 @@ class RpcExecutionKernel:
             "path_params": {},
             "headers": self.filtered_headers(headers, "request"),
             "relay_policy": dict(policy),
+            "relay_permission": str(policy.get("permission") or ""),
+            "relay_payload_profile": str(policy.get("payload") or ""),
         }
         relay_activity_log.info(
             "rpc.dispatch.started",
@@ -131,14 +133,19 @@ class RpcExecutionKernel:
             method=normalized_method,
             route=route_path,
             retry_policy=policy.get("retry"),
+            permission=policy.get("permission"),
+            payload_profile=policy.get("payload"),
             body_length=len(body),
         )
         contract_timeout = relay_contract.duration("execution_timeout_seconds")
-        execution_timeout = (
-            min(contract_timeout, float(route.timeout))
-            if route.timeout is not None and route.timeout > 0
-            else contract_timeout
-        )
+        timeout_candidates = [contract_timeout]
+        policy_timeout = float(policy.get("timeout_seconds") or 0)
+        if policy_timeout > 0:
+            timeout_candidates.append(policy_timeout)
+        if route.timeout is not None and route.timeout > 0:
+            timeout_candidates.append(float(route.timeout))
+        execution_timeout = min(timeout_candidates)
+        context["execution_timeout_seconds"] = execution_timeout
         try:
             result = await asyncio.wait_for(
                 self.dispatch(route, params, request_id, context),
@@ -191,14 +198,19 @@ class RpcExecutionKernel:
             response = RpcExecutionResponse(204, {}, b"", False)
         elif hasattr(result, "status_code") and hasattr(result, "body"):
             status_code = int(getattr(result, "status_code"))
+            has_body = status_code not in (204, 304)
             response = RpcExecutionResponse(
                 status_code,
                 {
                     str(key): str(value)
                     for key, value in dict(getattr(result, "headers", {}) or {}).items()
                 },
-                bytes(getattr(result, "body") or b""),
-                status_code not in (204, 304),
+                (
+                    bytes(getattr(result, "body") or b"")
+                    if has_body
+                    else b""
+                ),
+                has_body,
             )
         else:
             fastapi = get_third_package_fastapi()
@@ -278,7 +290,7 @@ class RpcExecutionKernel:
         allowed = set(relay_contract.allowed_headers(direction))
         limit = relay_contract.limit("header_value_bytes")
         return {
-            str(key): str(value)
+            str(key).lower(): str(value)
             for key, value in dict(headers or {}).items()
             if str(key).lower() in allowed
             and len(str(value).encode("utf-8")) <= limit

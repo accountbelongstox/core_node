@@ -56,7 +56,7 @@ if [ -z "$FM_RUNTIME_BINARY" ]; then
     exit 1
 fi
 
-FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
+FRANKENPHP_SITE_HOST="$(fm_site_host)"
 
 cd "$LARAVEL_DIR" || exit 1
 

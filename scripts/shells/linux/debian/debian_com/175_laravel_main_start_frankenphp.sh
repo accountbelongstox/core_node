@@ -113,9 +113,8 @@ if [ "$MODE" = "domains" ]; then
 fi
 
 # --- runtime mode (default): runtime-only convergence + supervised launch --
-# Site host: shared resolver (persisted region prefix + domain list; env
-# FRANKENPHP_SITE_HOST still wins).
-FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
+# Site host: shared resolver (persisted region prefix + domain list).
+FRANKENPHP_SITE_HOST="$(fm_site_host)"
 
 echo "Starting headless API runtime (frankenphp plane -> direct Caddy supervision on :${FRANKENPHP_HTTPS_PORT} h2/h3, Laravel Octane worker + Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
 

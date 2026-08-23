@@ -9,7 +9,7 @@ Reusable mss-based capture primitives shared by the window screenshot facade:
 - scale_image_to_720p: LANCZOS downscale to 1280x720 (aspect-preserving) + offset scaling
 - get_primary_monitor_size: lightweight primary monitor (width, height) without pixel grab
 
-One-directional dependency: imports only pyfoundations/third_party + ColorPrint.
+One-directional dependency: imports only third-party access and shared utilities.
 NEVER imports back into screenshot.py (avoids circular import within the window package).
 """
 
@@ -19,16 +19,22 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_mss
+from pycore.pyutils.common.activity_log import ActivityLog
+from pycore.pyutils.common.relay_contract import relay_contract
 
 mss = get_third_package_mss()
 Image = get_third_package_PIL_Image()
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-
-
-TERMINAL_CAPTURE_MAX_WIDTH = 640
-TERMINAL_CAPTURE_MAX_HEIGHT = 360
-TERMINAL_CAPTURE_PNG_COMPRESSION = 1
+TERMINAL_CAPTURE_MAX_WIDTH = relay_contract.limit(
+    "terminal_screenshot_max_width"
+)
+TERMINAL_CAPTURE_MAX_HEIGHT = relay_contract.limit(
+    "terminal_screenshot_max_height"
+)
+TERMINAL_CAPTURE_PNG_COMPRESSION = relay_contract.limit(
+    "terminal_screenshot_png_compression"
+)
+screen_capture_activity_log = ActivityLog("ScreenCapture")
 
 
 def grab_fullscreen_pil():
@@ -44,7 +50,11 @@ def grab_fullscreen_pil():
             screenshot_mss = sct.grab(monitor)
             return Image.frombytes("RGB", screenshot_mss.size, screenshot_mss.rgb)
     except Exception as e:
-        ColorPrint.print_min_interval(f"[ERROR] grab_fullscreen_pil: {e}", "1min", "red")
+        screen_capture_activity_log.error(
+            "fullscreen.capture.failed",
+            error_type=type(e).__name__,
+            error=e,
+        )
         return None
 
 
@@ -69,7 +79,11 @@ def capture_screen_region(
     """
     try:
         if width <= 0 or height <= 0:
-            ColorPrint.print_min_interval("[ScreenRegion] Invalid width/height", "1min", "red")
+            screen_capture_activity_log.error(
+                "region.capture.rejected",
+                width=width,
+                height=height,
+            )
             return None
         with mss.mss() as sct:
             monitor = {
@@ -80,10 +94,24 @@ def capture_screen_region(
             }
             screenshot = sct.grab(monitor)
             img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-        ColorPrint.print_min_interval(f"[ScreenRegion] Native grab: ({left},{top}) {width}x{height}", "1min", "gray")
+        screen_capture_activity_log.success(
+            "region.capture.completed",
+            left=left,
+            top=top,
+            width=width,
+            height=height,
+        )
         return img
     except Exception as e:
-        ColorPrint.print_min_interval(f"[ERROR] capture_screen_region: {e}", "1min", "red")
+        screen_capture_activity_log.error(
+            "region.capture.failed",
+            left=left,
+            top=top,
+            width=width,
+            height=height,
+            error_type=type(e).__name__,
+            error=e,
+        )
         return None
 
 
@@ -138,17 +166,25 @@ def capture_screen_regions_png(
                         "height": image.height,
                         "captured_at": captured_at,
                     }
+                    screen_capture_activity_log.success(
+                        "terminal_region.capture.completed",
+                        region_id=region_id,
+                        body=png_bytes,
+                        width=image.width,
+                        height=image.height,
+                    )
                 except Exception as error:
-                    ColorPrint.print_min_interval(
-                        f"[TerminalCapture] Failed to capture {region_id}: {error}",
-                        "1min",
-                        "yellow",
+                    screen_capture_activity_log.warning(
+                        "terminal_region.capture.failed",
+                        region_id=region_id,
+                        error_type=type(error).__name__,
+                        error=error,
                     )
     except Exception as error:
-        ColorPrint.print_min_interval(
-            f"[TerminalCapture] Native capture unavailable: {error}",
-            "1min",
-            "yellow",
+        screen_capture_activity_log.warning(
+            "terminal_capture.unavailable",
+            error_type=type(error).__name__,
+            error=error,
         )
     return captures
 
@@ -165,7 +201,11 @@ def get_primary_monitor_size() -> Optional[Tuple[int, int]]:
             monitor = sct.monitors[1]
             return (monitor["width"], monitor["height"])
     except Exception as e:
-        ColorPrint.print_min_interval(f"[ERROR] get_primary_monitor_size: {e}", "1min", "red")
+        screen_capture_activity_log.error(
+            "primary_monitor.read.failed",
+            error_type=type(e).__name__,
+            error=e,
+        )
         return None
 
 
@@ -214,5 +254,9 @@ def scale_image_to_720p(
 
         return (scaled_image, (scaled_offset_x, scaled_offset_y), (new_width, new_height), (scale, scale))
     except Exception as e:
-        ColorPrint.print_min_interval(f"[ERROR] scale_image_to_720p: {e}", "1min", "red")
+        screen_capture_activity_log.error(
+            "image.scale.failed",
+            error_type=type(e).__name__,
+            error=e,
+        )
         return None

@@ -27,6 +27,7 @@ from pycore.pyutils.common.mercure_client import (
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
+from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 
@@ -79,6 +80,10 @@ class RelayService:
         relay_device_identity.ensure_signing_key()
         THREAD_BUS.clear_signal(RELAY_STOP_SIGNAL)
         THREAD_BUS.clear_signal(RELAY_CONTROL_SIGNAL)
+        THREAD_BUS.register_event_handler(
+            TERMINAL_CHANGED_EVENT,
+            self._publish_device_event,
+        )
         threads = list(alive.values())
         if RELAY_CONTROL_THREAD not in alive:
             threads.append(
@@ -127,6 +132,14 @@ class RelayService:
         THREAD_BUS.signal(
             RELAY_CONTROL_SIGNAL,
             {"kind": "stop"},
+        )
+        THREAD_BUS.unregister_event_handler(
+            TERMINAL_CHANGED_EVENT,
+            self._publish_device_event,
+        )
+        relay_activity_log.success(
+            "runtime.event_handler.removed",
+            event_type=TERMINAL_CHANGED_EVENT,
         )
 
     @property
@@ -459,7 +472,46 @@ class RelayService:
             lease_owner=self._lease_owner,
         )
         relay_operation_processor.process_many(
-            item for item in operations if isinstance(item, dict)
+            (item for item in operations if isinstance(item, dict)),
+            self._lease_owner,
+        )
+
+    def _publish_device_event(self, payload: Any) -> None:
+        event_payload = dict(payload) if isinstance(payload, dict) else {}
+        revision = int(event_payload.get("revision") or 0)
+        if not relay_device_identity.has_credential():
+            relay_activity_log.warning(
+                "device.event.skipped",
+                event_type=TERMINAL_CHANGED_EVENT,
+                revision=revision,
+                reason="credential_unavailable",
+            )
+            return
+        try:
+            relay_transport.request_json(
+                "POST",
+                relay_contract.endpoint("device_event"),
+                {
+                    "device_id": relay_device_identity.device_id(),
+                    "event_type": relay_contract.event("terminal_changed"),
+                    "revision": revision,
+                    "payload": event_payload,
+                },
+                action="device.event.publish",
+            )
+        except Exception as error:
+            relay_activity_log.error(
+                "device.event.publish.failed",
+                event_type=TERMINAL_CHANGED_EVENT,
+                revision=revision,
+                error_type=type(error).__name__,
+                error=error,
+            )
+            return
+        relay_activity_log.success(
+            "device.event.publish.completed",
+            event_type=TERMINAL_CHANGED_EVENT,
+            revision=revision,
         )
 
     def _subscriber_loop(self) -> None:
@@ -484,6 +536,13 @@ class RelayService:
                 reconnect_max_seconds=relay_contract.duration(
                     "subscriber_reconnect_max_seconds"
                 ),
+                connect_timeout=relay_contract.duration(
+                    "subscriber_connect_timeout_seconds"
+                ),
+                read_timeout=relay_contract.duration(
+                    "subscriber_read_timeout_seconds"
+                ),
+                max_redirects=0,
             )
 
             def subscriber_should_stop() -> bool:
@@ -515,9 +574,19 @@ class RelayService:
             data_length=len(update.data.encode("utf-8")),
         )
         if update.type == relay_contract.event("operation_available"):
-            payload = update.json()
-            if not isinstance(payload, dict):
-                raise ValueError("relay_wake_payload_not_object")
+            try:
+                payload = update.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("relay_wake_payload_not_object")
+            except Exception as error:
+                relay_activity_log.error(
+                    "subscriber.update.rejected",
+                    event_id=update.id,
+                    event_type=update.type,
+                    error_type=type(error).__name__,
+                    error=error,
+                )
+                return
             THREAD_BUS.signal(
                 RELAY_CONTROL_SIGNAL,
                 {

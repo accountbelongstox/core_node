@@ -33,6 +33,13 @@ export function wordGroupHash(groupId?: string | null): string {
     : `#/${WORDNEW_HASH_ROUTES.wordGroups}`;
 }
 
+export function navigateToWordGroup(groupId: string): void {
+  const nextHash = wordGroupHash(groupId);
+
+  if (typeof window === 'undefined' || window.location.hash === nextHash) return;
+  window.location.hash = nextHash;
+}
+
 export function parseWordGroupHash(hash: string): WordNewWordGroupRoute {
   const path = hashPath(hash);
   const prefix = `${WORDNEW_HASH_ROUTES.wordGroups}/`;

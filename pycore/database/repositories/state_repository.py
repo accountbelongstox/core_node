@@ -1011,7 +1011,7 @@ class StateRepository:
                 SELECT operation_id, request_digest, route, retry_policy,
                        response_status, response_headers_json, response_body,
                        response_has_body, response_digest, response_length,
-                       created_at, updated_at
+                       response_outcome, created_at, updated_at
                 FROM relay_execution_results
                 WHERE operation_id = ?
                 """,
@@ -1022,6 +1022,10 @@ class StateRepository:
                 raise RuntimeError("relay_execution_result_missing")
             if str(row[1]) != str(request_digest):
                 raise ValueError("relay_operation_request_digest_conflict")
+            if str(row[2]) != str(route):
+                raise ValueError("relay_operation_route_conflict")
+            if str(row[3]) != str(retry_policy):
+                raise ValueError("relay_operation_retry_policy_conflict")
             return self._relay_execution_result(row)
 
     def get_relay_execution_result(
@@ -1034,7 +1038,7 @@ class StateRepository:
                 SELECT operation_id, request_digest, route, retry_policy,
                        response_status, response_headers_json, response_body,
                        response_has_body, response_digest, response_length,
-                       created_at, updated_at
+                       response_outcome, created_at, updated_at
                 FROM relay_execution_results
                 WHERE operation_id = ?
                 """,
@@ -1052,13 +1056,14 @@ class StateRepository:
         body: bytes,
         has_body: bool,
         response_digest: str,
+        response_outcome: str,
     ) -> Dict[str, Any]:
         """Persist an exact response once; identical retries are no-ops."""
         now = self._now_iso()
         with self.transaction() as cursor:
             cursor.execute(
                 """
-                SELECT request_digest, response_digest
+                SELECT request_digest, response_digest, response_outcome
                 FROM relay_execution_results
                 WHERE operation_id = ?
                 """,
@@ -1072,13 +1077,16 @@ class StateRepository:
             existing_digest = str(current[1] or "")
             if existing_digest and existing_digest != str(response_digest):
                 raise ValueError("relay_operation_response_digest_conflict")
+            existing_outcome = str(current[2] or "")
+            if existing_outcome and existing_outcome != str(response_outcome):
+                raise ValueError("relay_operation_response_outcome_conflict")
             if not existing_digest:
                 cursor.execute(
                     """
                     UPDATE relay_execution_results
                     SET response_status = ?, response_headers_json = ?,
                         response_body = ?, response_has_body = ?, response_digest = ?,
-                        response_length = ?, updated_at = ?
+                        response_length = ?, response_outcome = ?, updated_at = ?
                     WHERE operation_id = ? AND response_digest IS NULL
                     """,
                     (
@@ -1088,6 +1096,7 @@ class StateRepository:
                         1 if has_body else 0,
                         response_digest,
                         len(body),
+                        str(response_outcome),
                         now,
                         operation_id,
                     ),
@@ -1110,8 +1119,9 @@ class StateRepository:
             "response_has_body": bool(row[7]),
             "response_digest": str(row[8] or ""),
             "response_length": int(row[9]) if row[9] is not None else None,
-            "created_at": str(row[10]),
-            "updated_at": str(row[11]),
+            "response_outcome": str(row[10] or ""),
+            "created_at": str(row[11]),
+            "updated_at": str(row[12]),
         }
 
     def authenticate_client_session(

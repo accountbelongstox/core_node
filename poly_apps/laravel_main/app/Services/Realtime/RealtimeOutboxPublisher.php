@@ -4,7 +4,7 @@ namespace App\Services\Realtime;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
-use App\Services\Relay\RelayHubPublisher;
+use App\Apps\RelayV2\RelayV2Services\RelayV2OutboxRepository;
 use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -25,6 +25,7 @@ final class RealtimeOutboxPublisher
         $result = [
             'queue_center' => 0,
             'social' => 0,
+            'relay_v2' => 0,
         ];
 
         if (!$lock->get()) {
@@ -34,6 +35,7 @@ final class RealtimeOutboxPublisher
         try {
             $result['queue_center'] = $this->publishQueueCenter();
             $result['social'] = $this->publishSocial();
+            $result['relay_v2'] = $this->publishRelayV2();
             AppQyV1TranslationEventModel::pruneOlderThan(self::RETENTION_SECONDS);
             AppQyV1SocialEventModel::pruneOlderThan(self::RETENTION_SECONDS);
         } finally {
@@ -41,6 +43,45 @@ final class RealtimeOutboxPublisher
         }
 
         return $result;
+    }
+
+    private function publishRelayV2(): int
+    {
+        $repository = app(RelayV2OutboxRepository::class);
+        $rows = $repository->pending(self::BATCH_LIMIT);
+        $published = 0;
+        $updateId = null;
+        $data = '';
+
+        foreach ($rows as $row) {
+            try {
+                $data = json_encode([
+                    'event' => (string) $row->event_type,
+                    'data' => json_decode((string) $row->payload, true, 512, JSON_THROW_ON_ERROR),
+                ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+                $updateId = MercurePublisher::publish(
+                    (string) $row->topic,
+                    $data,
+                    (bool) $row->private,
+                    (string) $row->event_type
+                );
+                if ($updateId === null) {
+                    throw new \RuntimeException(__('relay_v2.hub_publish_rejected'));
+                }
+                $repository->markPublished($row, $updateId);
+                $published++;
+            } catch (\Throwable $exception) {
+                $repository->markFailed($row, $exception->getMessage());
+                Log::warning('[RealtimeOutboxPublisher] Relay V2 publish failed', [
+                    'event_id' => (int) $row->id,
+                    'event' => (string) $row->event_type,
+                    'error' => $exception->getMessage(),
+                ]);
+                break;
+            }
+        }
+
+        return $published;
     }
 
     private function publishQueueCenter(): int
@@ -79,7 +120,7 @@ final class RealtimeOutboxPublisher
             $payload['_id'] = (int) $row->id;
 
             try {
-                $updateId = RelayHubPublisher::publish(
+                $updateId = MercurePublisher::publish(
                     $topicResolver($row),
                     json_encode(['event' => (string) $row->event, 'data' => $payload], JSON_UNESCAPED_SLASHES),
                     $private,

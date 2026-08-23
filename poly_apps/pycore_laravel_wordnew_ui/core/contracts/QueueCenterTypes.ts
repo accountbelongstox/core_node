@@ -156,21 +156,6 @@ export interface QueueCenterReceiptsResponse {
 export interface QueueCenterOverviewResponse {
   queues: Partial<Record<QueueCenterControlName, QueueCenterQueueStats>>;
   workers?: QueueCenterWorkerPresence[];
-  realtime: QueueCenterRealtimeConnection;
-}
-
-export interface QueueCenterRealtimeConnection {
-  transport: string;
-  hub_url: string;
-  topics: string[];
-  auth_mode: string;
-  protocol: string;
-  subscribe_url: string;
-  token: string;
-  token_ttl_seconds: number;
-  cookie: string;
-  event: string;
-  revision: number;
 }
 
 export interface QueueCenterRealtimeEvent {
@@ -410,5 +395,3 @@ export interface PcQueueOverview {
   laravel_endpoint?: string | null;
   error?: string;
 }
-
-

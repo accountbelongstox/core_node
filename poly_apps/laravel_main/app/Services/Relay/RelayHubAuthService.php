@@ -49,6 +49,22 @@ final class RelayHubAuthService
     }
 
     /**
+     * @param array<int, string> $topics
+     */
+    public static function connectionForTopics(array $topics): array
+    {
+        $topics = self::normalizeTopics($topics);
+        $hubUrl = RelayHubJwt::hubUrl();
+
+        return [
+            'transport' => 'mercure',
+            'hub_url' => $hubUrl,
+            'topics' => $topics,
+            'subscribe_url' => self::buildSubscribeUrl($hubUrl, $topics),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $token
      */
     public static function withHubCookie(JsonResponse $response, array $token): JsonResponse
@@ -89,21 +105,27 @@ final class RelayHubAuthService
      */
     private static function issue(string $subject, array $topics): array
     {
-        $topics = array_values(array_unique(array_filter(
-            $topics,
-            static fn (mixed $topic): bool => is_string($topic) && $topic !== ''
-        )));
-        $hubUrl = RelayHubJwt::hubUrl();
+        $connection = self::connectionForTopics($topics);
+        $hubUrl = (string) $connection['hub_url'];
+        $topics = (array) $connection['topics'];
 
-        return [
-            'transport' => 'mercure',
-            'hub_url' => $hubUrl,
-            'topics' => $topics,
+        return array_merge($connection, [
             'token' => RelayHubJwt::subscriberToken($subject, $topics, $hubUrl),
             'token_ttl_seconds' => QueueCenterContract::relayHubInt('token_ttl_seconds'),
             'cookie' => ServiceContract::string('realtime.mercure_cookie'),
-            'subscribe_url' => self::buildSubscribeUrl($hubUrl, $topics),
-        ];
+        ]);
+    }
+
+    /**
+     * @param array<int, string> $topics
+     * @return array<int, string>
+     */
+    private static function normalizeTopics(array $topics): array
+    {
+        return array_values(array_unique(array_filter(
+            $topics,
+            static fn (mixed $topic): bool => is_string($topic) && $topic !== ''
+        )));
     }
 
     /**

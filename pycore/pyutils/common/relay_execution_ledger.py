@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any, Dict
 
 from pycore.pyutils.common.operation_service import OperationService
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
-from pycore.pyutils.common.rpc_response import RpcExecutionResponse
+from pycore.pyutils.common.rpc_response import (
+    RpcExecutionResponse,
+    rpc_response_digest,
+)
 
 
 RELAY_OPERATION_KIND = "pycore_relay_v2"
@@ -57,14 +59,8 @@ class RelayExecutionLedger:
             )
             return {"action": RELAY_REPLAY_RESPONSE, "result": result}
         if operation.status == "pending":
-            self.operations.start(
-                operation_id,
-                stage="executing",
-                message="operation.execution_started",
-                expected_revision=operation.revision,
-            )
-            relay_activity_log.success(
-                "ledger.execution.admitted",
+            relay_activity_log.info(
+                "ledger.execution.awaiting_server_fence",
                 operation_id=operation_id,
                 request_digest=request_digest,
                 retry_policy=retry_policy,
@@ -102,6 +98,22 @@ class RelayExecutionLedger:
             return {"action": RELAY_EXECUTION_UNKNOWN, "result": result}
         raise RuntimeError("relay_operation_terminal_without_response")
 
+    def mark_started(self, operation_id: str) -> None:
+        operation = self.operations.get_operation(operation_id)
+        if operation is None:
+            raise RuntimeError("relay_operation_missing")
+        if operation.status == "pending":
+            self.operations.start(
+                operation_id,
+                stage="executing",
+                message="operation.execution_started",
+                expected_revision=operation.revision,
+            )
+        relay_activity_log.success(
+            "ledger.execution.started",
+            operation_id=operation_id,
+        )
+
     def save_response(
         self,
         operation_id: str,
@@ -109,7 +121,7 @@ class RelayExecutionLedger:
         response: RpcExecutionResponse,
         failed: bool = False,
     ) -> Dict[str, Any]:
-        response_digest = hashlib.sha256(response.body).hexdigest()
+        response_digest = rpc_response_digest(response)
         result = self.repo.save_relay_execution_response(
             operation_id,
             request_digest,
@@ -118,6 +130,7 @@ class RelayExecutionLedger:
             response.body,
             response.has_body,
             response_digest,
+            "failed" if failed else "responded",
         )
         operation = self.operations.get_operation(operation_id)
         if operation is None:

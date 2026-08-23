@@ -145,7 +145,11 @@ class WfNewQueuedTransport extends MasterApiClient {
 
 const queuedTransport = new WfNewQueuedTransport();
 
-async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> {
+async function requestJSON<T>(
+  path: string,
+  authenticated: boolean,
+  cacheMode: 'resource' | 'network' = 'resource',
+): Promise<T> {
   await wfNewEndpoints.whenReady();
   const requestToken = authenticated ? authToken : null;
   const flightKey = authenticated && requestToken ? `${requestToken}:${path}` : null;
@@ -180,8 +184,10 @@ async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> 
   };
   const operation = coordinateRequest(
     `wordnew-get:${requestToken || 'anonymous'}:${wfNewEndpoints.buildUrl(path)}`,
-    () => queryServerResource(path, requestToken, fetchRemote),
-    5000,
+    () => cacheMode === 'network'
+      ? fetchRemote()
+      : queryServerResource(path, requestToken, fetchRemote),
+    cacheMode === 'network' ? 0 : 5000,
   );
   if (!flightKey) return operation;
   authenticatedReadFlights.set(flightKey, operation);
@@ -208,6 +214,13 @@ export async function authedGetJSON<T>(path: string, fallback: T): Promise<T> {
   syncPersistedToken();
   if (!authToken) return fallback;
   return requestJSON<T>(path, true);
+}
+
+/** Fetch short-lived authenticated material directly from its issuer. */
+export async function authedGetFreshJSON<T>(path: string, fallback: T): Promise<T> {
+  syncPersistedToken();
+  if (!authToken) return fallback;
+  return requestJSON<T>(path, true, 'network');
 }
 
 /**
