@@ -74,7 +74,8 @@ import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDa
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
-import { useWfNewAppState, type WordNewTab } from './hooks/useWfNewAppState';
+import { useWfNewAppState } from './hooks/useWfNewAppState';
+import type { WordNewTab } from './hooks/WordNewNavigation';
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();

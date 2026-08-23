@@ -17,7 +17,7 @@ import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
-import { wfNewPageHeader, type WordNewTab } from './useWfNewAppState';
+import { wfNewPageHeader, type WordNewTab } from './WordNewNavigation';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
 export function useWfNewContentHandlers(deps: Record<string, any>) {
