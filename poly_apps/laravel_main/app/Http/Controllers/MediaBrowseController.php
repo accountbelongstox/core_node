@@ -17,6 +17,7 @@ use App\Providers\PathMapper;
 use App\Services\BookChapterIndexAdapter;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\MediaIngestStatusService;
+use App\Services\MediaBrowsePresenter;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -36,8 +37,11 @@ class MediaBrowseController extends Controller
 {
     use ApiResponse;
 
-    /** Relative API base for clip-serve URLs (FE prepends the API host). */
-    private const CLIP_URL_BASE = '/api/app_qy_v1/media/clip';
+    public function __construct(
+        private readonly MediaBrowsePresenter $presenter,
+        private readonly MoviePosterStore $posterStore
+    ) {
+    }
 
     /**
      * GET /api/app_qy_v1/media/subtitles
@@ -54,14 +58,14 @@ class MediaBrowseController extends Controller
 
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 20;
 
-        $posterStore = new MoviePosterStore();
+        $posterStore = $this->posterStore;
         $paginator = Subtitle::browsePage(
             $validated['language'] ?? null,
             $validated['search'] ?? null,
             $perPage
         )->through(function (Subtitle $subtitle) use ($posterStore) {
             $posterUrl = $posterStore->imageUrlFor($subtitle);
-            $imageUrls = $this->resolveImageUrls($subtitle, $posterUrl);
+            $imageUrls = $this->presenter->imageUrls($subtitle, $posterUrl);
             return [
                 'id' => $subtitle->id,
                 'source_key' => $subtitle->source_key,
@@ -98,14 +102,14 @@ class MediaBrowseController extends Controller
 
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 20;
 
-        $posterStore = new MoviePosterStore();
+        $posterStore = $this->posterStore;
         $paginator = Book::browsePage(
             $validated['language'] ?? null,
             $validated['search'] ?? null,
             $perPage
         )->through(function (Book $book) use ($posterStore) {
             $posterUrl = $posterStore->imageUrlFor($book);
-            $imageUrls = $this->resolveImageUrls($book, $posterUrl);
+            $imageUrls = $this->presenter->imageUrls($book, $posterUrl);
             return [
                 'id' => $book->id,
                 'source_key' => $book->source_key,
@@ -193,7 +197,7 @@ class MediaBrowseController extends Controller
      */
     public function subtitleDetail(Request $request, string $source_key): JsonResponse
     {
-        if (!$this->isValidSourceKey($source_key)) {
+        if (!$this->presenter->isValidSourceKey($source_key)) {
             return $this->error('Invalid source key', 404);
         }
 
@@ -218,9 +222,9 @@ class MediaBrowseController extends Controller
                     'sub_idx_start' => $segment->sub_idx_start,
                     'sub_idx_end' => $segment->sub_idx_end,
                     'subtitle_count' => $segment->subtitle_count,
-                    'mp4_url' => $this->clipUrl($source_key, $segment->mp4),
-                    'full_mp4_url' => $this->clipUrl($source_key, $segment->full_mp4),
-                    'mp3_url' => $this->clipUrl($source_key, $segment->mp3),
+                    'mp4_url' => $this->presenter->clipUrl($source_key, $segment->mp4),
+                    'full_mp4_url' => $this->presenter->clipUrl($source_key, $segment->full_mp4),
+                    'mp3_url' => $this->presenter->clipUrl($source_key, $segment->mp3),
                 ];
             })
             ->values();
@@ -243,7 +247,7 @@ class MediaBrowseController extends Controller
      */
     public function bookDetail(Request $request, string $source_key): JsonResponse
     {
-        if (!$this->isValidSourceKey($source_key)) {
+        if (!$this->presenter->isValidSourceKey($source_key)) {
             return $this->error('Invalid source key', 404);
         }
 
@@ -266,7 +270,7 @@ class MediaBrowseController extends Controller
             $article = AppQyV1Article::findByArticleId($source_key);
             if ($article) {
                 $sourceType = 'article';
-                $source = $this->articleAsSource($article);
+                $source = $this->presenter->articleAsSource($article);
             }
         }
         if (!$source) {
@@ -304,7 +308,7 @@ class MediaBrowseController extends Controller
      */
     public function bookChapters(Request $request, string $source_key): JsonResponse
     {
-        if (!$this->isValidSourceKey($source_key)) {
+        if (!$this->presenter->isValidSourceKey($source_key)) {
             return $this->error('Invalid source key', 404);
         }
 
@@ -317,7 +321,7 @@ class MediaBrowseController extends Controller
             $article = AppQyV1Article::findByArticleId($source_key);
             if ($article) {
                 $sourceType = 'article';
-                $source = $this->articleAsSource($article);
+                $source = $this->presenter->articleAsSource($article);
             }
         }
         if (!$source) {
@@ -351,7 +355,7 @@ class MediaBrowseController extends Controller
      */
     public function bookIngestStatus(Request $request, string $source_key): JsonResponse
     {
-        if (!$this->isValidSourceKey($source_key)) {
+        if (!$this->presenter->isValidSourceKey($source_key)) {
             return $this->error('Invalid source key', 404);
         }
 
@@ -445,7 +449,7 @@ class MediaBrowseController extends Controller
      */
     public function clip(string $source_key, string $name): Response
     {
-        if (!$this->isValidSourceKey($source_key)) {
+        if (!$this->presenter->isValidSourceKey($source_key)) {
             abort(404);
         }
 
@@ -463,7 +467,7 @@ class MediaBrowseController extends Controller
         }
 
         return response()->file($path, [
-            'Content-Type' => $this->mimeForName($base),
+            'Content-Type' => $this->presenter->mimeType($base),
             'Cache-Control' => 'public, max-age=31536000',
             'Accept-Ranges' => 'bytes',
         ]);
@@ -762,124 +766,4 @@ class MediaBrowseController extends Controller
         );
     }
 
-    /**
-     * Build a relative clip-serve URL for a non-empty segment filename.
-     * Returns null when there is no file.
-     */
-    private function clipUrl(string $sourceKey, ?string $filename): ?string
-    {
-        if (empty($filename)) {
-            return null;
-        }
-        $base = basename(str_replace('\\', '/', $filename));
-        if ($base === '') {
-            return null;
-        }
-        return self::CLIP_URL_BASE . '/' . $sourceKey . '/' . $base;
-    }
-
-    /**
-     * Synthesize the `source` payload of bookDetail/bookChapters from an
-     * app_qy_v1_articles row (agent-history articles have no Book row). The
-     * object must expose `source_key` + `metadata` for sourceLanguages() and
-     * the display fields the reader shows (title / original_name / language).
-     */
-    private function articleAsSource(AppQyV1Article $article): object
-    {
-        return (object) [
-            'source_key' => $article->article_id,
-            'source_type' => 'article',
-            'title' => $article->title,
-            'original_name' => $article->title,
-            'language' => $article->language,
-            'word_count' => $article->word_count,
-            'sentence_count' => $article->sentence_count,
-            'metadata' => is_array($article->metadata) ? $article->metadata : [],
-        ];
-    }
-
-    /**
-     * Validate that source_key is a sane token.
-     */
-    private function isValidSourceKey(string $sourceKey): bool
-    {
-        return $sourceKey !== '' && (bool) preg_match('/^[A-Za-z0-9._-]+$/', $sourceKey);
-    }
-
-    /**
-     * Merge stored poster URL with additional covers (poster_meta.cover_files,
-     * newest first) and metadata cover_url / cover_urls (string or array).
-     * The multi-cover set is capped at MoviePosterStore::MAX_COVERS so the FE
-     * carousel gets the latest 5 covers per book.
-     *
-     * @param Book|Subtitle $model
-     */
-    private function resolveImageUrls($model, ?string $posterUrl): array
-    {
-        $urls = [];
-        if (is_string($posterUrl) && $posterUrl !== '') {
-            $urls[] = $posterUrl;
-        }
-
-        // Additional covers from the multi-cover store (newest first).
-        if ($posterUrl !== null) {
-            $store = new MoviePosterStore();
-            $additional = $store->additionalCovers($model);
-            usort($additional, static fn ($a, $b) => strcmp((string) ($b['fetched_at'] ?? ''), (string) ($a['fetched_at'] ?? '')));
-            foreach ($additional as $cover) {
-                $filename = (string) ($cover['filename'] ?? '');
-                if ($filename !== '') {
-                    $urls[] = $store->buildPosterUrl($filename);
-                }
-            }
-        }
-
-        $meta = is_array($model->metadata ?? null) ? $model->metadata : [];
-        if (!empty($meta['cover_urls']) && is_array($meta['cover_urls'])) {
-            foreach ($meta['cover_urls'] as $u) {
-                if (is_string($u) && $u !== '') {
-                    $urls[] = $u;
-                }
-            }
-        } elseif (!empty($meta['cover_url']) && is_string($meta['cover_url'])) {
-            $urls[] = $meta['cover_url'];
-        }
-
-        $unique = [];
-        $seen = [];
-        foreach ($urls as $u) {
-            if (isset($seen[$u])) {
-                continue;
-            }
-            $seen[$u] = true;
-            $unique[] = $u;
-        }
-
-        return array_slice($unique, 0, 10);
-    }
-
-    /**
-     * Resolve a Content-Type by file extension.
-     */
-    private function mimeForName(string $name): string
-    {
-        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-        switch ($ext) {
-            case 'mp4':
-                return 'video/mp4';
-            case 'mp3':
-                return 'audio/mpeg';
-            case 'm4a':
-                return 'audio/mp4';
-            case 'ogg':
-            case 'opus':
-                return 'audio/ogg';
-            case 'webm':
-                return 'video/webm';
-            case 'srt':
-                return 'text/plain';
-            default:
-                return 'application/octet-stream';
-        }
-    }
 }

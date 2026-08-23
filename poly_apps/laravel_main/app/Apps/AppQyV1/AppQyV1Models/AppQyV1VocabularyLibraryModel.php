@@ -48,11 +48,26 @@ class AppQyV1VocabularyLibraryModel extends AppQyV1Model
      */
     public const LANGUAGE_NAME_TO_CODE = [
         'english' => 'en',
+        'chinese' => 'zh',
         'japanese' => 'ja',
         'korean' => 'ko',
+        'spanish' => 'es',
+        'french' => 'fr',
+        'german' => 'de',
+        'russian' => 'ru',
+        'arabic' => 'ar',
+        'portuguese' => 'pt',
+        'italian' => 'it',
+        'dutch' => 'nl',
+        'polish' => 'pl',
+        'turkish' => 'tr',
         'vietnamese' => 'vi',
         'lao' => 'lo',
-        'chinese' => 'zh',
+        'thai' => 'th',
+        'indonesian' => 'id',
+        'hindi' => 'hi',
+        'bengali' => 'bn',
+        'urdu' => 'ur',
     ];
 
 

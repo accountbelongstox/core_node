@@ -83,11 +83,9 @@ restart by timing out and resubmitting the same client_job_id.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import importlib.util
 import io
 import os
-import random
 import sys
 import threading
 import time
@@ -105,6 +103,7 @@ import torch
 import transformers
 import uvicorn
 
+from qwen3tts_capabilities import DEFAULT_SPEAKERS, QwenCapabilities
 from qwen3tts_gpu import build_capacity_plan, detect_model_variant, query_gpu_snapshot
 from qwen3tts_queue import QueueFullError, QwenQueue
 from qwen3tts_synthesis import QwenSynthesis
@@ -256,85 +255,6 @@ async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
     _log(f"[api] unhandled error on {request.url.path}: {exc}")
     return JSONResponse({"error": f"unhandled: {exc}"}, status_code=500)
 
-_LANG_MAP = {
-    "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
-    "de": "German", "fr": "French", "ru": "Russian", "pt": "Portuguese",
-    "es": "Spanish", "it": "Italian",
-}
-_SPEAKER_BY_LANG = {"en": "Ryan", "zh": "Vivian", "ja": "Ono_Anna", "ko": "Sohee"}
-# Speaker capability model - DYNAMIC-FIRST: the loaded model library is the
-# single source of truth for WHICH speakers exist (model.get_supported_speakers(),
-# mirrored into _refresh_capabilities); future model cards may ship more than
-# the official 9 timbres. The two tables below are official MODEL-CARD
-# METADATA (Qwen3-TTS-12Hz-1.7B/0.6B-CustomVoice card) used ONLY as a quality
-# preference - "we recommend using each speaker's native language for the
-# best quality" - never as a hard limit: any speaker can speak any
-# model-supported language, and speakers the metadata does not know (a
-# richer model) are language-agnostic, joining EVERY language's native pool,
-# so a new model card needs no code change here.
-#   speaker -> native language (dialect voices stay zh-native)
-#   speaker -> gender, for variant-preview ordering only
-_SPEAKER_NATIVE_LANGUAGE = {
-    "Ryan": "en", "Aiden": "en",
-    "Vivian": "zh", "Serena": "zh", "Uncle_Fu": "zh",
-    "Dylan": "zh", "Eric": "zh",
-    "Ono_Anna": "ja", "Sohee": "ko",
-}
-_SPEAKER_GENDER = {
-    "female": ("Serena", "Vivian", "Ono_Anna", "Sohee"),
-    "male": ("Ryan", "Aiden", "Uncle_Fu", "Dylan", "Eric"),
-}
-_CAPABILITY_CACHE: Optional[Dict[str, Any]] = None
-
-
-def _native_pool(code: str, caps: Dict[str, Any]) -> List[str]:
-    """Native speaker pool for one language code, DERIVED AT RUNTIME from the
-    model's dynamic speaker set: speakers whose metadata native language
-    matches, plus every speaker the metadata does not know
-    (language-agnostic), falling back to the full model speaker set when the
-    language has no native voice at all (e.g. German/French on the official
-    card). The DEFAULT voice is a uniform random pick from this pool - one
-    random voice per TASK (job), resolved once so every sentence chunk of
-    the job reuses it, while distinct tasks vary the voice."""
-    speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
-    canonical = list(speaker_map.values())
-    known_native = [
-        speaker
-        for speaker in canonical
-        if _SPEAKER_NATIVE_LANGUAGE.get(speaker) == code
-    ]
-    unknown = [
-        speaker for speaker in canonical
-        if speaker not in _SPEAKER_NATIVE_LANGUAGE
-    ]
-    return (known_native + unknown) or canonical
-
-
-def _variant_candidates(code: str, gender: str, caps: Dict[str, Any]) -> List[str]:
-    """Ordered VARIANT-preview candidates (accent/gender/index picks a
-    distinct voice per variant so the options differ). The gender is the
-    user's explicit parameter, so it outranks the native-language quality
-    preference: native-pool voices of the requested gender first, then
-    gender-matching voices from the rest of the model set (any speaker can
-    speak any model-supported language), then gender-unknown speakers of
-    future models; degrades to the whole native pool when the preference
-    yields nothing. Every name comes from the loaded model capability set."""
-    pool = _native_pool(code, caps)
-    speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
-    canonical = list(speaker_map.values())
-    gender_group = set(_SPEAKER_GENDER.get(gender, ()))
-    known_genders = set(_SPEAKER_GENDER.get("female", ())) | set(
-        _SPEAKER_GENDER.get("male", ())
-    )
-    preferred = [speaker for speaker in pool if speaker in gender_group]
-    gender_cross = [
-        speaker
-        for speaker in canonical
-        if speaker in gender_group and speaker not in pool
-    ]
-    flexible = [speaker for speaker in pool if speaker not in known_genders]
-    return (preferred + gender_cross + flexible) or (pool or canonical)
-
 
 def _resolve_device() -> str:
     want = (os.environ.get("QWEN3TTS_DEVICE") or "auto").strip().lower() or "auto"
@@ -357,6 +277,9 @@ def _model_variant() -> str:
 
 def _model_ready(model) -> bool:
     return model is not None
+
+
+_CAPABILITIES = QwenCapabilities(_model_id, _model_ready, _log)
 
 
 def _attention_implementation(device: str, dtype) -> str:
@@ -524,7 +447,7 @@ def _load_model():
             attn_implementation=attention_implementation,
         )
         _log(f"[api] model loaded in {time.monotonic() - t0:.1f}s")
-        _refresh_capabilities(model)
+        _CAPABILITIES.refresh(model)
         _initialize_capacity_plan()
         return model
     except Exception as exc:  # noqa: BLE001
@@ -542,177 +465,28 @@ def _get_model():
         return _model
 
 
-def _default_capability_snapshot() -> Dict[str, Any]:
-    speakers = sorted(set(_SPEAKER_NATIVE_LANGUAGE) | set(_SPEAKER_BY_LANG.values()))
-    return {
-        "model_id": _model_id(),
-        "model_kind": "custom_voice",
-        "speakers": speakers,
-        "languages": sorted(set(_LANG_MAP.values())),
-        "speaker_map": {speaker.lower(): speaker for speaker in speakers},
-        "loaded_at": None,
-        "revision": "fallback",
-    }
-
-
-def _refresh_capabilities(model) -> Dict[str, Any]:
-    """Read speaker/language support from the loaded model when available."""
-    global _CAPABILITY_CACHE
-    snapshot = _default_capability_snapshot()
-    speakers_raw: List[str] = []
-    languages_raw: List[str] = []
-    if hasattr(model, "get_supported_speakers"):
-        try:
-            speakers_raw = list(model.get_supported_speakers() or [])
-        except Exception as exc:  # noqa: BLE001
-            _log(f"[api] get_supported_speakers failed: {exc}")
-    if hasattr(model, "get_supported_languages"):
-        try:
-            languages_raw = list(model.get_supported_languages() or [])
-        except Exception as exc:  # noqa: BLE001
-            _log(f"[api] get_supported_languages failed: {exc}")
-    if speakers_raw:
-        snapshot["speakers"] = [str(speaker) for speaker in speakers_raw]
-        snapshot["speaker_map"] = {
-            str(speaker).lower(): str(speaker) for speaker in speakers_raw
-        }
-    if languages_raw:
-        snapshot["languages"] = [str(language) for language in languages_raw]
-    snapshot["loaded_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    snapshot["revision"] = f"{snapshot['model_id']}:{len(snapshot['speakers'])}"
-    _CAPABILITY_CACHE = snapshot
-    return snapshot
-
-
-def _get_capabilities() -> Dict[str, Any]:
-    global _CAPABILITY_CACHE
-    if _CAPABILITY_CACHE is not None:
-        return _CAPABILITY_CACHE
-    if _model_ready(_model):
-        return _refresh_capabilities(_model)
-    return _default_capability_snapshot()
-
-
 def _resolve_speaker(
-    lang: str,
-    *,
-    requested: str = "",
-    accent: str = "",
-    gender: str = "female",
-    index: int = 0,
-    random_default: bool = False,
-    stable_identity: str = "",
+    language: str,
+    **options: Any,
 ) -> Dict[str, Any]:
-    """Resolve a model speaker id.
-
-    Priority: explicit request (or the QWEN3TTS_SPEAKER env pin) > default.
-    The default is either an ordered preset pick (variant previews: distinct
-    voice per variant index) or - with ``random_default`` - a uniform random
-    pick from the language's NATIVE speaker pool (official model card), one
-    voice per TASK. Queued jobs derive the choice from their stable id so an
-    idempotent resubmission keeps the same voice across service restarts."""
-    caps = _get_capabilities()
-    speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
-    supported = list(caps.get("speakers") or [])
-    explicit_env = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
-    requested_speaker = (requested or explicit_env or "").strip()
-    if requested_speaker:
-        canonical = speaker_map.get(requested_speaker.lower())
-        if not canonical:
-            return {
-                "ok": False,
-                "code": "unknown_speaker",
-                "message": f"speaker not supported: {requested_speaker}",
-                "retryable": False,
-                "supported_speakers": supported,
-            }
-        return {
-            "ok": True,
-            "requested_speaker": requested_speaker,
-            "resolved_speaker": canonical,
-            "fallback_applied": canonical != requested_speaker,
-        }
-
-    code = (lang or "en").strip().lower()[:2]
-    if random_default:
-        pool = _native_pool(code, caps)
-        if not pool:
-            return {
-                "ok": False,
-                "code": "no_speakers",
-                "message": "model reported no supported speakers",
-                "retryable": False,
-                "supported_speakers": [],
-            }
-        identity = str(stable_identity or "").strip()
-        if identity:
-            digest = hashlib.sha256(identity.encode("utf-8")).digest()
-            picked = pool[int.from_bytes(digest[:8], "big") % len(pool)]
-        else:
-            picked = random.choice(pool)
-        return {
-            "ok": True,
-            "requested_speaker": picked,
-            "resolved_speaker": picked,
-            "random_applied": True,
-            "fallback_applied": _SPEAKER_NATIVE_LANGUAGE.get(picked) != code,
-        }
-    gender_key = (gender or "female").strip().lower()
-    if gender_key not in ("female", "male"):
-        gender_key = "female"
-    candidates = _variant_candidates(code, gender_key, caps)
-    if not candidates:
-        candidates = list(supported)[:1] or ["Ryan"]
-    preferred = candidates[index % len(candidates)]
-    canonical = speaker_map.get(preferred.lower())
-    if canonical:
-        return {
-            "ok": True,
-            "requested_speaker": preferred,
-            "resolved_speaker": canonical,
-            "fallback_applied": False,
-        }
-    for candidate in candidates:
-        canonical = speaker_map.get(candidate.lower())
-        if canonical:
-            return {
-                "ok": True,
-                "requested_speaker": preferred,
-                "resolved_speaker": canonical,
-                "fallback_applied": True,
-            }
-    if supported:
-        fallback = supported[0]
-        return {
-            "ok": True,
-            "requested_speaker": preferred,
-            "resolved_speaker": fallback,
-            "fallback_applied": True,
-        }
-    return {
-        "ok": False,
-        "code": "no_speakers",
-        "message": "model reported no supported speakers",
-        "retryable": False,
-        "supported_speakers": [],
-    }
+    return _CAPABILITIES.resolve_speaker(_model, language, **options)
 
 
-def _qwen_language(lang: str) -> str:
-    code = (lang or "en").strip().lower()[:2]
-    return _LANG_MAP.get(code, "Auto")
-
-
-def _speaker_for_variant(lang: str, variant: Dict[str, Any], index: int) -> Dict[str, Any]:
-    explicit = (variant.get("speaker_id") or variant.get("speaker") or "").strip()
-    resolved = _resolve_speaker(
-        lang,
-        requested=explicit,
-        accent=str(variant.get("accent") or ""),
-        gender=str(variant.get("gender") or "female"),
-        index=index,
+def _speaker_for_variant(
+    language: str,
+    variant: Dict[str, Any],
+    index: int,
+) -> Dict[str, Any]:
+    return _CAPABILITIES.speaker_for_variant(
+        _model,
+        language,
+        variant,
+        index,
     )
-    return resolved
+
+
+def _qwen_language(language: str) -> str:
+    return _CAPABILITIES.qwen_language(language)
 
 
 class SynthRequest(BaseModel):
@@ -810,18 +584,18 @@ def health():
 @app.get("/capabilities")
 def capabilities():
     """Return runtime speaker/language support from the loaded model."""
-    caps = _get_capabilities()
+    caps = _CAPABILITIES.snapshot(_model)
     return {
         "ok": True,
         "model_id": caps.get("model_id"),
         "model_kind": caps.get("model_kind"),
         "languages": caps.get("languages"),
         "speakers": caps.get("speakers"),
-        "default_speakers": _SPEAKER_BY_LANG,
+        "default_speakers": DEFAULT_SPEAKERS,
         # Runtime-derived per-language native pools (model speakers +
         # model-card metadata preference) - the dynamic source the random
         # default actually picks from.
-        "native_pools": {code: _native_pool(code, caps) for code in _LANG_MAP},
+        "native_pools": _CAPABILITIES.native_pools(_model),
         "loaded_at": caps.get("loaded_at"),
         "revision": caps.get("revision"),
     }

@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -54,8 +55,8 @@ class AppQyV1VocabularyExportController extends Controller
         $includePhonetics = $request->boolean('include_phonetics', true);
         $includeTranslations = $request->boolean('include_translations', true);
 
-        $languageName = AppQyV1VocabularyLibraryPublicController::getLanguageName($language);
-        $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
+        $languageName = AppQyV1DictionaryService::getLanguageName($language);
+        $languageCode = AppQyV1DictionaryService::getLanguageCode($language);
 
         $library = null;
         $libraryIdParam = $request->input('library_id');
@@ -68,8 +69,8 @@ class AppQyV1VocabularyExportController extends Controller
 
             // The library's own language wins over the request language.
             if (is_string($library->language) && $library->language !== '') {
-                $languageName = AppQyV1VocabularyLibraryPublicController::getLanguageName($library->language);
-                $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($library->language);
+                $languageName = AppQyV1DictionaryService::getLanguageName($library->language);
+                $languageCode = AppQyV1DictionaryService::getLanguageCode($library->language);
             }
         }
 
@@ -172,7 +173,7 @@ class AppQyV1VocabularyExportController extends Controller
 
             $translation = null;
             if ($includeTranslations) {
-                $simpleTranslations = AppQyV1VocabularyLibraryPublicController::decodeSimpleTranslations($row->translations);
+                $simpleTranslations = AppQyV1DictionaryService::decodeSimpleTranslations($row->translations);
                 if ($simpleTranslations !== null) {
                     $translation = implode('; ', $simpleTranslations);
                 }

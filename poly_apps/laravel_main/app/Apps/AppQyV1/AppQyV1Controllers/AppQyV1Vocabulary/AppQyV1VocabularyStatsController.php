@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Constants\AppKeys;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Http\Controllers\Controller;
@@ -93,7 +94,7 @@ class AppQyV1VocabularyStatsController extends Controller
             $order = 'desc';
         }
 
-        $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
+        $languageCode = AppQyV1DictionaryService::getLanguageCode($language);
 
         $hasTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
         if (!$hasTable) {
@@ -227,7 +228,7 @@ class AppQyV1VocabularyStatsController extends Controller
         if (isset($validated['language']) && $validated['language'] !== '') {
             $language = $validated['language'];
         }
-        $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
+        $languageCode = AppQyV1DictionaryService::getLanguageCode($language);
 
         $hasTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
         if (!$hasTable) {

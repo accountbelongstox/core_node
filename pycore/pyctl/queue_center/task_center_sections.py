@@ -85,6 +85,29 @@ def _queue(rows: Iterable[Dict[str, Any]]) -> Dict[str, int]:
     }
 
 
+def queue_metrics(
+    queue_overview: Dict[str, Any],
+    scope: str,
+) -> Optional[Dict[str, int]]:
+    queues = (
+        queue_overview.get("queues")
+        if isinstance(queue_overview.get("queues"), dict)
+        else {}
+    )
+    metrics = queues.get(scope)
+    if not isinstance(metrics, dict):
+        return None
+    pending = int(metrics.get("pending") or 0)
+    leased = int(metrics.get("assigned") or metrics.get("leased") or 0)
+    processing = int(metrics.get("processing") or 0)
+    return {
+        "pending": pending,
+        "leased": leased,
+        "processing": processing,
+        "total": pending + leased + processing,
+    }
+
+
 def _worker_tokens(scope: QueueCenterScope) -> set[str]:
     keys = set(category_keys_for_scope(scope))
     tokens = set(keys)
@@ -187,4 +210,4 @@ def build_section_contracts(
     return result
 
 
-__all__ = ["build_section_contracts"]
+__all__ = ["build_section_contracts", "queue_metrics"]

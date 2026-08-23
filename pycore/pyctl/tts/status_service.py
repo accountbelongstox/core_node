@@ -140,6 +140,19 @@ def status(refresh: int = 0):
     )
 
 
+def peek_status() -> Dict[str, Any]:
+    """Return cached TTS state without initiating a cold engine scan."""
+    cached = status_snapshot_cache.peek(STATUS_SNAPSHOT_TTS_KEY)
+    if isinstance(cached, dict):
+        return cached
+    return {
+        "success": True,
+        "providers": [],
+        "engines": [],
+        "pending": True,
+    }
+
+
 def test(params: Optional[Dict[str, Any]] = None):
     """Live synth test for ONE engine (or the best available)."""
     p = params or {}

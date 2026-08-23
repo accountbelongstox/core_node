@@ -341,6 +341,58 @@ class FileSystemManager
         return $result;
     }
 
+    public static function concatenateFiles(array $sourcePaths, string $destination): bool
+    {
+        $expectedSize = 0;
+        $destinationSize = false;
+        $temporaryPath = $destination . '.assembling';
+        $output = false;
+        $input = false;
+
+        if ($sourcePaths === []) {
+            return false;
+        }
+        foreach ($sourcePaths as $sourcePath) {
+            if (!is_string($sourcePath) || !self::isFile($sourcePath)) {
+                return false;
+            }
+            $expectedSize += (int) self::filesize($sourcePath);
+        }
+
+        $destinationSize = self::isFile($destination) ? self::filesize($destination) : false;
+        if ($destinationSize !== false && $destinationSize === $expectedSize) {
+            return true;
+        }
+
+        self::ensureDirectoryExists(dirname($destination));
+        if (self::exists($temporaryPath)) {
+            self::delete($temporaryPath);
+        }
+        $output = fopen($temporaryPath, 'wb');
+        if ($output === false) {
+            return false;
+        }
+
+        foreach ($sourcePaths as $sourcePath) {
+            $input = fopen($sourcePath, 'rb');
+            if ($input === false) {
+                fclose($output);
+                self::delete($temporaryPath);
+                return false;
+            }
+            stream_copy_to_stream($input, $output);
+            fclose($input);
+        }
+        fclose($output);
+
+        if (self::filesize($temporaryPath) !== $expectedSize) {
+            self::delete($temporaryPath);
+            return false;
+        }
+
+        return self::replaceFile($temporaryPath, $destination);
+    }
+
     public static function replaceFile(string $source, string $destination): bool
     {
         $mappedSource = self::mapExternalPath($source);

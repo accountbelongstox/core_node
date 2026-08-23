@@ -40,6 +40,7 @@ import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearni
 import { PcCoreBookPanel } from './PcCoreBookPage';
 import PcSentenceAudioPanel from '../components/PcSentenceAudioPanel';
 import PcBookSourceExplorer from '../components/PcBookSourceExplorer';
+import { BookStatTile, formatBookMetric as nf } from '@/shared/books/BookStats';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
@@ -194,7 +195,6 @@ interface SyncProgress { stage: string; done: number; total: number; detail: str
 interface EnrichResult { processed: number; enriched: number; remaining: number; errors?: string[]; }
 interface FlowProgress { stage: string; done: number; total: number; detail: string; }
 
-const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');
 
 const PcBooksPage: React.FC = () => {
   // --- sources (page-local; books need no backend history/options) -------- #
@@ -799,28 +799,14 @@ const PcBooksPage: React.FC = () => {
     return `${formatFilter.size}/${supportedFormats.length}`;
   }, [supportedFormats, formatFilter]);
 
-  // --- per-source stats card --------------------------------------------- #
-  // Tiles with an onClick are clickable and open the paginated drill-down list.
-  const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; accent?: string; onClick?: () => void }> =
-    ({ icon, label, value, accent, onClick }) => (
-      <div onClick={onClick}
-        className={`rounded-xl p-3 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5 ${
-          onClick ? 'cursor-pointer hover:border-indigo-400/60 hover:ring-1 hover:ring-indigo-400/30 transition' : ''}`}>
-        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
-          {icon}{label}{onClick && <Eye className="w-3 h-3 ml-auto opacity-50" />}
-        </div>
-        <div className={`text-base font-bold ${accent || 'text-slate-700 dark:text-slate-200'}`}>{value}</div>
-      </div>
-    );
-
   const renderStats = (s: BookTextStats, path: string) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-      <StatTile icon={<Type className="w-3 h-3" />} label={L.words} value={nf(s.word_count)} onClick={() => openList(path, 'words')} />
-      <StatTile icon={<Hash className="w-3 h-3" />} label={L.uniqueWords} value={nf(s.unique_word_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_words')} />
-      <StatTile icon={<AlignLeft className="w-3 h-3" />} label={L.sentences} value={nf(s.sentence_count)} onClick={() => openList(path, 'sentences')} />
-      <StatTile icon={<Hash className="w-3 h-3" />} label={L.uniqueSentences} value={nf(s.unique_sentence_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_sentences')} />
-      <StatTile icon={<FileText className="w-3 h-3" />} label={L.characters} value={nf(s.char_count)} />
-      <StatTile icon={<Languages className="w-3 h-3" />} label={L.langs} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500" onClick={() => openList(path, 'languages')} />
+      <BookStatTile variant="source" icon={<Type className="w-3 h-3" />} label={L.words} value={nf(s.word_count)} onClick={() => openList(path, 'words')} />
+      <BookStatTile variant="source" icon={<Hash className="w-3 h-3" />} label={L.uniqueWords} value={nf(s.unique_word_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_words')} />
+      <BookStatTile variant="source" icon={<AlignLeft className="w-3 h-3" />} label={L.sentences} value={nf(s.sentence_count)} onClick={() => openList(path, 'sentences')} />
+      <BookStatTile variant="source" icon={<Hash className="w-3 h-3" />} label={L.uniqueSentences} value={nf(s.unique_sentence_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_sentences')} />
+      <BookStatTile variant="source" icon={<FileText className="w-3 h-3" />} label={L.characters} value={nf(s.char_count)} />
+      <BookStatTile variant="source" icon={<Languages className="w-3 h-3" />} label={L.langs} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500" onClick={() => openList(path, 'languages')} />
     </div>
   );
 

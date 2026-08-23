@@ -19,7 +19,7 @@ use App\Providers\PathMapper;
  *     created 0700 when missing.
  *
  * Values are SECRETS: this class only writes/deletes — masking + read-back for
- * the UI go through AiProviderRegistry::maskKey / SecretStore.
+ * the UI go through SecretStore::maskForDisplay.
  */
 class AiSecretWriter
 {

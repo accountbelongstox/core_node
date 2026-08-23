@@ -2,8 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books;
 
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyLibraryPublicController;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAnalysisCache;
 use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
 use App\Providers\PathMapper;
@@ -44,15 +44,18 @@ class AppQyV1BooksController extends Controller
     private DocumentTextExtractor $extractor;
     private BookTextStatsService $stats;
     private MediaIngestService $ingestService;
+    private AppQyV1BookAnalysisCache $analysisCache;
 
     public function __construct(
         DocumentTextExtractor $extractor,
         BookTextStatsService $stats,
-        MediaIngestService $ingestService
+        MediaIngestService $ingestService,
+        AppQyV1BookAnalysisCache $analysisCache
     ) {
         $this->extractor = $extractor;
         $this->stats = $stats;
         $this->ingestService = $ingestService;
+        $this->analysisCache = $analysisCache;
     }
 
     /**
@@ -119,7 +122,7 @@ class AppQyV1BooksController extends Controller
         foreach ($files as $uploaded) {
             $originalName = (string) $uploaded->getClientOriginalName();
             $ext = strtolower((string) $uploaded->getClientOriginalExtension());
-            $asciiName = $this->asciiName($originalName, $fileIndex, $ext);
+            $asciiName = $this->analysisCache->asciiName($originalName, $fileIndex, $ext);
             $size = (int) $uploaded->getSize();
 
             $storedPath = rtrim($stagingDir, '/\\') . DIRECTORY_SEPARATOR . $asciiName;
@@ -176,7 +179,7 @@ class AppQyV1BooksController extends Controller
                     'slots' => $chapterTree['slots'],
                     'full_content' => $text,
                 ];
-                $this->writeJson(
+                $this->analysisCache->writeJson(
                     rtrim($stagingDir, '/\\') . DIRECTORY_SEPARATOR . "file_{$fileIndex}.json",
                     $cachePayload
                 );
@@ -217,7 +220,7 @@ class AppQyV1BooksController extends Controller
         $aggregate['unique_sentence_count'] = count($distinctSentenceIds);
 
         // Persist the per-file lists index for /books/list.
-        $this->writeJson(
+        $this->analysisCache->writeJson(
             rtrim($stagingDir, '/\\') . DIRECTORY_SEPARATOR . 'lists.json',
             [
                 'upload_id' => $uploadId,
@@ -271,7 +274,7 @@ class AppQyV1BooksController extends Controller
             'languages.*' => 'string',
         ]);
 
-        $uploadId = $this->sanitizeId($validated['upload_id']);
+        $uploadId = $this->analysisCache->sanitizeId($validated['upload_id']);
         $kind = $validated['kind'];
         $start = isset($validated['start']) ? (int) $validated['start'] : 0;
         $limit = isset($validated['limit']) ? (int) $validated['limit'] : 100;
@@ -285,13 +288,13 @@ class AppQyV1BooksController extends Controller
             return $this->listV3($uploadId, $kind, $asciiName, $chapterIndex, $languages, $start, $limit);
         }
 
-        $listsPath = $this->listsPath($uploadId);
-        $lists = $this->readJson($listsPath);
+        $listsPath = $this->analysisCache->listsPath($uploadId);
+        $lists = $this->analysisCache->readJson($listsPath);
         if ($lists === null) {
             return $this->notFound('Upload not found or expired');
         }
 
-        $merged = $this->mergeLists($lists, $kind, $asciiName);
+        $merged = $this->analysisCache->mergeLists($lists, $kind, $asciiName);
 
         $total = count($merged);
         $items = array_slice($merged, $start, $limit);
@@ -326,7 +329,7 @@ class AppQyV1BooksController extends Controller
         int $limit
     ): JsonResponse {
         $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
-        $fileCaches = $this->loadFileCaches($stagingDir);
+        $fileCaches = $this->analysisCache->loadFileCaches($stagingDir);
         if (empty($fileCaches)) {
             return $this->notFound('Upload not found or expired');
         }
@@ -456,7 +459,7 @@ class AppQyV1BooksController extends Controller
             'languages.*' => 'string',
         ]);
 
-        $uploadId = $this->sanitizeId($validated['upload_id']);
+        $uploadId = $this->analysisCache->sanitizeId($validated['upload_id']);
         $languageOverride = isset($validated['language']) ? (string) $validated['language'] : '';
         // Books v3: the checked correspondence languages override (>=1 when sent).
         $languagesOverride = $this->normalizeSelectedLanguages(
@@ -465,7 +468,7 @@ class AppQyV1BooksController extends Controller
         );
 
         $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
-        $fileCaches = $this->loadFileCaches($stagingDir);
+        $fileCaches = $this->analysisCache->loadFileCaches($stagingDir);
         if (empty($fileCaches)) {
             return $this->notFound('Upload not found or expired');
         }
@@ -771,196 +774,4 @@ class AppQyV1BooksController extends Controller
         return $wordIds;
     }
 
-    /**
-     * Merge a single kind of list across files (or scope to one file).
-     *
-     * @return array<int, array>
-     */
-    private function mergeLists(array $lists, string $kind, ?string $asciiName): array
-    {
-        $files = isset($lists['files']) && is_array($lists['files']) ? $lists['files'] : [];
-
-        // words/unique_words read the same 'words' source list (distinct words);
-        // unique_words is the same set (words list is already distinct per file).
-        $sourceKey = $kind;
-        if ($kind === 'words' || $kind === 'unique_words') {
-            $sourceKey = 'words';
-        }
-
-        $merged = [];
-        foreach ($files as $name => $fileLists) {
-            if ($asciiName !== null && $name !== $asciiName) {
-                continue;
-            }
-            if (!isset($fileLists[$sourceKey]) || !is_array($fileLists[$sourceKey])) {
-                continue;
-            }
-            foreach ($fileLists[$sourceKey] as $row) {
-                $merged[] = $row;
-            }
-        }
-
-        // Cross-file distinctness for word/sentence/language kinds.
-        if ($kind === 'words' || $kind === 'unique_words') {
-            $merged = $this->mergeWordFrequencies($merged);
-        } elseif ($kind === 'unique_sentences') {
-            $merged = $this->dedupeByKey($merged, 'content_id');
-        } elseif ($kind === 'languages') {
-            $merged = $this->mergeLanguages($merged);
-        }
-
-        return $merged;
-    }
-
-    /**
-     * Collapse word rows ({word,count,...}) across files by summing counts,
-     * then sort by count desc.
-     */
-    private function mergeWordFrequencies(array $rows): array
-    {
-        $acc = [];
-        foreach ($rows as $row) {
-            $word = isset($row['word']) ? (string) $row['word'] : '';
-            if ($word === '') {
-                continue;
-            }
-            if (!isset($acc[$word])) {
-                $acc[$word] = ['word' => $word, 'count' => 0, 'language' => $row['language'] ?? ''];
-            }
-            $acc[$word]['count'] += (int) ($row['count'] ?? 0);
-        }
-        $out = array_values($acc);
-        usort($out, function ($a, $b) {
-            if ($a['count'] !== $b['count']) {
-                return $b['count'] <=> $a['count'];
-            }
-            return strcmp((string) $a['word'], (string) $b['word']);
-        });
-        return $out;
-    }
-
-    /**
-     * Merge language breakdown rows across files by summing chars per script,
-     * then recompute ratios and sort by chars desc.
-     */
-    private function mergeLanguages(array $rows): array
-    {
-        $acc = [];
-        $total = 0;
-        foreach ($rows as $row) {
-            $script = isset($row['script']) ? (string) $row['script'] : '';
-            if ($script === '') {
-                continue;
-            }
-            if (!isset($acc[$script])) {
-                $acc[$script] = ['script' => $script, 'code' => $row['code'] ?? '', 'chars' => 0, 'ratio' => 0.0];
-            }
-            $acc[$script]['chars'] += (int) ($row['chars'] ?? 0);
-            $total += (int) ($row['chars'] ?? 0);
-        }
-        foreach ($acc as &$row) {
-            $row['ratio'] = $total > 0 ? round($row['chars'] / $total, 4) : 0.0;
-        }
-        unset($row);
-        $out = array_values($acc);
-        usort($out, fn ($a, $b) => $b['chars'] <=> $a['chars']);
-        return $out;
-    }
-
-    /**
-     * Deduplicate a list of rows by a key, keeping first occurrence.
-     */
-    private function dedupeByKey(array $rows, string $key): array
-    {
-        $seen = [];
-        $out = [];
-        foreach ($rows as $row) {
-            $k = isset($row[$key]) ? (string) $row[$key] : '';
-            if ($k === '' || isset($seen[$k])) {
-                continue;
-            }
-            $seen[$k] = true;
-            $out[] = $row;
-        }
-        return $out;
-    }
-
-    /**
-     * Load every per-file analysis cache (file_*.json) for an upload, in order.
-     *
-     * @return array<int, array>
-     */
-    private function loadFileCaches(string $stagingDir): array
-    {
-        $caches = [];
-        $index = 0;
-        while (true) {
-            $path = rtrim($stagingDir, '/\\') . DIRECTORY_SEPARATOR . "file_{$index}.json";
-            if (!is_file($path)) {
-                break;
-            }
-            $data = $this->readJson($path);
-            if ($data !== null) {
-                $caches[] = $data;
-            }
-            $index++;
-        }
-        return $caches;
-    }
-
-    /** Absolute path of the lists.json index for an upload. */
-    private function listsPath(string $uploadId): string
-    {
-        $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
-        return rtrim($stagingDir, '/\\') . DIRECTORY_SEPARATOR . 'lists.json';
-    }
-
-    /** Write a value as pretty JSON; logs (never throws) on failure. */
-    private function writeJson(string $path, $value): void
-    {
-        $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-        if ($json === false) {
-            Log::warning('[AppQyV1Books] Failed to encode JSON cache', ['path' => $path]);
-            return;
-        }
-        if (@file_put_contents($path, $json) === false) {
-            Log::warning('[AppQyV1Books] Failed to write JSON cache', ['path' => $path]);
-        }
-    }
-
-    /** Read a JSON cache file into an array, or null when missing/invalid. */
-    private function readJson(string $path): ?array
-    {
-        if (!is_file($path)) {
-            return null;
-        }
-        $raw = @file_get_contents($path);
-        if ($raw === false) {
-            return null;
-        }
-        $data = json_decode($raw, true);
-        return is_array($data) ? $data : null;
-    }
-
-    /**
-     * Build a filesystem-safe ascii filename for a staged upload. Falls back to
-     * an index-based name when the original has no safe characters.
-     */
-    private function asciiName(string $originalName, int $index, string $ext): string
-    {
-        $base = pathinfo($originalName, PATHINFO_FILENAME);
-        $slug = Str::slug($base);
-        if ($slug === '') {
-            $slug = 'file';
-        }
-        $slug = substr($slug, 0, 80);
-        $suffix = $ext !== '' ? ('.' . preg_replace('/[^a-z0-9]/', '', strtolower($ext))) : '';
-        return $index . '_' . $slug . $suffix;
-    }
-
-    /** Strip anything that is not a safe id char (uuid / slug). */
-    private function sanitizeId(string $id): string
-    {
-        return preg_replace('/[^A-Za-z0-9_\-]/', '', $id);
-    }
 }

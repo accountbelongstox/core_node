@@ -28,3 +28,8 @@ export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_ac
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
 export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
 export const DEFAULT_API_REGION_PREFIX: string = contractDocument.access.default_api_region_prefix;
+export const SERVICE_CONTRACT_ROOT_DOMAINS: string[] = [...contractDocument.access.root_domains];
+export const SERVICE_CONTRACT_HOSTS: Record<string, string> = { ...contractDocument.hosts };
+export const SERVICE_CONTRACT_SERVICE_HOST_KEYS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(contractDocument.access.service_host_keys).map(([service, keys]) => [service, [...keys]]),
+);

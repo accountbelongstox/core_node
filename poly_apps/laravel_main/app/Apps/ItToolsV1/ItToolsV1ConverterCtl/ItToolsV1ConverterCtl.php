@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
-
+use App\Apps\ItToolsV1\ItToolsV1Utils\ConverterService;
 class ItToolsV1ConverterCtl extends Controller
 {
     use ApiResponse;
@@ -275,7 +275,7 @@ class ItToolsV1ConverterCtl extends Controller
                 throw new \Exception('Invalid JSON');
             }
 
-            $yaml = $this->arrayToYaml($data);
+            $yaml = ConverterService::arrayToYaml($data);
 
             return $this->success(['yaml' => $yaml]);
         } catch (\Exception $e) {
@@ -293,7 +293,7 @@ class ItToolsV1ConverterCtl extends Controller
         $request->validate(['yaml' => 'required|string']);
 
         try {
-            $data = $this->yamlToArray($request->input('yaml'));
+            $data = ConverterService::yamlToArray($request->input('yaml'));
             $json = json_encode($data, JSON_PRETTY_PRINT);
 
             return $this->success(['json' => $json]);
@@ -416,48 +416,6 @@ class ItToolsV1ConverterCtl extends Controller
         }
     }
 
-    private function arrayToYaml($data, $indent = 0)
-    {
-        $yaml = '';
-        $spaces = str_repeat('  ', $indent);
-
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $yaml .= $spaces . $key . ":\n" . $this->arrayToYaml($value, $indent + 1);
-            } else {
-                $yaml .= $spaces . $key . ': ' . $value . "\n";
-            }
-        }
-
-        return $yaml;
-    }
-
-    private function yamlToArray($yaml)
-    {
-        $lines = explode("\n", trim($yaml));
-        $data = [];
-        $currentPath = [];
-
-        foreach ($lines as $line) {
-            if (trim($line) === '' || strpos($line, '#') === 0) continue;
-
-            preg_match('/^(\s*)(.+?):(.*)$/', $line, $matches);
-            if ($matches) {
-                $indent = strlen($matches[1]) / 2;
-                $key = trim($matches[2]);
-                $value = trim($matches[3]);
-
-                if ($value === '') {
-                    $currentPath[$indent] = $key;
-                } else {
-                    $data[$key] = $value;
-                }
-            }
-        }
-
-        return $data;
-    }
-
     public function base64FileEncode(Request $request)
     {
         $request->validate([
@@ -501,7 +459,7 @@ class ItToolsV1ConverterCtl extends Controller
             }
 
             $size = strlen($decoded);
-            $mimeType = $this->detectMimeType($decoded);
+            $mimeType = ConverterService::detectMimeType($decoded);
 
             return $this->success([
                 'fileData' => $decoded,
@@ -619,7 +577,7 @@ class ItToolsV1ConverterCtl extends Controller
                 throw new \Exception('Invalid JSON');
             }
 
-            $xml = $this->arrayToXml($data);
+            $xml = ConverterService::arrayToXml($data);
 
             return $this->success(['xml' => $xml]);
         } catch (\Exception $e) {
@@ -665,7 +623,7 @@ class ItToolsV1ConverterCtl extends Controller
                 throw new \Exception('Invalid JSON');
             }
 
-            $toml = $this->arrayToToml($data);
+            $toml = ConverterService::arrayToToml($data);
 
             return $this->success(['toml' => $toml]);
         } catch (\Exception $e) {
@@ -683,7 +641,7 @@ class ItToolsV1ConverterCtl extends Controller
         $request->validate(['toml' => 'required|string']);
 
         try {
-            $data = $this->tomlToArray($request->input('toml'));
+            $data = ConverterService::tomlToArray($request->input('toml'));
             $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
             return $this->success(['json' => $json]);
@@ -702,8 +660,8 @@ class ItToolsV1ConverterCtl extends Controller
         $request->validate(['toml' => 'required|string']);
 
         try {
-            $data = $this->tomlToArray($request->input('toml'));
-            $yaml = $this->arrayToYaml($data);
+            $data = ConverterService::tomlToArray($request->input('toml'));
+            $yaml = ConverterService::arrayToYaml($data);
 
             return $this->success(['yaml' => $yaml]);
         } catch (\Exception $e) {
@@ -721,8 +679,8 @@ class ItToolsV1ConverterCtl extends Controller
         $request->validate(['yaml' => 'required|string']);
 
         try {
-            $data = $this->yamlToArray($request->input('yaml'));
-            $toml = $this->arrayToToml($data);
+            $data = ConverterService::yamlToArray($request->input('yaml'));
+            $toml = ConverterService::arrayToToml($data);
 
             return $this->success(['toml' => $toml]);
         } catch (\Exception $e) {
@@ -839,106 +797,4 @@ class ItToolsV1ConverterCtl extends Controller
         }
     }
 
-    private function detectMimeType($data): string
-    {
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_buffer($finfo, $data);
-        finfo_close($finfo);
-
-        return $mimeType ?: 'application/octet-stream';
-    }
-
-    private function arrayToXml($data, $rootElement = 'root', $xml = null)
-    {
-        if ($xml === null) {
-            $xml = new \SimpleXMLElement('<?xml version="1.0"?><' . $rootElement . '></' . $rootElement . '>');
-        }
-
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $subnode = $xml->addChild($key);
-                $this->arrayToXml($value, $key, $subnode);
-            } else {
-                $xml->addChild($key, htmlspecialchars($value));
-            }
-        }
-
-        return $xml->asXML();
-    }
-
-    private function arrayToToml($data, $indent = 0)
-    {
-        $toml = '';
-        $spaces = str_repeat('  ', $indent);
-
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                if ($indent === 0) {
-                    $toml .= "\n[{$key}]\n";
-                }
-                $toml .= $this->arrayToToml($value, $indent + 1);
-            } else {
-                $toml .= $spaces . $key . ' = ' . $this->formatTomlValue($value) . "\n";
-            }
-        }
-
-        return $toml;
-    }
-
-    private function formatTomlValue($value)
-    {
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        } elseif (is_numeric($value)) {
-            return $value;
-        } elseif (is_string($value)) {
-            return '"' . addslashes($value) . '"';
-        }
-        return '""';
-    }
-
-    private function tomlToArray($toml)
-    {
-        $data = [];
-        $lines = explode("\n", $toml);
-        $currentSection = null;
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line) || strpos($line, '#') === 0) {
-                continue;
-            }
-
-            if (preg_match('/^\[(.+)\]$/', $line, $matches)) {
-                $currentSection = $matches[1];
-                if (!isset($data[$currentSection])) {
-                    $data[$currentSection] = [];
-                }
-            } elseif (preg_match('/^(.+?)\s*=\s*(.+)$/', $line, $matches)) {
-                $key = trim($matches[1]);
-                $value = trim($matches[2]);
-                $parsedValue = $this->parseTomlValue($value);
-
-                if ($currentSection) {
-                    $data[$currentSection][$key] = $parsedValue;
-                } else {
-                    $data[$key] = $parsedValue;
-                }
-            }
-        }
-
-        return $data;
-    }
-
-    private function parseTomlValue($value)
-    {
-        $value = trim($value);
-        if ($value === 'true') return true;
-        if ($value === 'false') return false;
-        if (is_numeric($value)) return $value + 0;
-        if (preg_match('/^"(.*)"$/', $value, $matches)) {
-            return stripslashes($matches[1]);
-        }
-        return $value;
-    }
 }

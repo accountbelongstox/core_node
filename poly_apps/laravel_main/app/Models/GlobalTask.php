@@ -54,6 +54,33 @@ class GlobalTask extends Model
         'group_key',
     ];
 
+    public static function displayWordsFromPayload(array $payload): array
+    {
+        $words = [];
+
+        if (isset($payload['words']) && is_array($payload['words'])) {
+            foreach ($payload['words'] as $entry) {
+                $word = is_array($entry) ? ($entry['word'] ?? $entry['content'] ?? null) : $entry;
+                if (is_string($word) && trim($word) !== '') {
+                    $words[] = trim($word);
+                }
+            }
+        }
+
+        if ($words !== []) {
+            return $words;
+        }
+
+        foreach (['content', 'text', 'word'] as $key) {
+            $word = $payload[$key] ?? null;
+            if (is_string($word) && trim($word) !== '') {
+                return [trim($word)];
+            }
+        }
+
+        return [];
+    }
+
     protected function casts(): array
     {
         return [

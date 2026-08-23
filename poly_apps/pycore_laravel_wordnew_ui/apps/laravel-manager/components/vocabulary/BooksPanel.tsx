@@ -15,36 +15,14 @@ import { useToast } from '../admin';
 import { logInfo, logSuccess, logError } from '@/core/logstore/logStore';
 import PaginatedListModal, { PaginatedListColumn } from './PaginatedListModal';
 import ProcessingCapabilityCard from './ProcessingCapabilityCard';
-
-/**
- * BooksPanel — laravel-manager "Books / Add source" collapsible section for the
- * Vocabulary page. Ports the pycore PcBooksPage UX onto the Laravel backend:
- *
- *  - drag-drop + file-picker multi-upload of book files (POST /books/upload),
- *  - per-file + aggregate stat tiles (words / unique words / sentences / unique
- *    sentences / characters / languages); each numeric tile is CLICKABLE and
- *    opens a paginated drill-down (POST /books/list) via PaginatedListModal,
- *  - a quick optional LOCAL preview stat for plain text (txt/md/html) shown
- *    instantly before the authoritative backend stats land,
- *  - text preview per file,
- *  - "Ingest to library" (POST /books/ingest) — sync result summary OR async
- *    {task_id} polled against GET /task/{id}/status with a stage + % progress bar.
- *
- * All UI strings are English. Toasts via useToast(); logs via logStore.
- */
+import {
+  BookStatTile as StatTile,
+  formatBookMetric as nf,
+  roughBookTextStats as roughLocalStats,
+  ROUGH_TEXT_EXTENSIONS,
+} from '@/shared/books/BookStats';
 
 const LIST_LIMIT = 100;
-const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');
-
-/** Quick, rough local stats for readable text — labelled "local preview". */
-const ROUGH_TEXT_EXTS = ['txt', 'md', 'markdown', 'html', 'htm', 'csv', 'log'];
-function roughLocalStats(text: string): { words: number; uniqueWords: number; sentences: number; chars: number } {
-  const stripped = text.replace(/<[^>]+>/g, ' ');
-  const words = stripped.match(/[\p{L}\p{N}']+/gu) || [];
-  const unique = new Set(words.map((w) => w.toLowerCase()));
-  const sentences = stripped.split(/[.!?。！？\n]+/).map((s) => s.trim()).filter(Boolean);
-  return { words: words.length, uniqueWords: unique.size, sentences: sentences.length, chars: text.length };
-}
 
 interface UploadedDoc {
   upload_id: string;
@@ -65,33 +43,6 @@ interface IngestProgress {
   stage: string;
   percent: number;
 }
-
-/** Clickable / static stat tile (mirrors PcBooksPage's StatTile affordance). */
-const StatTile: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  accent?: string;
-  onClick?: () => void;
-}> = ({ icon, label, value, accent, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={!onClick}
-    className={`text-left rounded-lg p-3 border bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 ${
-      onClick
-        ? 'cursor-pointer hover:border-indigo-400 hover:ring-1 hover:ring-indigo-400/40 transition'
-        : 'cursor-default'
-    }`}
-  >
-    <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
-      {icon}
-      {label}
-      {onClick && <Eye className="w-3 h-3 ml-auto opacity-50" />}
-    </div>
-    <div className={`text-base font-bold ${accent || 'text-slate-700 dark:text-slate-200'}`}>{value}</div>
-  </button>
-);
 
 const BooksPanel: React.FC = () => {
   const toast = useToast();
@@ -200,7 +151,7 @@ const BooksPanel: React.FC = () => {
       const previews: LocalPreview[] = [];
       for (const f of files) {
         const ext = (f.name.split('.').pop() || '').toLowerCase();
-        if (ROUGH_TEXT_EXTS.includes(ext) && f.size <= 2_000_000) {
+        if (ROUGH_TEXT_EXTENSIONS.includes(ext) && f.size <= 2_000_000) {
           try {
             const text = await f.text();
             const s = roughLocalStats(text);

@@ -64,6 +64,20 @@ final class SecretStore
         return self::get($keyName) !== '';
     }
 
+    public static function maskForDisplay(?string $value): ?string
+    {
+        $secret = trim((string) $value);
+
+        if ($secret === '') {
+            return null;
+        }
+        if (strlen($secret) <= 8) {
+            return '…';
+        }
+
+        return substr($secret, 0, 4) . '…' . substr($secret, -4);
+    }
+
     private static function path(string $keyName): ?string
     {
         $coreNodeDirectory = null;

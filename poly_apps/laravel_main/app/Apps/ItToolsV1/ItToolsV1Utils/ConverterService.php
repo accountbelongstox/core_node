@@ -356,4 +356,150 @@ class ConverterService
 
         return sprintf('hsl(%d, %d%%, %d%%)', round($h * 360), round($s * 100), round($l * 100));
     }
+
+    public static function arrayToYaml($data, $indent = 0)
+    {
+        $yaml = '';
+        $spaces = str_repeat('  ', $indent);
+
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $yaml .= $spaces . $key . ":\n" . self::arrayToYaml($value, $indent + 1);
+            } else {
+                $yaml .= $spaces . $key . ': ' . $value . "\n";
+            }
+        }
+
+        return $yaml;
+    }
+
+    public static function yamlToArray($yaml)
+    {
+        $lines = explode("\n", trim($yaml));
+        $data = [];
+        $currentPath = [];
+
+        foreach ($lines as $line) {
+            if (trim($line) === '' || strpos($line, '#') === 0) continue;
+
+            preg_match('/^(\s*)(.+?):(.*)$/', $line, $matches);
+            if ($matches) {
+                $indent = strlen($matches[1]) / 2;
+                $key = trim($matches[2]);
+                $value = trim($matches[3]);
+
+                if ($value === '') {
+                    $currentPath[$indent] = $key;
+                } else {
+                    $data[$key] = $value;
+                }
+            }
+        }
+
+        return $data;
+    }
+
+
+    public static function arrayToXml($data, $rootElement = 'root', $xml = null)
+    {
+        if ($xml === null) {
+            $xml = new \SimpleXMLElement('<?xml version="1.0"?><' . $rootElement . '></' . $rootElement . '>');
+        }
+
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $subnode = $xml->addChild($key);
+                self::arrayToXml($value, $key, $subnode);
+            } else {
+                $xml->addChild($key, htmlspecialchars($value));
+            }
+        }
+
+        return $xml->asXML();
+    }
+
+    public static function arrayToToml($data, $indent = 0)
+    {
+        $toml = '';
+        $spaces = str_repeat('  ', $indent);
+
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                if ($indent === 0) {
+                    $toml .= "\n[{$key}]\n";
+                }
+                $toml .= self::arrayToToml($value, $indent + 1);
+            } else {
+                $toml .= $spaces . $key . ' = ' . self::formatTomlValue($value) . "\n";
+            }
+        }
+
+        return $toml;
+    }
+
+    public static function formatTomlValue($value)
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        } elseif (is_numeric($value)) {
+            return $value;
+        } elseif (is_string($value)) {
+            return '"' . addslashes($value) . '"';
+        }
+        return '""';
+    }
+
+    public static function tomlToArray($toml)
+    {
+        $data = [];
+        $lines = explode("\n", $toml);
+        $currentSection = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line) || strpos($line, '#') === 0) {
+                continue;
+            }
+
+            if (preg_match('/^\[(.+)\]$/', $line, $matches)) {
+                $currentSection = $matches[1];
+                if (!isset($data[$currentSection])) {
+                    $data[$currentSection] = [];
+                }
+            } elseif (preg_match('/^(.+?)\s*=\s*(.+)$/', $line, $matches)) {
+                $key = trim($matches[1]);
+                $value = trim($matches[2]);
+                $parsedValue = self::parseTomlValue($value);
+
+                if ($currentSection) {
+                    $data[$currentSection][$key] = $parsedValue;
+                } else {
+                    $data[$key] = $parsedValue;
+                }
+            }
+        }
+
+        return $data;
+    }
+
+    public static function parseTomlValue($value)
+    {
+        $value = trim($value);
+        if ($value === 'true') return true;
+        if ($value === 'false') return false;
+        if (is_numeric($value)) return $value + 0;
+        if (preg_match('/^"(.*)"$/', $value, $matches)) {
+            return stripslashes($matches[1]);
+        }
+        return $value;
+    }
+
+    public static function detectMimeType(string $data): string
+    {
+        $fileInfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_buffer($fileInfo, $data);
+        finfo_close($fileInfo);
+
+        return $mimeType ?: 'application/octet-stream';
+    }
 }

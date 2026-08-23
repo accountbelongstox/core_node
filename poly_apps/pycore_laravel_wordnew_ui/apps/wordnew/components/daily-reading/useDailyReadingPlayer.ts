@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DailyReadingRow } from './dailyReadingApi';
-import {
-  ensureAudio,
-  preloadAudio,
-  preloadAudioTracked,
-  resolveAudioSync,
-} from '../../runtime-store/WfNewAudioCache';
+import { ensureAudio, preloadAudio, resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 import {
   getSentenceWordTable,
   mergeSentenceWordRuntimeState,
   sentenceWordKey,
-  sentenceWordTranslations,
   uniqueSentenceWordRows,
   type WordNewSentenceWordRow,
 } from '../../services/WordNewSentenceWordTable';
@@ -20,15 +14,11 @@ import { STORAGE_MANAGER_CHANGED_EVENT } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 import { selectedDailyReadingWordGroupId } from './dailyReadingWordGroupStore';
 import { wfNewApi } from '../../api';
-import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
 import {
   defaultDailyReadingPattern,
   EMPTY_DAILY_READING_RESOURCE_STATUS,
-  type DailyReadingPlaybackSettings,
-  type DailyReadingPlaybackStep,
   type DailyReadingResourceStatus,
-  type DailyReadingSentencePlaybackStep,
 } from './DailyReadingPlaybackModel';
 import {
   activeStateForSequenceItem,
@@ -45,6 +35,13 @@ import {
   type DailyReadingTransportState,
 } from './DailyReadingPlaybackEngine';
 import { useDailyReadingPlaybackSettings } from './useDailyReadingPlaybackSettings';
+import type { DailyReadingPlayer } from './DailyReadingPlayerContract';
+import {
+  dailyReadingSentenceAudioUrl,
+  normalizeDailyReadingWordAudio,
+  preloadDailyReadingResources,
+  resetDailyReadingAudio,
+} from './DailyReadingAudioRuntime';
 
 export type {
   DailyReadingPlaybackMode,
@@ -57,66 +54,7 @@ export type {
   DailyReadingWordPlaybackStep,
 } from './DailyReadingPlaybackModel';
 export type { DailyReadingTransportState } from './DailyReadingPlaybackEngine';
-
-export interface DailyReadingPlayer extends DailyReadingPlaybackSettings {
-  open: boolean;
-  playing: boolean;
-  paused: boolean;
-  transportState: DailyReadingTransportState;
-  list: DailyReadingRow[];
-  index: number;
-  current: DailyReadingRow | null;
-  currentTime: number;
-  duration: number;
-  activeStepType: DailyReadingPlaybackStep['type'] | null;
-  activeStepId: string | null;
-  activeStepItemIndex: number;
-  activeSentenceLanguage: DailyReadingSentencePlaybackStep['lang'] | null;
-  activeWord: string | null;
-  activeWordIndex: number;
-  activeWords: WordNewSentenceWordRow[];
-  articleWords: WordNewSentenceWordRow[];
-  resourceStatus: DailyReadingResourceStatus;
-  wordProgressVersion: number;
-  /** Words read aloud during this playback session (all articles). */
-  sessionReadTotal: number;
-  start: (rows: DailyReadingRow[], startId?: string) => void;
-  toggle: () => void;
-  pause: () => void;
-  resume: () => void;
-  stop: () => void;
-  next: () => void;
-  prev: () => void;
-  updateSettings: (patch: Partial<DailyReadingPlaybackSettings>) => void;
-}
-
-/** Absolute HTTP(S) URL; the asset cache only stores absolute URLs. */
-function absoluteAudio(url: string | null | undefined): string | null {
-  if (!url) return null;
-  return /^https?:\/\//i.test(url) ? url : wfNewEndpoints.buildUrl(url);
-}
-
-function sentenceAudioUrl(row: DailyReadingRow): string | null {
-  return row.audio_ready ? absoluteAudio(row.audio_url) : null;
-}
-
-function resetPlaybackAudio(audio: HTMLAudioElement | null): void {
-  if (!audio) return;
-  audio.onended = null;
-  audio.onerror = null;
-  audio.pause();
-  audio.removeAttribute('src');
-  audio.load();
-}
-
-function normalizeSentenceWordAudio(
-  rows: WordNewSentenceWordRow[],
-): WordNewSentenceWordRow[] {
-  return rows.map((word) => {
-    const audioUrl = absoluteAudio(word.audio_url);
-    return audioUrl && audioUrl !== word.audio_url ? { ...word, audio_url: audioUrl } : word;
-  });
-}
+export type { DailyReadingPlayer } from './DailyReadingPlayerContract';
 
 export function useDailyReadingPlayer(): DailyReadingPlayer {
   const {
@@ -187,7 +125,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     }
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
     utteranceRef.current = null;
-    resetPlaybackAudio(audioRef.current);
+    resetDailyReadingAudio(audioRef.current);
     return requestIdRef.current;
   }, []);
 
@@ -220,7 +158,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       && typeof speechSynthesis !== 'undefined'
       && typeof SpeechSynthesisUtterance !== 'undefined'
     ) {
-      resetPlaybackAudio(audio);
+      resetDailyReadingAudio(audio);
       const requestId = requestIdRef.current;
       const utterance = new SpeechSynthesisUtterance(item.speechText);
       utterance.lang = item.speakLang ?? 'en-US';
@@ -301,43 +239,24 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     words: WordNewSentenceWordRow[],
   ): void => {
     const resourceRequestId = ++resourceRequestIdRef.current;
-    const uniqueWords = uniqueSentenceWordRows(words);
-    const wordsWithAudio = uniqueWords.filter((word) => !!word.audio_url);
-    const wordCountByAudioUrl = new Map<string, number>();
-    for (const word of wordsWithAudio) {
-      const url = word.audio_url as string;
-      wordCountByAudioUrl.set(url, (wordCountByAudioUrl.get(url) ?? 0) + 1);
-    }
-    const translationsReady = uniqueWords.filter(
-      (word) => sentenceWordTranslations(word).length > 0,
-    ).length;
-    setResourceStatus({
-      articleAudioReady: 0,
-      articleAudioTotal: 1,
-      wordAudioReady: 0,
-      wordAudioTotal: uniqueWords.length,
-      translationsReady,
-      translationsTotal: uniqueWords.length,
-    });
-    void ensureAudio(sentenceUrl).then((localUrl) => {
-      if (resourceRequestId !== resourceRequestIdRef.current || !localUrl) return;
-      setResourceStatus((status) => ({ ...status, articleAudioReady: 1 }));
-    }).catch(() => undefined);
-    void preloadAudioTracked(
-      wordCountByAudioUrl.keys(),
-      (url, ready) => {
-        if (resourceRequestId !== resourceRequestIdRef.current || !ready) return;
-        const readyCount = wordCountByAudioUrl.get(url) ?? 1;
+    const initialStatus = preloadDailyReadingResources(sentenceUrl, words, {
+      onArticleReady: () => {
+        if (resourceRequestId !== resourceRequestIdRef.current) return;
+        setResourceStatus((status) => ({ ...status, articleAudioReady: 1 }));
+      },
+      onWordsReady: (readyCount) => {
+        if (resourceRequestId !== resourceRequestIdRef.current) return;
         setResourceStatus((status) => ({
           ...status,
           wordAudioReady: Math.min(status.wordAudioTotal, status.wordAudioReady + readyCount),
         }));
       },
-    ).catch(() => undefined);
+    });
+    setResourceStatus(initialStatus);
   }, []);
 
   const buildSequence = useCallback(async (row: DailyReadingRow): Promise<DailyReadingSequencePlan> => {
-    const sentenceUrl = sentenceAudioUrl(row);
+    const sentenceUrl = dailyReadingSentenceAudioUrl(row);
     const currentSettings = settingsRef.current;
     const executionSignature = dailyReadingExecutionSignature(currentSettings);
     const wordSelectionSignature = dailyReadingWordSelectionSignature(currentSettings);
@@ -369,7 +288,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
         table = [];
       }
     }
-    const fullArticleWords = normalizeSentenceWordAudio(uniqueSentenceWordRows(table));
+    const fullArticleWords = normalizeDailyReadingWordAudio(uniqueSentenceWordRows(table));
     const selected = selectDailyReadingPlaybackWords(
       fullArticleWords,
       currentSettings,
@@ -429,7 +348,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       setActiveWords(sequence.words);
       articleWordsRef.current = sequence.articleWords;
       setArticleWords(sequence.articleWords);
-      const sentenceUrl = sentenceAudioUrl(row);
+      const sentenceUrl = dailyReadingSentenceAudioUrl(row);
       if (sentenceUrl) preloadArticleResources(sentenceUrl, sequence.articleWords);
       const firstAudioUrl = sequence.items[0]?.url;
       if (firstAudioUrl) {
@@ -441,7 +360,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       }
       // Preload the next article's audio so advancing never waits on fetch.
       const nextRow = rows[clamped + 1];
-      const nextUrl = nextRow?.audio_ready ? absoluteAudio(nextRow.audio_url) : null;
+      const nextUrl = nextRow ? dailyReadingSentenceAudioUrl(nextRow) : null;
       if (nextUrl) preloadAudio([nextUrl]);
     }).catch((error: unknown) => {
       if (requestId !== requestIdRef.current) return;
@@ -504,7 +423,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     completedItem: DailyReadingSequenceItem,
   ): number => {
     const row = listRef.current[indexRef.current];
-    const sentenceUrl = row ? sentenceAudioUrl(row) : null;
+    const sentenceUrl = row ? dailyReadingSentenceAudioUrl(row) : null;
     if (!row || !sentenceUrl) return -1;
     const currentSettings = settingsRef.current;
     const pattern = currentSettings.playbackPattern.length > 0
@@ -622,7 +541,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     audioRef.current = audio;
     return () => {
       audio.ontimeupdate = null;
-      resetPlaybackAudio(audio);
+      resetDailyReadingAudio(audio);
       if (audioRef.current === audio) audioRef.current = null;
     };
   }, []);
@@ -804,7 +723,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
           || !row.audio_url
         ) return;
         const currentByWord = new Map(articleWords.map((word) => [sentenceWordKey(word.word), word]));
-        const mergedRows = normalizeSentenceWordAudio(uniqueSentenceWordRows(freshRows)).map((fresh) => (
+        const mergedRows = normalizeDailyReadingWordAudio(uniqueSentenceWordRows(freshRows)).map((fresh) => (
           mergeSentenceWordRuntimeState(fresh, currentByWord.get(sentenceWordKey(fresh.word)))
         ));
         const freshByWord = new Map(mergedRows.map((word) => [sentenceWordKey(word.word), word]));
@@ -829,7 +748,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
             speakLang: undefined,
           };
         });
-        const sentenceUrl = sentenceAudioUrl(row);
+        const sentenceUrl = dailyReadingSentenceAudioUrl(row);
         if (sentenceUrl) preloadArticleResources(sentenceUrl, mergedRows);
       }).catch(() => undefined);
     }, 5000);

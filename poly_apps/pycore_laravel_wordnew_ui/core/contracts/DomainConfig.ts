@@ -9,7 +9,13 @@
  * immediately. A missing/unreadable file keeps the built-in defaults, so
  * plain dev machines and compiled bundles work without the file.
  */
-import { DEFAULT_API_REGION_PREFIX, WEB_ACCESS_CONFIG_FILE_NAME } from './ServiceContract';
+import {
+  DEFAULT_API_REGION_PREFIX,
+  SERVICE_CONTRACT_HOSTS,
+  SERVICE_CONTRACT_ROOT_DOMAINS,
+  SERVICE_CONTRACT_SERVICE_HOST_KEYS,
+  WEB_ACCESS_CONFIG_FILE_NAME,
+} from './ServiceContract';
 
 export interface WebAccessConfig {
   apiRegionPrefix: string;
@@ -26,12 +32,12 @@ export interface WebAccessConfig {
 
 export const DEFAULT_WEB_ACCESS_CONFIG: WebAccessConfig = {
   apiRegionPrefix: DEFAULT_API_REGION_PREFIX,
-  domains: [],
-  hosts: {},
+  domains: [...SERVICE_CONTRACT_ROOT_DOMAINS],
+  hosts: { ...SERVICE_CONTRACT_HOSTS },
   serviceHostKeys: {
-    browserAccess: [],
-    laravelApi: [],
-    pycore: [],
+    browserAccess: [...SERVICE_CONTRACT_SERVICE_HOST_KEYS.browserAccess],
+    laravelApi: [...SERVICE_CONTRACT_SERVICE_HOST_KEYS.laravelApi],
+    pycore: [...SERVICE_CONTRACT_SERVICE_HOST_KEYS.pycore],
   },
   allowedHosts: [],
   corsOrigins: [],

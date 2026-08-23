@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
@@ -435,7 +436,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         }
         $offset = ($page - 1) * $perPage;
 
-        $languageCode = self::getLanguageCode($language);
+        $languageCode = AppQyV1DictionaryService::getLanguageCode($language);
         $hasDictionaryTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
 
         // Membership lives in vocabulary_libraries.word_ids: build the
@@ -566,7 +567,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      */
     public static function buildWordEntryFromDictionaryRow(AppQyV1LangDictionaryModel $row): array
     {
-        $translations = self::simpleTranslationsFromDecoded($row->translations);
+        $translations = AppQyV1DictionaryService::simpleTranslationsFromDecoded($row->translations);
         $hasTranslation = $translations !== null;
 
         // image_files -> usable { url } list (local relative paths mapped to the
@@ -638,7 +639,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      */
     private function buildDictionaryMetrics(string $languageName): array
     {
-        $languageCode = self::getLanguageCode($languageName);
+        $languageCode = AppQyV1DictionaryService::getLanguageCode($languageName);
 
         // A library group with no/blank language is relabeled 'unknown' by the
         // caller; getLanguageCode() would map that to 'en' and DOUBLE-COUNT the EN
@@ -734,113 +735,6 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'images_percentage' => $imagesPercentage,
             'review_percentage' => $reviewPercentage,
         ];
-    }
-
-    private const LANGUAGE_NAME_TO_CODE = [
-        'english' => 'en',
-        'chinese' => 'zh',
-        'japanese' => 'ja',
-        'korean' => 'ko',
-        'spanish' => 'es',
-        'french' => 'fr',
-        'german' => 'de',
-        'russian' => 'ru',
-        'arabic' => 'ar',
-        'portuguese' => 'pt',
-        'italian' => 'it',
-        'dutch' => 'nl',
-        'polish' => 'pl',
-        'turkish' => 'tr',
-        'vietnamese' => 'vi',
-        'lao' => 'lo',
-        'thai' => 'th',
-        'indonesian' => 'id',
-        'hindi' => 'hi',
-        'bengali' => 'bn',
-        'urdu' => 'ur',
-    ];
-
-    /**
-     * Map a language name or 2-letter code to the dictionary language code.
-     * Public static so other vocabulary controllers (e.g. export) share the
-     * exact same mapping the statistics endpoints use.
-     */
-    public static function getLanguageCode(string $language): string
-    {
-        $normalizedLang = strtolower($language);
-
-        if (isset(self::LANGUAGE_NAME_TO_CODE[$normalizedLang])) {
-            return self::LANGUAGE_NAME_TO_CODE[$normalizedLang];
-        }
-
-        if (strlen($normalizedLang) === 2) {
-            return $normalizedLang;
-        }
-
-        return 'en';
-    }
-
-    /**
-     * Map a 2-letter code or language name to the full language NAME used in
-     * vocabulary_libraries.language (e.g. 'en' -> 'english'). Unknown values
-     * are returned lowercased as-is.
-     */
-    public static function getLanguageName(string $language): string
-    {
-        $normalizedLang = strtolower(trim($language));
-
-        if (isset(self::LANGUAGE_NAME_TO_CODE[$normalizedLang])) {
-            return $normalizedLang;
-        }
-
-        foreach (self::LANGUAGE_NAME_TO_CODE as $name => $code) {
-            if ($code === $normalizedLang) {
-                return $name;
-            }
-        }
-
-        return $normalizedLang;
-    }
-
-    /**
-     * Decode the tts_cache_{lang} translations JSON into the simple list shown
-     * by the public word endpoints. Returns null when there is no usable
-     * translation (matching the previous inline behavior exactly).
-     */
-    public static function decodeSimpleTranslations(?string $rawTranslations): ?array
-    {
-        if ($rawTranslations === null || $rawTranslations === '') {
-            return null;
-        }
-
-        return self::simpleTranslationsFromDecoded(json_decode($rawTranslations, true));
-    }
-
-    /**
-     * Same extraction as decodeSimpleTranslations but for an ALREADY decoded
-     * translations value (Eloquent casts the dictionary's translations column
-     * to array). Returns null when there is no usable translation.
-     */
-    public static function simpleTranslationsFromDecoded($decodedTranslations): ?array
-    {
-        if (!is_array($decodedTranslations)) {
-            return null;
-        }
-
-        $simpleTranslations = [];
-        if (isset($decodedTranslations['word_translation']) && is_array($decodedTranslations['word_translation'])) {
-            foreach ($decodedTranslations['word_translation'] as $trans) {
-                if (is_array($trans) && count($trans) >= 2) {
-                    $simpleTranslations[] = $trans[1];
-                }
-            }
-        }
-
-        if (empty($simpleTranslations)) {
-            return null;
-        }
-
-        return $simpleTranslations;
     }
 
     private function transformLibrary(AppQyV1VocabularyLibraryModel $library): array

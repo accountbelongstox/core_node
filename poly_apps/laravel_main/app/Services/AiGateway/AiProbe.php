@@ -2,6 +2,7 @@
 
 namespace App\Services\AiGateway;
 
+use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -220,7 +221,7 @@ class AiProbe
             // live `available`. Mirrors pycore ai_probe.
             'image_ready' => (bool) ($meta['image'] ?? false) && AiProviderRegistry::hasImageKey($name),
             'image_model' => ($meta['image'] ?? false) ? (string) ($meta['image_model'] ?? '') : '',
-            'key_masked' => $configured ? AiProviderRegistry::maskKey($key) : null,
+            'key_masked' => $configured ? SecretStore::maskForDisplay($key) : null,
             'models' => [],
             'error' => $configured ? null : 'No API key configured',
             'latency_ms' => null,

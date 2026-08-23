@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\Utils;
 use App\Contracts\AppInitializerInterface;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Utils\ImageProcessUtil;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
@@ -705,7 +706,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                 $info['path'] = $database;
                 if (file_exists($database)) {
                     $info['exists'] = true;
-                    $info['size'] = $this->formatBytes(filesize($database));
+                    $info['size'] = ImageProcessUtil::formatBytes(filesize($database));
                 } else {
                     $info['exists'] = false;
                     $info['size'] = '0 B';
@@ -716,7 +717,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                     $sizeBytes = DB::connection($connectionName)
                         ->selectOne('SELECT pg_database_size(current_database()) AS size');
                     $info['exists'] = true;
-                    $info['size'] = $this->formatBytes((int) ($sizeBytes->size ?? 0));
+                    $info['size'] = ImageProcessUtil::formatBytes((int) ($sizeBytes->size ?? 0));
                 } catch (\Exception $e) {
                     $info['exists'] = false;
                     $info['size'] = 'unknown';
@@ -791,14 +792,4 @@ class AppQyV1Initializer implements AppInitializerInterface
         return $tables;
     }
     
-    private function formatBytes(int $bytes, int $precision = 2): string
-    {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        
-        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
-            $bytes /= 1024;
-        }
-        
-        return round($bytes, $precision) . ' ' . $units[$i];
-    }
 }

@@ -12,8 +12,6 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AudioFileProcessor;
@@ -24,6 +22,8 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SystemStatisticsService;
+use App\Utils\ImageProcessUtil;
 
 class AppQyV1SystemInitializationController extends Controller
 {
@@ -38,9 +38,11 @@ class AppQyV1SystemInitializationController extends Controller
     protected $audioProcessor;
     protected $imageProcessor;
     protected $markerManager;
+    protected AppQyV1SystemStatisticsService $statisticsService;
 
-    public function __construct()
+    public function __construct(AppQyV1SystemStatisticsService $statisticsService)
     {
+        $this->statisticsService = $statisticsService;
         $this->storageManager = new AppQyV1ExternalStorageManager();
         $this->audioProcessor = new AppQyV1AudioFileProcessor();
         $this->imageProcessor = new AppQyV1ImageFileProcessor();
@@ -408,29 +410,6 @@ class AppQyV1SystemInitializationController extends Controller
     }
 
     /**
-     * Cache TTL (seconds) for the consolidated per-language dictionary stats.
-     */
-    private const SYSINIT_STATS_TTL = 300;
-
-    /**
-     * Cache key for the consolidated per-language dictionary aggregate.
-     * Delegates to the model so reads and the write-side invalidation
-     * (AppQyV1LangDictionaryModel::forgetMetricsCache) share one definition.
-     */
-    /**
-     * Compute ALL per-language dictionary metrics in a SINGLE table scan.
-     *
-     * Metrics are computed by the dictionary model in one cached aggregate.
-     *
-     * Returns an associative array of integer counts, or all-zero when the
-     * table is missing.
-     */
-    private function getDictStats(string $langCode): array
-    {
-        return AppQyV1LangDictionaryModel::cachedSystemInitStats($langCode, self::SYSINIT_STATS_TTL);
-    }
-
-    /**
      * Consolidated per-language article stats in a SINGLE scan: total rows and
      * audio rows. has_audio compared with true (cross-DB safe).
      */
@@ -510,7 +489,7 @@ class AppQyV1SystemInitializationController extends Controller
     {
         $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
         $languageStats = $supportedLanguages->map(function ($langCode) {
-            $dictStats = $this->getDictStats($langCode);
+            $dictStats = $this->statisticsService->dictionaryStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 return [
@@ -538,7 +517,7 @@ class AppQyV1SystemInitializationController extends Controller
         $ttsQueueStats = $this->getTtsQueueStats();
 
         // Get Untranslated Words Statistics (for English dictionary as reference)
-        $untranslatedStats = $this->getUntranslatedWordsStatistics();
+        $untranslatedStats = $this->statisticsService->untranslatedStatistics();
         
         $summary = [
             'total_languages' => $supportedLanguages->count(),
@@ -635,7 +614,7 @@ class AppQyV1SystemInitializationController extends Controller
         $audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'];
 
         foreach ($supportedLanguages as $langCode) {
-            $dictStats = $this->getDictStats($langCode);
+            $dictStats = $this->statisticsService->dictionaryStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 continue;
@@ -689,7 +668,7 @@ class AppQyV1SystemInitializationController extends Controller
                 'audio_files' => $langAudioFiles,
                 'audio_size_bytes' => $langAudioSize,
                 'audio_size_mb' => round($langAudioSize / (1024 * 1024), 2),
-                'audio_formatted_size' => $this->formatFileSize($langAudioSize),
+                'audio_formatted_size' => ImageProcessUtil::formatBytes($langAudioSize),
             ];
         }
 
@@ -709,7 +688,7 @@ class AppQyV1SystemInitializationController extends Controller
     {
         $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
         $languageStats = $supportedLanguages->map(function ($langCode) {
-            $dictStats = $this->getDictStats($langCode);
+            $dictStats = $this->statisticsService->dictionaryStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 return [
@@ -762,13 +741,13 @@ class AppQyV1SystemInitializationController extends Controller
     public function getSystemStatisticsQueues()
     {
         $ttsQueueStats = $this->getTtsQueueStats();
-        $untranslatedStats = $this->getUntranslatedWordsStatistics();
+        $untranslatedStats = $this->statisticsService->untranslatedStatistics();
         
         // Get force_refresh parameter from request
         $forceRefresh = request()->boolean('force_refresh', false);
         
         // Get audio file size statistics (cached for 30 minutes, or force refresh)
-        $audioSizeStats = $this->getAudioFileSizeStatistics($forceRefresh);
+        $audioSizeStats = $this->statisticsService->audioFileSizeStatistics($forceRefresh);
         
         return $this->success([
             'tts' => [
@@ -783,200 +762,4 @@ class AppQyV1SystemInitializationController extends Controller
         ]);
     }
 
-    /**
-     * Get audio file size statistics with language breakdown
-     * Cached for 30 minutes, only recalculates if cache is expired or force refresh is true
-     * 
-     * @param bool $forceRefresh Force refresh even if cache exists
-     * @return array
-     */
-    private function getAudioFileSizeStatistics(bool $forceRefresh = false): array
-    {
-        $cacheKey = 'appqyv1_audio_file_size_stats';
-        
-        // If not forcing refresh, check cache first
-        if (!$forceRefresh) {
-            $cached = Cache::get($cacheKey);
-            if ($cached !== null) {
-                return $cached;
-            }
-        }
-        
-        // Get all audio directories using PathMapper (unified path management)
-        $wordSoundsDir = \App\Providers\PathMapper::getAppQyV1AudioDir();
-        $sentenceSoundsDir = \App\Providers\PathMapper::getAppQyV1SentenceSoundsDir();
-        
-        // Scan directories using FileSystemManager (handles path mapping automatically)
-        $audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'];
-        
-        // Get total statistics
-        $audioDirectories = [$wordSoundsDir, $sentenceSoundsDir];
-        $stats = \App\Utils\FileSystemManager::scanDirectoriesForFiles($audioDirectories, $audioExtensions);
-        
-        // Get language-specific statistics
-        $supportedLanguages = AppQyV1TableMaps::getSupportedLanguages();
-        $languageStats = [];
-        $totalSizeByLang = 0;
-        $totalFilesByLang = 0;
-        $totalZeroByLang = 0;
-        
-        foreach ($supportedLanguages as $langCode) {
-            $langWordDir = $wordSoundsDir . '/' . $langCode;
-            $langSentenceDir = $sentenceSoundsDir . '/' . $langCode;
-            
-            $langDirs = [];
-            if (is_dir($langWordDir)) {
-                $langDirs[] = $langWordDir;
-            }
-            if (is_dir($langSentenceDir)) {
-                $langDirs[] = $langSentenceDir;
-            }
-            
-            if (!empty($langDirs)) {
-                $langStats = \App\Utils\FileSystemManager::scanDirectoriesForFiles($langDirs, $audioExtensions);
-                
-                $langSize = $langStats['total_size'];
-                $langFiles = $langStats['total_files'];
-                $langZero = $langStats['zero_byte_files'];
-                
-                $totalSizeByLang += $langSize;
-                $totalFilesByLang += $langFiles;
-                $totalZeroByLang += $langZero;
-                
-                $languageStats[$langCode] = [
-                    'size_bytes' => $langSize,
-                    'size_mb' => round($langSize / (1024 * 1024), 2),
-                    'size_gb' => round($langSize / (1024 * 1024 * 1024), 2),
-                    'files' => $langFiles,
-                    'zero_byte_files' => $langZero,
-                    'formatted_size' => $this->formatFileSize($langSize),
-                ];
-            } else {
-                $languageStats[$langCode] = [
-                    'size_bytes' => 0,
-                    'size_mb' => 0,
-                    'size_gb' => 0,
-                    'files' => 0,
-                    'zero_byte_files' => 0,
-                    'formatted_size' => '0 B',
-                ];
-            }
-        }
-        
-        $result = [
-            'total_size_bytes' => $stats['total_size'],
-            'total_size_mb' => round($stats['total_size'] / (1024 * 1024), 2),
-            'total_size_gb' => round($stats['total_size'] / (1024 * 1024 * 1024), 2),
-            'total_files' => $stats['total_files'],
-            'zero_byte_files' => $stats['zero_byte_files'],
-            'formatted_size' => $this->formatFileSize($stats['total_size']),
-            'scanned_directories' => $stats['scanned_directories'],
-            'errors' => $stats['errors'],
-            'by_language' => $languageStats,
-        ];
-        
-        if ($stats['zero_byte_files'] > 0) {
-            $result['warning'] = "Found {$stats['zero_byte_files']} zero-byte audio files. These may be incomplete or failed TTS generations.";
-        }
-        
-        // Cache for 30 minutes
-        Cache::put($cacheKey, $result, now()->addMinutes(30));
-        
-        return $result;
-    }
-
-    /**
-     * Format file size in human-readable format (MB/GB)
-     * 
-     * @param int $bytes
-     * @return string
-     */
-    private function formatFileSize(int $bytes): string
-    {
-        if ($bytes >= 1024 * 1024 * 1024) {
-            return round($bytes / (1024 * 1024 * 1024), 2) . ' GB';
-        } elseif ($bytes >= 1024 * 1024) {
-            return round($bytes / (1024 * 1024), 2) . ' MB';
-        } elseif ($bytes >= 1024) {
-            return round($bytes / 1024, 2) . ' KB';
-        }
-        return $bytes . ' B';
-    }
-
-    /**
-     * Get untranslated words and sentences statistics
-     * Statistics by language namespace, reusing the same logic as getSystemStatistics
-     * 
-     * @return array
-     */
-    private function getUntranslatedWordsStatistics(): array
-    {
-        $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
-        $totalWords = 0;
-        $totalSentences = 0;
-        $completeWords = 0;
-        $completeSentences = 0;
-        $missingTranslation = 0;
-        $missingPhonetic = 0;
-        $missingAudio = 0;
-        $missingImages = 0;
-        $missingSentenceTranslation = 0;
-        $missingSentenceAudio = 0;
-
-        // Statistics by language namespace. All per-table counts come from a
-        // single cached aggregate scan (getDictStats) instead of ~9 separate
-        // scans of the same tts_cache_{lang} table.
-        foreach ($supportedLanguages as $langCode) {
-            $dictStats = $this->getDictStats($langCode);
-
-            if (!$dictStats['table_exists']) {
-                continue;
-            }
-
-            $totalWords += $dictStats['words'];
-            $totalSentences += $dictStats['sentences'];
-            $completeWords += $dictStats['complete_words'];
-            $missingTranslation += $dictStats['missing_translation'];
-            $missingPhonetic += $dictStats['missing_phonetic'];
-            $missingAudio += $dictStats['missing_audio'];
-            $missingImages += $dictStats['missing_images'];
-            $completeSentences += $dictStats['complete_sentences'];
-            $missingSentenceTranslation += $dictStats['missing_sentence_translation'];
-            $missingSentenceAudio += $dictStats['missing_sentence_audio'];
-        }
-        
-        // Queue-less: sentence audio is stateless (deterministic files, no
-        // rows anywhere), so the former completed-sentence supplement from the
-        // decommissioned queue is always zero now.
-        $sentenceAudioCount = 0;
-
-        // Total sentences includes both dictionary sentences and completed TTS sentence audio
-        // This matches the logic in getSystemStatistics: 'sentences' => $sentenceCount + $sentenceAudioCount
-        $totalSentencesWithAudio = $totalSentences + $sentenceAudioCount;
-
-        return [
-            'total_words' => $totalWords,
-            'complete_words' => $completeWords,
-            'completion_rate' => $totalWords > 0 ? round(($completeWords / $totalWords) * 100, 2) : 0,
-            'total_sentences' => $totalSentencesWithAudio,
-            'complete_sentences' => $completeSentences + $sentenceAudioCount,
-            'sentence_completion_rate' => $totalSentencesWithAudio > 0 ? round((($completeSentences + $sentenceAudioCount) / $totalSentencesWithAudio) * 100, 2) : 0,
-            'missing_breakdown' => [
-                'translation' => $missingTranslation,
-                'phonetic' => $missingPhonetic,
-                'audio' => $missingAudio,
-                'images' => $missingImages,
-                'sentence_translation' => $missingSentenceTranslation,
-                'sentence_audio' => $missingSentenceAudio,
-            ],
-            'missing_percentages' => [
-                'translation' => $totalWords > 0 ? round(($missingTranslation / $totalWords) * 100, 2) : 0,
-                'phonetic' => $totalWords > 0 ? round(($missingPhonetic / $totalWords) * 100, 2) : 0,
-                'audio' => $totalWords > 0 ? round(($missingAudio / $totalWords) * 100, 2) : 0,
-                'images' => $totalWords > 0 ? round(($missingImages / $totalWords) * 100, 2) : 0,
-                'sentence_translation' => $totalSentences > 0 ? round(($missingSentenceTranslation / $totalSentences) * 100, 2) : 0,
-                'sentence_audio' => $totalSentences > 0 ? round(($missingSentenceAudio / $totalSentences) * 100, 2) : 0,
-            ],
-        ];
-    }
 }

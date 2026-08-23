@@ -12,7 +12,7 @@ Python) instead of unwinding the interpreter (which would crash Qt/Tk teardown
 on the wrong thread).
 
 This module turns that manual restart into an automatic one: a daemon thread
-polls the pycore package's .py files and, on a change, calls
+polls the pycore package's .py files and shared contract JSON files and, on a change, calls
 ``THREAD_BUS.request_restart()`` -- the SAME path the tray uses. No new restart
 logic, no patching of live functions (which is fragile with PySide6/torch
 C-extensions); just "save .py -> graceful restart -> os.execv".
@@ -47,15 +47,15 @@ _IGNORE_DIR_NAMES = frozenset({
 })
 
 
-def _iter_py_files(roots):
-    """Yield every non-ignored *.py path under the given roots."""
+def _iter_reload_files(roots):
+    """Yield Python sources and source-authoritative shared contracts."""
     for root in roots:
         if not root.exists():
             continue
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in _IGNORE_DIR_NAMES]
             for filename in filenames:
-                if filename.endswith('.py'):
+                if filename.endswith('.py') or filename.endswith('_contract.json'):
                     yield Path(dirpath) / filename
 
 
@@ -76,7 +76,7 @@ def _mtime_ns(path):
 def _snapshot(roots):
     """Map of path -> mtime_ns for all watched files right now."""
     snap = {}
-    for path in _iter_py_files(roots):
+    for path in _iter_reload_files(roots):
         mtime = _mtime_ns(path)
         if mtime is not None:
             snap[path] = mtime
@@ -101,7 +101,7 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
     """Start the dev hot-reload watcher on a daemon thread.
 
     Args:
-        roots: iterable of dirs to watch. Default: the ``pycore`` package dir.
+        roots: iterable of dirs to watch. Defaults to ``pycore`` and ``config``.
         interval: seconds between scans.
         debounce: after a change is seen, wait this long and re-scan so a burst
             of saves coalesces into a single restart.
@@ -110,13 +110,14 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
         The started ``threading.Thread``.
     """
     if roots is None:
-        roots = [Path(__file__).resolve().parents[2]]
+        project_root = Path(__file__).resolve().parents[3]
+        roots = [project_root / 'pycore', project_root / 'config']
     roots = [Path(r).resolve() for r in roots]
 
     def _run():
         baseline = _snapshot(roots)
         ColorPrint.blue(
-            f"[reload] dev hot-reload ON - watching {len(baseline)} .py files under "
+            f"[reload] dev hot-reload ON - watching {len(baseline)} runtime files under "
             + ", ".join(str(r) for r in roots)
         )
 
