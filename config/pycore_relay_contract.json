@@ -452,6 +452,24 @@
       "methods": ["POST"]
     },
     {
+      "match": "exact",
+      "value": "status",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "info",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "routes",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
       "match": "suffix",
       "value": "/status",
       "profile": "general_read",

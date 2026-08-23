@@ -81,6 +81,11 @@ export class PycoreMasterClient extends MasterApiClient {
       this.clientId = stored;
       return stored;
     }
+    if (isPycoreRelayMode()) {
+      this.clientId = `relay-${this.getBrowserId()}`;
+      StorageManager.setRaw(StorageKeys.HTTP_CLIENT_ID, this.clientId);
+      return this.clientId;
+    }
     if (this.clientIdFlight) return this.clientIdFlight;
     this.clientIdFlight = this.allocateClientId().finally(() => {
       this.clientIdFlight = null;
