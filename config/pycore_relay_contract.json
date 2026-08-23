@@ -72,18 +72,50 @@
     "operation_execution_start": "/api/relay/v2/device/operations/{operation_id}/execution-start",
     "operation_lease_renew": "/api/relay/v2/device/operations/{operation_id}/lease",
     "operation_result": "/api/relay/v2/device/operations/{operation_id}/result",
-    "request_blob": "/api/relay/v2/device/blobs/{blob_id}",
-    "response_blob_allocate": "/api/relay/v2/device/operations/{operation_id}/response-blobs",
-    "response_blob_chunk": "/api/relay/v2/device/blobs/{blob_id}/chunks/{chunk_index}",
-    "response_blob_finalize": "/api/relay/v2/device/blobs/{blob_id}/finalize"
+    "device_request_blob_download": "/api/relay/v2/device/blobs/{blob_id}",
+    "device_response_blob_allocate": "/api/relay/v2/device/operations/{operation_id}/response-blobs",
+    "device_response_blob_chunk": "/api/relay/v2/device/blobs/{blob_id}/chunks/{chunk_index}",
+    "device_response_blob_finalize": "/api/relay/v2/device/blobs/{blob_id}/finalize",
+    "owner_enrollment_claim": "/api/relay/v2/device-enrollments/claim",
+    "owner_device_roster": "/api/relay/v2/devices",
+    "owner_pairing_create": "/api/relay/v2/pairings",
+    "owner_pairing_renew": "/api/relay/v2/pairings/{pairing_id}/renew",
+    "owner_pairing_revoke": "/api/relay/v2/pairings/{pairing_id}",
+    "owner_hub_authorization": "/api/relay/v2/mercure-authorization",
+    "owner_operation_admit": "/api/relay/v2/operations",
+    "owner_operation_status": "/api/relay/v2/operations/{operation_id}",
+    "owner_operation_cancel": "/api/relay/v2/operations/{operation_id}/cancel",
+    "owner_request_blob_allocate": "/api/relay/v2/request-blobs",
+    "owner_request_blob_chunk": "/api/relay/v2/blobs/{blob_id}/chunks/{chunk_index}",
+    "owner_request_blob_finalize": "/api/relay/v2/blobs/{blob_id}/finalize",
+    "owner_response_blob_download": "/api/relay/v2/blobs/{blob_id}"
+  },
+  "public_urls": {
+    "laravel_api_origin": "https://api.si.12gm.com",
+    "mercure_hub": "https://api.si.12gm.com/.well-known/mercure"
   },
   "topics": {
-    "device_wake": "{laravel_api_origin}/.well-known/relay/v2/devices/{device_id}"
+    "device_wake": "{laravel_api_origin}/.well-known/relay/v2/devices/{device_id}",
+    "owner_roster": "{laravel_api_origin}/.well-known/relay/v2/owners/{owner_topic_token}",
+    "pairing_operation": "{laravel_api_origin}/.well-known/relay/v2/pairings/{pairing_topic_token}"
   },
   "events": {
     "operation_available": "relay.operation.available",
+    "operation_status": "relay.operation.status",
+    "pairing_changed": "relay.pairing.changed",
     "credential_revoked": "relay.credential.revoked",
     "terminal_changed": "terminal.changed"
+  },
+  "event_payload_profiles": {
+    "operation_available": ["operation_id", "revision", "state"],
+    "operation_status": ["operation_id", "revision", "state"],
+    "pairing_changed": ["pairing_id", "revision", "state"],
+    "credential_revoked": ["device_id", "credential_id", "credential_version"],
+    "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"]
+  },
+  "claim_generation_profile": {
+    "fields": ["operation_revision", "claim_epoch", "lease_owner"],
+    "query_bound_endpoints": ["device_request_blob_download", "device_response_blob_chunk"]
   },
   "mercure_profile": {
     "hub_runtime": "mercure.rocks-0.24.2-embedded-frankenphp",
@@ -132,9 +164,12 @@
     "nonce_retention_seconds": 300,
     "enrollment_retention_seconds": 600,
     "subscriber_token_seconds": 300,
+    "credential_lifetime_seconds": 2592000,
     "pairing_lease_seconds": 86400,
     "operation_retention_seconds": 86400,
     "blob_retention_seconds": 3600,
+    "outbox_retention_seconds": 86400,
+    "outbox_retry_max_seconds": 300,
     "terminal_screenshot_freshness_seconds": 2,
     "terminal_screenshot_capture_lease_seconds": 10,
     "terminal_viewer_demand_lease_seconds": 15,
@@ -156,6 +191,10 @@
     "owner_pending_operations": 100,
     "device_active_leases": 8,
     "device_event_payload_bytes": 65536,
+    "outbox_publish_batch": 100,
+    "outbox_publish_attempts": 10,
+    "maintenance_row_batch": 100,
+    "maintenance_blob_batch": 20,
     "terminal_viewer_windows": 64,
     "terminal_viewers": 128,
     "terminal_screenshot_resources": 256,
@@ -163,6 +202,11 @@
     "terminal_screenshot_max_width": 640,
     "terminal_screenshot_max_height": 360,
     "terminal_screenshot_png_compression": 1
+  },
+  "rate_limits": {
+    "device_requests_per_minute": 240,
+    "owner_requests_per_minute": 120,
+    "enrollment_claims_per_minute": 10
   },
   "headers": {
     "request_allow": [
@@ -199,7 +243,7 @@
   ],
   "operation_transitions": {
     "accepted": ["leased", "cancel_requested", "expired"],
-    "leased": ["leased", "executing", "cancel_requested", "expired"],
+    "leased": ["leased", "executing", "cancel_requested", "failed", "expired"],
     "executing": ["leased", "responded", "failed", "execution_unknown", "cancel_requested"],
     "cancel_requested": ["canceled", "responded", "failed", "execution_unknown"],
     "responded": [],

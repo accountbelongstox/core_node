@@ -11,9 +11,6 @@ from typing import Any, Dict, List, Mapping
 
 from pycore.pyfoundations.system_paths import get_core_node_root
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
-from pycore.pyutils.common.service_contract import build_url, service_domain
-
-
 RELAY_CONTRACT_PATH = (
     get_core_node_root() / "config" / "pycore_relay_contract.json"
 ).resolve()
@@ -22,12 +19,16 @@ RELAY_CONTRACT_REQUIRED_SECTIONS = (
     "request_digest_profile",
     "response_digest_profile",
     "endpoints",
+    "public_urls",
     "topics",
     "events",
+    "event_payload_profiles",
+    "claim_generation_profile",
     "mercure_profile",
     "lease_profile",
     "durations",
     "limits",
+    "rate_limits",
     "headers",
     "operation_states",
     "operation_transitions",
@@ -53,6 +54,11 @@ RELAY_LEASE_RESPONSE_REQUIRED_FIELDS = {
     "server_time",
     "lease_expires_at",
 }
+RELAY_CLAIM_GENERATION_FIELDS = (
+    "operation_revision",
+    "claim_epoch",
+    "lease_owner",
+)
 
 
 class RelayContract:
@@ -69,6 +75,53 @@ class RelayContract:
                 raise ValueError(f"Relay contract section is required: {section}")
         if int(document.get("schema_version") or 0) != 2:
             raise ValueError("Relay contract schema_version must be 2")
+        public_urls = document["public_urls"]
+        api_origin = str(public_urls.get("laravel_api_origin") or "")
+        mercure_hub = str(public_urls.get("mercure_hub") or "")
+        api_parts = urllib.parse.urlsplit(api_origin)
+        hub_parts = urllib.parse.urlsplit(mercure_hub)
+        if (
+            api_parts.scheme != "https"
+            or not api_parts.netloc
+            or api_parts.path
+            or api_parts.query
+            or api_parts.fragment
+            or api_parts.username is not None
+            or api_parts.password is not None
+        ):
+            raise ValueError("Relay public Laravel API origin is invalid")
+        if (
+            hub_parts.scheme != api_parts.scheme
+            or hub_parts.netloc != api_parts.netloc
+            or hub_parts.path
+            != str(document["mercure_profile"].get("hub_path") or "")
+            or hub_parts.query
+            or hub_parts.fragment
+            or hub_parts.username is not None
+            or hub_parts.password is not None
+        ):
+            raise ValueError("Relay public Mercure hub URL is invalid")
+        generation_profile = document["claim_generation_profile"]
+        if tuple(generation_profile.get("fields") or ()) != (
+            RELAY_CLAIM_GENERATION_FIELDS
+        ):
+            raise ValueError("Relay claim generation fields are invalid")
+        query_bound_endpoints = {
+            str(value)
+            for value in generation_profile.get("query_bound_endpoints") or []
+        }
+        if query_bound_endpoints != {
+            "device_request_blob_download",
+            "device_response_blob_chunk",
+        }:
+            raise ValueError("Relay query-bound generation endpoints are invalid")
+        event_payload_profiles = document["event_payload_profiles"]
+        for event_name in document["events"]:
+            fields = event_payload_profiles.get(event_name)
+            if not isinstance(fields, list) or not fields:
+                raise ValueError(
+                    f"Relay event payload profile is required: {event_name}"
+                )
         lease_profile = document["lease_profile"]
         if not isinstance(lease_profile, dict):
             raise ValueError("Relay lease_profile must be an object")
@@ -194,10 +247,16 @@ class RelayContract:
         if not template:
             raise KeyError(f"Relay topic is not defined: {name}")
         resolved_tokens = {
-            "laravel_api_origin": build_url("https", service_domain("laravel_api")),
+            "laravel_api_origin": self.public_url("laravel_api_origin"),
             **{key: str(value) for key, value in tokens.items()},
         }
         return template.format(**resolved_tokens)
+
+    def public_url(self, name: str) -> str:
+        value = str(self.document["public_urls"].get(name) or "")
+        if not value:
+            raise KeyError(f"Relay public URL is not defined: {name}")
+        return value
 
     def event(self, name: str) -> str:
         value = str(self.document["events"].get(name) or "")
@@ -210,6 +269,39 @@ class RelayContract:
 
     def limit(self, name: str) -> int:
         return int(self.document["limits"][name])
+
+    def rate_limit(self, name: str) -> int:
+        return int(self.document["rate_limits"][name])
+
+    def event_payload_fields(self, name: str) -> List[str]:
+        values = self.document["event_payload_profiles"].get(name)
+        if not isinstance(values, list) or not values:
+            raise KeyError(f"Relay event payload profile is not defined: {name}")
+        return [str(value) for value in values]
+
+    def generation_query(
+        self,
+        endpoint_name: str,
+        operation_revision: int,
+        claim_epoch: int,
+        lease_owner: str,
+    ) -> Dict[str, str]:
+        profile = self.document["claim_generation_profile"]
+        endpoint_names = {
+            str(value) for value in profile["query_bound_endpoints"]
+        }
+        values = (
+            str(int(operation_revision)),
+            str(int(claim_epoch)),
+            str(lease_owner),
+        )
+        if endpoint_name not in endpoint_names:
+            raise KeyError(
+                f"Relay endpoint has no query generation profile: {endpoint_name}"
+            )
+        if int(operation_revision) < 1 or int(claim_epoch) < 1 or not str(lease_owner):
+            raise ValueError("relay_claim_generation_invalid")
+        return dict(zip(RELAY_CLAIM_GENERATION_FIELDS, values))
 
     def signature_header(self, name: str) -> str:
         headers = self.document["signature_profile"]["headers"]

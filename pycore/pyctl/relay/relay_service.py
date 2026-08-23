@@ -378,9 +378,12 @@ class RelayService:
     def _handle_control_signal(self, signal: Dict[str, Any]) -> str:
         kind = str(signal.get("kind") or "")
         if kind == RELAY_CONTROL_CREDENTIAL_REVOKED:
-            relay_device_identity.clear_credential()
-            relay_device_identity.clear_enrollment()
-            self._clear_hub_authorization(reason="credential_revoked")
+            revoked = relay_device_identity.revoke_credential_if_current(
+                str(signal.get("credential_id") or ""),
+                int(signal.get("credential_version") or 0),
+            )
+            if revoked:
+                self._clear_hub_authorization(reason="credential_revoked")
         if kind:
             relay_activity_log.info("control.signal.received", kind=kind)
         return kind
@@ -704,34 +707,72 @@ class RelayService:
             event_type=update.type,
             data_length=len(update.data.encode("utf-8")),
         )
-        if update.type == relay_contract.event("operation_available"):
-            try:
-                payload = update.json()
-                if not isinstance(payload, dict):
-                    raise ValueError("relay_wake_payload_not_object")
-            except Exception as error:
-                relay_activity_log.error(
-                    "subscriber.update.rejected",
-                    event_id=update.id,
-                    event_type=update.type,
-                    error_type=type(error).__name__,
-                    error=error,
-                )
-                return
+        operation_event = relay_contract.event("operation_available")
+        revocation_event = relay_contract.event("credential_revoked")
+        if update.type not in (operation_event, revocation_event):
+            return
+        event_profile = (
+            "operation_available"
+            if update.type == operation_event
+            else "credential_revoked"
+        )
+        operation_id = ""
+        revision = 0
+        credential_id = ""
+        credential_version = 0
+        try:
+            payload = update.json()
+            if not isinstance(payload, dict):
+                raise ValueError("relay_event_payload_not_object")
+            if any(
+                field not in payload
+                for field in relay_contract.event_payload_fields(event_profile)
+            ):
+                raise ValueError("relay_event_payload_incomplete")
+            if update.type == operation_event:
+                operation_id = str(payload.get("operation_id") or "")
+                revision = int(payload.get("revision") or 0)
+                if not operation_id or revision < 1:
+                    raise ValueError("relay_operation_event_payload_invalid")
+            else:
+                credential_id = str(payload.get("credential_id") or "")
+                credential_version = int(payload.get("credential_version") or 0)
+                if not credential_id or credential_version < 1:
+                    raise ValueError("relay_credential_event_payload_invalid")
+        except Exception as error:
+            relay_activity_log.error(
+                "subscriber.update.rejected",
+                event_id=update.id,
+                event_type=update.type,
+                error_type=type(error).__name__,
+                error=error,
+            )
+            return
+        if update.type == operation_event:
             THREAD_BUS.signal(
                 RELAY_CONTROL_SIGNAL,
                 {
                     "kind": RELAY_CONTROL_WAKE,
-                    "operation_id": str(payload.get("operation_id") or ""),
-                    "revision": int(payload.get("revision") or 0),
+                    "operation_id": operation_id,
+                    "revision": revision,
                 },
             )
             return
-        if update.type == relay_contract.event("credential_revoked"):
-            THREAD_BUS.signal(
-                RELAY_CONTROL_SIGNAL,
-                {"kind": RELAY_CONTROL_CREDENTIAL_REVOKED},
+        if str(payload.get("device_id") or "") != relay_device_identity.device_id():
+            relay_activity_log.warning(
+                "subscriber.credential_revocation.device_mismatch",
+                event_id=update.id,
+                device_id=payload.get("device_id"),
             )
+            return
+        THREAD_BUS.signal(
+            RELAY_CONTROL_SIGNAL,
+            {
+                "kind": RELAY_CONTROL_CREDENTIAL_REVOKED,
+                "credential_id": credential_id,
+                "credential_version": credential_version,
+            },
+        )
 
 
 relay_service = RelayService()

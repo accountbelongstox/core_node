@@ -321,6 +321,63 @@ class RelayDeviceIdentity:
         )
 
     @serialized_method
+    def revoke_credential_if_current(
+        self,
+        credential_id: str,
+        credential_version: int,
+    ) -> bool:
+        document = RELAY_IDENTITY_STORE.read()
+        current_credential_id = str(document.get("credential_id") or "")
+        current_credential_version = _positive_int(
+            document.get("credential_version")
+        )
+        if (
+            not current_credential_id
+            or not secrets.compare_digest(current_credential_id, str(credential_id))
+            or current_credential_version != int(credential_version)
+        ):
+            relay_activity_log.info(
+                "identity.credential.revocation.ignored",
+                device_id=document.get("device_id"),
+                credential_id=credential_id,
+                credential_version=credential_version,
+                current_credential_id=current_credential_id,
+                current_credential_version=current_credential_version,
+            )
+            return False
+        document.pop("credential_id", None)
+        document.pop("credential_version", None)
+        if not str(document.get("enrollment_id") or ""):
+            ed25519 = get_third_package_cryptography_ed25519()
+            serialization = get_third_package_cryptography_serialization()
+            generated = ed25519.Ed25519PrivateKey.generate()
+            private_bytes = generated.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+            public_bytes = generated.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+            document["private_key"] = _base64url_encode(private_bytes)
+            document["public_key"] = _base64url_encode(public_bytes)
+            document["key_version"] = max(
+                _positive_int(document.get("key_version")),
+                current_credential_version,
+            ) + 1
+        self._write(document)
+        relay_activity_log.warning(
+            "identity.credential.revoked",
+            device_id=document.get("device_id"),
+            credential_id=credential_id,
+            credential_version=credential_version,
+            next_key_version=document.get("key_version"),
+            enrollment_pending=bool(document.get("enrollment_id")),
+        )
+        return True
+
+    @serialized_method
     def enrollment_id(self) -> str:
         return str(RELAY_IDENTITY_STORE.read().get("enrollment_id") or "")
 

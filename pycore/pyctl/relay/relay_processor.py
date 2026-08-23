@@ -654,9 +654,16 @@ class RelayOperationProcessor:
             )
             return body
         if body_ref:
+            endpoint_name = "device_request_blob_download"
             response = relay_transport.request_bytes(
                 "GET",
-                relay_contract.endpoint("request_blob", blob_id=body_ref),
+                relay_contract.endpoint(endpoint_name, blob_id=body_ref),
+                query=relay_contract.generation_query(
+                    endpoint_name,
+                    int(descriptor["revision"]),
+                    int(descriptor["claim_epoch"]),
+                    str(descriptor["lease_owner"]),
+                ),
                 timeout=relay_contract.duration("request_timeout_seconds"),
                 action="operation.request_blob.download",
                 coordinator_url=coordinator_url,
@@ -881,7 +888,7 @@ class RelayOperationProcessor:
         allocation = relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
-                "response_blob_allocate",
+                "device_response_blob_allocate",
                 operation_id=operation_id,
             ),
             {
@@ -904,21 +911,31 @@ class RelayOperationProcessor:
         for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
             self._assert_active_lease(request)
             chunk = body[offset : offset + chunk_size]
+            endpoint_name = "device_response_blob_chunk"
             relay_transport.request_bytes(
                 "PUT",
                 relay_contract.endpoint(
-                    "response_blob_chunk",
+                    endpoint_name,
                     blob_id=blob_id,
                     chunk_index=chunk_index,
                 ),
                 body=chunk,
+                query=relay_contract.generation_query(
+                    endpoint_name,
+                    int(request["operation_revision"]),
+                    int(request["claim_epoch"]),
+                    str(request["lease_owner"]),
+                ),
                 action="operation.response_blob.chunk",
                 coordinator_url=str(request["coordinator_url"]),
             )
         self._assert_active_lease(request)
         relay_transport.request_json(
             "POST",
-            relay_contract.endpoint("response_blob_finalize", blob_id=blob_id),
+            relay_contract.endpoint(
+                "device_response_blob_finalize",
+                blob_id=blob_id,
+            ),
             {
                 "blob_id": blob_id,
                 "expected_sha256": body_digest,

@@ -8,7 +8,7 @@
         },
         "mcp-dev": {
             "prefix": "[MCP Development Context]\n",
-            "suffix": "\n[Follow Laravel 12.x MCP specifications]",
+            "suffix": "\n[Follow Laravel 13.x MCP specifications]",
             "replace_map": {
                 "API": "MCP API",
                 "interface": "MCP interface",
