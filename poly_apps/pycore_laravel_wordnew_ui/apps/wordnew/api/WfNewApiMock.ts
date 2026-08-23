@@ -798,6 +798,33 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
+  async previewDailyReadingResources(articleId, settings, groupId = null) {
+    return delay({
+      user: { id: 1, username: 'mock-user' },
+      article: {
+        id: articleId,
+        title_en: 'Mock daily reading',
+        title_cn: null,
+        language: 'en',
+        word_count: 0,
+      },
+      target_word_group: groupId ? {
+        id: groupId,
+        name: 'Mock Word Group',
+        language: 'en',
+        is_language_default: false,
+      } : null,
+      settings,
+      resources: {
+        new_words: [],
+        selected_words: [],
+        sentence_table: [],
+        audio: {},
+        playback_items: [],
+      },
+    });
+  },
+
   async getClientDeviceSettings(clientKey: string) {
     const { readMockDeviceSettings } = await import('./WfNewApiMockHelpers');
     return delay(readMockDeviceSettings(clientKey));

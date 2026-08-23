@@ -14,7 +14,7 @@ import {
   normalizePycorePath,
 } from './pycoreEndpoints';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
-import { getApiRegionPrefix } from '../../contracts/DomainConfig';
+import { getApiRegionPrefix, getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 
@@ -25,13 +25,6 @@ export interface PycorePresetHost {
   /** Full backend URL preset (relay scheme https entry); bare-host entries render to the direct :59000 form. */
   url?: string;
 }
-
-const PRESET_HOSTS: PycorePresetHost[] = [
-  { host: '127.0.0.1', label: 'Localhost', hint: 'loopback (browser must be on the pycore machine)' },
-  { host: '43.163.112.77', label: 'Public IP', hint: 'cloud server' },
-  { host: '100.126.119.99', label: 'Tailscale LAN', hint: 'private mesh' },
-  { host: '100.101.149.39', label: 'NUUL', hint: 'Tailscale' },
-];
 
 export interface PycoreTarget {
   mode: 'origin' | 'local' | 'remote';
@@ -67,6 +60,7 @@ export function normalizePycoreBackendUrl(input: string): string | null {
 }
 
 function readTarget(): PycoreTarget {
+  let relayPreset: PycorePresetHost | null = null;
   const target = StorageManager.get<PycoreTarget | null>(StorageKeys.TARGET, null);
   if (target?.mode === 'remote') {
     // Legacy bare-host entries migrate to the direct URL form in place.
@@ -81,7 +75,8 @@ function readTarget(): PycoreTarget {
     if (url) return { mode: 'remote', url };
   }
   if (target?.mode === 'local') return { mode: 'local' };
-  if (target?.mode === 'origin') return { mode: 'origin' };
+  relayPreset = relayBackendPreset();
+  if (relayPreset?.url) return { mode: 'remote', url: relayPreset.url };
   return { mode: 'origin' };
 }
 
@@ -208,7 +203,12 @@ export function getPycoreTargetRecent(): string[] {
 
 export function getPycoreTargetPresets(): PycorePresetHost[] {
   const relayPreset = relayBackendPreset();
-  return relayPreset ? [relayPreset, ...PRESET_HOSTS] : PRESET_HOSTS;
+  const config = getWebAccessConfig();
+  const presets = config.serviceHostKeys.pycore.map((key): PycorePresetHost => ({
+    host: config.hosts[key],
+    label: key,
+  }));
+  return relayPreset ? [relayPreset, ...presets] : presets;
 }
 
 /**
@@ -222,7 +222,7 @@ function relayBackendPreset(): PycorePresetHost | null {
   if (typeof location === 'undefined' || location.protocol !== 'https:') return null;
   const hostname = location.hostname.toLowerCase();
   const labels = hostname.split('.');
-  if (labels.length < 2 || /^\d+\x2e?/.test(hostname) || hostname === 'localhost') return null;
+  if (labels.length < 2 || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':') || hostname === 'localhost') return null;
   const prefix = getApiRegionPrefix();
   const relayHost = `api.${prefix}.${labels.slice(-2).join('.')}`;
   return {

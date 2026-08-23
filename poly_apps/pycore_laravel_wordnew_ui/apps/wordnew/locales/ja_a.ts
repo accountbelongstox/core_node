@@ -3,7 +3,7 @@
  * composed into jaLocale by ./ja.ts. Data file - one key per line. */
 export const jaLocaleA: Record<string, string> = {
     'nav.home': 'ダッシュボード',
-    'nav.library': 'コース書架',
+    'nav.library': '単語グループ',
     'nav.practice': '練習アリーナ',
     'nav.social': 'ソーシャルセンター',
     'nav.tools': 'AI ラボ',
@@ -43,8 +43,9 @@ export const jaLocaleA: Record<string, string> = {
     'modes.flashcards': '量子カード',
     'modes.quiz': 'スペルアリーナ',
     'modes.listening': 'リスニングストリーム',
-    'library.title': 'おすすめコース書架',
-    'library.subtitle': 'リアルタイム更新の動的パッケージ',
+    'library.title': '単語グループ',
+    'library.subtitle': 'アカウントと同期された単語グループ',
+    'home.openCurrentGroup': 'この単語グループを開く',
     'search.placeholder': '単語を検索、または用語を定義...',
     'search.recent': '最近の検索',
     'search.favorites': 'マイコレクション',

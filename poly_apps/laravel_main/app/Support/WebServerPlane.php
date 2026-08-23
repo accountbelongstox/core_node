@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 use RuntimeException;
 
@@ -35,7 +34,7 @@ final class WebServerPlane
      */
     public static function current(): string
     {
-        $file = self::globalVarDirectory().DIRECTORY_SEPARATOR.'WEB_SERVER_PLANE';
+        $file = ServiceContract::globalVarDirectory().DIRECTORY_SEPARATOR.'WEB_SERVER_PLANE';
         $content = FileSystemManager::readFile($file, false);
         if (is_string($content)) {
             $value = trim((string) strtok($content, "\r\n"));
@@ -68,7 +67,7 @@ final class WebServerPlane
             throw new RuntimeException('Plane must be frankenphp or nginx');
         }
 
-        $dir = self::globalVarDirectory();
+        $dir = ServiceContract::globalVarDirectory();
         if (!FileSystemManager::ensureDirectoryExists($dir)) {
             return false;
         }
@@ -79,16 +78,6 @@ final class WebServerPlane
         );
 
         return self::current() === $plane;
-    }
-
-    private static function globalVarDirectory(): string
-    {
-        $root = PathMapper::isWindows()
-            ? PathMapper::mapWebPath('www', ServiceContract::string('paths.core_node_data_dir_windows_subpath'))
-            : ServiceContract::string('paths.core_node_data_dir_posix');
-
-        return $root
-            .DIRECTORY_SEPARATOR.ServiceContract::string('paths.global_var_dir_name');
     }
 
     private function __construct()

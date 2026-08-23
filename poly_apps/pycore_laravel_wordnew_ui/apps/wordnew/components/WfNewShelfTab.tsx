@@ -75,15 +75,15 @@ interface WfNewShelfTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
   lang: string; gGroups: WordGroup[];
   selectedCourse: WordGroup | null; courseWords: Word[]; favorites: Word[];
-  setSelectedCourse: (c: WordGroup | null) => void; setCourseWords: (fn: any) => void;
-  setSelectedPracticeGroup: (g: WordGroup | null) => void; setActiveTab: (t: any) => void;
-  selectBookCourse: (g: WordGroup) => Promise<void>; startModePractice: (m: any) => void;
+  setSelectedPracticeGroup: (g: WordGroup | null) => void;
+  selectBookCourse: (g: WordGroup) => Promise<void>;
   handleToggleFavorite: (w: Word) => void; playPhoneticSpeech: (w: Word) => void;
   setSelectedWordDetail: (w: Word | null) => void;
+  onCloseGroup: () => void;
 }
 
 export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
-  const { activeTheme, trans, lang, gGroups, selectedCourse, courseWords, favorites, setSelectedCourse, setCourseWords, setSelectedPracticeGroup, selectBookCourse, handleToggleFavorite, playPhoneticSpeech, setSelectedWordDetail } = props;
+  const { activeTheme, trans, lang, gGroups, selectedCourse, courseWords, favorites, setSelectedPracticeGroup, selectBookCourse, handleToggleFavorite, playPhoneticSpeech, setSelectedWordDetail, onCloseGroup } = props;
   // Shelf courses are vocabulary groups: stack untranslated words when opened.
   const shelfWords = useMemo(
     () => courseWords
@@ -125,8 +125,7 @@ export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => {
-                        setSelectedCourse(null);
-                        setCourseWords([]);
+                        onCloseGroup();
                       }}
                       className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5"
                     >

@@ -120,7 +120,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         ?int $adminPort = null,
     ): string {
         $publicDir = $laravelPublicDir ?? self::defaultPublicDir();
-        $host = ServiceContract::host('frankenphp_internal_tls');
+        $host = ServiceContract::host('localhost');
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
         $backend = ServiceContract::port('laravel_api_backend');
@@ -182,7 +182,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     {
         $publisherKey = RuntimeConfigurationStore::get(RelayHubJwt::PUBLISHER_KEY);
         $subscriberKey = RuntimeConfigurationStore::get(RelayHubJwt::SUBSCRIBER_KEY);
-        $corsOrigins = ServiceContract::stringList('realtime.mercure_cors_origins');
+        $corsOrigins = ServiceContract::webAccessStringList('corsOrigins');
 
         if ($publisherKey === null
             || trim($publisherKey) === ''

@@ -3,7 +3,7 @@
  * composed into zhLocale by ./zh.ts. Data file - one key per line. */
 export const zhLocaleA: Record<string, string> = {
     'nav.home': '智能主控台',
-    'nav.library': '精品书架',
+    'nav.library': '词组',
     'nav.practice': '沉浸式训练',
     'nav.social': '社交中心',
     'nav.tools': 'AI 实验室',
@@ -28,8 +28,9 @@ export const zhLocaleA: Record<string, string> = {
     'modes.flashcards': '记忆闪卡',
     'modes.quiz': '拼写测试竞技场',
     'modes.listening': '声学磨耳朵模型',
-    'library.title': '推荐词库书目',
-    'library.subtitle': '精选科学编排的动态词汇包',
+    'library.title': '词组',
+    'library.subtitle': '与账号同步的词汇分组',
+    'home.openCurrentGroup': '打开此词组',
     'search.placeholder': '搜索海量词汇，查看精细释义...',
     'search.recent': '最近检索',
     'search.favorites': '收藏夹圣地',

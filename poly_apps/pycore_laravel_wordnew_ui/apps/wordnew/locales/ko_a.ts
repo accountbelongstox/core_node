@@ -3,7 +3,7 @@
  * composed into koLocale by ./ko.ts. Data file - one key per line. */
 export const koLocaleA: Record<string, string> = {
     'nav.home': '대시보드',
-    'nav.library': '코스 서가',
+    'nav.library': '단어 그룹',
     'nav.practice': '연습 아레나',
     'nav.social': '소셜 센터',
     'nav.tools': 'AI 랩',
@@ -43,8 +43,9 @@ export const koLocaleA: Record<string, string> = {
     'modes.flashcards': '퀀텀 카드',
     'modes.quiz': '스펠링 아레나',
     'modes.listening': '리스닝 스트림',
-    'library.title': '추천 코스 서가',
-    'library.subtitle': '실시간 업데이트 동적 패키지',
+    'library.title': '단어 그룹',
+    'library.subtitle': '계정과 동기화된 어휘 그룹',
+    'home.openCurrentGroup': '이 단어 그룹 열기',
     'search.placeholder': '단어를 검색하거나 용어를 정의하세요...',
     'search.recent': '최근 검색',
     'search.favorites': '내 보관함',

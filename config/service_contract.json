@@ -1,15 +1,37 @@
 {
     "hosts": {
+        "localhost": "localhost",
         "loopback": "127.0.0.1",
         "any": "0.0.0.0",
-        "frankenphp_internal_tls": "localhost"
+        "lan_50_2": "192.168.50.2",
+        "lan_50_3": "192.168.50.3",
+        "lan_storage_primary": "192.168.100.5",
+        "lan_storage_secondary": "192.168.100.6",
+        "cloud": "43.163.112.77",
+        "cloud_legacy": "43.159.58.199",
+        "voice_client_primary": "1.94.142.130",
+        "voice_client_secondary": "47.107.84.210",
+        "tailnet_nuul": "100.101.149.39",
+        "tailnet_api": "100.106.85.16",
+        "tailnet_lan": "100.126.119.99"
     },
     "ports": {
         "laravel_api_backend": 9000,
         "frankenphp_http": 80,
         "frankenphp_https": 443,
         "frankenphp_admin": 2019,
-        "nexus_dash_frontend": 13054
+        "nexus_dash_frontend": 13054,
+        "mysql_legacy": 13306,
+        "strapi": 1337,
+        "strapi_proxy": 910,
+        "static_api_https": 905,
+        "static_api_http": 805,
+        "git_http": 5021,
+        "voice_api_local": 8000,
+        "voice_server": 15452,
+        "voice_client_secondary": 15453,
+        "mail_submission": 587,
+        "file_sync": 18765
     },
     "planes": {
         "web_server_default": "frankenphp",
@@ -21,11 +43,49 @@
     },
     "realtime": {
         "mercure_cookie": "mercureAuthorization",
-        "mercure_transport": "local",
-        "mercure_cors_origins": [
-            "http://127.0.0.1:13054",
-            "http://localhost:13054"
-        ]
+        "mercure_transport": "local"
+    },
+    "access": {
+        "default_api_region_prefix": "si",
+        "root_domains": [
+            "12gm.com",
+            "gm15.com"
+        ],
+        "service_domains": {
+            "laravel_api": ["api", "{region}"],
+            "dictionary_api": ["dictapi", "{region}"],
+            "dictionary_static": ["dict", "{region}"],
+            "static_api": ["staticapi", "{region}"],
+            "static_local": ["static", "local"],
+            "mysql_local": ["mysql", "local"],
+            "strapi_test_local": ["dictapitest", "local"],
+            "mail_local": ["mail", "local"],
+            "git_local": ["git", "local"],
+            "docker_registry": ["docker", "{region}"],
+            "legacy_api": ["api"]
+        },
+        "service_host_keys": {
+            "browserAccess": [
+                "localhost",
+                "loopback",
+                "tailnet_nuul"
+            ],
+            "laravelApi": [
+                "localhost",
+                "loopback",
+                "lan_50_2",
+                "lan_50_3",
+                "cloud",
+                "tailnet_nuul",
+                "tailnet_api"
+            ],
+            "pycore": [
+                "loopback",
+                "cloud",
+                "tailnet_nuul",
+                "tailnet_lan"
+            ]
+        }
     },
     "php_runtime": {
         "upload_max_filesize": "10G",
@@ -36,7 +96,7 @@
     },
     "http": {
         "api_early_hints_link": "</debug-assets/css/tailwind.min.css>; rel=preload; as=style, </debug-assets/css/debug-interface.css>; rel=preload; as=style, </debug-assets/js/debug-interface.js>; rel=preload; as=script",
-        "ui_early_hints_link": "</ui_domain_config.json>; rel=preload; as=fetch; crossorigin"
+        "ui_early_hints_link": "</web_access_config.json>; rel=preload; as=fetch; crossorigin"
     },
     "paths": {
         "core_node_data_dir_posix": "/var/_core_node",
@@ -45,7 +105,6 @@
         "frankenphp_root_posix": "/www/programing/frankenphp"
     },
     "files": {
-        "ui_allowed_hosts": "UI_ALLOWED_HOSTS",
-        "ui_domain_config": "ui_domain_config.json"
+        "web_access_config": "web_access_config.json"
     }
 }

@@ -112,7 +112,7 @@ class AppQyV1SentenceWordTableService
 
     /** Target shelf group: the caller-selected group when it belongs to the
      * user, otherwise the language Default Vocabulary Group. */
-    private function targetGroup(
+    public function resolveTargetGroup(
         int $userId,
         string $language,
         ?string $groupId,
@@ -148,7 +148,7 @@ class AppQyV1SentenceWordTableService
         if ($userId === null || empty($md5s)) {
             return [];
         }
-        $targetGroup = $this->targetGroup($userId, $language, $groupId);
+        $targetGroup = $this->resolveTargetGroup($userId, $language, $groupId);
         if ($targetGroup === null) {
             return [];
         }
@@ -194,7 +194,7 @@ class AppQyV1SentenceWordTableService
             ['id', 'md5', 'content']
         );
         $wordIds = $dictionaryRows->pluck('id')->map(static fn ($id) => (int) $id)->all();
-        $targetGroup = $this->targetGroup($userId, $languageCode, $groupId, true);
+        $targetGroup = $this->resolveTargetGroup($userId, $languageCode, $groupId, true);
         if ($targetGroup === null || empty($wordIds)) {
             return;
         }

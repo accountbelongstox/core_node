@@ -22,7 +22,7 @@
 #
 # Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh
 #   Dev foreground:   ./start.sh --no-service --dev
-#   Dist as service:  ./start.sh --service --dist
+#   Dev as service:   ./start.sh --service --dev
 #   Force reinstall:  -f | --force-install        Skip ends: --no-backend | --no-frontend
 #   Non-interactive:   --non-interactive
 #   Build detected APK: --build-apk[=wordnew] [--debug-apk|--release-apk]
@@ -43,6 +43,7 @@ NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_
 SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager.sh"
 FRANKENPHP_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/frankenphp_manager.sh"
 CADDY_STATIC_SITE_COMMON="${REPO_ROOT}/scripts/shells/linux/common/caddy_static_site_common.sh"
+WEB_ACCESS_COMMON="${REPO_ROOT}/scripts/shells/linux/common/web_access_common.sh"
 SERVICE_NAME="ncore-nexus-dash"
 SERVICE_DESC="Nexus Dash frontend (pycore_laravel_wordnew_ui)"
 # CPU cap (overridable). Memory is computed at registration: min(RAM/4, cap).
@@ -73,7 +74,7 @@ source "${SCRIPT_DIR}/../../../scripts/shells/linux/common/service_contract_comm
 DEV_PORT="${PORT:-$(sc_get ports.nexus_dash_frontend)}"
 BIND_HOST="$(sc_get hosts.any)"
 DEV_URL="http://localhost:${DEV_PORT}"
-UI_DOMAIN_CONFIG_FILE="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var/$(sc_get files.ui_domain_config)"
+DASHBOARD_WEB_ACCESS_CONFIG_FILE="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var/$(sc_get files.web_access_config)"
 STATIC_CADDYFILE="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/pycore/nexus-dash.Caddyfile"
 BUILD_INPUT_PATHS=(
     "${APP_ROOT}/apps"
@@ -132,6 +133,8 @@ FRANKENPHP_BIN=""
 source "$FRANKENPHP_MANAGER"
 # shellcheck source=/dev/null
 source "$CADDY_STATIC_SITE_COMMON"
+# shellcheck source=/dev/null
+source "$WEB_ACCESS_COMMON"
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
@@ -361,6 +364,11 @@ print_urls() {
 # Foreground server. Development uses Vite; production uses the shared Caddy
 # static-site runtime with SPA fallback and immutable hashed assets.
 serve_dashboard() {
+    web_access_config_ensure
+    if [ "$WEB_ACCESS_CONFIG_READY" != "yes" ]; then
+        err "Web access config could not be converged: ${DASHBOARD_WEB_ACCESS_CONFIG_FILE}"
+        exit 1
+    fi
     # Fail loud on an unreadable service contract: an empty port/host would
     # silently drop vite to its defaults (5173) while nginx keeps proxying to
     # the contract port -> 502 storm.
@@ -376,7 +384,7 @@ serve_dashboard() {
     print_urls
     cd "$APP_ROOT" || exit 1
     if [ "$RUN_MODE" = "dist" ]; then
-        css_caddyfile_ensure "$BIND_HOST" "$DEV_PORT" "$DIST_DIR" "$UI_DOMAIN_CONFIG_FILE" "$STATIC_CADDYFILE"
+        css_caddyfile_ensure "$BIND_HOST" "$DEV_PORT" "$DIST_DIR" "$DASHBOARD_WEB_ACCESS_CONFIG_FILE" "$STATIC_CADDYFILE"
         if [ "$CSS_CADDYFILE_READY" != "yes" ]; then
             err "Production static server configuration could not be converged: ${STATIC_CADDYFILE}"
             exit 1
@@ -493,10 +501,6 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-if [ -z "$RUN_DIST" ] && [ "$AS_SERVICE" = "yes" ]; then
-    RUN_DIST="yes"
-fi
-
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     if [ -n "$NON_INTERACTIVE" ]; then SUDO="sudo -n"; else SUDO="sudo"; fi
 fi
@@ -549,8 +553,8 @@ if [ -n "$RUN_FRONTEND" ]; then
     ensure_deps
 fi
 
-# 2) Run mode (dist/dev): interactive foreground use defaults to development;
-# an explicitly requested background service defaults to production dist.
+# 2) Run mode (dist/dev): initialization defaults to development hot reload;
+# production dist remains an explicit --dist choice.
 if [ -z "$RUN_DIST" ]; then RUN_DIST="no"; fi
 if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
 log "Frontend mode: $( [ "$RUN_MODE" = dist ] && echo 'PRODUCTION dist (Vite build -> Caddy static service)' || echo 'DEV server (Vite, hot reload)' )"

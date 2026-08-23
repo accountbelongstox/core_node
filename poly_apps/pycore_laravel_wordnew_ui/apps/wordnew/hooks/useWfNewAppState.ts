@@ -27,6 +27,7 @@ import { useWfNewContentHandlers } from './useWfNewContentHandlers';
 import { StorageManager } from '../../../core/persistence';
 import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
+import { dailyReadingHash, parseWordGroupHash, wordGroupHash } from '../routing/WordNewHashRoutes';
 
 /** Every navigable page/tab in the wordnew shell (drives the history stack). */
 export type WordNewTab =
@@ -98,6 +99,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const [libraryRoute, setLibraryRoute] = useState<{
     id: string; page: number; view: 'dash' | 'table'; title?: string; language?: string;
   } | null>(null);
+  const [wordGroupRouteId, setWordGroupRouteId] = useState<string | null>(null);
 
   // Refs mirror the latest values so the navigation callbacks can stay stable
   // (empty-deps useCallback) without nesting one state setter inside another.
@@ -158,6 +160,14 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
       'daily-reading', 'admin',
     ];
+    const wordGroupRoute = parseWordGroupHash(
+      typeof window !== 'undefined' ? window.location.hash : '',
+    );
+    if (wordGroupRoute.matched) {
+      setWordGroupRouteId(wordGroupRoute.groupId);
+      setActiveTabRaw('shelf');
+      return;
+    }
     if (fromHash === 'daily-reading' || fromHash.startsWith('daily-reading?') || fromHash.startsWith('daily-reading/')) {
       setActiveTabRaw('daily-reading');
       return;
@@ -216,12 +226,15 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       next = /^#\/daily-reading$/.test(current)
         || /^#\/daily-reading\/[^?]+$/.test(current)
         ? current
-        : '#/daily-reading';
+        : dailyReadingHash();
+    }
+    if (activeTab === 'shelf') {
+      next = wordGroupHash(wordGroupRouteId);
     }
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);
     }
-  }, [activeTab, libraryRoute]);
+  }, [activeTab, libraryRoute, wordGroupRouteId]);
 
   // Unified global auth user state (persisted via the shared settings store)
   const [currentUser, setCurrentUser] = useState(() => {
@@ -656,6 +669,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     isListeningPlaying,
     isLoggedInRef,
     libraryRoute,
+    wordGroupRouteId,
     listeningIntervalRef,
     loadMoreInFlight,
     newWordDef,
@@ -667,6 +681,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     practiceMode,
     quizAnswered,
     searchQuery,
+    selectedCourse,
     setActiveTab,
     setAvatarUrl,
     setBentoGroups,
@@ -681,6 +696,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     setIsListeningPlaying,
     setLanguageOptions,
     setLibraryRoute,
+    setWordGroupRouteId,
     setLoading,
     setNewWordDef,
     setNewWordPhon,
@@ -718,7 +734,9 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     navStack,
     setNavStack,
     libraryRoute,
+    wordGroupRouteId,
     setLibraryRoute,
+    setWordGroupRouteId,
     activeTabRef,
     navStackRef,
     setActiveTab,

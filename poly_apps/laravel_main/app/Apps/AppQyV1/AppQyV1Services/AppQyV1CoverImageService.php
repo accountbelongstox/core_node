@@ -283,7 +283,7 @@ class AppQyV1CoverImageService
      */
     public static function getImageUrl(string $filename): string
     {
-        return url("/api/app_qy_v1/covers/{$filename}");
+        return "/api/app_qy_v1/covers/{$filename}";
     }
 
     /**

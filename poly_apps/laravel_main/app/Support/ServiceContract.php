@@ -147,6 +147,44 @@ final class ServiceContract
         return array_values($value);
     }
 
+    public static function globalVarDirectory(): string
+    {
+        $root = PathMapper::isWindows()
+            ? PathMapper::mapWebPath('www', self::string('paths.core_node_data_dir_windows_subpath'))
+            : self::string('paths.core_node_data_dir_posix');
+
+        return $root.DIRECTORY_SEPARATOR.self::string('paths.global_var_dir_name');
+    }
+
+    public static function webAccessDocument(): array
+    {
+        $path = self::globalVarDirectory().DIRECTORY_SEPARATOR.self::file('web_access_config');
+        $json = FileSystemManager::readFile($path, false);
+        $document = is_string($json) ? json_decode($json, true) : null;
+        $prefix = is_array($document) ? ($document['apiRegionPrefix'] ?? null) : null;
+
+        if (!is_array($document)
+            || !is_string($prefix)
+            || preg_match('/^[a-z0-9][a-z0-9-]{0,30}$/', $prefix) !== 1
+        ) {
+            throw new RuntimeException("Unable to load web access config: {$path}");
+        }
+
+        return $document;
+    }
+
+    public static function webAccessStringList(string $name): array
+    {
+        $value = self::webAccessDocument()[$name] ?? null;
+        if (!is_array($value)
+            || $value === []
+            || array_filter($value, static fn (mixed $item): bool => !is_string($item) || $item === '') !== []) {
+            throw new RuntimeException("Unknown web access string list: {$name}");
+        }
+
+        return array_values(array_unique($value));
+    }
+
     public static function laravelApiBackendUrl(): string
     {
         return 'http://'.self::host('loopback').':'.self::port('laravel_api_backend');

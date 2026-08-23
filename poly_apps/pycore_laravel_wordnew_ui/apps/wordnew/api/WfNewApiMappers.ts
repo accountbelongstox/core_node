@@ -23,12 +23,13 @@ import type {
 } from './WfNewApiTypes';
 import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind } from './WfNewApiTypes';
 import { primaryCoverUrl, resolveCoverUrls } from '../constants/coverPlayback';
+import { laravelMediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 
 /** Resolve a backend-relative media/cover path to an absolute URL on the current endpoint. */
 export function absUrl(u?: string): string | undefined {
   if (!u || typeof u !== 'string') return undefined;
-  if (/^(https?:|data:|blob:|file:|content:|capacitor:|filesystem:)\/\//i.test(u) || u.startsWith('data:') || u.startsWith('blob:')) return u;
-  return wfNewEndpoints.buildUrl(u.startsWith('/') ? u : `/${u}`);
+  if (/^(file:|content:|capacitor:|filesystem:)\/\//i.test(u)) return u;
+  return laravelMediaUrl(u);
 }
 
 /** Map a backend bookDetail sentence row to a normalized WfNewBookVerse. Each

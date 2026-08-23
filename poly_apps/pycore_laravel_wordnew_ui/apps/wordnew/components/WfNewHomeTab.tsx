@@ -68,6 +68,7 @@ import { WfNewOnboarding } from '../pages/WfNewOnboarding';
 import { WfNewNavLogo } from './WfNewNavLogo';
 import { WfNewNotificationBell } from './WfNewNotificationBell';
 import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
+import { dailyReadingHash } from '../routing/WordNewHashRoutes';
 
 interface WfNewHomeTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -84,10 +85,11 @@ interface WfNewHomeTabProps {
   startGroupPractice: (g: WordGroup, m: any) => Promise<void>;
   startModePractice: (m: any) => void;
   addLibraryToStudy: (g: WfNewContentGroup) => void;
+  openWordGroupList: () => void;
 }
 
 export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
-  const { activeTheme, trans, lang, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy } = props;
+  const { activeTheme, trans, lang, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy, openWordGroupList } = props;
 
   return (
     <>
@@ -109,6 +111,12 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 dailyGoal={userStats.dailyGoal}
                 languageOptions={languageOptions}
                 onSave={handleSaveDashboard}
+                onOpenGroup={() => {
+                  const group = gGroups[0];
+                  if (!group) return;
+                  setActiveTab('shelf');
+                  void selectBookCourse(group);
+                }}
               />
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
@@ -248,7 +256,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                     </p>
                   </div>
                   <button 
-                    onClick={() => setActiveTab('shelf')}
+                    onClick={openWordGroupList}
                     className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     {trans('home.allPacks')} <ArrowRight className="w-3.5 h-3.5" />
@@ -391,7 +399,18 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                           <div className="flex justify-between items-end text-[10px] font-mono select-none">
                             <div className="space-y-0.5">
                               <span className="text-zinc-600 dark:text-zinc-400 block">{group.statsLabel}</span>
-                              <span className="font-bold text-sky-500 dark:text-indigo-300">{trans('home.lexAvail', { n: group.count })}</span>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setActiveTab('shelf');
+                                  void selectBookCourse(group);
+                                }}
+                                className="font-bold text-sky-500 dark:text-indigo-300 underline decoration-indigo-500/40 underline-offset-2 hover:text-indigo-200"
+                                title={trans('home.openCurrentGroup')}
+                              >
+                                {trans('home.lexAvail', { n: group.count })}
+                              </button>
                             </div>
                             <div className="text-right">
                               <span className="font-bold text-emerald-500">{trans('home.pctMastered', { n: progressVal })}</span>
@@ -438,7 +457,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 onOpenPage={(articleId) => {
                   setActiveTab('daily-reading');
                   if (typeof window !== 'undefined') {
-                    window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
+                    window.history.replaceState(null, '', dailyReadingHash(articleId));
                   }
                 }}
                 onOpenBook={(sourceKey, title) => openHomeGroup({

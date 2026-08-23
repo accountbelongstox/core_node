@@ -364,7 +364,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') goUrl(url); }}
-                placeholder="e.g. 100.101.149.39 · http://host:59000 · https://server"
+                placeholder="e.g. mesh-host · http://host:port · https://server"
                 className="flex-1 py-2 px-3 text-xs font-mono rounded-lg outline-none bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
               />
               <button

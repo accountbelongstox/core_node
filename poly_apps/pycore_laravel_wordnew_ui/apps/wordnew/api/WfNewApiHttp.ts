@@ -763,6 +763,17 @@ export const wfNewApiHttp: WfNewApi = {
     }
   },
 
+  async previewDailyReadingResources(articleId, settings, groupId = null) {
+    const raw = await authedPostJSON<any>(
+      WfNewApiPaths.userDailyReadingResourcePreview(articleId),
+      {
+        settings,
+        ...(groupId ? { group_id: groupId } : {}),
+      },
+    );
+    return unwrapEnvelope(raw) ?? raw;
+  },
+
   async getClientDeviceSettings(clientKey: string) {
     try {
       const res = await getJSON<any>(WfNewApiPaths.clientDeviceSettings(clientKey));

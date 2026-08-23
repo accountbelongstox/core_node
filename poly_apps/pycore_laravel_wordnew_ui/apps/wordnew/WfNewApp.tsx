@@ -95,6 +95,7 @@ export const WfNewApp: React.FC = () => {
     setNavStack,
     libraryRoute,
     setLibraryRoute,
+    setWordGroupRouteId,
     activeTabRef,
     navStackRef,
     setActiveTab,
@@ -210,6 +211,7 @@ export const WfNewApp: React.FC = () => {
     handleToggleFavorite,
     playPhoneticSpeech,
     selectBookCourse,
+    openWordGroupList,
     startGroupPractice,
     startModePractice,
     activeQuizOptions,
@@ -300,6 +302,7 @@ export const WfNewApp: React.FC = () => {
                 startGroupPractice={startGroupPractice}
                 startModePractice={startModePractice}
                 addLibraryToStudy={handleAddLibraryToStudy}
+                openWordGroupList={openWordGroupList}
               />
             </motion.div>
           )}
@@ -362,15 +365,12 @@ export const WfNewApp: React.FC = () => {
                 selectedCourse={selectedCourse}
                 courseWords={courseWords}
                 favorites={favorites}
-                setSelectedCourse={setSelectedCourse}
-                setCourseWords={setCourseWords}
                 setSelectedPracticeGroup={setSelectedPracticeGroup}
-                setActiveTab={setActiveTab}
                 selectBookCourse={selectBookCourse}
-                startModePractice={startModePractice}
                 handleToggleFavorite={handleToggleFavorite}
                 playPhoneticSpeech={playPhoneticSpeech}
                 setSelectedWordDetail={setSelectedWordDetail}
+                onCloseGroup={openWordGroupList}
               />
             </motion.div>
           )}
@@ -807,6 +807,7 @@ export const WfNewApp: React.FC = () => {
             // forward navigations that push onto the stack.
             if (tab === 'home') goHome();
             else setActiveTab(tab as WordNewTab);
+            if (tab === 'shelf') setWordGroupRouteId(null);
             setSelectedCourse(null);
             setPracticeMode(null);
           }}

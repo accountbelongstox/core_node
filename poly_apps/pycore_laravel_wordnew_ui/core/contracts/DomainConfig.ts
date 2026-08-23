@@ -1,32 +1,54 @@
 /**
- * Runtime UI domain configuration.
+ * Runtime web access configuration.
  *
  * The shell domain setup (scripts/shells/linux/common/domain_setup_common.sh)
  * writes this JSON into the shared data directory
- * (<core_node_data_dir>/global_var/<files.ui_domain_config>); the Vite
+ * (<core_node_data_dir>/global_var/<files.web_access_config>); the Vite
  * dev/preview middleware serves it same-origin at /<file name>, re-read from
  * disk on every request, so a shell-side change is visible to the frontend
  * immediately. A missing/unreadable file keeps the built-in defaults, so
  * plain dev machines and compiled bundles work without the file.
  */
-import { UI_DOMAIN_CONFIG_FILE_NAME } from './ServiceContract';
+import { DEFAULT_API_REGION_PREFIX, WEB_ACCESS_CONFIG_FILE_NAME } from './ServiceContract';
 
-export interface UiDomainConfig {
+export interface WebAccessConfig {
   apiRegionPrefix: string;
+  domains: string[];
+  hosts: Record<string, string>;
+  serviceHostKeys: {
+    browserAccess: string[];
+    laravelApi: string[];
+    pycore: string[];
+  };
+  allowedHosts: string[];
+  corsOrigins: string[];
 }
 
-export const DEFAULT_UI_DOMAIN_CONFIG: UiDomainConfig = {
-  apiRegionPrefix: 'si',
+export const DEFAULT_WEB_ACCESS_CONFIG: WebAccessConfig = {
+  apiRegionPrefix: DEFAULT_API_REGION_PREFIX,
+  domains: [],
+  hosts: {},
+  serviceHostKeys: {
+    browserAccess: [],
+    laravelApi: [],
+    pycore: [],
+  },
+  allowedHosts: [],
+  corsOrigins: [],
 };
 
 const API_REGION_PREFIX_PATTERN = /^[a-z0-9][a-z0-9-]{0,30}$/;
 
-let currentConfig: UiDomainConfig = DEFAULT_UI_DOMAIN_CONFIG;
-let loadPromise: Promise<UiDomainConfig> | null = null;
+let currentConfig: WebAccessConfig = DEFAULT_WEB_ACCESS_CONFIG;
+let loadPromise: Promise<WebAccessConfig> | null = null;
 
 /** Synchronous read of the last loaded config (defaults until the first load). */
 export function getApiRegionPrefix(): string {
   return currentConfig.apiRegionPrefix;
+}
+
+export function getWebAccessConfig(): Readonly<WebAccessConfig> {
+  return currentConfig;
 }
 
 export function resolveApiHostname(hostname: string): string {
@@ -57,16 +79,44 @@ export function resolveApiHostname(hostname: string): string {
  * so detection passes always see the latest shell-side value. Any failure
  * (missing file, non-JSON, offline) keeps the current/default config.
  */
-export function loadDomainConfig(): Promise<UiDomainConfig> {
+export function loadWebAccessConfig(): Promise<WebAccessConfig> {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {
-      const response = await fetch(`/${UI_DOMAIN_CONFIG_FILE_NAME}`, { cache: 'no-store' });
+      const response = await fetch(`/${WEB_ACCESS_CONFIG_FILE_NAME}`, { cache: 'no-store' });
       if (response.ok) {
         const parsed: unknown = await response.json();
-        const prefix = (parsed as Partial<UiDomainConfig> | null)?.apiRegionPrefix;
-        if (typeof prefix === 'string' && API_REGION_PREFIX_PATTERN.test(prefix.trim())) {
-          currentConfig = { apiRegionPrefix: prefix.trim() };
+        const document = parsed as Partial<WebAccessConfig> | null;
+        const prefix = document?.apiRegionPrefix;
+        const hosts = document?.hosts;
+        const lists = [
+          document?.domains,
+          document?.allowedHosts,
+          document?.corsOrigins,
+          document?.serviceHostKeys?.browserAccess,
+          document?.serviceHostKeys?.laravelApi,
+          document?.serviceHostKeys?.pycore,
+        ];
+        if (typeof prefix === 'string'
+          && API_REGION_PREFIX_PATTERN.test(prefix.trim())
+          && hosts !== null
+          && typeof hosts === 'object'
+          && Object.values(hosts).every((value) => typeof value === 'string' && value.length > 0)
+          && lists.every((list) => Array.isArray(list)
+            && list.every((value) => typeof value === 'string' && value.length > 0))
+          && [
+            document?.serviceHostKeys?.browserAccess,
+            document?.serviceHostKeys?.laravelApi,
+            document?.serviceHostKeys?.pycore,
+          ].every((keys) => keys!.every((key) => typeof hosts![key] === 'string'))) {
+          currentConfig = {
+            apiRegionPrefix: prefix.trim(),
+            domains: document!.domains!,
+            hosts: document!.hosts!,
+            serviceHostKeys: document!.serviceHostKeys!,
+            allowedHosts: document!.allowedHosts!,
+            corsOrigins: document!.corsOrigins!,
+          };
         }
       }
     } catch {

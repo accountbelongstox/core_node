@@ -131,7 +131,7 @@ WIN_SCRIPT_PATH=""
 WIN_DRIVE=""
 WIN_REST=""
 GENERATED_ACCESS_CODE=""
-OCTANE_RUNTIME_WATCH="0"
+OCTANE_RUNTIME_WATCH="${OCTANE_RUNTIME_WATCH:-1}"
 OCTANE_RUNTIME_POLL="0"
 
 # Background systemd service options (idempotent registration via systemd_service_manager).
@@ -212,6 +212,7 @@ FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
 . "$FRANKENPHP_MANAGER_SCRIPT"
+web_access_config_ensure
 
 # Runtime port: central service contract (config/service_contract.json), with
 # the PORT env var as the explicit override.

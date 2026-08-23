@@ -80,6 +80,8 @@ export const WfNewApiPaths = {
     p(`/user/book-progress/${encodeURIComponent(sourceKey)}`),
   /** Daily-reading playback progress — one row per authenticated user. */
   userDailyReadingProgress: p('/user/daily-reading-progress'),
+  userDailyReadingResourcePreview: (articleId: string): string =>
+    p(`/user/daily-reading/${encodeURIComponent(articleId)}/resource-preview`),
 
   /** Guest device settings (PUBLIC) — browser fingerprint client_key. */
   clientDeviceSettings: (clientKey: string): string =>
