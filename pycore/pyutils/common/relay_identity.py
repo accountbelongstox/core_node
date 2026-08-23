@@ -176,7 +176,6 @@ class RelayDeviceIdentity:
             relay_activity_log.debug(
                 "identity.enrollment.present",
                 enrollment_id=enrollment_fields[0],
-                claim_code=enrollment_fields[1],
                 expires_at=enrollment_fields[2],
             )
             return True
@@ -256,7 +255,6 @@ class RelayDeviceIdentity:
             "identity.enrollment.saved",
             device_id=document.get("device_id"),
             enrollment_id=enrollment_id,
-            claim_code=claim_code,
             expires_at=expires_at,
         )
 

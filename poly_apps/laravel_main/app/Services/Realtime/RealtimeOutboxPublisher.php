@@ -56,10 +56,8 @@ final class RealtimeOutboxPublisher
 
         foreach ($rows as $row) {
             try {
-                $data = json_encode([
-                    'event' => (string) $row->event_type,
-                    'data' => json_decode((string) $row->payload, true, 512, JSON_THROW_ON_ERROR),
-                ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+                json_decode((string) $row->payload, true, 512, JSON_THROW_ON_ERROR);
+                $data = (string) $row->payload;
                 $updateId = MercurePublisher::publish(
                     (string) $row->topic,
                     $data,
