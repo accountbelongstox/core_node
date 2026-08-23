@@ -60,6 +60,7 @@ target_dirs=("apps" "ncore" "scripts")
 sudo=""
 SYSTEM_VERSION=""
 SYSTEM_NAME=""
+old_settings=""
 
 # URL Constants
 GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
@@ -188,7 +189,7 @@ cleanup_and_exit() {
     printf "\033c"  # Clear screen
     echo "Script terminated by user (Ctrl+C)"
     # Restore terminal settings
-    if [ -n "$old_settings" ]; then
+    if [ -n "${old_settings:-}" ]; then
         stty "$old_settings"
     fi
     exit 1
@@ -217,16 +218,17 @@ ensure_dos2unix() {
 # Function to ensure dos2unix and source a file
 source_file_with_dos2unix() {
     local file_path="$1"
-    
+
+    if LC_ALL=C grep -q $'\r' "$file_path" 2>/dev/null; then
         if command -v dos2unix >/dev/null 2>&1; then
-        $sudo dos2unix "$file_path" >/dev/null 2>&1
-        if [ $? -ne 0 ]; then
-            $sudo sed -i 's/\r$//' "$file_path" 2>/dev/null
+            if ! $sudo dos2unix "$file_path" >/dev/null 2>&1; then
+                $sudo sed -i 's/\r$//' "$file_path" 2>/dev/null
             fi
         else
-        $sudo sed -i 's/\r$//' "$file_path" 2>/dev/null
+            $sudo sed -i 's/\r$//' "$file_path" 2>/dev/null
+        fi
     fi
-    
+
     source "$file_path" 2>/dev/null
     return $?
 }
@@ -586,8 +588,6 @@ show_region_selection_menu() {
 
 # Check and download required files
 check_and_download_files() {
-    echo "Checking for required files..."
-
     local gvar_common_file="$CORE_NODE_ROOT_DIR/$GVAR_COMMON_FILE_RELATIVE"
     local setting_base_file="$CORE_NODE_ROOT_DIR/$SETTING_BASE_FILE_RELATIVE"
     local project_validator_file="$CORE_NODE_ROOT_DIR/$PROJECT_VALIDATOR_FILE_RELATIVE"
@@ -690,8 +690,7 @@ for source_file in "${SOURCE_FIRSTFILES[@]}"; do
     ((first_file_count++))
     basename_file="$(basename "$source_file")"
     if [ -f "$source_file" ]; then
-        sed -i 's/\r$//' "$source_file" 2>/dev/null
-        source "$source_file" 2>/dev/null
+        source_file_with_dos2unix "$source_file"
         if [ $? -eq 0 ]; then
             echo "[$first_file_count/$first_file_total] $basename_file - [OK]"
         else
@@ -865,10 +864,8 @@ main() {
     fi
 
 
-    # Make shell files executable (root level)
     echo ""
     echo "Script is executed from: $CORE_NODE_ROOT_DIR"
-    make_sh_executable
 
     # Step 3.5: Smart Permissions & Environment Setup
     echo ""

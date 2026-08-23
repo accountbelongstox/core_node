@@ -221,7 +221,7 @@ check_directory_processing_cache() {
                 return 1  # Need to reprocess
             else
                 local cache_date=$(date -d @$cache_timestamp '+%Y-%m-%d %H:%M:%S')
-                echo -e "\033[32m[CACHE HIT] All .sh files older than cache ($cache_date) - skipping dos2unix\033[0m"
+                echo -e "\033[32m[CACHE HIT] All .sh files older than cache ($cache_date) - skipping shell file processing\033[0m"
                 return 0  # Cache hit - no files newer than cache
             fi
         else
