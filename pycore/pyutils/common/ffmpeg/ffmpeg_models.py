@@ -109,12 +109,21 @@ class TimedTextStyle:
 
 
 @dataclass(frozen=True)
+class TimedTextMotion:
+    start: Tuple[int, int]
+    end: Tuple[int, int]
+    start_ms: int = 0
+    end_ms: int = 0
+
+
+@dataclass(frozen=True)
 class TimedTextCue:
     start: float
     end: float
     text: str
     style: TimedTextStyle = field(default_factory=TimedTextStyle)
     layer: int = 0
+    motion: Optional[TimedTextMotion] = None
 
 
 @dataclass(frozen=True)

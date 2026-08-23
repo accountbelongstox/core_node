@@ -21,8 +21,9 @@
 # /laravel-manager#/task-center aligned when either side's task categories change.
 #
 # Usage:
-#   ./pyservice.sh                       # install prereqs, then launch 0.0.0.0:59000
-#   ./pyservice.sh --no-install          # skip prereqs, just launch
+#   ./pyservice.sh 1                     # current local UI mode (default)
+#   ./pyservice.sh 2                     # Relay UI intermediary mode
+#   ./pyservice.sh 1 --no-install        # skip prereqs, just launch
 #   ./pyservice.sh --port 8000 --debug   # launch on port 8000 in debug mode
 #   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
@@ -134,6 +135,7 @@ UI_START="$SCRIPT_DIR/poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh"
 UI_PID=""
 UI_READY=0
 UI_START_ARGS=()
+ORIGINAL_ARGS=("$@")
 
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
@@ -190,7 +192,11 @@ print_usage() {
 pyservice.sh - entry point for the Pycore Module Caller
 
 Usage:
-  ./pyservice.sh [SUBCOMMAND] [options]
+  ./pyservice.sh [1|2|SUBCOMMAND] [options]
+
+Modes:
+  1            Current local UI mode (default)
+  2            Relay UI intermediary mode
 
 Subcommands:
   run          Launch the service (default if no subcommand is given)
@@ -220,17 +226,16 @@ Options (apply to 'run'):
   --no-install     Skip all shell prerequisite installers
   --only           Run ONLY the prerequisite step, then exit
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
-  --service-mode N  Select local UI mode (1, default) or Relay UI mode (2)
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
   --               Everything after a bare -- is forwarded to prepare.sh
 
 Examples:
-  ./pyservice.sh                              # run: install prereqs, launch 0.0.0.0:59000
-  ./pyservice.sh run --no-ui --port 8000      # run on port 8000, legacy UI
-  ./pyservice.sh run --service-mode 2          # run Relay UI intermediary mode
-  ./pyservice.sh --port 8000                  # no subcommand == run
-  ./pyservice.sh --no-install                   # run without prerequisite installers
+  ./pyservice.sh 1                            # run current local UI mode
+  ./pyservice.sh 2                            # run Relay UI intermediary mode
+  ./pyservice.sh 1 --no-ui --port 8000        # run on port 8000, legacy UI
+  ./pyservice.sh 1 --port 8000                # run mode 1 on a custom port
+  ./pyservice.sh 1 --no-install               # run without prerequisite installers
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
@@ -242,11 +247,19 @@ EOF
 # otherwise default to 'run' (so existing flag-first invocations keep working).
 CMD="run"
 case "${1:-}" in
+    1|2)
+        SERVICE_MODE="$1"; shift ;;
+    [0-9]*)
+        SERVICE_MODE="$1"; shift ;;
     run|config|codesync|install|start|stop|restart|status|uninstall)
         CMD="$1"; shift ;;
     help|-h|--help)
         print_usage; exit 0 ;;
 esac
+if [[ "$CMD" == "run" && "${1:-}" =~ ^[0-9]+$ ]]; then
+    SERVICE_MODE="$1"
+    shift
+fi
 
 # --- self-elevation (Linux) --------------------------------------------- #
 # Service subcommands (install/start/stop/...) need root to write systemd
@@ -282,7 +295,7 @@ _pyservice_maybe_elevate() {
     echo "[i] Elevating to root (sudo) so all subsequent steps run privileged ..."
     exec sudo env "${env_args[@]}" bash "$0" "$@"
 }
-_pyservice_maybe_elevate
+_pyservice_maybe_elevate "${ORIGINAL_ARGS[@]}"
 
 # AI SAFETY: Do not modify the `./pyservice.sh codesync` dispatch chain unless
 # the user explicitly requests that specific change. This is a compatibility
@@ -379,7 +392,6 @@ while [[ $# -gt 0 ]]; do
         --no-install) NO_INSTALL=1; shift ;;
         --only)       ONLY=1;         shift   ;;
         --no-ui)      NO_UI=1;        shift   ;;
-        --service-mode) SERVICE_MODE="$2"; shift 2 ;;
         --ui-build)   UI_BUILD=1;     shift   ;;
         --ui-port)    UI_PORT="$2";   shift 2 ;;
         --)           shift; PREPARE_ARGS+=("$@"); break ;;

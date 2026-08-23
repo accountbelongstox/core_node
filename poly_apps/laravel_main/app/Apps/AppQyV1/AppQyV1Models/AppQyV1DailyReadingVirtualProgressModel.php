@@ -11,6 +11,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
         'batch_name',
         'language_code',
         'words',
+        'requests',
         'total_words',
     ];
 
@@ -19,6 +20,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
         return [
             'user_id' => 'integer',
             'words' => 'array',
+            'requests' => 'array',
             'total_words' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -43,6 +45,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
             'batch_name' => $batchName,
             'language_code' => $languageCode,
             'words' => json_encode([], JSON_THROW_ON_ERROR),
+            'requests' => json_encode([], JSON_THROW_ON_ERROR),
             'total_words' => 0,
             'created_at' => $timestamp,
             'updated_at' => $timestamp,
@@ -78,11 +81,27 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
         return $counts;
     }
 
-    public function recordReads(array $wordIds): int
+    public function requestWordIds(string $requestKey): ?array
+    {
+        $requests = is_array($this->requests) ? $this->requests : [];
+        $request = $requests[$requestKey] ?? null;
+
+        return is_array($request) && is_array($request['word_ids'] ?? null)
+            ? array_values(array_map('intval', $request['word_ids']))
+            : null;
+    }
+
+    public function recordReads(array $wordIds, ?string $requestKey = null): int
     {
         $counts = $this->readCounts();
+        $requests = is_array($this->requests) ? $this->requests : [];
         $uniqueWordIds = [];
         $changed = 0;
+        $normalizedRequestKey = trim((string) $requestKey);
+
+        if ($normalizedRequestKey !== '' && array_key_exists($normalizedRequestKey, $requests)) {
+            return 0;
+        }
 
         foreach ($wordIds as $wordId) {
             $normalizedWordId = (int) $wordId;
@@ -94,8 +113,18 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
             $counts[$wordId] = ((int) ($counts[$wordId] ?? 0)) + 1;
             $changed++;
         }
-        if ($changed > 0) {
+        if ($normalizedRequestKey !== '') {
+            $requests[$normalizedRequestKey] = [
+                'word_ids' => array_values(array_map('intval', array_keys($uniqueWordIds))),
+                'created_at' => now()->toIso8601String(),
+            ];
+            if (count($requests) > 500) {
+                $requests = array_slice($requests, -500, null, true);
+            }
+        }
+        if ($changed > 0 || $normalizedRequestKey !== '') {
             $this->words = $counts;
+            $this->requests = $requests;
             $this->total_words = count($counts);
             $this->save();
         }

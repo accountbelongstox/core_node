@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookReadingProgressService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingResourceService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingVirtualProgressService;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel;
 
 class AppQyV1BookReadingProgressController extends Controller
 {
@@ -23,6 +24,7 @@ class AppQyV1BookReadingProgressController extends Controller
     private const RESOURCE_PREVIEW_RULES = [
         'group_id' => 'nullable|string|max:64',
         'batch_name' => 'nullable|string|max:64',
+        'request_key' => 'nullable|string|max:96',
         'settings' => 'nullable|array:playbackMode,wordMode,wordOrder,newOnlyMaxReadCount,underlineCurrentSentence,bilingual,sentenceRate,wordRate,playbackPattern',
         'settings.playbackMode' => 'nullable|string|in:sequential,repeat-all,repeat-one,shuffle',
         'settings.wordMode' => 'nullable|string|in:off,new,all',
@@ -201,6 +203,31 @@ class AppQyV1BookReadingProgressController extends Controller
 
     public function showDailyReadingResourcePreview(Request $request, string $articleId): JsonResponse
     {
+        return $this->resourcePreviewForUsername($request, $articleId, false);
+    }
+
+    public function showAgentHistoryVideoResources(Request $request, string $articleId): JsonResponse
+    {
+        $article = AppQyV1ArticleModel::findByArticleId($articleId);
+        $metadata = [];
+
+        if ($article === null) {
+            return $this->error(__('article.daily_reading_not_found'), 404);
+        }
+        $article = AppQyV1ArticleModel::resolveCanonicalArticle($article);
+        $metadata = is_array($article->metadata) ? $article->metadata : [];
+        if (!$article->isAgentHistoryDaily() || ($metadata['tts_chunked'] ?? false) !== true) {
+            return $this->error(__('article.daily_reading_not_found'), 404);
+        }
+
+        return $this->resourcePreviewForUsername($request, (string) $article->article_id, true);
+    }
+
+    private function resourcePreviewForUsername(
+        Request $request,
+        string $articleId,
+        bool $requireRequestKey
+    ): JsonResponse {
         $username = '';
         $settingsJson = '';
         $settings = null;
@@ -209,6 +236,7 @@ class AppQyV1BookReadingProgressController extends Controller
         $validated = [];
         $user = null;
         $preview = null;
+        $rules = [];
 
         $username = trim((string) $request->query('username', ''));
         $settingsJson = (string) $request->query('settings', '');
@@ -220,12 +248,17 @@ class AppQyV1BookReadingProgressController extends Controller
                 'batch_name',
                 AppQyV1DailyReadingVirtualProgressService::DEFAULT_BATCH_NAME
             ),
+            'request_key' => $request->query('request_key'),
             'settings' => is_array($settings) ? $settings : null,
         ];
-        $validator = Validator::make($payload, [
+        $rules = [
             'username' => 'required|string|max:255',
             ...self::RESOURCE_PREVIEW_RULES,
-        ]);
+        ];
+        if ($requireRequestKey) {
+            $rules['request_key'] = 'required|string|max:96';
+        }
+        $validator = Validator::make($payload, $rules);
         if ($validator->fails()) {
             return $this->error(
                 __('article.daily_reading_preview_validation', ['message' => $validator->errors()->first()]),
@@ -245,7 +278,8 @@ class AppQyV1BookReadingProgressController extends Controller
             is_array($validated['settings'] ?? null) ? $validated['settings'] : [],
             isset($validated['group_id']) ? (string) $validated['group_id'] : null,
             (string) ($validated['batch_name'] ?? AppQyV1DailyReadingVirtualProgressService::DEFAULT_BATCH_NAME),
-            true
+            true,
+            isset($validated['request_key']) ? (string) $validated['request_key'] : null
         );
         if ($preview === null) {
             return $this->error(__('article.daily_reading_not_found'), 404);

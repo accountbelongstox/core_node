@@ -33,6 +33,11 @@ Route::prefix($apiVersionPrefix)->group(function () {
     ])->middleware('signed:relative')
         ->name('app_qy_v1.daily-reading.resource-preview-json');
 
+    Route::get('/user/agent-history/{articleId}/video-resources.json', [
+        AppQyV1BookReadingProgressController::class,
+        'showAgentHistoryVideoResources',
+    ])->middleware('throttle:30,1');
+
     Route::prefix('user')->middleware('auth:sanctum')->group(function () {
 
         Route::get('/initialization-status', [AppQyV1UserInitializationController::class, 'status']);

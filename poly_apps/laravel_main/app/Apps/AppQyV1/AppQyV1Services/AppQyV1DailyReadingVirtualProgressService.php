@@ -22,7 +22,8 @@ class AppQyV1DailyReadingVirtualProgressService
         array $rows,
         int $maxReadCount,
         callable $selector,
-        bool $consume
+        bool $consume,
+        ?string $requestKey = null
     ): array {
         $normalizedBatchName = $this->normalizeBatchName($batchName);
         $progress = null;
@@ -57,6 +58,7 @@ class AppQyV1DailyReadingVirtualProgressService
             $rows,
             $maxReadCount,
             $selector
+            ,$requestKey
         ): array {
             AppQyV1DailyReadingVirtualProgressModel::createMissingForBatch(
                 $userId,
@@ -69,6 +71,19 @@ class AppQyV1DailyReadingVirtualProgressService
                 $languageCode
             );
 
+            $requestWordIds = trim((string) $requestKey) !== '' && $progress !== null
+                ? $progress->requestWordIds(trim((string) $requestKey))
+                : null;
+            if ($requestWordIds !== null) {
+                return $this->replaySelection(
+                    $normalizedBatchName,
+                    $languageCode,
+                    $rows,
+                    $requestWordIds,
+                    $progress
+                );
+            }
+
             return $this->buildSelection(
                 $normalizedBatchName,
                 $languageCode,
@@ -76,7 +91,8 @@ class AppQyV1DailyReadingVirtualProgressService
                 $maxReadCount,
                 $selector,
                 $progress,
-                true
+                true,
+                $requestKey
             );
         });
     }
@@ -88,7 +104,8 @@ class AppQyV1DailyReadingVirtualProgressService
         int $maxReadCount,
         callable $selector,
         ?AppQyV1DailyReadingVirtualProgressModel $progress,
-        bool $consume
+        bool $consume,
+        ?string $requestKey = null
     ): array {
         $countsBefore = $progress?->readCounts() ?? [];
         $projectedRows = $this->overlayReadCounts($rows, $countsBefore, $maxReadCount);
@@ -104,7 +121,7 @@ class AppQyV1DailyReadingVirtualProgressService
                     $selectedWordIds[] = $wordId;
                 }
             }
-            $recordedWordCount = $progress->recordReads($selectedWordIds);
+            $recordedWordCount = $progress->recordReads($selectedWordIds, $requestKey);
             $countsAfter = $progress->readCounts();
         }
 
@@ -114,11 +131,51 @@ class AppQyV1DailyReadingVirtualProgressService
                 'name' => $batchName,
                 'language' => $languageCode,
                 'consumed' => $consume,
+                'idempotent_replay' => false,
                 'recorded_word_count' => $recordedWordCount,
                 'read_word_count_before' => count($countsBefore),
                 'read_word_count_after' => count($countsAfter),
                 'read_event_count_before' => array_sum($countsBefore),
                 'read_event_count_after' => array_sum($countsAfter),
+            ],
+        ];
+    }
+
+    private function replaySelection(
+        string $batchName,
+        string $languageCode,
+        array $rows,
+        array $wordIds,
+        AppQyV1DailyReadingVirtualProgressModel $progress
+    ): array {
+        $byId = [];
+        $selectedWords = [];
+        $counts = $progress->readCounts();
+
+        foreach ($rows as $row) {
+            $wordId = (int) ($row['dictionary_word_id'] ?? 0);
+            if ($wordId > 0) {
+                $byId[$wordId] = $row;
+            }
+        }
+        foreach ($wordIds as $wordId) {
+            if (isset($byId[(int) $wordId])) {
+                $selectedWords[] = $byId[(int) $wordId];
+            }
+        }
+
+        return [
+            'selected_words' => $selectedWords,
+            'batch' => [
+                'name' => $batchName,
+                'language' => $languageCode,
+                'consumed' => false,
+                'idempotent_replay' => true,
+                'recorded_word_count' => 0,
+                'read_word_count_before' => count($counts),
+                'read_word_count_after' => count($counts),
+                'read_event_count_before' => array_sum($counts),
+                'read_event_count_after' => array_sum($counts),
             ],
         ];
     }

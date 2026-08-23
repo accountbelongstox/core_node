@@ -118,7 +118,14 @@ class ASSSubtitleWriter:
         start = self._timestamp(max(0.0, cue.start))
         end = self._timestamp(max(0.0, cue.end))
         position = ""
-        if cue.style.position is not None:
+        if cue.motion is not None:
+            start_x, start_y = cue.motion.start
+            end_x, end_y = cue.motion.end
+            position = (
+                f"{{\\move({start_x},{start_y},{end_x},{end_y},"
+                f"{max(0, cue.motion.start_ms)},{max(0, cue.motion.end_ms)})}}"
+            )
+        elif cue.style.position is not None:
             x, y = cue.style.position
             position = f"{{\\pos({x},{y})}}"
         text = position + self._text(cue.text)

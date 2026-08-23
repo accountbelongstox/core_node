@@ -35,7 +35,8 @@ class AppQyV1DailyReadingResourceService
         array $requestedSettings = [],
         ?string $requestedGroupId = null,
         ?string $batchName = null,
-        bool $consumeVirtualReads = false
+        bool $consumeVirtualReads = false,
+        ?string $requestKey = null
     ): ?array {
         $article = null;
         $articlePayload = [];
@@ -104,7 +105,8 @@ class AppQyV1DailyReadingResourceService
                 (int) $user->id,
                 $articleId
             ),
-            $consumeVirtualReads
+            $consumeVirtualReads,
+            $requestKey
         );
         $selectedWords = $selection['selected_words'];
         $virtualReadBatch = $selection['batch'];

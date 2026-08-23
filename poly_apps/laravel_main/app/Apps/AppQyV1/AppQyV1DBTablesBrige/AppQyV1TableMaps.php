@@ -133,6 +133,7 @@ class AppQyV1TableMaps extends TableMaps
             'group_id' => 'group_id',
             'language_code' => 'language_code',
             'words' => 'words',
+            'requests' => 'requests',
             'total_words' => 'total_words',
             'shuffled_at' => 'shuffled_at',
             'created_at' => 'created_at',

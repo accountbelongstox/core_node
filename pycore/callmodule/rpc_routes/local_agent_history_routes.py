@@ -27,6 +27,7 @@ def register_local_agent_history_routes(server) -> None:
         (route_names.UI_AGENT_HISTORY_ARTICLE_RECORDS, agent_history_ui_service.article_records),
         (route_names.UI_AGENT_HISTORY_ARTICLE_RECORD_ID_PAGES, agent_history_ui_service.article_record_id_pages),
         (route_names.UI_AGENT_HISTORY_ARTICLE_RECORD_PAGE, agent_history_ui_service.article_record_page),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_VIDEO_MEDIA, agent_history_ui_service.article_video_media),
         (route_names.UI_AGENT_HISTORY_TEST_EXTRACT, agent_history_ui_service.test_extract),
     )
     server.register_routes(routes, group="agent_history")

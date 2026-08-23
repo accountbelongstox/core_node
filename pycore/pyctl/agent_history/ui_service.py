@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Agent History workflows exposed to the Pycore UI."""
 
+import base64
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -380,6 +381,21 @@ def article_record_page(params: Any, _request_id: str) -> Dict[str, Any]:
     rows = article_record_store.get_records(_id_list(request))
     return {"success": True, "data": {"items": rows, "total": len(rows)}}
 
+def article_video_media(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    record_id = str(request.get("id") or "")
+    content = article_record_store.read_video(record_id)
+    if content is None:
+        return {"success": False, "error": "video not found"}
+    return {
+        "success": True,
+        "data": {
+            "media_type": "video/mp4",
+            "content_base64": base64.b64encode(content).decode("ascii"),
+            "bytes": len(content),
+        },
+    }
+
 def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
     tool = str(request.get("tool") or "")
@@ -388,4 +404,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "test_extract"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "test_extract"]

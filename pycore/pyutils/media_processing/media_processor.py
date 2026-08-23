@@ -76,6 +76,38 @@ class MediaProcessor:
             output_validator=validator,
         )
 
+    def normalize_audio(
+        self,
+        source: str | Path,
+        output: str | Path,
+        rate: float = 1.0,
+        sample_rate: int = 48000,
+        channels: int = 2,
+    ) -> FFmpegCommandResult:
+        arguments = ffmpeg_command_builder.normalize_audio(source, rate, sample_rate, channels)
+        return ffmpeg_runtime.execute_output_step(
+            arguments,
+            output,
+            expected_streams=("audio",),
+            output_validator=ffmpeg_output_validator.audio("aac", sample_rate, channels),
+        )
+
+    def concat_audio(
+        self,
+        manifest: str | Path,
+        output: str | Path,
+        sample_rate: int = 48000,
+        channels: int = 2,
+    ) -> FFmpegCommandResult:
+        arguments = ffmpeg_command_builder.concat_audio(manifest, sample_rate, channels)
+        return ffmpeg_runtime.execute_output_step(
+            arguments,
+            output,
+            dependencies=(manifest,),
+            expected_streams=("audio",),
+            output_validator=ffmpeg_output_validator.audio("aac", sample_rate, channels),
+        )
+
     def convert_pcm(
         self,
         source: str | Path,
