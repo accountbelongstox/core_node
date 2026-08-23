@@ -32,7 +32,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyutils.common.service_contract import port
+from pycore.pyfoundations.service_contract import port
 
 
 def ensure_stdio_has_buffer_attributes():

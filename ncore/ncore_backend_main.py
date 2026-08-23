@@ -35,7 +35,7 @@ FastAPI = fastapi.FastAPI
 APIRouter = fastapi.APIRouter
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.service_contract import build_url, host, port
+from pycore.pyfoundations.service_contract import build_url, host, port
 
 NCORE_HOST = host("localhost")
 NCORE_PORT = port("ncore_backend")

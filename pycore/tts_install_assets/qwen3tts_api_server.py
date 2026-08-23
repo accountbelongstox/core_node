@@ -124,21 +124,15 @@ _DEFAULT_HOST = "0.0.0.0"
 _MANAGED_CODE_ID = os.environ.get("PYCORE_MANAGED_CODE_ID") or ""
 _PYCORE_MODULE_NAME = "pycore"
 _PYFOUNDATIONS_MODULE_NAME = "pycore.pyfoundations"
+_PYCORE_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+_PYFOUNDATIONS_PACKAGE_ROOT = _PYCORE_PACKAGE_ROOT / "pyfoundations"
 _NETWORK_CONSTANTS_MODULE_NAME = "pycore.pyfoundations.network_constants"
-_NETWORK_CONSTANTS_MODULE_PATH = (
-    Path(__file__).resolve().parents[1] / "pyfoundations" / "network_constants.py"
-)
+_NETWORK_CONSTANTS_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "network_constants.py"
 _HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
-_HTTP_SSE_MODULE_PATH = (
-    Path(__file__).resolve().parents[1] / "pyfoundations" / "http_sse.py"
-)
+_HTTP_SSE_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "http_sse.py"
 _HTTP_EVENT_MODULE_NAME = "_qwen3tts_http_event_service"
 _HTTP_EVENT_MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "pyutils"
-    / "rpc_v2"
-    / "http"
-    / "event_service.py"
+    _PYCORE_PACKAGE_ROOT / "pyutils" / "rpc_v2" / "http" / "event_service.py"
 )
 
 
@@ -159,12 +153,12 @@ def _register_pycore_namespace() -> None:
     pycore_module = sys.modules.get(_PYCORE_MODULE_NAME)
     if pycore_module is None:
         pycore_module = ModuleType(_PYCORE_MODULE_NAME)
-        pycore_module.__path__ = []
+        pycore_module.__path__ = [str(_PYCORE_PACKAGE_ROOT)]
         sys.modules[_PYCORE_MODULE_NAME] = pycore_module
     pyfoundations_module = sys.modules.get(_PYFOUNDATIONS_MODULE_NAME)
     if pyfoundations_module is None:
         pyfoundations_module = ModuleType(_PYFOUNDATIONS_MODULE_NAME)
-        pyfoundations_module.__path__ = []
+        pyfoundations_module.__path__ = [str(_PYFOUNDATIONS_PACKAGE_ROOT)]
         sys.modules[_PYFOUNDATIONS_MODULE_NAME] = pyfoundations_module
     pycore_module.pyfoundations = pyfoundations_module
 

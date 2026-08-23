@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pycore.pyutils.common.service_contract import host, port
+from pycore.pyfoundations.service_contract import host, port
 
 class ServiceDiscoveryConstants:
     SERVICE_NAME = "ServiceDiscovery"

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Central code-backed service and worker configuration."""
 
-from pycore.pyutils.common.service_contract import service_domain
+from pycore.pyfoundations.service_contract import service_domain
 
 
 LARAVEL_WORKER_API_URL = f"https://{service_domain('laravel_api')}"
