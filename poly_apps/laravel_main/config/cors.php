@@ -8,6 +8,7 @@
 // VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
+use App\Support\ServiceContract;
 
 return [
 
@@ -28,7 +29,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => ServiceContract::webAccessStringList('corsOrigins'),
 
     'allowed_origins_patterns' => [],
 

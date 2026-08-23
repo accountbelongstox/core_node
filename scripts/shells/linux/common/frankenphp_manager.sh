@@ -65,6 +65,8 @@ source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_CURRENT_DIR/service_contract_common.sh"
 # shellcheck source=/dev/null
+source "$SCRIPT_CURRENT_DIR/web_access_common.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_CURRENT_DIR/frankenphp_install_modes.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_CURRENT_DIR/frankenphp_static_builder.sh"
@@ -875,23 +877,18 @@ fm_dnspod_token_ensure() {
 # branches and the Mercure issuer wiring: first configured
 # api.<region>.<domain>, else localhost. An already-set FRANKENPHP_SITE_HOST
 # env wins over the resolver. The region prefix and domain list self-resolve
-# from the shared file-backed store (DOMAIN_API_REGION_PREFIX /
-# DOMAINS_LISTS_CONTENT, written by domain_setup_persist_state on BOTH
-# planes), so callers in separate processes never re-pass them as env.
+# from the shared file-backed store and service contract, so callers in
+# separate processes never re-pass them as env.
 fm_site_host() {
     local first_domain=""
     local prefix="${DOMAIN_API_PREFIX:-}"
-    local domains="${DOMAIN_DOMAINS_LIST:-}"
 
     if [ -z "$prefix" ]; then
         prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
     fi
-    if [ -z "$domains" ]; then
-        domains="$(get_global_var "DOMAINS_LISTS_CONTENT" "")"
-    fi
 
-    if [ "${DOMAIN_SCOPE:-none}" != "none" ] && [ -n "$prefix" ] && [ -n "$domains" ]; then
-        first_domain="$(printf '%s\n' "$domains" | head -n1)"
+    if [ "${DOMAIN_SCOPE:-none}" != "none" ] && [ -n "$prefix" ]; then
+        first_domain="$(web_access_first_domain)"
         if [ -n "$first_domain" ]; then
             echo "api.${prefix}.${first_domain}"
             return
@@ -1219,7 +1216,7 @@ fm_mercure_config() {
     fi
     cookie_name="$(sc_require realtime.mercure_cookie)"
     mercure_transport="$(sc_require realtime.mercure_transport)"
-    cors_origins="$(sc_list realtime.mercure_cors_origins)"
+    cors_origins="$(web_access_config_list corsOrigins)"
     if [ -z "$cookie_name" ] || [ -z "$mercure_transport" ] || [ -z "$cors_origins" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] Mercure service contract is incomplete"
     else
@@ -1273,7 +1270,7 @@ fm_caddyfile_render() {
     local bind_host=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
-    internal_tls_host="$(sc_require hosts.frankenphp_internal_tls)"
+    internal_tls_host="$(sc_require hosts.localhost)"
     bind_host="$(sc_require hosts.any)"
     backend_port="$(sc_require ports.laravel_api_backend)"
     # One direct-backend hub owns the transport and native PHP publisher.

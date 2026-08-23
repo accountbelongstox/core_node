@@ -9,7 +9,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
  *   - at most ONE wildcard per name, as the entire leftmost label
  *     ("*.example.com" valid; "*.*.example.com" / "foo.*.example.com" invalid)
  *   - a wildcard covers exactly ONE label level: "*.12gm.com" covers
- *     "api.12gm.com" but NOT "api.si.12gm.com" — deeper coverage is only
+ *     "api.example.com" but NOT "api.si.example.com" — deeper coverage is only
  *     possible by enumerating one wildcard per region prefix
  *     ("*.si.12gm.com"), which is exactly what expand() generates
  *   - <= 100 SAN entries per certificate; name <= 253 chars; label <= 63
@@ -74,7 +74,7 @@ final class ServerManagerV1DomainExpander
     /**
      * Resolve the registrable base for expansion: strips the wildcard marker
      * and any leading labels that are known region prefixes
-     * (api.si.12gm.com -> 12gm.com). Without a Public Suffix List dependency
+     * (api.si.example.com -> example.com). Without a Public Suffix List dependency
      * an arbitrary subdomain (www.12gm.com) cannot be resolved to its apex —
      * pass apex/base domains whenever possible.
      */

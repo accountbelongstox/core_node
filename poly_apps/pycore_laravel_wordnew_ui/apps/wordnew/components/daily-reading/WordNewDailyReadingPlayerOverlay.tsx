@@ -13,6 +13,7 @@ import { WordNewDailyReadingRateInput } from './WordNewDailyReadingRateInput';
 import { WordNewDailyReadingEnglishResourceBar } from './WordNewDailyReadingEnglishResourceBar';
 import { countSentenceWordsAddedToTargetGroup } from '../../services/WordNewSentenceWordTable';
 import { useAutoCollapseWhilePlaying } from '../../hooks/useAutoCollapseWhilePlaying';
+import { WordNewDailyReadingResourcePreview } from './WordNewDailyReadingResourcePreview';
 
 interface Props {
   player: DailyReadingPlayer;
@@ -148,6 +149,11 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
               </button>
             </div>
             <div className="flex items-center gap-1.5">
+              <WordNewDailyReadingResourcePreview
+                articleId={current.id}
+                settings={player}
+                trans={trans}
+              />
               <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
                 {index + 1} / {list.length}
               </span>

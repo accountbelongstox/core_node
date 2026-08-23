@@ -56,6 +56,7 @@ interface WfNewHomeDashboardProps {
   languageOptions: WfNewLanguage[];
   /** Persist settings when logged in, or prompt login when not (WfNewApp decides). */
   onSave: (next: { targetLang: string; dailyGoal: number }) => void;
+  onOpenGroup: () => void;
 }
 
 /** Compact KPI tile. */
@@ -70,7 +71,7 @@ const Kpi: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNo
 
 export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
   activeTheme, trans, lang, isLoggedIn, nickname, avatarUrl, stats, groupName, groupCount,
-  targetLang, dailyGoal, languageOptions, onSave,
+  targetLang, dailyGoal, languageOptions, onSave, onOpenGroup,
 }) => {
   // Local editable draft (kept in sync when the upstream values change).
   const [draftLang, setDraftLang] = useState(targetLang);
@@ -237,10 +238,15 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           {/* Current group (read-only) */}
           <div className="block">
             <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1"><BookOpen className="w-3 h-3" /> {trans('home.currentGroup')}</span>
-            <div className="mt-1.5 py-2 px-3 rounded-xl bg-white/5 border border-white/5">
+            <button
+              type="button"
+              onClick={onOpenGroup}
+              className="mt-1.5 w-full py-2 px-3 rounded-xl bg-white/5 border border-white/5 text-left hover:border-indigo-500/30 hover:bg-indigo-500/10 transition-colors"
+              title={trans('home.openCurrentGroup')}
+            >
               <div className="text-xs font-black truncate text-slate-100">{groupName || '—'}</div>
-              <div className="text-[10px] text-zinc-500 font-mono">{groupCount} {trans('profile.wordsUnit')}</div>
-            </div>
+              <div className="text-[10px] text-indigo-300 font-mono underline decoration-indigo-500/40 underline-offset-2">{groupCount} {trans('profile.wordsUnit')}</div>
+            </button>
           </div>
         </div>
 

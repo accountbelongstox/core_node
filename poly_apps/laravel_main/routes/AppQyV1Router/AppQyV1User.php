@@ -76,5 +76,6 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'getDailyReading']);
         Route::put('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'saveDailyReading']);
         Route::post('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'saveDailyReading']);
+        Route::post('/daily-reading/{articleId}/resource-preview', [AppQyV1BookReadingProgressController::class, 'previewDailyReadingResources']);
     });
 });

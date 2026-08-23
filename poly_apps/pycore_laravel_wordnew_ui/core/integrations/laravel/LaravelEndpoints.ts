@@ -4,7 +4,8 @@
  */
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
-import { resolveApiHostname } from '../../contracts/DomainConfig';
+import { getWebAccessConfig, resolveApiHostname } from '../../contracts/DomainConfig';
+import { LARAVEL_API_BACKEND_PORT } from '../../contracts/ServiceContract';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 
@@ -28,19 +29,52 @@ export interface ApiEndpointsConfig {
 }
 
 /** Laravel Octane API port — independent of the FE shell port (e.g. :13054). */
-export const FIXED_API_PORT = 9000;
+export const FIXED_API_PORT = LARAVEL_API_BACKEND_PORT;
+
+function isLocalHostname(hostname: string): boolean {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || /^192\.168\./.test(hostname)
+    || /^10\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    || /^100\./.test(hostname);
+}
+
+function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
+  const config = getWebAccessConfig();
+  const endpoints = config.domains.map((domain, index): BackendApiEndpoint => ({
+    id: index === 0 ? 'primary-remote' : index === 1 ? 'secondary-remote' : `remote-domain-${index + 1}`,
+    url: `api.${config.apiRegionPrefix}.${domain}`,
+    protocol: 'https',
+    priority: index === 0 ? 1 : index === 1 ? 6 : 10 + index,
+    isLocal: false,
+    description: domain,
+  }));
+  config.serviceHostKeys.laravelApi.forEach((key, index) => {
+    const host = config.hosts[key];
+    endpoints.push({
+      id: `configured-api-${key}`,
+      url: host,
+      protocol: 'http',
+      port: FIXED_API_PORT,
+      priority: 20 + index,
+      isLocal: isLocalHostname(host),
+      description: key,
+    });
+  });
+
+  return endpoints;
+}
+
+function getBuiltInEndpoints(): BackendApiEndpoint[] {
+  return [...GLOBAL_API_ENDPOINTS.endpoints, ...getConfiguredApiEndpoints()];
+}
 
 function createCurrentOriginEndpoint(
   hostname: string,
   protocol: 'http' | 'https',
 ): BackendApiEndpoint {
-  const isLocal =
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    /^192\.168\./.test(hostname) ||
-    /^10\./.test(hostname) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-    /^100\./.test(hostname);
+  const isLocal = isLocalHostname(hostname);
 
   // HTTPS on a public origin: the api.<prefix>.<domain> nginx site serves
   // the API on 443, so the :9000 backend port is NEVER appended; the region
@@ -89,87 +123,7 @@ export function getCurrentOriginEndpoint(): BackendApiEndpoint | null {
  * Global API endpoints configuration
  */
 export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
-  endpoints: [
-    {
-      id: 'primary-remote',
-      url: 'api.si.12gm.com',
-      protocol: 'https',
-      priority: 1,
-      isLocal: false,
-      description: 'Primary Remote API Server'
-    },
-    {
-      id: 'localhost',
-      url: 'localhost',
-      protocol: 'http',
-      port: 9000,
-      priority: 2,
-      isLocal: true,
-      description: 'Localhost API Server'
-    },
-    {
-      id: 'local-ip-50-3',
-      url: '192.168.50.3',
-      protocol: 'http',
-      port: 9000,
-      priority: 3,
-      isLocal: true,
-      description: 'Local IP 192.168.50.3'
-    },
-    {
-      id: 'local-ip-50-2',
-      url: '192.168.50.2',
-      protocol: 'http',
-      port: 9000,
-      priority: 4,
-      isLocal: true,
-      description: 'Local IP 192.168.50.2'
-    },
-    {
-      id: 'remote-cloud-43',
-      url: '43.163.112.77',
-      protocol: 'http',
-      port: 9000,
-      priority: 5,
-      isLocal: false,
-      description: 'Remote API Server 43.163.112.77'
-    },
-    {
-      id: 'secondary-remote',
-      url: 'api.si.gm15.com',
-      protocol: 'https',
-      priority: 6,
-      isLocal: false,
-      description: 'Secondary Remote API Server'
-    },
-    {
-      id: 'loopback',
-      url: '127.0.0.1',
-      protocol: 'http',
-      port: FIXED_API_PORT,
-      priority: 7,
-      isLocal: true,
-      description: `Loopback 127.0.0.1:${FIXED_API_PORT}`
-    },
-    {
-      id: 'tailnet-1',
-      url: '100.101.149.39',
-      protocol: 'http',
-      port: FIXED_API_PORT,
-      priority: 8,
-      isLocal: true,
-      description: `Mesh node 100.101.149.39:${FIXED_API_PORT}`
-    },
-    {
-      id: 'tailnet-2',
-      url: '100.106.85.16',
-      protocol: 'http',
-      port: FIXED_API_PORT,
-      priority: 9,
-      isLocal: true,
-      description: `Mesh node 100.106.85.16:${FIXED_API_PORT}`
-    }
-  ],
+  endpoints: [],
   // Default ALL-Offline retry interval for this end (laravel-manager). While
   // every endpoint is Offline the end re-probes at this cadence and stops as
   // soon as one recovers; a healthy backend is never polled. Overridable per
@@ -230,7 +184,7 @@ function writeCustomEndpoints(list: BackendApiEndpoint[]): void {
 
 /** User-added endpoints only (already de-duplicated against built-ins). */
 export function getCustomEndpoints(): BackendApiEndpoint[] {
-  const builtinKeys = new Set(GLOBAL_API_ENDPOINTS.endpoints.map(endpointKey));
+  const builtinKeys = new Set(getBuiltInEndpoints().map(endpointKey));
   // Drop any custom entry that collides with a built-in (built-in wins).
   return readCustomEndpoints().filter(e => !builtinKeys.has(endpointKey(e)));
 }
@@ -243,7 +197,7 @@ export function isCustomEndpoint(id: string): boolean {
 export function getMergedEndpoints(): BackendApiEndpoint[] {
   const seen = new Set<string>();
   const merged: BackendApiEndpoint[] = [];
-  for (const e of [...GLOBAL_API_ENDPOINTS.endpoints, ...getCustomEndpoints()]) {
+  for (const e of [...getBuiltInEndpoints(), ...getCustomEndpoints()]) {
     const k = endpointKey(e);
     if (seen.has(k)) continue;       // no redundant duplicates
     seen.add(k);

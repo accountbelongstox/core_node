@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Shared domain setup library. Single source of truth for:
-# - reading DNSPod secrets (DNSPOD_EMAILS / DNS_DNSPOD_API_TOKENS / DOMAINS_LISTS)
+# - reading DNSPod credentials and the global service contract domain inventory
 # - region-prefix selection (si/sh/sz/hk/custom) persisted in the file-backed
 #   global-var store, so later runs only ask whether to modify
 # - idempotent nginx site install for api.<prefix>.<domain> AND the bare apex
@@ -36,6 +36,8 @@ DOMAIN_SETUP_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$DOMAIN_SETUP_COMMON_DIR/service_contract_common.sh"
 # shellcheck source=/dev/null
+source "$DOMAIN_SETUP_COMMON_DIR/web_access_common.sh"
+# shellcheck source=/dev/null
 source "$DOMAIN_SETUP_COMMON_DIR/nginx_common.sh"
 
 DOMAIN_SETUP_REPO_ROOT="$(cd "$DOMAIN_SETUP_COMMON_DIR/../../../.." && pwd)"
@@ -44,19 +46,7 @@ DOMAIN_SETUP_SECRETS_DIR="$DOMAIN_SETUP_CORE_NODE_DIR/.secret_keys/.secret_ignor
 DOMAIN_SETUP_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/$(sc_get paths.global_var_dir_name)"
 DOMAIN_API_PREFIX_KEY="DOMAIN_API_REGION_PREFIX"
 DOMAIN_UI_BINDING_KEY="DOMAIN_UI_BINDING"
-# External allowed-hosts file consumed by the dashboard vite.config.ts
-# (server.allowedHosts / preview.allowedHosts). One hostname per line; the
-# Vite config keeps its defaults when this file is absent, so the config
-# file itself is never rewritten for dynamic domains.
-DOMAIN_UI_ALLOWED_HOSTS_FILE="$DOMAIN_SETUP_GLOBAL_VAR_DIR/$(sc_get files.ui_allowed_hosts)"
-# systemd unit of the dashboard dev server (registered by the app start.sh).
-# vite reads the allowed-hosts file ONCE at startup, so a content change must
-# be followed by a restart of this unit or bound domains keep answering 403.
 DOMAIN_UI_SERVICE_NAME="ncore-nexus-dash"
-# Shell-written UI domain config (api region prefix) consumed by the dashboard
-# vite middleware, which serves it same-origin and re-reads it per request, so
-# a content change needs NO UI service restart (unlike the allowed-hosts file).
-DOMAIN_UI_DOMAIN_CONFIG_FILE="$DOMAIN_SETUP_GLOBAL_VAR_DIR/$(sc_get files.ui_domain_config)"
 
 # Canonical backend URLs resolve from the central service contract
 # (config/service_contract.json) at CALL time via the shell adapter - ports
@@ -169,14 +159,10 @@ domain_setup_load_secrets() {
         return 1
     fi
 
-    secret_file="$DOMAIN_SETUP_SECRETS_DIR/DOMAINS_LISTS"
-    if [ ! -f "$secret_file" ]; then
-        echo "[domain] ERROR: DOMAINS_LISTS not found: $secret_file"
-        return 1
-    fi
-    DOMAIN_DOMAINS_LIST=$(tr -d '\0' < "$secret_file" | tr -d '\r' | sed '/^\s*$/d')
+    web_access_resolve
+    DOMAIN_DOMAINS_LIST="$WEB_ACCESS_DOMAINS"
     if [ -z "$DOMAIN_DOMAINS_LIST" ]; then
-        echo "[domain] ERROR: DOMAINS_LISTS is empty"
+        echo "[domain] ERROR: service contract has no valid root domains"
         return 1
     fi
 
@@ -266,7 +252,6 @@ domain_setup_ensure_prefix() {
 # file-backed store (one key per file, loaded via domain_state_get).
 domain_setup_persist_state() {
     domain_state_set "SELECTED_PREFIXES" "$DOMAIN_API_PREFIX"
-    domain_state_set "DOMAINS_LISTS_CONTENT" "$DOMAIN_DOMAINS_LIST"
     domain_state_set "DNSPOD_EMAIL" "$DOMAIN_DNSPOD_EMAIL"
     domain_state_set "DNSPOD_API_TOKEN" "$DOMAIN_DNSPOD_TOKEN"
     domain_state_set "PHP_VERSION" "$(php_script_run 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo 8.4)"
@@ -421,48 +406,12 @@ domain_setup_ensure_www_site() {
         "www.$domain $DOMAIN_API_PREFIX.$domain www.$DOMAIN_API_PREFIX.$domain"
 }
 
-# Idempotently (re)write the dashboard allowed-hosts file (one hostname per
-# line: apex + www.<domain> + <prefix>.<domain> + www.<prefix>.<domain> for
-# every bound domain).
-# Content-hash idempotent via write_file_if_changed; the Vite config reads
-# this constant path and keeps its defaults while the file is absent.
-domain_setup_write_ui_allowed_hosts() {
-    local domain
-    local write_output
-
-    write_output=$({
-        while IFS= read -r domain; do
-            [ -z "$domain" ] && continue
-            echo "$domain"
-            echo "www.$domain"
-            echo "$DOMAIN_API_PREFIX.$domain"
-            echo "www.$DOMAIN_API_PREFIX.$domain"
-        done <<< "$DOMAIN_DOMAINS_LIST"
-    } | write_file_if_changed "$DOMAIN_UI_ALLOWED_HOSTS_FILE")
-    echo "$write_output"
-    echo "[domain] [OK] UI allowed hosts file: $DOMAIN_UI_ALLOWED_HOSTS_FILE"
-
-    # vite reads this file ONCE at startup; when the content changed the
-    # running dashboard keeps the old host list (new domains answer 403), so
-    # the service must be restarted to re-read it. No-op when [SKIP]ped.
-    case "$write_output" in
-        *written*) domain_setup_restart_ui_service ;;
-    esac
-    return 0
-}
-
-# Idempotently (re)write the UI domain config JSON carrying the API region
-# prefix the frontend uses to build api.<prefix>.<domain> endpoints for HTTPS
-# current-URL origins. Content-hash idempotent; the vite middleware re-reads
-# the file on EVERY request, so no service restart is required.
-domain_setup_write_ui_domain_config() {
-    local write_output
-
-    write_output=$(printf '{"apiRegionPrefix":"%s"}\n' "$DOMAIN_API_PREFIX" \
-        | write_file_if_changed "$DOMAIN_UI_DOMAIN_CONFIG_FILE")
-    echo "$write_output"
-    echo "[domain] [OK] UI domain config file: $DOMAIN_UI_DOMAIN_CONFIG_FILE"
-    return 0
+domain_setup_write_web_access_config() {
+    WEB_ACCESS_API_REGION_PREFIX="$DOMAIN_API_PREFIX"
+    web_access_config_ensure
+    if [ "$WEB_ACCESS_CONFIG_CHANGED" = "true" ]; then
+        domain_setup_restart_ui_service
+    fi
 }
 
 # Restart the dashboard service so vite re-reads a changed allowed-hosts
@@ -473,17 +422,17 @@ domain_setup_restart_ui_service() {
     sudo_cmd=$(lazy_sudo)
 
     if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
-        echo "[domain] [WARN] UI allowed hosts changed but systemd is unavailable; restart the dashboard so vite re-reads the file"
+        echo "[domain] [WARN] Web access config changed but systemd is unavailable; restart the dashboard so Vite re-reads allowedHosts"
         return 0
     fi
     if systemctl is-active --quiet "$DOMAIN_UI_SERVICE_NAME" 2>/dev/null; then
         if $sudo_cmd systemctl restart "$DOMAIN_UI_SERVICE_NAME" 2>/dev/null; then
-            echo "[domain] [OK] Restarted $DOMAIN_UI_SERVICE_NAME (vite re-reads the allowed-hosts file)"
+            echo "[domain] [OK] Restarted $DOMAIN_UI_SERVICE_NAME (Vite re-read allowedHosts)"
         else
             echo "[domain] [WARN] Failed to restart $DOMAIN_UI_SERVICE_NAME; restart it manually"
         fi
     else
-        echo "[domain] [WARN] UI allowed hosts changed; $DOMAIN_UI_SERVICE_NAME is not active - start/restart it so vite re-reads the file"
+        echo "[domain] [WARN] Web access config changed; $DOMAIN_UI_SERVICE_NAME is not active"
     fi
     return 0
 }
@@ -509,9 +458,8 @@ domain_setup_prepare_ui_binding() {
         return
     fi
 
-    domain_setup_write_ui_allowed_hosts
-    domain_setup_write_ui_domain_config
-    if [ -s "$DOMAIN_UI_ALLOWED_HOSTS_FILE" ] && [ -s "$DOMAIN_UI_DOMAIN_CONFIG_FILE" ]; then
+    domain_setup_write_web_access_config
+    if [ "$WEB_ACCESS_CONFIG_READY" = "yes" ]; then
         DOMAIN_UI_BINDING_READY="yes"
         echo "[domain] [OK] Shared UI binding state ready"
     else
@@ -570,12 +518,8 @@ domain_setup_install_all() {
         fi
     done <<< "$DOMAIN_DOMAINS_LIST"
 
-    # Converge the dashboard allowed-hosts file with the current secrets +
-    # prefix on every run while the binding is enabled (content-hash no-op
-    # when unchanged).
     if domain_setup_ui_binding_enabled; then
-        domain_setup_write_ui_allowed_hosts
-        domain_setup_write_ui_domain_config
+        domain_setup_write_web_access_config
     fi
 
     nginx_repair_sites || failures=$((failures + 1))

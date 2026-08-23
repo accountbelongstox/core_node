@@ -271,7 +271,7 @@ fm_domain_ensure_main_caddyfile() {
 }
 
 # Clean up stale route files for domains that are no longer in the secrets
-# list (e.g. a domain was removed from DOMAINS_LISTS). The managed marker
+# list (e.g. a domain was removed from the service contract). The managed marker
 # prevents accidental deletion of user-created files.
 fm_domain_cleanup_stale_routes() {
     local domains_list="$1"

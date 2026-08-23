@@ -18,8 +18,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Iterable
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
+
+from pycore.pyutils.common.service_contract import port, service_domain
+
+_DEFAULT_SERVER_HOST = service_domain("laravel_api")
+_DEFAULT_SERVER_PORT = port("file_sync")
 
 
 def _try_import(import_name: str) -> bool:
@@ -322,7 +330,7 @@ def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ..
             if not host:
                 raise SystemExit(f"client_config.json: servers[{i}].host required")
             try:
-                port = int(raw.get("port", raw.get("server_port", 18765)))
+                port = int(raw.get("port", raw.get("server_port", _DEFAULT_SERVER_PORT)))
             except (TypeError, ValueError):
                 raise SystemExit(f"client_config.json: servers[{i}].port must be integer")
             enabled = raw.get("enabled", True)
@@ -351,9 +359,9 @@ def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ..
             )
         return targets
 
-    host = str(cfg.get("server_host", "api.si.12gm.com")).strip()
+    host = str(cfg.get("server_host", _DEFAULT_SERVER_HOST)).strip()
     try:
-        port = int(cfg.get("server_port", 18765))
+        port = int(cfg.get("server_port", _DEFAULT_SERVER_PORT))
     except (TypeError, ValueError):
         raise SystemExit("client_config.json: server_port must be integer")
     return [

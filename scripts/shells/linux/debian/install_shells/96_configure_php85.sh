@@ -100,6 +100,7 @@ php_configuration_web_server_ensure() {
 
 php_configuration_ensure() {
     php_configuration_arguments_read "$@"
+    web_access_config_ensure
     CONFIG_RUNTIME_PLANE="$(php_runtime_plane)"
     echo -e "${CYAN}$SCRIPT_INDEX PHP ${PHP_VERSION} configuration convergence (plane: $CONFIG_RUNTIME_PLANE, force: $FORCE_REFRESH)${NC}"
 

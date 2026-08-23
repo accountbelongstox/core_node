@@ -26,6 +26,8 @@ import { WordNewDailyReadingPlayerOverlay } from './WordNewDailyReadingPlayerOve
 import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../../core/integrations/laravel';
 import { wfNewApi, type WfNewDailyReadingSelectionMode } from '../../api';
 import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
+import { dailyReadingArticleId, dailyReadingHash } from '../../routing/WordNewHashRoutes';
+import { WordNewDailyReadingResourcePreview } from './WordNewDailyReadingResourcePreview';
 
 interface Props {
   theme: ElementTheme;
@@ -62,8 +64,7 @@ const SELECTION_MODE_OPTIONS: Array<{
 /** Article id carried by a #/daily-reading/<articleId> deep link. */
 function readDailyHashId(): string | null {
   if (typeof window === 'undefined') return null;
-  const match = window.location.hash.match(/^#\/daily-reading\/([^?]+)$/);
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
+  return dailyReadingArticleId(window.location.hash);
 }
 
 export const WordNewDailyReadingSection: React.FC<Props> = ({
@@ -105,7 +106,7 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   }, [onPlaybackStateChange]);
 
   /** Start the player and reflect the playing article in the URL hash. */
-  const startPlayer = useCallback((startId?: string) => {
+  const startPlayer = useCallback((startId?: string, singleArticle = false) => {
     const playableRows = rows.filter((row) => row.audio_ready === true && !!row.audio_url);
     let articleId = startId;
     if (!articleId && selectionMode === 'resume') {
@@ -117,26 +118,36 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     articleId ??= playableRows[0]?.id;
     if (!articleId) return;
     setSavedArticleId(articleId);
-    if (wfNewApi.isAuthenticated()) {
-      void wfNewApi.saveDailyReadingProgress(articleId, selectionMode).then((progress) => {
-        if (progress && mounted.current) setSavedArticleId(progress.articleId);
-      });
-    }
     if (onOpenPage) {
       onOpenPage(articleId);
       return;
     }
-    player.start(rows, articleId);
+    const playbackRows = singleArticle
+      ? playableRows.filter((row) => row.id === articleId)
+      : rows;
+    player.start(playbackRows, articleId);
     if (routeMode && typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
+      window.history.replaceState(null, '', dailyReadingHash(articleId));
     }
   }, [onOpenPage, player, routeMode, rows, savedArticleId, selectionMode]);
+
+  useEffect(() => {
+    if (!player.open || !player.current) return;
+    setSavedArticleId(player.current.id);
+    if (routeMode && typeof window !== 'undefined') {
+      window.history.replaceState(
+        null,
+        '',
+        dailyReadingHash(player.current.id),
+      );
+    }
+  }, [player.current, player.open, routeMode]);
 
   // Player closed -> return to the Daily Reading list route.
   useEffect(() => {
     if (player.open || !routeMode || typeof window === 'undefined') return;
     if (/^#\/daily-reading\//.test(window.location.hash)) {
-      window.history.replaceState(null, '', '#/daily-reading');
+      window.history.replaceState(null, '', dailyReadingHash());
     }
   }, [player.open, routeMode]);
 
@@ -149,7 +160,7 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     if (!target) return;
     deepLinkHandled.current = true;
     if (target.audio_ready) {
-      player.start(rows, target.id);
+      player.start([target], target.id);
     } else {
       setExpandedId(target.id);
     }
@@ -423,10 +434,17 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
                     </div>
                   </button>
                   <div className={`shrink-0 flex gap-2 ${routeMode ? 'flex-row flex-wrap justify-end' : 'flex-col'}`}>
+                    {routeMode && (
+                      <WordNewDailyReadingResourcePreview
+                        articleId={row.id}
+                        settings={player}
+                        trans={trans}
+                      />
+                    )}
                     {row.audio_url && row.audio_ready && (
                       <button
                         type="button"
-                        onClick={() => startPlayer(row.id)}
+                        onClick={() => startPlayer(row.id, true)}
                         className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
                         title={trans('home.dailyReading.playFrom')}
                       >

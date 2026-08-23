@@ -16,6 +16,48 @@ export interface WfNewDailyReadingProgress {
   updatedAt?: string | null;
 }
 
+export interface WfNewDailyReadingResourcePreviewSettings {
+  playbackMode: 'sequential' | 'repeat-all' | 'repeat-one' | 'shuffle';
+  wordMode: 'off' | 'new' | 'all';
+  wordOrder: 'sentence' | 'shuffle' | 'alpha';
+  newOnlyMaxReadCount: number;
+  underlineCurrentSentence: boolean;
+  bilingual: boolean;
+  sentenceRate: number;
+  wordRate: number;
+  playbackPattern: Array<{
+    id: string;
+    type: 'sentence' | 'words';
+    lang?: 'en' | 'cn';
+    times: number;
+  }>;
+}
+
+export interface WfNewDailyReadingResourcePreview {
+  user: { id: number; username: string };
+  article: {
+    id: string;
+    title_en: string;
+    title_cn: string | null;
+    language: string;
+    word_count: number;
+  };
+  target_word_group: {
+    id: string;
+    name: string;
+    language: string;
+    is_language_default: boolean;
+  } | null;
+  settings: WfNewDailyReadingResourcePreviewSettings;
+  resources: {
+    new_words: Array<Record<string, unknown>>;
+    selected_words: Array<Record<string, unknown>>;
+    sentence_table: Array<Record<string, unknown>>;
+    audio: Record<string, unknown>;
+    playback_items: Array<Record<string, unknown>>;
+  };
+}
+
 /** One step in the bilingual playback sequence (lang + repeat count). */
 export interface WfNewReaderPlayStep {
   lang: string;

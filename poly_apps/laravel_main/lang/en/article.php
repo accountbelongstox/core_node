@@ -2,6 +2,10 @@
 
 return [
     'default_daily_title' => 'Daily reading article',
+    'daily_reading_not_found' => 'The daily reading article was not found.',
+    'daily_reading_preview_retrieved' => 'Daily reading resources retrieved.',
+    'daily_reading_preview_validation' => 'Daily reading preview validation failed: :message',
+    'daily_reading_unauthorized' => 'Authentication is required to preview daily reading resources.',
     'worker_article_store_failed' => 'The agent history article could not be persisted.',
     'worker_audio_store_failed' => 'The agent history article audio could not be persisted.',
     'worker_audio_article_not_found' => 'The agent history article was not found for audio replacement.',

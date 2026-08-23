@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { BookMarked, RefreshCw, Sparkles } from 'lucide-react';
-import { wfNewApi } from '../../api';
 import {
   DEFAULT_VOCAB_GROUP_NAME,
   isDefaultVocabularyGroup,
@@ -8,8 +7,10 @@ import {
 } from '../../api/types/core';
 import {
   pullDailyReadingWordGroup,
+  dailyReadingWordGroupSnapshot,
+  loadDailyReadingWordGroups,
   selectDailyReadingWordGroup,
-  selectedDailyReadingWordGroupId,
+  subscribeDailyReadingWordGroups,
 } from './dailyReadingWordGroupStore';
 
 interface Props {
@@ -19,10 +20,6 @@ interface Props {
   sessionReads?: number;
   /** Distinct words newly linked to the selected group this session. */
   sessionNewWords?: number;
-}
-
-interface PanelState {
-  groups: WordGroup[];
 }
 
 function syntheticDefaultGroup(): WordGroup {
@@ -45,67 +42,46 @@ export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
   sessionReads = 0,
   sessionNewWords = 0,
 }) => {
-  const [state, setState] = useState<PanelState | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => selectedDailyReadingWordGroupId(),
+  const store = useSyncExternalStore(
+    subscribeDailyReadingWordGroups,
+    dailyReadingWordGroupSnapshot,
+    dailyReadingWordGroupSnapshot,
   );
-  const mounted = useRef(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const groups = await wfNewApi.getWordGroups();
-      if (mounted.current) setState({ groups });
-    } catch (loadError) {
-      if (mounted.current) setError(loadError instanceof Error ? loadError.message : String(loadError));
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    mounted.current = true;
-    void load();
-    return () => { mounted.current = false; };
-  }, [load, refreshToken]);
+    void loadDailyReadingWordGroups(refreshToken > 0).catch(() => undefined);
+  }, [refreshToken]);
 
   const groups = useMemo(
-    () => withDefaultGroup((state?.groups ?? []).filter((group) => {
+    () => withDefaultGroup(store.groups.filter((group) => {
       const language = group.language?.trim().toLowerCase();
       return !language || language === 'en' || language === 'english' || isDefaultVocabularyGroup(group);
     })),
-    [state],
+    [store.groups],
   );
 
   // Unless the user manually picked a group, the selection is the Default Vocabulary Group.
   const effectiveSelectedId = useMemo(() => {
     if (groups.length === 0) return null;
-    if (selectedId && groups.some((group) => group.id === selectedId)) return selectedId;
+    if (store.id && groups.some((group) => group.id === store.id)) return store.id;
     return groups.find(isDefaultVocabularyGroup)?.id ?? groups[0].id;
-  }, [groups, selectedId]);
+  }, [groups, store.id]);
 
   // Local persist (emits the change event the player rebuilds on) + account
   // roam push are centralized in the daily-reading word-group store.
   const selectGroup = useCallback((id: string) => {
-    setSelectedId(id);
     selectDailyReadingWordGroup(id);
   }, []);
 
-  // Backend restore on mount: the roamed selection wins over the local one;
-  // with no remote value the store pushes the local selection up once.
+  // Backend restore on mount reconciles timestamped local and account snapshots.
   useEffect(() => {
-    void pullDailyReadingWordGroup().then((appliedId) => {
-      if (appliedId && mounted.current) setSelectedId(appliedId);
-    });
+    void pullDailyReadingWordGroup();
   }, []);
 
   useEffect(() => {
-    if (!selectedId || !effectiveSelectedId || selectedId === effectiveSelectedId) return;
+    if (!store.id || !effectiveSelectedId || store.id === effectiveSelectedId) return;
     selectGroup(effectiveSelectedId);
-  }, [effectiveSelectedId, selectGroup, selectedId]);
+  }, [effectiveSelectedId, selectGroup, store.id]);
 
   const selectedGroup = groups.find((group) => group.id === effectiveSelectedId) ?? null;
 
@@ -118,15 +94,15 @@ export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
         </h3>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void loadDailyReadingWordGroups(true).catch(() => undefined)}
           className="p-1.5 rounded-lg border border-white/10 text-zinc-500 hover:text-indigo-300 transition-colors"
           title={trans('home.dailyReading.refresh')}
         >
-          <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3 h-3 ${store.loading || store.syncing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {error && <p className="text-[11px] text-rose-400">{error}</p>}
+      {store.error && <p className="text-[11px] text-rose-400">{store.error}</p>}
 
       {groups.length > 0 && effectiveSelectedId && (
         <select

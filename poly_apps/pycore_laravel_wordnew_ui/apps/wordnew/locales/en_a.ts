@@ -3,7 +3,7 @@
  * composed into enLocale by ./en.ts. Data file - one key per line. */
 export const enLocaleA: Record<string, string> = {
     'nav.home': 'Dashboard',
-    'nav.library': 'Course Shelf',
+    'nav.library': 'Word Groups',
     'nav.practice': 'Practice Arena',
     'nav.social': 'Social Center',
     'nav.tools': 'AI Lab',
@@ -28,8 +28,9 @@ export const enLocaleA: Record<string, string> = {
     'modes.flashcards': 'Quantum Cards',
     'modes.quiz': 'Spelling Arena',
     'modes.listening': 'Auditory stream',
-    'library.title': 'Premium Course Shelves',
-    'library.subtitle': 'Dynamic packages updated in realtime',
+    'library.title': 'Word Groups',
+    'library.subtitle': 'Your synchronized vocabulary groups',
+    'home.openCurrentGroup': 'Open this word group',
     'search.placeholder': 'Lookup across worlds or define standard terms...',
     'search.recent': 'Recent Decodes',
     'search.favorites': 'My Sanctum',

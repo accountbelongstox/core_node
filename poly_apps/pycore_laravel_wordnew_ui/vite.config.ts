@@ -13,8 +13,7 @@ import {
   CORE_NODE_DATA_DIR_POSIX,
   CORE_NODE_DATA_DIR_WINDOWS_SUBPATH,
   GLOBAL_VAR_DIR_NAME,
-  UI_ALLOWED_HOSTS_FILE_NAME,
-  UI_DOMAIN_CONFIG_FILE_NAME,
+  WEB_ACCESS_CONFIG_FILE_NAME,
 } from './core/contracts/ServiceContract';
 
 // Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
@@ -22,36 +21,35 @@ import {
 
 // Dashboard allowed-hosts come from an EXTERNAL constant-path file written
 // idempotently by the 132 domain-binding helper (one hostname per line).
-// Missing/unreadable/empty file -> undefined -> Vite defaults stay unchanged.
-// Dynamic domains never touch this config again (no sync churn). All path
-// pieces come from the canonical service contract (config/service_contract.json).
+// Contract hosts are always present; the external file adds runtime domains.
+// All path pieces come from the canonical service contract.
 const CORE_NODE_DATA_DIR = process.env.CORE_NODE_DATA_DIR
   ?? (process.platform === 'win32'
     ? path.join(path.parse(process.cwd()).root, CORE_NODE_DATA_DIR_WINDOWS_SUBPATH)
     : CORE_NODE_DATA_DIR_POSIX);
-const UI_ALLOWED_HOSTS_FILE = path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME, UI_ALLOWED_HOSTS_FILE_NAME);
-const UI_DOMAIN_CONFIG_FILE = path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME, UI_DOMAIN_CONFIG_FILE_NAME);
+const WEB_ACCESS_CONFIG_FILE = path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME, WEB_ACCESS_CONFIG_FILE_NAME);
 
 const readExternalAllowedHosts = (): string[] | undefined => {
   try {
-    const hosts = fs
-      .readFileSync(UI_ALLOWED_HOSTS_FILE, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    return hosts.length > 0 ? hosts : undefined;
+    const document = JSON.parse(fs.readFileSync(WEB_ACCESS_CONFIG_FILE, 'utf8')) as {
+      allowedHosts?: unknown;
+    };
+    if (Array.isArray(document.allowedHosts)
+      && document.allowedHosts.every((host) => typeof host === 'string' && host.length > 0)) {
+      return Array.from(new Set(document.allowedHosts));
+    }
   } catch {
-    return undefined;
   }
+  return undefined;
 };
 
 // Serve the shell-written UI domain config (api region prefix) same-origin.
 // The file is re-read from disk on EVERY request (no caching), so a shell-side
 // change is visible to the frontend immediately in both dev and preview. A
 // missing/unreadable file answers 404 and the frontend keeps its defaults.
-const serveUiDomainConfig = (req, res, next) => {
+const serveWebAccessConfig = (req, res, next) => {
   const pathName = (req.url || '').split('?')[0];
-  if (pathName !== `/${UI_DOMAIN_CONFIG_FILE_NAME}`) {
+  if (pathName !== `/${WEB_ACCESS_CONFIG_FILE_NAME}`) {
     next();
     return;
   }
@@ -59,7 +57,7 @@ const serveUiDomainConfig = (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   let body;
   try {
-    body = fs.readFileSync(UI_DOMAIN_CONFIG_FILE, 'utf8');
+    body = fs.readFileSync(WEB_ACCESS_CONFIG_FILE, 'utf8');
   } catch {
     res.statusCode = 404;
     res.end(JSON.stringify({}));
@@ -114,12 +112,12 @@ export default defineConfig(() => {
       plugins: [
         react(),
         {
-          name: 'ui-domain-config-server',
+          name: 'web-access-config-server',
           configureServer(server) {
-            server.middlewares.use(serveUiDomainConfig);
+            server.middlewares.use(serveWebAccessConfig);
           },
           configurePreviewServer(server) {
-            server.middlewares.use(serveUiDomainConfig);
+            server.middlewares.use(serveWebAccessConfig);
           },
         },
         tailwindcss(),

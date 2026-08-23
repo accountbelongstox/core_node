@@ -48,6 +48,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     practiceMode,
     quizAnswered,
     searchQuery,
+    selectedCourse,
     setActiveTab,
     setAvatarUrl,
     setBentoGroups,
@@ -62,6 +63,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setIsListeningPlaying,
     setLanguageOptions,
     setLibraryRoute,
+    setWordGroupRouteId,
     setLoading,
     setNewWordDef,
     setNewWordPhon,
@@ -88,6 +90,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     speechRate,
     trans,
     wordPool,
+    wordGroupRouteId,
   } = deps;
 
   // Confirmation dialog state for "add a library to the Default Vocabulary Group":
@@ -535,10 +538,29 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   }, [searchQuery, wordPool]);
 
   const selectBookCourse = async (group: WordGroup) => {
+    setWordGroupRouteId(group.id);
     setSelectedCourse(group);
     // Cache-first: paint cached words instantly on a re-open, then refresh from API.
     await loadVocabularyCached(group.id, setCourseWords);
   };
+
+  const openWordGroupList = () => {
+    setWordGroupRouteId(null);
+    setSelectedCourse(null);
+    setCourseWords([]);
+    setActiveTab('shelf');
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'shelf' || !wordGroupRouteId) return;
+    if (selectedCourse?.id === wordGroupRouteId) return;
+    const group = gGroups.find((candidate) => candidate.id === wordGroupRouteId);
+    if (!group) return;
+    setSelectedCourse(group);
+    void loadVocabularyCached(group.id, setCourseWords);
+    // The route id and freshly loaded backend group list are the restore inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, gGroups, selectedCourse?.id, wordGroupRouteId]);
 
   // Open a group's practice session. Words are NO LONGER loaded here via
   // getVocabulary (GET /query_gwords) — that returns EMPTY for the Default
@@ -737,6 +759,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     handleToggleFavorite,
     playPhoneticSpeech,
     selectBookCourse,
+    openWordGroupList,
     startGroupPractice,
     startModePractice,
     activeQuizOptions,
