@@ -10,34 +10,19 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Models\Model;
 use App\Services\MoviePoster\MoviePosterStore;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Media Ingest Service (Books v3.1 unified per-language model).
- *
- * Idempotent ingestion of pycore media data. ALL ingest versions are folded into
- * ONE per-language model (BOOKS_FEATURE_SPECIFICATION.md §3.4):
- *   - subtitles        (source_type = 'subtitle')  keyed on source_key
- *   - books            (source_type = 'book')      keyed on source_key
- *   - sentences_{lang}  per-language sentence store keyed on content_id
- *   - chapters_{lang}   per-language chapter store  (source_type,source_key,chapter_index)
- *   - source_sentences  language-independent positional slot (lang_content_ids)
- *   - media_segments    (subtitle only)            keyed on (source_key, seg_index)
- *
- * Every `language` value is a CODE (§2). The shared {prefix}_sentences and single
- * {prefix}_chapters tables are removed; v1 (subtitle list) and v2 (book) payloads
- * are converted to the v3 chapter -> slot shape on the way in.
- *
- * THE CRITICAL IDEMPOTENCY RULE: FILL-MISSING, NEVER CLOBBER. mergeFill() only
- * writes an incoming column when the incoming value is non-empty AND the existing
- * column is currently empty/null. Duplicate sentences (same content_id) are not
- * re-written: text + AI detail fields are never clobbered; occurrence_count is
- * bumped; only missing fields are filled.
+ * Idempotent v3 media ingestion with per-language sentence storage.
+ * Existing values are preserved and only missing fields are filled.
  */
 class MediaIngestService
 {
+    public function __construct(private readonly MediaIngestPayload $payload)
+    {
+    }
+
     /**
      * Ingest a full media payload idempotently.
      *
@@ -74,7 +59,7 @@ class MediaIngestService
         // Fold v1/v2 (flat sentences[]) into the v3 chapter -> slot shape so there
         // is exactly one per-language persistence path. v3 payloads pass through.
         if ($modelVersion < 3) {
-            [$chapters, $slots] = $this->convertLegacyToV3($sourceType, $sourceKey, $sourceData, $sentences);
+            [$chapters, $slots] = $this->payload->legacyV3($sourceType, $sourceData, $sentences);
         }
 
         return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots, $words, $modelVersion) {
@@ -123,73 +108,6 @@ class MediaIngestService
                 'words' => $wordResult,
             ];
         });
-    }
-
-    /**
-     * Convert a legacy v1/v2 flat sentences[] list into the v3 chapter -> slot
-     * shape. Each legacy sentence becomes one slot whose `langs` map fills only
-     * the sentence's own (normalized) language code. A single default chapter
-     * (chapter_index 0) is emitted with the source primary-language title.
-     *
-     * @param array<int, array> $sentences
-     * @return array{0: array<int, array>, 1: array<int, array>} [chapters, slots]
-     */
-    private function convertLegacyToV3(string $sourceType, string $sourceKey, array $sourceData, array $sentences): array
-    {
-        $primary = isset($sourceData['language'])
-            ? AppQyV1TableMaps::normalizeLangCode((string) $sourceData['language'])
-            : '';
-
-        $slots = [];
-        $maxChapterIndex = 0;
-        foreach ($sentences as $sentence) {
-            if (!is_array($sentence)) {
-                continue;
-            }
-            $text = isset($sentence['text']) ? (string) $sentence['text'] : '';
-            if ($this->isEmptyValue($text)) {
-                continue;
-            }
-            $lang = isset($sentence['language']) && $sentence['language'] !== ''
-                ? AppQyV1TableMaps::normalizeLangCode((string) $sentence['language'])
-                : $primary;
-            if ($lang === '') {
-                $lang = 'en';
-            }
-
-            $grain = isset($sentence['grain']) ? (string) $sentence['grain'] : ($sourceType === 'subtitle' ? 'cue' : 'sentence');
-            $seq = isset($sentence['seq']) ? (int) $sentence['seq'] : 0;
-            $chapterIndex = isset($sentence['chapter_index']) ? (int) $sentence['chapter_index'] : 0;
-            if ($chapterIndex > $maxChapterIndex) {
-                $maxChapterIndex = $chapterIndex;
-            }
-
-            $slots[] = [
-                'chapter_index' => $chapterIndex,
-                'grain' => $grain,
-                'seq' => $seq,
-                'primary_language' => $primary !== '' ? $primary : $lang,
-                'langs' => [$lang => $text],
-                'seg_index' => $sentence['seg_index'] ?? null,
-                'sub_idx' => $sentence['sub_idx'] ?? null,
-                'start_sec' => $sentence['start_sec'] ?? null,
-                'end_sec' => $sentence['end_sec'] ?? null,
-            ];
-        }
-
-        // Single default chapter spanning the source (chapter_index 0). For a
-        // multi-chapter legacy payload (chapter_index set on slots) emit one
-        // default-titled chapter per distinct index seen.
-        $chapters = [];
-        for ($i = 0; $i <= $maxChapterIndex; $i++) {
-            $title = $i === 0 ? 'Chapter 1' : ('Chapter ' . ($i + 1));
-            $chapters[] = [
-                'chapter_index' => $i,
-                'titles' => $primary !== '' ? [$primary => $title] : ['en' => $title],
-            ];
-        }
-
-        return [$chapters, $slots];
     }
 
     /**
@@ -252,7 +170,7 @@ class MediaIngestService
             'rel_path', 'output_dir', 'full_content', 'files',
             'subtitle_count', 'segment_count', 'sentence_count', 'metadata',
         ];
-        $incoming = $this->pick($data, $allowed);
+        $incoming = $this->payload->pick($data, $allowed);
 
         // Normalize the primary language to a code (§2).
         if (isset($incoming['language'])) {
@@ -278,7 +196,7 @@ class MediaIngestService
             return ['created' => true, 'filled' => false];
         }
 
-        $changed = $this->mergeFill($source, $incoming);
+        $changed = $this->payload->fillMissing($source, $incoming);
         // `title` is pycore-authoritative (the canonical ENGLISH display title — CJK
         // filenames are translated upstream). Refresh it on re-sync even when already
         // present, so legacy raw-CJK titles update to English. Other columns remain
@@ -312,7 +230,7 @@ class MediaIngestService
             'full_content', 'audio', 'sentence_seq', 'word_ids',
             'sentence_count', 'metadata',
         ];
-        $incoming = $this->pick($data, $allowed);
+        $incoming = $this->payload->pick($data, $allowed);
         if (isset($incoming['language'])) {
             $incoming['language'] = AppQyV1TableMaps::normalizeLangCode((string) $incoming['language']);
         }
@@ -326,7 +244,7 @@ class MediaIngestService
             return ['created' => true, 'filled' => false];
         }
 
-        $changed = $this->mergeFill($source, $incoming);
+        $changed = $this->payload->fillMissing($source, $incoming);
         // `title` is pycore-authoritative (canonical ENGLISH display title); refresh
         // on re-sync even when present so legacy raw-CJK titles update. Others stay
         // fill-missing.
@@ -416,11 +334,11 @@ class MediaIngestService
                 }
 
                 $changed = false;
-                if ($titleStr !== null && $this->isEmptyValue($existing->getAttribute('title'))) {
+                if ($titleStr !== null && $this->payload->isEmpty($existing->getAttribute('title'))) {
                     $existing->setAttribute('title', $titleStr);
                     $changed = true;
                 }
-                if ($this->isEmptyValue($existing->getAttribute('corr_id'))) {
+                if ($this->payload->isEmpty($existing->getAttribute('corr_id'))) {
                     $existing->setAttribute('corr_id', $corrId);
                     $changed = true;
                 }
@@ -428,7 +346,7 @@ class MediaIngestService
                     $existing->setAttribute('sentence_count', $sentenceCount);
                     $changed = true;
                 }
-                if ($metadata !== null && $this->isEmptyValue($existing->getAttribute('metadata'))) {
+                if ($metadata !== null && $this->payload->isEmpty($existing->getAttribute('metadata'))) {
                     $existing->setAttribute('metadata', $metadata);
                     $changed = true;
                 }
@@ -493,7 +411,7 @@ class MediaIngestService
         $linkCreated = 0;
         $linkFilled = 0;
 
-        $defaultPrimary = isset($sourceData['language']) ? $this->normalizeLangCode((string) $sourceData['language']) : '';
+        $defaultPrimary = isset($sourceData['language']) ? $this->payload->normalizeLanguage((string) $sourceData['language']) : '';
 
         // Positional-link columns stored per slot occurrence.
         $linkAllowed = ['seg_index', 'sub_idx', 'start_sec', 'end_sec', 'metadata'];
@@ -506,12 +424,12 @@ class MediaIngestService
             $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
             $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
             $chapterIndex = isset($slot['chapter_index']) ? (int) $slot['chapter_index'] : 0;
-            $primaryLanguage = isset($slot['primary_language']) && !$this->isEmptyValue($slot['primary_language'])
-                ? $this->normalizeLangCode((string) $slot['primary_language'])
+            $primaryLanguage = isset($slot['primary_language']) && !$this->payload->isEmpty($slot['primary_language'])
+                ? $this->payload->normalizeLanguage((string) $slot['primary_language'])
                 : $defaultPrimary;
 
             // Stable correspondence id per slot (recomputed if absent).
-            $corrId = isset($slot['corr_id']) && !$this->isEmptyValue($slot['corr_id'])
+            $corrId = isset($slot['corr_id']) && !$this->payload->isEmpty($slot['corr_id'])
                 ? (string) $slot['corr_id']
                 : self::computeCorrId($sourceKey, $grain, $seq);
 
@@ -520,13 +438,13 @@ class MediaIngestService
             // Per-language content map for this slot; null = empty correspondence.
             $langContentIds = [];
             foreach ($langs as $lang => $text) {
-                $langCode = $this->normalizeLangCode((string) $lang);
+                $langCode = $this->payload->normalizeLanguage((string) $lang);
                 if ($langCode === '' || !AppQyV1TableMaps::isLanguageSupported($langCode)) {
                     continue;
                 }
 
                 $textStr = is_string($text) ? $text : (is_scalar($text) ? (string) $text : '');
-                if ($this->isEmptyValue($textStr)) {
+                if ($this->payload->isEmpty($textStr)) {
                     // Slot exists but this language is empty (留空).
                     $langContentIds[$langCode] = null;
                     continue;
@@ -554,7 +472,7 @@ class MediaIngestService
                 $rawText = '';
                 foreach ($langs as $candidate) {
                     $cand = is_string($candidate) ? $candidate : (is_scalar($candidate) ? (string) $candidate : '');
-                    if (!$this->isEmptyValue($cand)) { $rawText = $cand; break; }
+                    if (!$this->payload->isEmpty($cand)) { $rawText = $cand; break; }
                 }
                 if ($rawText !== '') {
                     $fallbackLang = ($primaryLanguage !== '' && AppQyV1TableMaps::isLanguageSupported($primaryLanguage))
@@ -573,7 +491,7 @@ class MediaIngestService
             }
 
             // ---- Language-independent positional slot row ----
-            $linkIncoming = $this->pick($slot, $linkAllowed);
+            $linkIncoming = $this->payload->pick($slot, $linkAllowed);
 
             $existingLink = SourceSentence::findSlot($sourceType, $sourceKey, $grain, $seq);
 
@@ -594,16 +512,16 @@ class MediaIngestService
                 // Fill-missing: never clobber existing values. Always refresh the
                 // correspondence map so newly-checked languages are recorded
                 // (lang_content_ids is a structured slot anchor, not enrich data).
-                if ($this->isEmptyValue($existingLink->getAttribute('corr_id'))) {
+                if ($this->payload->isEmpty($existingLink->getAttribute('corr_id'))) {
                     $linkIncoming['corr_id'] = $corrId;
                 }
-                if ($this->isEmptyValue($existingLink->getAttribute('primary_language')) && $primaryLanguage !== '') {
+                if ($this->payload->isEmpty($existingLink->getAttribute('primary_language')) && $primaryLanguage !== '') {
                     $linkIncoming['primary_language'] = $primaryLanguage;
                 }
-                if ($this->isEmptyValue($existingLink->getAttribute('chapter_index')) && $chapterIndex !== 0) {
+                if ($this->payload->isEmpty($existingLink->getAttribute('chapter_index')) && $chapterIndex !== 0) {
                     $linkIncoming['chapter_index'] = $chapterIndex;
                 }
-                $changed = $this->mergeFill($existingLink, $linkIncoming);
+                $changed = $this->payload->fillMissing($existingLink, $linkIncoming);
                 $changed = $this->mergeLangContentIds($existingLink, $langContentIds) || $changed;
                 if ($changed) {
                     $existingLink->saveRecord();
@@ -655,11 +573,11 @@ class MediaIngestService
         // only currently-empty anchors (sentence_id / corr_id).
         $deduped++;
         $changed = false;
-        if ($this->isEmptyValue($row->getAttribute('sentence_id'))) {
+        if ($this->payload->isEmpty($row->getAttribute('sentence_id'))) {
             $row->setAttribute('sentence_id', $sentenceId);
             $changed = true;
         }
-        if ($this->isEmptyValue($row->getAttribute('corr_id'))) {
+        if ($this->payload->isEmpty($row->getAttribute('corr_id'))) {
             $row->setAttribute('corr_id', $corrId);
             $changed = true;
         }
@@ -725,7 +643,7 @@ class MediaIngestService
             if (!is_array($items)) {
                 continue;
             }
-            $langCode = $this->normalizeLangCode((string) $lang);
+            $langCode = $this->payload->normalizeLanguage((string) $lang);
             if ($langCode === '') {
                 continue;
             }
@@ -738,7 +656,7 @@ class MediaIngestService
                 } else {
                     $content = (string) $item;
                 }
-                if ($this->isEmptyValue($content)) {
+                if ($this->payload->isEmpty($content)) {
                     continue;
                 }
 
@@ -755,15 +673,6 @@ class MediaIngestService
             'created' => $created,
             'existing' => $existing,
         ];
-    }
-
-    /**
-     * Normalize a language key to the canonical 2/3-letter code (delegates to
-     * the single source of truth, AppQyV1TableMaps::normalizeLangCode — §2).
-     */
-    private function normalizeLangCode(string $lang): string
-    {
-        return AppQyV1TableMaps::normalizeLangCode($lang);
     }
 
     /**
@@ -785,7 +694,7 @@ class MediaIngestService
                 continue;
             }
             $segIndex = (int) $segment['seg_index'];
-            $incoming = $this->pick($segment, $allowed);
+            $incoming = $this->payload->pick($segment, $allowed);
 
             $existing = MediaSegment::findForSourceIndex($sourceKey, $segIndex);
 
@@ -797,85 +706,13 @@ class MediaIngestService
                 continue;
             }
 
-            if ($this->mergeFill($existing, $incoming)) {
+            if ($this->payload->fillMissing($existing, $incoming)) {
                 $existing->saveRecord();
                 $filled++;
             }
         }
 
         return ['created' => $created, 'filled' => $filled];
-    }
-
-    /**
-     * THE NO-CLOBBER MERGE.
-     *
-     * For each incoming column, set the value ONLY IF the incoming value is
-     * non-empty AND the existing column is currently empty/null. An incoming
-     * empty/missing value never overwrites an existing non-empty DB value.
-     *
-     * @param Model $model    The existing row to enrich.
-     * @param array $incoming Incoming column => value pairs.
-     * @return bool True if any field was filled.
-     */
-    private function mergeFill(Model $model, array $incoming): bool
-    {
-        $changed = false;
-
-        foreach ($incoming as $column => $value) {
-            // Skip empty/missing incoming values - never clobber with nothing.
-            if ($this->isEmptyValue($value)) {
-                continue;
-            }
-
-            // Only fill when the existing value is currently empty/null.
-            $current = $model->getAttribute($column);
-            if (!$this->isEmptyValue($current)) {
-                continue;
-            }
-
-            $model->setAttribute($column, $value);
-            $changed = true;
-        }
-
-        return $changed;
-    }
-
-    /**
-     * Empty test: null, '', empty array, or 0 (treated as empty for the
-     * fill-missing rule so a real value can later replace a default 0).
-     */
-    private function isEmptyValue($value): bool
-    {
-        if ($value === null) {
-            return true;
-        }
-        if (is_string($value) && trim($value) === '') {
-            return true;
-        }
-        if (is_array($value) && count($value) === 0) {
-            return true;
-        }
-        if (is_int($value) && $value === 0) {
-            return true;
-        }
-        if (is_float($value) && $value === 0.0) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Pick only the allowed keys from an incoming array.
-     */
-    private function pick(array $data, array $allowed): array
-    {
-        $result = [];
-        foreach ($allowed as $key) {
-            if (array_key_exists($key, $data)) {
-                $result[$key] = $data[$key];
-            }
-        }
-        return $result;
     }
 
     /**
