@@ -191,14 +191,19 @@ class RpcExecutionKernel:
             response = RpcExecutionResponse(204, {}, b"", False)
         elif hasattr(result, "status_code") and hasattr(result, "body"):
             status_code = int(getattr(result, "status_code"))
+            has_body = status_code not in (204, 304)
             response = RpcExecutionResponse(
                 status_code,
                 {
                     str(key): str(value)
                     for key, value in dict(getattr(result, "headers", {}) or {}).items()
                 },
-                bytes(getattr(result, "body") or b""),
-                status_code not in (204, 304),
+                (
+                    bytes(getattr(result, "body") or b"")
+                    if has_body
+                    else b""
+                ),
+                has_body,
             )
         else:
             fastapi = get_third_package_fastapi()
@@ -278,7 +283,7 @@ class RpcExecutionKernel:
         allowed = set(relay_contract.allowed_headers(direction))
         limit = relay_contract.limit("header_value_bytes")
         return {
-            str(key): str(value)
+            str(key).lower(): str(value)
             for key, value in dict(headers or {}).items()
             if str(key).lower() in allowed
             and len(str(value).encode("utf-8")) <= limit

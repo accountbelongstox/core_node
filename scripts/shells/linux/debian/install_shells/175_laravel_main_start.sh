@@ -1322,12 +1322,10 @@ if [ "$AS_SERVICE" = "yes" ]; then
 
     # PHP_BIN defaults to "php" (the frankenphp php-cli shim); WORKERS and
     # MAX_REQUESTS use the runtime launcher's own defaults.
-    # FRANKENPHP_SITE_HOST is pinned at registration time: the systemd unit
-    # carries no DOMAIN_SCOPE, so fm_site_host inside the unit would always
-    # fall back to localhost (breaking DNS-01 and ACME - certmagic rejects
-    # localhost for public certs). Resolved here, where the domain phase's
-    # scope + persisted gvar state are live.
-    SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} FRANKENPHP_SITE_HOST=$(fm_site_host) bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
+    # The runtime launcher resolves the site host from the central service
+    # contract on every start, so a regenerated domain list cannot leave a
+    # stale issuer pinned in the systemd environment.
+    SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
     register_laravel_service "$SERVICE_EXEC_CMD"
     if [ "$LARAVEL_SERVICE_READY" = "yes" ]; then
         echo "Service $LARAVEL_SERVICE_PLANE_NAME registered and started."

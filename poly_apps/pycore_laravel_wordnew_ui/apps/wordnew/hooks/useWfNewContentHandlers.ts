@@ -552,7 +552,14 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   };
 
   useEffect(() => {
-    if (activeTab !== 'shelf' || !wordGroupRouteId) return;
+    if (activeTab !== 'shelf') return;
+    if (!wordGroupRouteId) {
+      if (selectedCourse) {
+        setSelectedCourse(null);
+        setCourseWords([]);
+      }
+      return;
+    }
     if (selectedCourse?.id === wordGroupRouteId) return;
     const group = gGroups.find((candidate) => candidate.id === wordGroupRouteId);
     if (!group) return;
@@ -740,6 +747,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   // active tab; null on pages with no header (home / shelf / practice / labs).
   const pageHeader = wfNewPageHeader(activeTab, trans, {
     contentListKind,
+    wordGroupTitle: selectedCourse?.name,
     libraryTitle: libraryRoute?.title,
     bookTitle: bookReader?.title,
   });

@@ -875,19 +875,16 @@ fm_dnspod_token_ensure() {
 
 # Shared site host - single source for the 93 pipeline, the 175 plane
 # branches and the Mercure issuer wiring: first configured
-# api.<region>.<domain>, else localhost. An already-set FRANKENPHP_SITE_HOST
-# env wins over the resolver. The region prefix and domain list self-resolve
-# from the shared file-backed store and service contract, so callers in
-# separate processes never re-pass them as env.
+# api.<region>.<domain>, else localhost. The region prefix and domain list
+# resolve from the service contract and its generated runtime view so a stale
+# service environment cannot select a different issuer.
 fm_site_host() {
     local first_domain=""
-    local prefix="${DOMAIN_API_PREFIX:-}"
+    local prefix=""
 
-    if [ -z "$prefix" ]; then
-        prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
-    fi
-
-    if [ "${DOMAIN_SCOPE:-none}" != "none" ] && [ -n "$prefix" ]; then
+    web_access_resolve
+    prefix="$WEB_ACCESS_API_REGION_PREFIX"
+    if [ -n "$prefix" ]; then
         first_domain="$(web_access_first_domain)"
         if [ -n "$first_domain" ]; then
             echo "api.${prefix}.${first_domain}"

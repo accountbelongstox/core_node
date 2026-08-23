@@ -28,10 +28,22 @@
       "body_length"
     ]
   },
+  "response_digest_profile": {
+    "algorithm": "sha256",
+    "serialization": "canonical-json-utf8",
+    "fields": [
+      "status",
+      "headers",
+      "body_present",
+      "body_sha256",
+      "body_length"
+    ]
+  },
   "endpoints": {
     "enrollment_create": "/api/relay/v2/device-enrollments",
     "enrollment_status": "/api/relay/v2/device-enrollments/{enrollment_id}",
     "device_heartbeat": "/api/relay/v2/device/heartbeat",
+    "device_event": "/api/relay/v2/device/events",
     "device_hub_authorization": "/api/relay/v2/device/mercure-authorization",
     "operation_claim": "/api/relay/v2/device/operations/claim",
     "operation_result": "/api/relay/v2/device/operations/{operation_id}/result",
@@ -45,7 +57,8 @@
   },
   "events": {
     "operation_available": "relay.operation.available",
-    "credential_revoked": "relay.credential.revoked"
+    "credential_revoked": "relay.credential.revoked",
+    "terminal_changed": "terminal.changed"
   },
   "durations": {
     "heartbeat_seconds": 20,
@@ -64,7 +77,9 @@
     "blob_chunk_bytes": 4194304,
     "request_body_bytes": 67108864,
     "response_body_bytes": 67108864,
-    "header_value_bytes": 8192
+    "header_value_bytes": 8192,
+    "terminal_viewer_windows": 64,
+    "terminal_viewers": 128
   },
   "headers": {
     "request_allow": [
@@ -92,11 +107,19 @@
     "accepted",
     "leased",
     "executing",
+    "cancel_requested",
     "responded",
     "failed",
     "execution_unknown",
     "expired",
     "canceled"
+  ],
+  "result_outcomes": [
+    "responded",
+    "failed",
+    "execution_unknown",
+    "canceled",
+    "expired"
   ],
   "retry_policies": [
     "read",
@@ -120,14 +143,84 @@
     },
     {
       "match": "exact",
+      "value": "ui/terminal/screenshot",
+      "methods": ["GET"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/viewer_demand",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "idempotent_write"
+    },
+    {
+      "match": "exact",
       "value": "ui/terminal/activate",
       "methods": ["POST"],
       "exposure": "relay",
       "retry": "at_most_once_action"
     },
     {
-      "match": "prefix",
-      "value": "ui/terminal/",
+      "match": "exact",
+      "value": "ui/terminal/draft",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "idempotent_write"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/view",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "idempotent_write"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/schedule_queue/sync",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "idempotent_write"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/schedule_queue/clear",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "idempotent_write"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/click",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/command_history",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/enter",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/input",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/scroll",
       "methods": ["POST"],
       "exposure": "relay",
       "retry": "at_most_once_action"
@@ -183,13 +276,6 @@
     },
     {
       "match": "suffix",
-      "value": "/events",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
-    },
-    {
-      "match": "suffix",
       "value": "/history",
       "methods": ["GET", "POST"],
       "exposure": "relay",
@@ -227,7 +313,7 @@
       "match": "prefix",
       "value": "ui/",
       "methods": ["GET", "POST"],
-      "exposure": "relay",
+      "exposure": "denied",
       "retry": "at_most_once_action"
     }
   ],
@@ -236,6 +322,7 @@
     "byte_exact_bodies",
     "durable_execution_ledger",
     "atomic_operation_claim",
+    "demand_leased_terminal_resources",
     "mercure_wake_reconciliation",
     "ed25519_device_identity"
   ]

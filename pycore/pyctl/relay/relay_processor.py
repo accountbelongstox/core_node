@@ -18,6 +18,7 @@ from pycore.pyutils.common.relay_execution_ledger import (
     relay_execution_ledger,
 )
 from pycore.pyutils.common.relay_identity import relay_device_identity
+from pycore.pyutils.common.rpc_response import rpc_response_digest
 from pycore.pyutils.rpc_v2.execution import (
     RpcExecutionError,
     RpcExecutionResponse,
@@ -27,6 +28,8 @@ from pycore.pyutils.rpc_v2.execution import (
 
 RELAY_RESULT_RESPONDED = "responded"
 RELAY_RESULT_FAILED = "failed"
+RELAY_RESULT_CANCELED = "canceled"
+RELAY_RESULT_EXPIRED = "expired"
 
 
 class RelayOperationProcessor:
@@ -44,8 +47,24 @@ class RelayOperationProcessor:
                     error_type=type(exc).__name__,
                     error=exc,
                 )
+                self._reject_descriptor(descriptor, exc)
 
     def process(self, descriptor: Mapping[str, Any]) -> None:
+        remote_state = str(descriptor.get("state") or "").strip().lower()
+        if remote_state in ("cancel_requested", "canceled"):
+            self._post_nonexecution(
+                descriptor,
+                RELAY_RESULT_CANCELED,
+                "operation_canceled",
+            )
+            return
+        if remote_state == "expired":
+            self._post_nonexecution(
+                descriptor,
+                RELAY_RESULT_EXPIRED,
+                "operation_expired",
+            )
+            return
         request = self._validated_request(descriptor)
         operation_id = request["operation_id"]
         ledger = relay_execution_ledger.admit(
@@ -58,7 +77,11 @@ class RelayOperationProcessor:
         action = str(ledger["action"])
         if action == RELAY_REPLAY_RESPONSE:
             response = relay_execution_ledger.response(ledger["result"])
-            self._post_response(request, response, RELAY_RESULT_RESPONDED)
+            outcome = str(
+                ledger["result"].get("response_outcome")
+                or RELAY_RESULT_RESPONDED
+            )
+            self._post_response(request, response, outcome)
             return
         if action == RELAY_EXECUTION_UNKNOWN:
             self._post_execution_unknown(request, "prior_execution_incomplete")
@@ -159,8 +182,11 @@ class RelayOperationProcessor:
             dict(descriptor.get("headers") or {}),
             "request",
         )
+        claimed_revision = int(descriptor.get("revision") or 0)
         if not operation_id or not pairing_id or not user_id or not path:
             raise ValueError("relay_operation_descriptor_incomplete")
+        if claimed_revision <= 0:
+            raise ValueError("relay_operation_revision_invalid")
         route = rpc_execution_kernel.route_path(path)
         policy = relay_contract.route_policy(route, method)
         if str(policy.get("exposure") or "denied") != "relay":
@@ -204,7 +230,7 @@ class RelayOperationProcessor:
         )
         return {
             "operation_id": operation_id,
-            "claimed_revision": int(descriptor.get("revision") or 0),
+            "claimed_revision": claimed_revision,
             "pairing_id": pairing_id,
             "user_id": user_id,
             "method": method,
@@ -304,6 +330,7 @@ class RelayOperationProcessor:
             "body_sha256": body_digest,
             "body_length": len(response.body),
             "body_present": response.has_body,
+            "result_digest": rpc_response_digest(response),
         }
         if response.has_body:
             if len(response.body) <= relay_contract.limit("inline_body_bytes"):
@@ -355,6 +382,78 @@ class RelayOperationProcessor:
                 "body_present": False,
             },
             action="operation.result.unknown",
+        )
+
+    def _reject_descriptor(
+        self,
+        descriptor: Mapping[str, Any],
+        error: Exception,
+    ) -> None:
+        error_code = (
+            error.code
+            if isinstance(error, RpcExecutionError)
+            else str(error) or "relay_operation_descriptor_invalid"
+        )
+        try:
+            self._post_nonexecution(
+                descriptor,
+                RELAY_RESULT_FAILED,
+                error_code,
+                status=400,
+            )
+        except Exception as submit_error:
+            relay_activity_log.error(
+                "operation.rejection.submit.failed",
+                operation_id=descriptor.get("operation_id"),
+                error_type=type(submit_error).__name__,
+                error=submit_error,
+            )
+
+    def _post_nonexecution(
+        self,
+        descriptor: Mapping[str, Any],
+        outcome: str,
+        error_code: str,
+        status: int = 0,
+    ) -> None:
+        operation_id = str(descriptor.get("operation_id") or "")
+        claimed_revision = int(descriptor.get("revision") or 0)
+        if not operation_id or claimed_revision <= 0:
+            relay_activity_log.error(
+                "operation.nonexecution.unreportable",
+                operation_id=operation_id,
+                claimed_revision=claimed_revision,
+                outcome=outcome,
+                error_code=error_code,
+            )
+            return
+        payload: Dict[str, Any] = {
+            "operation_id": operation_id,
+            "claimed_revision": claimed_revision,
+            "outcome": str(outcome),
+            "headers": {},
+            "error": {"code": str(error_code)},
+            "body_sha256": hashlib.sha256(b"").hexdigest(),
+            "body_length": 0,
+            "body_present": False,
+        }
+        if status > 0:
+            payload["status"] = int(status)
+        relay_transport.request_json(
+            "POST",
+            relay_contract.endpoint(
+                "operation_result",
+                operation_id=operation_id,
+            ),
+            payload,
+            action="operation.result.nonexecution",
+        )
+        relay_activity_log.success(
+            "operation.nonexecution.submitted",
+            operation_id=operation_id,
+            claimed_revision=claimed_revision,
+            outcome=outcome,
+            error_code=error_code,
         )
 
     def _upload_response_blob(

@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import hashlib
+import json
 import platform
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
+from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
     terminal_screenshot_cache,
@@ -47,7 +50,20 @@ class TerminalService:
         self._state_repository = state_repository
         self._screenshot_cache = screenshot_cache
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(
+        self,
+        viewer_id: str = "",
+        visible_window_ids: Iterable[str] = (),
+    ) -> Dict[str, Any]:
+        normalized_viewer = str(viewer_id or "").strip()
+        normalized_visible = sorted(
+            {str(value) for value in visible_window_ids if str(value)}
+        )
+        if normalized_viewer:
+            self._screenshot_cache.renew_demand(
+                normalized_viewer,
+                normalized_visible,
+            )
         if self._backend is None:
             snapshot = {
                 "success": True,
@@ -72,9 +88,40 @@ class TerminalService:
         )
         snapshot["stored_count"] = snapshot["count"] - snapshot["online_count"]
         if snapshot.get("supported") and snapshot["online_count"]:
-            self._attach_window_screenshots(snapshot)
+            self._attach_window_screenshot_resources(snapshot)
+        snapshot["screenshot_revision"] = self._screenshot_cache.revision()
+        snapshot["state_revision"] = self._state_revision(snapshot)
         snapshot["refreshed_at"] = int(time.time() * 1000)
+        terminal_activity_log.success(
+            "snapshot.completed",
+            viewer_id=normalized_viewer,
+            visible_window_ids=normalized_visible,
+            window_count=snapshot["count"],
+            online_count=snapshot["online_count"],
+            state_revision=snapshot["state_revision"],
+        )
         return snapshot
+
+    def renew_viewer_demand(
+        self,
+        viewer_id: str,
+        visible_window_ids: Iterable[str],
+    ) -> Dict[str, Any]:
+        return self._screenshot_cache.renew_demand(
+            viewer_id,
+            visible_window_ids,
+        )
+
+    def finalize_snapshot(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        snapshot["state_revision"] = self._state_revision(snapshot)
+        return snapshot
+
+    def read_screenshot(
+        self,
+        window_id: str,
+        digest: str,
+    ) -> Optional[Dict[str, Any]]:
+        return self._screenshot_cache.read_resource(window_id, digest)
 
     def resolve_window_id(self, terminal_number: int) -> str:
         if terminal_number <= 0:
@@ -155,7 +202,7 @@ class TerminalService:
                 "success": False,
                 "error_code": "terminal_screenshot_failed",
             }
-        return {**action, "screenshot": screenshot}
+        return {**action, "screenshot_resource": screenshot}
 
     def save_preview_expanded(
         self,
@@ -326,17 +373,25 @@ class TerminalService:
         )
         return {**action, "log": log_entry}
 
-    def _attach_window_screenshots(self, snapshot: Dict[str, Any]) -> None:
+    def _attach_window_screenshot_resources(
+        self,
+        snapshot: Dict[str, Any],
+    ) -> None:
         windows = snapshot.get("windows") or []
         regions = [
             TerminalService._window_capture_region(window)
             for window in windows
             if bool(window.get("online"))
         ]
-        screenshots = self._screenshot_cache.read_and_refresh(regions)
+        screenshots = self._screenshot_cache.refresh_demanded(regions)
         for window in windows:
+            window.pop("screenshot", None)
             if bool(window.get("online")):
-                window["screenshot"] = screenshots.get(str(window.get("id") or ""))
+                resource = screenshots.get(str(window.get("id") or ""))
+                if resource is not None:
+                    window["screenshot_resource"] = resource
+                else:
+                    window.pop("screenshot_resource", None)
 
     def _capture_window_screenshot(
         self,
@@ -345,10 +400,9 @@ class TerminalService:
         window_id = str(window.get("id") or "")
         if not window_id:
             return None
-        screenshots = self._screenshot_cache.capture_now([
-            TerminalService._window_capture_region(window),
-        ])
-        return screenshots.get(window_id)
+        return self._screenshot_cache.capture_now(
+            TerminalService._window_capture_region(window)
+        )
 
     @staticmethod
     def _window_capture_region(window: Dict[str, Any]) -> Dict[str, Any]:
@@ -360,6 +414,23 @@ class TerminalService:
             "width": int(rectangle.get("width") or 0),
             "height": int(rectangle.get("height") or 0),
         }
+
+    @staticmethod
+    def _state_revision(snapshot: Dict[str, Any]) -> str:
+        canonical = {
+            "platform": str(snapshot.get("platform") or ""),
+            "session": str(snapshot.get("session") or ""),
+            "supported": bool(snapshot.get("supported")),
+            "windows": snapshot.get("windows") or [],
+        }
+        body = json.dumps(
+            canonical,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(body).hexdigest()
 
     @staticmethod
     def _failure(error_code: str) -> Dict[str, Any]:

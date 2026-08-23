@@ -15,7 +15,7 @@ class RealtimeConnectionService
             static fn (mixed $topic): bool => is_string($topic) && $topic !== ''
         )));
 
-        return array_merge(RelayHubAuthService::issueForTopics('queue-center', $topics), [
+        return array_merge(RelayHubAuthService::connectionForTopics($topics), [
             'auth_mode' => 'bearer',
             'protocol' => QueueCenterContract::relayHubString('protocol'),
         ], $extra);

@@ -10,16 +10,20 @@ from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
+    start_bus_task,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.window.screen_capture import capture_screen_regions_png
 
 
-TERMINAL_CHANGED_EVENT = "terminal.changed"
 TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = 2.0
 TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS = 10.0
 TERMINAL_VIEWER_DEMAND_LEASE_SECONDS = 15.0
 TERMINAL_VIEWER_MAX_WINDOWS = 64
+TERMINAL_VIEWER_MAX_COUNT = 128
+TERMINAL_SCREENSHOT_RESOURCE_RETENTION_SECONDS = 120.0
+TERMINAL_SCREENSHOT_MAX_RESOURCES = 256
 TERMINAL_SCREENSHOT_RESOURCE_ROUTE = "ui/terminal/screenshot"
 
 
@@ -28,6 +32,7 @@ class TerminalScreenshotCache:
 
     def __init__(self) -> None:
         self._entries: Dict[str, Dict[str, Any]] = {}
+        self._resources: Dict[str, Dict[str, Any]] = {}
         self._viewer_leases: Dict[str, Dict[str, Any]] = {}
         self._capture_leases: Dict[str, float] = {}
         self._revision = 0
@@ -50,6 +55,11 @@ class TerminalScreenshotCache:
         if len(normalized_ids) > TERMINAL_VIEWER_MAX_WINDOWS:
             raise ValueError("terminal_viewer_window_limit_exceeded")
         self._prune_leases(time.monotonic())
+        if (
+            normalized_viewer not in self._viewer_leases
+            and len(self._viewer_leases) >= TERMINAL_VIEWER_MAX_COUNT
+        ):
+            raise ValueError("terminal_viewer_limit_exceeded")
         self._viewer_leases[normalized_viewer] = {
             "window_ids": normalized_ids,
             "expires_at": time.monotonic() + TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
@@ -71,16 +81,56 @@ class TerminalScreenshotCache:
         regions: List[Dict[str, Any]],
     ) -> Dict[str, Dict[str, Any]]:
         normalized = self._normalize_regions(regions)
-        plan = self._claim_capture(normalized, (), time.monotonic())
+        now = time.monotonic()
+        self._reconcile_windows(
+            [str(region["id"]) for region in normalized],
+            now,
+        )
+        plan = self._claim_capture(normalized, (), now)
         if plan:
             terminal_activity_log.info(
-                "screenshot.capture.started",
+                "screenshot.capture.scheduled",
                 window_ids=list(plan),
                 region_count=len(plan),
             )
+            try:
+                start_bus_task(
+                    self._capture_plan,
+                    plan,
+                    thread_name="TerminalScreenshotCaptureThread",
+                )
+            except Exception as error:
+                self._release_capture(plan)
+                terminal_activity_log.error(
+                    "screenshot.capture.schedule.failed",
+                    window_ids=list(plan),
+                    error_type=type(error).__name__,
+                    error=error,
+                )
+        return self.metadata_many([region["id"] for region in normalized])
+
+    def _capture_plan(self, plan: Dict[str, Dict[str, Any]]) -> None:
+        terminal_activity_log.info(
+            "screenshot.capture.started",
+            window_ids=list(plan),
+            region_count=len(plan),
+        )
+        try:
             captures = capture_screen_regions_png(list(plan.values()))
             self._commit_capture(plan, captures, time.monotonic())
-        return self.metadata_many(region["id"] for region in normalized)
+        except Exception as error:
+            self._release_capture(plan)
+            terminal_activity_log.error(
+                "screenshot.capture.failed",
+                window_ids=list(plan),
+                error_type=type(error).__name__,
+                error=error,
+            )
+
+    @serialized_method
+    def _release_capture(self, plan: Dict[str, Dict[str, Any]]) -> None:
+        for window_id in plan:
+            self._capture_leases.pop(str(window_id), None)
 
     def capture_now(self, region: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         normalized = self._normalize_regions([region])
@@ -105,6 +155,7 @@ class TerminalScreenshotCache:
         now: float,
     ) -> Dict[str, Dict[str, Any]]:
         self._prune_leases(now)
+        self._prune_resources(now)
         demanded = {
             str(window_id)
             for lease in self._viewer_leases.values()
@@ -160,8 +211,22 @@ class TerminalScreenshotCache:
                     window_id=window_id,
                 )
                 continue
+            previous = self._entries.get(window_id)
+            if (
+                previous is not None
+                and str(previous.get("digest") or "") == digest
+            ):
+                previous["captured_at"] = int(capture.get("captured_at") or 0)
+                previous["geometry"] = str(region["geometry"])
+                previous["stored_at"] = now
+                terminal_activity_log.debug(
+                    "screenshot.capture.unchanged",
+                    window_id=window_id,
+                    digest=digest,
+                )
+                continue
             self._revision += 1
-            self._entries[window_id] = {
+            entry = {
                 "window_id": window_id,
                 "mime": str(capture.get("mime") or "image/png"),
                 "body": body,
@@ -173,7 +238,9 @@ class TerminalScreenshotCache:
                 "stored_at": now,
                 "revision": self._revision,
             }
-            changed.append(self._metadata(self._entries[window_id]))
+            self._entries[window_id] = entry
+            self._resources[self._resource_key(window_id, digest)] = entry
+            changed.append(self._metadata(entry))
             terminal_activity_log.success(
                 "screenshot.capture.completed",
                 window_id=window_id,
@@ -181,6 +248,7 @@ class TerminalScreenshotCache:
                 digest=digest,
                 revision=self._revision,
             )
+        self._prune_resources(now)
         if changed:
             THREAD_BUS.trigger_event(
                 TERMINAL_CHANGED_EVENT,
@@ -210,13 +278,40 @@ class TerminalScreenshotCache:
         }
 
     @serialized_method
+    def revision(self) -> int:
+        return int(self._revision)
+
+    @serialized_method
+    def _reconcile_windows(
+        self,
+        online_window_ids: Iterable[str],
+        now: float,
+    ) -> None:
+        online = {str(value) for value in online_window_ids if str(value)}
+        removed = [
+            window_id
+            for window_id in self._entries
+            if window_id not in online
+        ]
+        for window_id in removed:
+            self._entries.pop(window_id, None)
+            self._capture_leases.pop(window_id, None)
+        self._prune_resources(now)
+        if removed:
+            terminal_activity_log.info(
+                "screenshot.windows.reconciled",
+                removed_window_ids=removed,
+            )
+
+    @serialized_method
     def read_resource(
         self,
         window_id: str,
         digest: str,
     ) -> Optional[Dict[str, Any]]:
-        entry = self._entries.get(str(window_id))
-        if entry is None or str(entry.get("digest") or "") != str(digest):
+        self._prune_resources(time.monotonic())
+        entry = self._resources.get(self._resource_key(window_id, digest))
+        if entry is None:
             terminal_activity_log.warning(
                 "screenshot.resource.missed",
                 window_id=window_id,
@@ -230,6 +325,38 @@ class TerminalScreenshotCache:
             body=entry["body"],
         )
         return dict(entry)
+
+    def _prune_resources(self, now: float) -> None:
+        current_resource_keys = {
+            self._resource_key(window_id, str(entry.get("digest") or ""))
+            for window_id, entry in self._entries.items()
+        }
+        expired_keys = [
+            key
+            for key, entry in self._resources.items()
+            if key not in current_resource_keys
+            and now - float(entry.get("stored_at") or 0)
+            >= TERMINAL_SCREENSHOT_RESOURCE_RETENTION_SECONDS
+        ]
+        for key in expired_keys:
+            self._resources.pop(key, None)
+        overflow = max(
+            0,
+            len(self._resources) - TERMINAL_SCREENSHOT_MAX_RESOURCES,
+        )
+        removable = sorted(
+            (
+                (float(entry.get("stored_at") or 0), key)
+                for key, entry in self._resources.items()
+                if key not in current_resource_keys
+            ),
+        )
+        for _stored_at, key in removable[:overflow]:
+            self._resources.pop(key, None)
+
+    @staticmethod
+    def _resource_key(window_id: str, digest: str) -> str:
+        return f"{str(window_id)}:{str(digest)}"
 
     def _prune_leases(self, now: float) -> None:
         expired_viewers = [

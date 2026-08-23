@@ -34,6 +34,7 @@ class AppQyV1SocialRealtimeController extends Controller
             [AppQyV1SocialEventModel::topic($userId)]
         );
         $token['events'] = AppQyV1SocialEventModel::eventNames();
+        $token['cursor'] = AppQyV1SocialEventModel::maxId($userId);
 
         return RelayHubAuthService::withHubCookie(
             $this->success($token, __('relay.social_realtime_connection')),

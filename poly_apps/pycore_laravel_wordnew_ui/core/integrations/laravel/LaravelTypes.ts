@@ -186,6 +186,7 @@ export interface RelayHubToken {
   token: string;
   token_ttl_seconds: number;
   cookie: string;
+  cursor?: number;
 }
 
 export interface RelayPairResponse {

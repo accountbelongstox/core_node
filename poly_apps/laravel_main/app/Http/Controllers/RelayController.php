@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Middleware\PycoreClientOnly;
 use App\Services\Dashboard\DebugAuthService;
+use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Services\Relay\RelayBlobStore;
 use App\Services\Relay\RelayCapabilityRegistry;
 use App\Services\Relay\RelayDispatcher;
@@ -32,6 +33,12 @@ class RelayController extends Controller
 
     private const WAIT_STEP_MICROSECONDS = 250000;
     private const WAIT_MAX_SECONDS = 25;
+    private QueueCenterRealtimeService $queueRealtime;
+
+    public function __construct(QueueCenterRealtimeService $queueRealtime)
+    {
+        $this->queueRealtime = $queueRealtime;
+    }
 
     public function machines(): JsonResponse
     {
@@ -116,6 +123,7 @@ class RelayController extends Controller
             $request->filled('machine_id') ? (string) $request->json('machine_id') : null,
             $session['id']
         );
+        $token['cursor'] = $this->queueRealtime->cursor();
 
         return RelayHubAuthService::withHubCookie($this->success($token), $token);
     }

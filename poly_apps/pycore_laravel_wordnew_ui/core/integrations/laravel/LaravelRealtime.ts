@@ -280,18 +280,20 @@ class LaravelRealtime {
     if (!this.started || this.transport.isConnected()) return;
     const generation = ++this.generation;
     try {
-      const overview = await laravelApi.getQueueCenterOverview();
+      const authorization = await laravelApi.relayHubAuth();
       if (!this.started || generation !== this.generation) return;
       const baseURL = getSharedBaseURL();
-      const realtime = overview.realtime;
-      if (!baseURL || !realtime.hub_url || !(realtime.topics || []).length) {
+      if (!baseURL || !authorization.hub_url || !(authorization.topics || []).length) {
         throw new Error('LARAVEL_REALTIME_CONFIGURATION_UNAVAILABLE');
       }
       this.activeBaseURL = baseURL;
-      await this.replay();
-      if (!this.started || generation !== this.generation) return;
-      this.transport.connect(realtime, {
-        authorize: () => laravelApi.relayHubAuth(),
+      if (this.lastId === null
+        && typeof authorization.cursor === 'number'
+        && Number.isFinite(authorization.cursor)) {
+        this.lastId = Math.max(0, authorization.cursor);
+      }
+      this.transport.connect(authorization, {
+        authorize: async () => authorization,
         onSubscribed: () => {
           void this.subscribed(generation).catch((error) => {
             console.warn('[laravel-realtime] cursor replay failed', error);

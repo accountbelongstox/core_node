@@ -120,7 +120,7 @@ class AppQyV1BookReadingProgressController extends Controller
 
         $validator = Validator::make($request->all(), [
             'group_id' => 'nullable|string|max:64',
-            'settings' => 'nullable|array',
+            'settings' => 'nullable|array:playbackMode,wordMode,wordOrder,newOnlyMaxReadCount,underlineCurrentSentence,bilingual,sentenceRate,wordRate,playbackPattern',
             'settings.playbackMode' => 'nullable|string|in:sequential,repeat-all,repeat-one,shuffle',
             'settings.wordMode' => 'nullable|string|in:off,new,all',
             'settings.wordOrder' => 'nullable|string|in:sentence,shuffle,alpha',
@@ -130,6 +130,7 @@ class AppQyV1BookReadingProgressController extends Controller
             'settings.sentenceRate' => 'nullable|numeric|min:0.25|max:4',
             'settings.wordRate' => 'nullable|numeric|min:0.25|max:4',
             'settings.playbackPattern' => 'nullable|array|max:12',
+            'settings.playbackPattern.*' => 'array:id,type,lang,times',
             'settings.playbackPattern.*.id' => 'required|string|max:96',
             'settings.playbackPattern.*.type' => 'required|string|in:sentence,words',
             'settings.playbackPattern.*.lang' => 'nullable|string|in:en,cn',

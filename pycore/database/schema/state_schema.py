@@ -209,6 +209,7 @@ def _create_relay_execution_results_table(cursor: sqlite3.Cursor) -> None:
             response_has_body INTEGER NOT NULL DEFAULT 1,
             response_digest TEXT,
             response_length INTEGER,
+            response_outcome TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY(operation_id) REFERENCES operations(id) ON DELETE CASCADE
@@ -234,6 +235,11 @@ def _migrate_schema(cursor: sqlite3.Cursor) -> None:
         cursor.execute(
             "ALTER TABLE relay_execution_results "
             "ADD COLUMN response_has_body INTEGER NOT NULL DEFAULT 1"
+        )
+    if "response_outcome" not in relay_cols:
+        cursor.execute(
+            "ALTER TABLE relay_execution_results "
+            "ADD COLUMN response_outcome TEXT"
         )
     _create_rpc_client_sessions_table(cursor)
     _create_relay_execution_results_table(cursor)

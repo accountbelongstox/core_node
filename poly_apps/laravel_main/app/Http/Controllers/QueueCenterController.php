@@ -61,7 +61,6 @@ class QueueCenterController extends Controller
         return $this->success([
             'queues' => $this->queueCenter->stats(),
             'workers' => $this->workerPresence->snapshot(),
-            'realtime' => $this->realtime->connection(),
         ], __('relay.queue_center_overview'));
     }
 

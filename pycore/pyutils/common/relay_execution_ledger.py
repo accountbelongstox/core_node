@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any, Dict
 
 from pycore.pyutils.common.operation_service import OperationService
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
-from pycore.pyutils.common.rpc_response import RpcExecutionResponse
+from pycore.pyutils.common.rpc_response import (
+    RpcExecutionResponse,
+    rpc_response_digest,
+)
 
 
 RELAY_OPERATION_KIND = "pycore_relay_v2"
@@ -109,7 +111,7 @@ class RelayExecutionLedger:
         response: RpcExecutionResponse,
         failed: bool = False,
     ) -> Dict[str, Any]:
-        response_digest = hashlib.sha256(response.body).hexdigest()
+        response_digest = rpc_response_digest(response)
         result = self.repo.save_relay_execution_response(
             operation_id,
             request_digest,
@@ -118,6 +120,7 @@ class RelayExecutionLedger:
             response.body,
             response.has_body,
             response_digest,
+            "failed" if failed else "responded",
         )
         operation = self.operations.get_operation(operation_id)
         if operation is None:

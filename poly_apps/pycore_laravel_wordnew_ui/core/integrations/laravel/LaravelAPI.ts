@@ -5,7 +5,12 @@
  * used only for Python runtime capabilities and worker controls.
  */
 
-import { BaseAPI, getSharedBaseURL, setSharedBaseURL } from './transport/BaseAPI';
+import {
+  BaseAPI,
+  getSharedAuthToken,
+  getSharedBaseURL,
+  setSharedBaseURL,
+} from './transport/BaseAPI';
 import { MediaQueryAPI } from './transport/MediaQueryAPI';
 import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from './transport/ApiContract';
 import { unwrapLaravelData } from './transport/LaravelEnvelope';
@@ -19,6 +24,7 @@ import {
   removeCustomEndpoint,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { API_HEALTH_EVENT, apiManager } from './ApiManager';
+import { coordinateRequest } from '../../network/RequestCoordinator';
 import {
   QUEUE_CENTER_CONTRACT,
   QUEUE_CENTER_DIFF_DELIVERY,
@@ -177,6 +183,7 @@ async function requestLaravel<T>(
   method: LaravelMethod,
   path: string,
   payload?: unknown,
+  cacheTtlMs = 0,
 ): Promise<T> {
   // Central transport invariant: every Laravel route, including assist
   // overview, follows the endpoint persisted by ApiManager. This defensive
@@ -190,18 +197,28 @@ async function requestLaravel<T>(
   const requestPath = method === 'GET'
     ? withQuery(path, (payload || {}) as Record<string, unknown>)
     : path;
-  const response = await laravelHttp.rawRequest(requestPath, {
-    method,
-    headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
-    body: hasBody ? JSON.stringify(payload) : undefined,
-  });
-  const body = await response.json();
-  if (!response.ok) {
-    const error = new Error(`LARAVEL_HTTP_${response.status}`);
-    Object.assign(error, { status: response.status, payload: body });
-    throw error;
-  }
-  return body as T;
+  const execute = async (): Promise<T> => {
+    const response = await laravelHttp.rawRequest(requestPath, {
+      method,
+      headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+      body: hasBody ? JSON.stringify(payload) : undefined,
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      const error = new Error(`LARAVEL_HTTP_${response.status}`);
+      Object.assign(error, { status: response.status, payload: body });
+      throw error;
+    }
+    return body as T;
+  };
+  if (method !== 'GET') return execute();
+  const baseURL = getSharedBaseURL() ?? '';
+  const auth = getSharedAuthToken() ?? 'anonymous';
+  return coordinateRequest(
+    `laravel-read:${auth}:${baseURL}:${requestPath}`,
+    execute,
+    cacheTtlMs,
+  );
 }
 
 function unwrapData<T>(payload: any): T {
@@ -340,7 +357,7 @@ const laravelMethods = {
     };
   },
   getQueueCenterOverview: async (): Promise<QueueCenterOverviewResponse> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.queueCenterOverview);
+    const payload = await requestLaravel<any>('GET', ROUTES.queueCenterOverview, undefined, 2000);
     return unwrapData<QueueCenterOverviewResponse>(payload);
   },
 

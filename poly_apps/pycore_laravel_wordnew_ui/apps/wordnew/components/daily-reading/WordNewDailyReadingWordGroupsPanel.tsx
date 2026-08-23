@@ -1,17 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { BookMarked, RefreshCw, Sparkles } from 'lucide-react';
 import {
-  DEFAULT_VOCAB_GROUP_NAME,
   isDefaultVocabularyGroup,
-  type WordGroup,
 } from '../../api/types/core';
 import {
-  pullDailyReadingWordGroup,
+  dailyReadingWordGroups,
   dailyReadingWordGroupSnapshot,
-  loadDailyReadingWordGroups,
   selectDailyReadingWordGroup,
   subscribeDailyReadingWordGroups,
+  synchronizeDailyReadingWordGroups,
 } from './dailyReadingWordGroupStore';
+import { navigateToWordGroup } from '../../routing/WordNewHashRoutes';
 
 interface Props {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -20,20 +19,6 @@ interface Props {
   sessionReads?: number;
   /** Distinct words newly linked to the selected group this session. */
   sessionNewWords?: number;
-}
-
-function syntheticDefaultGroup(): WordGroup {
-  return { id: DEFAULT_VOCAB_GROUP_NAME, name: DEFAULT_VOCAB_GROUP_NAME, count: 0 };
-}
-
-/** All groups with the Default Vocabulary Group guaranteed present and first. */
-function withDefaultGroup(groups: WordGroup[]): WordGroup[] {
-  const list = groups.some(isDefaultVocabularyGroup)
-    ? [...groups]
-    : [syntheticDefaultGroup(), ...groups];
-  return list.sort(
-    (a, b) => Number(isDefaultVocabularyGroup(b)) - Number(isDefaultVocabularyGroup(a)),
-  );
 }
 
 export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
@@ -49,14 +34,11 @@ export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
   );
 
   useEffect(() => {
-    void loadDailyReadingWordGroups(refreshToken > 0).catch(() => undefined);
+    void synchronizeDailyReadingWordGroups(refreshToken > 0).catch(() => undefined);
   }, [refreshToken]);
 
   const groups = useMemo(
-    () => withDefaultGroup(store.groups.filter((group) => {
-      const language = group.language?.trim().toLowerCase();
-      return !language || language === 'en' || language === 'english' || isDefaultVocabularyGroup(group);
-    })),
+    () => dailyReadingWordGroups(store.groups),
     [store.groups],
   );
 
@@ -71,11 +53,6 @@ export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
   // roam push are centralized in the daily-reading word-group store.
   const selectGroup = useCallback((id: string) => {
     selectDailyReadingWordGroup(id);
-  }, []);
-
-  // Backend restore on mount reconciles timestamped local and account snapshots.
-  useEffect(() => {
-    void pullDailyReadingWordGroup();
   }, []);
 
   useEffect(() => {
@@ -94,7 +71,7 @@ export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
         </h3>
         <button
           type="button"
-          onClick={() => void loadDailyReadingWordGroups(true).catch(() => undefined)}
+          onClick={() => void synchronizeDailyReadingWordGroups(true).catch(() => undefined)}
           className="p-1.5 rounded-lg border border-white/10 text-zinc-500 hover:text-indigo-300 transition-colors"
           title={trans('home.dailyReading.refresh')}
         >
@@ -128,12 +105,17 @@ export const WordNewDailyReadingWordGroupsPanel: React.FC<Props> = ({
               <Sparkles className="w-3 h-3" />
               {selectedGroup.name}
             </span>
-            <span className="font-mono text-[10px] text-indigo-300">
+            <button
+              type="button"
+              onClick={() => navigateToWordGroup(selectedGroup.id)}
+              className="font-mono text-[10px] text-indigo-300 underline decoration-indigo-500/40 underline-offset-2 hover:text-indigo-100"
+              title={trans('home.openCurrentGroup')}
+            >
               {selectedGroup.count} {trans('home.dailyReading.wordsUnit')}
               {typeof selectedGroup.progress === 'number'
                 ? ` · ${Math.round(selectedGroup.progress)}%`
                 : ''}
-            </span>
+            </button>
           </div>
           {(sessionReads > 0 || sessionNewWords > 0) && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/5 pt-2 text-[10px] font-mono text-zinc-500">
