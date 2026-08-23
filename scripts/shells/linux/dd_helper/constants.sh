@@ -17,6 +17,11 @@
 # This file contains backup constants for dd_helper directory
 # Main constants are defined in dd.sh, this is a backup copy
 
+if [ "${DD_HELPER_CONSTANTS_LOADED:-false}" = "true" ]; then
+    return 0
+fi
+DD_HELPER_CONSTANTS_LOADED=true
+
 # URL Constants
 GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
 GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"

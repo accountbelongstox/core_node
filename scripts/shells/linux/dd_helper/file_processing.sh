@@ -23,6 +23,13 @@ process_sh_files() {
     local skipped_files=0
     local files_to_convert=()
     local files_to_skip=()
+    local files_need_conversion=0
+    local end_time=""
+    local duration=""
+    local file=""
+    local basename_file=""
+    local conversion_status=""
+    local exec_status=""
 
     echo -e "\033[36m[SCAN] Starting to scan directory: $dir\033[0m"
     echo -e "\033[33m[INFO] Scanning for .sh files that need conversion...\033[0m"
@@ -37,15 +44,14 @@ process_sh_files() {
         fi
     done < <(find "$dir" -type f -name "*.sh" -print0)
 
-    local files_need_conversion=${#files_to_convert[@]}
+    files_need_conversion=${#files_to_convert[@]}
 
     echo -e "\033[32m[SCAN COMPLETE] Found $total_files .sh files total\033[0m"
-    echo -e "\033[33m[CONVERSION] $files_need_conversion files need conversion\033[0m"
+    echo -e "\033[33m[PROCESSING] $files_need_conversion files need processing\033[0m"
     echo -e "\033[33m[CACHE] $skipped_files files skipped (already converted)\033[0m"
 
     if [ $files_need_conversion -eq 0 ]; then
-        local end_time=$(date +%s.%N)
-        local duration
+        end_time=$(date +%s.%N)
         if command -v bc >/dev/null 2>&1; then
             duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null)
             if [ -z "$duration" ]; then
@@ -61,38 +67,41 @@ process_sh_files() {
         return 0
     fi
 
-    echo -e "\033[36m[PROCESSING] Converting $files_need_conversion files...\033[0m"
+    echo -e "\033[36m[PROCESSING] Processing $files_need_conversion files...\033[0m"
 
     for file in "${files_to_convert[@]}"; do
         ((converted_files++))
-        local basename_file="$(basename "$file")"
+        basename_file="$(basename "$file")"
 
-        local conversion_status=""
-        if command -v dos2unix >/dev/null 2>&1; then
-            if $sudo dos2unix "$file" >/dev/null 2>&1; then
-                conversion_status="[OK] dos2unix"
+        conversion_status="[OK] line endings"
+        if LC_ALL=C grep -q $'\r' "$file" 2>/dev/null; then
+            if command -v dos2unix >/dev/null 2>&1; then
+                if $sudo dos2unix "$file" >/dev/null 2>&1; then
+                    conversion_status="[OK] dos2unix"
+                else
+                    $sudo sed -i 's/\r$//' "$file"
+                    conversion_status="[OK] sed fallback"
+                fi
             else
                 $sudo sed -i 's/\r$//' "$file"
-                conversion_status="[OK] sed fallback"
+                conversion_status="[OK] sed"
             fi
-        else
-            $sudo sed -i 's/\r$//' "$file"
-            conversion_status="[OK] sed"
         fi
 
-        local exec_status=""
-        if $sudo chmod +x "$file"; then
-            exec_status="[OK] exec"
-        else
-            exec_status="[FAIL] exec"
+        exec_status="[OK] exec"
+        if [ ! -x "$file" ]; then
+            if $sudo chmod +x "$file"; then
+                exec_status="[OK] exec"
+            else
+                exec_status="[FAIL] exec"
+            fi
         fi
 
         echo -e "\033[33m[$converted_files/$files_need_conversion]\033[0m \033[35m$basename_file\033[0m - $conversion_status, $exec_status"
         set_file_cache "$file"
     done
 
-    local end_time=$(date +%s.%N)
-    local duration
+    end_time=$(date +%s.%N)
     if command -v bc >/dev/null 2>&1; then
         duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null)
         if [ -z "$duration" ]; then
@@ -105,9 +114,9 @@ process_sh_files() {
         fi
     fi
 
-    echo -e "\033[32m[COMPLETE] Conversion finished! \033[0m"
+    echo -e "\033[32m[COMPLETE] Processing finished! \033[0m"
     echo -e "\033[32m  - Total files scanned: $total_files\033[0m"
-    echo -e "\033[32m  - Files converted: $converted_files\033[0m"
+    echo -e "\033[32m  - Files processed: $converted_files\033[0m"
     echo -e "\033[32m  - Files skipped (cached): $skipped_files\033[0m"
     echo -e "\033[32m  - Time taken: ${duration}s\033[0m"
 }

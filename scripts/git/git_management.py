@@ -18,6 +18,12 @@ import glob
 from pathlib import Path
 from datetime import datetime
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import termios
+    import tty
+
 # Add parent directory to path for imports
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
@@ -46,33 +52,95 @@ class GitManagement:
         # Fallback: assume we're in scripts/git/
         return Path(__file__).parent.parent.parent
 
-    def show_menu(self):
-        """Display the Git Management menu"""
-        option_number = 1
+    def get_menu_items(self):
+        """Return the available Git Management menu items"""
+        menu_items = []
 
+        if not self.is_windows:
+            menu_items.append("Push to git")
+        menu_items.extend([
+            "Get the latest git version (backup + commit + pull)",
+            "Force overwrite local with remote (backup local first)",
+            "Cleanup Git repository with BFG (remove large files)",
+            "Remove directories from Git history (e.g., .venv, node_modules)",
+            "Git time travel",
+            "Back to main menu",
+        ])
+        return menu_items
+
+    def show_menu(self, menu_items, selected_index):
+        """Display the Git Management menu"""
         os.system('cls' if self.is_windows else 'clear')
         print()
         print("\033[36m==================== Git Management ====================\033[0m")
-        if not self.is_windows:
-            print(f"  {option_number}. Push to git")
-            option_number += 1
-        print(f"  {option_number}. Get the latest git version (backup + commit + pull)")
-        print(f"  {option_number + 1}. Force overwrite local with remote (backup local first)")
-        print(f"  {option_number + 2}. Cleanup Git repository with BFG (remove large files)")
-        print(f"  {option_number + 3}. Remove directories from Git history (e.g., .venv, node_modules)")
-        print(f"  {option_number + 4}. Git time travel")
-        print(f"  {option_number + 5}. Back to main menu")
+        print("Select an option (Up/Down to move, Enter to select):")
+        print("Press Ctrl+C to go back")
+        print()
+        for index, menu_item in enumerate(menu_items):
+            if index == selected_index:
+                print(f"\033[47m\033[30m> {menu_item:<68}\033[0m")
+            else:
+                print(f"  {menu_item:<68}")
         print("\033[36m========================================================\033[0m")
+
+    def read_menu_key(self) -> str:
+        """Read one menu navigation key"""
+        if self.is_windows:
+            key = msvcrt.getwch()
+            if key in ("\x00", "\xe0"):
+                extended_key = msvcrt.getwch()
+                if extended_key == "H":
+                    return "up"
+                if extended_key == "P":
+                    return "down"
+            if key in ("\r", "\n"):
+                return "enter"
+            if key == "\x03":
+                return "back"
+            return ""
+
+        terminal_settings = termios.tcgetattr(sys.stdin)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            key = sys.stdin.read(1)
+            if key == "\x1b":
+                sequence = sys.stdin.read(2)
+                if sequence == "[A":
+                    return "up"
+                if sequence == "[B":
+                    return "down"
+            if key in ("\r", "\n"):
+                return "enter"
+            if key == "\x03":
+                return "back"
+            return ""
+        finally:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, terminal_settings)
 
     def get_user_choice(self) -> str:
         """Get user menu choice"""
-        option_count = 6 if self.is_windows else 7
+        menu_items = self.get_menu_items()
+        option_count = len(menu_items)
+        selected_index = 0
 
-        try:
-            choice = input(f"Select an option (1-{option_count}): ").strip()
-            return choice
-        except (KeyboardInterrupt, EOFError):
-            return str(option_count)
+        if not sys.stdin.isatty():
+            self.show_menu(menu_items, selected_index)
+            try:
+                return input(f"Select an option (1-{option_count}): ").strip()
+            except (KeyboardInterrupt, EOFError):
+                return str(option_count)
+
+        while True:
+            self.show_menu(menu_items, selected_index)
+            key = self.read_menu_key()
+            if key == "up":
+                selected_index = (selected_index - 1) % option_count
+            elif key == "down":
+                selected_index = (selected_index + 1) % option_count
+            elif key == "enter":
+                return str(selected_index + 1)
+            elif key == "back":
+                return str(option_count)
 
     def handle_push(self):
         """Handle Git push"""
@@ -83,7 +151,7 @@ class GitManagement:
         self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_PENDING)
 
     def handle_safe_pull(self):
-        """Handle option 1: Safe git pull"""
+        """Handle safe Git pull"""
         print("\n\033[36m=== Safe Git Pull ===\033[0m")
         print("This will commit local changes and pull from remote.")
         print()
@@ -112,7 +180,7 @@ class GitManagement:
         print("Operation prepared. Shell will execute the pull operation.")
 
     def handle_force_overwrite(self):
-        """Handle option 2: Force overwrite local with remote"""
+        """Handle force overwrite of local files from remote"""
         print()
         print("\033[33m╔════════════════════════════════════════════════════════════════╗\033[0m")
         print("\033[33m║              FORCE OVERWRITE LOCAL WITH REMOTE                ║\033[0m")
@@ -205,7 +273,7 @@ class GitManagement:
         print("Operation prepared. Shell will execute the force overwrite operation.")
 
     def handle_bfg_cleanup(self):
-        """Handle option 3: BFG cleanup"""
+        """Handle BFG cleanup"""
         print("\n\033[36m=== BFG Repository Cleanup ===\033[0m")
         print("This will launch the BFG Repo-Cleaner script.")
         print()
@@ -224,7 +292,7 @@ class GitManagement:
             self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
 
     def handle_directory_cleanup(self):
-        """Handle option 4: Remove directories from Git history"""
+        """Handle directory removal from Git history"""
         try:
             print()
             print("\033[36m╔════════════════════════════════════════════════════════════════╗\033[0m")
@@ -787,7 +855,7 @@ class GitManagement:
             return f"git@gitee.com:accountbelongstox/{project_name}.git"
 
     def handle_git_time_travel(self):
-        """Handle option 4: Git time travel"""
+        """Handle Git time travel"""
         print("\n\033[36m=== Git Time Travel ===\033[0m")
         print("This will launch the Git Time Travel script.")
         print()
@@ -806,7 +874,7 @@ class GitManagement:
             self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_FAILED)
 
     def handle_back_to_menu(self):
-        """Handle option 5: Back to main menu"""
+        """Return to the parent menu"""
         self.vars.set_var(GitVarKeys.MENU_BACK, "true")
         self.vars.set_var(GitVarKeys.OPERATION_STATUS, GitVarKeys.STATUS_SUCCESS)
 
@@ -847,7 +915,6 @@ class GitManagement:
         option_offset = 0 if self.is_windows else 1
 
         while True:
-            self.show_menu()
             choice = self.get_user_choice()
 
             # Save menu choice

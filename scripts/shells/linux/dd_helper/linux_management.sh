@@ -544,7 +544,6 @@ show_slim_disk_submenu() {
     local total=9
     local old_settings=$(stty -g)
     stty -icanon -echo
-    trap 'stty "$old_settings"' RETURN
 
     local menu_items=(
         "Scan Large Paths (> 1GB, depth up to 5)"
@@ -637,7 +636,6 @@ show_linux_system_tools_submenu() {
     )
 
     stty -icanon -echo
-    trap 'stty "$old_settings"' RETURN
     
     while true; do
         printf "\033c"
@@ -846,7 +844,6 @@ show_linux_management_submenu() {
     )
 
     stty -icanon -echo
-    trap 'stty "$old_settings"' RETURN
     while true; do
         printf "\033c"
         echo "=========================================="
