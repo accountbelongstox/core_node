@@ -6,6 +6,5 @@ export const PycoreStorageKeys = {
   HTTP_EVENT_CURSORS: 'pycore_http_event_cursors',
   ROUTE_RECOVERY: 'pycore_route_recovery',
   HEALTH_RECHECK_INTERVAL_MS: 'pc_health_recheck_interval_ms',
-  /** Relay designation: the paired machine of the relay scheme (PART_3 §3.4). */
-  RELAY_PAIR: 'pycore_relay_pair',
+  RELAY_V2_STATE: 'pycore_relay_v2_state',
 } as const;

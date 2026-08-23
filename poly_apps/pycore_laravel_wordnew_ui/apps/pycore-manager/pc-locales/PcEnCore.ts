@@ -38,6 +38,15 @@ common: {
     resetOrder: 'Reset order',
     openAiChat: 'Open AI chat',
   },
+relayTarget: {
+    enrollmentTitle: 'Enroll a Relay device',
+    enrollmentPlaceholder: 'Claim code from the Pycore log',
+    enrollmentClaim: 'Claim',
+    enrollmentClaiming: 'Claiming…',
+    enrollmentSuccess: 'Device enrolled.',
+    enrollmentFailed: 'Device enrollment failed.',
+    rosterEmpty: 'No owned Relay devices. Start Pycore in mode 2, then enter its claim code above.',
+  },
 testPopup: {
     subtitle: 'Edit the inputs, run, and inspect the result.',
     close: 'Close',
@@ -723,4 +732,3 @@ queueCenter: {
     },
   }
 } as const;
-

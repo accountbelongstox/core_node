@@ -38,6 +38,15 @@ common: {
     resetOrder: '恢复默认顺序',
     openAiChat: '打开 AI 对话',
   },
+relayTarget: {
+    enrollmentTitle: '登记 Relay 设备',
+    enrollmentPlaceholder: '输入 Pycore 日志中的认领码',
+    enrollmentClaim: '认领',
+    enrollmentClaiming: '认领中…',
+    enrollmentSuccess: '设备已登记。',
+    enrollmentFailed: '设备登记失败。',
+    rosterEmpty: '暂无已归属的 Relay 设备。请以模式 2 启动 Pycore，再在上方输入认领码。',
+  },
 testPopup: {
     subtitle: '编辑测试输入，运行并查看结果。',
     close: '关闭',

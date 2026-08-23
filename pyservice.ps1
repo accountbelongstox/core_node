@@ -163,6 +163,11 @@ $uiStartPath = $null
 $uiStartArguments = @()
 $prepareArgs = @{}
 
+if ($Command -in @('1', '2')) {
+    $ServiceMode = $Command
+    $Command = 'run'
+}
+
 # --------------------------------------------------------------------------- #
 # Single system Python 3.13 (D:\.dev_win10\python313); no venv, no py launcher #
 # fallbacks to other minors.                                                   #
@@ -198,9 +203,11 @@ function Show-Usage {
     Write-Host 'pyservice.ps1 - entry point for the Pycore Module Caller (Windows)' -ForegroundColor Cyan
     Write-Host ''
     Write-Host 'Usage:'
-    Write-Host '  .\pyservice.ps1 [SUBCOMMAND] [-Param value ...]'
+    Write-Host '  .\pyservice.ps1 [1|2] [-Param value ...]'
     Write-Host ''
     Write-Host 'Subcommands:'
+    Write-Host '  1            Launch the local dashboard mode (default)'
+    Write-Host '  2            Launch the Relay intermediary mode'
     Write-Host '  run          Idempotent prerequisites, then launch (default)'
     Write-Host '  install      Run idempotent PreparePycorePrerequisites then exit'
     Write-Host '  config       Edit/show headless config via the cross-platform Python CLI'
@@ -220,7 +227,6 @@ function Show-Usage {
     Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
     Write-Host '  -Only             Provision only (idempotent install), then exit'
     Write-Host '  -NoUi             Do not launch the dashboard UI; use legacy /web/subtitle'
-    Write-Host '  -ServiceMode MODE Select local UI mode (1, default) or Relay UI mode (2)'
     Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
     Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
     Write-Host '  -NoInstall        Skip all PowerShell prerequisite installers'
@@ -233,9 +239,9 @@ function Show-Usage {
     Write-Host ''
     Write-Host 'Examples:'
     Write-Host '  .\pyservice.ps1'
+    Write-Host '  .\pyservice.ps1 2'
     Write-Host '  .\pyservice.ps1 install'
     Write-Host '  .\pyservice.ps1 run -NoUi -Port 8000'
-    Write-Host '  .\pyservice.ps1 run -ServiceMode 2'
     Write-Host '  .\pyservice.ps1 -NoInstall'
     Write-Host '  .\pyservice.ps1 config -show'
 }

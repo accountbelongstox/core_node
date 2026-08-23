@@ -388,6 +388,15 @@ class RelayDeviceIdentity:
         return str(RELAY_IDENTITY_STORE.read().get("enrollment_id") or "")
 
     @serialized_method
+    def enrollment_claim(self) -> Dict[str, str]:
+        document = RELAY_IDENTITY_STORE.read()
+        return {
+            "enrollment_id": str(document.get("enrollment_id") or ""),
+            "claim_code": str(document.get("enrollment_claim_code") or ""),
+            "expires_at": str(document.get("enrollment_expires_at") or ""),
+        }
+
+    @serialized_method
     def descriptor(self, label: str, platform_name: str) -> Dict[str, Any]:
         document = self.ensure()
         capabilities = relay_contract.capabilities()

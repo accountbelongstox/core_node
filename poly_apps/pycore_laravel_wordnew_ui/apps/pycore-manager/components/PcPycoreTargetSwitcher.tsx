@@ -16,6 +16,7 @@
  * PycoreRelayTransport).
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon, AlertTriangle, Radio, Users } from 'lucide-react';
 import {
   getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
@@ -23,7 +24,7 @@ import {
   pycoreLocalConnectionHint, isPycoreRelayMode,
   relayDesignate, relayPairedMachineId, relayUndesignate,
 } from '@/apps/pycore-manager/api';
-import { laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
+import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
 import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
 import { PYCORE_HTTP_PORT } from '@/apps/pycore-manager/api';
 
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) => {
+  const { t } = useTranslation('pc');
   const target = getPycoreTarget();           // read once; switching reloads anyway
   const mode = target.mode;
   const relayMode = isPycoreRelayMode();
@@ -55,11 +57,22 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const [url, setUrl] = useState('');
   const [roster, setRoster] = useState<RelayRosterEntry[]>([]);
   const [designated, setDesignated] = useState<string | null>(relayPairedMachineId());
+  const [claimCode, setClaimCode] = useState('');
+  const [claiming, setClaiming] = useState(false);
+  const [claimNotice, setClaimNotice] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   // Always-on roster link: registry truth + roster.update deltas (PART_3 §3.4).
   useEffect(() => {
-    const stop = laravelRelayRoster.onChange((entries) => setRoster(entries));
+    const stop = laravelRelayRoster.onChange((entries) => {
+      setRoster(entries);
+      const online = entries.filter((entry) => entry.online);
+      if (relayMode && !relayPairedMachineId() && online.length === 1) {
+        void relayDesignate(online[0].device_id)
+          .then((pairing) => setDesignated(pairing.device_id))
+          .catch(() => undefined);
+      }
+    });
     laravelRelayRoster.start();
     setRoster(laravelRelayRoster.list());
     return () => {
@@ -92,12 +105,29 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
 
   const designate = (machineId: string) => {
     void relayDesignate(machineId)
-      .then((pair) => setDesignated(pair.machine_id))
+      .then((pair) => setDesignated(pair.device_id))
       .catch(() => undefined); // roster stays; the pair badge explains the failure
   };
   const undesignate = () => {
-    relayUndesignate();
-    setDesignated(null);
+    void relayUndesignate()
+      .then(() => setDesignated(null))
+      .catch(() => undefined);
+  };
+  const claimEnrollment = () => {
+    const code = claimCode.trim();
+    if (!code || claiming) return;
+    setClaiming(true);
+    setClaimNotice('');
+    void laravelApi.relayV2ClaimEnrollment(code)
+      .then(async (device) => {
+        setClaimCode('');
+        setClaimNotice(t('relayTarget.enrollmentSuccess'));
+        await laravelRelayRoster.refresh();
+        const pairing = await relayDesignate(device.device_id);
+        setDesignated(pairing.device_id);
+      })
+      .catch(() => setClaimNotice(t('relayTarget.enrollmentFailed')))
+      .finally(() => setClaiming(false));
   };
 
   const onlineMachines = roster.filter((entry) => entry.online);
@@ -259,17 +289,40 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">
               <Users className="w-3.5 h-3.5" /> Relay - machines ({onlineMachines.length} online)
             </div>
+            <div className="space-y-1 rounded-xl border border-slate-200 dark:border-white/5 p-2">
+              <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                {t('relayTarget.enrollmentTitle')}
+              </div>
+              <div className="flex gap-1.5">
+                <input
+                  value={claimCode}
+                  onChange={(event) => setClaimCode(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') claimEnrollment();
+                  }}
+                  placeholder={t('relayTarget.enrollmentPlaceholder')}
+                  className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1.5 text-[10px] font-mono"
+                />
+                <button
+                  onClick={claimEnrollment}
+                  disabled={!claimCode.trim() || claiming}
+                  className="rounded-lg bg-indigo-600 px-2 py-1.5 text-[10px] font-bold text-white disabled:opacity-40"
+                >
+                  {claiming ? t('relayTarget.enrollmentClaiming') : t('relayTarget.enrollmentClaim')}
+                </button>
+              </div>
+              {claimNotice && <p className="text-[10px] text-slate-500">{claimNotice}</p>}
+            </div>
             {roster.length === 0 && (
               <p className="text-[10px] text-slate-400 leading-relaxed px-1">
-                No machines registered. A machine appears here once its pycore relay
-                consumer registers (heartbeat every ~20 s).
+                {t('relayTarget.rosterEmpty')}
               </p>
             )}
             {roster.map((entry) => {
-              const isDesignated = designated === entry.machine_id;
+              const isDesignated = designated === entry.device_id;
               return (
                 <div
-                  key={entry.machine_id}
+                  key={entry.device_id}
                   className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border ${
                     isDesignated
                       ? 'border-emerald-500 bg-emerald-500/5'
@@ -285,7 +338,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                       {entry.label}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400 pl-4 truncate">
-                      {entry.machine_id} · {entry.online ? 'online' : 'offline'}
+                      {entry.device_id} · {entry.online ? 'online' : 'offline'}
                     </span>
                   </span>
                   {isDesignated ? (
@@ -298,7 +351,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                     </button>
                   ) : (
                     <button
-                      onClick={() => designate(entry.machine_id)}
+                      onClick={() => designate(entry.device_id)}
                       disabled={!entry.online}
                       className={`text-[10px] font-mono font-bold shrink-0 ${
                         entry.online
