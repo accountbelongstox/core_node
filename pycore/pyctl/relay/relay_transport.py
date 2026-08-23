@@ -43,6 +43,7 @@ class RelayTransport:
         query: Optional[Mapping[str, Any]] = None,
         timeout: Optional[float] = None,
         action: str = "coordinator.request",
+        coordinator_url: str = "",
     ) -> Dict[str, Any]:
         body = (
             json.dumps(
@@ -63,6 +64,7 @@ class RelayTransport:
             RELAY_JSON_CONTENT_TYPE,
             timeout,
             action,
+            coordinator_url,
         )
         data = response.json()
         if not isinstance(data, dict):
@@ -79,6 +81,7 @@ class RelayTransport:
         content_type: str = RELAY_BINARY_CONTENT_TYPE,
         timeout: Optional[float] = None,
         action: str = "coordinator.bytes",
+        coordinator_url: str = "",
     ) -> Any:
         return self._request(
             method,
@@ -88,6 +91,7 @@ class RelayTransport:
             content_type,
             timeout,
             action,
+            coordinator_url,
         )
 
     def _request(
@@ -99,8 +103,9 @@ class RelayTransport:
         content_type: str,
         timeout: Optional[float],
         action: str,
+        coordinator_url: str,
     ) -> Any:
-        endpoint = self.endpoint()
+        endpoint = str(coordinator_url or "").rstrip("/") or self.endpoint()
         if not endpoint:
             raise RuntimeError("relay_coordinator_endpoint_unavailable")
         normalized_method = str(method or "GET").upper()
@@ -110,6 +115,7 @@ class RelayTransport:
             query,
             body,
         )
+        headers["Accept-Encoding"] = "identity"
         if body or normalized_method != "GET":
             headers["Content-Type"] = str(content_type)
         started = time.perf_counter()

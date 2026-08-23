@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 
 class AtomicJsonStore:
@@ -14,9 +14,11 @@ class AtomicJsonStore:
         self,
         path: Path,
         default_factory: Callable[[], Dict[str, Any]],
+        file_mode: Optional[int] = None,
     ) -> None:
         self.path = path.resolve()
         self.default_factory = default_factory
+        self.file_mode = file_mode
 
     def exists(self) -> bool:
         return self.path.is_file()
@@ -36,7 +38,11 @@ class AtomicJsonStore:
             json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        if os.name != "nt" and self.file_mode is not None:
+            os.chmod(temp_path, self.file_mode)
         os.replace(str(temp_path), str(self.path))
+        if os.name != "nt" and self.file_mode is not None:
+            os.chmod(self.path, self.file_mode)
 
 
 __all__ = ["AtomicJsonStore"]

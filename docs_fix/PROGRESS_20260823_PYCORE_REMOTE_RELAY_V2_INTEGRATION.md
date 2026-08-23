@@ -47,11 +47,16 @@ Normalization rules:
 - method is uppercase;
 - path forbids query/fragment text, gets exactly one leading slash, is strict
   UTF-8 percent-decoded, then RFC 3986 percent-encoded with only `/-._~` safe;
+- multiple leading slashes, backslashes, encoded slash/backslash separators,
+  malformed percent triplets, control characters, and invalid UTF-8 are
+  rejected;
 - query pairs are sorted by string key then string value and encoded using
   standard URL form encoding (`urllib.parse.urlencode`, spaces become `+`);
 - repeated array/tuple values expand to repeated pairs before sorting; an empty
   value is `key=`, an existing percent sign becomes `%25`, Unicode is UTF-8
   without normalization, and an empty array contributes no pair;
+- query keys and scalar/repeated values must be strings; numbers, booleans,
+  nulls, objects, and nested arrays are rejected instead of string-coerced;
 - timestamp is Unix seconds;
 - nonce is a random URL-safe string and is single-use per credential version;
 - body digest is lowercase hexadecimal SHA-256, including the empty body;
@@ -91,8 +96,16 @@ Endpoint templates are authoritative in the shared contract.
   short-lived private subscriber token and must never enter URLs or logs.
 - The device subscribes to only the contract-rendered `device_wake` topic and
   handles `relay.operation.available` and `relay.credential.revoked`.
+- The hub URL must use the exact coordinator origin and configured
+  `/.well-known/mercure` path, with no user information, query, fragment, or
+  redirect. Its topic must exactly match the device topic, its lifetime must be
+  finite and no longer than `subscriber_token_seconds`, and one SSE event is
+  bounded by `device_event_payload_bytes`.
 - Claim request contains `device_id`, stable process `lease_owner`, bounded
   `limit`, and `contract_digest`. Response data contains `operations:[]`.
+- Pycore binds a claim batch to the coordinator URL that returned it. All
+  execution-start, renewal, blob, and result calls for that batch stay on that
+  origin even if the globally selected endpoint changes concurrently.
 - Device event request contains `device_id`, `event_type`, `revision`, and
   metadata-only `payload`. For `terminal.changed`, Laravel fans out a compact
   pairing-status notification through its transactional outbox; it never puts
@@ -113,7 +126,14 @@ body_sha256, body_length, request_digest
 `body_base64` is standard padded Base64. `body_present=false` is distinct from
 an explicitly present empty body. A present empty body uses empty Base64,
 length 0, and the SHA-256 of empty bytes. `body_ref` is fetched as exact raw
-bytes from the contract request-blob endpoint.
+bytes from the contract request-blob endpoint. Binary requests advertise
+`Accept-Encoding: identity`; Laravel must return the stored bytes without a
+content-coding transformation.
+
+The descriptor `path` must already equal the canonical path, including its one
+leading slash. `query` must follow the string-only rules above; Pycore does not
+accept a descriptor that depends on normalization or type coercion to become
+valid.
 
 Pycore recalculates the request digest over compact, key-sorted UTF-8 JSON:
 
@@ -168,8 +188,16 @@ While execution or response-blob upload is active, Pycore calls
 lease owner. Renewal conditionally extends only that generation and does not
 increment the domain revision. Every renewal response repeats `server_time` and
 `lease_expires_at`; Pycore replaces its monotonic deadline only after validating
-both. Transient failures retry within the known lease; 401/403/409/410 or actual
-lease expiry fence the claimant immediately.
+both. The guarded usable duration must remain greater than
+`operation_lease_renew_seconds` and the server-reported duration must not exceed
+`operation_lease_seconds`. Transient failures retry within the known lease;
+401/403/409/410 or actual lease expiry fence the claimant immediately.
+
+Claimed descriptors execute in a bounded concurrent ThreadBus batch of at most
+`device_active_leases`. The heartbeat and reconciliation control loop remains
+independent. `operation_lease_shutdown_wait_seconds` bounds direct renew-thread
+joining; a still-running transport call retains the stop fence until deferred
+cleanup observes thread exit.
 
 Every result and response-blob allocate/finalize step carries the executing
 revision, epoch, and owner. A stale claimant cannot update Laravel even if its
@@ -229,10 +257,19 @@ Route entries reference contract-owned profiles. A resolved profile always has
 authorize the permission and validate the payload before admission; Pycore
 re-resolves the same profile and applies its timeout and retry policy.
 
+Matching precedence is `exact > prefix > suffix`; equal-kind matches choose the
+longest value and then the first declaration. The default profile is denied.
+This makes the `ui/` deny prefix override generic read suffixes while explicit
+Terminal route entries remain allowed. Relay GET operations cannot carry a
+request body.
+
 The contract-pinned Mercure profile uses one authorized SSE subscription with
 repeated `topic` parameters, Bearer private-subscriber JWT, `lastEventID` for the
 initial cursor, `Last-Event-ID` on resume, no redirects, notification-only
 payloads, and mandatory source-resource reconciliation after history loss.
+These parameter names are the frozen legacy profile for Mercure 0.24.2; do not
+replace them with the current standardized `match`/`last_event_id` names unless
+the pinned runtime and shared contract are deliberately upgraded together.
 
 ### Terminal UI contract
 

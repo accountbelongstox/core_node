@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import math
 import platform
 import socket
 import time
+import urllib.parse
 import uuid
 from typing import Any, Dict, List
 
@@ -40,6 +42,7 @@ RELAY_STATE_QUEUE = "relay.v2.runtime.state"
 RELAY_STATE_THREAD = "RelayV2StateThread"
 RELAY_CONTROL_THREAD = "RelayV2ControlThread"
 RELAY_SUBSCRIBER_THREAD = "RelayV2SubscriberThread"
+RELAY_OPERATION_BATCH_THREAD = "RelayV2OperationBatchThread"
 RELAY_TOKEN_LIFETIME_FRACTION = 0.8
 
 
@@ -58,6 +61,7 @@ class RelayService:
         self._hub_token_value = ""
         self._hub_token_expires_at = 0.0
         self._registered_endpoint = ""
+        self._operation_batch_active = False
         self._lease_owner = uuid.uuid4().hex
         laravel_endpoint_manager.register_endpoint_change_listener(
             self._on_endpoint_changed
@@ -166,10 +170,7 @@ class RelayService:
     def _on_endpoint_changed(self, base_url: str) -> None:
         previous = self._registered_endpoint
         self._registered_endpoint = ""
-        self._hub_url = ""
-        self._hub_topic = ""
-        self._hub_token_value = ""
-        self._hub_token_expires_at = 0.0
+        self._clear_hub_authorization(reason="endpoint_changed")
         relay_activity_log.warning(
             "coordinator.endpoint.changed",
             previous_endpoint=previous,
@@ -190,16 +191,53 @@ class RelayService:
         self._registered_endpoint = str(endpoint)
 
     @serialized_method
-    def _remember_hub(self, hub: Dict[str, Any]) -> None:
+    def _remember_hub(
+        self,
+        hub: Dict[str, Any],
+        coordinator_url: str = "",
+    ) -> None:
         hub_url = str(hub.get("url") or "")
         token = str(hub.get("subscriber_token") or "")
-        topic = str(hub.get("topic") or "") or relay_contract.topic(
+        resolved_coordinator = str(
+            coordinator_url or self._registered_endpoint or relay_transport.endpoint()
+        )
+        coordinator_parts = urllib.parse.urlsplit(resolved_coordinator)
+        coordinator_origin = (
+            f"{coordinator_parts.scheme}://{coordinator_parts.netloc}"
+        )
+        expected_topic = relay_contract.topic(
             "device_wake",
             device_id=relay_device_identity.device_id(),
+            laravel_api_origin=coordinator_origin,
         )
+        topic = str(hub.get("topic") or "") or expected_topic
         expires_in_seconds = float(hub.get("expires_in_seconds") or 0)
-        if not hub_url or not token or expires_in_seconds <= 0:
+        if (
+            not hub_url
+            or not token
+            or not math.isfinite(expires_in_seconds)
+            or expires_in_seconds <= 0
+        ):
             raise ValueError("relay_hub_authorization_incomplete")
+        if expires_in_seconds > relay_contract.duration(
+            "subscriber_token_seconds"
+        ):
+            raise ValueError("relay_hub_token_lifetime_invalid")
+        expected_hub_path = str(relay_contract.mercure("hub_path"))
+        hub_parts = urllib.parse.urlsplit(hub_url)
+        if (
+            hub_parts.scheme not in ("http", "https")
+            or hub_parts.username is not None
+            or hub_parts.password is not None
+            or hub_parts.fragment
+            or hub_parts.query
+            or hub_parts.path != expected_hub_path
+            or hub_parts.scheme != coordinator_parts.scheme
+            or hub_parts.netloc != coordinator_parts.netloc
+        ):
+            raise ValueError("relay_hub_origin_untrusted")
+        if topic != expected_topic:
+            raise ValueError("relay_hub_topic_conflict")
         self._hub_url = hub_url
         self._hub_topic = topic
         self._hub_token_value = token
@@ -210,7 +248,6 @@ class RelayService:
             "hub.authorization.saved",
             hub_url=hub_url,
             topic=topic,
-            subscriber_token=token,
             expires_in_seconds=expires_in_seconds,
         )
 
@@ -222,6 +259,17 @@ class RelayService:
             "token": self._hub_token_value,
             "expires_at": self._hub_token_expires_at,
         }
+
+    @serialized_method
+    def _clear_hub_authorization(self, reason: str) -> None:
+        self._hub_url = ""
+        self._hub_topic = ""
+        self._hub_token_value = ""
+        self._hub_token_expires_at = 0.0
+        relay_activity_log.warning(
+            "hub.authorization.cleared",
+            reason=reason,
+        )
 
     def _hub_changed(self, expected_url: str, expected_topic: str) -> bool:
         snapshot = self._hub_snapshot()
@@ -274,13 +322,19 @@ class RelayService:
                 self._remember_endpoint(endpoint)
                 now = time.monotonic()
                 if now >= next_heartbeat_at:
-                    self._heartbeat()
+                    self._heartbeat(endpoint)
                     next_heartbeat_at = now + relay_contract.duration(
                         "heartbeat_seconds"
                     )
-                self._ensure_hub_authorization()
+                self._ensure_hub_authorization(coordinator_url=endpoint)
                 if force_claim or now >= next_claim_at:
-                    self._claim_operations()
+                    if self._operation_batch_is_active():
+                        relay_activity_log.debug(
+                            "operation.claim.deferred",
+                            reason="operation_batch_active",
+                        )
+                    else:
+                        self._claim_operations(endpoint)
                     force_claim = False
                     next_claim_at = now + relay_contract.duration(
                         "recovery_claim_seconds"
@@ -299,6 +353,9 @@ class RelayService:
                 if exc.status_code in (401, 403):
                     relay_device_identity.clear_credential()
                     relay_device_identity.clear_enrollment()
+                    self._clear_hub_authorization(
+                        reason="coordinator_authorization_rejected"
+                    )
                 relay_activity_log.error(
                     "control.http.failed",
                     status=exc.status_code,
@@ -323,6 +380,7 @@ class RelayService:
         if kind == RELAY_CONTROL_CREDENTIAL_REVOKED:
             relay_device_identity.clear_credential()
             relay_device_identity.clear_enrollment()
+            self._clear_hub_authorization(reason="credential_revoked")
         if kind:
             relay_activity_log.info("control.signal.received", kind=kind)
         return kind
@@ -345,6 +403,7 @@ class RelayService:
                 relay_contract.endpoint("enrollment_create"),
                 {"device": descriptor},
                 action="enrollment.create",
+                coordinator_url=endpoint,
             )
         else:
             data = relay_transport.request_json(
@@ -354,6 +413,7 @@ class RelayService:
                     enrollment_id=enrollment_id,
                 ),
                 action="enrollment.status",
+                coordinator_url=endpoint,
             )
         enrollment = data.get("enrollment")
         if not isinstance(enrollment, dict):
@@ -392,7 +452,7 @@ class RelayService:
         )
         hub = data.get("hub")
         if isinstance(hub, dict):
-            self._remember_hub(hub)
+            self._remember_hub(hub, endpoint)
         relay_activity_log.success(
             "enrollment.claimed",
             enrollment_id=resolved_id,
@@ -400,7 +460,7 @@ class RelayService:
         )
         return True
 
-    def _heartbeat(self) -> None:
+    def _heartbeat(self, coordinator_url: str) -> None:
         data = relay_transport.request_json(
             "POST",
             relay_contract.endpoint("device_heartbeat"),
@@ -410,16 +470,21 @@ class RelayService:
                 "capabilities": relay_contract.capabilities(),
             },
             action="device.heartbeat",
+            coordinator_url=coordinator_url,
         )
         hub = data.get("hub")
         if isinstance(hub, dict):
-            self._remember_hub(hub)
+            self._remember_hub(hub, coordinator_url)
         relay_activity_log.success(
             "device.heartbeat.acknowledged",
             device_id=relay_device_identity.device_id(),
         )
 
-    def _ensure_hub_authorization(self, force: bool = False) -> None:
+    def _ensure_hub_authorization(
+        self,
+        force: bool = False,
+        coordinator_url: str = "",
+    ) -> None:
         snapshot = self._hub_snapshot()
         margin = relay_contract.duration(
             "subscriber_token_refresh_margin_seconds"
@@ -444,13 +509,14 @@ class RelayService:
                 "contract_digest": relay_contract.digest,
             },
             action="hub.authorization",
+            coordinator_url=coordinator_url,
         )
         hub = data.get("hub")
         if not isinstance(hub, dict):
             raise ValueError("relay_hub_authorization_missing")
-        self._remember_hub(hub)
+        self._remember_hub(hub, coordinator_url)
 
-    def _claim_operations(self) -> None:
+    def _claim_operations(self, coordinator_url: str) -> None:
         data = relay_transport.request_json(
             "POST",
             relay_contract.endpoint("operation_claim"),
@@ -462,6 +528,7 @@ class RelayService:
             },
             timeout=relay_contract.duration("claim_timeout_seconds"),
             action="operation.claim",
+            coordinator_url=coordinator_url,
         )
         operations = data.get("operations")
         if not isinstance(operations, list):
@@ -471,10 +538,67 @@ class RelayService:
             operation_count=len(operations),
             lease_owner=self._lease_owner,
         )
-        relay_operation_processor.process_many(
-            (item for item in operations if isinstance(item, dict)),
-            self._lease_owner,
+        descriptors = []
+        for item in operations:
+            if not isinstance(item, dict):
+                continue
+            descriptor = dict(item)
+            descriptor["_coordinator_url"] = str(coordinator_url)
+            descriptors.append(descriptor)
+        if not descriptors:
+            return
+        if not self._reserve_operation_batch():
+            raise RuntimeError("relay_operation_batch_already_active")
+        try:
+            start_bus_task(
+                self._process_operation_batch,
+                descriptors,
+                self._lease_owner,
+                thread_name=RELAY_OPERATION_BATCH_THREAD,
+            )
+        except Exception:
+            self._release_operation_batch()
+            raise
+        relay_activity_log.success(
+            "operation.batch.scheduled",
+            operation_count=len(descriptors),
+            lease_owner=self._lease_owner,
+            coordinator_url=coordinator_url,
         )
+
+    @serialized_method
+    def _reserve_operation_batch(self) -> bool:
+        if self._operation_batch_active:
+            return False
+        self._operation_batch_active = True
+        return True
+
+    @serialized_method
+    def _operation_batch_is_active(self) -> bool:
+        return bool(self._operation_batch_active)
+
+    @serialized_method
+    def _release_operation_batch(self) -> None:
+        self._operation_batch_active = False
+
+    def _process_operation_batch(
+        self,
+        descriptors: List[Dict[str, Any]],
+        lease_owner: str,
+    ) -> None:
+        try:
+            relay_operation_processor.process_many(descriptors, lease_owner)
+        finally:
+            self._release_operation_batch()
+            THREAD_BUS.signal(
+                RELAY_CONTROL_SIGNAL,
+                {"kind": RELAY_CONTROL_WAKE},
+            )
+            relay_activity_log.info(
+                "operation.batch.released",
+                operation_count=len(descriptors),
+                lease_owner=lease_owner,
+            )
 
     def _publish_device_event(self, payload: Any) -> None:
         event_payload = dict(payload) if isinstance(payload, dict) else {}
@@ -543,6 +667,9 @@ class RelayService:
                     "subscriber_read_timeout_seconds"
                 ),
                 max_redirects=0,
+                max_event_bytes=relay_contract.limit(
+                    "device_event_payload_bytes"
+                ),
             )
 
             def subscriber_should_stop() -> bool:
@@ -561,6 +688,10 @@ class RelayService:
     def _on_hub_state(self, state: str, detail: str) -> None:
         if state == MERCURE_STATE_ONLINE:
             relay_activity_log.success("subscriber.state.online", detail=detail)
+            THREAD_BUS.signal(
+                RELAY_CONTROL_SIGNAL,
+                {"kind": RELAY_CONTROL_WAKE},
+            )
         elif state == MERCURE_STATE_CONNECTING:
             relay_activity_log.info("subscriber.state.connecting", detail=detail)
         elif state == MERCURE_STATE_OFFLINE:

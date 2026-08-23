@@ -19,6 +19,13 @@ from pycore.pyutils.rpc_v2.dispatcher import HttpDispatcher, HttpRoute
 
 RPC_JSON_CONTENT_TYPE = "application/json"
 RPC_TEXT_CONTENT_TYPE = "text/plain"
+RPC_RELAY_JSON_PAYLOADS = frozenset(
+    {
+        "json-object",
+        "bounded-json-or-opaque-response",
+    }
+)
+RPC_RELAY_RESPONSE_ONLY_PAYLOADS = frozenset({"opaque-response-bytes"})
 
 
 class RpcExecutionError(ValueError):
@@ -75,7 +82,10 @@ class RpcExecutionKernel:
         if normalized_type.startswith(RPC_TEXT_CONTENT_TYPE):
             params["text"] = body.decode("utf-8", errors="replace")
             return params
-        payload = json.loads(body.decode("utf-8"))
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RpcExecutionError("request_body_json_invalid", 400) from error
         if not isinstance(payload, dict):
             raise RpcExecutionError("request_body_not_object", 400)
         return {**params, **payload}
@@ -102,6 +112,12 @@ class RpcExecutionKernel:
         if str(policy.get("exposure") or "denied") != "relay":
             raise RpcExecutionError("route_relay_denied", 403)
         content_type = self._header(headers, "content-type")
+        self._validate_relay_payload(
+            str(policy.get("payload") or "none"),
+            normalized_method,
+            body,
+            content_type,
+        )
         params = self.decode_request_params(
             normalized_method,
             query,
@@ -273,6 +289,30 @@ class RpcExecutionKernel:
     @staticmethod
     def _query_params(query: Mapping[str, Any]) -> Dict[str, Any]:
         return {str(key): value for key, value in dict(query or {}).items()}
+
+    @staticmethod
+    def _validate_relay_payload(
+        payload_profile: str,
+        method: str,
+        body: bytes,
+        content_type: str,
+    ) -> None:
+        normalized_profile = str(payload_profile or "none")
+        normalized_type = str(content_type or "").split(";", 1)[0].strip().lower()
+        if normalized_profile in RPC_RELAY_RESPONSE_ONLY_PAYLOADS:
+            if str(method).upper() != "GET" or body:
+                raise RpcExecutionError("relay_request_payload_forbidden", 400)
+            return
+        if normalized_profile in RPC_RELAY_JSON_PAYLOADS:
+            if str(method).upper() == "GET" and body:
+                raise RpcExecutionError("relay_request_payload_forbidden", 400)
+            if body and not (
+                normalized_type == RPC_JSON_CONTENT_TYPE
+                or normalized_type.endswith("+json")
+            ):
+                raise RpcExecutionError("relay_request_content_type_invalid", 415)
+            return
+        raise RpcExecutionError("relay_request_payload_profile_denied", 403)
 
     @staticmethod
     def _header(headers: Mapping[str, Any], name: str) -> str:

@@ -51,6 +51,7 @@ class RelayExecutionLedger:
             retry_policy,
         )
         if result.get("response_digest"):
+            self._repair_operation_completion(operation_id, result)
             relay_activity_log.info(
                 "ledger.response.replay",
                 operation_id=operation_id,
@@ -97,6 +98,44 @@ class RelayExecutionLedger:
         if operation.stage == RELAY_EXECUTION_UNKNOWN:
             return {"action": RELAY_EXECUTION_UNKNOWN, "result": result}
         raise RuntimeError("relay_operation_terminal_without_response")
+
+    def _repair_operation_completion(
+        self,
+        operation_id: str,
+        result: Dict[str, Any],
+    ) -> None:
+        operation = self.operations.get_operation(operation_id)
+        if operation is None:
+            raise RuntimeError("relay_operation_missing")
+        if operation.status in ("completed", "failed"):
+            return
+        response_digest = str(result.get("response_digest") or "")
+        summary = {
+            **dict(operation.summary_json or {}),
+            "response_digest": response_digest,
+            "response_length": int(result.get("response_length") or 0),
+            "response_status": int(result.get("response_status") or 0),
+            "response_has_body": bool(result.get("response_has_body")),
+        }
+        outcome = str(result.get("response_outcome") or "responded")
+        if outcome == "failed":
+            self.operations.fail(
+                operation_id,
+                {"code": "rpc_execution_failed"},
+                message="operation.execution_failed",
+            )
+        else:
+            self.operations.complete(
+                operation_id,
+                message="operation.response_persisted",
+                summary=summary,
+            )
+        relay_activity_log.success(
+            "ledger.operation_state.repaired",
+            operation_id=operation_id,
+            response_digest=response_digest,
+            response_outcome=outcome,
+        )
 
     def mark_started(self, operation_id: str) -> None:
         operation = self.operations.get_operation(operation_id)

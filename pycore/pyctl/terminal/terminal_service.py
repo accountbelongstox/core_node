@@ -87,8 +87,7 @@ class TerminalService:
             1 for window in windows if bool(window.get("online"))
         )
         snapshot["stored_count"] = snapshot["count"] - snapshot["online_count"]
-        if snapshot.get("supported") and snapshot["online_count"]:
-            self._attach_window_screenshot_resources(snapshot)
+        self._attach_window_screenshot_resources(snapshot)
         snapshot["screenshot_revision"] = self._screenshot_cache.revision()
         snapshot["state_revision"] = self._state_revision(snapshot)
         snapshot["refreshed_at"] = int(time.time() * 1000)
