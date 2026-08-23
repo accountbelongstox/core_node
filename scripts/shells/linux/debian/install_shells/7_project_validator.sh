@@ -29,6 +29,7 @@ YELLOW='\033[33m'
 RED='\033[31m'
 GREEN='\033[32m'
 NC='\033[0m'
+DIRECTORY_EMPTY=false
 
 # Simple output functions
 log() {
@@ -134,15 +135,16 @@ install_git() {
 # Function to check if directory is empty
 is_directory_empty() {
     local dir_path="$1"
+
+    DIRECTORY_EMPTY=false
     if [ ! -d "$dir_path" ]; then
-        return 0  # Directory doesn't exist, consider it empty
+        DIRECTORY_EMPTY=true
+        return
     fi
 
     # Check if directory has any files or subdirectories (excluding hidden files)
     if [ -z "$(ls -A "$dir_path" 2>/dev/null)" ]; then
-        return 0  # Directory is empty
-    else
-        return 1  # Directory has content
+        DIRECTORY_EMPTY=true
     fi
 }
 
@@ -155,7 +157,8 @@ clean_directory() {
         # guard (it also refuses git working trees + non-interactive runs). See
         # development-guides/CORE_NODE_DELETION_SAFETY.md.
         if [ -n "$(ls -A "$dir_path" 2>/dev/null)" ]; then
-            if ! confirm_core_node_deletion "$dir_path"; then
+            confirm_core_node_deletion "$dir_path"
+            if [ "$CORE_NODE_DELETION_AUTHORIZED" != true ]; then
                 error "Refusing to delete $dir_path; aborting restore."
                 return 1
             fi
@@ -209,7 +212,8 @@ restore_project() {
     fi
 
     # Check if project directory exists and is empty
-    if is_directory_empty "$project_root"; then
+    is_directory_empty "$project_root"
+    if [ "$DIRECTORY_EMPTY" = true ]; then
         warning "Project directory is empty or doesn't exist: $project_root"
 
         # Ask user for confirmation

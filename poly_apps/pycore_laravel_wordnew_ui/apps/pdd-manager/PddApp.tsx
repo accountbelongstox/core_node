@@ -9,29 +9,25 @@ import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { PddLayout } from './PddLayout';
 import { registerPddLocales } from './pdd-locales';
+import {
+  createAppRouteElements,
+  type AppRouteElementDefinition,
+} from '../../shared/routing/AppRouteElements';
+import { PDD_PAGES } from './pddPages';
 
 registerPddLocales();
-import { PDD_PAGES } from './pddPages';
 
 const Fallback: React.FC = () => <div className="p-8 text-slate-500">Loading…</div>;
 const wrap = (node: React.ReactNode) => <Suspense fallback={<Fallback />}>{node}</Suspense>;
 
-// react-router 7 types <Route> as a discriminated union that rejects a pre-built
-// `{ path, element }` object literal in an array; this alias relaxes the prop
-// typing so the registry can drive the routes (runtime is unchanged). Same
-// pattern as PcApp.tsx.
-const PddRoute = Route as unknown as React.ComponentType<{
-  key?: React.Key; path?: string; index?: boolean; element?: React.ReactNode;
-}>;
-
 // One route per registry entry (plus an index route for the page flagged
 // `index`), generated from PDD_PAGES so the route table can't drift.
-const pddPageRoutes: React.ReactElement[] = PDD_PAGES.flatMap((p) => {
+const pddPageRoutes = createAppRouteElements(PDD_PAGES.flatMap((p) => {
   const element = wrap(<p.Component />);
-  const routes = [<PddRoute key={p.id} path={p.id} element={element} />];
-  if (p.index) routes.unshift(<PddRoute key={`${p.id}-index`} index element={element} />);
+  const routes: AppRouteElementDefinition[] = [{ key: p.id, path: p.id, element }];
+  if (p.index) routes.unshift({ key: `${p.id}-index`, index: true, element });
   return routes;
-});
+}));
 
 const PddApp: React.FC = () => {
   return (

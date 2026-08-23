@@ -320,12 +320,7 @@ install_service_at_index() {
     if (( APP_COUNT == 0 )); then print_err "No applications available"; return 1; fi
     if (( idx < 0 || idx >= APP_COUNT )); then print_err "Invalid index"; return 1; fi
 
-    if [[ ! -f "$DEBIAN_SERVICE_MANAGER" ]]; then
-        print_err "Service manager not found: $DEBIAN_SERVICE_MANAGER"
-        return 1
-    fi
-    # shellcheck source=/dev/null
-    source "$DEBIAN_SERVICE_MANAGER" || { print_err "Failed to source debian_service_manager.sh"; return 1; }
+    source "$DEBIAN_SERVICE_MANAGER"
 
     local name="${APP_NAMES[$idx]}"
     local type="${APP_TYPES[$idx]}"
@@ -335,7 +330,7 @@ install_service_at_index() {
     local slog
     slog="$(service_log_path "$name")"
     ensure_app_log_dir "$name"
-    local install_ok=0
+    local install_ok=false
 
     case "$type" in
         ncoreApp)
@@ -343,9 +338,9 @@ install_service_at_index() {
                 print_err "ncoreApp requires root/main.js. Missing: $ROOT_DIR/main.js"
                 return 1
             fi
-            if create_systemd_service "$service_name" "$description" "node ./main.js app=$name" "$ROOT_DIR" "root" "always" "5" "50%" "1G" "$slog"; then
-                install_ok=1
-            else
+            create_systemd_service "$service_name" "$description" "node ./main.js app=$name" "$ROOT_DIR" "root" "always" "5" "50%" "1G" "$slog"
+            install_ok="$SYSTEMD_OPERATION_READY"
+            if [ "$install_ok" != true ]; then
                 print_warn "If permission denied, run with sudo to install the service."
             fi
             ;;
@@ -355,9 +350,9 @@ install_service_at_index() {
                 print_err "pycoreApp requires pyapps/$name/main.py. Missing: $py_main"
                 return 1
             fi
-            if create_systemd_service "$service_name" "$description" "python3 ./pyapps/$name/main.py" "$ROOT_DIR" "root" "always" "5" "50%" "1G" "$slog"; then
-                install_ok=1
-            else
+            create_systemd_service "$service_name" "$description" "python3 ./pyapps/$name/main.py" "$ROOT_DIR" "root" "always" "5" "50%" "1G" "$slog"
+            install_ok="$SYSTEMD_OPERATION_READY"
+            if [ "$install_ok" != true ]; then
                 print_warn "If permission denied, run with sudo to install the service."
             fi
             ;;
@@ -374,9 +369,9 @@ install_service_at_index() {
                 local laravel_desc="App Manager: $name (Laravel Octane)"
                 print_info "Laravel detected: using start_service.sh (Octane, port $port)"
                 print_info "Memory: ${LARAVEL_MEMORY_LIMIT}, CPU: ${LARAVEL_CPU_LIMIT}"
-                if create_systemd_service "$service_name" "$laravel_desc" "env PORT=$port bash ./scripts/start_service.sh" "$work_dir" "root" "always" "10" "$LARAVEL_CPU_LIMIT" "$LARAVEL_MEMORY_LIMIT" "$slog"; then
-                    install_ok=1
-                else
+                create_systemd_service "$service_name" "$laravel_desc" "env PORT=$port bash ./scripts/start_service.sh" "$work_dir" "root" "always" "10" "$LARAVEL_CPU_LIMIT" "$LARAVEL_MEMORY_LIMIT" "$slog"
+                install_ok="$SYSTEMD_OPERATION_READY"
+                if [ "$install_ok" != true ]; then
                     print_warn "If permission denied, run with sudo to install the service."
                 fi
             else
@@ -385,9 +380,9 @@ install_service_at_index() {
                     print_err "polyApp requires poly_apps/$name/scripts/start.sh. Missing: $start_sh"
                     return 1
                 fi
-                if create_systemd_service "$service_name" "$description" "env PORT=$port bash ./scripts/start.sh" "$work_dir" "root" "always" "5" "50%" "1G" "$slog"; then
-                    install_ok=1
-                else
+                create_systemd_service "$service_name" "$description" "env PORT=$port bash ./scripts/start.sh" "$work_dir" "root" "always" "5" "50%" "1G" "$slog"
+                install_ok="$SYSTEMD_OPERATION_READY"
+                if [ "$install_ok" != true ]; then
                     print_warn "If permission denied, run with sudo to install the service."
                 fi
             fi
@@ -397,7 +392,7 @@ install_service_at_index() {
             return 1
             ;;
     esac
-    if (( install_ok )); then
+    if [ "$install_ok" = true ]; then
         maybe_trim_logs   # new service.log appender -> throttled budget check
         ensure_log_budget_timer
         print_info "Service log file: $slog"

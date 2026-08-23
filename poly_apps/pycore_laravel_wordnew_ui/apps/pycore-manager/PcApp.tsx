@@ -14,30 +14,25 @@ import {
 import { registerPcLocales } from './pc-locales';
 import { PcLanguageSync } from './PcLanguageSync';
 import { PcUiStateBackupGate } from './persistence/PcUiStateBackupGate';
+import {
+  createAppRouteElements,
+  type AppRouteElementDefinition,
+} from '../../shared/routing/AppRouteElements';
+import { PC_PAGES } from './pcPages';
 
 registerPcLocales();
-import { PC_PAGES } from './pcPages';
 
 const Fallback: React.FC = () => <div className="p-8 text-slate-500">Loading…</div>;
 const wrap = (node: React.ReactNode) => <Suspense fallback={<Fallback />}>{node}</Suspense>;
 
-// react-router 7 types <Route> as a discriminated union (PathRoute | IndexRoute |
-// LayoutRoute) that rejects a pre-built `{ path, element }` object literal when
-// constructed in an array (the original reason these routes were hand-written).
-// The runtime component is unchanged — this alias only relaxes the prop typing so
-// the registry can drive the routes. Children of <Routes> are still real Routes.
-const PcRoute = Route as unknown as React.ComponentType<{
-  key?: React.Key; path?: string; index?: boolean; element?: React.ReactNode;
-}>;
-
 // One route per registry entry (plus an index route for the page flagged
 // `index`), generated from PC_PAGES so the route table can't drift.
-const pcPageRoutes: React.ReactElement[] = PC_PAGES.flatMap((p) => {
+const pcPageRoutes = createAppRouteElements(PC_PAGES.flatMap((p) => {
   const element = wrap(<p.Component />);
-  const routes = [<PcRoute key={p.id} path={p.id} element={element} />];
-  if (p.index) routes.unshift(<PcRoute key={`${p.id}-index`} index element={element} />);
+  const routes: AppRouteElementDefinition[] = [{ key: p.id, path: p.id, element }];
+  if (p.index) routes.unshift({ key: `${p.id}-index`, index: true, element });
   return routes;
-});
+}));
 
 const PcApp: React.FC = () => {
   // Pycore reachability, gated by the /pycore-manager prefix: one ping on

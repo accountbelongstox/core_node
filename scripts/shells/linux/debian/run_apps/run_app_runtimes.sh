@@ -194,40 +194,39 @@ run_flutter_app() {
     log_info "Checking available devices..."
     flutter devices
     
-    echo ""
-    echo "Select Flutter run mode:"
-    echo "1. Run on available device (flutter run)"
-    echo "2. Run on web browser (flutter run -d web)"
-    echo "3. Run on Chrome (flutter run -d chrome)"
-    echo "4. Run debug mode with hot reload (flutter run --debug)"
-    echo "5. Run release mode (flutter run --release)"
-    echo "0. Cancel"
-    echo ""
-    
-    read -p "Enter your choice (0-5): " flutter_choice
+    local flutter_options=(
+        "Run on available device (flutter run)"
+        "Run on web browser (flutter run -d web)"
+        "Run on Chrome (flutter run -d chrome)"
+        "Run debug mode with hot reload (flutter run --debug)"
+        "Run release mode (flutter run --release)"
+        "Cancel"
+    )
+    arrow_menu_select "Select Flutter Run Mode" flutter_options 0 5
+    flutter_choice="$ARROW_MENU_SELECTED_INDEX"
     
     case $flutter_choice in
-        1)
+        0)
             log_info "Running Flutter app on available device..."
             flutter run
             ;;
-        2)
+        1)
             log_info "Running Flutter app on web..."
             flutter run -d web
             ;;
-        3)
+        2)
             log_info "Running Flutter app on Chrome..."
             flutter run -d chrome
             ;;
-        4)
+        3)
             log_info "Running Flutter app in debug mode..."
             flutter run --debug
             ;;
-        5)
+        4)
             log_info "Running Flutter app in release mode..."
             flutter run --release
             ;;
-        0)
+        5)
             log_info "Cancelled Flutter app launch"
             return 0
             ;;
@@ -475,4 +474,3 @@ run_python_app() {
         }
     fi
 }
-

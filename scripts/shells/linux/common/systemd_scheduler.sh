@@ -98,3 +98,22 @@ WantedBy=timers.target
     fi
 }
 
+remove_systemd_service() {
+    local service_name="$1"
+    local service_file="$SYSTEMD_DIR/${service_name}.service"
+
+    SYSTEMD_OPERATION_READY=false
+    if [ ! -f "$service_file" ]; then
+        echo "[ERROR] Service not found: $service_name"
+        return
+    fi
+
+    systemctl stop "$service_name" 2>/dev/null || true
+    systemctl disable "$service_name" 2>/dev/null || true
+    rm -f "$service_file"
+    systemctl daemon-reload
+    if [ ! -e "$service_file" ]; then
+        SYSTEMD_OPERATION_READY=true
+        echo "[SUCCESS] Service '$service_name' removed successfully"
+    fi
+}

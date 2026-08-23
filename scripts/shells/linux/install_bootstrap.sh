@@ -91,6 +91,7 @@ REGION_CACHE_DIR=""
 REGION_CACHE_FILE=""
 BOOTSTRAP_LIBRARY_READY="no"
 BOOTSTRAP_REQUIRED_LIBRARIES_READY="no"
+CORE_NODE_DELETION_AUTHORIZED=false
 BOOTSTRAP_GVAR_LIBRARY_RELATIVES=(
     "scripts/shells/linux/common/gvar_common.sh"
     "scripts/shells/linux/common/runtime_environment.sh"
@@ -407,25 +408,26 @@ run_setting_base_if_desired() {
 # explicit TRIPLE confirmation, each defaulting to NO. Hard-refuses outright when the
 # target is a system path OR a git working tree (it may be the live, locally-modified
 # project being run -- which is exactly how a re-clone once wiped real work). A
-# non-interactive run (no TTY) ALWAYS refuses. Returns 0 only when deletion is
-# explicitly authorised three times. See development-guides/CORE_NODE_DELETION_SAFETY.md.
+# non-interactive run (no TTY) ALWAYS refuses. The shared state is enabled only
+# after three explicit confirmations. See development-guides/CORE_NODE_DELETION_SAFETY.md.
 confirm_core_node_deletion() {
     local target="$1"
     local i ans
+    CORE_NODE_DELETION_AUTHORIZED=false
     case "$target" in
         ""|"/"|"/usr"|"/usr/"*|"/etc"|"/etc/"*|"/bin"|"/bin/"*|"/sbin"|"/sbin/"*|"/lib"|"/lib/"*|"/var"|"/var/"*|"/home"|"/root"|"/opt"|"/mnt"|"/www"|"/www/"*)
             log_err "[DELETE-GUARD] Refusing to delete a system/critical path: '$target'"
-            return 1 ;;
+            return ;;
     esac
     if [ -e "$target/.git" ]; then
         log_err "[DELETE-GUARD] '$target' is a git repository (a working tree, possibly with"
         log_err "[DELETE-GUARD] uncommitted changes). REFUSING to delete it automatically."
         log_err "[DELETE-GUARD] If you must replace it, move/rename it MANUALLY, then re-run."
-        return 1
+        return
     fi
     if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
         log_err "[DELETE-GUARD] No interactive terminal; refusing to delete '$target' (default = NO)."
-        return 1
+        return
     fi
     log_warn "[DELETE-GUARD] About to DELETE the core_node directory: $target"
     log_warn "[DELETE-GUARD] This is IRREVERSIBLE and destroys any local changes there."
@@ -434,11 +436,11 @@ confirm_core_node_deletion() {
         read -r ans < /dev/tty || ans=""
         case "$ans" in
             [Yy]) : ;;
-            *) log_info "[DELETE-GUARD] Deletion cancelled at step $i (default No). Nothing was removed."; return 1 ;;
+            *) log_info "[DELETE-GUARD] Deletion cancelled at step $i (default No). Nothing was removed."; return ;;
         esac
     done
     log_warn "[DELETE-GUARD] All three confirmations received; proceeding to delete $target"
-    return 0
+    CORE_NODE_DELETION_AUTHORIZED=true
 }
 
 # Step 6: Check if project exists at CORE_NODE_PROJECT_ROOT; if not or incomplete, clone full project
@@ -485,7 +487,8 @@ ensure_project_cloned() {
             # NEVER silently wipe a populated core_node dir: it may be the live,
             # locally-modified working tree. Require the triple-confirm guard, which
             # also hard-refuses git repos and non-interactive runs.
-            if ! confirm_core_node_deletion "$CORE_NODE_PROJECT_ROOT"; then
+            confirm_core_node_deletion "$CORE_NODE_PROJECT_ROOT"
+            if [ "$CORE_NODE_DELETION_AUTHORIZED" != true ]; then
                 log_err "Aborted: not deleting $CORE_NODE_PROJECT_ROOT."
                 log_err "Back up/move it, or clone into an empty directory, then run again."
                 return 1

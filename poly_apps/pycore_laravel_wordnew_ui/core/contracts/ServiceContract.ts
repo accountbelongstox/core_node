@@ -14,6 +14,9 @@
  */
 import contractDocument from '../../../../config/service_contract.json';
 
+const DEFAULT_ROOT_DOMAIN = contractDocument.access.root_domains[0];
+const LARAVEL_API_DOMAIN_PARTS = contractDocument.access.service_domains.laravel_api;
+
 export const LOOPBACK_HOST: string = contractDocument.hosts.loopback;
 export const BIND_ANY_HOST: string = contractDocument.hosts.any;
 export const LARAVEL_API_BACKEND_PORT: number = contractDocument.ports.laravel_api_backend;
@@ -29,6 +32,13 @@ export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_ac
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
 export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
 export const DEFAULT_API_REGION_PREFIX: string = contractDocument.access.default_api_region_prefix;
+export const DEFAULT_LARAVEL_API_HOST: string = [
+  ...LARAVEL_API_DOMAIN_PARTS.map((part) => (
+    part === '{region}' ? DEFAULT_API_REGION_PREFIX : part
+  )),
+  DEFAULT_ROOT_DOMAIN,
+].join('.');
+export const DEFAULT_LARAVEL_API_ORIGIN = `https://${DEFAULT_LARAVEL_API_HOST}`;
 export const SERVICE_CONTRACT_ROOT_DOMAINS: string[] = [...contractDocument.access.root_domains];
 export const SERVICE_CONTRACT_HOSTS: Record<string, string> = { ...contractDocument.hosts };
 export const SERVICE_CONTRACT_SERVICE_HOST_KEYS: Record<string, string[]> = Object.fromEntries(

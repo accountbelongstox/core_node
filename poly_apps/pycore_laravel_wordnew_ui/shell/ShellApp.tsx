@@ -7,6 +7,7 @@
  *   /laravel-manager/*   the existing dashboard (Lm)
  *   /pycore-manager/*    ported pycore manager (Pc)
  *   /wordnew/*           the word-learning client (WfNew) — replaces old wordnew
+ *   /codemart/*          managed software delivery marketplace (Cm)
  *
  * Prod note: deep links need a server catch-all that serves index.html (dev is
  * covered by Vite's SPA fallback). See the plan's Risks section.

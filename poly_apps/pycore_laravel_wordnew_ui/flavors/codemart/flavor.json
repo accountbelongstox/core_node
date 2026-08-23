@@ -1,0 +1,22 @@
+{
+  "id": "codemart",
+  "name": "CodeMart",
+  "shortName": "CodeMart",
+  "appId": "com.core-node.codemart",
+  "version": "1.0.0",
+  "rootRoute": "/codemart",
+  "entry": "apps/codemart/CmApp.tsx",
+  "platforms": ["web", "android", "ios"],
+  "standalone": {
+    "switcher": {
+      "enabled": true,
+      "visible": true
+    }
+  },
+  "themeColor": "#4187db",
+  "backgroundColor": "#f0f2f5",
+  "description": "Managed software delivery marketplace",
+  "assets": {
+    "icon": "icon.svg"
+  }
+}

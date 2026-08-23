@@ -12,7 +12,7 @@ import {
   hasFeature,
   isLicenseActive,
 } from '@/lib/superCode';
-import { heartbeat, memberLogin } from '@/lib/backendClient';
+import { heartbeat, memberLogin, memberRegister } from '@/lib/backendClient';
 import {
   readActiveCredential,
   fetchAllOrders,
@@ -110,6 +110,23 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       const baseUrl = normalizeBackendUrl(rawBaseUrl);
       const cfg: BackendConfig = { baseUrl, deviceId };
       const lic = await memberLogin(cfg, req.username, req.password);
+      if (!isLicenseActive(lic)) throw new AppError('license.memberInactive');
+      await store.setMemberSession({ baseUrl, deviceId, memberToken: lic.token }, lic);
+      return ok(lic);
+    }
+    case 'license.registerMember': {
+      const deviceId = await ensureDeviceId();
+      const rawBaseUrl = req.baseUrl.trim();
+      if (!rawBaseUrl || !req.username.trim()) throw new AppError('backend.credentialsRequired');
+      const baseUrl = normalizeBackendUrl(rawBaseUrl);
+      const cfg: BackendConfig = { baseUrl, deviceId };
+      const lic = await memberRegister(
+        cfg,
+        req.username.trim(),
+        req.password,
+        req.passwordConfirmation,
+        req.email?.trim(),
+      );
       if (!isLicenseActive(lic)) throw new AppError('license.memberInactive');
       await store.setMemberSession({ baseUrl, deviceId, memberToken: lic.token }, lic);
       return ok(lic);

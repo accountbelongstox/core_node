@@ -57,7 +57,7 @@ ensure_requirements() {
     fi
 
     # Ensure sudo exists
-    check_and_install_sudo >/dev/null 2>&1 || true
+    check_and_install_sudo >/dev/null 2>&1
 }
 
 is_antigravity_installed() {

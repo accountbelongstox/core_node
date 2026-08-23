@@ -31,40 +31,46 @@ ACTUAL_DESKTOP_USER=""
 ACTUAL_DESKTOP_USER_HOME=""
 CORE_PERMISSION_USER=""
 CORE_PERMISSION_GROUP=""
+SYSTEM_USER_EXCLUDED=false
+SYSTEM_USER_ACTIVE_REGULAR=false
+SUDO_READY=false
+CORE_NODE_DELETION_AUTHORIZED=false
 
-# Return success for known service-only accounts.
+# Resolve whether an account is service-only.
 system_user_is_excluded() {
     local candidate="$1"
 
+    SYSTEM_USER_EXCLUDED=false
     case "$candidate" in
         root|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|backup|list|irc|_apt|git|gitea|mysql|postgres|redis|nginx|www-data|node|nobody|daemon|messagebus|sshd|polkitd|systemd-network|systemd-timesync)
-            return 0
+            SYSTEM_USER_EXCLUDED=true
             ;;
     esac
-    return 1
 }
 
-# Return success only for an interactive non-system account.
+# Resolve whether an account is interactive and non-system.
 system_user_candidate_is_active_regular() {
     local candidate="$1"
     local candidate_uid=""
     local candidate_entry=""
     local candidate_shell=""
 
-    [ -n "$candidate" ] || return 1
+    SYSTEM_USER_ACTIVE_REGULAR=false
+    [ -n "$candidate" ] || return
     candidate_uid="$(id -u "$candidate" 2>/dev/null || true)"
-    [ -n "$candidate_uid" ] || return 1
-    [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return 1
-    [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return 1
-    system_user_is_excluded "$candidate" && return 1
+    [ -n "$candidate_uid" ] || return
+    [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return
+    [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return
+    system_user_is_excluded "$candidate"
+    [ "$SYSTEM_USER_EXCLUDED" = false ] || return
     if command -v getent >/dev/null 2>&1; then
         candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
         candidate_shell="${candidate_entry##*:}"
         case "$candidate_shell" in
-            */nologin|*/false) return 1 ;;
+            */nologin|*/false) return ;;
         esac
     fi
-    return 0
+    SYSTEM_USER_ACTIVE_REGULAR=true
 }
 
 # Prefer an explicit caller or active login. A root-only process then scores
@@ -79,31 +85,35 @@ detect_system_user() {
     local best_score=-1
 
     candidate="${SUDO_USER:-}"
-    if system_user_candidate_is_active_regular "$candidate"; then
+    system_user_candidate_is_active_regular "$candidate"
+    if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
         echo "$candidate"
-        return 0
+        return
     fi
 
     candidate="$(id -un 2>/dev/null || true)"
-    if system_user_candidate_is_active_regular "$candidate"; then
+    system_user_candidate_is_active_regular "$candidate"
+    if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
         echo "$candidate"
-        return 0
+        return
     fi
 
     if command -v who >/dev/null 2>&1; then
         candidate="$(who 2>/dev/null | awk 'NF { print $1; exit }')"
-        if system_user_candidate_is_active_regular "$candidate"; then
+        system_user_candidate_is_active_regular "$candidate"
+        if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
             echo "$candidate"
-            return 0
+            return
         fi
     fi
 
     if command -v loginctl >/dev/null 2>&1; then
         while read -r candidate; do
             [ -n "$candidate" ] || continue
-            if system_user_candidate_is_active_regular "$candidate"; then
+            system_user_candidate_is_active_regular "$candidate"
+            if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
                 echo "$candidate"
-                return 0
+                return
             fi
         done < <(loginctl list-sessions --no-legend 2>/dev/null | awk 'NF >= 3 { print $3 }')
     fi
@@ -111,7 +121,8 @@ detect_system_user() {
     for candidate_home in /home/*; do
         [ -d "$candidate_home" ] || continue
         candidate="${candidate_home##*/}"
-        system_user_candidate_is_active_regular "$candidate" || continue
+        system_user_candidate_is_active_regular "$candidate"
+        [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ] || continue
         home_entry="$(getent passwd "$candidate" 2>/dev/null | cut -d: -f6)"
         [ "$home_entry" = "$candidate_home" ] || continue
         candidate_score=0
@@ -125,7 +136,7 @@ detect_system_user() {
     done
     if [ -n "$best_user" ]; then
         echo "$best_user"
-        return 0
+        return
     fi
 
     echo "root"
@@ -145,14 +156,17 @@ fi
 
 # Function to check and install sudo if needed
 check_and_install_sudo() {
+    SUDO_READY=false
     # Root never needs sudo (same journal-noise rationale as USE_SUDO).
     if [ "$(id -u)" = "0" ]; then
         USE_SUDO=""
-        return 0
+        SUDO_READY=true
+        return
     fi
     if command -v sudo >/dev/null 2>&1; then
         USE_SUDO="sudo"
-        return 0
+        SUDO_READY=true
+        return
     fi
 
     echo "[INFO] sudo is not installed, attempting to install..."
@@ -172,23 +186,22 @@ check_and_install_sudo() {
         else
             echo "[ERROR] Package manager not found, cannot install sudo"
             USE_SUDO=""
-            return 1
+            return
         fi
 
         if command -v sudo >/dev/null 2>&1; then
             USE_SUDO="sudo"
+            SUDO_READY=true
             echo "[OK] sudo installed successfully"
-            return 0
         else
             echo "[ERROR] Failed to install sudo"
             USE_SUDO=""
-            return 1
         fi
     else
         echo "[WARNING] Not running as root, cannot install sudo"
         echo "[INFO] Please run as root or install sudo manually"
         USE_SUDO=""
-        return 1
+        return
     fi
 }
 
@@ -206,7 +219,6 @@ detect_actual_desktop_user() {
     [ -n "$detected_home" ] || detected_home="/root"
     ACTUAL_DESKTOP_USER="$detected_user"
     ACTUAL_DESKTOP_USER_HOME="$detected_home"
-    return 0
 }
 
 # Detect actual desktop user (if running as root)
@@ -402,7 +414,6 @@ map_web_path() {
     esac
 
     echo "$mapped_path"
-    return 0
 }
 
 source "$GLOBAL_VAR_STORE_SCRIPT"
@@ -481,137 +492,16 @@ GVAR_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NEW_SECRET_MANAGER_PATH="$(dirname "$(dirname "$GVAR_SCRIPT_DIR")")/secret_manager/secret_manager.sh"
 source "$NEW_SECRET_MANAGER_PATH"
 
-# Function to get encrypted content by key name (equivalent to Invoke-DisguiseDecryption)
-# This function now uses the centralized secret_manager.sh library
-# For backward compatibility, this wrapper function is maintained
+# Read encrypted content through the centralized secret manager.
 get_secret_content() {
     local key_name="$1"
 
     if [ -z "$key_name" ]; then
         echo "Error: KeyName parameter is required" >&2
-        return 1
+        return
     fi
 
-    # Check if secret_manager library is loaded
-    if type secret_get_key &>/dev/null; then
-        # Use new secret manager library
-        secret_get_key "$key_name"
-        return $?
-    else
-        # Fallback to old implementation (for backward compatibility)
-        echo "Warning: secret_manager.sh not loaded, using legacy implementation" >&2
-
-        # Use centralized core_node directory detection
-        local core_node_dir=$(get_core_node_dir)
-
-        # Variables declaration
-        local scripts_dir="$core_node_dir/scripts"
-        local secret_keys_dir="$core_node_dir/.secret_keys"
-        local raw_dir="$secret_keys_dir/.secret_ignore"
-        local encrypted_dir="$secret_keys_dir/already_encrypted"
-        local raw_file="$raw_dir/$key_name"
-        local encrypted_file="$encrypted_dir/$key_name.js"
-
-        # First check if raw file exists
-        if [ -f "$raw_file" ]; then
-            local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-            if [ -n "$content" ]; then
-                echo "$content"
-                return 0
-            fi
-        fi
-
-        # Check if encrypted file exists
-        if [ ! -f "$encrypted_file" ]; then
-            return 1
-        fi
-
-        # Check if we need to perform batch decryption
-        if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
-            echo "[DECRYPT] Checking for encrypted files requiring batch decryption..." >&2
-
-            # Find all encrypted .js files that don't have corresponding raw files
-            local encrypted_files=()
-            if [ -d "$encrypted_dir" ]; then
-                while IFS= read -r -d '' enc_file; do
-                    local raw_file_name=$(basename "$enc_file" .js)
-                    local raw_file_path="$raw_dir/$raw_file_name"
-
-                    if [ ! -f "$raw_file_path" ]; then
-                        encrypted_files+=("$enc_file")
-                    fi
-                done < <(find "$encrypted_dir" -name "*.js" -print0 2>/dev/null)
-            fi
-
-            if [ ${#encrypted_files[@]} -gt 0 ]; then
-                echo "[DECRYPT] Found ${#encrypted_files[@]} encrypted files requiring decryption" >&2
-
-                # Find disguise.js
-                local disguise_js=""
-                if [ -d "$scripts_dir" ]; then
-                    disguise_js=$(find "$scripts_dir" -name "disguise.js" -type f | head -n 1)
-                fi
-
-                if [ -n "$disguise_js" ]; then
-                    echo "[DECRYPT] Found decryption tool: $disguise_js" >&2
-
-                    # Get password for batch decryption
-                    echo -n "[DECRYPT] Enter decryption password for all encrypted files: " >&2
-                    read -s password
-                    echo "" >&2
-
-                    if [ -n "$password" ]; then
-                        # Ensure raw directory exists
-                        if [ ! -d "$raw_dir" ]; then
-                            mkdir -p "$raw_dir"
-                        fi
-
-                        # Decrypt each file
-                        local success_count=0
-                        for encrypted_file in "${encrypted_files[@]}"; do
-                            local file_name=$(basename "$encrypted_file")
-                            echo "[DECRYPT] Decrypting: $file_name" >&2
-
-                            local result
-                            result=$(node "$encrypted_file" pwd "$password" "$raw_dir" 2>&1)
-                            local exit_code=$?
-
-                            if [ $exit_code -eq 0 ]; then
-                                echo "[DECRYPT] SUCCESS: Decrypted $file_name" >&2
-                                ((success_count++))
-                            else
-                                echo "[DECRYPT] WARNING: Failed to decrypt $file_name" >&2
-                                echo "[DECRYPT] Error: $result" >&2
-                            fi
-                        done
-
-                        echo "[DECRYPT] Batch decryption completed: $success_count/${#encrypted_files[@]} files decrypted" >&2
-                    else
-                        echo "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" >&2
-                    fi
-
-                    # Clear password from memory
-                    password=""
-                else
-                    echo "[DECRYPT] WARNING: disguise.js not found in scripts directory" >&2
-                fi
-            fi
-
-            # Mark batch decryption as completed for this session
-            BATCH_DECRYPTION_COMPLETED=true
-        fi
-
-        # Try to read the decrypted file again
-        if [ -f "$raw_file" ]; then
-            local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-            if [ -n "$content" ]; then
-                echo "$content"
-                return 0
-            fi
-        fi
-
-        return 1
-    fi
+    secret_get_key "$key_name"
 }
 
 
@@ -732,25 +622,26 @@ export MCP_LOCAL_DIR
 # development-guides/CORE_NODE_DELETION_SAFETY.md). Authorise deletion of a
 # core_node directory ONLY after explicit TRIPLE confirmation (default NO each),
 # and hard-refuse system paths, git working trees, and non-interactive runs.
-# Returns 0 only when deletion is explicitly authorised three times.
+# Sets CORE_NODE_DELETION_AUTHORIZED only after three explicit confirmations.
 # =============================================================================
 confirm_core_node_deletion() {
     local target="$1"
     local i=0
     local ans=""
+    CORE_NODE_DELETION_AUTHORIZED=false
     case "$target" in
         ""|"/"|"/usr"|"/usr/"*|"/etc"|"/etc/"*|"/bin"|"/bin/"*|"/sbin"|"/sbin/"*|"/lib"|"/lib/"*|"/var"|"/var/"*|"/home"|"/root"|"/opt"|"/mnt"|"/www"|"/www/"*)
             echo -e "\033[31m[DELETE-GUARD] Refusing to delete a system/critical path: '$target'\033[0m" >&2
-            return 1 ;;
+            return ;;
     esac
     if [ -e "$target/.git" ]; then
         echo -e "\033[31m[DELETE-GUARD] '$target' is a git working tree (possible uncommitted work). Refusing to delete it.\033[0m" >&2
         echo -e "\033[31m[DELETE-GUARD] Move/rename it MANUALLY if you must replace it, then re-run.\033[0m" >&2
-        return 1
+        return
     fi
     if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
         echo -e "\033[31m[DELETE-GUARD] No interactive terminal; refusing to delete '$target' (default = NO).\033[0m" >&2
-        return 1
+        return
     fi
     echo -e "\033[33m[DELETE-GUARD] About to DELETE the core_node directory: $target (IRREVERSIBLE)\033[0m" >&2
     for i in 1 2 3; do
@@ -758,11 +649,11 @@ confirm_core_node_deletion() {
         read -r ans < /dev/tty || ans=""
         case "$ans" in
             [Yy]) : ;;
-            *) echo -e "\033[36m[DELETE-GUARD] Cancelled at step $i (default No). Nothing removed.\033[0m" >&2; return 1 ;;
+            *) echo -e "\033[36m[DELETE-GUARD] Cancelled at step $i (default No). Nothing removed.\033[0m" >&2; return ;;
         esac
     done
     echo -e "\033[33m[DELETE-GUARD] All three confirmations received; proceeding to delete $target\033[0m" >&2
-    return 0
+    CORE_NODE_DELETION_AUTHORIZED=true
 }
 
 # Calculate and set SKIP_LARGE_MODELS flag

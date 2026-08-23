@@ -6,11 +6,6 @@ log_message() {
     echo "[$SCRIPT_INDEX][$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
 }
 
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
 resolve_pnpm_binary_path() {
     if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
         echo "$PNPM_BIN"
@@ -550,4 +545,3 @@ install_application() {
         log_message "Installation failed or verification failed for $display_name"
     fi
 }
-

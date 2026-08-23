@@ -42,13 +42,9 @@ handle_arguments() {
     if [ -s "$RESOURCE_LIMITER_SCRIPT" ]; then
         echo "[INFO] Resource limiter available: $RESOURCE_LIMITER_SCRIPT"
         source_file_with_dos2unix "$RESOURCE_LIMITER_SCRIPT"
-        if [ $? -eq 0 ]; then
-            has_resource_limiter=true
-            local detected_method=$(detect_resource_method)
-            echo "[INFO] Resource limiting method: $detected_method"
-        else
-            echo "[WARNING] Failed to load resource limiter, running without limits"
-        fi
+        has_resource_limiter=true
+        local detected_method=$(detect_resource_method)
+        echo "[INFO] Resource limiting method: $detected_method"
     else
         echo "[ERROR] Resource limiter not found: $RESOURCE_LIMITER_SCRIPT"
         echo "[INFO] Running commands without resource limits"
@@ -65,18 +61,11 @@ handle_arguments() {
         if [ "$has_resource_limiter" = true ]; then
             echo "[INFO] Running with resource limits (CPU: 20%, Memory: calculated based on system)"
             run_with_limits "20" "" "$arg"
-            local exit_code=$?
         else
             echo "[WARNING] Running without resource limits"
             eval "$arg"
-            local exit_code=$?
         fi
-
-        if [ $exit_code -eq 0 ]; then
-            echo "[SUCCESS] Command $command_count completed successfully"
-        else
-            echo "[ERROR] Command $command_count failed with exit code: $exit_code"
-        fi
+        echo "[INFO] Command $command_count completed"
     done
 
     echo ""

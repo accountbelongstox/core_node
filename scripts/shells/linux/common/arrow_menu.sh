@@ -16,7 +16,7 @@ ARROW_MENU_SELECTED_INDEX=0
 ARROW_MENU_CANCELLED=false
 
 if [ "$ARROW_MENU_LOADED" = "true" ]; then
-    return 0
+    return
 fi
 ARROW_MENU_LOADED=true
 
@@ -37,7 +37,7 @@ arrow_menu_select() {
     ARROW_MENU_CANCELLED=false
     if [ "$option_count" -eq 0 ]; then
         ARROW_MENU_SELECTED_INDEX=-1
-        return 1
+        return
     fi
     if [ "$selected_index" -lt 0 ] || [ "$selected_index" -ge "$option_count" ]; then
         selected_index=0
@@ -45,14 +45,14 @@ arrow_menu_select() {
     if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
         ARROW_MENU_SELECTED_INDEX="$back_index"
         ARROW_MENU_CANCELLED=true
-        return 1
+        return
     fi
 
     old_settings="$(stty -g < /dev/tty 2>/dev/null)"
     if [ -z "$old_settings" ]; then
         ARROW_MENU_SELECTED_INDEX="$back_index"
         ARROW_MENU_CANCELLED=true
-        return 1
+        return
     fi
     while true; do
         {
@@ -96,13 +96,13 @@ arrow_menu_select() {
                 ;;
             '')
                 ARROW_MENU_SELECTED_INDEX="$selected_index"
-                return 0
+                return
                 ;;
             $'\x03'|q|Q)
                 if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
                     ARROW_MENU_SELECTED_INDEX="$back_index"
                     ARROW_MENU_CANCELLED=true
-                    return 0
+                    return
                 fi
                 ;;
         esac

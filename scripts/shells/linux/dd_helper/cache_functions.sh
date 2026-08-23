@@ -15,35 +15,45 @@
 # Cache Functions for dd.sh
 # =============================================================================
 
+FILE_CACHE_HIT=false
+BEHAVIOR_CACHE_HIT=false
+DIRECTORY_PROCESSING_CACHE_HIT=false
+RAW_FILE_MODIFIED_AFTER_DECRYPTION=false
+ENCRYPTED_CONTENT_CHANGED=false
+ENCRYPTED_CONTENT_BASELINE_EXISTS=false
+SECRET_REDECRYPTION_REQUESTED=false
+
 check_file_cache() {
     local file_path="$1"
     local cache_dir="$GLOBAL_VAR_DIR/file_cache"
+    local cache_key=""
+    local cache_file=""
+    local cached_mtime=""
+    local current_mtime=""
+
+    FILE_CACHE_HIT=false
     
     if [ ! -d "$cache_dir" ]; then
         $sudo mkdir -p "$cache_dir"
-        return 1
+        return
     fi
 
-    local cache_key=$(echo "$file_path" | sha256sum | cut -d' ' -f1)
-    local cache_file="$cache_dir/${cache_key}.mtime"
+    cache_key=$(echo "$file_path" | sha256sum | cut -d' ' -f1)
+    cache_file="$cache_dir/${cache_key}.mtime"
 
     if [ -s "$cache_file" ]; then
-        local cached_mtime=$(cat "$cache_file" 2>/dev/null)
+        cached_mtime=$(cat "$cache_file" 2>/dev/null)
         if [ -z "$cached_mtime" ]; then
             cached_mtime="0"
         fi
-        local current_mtime=$(stat -c %Y "$file_path" 2>/dev/null)
+        current_mtime=$(stat -c %Y "$file_path" 2>/dev/null)
         if [ -z "$current_mtime" ]; then
             current_mtime="0"
         fi
         if [ "$cached_mtime" = "$current_mtime" ]; then
-            return 0
-        else
-            return 1
+            FILE_CACHE_HIT=true
         fi
     fi
-
-    return 1
 }
 
 set_file_cache() {
@@ -69,31 +79,33 @@ check_behavior_cache() {
     local cache_dir="$GLOBAL_VAR_DIR/behavior_cache"
     local cache_expiry_seconds=300
     local current_time=$(date +%s)
+    local cache_file=""
+    local cache_timestamp=""
+    local cache_age=0
+
+    BEHAVIOR_CACHE_HIT=false
 
     if [ ! -d "$cache_dir" ]; then
         $sudo mkdir -p "$cache_dir"
-        return 1
+        return
     fi
 
-    local cache_file="$cache_dir/${behavior_name}.timestamp"
+    cache_file="$cache_dir/${behavior_name}.timestamp"
 
     if [ -s "$cache_file" ]; then
-        local cache_timestamp=$(cat "$cache_file" 2>/dev/null)
+        cache_timestamp=$(cat "$cache_file" 2>/dev/null)
         if [ -z "$cache_timestamp" ]; then
             cache_timestamp="0"
         fi
-        local cache_age=$((current_time - cache_timestamp))
+        cache_age=$((current_time - cache_timestamp))
 
         if [ "$cache_age" -le "$cache_expiry_seconds" ]; then
             echo -e "\033[32m[CACHE HIT] Behavior '$behavior_name' cached ${cache_age}s ago, skipping execution\033[0m"
-            return 0
+            BEHAVIOR_CACHE_HIT=true
         else
             echo -e "\033[33m[CACHE EXPIRED] Behavior '$behavior_name' cache expired (${cache_age}s old)\033[0m"
-            return 1
         fi
     fi
-
-    return 1
 }
 
 set_behavior_cache() {
@@ -117,7 +129,7 @@ cleanup_behavior_cache() {
     local cleaned_files=0
 
     if [ ! -d "$cache_dir" ]; then
-        return 0
+        return
     fi
 
     for cache_file in "$cache_dir"/*.timestamp; do
@@ -145,7 +157,7 @@ cleanup_file_cache() {
     local cleaned_files=0
 
     if [ ! -d "$cache_dir" ]; then
-        return 0
+        return
     fi
 
     local current_time=$(date +%s)
@@ -179,32 +191,39 @@ check_directory_processing_cache() {
     local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
     local cache_expiry_seconds=86400  # 24 hours
     local current_time=$(date +%s)
+    local cache_key=""
+    local cache_file=""
+    local cache_timestamp=""
+    local cache_age=0
+    local newer_files_found=false
+    local newer_files_count=0
+    local file_mtime=""
+    local cache_date=""
+
+    DIRECTORY_PROCESSING_CACHE_HIT=false
 
     if [ ! -d "$cache_dir" ]; then
         $sudo mkdir -p "$cache_dir"
-        return 1
+        return
     fi
 
     # Create cache key from directory path
-    local cache_key=$(echo "$dir_path" | sha256sum | cut -d' ' -f1)
-    local cache_file="$cache_dir/${cache_key}.dirprocessed"
+    cache_key=$(echo "$dir_path" | sha256sum | cut -d' ' -f1)
+    cache_file="$cache_dir/${cache_key}.dirprocessed"
 
     if [ -s "$cache_file" ]; then
-        local cache_timestamp=$(cat "$cache_file" 2>/dev/null)
+        cache_timestamp=$(cat "$cache_file" 2>/dev/null)
         if [ -z "$cache_timestamp" ]; then
             cache_timestamp="0"
         fi
-        local cache_age=$((current_time - cache_timestamp))
+        cache_age=$((current_time - cache_timestamp))
 
         # Check if cache is still valid (not expired)
         if [ "$cache_age" -le "$cache_expiry_seconds" ]; then
             # Smart file comparison: check if any .sh file is newer than cache
-            local newer_files_found=false
-            local newer_files_count=0
-
             # Find all .sh files in directory (recursively)
             while IFS= read -r -d '' sh_file; do
-                local file_mtime=$(stat -c %Y "$sh_file" 2>/dev/null || echo "0")
+                file_mtime=$(stat -c %Y "$sh_file" 2>/dev/null || echo "0")
                 # If file modification time is greater than cache timestamp, need reprocessing
                 if [ "$file_mtime" -gt "$cache_timestamp" ]; then
                     if [ "$newer_files_found" = false ]; then
@@ -218,18 +237,16 @@ check_directory_processing_cache() {
 
             if [ "$newer_files_found" = true ]; then
                 echo -e "\033[33m[CACHE MISS] $newer_files_count file(s) modified after cache - reprocessing needed\033[0m"
-                return 1  # Need to reprocess
             else
-                local cache_date=$(date -d @$cache_timestamp '+%Y-%m-%d %H:%M:%S')
+                cache_date=$(date -d @$cache_timestamp '+%Y-%m-%d %H:%M:%S')
                 echo -e "\033[32m[CACHE HIT] All .sh files older than cache ($cache_date) - skipping shell file processing\033[0m"
-                return 0  # Cache hit - no files newer than cache
+                DIRECTORY_PROCESSING_CACHE_HIT=true
             fi
         else
             echo -e "\033[33m[CACHE EXPIRED] Cache age: ${cache_age}s (max: ${cache_expiry_seconds}s)\033[0m"
         fi
     fi
 
-    return 1  # Cache miss - directory needs processing
 }
 
 set_directory_processing_cache() {
@@ -261,7 +278,7 @@ cleanup_directory_processing_cache() {
     local cleaned_files=0
     
     if [ ! -d "$cache_dir" ]; then
-        return 0
+        return
     fi
     
     for cache_file in "$cache_dir"/*.dirprocessed; do
@@ -311,26 +328,30 @@ check_raw_file_modified_after_decryption() {
     local raw_file="$2"
     local cache_dir="$GLOBAL_VAR_DIR/secret_cache/decryption_timestamps"
     local cache_file="$cache_dir/${filename}.decrypt_time"
+    local decryption_time=""
+    local raw_file_mtime=""
+
+    RAW_FILE_MODIFIED_AFTER_DECRYPTION=false
 
     if [ ! -s "$cache_file" ]; then
-        return 0  # No decryption cache, consider as modified
+        RAW_FILE_MODIFIED_AFTER_DECRYPTION=true
+        return
     fi
 
-    local decryption_time=$(cat "$cache_file" 2>/dev/null)
+    decryption_time=$(cat "$cache_file" 2>/dev/null)
     if [ -z "$decryption_time" ]; then
-        return 0  # Invalid cache, consider as modified
+        RAW_FILE_MODIFIED_AFTER_DECRYPTION=true
+        return
     fi
 
-    local raw_file_mtime=$(stat -c %Y "$raw_file" 2>/dev/null)
+    raw_file_mtime=$(stat -c %Y "$raw_file" 2>/dev/null)
     if [ -z "$raw_file_mtime" ]; then
-        return 1  # Raw file not found
+        return
     fi
 
     # If raw file is newer than decryption time, it was modified after decryption
     if [ "$raw_file_mtime" -gt "$decryption_time" ]; then
-        return 0  # Modified after decryption - need re-encryption
-    else
-        return 1  # Not modified after decryption - skip re-encryption
+        RAW_FILE_MODIFIED_AFTER_DECRYPTION=true
     fi
 }
 
@@ -360,26 +381,30 @@ check_encrypted_content_changed() {
     local encrypted_file="$2"
     local cache_dir="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash"
     local cache_file="$cache_dir/${filename}.enc_hash"
+    local cached_hash=""
+    local current_hash=""
+
+    ENCRYPTED_CONTENT_CHANGED=false
 
     if [ ! -s "$cache_file" ]; then
-        return 0  # No hash cache, consider as changed
+        ENCRYPTED_CONTENT_CHANGED=true
+        return
     fi
 
     if [ ! -s "$encrypted_file" ]; then
-        return 1  # Encrypted file not found
+        return
     fi
 
-    local cached_hash=$(cat "$cache_file" 2>/dev/null)
-    local current_hash=$(sha256sum "$encrypted_file" 2>/dev/null | cut -d' ' -f1)
+    cached_hash=$(cat "$cache_file" 2>/dev/null)
+    current_hash=$(sha256sum "$encrypted_file" 2>/dev/null | cut -d' ' -f1)
 
     if [ -z "$cached_hash" ] || [ -z "$current_hash" ]; then
-        return 0  # Invalid hash, consider as changed
+        ENCRYPTED_CONTENT_CHANGED=true
+        return
     fi
 
     if [ "$cached_hash" != "$current_hash" ]; then
-        return 0  # Content changed - need re-decryption
-    else
-        return 1  # Content unchanged
+        ENCRYPTED_CONTENT_CHANGED=true
     fi
 }
 
@@ -388,7 +413,10 @@ encrypted_content_baseline_exists() {
     local filename="$1"
     local cache_file="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash/${filename}.enc_hash"
 
-    [ -s "$cache_file" ]
+    ENCRYPTED_CONTENT_BASELINE_EXISTS=false
+    if [ -s "$cache_file" ]; then
+        ENCRYPTED_CONTENT_BASELINE_EXISTS=true
+    fi
 }
 
 # Get list of encrypted files that need re-decryption due to content changes
@@ -396,16 +424,24 @@ get_encrypted_files_needing_redecryption() {
     local encrypted_dir="$1"
     local raw_dir="$2"
     local -a changed_files=()
+    local enc_file=""
+    local base_name=""
+    local raw_file=""
+    local redecrypt_choice=""
+    local update_cache_choice=""
+    local file_name=""
+
+    SECRET_REDECRYPTION_REQUESTED=false
 
     if [ ! -d "$encrypted_dir" ]; then
-        return 0
+        return
     fi
 
     while IFS= read -r -d '' enc_file; do
-        local base_name="$(basename "$enc_file")"
+        base_name="$(basename "$enc_file")"
         base_name="${base_name%.js}"
         base_name="${base_name%.JS}"
-        local raw_file="$raw_dir/$base_name"
+        raw_file="$raw_dir/$base_name"
 
         # Only consider files we have already decrypted locally. First-time decryption
         # (raw file missing) is handled by the separate missing-files flow.
@@ -417,13 +453,15 @@ get_encrypted_files_needing_redecryption() {
         # cleared cache dir). Seed it from the current encrypted file and treat it as up to
         # date, so we never raise a phantom "all files changed" prompt. Real changes are
         # detected only when a baseline EXISTS and its hash no longer matches.
-        if ! encrypted_content_baseline_exists "$base_name"; then
+        encrypted_content_baseline_exists "$base_name"
+        if [ "$ENCRYPTED_CONTENT_BASELINE_EXISTS" != true ]; then
             set_encrypted_content_hash_cache "$base_name" "$enc_file"
             continue
         fi
 
         # Baseline exists: a hash mismatch means the encrypted content actually changed.
-        if check_encrypted_content_changed "$base_name" "$enc_file"; then
+        check_encrypted_content_changed "$base_name" "$enc_file"
+        if [ "$ENCRYPTED_CONTENT_CHANGED" = true ]; then
             changed_files+=("$base_name")
         fi
     done < <(find "$encrypted_dir" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
@@ -453,7 +491,8 @@ get_encrypted_files_needing_redecryption() {
                 fi
             done
             echo ""
-            return 0  # Need re-decryption
+            SECRET_REDECRYPTION_REQUESTED=true
+            return
         else
             echo -e "\033[33m[WARNING] Keeping existing decrypted files (may be outdated)\033[0m"
             echo ""
@@ -466,7 +505,7 @@ get_encrypted_files_needing_redecryption() {
 
                 # Update cache for each changed file to match current encrypted content
                 for file_name in "${changed_files[@]}"; do
-                    local enc_file="$encrypted_dir/$file_name.js"
+                    enc_file="$encrypted_dir/$file_name.js"
                     if [ ! -s "$enc_file" ]; then
                         # Try alternative extensions
                         enc_file="$encrypted_dir/$file_name.JS"
@@ -487,7 +526,6 @@ get_encrypted_files_needing_redecryption() {
         fi
     fi
 
-    return 1  # No re-decryption needed
 }
 
 # Cleanup expired secret cache entries
@@ -498,7 +536,7 @@ cleanup_secret_cache() {
     local cleaned_files=0
 
     if [ ! -d "$cache_base_dir" ]; then
-        return 0
+        return
     fi
 
     # Cleanup decryption timestamps cache

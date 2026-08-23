@@ -1,7 +1,8 @@
 # CodeMart Pycore UI and Laravel Main Redesign
 
 Date: 2026-08-23  
-Status: approved design baseline; implementation has not started.
+Status: approved design baseline; UI foundation implementation is in progress;
+Laravel redesign implementation has not started.
 
 ## Progress documents
 
@@ -180,31 +181,14 @@ poly_apps/pycore_laravel_wordnew_ui/apps/codemart/
   auth/
     CmAccessGate.tsx
   components/
-    common/
-    dashboard/
+    CmBrand.tsx
     public-home/
-    projects/
-    tasks/
-    reviews/
-    finance/
   contexts/
     CmBootstrapContext.tsx
   pages/
     CmPublicHomePage.tsx
     CmDashboardPage.tsx
-    CmMarketplacePage.tsx
-    CmProjectsPage.tsx
-    CmProjectCreatePage.tsx
-    CmProjectDetailPage.tsx
-    CmTaskWorkspacePage.tsx
-    CmMyTasksPage.tsx
-    CmReviewQueuePage.tsx
-    CmArchitectPage.tsx
-    CmWalletPage.tsx
-    CmVerificationPage.tsx
-    CmProfilePage.tsx
-    CmNotificationsPage.tsx
-    CmSettingsPage.tsx
+    CmDomainPages.tsx
   cm-locales/
     en.ts
     zh.ts
@@ -214,6 +198,7 @@ poly_apps/pycore_laravel_wordnew_ui/apps/codemart/
     CmQueryState.ts
   styles/
     cm-public-home.css
+    cm-workspace.css
   assets/
     public-home/
 ```
@@ -222,6 +207,12 @@ poly_apps/pycore_laravel_wordnew_ui/apps/codemart/
 icon, required capability, and lazy component. `CmApp.tsx` generates routes
 from that registry. `CmLayout.tsx` generates navigation from the same registry,
 so routing and navigation cannot drift.
+
+Low-complexity contract-waiting domain surfaces may share
+`CmDomainPages.tsx`. A domain is split into its own page, controller, and
+components when real business behavior is connected. No file may exceed 800
+lines; splitting follows domain responsibility rather than creating one file
+per trivial wrapper.
 
 The sub-app is registered in the shell through `shellTypes.ts`,
 `ShellProvider.tsx`, `ShellApp.tsx`, `ShellHome.tsx`, and the app switcher.

@@ -35,7 +35,7 @@ sync_linuxenvs_to_bin() {
 
     if [ ${#directories[@]} -eq 0 ]; then
         echo -e "\033[33m[SYNC] No linuxenv directories found. Checked: $LINUXENVS_DIR_PATH\033[0m"
-        return 0
+        return
     fi
 
     for idx in "${!directories[@]}"; do
@@ -85,7 +85,7 @@ sync_linuxenvs_to_bin() {
                     $sudo ln -sf "$source_script_path" "$link_path" 2>/dev/null
                 fi
 
-                if [ $? -eq 0 ]; then
+                if [ -L "$link_path" ] && [ "$(readlink -f "$link_path")" = "$source_script_path" ]; then
                     echo -e "\033[32m[SYNC]   Linked: $link_path -> $source_script_path\033[0m"
                 else
                     echo -e "\033[31m[SYNC]   Failed to link: $link_path\033[0m"

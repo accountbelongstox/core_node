@@ -78,6 +78,10 @@ function Get-FrankenPhpRoot {
     return $script:FrankenPhpRoot
 }
 
+function Get-FrankenPhpWebAccessConfigurationPath {
+    return $script:FrankenPhpWebAccessPath
+}
+
 function Get-FrankenPhpBinaryPath {
     return $script:FrankenPhpBinaryPath
 }
@@ -374,6 +378,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
     $prefix = [string](Get-ServiceContractValue -ContractPath 'access.default_api_region_prefix')
     $domains = @((Get-ServiceContractValue -ContractPath 'access.root_domains') | ForEach-Object { [string]$_ })
     $serviceHostKeys = [ordered]@{}
+    $hosts = [ordered]@{}
     $allowedHosts = @()
     $corsOrigins = @()
     $uiPort = Get-ServiceContractPort -Name 'nexus_dash_frontend'
@@ -404,6 +409,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
         foreach ($hostKey in @($groupProperty.Value)) {
             $hostValue = [string]$contract.hosts.PSObject.Properties[[string]$hostKey].Value
             if (-not [string]::IsNullOrWhiteSpace($hostValue)) {
+                $hosts[[string]$hostKey] = $hostValue
                 $allowedHosts = @($allowedHosts) + @($hostValue)
                 if ($groupProperty.Name -eq 'browserAccess') {
                     $corsOrigins = @($corsOrigins) + @(
@@ -427,7 +433,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
     $document = [ordered]@{
         apiRegionPrefix = $prefix
         domains = $domains
-        hosts = @($allowedHosts | Select-Object -Unique)
+        hosts = $hosts
         serviceHostKeys = $serviceHostKeys
         allowedHosts = @($allowedHosts | Select-Object -Unique)
         corsOrigins = @($corsOrigins | Select-Object -Unique)

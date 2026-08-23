@@ -17,6 +17,14 @@ export type BgRequest =
   | { type: 'license.get' }
   | { type: 'license.submitSuperCode'; code: string }
   | { type: 'license.loginMember'; baseUrl: string; username: string; password: string }
+  | {
+      type: 'license.registerMember';
+      baseUrl: string;
+      username: string;
+      password: string;
+      passwordConfirmation: string;
+      email?: string;
+    }
   | { type: 'license.clear' }
   | { type: 'backend.get' }
   // accounts
@@ -70,6 +78,7 @@ export interface ResponseMap {
   'license.get': LicenseState | null;
   'license.submitSuperCode': LicenseState;
   'license.loginMember': LicenseState;
+  'license.registerMember': LicenseState;
   'license.clear': null;
   'backend.get': BackendConfig | null;
   'accounts.list': AccountsPayload;

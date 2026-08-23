@@ -16,23 +16,24 @@ before changing source.
 
 ## Current status
 
-Status: design synchronized; implementation not started.
+Status: UI foundation and public visual surface are source-complete; Laravel
+contract implementation and live feature binding have not started.
 
 | Workstream | Status | Dependency |
 | --- | --- | --- |
 | Main product/architecture design | Complete | None |
-| Public landing visual contract | Desktop baseline captured | Mobile reference and local assets |
-| Public landing data contract | Pending | Publication-safe aggregate definitions |
+| Public landing visual contract | UI source complete | Authorized runtime/mobile parity review |
+| Public landing data contract | UI consumer complete; server pending | Publication-safe aggregate definitions |
 | Canonical Laravel contract | Pending | State and compatibility audit |
 | Laravel bootstrap and serializers | Pending | Canonical contract |
-| React API types and foundation | Pending | Bootstrap/serializer handoff |
+| React API types and foundation | Public foundation complete; domain types pending | Bootstrap/serializer handoff |
 | Vertical feature slices | Pending | Matching backend domains |
 | Flutter parity review | Pending | React source complete |
 | Cutover | Pending | Accepted runtime verification |
 
-No business source, build output, migration, service, or test source was
-changed while creating this document. No build, test, migration, or runtime
-command was run.
+UI source and shared shell foundations were changed. No Laravel business
+source, build output, migration, service, or test source was changed. No
+build, test, migration, service, or runtime verification command was run.
 
 ## Binding integration decisions
 
@@ -80,6 +81,9 @@ command was run.
   section when no approved records exist.
 - [ ] Confirm that localized marketing copy, navigation labels, and delivery
   steps remain frontend locale content rather than API data.
+- [x] UI consumes `/api/codemart/v1/public/home` only through `CmApi`, validates
+  aggregate/testimonial shapes, and renders unavailable values without static
+  business fallbacks.
 
 ### Common response contract
 
@@ -169,4 +173,10 @@ impact before either side implements them.
   ownership.
 - Added the unauthenticated public-home contract handoff and reserved
   `/codemart/dashboard` for the authenticated role-aware dashboard.
-- No implementation files were changed.
+- Completed the UI-side public-home consumer, shell/auth/i18n foundation,
+  responsive visual surface, and authenticated route structure.
+- Kept all mutation-dependent controls inactive until the matching canonical
+  Laravel contract defines validation, capabilities, and per-operation
+  idempotency keys.
+- No Laravel source, build, test, migration, service, or runtime verification
+  command was run.

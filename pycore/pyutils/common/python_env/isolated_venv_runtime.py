@@ -24,6 +24,11 @@ from pycore.pyutils.common.python_env.runtime_policy import (
 MAIN_INTERPRETER = Path(
     getattr(sys, "_base_executable", None) or sys.executable
 ).resolve()
+_VENV_PREFIX = "py_venv_"
+_STAMP_NAME = ".ai_policy_fingerprint"
+_BASE_IDENTITY_STAMP_NAME = ".base_interpreter_identity"
+_HEALTH_FAILURE_NAME = ".ai_health_failures"
+_MODULE_STATE_MARKER = "__PYCORE_MODULE_STATE__="
 _BASE_HEALTH = "import uvicorn, fastapi, soundfile, numpy"
 _PIP_TO_IMPORT = {
     "melotts": "melo",

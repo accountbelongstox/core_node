@@ -147,7 +147,8 @@ New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 #     ensure_venv re-runs the import-health probe and repairs a broken venv. --- #
 Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
 Write-Host "$SCRIPT_INDEX [..] building/verifying isolated melotts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
-$venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts' -PipPackages $meloPackages -Pins $meloPins -HealthImports $meloHealth -Force:$Force
+Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts' -PipPackages $meloPackages -Pins $meloPins -HealthImports $meloHealth -Force:$Force
+$venvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
 if ($venvReady) {
     Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'melotts' -Path $depsSentinel | Out-Null
     Write-Host "$SCRIPT_INDEX [OK] isolated melotts venv ready; main interpreter transformers pin left untouched." -ForegroundColor Green

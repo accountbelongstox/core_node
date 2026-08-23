@@ -134,7 +134,8 @@ if (-not $soxReady) {
 #     Self-repairing: ensure_venv checks policy, module discovery, package metadata,
 #     and CUDA state independently, then runs full import validation after repair. --- #
 Write-Host "$SCRIPT_INDEX [..] converging isolated qwen-tts venv (first build takes minutes) ..." -ForegroundColor Yellow
-$venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts' -Force:$Force
+Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts' -Force:$Force
+$venvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts'
 if ($venvReady) {
     Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'qwen3tts' -Path $depsSentinel | Out-Null
     Write-Host "$SCRIPT_INDEX [OK] isolated qwen-tts venv ready; main interpreter packages left untouched." -ForegroundColor Green

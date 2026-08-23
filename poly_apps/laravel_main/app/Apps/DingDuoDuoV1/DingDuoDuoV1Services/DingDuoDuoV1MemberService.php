@@ -12,10 +12,13 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Services;
 
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1DeviceModel;
+use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
+use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1ErrorCodes;
 use App\Models\User;
 use App\Services\UnifiedAuthService;
 use App\Http\Common\CommonAuthService;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 /**
@@ -36,6 +39,48 @@ class DingDuoDuoV1MemberService
      * Sanctum token name issued for DingDuoDuoV1 member logins.
      */
     private const TOKEN_NAME = 'dingduoduo-member';
+
+    /**
+     * Register the canonical identity, ensure its app-specific member extension,
+     * and issue a member session. Each step is independently idempotent so a
+     * retry repairs an interrupted registration without duplicating either row.
+     *
+     * @return array{success:bool,data:?array,error:?string}
+     */
+    public static function register(
+        string $username,
+        string $password,
+        ?string $email = null,
+        ?string $deviceId = null
+    ): array {
+        $identity = self::resolveRegistrationIdentity($username, $password, $email);
+        if (!$identity['success']) {
+            return $identity;
+        }
+
+        $member = self::ensureMemberForUser($identity['user'], $username);
+        if (!$member) {
+            return [
+                'success' => false,
+                'data' => null,
+                'error' => DingDuoDuoV1ErrorCodes::DUPLICATE_ENTRY,
+            ];
+        }
+
+        if ($member->status !== 'active') {
+            return [
+                'success' => false,
+                'data' => null,
+                'error' => DingDuoDuoV1ErrorCodes::MEMBERSHIP_EXPIRED,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'data' => self::issueMemberSession($identity['user'], $member, $deviceId),
+            'error' => null,
+        ];
+    }
 
     /**
      * Verify credentials against the global users table, link (or lazily
@@ -70,6 +115,111 @@ class DingDuoDuoV1MemberService
             return null;
         }
 
+        return self::issueMemberSession($user, $member, $deviceId);
+    }
+
+    /**
+     * Resolve or create the canonical identity for an idempotent registration.
+     * An existing identity is accepted only when the supplied credentials match.
+     *
+     * @return array{success:bool,user:?User,data:?array,error:?string}
+     */
+    private static function resolveRegistrationIdentity(
+        string $username,
+        string $password,
+        ?string $email
+    ): array {
+        $user = User::findExistingIdentity($username, $email);
+        if ($user) {
+            $auth = UnifiedAuthService::login($username, $password);
+            if (!$auth['success']) {
+                return [
+                    'success' => false,
+                    'user' => null,
+                    'data' => null,
+                    'error' => DingDuoDuoV1ErrorCodes::DUPLICATE_ENTRY,
+                ];
+            }
+
+            return [
+                'success' => true,
+                'user' => $auth['user'],
+                'data' => null,
+                'error' => null,
+            ];
+        }
+
+        $registered = UnifiedAuthService::register([
+            'username' => $username,
+            'email' => $email,
+            'password' => $password,
+        ]);
+
+        if ($registered['success']) {
+            return [
+                'success' => true,
+                'user' => $registered['user'],
+                'data' => null,
+                'error' => null,
+            ];
+        }
+
+        $user = User::findExistingIdentity($username, $email);
+        $auth = $user ? UnifiedAuthService::login($username, $password) : null;
+        if ($auth && $auth['success']) {
+            return [
+                'success' => true,
+                'user' => $auth['user'],
+                'data' => null,
+                'error' => null,
+            ];
+        }
+
+        return [
+            'success' => false,
+            'user' => null,
+            'data' => null,
+            'error' => DingDuoDuoV1ErrorCodes::DUPLICATE_ENTRY,
+        ];
+    }
+
+    /**
+     * Resolve, link, or create the app member extension for a canonical user.
+     */
+    private static function ensureMemberForUser(User $user, string $username): ?DingDuoDuoV1MemberModel
+    {
+        $member = self::linkableMemberForUser($user, $username);
+        if ($member) {
+            return $member;
+        }
+
+        if (DingDuoDuoV1MemberModel::usernameExists($username)) {
+            return null;
+        }
+
+        return DingDuoDuoV1MemberModel::createRecord([
+            'user_id' => (int) $user->id,
+            'username' => $username,
+            'password' => Hash::make(Str::random(64)),
+            'tier' => DingDuoDuoV1Constants::DEFAULT_TIER,
+            'max_binds' => DingDuoDuoV1Constants::DEFAULT_MAX_BINDS,
+            'balance' => 0,
+            'permissions' => [],
+            'expires_at' => null,
+            'status' => 'active',
+        ]);
+    }
+
+    /**
+     * Issue the Sanctum token and independently upsert the calling device.
+     *
+     * @return array{token:string,member:array}
+     */
+    private static function issueMemberSession(
+        User $user,
+        DingDuoDuoV1MemberModel $member,
+        ?string $deviceId
+    ): array {
         $token = $user->createToken(self::TOKEN_NAME)->plainTextToken;
 
         if ($deviceId !== null && $deviceId !== '') {
