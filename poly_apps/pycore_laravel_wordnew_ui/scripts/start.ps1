@@ -53,19 +53,18 @@ $ScriptDir = $PSScriptRoot
 $AppRoot = Split-Path -Parent $ScriptDir
 $PolyAppsDir = Split-Path -Parent $AppRoot
 $RepoRoot = Split-Path -Parent $PolyAppsDir
-$ServiceContractPath = Join-Path $RepoRoot "config\service_contract.json"
-# Ports and bind host resolve from the central service contract (single
-# source of truth; the PS side mirrors the shell/TS/PHP adapters).
-$ServiceContract = Get-Content -Raw -LiteralPath $ServiceContractPath | ConvertFrom-Json
+$WinCommonDirectory = Join-Path $RepoRoot "scripts\shells\win\win_common"
+$ServiceContractCommon = Join-Path $WinCommonDirectory "ServiceContract.ps1"
+
+. $ServiceContractCommon
+
 if ($Port -le 0) {
-    $Port = [int]$ServiceContract.ports.nexus_dash_frontend
+    $Port = Get-ServiceContractPort -Name "nexus_dash_frontend"
 }
-$BindHost = [string]$ServiceContract.hosts.any
+$BindHost = Get-ServiceContractHost -Name "any"
 $LaravelScriptsDir = Join-Path (Join-Path $PolyAppsDir "laravel_main") "scripts"
 $LaravelStart = Join-Path $LaravelScriptsDir "start.ps1"
 $NodeModulesPath = Join-Path $AppRoot "node_modules"
-$ServiceContract = $null
-$BindHost = $null
 $PackageJsonPath = Join-Path $AppRoot "package.json"
 $BuildApkScript = Join-Path $ScriptDir "flavor\build_apk.py"
 $PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)

@@ -9,23 +9,16 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import * as fs from 'fs';
-import * as path from 'path';
 import { createToolErrorResult, setupToolHandlers } from './tool-handlers';
+import { NATIVE_SERVER_PORT, SERVER_CONFIG } from '../constant';
 
 let stdioMcpServer: Server | null = null;
 let mcpClient: Client | null = null;
 
-// Read configuration from stdio-config.json
 const loadConfig = () => {
-  try {
-    const configPath = path.join(__dirname, 'stdio-config.json');
-    const configData = fs.readFileSync(configPath, 'utf8');
-    return JSON.parse(configData);
-  } catch (error) {
-    console.error('Failed to load stdio-config.json:', error);
-    throw new Error('Configuration file stdio-config.json not found or invalid');
-  }
+  return {
+    url: `http://${SERVER_CONFIG.HOST}:${NATIVE_SERVER_PORT}/mcp`,
+  };
 };
 
 export const getStdioMcpServer = () => {

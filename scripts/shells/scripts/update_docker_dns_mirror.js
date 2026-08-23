@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const https = require('https');
+const serviceContract = require('../../../config/service_contract');
 const daemonPath = '/etc/docker/daemon.json';
 const synologyPath = '/var/packages/ContainerManager/etc/dockerd.json';
 
@@ -32,7 +33,7 @@ const mirrorMap = {
   tencent: 'https://mirror.ccs.tencentyun.com',
   aliyun: 'https://4idglt5r.mirror.aliyuncs.com',
   huawei: 'https://668bad1d4db74415b0e85c8abdd0eb04.mirror.swr.myhuaweicloud.com',
-  default: 'https://docker.si.12gm.com'
+  default: serviceContract.url('https', serviceContract.serviceDomain('docker_registry'))
 };
 
 function getTargetDNS(cloudProvider, envLocal) {

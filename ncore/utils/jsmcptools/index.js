@@ -24,7 +24,7 @@ const logger = require('#@logger');
 /**
  * Start MCP Chrome Server
  * @param {Object} options - Server options
- * @param {number} options.port - Server port (default: 12306)
+ * @param {number} options.port - Server port from the service contract
  * @param {string} options.host - Server host (default: '127.0.0.1')
  * @param {boolean} options.registerDefaultTools - Register default tools (default: false, requires Chrome extension)
  * @returns {Promise<Object>} Server instance

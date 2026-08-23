@@ -13,6 +13,7 @@
 // const { env } = require("#@global_vars");
 const path = require(`path`)
 const { gdir, appname, isServer } = require('#@global_vars');
+const serviceContract = require('../../config/service_contract');
 const {
     ROOT_APP_STATIC_DIR,
     APP_METADATA_DIR,
@@ -34,9 +35,9 @@ const XATA_DB_KEY = `qianyuwords_xata`;
 const CADDY_EXECUTABLE_PATH = `/usr/bin/caddy`;
 const CADDY_VERSION = `v2.9.1`;
 const CADDY_CONFIG_FILE = `/etc/caddy/Caddyfile`;
-const CADDY_ADMIN_PORT = 2019;
-const CADDY_HTTP_PORT = 80;
-const CADDY_ADMIN_API = `http://127.0.0.1:${CADDY_ADMIN_PORT}`;
+const CADDY_ADMIN_PORT = serviceContract.port('frankenphp_admin');
+const CADDY_HTTP_PORT = serviceContract.port('frankenphp_http');
+const CADDY_ADMIN_API = serviceContract.url('http', serviceContract.host('loopback'), CADDY_ADMIN_PORT);
 const CADDY_SERVICE_NAME = `caddy.service`;
 const CADDY_SYSTEMD_PATH = `/lib/systemd/system/caddy.service`;
 
@@ -57,19 +58,22 @@ const SENTENCES_SOUND_DIR = path.join(ROOT_APP_STATIC_DIR, 'sentenceSound');
 const SENTENCES_SOUND_SUBTITLE_DIR = path.join(ROOT_APP_STATIC_DIR, 'sentenceSubtitle');
 
 // URL Configuration Constants
-const BaseUrl = `https://static.local.12gm.com:905`
+const BaseUrl = serviceContract.url('https', serviceContract.serviceDomain('static_local'), serviceContract.port('static_api_https'))
 const DownloadPath = `/src/download/softlist/static_src/dictionary/database/`
 const DataBakCopyPath = `${DownloadPath}traData.7z`
-const USER_TEST_SERVER_URL = `http://127.0.0.1:8000`
-const USER_SERVER_URL = isServer ? `https://dictapi.si.12gm.com` : USER_TEST_SERVER_URL
+const USER_TEST_SERVER_URL = serviceContract.url('http', serviceContract.host('loopback'), serviceContract.port('voice_api_local'))
+const USER_SERVER_URL = isServer ? serviceContract.url('https', serviceContract.serviceDomain('dictionary_api')) : USER_TEST_SERVER_URL
 const USER_API_URL = `${USER_SERVER_URL}/api/dict/v1`
 const USER_API_CLIENT_TOKEN = `ENC:2a8451256299fc77ad9487863fca9c5c:4c8350bcc1b9befcc03aec7d5bdd88496f212ad3778d734887a9a4fca8113626af586d7ed9e2c0396d27de9297922bf7a7031899df04783ea47e60b962589b7ff869bf5efd019db3f2e9933dbcf3aa0e80aab62c14297293eeab4b5804f5719779e2d19307389cd675787a60b851d160e91f43ac30384213d9ca746387e6908eb00d99c82d11175faf86a105dc7f6709377d15560c53bb0acca074130a26e098`
 
 const config = {
-    HTTP_PORT: 15452,
-    HTTP_HOST: '0.0.0.0',
-    SERVER_URL: 'http://43.159.58.199:15452',
-    CLIENTS_URL: 'http://1.94.142.130:15452,http://47.107.84.210:15453',
+    HTTP_PORT: serviceContract.port('voice_server'),
+    HTTP_HOST: serviceContract.host('any'),
+    SERVER_URL: serviceContract.url('http', serviceContract.host('cloud_legacy'), serviceContract.port('voice_server')),
+    CLIENTS_URL: [
+        serviceContract.url('http', serviceContract.host('voice_client_primary'), serviceContract.port('voice_server')),
+        serviceContract.url('http', serviceContract.host('voice_client_secondary'), serviceContract.port('voice_client_secondary')),
+    ].join(','),
     OLD_DB_URL: `${BaseUrl}${DataBakCopyPath}`,
     OLD_DB_NAME: `traData.db`,
     
@@ -111,4 +115,3 @@ const config = {
 }
 
 module.exports = config;
-

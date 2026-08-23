@@ -2,8 +2,9 @@
 
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
+const serviceContract = require('../config/service_contract');
 
-const MCP_URL = 'http://127.0.0.1:12306/mcp';
+const MCP_URL = serviceContract.url('http', serviceContract.host('loopback'), serviceContract.port('mcp_chrome'), 'mcp');
 const TARGET_URL = 'https://www.google.com';
 
 async function main() {

@@ -19,11 +19,8 @@
 // @match        *://*.*/*
 // @match        *://*.*.*/*
 // @match        *://*/*
-// @exclude      *://*.*.12gm.com:*/*
-// @exclude      *://*.12gm.com/*
 // @exclude      *://*.deepseek.com/*
 // @exclude      *://*.chatgpt.com/*
-// @exclude      *://127.0.0.1:8080/*
 // @license      AGPL License
 // @grant        GM_download
 // @grant        GM_openInTab
@@ -40,6 +37,8 @@
 // @require     https://cdn.jsdelivr.net/npm/axios-userscript-adapter@0.2.0-alpha.2
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js
 // @require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/tampermonkey/js/logger.1.0.js
+// @resource     coreNodeServiceContract https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/config/service_contract.json
+// @require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/tampermonkey/js/service_contract.js
 // @require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/tampermonkey/js/pako.min.js
 // @require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/bing_word_parse/bwpaser.1.0.12.js
 // @require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/bing_word_parse/pinyin-pro.js
@@ -50,6 +49,12 @@
 
 (function () {
   // #@require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/bing_word_parse/bwpaser.1.0.10.js
+
+  if (CoreNodeServiceContract.matchesRootDomain(window.location.hostname)
+    || (window.location.hostname === CoreNodeServiceContract.host('loopback')
+      && Number(window.location.port) === CoreNodeServiceContract.port('tampermonkey_local_api'))) {
+    return;
+  }
 
   function isInIframe() {
     try {
@@ -62,9 +67,9 @@
   if (!isInIframe()) {
     const styleVersion = `0.4`;
     const styleUrl = `https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/tampermonkey/styles/word.style.${styleVersion}.css`;
-    const baseUrl = "https://dict.si.12gm.com";
-    const staticApiUrl = "https://staticapi.si.12gm.com";
-    const userApiUrl = `http://localhost:8080/`;
+    const baseUrl = CoreNodeServiceContract.url('https', CoreNodeServiceContract.serviceDomain('dictionary_static'));
+    const staticApiUrl = CoreNodeServiceContract.url('https', CoreNodeServiceContract.serviceDomain('static_api'));
+    const userApiUrl = CoreNodeServiceContract.url('http', CoreNodeServiceContract.host('localhost'), CoreNodeServiceContract.port('tampermonkey_local_api'), '/');
 
     //----------------------------------------------------------------
     if (typeof pinyinPro == "undefined") {

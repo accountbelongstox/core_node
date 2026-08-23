@@ -1,0 +1,242 @@
+{
+  "schema_version": 2,
+  "protocol_version": "2",
+  "signature_profile": {
+    "algorithm": "ed25519",
+    "canonical_version": "pycore-relay-v2",
+    "headers": {
+      "protocol": "X-Pycore-Relay-Protocol",
+      "device_id": "X-Pycore-Relay-Device-ID",
+      "credential_id": "X-Pycore-Relay-Credential-ID",
+      "credential_version": "X-Pycore-Relay-Credential-Version",
+      "timestamp": "X-Pycore-Relay-Timestamp",
+      "nonce": "X-Pycore-Relay-Nonce",
+      "content_sha256": "X-Pycore-Relay-Content-SHA256",
+      "signature": "X-Pycore-Relay-Signature"
+    }
+  },
+  "request_digest_profile": {
+    "algorithm": "sha256",
+    "serialization": "canonical-json-utf8",
+    "fields": [
+      "method",
+      "path",
+      "query",
+      "headers",
+      "body_present",
+      "body_sha256",
+      "body_length"
+    ]
+  },
+  "endpoints": {
+    "enrollment_create": "/api/relay/v2/device-enrollments",
+    "enrollment_status": "/api/relay/v2/device-enrollments/{enrollment_id}",
+    "device_heartbeat": "/api/relay/v2/device/heartbeat",
+    "device_hub_authorization": "/api/relay/v2/device/mercure-authorization",
+    "operation_claim": "/api/relay/v2/device/operations/claim",
+    "operation_result": "/api/relay/v2/device/operations/{operation_id}/result",
+    "request_blob": "/api/relay/v2/device/blobs/{blob_id}",
+    "response_blob_allocate": "/api/relay/v2/device/operations/{operation_id}/response-blobs",
+    "response_blob_chunk": "/api/relay/v2/device/blobs/{blob_id}/chunks/{chunk_index}",
+    "response_blob_finalize": "/api/relay/v2/device/blobs/{blob_id}/finalize"
+  },
+  "topics": {
+    "device_wake": "{laravel_api_origin}/.well-known/relay/v2/devices/{device_id}"
+  },
+  "events": {
+    "operation_available": "relay.operation.available",
+    "credential_revoked": "relay.credential.revoked"
+  },
+  "durations": {
+    "heartbeat_seconds": 20,
+    "recovery_claim_seconds": 15,
+    "enrollment_poll_seconds": 5,
+    "request_timeout_seconds": 30,
+    "claim_timeout_seconds": 15,
+    "execution_timeout_seconds": 50,
+    "subscriber_token_refresh_margin_seconds": 60,
+    "subscriber_reconnect_min_seconds": 1,
+    "subscriber_reconnect_max_seconds": 30
+  },
+  "limits": {
+    "claim_batch": 8,
+    "inline_body_bytes": 262144,
+    "blob_chunk_bytes": 4194304,
+    "request_body_bytes": 67108864,
+    "response_body_bytes": 67108864,
+    "header_value_bytes": 8192
+  },
+  "headers": {
+    "request_allow": [
+      "accept",
+      "accept-language",
+      "content-type",
+      "if-match",
+      "if-none-match",
+      "range",
+      "x-request-id"
+    ],
+    "response_allow": [
+      "accept-ranges",
+      "cache-control",
+      "content-disposition",
+      "content-length",
+      "content-range",
+      "content-type",
+      "etag",
+      "last-modified",
+      "x-request-id"
+    ]
+  },
+  "operation_states": [
+    "accepted",
+    "leased",
+    "executing",
+    "responded",
+    "failed",
+    "execution_unknown",
+    "expired",
+    "canceled"
+  ],
+  "retry_policies": [
+    "read",
+    "idempotent_write",
+    "at_most_once_action"
+  ],
+  "route_policies": [
+    {
+      "match": "exact",
+      "value": "ui/terminal/windows",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/content",
+      "methods": ["GET"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/activate",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "prefix",
+      "value": "ui/terminal/",
+      "methods": ["POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "suffix",
+      "value": "/open",
+      "methods": ["GET", "POST"],
+      "exposure": "denied",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "suffix",
+      "value": "_reveal",
+      "methods": ["GET", "POST"],
+      "exposure": "denied",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "suffix",
+      "value": "/pick_path",
+      "methods": ["GET", "POST"],
+      "exposure": "denied",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "exact",
+      "value": "ui/assist/bind_laravel_endpoint",
+      "methods": ["POST"],
+      "exposure": "denied",
+      "retry": "at_most_once_action"
+    },
+    {
+      "match": "exact",
+      "value": "ui/assist/laravel_transport_probe",
+      "methods": ["POST"],
+      "exposure": "denied",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/status",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/snapshot",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/events",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/history",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/info",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/capabilities",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/version",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "suffix",
+      "value": "/resource",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "read"
+    },
+    {
+      "match": "prefix",
+      "value": "ui/",
+      "methods": ["GET", "POST"],
+      "exposure": "relay",
+      "retry": "at_most_once_action"
+    }
+  ],
+  "capabilities": [
+    "rpc_v2_in_process",
+    "byte_exact_bodies",
+    "durable_execution_ledger",
+    "atomic_operation_claim",
+    "mercure_wake_reconciliation",
+    "ed25519_device_identity"
+  ]
+}

@@ -313,14 +313,8 @@ secret_encrypt_all() {
         local key_name=$(basename "$source_file")
         local output_file="$ENCRYPTED_DIR/$key_name.js"
         echo "[SECRET_ENCRYPT_ALL] Encrypting: $key_name -> $key_name.js" >&2
-        local content=$(cat "$source_file" 2>&1)
-        if [ $? -ne 0 ]; then
-            echo "[SECRET_ENCRYPT_ALL]   FAILED: Cannot read $key_name" >&2
-            ((fail_count++))
-            continue
-        fi
         local result
-        result=$(node "$disguise_js" "$key_name" "$password" "$content" "$ENCRYPTED_DIR" 2>&1)
+        result=$(node "$disguise_js" "$source_file" "$password" "$ENCRYPTED_DIR" 2>&1)
         local exit_code=$?
         if [ $exit_code -eq 0 ] && [ -f "$output_file" ]; then
             echo "[SECRET_ENCRYPT_ALL]   SUCCESS: $key_name.js" >&2
@@ -529,4 +523,3 @@ export -f _secret_find_disguise_tool
 export -f _secret_read_password
 
 echo "[SECRET_MANAGER] Library loaded successfully" >&2
-

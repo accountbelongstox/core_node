@@ -10,6 +10,7 @@
 
 
 use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 
 return [
 
@@ -63,7 +64,7 @@ return [
     |
     */
 
-    'url' => LaravelConfig::APP_URL,
+    'url' => ServiceContract::laravelApiBackendUrl(),
 
     /*
     |--------------------------------------------------------------------------
@@ -133,7 +134,7 @@ return [
 
     'asset_url' => null,
 
-    'frontend_url' => LaravelConfig::FRONTEND_URL,
+    'frontend_url' => 'http://'.ServiceContract::host('loopback'),
 
     'server_manager_api_key' => null,
 

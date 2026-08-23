@@ -16,10 +16,10 @@ Persistence lives in the backend data directory as
 ``laravel_endpoint_cache.json`` under the ``laravel_api`` section:
 
     "laravel_api": {
-        "backend_endpoints": ["https://api.si.12gm.com", ...],
+        "backend_endpoints": ["https://api.si.example.com", ...],
         "frontend_endpoints": ["https://frontend-default.example", ...],
-        "endpoints": ["https://api.si.12gm.com", ...],
-        "current": "https://api.si.12gm.com",     # or null
+        "endpoints": ["https://api.si.example.com", ...],
+        "current": "https://api.si.example.com",     # or null
         "selection_explicit": false
     }
 
@@ -789,5 +789,4 @@ class LaravelEndpointManager:
 
 # --- module-level shared instance ------------------------------------------ #
 laravel_endpoint_manager = LaravelEndpointManager()
-
 

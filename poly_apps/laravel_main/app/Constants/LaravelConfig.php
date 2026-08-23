@@ -7,8 +7,6 @@ final class LaravelConfig
     public const APP_NAME = 'Core Node';
     public const APP_ENVIRONMENT = 'production';
     public const APP_DEBUG = false;
-    public const APP_URL = 'http://127.0.0.1:9000';
-    public const FRONTEND_URL = 'http://127.0.0.1';
     public const APP_TIMEZONE = 'UTC';
     public const APP_LOCALE = 'en';
     public const APP_FALLBACK_LOCALE = 'en';
@@ -20,8 +18,6 @@ final class LaravelConfig
     public const CACHE_PREFIX = 'core-node-cache-';
 
     public const DATABASE_CONNECTION = 'main';
-    public const DATABASE_HOST = '127.0.0.1';
-    public const DATABASE_PORT = '5432';
     public const DATABASE_USERNAME = 'postgres';
     public const DATABASE_SEARCH_PATH = 'public';
     public const DATABASE_SSL_MODE = 'prefer';
@@ -38,8 +34,6 @@ final class LaravelConfig
     ];
 
     public const REDIS_CLIENT = 'phpredis';
-    public const REDIS_HOST = '127.0.0.1';
-    public const REDIS_PORT = 6379;
     public const REDIS_PREFIX = 'core-node-database-';
     public const REDIS_DATABASE = 0;
     public const REDIS_CACHE_DATABASE = 1;

@@ -14,6 +14,7 @@ const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const serviceContract = require('../../../../../config/service_contract');
 
 function runSubprocessCommand(command, cwd = null) {
     return new Promise((resolve, reject) => {
@@ -248,7 +249,7 @@ module.exports = {
 
 // Example usage
 if (require.main === module) {
-    const GIT_REPO_URL = 'http://git.local.12gm.com:5021/adminroot/clash_subscribe.git';
+    const GIT_REPO_URL = serviceContract.url('http', serviceContract.serviceDomain('git_local'), serviceContract.port('git_http'), 'adminroot/clash_subscribe.git');
     const LOCAL_REPO_PATH = './clash_subscribe';
 
     (async () => {

@@ -7,7 +7,6 @@
 // @match        *://*.*/*
 // @match        *://*.*.*/*
 // @match        *://*/*
-// @exclude      *://*.12gm.com/*
 // @exclude      *://*.deepseek.com/*
 // @exclude      *://*.chatgpt.com/*
 // @license      AGPL License
@@ -27,15 +26,20 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_cookie
 // @resource     bootstrapCSS https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css
+// @resource     coreNodeServiceContract https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/config/service_contract.json
 // @run-at      document-idle
 // @connect      cdn.jsdelivr.net
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js
+// @require      https://cdn.jsdelivr.net/gh/accountbelongstox/core_node@main/scripts/tampermonkey/js/service_contract.js
 // @downloadURL https://update.greasyfork.org/scripts/452648/%E6%96%87%E6%A1%A3%E8%AF%8D%E5%85%B8%E7%BB%9F%E8%AE%A1%E5%B7%A5%E5%85%B7.user.js
 // @updateURL https://update.greasyfork.org/scripts/452648/%E6%96%87%E6%A1%A3%E8%AF%8D%E5%85%B8%E7%BB%9F%E8%AE%A1%E5%B7%A5%E5%85%B7.meta.js
 // ==/UserScript==
 (function () {
     'use strict';
-    const base_remote_url = "https://api.12gm.com/";
+    if (CoreNodeServiceContract.matchesRootDomain(window.location.hostname)) {
+        return;
+    }
+    const base_remote_url = CoreNodeServiceContract.url('https', CoreNodeServiceContract.serviceDomain('legacy_api'), null, '/');
     const module_name = 'dictionary';
     const local_tokenname = 'doc_dict_username';
     let new_words = [];

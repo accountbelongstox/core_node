@@ -9,7 +9,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
-use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 
 return [
 
@@ -52,7 +52,7 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => LaravelConfig::APP_URL.'/storage',
+            'url' => ServiceContract::laravelApiBackendUrl().'/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

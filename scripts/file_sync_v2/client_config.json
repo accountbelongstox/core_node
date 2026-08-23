@@ -2,13 +2,13 @@
   "print_paths_only": false,
   "servers": [
     {
-      "host": "43.163.112.77",
-      "port": 18765,
+      "host_key": "cloud",
+      "port_key": "file_sync",
       "enabled": true
     },
     {
-      "host": "45.249.247.163",
-      "port": 18765,
+      "host_key": "file_sync_secondary",
+      "port_key": "file_sync",
       "enabled": true,
       "include": [
         "webclaude_group/webclaude_go-gateway",

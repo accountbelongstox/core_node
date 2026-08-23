@@ -14,12 +14,22 @@ import os
 import json
 import argparse
 import subprocess
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyutils.common.service_contract import host, port
+
+LOCAL_REGISTRY = f"{host('lan_storage_secondary')}:{port('docker_registry')}"
 
 class DockerBuildTool:
     def __init__(self):
         self.docker_daemon_file = self.find_docker_daemon_file()
         self.docker_config = self.read_docker_config()
-        self.insecure_registry = "192.168.100.6:15000"  # 直接在代码中设置 registry
+        self.insecure_registry = LOCAL_REGISTRY
 
     def find_docker_daemon_file(self):
         try:

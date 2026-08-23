@@ -11,6 +11,10 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_CONTRACT_COMMON="$SCRIPT_DIR/../../linux/common/service_contract_common.sh"
+. "$SERVICE_CONTRACT_COMMON"
+
 # 1. Initialize variables
 DOCKER_USERNAME="cy00000000x"
 CONTAINER_NAME="nodebase"
@@ -18,7 +22,7 @@ IMAGE_NAME="${CONTAINER_NAME}_image"
 PORT_MAPPING="-p 18101:18100 -p 18102:18200"
 DATA_CACHE_DIR="/home/clash_subscribe_data/.data_cache"
 DATA_VOLUME_MAPPING="${DATA_CACHE_DIR}:/usr/src/app/.data_cache"
-LOCAL_REGISTRY="192.168.100.6:15000"
+LOCAL_REGISTRY="$(sc_require hosts.lan_storage_secondary):$(sc_require ports.docker_registry)"
 
 # Ensure the data cache directory exists
 mkdir -p "$DATA_CACHE_DIR"

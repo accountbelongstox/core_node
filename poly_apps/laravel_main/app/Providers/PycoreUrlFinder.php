@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\ServiceContract;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Cache;
  * Provides discovered URL to PycoreCaller.
  *
  * Priority:
- * 1. Check localhost (127.0.0.1:59000)
+ * 1. Check the service-contract loopback endpoint
  * 2. If WSL/Desktop: scan LAN IP segment
  * 3. Cache successful results
  */
@@ -22,7 +23,12 @@ class PycoreUrlFinder
     /**
      * Default Pycore service port
      */
-    protected static int $defaultPort = 59000;
+    protected static ?int $defaultPort = null;
+
+    protected static function defaultPort(): int
+    {
+        return self::$defaultPort ?? ServiceContract::port('pycore_backend');
+    }
 
     /**
      * Timeout for health check requests (in seconds)
@@ -88,7 +94,7 @@ class PycoreUrlFinder
         self::$lastScanTime = $now;
 
         // Priority 1: Check localhost
-        $localhostUrl = 'http://127.0.0.1:' . self::$defaultPort;
+        $localhostUrl = 'http://'.ServiceContract::host('loopback').':'.self::defaultPort();
         if (self::checkServiceHealth($localhostUrl)) {
             Log::info('PycoreUrlFinder: Service found on localhost', ['url' => $localhostUrl]);
             Cache::put(self::$cacheKey, $localhostUrl, self::$cacheTTL);
@@ -145,7 +151,7 @@ class PycoreUrlFinder
         $priorityHosts = [1, 2, 254, 253];
         foreach ($priorityHosts as $host) {
             $ip = "{$subnet}.{$host}";
-            $url = "http://{$ip}:" . self::$defaultPort;
+            $url = "http://{$ip}:".self::defaultPort();
 
             if (self::checkServiceHealth($url)) {
                 Log::info('PycoreUrlFinder: Service found', ['url' => $url]);
@@ -163,7 +169,7 @@ class PycoreUrlFinder
             }
 
             $ip = "{$subnet}.{$i}";
-            $url = "http://{$ip}:" . self::$defaultPort;
+            $url = "http://{$ip}:".self::defaultPort();
 
             if (self::checkServiceHealth($url)) {
                 Log::info('PycoreUrlFinder: Service found', ['url' => $url]);
@@ -249,7 +255,7 @@ class PycoreUrlFinder
     public static function getServiceUrl(): string
     {
         $url = self::findServiceUrl();
-        return $url ?? 'http://127.0.0.1:' . self::$defaultPort;
+        return $url ?? 'http://'.ServiceContract::host('loopback').':'.self::defaultPort();
     }
 
     /**
@@ -296,14 +302,14 @@ class PycoreUrlFinder
                 'should_scan_lan' => $isWsl || $hasDesktop,
             ],
             'service' => [
-                'port' => self::$defaultPort,
+                'port' => self::defaultPort(),
                 'cached_url' => $cachedUrl,
                 'current_url' => $currentUrl,
                 'is_available' => $currentUrl !== null,
             ],
             'localhost_check' => [
-                'url' => 'http://127.0.0.1:' . self::$defaultPort,
-                'available' => self::checkServiceHealth('http://127.0.0.1:' . self::$defaultPort),
+                'url' => 'http://'.ServiceContract::host('loopback').':'.self::defaultPort(),
+                'available' => self::checkServiceHealth('http://'.ServiceContract::host('loopback').':'.self::defaultPort()),
             ],
         ];
     }
@@ -336,7 +342,7 @@ class PycoreUrlFinder
         // Test first 10 IPs only
         for ($i = 1; $i <= 10; $i++) {
             $ip = "{$subnet}.{$i}";
-            $url = "http://{$ip}:" . self::$defaultPort;
+            $url = "http://{$ip}:".self::defaultPort();
             $available = self::checkServiceHealth($url);
 
             $results['scanned_ips'][$ip] = [

@@ -19,6 +19,7 @@ $coreNodePath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
+$serviceContractScript = $null
 $mcpChromePath = $null
 $mcpChromeNodeModulesPath = $null
 $mcpChromeSharedArtifactPath = $null
@@ -29,8 +30,9 @@ $mcpChromeEnsureWinBinScriptPath = $null
 $mcpChromeSupervisorScriptPath = $null
 $mcpChromeNeedsDependencies = $false
 $mcpChromeNeedsBuild = $false
-$mcpChromeUrl = "http://127.0.0.1:12306/mcp"
-$mcpChromePort = 12306
+$mcpChromeHost = $null
+$mcpChromeUrl = $null
+$mcpChromePort = 0
 $mcpChromePortReady = $false
 $mcpChromePortWasReady = $false
 $mcpChromePortWaitCount = 0
@@ -86,6 +88,7 @@ $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$serviceContractScript = Join-Path $winCommonDirPath "ServiceContract.ps1"
 $mcpChromePath = Join-Path $coreNodePath "apps"
 $mcpChromePath = Join-Path $mcpChromePath "mcp-chrome"
 $mcpChromeNodeModulesPath = Join-Path $mcpChromePath "node_modules"
@@ -105,6 +108,10 @@ $mcpChromeEnsureWinBinScriptPath = Join-Path $mcpChromeRegisterScriptPath "ensur
 $mcpChromeSupervisorScriptPath = Join-Path $mcpChromeRegisterScriptPath "service_supervisor.py"
 $mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 . $windowsPathFunctionScript
+. $serviceContractScript
+$mcpChromeHost = Get-ServiceContractHost -Name "loopback"
+$mcpChromePort = Get-ServiceContractPort -Name "mcp_chrome"
+$mcpChromeUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpChromeHost -Port $mcpChromePort -Path "mcp"
 Set-CoreNodePaths
 $mcpChromePython = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
 
@@ -336,7 +343,7 @@ while (-not $mcpChromePortReady -and $mcpChromePortWaitCount -lt 60) {
     $mcpChromePortWaitCount = $mcpChromePortWaitCount + 1
 }
 if ($mcpChromePortReady) {
-    Write-Host "[INFO] Chrome MCP is listening on 127.0.0.1:$mcpChromePort." -ForegroundColor Green
+    Write-Host ("[INFO] Chrome MCP is listening on {0}:{1}." -f $mcpChromeHost, $mcpChromePort) -ForegroundColor Green
 } else {
     Write-Host "[WARN] Chrome MCP did not become ready; reload the unpacked extension once." -ForegroundColor Yellow
 }

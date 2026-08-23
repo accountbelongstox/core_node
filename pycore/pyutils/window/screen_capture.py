@@ -13,7 +13,7 @@ One-directional dependency: imports only pyfoundations/third_party + ColorPrint.
 NEVER imports back into screenshot.py (avoids circular import within the window package).
 """
 
-import base64
+import hashlib
 import time
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
@@ -87,7 +87,7 @@ def capture_screen_region(
         return None
 
 
-def capture_screen_regions_base64(
+def capture_screen_regions_png(
     regions: List[Dict[str, Any]],
 ) -> Dict[str, Dict[str, Any]]:
     captures: Dict[str, Dict[str, Any]] = {}
@@ -129,9 +129,11 @@ def capture_screen_regions_base64(
                         format="PNG",
                         compress_level=TERMINAL_CAPTURE_PNG_COMPRESSION,
                     )
+                    png_bytes = output.getvalue()
                     captures[region_id] = {
                         "mime": "image/png",
-                        "content_base64": base64.b64encode(output.getvalue()).decode("ascii"),
+                        "body": png_bytes,
+                        "digest": hashlib.sha256(png_bytes).hexdigest(),
                         "width": image.width,
                         "height": image.height,
                         "captured_at": captured_at,

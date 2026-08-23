@@ -15,6 +15,9 @@ const nodemailer = require('nodemailer');
     const Base = require('#@base');
     const { format } = require('date-fns');
     const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
+    const serviceContract = require('../../../config/service_contract');
+    const defaultMailDomain = serviceContract.serviceDomain('mail_local');
+    const defaultMailUsername = `mailserver@${defaultMailDomain}`;
 
     dotenv.config();
 
@@ -27,9 +30,9 @@ const nodemailer = require('nodemailer');
 
       loadMailConfig() {
         const config = {
-          MAIL_SERVER: process.env.MAIL_SERVER || 'mail.local.12gm.com',
-          MAIL_PORT: parseInt(process.env.MAIL_PORT, 10) || 587,
-          MAIL_USERNAME: getSecretOrEnv('MAIL_USERNAME', 'MAIL_USERNAME', 'mailserver@mail.local.12gm.com'),
+          MAIL_SERVER: process.env.MAIL_SERVER || defaultMailDomain,
+          MAIL_PORT: parseInt(process.env.MAIL_PORT, 10) || serviceContract.port('mail_submission'),
+          MAIL_USERNAME: getSecretOrEnv('MAIL_USERNAME', 'MAIL_USERNAME', defaultMailUsername),
           MAIL_PASSWORD: getSecretOrEnv('MAIL_PASSWORD', 'MAIL_PASSWORD', null),
         };
 
@@ -37,9 +40,9 @@ const nodemailer = require('nodemailer');
         if (missing.length > 0) {
           console.warn(`Missing configuration for: ${missing.map(([key]) => key).join(', ')}`);
           console.warn(`Example configuration:
-    MAIL_SERVER=mail.local.12gm.com
-    MAIL_PORT=587
-    MAIL_USERNAME=mailserver@mail.local.12gm.com
+    MAIL_SERVER=${defaultMailDomain}
+    MAIL_PORT=${serviceContract.port('mail_submission')}
+    MAIL_USERNAME=${defaultMailUsername}
     MAIL_PASSWORD=#Abbb123`);
         }
 

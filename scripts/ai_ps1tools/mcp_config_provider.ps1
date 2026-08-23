@@ -24,6 +24,10 @@ $script:MCP_PROVIDER_SCRIPTS_DIR = Split-Path $script:MCP_PROVIDER_DIR -Parent
 $script:MCP_PROJECT_ROOT = Split-Path $script:MCP_PROVIDER_SCRIPTS_DIR -Parent
 $script:MCP_SECRET_KEYS_DIR = Join-Path $script:MCP_PROJECT_ROOT ".secret_keys"
 $script:MCP_SECRET_RAW_DIR = Join-Path $script:MCP_SECRET_KEYS_DIR ".secret_ignore"
+$script:MCP_WIN_COMMON_DIR = Join-Path $script:MCP_PROJECT_ROOT "scripts\shells\win\win_common"
+$script:MCP_SERVICE_CONTRACT_COMMON = Join-Path $script:MCP_WIN_COMMON_DIR "ServiceContract.ps1"
+. $script:MCP_SERVICE_CONTRACT_COMMON
+$script:MCP_CHROME_URL = New-ServiceContractUrl -Protocol "http" -HostName (Get-ServiceContractHost -Name "loopback") -Port (Get-ServiceContractPort -Name "mcp_chrome") -Path "mcp"
 #endregion
 
 #region Secret Manager
@@ -95,7 +99,7 @@ function Get-Context7Config {
 
 function Get-ChromeMCPConfig {
     return (New-MCPConfig -Name "chrome" -TransportType "http" `
-        -Url "http://127.0.0.1:12306/mcp")
+        -Url $script:MCP_CHROME_URL)
 }
 
 function Get-AllMCPConfigs {

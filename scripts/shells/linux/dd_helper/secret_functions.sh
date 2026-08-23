@@ -96,7 +96,7 @@ ensure_secret_keys_ready() {
     local use_batch_mode=""
     local bundle_file=""
 
-    if [ ! -d "$encrypted_dir" ] && [ ! -d "$batch_encrypted_dir" ]; then
+    if [ ! -d "$raw_dir" ] && [ ! -d "$encrypted_dir" ] && [ ! -d "$batch_encrypted_dir" ]; then
         return 0
     fi
 
@@ -138,10 +138,6 @@ ensure_secret_keys_ready() {
             pending_files+=("$enc_file")
         fi
     done < <(find "$encrypted_dir" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
-
-    if [ ${#pending_files[@]} -eq 0 ] && [ "$has_batch_bundle" = false ]; then
-        return 0
-    fi
 
     local bundle_needs_decrypt=false
     if [ "$has_batch_bundle" = true ]; then
@@ -323,9 +319,9 @@ ensure_secret_keys_ready() {
                 set_encrypted_content_hash_cache "$bundle_base_name" "$bundle_file"
             fi
 
+            password=""
             echo ""
             read -p "Press Enter to continue..."
-            return 0
         else
             echo ""
             echo -e "\033[31m[BATCH MODE] Batch decryption failed!\033[0m"
@@ -338,53 +334,55 @@ ensure_secret_keys_ready() {
         fi
     fi
 
-    echo ""
-    echo -e "\033[36m[INDIVIDUAL MODE] Decrypting files one by one...\033[0m"
-    echo ""
+    if [ "$use_batch_mode" != "yes" ]; then
+        echo ""
+        echo -e "\033[36m[INDIVIDUAL MODE] Decrypting files one by one...\033[0m"
+        echo ""
 
-    for enc_file in "${pending_files[@]}"; do
-        file_name="$(basename "$enc_file")"
-        echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
+        for enc_file in "${pending_files[@]}"; do
+            file_name="$(basename "$enc_file")"
+            echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
 
-        "$node_cmd" "$enc_file" pwd "$password" "$raw_dir"
+            "$node_cmd" "$enc_file" pwd "$password" "$raw_dir"
 
-        if [ $? -eq 0 ]; then
-            ((success_count++))
-            echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
-            # Set decryption timestamp cache and encrypted content hash cache
-            local base_name_for_cache="$(basename "$enc_file")"
-            base_name_for_cache="${base_name_for_cache%.js}"
-            base_name_for_cache="${base_name_for_cache%.JS}"
-            set_decryption_timestamp_cache "$base_name_for_cache"
-            set_encrypted_content_hash_cache "$base_name_for_cache" "$enc_file"
-            # Keep raw mtime in sync with its encrypted counterpart so the
-            # timestamp-based encryption check does not falsely flag it.
-            touch -r "$enc_file" "$raw_dir/$base_name_for_cache" 2>/dev/null || true
+            if [ $? -eq 0 ]; then
+                ((success_count++))
+                echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
+                # Set decryption timestamp cache and encrypted content hash cache
+                local base_name_for_cache="$(basename "$enc_file")"
+                base_name_for_cache="${base_name_for_cache%.js}"
+                base_name_for_cache="${base_name_for_cache%.JS}"
+                set_decryption_timestamp_cache "$base_name_for_cache"
+                set_encrypted_content_hash_cache "$base_name_for_cache" "$enc_file"
+                # Keep raw mtime in sync with its encrypted counterpart so the
+                # timestamp-based encryption check does not falsely flag it.
+                touch -r "$enc_file" "$raw_dir/$base_name_for_cache" 2>/dev/null || true
+            else
+                echo -e "\033[31m[SECRETS]   FAILED\033[0m"
+            fi
+        done
+
+        password=""
+
+        echo ""
+        echo -e "\033[36m========================================"
+        echo -e "Decryption Summary:"
+        echo -e "========================================\033[0m"
+        echo -e "\033[36m  Total files: ${#pending_files[@]}\033[0m"
+        echo -e "\033[32m  Successful:  $success_count\033[0m"
+        echo -e "\033[31m  Failed:      $((${#pending_files[@]} - success_count))\033[0m"
+        echo -e "\033[36m========================================\033[0m"
+        echo ""
+
+        if [ $success_count -eq ${#pending_files[@]} ]; then
+            echo -e "\033[32mSecrets decrypted successfully!\033[0m"
         else
-            echo -e "\033[31m[SECRETS]   FAILED\033[0m"
+            echo -e "\033[33mSome secrets failed to decrypt. You can retry later.\033[0m"
         fi
-    done
 
-    password=""
-
-    echo ""
-    echo -e "\033[36m========================================"
-    echo -e "Decryption Summary:"
-    echo -e "========================================\033[0m"
-    echo -e "\033[36m  Total files: ${#pending_files[@]}\033[0m"
-    echo -e "\033[32m  Successful:  $success_count\033[0m"
-    echo -e "\033[31m  Failed:      $((${#pending_files[@]} - success_count))\033[0m"
-    echo -e "\033[36m========================================\033[0m"
-    echo ""
-
-    if [ $success_count -eq ${#pending_files[@]} ]; then
-        echo -e "\033[32mSecrets decrypted successfully!\033[0m"
-    else
-        echo -e "\033[33mSome secrets failed to decrypt. You can retry later.\033[0m"
+        echo ""
+        read -p "Press Enter to continue..."
     fi
-
-    echo ""
-    read -p "Press Enter to continue..."
     fi  # End of decryption phase
 
     # =========================================================================
@@ -425,6 +423,12 @@ ensure_secret_keys_ready() {
     echo -e "Files Need Re-encryption Detected"
     echo -e "========================================\033[0m"
     echo -e "\033[37mFound ${#files_need_reencrypt[@]} file(s) that need re-encryption:\033[0m"
+    echo -e "\033[37m  Raw directory:       $raw_dir\033[0m"
+    echo -e "\033[37m  Encrypted directory: $encrypted_dir\033[0m"
+    echo ""
+    echo -e "\033[36mCopyable directory commands:\033[0m"
+    printf '  cd %q\n' "$raw_dir"
+    printf '  cd %q\n' "$encrypted_dir"
     echo ""
 
     for base_name in "${files_need_reencrypt[@]}"; do
@@ -525,11 +529,13 @@ ensure_secret_keys_ready() {
 
         for base_name in "${files_need_reencrypt[@]}"; do
             raw_file="$raw_dir/$base_name"
+            enc_file="$encrypted_dir/$base_name.js"
             echo -e "\033[36m[INDIVIDUAL MODE]   Processing: $base_name\033[0m"
 
-            local content=$(cat "$raw_file")
-            if "$node_cmd" "$disguise_js" "$base_name" "$password" "$content" "$encrypted_dir" >/dev/null 2>&1; then
+            if "$node_cmd" "$disguise_js" "$raw_file" "$password" "$encrypted_dir" >/dev/null 2>&1 && [ -f "$enc_file" ]; then
                 ((success_count++))
+                touch -r "$enc_file" "$raw_file" 2>/dev/null || true
+                set_encrypted_content_hash_cache "$base_name" "$enc_file"
                 echo -e "\033[32m[INDIVIDUAL MODE]     SUCCESS\033[0m"
             else
                 echo -e "\033[31m[INDIVIDUAL MODE]     FAILED\033[0m"

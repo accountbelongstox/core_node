@@ -34,7 +34,7 @@ function Get-SSHConfig {
             @{
                 Name = "SSH_CONNECTION"
                 DisplayName = "SSH_CONNECTION"
-                Description = "SSH connection string (e.g., root@43.159.58.199)"
+                Description = "SSH connection string (e.g., root@203.0.113.10)"
                 IsSecret = $false
                 InputType = "Text"
             },

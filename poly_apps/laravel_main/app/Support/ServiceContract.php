@@ -190,6 +190,11 @@ final class ServiceContract
         return 'http://'.self::host('loopback').':'.self::port('laravel_api_backend');
     }
 
+    public static function pycoreBackendUrl(?string $host = null): string
+    {
+        return 'http://'.($host ?? self::host('loopback')).':'.self::port('pycore_backend');
+    }
+
     private function __construct()
     {
     }

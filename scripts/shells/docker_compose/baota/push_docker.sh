@@ -11,12 +11,16 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_CONTRACT_COMMON="$SCRIPT_DIR/../../linux/common/service_contract_common.sh"
+. "$SERVICE_CONTRACT_COMMON"
+
 # Set the image name
 IMAGE_NAME="baota"
 
 # Define the registries
 REMOTE_REGISTRY="cy00000000x"
-LOCAL_REGISTRY="192.168.100.6:15000"
+LOCAL_REGISTRY="$(sc_require hosts.lan_storage_secondary):$(sc_require ports.docker_registry)"
 
 # Tag the image for the remote registry
 REMOTE_IMAGE_NAME="${REMOTE_REGISTRY}/${IMAGE_NAME}:latest"
@@ -64,7 +68,7 @@ if docker push "$LOCAL_IMAGE_NAME"; then
 else
     echo "Failed to push to ${LOCAL_IMAGE_NAME}. Please check your daemon.json configuration."
     echo "If you're pushing to a local registry, make sure to add the following line to your daemon.json:"
-    echo '"insecure-registries": ["192.168.100.6:15000"]'
+    echo "\"insecure-registries\": [\"${LOCAL_REGISTRY}\"]"
     echo "Then restart Docker with: sudo systemctl restart docker"
     exit 1
 fi

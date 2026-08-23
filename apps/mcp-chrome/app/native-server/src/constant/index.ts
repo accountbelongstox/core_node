@@ -1,3 +1,5 @@
+const serviceContract = require('../../../../../../config/service_contract');
+
 export enum NATIVE_MESSAGE_TYPE {
   START = 'start',
   STARTED = 'started',
@@ -8,7 +10,7 @@ export enum NATIVE_MESSAGE_TYPE {
   ERROR = 'error',
 }
 
-export const NATIVE_SERVER_PORT = 12306;
+export const NATIVE_SERVER_PORT = serviceContract.ports.mcp_chrome;
 
 // Timeout constants (in milliseconds)
 export const TIMEOUTS = {
@@ -19,7 +21,7 @@ export const TIMEOUTS = {
 
 // Server configuration
 export const SERVER_CONFIG = {
-  HOST: '127.0.0.1',
+  HOST: serviceContract.hosts.loopback,
   CORS_ORIGIN: true,
   LOGGER_ENABLED: false,
 } as const;

@@ -25,13 +25,14 @@ const {
 } = require('@modelcontextprotocol/sdk/types.js');
 const path = require('path');
 const fs = require('fs');
+const serviceContract = require('../../../config/service_contract');
 
 /**
  * MCP Chrome STDIO Proxy Server
  *
  * This server acts as a STDIO-to-HTTP proxy:
  * 1. Accepts STDIO connections from Claude Desktop
- * 2. Forwards requests to HTTP MCP server (running on port 12306)
+ * 2. Forwards requests to the configured HTTP MCP server
  * 3. Returns responses back through STDIO
  *
  * Usage in Claude Desktop config:
@@ -49,7 +50,7 @@ let stdioServer = null;
 let httpClient = null;
 let isShuttingDown = false;
 
-const DEFAULT_HTTP_URL = 'http://127.0.0.1:12306/mcp';
+const DEFAULT_HTTP_URL = serviceContract.url('http', serviceContract.host('loopback'), serviceContract.port('mcp_chrome'), 'mcp');
 const TOOL_CALL_TIMEOUT = 120000;
 
 /**
@@ -62,7 +63,15 @@ function loadConfig() {
             const configData = fs.readFileSync(configPath, 'utf8');
             const config = JSON.parse(configData);
             console.error('[MCP Chrome STDIO] Loaded config:', config);
-            return config;
+            return {
+                ...config,
+                url: config.url || serviceContract.url(
+                    'http',
+                    serviceContract.host(config.hostKey || 'loopback'),
+                    serviceContract.port(config.portKey || 'mcp_chrome'),
+                    config.path || 'mcp'
+                )
+            };
         }
     } catch (error) {
         console.error('[MCP Chrome STDIO] Failed to load stdio-config.json:', error.message);
@@ -103,7 +112,7 @@ async function ensureHttpClient() {
         return httpClient;
     } catch (error) {
         console.error('[MCP Chrome STDIO] Failed to connect to HTTP MCP server:', error.message);
-        console.error('[MCP Chrome STDIO] Make sure ncore HTTP server is running on port 12306');
+        console.error(`[MCP Chrome STDIO] Make sure ncore HTTP server is running on port ${serviceContract.port('mcp_chrome')}`);
 
         if (httpClient) {
             await httpClient.close().catch(() => {});
@@ -132,7 +141,7 @@ function setupHandlers(server) {
             return {
                 tools: [{
                     name: 'chrome_connection_error',
-                    description: 'Error: Cannot connect to HTTP MCP server. Make sure ncore is running with MCP Chrome service on port 12306.',
+                    description: `Error: Cannot connect to HTTP MCP server. Make sure ncore is running with MCP Chrome service on port ${serviceContract.port('mcp_chrome')}.`,
                     inputSchema: {
                         type: 'object',
                         properties: {},
@@ -172,7 +181,7 @@ function setupHandlers(server) {
                         tool: name,
                         instructions: [
                             'Make sure ncore is running: node ncore_module_caller.js',
-                            'Verify HTTP server is running on port 12306',
+                            `Verify HTTP server is running on port ${serviceContract.port('mcp_chrome')}`,
                             'Check Chrome Extension is loaded and connected'
                         ]
                     }, null, 2)

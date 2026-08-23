@@ -4,6 +4,7 @@ namespace App\Services\TimerTasks;
 
 use App\Providers\PathMapper;
 use App\Helpers\PycoreCaller;
+use App\Support\ServiceContract;
 
 /**
  * Pycore URL Discovery Task
@@ -41,7 +42,7 @@ class PycoreUrlDiscoveryTask extends OctaneTimerTaskAbstract
 
             if (!$isWsl && !$hasDesktop) {
                 // Production server, only check localhost
-                $this->checkPycoreService('http://127.0.0.1:59000');
+                $this->checkPycoreService(ServiceContract::pycoreBackendUrl());
                 return;
             }
 
@@ -89,10 +90,10 @@ class PycoreUrlDiscoveryTask extends OctaneTimerTaskAbstract
      */
     protected function scanForPycoreService(): ?string
     {
-        $defaultPort = 59000;
+        $defaultPort = ServiceContract::port('pycore_backend');
 
         // Priority 1: Check localhost
-        $localhostUrl = "http://127.0.0.1:{$defaultPort}";
+        $localhostUrl = ServiceContract::pycoreBackendUrl();
         if ($this->checkPycoreService($localhostUrl)) {
             return $localhostUrl;
         }

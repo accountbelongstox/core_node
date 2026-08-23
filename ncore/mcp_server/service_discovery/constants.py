@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from pycore.pyutils.common.service_contract import host, port
+
 class ServiceDiscoveryConstants:
     SERVICE_NAME = "ServiceDiscovery"
     SERVICE_VERSION = "1.0.0"
@@ -34,13 +36,13 @@ class ServiceDiscoveryConstants:
         "health_check"
     ]
 
-    DEFAULT_LARAVEL_IP = "192.168.50.2"
-    DEFAULT_LARAVEL_PORT = 9000
+    DEFAULT_LARAVEL_IP = host("lan_50_2")
+    DEFAULT_LARAVEL_PORT = port("laravel_api_backend")
 
-    DEFAULT_PYCORE_PORT = 59000
-    DEFAULT_NCORE_PORT = 58000
+    DEFAULT_PYCORE_PORT = port("pycore_backend")
+    DEFAULT_NCORE_PORT = port("ncore_backend")
 
-    LOCALHOST = "127.0.0.1"
+    LOCALHOST = host("loopback")
 
     DISCOVERY_TIMEOUT = 0.5
     GATEWAY_TIMEOUT = 0.5

@@ -2184,7 +2184,7 @@ server {
 
     /**
      * Extract base domain from subdomain
-     * Examples: api.12gm.com -> 12gm.com, sh.api.12gm.com -> 12gm.com
+     * Examples: api.example.com -> example.com, sh.api.example.com -> example.com
      *
      * @param string $domain Full domain name
      * @return string Base domain

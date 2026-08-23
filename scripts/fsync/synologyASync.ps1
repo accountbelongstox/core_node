@@ -14,7 +14,7 @@
 .SYNOPSIS
     Compares and synchronizes files between two network shares with directory skipping.
 .DESCRIPTION
-    Recursively scans \\192.168.100.5 and checks if each file exists in \\192.168.100.6.
+    Recursively scans the configured primary share and checks the configured secondary share.
     Skips specified directories (node_modules, vendor) and provides detailed statistics.
 .NOTES
     File Name      : FileSyncAdvanced.ps1
@@ -36,10 +36,17 @@ $script:skippedBytes = 0
 $script:startTime = Get-Date
 $script:skippedDirNames = @()
 $script:processedFiles = 0
+$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptsDirectory = Split-Path -Parent $scriptDirectory
+$serviceContractCommon = Join-Path $scriptsDirectory "shells\win\win_common\ServiceContract.ps1"
+
+. $serviceContractCommon
 
 # Network paths
-$sourcePath = "\\192.168.100.5"
-$targetPath = "\\192.168.100.6"
+$sourceHost = Get-ServiceContractHost -Name "lan_storage_primary"
+$targetHost = Get-ServiceContractHost -Name "lan_storage_secondary"
+$sourcePath = Join-Path -Path "\\" -ChildPath $sourceHost
+$targetPath = Join-Path -Path "\\" -ChildPath $targetHost
 
 # Directories to skip (case insensitive)
 $skipDirectories = @("node_modules", "vendor", "bin", "obj", "packages", ".git", ".vs", ".idea")

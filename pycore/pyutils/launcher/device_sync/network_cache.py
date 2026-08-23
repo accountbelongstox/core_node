@@ -56,7 +56,7 @@ class NetworkCache:
         Returns:
             Network info dict:
             {
-                'local_ip': '192.168.50.22',
+                'local_ip': '192.0.2.22',
                 'network_prefix': '192.168.50',
                 'gateway': '192.168.50.1',
                 'cached_at': '2025-01-12 18:30:00'
@@ -227,7 +227,7 @@ class NetworkCache:
         Calculate network prefix (assume /24)
 
         Args:
-            ip: IP address like '192.168.50.22'
+            ip: IP address like '192.0.2.22'
 
         Returns:
             Network prefix like '192.168.50'

@@ -30,9 +30,10 @@ mcp_chrome_dev_log_path=""
 mcp_chrome_linux_common_dir=""
 mcp_chrome_gvar_common_path=""
 mcp_chrome_venv_python_common_path=""
+mcp_chrome_service_contract_common_path=""
 mcp_chrome_python_path=""
-mcp_chrome_url="http://127.0.0.1:12306/mcp"
-mcp_chrome_port="12306"
+mcp_chrome_url=""
+mcp_chrome_port=""
 mcp_chrome_port_ready=0
 mcp_chrome_port_wait_count=0
 mcp_chrome_needs_build=0
@@ -64,8 +65,12 @@ mcp_chrome_dev_log_path="/tmp/mcp-chrome-codexyolo.log"
 mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
 mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
+mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
 source "$mcp_chrome_gvar_common_path"
 source "$mcp_chrome_venv_python_common_path"
+source "$mcp_chrome_service_contract_common_path"
+mcp_chrome_port="$(sc_require ports.mcp_chrome)"
+mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
 mcp_chrome_python_path="$VENV_PYTHON3"
 if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
     mcp_chrome_enabled=1

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Canonical Pycore HTTP and Server-Sent Events constants."""
 
-HTTP_BIND_HOST = "0.0.0.0"
-HTTP_LOOPBACK_HOST = "127.0.0.1"
+from pycore.pyutils.common.service_contract import host, port
+
+HTTP_BIND_HOST = host("any")
+HTTP_LOOPBACK_HOST = host("loopback")
 HTTP_DEFAULT_TIMEOUT_SECONDS = 10.0
 HTTP_JSON_CONTENT_TYPE = "application/json"
 HTTP_PROTOCOL_VERSION = "2.0"
@@ -21,7 +23,7 @@ HTTP_EXPECTED_DISCONNECT_MESSAGES = frozenset(
 )
 HTTP_EXPECTED_DISCONNECT_WINERRORS = frozenset({64, 10038, 10053, 10054})
 
-PYCORE_HTTP_PORT = 59000
+PYCORE_HTTP_PORT = port("pycore_backend")
 QWEN3TTS_HTTP_PORT = 57210
 QWEN3TTS_HTTP_TIMEOUT_SECONDS = 900.0
 # Default playback-speed factor for every Qwen3-TTS generation (1.0 = natural).

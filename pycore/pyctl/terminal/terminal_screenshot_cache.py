@@ -1,57 +1,274 @@
 # -*- coding: utf-8 -*-
+"""Demand-leased immutable Terminal screenshot resources."""
+
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import time
+from typing import Any, Dict, Iterable, List, Optional
 
-from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
-from pycore.pyutils.window.screen_capture import capture_screen_regions_base64
+from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.window.screen_capture import capture_screen_regions_png
 
 
-SCREENSHOT_CACHE_KEY = "terminal.windows.screenshots"
-SCREENSHOT_CACHE_MAX_ENTRIES = 1
-SCREENSHOT_CAPTURE_LEASE_SECONDS = 60.0
+TERMINAL_CHANGED_EVENT = "terminal.changed"
+TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = 2.0
+TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS = 10.0
+TERMINAL_VIEWER_DEMAND_LEASE_SECONDS = 15.0
+TERMINAL_VIEWER_MAX_WINDOWS = 64
+TERMINAL_SCREENSHOT_RESOURCE_ROUTE = "ui/terminal/screenshot"
 
 
 class TerminalScreenshotCache:
-    """Serve the latest screenshots while one coalesced refresh runs."""
+    """Capture only demanded windows and expose digest-addressed byte resources."""
 
     def __init__(self) -> None:
-        self._cache = VersionedSnapshotCache(
-            ttl_seconds=0.0,
-            max_entries=SCREENSHOT_CACHE_MAX_ENTRIES,
-            load_lease_seconds=SCREENSHOT_CAPTURE_LEASE_SECONDS,
-            copy_values=True,
+        self._entries: Dict[str, Dict[str, Any]] = {}
+        self._viewer_leases: Dict[str, Dict[str, Any]] = {}
+        self._capture_leases: Dict[str, float] = {}
+        self._revision = 0
+        init_serialized_owner(
+            self,
+            "terminal.screenshot.state",
+            "TerminalScreenshotStateThread",
         )
-        self._cache.put(SCREENSHOT_CACHE_KEY, {})
 
-    def read_and_refresh(
+    @serialized_method
+    def renew_demand(
         self,
-        regions: List[Dict[str, Any]],
-    ) -> Dict[str, Dict[str, Any]]:
-        normalized_regions = self._normalize_regions(regions)
-        region_ids = {
-            str(region["id"])
-            for region in normalized_regions
+        viewer_id: str,
+        window_ids: Iterable[str],
+    ) -> Dict[str, Any]:
+        normalized_viewer = str(viewer_id or "").strip()
+        normalized_ids = sorted({str(value) for value in window_ids if str(value)})
+        if not normalized_viewer:
+            raise ValueError("terminal_viewer_id_required")
+        if len(normalized_ids) > TERMINAL_VIEWER_MAX_WINDOWS:
+            raise ValueError("terminal_viewer_window_limit_exceeded")
+        self._prune_leases(time.monotonic())
+        self._viewer_leases[normalized_viewer] = {
+            "window_ids": normalized_ids,
+            "expires_at": time.monotonic() + TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         }
-        version = self._geometry_version(normalized_regions)
-        snapshot = self._cache.get(
-            SCREENSHOT_CACHE_KEY,
-            loader=lambda: capture_screen_regions_base64(normalized_regions),
-            refresh=True,
-            version=version,
-            stale_while_refresh=True,
+        terminal_activity_log.info(
+            "screenshot.demand.renewed",
+            viewer_id=normalized_viewer,
+            window_ids=normalized_ids,
+            lease_seconds=TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         )
         return {
-            region_id: capture
-            for region_id, capture in snapshot.items()
-            if region_id in region_ids and isinstance(capture, dict)
+            "viewer_id": normalized_viewer,
+            "window_ids": normalized_ids,
+            "lease_seconds": TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         }
 
-    def capture_now(
+    def refresh_demanded(
         self,
         regions: List[Dict[str, Any]],
     ) -> Dict[str, Dict[str, Any]]:
-        return capture_screen_regions_base64(self._normalize_regions(regions))
+        normalized = self._normalize_regions(regions)
+        plan = self._claim_capture(normalized, (), time.monotonic())
+        if plan:
+            terminal_activity_log.info(
+                "screenshot.capture.started",
+                window_ids=list(plan),
+                region_count=len(plan),
+            )
+            captures = capture_screen_regions_png(list(plan.values()))
+            self._commit_capture(plan, captures, time.monotonic())
+        return self.metadata_many(region["id"] for region in normalized)
+
+    def capture_now(self, region: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        normalized = self._normalize_regions([region])
+        if not normalized:
+            return None
+        window_id = str(normalized[0]["id"])
+        plan = self._claim_capture(
+            normalized,
+            (window_id,),
+            time.monotonic(),
+        )
+        if plan:
+            captures = capture_screen_regions_png(list(plan.values()))
+            self._commit_capture(plan, captures, time.monotonic())
+        return self.metadata(window_id)
+
+    @serialized_method
+    def _claim_capture(
+        self,
+        regions: List[Dict[str, Any]],
+        force_window_ids: Iterable[str],
+        now: float,
+    ) -> Dict[str, Dict[str, Any]]:
+        self._prune_leases(now)
+        demanded = {
+            str(window_id)
+            for lease in self._viewer_leases.values()
+            for window_id in lease["window_ids"]
+        }
+        forced = {str(value) for value in force_window_ids if str(value)}
+        plan: Dict[str, Dict[str, Any]] = {}
+        for region in regions:
+            window_id = str(region["id"])
+            if window_id not in demanded and window_id not in forced:
+                continue
+            capture_lease = float(self._capture_leases.get(window_id) or 0)
+            if now < capture_lease:
+                continue
+            geometry = self._geometry_version(region)
+            entry = self._entries.get(window_id)
+            fresh = (
+                entry is not None
+                and str(entry.get("geometry") or "") == geometry
+                and now - float(entry.get("stored_at") or 0)
+                < TERMINAL_SCREENSHOT_FRESHNESS_SECONDS
+            )
+            if fresh and window_id not in forced:
+                continue
+            self._capture_leases[window_id] = (
+                now + TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS
+            )
+            plan[window_id] = {**region, "geometry": geometry}
+        return plan
+
+    @serialized_method
+    def _commit_capture(
+        self,
+        plan: Dict[str, Dict[str, Any]],
+        captures: Dict[str, Dict[str, Any]],
+        now: float,
+    ) -> None:
+        changed = []
+        for window_id, region in plan.items():
+            self._capture_leases.pop(window_id, None)
+            capture = captures.get(window_id)
+            if not isinstance(capture, dict):
+                terminal_activity_log.warning(
+                    "screenshot.capture.missing",
+                    window_id=window_id,
+                )
+                continue
+            body = capture.get("body")
+            digest = str(capture.get("digest") or "")
+            if not isinstance(body, bytes) or not digest:
+                terminal_activity_log.error(
+                    "screenshot.capture.invalid",
+                    window_id=window_id,
+                )
+                continue
+            self._revision += 1
+            self._entries[window_id] = {
+                "window_id": window_id,
+                "mime": str(capture.get("mime") or "image/png"),
+                "body": body,
+                "digest": digest,
+                "width": int(capture.get("width") or 0),
+                "height": int(capture.get("height") or 0),
+                "captured_at": int(capture.get("captured_at") or 0),
+                "geometry": str(region["geometry"]),
+                "stored_at": now,
+                "revision": self._revision,
+            }
+            changed.append(self._metadata(self._entries[window_id]))
+            terminal_activity_log.success(
+                "screenshot.capture.completed",
+                window_id=window_id,
+                body=body,
+                digest=digest,
+                revision=self._revision,
+            )
+        if changed:
+            THREAD_BUS.trigger_event(
+                TERMINAL_CHANGED_EVENT,
+                {
+                    "schema_version": 1,
+                    "event_type": TERMINAL_CHANGED_EVENT,
+                    "revision": self._revision,
+                    "resources": changed,
+                },
+                async_mode=True,
+            )
+
+    @serialized_method
+    def metadata(self, window_id: str) -> Optional[Dict[str, Any]]:
+        entry = self._entries.get(str(window_id))
+        return self._metadata(entry) if entry is not None else None
+
+    @serialized_method
+    def metadata_many(
+        self,
+        window_ids: Iterable[str],
+    ) -> Dict[str, Dict[str, Any]]:
+        return {
+            str(window_id): self._metadata(self._entries[str(window_id)])
+            for window_id in window_ids
+            if str(window_id) in self._entries
+        }
+
+    @serialized_method
+    def read_resource(
+        self,
+        window_id: str,
+        digest: str,
+    ) -> Optional[Dict[str, Any]]:
+        entry = self._entries.get(str(window_id))
+        if entry is None or str(entry.get("digest") or "") != str(digest):
+            terminal_activity_log.warning(
+                "screenshot.resource.missed",
+                window_id=window_id,
+                digest=digest,
+            )
+            return None
+        terminal_activity_log.success(
+            "screenshot.resource.read",
+            window_id=window_id,
+            digest=digest,
+            body=entry["body"],
+        )
+        return dict(entry)
+
+    def _prune_leases(self, now: float) -> None:
+        expired_viewers = [
+            viewer_id
+            for viewer_id, lease in self._viewer_leases.items()
+            if now >= float(lease["expires_at"])
+        ]
+        for viewer_id in expired_viewers:
+            self._viewer_leases.pop(viewer_id, None)
+            terminal_activity_log.info(
+                "screenshot.demand.expired",
+                viewer_id=viewer_id,
+            )
+        expired_captures = [
+            window_id
+            for window_id, expires_at in self._capture_leases.items()
+            if now >= float(expires_at)
+        ]
+        for window_id in expired_captures:
+            self._capture_leases.pop(window_id, None)
+
+    @staticmethod
+    def _metadata(entry: Dict[str, Any]) -> Dict[str, Any]:
+        digest = str(entry["digest"])
+        return {
+            "window_id": str(entry["window_id"]),
+            "mime": str(entry["mime"]),
+            "digest": digest,
+            "etag": f'"{digest}"',
+            "width": int(entry["width"]),
+            "height": int(entry["height"]),
+            "captured_at": int(entry["captured_at"]),
+            "revision": int(entry["revision"]),
+            "resource": {
+                "route": TERMINAL_SCREENSHOT_RESOURCE_ROUTE,
+                "window_id": str(entry["window_id"]),
+                "digest": digest,
+            },
+        }
 
     @staticmethod
     def _normalize_regions(
@@ -67,22 +284,20 @@ class TerminalScreenshotCache:
             }
             for region in regions
             if str(region.get("id") or "")
+            and int(region.get("width") or 0) > 0
+            and int(region.get("height") or 0) > 0
         ]
         return sorted(normalized, key=lambda region: str(region["id"]))
 
     @staticmethod
-    def _geometry_version(regions: List[Dict[str, Any]]) -> str:
-        return "|".join(
-            ":".join(
-                (
-                    str(region["id"]),
-                    str(region["left"]),
-                    str(region["top"]),
-                    str(region["width"]),
-                    str(region["height"]),
-                )
+    def _geometry_version(region: Dict[str, Any]) -> str:
+        return ":".join(
+            (
+                str(region["left"]),
+                str(region["top"]),
+                str(region["width"]),
+                str(region["height"]),
             )
-            for region in regions
         )
 
 

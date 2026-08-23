@@ -31,6 +31,12 @@ from typing import Dict, List, Optional
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyutils.common.service_contract import build_url, host, port
+
+CHROME_MCP_URL = build_url("http", host("loopback"), port("mcp_chrome"), "mcp")
 SECRET_MANAGER_PATH = SCRIPT_DIR / "secret_manager.py"
 SECRET_SPEC = importlib.util.spec_from_file_location(
     "ai_tools_secret_manager",
@@ -113,7 +119,7 @@ class MCPConfigProvider:
         Get Chrome MCP Server configuration (HTTP transport)
 
         Reference: _prompt/mcpWindowsTemplate.json
-        URL: http://127.0.0.1:12306/mcp
+        URL: resolved from the central service contract
 
         Returns:
             MCPConfig with HTTP transport configuration
@@ -121,7 +127,7 @@ class MCPConfigProvider:
         return MCPConfig(
             name="chrome",
             transport_type="http",
-            url="http://127.0.0.1:12306/mcp"
+            url=CHROME_MCP_URL
         )
 
     @classmethod

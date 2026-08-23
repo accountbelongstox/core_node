@@ -27,6 +27,7 @@ import Portal from '@/shared/ui/Portal';
 import { OVERLAY_BACKDROP, OVERLAY_CONTAINER, OVERLAY_Z } from '@/shared/styles/overlay';
 import { ConfirmModal, useToast } from '../../admin';
 import { AlertBox, LoadingBlock, StatusBadge } from '../../common';
+import { NEXUS_DASH_FRONTEND_URL } from '@/core/contracts/ServiceContract';
 
 interface FrankenPhpPanelProps {
   lang: Language;
@@ -46,7 +47,7 @@ interface SiteFormState {
 const emptyForm: SiteFormState = {
   site_name: '',
   hosts: '',
-  upstream: 'http://127.0.0.1:13054',
+  upstream: NEXUS_DASH_FRONTEND_URL,
   certificate_domain: '',
   enabled: true,
   site_config: '',
@@ -399,7 +400,7 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">{t.upstream}</label>
-                      <input required value={form.upstream} onChange={event => setForm(previous => ({ ...previous, upstream: event.target.value }))} placeholder="http://127.0.0.1:13054" className="w-full px-3 py-2 font-mono border border-slate-300 dark:border-slate-700 dark:bg-slate-900 rounded-lg" />
+                      <input required value={form.upstream} onChange={event => setForm(previous => ({ ...previous, upstream: event.target.value }))} placeholder={NEXUS_DASH_FRONTEND_URL} className="w-full px-3 py-2 font-mono border border-slate-300 dark:border-slate-700 dark:bg-slate-900 rounded-lg" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">{t.certificate_domain}</label>

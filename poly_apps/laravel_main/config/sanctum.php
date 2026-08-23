@@ -10,23 +10,22 @@
 
 
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
-use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 use Laravel\Sanctum\Sanctum;
 
-$frontendHost = parse_url(LaravelConfig::FRONTEND_URL, PHP_URL_HOST);
-$statefulDomains = [
-    'localhost',
-    'localhost:3000',
-    '127.0.0.1',
-    '127.0.0.1:3000',
-    '127.0.0.1:8000',
-    '127.0.0.1:9000',
-    '::1',
-    Sanctum::currentApplicationUrlWithPort(),
+$statefulDomains = [Sanctum::currentApplicationUrlWithPort(), ServiceContract::host('ipv6_loopback')];
+$statefulPorts = [
+    ServiceContract::port('nexus_dash_frontend'),
+    ServiceContract::port('voice_api_local'),
+    ServiceContract::port('laravel_api_backend'),
 ];
 
-if (is_string($frontendHost) && $frontendHost !== '') {
-    $statefulDomains[] = $frontendHost;
+foreach (ServiceContract::stringList('access.service_host_keys.browserAccess') as $hostKey) {
+    $host = ServiceContract::host($hostKey);
+    $statefulDomains[] = $host;
+    foreach ($statefulPorts as $port) {
+        $statefulDomains[] = $host.':'.$port;
+    }
 }
 
 return [

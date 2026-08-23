@@ -228,6 +228,82 @@ class OperationService:
         self._broadcast(event, scope, client_id)
         return op
 
+    def create_external_or_get(
+        self,
+        operation_id: str,
+        kind: str,
+        scope: str,
+        request_digest: str,
+        retry_policy: str,
+        client_id: Optional[str] = None,
+    ) -> Operation:
+        """Admit an externally generated operation ID without a race window."""
+        existing = self.repo.get_operation(operation_id)
+        if existing is not None:
+            self._validate_external_operation(
+                existing,
+                kind,
+                scope,
+                request_digest,
+            )
+            return existing
+        now = _now_iso()
+        op = Operation(
+            id=str(operation_id),
+            kind=str(kind),
+            scope=str(scope),
+            status="pending",
+            stage="accepted",
+            revision=1,
+            totals={
+                "total": 1,
+                "queued": 1,
+                "running": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "skipped": 0,
+                "cancelled": 0,
+            },
+            timestamps={"created_at": now, "updated_at": now},
+            summary_json={
+                "request_digest": str(request_digest),
+                "retry_policy": str(retry_policy),
+            },
+            owner_client_id=client_id,
+        )
+        event = _make_event(
+            op.id,
+            op.revision,
+            "operation.external_admitted",
+            "operation.external_admitted",
+            payload_json={"retry_policy": str(retry_policy)},
+        )
+        outbox = _outbox_spec(event, scope, client_id)
+        created = self.repo.create_operation_if_absent(op, event, outbox)
+        resolved = self._require_op(operation_id)
+        self._validate_external_operation(
+            resolved,
+            kind,
+            scope,
+            request_digest,
+        )
+        if created:
+            self._broadcast(event, scope, client_id)
+        return resolved
+
+    @staticmethod
+    def _validate_external_operation(
+        operation: Operation,
+        kind: str,
+        scope: str,
+        request_digest: str,
+    ) -> None:
+        summary = dict(operation.summary_json or {})
+        if operation.kind != str(kind) or operation.scope != str(scope):
+            raise ValueError("external_operation_identity_conflict")
+        if str(summary.get("request_digest") or "") != str(request_digest):
+            raise ValueError("external_operation_request_digest_conflict")
+
     def create_operation(
         self,
         kind: str,
@@ -337,7 +413,13 @@ class OperationService:
         self._broadcast(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
-    def fail(self, op_id: str, error: Dict[str, Any], message: str = "Operation failed") -> Operation:
+    def fail(
+        self,
+        op_id: str,
+        error: Dict[str, Any],
+        message: str = "Operation failed",
+        stage: str = "failed",
+    ) -> Operation:
         """running → failed."""
         op = self._require_op(op_id)
         if op.status in ("completed", "failed", "cancelled"):
@@ -347,7 +429,7 @@ class OperationService:
         ts.update({"updated_at": now, "failed_at": now})
         event = _make_event(op_id, op.revision + 1, "operation.failed", message, level="error")
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
-        self.repo.update_operation(op_id, "failed", "failed", op.revision + 1, timestamps=ts, error_json=error, event=event, outbox=outbox)
+        self.repo.update_operation(op_id, "failed", stage, op.revision + 1, timestamps=ts, error_json=error, event=event, outbox=outbox)
         self._broadcast(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 

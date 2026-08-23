@@ -16,6 +16,7 @@ const path = require('path');
 const { pipeExecCmd, execPowerShell, execCmd } = require('#@commander');
 const logger = require('#@/ncore/basic/libs/logger.js');
 const { getSettingsCenter } = require('#@global_vars');
+const serviceContract = require('../../../../../config/service_contract');
 const settingsScope = getSettingsCenter().scope('wsl');
 
 class WSLActivator {
@@ -26,7 +27,7 @@ class WSLActivator {
         this.curlPath = 'C:\\Windows\\System32\\curl.exe';
         this.powershellPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
         this.virtualSwitchName = 'LAN';
-        this.targetRepoUrl = 'http://git.local.12gm.com:5021/adminroot/core_node.git';
+        this.targetRepoUrl = serviceContract.url('http', serviceContract.serviceDomain('git_local'), serviceContract.port('git_http'), 'adminroot/core_node.git');
 
         // Define settings keys for tracking command execution
         this.SETTINGS_KEYS = {

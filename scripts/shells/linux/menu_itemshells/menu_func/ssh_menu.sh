@@ -27,7 +27,7 @@ get_ssh_config() {
         {
             "name": "SSH_CONNECTION",
             "display_name": "SSH Connection String",
-            "description": "SSH connection string (e.g., root@43.159.58.199)",
+            "description": "SSH connection string (e.g., root@203.0.113.10)",
             "is_secret": false
         },
         {
@@ -100,7 +100,7 @@ add_ssh_command() {
     echo ""
 
     # Get SSH connection string
-    echo -n "Enter SSH connection string (e.g., root@43.159.58.199): "
+    echo -n "Enter SSH connection string (e.g., root@203.0.113.10): "
     read ssh_connection
 
     if [ -z "$ssh_connection" ]; then

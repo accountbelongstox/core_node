@@ -175,7 +175,8 @@ class LaravelClient:
                 files: Any = None, headers: Any = None, timeout: Any = None,
                 activity_timeout: Optional[Dict[str, int]] = None,
                 stream: bool = False, allow_redirects: bool = True,
-                log_line: bool = True, **kwargs):
+                log_line: bool = True, include_default_identity: bool = True,
+                **kwargs):
         """Issue a Laravel HTTP request, log + record it, return the raw Response.
 
         ``path`` may be a full URL (used as-is) or a path joined onto the resolved
@@ -212,7 +213,10 @@ class LaravelClient:
             if request_data is not None
             else b""
         )
-        request_headers.update(build_pycore_identity_headers(url, method, identity_body))
+        if include_default_identity:
+            request_headers.update(
+                build_pycore_identity_headers(url, method, identity_body)
+            )
         if activity_timeout:
             connect_timeout = max(1, int(activity_timeout.get("connect_timeout_seconds") or 15))
             if transport == TRANSPORT_REQUESTS:

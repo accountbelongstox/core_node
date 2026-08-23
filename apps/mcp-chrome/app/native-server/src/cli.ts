@@ -126,10 +126,10 @@ program
     }
   });
 
-// Update port in stdio-config.json
+// Update the canonical service contract.
 program
   .command('update-port <port>')
-  .description('Update the port number in stdio-config.json')
+  .description('Update the MCP Chrome port in the central service contract')
   .action(async (port: string) => {
     try {
       const portNumber = parseInt(port, 10);
@@ -138,7 +138,7 @@ program
         process.exit(1);
       }
 
-      const configPath = path.join(__dirname, 'mcp', 'stdio-config.json');
+      const configPath = path.resolve(__dirname, '../../../../../config/service_contract.json');
 
       if (!fs.existsSync(configPath)) {
         console.error(colorText(`Error: Configuration file not found at ${configPath}`, 'red'));
@@ -148,14 +148,12 @@ program
       const configData = fs.readFileSync(configPath, 'utf8');
       const config = JSON.parse(configData);
 
-      const currentUrl = new URL(config.url);
-      currentUrl.port = portNumber.toString();
-      config.url = currentUrl.toString();
+      config.ports.mcp_chrome = portNumber;
 
       fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
 
       console.log(colorText(`[OK] Port updated successfully to ${portNumber}`, 'green'));
-      console.log(colorText(`Updated URL: ${config.url}`, 'blue'));
+      console.log(colorText(`Updated contract: ${configPath}`, 'blue'));
     } catch (error: any) {
       console.error(colorText(`Failed to update port: ${error.message}`, 'red'));
       process.exit(1);

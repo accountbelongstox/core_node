@@ -24,10 +24,10 @@ if _PROJECT_ROOT not in sys.path:
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from pycore.pyutils.common.service_contract import port, service_domain
+from pycore.pyutils.common.service_contract import host as contract_host, port as contract_port, service_domain
 
 _DEFAULT_SERVER_HOST = service_domain("laravel_api")
-_DEFAULT_SERVER_PORT = port("file_sync")
+_DEFAULT_SERVER_PORT = contract_port("file_sync")
 
 
 def _try_import(import_name: str) -> bool:
@@ -326,11 +326,15 @@ def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ..
         for i, raw in enumerate(raw_servers):
             if not isinstance(raw, dict):
                 raise SystemExit(f"client_config.json: servers[{i}] must be object")
+            host_key = str(raw.get("host_key", raw.get("server_host_key", ""))).strip()
             host = str(raw.get("host", raw.get("server_host", ""))).strip()
+            if not host and host_key:
+                host = contract_host(host_key)
             if not host:
                 raise SystemExit(f"client_config.json: servers[{i}].host required")
             try:
-                port = int(raw.get("port", raw.get("server_port", _DEFAULT_SERVER_PORT)))
+                port_key = str(raw.get("port_key", raw.get("server_port_key", ""))).strip()
+                port = int(raw.get("port", raw.get("server_port", contract_port(port_key) if port_key else _DEFAULT_SERVER_PORT)))
             except (TypeError, ValueError):
                 raise SystemExit(f"client_config.json: servers[{i}].port must be integer")
             enabled = raw.get("enabled", True)
@@ -359,9 +363,11 @@ def _parse_targets(cfg: dict) -> list[dict[str, str | int | bool | tuple[str, ..
             )
         return targets
 
-    host = str(cfg.get("server_host", _DEFAULT_SERVER_HOST)).strip()
+    host_key = str(cfg.get("server_host_key", "")).strip()
+    port_key = str(cfg.get("server_port_key", "")).strip()
+    host = str(cfg.get("server_host") or (contract_host(host_key) if host_key else _DEFAULT_SERVER_HOST)).strip()
     try:
-        port = int(cfg.get("server_port", _DEFAULT_SERVER_PORT))
+        port = int(cfg.get("server_port") or (contract_port(port_key) if port_key else _DEFAULT_SERVER_PORT))
     except (TypeError, ValueError):
         raise SystemExit("client_config.json: server_port must be integer")
     return [

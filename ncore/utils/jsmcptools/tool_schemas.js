@@ -12,8 +12,9 @@
 
 'use strict';
 
+const serviceContract = require('../../../config/service_contract');
 const DEFAULT_SERVER_PORT = 56889;
-const MCP_CHROME_PORT = 12306;
+const MCP_CHROME_PORT = serviceContract.port('mcp_chrome');
 const HOST_NAME = 'com.chrome_mcp.native_host';
 
 const TOOL_NAMES = {

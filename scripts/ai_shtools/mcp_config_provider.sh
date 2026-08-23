@@ -21,6 +21,9 @@ MCP_PROVIDER_SCRIPTS_DIR="$(dirname "$MCP_PROVIDER_DIR")"
 MCP_PROJECT_ROOT="$(dirname "$MCP_PROVIDER_SCRIPTS_DIR")"
 MCP_SECRET_KEYS_DIR="${MCP_PROJECT_ROOT}/.secret_keys"
 MCP_SECRET_RAW_DIR="${MCP_SECRET_KEYS_DIR}/.secret_ignore"
+MCP_SERVICE_CONTRACT_COMMON="${MCP_PROJECT_ROOT}/scripts/shells/linux/common/service_contract_common.sh"
+. "$MCP_SERVICE_CONTRACT_COMMON"
+MCP_CHROME_URL="http://$(sc_require hosts.loopback):$(sc_require ports.mcp_chrome)/mcp"
 
 # MCP config arrays (indexed by position)
 MCP_CONFIGS_COUNT=0
@@ -125,7 +128,7 @@ load_all_mcp_configs() {
         "http" \
         "" \
         "" \
-        "http://127.0.0.1:12306/mcp" \
+        "$MCP_CHROME_URL" \
         "" \
         "" \
         "" \
