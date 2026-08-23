@@ -10,38 +10,6 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Canonical laravel_main start script (Debian/Ubuntu/WSL) - the ORCHESTRATOR.
-# Single entry point merged from poly_apps/laravel_main/scripts/start.sh plus
-# the old 132_prepare_domain_setup.sh / 133_setup_domain_ssl.sh pair (both
-# deleted - no thin wrappers; the menu runs this file directly):
-#   - full toolchain ensure (php / composer / node / swoole [nginx plane] /
-#     p7zip / postgres)
-#   - vendor/ integrity ensure driven by the shared composer-lock contract
-#     (common/composer_vendor_common.sh): install / repair / rebuild from
-#     composer.lock, verified by a clean autoloader load
-#   - SSH server ensure (via 23_setup_ssh_remote.sh, itself idempotent)
-#   - per-plane phases dispatched to the debian_com sub-scripts (all
-#     constants and components are shared: web_server_plane /
-#     php_runtime_plane, service contract ports, domain_setup_common,
-#     nginx_manager, cert_selfheal_common, frankenphp_manager - nothing
-#     plane- or path-specific is redefined here):
-#       domains phase : 175_laravel_main_start_nginx.sh domains
-#                       (nginx_manager ensure + certbot + DNSPod domain
-#                       sites and certificates)
-#                     | 175_laravel_main_start_frankenphp.sh domains
-#                       (DNSPod secrets + region prefix + token mirror +
-#                       DNS-01 readiness; nginx/certbot never touched)
-#       runtime phase : 175_laravel_main_start_nginx.sh runtime
-#                       (Octane swoole, node / php-serve fallbacks)
-#                     | 175_laravel_main_start_frankenphp.sh runtime
-#                       (plane stack convergence -> octane:frankenphp)
-# poly_apps/laravel_main/scripts/start.sh delegates here; every phase is
-# independently idempotent and safe to re-run.
-#
-# SYNC CONTRACT: nginx behavior lives in the nginx plane branch; the shell
-# end of the contract is common/nginx_manager.sh, the Laravel end is
-# ServerManagerV1 under poly_apps/laravel_main. Change both ends together.
-
 # --- All variables and file references (declared at top) ---
 ORIGINAL_DIR=$(pwd)
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

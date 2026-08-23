@@ -18,7 +18,8 @@ export type AppErrorCode =
   | 'message.unknown'
   | 'order.selectionRequired'
   | 'pdd.loginRequired'
-  | 'pdd.requestFailed';
+  | 'pdd.requestFailed'
+  | 'pdd.sessionCookieFailed';
 
 export type AppErrorDetails = Record<string, string | number>;
 

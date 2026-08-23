@@ -25,6 +25,7 @@ const ERROR_MESSAGES = {
     'order.selectionRequired': '请选择需要退款的订单',
     'pdd.loginRequired': '未检测到已登录的拼多多账号，请先在拼多多页面登录',
     'pdd.requestFailed': '拼多多订单请求失败',
+    'pdd.sessionCookieFailed': '无法安全切换拼多多账号会话',
   },
   en: {
     'account.bindLimit': 'The account binding limit has been reached',
@@ -47,6 +48,7 @@ const ERROR_MESSAGES = {
     'order.selectionRequired': 'Select orders to refund',
     'pdd.loginRequired': 'No signed-in PDD account was detected; sign in to PDD first',
     'pdd.requestFailed': 'The PDD order request failed',
+    'pdd.sessionCookieFailed': 'Unable to switch the PDD account session safely',
   },
 } as const satisfies Record<UiLanguage, Record<AppErrorCode, string>>;
 

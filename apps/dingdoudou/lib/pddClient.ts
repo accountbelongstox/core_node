@@ -49,17 +49,58 @@ function expire(): number {
 }
 
 async function setCookie(name: string, value: string): Promise<void> {
-  try {
-    await chrome.cookies.set({
-      url: PDD_ORIGIN,
-      domain: COOKIE_DOMAIN,
-      name,
-      value,
-      path: '/',
-      expirationDate: expire(),
+  const cookie = await chrome.cookies.set({
+    url: PDD_ORIGIN,
+    domain: COOKIE_DOMAIN,
+    name,
+    value,
+    path: '/',
+    expirationDate: expire(),
+  });
+  if (!cookie) throw new AppError('pdd.sessionCookieFailed');
+}
+
+function cookieUrl(cookie: chrome.cookies.Cookie): string {
+  const hostname = cookie.domain.replace(/^\./, '');
+  return `https://${hostname}${cookie.path}`;
+}
+
+async function readSessionCookies(): Promise<chrome.cookies.Cookie[]> {
+  const cookies = await chrome.cookies.getAll({ url: PDD_ORIGIN });
+  return cookies.filter((cookie) => SESSION_COOKIE_NAMES.includes(cookie.name));
+}
+
+async function removeCookie(cookie: chrome.cookies.Cookie): Promise<void> {
+  await chrome.cookies.remove({
+    url: cookieUrl(cookie),
+    name: cookie.name,
+    storeId: cookie.storeId,
+    partitionKey: cookie.partitionKey,
+  });
+}
+
+async function clearSessionCookies(): Promise<void> {
+  const cookies = await readSessionCookies();
+  for (const cookie of cookies) await removeCookie(cookie);
+}
+
+async function restoreSessionCookies(cookies: chrome.cookies.Cookie[]): Promise<void> {
+  await clearSessionCookies();
+  for (const cookie of cookies) {
+    const restored = await chrome.cookies.set({
+      url: cookieUrl(cookie),
+      domain: cookie.hostOnly ? undefined : cookie.domain,
+      name: cookie.name,
+      value: cookie.value,
+      path: cookie.path,
+      secure: cookie.secure,
+      httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite,
+      expirationDate: cookie.session ? undefined : cookie.expirationDate,
+      storeId: cookie.storeId,
+      partitionKey: cookie.partitionKey,
     });
-  } catch {
-    // best-effort; some cookie names may be httpOnly-protected on set
+    if (!restored) throw new AppError('pdd.sessionCookieFailed');
   }
 }
 
@@ -97,8 +138,9 @@ export async function readActiveCredential(): Promise<PddCredential | null> {
   };
 }
 
-// Make the given account the "current" buyer by rewriting its identity cookies.
-export async function activateCredential(cred: PddCredential): Promise<void> {
+// Install one account session inside the serialized request transaction.
+async function activateCredential(cred: PddCredential): Promise<void> {
+  await clearSessionCookies();
   await setCookie('pdd_user_id', cred.pddUserId);
   await setCookie('PDDAccessToken', cred.accessToken);
   if (cred.cookie) {
@@ -126,6 +168,7 @@ function authHeaders(cred: PddCredential): Record<string, string> {
 async function pddFetch(cred: PddCredential, path: string, init?: RequestInit): Promise<Response> {
   const url = path.startsWith('http') ? path : `${PDD_ORIGIN}${path}`;
   const previous = credentialQueue;
+  let originalCookies: chrome.cookies.Cookie[] | null = null;
   let release = () => {};
   credentialQueue = new Promise<void>((resolve) => {
     release = resolve;
@@ -133,6 +176,7 @@ async function pddFetch(cred: PddCredential, path: string, init?: RequestInit): 
 
   await previous;
   try {
+    originalCookies = await readSessionCookies();
     await activateCredential(cred);
     return await fetch(url, {
       credentials: 'include',
@@ -140,7 +184,11 @@ async function pddFetch(cred: PddCredential, path: string, init?: RequestInit): 
       headers: { ...authHeaders(cred), ...(init?.headers as Record<string, string> | undefined) },
     });
   } finally {
-    release();
+    try {
+      if (originalCookies) await restoreSessionCookies(originalCookies);
+    } finally {
+      release();
+    }
   }
 }
 

@@ -94,7 +94,6 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step59_InstallBark.ps1',
     'scripts/shells/win/install_powershells/Step60_InstallParler.ps1',
     'scripts/shells/win/install_powershells/Step61_InstallQwen3Tts.ps1',
-    'scripts/shells/win/install_powershells/Step62_InstallAndroidSdkPackages.ps1',
     'scripts/shells/win/install_powershells/Step93_InstallFrankenPHP.ps1',
     'scripts/shells/win/install_powershells/Step94_InstallComposer.ps1',
     'scripts/shells/win/install_powershells/Step96_ConfigurePHP85.ps1',
