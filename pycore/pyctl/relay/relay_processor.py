@@ -8,10 +8,10 @@ import hashlib
 import json
 import time
 from datetime import datetime
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any, Callable, Dict, Iterable, Mapping
 
 from pycore.pyctl.relay.relay_transport import RelayHttpError, relay_transport
-from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.serialized_worker import map_bus_tasks, start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
@@ -36,6 +36,7 @@ RELAY_RESULT_CANCELED = "canceled"
 RELAY_RESULT_EXPIRED = "expired"
 RELAY_LEASE_STOP_PREFIX = "relay.v2.operation.lease.stop"
 RELAY_LEASE_LOST_PREFIX = "relay.v2.operation.lease.lost"
+RELAY_LEASE_DEADLINE_PREFIX = "relay.v2.operation.lease.deadline"
 
 
 class RelayOperationProcessor:
@@ -46,17 +47,50 @@ class RelayOperationProcessor:
         operations: Iterable[Mapping[str, Any]],
         lease_owner: str,
     ) -> None:
+        items = []
+        operation_ids = set()
         for descriptor in operations:
             operation_id = str(descriptor.get("operation_id") or "")
-            try:
-                self.process(descriptor, lease_owner)
-            except Exception as exc:
-                relay_activity_log.error(
-                    "operation.processing.interrupted",
+            if operation_id and operation_id in operation_ids:
+                relay_activity_log.warning(
+                    "operation.claim.duplicate_ignored",
                     operation_id=operation_id,
-                    error_type=type(exc).__name__,
-                    error=exc,
                 )
+                continue
+            if operation_id:
+                operation_ids.add(operation_id)
+            items.append((dict(descriptor), str(lease_owner)))
+        if not items:
+            return
+        relay_activity_log.info(
+            "operation.batch.started",
+            operation_count=len(items),
+            lease_owner=lease_owner,
+        )
+        map_bus_tasks(
+            self._process_item,
+            items,
+            max_workers=relay_contract.limit("device_active_leases"),
+            thread_prefix="RelayV2Operation",
+        )
+        relay_activity_log.success(
+            "operation.batch.completed",
+            operation_count=len(items),
+            lease_owner=lease_owner,
+        )
+
+    def _process_item(self, item: tuple) -> None:
+        descriptor, lease_owner = item
+        operation_id = str(descriptor.get("operation_id") or "")
+        try:
+            self.process(descriptor, lease_owner)
+        except Exception as error:
+            relay_activity_log.error(
+                "operation.processing.interrupted",
+                operation_id=operation_id,
+                error_type=type(error).__name__,
+                error=error,
+            )
 
     def process(
         self,
@@ -107,27 +141,48 @@ class RelayOperationProcessor:
                 ledger["result"].get("response_outcome")
                 or RELAY_RESULT_RESPONDED
             )
-            self._post_response(request, response, outcome)
+            self._run_with_lease(
+                request,
+                self._post_response,
+                request,
+                response,
+                outcome,
+            )
             return
         if action == RELAY_EXECUTION_UNKNOWN:
             self._begin_execution(request)
-            self._post_execution_unknown(request, "prior_execution_incomplete")
+            self._run_with_lease(
+                request,
+                self._post_execution_unknown,
+                request,
+                "prior_execution_incomplete",
+            )
             return
         if action != RELAY_EXECUTE:
             raise RuntimeError("relay_ledger_action_invalid")
         self._begin_execution(request)
         relay_execution_ledger.mark_started(operation_id)
-        self._execute_with_lease(request)
+        self._run_with_lease(request, self._execute, request)
 
-    def _execute_with_lease(self, request: Dict[str, Any]) -> None:
+    def _run_with_lease(
+        self,
+        request: Dict[str, Any],
+        callback: Callable[..., None],
+        *arguments: Any,
+    ) -> None:
         operation_id = str(request["operation_id"])
         claim_epoch = int(request["claim_epoch"])
         stop_signal = f"{RELAY_LEASE_STOP_PREFIX}.{operation_id}.{claim_epoch}"
         lost_signal = f"{RELAY_LEASE_LOST_PREFIX}.{operation_id}.{claim_epoch}"
+        deadline_signal = (
+            f"{RELAY_LEASE_DEADLINE_PREFIX}.{operation_id}.{claim_epoch}"
+        )
         THREAD_BUS.clear_signal(stop_signal)
         THREAD_BUS.clear_signal(lost_signal)
+        THREAD_BUS.signal(deadline_signal, float(request["lease_deadline"]))
         request["lease_lost_signal"] = lost_signal
-        start_bus_task(
+        request["lease_deadline_signal"] = deadline_signal
+        lease_thread = start_bus_task(
             self._lease_renew_loop,
             dict(request),
             stop_signal,
@@ -135,19 +190,69 @@ class RelayOperationProcessor:
             thread_name="RelayV2LeaseRenewThread",
         )
         try:
-            self._execute(request)
+            self._assert_active_lease(request)
+            callback(*arguments)
         finally:
             THREAD_BUS.signal(stop_signal, True)
-            if THREAD_BUS.get_signal(lost_signal, False):
+            lease_thread.join(
+                timeout=relay_contract.duration(
+                    "operation_lease_shutdown_wait_seconds"
+                )
+            )
+            if lease_thread.is_alive():
+                THREAD_BUS.signal(lost_signal, True)
                 relay_activity_log.error(
-                    "operation.lease.lost",
+                    "operation.lease.thread.stop_timeout",
                     operation_id=operation_id,
                     claim_epoch=claim_epoch,
                 )
+                try:
+                    start_bus_task(
+                        self._cleanup_lease_thread,
+                        lease_thread,
+                        stop_signal,
+                        lost_signal,
+                        deadline_signal,
+                        thread_name="RelayV2LeaseCleanupThread",
+                    )
+                except Exception as error:
+                    relay_activity_log.error(
+                        "operation.lease.thread.cleanup.failed",
+                        operation_id=operation_id,
+                        claim_epoch=claim_epoch,
+                        error_type=type(error).__name__,
+                        error=error,
+                    )
+            else:
+                if THREAD_BUS.get_signal(lost_signal, False):
+                    relay_activity_log.error(
+                        "operation.lease.lost",
+                        operation_id=operation_id,
+                        claim_epoch=claim_epoch,
+                    )
+                THREAD_BUS.clear_signal(stop_signal)
+                THREAD_BUS.clear_signal(lost_signal)
+                THREAD_BUS.clear_signal(deadline_signal)
+
+    @staticmethod
+    def _cleanup_lease_thread(
+        lease_thread: Any,
+        stop_signal: str,
+        lost_signal: str,
+        deadline_signal: str,
+    ) -> None:
+        lease_thread.join()
+        THREAD_BUS.clear_signal(stop_signal)
+        THREAD_BUS.clear_signal(lost_signal)
+        THREAD_BUS.clear_signal(deadline_signal)
+        relay_activity_log.info(
+            "operation.lease.thread.cleanup.completed",
+            thread_name=lease_thread.name,
+        )
 
     def _begin_execution(self, request: Dict[str, Any]) -> None:
         operation_id = str(request["operation_id"])
-        claimed_revision = int(request["operation_revision"])
+        descriptor_revision = int(request["operation_revision"])
         claimed_state = str(request["remote_state"])
         data = relay_transport.request_json(
             "POST",
@@ -164,6 +269,7 @@ class RelayOperationProcessor:
                 "retry_policy": str(request["retry_policy"]),
             },
             action="operation.execution_start",
+            coordinator_url=str(request["coordinator_url"]),
         )
         operation = (
             data.get("operation")
@@ -179,9 +285,9 @@ class RelayOperationProcessor:
             raise RuntimeError("relay_execution_start_state_invalid")
         if claim_epoch != int(request["claim_epoch"]):
             raise RuntimeError("relay_execution_start_epoch_conflict")
-        if claimed_state == "leased" and revision <= claimed_revision:
+        if claimed_state == "leased" and revision <= descriptor_revision:
             raise RuntimeError("relay_execution_start_revision_invalid")
-        if claimed_state == "executing" and revision != claimed_revision:
+        if claimed_state == "executing" and revision != descriptor_revision:
             raise RuntimeError("relay_execution_start_idempotency_conflict")
         lease_deadline = self._lease_deadline(server_time, lease_expires_at)
         request["operation_revision"] = revision
@@ -212,6 +318,7 @@ class RelayOperationProcessor:
         max_retry_seconds = relay_contract.duration(
             "subscriber_reconnect_max_seconds"
         )
+        deadline_signal = str(request["lease_deadline_signal"])
         lease_deadline = float(request["lease_deadline"])
         wait_seconds = renew_seconds
         while not THREAD_BUS.get_signal(stop_signal, False):
@@ -233,6 +340,7 @@ class RelayOperationProcessor:
                         "lease_owner": str(request["lease_owner"]),
                     },
                     action="operation.lease.renew",
+                    coordinator_url=str(request["coordinator_url"]),
                 )
                 operation = (
                     data.get("operation")
@@ -255,6 +363,7 @@ class RelayOperationProcessor:
                     server_time,
                     lease_expires_at,
                 )
+                THREAD_BUS.signal(deadline_signal, lease_deadline)
                 relay_activity_log.success(
                     "operation.lease.renewed",
                     operation_id=operation_id,
@@ -433,14 +542,19 @@ class RelayOperationProcessor:
             dict(descriptor.get("headers") or {}),
             "request",
         )
-        claimed_revision = int(descriptor.get("revision") or 0)
+        descriptor_revision = int(descriptor.get("revision") or 0)
         remote_state = str(descriptor.get("state") or "").strip().lower()
         claim_epoch = int(descriptor.get("claim_epoch") or 0)
         lease_owner = str(descriptor.get("lease_owner") or "")
         lease_expires_at = str(descriptor.get("lease_expires_at") or "")
+        coordinator_url = str(descriptor.get("_coordinator_url") or "")
         if not operation_id or not pairing_id or not user_id or not path:
             raise ValueError("relay_operation_descriptor_incomplete")
-        if claimed_revision <= 0:
+        if not coordinator_url:
+            raise ValueError("relay_operation_coordinator_missing")
+        if path != relay_contract.canonical_path(path):
+            raise ValueError("relay_operation_path_not_canonical")
+        if descriptor_revision <= 0:
             raise ValueError("relay_operation_revision_invalid")
         if remote_state not in ("leased", "executing"):
             raise ValueError("relay_operation_state_invalid")
@@ -457,7 +571,12 @@ class RelayOperationProcessor:
         if not isinstance(body_present_value, bool):
             raise ValueError("relay_request_body_presence_missing")
         body_present = bool(body_present_value)
-        body = self._request_body(descriptor, operation_id, body_present)
+        body = self._request_body(
+            descriptor,
+            operation_id,
+            body_present,
+            coordinator_url,
+        )
         body_sha256 = hashlib.sha256(body).hexdigest()
         expected_body_sha256 = str(descriptor.get("body_sha256") or "")
         expected_body_length = int(descriptor.get("body_length") or 0)
@@ -491,11 +610,12 @@ class RelayOperationProcessor:
         )
         return {
             "operation_id": operation_id,
-            "operation_revision": claimed_revision,
+            "operation_revision": descriptor_revision,
             "remote_state": remote_state,
             "claim_epoch": claim_epoch,
             "lease_owner": lease_owner,
             "lease_expires_at": lease_expires_at,
+            "coordinator_url": coordinator_url,
             "pairing_id": pairing_id,
             "user_id": user_id,
             "method": method,
@@ -515,6 +635,7 @@ class RelayOperationProcessor:
         descriptor: Mapping[str, Any],
         operation_id: str,
         body_present: bool,
+        coordinator_url: str,
     ) -> bytes:
         body_base64 = descriptor.get("body_base64")
         body_ref = str(descriptor.get("body_ref") or "")
@@ -538,6 +659,7 @@ class RelayOperationProcessor:
                 relay_contract.endpoint("request_blob", blob_id=body_ref),
                 timeout=relay_contract.duration("request_timeout_seconds"),
                 action="operation.request_blob.download",
+                coordinator_url=coordinator_url,
             )
             return bytes(response.content or b"")
         raise ValueError("relay_request_body_source_missing")
@@ -618,6 +740,7 @@ class RelayOperationProcessor:
             payload,
             timeout=relay_contract.duration("request_timeout_seconds"),
             action="operation.result.submit",
+            coordinator_url=str(request["coordinator_url"]),
         )
         relay_activity_log.success(
             "operation.result.submitted",
@@ -653,6 +776,7 @@ class RelayOperationProcessor:
                 "body_present": False,
             },
             action="operation.result.unknown",
+            coordinator_url=str(request["coordinator_url"]),
         )
 
     def _reject_descriptor(
@@ -694,12 +818,14 @@ class RelayOperationProcessor:
         operation_revision = int(descriptor.get("revision") or 0)
         claim_epoch = int(descriptor.get("claim_epoch") or 0)
         descriptor_lease_owner = str(descriptor.get("lease_owner") or "")
+        coordinator_url = str(descriptor.get("_coordinator_url") or "")
         if (
             not operation_id
             or operation_revision <= 0
             or claim_epoch <= 0
             or not descriptor_lease_owner
             or descriptor_lease_owner != str(lease_owner)
+            or not coordinator_url
         ):
             relay_activity_log.error(
                 "operation.nonexecution.unreportable",
@@ -733,6 +859,7 @@ class RelayOperationProcessor:
             ),
             payload,
             action="operation.result.nonexecution",
+            coordinator_url=coordinator_url,
         )
         relay_activity_log.success(
             "operation.nonexecution.submitted",
@@ -767,6 +894,7 @@ class RelayOperationProcessor:
                 "lease_owner": str(request["lease_owner"]),
             },
             action="operation.response_blob.allocate",
+            coordinator_url=str(request["coordinator_url"]),
         )
         blob = allocation.get("blob") if isinstance(allocation.get("blob"), dict) else allocation
         blob_id = str(blob.get("blob_id") or "")
@@ -774,6 +902,7 @@ class RelayOperationProcessor:
             raise RuntimeError("relay_response_blob_id_missing")
         chunk_size = relay_contract.limit("blob_chunk_bytes")
         for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
+            self._assert_active_lease(request)
             chunk = body[offset : offset + chunk_size]
             relay_transport.request_bytes(
                 "PUT",
@@ -784,7 +913,9 @@ class RelayOperationProcessor:
                 ),
                 body=chunk,
                 action="operation.response_blob.chunk",
+                coordinator_url=str(request["coordinator_url"]),
             )
+        self._assert_active_lease(request)
         relay_transport.request_json(
             "POST",
             relay_contract.endpoint("response_blob_finalize", blob_id=blob_id),
@@ -797,6 +928,7 @@ class RelayOperationProcessor:
                 "lease_owner": str(request["lease_owner"]),
             },
             action="operation.response_blob.finalize",
+            coordinator_url=str(request["coordinator_url"]),
         )
         return blob_id
 
@@ -815,6 +947,10 @@ class RelayOperationProcessor:
         usable_seconds = lease_remaining_seconds - guard_seconds
         if usable_seconds <= 0:
             raise RuntimeError("relay_operation_lease_expired")
+        if usable_seconds <= relay_contract.duration(
+            "operation_lease_renew_seconds"
+        ):
+            raise RuntimeError("relay_operation_lease_too_short")
         if lease_remaining_seconds > relay_contract.duration(
             "operation_lease_seconds"
         ):
@@ -844,6 +980,18 @@ class RelayOperationProcessor:
         signal = str(request.get("lease_lost_signal") or "")
         if signal and THREAD_BUS.get_signal(signal, False):
             raise RuntimeError("relay_operation_lease_lost")
+        deadline_signal = str(request.get("lease_deadline_signal") or "")
+        lease_deadline = float(
+            THREAD_BUS.get_signal(
+                deadline_signal,
+                request.get("lease_deadline") or 0,
+            )
+            or 0
+        )
+        if lease_deadline <= time.monotonic():
+            if signal:
+                THREAD_BUS.signal(signal, True)
+            raise RuntimeError("relay_operation_lease_expired")
 
 
 relay_operation_processor = RelayOperationProcessor()

@@ -33,8 +33,11 @@ RELAY_CONTRACT_REQUIRED_SECTIONS = (
     "operation_transitions",
     "transition_guards",
     "result_outcomes",
+    "retry_policies",
+    "route_policy_matching",
     "route_policy_profiles",
     "route_policies",
+    "capabilities",
 )
 RELAY_ROUTE_PROFILE_REQUIRED_FIELDS = (
     "exposure",
@@ -88,7 +91,26 @@ class RelayContract:
         profiles = document["route_policy_profiles"]
         if not isinstance(profiles, dict):
             raise ValueError("Relay route_policy_profiles must be an object")
+        matching = document["route_policy_matching"]
+        if list(matching.get("precedence") or []) != [
+            "exact",
+            "prefix",
+            "suffix",
+        ]:
+            raise ValueError("Relay route policy precedence is invalid")
+        if str(matching.get("tie_breaker") or "") != (
+            "longest-value-then-first-declared"
+        ):
+            raise ValueError("Relay route policy tie breaker is invalid")
+        if str(matching.get("default_profile") or "") not in profiles:
+            raise ValueError("Relay default route profile is invalid")
+        retry_policies = {str(value) for value in document["retry_policies"]}
+        route_keys = set()
         for policy in document["route_policies"]:
+            match_kind = str(policy.get("match") or "")
+            match_value = str(policy.get("value") or "")
+            if match_kind not in ("exact", "prefix", "suffix") or not match_value:
+                raise ValueError("Relay route policy match is invalid")
             profile_name = str(policy.get("profile") or "")
             profile = profiles.get(profile_name)
             if not isinstance(profile, dict):
@@ -106,6 +128,23 @@ class RelayContract:
                         f"Relay route policy conflicts with profile: "
                         f"{policy.get('value')}.{field}"
                     )
+            methods = tuple(
+                sorted(str(value).upper() for value in policy.get("methods") or [])
+            )
+            if not methods or any(value not in ("GET", "POST") for value in methods):
+                raise ValueError("Relay route policy methods are invalid")
+            route_key = (
+                match_kind,
+                match_value,
+                methods,
+            )
+            if route_key in route_keys:
+                raise ValueError("Relay route policy is duplicated")
+            route_keys.add(route_key)
+            if str(profile.get("retry") or "") not in retry_policies:
+                raise ValueError(
+                    f"Relay retry policy is invalid: {profile_name}"
+                )
         states = {str(value) for value in document["operation_states"]}
         transition_states = {
             str(value) for value in document["operation_transitions"]
@@ -125,9 +164,13 @@ class RelayContract:
         guard_seconds = float(
             document["durations"]["operation_lease_expiry_guard_seconds"]
         )
+        shutdown_wait_seconds = float(
+            document["durations"]["operation_lease_shutdown_wait_seconds"]
+        )
         if (
             renew_seconds <= 0
             or guard_seconds <= 0
+            or shutdown_wait_seconds <= 0
             or lease_seconds <= renew_seconds + guard_seconds
         ):
             raise ValueError("Relay operation lease durations are invalid")
@@ -179,6 +222,11 @@ class RelayContract:
         values = self.document["headers"][f"{direction}_allow"]
         return [str(value).lower() for value in values]
 
+    def mercure(self, name: str) -> Any:
+        if name not in self.document["mercure_profile"]:
+            raise KeyError(f"Relay Mercure profile value is not defined: {name}")
+        return self.document["mercure_profile"][name]
+
     def capabilities(self) -> List[str]:
         return [str(value) for value in self.document.get("capabilities") or []]
 
@@ -186,8 +234,22 @@ class RelayContract:
         raw_path = str(path or "")
         if "?" in raw_path or "#" in raw_path:
             raise ValueError("relay_signature_path_query_fragment_forbidden")
+        if raw_path.startswith("//") or "\\" in raw_path:
+            raise ValueError("relay_signature_path_separator_invalid")
+        for index, character in enumerate(raw_path):
+            if character != "%":
+                continue
+            encoded = raw_path[index + 1 : index + 3]
+            if len(encoded) != 2 or any(
+                value not in "0123456789abcdefABCDEF" for value in encoded
+            ):
+                raise ValueError("relay_signature_path_percent_invalid")
+            if encoded.lower() in ("2f", "5c"):
+                raise ValueError("relay_signature_path_encoded_separator_forbidden")
         one_slash_path = "/" + raw_path.lstrip("/")
         decoded = urllib.parse.unquote_to_bytes(one_slash_path).decode("utf-8")
+        if any(ord(character) < 32 or ord(character) == 127 for character in decoded):
+            raise ValueError("relay_signature_path_control_character_forbidden")
         safe = str(
             self.document["signature_profile"]["canonicalization"][
                 "path_safe_characters"
@@ -204,12 +266,18 @@ class RelayContract:
     def canonical_query(query: Mapping[str, Any]) -> str:
         pairs = []
         for raw_key in sorted(query, key=lambda item: str(item)):
-            key = str(raw_key)
+            if not isinstance(raw_key, str):
+                raise ValueError("relay_signature_query_key_not_string")
+            key = raw_key
             value = query[raw_key]
             if isinstance(value, (list, tuple)):
-                pairs.extend((key, str(item)) for item in value)
-            else:
-                pairs.append((key, str(value)))
+                if any(not isinstance(item, str) for item in value):
+                    raise ValueError("relay_signature_query_value_not_string")
+                pairs.extend((key, item) for item in value)
+                continue
+            if not isinstance(value, str):
+                raise ValueError("relay_signature_query_value_not_string")
+            pairs.append((key, value))
         pairs.sort(key=lambda item: (item[0], item[1]))
         return urllib.parse.urlencode(
             pairs,
@@ -227,7 +295,15 @@ class RelayContract:
     def route_policy(self, path: str, method: str) -> Dict[str, Any]:
         normalized_path = str(path or "").strip().strip("/")
         normalized_method = str(method or "GET").upper()
-        for item in self.document["route_policies"]:
+        precedence = {
+            str(value): len(self.document["route_policy_matching"]["precedence"])
+            - index
+            for index, value in enumerate(
+                self.document["route_policy_matching"]["precedence"]
+            )
+        }
+        matches = []
+        for declaration_index, item in enumerate(self.document["route_policies"]):
             methods = {str(value).upper() for value in item.get("methods") or []}
             if normalized_method not in methods:
                 continue
@@ -252,17 +328,31 @@ class RelayContract:
                 else False
             )
             if matched:
-                profile = dict(
-                    self.document["route_policy_profiles"][str(item["profile"])]
+                matches.append(
+                    (
+                        int(precedence.get(match_kind) or 0),
+                        len(match_value),
+                        -declaration_index,
+                        item,
+                    )
                 )
-                return {**dict(item), **profile}
-        denied = dict(self.document["route_policy_profiles"]["denied"])
-        return {**denied, **{
+        if matches:
+            item = max(matches, key=lambda value: value[:3])[3]
+            profile = dict(
+                self.document["route_policy_profiles"][str(item["profile"])]
+            )
+            return {**dict(item), **profile}
+        default_profile = str(
+            self.document["route_policy_matching"]["default_profile"]
+        )
+        denied = dict(self.document["route_policy_profiles"][default_profile])
+        return {
+            **denied,
             "match": "default",
             "value": normalized_path,
             "methods": [normalized_method],
-            "profile": "denied",
-        }}
+            "profile": default_profile,
+        }
 
 
 relay_contract = RelayContract()

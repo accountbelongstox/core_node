@@ -26,6 +26,7 @@ import time
 import urllib.parse
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyutils.common.activity_log import ActivityLog
 from pycore.pyutils.laravel.transport import (
     create_laravel_http_session,
     response_http_version,
@@ -36,6 +37,7 @@ MERCURE_DEFAULT_EVENT_TYPE = "message"
 MERCURE_STATE_CONNECTING = "connecting"
 MERCURE_STATE_ONLINE = "online"
 MERCURE_STATE_OFFLINE = "offline"
+mercure_activity_log = ActivityLog("Mercure")
 
 UpdateCallback = Callable[["MercureUpdate"], None]
 StateCallback = Callable[[str, str], None]
@@ -92,7 +94,8 @@ class MercureSubscriber:
         reconnect_max_seconds: float = 30.0,
         connect_timeout: float = 10.0,
         read_timeout: float = 90.0,
-        max_redirects: int = 3,
+        max_redirects: int = 0,
+        max_event_bytes: int = 65536,
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> None:
         self.hub_url = str(hub_url or "").rstrip("/")
@@ -109,6 +112,7 @@ class MercureSubscriber:
         # streams always yield heartbeat comment lines before this fires.
         self.read_timeout = max(1.0, float(read_timeout))
         self.max_redirects = max(0, int(max_redirects))
+        self.max_event_bytes = max(1, int(max_event_bytes))
         self.extra_headers = {
             key: value
             for key, value in dict(extra_headers or {}).items()
@@ -128,7 +132,7 @@ class MercureSubscriber:
             reason = "closed"
             try:
                 self._notify(MERCURE_STATE_CONNECTING, self.hub_url)
-                connection, url, headers = self._open_stream(initial_cursor)
+                connection, url, _headers = self._open_stream(initial_cursor)
                 initial_cursor = ""
                 transport = str(connection.get("transport") or "")
                 protocol = str(connection.get("http_version") or "")
@@ -140,10 +144,21 @@ class MercureSubscriber:
                 reason = self._consume_stream(connection, should_stop)
             except _MercureAuthError as exc:
                 reason = "unauthorized"
+                mercure_activity_log.warning(
+                    "subscription.authorization.rejected",
+                    hub_url=self.hub_url,
+                    error=exc,
+                )
                 self._notify(MERCURE_STATE_OFFLINE, f"hub rejected the token: {exc}")
                 reconnect_seconds = self.reconnect_min_seconds
             except Exception as exc:  # noqa: BLE001 - reconnect owns transport failures
                 reason = "error"
+                mercure_activity_log.error(
+                    "subscription.connection.failed",
+                    hub_url=self.hub_url,
+                    error_type=type(exc).__name__,
+                    error=exc,
+                )
                 self._notify(MERCURE_STATE_OFFLINE, str(exc) or exc.__class__.__name__)
             finally:
                 self._close(connection)
@@ -234,6 +249,7 @@ class MercureSubscriber:
             return "closed"
         event_type = MERCURE_DEFAULT_EVENT_TYPE
         data_lines: List[str] = []
+        data_bytes = 0
         dispatchable = False
         try:
             for raw_line in response.iter_lines():
@@ -249,6 +265,7 @@ class MercureSubscriber:
                         self._dispatch(event_type, data_lines)
                     event_type = MERCURE_DEFAULT_EVENT_TYPE
                     data_lines = []
+                    data_bytes = 0
                     dispatchable = False
                     continue
                 if line.startswith(":"):
@@ -257,6 +274,11 @@ class MercureSubscriber:
                 if value.startswith(" "):
                     value = value[1:]
                 if field == "data":
+                    data_bytes += len(value.encode("utf-8"))
+                    if data_lines:
+                        data_bytes += 1
+                    if data_bytes > self.max_event_bytes:
+                        raise RuntimeError("mercure_event_payload_limit_exceeded")
                     data_lines.append(value)
                     dispatchable = True
                 elif field == "event":
@@ -267,16 +289,30 @@ class MercureSubscriber:
                 elif field == "retry":
                     self._apply_retry(value)
             return "closed"
-        except Exception:  # noqa: BLE001 - read timeout/close reconnects with cursor
+        except Exception as error:  # noqa: BLE001 - transport errors require resume
+            mercure_activity_log.warning(
+                "subscription.stream.interrupted",
+                hub_url=self.hub_url,
+                last_event_id=self.last_event_id,
+                error_type=type(error).__name__,
+                error=error,
+            )
             return "closed"
 
     def _dispatch(self, event_type: str, data_lines: List[str]) -> None:
         if self.on_update is None:
             return
         update = MercureUpdate(self.last_event_id, event_type, "\n".join(data_lines))
-            try:
-                self.on_update(update)
+        try:
+            self.on_update(update)
         except Exception as exc:  # noqa: BLE001 - one bad handler never kills the stream
+            mercure_activity_log.error(
+                "subscription.update.callback.failed",
+                event_id=update.id,
+                event_type=update.type,
+                error_type=type(exc).__name__,
+                error=exc,
+            )
             self._notify(
                 MERCURE_STATE_OFFLINE,
                 str(exc) or exc.__class__.__name__,
@@ -301,14 +337,24 @@ class MercureSubscriber:
             return
         try:
             self.on_state_change(state, detail)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001 - diagnostics must not stop SSE
+            mercure_activity_log.error(
+                "subscription.state.callback.failed",
+                state=state,
+                error_type=type(error).__name__,
+                error=error,
+            )
 
     @staticmethod
     def _short_body(response: Any) -> str:
         try:
             return str(response.text or "")[:2048]
-        except Exception:  # noqa: BLE001
+        except Exception as error:  # noqa: BLE001 - diagnostics are best effort
+            mercure_activity_log.warning(
+                "subscription.error_body.unavailable",
+                error_type=type(error).__name__,
+                error=error,
+            )
             return ""
 
     @staticmethod
@@ -319,14 +365,22 @@ class MercureSubscriber:
             response = connection.get("response")
             if response is not None:
                 response.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001 - close remains idempotent
+            mercure_activity_log.warning(
+                "subscription.response.close.failed",
+                error_type=type(error).__name__,
+                error=error,
+            )
         try:
             session = connection.get("session")
             if session is not None:
                 session.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001 - close remains idempotent
+            mercure_activity_log.warning(
+                "subscription.session.close.failed",
+                error_type=type(error).__name__,
+                error=error,
+            )
 
 
 class _MercureAuthError(Exception):

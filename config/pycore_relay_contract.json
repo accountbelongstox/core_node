@@ -10,7 +10,13 @@
       "path_safe_characters": "/-._~",
       "path_leading_slash": "exactly-one",
       "path_query_fragment": "forbidden",
+      "path_multiple_leading_slashes": "forbidden",
+      "path_backslash": "forbidden",
+      "path_encoded_separator": "forbidden-percent-2f-and-percent-5c",
+      "path_percent_triplets": "required-valid-hex",
+      "path_control_characters": "forbidden",
       "query": "sorted-string-pairs-form-urlencoded-utf8",
+      "query_key_and_value_types": "string-or-repeated-string-values-only",
       "query_duplicate_values": "expand-then-sort-by-key-and-value",
       "query_empty_value": "key-equals",
       "query_space": "plus",
@@ -82,6 +88,7 @@
   "mercure_profile": {
     "hub_runtime": "mercure.rocks-0.24.2-embedded-frankenphp",
     "transport": "server-sent-events",
+    "hub_path": "/.well-known/mercure",
     "subscription_query_parameter": "topic",
     "subscription_query_cardinality": "repeated",
     "authorization": "bearer-private-subscriber-jwt",
@@ -120,6 +127,7 @@
     "operation_lease_seconds": 90,
     "operation_lease_renew_seconds": 20,
     "operation_lease_expiry_guard_seconds": 2,
+    "operation_lease_shutdown_wait_seconds": 2,
     "signature_clock_skew_seconds": 60,
     "nonce_retention_seconds": 300,
     "enrollment_retention_seconds": 600,
@@ -221,6 +229,11 @@
     "idempotent_write",
     "at_most_once_action"
   ],
+  "route_policy_matching": {
+    "precedence": ["exact", "prefix", "suffix"],
+    "tie_breaker": "longest-value-then-first-declared",
+    "default_profile": "denied"
+  },
   "route_policy_profiles": {
     "terminal_read": {
       "exposure": "relay",
@@ -270,217 +283,163 @@
       "match": "exact",
       "value": "ui/terminal/windows",
       "profile": "terminal_read",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/content",
       "profile": "terminal_resource",
-      "methods": ["GET"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/screenshot",
       "profile": "terminal_resource",
-      "methods": ["GET"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/viewer_demand",
       "profile": "terminal_write",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "idempotent_write"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/activate",
       "profile": "terminal_action",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/draft",
       "profile": "terminal_write",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "idempotent_write"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/view",
       "profile": "terminal_write",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "idempotent_write"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/schedule_queue/sync",
       "profile": "terminal_write",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "idempotent_write"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/schedule_queue/clear",
       "profile": "terminal_write",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "idempotent_write"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/click",
       "profile": "terminal_action",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/command_history",
       "profile": "terminal_action",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/enter",
       "profile": "terminal_action",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/input",
       "profile": "terminal_action",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/terminal/scroll",
       "profile": "terminal_action",
-      "methods": ["POST"],
-      "exposure": "relay",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "suffix",
       "value": "/open",
       "profile": "denied",
-      "methods": ["GET", "POST"],
-      "exposure": "denied",
-      "retry": "at_most_once_action"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "_reveal",
       "profile": "denied",
-      "methods": ["GET", "POST"],
-      "exposure": "denied",
-      "retry": "at_most_once_action"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/pick_path",
       "profile": "denied",
-      "methods": ["GET", "POST"],
-      "exposure": "denied",
-      "retry": "at_most_once_action"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "exact",
       "value": "ui/assist/bind_laravel_endpoint",
       "profile": "denied",
-      "methods": ["POST"],
-      "exposure": "denied",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "exact",
       "value": "ui/assist/laravel_transport_probe",
       "profile": "denied",
-      "methods": ["POST"],
-      "exposure": "denied",
-      "retry": "at_most_once_action"
+      "methods": ["POST"]
     },
     {
       "match": "suffix",
       "value": "/status",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/snapshot",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/history",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/info",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/capabilities",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/version",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "suffix",
       "value": "/resource",
       "profile": "general_read",
-      "methods": ["GET", "POST"],
-      "exposure": "relay",
-      "retry": "read"
+      "methods": ["GET", "POST"]
     },
     {
       "match": "prefix",
       "value": "ui/",
       "profile": "denied",
-      "methods": ["GET", "POST"],
-      "exposure": "denied",
-      "retry": "at_most_once_action"
+      "methods": ["GET", "POST"]
     }
   ],
   "capabilities": [

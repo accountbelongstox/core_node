@@ -61,6 +61,50 @@ task. The parallel Laravel AI must read the main design, this progress file,
   records. Keys, credentials, claim codes, signatures, authorization, and
   tokens are redacted; bytes are logged only as length and SHA-256.
 
+## Continuation hardening
+
+- Corrected the shared Mercure subscriber parser and added bounded event data,
+  redirect denial, explicit connection/callback/close diagnostics, and exact
+  legacy query/header behavior for the pinned Mercure 0.24.2 runtime.
+- Serialized Relay identity mutations through its ThreadBus owner. A missing or
+  invalid private key is no longer silently replaced when enrollment or
+  credential state exists, and atomic writes apply the private file mode before
+  replacement on POSIX.
+- Removed thread-local SQLite connections. State transactions now use one
+  short-lived connection with explicit close, manual transaction boundaries,
+  WAL, foreign keys, and the shared SQLite adapter.
+- Replaced the shared RPC HTTP/SSE delivery bridge's `RLock` with a dedicated
+  ThreadBus serialized state owner; bindings are snapshotted before publishing
+  onto their asyncio event loops.
+- Moved claimed-operation execution out of the heartbeat/control loop and into
+  a bounded ThreadBus batch using `device_active_leases`. Duplicate operation
+  IDs in one claim are ignored, while heartbeat, wake reconciliation, and later
+  claims remain independently scheduled.
+- Bound every claimed operation, request-blob fetch, lease renewal, response
+  upload, and result submission to the coordinator that issued the claim.
+  Binary transport requests use `Accept-Encoding: identity` so digest and
+  length checks apply to the intended bytes.
+- Extended lease protection across execution recovery, response replay, unknown
+  outcome submission, and every response-blob chunk. Renewal publishes a shared
+  monotonic deadline; late renewal-thread shutdown preserves its stop fence and
+  delegates eventual signal cleanup instead of reviving a detached renew loop.
+- Made route resolution deterministic (`exact`, then `prefix`, then `suffix`,
+  longest match, then declaration order), validated route profiles at contract
+  load, enforced payload profiles in the execution kernel, and denied request
+  bodies on Relay GET routes.
+- Tightened path/query canonicalization: malformed percent triplets, encoded
+  separators, backslashes, control characters, multiple leading slashes, and
+  non-string query values are rejected. A claimed descriptor path must already
+  equal its canonical form.
+- Restricted Mercure authorization to the active coordinator origin, the exact
+  configured hub path and device topic, finite bounded token lifetimes, and no
+  redirects. Cached hub authorization is cleared on endpoint or credential
+  changes.
+- Repaired local generic-operation terminal state when a durable Relay response
+  already exists, preserving minimum-step crash recovery before replay.
+- Terminal snapshots now remove any legacy `window.screenshot` field on every
+  path, including offline and unsupported windows.
+
 ## Terminal performance correction
 
 The primary slowdown was architectural: every `ui/terminal/windows` snapshot
@@ -145,8 +189,10 @@ not as a mandatory database-table implementation.
 
 ## Review boundary
 
-Static source review checked the new call paths, old Relay Python references,
-route default denial, no Relay localhost loopback, no Terminal Base64 snapshot
-path, and no `Thread(target=...)` in the new runtime. Repository rules prohibit
+Static source review checked the new call paths, deterministic route denial,
+claim-coordinator binding, lease-signal lifecycle, absence of Relay localhost
+loopback, removal of Terminal Base64 snapshots, removal of thread-local state
+connections, removal of lock primitives from the shared RPC/Relay path, and
+absence of `Thread(target=...)` in the new runtime. Repository rules prohibit
 tests, builds, service startup, and runtime verification unless separately
 requested, so none were run.

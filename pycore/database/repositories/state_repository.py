@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
+from pycore.database.adapters.sqlite_local import connect_writable
 from pycore.database.models.state_models import (
     ConsumerOffset,
     Operation,
@@ -31,44 +31,37 @@ class RevisionConflictError(ValueError):
 class StateRepository:
     """
     Thread-safe SQLite repository for operations and state.
-    Uses a single connection per thread.
+    Uses one short-lived connection per transaction.
     """
 
     def __init__(self, db_path: Optional[Path] = None) -> None:
         if db_path is None:
             db_path = get_local_data_dir() / "pycore_state.sqlite3"
         self._db_path = db_path
-        self._local = threading.local()
-        self._journal_initialized = False
-        # Initialize schema on first connection
-        with self._get_conn() as conn:
+        conn = self._open_connection()
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
             init_schema(conn)
+        finally:
+            conn.close()
 
-    def _get_conn(self) -> sqlite3.Connection:
-        if not hasattr(self._local, "conn"):
-            conn = sqlite3.connect(
-                str(self._db_path),
-                timeout=30.0,  # Survive transient cross-instance lock contention
-                isolation_level=None,  # We manage transactions manually
-                check_same_thread=False,
-            )
-            if not self._journal_initialized:
-                # WAL is persistent for the database. Do not renegotiate it on
-                # every executor thread, where the pragma can reserve a lock.
-                conn.execute("PRAGMA journal_mode=WAL")
-                self._journal_initialized = True
-            conn.execute("PRAGMA busy_timeout=30000")
-            conn.execute("PRAGMA foreign_keys=ON")
-            self._local.conn = conn
-        return self._local.conn
+    def _open_connection(self) -> sqlite3.Connection:
+        conn = connect_writable(
+            self._db_path,
+            timeout=30.0,
+            isolation_level=None,
+        )
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
 
     @contextmanager
     def transaction(self) -> Generator[sqlite3.Cursor, None, None]:
         """Context manager for a database transaction."""
-        conn = self._get_conn()
+        conn = self._open_connection()
         cursor = conn.cursor()
-        cursor.execute("BEGIN IMMEDIATE")
         try:
+            cursor.execute("BEGIN IMMEDIATE")
             yield cursor
             conn.commit()
         except Exception:
@@ -76,14 +69,15 @@ class StateRepository:
             raise
         finally:
             cursor.close()
+            conn.close()
 
     @contextmanager
     def read_transaction(self) -> Generator[sqlite3.Cursor, None, None]:
         """Open a deferred read transaction without reserving the writer slot."""
-        conn = self._get_conn()
+        conn = self._open_connection()
         cursor = conn.cursor()
-        cursor.execute("BEGIN")
         try:
+            cursor.execute("BEGIN")
             yield cursor
             conn.commit()
         except Exception:
@@ -91,6 +85,7 @@ class StateRepository:
             raise
         finally:
             cursor.close()
+            conn.close()
 
     # --- Operations ---
 
