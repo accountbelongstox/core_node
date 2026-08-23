@@ -311,6 +311,7 @@ GLOBAL_TASK_PRIORITIES: Dict[str, int] = {
 GLOBAL_TASK_PROGRESS_STAGES: Dict[str, int] = {
     str(key): int(value) for key, value in _TASK_CONTRACT["progress_stages"].items()
 }
+GLOBAL_TASK_PROGRESS_TOTAL = GLOBAL_TASK_PROGRESS_STAGES["completed"]
 GLOBAL_TASK_LIMITS: Dict[str, int] = {
     str(key): int(value) for key, value in _TASK_CONTRACT["limits"].items()
 }
@@ -618,6 +619,7 @@ __all__ = [
     "GLOBAL_TASK_LIVE_STATUSES",
     "GLOBAL_TASK_PRIORITIES",
     "GLOBAL_TASK_PROGRESS_STAGES",
+    "GLOBAL_TASK_PROGRESS_TOTAL",
     "GLOBAL_TASK_STATUSES",
     "GLOBAL_TASK_STATUSES_BY_ROLE",
     "GLOBAL_TASK_STREAM_EVENTS_BY_ROLE",

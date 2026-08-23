@@ -2,9 +2,12 @@
 """Durable delivery outbox shared by Laravel audio worker lanes."""
 
 import copy
+import hashlib
 import os
+import shutil
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -34,6 +37,42 @@ class AudioDeliveryOutbox:
     @staticmethod
     def delivery_id(lane: str, task_id: Any, attempt: int) -> str:
         return f"{str(lane or '').strip()}:{str(task_id or '').strip()}:{max(0, int(attempt))}"
+
+    @staticmethod
+    def retry_delay(attempts: int, initial_seconds: float, maximum_seconds: float) -> float:
+        exponent = max(0, min(int(attempts) - 1, 8))
+        return min(float(maximum_seconds), float(initial_seconds) * (2 ** exponent))
+
+    def stage_audio(
+        self,
+        record: Dict[str, Any],
+        audio_path: str,
+        cache_root: Path,
+    ) -> Dict[str, Any]:
+        """Retain immutable audio before advancing the durable delivery steps."""
+        lane = str(record.get("lane") or "").strip()
+        task_id = record.get("task_id")
+        attempt = max(0, int(record.get("attempt") or 0))
+        delivery_id = self.delivery_id(lane, task_id, attempt)
+        source_path = Path(audio_path).resolve()
+        source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        retained_audio_path = (
+            Path(cache_root).resolve()
+            / "audio_delivery"
+            / lane
+            / hashlib.sha1(delivery_id.encode("utf-8")).hexdigest()
+            / f"{source_sha256}.mp3"
+        )
+        retained_audio_path.parent.mkdir(parents=True, exist_ok=True)
+        if not retained_audio_path.is_file():
+            shutil.copy2(str(source_path), str(retained_audio_path))
+        staged_record = copy.deepcopy(record)
+        staged_record.update({
+            "delivery_id": delivery_id,
+            "audio_path": str(retained_audio_path),
+            "audio_sha256": source_sha256,
+        })
+        return self.put(staged_record)
 
     @staticmethod
     def _load_records() -> Dict[str, Dict[str, Any]]:
@@ -305,8 +344,235 @@ class AudioDeliveryOutbox:
 audio_delivery_outbox = AudioDeliveryOutbox()
 
 
+class AudioDeliveryExecutor:
+    """Advance each independently idempotent Laravel audio delivery step."""
+
+    @staticmethod
+    def _terminal_report_error(detail: str) -> bool:
+        normalized = str(detail or "").lower()
+        return (
+            normalized.startswith("server validation rejected")
+            or normalized.startswith("unknown task on server")
+            or normalized.startswith("http 4")
+        )
+
+    def deliver(
+        self,
+        handler: Any,
+        record: Dict[str, Any],
+        initial_retry_seconds: float,
+        maximum_retry_seconds: float,
+    ) -> Dict[str, Any]:
+        delivery_id = str(record.get("delivery_id") or "")
+        owner = f"{AUDIO_DELIVERY_PROCESS_ID}:{delivery_id}:{time.monotonic_ns()}"
+        claimed = audio_delivery_outbox.claim(delivery_id, owner)
+        if not claimed:
+            return {"delivery_id": delivery_id, "processed": False}
+
+        info = dict(claimed.get("info") or {})
+        task_id = claimed.get("task_id")
+        provider = str(claimed.get("provider") or "")
+        audio_path = str(claimed.get("audio_path") or "")
+        task_type = str(claimed.get("task_type") or handler.QUEUE_KEY)
+        base_url = str(claimed.get("base_url") or handler.api_url)
+        attempts = int(claimed.get("delivery_attempts") or 0) + 1
+        retry_delay = audio_delivery_outbox.retry_delay(
+            attempts,
+            initial_retry_seconds,
+            maximum_retry_seconds,
+        )
+        audio_delivery_outbox.patch(
+            delivery_id,
+            {"delivery_attempts": attempts, "last_attempt_at": time.time()},
+            owner=owner,
+        )
+        handler._remember_task_types(
+            [{"task_id": task_id, "task_type": task_type}],
+            base_url,
+        )
+
+        if not audio_path or not os.path.isfile(audio_path):
+            error = "cached audio is missing"
+            audio_delivery_outbox.mark_dead_letter(delivery_id, owner, error)
+            handler._append_delivery_failure_history(
+                info,
+                provider,
+                audio_path,
+                error,
+                delivery_id,
+            )
+            return {"delivery_id": delivery_id, "processed": True, "success": False}
+
+        domain_uploaded = bool(claimed.get("domain_uploaded"))
+        domain_delivery_finished = bool(
+            claimed.get("domain_delivery_finished", domain_uploaded)
+        )
+        domain_error = str(claimed.get("domain_upload_error") or "")
+        if not domain_delivery_finished:
+            uploaded = handler._upload_report(info, provider, audio_path)
+            if uploaded is not None and not uploaded[0]:
+                error = uploaded[1]
+                if self._terminal_report_error(error):
+                    domain_delivery_finished = True
+                    domain_error = error
+                    audio_delivery_outbox.patch(
+                        delivery_id,
+                        {
+                            "domain_delivery_finished": True,
+                            "domain_uploaded": False,
+                            "domain_upload_error": error,
+                            "last_error": "",
+                        },
+                        owner=owner,
+                    )
+                    handler._log_event(
+                        "upload_terminal",
+                        f"domain upload unavailable; global result fallback: {error}",
+                        info,
+                        mirror=handler.LANE != "word",
+                    )
+                else:
+                    audio_delivery_outbox.release(
+                        delivery_id,
+                        owner,
+                        error=error,
+                        retry_at=time.time() + retry_delay,
+                    )
+                    handler._log_event(
+                        "upload_retry",
+                        f"attempt={attempts} retry_in={retry_delay:.0f}s error={error}",
+                        info,
+                    )
+                    return {"delivery_id": delivery_id, "processed": True, "success": False}
+            else:
+                domain_delivery_finished = True
+                domain_uploaded = uploaded is not None
+                domain_error = ""
+                audio_delivery_outbox.patch(
+                    delivery_id,
+                    {
+                        "domain_delivery_finished": True,
+                        "domain_uploaded": domain_uploaded,
+                        "domain_upload_error": "",
+                        "last_error": "",
+                    },
+                    owner=owner,
+                )
+                handler._log_event(
+                    "upload_done" if domain_uploaded else "upload_skipped",
+                    (
+                        f"backend accepted audio (attempt={attempts})"
+                        if domain_uploaded
+                        else "domain upload is not required; using global result"
+                    ),
+                    info,
+                    mirror=handler.LANE != "word",
+                )
+
+        info["backend_uploaded"] = domain_uploaded
+        if domain_error:
+            info["backend_upload_error"] = domain_error
+
+        result_accepted = bool(claimed.get("result_accepted"))
+        if not result_accepted:
+            result = handler._build_success_result(
+                info,
+                provider,
+                audio_path,
+                include_audio=not (
+                    domain_uploaded
+                    and str(info.get("kind") or "") in ("word", "sentence")
+                ),
+            )
+            posted = handler._post_result(
+                task_id,
+                "completed",
+                result=result,
+                progress=100,
+                attempts=1,
+                attempt=info.get("attempt"),
+            )
+            if not posted:
+                info["backend_result_accepted"] = False
+                handler._mark_backend_result(task_id, False, info.get("attempt"))
+                if str(task_id) not in handler._task_type_by_id:
+                    error = "completed result rejected because task ownership changed"
+                    audio_delivery_outbox.mark_dead_letter(delivery_id, owner, error)
+                    handler._append_delivery_failure_history(
+                        info,
+                        provider,
+                        audio_path,
+                        error,
+                        delivery_id,
+                    )
+                    return {"delivery_id": delivery_id, "processed": True, "success": False}
+                audio_delivery_outbox.release(
+                    delivery_id,
+                    owner,
+                    error="Laravel result endpoint unavailable",
+                    retry_at=time.time() + retry_delay,
+                )
+                return {"delivery_id": delivery_id, "processed": True, "success": False}
+            result_accepted = True
+            audio_delivery_outbox.patch(
+                delivery_id,
+                {"result_accepted": True, "last_error": ""},
+                owner=owner,
+            )
+
+        info["backend_uploaded"] = domain_uploaded
+        info["backend_result_accepted"] = result_accepted
+        handler._mark_backend_result(task_id, True, info.get("attempt"))
+        handler._set_task_progress(info, "completed", provider)
+        history_recorded = bool(claimed.get("history_recorded"))
+        if not history_recorded:
+            history_recorded = handler._append_history(
+                info,
+                provider,
+                audio_path,
+                delivery_id,
+            )
+            if not history_recorded:
+                audio_delivery_outbox.release(
+                    delivery_id,
+                    owner,
+                    error="local task history is unavailable",
+                    retry_at=time.time() + retry_delay,
+                )
+                return {"delivery_id": delivery_id, "processed": True, "success": False}
+            audio_delivery_outbox.patch(
+                delivery_id,
+                {"history_recorded": True, "last_error": ""},
+                owner=owner,
+            )
+        audio_delivery_outbox.complete(delivery_id, owner)
+        local_task_id = str(claimed.get("local_task_id") or "")
+        if str(claimed.get("local_process_id") or "") == AUDIO_DELIVERY_PROCESS_ID:
+            handler._finish_local_task(
+                local_task_id or None,
+                True,
+                provider=provider,
+                audio_path=audio_path,
+                text=(info.get("text") or "")[:120],
+                language=info.get("language") or "",
+            )
+        handler._record_backend_delivery_success()
+        handler._log_event(
+            "delivery_done",
+            f"via {provider}; backend_upload={'ok' if domain_uploaded else 'fallback'}; result=ok",
+            info,
+            mirror=handler.LANE != "word",
+        )
+        return {"delivery_id": delivery_id, "processed": True, "success": True}
+
+
+audio_delivery_executor = AudioDeliveryExecutor()
+
+
 __all__ = [
     "AUDIO_DELIVERY_PROCESS_ID",
+    "AudioDeliveryExecutor",
     "AudioDeliveryOutbox",
+    "audio_delivery_executor",
     "audio_delivery_outbox",
 ]
