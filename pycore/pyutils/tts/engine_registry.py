@@ -82,6 +82,7 @@ class TTSEngineAdapter(EngineAdapter):
         availability_signal: Optional[str] = None,
         config_ready: Optional[Callable[[], bool]] = None,
         health_probe: Optional[Callable[[], bool]] = None,
+        service_probe: Optional[Callable[[], Optional[Dict[str, Any]]]] = None,
         ready_without_process: Optional[Callable[[], bool]] = None,
         model_dir: Optional[Callable[[], Path]] = None,
         note: str = "",
@@ -95,6 +96,7 @@ class TTSEngineAdapter(EngineAdapter):
         self.availability_signal = availability_signal
         self._config_ready = config_ready
         self.health_probe = health_probe
+        self.service_probe = service_probe
         self.ready_without_process = ready_without_process
         self._model_dir = model_dir
         self.note = str(note or "")
@@ -142,25 +144,12 @@ class TTSEngineAdapter(EngineAdapter):
     def healthy(self) -> bool:
         return bool(self.health_probe and self.health_probe())
 
-    def status_report(self) -> Optional[Dict[str, Any]]:
-        """Live server /status payload (None when the engine exposes no probe)."""
-        getter = getattr(self.module, "get_status", None)
-        if not callable(getter):
+    def service_report(self) -> Optional[Dict[str, Any]]:
+        """Canonical lightweight lifecycle report for a managed server."""
+        if self.service_probe is None:
             return None
-        info = getter()
+        info = self.service_probe()
         return info if isinstance(info, dict) else None
-
-    def reported_code_id(self) -> Optional[str]:
-        """Code identity the live server reports in /status (None = no report).
-
-        Pairs with the managed layer's expected digest of the launch script set
-        (managed_service code-identity contract); an engine without a
-        get_status probe simply stays off that contract."""
-        info = self.status_report()
-        if info is None:
-            return None
-        raw = info.get("code_id")
-        return str(raw) if raw else None
 
     def model_path(self) -> Optional[Path]:
         return self._model_dir() if self._model_dir is not None else None
@@ -295,6 +284,7 @@ _ENGINE_ADAPTERS = (
         managed_kind="server",
         health_paths=("/health", "/"),
         health_probe=qwen_engine.service_healthy,
+        service_probe=qwen_engine.health,
         note="Qwen3-TTS class-C HTTP server (isolated venv; managed lifecycle)",
         tiered=True,
     ),

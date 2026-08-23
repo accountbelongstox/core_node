@@ -109,14 +109,8 @@ def get_status() -> Optional[Dict[str, Any]]:
     return info if ok and isinstance(info, dict) and info.get("ok") else None
 
 
-def get_queue_status() -> Optional[Dict[str, Any]]:
-    """GET the authoritative in-memory queue snapshot when the server is online."""
-    ok, info, _error = http_get_json("/queue/status", timeout=_HEALTH_TIMEOUT_S)
-    return info if ok and isinstance(info, dict) and info.get("ok") else None
-
-
 def queue_healthy() -> bool:
-    snapshot = get_queue_status()
+    snapshot = get_status()
     return bool(
         snapshot
         and snapshot.get("consumer_running") is True
@@ -481,7 +475,6 @@ __all__ = [
     "is_model_loaded",
     "get_capabilities",
     "get_status",
-    "get_queue_status",
     "service_healthy",
     "queue_healthy",
     "health",

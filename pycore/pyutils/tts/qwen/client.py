@@ -164,7 +164,7 @@ def queue_status(
     service_base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     ok, response, error = get_json(
-        "/queue/status",
+        "/status",
         timeout=timeout,
         service_base_url=service_base_url,
     )

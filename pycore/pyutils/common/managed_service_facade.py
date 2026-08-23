@@ -89,15 +89,6 @@ class ManagedServiceFacade:
                 "managed": False,
                 "note": "no managed process required",
             }
-        if managed_services.is_running(name):
-            managed_services.record_use(name)
-            return {
-                "success": True,
-                "engine": name,
-                "running": True,
-                "managed": True,
-                "note": "already up",
-            }
         started = managed_services.ensure_running(name, force=True)
         return {
             "success": started,
