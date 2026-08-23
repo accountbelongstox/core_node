@@ -40,8 +40,7 @@ import {
 import { isLicenseActive } from '@/lib/superCode';
 import { localizedErrorText, nextLanguage, popupText, type UiLanguage } from '@/lib/uiI18n';
 import type { LicenseState, PinduoduoAccount } from '@/lib/types';
-
-const DEFAULT_BASE_URL = 'http://127.0.0.1:9000';
+import { DEFAULT_BACKEND_URL } from '@/lib/backendUrl';
 
 type ChipKind = 'super' | 'member' | 'locked';
 
@@ -67,7 +66,7 @@ export function Popup() {
   const [activating, setActivating] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL);
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_BACKEND_URL);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);

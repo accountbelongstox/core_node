@@ -55,12 +55,9 @@ $script:FrankenPhpWebAccessPath = Join-Path $script:FrankenPhpGlobalVarDirectory
 $script:FrankenPhpServiceName = 'ncore-laravel-frankenphp'
 $script:FrankenPhpDisplayName = 'core_node Laravel FrankenPHP'
 $script:FrankenPhpDescription = 'Native FrankenPHP worker runtime for core_node Laravel'
-$script:FrankenPhpWorkerFile = Join-Path $script:FrankenPhpLaravelPublicDirectory 'frankenphp-worker.php'
-$script:FrankenPhpVendorAutoload = Join-Path (Join-Path $script:FrankenPhpLaravelDirectory 'vendor') 'autoload.php'
 $script:FrankenPhpComposerPath = Join-Path $script:FrankenPhpBinDirectory 'composer.bat'
 $script:FrankenPhpPublisherKeyName = 'MERCURE_PUBLISHER_JWT'
 $script:FrankenPhpSubscriberKeyName = 'MERCURE_SUBSCRIBER_JWT'
-$script:FrankenPhpIssuerKeyName = 'MERCURE_TRUSTED_ISSUERS'
 
 function Write-FrankenPhpLog {
     param(
@@ -142,6 +139,7 @@ function Ensure-FrankenPhpDirectories {
         $script:FrankenPhpRuntimeSecretDirectory
     )
     $ready = $true
+    $directory = ''
 
     foreach ($directory in $directories) {
         Ensure-FrankenPhpDirectory -Path $directory | Out-Null
@@ -176,6 +174,7 @@ function Install-FrankenPhpArchivePayload {
     $sourceFiles = @()
     $relativePath = ''
     $destinationPath = ''
+    $sourceFile = $null
 
     Ensure-FrankenPhpDirectory -Path $stagingDirectory | Out-Null
     try {
@@ -290,12 +289,19 @@ function Ensure-FrankenPhpRuntimeSecret {
     $path = Join-Path $script:FrankenPhpRuntimeSecretDirectory $Name
     $bytes = New-Object byte[] 48
     $value = ''
+    $randomGenerator = $null
 
     Ensure-FrankenPhpDirectory -Path $script:FrankenPhpRuntimeSecretDirectory | Out-Null
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-        $value = [Convert]::ToBase64String($bytes)
-        [System.IO.File]::WriteAllText($path, $value, [System.Text.UTF8Encoding]::new($false))
+        $randomGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        try {
+            $randomGenerator.GetBytes($bytes)
+            $value = [Convert]::ToBase64String($bytes)
+            [System.IO.File]::WriteAllText($path, $value, [System.Text.UTF8Encoding]::new($false))
+        }
+        finally {
+            $randomGenerator.Dispose()
+        }
     }
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         return $null
@@ -314,6 +320,7 @@ function Get-FrankenPhpAccessConfiguration {
     $corsOrigins = @('http://localhost', 'https://localhost')
     $domain = ''
     $domainOrigins = @()
+    $domainValue = $null
 
     if (Test-Path -LiteralPath $script:FrankenPhpWebAccessPath -PathType Leaf) {
         try {
@@ -355,7 +362,7 @@ function Get-FrankenPhpAccessConfiguration {
 }
 
 function Ensure-FrankenPhpWebAccessConfiguration {
-    $contract = $script:ServiceContractDocument
+    $contract = Get-ServiceContractDocument
     $prefix = [string](Get-ServiceContractValue -ContractPath 'access.default_api_region_prefix')
     $domains = @((Get-ServiceContractValue -ContractPath 'access.root_domains') | ForEach-Object { [string]$_ })
     $serviceHostKeys = [ordered]@{}
@@ -370,6 +377,7 @@ function Ensure-FrankenPhpWebAccessConfiguration {
     $domainHosts = @()
     $document = $null
     $content = ''
+    $domainValue = $null
 
     if (Test-Path -LiteralPath $script:FrankenPhpWebAccessPath -PathType Leaf) {
         try {
@@ -464,6 +472,7 @@ function Ensure-FrankenPhpDomainRoutes {
     $content = ''
     $routePath = ''
     $ready = $true
+    $domainValue = $null
 
     Ensure-FrankenPhpDirectory -Path $script:FrankenPhpLaravelRoutesDirectory | Out-Null
     foreach ($domainValue in $domains) {
@@ -480,7 +489,7 @@ function Ensure-FrankenPhpDomainRoutes {
             $tlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path $certificatePath), (ConvertTo-FrankenPhpCaddyPath -Path $keyPath)
         }
         $content = @"
-# managed-by: FrankenPhpManager domain=$domain prefix=$prefix
+# managed-by: frankenphp_domain_common domain=$domain prefix=$prefix
 
 $apiHost`:$httpsPort {
 $tlsLine$apiHandlers}
@@ -512,12 +521,19 @@ function Ensure-FrankenPhpCaddyfile {
     $adminPort = Get-ServiceContractPort -Name 'frankenphp_admin'
     $backendPort = Get-ServiceContractPort -Name 'laravel_api_backend'
     $loopback = Get-ServiceContractHost -Name 'loopback'
+    $internalTlsHost = Get-ServiceContractHost -Name 'localhost'
     $anyHost = Get-ServiceContractHost -Name 'any'
     $requestTimeout = [string](Get-ServiceContractValue -ContractPath 'php_runtime.request_body_timeout')
+    $mercureTransport = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_transport')
+    $mercureCookie = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_cookie')
     $publicPath = ConvertTo-FrankenPhpCaddyPath -Path $script:FrankenPhpLaravelPublicDirectory
     $routesPath = ConvertTo-FrankenPhpCaddyPath -Path $script:FrankenPhpLaravelRoutesDirectory
     $routeFiles = @(Get-ChildItem -LiteralPath $script:FrankenPhpLaravelRoutesDirectory -Filter '*.caddy' -File -ErrorAction SilentlyContinue)
-    $importLine = if ($routeFiles.Count -gt 0) { "`nimport $routesPath/*.caddy`n" } else { '' }
+    $importLine = if ($routeFiles.Count -gt 0) {
+        "`n# Per-domain route files (managed by fm_domain_ensure_route_file)`nimport $routesPath/*.caddy"
+    } else {
+        ''
+    }
     $corsOrigins = @($access.CorsOrigins) -join ' '
     $content = ''
 
@@ -543,13 +559,16 @@ function Ensure-FrankenPhpCaddyfile {
 	frankenphp {
 		worker {
 			file "$publicPath/frankenphp-worker.php"
+			{`$CADDY_SERVER_WORKER_DIRECTIVE}
+			{`$CADDY_SERVER_WATCH_DIRECTIVES}
 		}
 	}
 }
 
-https://localhost:$httpsPort {
+https://$internalTlsHost`:$httpsPort {
 	root * $publicPath
 	encode zstd gzip
+
 	route {
 		@mercure path /.well-known/mercure*
 		reverse_proxy @mercure http://$loopback`:$backendPort
@@ -562,15 +581,16 @@ https://localhost:$httpsPort {
 	}
 }
 
+# Direct HTTP catch-all backend (LAN and local machine clients)
 :$backendPort {
 	root * $publicPath
 	encode zstd gzip
 	mercure {
-		transport local
+		transport $mercureTransport
 		publisher_jwt $publisherKey HS256
 		subscriber_jwt $subscriberKey HS256
 		cors_origins $corsOrigins
-		cookie_name mercureAuthorization
+		cookie_name $mercureCookie
 	}
 	php_server {
 		index frankenphp-worker.php
@@ -603,13 +623,16 @@ function Ensure-FrankenPhpWindowsService {
         ('CORE_NODE_DATA_DIR={0}' -f (Split-Path -Parent $script:FrankenPhpGlobalVarDirectory)),
         ('FRANKENPHP_BINARY_PATH={0}' -f $script:FrankenPhpBinaryPath),
         'FRANKENPHP_VARIANT=windows-native',
-        'FRANKENPHP_DNS01_MODE=external'
+        'FRANKENPHP_DNS01_MODE=external',
+        'CADDY_SERVER_WORKER_DIRECTIVE=',
+        'CADDY_SERVER_WATCH_DIRECTIVES='
     )
     $service = $null
 
     . $script:FrankenPhpWinswManagerPath
     $winswPath = Ensure-Winsw -RepoRootDir $script:FrankenPhpRepositoryRoot
-    if (-not (Test-Path -LiteralPath $winswPath -PathType Leaf)) {
+    if ([string]::IsNullOrWhiteSpace([string]$winswPath) -or
+        -not (Test-Path -LiteralPath $winswPath -PathType Leaf)) {
         Write-FrankenPhpLog -Message 'WinSW binary postcondition failed.' -Type 'Error'
         return $false
     }

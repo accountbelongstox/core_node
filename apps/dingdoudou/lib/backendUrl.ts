@@ -3,6 +3,8 @@ import { AppError } from './appError';
 const SUPPORTED_PROTOCOLS = new Set(['http:', 'https:']);
 const REQUIRED_HTTP_HOSTS = new Set(['localhost', '127.0.0.1']);
 
+export const DEFAULT_BACKEND_URL = 'http://127.0.0.1:9000';
+
 export function parseBackendUrl(value: string): URL {
   let url: URL;
   try {

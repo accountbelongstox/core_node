@@ -28,6 +28,7 @@ $artisanPath = $null
 $vendorAutoloadPath = $null
 $workerPath = $null
 $serviceReady = $false
+$service = $null
 . $managerPath
 . $certificateManagerPath
 
@@ -92,7 +93,11 @@ if ((Test-Path -LiteralPath $vendorAutoloadPath -PathType Leaf) -and
     (Test-Path -LiteralPath (Get-FrankenPhpCaddyfilePath) -PathType Leaf)) {
     Ensure-FrankenPhpWindowsService | Out-Null
 }
-$serviceReady = $null -ne (Get-Service -Name (Get-FrankenPhpServiceName) -ErrorAction SilentlyContinue)
+$service = Get-Service -Name (Get-FrankenPhpServiceName) -ErrorAction SilentlyContinue
+if ($null -ne $service) {
+    $service.Refresh()
+}
+$serviceReady = $null -ne $service -and $service.Status -eq 'Running'
 if ($serviceReady) {
     Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'
 }

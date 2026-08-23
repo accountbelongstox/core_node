@@ -25,8 +25,7 @@ import type { PinduoduoAccount, BackendConfig, FeatureFlag } from '@/lib/types';
 import * as store from '@/lib/storage';
 import { errorText } from '@/lib/value';
 import { AppError, isAppError } from '@/lib/appError';
-
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:9000';
+import { DEFAULT_BACKEND_URL, normalizeBackendUrl } from '@/lib/backendUrl';
 
 function ok<T>(data: T): BgResponse<T> {
   return { ok: true, data };
@@ -108,8 +107,9 @@ async function handle(req: BgRequest): Promise<BgResponse> {
     }
     case 'license.loginMember': {
       const deviceId = await ensureDeviceId();
-      const baseUrl = req.baseUrl.trim();
-      if (!baseUrl || !req.username.trim()) throw new AppError('backend.credentialsRequired');
+      const rawBaseUrl = req.baseUrl.trim();
+      if (!rawBaseUrl || !req.username.trim()) throw new AppError('backend.credentialsRequired');
+      const baseUrl = normalizeBackendUrl(rawBaseUrl);
       const cfg: BackendConfig = { baseUrl, deviceId };
       const lic = await memberLogin(cfg, req.username, req.password);
       if (!isLicenseActive(lic)) throw new AppError('license.memberInactive');
@@ -126,7 +126,9 @@ async function handle(req: BgRequest): Promise<BgResponse> {
     case 'backend.set': {
       const deviceId = await ensureDeviceId();
       const next = await store.updateBackend((current) => ({
-        baseUrl: req.config.baseUrl || current?.baseUrl || DEFAULT_BACKEND_URL,
+        baseUrl: req.config.baseUrl
+          ? normalizeBackendUrl(req.config.baseUrl)
+          : current?.baseUrl || DEFAULT_BACKEND_URL,
         deviceId: req.config.deviceId || deviceId,
         memberToken: req.config.memberToken ?? current?.memberToken,
       }));
@@ -255,7 +257,9 @@ async function handle(req: BgRequest): Promise<BgResponse> {
 }
 
 export default defineBackground(() => {
-  void store.restrictLocalStorageAccess().catch(() => undefined);
+  void store.restrictLocalStorageAccess().catch((error) => {
+    console.error('Failed to restrict extension storage access.', error);
+  });
 
   chrome.runtime.onMessage.addListener((req: BgRequest, _sender, sendResponse) => {
     // Content scripts broadcast { ddEvent: ... } notifications with no `type`.
@@ -268,6 +272,8 @@ export default defineBackground(() => {
   });
 
   chrome.runtime.onInstalled.addListener(() => {
-    void ensureDeviceId();
+    void ensureDeviceId().catch((error) => {
+      console.error('Failed to initialize the extension device ID.', error);
+    });
   });
 });

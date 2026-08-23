@@ -1,12 +1,4 @@
 #!/bin/bash
-# Visual Studio Code Installation Script
-#
-# Usage:
-#   ./157_install_vscode.sh   # Normal installation (no arguments)
-#
-# This script installs Visual Studio Code from .deb files found in /home/<username>/Downloads
-# If no .deb is found, it opens the download page and waits for manual download confirmation
-#
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -29,8 +21,8 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
+source "$PARENT_DIR_LEVEL_2/common/ide_package_common.sh"
 
-# Initialize global variables
 init_global_vars
 
 # Declare variables
@@ -121,23 +113,6 @@ detect_vscode_desktop_user() {
 # No arguments supported (removed parameter parsing)
 
 # Extract version from filename (use full filename without extension as version)
-# Example: "code_1.85.0-1234567890_amd64.deb" -> "code_1.85.0-1234567890_amd64"
-extract_version_from_filename() {
-    local filename="$1"
-    local basename_file=$(basename "$filename")
-
-    # Remove file extension (.deb, .tar.gz, etc.)
-    local version_string="${basename_file%.*}"
-
-    if [[ -n "$version_string" ]]; then
-        echo "$version_string"
-        return 0
-    fi
-
-    return 1
-}
-
-# Get remote version from VSCode API by following redirects
 # Returns: Version string (e.g., "code_1.85.0-1234567890_amd64") or empty string if not found
 get_remote_vscode_version() {
     local api_url="$VSCODE_API_URL"
@@ -297,44 +272,14 @@ safe_kill_processes() {
 # DEPRECATED: This function is no longer used
 # Use prompt_and_wait_for_download_from_common_functions() instead
 
-# Install .deb package
-check_deb_integrity() {
-    local deb_file="$1"
-
-    print_step_from_common_functions "Checking .deb file integrity..."
-
-    if [[ ! -f "$deb_file" ]]; then
-        print_error_from_common_functions ".deb file not found: $deb_file"
-        return 1
-    fi
-
-    local file_size=$(stat -c%s "$deb_file" 2>/dev/null || echo "0")
-
-    if [[ "$file_size" -lt 50000000 ]]; then
-        print_warning_from_common_functions ".deb file too small ($file_size bytes), expected > 50MB"
-        return 1
-    fi
-
-    if ! dpkg-deb --info "$deb_file" >/dev/null 2>&1; then
-        print_warning_from_common_functions ".deb file is corrupted (dpkg-deb check failed)"
-        return 1
-    fi
-
-    if ! ar t "$deb_file" >/dev/null 2>&1; then
-        print_warning_from_common_functions ".deb file is corrupted (ar archive check failed)"
-        return 1
-    fi
-
-    print_success_from_common_functions ".deb file integrity check passed"
-    return 0
-}
 
 install_deb_package() {
     local deb_file="$1"
 
     print_step_from_common_functions "Installing VS Code from .deb package..."
 
-    if ! check_deb_integrity "$deb_file"; then
+    ide_deb_integrity_check "$deb_file"
+    if [ "$IDE_DEB_INTEGRITY_READY" != "yes" ]; then
         print_error_from_common_functions ".deb file integrity check failed"
         print_step_from_common_functions "Removing corrupted file: $deb_file"
         rm -f "$deb_file"
@@ -651,7 +596,8 @@ install_vscode() {
 
     # Save installation info with version
     print_step_from_common_functions "Saving installation info..."
-    local installed_version=$(extract_version_from_filename "$deb_file")
+    local installed_version=""
+    installed_version=$(ide_extract_version_from_filename "$deb_file")
     if [[ -n "$installed_version" ]]; then
         save_installation_info "$installed_version" "$deb_file"
         print_info_from_common_functions "Installed version: $installed_version"
@@ -708,7 +654,7 @@ prompt_cleanup_reinstall() {
         local available_version=""
         if [[ -n "$available_file" ]] && [[ -f "$available_file" ]]; then
             print_info_from_common_functions "Detected manual installer: $(basename "$available_file")"
-            available_version=$(extract_version_from_filename "$available_file")
+            available_version=$(ide_extract_version_from_filename "$available_file")
 
             if [[ -n "$available_version" ]]; then
                 print_info_from_common_functions "Manual installer version: $available_version"

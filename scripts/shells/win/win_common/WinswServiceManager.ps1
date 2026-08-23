@@ -117,6 +117,7 @@ function Register-WinswService {
     $configurationChanged = $false
     $service = $null
     $attempt = 0
+    $entry = ''
 
     if (-not (Test-Path -LiteralPath $serviceDir -PathType Container)) {
         New-Item -ItemType Directory -Force -Path $serviceDir | Out-Null

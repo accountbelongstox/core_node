@@ -40,6 +40,7 @@ import {
 } from '@/lib/dashboardBridge';
 import { downloadCsv } from '@/lib/exportCsv';
 import { hasFeature } from '@/lib/superCode';
+import { DEFAULT_BACKEND_URL } from '@/lib/backendUrl';
 import {
   dashboardText,
   localizedErrorText,
@@ -59,7 +60,6 @@ const LOCAL_ACCOUNTS_KEY = 'dingduoduo_accounts_v2';
 const LOCAL_STATS_KEY = 'dingduoduo_stats_v2';
 const LOCAL_LANG_KEY = 'dingduoduo_lang_v2';
 const LOCAL_THEME_KEY = 'dingduoduo_theme_v2';
-const DEFAULT_BACKEND_URL = 'http://127.0.0.1:9000';
 const ALL_RECIPIENTS = '__all__';
 
 type Theme = 'light' | 'dark';
@@ -209,7 +209,7 @@ export default function App() {
         await loadOrders(accountScope, active);
       })
       .catch((error) => notify(localizedErrorText(lang, error, ui.genericError), 'error'));
-  }, [accountScope, extensionMode, license, loadOrders, notify]);
+  }, [accountScope, extensionMode, lang, license, loadOrders, notify]);
 
   const recipients = useMemo(() => {
     return [...new Set(orders.map((order) => order.recipientName.trim()).filter(Boolean))]

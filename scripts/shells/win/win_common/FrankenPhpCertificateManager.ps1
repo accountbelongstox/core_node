@@ -105,6 +105,7 @@ function Test-FrankenPhpCertificateReady {
     $expectedNames = @()
     $sanExtension = $null
     $sanText = ''
+    $expectedName = ''
 
     if (-not (Test-Path -LiteralPath $paths.FullChain -PathType Leaf) -or
         -not (Test-Path -LiteralPath $paths.Key -PathType Leaf)) {
@@ -241,6 +242,7 @@ function Ensure-FrankenPhpCertificates {
     $access = Get-FrankenPhpAccessConfiguration
     $credential = Get-FrankenPhpCertificateCredential
     $ready = $true
+    $domain = ''
 
     if (-not $moduleReady) {
         return $false
@@ -260,10 +262,19 @@ function Ensure-FrankenPhpCertificates {
 
 function Invoke-FrankenPhpCertificateRenewal {
     $moduleReady = Ensure-FrankenPhpCertificateModule
+    $credential = Get-FrankenPhpCertificateCredential
+    $account = $null
     $certificates = @()
     $mainDomain = ''
+    $certificate = $null
 
     if (-not $moduleReady) {
+        return $false
+    }
+    Ensure-FrankenPhpCertificateAccount -Credential $credential | Out-Null
+    $account = Get-PAAccount -ErrorAction SilentlyContinue
+    if ($null -eq $account) {
+        Write-FrankenPhpLog -Message 'ACME account postcondition failed.' -Type 'Warning'
         return $false
     }
     Submit-Renewal -AllOrders -ErrorAction Continue | Out-Null
@@ -286,14 +297,44 @@ function Ensure-FrankenPhpCertificateRenewalTask {
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable
     $existingTask = Get-ScheduledTask -TaskName $script:FrankenPhpCertificateRenewTaskName -ErrorAction SilentlyContinue
+    $existingAction = $null
+    $existingTrigger = $null
+    $existingTriggerTime = $null
+    $configurationChanged = $false
 
     if ($null -eq $existingTask) {
         Register-ScheduledTask -TaskName $script:FrankenPhpCertificateRenewTaskName -Action $action `
             -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
     }
     else {
-        Set-ScheduledTask -TaskName $script:FrankenPhpCertificateRenewTaskName -Action $action `
-            -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+        $existingAction = @($existingTask.Actions) | Select-Object -First 1
+        $existingTrigger = @($existingTask.Triggers) | Select-Object -First 1
+        if ($null -ne $existingTrigger -and -not [string]::IsNullOrWhiteSpace([string]$existingTrigger.StartBoundary)) {
+            try {
+                $existingTriggerTime = [DateTime]::Parse([string]$existingTrigger.StartBoundary)
+            }
+            catch {
+                $existingTriggerTime = $null
+            }
+        }
+        $configurationChanged = (
+            $null -eq $existingAction -or
+            $null -eq $existingTrigger -or
+            [string]$existingAction.Execute -ine $powerShellPath -or
+            [string]$existingAction.Arguments -cne $arguments -or
+            $null -eq $existingTriggerTime -or
+            $existingTriggerTime.Hour -ne $script:FrankenPhpCertificateRenewHour -or
+            $existingTriggerTime.Minute -ne $script:FrankenPhpCertificateRenewMinute -or
+            [int]$existingTrigger.DaysInterval -ne 1 -or
+            [string]$existingTask.Principal.UserId -ine 'SYSTEM' -or
+            [string]$existingTask.Principal.RunLevel -ine 'Highest' -or
+            [string]$existingTask.Principal.LogonType -ine 'ServiceAccount' -or
+            -not [bool]$existingTask.Settings.StartWhenAvailable
+        )
+        if ($configurationChanged) {
+            Set-ScheduledTask -TaskName $script:FrankenPhpCertificateRenewTaskName -Action $action `
+                -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+        }
     }
     $existingTask = Get-ScheduledTask -TaskName $script:FrankenPhpCertificateRenewTaskName -ErrorAction SilentlyContinue
     if ($null -eq $existingTask) {
