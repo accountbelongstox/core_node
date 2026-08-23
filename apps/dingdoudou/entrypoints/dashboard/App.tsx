@@ -283,6 +283,15 @@ export default function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      if (extensionMode) await clearLicense();
+      setLicense(null);
+    } catch (error) {
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
+    }
+  };
+
   const handleCapture = async () => {
     setCapturing(true);
     try {
@@ -294,11 +303,13 @@ export default function App() {
         captured.nickname,
         captured.avatar,
       );
-      const active = payload.accounts.find((item) => item.pddUserId === captured.pddUserId) ?? null;
+      const active = payload.accounts.find(
+        (item) => item.pddUserId === payload.activePddUserId,
+      ) ?? null;
       setAccounts(payload.accounts);
       setActiveAccountState(active);
       setAccountScope('active');
-      await loadOrders('active', active);
+      if (accountScope === 'active') await loadOrders('active', active);
       notify(ui.accountBound(active?.name ?? captured.pddUserId));
     } catch (error) {
       notify(localizedErrorText(lang, error, ui.genericError), 'error');
@@ -308,12 +319,20 @@ export default function App() {
   };
 
   const handleSelectAccount = async (account: PinduoduoAccount) => {
-    setActiveAccountState(account);
-    setAccountScope('active');
-    if (!extensionMode) return;
+    if (!extensionMode) {
+      setActiveAccountState(account);
+      setAccountScope('active');
+      return;
+    }
     try {
-      await setActiveAccount(account.pddUserId);
-      await loadOrders('active', account);
+      const payload = await setActiveAccount(account.pddUserId);
+      const active = payload.accounts.find(
+        (item) => item.pddUserId === payload.activePddUserId,
+      ) ?? null;
+      setAccounts(payload.accounts);
+      setActiveAccountState(active);
+      setAccountScope('active');
+      if (accountScope === 'active') await loadOrders('active', active);
     } catch (error) {
       notify(localizedErrorText(lang, error, ui.genericError), 'error');
     }
@@ -481,7 +500,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button onClick={() => setLang(nextLanguage(lang))} className="rounded-lg border p-2"><Languages className="h-4 w-4" /></button>
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="rounded-lg border p-2">{theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
-            {extensionMode && <button onClick={() => void clearLicense().then(() => setLicense(null))} className="rounded-lg border p-2" title={ui.logout}><LogOut className="h-4 w-4" /></button>}
+            {extensionMode && <button onClick={() => void handleLogout()} className="rounded-lg border p-2" title={ui.logout}><LogOut className="h-4 w-4" /></button>}
           </div>
         </div>
       </header>
@@ -495,7 +514,7 @@ export default function App() {
             activeAccount={activeAccount}
             onSelectAccount={(account) => void handleSelectAccount(account)}
             onModifyPassword={() => notify(ui.passwordManaged, 'info')}
-            onLogout={() => extensionMode && void clearLicense().then(() => setLicense(null))}
+            onLogout={() => void handleLogout()}
             onAdjustBalance={(balance) => {
               if (extensionMode) return notify(ui.realBalanceReadonly, 'info');
               const next = { ...stats, balance };

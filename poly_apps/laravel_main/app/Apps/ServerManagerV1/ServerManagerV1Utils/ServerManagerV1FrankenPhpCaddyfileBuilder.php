@@ -77,12 +77,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $httpsAddresses = [];
         $httpAddresses = [];
         $handlers = '';
+        $httpRedirect = '';
 
         foreach ($hosts as $host) {
             $httpsAddresses[] = "https://{$host}:{$httpsPort}";
             $httpAddresses[] = "http://{$host}:{$httpPort}";
         }
         $handlers = self::renderReverseProxyHandlers($upstream, $earlyHintsLink);
+        $httpRedirect = "\tredir https://{host}{uri} permanent\n";
 
         return "# managed-by: {$managedBy}\n\n"
             .implode(', ', $httpsAddresses)." {\n"
@@ -91,7 +93,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             .$handlers
             ."}\n\n"
             .implode(', ', $httpAddresses)." {\n"
-            .$handlers
+            .$httpRedirect
             ."}\n";
     }
 

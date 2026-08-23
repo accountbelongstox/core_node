@@ -14,15 +14,12 @@
 
 import type { PddCredential } from './types';
 import { asRecord } from './value';
-import { AppError } from './appError';
+import { AppError, isAppError } from './appError';
 
 const PDD_HOST = 'mobile.yangkeduo.com';
 const PDD_ORIGIN = `https://${PDD_HOST}`;
 const COOKIE_DOMAIN = '.yangkeduo.com';
 const PDD_TAB_PATTERNS = ['https://*.yangkeduo.com/*'];
-
-const MOBILE_UA =
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1';
 
 // Cookies the platform reads for an authenticated buyer session.
 const SESSION_COOKIE_NAMES = [
@@ -159,7 +156,6 @@ async function activateCredential(cred: PddCredential): Promise<void> {
 function authHeaders(cred: PddCredential): Record<string, string> {
   return {
     AccessToken: cred.accessToken,
-    'User-Agent': MOBILE_UA,
     Accept: 'application/json, text/plain, */*',
     'Content-Type': 'application/json;charset=UTF-8',
   };
@@ -266,7 +262,8 @@ export async function fetchProfile(
       avatar: avatar ? avatar.replace(/\\u002F/g, '/').replace(/\\\//g, '/') : undefined,
       mobileBind: mobile,
     };
-  } catch {
+  } catch (error) {
+    if (isAppError(error)) throw error;
     return {};
   }
 }
@@ -277,11 +274,12 @@ function decodeJsonUnicode(s: string): string {
 
 // Create an after-sales (refund) request for an order.
 export async function createAfterSale(cred: PddCredential, orderSn: string): Promise<boolean> {
-  const res = await pddFetch(cred, `/proxy/api/after_sales/create?pdduid=${cred.pddUserId}`, {
+  const userId = encodeURIComponent(cred.pddUserId);
+  const res = await pddFetch(cred, `/proxy/api/after_sales/create?pdduid=${userId}`, {
     method: 'POST',
     body: JSON.stringify({ order_sn: orderSn, after_sales_type: 1, refund_reason: 1 }),
   });
-  if (!res.ok) return false;
+  if (!res.ok) throw new AppError('pdd.requestFailed', { status: res.status });
   const json = asRecord(await res.json().catch(() => ({})));
   return json?.success === true || json?.result === true;
 }
@@ -291,11 +289,12 @@ export async function updateBuyerMemo(
   cred: PddCredential,
   orderSn: string,
   memo: string,
-): Promise<boolean> {
+): Promise<void> {
+  const userId = encodeURIComponent(cred.pddUserId);
   const res = await pddFetch(
     cred,
-    `/proxy/api/api/debye/update_order_buyer_memo?pdduid=${cred.pddUserId}`,
+    `/proxy/api/api/debye/update_order_buyer_memo?pdduid=${userId}`,
     { method: 'POST', body: JSON.stringify({ order_sn: orderSn, remark: memo }) },
   );
-  return res.ok;
+  if (!res.ok) throw new AppError('pdd.requestFailed', { status: res.status });
 }

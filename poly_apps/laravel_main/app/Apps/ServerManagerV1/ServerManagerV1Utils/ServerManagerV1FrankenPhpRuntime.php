@@ -47,7 +47,7 @@ class ServerManagerV1FrankenPhpRuntime
             return [
                 'success' => false,
                 'action' => $action,
-                'error' => 'Unsupported FrankenPHP service action.',
+                'error' => __('runtime.frankenphp_service_action_unsupported'),
             ];
         }
 
@@ -77,7 +77,7 @@ class ServerManagerV1FrankenPhpRuntime
             'output' => trim((string) ($commandResult['output'] ?? '')),
             'error' => $matchesPostcondition
                 ? ''
-                : trim((string) ($commandResult['error'] ?? 'FrankenPHP service postcondition was not reached.')),
+                : trim((string) ($commandResult['error'] ?? __('runtime.frankenphp_service_postcondition_failed'))),
         ];
     }
 

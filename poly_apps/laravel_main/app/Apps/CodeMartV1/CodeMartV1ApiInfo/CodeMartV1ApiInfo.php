@@ -17,6 +17,15 @@ class CodeMartV1ApiInfo
     public static function getApis(): array
     {
         return [
+            'public.home' => [
+                'path' => '/api/codemart/v1/public/home',
+                'method' => 'GET',
+                'authentication' => false,
+                'parameters' => [],
+                'response' => __('codemart.api.public_home.response'),
+                'feature' => __('codemart.api.public_home.feature'),
+            ],
+
             // Registration APIs
             'auth.register' => [
                 'path' => '/api/codemart/v1/auth/register',

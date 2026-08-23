@@ -89,6 +89,30 @@ USE_SUDO=""
 CORE_NODE_PROJECT_ROOT=""
 REGION_CACHE_DIR=""
 REGION_CACHE_FILE=""
+BOOTSTRAP_LIBRARY_READY="no"
+BOOTSTRAP_REQUIRED_LIBRARIES_READY="no"
+BOOTSTRAP_GVAR_LIBRARY_RELATIVES=(
+    "scripts/shells/linux/common/gvar_common.sh"
+    "scripts/shells/linux/common/runtime_environment.sh"
+    "scripts/shells/linux/common/gvar_storage_common.sh"
+    "scripts/shells/linux/common/gvar_system_common.sh"
+    "scripts/shells/linux/common/global_var_store.sh"
+    "scripts/shells/linux/common/shared_cache_env.sh"
+    "scripts/shells/linux/common/base_libs/lib_gpu.sh"
+    "scripts/shells/secret_manager/secret_manager.sh"
+)
+BOOTSTRAP_SETTING_LIBRARY_RELATIVES=(
+    "scripts/shells/linux/debian/install_shells/3_setting_base.sh"
+    "scripts/shells/linux/common/fs_perm_helpers.sh"
+    "scripts/shells/linux/common/postfix_cleanup_common.sh"
+    "scripts/shells/linux/common/mount_common.sh"
+    "scripts/shells/linux/common/desktop_system_policy.sh"
+    "scripts/shells/linux/common/apt_sources_restore.sh"
+    "scripts/shells/linux/common/apt_repository_manager.sh"
+    "scripts/shells/linux/common/apt_repository_backup.sh"
+    "scripts/shells/linux/common/apt_repository_catalog.sh"
+    "scripts/shells/linux/common/apt_repository_repair.sh"
+)
 
 # Resolve script path; launcher root = directory of temporary dd.sh and this bootstrap (resolve symlinks)
 BOOTSTRAP_SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -303,35 +327,41 @@ download_to() {
     local rel_path="$1"
     local dest_path="$2"
     local url="$REPO_BASE_URL/$rel_path"
+
+    BOOTSTRAP_LIBRARY_READY="no"
     log_info "Downloading $rel_path ..."
-    if download_with_progress "$url" "$dest_path"; then
-        return 0
+    download_with_progress "$url" "$dest_path" || true
+    if [ -s "$dest_path" ]; then
+        BOOTSTRAP_LIBRARY_READY="yes"
     fi
-    return 1
 }
 
 # Step 3: Download all required project libraries to launcher root subpaths (first priority; maximize reuse)
 download_required_libraries() {
+    local rel_path=""
+    local destination=""
+
+    BOOTSTRAP_REQUIRED_LIBRARIES_READY="yes"
     log_info "Downloading required project libraries to launcher root (same paths as repo)..."
-    local gvar_path="$LAUNCHER_ROOT/$GVAR_RELATIVE"
-    local setting_path="$LAUNCHER_ROOT/$SETTING_BASE_RELATIVE"
-    if ! download_to "$GVAR_RELATIVE" "$gvar_path"; then
-        log_err "Failed to download gvar_common.sh"
-        return 1
-    fi
-    log_ok "gvar_common.sh"
-    local mount_path="$LAUNCHER_ROOT/$MOUNT_COMMON_RELATIVE"
-    if ! download_to "$MOUNT_COMMON_RELATIVE" "$mount_path"; then
-        log_err "Failed to download mount_common.sh"
-        return 1
-    fi
-    log_ok "mount_common.sh"
-    if ! download_to "$SETTING_BASE_RELATIVE" "$setting_path"; then
-        log_warn "Could not download 3_setting_base.sh (optional)"
-    else
-        log_ok "3_setting_base.sh"
-    fi
-    return 0
+    for rel_path in "${BOOTSTRAP_GVAR_LIBRARY_RELATIVES[@]}"; do
+        destination="$LAUNCHER_ROOT/$rel_path"
+        download_to "$rel_path" "$destination"
+        if [ "$BOOTSTRAP_LIBRARY_READY" = "yes" ]; then
+            log_ok "$rel_path"
+        else
+            BOOTSTRAP_REQUIRED_LIBRARIES_READY="no"
+            log_err "Failed to download $rel_path"
+        fi
+    done
+    for rel_path in "${BOOTSTRAP_SETTING_LIBRARY_RELATIVES[@]}"; do
+        destination="$LAUNCHER_ROOT/$rel_path"
+        download_to "$rel_path" "$destination"
+        if [ "$BOOTSTRAP_LIBRARY_READY" = "yes" ]; then
+            log_ok "$rel_path"
+        else
+            log_warn "Optional base-system component unavailable: $rel_path"
+        fi
+    done
 }
 
 # Step 4: Source gvar_common from launcher path, get CORE_NODE_PROJECT_ROOT (map path)
@@ -511,7 +541,11 @@ main_bootstrap() {
     install_sudo_if_missing
     ensure_repo_base_url
     install_git_if_missing || exit 1
-    download_required_libraries || exit 1
+    download_required_libraries
+    if [ "$BOOTSTRAP_REQUIRED_LIBRARIES_READY" != "yes" ]; then
+        log_err "Required bootstrap libraries are incomplete."
+        return
+    fi
     resolve_project_root || exit 1
     run_setting_base_if_desired
     ensure_project_cloned || exit 1

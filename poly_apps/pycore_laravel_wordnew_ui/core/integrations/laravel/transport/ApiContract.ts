@@ -18,6 +18,7 @@ export const LARAVEL_API_PREFIX = {
   localAi: '/api/local/ai',
   localWordAudio: '/api/local/word-audio',
   devHistory: '/api/dev-history',
+  codeMartV1: '/api/codemart/v1',
 } as const;
 
 export const LARAVEL_API_ROUTE = {

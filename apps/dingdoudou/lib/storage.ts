@@ -56,14 +56,6 @@ function enqueue<T>(operation: () => Promise<T>): Promise<T> {
   return queued;
 }
 
-async function set(key: string, value: unknown): Promise<void> {
-  await enqueue(async () => {
-    const current = await rawGet<unknown>(key, undefined);
-    if (valuesEqual(current, value)) return;
-    await chrome.storage.local.set({ [key]: value });
-  });
-}
-
 async function mutate<T>(key: string, fallback: T, update: (current: T) => T): Promise<T> {
   return enqueue(async () => {
     const current = await rawGet(key, fallback);
@@ -144,10 +136,7 @@ export async function bindAccount(
     const nextCredentials = credentialChanged
       ? { ...credentials, [credential.pddUserId]: credential }
       : credentials;
-    const activeAccountIsBound = nextAccounts.some(
-      (item) => item.pddUserId === settings.activePddUserId,
-    );
-    const nextSettings = activeAccountIsBound
+    const nextSettings = settings.activePddUserId === account.pddUserId
       ? settings
       : { ...settings, activePddUserId: account.pddUserId };
     const changes: Record<string, unknown> = {};
@@ -220,10 +209,53 @@ export async function getCredential(pddUserId: string): Promise<PddCredential | 
 }
 
 export const getLicense = () => get<LicenseState | null>(KEYS.license, null);
-export const setLicense = (license: LicenseState | null) => set(KEYS.license, license);
+export function setLicenseIfCurrent(
+  expected: LicenseState | null,
+  license: LicenseState | null,
+): Promise<LicenseState | null> {
+  return enqueue(async () => {
+    const current = await rawGet<LicenseState | null>(KEYS.license, null);
+    if (!valuesEqual(current, expected)) return current;
+    if (!valuesEqual(current, license)) {
+      await chrome.storage.local.set({ [KEYS.license]: license });
+    }
+    return license;
+  });
+}
+
+export function setMemberSession(
+  backend: BackendConfig,
+  license: LicenseState,
+): Promise<void> {
+  return enqueue(async () => {
+    const values = await chrome.storage.local.get([KEYS.backend, KEYS.license]);
+    const currentBackend = storedValue<BackendConfig | null>(values, KEYS.backend, null);
+    const currentLicense = storedValue<LicenseState | null>(values, KEYS.license, null);
+    const changes: Record<string, unknown> = {};
+    if (!valuesEqual(currentBackend, backend)) changes[KEYS.backend] = backend;
+    if (!valuesEqual(currentLicense, license)) changes[KEYS.license] = license;
+    if (Object.keys(changes).length) await chrome.storage.local.set(changes);
+  });
+}
+
+export function setOfflineLicense(license: LicenseState | null): Promise<void> {
+  return enqueue(async () => {
+    const values = await chrome.storage.local.get([KEYS.backend, KEYS.license]);
+    const backend = storedValue<BackendConfig | null>(values, KEYS.backend, null);
+    const currentLicense = storedValue<LicenseState | null>(values, KEYS.license, null);
+    const nextBackend = backend
+      ? { baseUrl: backend.baseUrl, deviceId: backend.deviceId }
+      : null;
+    const changes: Record<string, unknown> = {};
+    if (!valuesEqual(currentLicense, license)) changes[KEYS.license] = license;
+    if (!valuesEqual(backend, nextBackend)) changes[KEYS.backend] = nextBackend;
+    if (Object.keys(changes).length) await chrome.storage.local.set(changes);
+  });
+}
+
+export const clearLicenseSession = () => setOfflineLicense(null);
 
 export const getBackend = () => get<BackendConfig | null>(KEYS.backend, null);
-export const setBackend = (backend: BackendConfig | null) => set(KEYS.backend, backend);
 export function updateBackend(
   update: (current: BackendConfig | null) => BackendConfig,
 ): Promise<BackendConfig> {

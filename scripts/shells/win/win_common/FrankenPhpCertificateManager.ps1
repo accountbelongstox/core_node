@@ -238,16 +238,21 @@ function Ensure-FrankenPhpCertificate {
 }
 
 function Ensure-FrankenPhpCertificates {
-    $moduleReady = Ensure-FrankenPhpCertificateModule
+    $moduleReady = $false
     $access = Get-FrankenPhpAccessConfiguration
     $credential = Get-FrankenPhpCertificateCredential
     $ready = $true
     $domain = ''
+    $account = $null
 
+    Ensure-FrankenPhpCertificateModule | Out-Null
+    $moduleReady = $null -ne (Get-Command New-PACertificate -ErrorAction SilentlyContinue)
     if (-not $moduleReady) {
         return $false
     }
-    if (-not (Ensure-FrankenPhpCertificateAccount -Credential $credential)) {
+    Ensure-FrankenPhpCertificateAccount -Credential $credential | Out-Null
+    $account = Get-PAAccount -ErrorAction SilentlyContinue
+    if ($null -eq $account) {
         Write-FrankenPhpLog -Message 'ACME account postcondition failed.' -Type 'Warning'
         return $false
     }
@@ -261,13 +266,18 @@ function Ensure-FrankenPhpCertificates {
 }
 
 function Invoke-FrankenPhpCertificateRenewal {
-    $moduleReady = Ensure-FrankenPhpCertificateModule
+    $moduleReady = $false
     $credential = Get-FrankenPhpCertificateCredential
     $account = $null
     $certificates = @()
     $mainDomain = ''
     $certificate = $null
+    $access = $null
+    $ready = $false
+    $domain = ''
 
+    Ensure-FrankenPhpCertificateModule | Out-Null
+    $moduleReady = $null -ne (Get-Command Submit-Renewal -ErrorAction SilentlyContinue)
     if (-not $moduleReady) {
         return $false
     }
@@ -285,7 +295,16 @@ function Invoke-FrankenPhpCertificateRenewal {
             Publish-FrankenPhpCertificate -Domain $mainDomain -Certificate $certificate | Out-Null
         }
     }
-    return (Ensure-FrankenPhpCertificates)
+    Ensure-FrankenPhpCertificates | Out-Null
+    $access = Get-FrankenPhpAccessConfiguration
+    $ready = $true
+    foreach ($domain in @($access.Domains)) {
+        if (-not (Test-FrankenPhpCertificateReady -Domain ([string]$domain) `
+            -Prefix ([string]$access.Prefix) -MinimumDays 1)) {
+            $ready = $false
+        }
+    }
+    return $ready
 }
 
 function Ensure-FrankenPhpCertificateRenewalTask {

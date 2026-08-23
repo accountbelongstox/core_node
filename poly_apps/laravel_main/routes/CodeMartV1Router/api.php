@@ -18,8 +18,11 @@ use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1AIAnalysisCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ArchitectCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ReviewerCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1TaskMarketplaceCtl;
+use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1PublicHomeCtl;
 
 Route::prefix('api/codemart/v1')->name('codemart.')->group(function () {
+
+    Route::get('/public/home', [CodeMartV1PublicHomeCtl::class, 'getHome'])->name('public.home');
 
     // Public routes - Registration
     Route::post('/auth/register', [CodeMartV1RegistrationCtl::class, 'register'])->name('register');

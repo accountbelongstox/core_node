@@ -2,6 +2,11 @@ import { StorageManager } from '../persistence';
 import { AuthStorageKeys } from './AuthStorageKeys';
 
 let activeToken: string | null = null;
+const authSessionListeners = new Set<() => void>();
+
+function notifyAuthSessionChanged(): void {
+  authSessionListeners.forEach((listener) => listener());
+}
 
 function normalizeToken(token: string | null): string | null {
   if (!token) return null;
@@ -31,12 +36,19 @@ export function getAuthToken(): string | null {
 }
 
 export function setAuthToken(token: string | null): string | null {
+  const previousToken = activeToken;
   activeToken = normalizeToken(token);
   persist(activeToken);
+  if (activeToken !== previousToken) notifyAuthSessionChanged();
   return activeToken;
 }
 
 export function getAuthHeader(): string | null {
   const token = getAuthToken();
   return token ? `Bearer ${token}` : null;
+}
+
+export function subscribeAuthSession(listener: () => void): () => void {
+  authSessionListeners.add(listener);
+  return () => authSessionListeners.delete(listener);
 }

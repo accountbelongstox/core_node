@@ -49,9 +49,6 @@ export async function clearLicense(): Promise<void> {
 export async function getBackend(): Promise<BackendConfig | null> {
   return unwrap(await sendToBackground({ type: 'backend.get' }));
 }
-export async function setBackend(config: Partial<BackendConfig>): Promise<BackendConfig> {
-  return unwrap(await sendToBackground({ type: 'backend.set', config }));
-}
 
 // --- Accounts ---
 export async function listAccounts(): Promise<AccountsPayload> {

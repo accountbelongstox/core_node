@@ -22,6 +22,7 @@ const LmApp = lazy(() => import('../apps/laravel-manager/LmApp'));
 const PcApp = lazy(() => import('../apps/pycore-manager/PcApp'));
 const WfNewApp = lazy(() => import('../apps/wordnew/WfNewApp'));
 const VortexApp = lazy(() => import('../apps/vortex/VortexApp'));
+const CmApp = lazy(() => import('../apps/codemart/CmApp'));
 // const PddApp = lazy(() => import('../apps/pdd-manager/PddApp')); // Archived: PDD Manager is not exposed in UIApps.
 
 export const ShellApp: React.FC = () => {
@@ -36,6 +37,7 @@ export const ShellApp: React.FC = () => {
           <Route path="/pycore-manager/*" element={<Suspense fallback={<ShellRouteFallback />}><PcApp /></Suspense>} />
           <Route path="/wordnew/*" element={<Suspense fallback={<ShellRouteFallback />}><WfNewApp /></Suspense>} />
           <Route path="/vortex/*" element={<Suspense fallback={<ShellRouteFallback />}><VortexApp /></Suspense>} />
+          <Route path="/codemart/*" element={<Suspense fallback={<ShellRouteFallback />}><CmApp /></Suspense>} />
           {/* <Route path="/pdd-manager/*" element={<Suspense fallback={<ShellRouteFallback />}><PddApp /></Suspense>} /> */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
