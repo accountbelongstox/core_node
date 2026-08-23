@@ -27,6 +27,9 @@ MCP_CODEX_CONFIG="$HOME/.codex/config.toml"
 MCP_CHROME_START_SH="$MCP_CORE_NODE_DIR/apps/mcp-chrome/scripts/start.sh"
 MCP_CONTEXT7_SH="$MCP_CORE_NODE_DIR/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
 MCP_JSON_TOOLS="claude cursor gemini droid windsurf devin vscode"
+MCP_SERVICE_CONTRACT_COMMON="$MCP_CORE_NODE_DIR/scripts/shells/linux/common/service_contract_common.sh"
+. "$MCP_SERVICE_CONTRACT_COMMON"
+MCP_CHROME_URL="http://$(sc_require hosts.loopback):$(sc_require ports.mcp_chrome)/mcp"
 
 mcp_python() {
     # Prefer python3, then python; skip the Windows Store stub (errors when run).
@@ -68,7 +71,7 @@ mcp_build_entries() {
         echo "[WARNING] CONTEXT7_API_KEY_1 not found in $MCP_SECRET_RAW_DIR (context7 skipped)" >&2
     fi
     tmp="$(mktemp "${TMPDIR:-/tmp}/mcp_entries.XXXXXX.json")"
-    MCP_CTX_KEY="$key" "$py" - "$tmp" <<'PYEOF'
+    MCP_CTX_KEY="$key" MCP_CHROME_URL="$MCP_CHROME_URL" "$py" - "$tmp" <<'PYEOF'
 import json, os, sys
 out_path = sys.argv[1]
 key = os.environ.get("MCP_CTX_KEY", "")
@@ -79,7 +82,7 @@ if key:
         "url": "https://mcp.context7.com/mcp",
         "headers": {"CONTEXT7_API_KEY": key, "Accept": "application/json, text/event-stream"},
     })
-entries.append({"name": "chrome", "transport": "http", "url": "http://127.0.0.1:12306/mcp"})
+entries.append({"name": "chrome", "transport": "http", "url": os.environ["MCP_CHROME_URL"]})
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(entries, f)
 PYEOF
@@ -160,7 +163,7 @@ mcp_sync_codex() {
     if [ -n "$key" ]; then
         mcp_codex_write_http "context7" "https://mcp.context7.com/mcp" "$key"
     fi
-    mcp_codex_write_http "chrome" "http://127.0.0.1:12306/mcp" ""
+    mcp_codex_write_http "chrome" "$MCP_CHROME_URL" ""
     # 'unified' (stdio) is retired: purge any stale entry and never re-register it.
     mcp_codex_remove_section "unified"
     if command -v codex >/dev/null 2>&1; then

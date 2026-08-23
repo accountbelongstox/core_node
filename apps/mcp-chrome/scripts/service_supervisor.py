@@ -19,6 +19,11 @@ import webbrowser
 from pathlib import Path
 from typing import IO, Optional
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyutils.common.service_contract import port
 
 APP_MUTEX_NAME = "Local\\CoreNodeMcpChromeServiceSupervisor"
 LOCK_FILE_NAME = "core-node-mcp-chrome-supervisor.lock"
@@ -27,7 +32,7 @@ WATCH_MODE_REQUEST_FILE_NAME = "core-node-mcp-chrome-watch-mode.request"
 TAKEOVER_REQUEST_FILE_NAME = "core-node-mcp-chrome-takeover.request"
 WAKE_STATE_FILE_NAME = "core-node-mcp-chrome-last-wake.state"
 NATIVE_HOST_NAME = "com.chromemcp.nativehost.json"
-MCP_PORT = 12306
+MCP_PORT = port("mcp_chrome")
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
 RECOVERY_DEBOUNCE_SECONDS = 2.0

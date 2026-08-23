@@ -19,6 +19,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const serviceContract = require('../../config/service_contract');
 
 const { getGlobalConfig } = require('./global_config');
 const { ncoreController } = require('../ncontroller/controller');
@@ -433,8 +434,8 @@ async function createApp() {
     // Start MCP Chrome Server
     const { startMCPChromeServer } = require('#@ncore/utils/jsmcptools');
     startMCPChromeServer({
-        port: 12306,
-        host: '127.0.0.1'
+        port: serviceContract.port('mcp_chrome'),
+        host: serviceContract.host('loopback')
     }).then(() => {
         console.log('[App] MCP Chrome Server started successfully');
     }).catch((error) => {

@@ -11,11 +11,15 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_CONTRACT_COMMON="$SCRIPT_DIR/../../linux/common/service_contract_common.sh"
+. "$SERVICE_CONTRACT_COMMON"
+
 # Define the container and image names
 CONTAINER_NAME="baota_pure"
 IMAGE_NAME="baota_advanced"
 REMOTE_REGISTRY="cy00000000x"
-LOCAL_REGISTRY="192.168.100.6:15000"
+LOCAL_REGISTRY="$(sc_require hosts.lan_storage_secondary):$(sc_require ports.docker_registry)"
 
 # Define the remote and local image names
 REMOTE_IMAGE_NAME="${REMOTE_REGISTRY}/${IMAGE_NAME}:latase"

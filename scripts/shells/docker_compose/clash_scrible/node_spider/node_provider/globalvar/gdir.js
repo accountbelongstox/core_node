@@ -15,9 +15,10 @@ const os = require('os');
 const fs = require('fs');
 const Base = require('../base/base.js');
 const http = require('http')
+const serviceContract = require('../../../../../../../config/service_contract');
 class Gdir extends Base {
-    intranetIPAddress = `http://192.168.100.5/`
-    localStaticApiUrl = `https://static.local.12gm.com:905/`
+    intranetIPAddress = serviceContract.url('http', serviceContract.host('lan_storage_primary'), null, '/')
+    localStaticApiUrl = serviceContract.url('https', serviceContract.serviceDomain('static_local'), serviceContract.port('static_api_https'), '/')
     testAccessibleApi = null
     constructor() {
         super()

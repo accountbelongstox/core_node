@@ -38,6 +38,18 @@ $currentBranch = ""
 $script:CommitMessage = $null
 $script:ForcePushChoice = $null
 $script:PullCompleted = $false
+$currentBranchPreview = ""
+$giteeBackupNotice = "Gitee is configured as a backup remote only."
+$giteeForcePushChoice = "Y"
+$giteeForcePushPrompt = "Force push to Gitee as a backup? [Y/n]: "
+$giteePreferLocalMerge = $false
+$giteePushChoice = ""
+$giteePushEnabled = $false
+$giteePushPrompt = "Push this branch to the Gitee backup? [N/y]: "
+$hasGiteeTarget = $false
+$hasPrimaryPushTarget = $false
+$preferLocalMergeOnFailure = $false
+$targetForcePushChoice = "N"
 $CommitMessageTimeoutSeconds = 3  # Auto-continue with the default commit message after this many idle seconds
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
@@ -793,9 +805,50 @@ function Show-RepoSizeOverview {
     Write-ColorText "" -ForegroundColor White
 }
 
+# Pull remote changes and optionally resolve merge conflicts in favor of local changes.
+function Invoke-RemoteMerge {
+    param(
+        [string]$Branch,
+        [bool]$PreferLocalMergeOnFailure = $false
+    )
+
+    Write-ColorText "Executing: git pull origin $Branch --no-edit" -ForegroundColor DarkGray
+    git pull origin $Branch --no-edit
+    if ($LASTEXITCODE -eq 0) {
+        return $true
+    }
+    if (-not $PreferLocalMergeOnFailure) {
+        Write-ColorText "Pull failed, skipping this remote." -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-ColorText "Merge failed. Retrying with local changes preferred for conflicts." -ForegroundColor Yellow
+    git merge --abort 2>$null
+    Write-ColorText "Executing: git fetch origin $Branch" -ForegroundColor DarkGray
+    git fetch origin $Branch
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorText "Fetch failed, skipping this remote." -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-ColorText "Executing: git merge origin/$Branch -X ours --no-edit" -ForegroundColor DarkGray
+    git merge "origin/$Branch" -X ours --no-edit
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorText "Local-preferred merge failed, skipping this remote." -ForegroundColor Yellow
+        git merge --abort 2>$null
+        return $false
+    }
+
+    return $true
+}
+
 # Function to perform git operations
 function Invoke-GitOperations {
-    param([string]$TargetUrl)
+    param(
+        [string]$TargetUrl,
+        [string]$ForcePushChoice = "N",
+        [bool]$PreferLocalMergeOnFailure = $false
+    )
     
     Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkYellow
     Write-ColorText "Starting git operations for: $TargetUrl" -ForegroundColor Cyan
@@ -1015,11 +1068,12 @@ function Invoke-GitOperations {
         git push --set-upstream origin $currentBranch
         Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
         git branch --set-upstream-to=origin/$currentBranch $currentBranch
-        if ($script:ForcePushChoice -match '^[Yy]$') {
+        if ($ForcePushChoice -match '^[Yy]$') {
             Write-ColorText "FORCE PUSH MODE - skipping pull on new branch" -ForegroundColor Red
-        } elseif (-not $script:PullCompleted) {
-            Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
-            git pull origin main
+        } elseif (-not $script:PullCompleted -or $PreferLocalMergeOnFailure) {
+            if (-not (Invoke-RemoteMerge -Branch $currentBranch -PreferLocalMergeOnFailure $PreferLocalMergeOnFailure)) {
+                return $false
+            }
             $script:PullCompleted = $true
         } else {
             Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
@@ -1067,16 +1121,9 @@ function Invoke-GitOperations {
         }
         Write-ColorText "Local commit verified: working tree is clean." -ForegroundColor Green
 
-        # Use force push choice from main execution (already asked before starting operations)
-        if ($null -eq $script:ForcePushChoice) {
-            # Fallback: if somehow not set, default to normal push
-            $script:ForcePushChoice = "N"
-            Write-ColorText "Using default: Normal push mode" -ForegroundColor DarkGray
-        } else {
-            Write-ColorText "Using force push choice: $($script:ForcePushChoice)" -ForegroundColor DarkGray
-        }
+        Write-ColorText "Using force push choice: $ForcePushChoice" -ForegroundColor DarkGray
 
-        if ($script:ForcePushChoice -match '^[Yy]$') {
+        if ($ForcePushChoice -match '^[Yy]$') {
             # Force push mode - skip pull completely
             Write-ColorText "=== FORCE PUSH MODE ===" -ForegroundColor Red
             Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
@@ -1086,10 +1133,11 @@ function Invoke-GitOperations {
         } else {
             # Normal push mode - pull only once per session (first remote)
             Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
-            if (-not $script:PullCompleted) {
+            if (-not $script:PullCompleted -or $PreferLocalMergeOnFailure) {
                 Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
-                Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-                git pull origin $currentBranch --no-edit
+                if (-not (Invoke-RemoteMerge -Branch $currentBranch -PreferLocalMergeOnFailure $PreferLocalMergeOnFailure)) {
+                    return $false
+                }
                 $script:PullCompleted = $true
             } else {
                 Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
@@ -1149,6 +1197,14 @@ try {
     
     # Reorder targets to execute DEFAULT_REMOTE first
     $targets = Get-ExecutionOrder -Targets $targets
+    $currentBranchPreview = Get-CurrentBranch
+    foreach ($target in $targets) {
+        if ($target -eq "gitee") {
+            $hasGiteeTarget = $true
+        } else {
+            $hasPrimaryPushTarget = $true
+        }
+    }
     
     # Preview targets before pushing
     Write-ColorText "" -ForegroundColor White
@@ -1176,6 +1232,9 @@ try {
             $targetUrl = $remoteConfigs[$target]
             Write-ColorText "  [$targetIndex] $target" -ForegroundColor Yellow
             Write-ColorText "      URL: $targetUrl" -ForegroundColor DarkGray
+            if ($target -eq "gitee") {
+                Write-ColorText "      Branch: $currentBranchPreview" -ForegroundColor DarkGray
+            }
         }
         $targetIndex++
     }
@@ -1183,16 +1242,41 @@ try {
     Write-ColorText "============================================================" -ForegroundColor Cyan
     Write-ColorText "" -ForegroundColor White
     
-    # Ask once for force push decision (applies to all targets) - before starting operations
+    # Keep the default force-push choice for the primary remote, then configure Gitee separately.
     if (-not $Pull) {
-        Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
-        $script:ForcePushChoice = Read-Host
-        if ($script:ForcePushChoice -match '^[Yy]$') {
-            Write-ColorText "✓ Force push enabled for ALL targets" -ForegroundColor Red
-        } else {
-            Write-ColorText "✓ Normal push mode (with pull) for ALL targets" -ForegroundColor Green
+        if ($hasPrimaryPushTarget) {
+            Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
+            $script:ForcePushChoice = Read-Host
+            if ($script:ForcePushChoice -match '^[Yy]$') {
+                Write-ColorText "[OK] Force push enabled for the primary remote" -ForegroundColor Red
+            } else {
+                $script:ForcePushChoice = "N"
+                Write-ColorText "[OK] Normal push mode (with pull) for the primary remote" -ForegroundColor Green
+            }
+            Write-ColorText "" -ForegroundColor White
         }
-        Write-ColorText "" -ForegroundColor White
+
+        if ($hasGiteeTarget) {
+            Write-ColorText $giteeBackupNotice -ForegroundColor Yellow
+            Write-ColorText "Branch: $currentBranchPreview" -ForegroundColor Cyan
+            Write-ColorText $giteePushPrompt -ForegroundColor Yellow -NoNewline
+            $giteePushChoice = Read-Host
+            if ($giteePushChoice -match '^[Yy]$') {
+                $giteePushEnabled = $true
+                Write-ColorText $giteeForcePushPrompt -ForegroundColor Yellow -NoNewline
+                $giteeForcePushChoice = Read-Host
+                if ($giteeForcePushChoice -match '^[Nn]$') {
+                    $giteePreferLocalMerge = $true
+                    Write-ColorText "[OK] Normal Gitee backup push; merge conflicts will prefer local changes" -ForegroundColor Green
+                } else {
+                    $giteeForcePushChoice = "Y"
+                    Write-ColorText "[OK] Force push enabled for the Gitee backup" -ForegroundColor Red
+                }
+            } else {
+                Write-ColorText "[OK] Gitee backup push skipped" -ForegroundColor Yellow
+            }
+            Write-ColorText "" -ForegroundColor White
+        }
 
         Write-ColorText "Refresh GitHub HOST (GitHub520)? [y/N]: " -ForegroundColor Yellow -NoNewline
         $refreshHostChoice = Read-Host
@@ -1235,8 +1319,20 @@ try {
                 # For pull operations, only process the first (default) remote
                 break
             } else {
+                if ($target -eq "gitee" -and -not $giteePushEnabled) {
+                    Write-ColorText "`n=== Skipping Gitee backup ($targetUrl) ===" -ForegroundColor Yellow
+                    continue
+                }
+
+                $targetForcePushChoice = $script:ForcePushChoice
+                $preferLocalMergeOnFailure = $false
+                if ($target -eq "gitee") {
+                    $targetForcePushChoice = $giteeForcePushChoice
+                    $preferLocalMergeOnFailure = $giteePreferLocalMerge
+                }
+
                 Write-ColorText "`n=== Pushing to $target ($targetUrl) ===" -ForegroundColor Magenta
-                $success = Invoke-GitOperations $targetUrl
+                $success = Invoke-GitOperations -TargetUrl $targetUrl -ForcePushChoice $targetForcePushChoice -PreferLocalMergeOnFailure $preferLocalMergeOnFailure
                 if (-not $success) {
                     $allSuccess = $false
                     Write-ColorText "Failed to push to $target" -ForegroundColor Red

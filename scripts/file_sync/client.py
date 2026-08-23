@@ -16,11 +16,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from pycore.pyutils.common.service_contract import port, service_domain
+from pycore.pyutils.common.service_contract import host as contract_host, port as contract_port, service_domain
 from protocol import load_json_config, read_json_frame, resolve_path_against, write_json_frame
 
 _DEFAULT_SERVER_HOST = service_domain("laravel_api")
-_DEFAULT_SERVER_PORT = port("file_sync")
+_DEFAULT_SERVER_PORT = contract_port("file_sync")
 
 try:
     from watchdog.events import FileSystemEventHandler
@@ -696,8 +696,10 @@ def _run_loop() -> None:
     if not os.path.isfile(_CLIENT_CONFIG):
         raise SystemExit(f"missing config: {_CLIENT_CONFIG}")
     cfg = load_json_config(_CLIENT_CONFIG)
-    host = str(cfg.get("server_host", _DEFAULT_SERVER_HOST))
-    port = int(cfg.get("server_port", _DEFAULT_SERVER_PORT))
+    host_key = str(cfg.get("server_host_key", "")).strip()
+    port_key = str(cfg.get("server_port_key", "")).strip()
+    host = str(cfg.get("server_host") or (contract_host(host_key) if host_key else _DEFAULT_SERVER_HOST))
+    port = int(cfg.get("server_port") or (contract_port(port_key) if port_key else _DEFAULT_SERVER_PORT))
     local_raw = cfg.get("local_dir", "../../")
     root = resolve_path_against(_SCRIPT_DIR, str(local_raw))
     root = os.path.abspath(root) if root else ""

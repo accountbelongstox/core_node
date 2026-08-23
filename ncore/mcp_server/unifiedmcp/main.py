@@ -7,8 +7,8 @@ Completely independent MCP server without pycore dependencies.
 Provides unified access to PyCore and NCore backends via HTTP proxy.
 
 Backends:
-- PyCore Backend (localhost:59000) - File processing, Database, Codebase
-- NCore Backend (localhost:58000) - Browser automation, Advanced tools
+- PyCore Backend - File processing, Database, Codebase
+- NCore Backend - Browser automation, Advanced tools
 
 Usage:
     python ncore/mcpserver/unifiedmcp/main.py
@@ -27,6 +27,12 @@ import json
 
 # STDIO compatibility fix (inline implementation)
 import io
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyutils.common.service_contract import port
 
 
 def ensure_stdio_has_buffer_attributes():
@@ -87,7 +93,7 @@ class BackendConfig:
 
     # PyCore Backend
     PYCORE_HOST = os.environ.get("PYCORE_BACKEND_HOST", "localhost")
-    PYCORE_PORT = int(os.environ.get("PYCORE_BACKEND_PORT", "59000"))
+    PYCORE_PORT = int(os.environ.get("PYCORE_BACKEND_PORT", str(port("pycore_backend"))))
     PYCORE_URL = f"http://{PYCORE_HOST}:{PYCORE_PORT}/mcp"
 
     # Timeouts
@@ -826,7 +832,7 @@ def main():
     except Exception as e:
         logger.error(f"\nFatal error: {e}")
         logger.error("\nMake sure PyCore backend is running:")
-        logger.error("  python pycore_module_caller.py  (Port 59000)")
+        logger.error("  python pycore_module_caller.py  (configured PyCore port)")
         import traceback
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)

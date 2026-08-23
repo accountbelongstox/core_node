@@ -10,6 +10,7 @@
 
 
 use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 
 // ---------------------------------------------------------------------------
 // Database topology: PostgreSQL ONLY, identical on Linux and Windows.
@@ -36,8 +37,8 @@ $connections = [];
 $polyConnection = static function (string $pgDatabase): array {
     return [
         'driver' => 'pgsql',
-        'host' => LaravelConfig::DATABASE_HOST,
-        'port' => LaravelConfig::DATABASE_PORT,
+        'host' => ServiceContract::host('loopback'),
+        'port' => ServiceContract::port('postgresql'),
         'database' => $pgDatabase,
         'username' => LaravelConfig::DATABASE_USERNAME,
         'password' => null,
@@ -122,10 +123,10 @@ return [
 
         'default' => [
             'url' => null,
-            'host' => LaravelConfig::REDIS_HOST,
+            'host' => ServiceContract::host('loopback'),
             'username' => null,
             'password' => null,
-            'port' => LaravelConfig::REDIS_PORT,
+            'port' => ServiceContract::port('redis'),
             'database' => LaravelConfig::REDIS_DATABASE,
             'max_retries' => LaravelConfig::REDIS_MAX_RETRIES,
             'backoff_algorithm' => LaravelConfig::REDIS_BACKOFF_ALGORITHM,
@@ -135,10 +136,10 @@ return [
 
         'cache' => [
             'url' => null,
-            'host' => LaravelConfig::REDIS_HOST,
+            'host' => ServiceContract::host('loopback'),
             'username' => null,
             'password' => null,
-            'port' => LaravelConfig::REDIS_PORT,
+            'port' => ServiceContract::port('redis'),
             'database' => LaravelConfig::REDIS_CACHE_DATABASE,
             'max_retries' => LaravelConfig::REDIS_MAX_RETRIES,
             'backoff_algorithm' => LaravelConfig::REDIS_BACKOFF_ALGORITHM,

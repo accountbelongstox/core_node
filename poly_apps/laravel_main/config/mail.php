@@ -10,6 +10,7 @@
 
 
 use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 
 return [
 
@@ -52,12 +53,12 @@ return [
             'transport' => 'smtp',
             'scheme' => null,
             'url' => null,
-            'host' => '127.0.0.1',
-            'port' => 2525,
+            'host' => ServiceContract::host('loopback'),
+            'port' => ServiceContract::port('mail_debug'),
             'username' => null,
             'password' => null,
             'timeout' => null,
-            'local_domain' => parse_url(LaravelConfig::APP_URL, PHP_URL_HOST),
+            'local_domain' => ServiceContract::host('loopback'),
         ],
 
         'log' => [

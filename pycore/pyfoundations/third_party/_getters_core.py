@@ -69,6 +69,22 @@ def get_third_package_cryptography():
     return _lazy_import('cryptography', 'import cryptography')
 
 
+def get_third_package_cryptography_ed25519():
+    """Get the Ed25519 primitive after loading cryptography lazily."""
+    get_third_package_cryptography()
+    return importlib.import_module(
+        'cryptography.hazmat.primitives.asymmetric.ed25519'
+    )
+
+
+def get_third_package_cryptography_serialization():
+    """Get key serialization primitives after loading cryptography lazily."""
+    get_third_package_cryptography()
+    return importlib.import_module(
+        'cryptography.hazmat.primitives.serialization'
+    )
+
+
 # PIL/Pillow packages
 def get_third_package_PIL():
     """Get PIL (Pillow) package (lazy load)"""

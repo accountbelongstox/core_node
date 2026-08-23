@@ -3,7 +3,9 @@
     "mcp-chrome": {
       "enabled": true,
       "type": "http",
-      "url": "http://127.0.0.1:12306/mcp",
+      "hostKey": "loopback",
+      "portKey": "mcp_chrome",
+      "path": "mcp",
       "description": "Chrome browser automation tools"
     },
     "example-custom-service": {

@@ -11,6 +11,10 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_CONTRACT_COMMON="$SCRIPT_DIR/../../linux/common/service_contract_common.sh"
+. "$SERVICE_CONTRACT_COMMON"
+
 # 1. Initialize variables
 DOCKER_USERNAME="cy00000000x"
 FROM_IMAGE_NAME="docker.io/cy00000000x/nodebase:20"
@@ -20,7 +24,7 @@ SUBCONVERTER_IMAGE="tindy2013/subconverter:latest"
 PORT_MAPPING="-p 18100:18100 -p 18200:18200"
 DATA_CACHE_DIR="/home/clash_subscribe_data/.data_cache"
 DATA_VOLUME_MAPPING="${DATA_CACHE_DIR}:/usr/src/app/.data_cache"
-LOCAL_REGISTRY="192.168.100.6:15000"
+LOCAL_REGISTRY="$(sc_require hosts.lan_storage_secondary):$(sc_require ports.docker_registry)"
 
 echo "Pulling the latest version of $FROM_IMAGE_NAME..."
 docker pull "$FROM_IMAGE_NAME"

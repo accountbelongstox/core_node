@@ -2,6 +2,7 @@
 
 namespace App\CallPycoreUtils;
 
+use App\Support\ServiceContract;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -20,12 +21,6 @@ use Illuminate\Support\Facades\Log;
  */
 class PycoreHttpClient
 {
-    /**
-     * Loopback address of the pycore rpc_v2 HTTP server.
-     * Mirrors PYCORE_HTTP_PORT in pycore/pyfoundations/network_constants.py.
-     */
-    private const BASE_URL = 'http://127.0.0.1:59000';
-
     /**
      * Route prefix exposed by the rpc_v2 server
      * (HTTP_API_PREFIX in pycore/pyfoundations/network_constants.py).
@@ -49,7 +44,7 @@ class PycoreHttpClient
 
         try {
             $response = Http::timeout($timeout)
-                ->post(self::BASE_URL . $path, $params);
+                ->post(ServiceContract::pycoreBackendUrl().$path, $params);
 
             $payload = $response->json();
 

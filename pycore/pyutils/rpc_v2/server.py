@@ -4,14 +4,12 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyfoundations.network_constants import (
@@ -29,7 +27,8 @@ from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
 )
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
-from pycore.pyutils.rpc_v2.dispatcher import HttpDispatcher, HttpRoute
+from pycore.pyutils.rpc_v2.dispatcher import HttpRoute
+from pycore.pyutils.rpc_v2.execution import rpc_execution_kernel
 from pycore.pyutils.rpc_v2.http.event_service import HttpEventService
 
 
@@ -119,7 +118,7 @@ class HttpServer:
             allow_credentials=True,
         )
         self.app.add_middleware(_HttpProtocolMiddleware)
-        self.dispatcher = HttpDispatcher(sync_invoker=self._invoke_sync_handler)
+        self.dispatcher = rpc_execution_kernel.dispatcher
         self.event_service = (
             HttpEventService(
                 self.app,
@@ -139,14 +138,6 @@ class HttpServer:
         self._register_http_routes()
         self._register_fastapi_routers(server_options.get("fastapi_routers", ()))
         self._register_static_mounts(server_options.get("static_mounts", ()))
-
-    @staticmethod
-    async def _invoke_sync_handler(handler: Callable, arguments: tuple) -> Any:
-        return await await_bus_task(
-            handler,
-            *arguments,
-            thread_name="HttpRouteThread",
-        )
 
     def _register_lifecycle(self) -> None:
         @self.app.on_event("startup")
@@ -309,10 +300,31 @@ class HttpServer:
                     f"{method} is not allowed for {route.path}",
                     405,
                 )
-            params = await self._read_http_params(request)
+            query = self._read_query_params(request)
+            body = (
+                await request.body()
+                if method != "GET"
+                else b""
+            )
+            params = rpc_execution_kernel.decode_request_params(
+                method,
+                query,
+                body,
+                str(request.headers.get("Content-Type") or ""),
+            )
             context = self._build_http_context(request, request_id)
-            result = await self.dispatcher.dispatch(route, params, request_id, context)
-            return self._success_response(result, request_id)
+            result = await rpc_execution_kernel.dispatch(
+                route,
+                params,
+                request_id,
+                context,
+            )
+            encoded = rpc_execution_kernel.encode_result(result, request_id)
+            return Response(
+                content=encoded.body,
+                status_code=encoded.status_code,
+                headers=encoded.headers,
+            )
 
     def _register_route(
         self,
@@ -462,23 +474,6 @@ class HttpServer:
                 params[key] = [current, value]
         return params
 
-    @classmethod
-    async def _read_http_params(cls, request: Any) -> Dict[str, Any]:
-        params = cls._read_query_params(request)
-        if str(request.method).upper() == "GET":
-            return params
-        body = await request.body()
-        if not body:
-            return params
-        content_type = str(request.headers.get("Content-Type") or "").lower()
-        if content_type.startswith("text/plain"):
-            params["text"] = body.decode("utf-8", errors="replace")
-            return params
-        payload = json.loads(body)
-        if not isinstance(payload, dict):
-            raise ValueError("HTTP request body must be a JSON object")
-        return {**params, **payload}
-
     @staticmethod
     def _build_http_context(request: Any, request_id: str) -> Dict[str, Any]:
         client = getattr(request, "client", None)
@@ -495,21 +490,6 @@ class HttpServer:
             "headers": dict(request.headers),
             "request": request,
         }
-
-    @staticmethod
-    def _success_response(result: Any, request_id: str) -> Any:
-        if isinstance(result, Response):
-            result.headers.setdefault("X-Request-ID", request_id)
-            return result
-        if result is None:
-            response = Response(status_code=204)
-        else:
-            response = fastapi.responses.JSONResponse(
-                fastapi.encoders.jsonable_encoder(result),
-                status_code=200,
-            )
-        response.headers["X-Request-ID"] = request_id
-        return response
 
     @staticmethod
     def _error_response(

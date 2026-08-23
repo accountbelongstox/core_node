@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\RuntimeConfigurationStore;
+use App\Support\ServiceContract;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -53,11 +54,11 @@ class PycoreAiClient
             return [rtrim($configured, '/')];
         }
 
-        $candidates = ['http://127.0.0.1:59000'];
+        $candidates = [ServiceContract::pycoreBackendUrl()];
 
         $nameserver = $this->readResolvConfNameserver();
         if ($nameserver !== null) {
-            $candidates[] = "http://{$nameserver}:59000";
+            $candidates[] = ServiceContract::pycoreBackendUrl($nameserver);
         }
 
         return $candidates;

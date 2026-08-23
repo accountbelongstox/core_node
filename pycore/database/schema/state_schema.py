@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 def _create_operations_table(cursor: sqlite3.Cursor) -> None:
     cursor.execute("""
@@ -196,18 +196,49 @@ def _create_rpc_client_sessions_table(cursor: sqlite3.Cursor) -> None:
     """)
 
 
+def _create_relay_execution_results_table(cursor: sqlite3.Cursor) -> None:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS relay_execution_results (
+            operation_id TEXT PRIMARY KEY,
+            request_digest TEXT NOT NULL,
+            route TEXT NOT NULL,
+            retry_policy TEXT NOT NULL,
+            response_status INTEGER,
+            response_headers_json TEXT,
+            response_body BLOB,
+            response_has_body INTEGER NOT NULL DEFAULT 1,
+            response_digest TEXT,
+            response_length INTEGER,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(operation_id) REFERENCES operations(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_relay_execution_request_digest "
+        "ON relay_execution_results(request_digest)"
+    )
+
+
 def _migrate_schema(cursor: sqlite3.Cursor) -> None:
     cursor.execute("PRAGMA user_version")
     row = cursor.fetchone()
     version = int(row[0]) if row and row[0] is not None else 0
-    if version >= SCHEMA_VERSION:
-        return
     cursor.execute("PRAGMA table_info(operations)")
     op_cols = {str(r[1]) for r in cursor.fetchall()}
     if "owner_client_id" not in op_cols:
         cursor.execute("ALTER TABLE operations ADD COLUMN owner_client_id TEXT")
+    cursor.execute("PRAGMA table_info(relay_execution_results)")
+    relay_cols = {str(r[1]) for r in cursor.fetchall()}
+    if "response_has_body" not in relay_cols:
+        cursor.execute(
+            "ALTER TABLE relay_execution_results "
+            "ADD COLUMN response_has_body INTEGER NOT NULL DEFAULT 1"
+        )
     _create_rpc_client_sessions_table(cursor)
-    cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+    _create_relay_execution_results_table(cursor)
+    if version < SCHEMA_VERSION:
+        cursor.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
@@ -228,5 +259,6 @@ def init_schema(conn: sqlite3.Connection) -> None:
     _create_rpc_client_offset_table(cursor)
     _create_rpc_command_idempotency_table(cursor)
     _create_rpc_client_sessions_table(cursor)
+    _create_relay_execution_results_table(cursor)
     _migrate_schema(cursor)
     conn.commit()

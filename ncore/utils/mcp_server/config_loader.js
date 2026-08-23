@@ -17,6 +17,7 @@ const freader = require('#@freader');
 const fwriter = require('#@fwriter');
 const globalVars = require('#@global_vars');
 const logger = require('#@logger');
+const serviceContract = require('../../../config/service_contract');
 
 const DEFAULT_CONFIG_FILENAME = 'mcp-stdio-config.json';
 
@@ -44,7 +45,7 @@ class ConfigLoader {
                 const content = await freader.readFileContent(this.configPath);
                 const config = JSON.parse(content);
                 logger.info('[MCP Server] Config loaded from:', this.configPath);
-                return config;
+                return this.normalizeConfig(config);
             }
 
             logger.info('[MCP Server] Config file not found, using defaults');
@@ -66,11 +67,30 @@ class ConfigLoader {
                 'mcp-chrome': {
                     enabled: true,
                     type: 'http',
-                    url: 'http://127.0.0.1:12306/mcp',
+                    url: serviceContract.url('http', serviceContract.host('loopback'), serviceContract.port('mcp_chrome'), 'mcp'),
                     description: 'Chrome browser automation tools'
                 }
             }
         };
+    }
+
+    normalizeConfig(config) {
+        const services = config && config.services && typeof config.services === 'object'
+            ? config.services
+            : {};
+
+        for (const serviceConfig of Object.values(services)) {
+            if (serviceConfig.type === 'http' && !serviceConfig.url) {
+                serviceConfig.url = serviceContract.url(
+                    'http',
+                    serviceContract.host(serviceConfig.hostKey || 'loopback'),
+                    serviceContract.port(serviceConfig.portKey || 'mcp_chrome'),
+                    serviceConfig.path || 'mcp'
+                );
+            }
+        }
+
+        return config;
     }
 
     /**

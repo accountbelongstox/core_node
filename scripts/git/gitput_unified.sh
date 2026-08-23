@@ -69,6 +69,26 @@ declare -g -A remote_configs
 # Default remote (will be set after loading configurations)
 DEFAULT_REMOTE=""
 
+# Push target interaction state
+CURRENT_BRANCH_PREVIEW=""
+FORCE_PUSH_CHOICE=""
+GITHUB_FORCE_PUSH_MODE="no"
+GITEE_FORCE_PUSH_CHOICE=""
+GITEE_FORCE_PUSH_MODE="yes"
+GITEE_PREFER_LOCAL_MERGE=false
+GITEE_PUSH_CHOICE=""
+GITEE_PUSH_ENABLED=false
+HAS_GITEE_TARGET=false
+HAS_PRIMARY_PUSH_TARGET=false
+PREFER_LOCAL_MERGE_ON_FAILURE=false
+PUSH_RC=0
+TARGET_FORCE_PUSH_MODE="no"
+
+# Push target messages
+GITEE_BACKUP_NOTICE="Gitee is configured as a backup remote only."
+GITEE_PUSH_PROMPT="Push this branch to the Gitee backup? [N/y]: "
+GITEE_FORCE_PUSH_PROMPT="Force push to Gitee as a backup? [Y/n]: "
+
 # ===================================================================
 # PARAMETER PARSING
 # ===================================================================
@@ -1610,6 +1630,7 @@ show_repo_size_overview() {
 invoke_git_operations() {
     local target_url="$1"
     local force_push_mode="$2"  # "yes" or "no"
+    local prefer_local_merge_on_failure="$3"
 
     # Check if host is reachable before proceeding. Return code 2 = SKIPPED
     # (NOT success) so the caller does not falsely report "Successfully pushed".
@@ -1898,13 +1919,29 @@ invoke_git_operations() {
     else
         # Normal push mode - pull only once per session (first remote)
         write_color_text "=== NORMAL PUSH MODE ===" "Green"
-        if [ "$PULL_COMPLETED" != true ]; then
-            if git branch -r | grep -q "origin/$current_branch"; then
+        if [ "$PULL_COMPLETED" != true ] || [ "$prefer_local_merge_on_failure" = true ]; then
+            if [ "$prefer_local_merge_on_failure" = true ] || git branch -r | grep -q "origin/$current_branch"; then
                 write_color_text "Pulling and merging remote changes after commit..." "Cyan"
                 write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
                 if ! git pull origin "$current_branch" --no-edit; then
-                    write_color_text "Pull failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
-                    return 1
+                    if [ "$prefer_local_merge_on_failure" = true ]; then
+                        write_color_text "Merge failed. Retrying with local changes preferred for conflicts." "Yellow"
+                        git merge --abort 2>/dev/null || true
+                        write_color_text "Executing: git fetch origin $current_branch" "DarkGray"
+                        if ! git fetch origin "$current_branch"; then
+                            write_color_text "Fetch failed, skipping this remote." "Yellow"
+                            return 1
+                        fi
+                        write_color_text "Executing: git merge origin/$current_branch -X ours --no-edit" "DarkGray"
+                        if ! git merge "origin/$current_branch" -X ours --no-edit; then
+                            write_color_text "Local-preferred merge failed, skipping this remote." "Yellow"
+                            git merge --abort 2>/dev/null || true
+                            return 1
+                        fi
+                    else
+                        write_color_text "Pull failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
+                        return 1
+                    fi
                 fi
             fi
             PULL_COMPLETED=true
@@ -1933,6 +1970,14 @@ invoke_git_operations() {
 
 # Main execution with error handling
 main() {
+    CURRENT_BRANCH_PREVIEW=$(cd "$CORE_NODE_DIR" && get_current_branch)
+    GITHUB_FORCE_PUSH_MODE="no"
+    GITEE_FORCE_PUSH_MODE="yes"
+    GITEE_PREFER_LOCAL_MERGE=false
+    GITEE_PUSH_ENABLED=false
+    HAS_GITEE_TARGET=false
+    HAS_PRIMARY_PUSH_TARGET=false
+
     if [ "$PULL_MODE" = true ]; then
         write_color_text "=== Unified Git PULL Script ===" "Magenta"
     elif [ "$FORCE_OVERWRITE_MODE" = true ]; then
@@ -1985,6 +2030,14 @@ main() {
     # Reorder targets to execute DEFAULT_REMOTE first
     targets=($(get_execution_order "${targets[@]}"))
 
+    for target in "${targets[@]}"; do
+        if [ "$target" = "gitee" ]; then
+            HAS_GITEE_TARGET=true
+        else
+            HAS_PRIMARY_PUSH_TARGET=true
+        fi
+    done
+
     # Preview targets before executing
     write_color_text "" "White"
     write_color_text "============================================================" "Cyan"
@@ -2019,6 +2072,9 @@ main() {
             local target_url="${remote_configs[$target]}"
             write_color_text "  [$target_index] $target" "Yellow"
             write_color_text "      URL: $target_url" "DarkGray"
+            if [ "$target" = "gitee" ]; then
+                write_color_text "      Branch: $CURRENT_BRANCH_PREVIEW" "DarkGray"
+            fi
         fi
         ((target_index++))
     done
@@ -2026,18 +2082,41 @@ main() {
     write_color_text "============================================================" "Cyan"
     write_color_text "" "White"
 
-    # Ask once for force push decision (push mode only)
-    local force_push_mode="no"
+    # Keep the default force-push choice for the primary remote, then configure Gitee separately.
     if [ "$PULL_MODE" != true ] && [ "$FORCE_OVERWRITE_MODE" != true ]; then
-        write_color_text "Do you want to force push? [y/N]: " "Yellow"
-        read -r force_push_choice
-        if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then
-            force_push_mode="yes"
-            write_color_text "[OK] Force push enabled for ALL targets" "Red"
-        else
-            write_color_text "[OK] Normal push mode (with pull) for ALL targets" "Green"
+        if [ "$HAS_PRIMARY_PUSH_TARGET" = true ]; then
+            write_color_text "Do you want to force push? [y/N]: " "Yellow"
+            read -r FORCE_PUSH_CHOICE
+            if [[ "$FORCE_PUSH_CHOICE" =~ ^[Yy]$ ]]; then
+                GITHUB_FORCE_PUSH_MODE="yes"
+                write_color_text "[OK] Force push enabled for the primary remote" "Red"
+            else
+                write_color_text "[OK] Normal push mode (with pull) for the primary remote" "Green"
+            fi
+            write_color_text "" "White"
         fi
-        write_color_text "" "White"
+
+        if [ "$HAS_GITEE_TARGET" = true ]; then
+            write_color_text "$GITEE_BACKUP_NOTICE" "Yellow"
+            write_color_text "Branch: $CURRENT_BRANCH_PREVIEW" "Cyan"
+            write_color_text "$GITEE_PUSH_PROMPT" "Yellow"
+            read -r GITEE_PUSH_CHOICE
+            if [[ "$GITEE_PUSH_CHOICE" =~ ^[Yy]$ ]]; then
+                GITEE_PUSH_ENABLED=true
+                write_color_text "$GITEE_FORCE_PUSH_PROMPT" "Yellow"
+                read -r GITEE_FORCE_PUSH_CHOICE
+                if [[ "$GITEE_FORCE_PUSH_CHOICE" =~ ^[Nn]$ ]]; then
+                    GITEE_FORCE_PUSH_MODE="no"
+                    GITEE_PREFER_LOCAL_MERGE=true
+                    write_color_text "[OK] Normal Gitee backup push; merge conflicts will prefer local changes" "Green"
+                else
+                    write_color_text "[OK] Force push enabled for the Gitee backup" "Red"
+                fi
+            else
+                write_color_text "[OK] Gitee backup push skipped" "Yellow"
+            fi
+            write_color_text "" "White"
+        fi
 
         write_color_text "Refresh GitHub HOST (GitHub520)? [y/N]: " "Yellow"
         read -r refresh_host_choice
@@ -2087,12 +2166,24 @@ main() {
                 # For pull operations, only process the first (default) remote
                 break
             else
+                if [ "$target" = "gitee" ] && [ "$GITEE_PUSH_ENABLED" != true ]; then
+                    write_color_text "\n=== Skipping Gitee backup ($target_url) ===" "Yellow"
+                    continue
+                fi
+
+                TARGET_FORCE_PUSH_MODE="$GITHUB_FORCE_PUSH_MODE"
+                PREFER_LOCAL_MERGE_ON_FAILURE=false
+                if [ "$target" = "gitee" ]; then
+                    TARGET_FORCE_PUSH_MODE="$GITEE_FORCE_PUSH_MODE"
+                    PREFER_LOCAL_MERGE_ON_FAILURE="$GITEE_PREFER_LOCAL_MERGE"
+                fi
+
                 write_color_text "\n=== Pushing to $target ($target_url) ===" "Magenta"
-                invoke_git_operations "$target_url" "$force_push_mode"
-                push_rc=$?
-                if [ $push_rc -eq 0 ]; then
+                invoke_git_operations "$target_url" "$TARGET_FORCE_PUSH_MODE" "$PREFER_LOCAL_MERGE_ON_FAILURE"
+                PUSH_RC=$?
+                if [ $PUSH_RC -eq 0 ]; then
                     write_color_text "Successfully pushed to $target" "Green"
-                elif [ $push_rc -eq 2 ]; then
+                elif [ $PUSH_RC -eq 2 ]; then
                     # Skipped (host unreachable) - NOT a success and NOT counted as
                     # pushed; mark the run as not fully successful so the summary is honest.
                     all_success=false

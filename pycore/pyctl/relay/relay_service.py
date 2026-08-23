@@ -1,502 +1,537 @@
 # -*- coding: utf-8 -*-
-"""Machine-side pycore relay runtime against the Laravel central server.
-
-One facility owns the whole machine plane of the relay (PART_3 §3.4):
-
-- Identity: stable machine id (pycore- prefix + OS installation digest),
-  capabilities rendered from the shared contract.
-- Registry: register -> heartbeat -> unregister through the contract
-  endpoints; endpoint changes re-register against the new Laravel winner.
-- Hub tokens: registration seeds a short-lived subscriber token. The shared
-  provider refreshes it for every local Mercure subscriber before expiry.
-- Subscriptions: machines roster topic + this machine's pair topic.
-- Request execution: relay.request frames on the pair topic fetch the full
-  request, replay it against the LOCAL pycore HTTP server (RPC v2 :59000)
-  through the shared dependency-free HttpClient, and post the response -
-  inline under the contract cap, chunked blob above it.
-"""
+"""Outbound-only Pycore Relay V2 device agent."""
 
 from __future__ import annotations
 
 import platform
 import socket
-import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+import uuid
+from typing import Any, Dict, List
 
-from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyctl.relay.relay_processor import relay_operation_processor
+from pycore.pyctl.relay.relay_transport import RelayHttpError, relay_transport
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
+    start_bus_task,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.http_client import HttpClient
 from pycore.pyutils.common.mercure_client import (
+    MERCURE_STATE_CONNECTING,
     MERCURE_STATE_OFFLINE,
     MERCURE_STATE_ONLINE,
     MercureSubscriber,
     MercureUpdate,
 )
-from pycore.pyutils.common.queue_center_contract import (
-    QUEUE_CENTER_RELAY,
-    queue_center_endpoint,
-    relay_cap,
-    relay_event,
-    relay_hub_int,
-    relay_int,
-    relay_topic,
-)
-from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.laravel.identity import get_pycore_machine_id
+from pycore.pyutils.common.relay_activity_log import relay_activity_log
+from pycore.pyutils.common.relay_contract import relay_contract
+from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 
-RELAY_STOP_SIGNAL = "relay.runtime.stop"
-RELAY_ROSTER_SIGNAL = "relay.roster.changed"
-RELAY_HTTP_TIMEOUT_SECONDS = 8.0
-RELAY_TOKEN_LIFETIME_FRACTION = 0.75
-RELAY_REGISTER_RETRY_MIN_SECONDS = 2.0
-RELAY_REGISTER_RETRY_MAX_SECONDS = 60.0
-RELAY_SUBSCRIBER_RECONNECT_MIN_SECONDS = 1.0
-RELAY_SUBSCRIBER_RECONNECT_MAX_SECONDS = 30.0
-# One heartbeat every contract interval; failures escalate to re-register.
-RELAY_HEARTBEAT_GRACE_SECONDS = 5.0
-
-
-def _response_data(response: Any) -> Dict[str, Any]:
-    status = int(getattr(response, "status_code", 0) or 0)
-    if status < 200 or status >= 300:
-        raise RuntimeError(f"Relay request failed: HTTP {status}")
-    payload = response.json()
-    if not isinstance(payload, dict):
-        raise TypeError("Relay response must be an object")
-    data = payload.get("data")
-    return dict(data) if isinstance(data, dict) else dict(payload)
+RELAY_STOP_SIGNAL = "relay.v2.runtime.stop"
+RELAY_CONTROL_SIGNAL = "relay.v2.runtime.control"
+RELAY_CONTROL_WAKE = "operation_available"
+RELAY_CONTROL_CREDENTIAL_REVOKED = "credential_revoked"
+RELAY_SHUTDOWN_HANDLER_NAME = "relay_v2_runtime"
+RELAY_STATE_QUEUE = "relay.v2.runtime.state"
+RELAY_STATE_THREAD = "RelayV2StateThread"
+RELAY_CONTROL_THREAD = "RelayV2ControlThread"
+RELAY_SUBSCRIBER_THREAD = "RelayV2SubscriberThread"
+RELAY_TOKEN_LIFETIME_FRACTION = 0.8
 
 
 class RelayService:
-    """Own the machine-side relay plane for the whole pycore process."""
+    """Coordinate enrollment, heartbeat, wake subscription, and recovery claims."""
 
     def __init__(self) -> None:
         init_serialized_owner(
             self,
-            "relay.runtime.state",
-            "RelayRuntimeStateThread",
+            RELAY_STATE_QUEUE,
+            RELAY_STATE_THREAD,
         )
-        self._machine_id = get_pycore_machine_id()
-        self._threads: List[threading.Thread] = []
-        self._token = ""
-        self._token_expires_at = 0.0
+        self._threads: List[Any] = []
         self._hub_url = ""
-        self._roster: Dict[str, Dict[str, Any]] = {}
+        self._hub_topic = ""
+        self._hub_token_value = ""
+        self._hub_token_expires_at = 0.0
         self._registered_endpoint = ""
-        self._executor = HttpClient(
-            base_url=f"http://{HTTP_LOOPBACK_HOST}:{PYCORE_HTTP_PORT}",
-            default_timeout=30.0,
-        )
-        THREAD_BUS.clear_signal(RELAY_STOP_SIGNAL)
+        self._lease_owner = uuid.uuid4().hex
         laravel_endpoint_manager.register_endpoint_change_listener(
             self._on_endpoint_changed
         )
-
-    # ------------------------------------------------------------- lifecycle
+        relay_activity_log.info(
+            "runtime.constructed",
+            contract_digest=relay_contract.digest,
+            protocol_version=relay_contract.protocol_version,
+            lease_owner=self._lease_owner,
+        )
 
     @serialized_method
     def start(self) -> None:
-        if self._threads and any(thread.is_alive() for thread in self._threads):
-            return
+        alive = {
+            str(thread.name): thread
+            for thread in self._threads
+            if thread.is_alive()
+        }
+        relay_device_identity.ensure_device_id()
+        relay_device_identity.ensure_signing_key()
         THREAD_BUS.clear_signal(RELAY_STOP_SIGNAL)
-        self._threads = [
-            threading.Thread(
-                target=self._registry_loop,
-                name="RelayRegistryThread",
-                daemon=True,
-            ),
-            threading.Thread(
-                target=self._subscriber_loop,
-                name="RelaySubscriberThread",
-                daemon=True,
-            ),
-        ]
-        for thread in self._threads:
-            thread.start()
+        THREAD_BUS.clear_signal(RELAY_CONTROL_SIGNAL)
+        threads = list(alive.values())
+        if RELAY_CONTROL_THREAD not in alive:
+            threads.append(
+                start_bus_task(
+                    self._control_loop,
+                    thread_name=RELAY_CONTROL_THREAD,
+                )
+            )
+            relay_activity_log.success("runtime.control_thread.started")
+        else:
+            relay_activity_log.warning(
+                "runtime.control_thread.present",
+                thread_name=RELAY_CONTROL_THREAD,
+            )
+        if RELAY_SUBSCRIBER_THREAD not in alive:
+            threads.append(
+                start_bus_task(
+                    self._subscriber_loop,
+                    thread_name=RELAY_SUBSCRIBER_THREAD,
+                )
+            )
+            relay_activity_log.success("runtime.subscriber_thread.started")
+        else:
+            relay_activity_log.warning(
+                "runtime.subscriber_thread.present",
+                thread_name=RELAY_SUBSCRIBER_THREAD,
+            )
+        self._threads = threads
         THREAD_BUS.register_shutdown_handler(
             self.stop,
             priority=60,
-            name="relay_runtime",
+            name=RELAY_SHUTDOWN_HANDLER_NAME,
+        )
+        relay_activity_log.success(
+            "runtime.started",
+            device_id=relay_device_identity.device_id(),
+            thread_count=len(self._threads),
         )
 
     def stop(self) -> None:
+        relay_activity_log.info(
+            "runtime.stop.requested",
+            device_id=relay_device_identity.device_id(),
+        )
         THREAD_BUS.signal(RELAY_STOP_SIGNAL, True)
-        self._unregister_best_effort()
-
-    # -------------------------------------------------------------- identity
+        THREAD_BUS.signal(
+            RELAY_CONTROL_SIGNAL,
+            {"kind": "stop"},
+        )
 
     @property
     def machine_id(self) -> str:
-        return self._machine_id
+        return relay_device_identity.device_id()
 
     def capabilities(self) -> List[str]:
-        claimants = QUEUE_CENTER_RELAY.get("capability_providers")
-        mine = (
-            claimants.get("pycore")
-            if isinstance(claimants, dict)
-            else None
-        )
-        provides = mine.get("provides") if isinstance(mine, dict) else None
-        return [str(item) for item in (provides or []) if item]
+        return relay_contract.capabilities()
 
-    # ----------------------------------------------------------- hub tokens
-
-    @serialized_method
     def hub_token(self, force_refresh: bool = False) -> str:
-        """Return the shared subscriber token, refreshing it when required."""
-        if (
-            not force_refresh
-            and self._token
-            and time.time() < self._token_expires_at
-        ):
-            return self._token
-
-        token = self._request_machine_token()
-        ttl = max(1, relay_hub_int("token_ttl_seconds") or 600)
-        self._token = token
-        self._token_expires_at = time.time() + ttl * RELAY_TOKEN_LIFETIME_FRACTION
+        self._ensure_hub_authorization(force=force_refresh)
+        snapshot = self._hub_snapshot()
+        token = str(snapshot.get("token") or "")
+        if not token:
+            raise RuntimeError("relay_hub_token_unavailable")
         return token
-
-    # ---------------------------------------------------------------- roster
-
-    def roster(self) -> Dict[str, Dict[str, Any]]:
-        return dict(self._roster)
-
-    # ------------------------------------------------------------------ loop
 
     def _should_stop(self) -> bool:
         return THREAD_BUS.is_shutdown_requested() or bool(
             THREAD_BUS.get_signal(RELAY_STOP_SIGNAL, False)
         )
 
-    def _pause(self, seconds: float) -> None:
-        THREAD_BUS.wait_signal(RELAY_STOP_SIGNAL, timeout=seconds)
-
     @serialized_method
-    def _on_endpoint_changed(self, _base_url: str) -> None:
-        # A new Laravel winner invalidates registration + roster state; the
-        # registry loop re-registers on its next tick.
+    def _on_endpoint_changed(self, base_url: str) -> None:
+        previous = self._registered_endpoint
         self._registered_endpoint = ""
         self._hub_url = ""
-        self._token = ""
-        self._token_expires_at = 0.0
-
-    def _endpoint(self) -> str:
-        active = laravel_endpoint_manager.get_active_base_url()
-        return str(active or "").rstrip("/")
-
-    def _registry_loop(self) -> None:
-        retry_seconds = RELAY_REGISTER_RETRY_MIN_SECONDS
-        while not self._should_stop():
-            endpoint = self._endpoint()
-            if not endpoint:
-                self._pause(RELAY_REGISTER_RETRY_MAX_SECONDS)
-                continue
-            try:
-                self._register(endpoint)
-                retry_seconds = RELAY_REGISTER_RETRY_MIN_SECONDS
-                self._heartbeat_until_restart(endpoint)
-            except Exception as exc:  # noqa: BLE001 - loop must survive
-                ColorPrint.yellow(f"[Relay] registry retry: {exc}")
-                retry_seconds = min(
-                    RELAY_REGISTER_RETRY_MAX_SECONDS,
-                    retry_seconds * 2,
-                )
-                self._pause(retry_seconds)
-
-    def _register(self, endpoint: str) -> None:
-        data = _response_data(
-            laravel_client.post(
-                queue_center_endpoint("relay_machine_register"),
-                base_url=endpoint,
-                json={
-                    "machine_id": self._machine_id,
-                    "label": socket.gethostname() or self._machine_id,
-                    "capabilities": self.capabilities(),
-                    "hostname": socket.gethostname(),
-                    "platform": platform.platform(),
-                },
-                timeout=RELAY_HTTP_TIMEOUT_SECONDS,
-            )
+        self._hub_topic = ""
+        self._hub_token_value = ""
+        self._hub_token_expires_at = 0.0
+        relay_activity_log.warning(
+            "coordinator.endpoint.changed",
+            previous_endpoint=previous,
+            endpoint=base_url,
         )
-        hub = data.get("hub") if isinstance(data.get("hub"), dict) else {}
-        self._remember_hub_authorization(hub, endpoint)
-        ColorPrint.green(
-            f"[Relay] registered {self._machine_id} at {endpoint}"
+        THREAD_BUS.signal(
+            RELAY_CONTROL_SIGNAL,
+            {"kind": "endpoint_changed"},
         )
 
     @serialized_method
-    def _remember_hub_authorization(self, hub: Dict[str, Any], endpoint: str) -> None:
-        if hub.get("token"):
-            ttl = int(hub.get("token_ttl_seconds") or 0) or relay_hub_int(
-                "token_ttl_seconds"
-            ) or 600
-            self._token = str(hub["token"])
-            self._token_expires_at = time.time() + ttl * RELAY_TOKEN_LIFETIME_FRACTION
-        if hub.get("hub_url"):
-            self._hub_url = str(hub["hub_url"])
-        self._registered_endpoint = endpoint
-
-    def _heartbeat_until_restart(self, endpoint: str) -> None:
-        interval = max(5.0, float(relay_int("machine_heartbeat_seconds") or 20))
-        while not self._should_stop():
-            if self._endpoint() != endpoint or not self._registered_endpoint:
-                return
-            self._pause(interval - RELAY_HEARTBEAT_GRACE_SECONDS)
-            if self._should_stop():
-                return
-            _response_data(
-                laravel_client.post(
-                    queue_center_endpoint("relay_machine_heartbeat"),
-                    base_url=endpoint,
-                    json={"machine_id": self._machine_id},
-                    timeout=RELAY_HTTP_TIMEOUT_SECONDS,
-                )
+    def _remember_endpoint(self, endpoint: str) -> None:
+        if self._registered_endpoint != str(endpoint):
+            relay_activity_log.success(
+                "coordinator.endpoint.bound",
+                endpoint=endpoint,
             )
+        self._registered_endpoint = str(endpoint)
 
-    def _unregister_best_effort(self) -> None:
-        endpoint = self._registered_endpoint
-        if not endpoint:
-            return
-        try:
-            laravel_client.post(
-                queue_center_endpoint("relay_machine_unregister"),
-                base_url=endpoint,
-                json={"machine_id": self._machine_id},
-                timeout=RELAY_HTTP_TIMEOUT_SECONDS,
-            )
-        except Exception:  # noqa: BLE001 - shutdown path
-            pass
-
-    # ----------------------------------------------------------- subscriber
-
-    def _request_machine_token(self) -> str:
-        endpoint = self._registered_endpoint or self._endpoint()
-        if not endpoint:
-            raise RuntimeError("Laravel endpoint is unavailable")
-        data = _response_data(
-            laravel_client.post(
-                queue_center_endpoint("relay_hub_auth"),
-                base_url=endpoint,
-                json={"mode": "machine", "machine_id": self._machine_id},
-                timeout=RELAY_HTTP_TIMEOUT_SECONDS,
-            )
+    @serialized_method
+    def _remember_hub(self, hub: Dict[str, Any]) -> None:
+        hub_url = str(hub.get("url") or "")
+        token = str(hub.get("subscriber_token") or "")
+        topic = str(hub.get("topic") or "") or relay_contract.topic(
+            "device_wake",
+            device_id=relay_device_identity.device_id(),
         )
-        if not data.get("token"):
-            raise RuntimeError("Relay hub-auth returned no token")
-        if data.get("hub_url"):
-            self._hub_url = str(data["hub_url"])
-        return str(data["token"])
+        expires_in_seconds = float(hub.get("expires_in_seconds") or 0)
+        if not hub_url or not token or expires_in_seconds <= 0:
+            raise ValueError("relay_hub_authorization_incomplete")
+        self._hub_url = hub_url
+        self._hub_topic = topic
+        self._hub_token_value = token
+        self._hub_token_expires_at = (
+            time.time() + expires_in_seconds * RELAY_TOKEN_LIFETIME_FRACTION
+        )
+        relay_activity_log.success(
+            "hub.authorization.saved",
+            hub_url=hub_url,
+            topic=topic,
+            subscriber_token=token,
+            expires_in_seconds=expires_in_seconds,
+        )
+
+    @serialized_method
+    def _hub_snapshot(self) -> Dict[str, Any]:
+        return {
+            "url": self._hub_url,
+            "topic": self._hub_topic,
+            "token": self._hub_token_value,
+            "expires_at": self._hub_token_expires_at,
+        }
+
+    def _hub_changed(self, expected_url: str, expected_topic: str) -> bool:
+        snapshot = self._hub_snapshot()
+        return (
+            str(snapshot.get("url") or "") != str(expected_url)
+            or str(snapshot.get("topic") or "") != str(expected_topic)
+        )
+
+    def _wait_control(self, seconds: float) -> Dict[str, Any]:
+        value = THREAD_BUS.wait_signal(
+            RELAY_CONTROL_SIGNAL,
+            timeout=max(0.1, float(seconds)),
+        )
+        THREAD_BUS.clear_signal(RELAY_CONTROL_SIGNAL)
+        return dict(value) if isinstance(value, dict) else {}
+
+    def _wait_stop(self, seconds: float) -> None:
+        THREAD_BUS.wait_signal(
+            RELAY_STOP_SIGNAL,
+            timeout=max(0.1, float(seconds)),
+        )
+
+    def _control_loop(self) -> None:
+        retry_seconds = relay_contract.duration("subscriber_reconnect_min_seconds")
+        max_retry_seconds = relay_contract.duration(
+            "subscriber_reconnect_max_seconds"
+        )
+        next_heartbeat_at = 0.0
+        next_claim_at = 0.0
+        force_claim = True
+        relay_activity_log.info("control.loop.started")
+        while not self._should_stop():
+            endpoint = relay_transport.endpoint()
+            if not endpoint:
+                relay_activity_log.warning(
+                    "coordinator.endpoint.unavailable",
+                    retry_seconds=max_retry_seconds,
+                )
+                self._wait_control(max_retry_seconds)
+                continue
+            try:
+                relay_device_identity.ensure()
+                enrolled = self._ensure_enrollment(endpoint)
+                if not enrolled:
+                    signal = self._wait_control(
+                        relay_contract.duration("enrollment_poll_seconds")
+                    )
+                    self._handle_control_signal(signal)
+                    continue
+                self._remember_endpoint(endpoint)
+                now = time.monotonic()
+                if now >= next_heartbeat_at:
+                    self._heartbeat()
+                    next_heartbeat_at = now + relay_contract.duration(
+                        "heartbeat_seconds"
+                    )
+                self._ensure_hub_authorization()
+                if force_claim or now >= next_claim_at:
+                    self._claim_operations()
+                    force_claim = False
+                    next_claim_at = now + relay_contract.duration(
+                        "recovery_claim_seconds"
+                    )
+                retry_seconds = relay_contract.duration(
+                    "subscriber_reconnect_min_seconds"
+                )
+                wait_seconds = max(
+                    0.1,
+                    min(next_heartbeat_at, next_claim_at) - time.monotonic(),
+                )
+                signal = self._wait_control(wait_seconds)
+                signal_kind = self._handle_control_signal(signal)
+                force_claim = signal_kind == RELAY_CONTROL_WAKE
+            except RelayHttpError as exc:
+                if exc.status_code in (401, 403):
+                    relay_device_identity.clear_credential()
+                    relay_device_identity.clear_enrollment()
+                relay_activity_log.error(
+                    "control.http.failed",
+                    status=exc.status_code,
+                    action_name=exc.action,
+                    retry_seconds=retry_seconds,
+                )
+                self._wait_control(retry_seconds)
+                retry_seconds = min(max_retry_seconds, retry_seconds * 2)
+            except Exception as exc:
+                relay_activity_log.error(
+                    "control.loop.failed",
+                    error_type=type(exc).__name__,
+                    error=exc,
+                    retry_seconds=retry_seconds,
+                )
+                self._wait_control(retry_seconds)
+                retry_seconds = min(max_retry_seconds, retry_seconds * 2)
+        relay_activity_log.info("control.loop.stopped")
+
+    def _handle_control_signal(self, signal: Dict[str, Any]) -> str:
+        kind = str(signal.get("kind") or "")
+        if kind == RELAY_CONTROL_CREDENTIAL_REVOKED:
+            relay_device_identity.clear_credential()
+            relay_device_identity.clear_enrollment()
+        if kind:
+            relay_activity_log.info("control.signal.received", kind=kind)
+        return kind
+
+    def _ensure_enrollment(self, endpoint: str) -> bool:
+        if relay_device_identity.has_credential():
+            relay_activity_log.debug(
+                "enrollment.credential.present",
+                device_id=relay_device_identity.device_id(),
+            )
+            return True
+        enrollment_id = relay_device_identity.enrollment_id()
+        if not enrollment_id:
+            descriptor = relay_device_identity.descriptor(
+                socket.gethostname() or relay_device_identity.device_id(),
+                platform.platform(),
+            )
+            data = relay_transport.request_json(
+                "POST",
+                relay_contract.endpoint("enrollment_create"),
+                {"device": descriptor},
+                action="enrollment.create",
+            )
+        else:
+            data = relay_transport.request_json(
+                "GET",
+                relay_contract.endpoint(
+                    "enrollment_status",
+                    enrollment_id=enrollment_id,
+                ),
+                action="enrollment.status",
+            )
+        enrollment = data.get("enrollment")
+        if not isinstance(enrollment, dict):
+            raise ValueError("relay_enrollment_response_missing")
+        resolved_id = str(enrollment.get("enrollment_id") or "")
+        state = str(enrollment.get("state") or "")
+        if not resolved_id or not state:
+            raise ValueError("relay_enrollment_response_incomplete")
+        if not enrollment_id:
+            claim_code = str(enrollment.get("claim_code") or "")
+            expires_at = str(enrollment.get("expires_at") or "")
+            if not claim_code or not expires_at:
+                raise ValueError("relay_enrollment_claim_details_incomplete")
+            relay_device_identity.save_enrollment(
+                resolved_id,
+                claim_code,
+                expires_at,
+            )
+        if state in ("expired", "revoked"):
+            relay_device_identity.clear_enrollment()
+            return False
+        if state != "claimed":
+            relay_activity_log.info(
+                "enrollment.awaiting_claim",
+                endpoint=endpoint,
+                enrollment_id=resolved_id,
+                state=state,
+            )
+            return False
+        credential = data.get("credential")
+        if not isinstance(credential, dict):
+            raise ValueError("relay_enrollment_credential_missing")
+        relay_device_identity.save_credential(
+            str(credential.get("credential_id") or ""),
+            int(credential.get("credential_version") or 0),
+        )
+        hub = data.get("hub")
+        if isinstance(hub, dict):
+            self._remember_hub(hub)
+        relay_activity_log.success(
+            "enrollment.claimed",
+            enrollment_id=resolved_id,
+            device_id=relay_device_identity.device_id(),
+        )
+        return True
+
+    def _heartbeat(self) -> None:
+        data = relay_transport.request_json(
+            "POST",
+            relay_contract.endpoint("device_heartbeat"),
+            {
+                "device_id": relay_device_identity.device_id(),
+                "contract_digest": relay_contract.digest,
+                "capabilities": relay_contract.capabilities(),
+            },
+            action="device.heartbeat",
+        )
+        hub = data.get("hub")
+        if isinstance(hub, dict):
+            self._remember_hub(hub)
+        relay_activity_log.success(
+            "device.heartbeat.acknowledged",
+            device_id=relay_device_identity.device_id(),
+        )
+
+    def _ensure_hub_authorization(self, force: bool = False) -> None:
+        snapshot = self._hub_snapshot()
+        margin = relay_contract.duration(
+            "subscriber_token_refresh_margin_seconds"
+        )
+        token_valid = (
+            bool(snapshot.get("token"))
+            and bool(snapshot.get("url"))
+            and time.time() + margin < float(snapshot.get("expires_at") or 0)
+        )
+        if token_valid and not force:
+            relay_activity_log.debug(
+                "hub.authorization.present",
+                hub_url=snapshot.get("url"),
+                topic=snapshot.get("topic"),
+            )
+            return
+        data = relay_transport.request_json(
+            "POST",
+            relay_contract.endpoint("device_hub_authorization"),
+            {
+                "device_id": relay_device_identity.device_id(),
+                "contract_digest": relay_contract.digest,
+            },
+            action="hub.authorization",
+        )
+        hub = data.get("hub")
+        if not isinstance(hub, dict):
+            raise ValueError("relay_hub_authorization_missing")
+        self._remember_hub(hub)
+
+    def _claim_operations(self) -> None:
+        data = relay_transport.request_json(
+            "POST",
+            relay_contract.endpoint("operation_claim"),
+            {
+                "device_id": relay_device_identity.device_id(),
+                "lease_owner": self._lease_owner,
+                "limit": relay_contract.limit("claim_batch"),
+                "contract_digest": relay_contract.digest,
+            },
+            timeout=relay_contract.duration("claim_timeout_seconds"),
+            action="operation.claim",
+        )
+        operations = data.get("operations")
+        if not isinstance(operations, list):
+            raise ValueError("relay_claim_operations_missing")
+        relay_activity_log.info(
+            "operation.claim.received",
+            operation_count=len(operations),
+            lease_owner=self._lease_owner,
+        )
+        relay_operation_processor.process_many(
+            item for item in operations if isinstance(item, dict)
+        )
 
     def _subscriber_loop(self) -> None:
+        retry_seconds = relay_contract.duration("subscriber_reconnect_min_seconds")
+        relay_activity_log.info("subscriber.loop.started")
         while not self._should_stop():
-            hub_url = self._hub_url
-            if not hub_url:
-                self._pause(RELAY_REGISTER_RETRY_MIN_SECONDS)
+            snapshot = self._hub_snapshot()
+            hub_url = str(snapshot.get("url") or "")
+            topic = str(snapshot.get("topic") or "")
+            if not hub_url or not topic or not snapshot.get("token"):
+                self._wait_stop(retry_seconds)
                 continue
             subscriber = MercureSubscriber(
                 hub_url,
-                [
-                    relay_topic("machines"),
-                    relay_topic("pair", machine_id=self._machine_id),
-                ],
+                [topic],
                 token_provider=self.hub_token,
                 on_update=self._on_update,
                 on_state_change=self._on_hub_state,
-                reconnect_min_seconds=RELAY_SUBSCRIBER_RECONNECT_MIN_SECONDS,
-                reconnect_max_seconds=RELAY_SUBSCRIBER_RECONNECT_MAX_SECONDS,
+                reconnect_min_seconds=relay_contract.duration(
+                    "subscriber_reconnect_min_seconds"
+                ),
+                reconnect_max_seconds=relay_contract.duration(
+                    "subscriber_reconnect_max_seconds"
+                ),
             )
-            try:
-                subscriber.run(self._should_stop)
-            except Exception as exc:  # noqa: BLE001 - lane must survive
-                ColorPrint.yellow(f"[Relay] hub stream restart: {exc}")
-            if self._should_stop():
-                return
-            self._pause(RELAY_SUBSCRIBER_RECONNECT_MIN_SECONDS)
+
+            def subscriber_should_stop() -> bool:
+                return self._should_stop() or self._hub_changed(hub_url, topic)
+
+            relay_activity_log.info(
+                "subscriber.connection.starting",
+                hub_url=hub_url,
+                topic=topic,
+            )
+            subscriber.run(subscriber_should_stop, sleep=self._wait_stop)
+            if not self._should_stop():
+                self._wait_stop(retry_seconds)
+        relay_activity_log.info("subscriber.loop.stopped")
 
     def _on_hub_state(self, state: str, detail: str) -> None:
         if state == MERCURE_STATE_ONLINE:
-            ColorPrint.green(f"[Relay] hub stream online ({detail})")
+            relay_activity_log.success("subscriber.state.online", detail=detail)
+        elif state == MERCURE_STATE_CONNECTING:
+            relay_activity_log.info("subscriber.state.connecting", detail=detail)
         elif state == MERCURE_STATE_OFFLINE:
-            ColorPrint.yellow(f"[Relay] hub stream offline: {detail}")
-
-    # -------------------------------------------------------------- updates
+            relay_activity_log.warning("subscriber.state.offline", detail=detail)
 
     def _on_update(self, update: MercureUpdate) -> None:
-        if update.type == relay_event("request"):
-            self._handle_request_frame(update)
-        elif update.type == relay_event("roster"):
-            self._handle_roster_frame(update)
-        # relay.response frames target the session side; machines ignore them.
-
-    def _handle_roster_frame(self, update: MercureUpdate) -> None:
-        try:
+        relay_activity_log.info(
+            "subscriber.update.received",
+            event_id=update.id,
+            event_type=update.type,
+            data_length=len(update.data.encode("utf-8")),
+        )
+        if update.type == relay_contract.event("operation_available"):
             payload = update.json()
-        except ValueError:
-            return
-        if not isinstance(payload, dict):
-            return
-        machine_id = str(payload.get("machine_id") or "")
-        if not machine_id:
-            return
-        if bool(payload.get("online")):
-            self._roster[machine_id] = {
-                "machine_id": machine_id,
-                "label": str(payload.get("label") or machine_id),
-                "capabilities": [
-                    str(item)
-                    for item in (payload.get("capabilities") or [])
-                    if item
-                ],
-                "online": True,
-            }
-        else:
-            self._roster.pop(machine_id, None)
-        THREAD_BUS.signal_if_present(RELAY_ROSTER_SIGNAL, dict(self._roster))
-
-    # ------------------------------------------------------------ execution
-
-    def _handle_request_frame(self, update: MercureUpdate) -> None:
-        try:
-            frame = update.json()
-            request_id = str(frame.get("request_id") or "")
-            if not request_id:
-                return
-            request = self._fetch_request(request_id)
-            status, headers, body = self._execute(request)
-            self._post_response(request_id, status, headers, body)
-        except Exception as exc:  # noqa: BLE001 - one frame never kills the lane
-            ColorPrint.yellow(f"[Relay] request execution failed: {exc}")
-
-    def _fetch_request(self, request_id: str) -> Dict[str, Any]:
-        data = _response_data(
-            laravel_client.get(
-                queue_center_endpoint(
-                    "relay_request_fetch",
-                    machine_id=self._machine_id,
-                    request_id=request_id,
-                ),
-                base_url=self._registered_endpoint or self._endpoint(),
-                timeout=RELAY_HTTP_TIMEOUT_SECONDS,
+            if not isinstance(payload, dict):
+                raise ValueError("relay_wake_payload_not_object")
+            THREAD_BUS.signal(
+                RELAY_CONTROL_SIGNAL,
+                {
+                    "kind": RELAY_CONTROL_WAKE,
+                    "operation_id": str(payload.get("operation_id") or ""),
+                    "revision": int(payload.get("revision") or 0),
+                },
             )
-        )
-        request = data.get("request") if isinstance(data.get("request"), dict) else {}
-        if not request:
-            raise RuntimeError(f"Relay request {request_id} is empty")
-        return dict(request)
-
-    def _execute(self, request: Dict[str, Any]) -> Tuple[int, Dict[str, str], str]:
-        method = str(request.get("method") or "GET").upper()
-        path = str(request.get("path") or "/")
-        headers = {
-            str(key): str(value)
-            for key, value in dict(request.get("headers") or {}).items()
-        }
-        body_ref = str(request.get("body_ref") or "")
-        body = request.get("body")
-        if body is None and body_ref:
-            body = self._fetch_blob(body_ref)
-        response = self._executor.request(
-            method,
-            path,
-            headers=headers or None,
-            body=str(body).encode("utf-8") if body is not None else None,
-            timeout=self._execute_timeout(),
-        )
-        forwarded_headers = {"Content-Type": response.headers.get("Content-Type", "")}
-        return (
-            response.status_code,
-            forwarded_headers,
-            response.text,
-        )
-
-    @staticmethod
-    def _execute_timeout() -> float:
-        ttl = relay_int("request_ttl_seconds") or 60
-        return max(5.0, float(ttl) - 10.0)
-
-    def _post_response(
-        self,
-        request_id: str,
-        status: int,
-        headers: Dict[str, str],
-        body: str,
-    ) -> None:
-        inline_cap = relay_cap("inline_body_bytes") or 262144
-        payload: Dict[str, Any] = {
-            "request_id": request_id,
-            "status": int(status),
-            "headers": headers,
-        }
-        if len(body.encode("utf-8")) > inline_cap:
-            payload["body_ref"] = self._upload_blob(body.encode("utf-8"))
-        else:
-            payload["body"] = body
-        _response_data(
-            laravel_client.post(
-                queue_center_endpoint(
-                    "relay_response",
-                    machine_id=self._machine_id,
-                ),
-                base_url=self._registered_endpoint or self._endpoint(),
-                json=payload,
-                timeout=RELAY_HTTP_TIMEOUT_SECONDS,
+            return
+        if update.type == relay_contract.event("credential_revoked"):
+            THREAD_BUS.signal(
+                RELAY_CONTROL_SIGNAL,
+                {"kind": RELAY_CONTROL_CREDENTIAL_REVOKED},
             )
-        )
-
-    def _upload_blob(self, body: bytes) -> str:
-        chunk_size = relay_cap("blob_chunk_bytes") or 4194304
-        blob_id = ""
-        chunk_index = 0
-        total = max(1, (len(body) + chunk_size - 1) // chunk_size)
-        for offset in range(0, len(body) or 1, chunk_size):
-            chunk = body[offset : offset + chunk_size]
-            data = _response_data(
-                laravel_client.request(
-                    "POST",
-                    queue_center_endpoint(
-                        "relay_blob_create",
-                        machine_id=self._machine_id,
-                    ),
-                    base_url=self._registered_endpoint or self._endpoint(),
-                    params={
-                        "blob_id": blob_id,
-                        "chunk_index": chunk_index,
-                        "chunk_last": str(chunk_index + 1 >= total).lower(),
-                    },
-                    data=chunk,
-                    headers={"Content-Type": "application/octet-stream"},
-                    timeout=RELAY_HTTP_TIMEOUT_SECONDS,
-                )
-            )
-            blob = data.get("blob") if isinstance(data.get("blob"), dict) else {}
-            blob_id = str(blob.get("blob_id") or blob_id)
-            chunk_index += 1
-        if not blob_id:
-            raise RuntimeError("Relay blob upload produced no blob id")
-        return blob_id
-
-    def _fetch_blob(self, blob_id: str) -> str:
-        response = laravel_client.get(
-            queue_center_endpoint(
-                "relay_blob_fetch",
-                machine_id=self._machine_id,
-                blob_id=blob_id,
-            ),
-            base_url=self._registered_endpoint or self._endpoint(),
-            timeout=RELAY_HTTP_TIMEOUT_SECONDS * 4,
-        )
-        if int(getattr(response, "status_code", 0) or 0) != 200:
-            raise RuntimeError(f"Relay blob fetch failed: HTTP {response.status_code}")
-        return (response.content or b"").decode("utf-8", errors="replace")
 
 
 relay_service = RelayService()

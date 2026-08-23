@@ -12,22 +12,22 @@
 
 (function (global, factory) {
     if (typeof module === 'object' && typeof module.exports === 'object') {
-        module.exports = factory();
+        module.exports = factory(require('../js/service_contract'));
     }
     else if (typeof define === 'function' && define.amd) {
-        define([], factory);
+        define(['../js/service_contract'], factory);
     }
     else {
-        global.BingWordParse = factory();
+        global.BingWordParse = factory(global.CoreNodeServiceContract);
         global.$BWP = global.BingWordParse;
     }
-}(typeof window !== 'undefined' ? window : this, function () {
+}(typeof window !== 'undefined' ? window : this, function (serviceContract) {
     class BingWordParse {
         MAX_SHOW_MAXIMAGES = 1
         PHONETIC_SHOW_MAX = 1
         PHONETIC_ONLY_SHOW = `us`
         STATIC_PATH = `sound_dir`
-        BASE_STAIC_URL = `https://dict.si.12gm.com/`
+        BASE_STAIC_URL = serviceContract.url('https', serviceContract.serviceDomain('dictionary_static'), null, '/')
         isDebug = true
         logger = {
             log: (...args) => console.log(...args),

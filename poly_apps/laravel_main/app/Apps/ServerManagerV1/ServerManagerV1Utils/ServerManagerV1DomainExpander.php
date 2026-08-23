@@ -8,16 +8,16 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
  * The Let's Encrypt constraints this library encodes:
  *   - at most ONE wildcard per name, as the entire leftmost label
  *     ("*.example.com" valid; "*.*.example.com" / "foo.*.example.com" invalid)
- *   - a wildcard covers exactly ONE label level: "*.12gm.com" covers
+ *   - a wildcard covers exactly ONE label level: "*.example.com" covers
  *     "api.example.com" but NOT "api.si.example.com" — deeper coverage is only
  *     possible by enumerating one wildcard per region prefix
- *     ("*.si.12gm.com"), which is exactly what expand() generates
+ *     ("*.si.example.com"), which is exactly what expand() generates
  *   - <= 100 SAN entries per certificate; name <= 253 chars; label <= 63
  *
  * Given one base domain (or a group of them), expand() produces the
  * canonical SAN set: the apex, its wildcard, and one wildcard per region
- * prefix. Bare prefix domains (si.12gm.com) are already covered by
- * *.12gm.com and are intentionally not listed.
+ * prefix. Bare prefix domains (si.example.com) are already covered by
+ * *.example.com and are intentionally not listed.
  *
  * SYNC CONTRACT: this is the single implementation of SAN expansion. The
  * shell end (scripts/shells/linux/common/domain_setup_common.sh) never
@@ -63,7 +63,7 @@ final class ServerManagerV1DomainExpander
     }
 
     /**
-     * Wildcard-stripped form: "*.si.12gm.com" -> "si.12gm.com".
+     * Wildcard-stripped form: "*.si.example.com" -> "si.example.com".
      */
     public static function baseDomain(string $domain): string
     {
@@ -75,7 +75,7 @@ final class ServerManagerV1DomainExpander
      * Resolve the registrable base for expansion: strips the wildcard marker
      * and any leading labels that are known region prefixes
      * (api.si.example.com -> example.com). Without a Public Suffix List dependency
-     * an arbitrary subdomain (www.12gm.com) cannot be resolved to its apex —
+     * an arbitrary subdomain (www.example.com) cannot be resolved to its apex —
      * pass apex/base domains whenever possible.
      */
     public static function resolveBaseDomain(string $domain, ?array $prefixes = null): string
@@ -90,7 +90,7 @@ final class ServerManagerV1DomainExpander
 
     /**
      * One base domain -> canonical SAN set:
-     *   12gm.com, *.12gm.com, *.si.12gm.com, *.sh.12gm.com, ...
+     *   example.com, *.example.com, *.si.example.com, *.sh.example.com, ...
      */
     public static function expandBase(string $baseDomain, ?array $prefixes = null): array
     {
