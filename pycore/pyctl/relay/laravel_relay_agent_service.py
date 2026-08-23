@@ -50,6 +50,12 @@ RELAY_CONTROL_THREAD = "RelayV2ControlThread"
 RELAY_SUBSCRIBER_THREAD = "RelayV2SubscriberThread"
 RELAY_OPERATION_BATCH_THREAD = "RelayV2OperationBatchThread"
 RELAY_TOKEN_LIFETIME_FRACTION = 0.8
+RELAY_PERMANENT_CONFLICT_ERROR_CODES = frozenset(
+    (
+        "contract_digest_conflict",
+        "capability_digest_conflict",
+    )
+)
 
 
 class LaravelRelayAgentService:
@@ -70,6 +76,7 @@ class LaravelRelayAgentService:
         self._endpoint_listener_registered = False
         self._operation_batch_active = False
         self._presented_enrollment_id = ""
+        self._conflict_hint_presented = False
         self._lease_owner = uuid.uuid4().hex
         relay_activity_log.info(
             "runtime.constructed",
@@ -354,6 +361,11 @@ class LaravelRelayAgentService:
                     self._clear_hub_authorization(
                         reason="coordinator_authorization_rejected"
                     )
+                if self._is_permanent_conflict(exc):
+                    self._skip_permanent_conflict(exc, max_retry_seconds)
+                    retry_seconds = max_retry_seconds
+                    self._wait_control(retry_seconds)
+                    continue
                 relay_activity_log.error(
                     "control.http.failed",
                     status=exc.status_code,
@@ -373,6 +385,37 @@ class LaravelRelayAgentService:
                 self._wait_control(retry_seconds)
                 retry_seconds = min(max_retry_seconds, retry_seconds * 2)
         relay_activity_log.info("control.loop.stopped")
+
+    @staticmethod
+    def _is_permanent_conflict(exc: RelayHttpError) -> bool:
+        return (
+            exc.status_code == 409
+            and exc.error_code in RELAY_PERMANENT_CONFLICT_ERROR_CODES
+        )
+
+    def _skip_permanent_conflict(
+        self,
+        exc: RelayHttpError,
+        wait_seconds: float,
+    ) -> None:
+        self._clear_hub_authorization(reason="coordinator_contract_conflict")
+        relay_activity_log.error(
+            "control.http.conflict.skipped",
+            status=exc.status_code,
+            action_name=exc.action,
+            error_code=exc.error_code,
+            local_contract_digest=relay_contract.digest,
+            retry_seconds=wait_seconds,
+        )
+        if not self._conflict_hint_presented:
+            self._conflict_hint_presented = True
+            ColorPrint.yellow(
+                "[RelayV2] Permanent coordinator conflict "
+                f"({exc.error_code}): local contract digest "
+                f"{relay_contract.digest} is rejected. Align "
+                "config/pycore_relay_contract.json on device and coordinator; "
+                "requests are skipped until both sides match."
+            )
 
     def _handle_control_signal(self, signal: Dict[str, Any]) -> str:
         kind = str(signal.get("kind") or "")

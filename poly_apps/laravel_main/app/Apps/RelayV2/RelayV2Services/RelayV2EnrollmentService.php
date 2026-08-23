@@ -27,19 +27,13 @@ final class RelayV2EnrollmentService
         $deviceId = (string) $device['device_id'];
         $publicKey = (string) $device['public_key'];
         $connection = DB::connection(RelayV2TablesMaps::connection());
-        $capabilities = array_values(array_unique(array_map('strval', $device['capabilities'] ?? [])));
-        $capabilityDigest = '';
+        $capabilities = RelayV2Contract::normalizeCapabilities($device['capabilities'] ?? []);
+        $capabilityDigest = RelayV2Contract::capabilityDigest($capabilities);
 
-        sort($capabilities, SORT_STRING);
-        $capabilityDigest = hash('sha256', implode("\n", $capabilities));
-        if (!hash_equals(RelayV2Contract::digest(), (string) $device['contract_digest'])) {
-            Log::warning('[RelayV2] Enrollment contract digest rejected', [
-                'device_id' => $deviceId,
-                'expected_digest' => RelayV2Contract::digest(),
-                'received_digest' => (string) $device['contract_digest'],
-            ]);
-            throw new RelayV2DomainException('contract_digest_conflict', 409);
-        }
+        RelayV2Contract::assertSameDigest(
+            (string) $device['contract_digest'],
+            ['device_id' => $deviceId]
+        );
         if (!hash_equals($capabilityDigest, strtolower((string) $device['capability_digest']))) {
             Log::warning('[RelayV2] Enrollment capability digest rejected', [
                 'device_id' => $deviceId,

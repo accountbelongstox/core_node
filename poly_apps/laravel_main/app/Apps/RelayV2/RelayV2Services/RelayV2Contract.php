@@ -5,6 +5,7 @@ namespace App\Apps\RelayV2\RelayV2Services;
 use App\Apps\RelayV2\RelayV2Exceptions\RelayV2DomainException;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
+use Illuminate\Support\Facades\Log;
 
 final class RelayV2Contract
 {
@@ -24,6 +25,33 @@ final class RelayV2Contract
         self::load();
 
         return self::$digest ?? '';
+    }
+
+    public static function assertSameDigest(string $receivedDigest, array $context = []): void
+    {
+        $expected = self::digest();
+
+        if (hash_equals($expected, $receivedDigest)) {
+            return;
+        }
+        Log::warning('[RelayV2] Contract digest rejected', $context + [
+            'expected_digest' => $expected,
+            'received_digest' => $receivedDigest,
+        ]);
+        throw new RelayV2DomainException('contract_digest_conflict', 409);
+    }
+
+    public static function normalizeCapabilities(array $capabilities): array
+    {
+        $normalized = array_values(array_unique(array_map('strval', $capabilities)));
+        sort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    public static function capabilityDigest(array $capabilities): string
+    {
+        return hash('sha256', implode("\n", self::normalizeCapabilities($capabilities)));
     }
 
     public static function protocolVersion(): string

@@ -21,14 +21,13 @@ final class RelayV2DeviceService
     public function heartbeat(string $deviceId, array $payload): array
     {
         $device = $this->activeDevice($deviceId);
-        $capabilities = array_values(array_unique(array_map('strval', $payload['capabilities'] ?? [])));
-        $capabilityDigest = '';
+        $capabilities = RelayV2Contract::normalizeCapabilities($payload['capabilities'] ?? []);
+        $capabilityDigest = RelayV2Contract::capabilityDigest($capabilities);
 
-        sort($capabilities, SORT_STRING);
-        $capabilityDigest = hash('sha256', implode("\n", $capabilities));
-        if (!hash_equals(RelayV2Contract::digest(), (string) $payload['contract_digest'])) {
-            throw new RelayV2DomainException('contract_digest_conflict', 409);
-        }
+        RelayV2Contract::assertSameDigest(
+            (string) $payload['contract_digest'],
+            ['device_id' => $deviceId]
+        );
         $device->forceFill([
             'capabilities' => $capabilities,
             'capability_digest' => $capabilityDigest,
@@ -45,9 +44,7 @@ final class RelayV2DeviceService
     public function authorization(string $deviceId, string $contractDigest): array
     {
         $this->activeDevice($deviceId);
-        if (!hash_equals(RelayV2Contract::digest(), $contractDigest)) {
-            throw new RelayV2DomainException('contract_digest_conflict', 409);
-        }
+        RelayV2Contract::assertSameDigest($contractDigest, ['device_id' => $deviceId]);
 
         return ['hub' => $this->hub->deviceAuthorization($deviceId)];
     }

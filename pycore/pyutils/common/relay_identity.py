@@ -400,9 +400,7 @@ class RelayDeviceIdentity:
     def descriptor(self, label: str, platform_name: str) -> Dict[str, Any]:
         document = self.ensure()
         capabilities = relay_contract.capabilities()
-        capability_digest = hashlib.sha256(
-            "\n".join(sorted(capabilities)).encode("utf-8")
-        ).hexdigest()
+        capability_digest = relay_contract.capability_digest()
         return {
             "device_id": str(document["device_id"]),
             "label": str(label),

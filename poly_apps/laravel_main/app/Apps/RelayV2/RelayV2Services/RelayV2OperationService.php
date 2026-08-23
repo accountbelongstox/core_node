@@ -239,9 +239,10 @@ final class RelayV2OperationService
         $connection = DB::connection(RelayV2TablesMaps::connection());
 
         $this->devices->activeDevice($deviceId);
-        if (!hash_equals(RelayV2Contract::digest(), (string) $payload['contract_digest'])) {
-            throw new RelayV2DomainException('contract_digest_conflict', 409);
-        }
+        RelayV2Contract::assertSameDigest(
+            (string) $payload['contract_digest'],
+            ['device_id' => $deviceId]
+        );
 
         return $connection->transaction(function () use ($deviceId, $leaseOwner, $limit): array {
             $activeLeases = RelayV2OperationModel::query()

@@ -9,7 +9,7 @@ import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Mapping
+from typing import Any, Dict, List, Mapping, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
@@ -398,6 +398,16 @@ class RelayContract:
 
     def capabilities(self) -> List[str]:
         return [str(value) for value in self.document.get("capabilities") or []]
+
+    def capability_digest(self, capabilities: Optional[List[str]] = None) -> str:
+        values = (
+            self.capabilities()
+            if capabilities is None
+            else [str(value) for value in capabilities]
+        )
+        return hashlib.sha256(
+            "\n".join(sorted(set(values))).encode("utf-8")
+        ).hexdigest()
 
     def canonical_path(self, path: str) -> str:
         raw_path = str(path or "")
