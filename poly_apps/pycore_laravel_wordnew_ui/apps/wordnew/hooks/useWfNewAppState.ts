@@ -27,10 +27,22 @@ import { useWfNewContentHandlers } from './useWfNewContentHandlers';
 import { StorageManager } from '../../../core/persistence';
 import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
-import { dailyReadingHash, parseWordGroupHash, wordGroupHash } from '../routing/WordNewHashRoutes';
+import {
+  dailyReadingHash,
+  parseWordGroupHash,
+  wordGroupHash,
+  wordNewPageHeader,
+  WORDNEW_TABS,
+  type WordNewTab,
+} from '../routing/WordNewHashRoutes';
 import { synchronizeDailyReadingWordGroups } from '../components/daily-reading/dailyReadingWordGroupStore';
 
+<<<<<<< HEAD
 import { type WordNewTab } from './WordNewNavigation';
+=======
+/** Every navigable page/tab in the wordnew shell (drives the history stack). */
+export type { WordNewTab } from '../routing/WordNewHashRoutes';
+>>>>>>> 2c3cb0347f4b73c2bdd6901a93908f0cf9a45044
 
 export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const { shellLang, dark } = deps;
@@ -108,12 +120,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // keeps you on the page); on every change, write the hash back. Lightweight
   // hash routing (no react-router restructure of the whole shell).
   useEffect(() => {
-    const ALL: WordNewTab[] = [
-      'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
-      'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
-      'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
-      'daily-reading', 'admin',
-    ];
     const applyHashRoute = (trackNavigation: boolean): void => {
       const fromHash = window.location.hash.replace(/^#\/?/, '');
       const wordGroupRoute = parseWordGroupHash(window.location.hash);
@@ -159,7 +165,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
         activate('home');
         return;
       }
-      if (fromHash && (ALL as string[]).includes(fromHash) && fromHash !== 'home') {
+      if (fromHash && (WORDNEW_TABS as readonly string[]).includes(fromHash) && fromHash !== 'home') {
         activate(fromHash as WordNewTab);
         return;
       }

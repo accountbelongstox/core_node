@@ -28,7 +28,7 @@ from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.relay import relay_service
+from pycore.pyctl.relay import laravel_relay_agent_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.assist.assist_settings import (
@@ -412,7 +412,7 @@ def register_runtime_workers() -> None:
     )
     if pyservice_mode_service.relay_enabled():
         service_steps = (
-            ("relay_service", relay_service.start),
+            ("laravel_relay_agent_service", laravel_relay_agent_service.start),
             *service_steps,
         )
     for step_name, step in service_steps:

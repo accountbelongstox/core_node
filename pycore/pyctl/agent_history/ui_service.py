@@ -25,6 +25,7 @@ from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
+from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.usage_rollup import usage_rollup
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 import pycore.pyutils.tts.qwen.engine as qwen_engine

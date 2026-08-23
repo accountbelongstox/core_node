@@ -7,13 +7,13 @@
  *   - Local (this machine): same as Current URL - <page-host>:59000 direct.
  *   - Remote direct: http://<host>:59000 (LAN/Tailscale/public IP).
  *   - Remote relay (https entry): the server-side reverse proxy of the relay -
- *     requests ride the paired machine (PycoreRelayTransport) and the always-on
+ *     requests ride the paired machine (PycoreLaravelRelayTransport) and the always-on
  *     roster link offers machine designation below.
  * Picking any target re-points the canonical pycore HTTP transport and reloads
  * the page so the entire UI manages the chosen node. Fixed quick-connect
  * presets plus Recent history and a custom add input are offered. This is
  * pure UI (state lives in pycoreTarget + LaravelRelayRoster +
- * PycoreRelayTransport).
+ * PycoreLaravelRelayTransport).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,7 @@ import {
   getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
   localPycoreHost, isPycoreSecureContext, pnaBlockedReason,
   pycoreLocalConnectionHint, isPycoreRelayMode,
-  relayDesignate, relayPairedMachineId, relayUndesignate,
+  designateLaravelRelayDevice, laravelRelayDeviceId, clearLaravelRelayDevice,
 } from '@/apps/pycore-manager/api';
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
 import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
@@ -56,7 +56,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [roster, setRoster] = useState<RelayRosterEntry[]>([]);
-  const [designated, setDesignated] = useState<string | null>(relayPairedMachineId());
+  const [designated, setDesignated] = useState<string | null>(laravelRelayDeviceId());
   const [claimCode, setClaimCode] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [claimNotice, setClaimNotice] = useState('');
@@ -67,8 +67,8 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     const stop = laravelRelayRoster.onChange((entries) => {
       setRoster(entries);
       const online = entries.filter((entry) => entry.online);
-      if (relayMode && !relayPairedMachineId() && online.length === 1) {
-        void relayDesignate(online[0].device_id)
+      if (relayMode && !laravelRelayDeviceId() && online.length === 1) {
+        void designateLaravelRelayDevice(online[0].device_id)
           .then((pairing) => setDesignated(pairing.device_id))
           .catch(() => undefined);
       }
@@ -104,12 +104,12 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   };
 
   const designate = (machineId: string) => {
-    void relayDesignate(machineId)
+    void designateLaravelRelayDevice(machineId)
       .then((pair) => setDesignated(pair.device_id))
       .catch(() => undefined); // roster stays; the pair badge explains the failure
   };
   const undesignate = () => {
-    void relayUndesignate()
+    void clearLaravelRelayDevice()
       .then(() => setDesignated(null))
       .catch(() => undefined);
   };
@@ -123,7 +123,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         setClaimCode('');
         setClaimNotice(t('relayTarget.enrollmentSuccess'));
         await laravelRelayRoster.refresh();
-        const pairing = await relayDesignate(device.device_id);
+        const pairing = await designateLaravelRelayDevice(device.device_id);
         setDesignated(pairing.device_id);
       })
       .catch(() => setClaimNotice(t('relayTarget.enrollmentFailed')))

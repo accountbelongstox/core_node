@@ -6,7 +6,7 @@
  *     behavior; origin/local modes and host presets render to this form).
  *   - `https://<host>`       -> relay scheme: the entry is the server-side
  *     reverse proxy of the relay, requests ride the paired machine
- *     (PycoreRelayTransport), and the always-on Laravel roster link runs.
+ *     (PycoreLaravelRelayTransport), and the always-on Laravel roster link runs.
  */
 import {
   PYCORE_PORT,

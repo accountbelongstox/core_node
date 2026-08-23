@@ -10,7 +10,10 @@ import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, Mapping
 
-from pycore.pyctl.relay.relay_transport import RelayHttpError, relay_transport
+from pycore.pyctl.relay.laravel_relay_transport import (
+    RelayHttpError,
+    laravel_relay_transport,
+)
 from pycore.pyfoundations.serialized_worker import map_bus_tasks, start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
@@ -41,8 +44,8 @@ RELAY_REQUEST_BLOB_ENDPOINT = "device_request_blob_download"
 RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT = "device_response_blob_chunk"
 
 
-class RelayOperationProcessor:
-    """Process each operation as independently retryable protocol steps."""
+class LaravelRelayOperationProcessor:
+    """Execute Laravel Relay operations as independently retryable steps."""
 
     def process_many(
         self,
@@ -256,7 +259,7 @@ class RelayOperationProcessor:
         operation_id = str(request["operation_id"])
         descriptor_revision = int(request["operation_revision"])
         claimed_state = str(request["remote_state"])
-        data = relay_transport.request_json(
+        data = laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
                 "operation_execution_start",
@@ -329,7 +332,7 @@ class RelayOperationProcessor:
                 THREAD_BUS.clear_signal(stop_signal)
                 return
             try:
-                data = relay_transport.request_json(
+                data = laravel_relay_transport.request_json(
                     "POST",
                     relay_contract.endpoint(
                         "operation_lease_renew",
@@ -656,7 +659,7 @@ class RelayOperationProcessor:
             )
             return body
         if body_ref:
-            response = relay_transport.request_bytes(
+            response = laravel_relay_transport.request_bytes(
                 "GET",
                 relay_contract.endpoint(RELAY_REQUEST_BLOB_ENDPOINT, blob_id=body_ref),
                 query=relay_contract.generation_query(
@@ -739,7 +742,7 @@ class RelayOperationProcessor:
                     response.body,
                     body_digest,
                 )
-        relay_transport.request_json(
+        laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
                 "operation_result",
@@ -766,7 +769,7 @@ class RelayOperationProcessor:
     ) -> None:
         operation_id = str(request["operation_id"])
         self._assert_active_lease(request)
-        relay_transport.request_json(
+        laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
                 "operation_result",
@@ -859,7 +862,7 @@ class RelayOperationProcessor:
         }
         if status > 0:
             payload["status"] = int(status)
-        relay_transport.request_json(
+        laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
                 "operation_result",
@@ -886,7 +889,7 @@ class RelayOperationProcessor:
     ) -> str:
         operation_id = str(request["operation_id"])
         self._assert_active_lease(request)
-        allocation = relay_transport.request_json(
+        allocation = laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
                 "device_response_blob_allocate",
@@ -912,7 +915,7 @@ class RelayOperationProcessor:
         for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
             self._assert_active_lease(request)
             chunk = body[offset : offset + chunk_size]
-            relay_transport.request_bytes(
+            laravel_relay_transport.request_bytes(
                 "PUT",
                 relay_contract.endpoint(
                     RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
@@ -930,7 +933,7 @@ class RelayOperationProcessor:
                 coordinator_url=str(request["coordinator_url"]),
             )
         self._assert_active_lease(request)
-        relay_transport.request_json(
+        laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint(
                 "device_response_blob_finalize",
@@ -951,8 +954,8 @@ class RelayOperationProcessor:
 
     @staticmethod
     def _lease_deadline(server_time: str, lease_expires_at: str) -> float:
-        server_datetime = RelayOperationProcessor._rfc3339_datetime(server_time)
-        expiry_datetime = RelayOperationProcessor._rfc3339_datetime(
+        server_datetime = LaravelRelayOperationProcessor._rfc3339_datetime(server_time)
+        expiry_datetime = LaravelRelayOperationProcessor._rfc3339_datetime(
             lease_expires_at
         )
         lease_remaining_seconds = (
@@ -1011,7 +1014,7 @@ class RelayOperationProcessor:
             raise RuntimeError("relay_operation_lease_expired")
 
 
-relay_operation_processor = RelayOperationProcessor()
+laravel_relay_operation_processor = LaravelRelayOperationProcessor()
 
 
-__all__ = ["relay_operation_processor"]
+__all__ = ["laravel_relay_operation_processor"]

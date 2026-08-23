@@ -1,43 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BookOpen, Sparkles, GraduationCap, Flame, ChevronRight, 
-  Search, Volume2, Star, Settings, Check, RefreshCw, Layers, 
-  CheckCircle, Play, Pause, SkipForward, ArrowRight,
-  Languages, Moon, Sun, Heart, Send, Info, Trash2, ArrowLeft, RotateCw,
-  BarChart2, LogIn, ShieldCheck
-} from 'lucide-react';
 
 import { useShell } from '../../shell/ShellContext';
 import { requestAuthLogin } from '../../core/auth/AuthRequestCenter';
-// Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
-// (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT } from './api';
-import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from './api';
-// Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
-// hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
-// word group skip re-fetching the whole list. Never throws — a miss falls back to
-// the network. See ./runtime-store/WfNewContentCache.
-import {
-  getCachedGroups, getCachedGroupIds, putCachedGroups,
-  getCachedWords, putCachedWords,
-  setCacheScope, clearAuthScopedCache,
-  dedupGroups,
-  type WfNewCachedKind,
-} from './runtime-store/WfNewContentCache';
 import { wfNewSettings } from './WfNewSettingsStore';
-import { WfNewHomeContent as WfNewHomeContentWidget } from './components/WfNewHomeContent';
-
-// Modular Imports
-import type { ElementTheme } from './WfNewThemes';
-import type { UserStats } from './api/WfNewApiTypes';
-import { translate, getSupportedLanguages } from './WfNewLocales';
-import { CUSTOM_THEMES } from './WfNewThemes';
-import { WfNewSearchOverlay } from './components/WfNewSearchOverlay';
-import { WfNewToast } from './components/WfNewToast';
-import { wfNewNotify, useWfNewToasts } from './WfNewNotify';
-import { WfNewBottomDock } from './components/WfNewBottomDock';
-import { CourseBlockCard, WordRowItem } from './components/WfNewCards';
+import { WfNewAppChrome } from './components/WfNewAppChrome';
 import { WfNewSettings } from './pages/WfNewSettings';
 
 // New Custom Study Suites Pages
@@ -57,25 +24,21 @@ import { WfNewReviewSettings } from './pages/WfNewReviewSettings';
 import { WfNewPlaybackSettings } from './pages/WfNewPlaybackSettings';
 import { WfNewAbout } from './pages/WfNewAbout';
 import { WfNewAdminPage } from './pages/WfNewAdminPage';
-import { WfNewWordDetailModal } from './components/WfNewWordDetailModal';
-import { WfNewConfirmAddLibraryModal } from './components/WfNewConfirmAddLibraryModal';
 import { WfNewLabsTab } from './components/WfNewLabsTab';
 import { WfNewHomeTab } from './components/WfNewHomeTab';
 import { WfNewShelfTab } from './components/WfNewShelfTab';
 import { WfNewPracticeTab } from './components/WfNewPracticeTab';
 import { WfNewOrbs } from './components/WfNewOrbs';
 import { WfNewHeader } from './components/WfNewHeader';
-import { WfNewAvatarView } from './components/WfNewAvatarView';
-import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
-import { WfNewOnboarding } from './pages/WfNewOnboarding';
-import { WfNewNavLogo } from './components/WfNewNavLogo';
-import { WfNewNotificationBell } from './components/WfNewNotificationBell';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
 import { useWfNewAppState } from './hooks/useWfNewAppState';
+<<<<<<< HEAD
 import type { WordNewTab } from './hooks/WordNewNavigation';
+=======
+>>>>>>> 2c3cb0347f4b73c2bdd6901a93908f0cf9a45044
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();
@@ -86,27 +49,21 @@ export const WfNewApp: React.FC = () => {
   );
   useWordNewQueueRuntimeLifecycle();
 
+  const appState = useWfNewAppState({ shellLang, dark });
   const {
     activeThemeId,
     setActiveThemeId,
     activeTheme,
     activeTab,
-    setActiveTabRaw,
     navStack,
-    setNavStack,
     libraryRoute,
     setLibraryRoute,
-    setWordGroupRouteId,
-    activeTabRef,
-    navStackRef,
     setActiveTab,
     goBack,
     goHome,
     currentUser,
     setCurrentUser,
     disableBgBreathing,
-    setDisableBgBreathing,
-    toasts,
     addToast,
     nickname,
     setNickname,
@@ -116,57 +73,25 @@ export const WfNewApp: React.FC = () => {
     setSpeechRate,
     handleUpdateProfile,
     superAdmin,
-    setSuperAdmin,
-    showOnboarding,
-    setShowOnboarding,
-    handleOnboardingComplete,
-    isLoggedInRef,
-    currentEndpointId,
-    applyCacheScope,
-    clearUserSession,
     handleLoginSuccess,
     handleLogout,
     trans,
     gGroups,
-    setGGroups,
     bentoGroups,
-    setBentoGroups,
     homeContent,
-    setHomeContent,
     homeContentLoading,
-    setHomeContentLoading,
-    loadMoreInFlight,
-    homeCountRef,
     bookReader,
-    setBookReader,
     selectedSubtitleKey,
-    setSelectedSubtitleKey,
     contentListKind,
     setContentListKind,
     selectedCourse,
-    setSelectedCourse,
     courseWords,
     setCourseWords,
-    wordPool,
-    setWordPool,
-    loading,
-    setLoading,
     userStats,
     setUserStats,
     statistics,
-    setStatistics,
     languageOptions,
-    setLanguageOptions,
-    searchQuery,
-    setSearchQuery,
-    searchResults,
-    setSearchResults,
-    searching,
-    setSearching,
-    isSearchOverlayOpen,
-    setIsSearchOverlayOpen,
     favorites,
-    setFavorites,
     selectedPracticeGroup,
     setSelectedPracticeGroup,
     practiceMode,
@@ -175,22 +100,13 @@ export const WfNewApp: React.FC = () => {
     setPracticeIndex,
     isFlipped,
     setIsFlipped,
-    quizScore,
-    setQuizScore,
     quizStreak,
-    setQuizStreak,
     quizAnswered,
-    setQuizAnswered,
     selectedQuizOption,
-    setSelectedQuizOption,
     quizFeedback,
-    setQuizFeedback,
     isListeningPlaying,
     setIsListeningPlaying,
-    listeningIntervalRef,
     readParagraph,
-    setReadParagraph,
-    selectedWordDetail,
     setSelectedWordDetail,
     newWordText,
     setNewWordText,
@@ -200,13 +116,8 @@ export const WfNewApp: React.FC = () => {
     setNewWordPhon,
     newWordDef,
     setNewWordDef,
-    loadContent,
-    HOME_PER_PAGE,
-    loadHomeContent,
     loadMoreGroups,
-    fetchContentListPage,
     fetchContentListPageBound,
-    loadVocabularyCached,
     openHomeGroup,
     handleSaveDashboard,
     handleToggleFavorite,
@@ -221,11 +132,8 @@ export const WfNewApp: React.FC = () => {
     handleClearEverything,
     handleForgeCustomWord,
     handleAddLibraryToStudy,
-    addLibraryConfirm,
-    confirmAddLibraryNow,
-    closeAddLibraryConfirm,
     pageHeader,
-  } = useWfNewAppState({ shellLang, dark });
+  } = appState;
 
   // Route-scoped network gate: while WfNewApp is mounted (the /wordnew route
   // is active) background audio caching runs; on unmount it PAUSES with its
@@ -756,93 +664,7 @@ export const WfNewApp: React.FC = () => {
         </AnimatePresence>
       </main>
 
-      {/* Floating high-end search overlay dialog */}
-      <WfNewSearchOverlay
-        isOpen={isSearchOverlayOpen}
-        onClose={() => setIsSearchOverlayOpen(false)}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        searchResults={searchResults}
-        searching={searching}
-        favorites={favorites}
-        onToggleFavorite={handleToggleFavorite}
-        onSelectWord={(word) => {
-          setSelectedWordDetail(word);
-          setIsSearchOverlayOpen(false);
-        }}
-        onPlayAudio={playPhoneticSpeech}
-        trans={trans}
-        activeTheme={activeTheme}
-        dark={dark}
-      />
-
-      {/* Detailed Word modal popup (extracted to WfNewWordDetailModal) */}
-      <WfNewWordDetailModal
-        word={selectedWordDetail}
-        activeTheme={activeTheme}
-        isFavorite={!!selectedWordDetail && favorites.some((f) => f.id === selectedWordDetail.id)}
-        onClose={() => setSelectedWordDetail(null)}
-        onToggleFavorite={handleToggleFavorite}
-        onPlay={playPhoneticSpeech}
-      />
-
-      {/* Confirm "add library to Default Vocabulary Group" dialog */}
-      <WfNewConfirmAddLibraryModal
-        open={!!addLibraryConfirm}
-        groupTitle={addLibraryConfirm?.group.title ?? ''}
-        loading={!!addLibraryConfirm?.loading}
-        submitting={!!addLibraryConfirm?.submitting}
-        preview={addLibraryConfirm?.preview ?? null}
-        error={addLibraryConfirm?.error ?? null}
-        onCancel={closeAddLibraryConfirm}
-        onConfirm={confirmAddLibraryNow}
-        trans={trans}
-      />
-
-      {/* Floating Bottom Navigator dock (hidden on the daily-reading page) */}
-      {activeTab !== 'daily-reading' && (
-        <WfNewBottomDock
-          activeTab={activeTab}
-          setActiveTab={(tab) => {
-            // Dock Home is a direct "go home" (clears history); other dock tabs are
-            // forward navigations that push onto the stack.
-            if (tab === 'home') goHome();
-            else setActiveTab(tab as WordNewTab);
-            if (tab === 'shelf') setWordGroupRouteId(null);
-            setSelectedCourse(null);
-            setPracticeMode(null);
-          }}
-          trans={trans}
-          activeTheme={activeTheme}
-          dark={dark}
-        />
-      )}
-
-      {/* Dynamic 3-Step Startup Onboarding Wizard */}
-      <AnimatePresence>
-        {showOnboarding && (
-          <WfNewOnboarding
-            onComplete={handleOnboardingComplete}
-            trans={trans}
-            activeTheme={activeTheme}
-            onSelectTheme={(themeId) => {
-              setActiveThemeId(themeId);
-              wfNewSettings.setField('themeId', themeId);
-              // Roam the theme choice in the backend's opaque app_settings blob.
-              void wfNewApi.updatePreferences({ app_settings: { themeId } }).catch(() => {});
-            }}
-            onSetGoal={(goal) => {
-              setUserStats(prev => ({ ...prev, dailyGoal: goal }));
-              wfNewSettings.setField('dailyGoal', goal);
-              // Roam the daily goal in the backend preferences.
-              void wfNewApi.updatePreferences({ daily_goal: goal }).catch(() => {});
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Premium Notification Toasters */}
-      <WfNewToast toasts={toasts} onDismiss={wfNewNotify.dismiss} />
+      <WfNewAppChrome dark={dark} state={appState} />
 
       </div>
     </div>
