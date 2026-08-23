@@ -430,6 +430,8 @@ export const zhLocaleB: Record<string, string> = {
     'home.dailyReading.loadingResourcePreview': '正在解析用户资源…',
     'home.dailyReading.closeResourcePreview': '关闭资源预览',
     'home.dailyReading.resourcePreviewFailed': '资源预览失败',
+    'home.dailyReading.resourcePreviewApiUrl': '后端 JSON API 地址',
+    'home.dailyReading.openResourcePreviewApiUrl': '打开后端 JSON API',
     'content.section.word': '词组',
     'content.section.book': '书组',
     'content.section.subtitle': '字幕组',

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Braces, LoaderCircle, X } from 'lucide-react';
+import { Braces, ExternalLink, LoaderCircle, X } from 'lucide-react';
 import { wfNewApi, type WfNewDailyReadingResourcePreviewSettings } from '../../api';
 import { selectedDailyReadingWordGroupId } from './dailyReadingWordGroupStore';
 
@@ -17,6 +17,7 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [json, setJson] = useState('');
+  const [apiUrl, setApiUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const preview = useCallback(async () => {
@@ -34,16 +35,19 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
 
     setOpen(true);
     setLoading(true);
+    setApiUrl('');
     setError(null);
     try {
-      const resource = await wfNewApi.previewDailyReadingResources(
+      const result = await wfNewApi.previewDailyReadingResources(
         articleId,
         requestSettings,
         selectedDailyReadingWordGroupId(),
       );
-      setJson(JSON.stringify(resource, null, 2));
+      setJson(JSON.stringify(result.resource, null, 2));
+      setApiUrl(result.apiUrl);
     } catch (previewError) {
       setJson('');
+      setApiUrl('');
       setError(previewError instanceof Error
         ? previewError.message
         : trans('home.dailyReading.resourcePreviewFailed'));
@@ -93,6 +97,23 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
                 <X className="h-4 w-4" />
               </button>
             </header>
+            {!loading && !error && apiUrl && (
+              <div className="border-b border-white/10 px-4 py-3">
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                  {trans('home.dailyReading.resourcePreviewApiUrl')}
+                </p>
+                <a
+                  href={apiUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-[10px] font-mono leading-relaxed text-sky-300 hover:border-sky-500/40 hover:bg-sky-500/10"
+                  title={trans('home.dailyReading.openResourcePreviewApiUrl')}
+                >
+                  <span className="min-w-0 flex-1 break-all">{apiUrl}</span>
+                  <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                </a>
+              </div>
+            )}
             <div className="min-h-48 flex-1 overflow-auto p-4">
               {loading && (
                 <div className="flex min-h-48 items-center justify-center gap-2 text-xs text-sky-300">

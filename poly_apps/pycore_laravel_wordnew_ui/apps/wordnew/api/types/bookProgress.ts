@@ -58,6 +58,12 @@ export interface WfNewDailyReadingResourcePreview {
   };
 }
 
+export interface WfNewDailyReadingResourcePreviewResult {
+  resource: WfNewDailyReadingResourcePreview;
+  apiUrl: string;
+  expiresAt: string;
+}
+
 /** One step in the bilingual playback sequence (lang + repeat count). */
 export interface WfNewReaderPlayStep {
   lang: string;

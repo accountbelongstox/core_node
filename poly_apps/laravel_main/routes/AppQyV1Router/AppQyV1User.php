@@ -27,6 +27,12 @@ $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->group(function () {
+    Route::get('/user/daily-reading/{articleId}/resource-preview.json', [
+        AppQyV1BookReadingProgressController::class,
+        'showDailyReadingResourcePreview',
+    ])->middleware('signed:relative')
+        ->name('app_qy_v1.daily-reading.resource-preview-json');
+
     Route::prefix('user')->middleware('auth:sanctum')->group(function () {
 
         Route::get('/initialization-status', [AppQyV1UserInitializationController::class, 'status']);

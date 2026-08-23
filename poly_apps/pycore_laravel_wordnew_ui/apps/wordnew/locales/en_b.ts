@@ -430,6 +430,8 @@ export const enLocaleB: Record<string, string> = {
     'home.dailyReading.loadingResourcePreview': 'Resolving user resources…',
     'home.dailyReading.closeResourcePreview': 'Close resource preview',
     'home.dailyReading.resourcePreviewFailed': 'Resource preview failed',
+    'home.dailyReading.resourcePreviewApiUrl': 'Backend JSON API URL',
+    'home.dailyReading.openResourcePreviewApiUrl': 'Open backend JSON API',
     'content.section.word': 'Word Groups',
     'content.section.book': 'Books',
     'content.section.subtitle': 'Subtitles',

@@ -6,7 +6,7 @@ import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPay
 import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewNearbyUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
 import type { WfNewEndpointKind, WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot } from './endpoints';
-import type { WfNewBookReadingProgress, WfNewDailyReadingProgress, WfNewDailyReadingResourcePreview, WfNewDailyReadingResourcePreviewSettings, WfNewDailyReadingSelectionMode } from './bookProgress';
+import type { WfNewBookReadingProgress, WfNewDailyReadingProgress, WfNewDailyReadingResourcePreviewResult, WfNewDailyReadingResourcePreviewSettings, WfNewDailyReadingSelectionMode } from './bookProgress';
 import type { WfNewClientDeviceSettings, WfNewReaderSettingsBlob } from './readerSettings';
 import type {
   WordNewGroupProgressBlob, WordNewGroupProgressPayload,
@@ -299,7 +299,7 @@ export interface WfNewApi {
     articleId: string,
     settings: WfNewDailyReadingResourcePreviewSettings,
     groupId?: string | null,
-  ): Promise<WfNewDailyReadingResourcePreview>;
+  ): Promise<WfNewDailyReadingResourcePreviewResult>;
 
   /** Guest device reader settings (PUBLIC, fingerprint client_key). */
   getClientDeviceSettings(clientKey: string): Promise<WfNewClientDeviceSettings | null>;

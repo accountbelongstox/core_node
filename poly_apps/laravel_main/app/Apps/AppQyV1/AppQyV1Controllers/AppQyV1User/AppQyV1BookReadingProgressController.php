@@ -6,14 +6,37 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\URL;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookReadingProgressService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingResourceService;
 
 class AppQyV1BookReadingProgressController extends Controller
 {
     use ApiResponse;
+
+    private const RESOURCE_PREVIEW_LINK_MINUTES = 15;
+    private const RESOURCE_PREVIEW_ROUTE = 'app_qy_v1.daily-reading.resource-preview-json';
+    private const RESOURCE_PREVIEW_RULES = [
+        'group_id' => 'nullable|string|max:64',
+        'settings' => 'nullable|array:playbackMode,wordMode,wordOrder,newOnlyMaxReadCount,underlineCurrentSentence,bilingual,sentenceRate,wordRate,playbackPattern',
+        'settings.playbackMode' => 'nullable|string|in:sequential,repeat-all,repeat-one,shuffle',
+        'settings.wordMode' => 'nullable|string|in:off,new,all',
+        'settings.wordOrder' => 'nullable|string|in:sentence,shuffle,alpha',
+        'settings.newOnlyMaxReadCount' => 'nullable|integer|min:0|max:100',
+        'settings.underlineCurrentSentence' => 'nullable|boolean',
+        'settings.bilingual' => 'nullable|boolean',
+        'settings.sentenceRate' => 'nullable|numeric|min:0.25|max:4',
+        'settings.wordRate' => 'nullable|numeric|min:0.25|max:4',
+        'settings.playbackPattern' => 'nullable|array|max:12',
+        'settings.playbackPattern.*' => 'array:id,type,lang,times',
+        'settings.playbackPattern.*.id' => 'required|string|max:96',
+        'settings.playbackPattern.*.type' => 'required|string|in:sentence,words',
+        'settings.playbackPattern.*.lang' => 'nullable|string|in:en,cn',
+        'settings.playbackPattern.*.times' => 'required|integer|min:1|max:10',
+    ];
 
     public function __construct(
         private readonly AppQyV1BookReadingProgressService $progressService,
@@ -112,30 +135,17 @@ class AppQyV1BookReadingProgressController extends Controller
         $validator = null;
         $validated = [];
         $preview = null;
+        $expiresAt = null;
+        $parameters = [];
+        $relativeUrl = '';
+        $apiUrl = '';
 
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
             return $this->error(__('article.daily_reading_unauthorized'), 401);
         }
 
-        $validator = Validator::make($request->all(), [
-            'group_id' => 'nullable|string|max:64',
-            'settings' => 'nullable|array:playbackMode,wordMode,wordOrder,newOnlyMaxReadCount,underlineCurrentSentence,bilingual,sentenceRate,wordRate,playbackPattern',
-            'settings.playbackMode' => 'nullable|string|in:sequential,repeat-all,repeat-one,shuffle',
-            'settings.wordMode' => 'nullable|string|in:off,new,all',
-            'settings.wordOrder' => 'nullable|string|in:sentence,shuffle,alpha',
-            'settings.newOnlyMaxReadCount' => 'nullable|integer|min:0|max:100',
-            'settings.underlineCurrentSentence' => 'nullable|boolean',
-            'settings.bilingual' => 'nullable|boolean',
-            'settings.sentenceRate' => 'nullable|numeric|min:0.25|max:4',
-            'settings.wordRate' => 'nullable|numeric|min:0.25|max:4',
-            'settings.playbackPattern' => 'nullable|array|max:12',
-            'settings.playbackPattern.*' => 'array:id,type,lang,times',
-            'settings.playbackPattern.*.id' => 'required|string|max:96',
-            'settings.playbackPattern.*.type' => 'required|string|in:sentence,words',
-            'settings.playbackPattern.*.lang' => 'nullable|string|in:en,cn',
-            'settings.playbackPattern.*.times' => 'required|integer|min:1|max:10',
-        ]);
+        $validator = Validator::make($request->all(), self::RESOURCE_PREVIEW_RULES);
         if ($validator->fails()) {
             return $this->error(
                 __('article.daily_reading_preview_validation', ['message' => $validator->errors()->first()]),
@@ -154,6 +164,81 @@ class AppQyV1BookReadingProgressController extends Controller
             return $this->error(__('article.daily_reading_not_found'), 404);
         }
 
-        return $this->success($preview, __('article.daily_reading_preview_retrieved'));
+        $expiresAt = now()->addMinutes(self::RESOURCE_PREVIEW_LINK_MINUTES);
+        $parameters = [
+            'articleId' => $articleId,
+            'username' => (string) $user->username,
+            'settings' => json_encode(
+                $preview['settings'],
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            ),
+        ];
+        if ($preview['target_word_group'] !== null) {
+            $parameters['group_id'] = (string) $preview['target_word_group']['id'];
+        }
+        $relativeUrl = URL::temporarySignedRoute(
+            self::RESOURCE_PREVIEW_ROUTE,
+            $expiresAt,
+            $parameters,
+            absolute: false
+        );
+        $apiUrl = $request->getSchemeAndHttpHost() . $relativeUrl;
+
+        return $this->success([
+            'resource' => $preview,
+            'api_url' => $apiUrl,
+            'expires_at' => $expiresAt->toIso8601String(),
+        ], __('article.daily_reading_preview_retrieved'));
+    }
+
+    public function showDailyReadingResourcePreview(Request $request, string $articleId): JsonResponse
+    {
+        $username = '';
+        $settingsJson = '';
+        $settings = null;
+        $payload = [];
+        $validator = null;
+        $validated = [];
+        $user = null;
+        $preview = null;
+
+        $username = trim((string) $request->query('username', ''));
+        $settingsJson = (string) $request->query('settings', '');
+        $settings = json_decode($settingsJson, true);
+        $payload = [
+            'username' => $username,
+            'group_id' => $request->query('group_id'),
+            'settings' => is_array($settings) ? $settings : null,
+        ];
+        $validator = Validator::make($payload, [
+            'username' => 'required|string|max:255',
+            ...self::RESOURCE_PREVIEW_RULES,
+        ]);
+        if ($validator->fails()) {
+            return $this->error(
+                __('article.daily_reading_preview_validation', ['message' => $validator->errors()->first()]),
+                422
+            );
+        }
+
+        $validated = $validator->validated();
+        $user = User::findByUsername((string) $validated['username']);
+        if ($user === null) {
+            return $this->error(__('article.daily_reading_unauthorized'), 401);
+        }
+
+        $preview = $this->resourceService->preview(
+            $user,
+            $articleId,
+            is_array($validated['settings'] ?? null) ? $validated['settings'] : [],
+            isset($validated['group_id']) ? (string) $validated['group_id'] : null
+        );
+        if ($preview === null) {
+            return $this->error(__('article.daily_reading_not_found'), 404);
+        }
+
+        return response()
+            ->json($preview)
+            ->header('Cache-Control', 'private, no-store');
     }
 }

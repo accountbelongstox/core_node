@@ -771,7 +771,12 @@ export const wfNewApiHttp: WfNewApi = {
         ...(groupId ? { group_id: groupId } : {}),
       },
     );
-    return unwrapEnvelope(raw) ?? raw;
+    const payload = unwrapEnvelope(raw);
+    return {
+      resource: payload.resource,
+      apiUrl: payload.api_url,
+      expiresAt: payload.expires_at,
+    };
   },
 
   async getClientDeviceSettings(clientKey: string) {

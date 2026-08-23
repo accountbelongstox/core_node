@@ -799,7 +799,7 @@ export const wfNewApiMock: WfNewApi = {
   },
 
   async previewDailyReadingResources(articleId, settings, groupId = null) {
-    return delay({
+    const resource = {
       user: { id: 1, username: 'mock-user' },
       article: {
         id: articleId,
@@ -822,6 +822,11 @@ export const wfNewApiMock: WfNewApi = {
         audio: {},
         playback_items: [],
       },
+    };
+    return delay({
+      resource,
+      apiUrl: '',
+      expiresAt: '',
     });
   },
 
