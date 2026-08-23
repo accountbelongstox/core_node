@@ -16,7 +16,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from pycore.pyutils.common.service_contract import host as contract_host, port as contract_port, service_domain
+from pycore.pyfoundations.service_contract import host as contract_host, port as contract_port, service_domain
 from protocol import load_json_config, read_json_frame, resolve_path_against, write_json_frame
 
 _DEFAULT_SERVER_HOST = service_domain("laravel_api")

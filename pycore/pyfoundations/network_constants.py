@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Canonical Pycore HTTP and Server-Sent Events constants."""
 
-from pycore.pyutils.common.service_contract import host, port
+from pycore.pyfoundations.service_contract import host, port
 
 HTTP_BIND_HOST = host("any")
 HTTP_LOOPBACK_HOST = host("loopback")

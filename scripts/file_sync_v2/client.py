@@ -24,7 +24,7 @@ if _PROJECT_ROOT not in sys.path:
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
-from pycore.pyutils.common.service_contract import host as contract_host, port as contract_port, service_domain
+from pycore.pyfoundations.service_contract import host as contract_host, port as contract_port, service_domain
 
 _DEFAULT_SERVER_HOST = service_domain("laravel_api")
 _DEFAULT_SERVER_PORT = contract_port("file_sync")

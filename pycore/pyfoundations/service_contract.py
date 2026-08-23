@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-SERVICE_CONTRACT_PATH = Path(__file__).resolve().parents[3] / "config" / "service_contract.json"
+SERVICE_CONTRACT_PATH = Path(__file__).resolve().parents[2] / "config" / "service_contract.json"
 SERVICE_CONTRACT: dict[str, Any] = json.loads(SERVICE_CONTRACT_PATH.read_text(encoding="utf-8"))
 
 

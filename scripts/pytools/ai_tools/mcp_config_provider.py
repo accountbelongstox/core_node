@@ -34,7 +34,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyutils.common.service_contract import build_url, host, port
+from pycore.pyfoundations.service_contract import build_url, host, port
 
 CHROME_MCP_URL = build_url("http", host("loopback"), port("mcp_chrome"), "mcp")
 SECRET_MANAGER_PATH = SCRIPT_DIR / "secret_manager.py"
