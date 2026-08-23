@@ -252,14 +252,79 @@ payloads, and mandatory source-resource reconciliation after history loss.
 
 ## Laravel to Python handoff
 
-Pending parallel Laravel implementation. Record implemented migrations,
-repositories, policies, controllers, outbox/Mercure behavior, payload deviations,
-and unresolved questions here without editing the frozen main design.
+Laravel source now implements the Relay V2 coordinator foundation: additive
+global PostgreSQL schema, exact-byte contract adapter, Ed25519/nonce middleware,
+enrollment and credential binding, current-generation pairing authorization,
+durable operations, conditional lease/execution fencing, generation-bound blob
+manifests, owner/device controllers, transactional outbox publication, bounded
+maintenance, rate limits, API metadata, and i18n errors. The V1 route file is no
+longer mounted; its files and data remain for separately authorized cleanup.
+
+Laravel claim uses a short transaction and PostgreSQL
+`FOR UPDATE SKIP LOCKED`. Every claim increments `claim_epoch`; execution-start,
+renewal, finalization, and result submission require the exact revision, epoch,
+lease owner, device, state, and unexpired lease. An expired executing
+`at_most_once_action` becomes `execution_unknown`. Response blob allocation is
+idempotent per `(operation_id, direction, claim_epoch)`, while immutable chunk
+and finalization steps validate their own exact digest and length.
+
+Laravel performed static source inspection only. It did not run PHP, Artisan,
+migrations, tests, builds, services, or live requests.
+
+### Shared contract gaps blocking freeze
+
+The Python-owned contract currently contains only device endpoints, only the
+device wake topic, and no owner operation/pairing event names. The Laravel owner
+routes, opaque owner/pairing topics, and `relay.pairing.changed` name therefore
+remain temporary Laravel-owned vocabulary. This conflicts with the coordination
+rule that the shared contract owns every endpoint, topic, and event. Add canonical
+entries for enrollment claim, roster, pairing create/renew/revoke, owner hub
+authorization, operation admit/status/cancel, request blob allocate/chunk/finalize,
+response blob download, owner roster topic, pairing operation topic, pairing
+change event, and operation status event before contract freeze.
+
+The contract also lacks a device credential lifetime, Relay rate-limit values,
+outbox retention, and explicit public Laravel/Mercure URLs. Laravel currently
+reuses `pairing_lease_seconds` for credential expiry and the legacy
+`RelayHubJwt` Queue Center hub-path resolver; neither choice should become frozen
+Relay V2 protocol behavior.
+
+`operation_transitions.leased` excludes `failed`, but
+`transition_guards.nonexecution_result` permits a leased descriptor to report a
+validation failure. Pycore does exactly that from `_reject_descriptor`. Laravel
+follows the explicit guard, so the transition table must be corrected.
+
+Laravel cannot append the required owner operation-status outbox row without a
+canonical event and owner/pairing topic. Status GET remains authoritative, but
+Mercure completion wake-up is incomplete until those contract entries exist.
+
+### Static Python deficiencies observed by Laravel
+
+- `RelayOperationProcessor._upload_response_blob` sends execution generation on
+  allocation and finalization, but its raw chunk PUT carries no revision, epoch,
+  or lease-owner component. Laravel binds the unguessable blob ID to the stored
+  allocation generation and checks the current operation before accepting each
+  chunk, which closes the current server path. If the intended protocol requires
+  every mutation to carry an explicit generation, Python and the contract must
+  add signed generation query fields to the chunk endpoint.
+- Request-blob download also carries only `blob_id`. Laravel now requires that
+  the stored blob be bound to an actively leased/executing operation, but it
+  cannot distinguish two local claimants sharing the same device credential.
+  Add signed revision/epoch/lease-owner fields if per-process claim isolation is
+  required for downloads.
+- Pycore handles any `credential_revoked` event by clearing its current
+  credential and enrollment without checking a credential ID/version in the
+  payload. Laravel therefore cannot safely publish a delayed old-generation
+  revocation event after a new credential is active. The handler must ignore
+  revocations that do not match its current credential generation.
+- The Python progress claim that the contract is authoritative for endpoints,
+  topics, and events is broader than the current JSON content. The missing owner
+  vocabulary above must be supplied by the Python contract owner.
 
 ## Integration status
 
-Python side: source-complete, static review only.  
-Laravel side: pending its owner document.  
+Python device side: source-complete claim retained, with the static gaps above.  
+Laravel side: coordinator foundation source-complete, contract-blocked.  
 UI/deployment/live integration: pending other owners.
 
 Tests, builds, services, and live verification require separate user

@@ -382,9 +382,11 @@ Route::prefix('internal/pycore')->middleware('pycore.client')->group(function ()
     Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
 });
 
-// Relay plane (Mercure wake/control + HTTP store-and-fetch data plane;
-// contract relay_* endpoints are the single source for both ends).
+// Relay control plane shared by the dashboard and Pycore clients.
 require_once __DIR__ . '/api/relay.php';
+
+// Relay V2 plane (Mercure notifications plus authoritative HTTP data plane).
+require_once __DIR__ . '/RelayV2Router/RelayV2Api.php';
 
 // Queue Center - centralized audio queues (word_audio, sentence_audio) over
 // global_tasks. Public control plane, same trust level as /api/task/*.

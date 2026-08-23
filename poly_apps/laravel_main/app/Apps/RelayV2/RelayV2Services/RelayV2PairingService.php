@@ -26,6 +26,7 @@ final class RelayV2PairingService
             ->where('owner_user_id', $userId)
             ->where('status', RelayV2Constants::CREDENTIAL_ACTIVE)
             ->whereNull('revoked_at')
+            ->where('credential_expires_at', '>', now())
             ->orderBy('label')
             ->get();
 
@@ -89,30 +90,70 @@ final class RelayV2PairingService
 
     public function authorization(int $userId): array
     {
+        $pairingTable = RelayV2TablesMaps::table(RelayV2TablesMaps::PAIRINGS);
+        $deviceTable = RelayV2TablesMaps::table(RelayV2TablesMaps::DEVICES);
         $pairingIds = RelayV2PairingModel::query()
-            ->where('user_id', $userId)
-            ->where('state', RelayV2Constants::PAIRING_ACTIVE)
-            ->where('expires_at', '>', now())
-            ->pluck('pairing_id')
+            ->join($deviceTable, $deviceTable.'.device_id', '=', $pairingTable.'.device_id')
+            ->where($pairingTable.'.user_id', $userId)
+            ->where($pairingTable.'.state', RelayV2Constants::PAIRING_ACTIVE)
+            ->where($pairingTable.'.expires_at', '>', now())
+            ->where($deviceTable.'.owner_user_id', $userId)
+            ->where($deviceTable.'.status', RelayV2Constants::CREDENTIAL_ACTIVE)
+            ->whereNull($deviceTable.'.revoked_at')
+            ->where($deviceTable.'.credential_expires_at', '>', now())
+            ->whereColumn($pairingTable.'.credential_version', $deviceTable.'.current_credential_version')
+            ->pluck($pairingTable.'.pairing_id')
             ->all();
 
         return ['hub' => $this->hub->ownerAuthorization($userId, $pairingIds)];
     }
 
-    public function requireActive(int $userId, string $pairingId): RelayV2PairingModel
+    public function requireActive(int $userId, string $pairingId, bool $lockForUpdate = false): RelayV2PairingModel
     {
-        $pairing = RelayV2PairingModel::query()
+        $query = RelayV2PairingModel::query()
             ->where('pairing_id', $pairingId)
             ->where('user_id', $userId)
             ->where('state', RelayV2Constants::PAIRING_ACTIVE)
-            ->where('expires_at', '>', now())
-            ->first();
+            ->where('expires_at', '>', now());
+        $pairing = null;
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+        $pairing = $query->first();
 
         if ($pairing === null) {
             throw new RelayV2DomainException('pairing_not_found', 404);
         }
+        $this->assertCurrentCredential($pairing);
 
         return $pairing;
+    }
+
+    public function isActiveForDevice(int $userId, string $pairingId, string $deviceId): bool
+    {
+        $pairing = RelayV2PairingModel::query()
+            ->where('pairing_id', $pairingId)
+            ->where('user_id', $userId)
+            ->where('device_id', $deviceId)
+            ->where('state', RelayV2Constants::PAIRING_ACTIVE)
+            ->where('expires_at', '>', now())
+            ->first();
+        $device = null;
+
+        if ($pairing === null) {
+            return false;
+        }
+        $device = RelayV2DeviceModel::query()
+            ->where('device_id', $deviceId)
+            ->where('owner_user_id', $userId)
+            ->where('status', RelayV2Constants::CREDENTIAL_ACTIVE)
+            ->whereNull('revoked_at')
+            ->where('credential_expires_at', '>', now())
+            ->first();
+
+        return $device !== null
+            && (int) $pairing->credential_version === (int) $device->current_credential_version;
     }
 
     private function mutate(int $userId, string $pairingId, string $targetState): array
@@ -128,9 +169,16 @@ final class RelayV2PairingService
             $leaseSeconds = RelayV2Contract::duration('pairing_lease_seconds');
             $renewAfter = now()->addSeconds((int) floor($leaseSeconds / 2));
             $requiresMutation = (string) $pairing?->state !== $targetState;
+            $device = null;
 
             if ($pairing === null) {
                 throw new RelayV2DomainException('pairing_not_found', 404);
+            }
+            if ($targetState === RelayV2Constants::PAIRING_ACTIVE) {
+                $device = $this->ownedDevice($userId, (string) $pairing->device_id);
+                if ((int) $pairing->credential_version !== (int) $device->current_credential_version) {
+                    $requiresMutation = true;
+                }
             }
             if ($targetState === RelayV2Constants::PAIRING_ACTIVE
                 && $pairing->expires_at->lte($renewAfter)) {
@@ -139,6 +187,9 @@ final class RelayV2PairingService
             if ($requiresMutation) {
                 $pairing->forceFill([
                     'state' => $targetState,
+                    'credential_version' => $targetState === RelayV2Constants::PAIRING_ACTIVE
+                        ? (int) $device->current_credential_version
+                        : (int) $pairing->credential_version,
                     'revision' => (int) $pairing->revision + 1,
                     'last_seen_at' => now(),
                     'expires_at' => $targetState === RelayV2Constants::PAIRING_ACTIVE
@@ -162,6 +213,15 @@ final class RelayV2PairingService
         }
 
         return $device;
+    }
+
+    private function assertCurrentCredential(RelayV2PairingModel $pairing): void
+    {
+        $device = $this->ownedDevice((int) $pairing->user_id, (string) $pairing->device_id);
+
+        if ((int) $pairing->credential_version !== (int) $device->current_credential_version) {
+            throw new RelayV2DomainException('pairing_credential_stale', 409);
+        }
     }
 
     private function notifyOwner(RelayV2PairingModel $pairing): void

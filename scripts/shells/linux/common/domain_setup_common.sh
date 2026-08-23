@@ -86,6 +86,7 @@ DOMAIN_DNSPOD_EMAIL=""
 DOMAIN_DNSPOD_TOKEN=""
 DOMAIN_DOMAINS_LIST=""
 DOMAIN_API_PREFIX=""
+DOMAIN_UI_BINDING_ENABLED="no"
 DOMAIN_UI_BINDING_READY="no"
 
 # Persist one key in the file-backed global-var store (the user data
@@ -385,16 +386,19 @@ domain_setup_ensure_api_site() {
 domain_setup_ensure_apex_site() {
     local domain="$1"
     local backend="${2:-$(domain_api_backend_url)}"
-    if domain_setup_ui_binding_enabled; then
+    domain_setup_resolve_ui_binding_state
+    if [ "$DOMAIN_UI_BINDING_ENABLED" = "yes" ]; then
         backend="$(domain_ui_backend_url)"
     fi
     domain_setup_ensure_proxy_site "$domain" "$domain" "$backend"
 }
 
-# True when the dashboard (UI) domain binding is enabled (persisted in the
-# file-backed global-var store).
-domain_setup_ui_binding_enabled() {
-    [ "$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")" = "yes" ]
+# Resolve the persisted dashboard binding into an explicit shared state value.
+domain_setup_resolve_ui_binding_state() {
+    DOMAIN_UI_BINDING_ENABLED="$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")"
+    if [ "$DOMAIN_UI_BINDING_ENABLED" != "yes" ]; then
+        DOMAIN_UI_BINDING_ENABLED="no"
+    fi
 }
 
 # Install the dashboard aliases for one domain: www.<domain>,
@@ -441,8 +445,7 @@ domain_setup_restart_ui_service() {
 # renderers call this one primitive, then re-probe DOMAIN_UI_BINDING_READY
 # before writing nginx or Caddy routes.
 domain_setup_prepare_ui_binding() {
-    local binding_state=""
-
+    DOMAIN_UI_BINDING_ENABLED="no"
     DOMAIN_UI_BINDING_READY="no"
     DOMAIN_DOMAINS_LIST=""
     domain_setup_load_secrets
@@ -452,8 +455,8 @@ domain_setup_prepare_ui_binding() {
     fi
     DOMAIN_API_PREFIX="$(domain_state_get "$DOMAIN_API_PREFIX_KEY" "si")"
     domain_state_set "$DOMAIN_UI_BINDING_KEY" "yes"
-    binding_state="$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")"
-    if [ "$binding_state" != "yes" ]; then
+    domain_setup_resolve_ui_binding_state
+    if [ "$DOMAIN_UI_BINDING_ENABLED" != "yes" ]; then
         echo "[domain] [FAIL] UI binding state did not persist"
         return
     fi
@@ -500,6 +503,7 @@ domain_setup_install_all() {
     domain_setup_load_secrets || return 1
     domain_setup_ensure_prefix || return 1
     domain_setup_persist_state
+    domain_setup_resolve_ui_binding_state
 
     echo "[domain] Installing domains (sites: <domain> apex + api.$DOMAIN_API_PREFIX.<domain>, both proxy -> backend):"
     echo "$DOMAIN_DOMAINS_LIST" | while IFS= read -r domain; do
@@ -513,12 +517,12 @@ domain_setup_install_all() {
         fi
         domain_setup_ensure_apex_site "$domain" "$backend" || failures=$((failures + 1))
         domain_setup_ensure_api_site "$domain" || failures=$((failures + 1))
-        if domain_setup_ui_binding_enabled; then
+        if [ "$DOMAIN_UI_BINDING_ENABLED" = "yes" ]; then
             domain_setup_ensure_www_site "$domain" || failures=$((failures + 1))
         fi
     done <<< "$DOMAIN_DOMAINS_LIST"
 
-    if domain_setup_ui_binding_enabled; then
+    if [ "$DOMAIN_UI_BINDING_ENABLED" = "yes" ]; then
         domain_setup_write_web_access_config
     fi
 

@@ -5,6 +5,7 @@ namespace App\Apps\RelayV2\RelayV2Services;
 use App\Apps\RelayV2\RelayV2Exceptions\RelayV2DomainException;
 use App\Apps\RelayV2\RelayV2Gvar\RelayV2Constants;
 use App\Apps\RelayV2\RelayV2Models\RelayV2CredentialModel;
+use App\Apps\RelayV2\RelayV2Models\RelayV2DeviceModel;
 use App\Apps\RelayV2\RelayV2Models\RelayV2EnrollmentModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -102,6 +103,7 @@ final class RelayV2DeviceSignatureService
         $bodyKeyVersion = 0;
         $enrollment = null;
         $credential = null;
+        $registeredDevice = null;
         $enrollmentId = '';
 
         if ($request->routeIs('relay.v2.enrollment.create')) {
@@ -120,7 +122,7 @@ final class RelayV2DeviceSignatureService
         }
 
         if ($request->routeIs('relay.v2.enrollment.status')) {
-            $enrollmentId = (string) $request->route('enrollmentId');
+            $enrollmentId = (string) $request->route('enrollment_id');
             $enrollment = RelayV2EnrollmentModel::query()
                 ->where('enrollment_id', $enrollmentId)
                 ->where('device_id', $deviceId)
@@ -138,12 +140,19 @@ final class RelayV2DeviceSignatureService
         if (!Str::isUuid($credentialId)) {
             throw new RelayV2DomainException('signature_credential_missing', 403);
         }
+        $registeredDevice = RelayV2DeviceModel::query()
+            ->where('device_id', $deviceId)
+            ->where('status', RelayV2Constants::CREDENTIAL_ACTIVE)
+            ->where('current_credential_version', $credentialVersion)
+            ->whereNull('revoked_at')
+            ->first();
         $credential = RelayV2CredentialModel::query()
             ->where('credential_id', $credentialId)
             ->where('device_id', $deviceId)
             ->where('credential_version', $credentialVersion)
             ->first();
-        if ($credential === null
+        if ($registeredDevice === null
+            || $credential === null
             || (string) $credential->status !== RelayV2Constants::CREDENTIAL_ACTIVE
             || $credential->revoked_at !== null
             || $credential->expires_at === null

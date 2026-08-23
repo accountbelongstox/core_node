@@ -95,7 +95,9 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   const [queueingId, setQueueingId] = useState<string | null>(null);
   const mounted = useRef(true);
   const deepLinkHandled = useRef(false);
+  const playerWasOpen = useRef(false);
   const player = useDailyReadingPlayer();
+  const routeArticleId = routeMode ? readDailyHashId() : null;
 
   useEffect(() => {
     onPlaybackStateChange?.({ open: player.open, playing: player.playing });
@@ -145,7 +147,12 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
 
   // Player closed -> return to the Daily Reading list route.
   useEffect(() => {
-    if (player.open || !routeMode || typeof window === 'undefined') return;
+    if (player.open) {
+      playerWasOpen.current = true;
+      return;
+    }
+    if (!playerWasOpen.current || !routeMode || typeof window === 'undefined') return;
+    playerWasOpen.current = false;
     if (/^#\/daily-reading\//.test(window.location.hash)) {
       window.history.replaceState(null, '', dailyReadingHash());
     }
@@ -307,6 +314,13 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {routeArticleId && (
+              <WordNewDailyReadingResourcePreview
+                articleId={routeArticleId}
+                settings={player}
+                trans={trans}
+              />
+            )}
             {routeMode && (
               <button
                 type="button"
@@ -393,24 +407,26 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
         </p>
       ) : (
         <>
-          <ul className={routeMode ? 'grid flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
+          <ul className={routeMode ? 'grid min-w-0 w-full flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
           {rows.map((row) => {
             const expanded = expandedId === row.id;
             const dateLabel = row.reading_date ?? row.created_at;
             return (
               <li
                 key={row.id}
-                className={`rounded-2xl border border-white/5 bg-slate-900/40 p-4 hover:border-indigo-500/30 transition-colors ${routeMode ? 'h-full' : ''}`}
+                className={`rounded-2xl border border-white/5 bg-slate-900/40 p-4 hover:border-indigo-500/30 transition-colors ${routeMode ? 'h-full min-w-0 max-w-full' : ''}`}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className={routeMode
+                  ? 'flex min-w-0 flex-col gap-3'
+                  : 'flex items-start justify-between gap-3'}>
                   <button
                     type="button"
                     onClick={() => setExpandedId(expanded ? null : row.id)}
-                    className="min-w-0 flex-1 text-left"
+                    className={`${routeMode ? 'w-full' : 'flex-1'} min-w-0 text-left`}
                     title={trans('home.dailyReading.toggleText')}
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-bold text-zinc-100 truncate">{row.title_en}</span>
+                      <span className="min-w-0 flex-1 text-sm font-bold text-zinc-100 truncate">{row.title_en}</span>
                       <span
                         className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${row.audio_generation_type === 'multi_sentence'
                           ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
@@ -433,7 +449,9 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
                       {dateLabel ? new Date(dateLabel).toLocaleDateString() : ''}
                     </div>
                   </button>
-                  <div className={`shrink-0 flex gap-2 ${routeMode ? 'flex-row flex-wrap justify-end' : 'flex-col'}`}>
+                  <div className={`flex gap-2 ${routeMode
+                    ? 'min-w-0 max-w-full flex-row flex-wrap'
+                    : 'shrink-0 flex-col'}`}>
                     {routeMode && (
                       <WordNewDailyReadingResourcePreview
                         articleId={row.id}

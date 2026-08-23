@@ -241,10 +241,10 @@ final class RelayV2Contract
         foreach ($query as $rawKey => $rawValue) {
             $values = is_array($rawValue) ? $rawValue : [$rawValue];
             foreach ($values as $rawItem) {
-                if (!is_scalar($rawItem) && $rawItem !== null) {
+                if (!is_string($rawItem)) {
                     throw new RelayV2DomainException('query_value_invalid', 422);
                 }
-                $pairs[] = [(string) $rawKey, (string) ($rawItem ?? '')];
+                $pairs[] = [(string) $rawKey, $rawItem];
             }
         }
         usort($pairs, static function (array $left, array $right): int {
@@ -341,13 +341,64 @@ final class RelayV2Contract
             'operation_transitions',
             'transition_guards',
             'result_outcomes',
+            'retry_policies',
             'route_policy_profiles',
             'route_policies',
         ];
         $requiredProfileFields = ['exposure', 'permission', 'payload', 'timeout_seconds', 'retry'];
+        $requiredSignatureHeaders = [
+            'protocol',
+            'device_id',
+            'credential_id',
+            'credential_version',
+            'timestamp',
+            'nonce',
+            'content_sha256',
+            'signature',
+        ];
+        $requiredEndpoints = [
+            'enrollment_create',
+            'enrollment_status',
+            'device_heartbeat',
+            'device_event',
+            'device_hub_authorization',
+            'operation_claim',
+            'operation_execution_start',
+            'operation_lease_renew',
+            'operation_result',
+            'request_blob',
+            'response_blob_allocate',
+            'response_blob_chunk',
+            'response_blob_finalize',
+        ];
+        $requiredDurations = [
+            'operation_lease_seconds',
+            'signature_clock_skew_seconds',
+            'nonce_retention_seconds',
+            'enrollment_retention_seconds',
+            'subscriber_token_seconds',
+            'pairing_lease_seconds',
+            'operation_retention_seconds',
+            'blob_retention_seconds',
+        ];
+        $requiredLimits = [
+            'claim_batch',
+            'inline_body_bytes',
+            'blob_chunk_bytes',
+            'request_body_bytes',
+            'response_body_bytes',
+            'header_value_bytes',
+            'owner_blob_bytes',
+            'owner_pending_operations',
+            'device_active_leases',
+            'device_event_payload_bytes',
+        ];
+        $requiredEvents = ['operation_available', 'credential_revoked', 'terminal_changed'];
         $profiles = [];
         $states = [];
         $transitionStates = [];
+        $resultOutcomes = [];
+        $retryPolicies = [];
         if (self::$document !== null) {
             return;
         }
@@ -367,6 +418,15 @@ final class RelayV2Contract
             if (!array_key_exists($section, $document)) {
                 throw new RelayV2DomainException('contract_section_missing', 500, ['name' => $section]);
             }
+        }
+        self::assertRequiredNames($document['signature_profile']['headers'] ?? [], $requiredSignatureHeaders, 'contract_header_missing');
+        self::assertRequiredNames($document['endpoints'], $requiredEndpoints, 'contract_endpoint_missing');
+        self::assertRequiredNames($document['topics'], ['device_wake'], 'contract_topic_missing');
+        self::assertRequiredNames($document['events'], $requiredEvents, 'contract_event_missing');
+        self::assertPositiveNames($document['durations'], $requiredDurations, 'contract_duration_missing');
+        self::assertPositiveNames($document['limits'], $requiredLimits, 'contract_limit_missing');
+        if ((string) ($document['signature_profile']['algorithm'] ?? '') !== 'ed25519') {
+            throw new RelayV2DomainException('contract_signature_profile_invalid', 500);
         }
         $profiles = is_array($document['route_policy_profiles']) ? $document['route_policy_profiles'] : [];
         foreach ($document['route_policies'] as $policy) {
@@ -388,6 +448,25 @@ final class RelayV2Contract
         if ($states !== $transitionStates) {
             throw new RelayV2DomainException('contract_transitions_invalid', 500);
         }
+        foreach ($document['operation_transitions'] as $targets) {
+            if (!is_array($targets) || array_diff(array_map('strval', $targets), $states) !== []) {
+                throw new RelayV2DomainException('contract_transitions_invalid', 500);
+            }
+        }
+        $resultOutcomes = array_values(array_map('strval', $document['result_outcomes']));
+        if ($resultOutcomes === [] || array_diff($resultOutcomes, $states) !== []) {
+            throw new RelayV2DomainException('contract_result_outcomes_invalid', 500);
+        }
+        $retryPolicies = array_values(array_map('strval', $document['retry_policies']));
+        if ($retryPolicies === []) {
+            throw new RelayV2DomainException('contract_retry_policies_invalid', 500);
+        }
+        foreach ($profiles as $profile) {
+            if (!is_array($profile)
+                || !in_array((string) ($profile['retry'] ?? ''), $retryPolicies, true)) {
+                throw new RelayV2DomainException('contract_retry_policies_invalid', 500);
+            }
+        }
         self::$rawBytes = $bytes;
         self::$document = $document;
         self::$digest = hash('sha256', $bytes);
@@ -396,6 +475,28 @@ final class RelayV2Contract
     private static function formEncode(string $value): string
     {
         return str_replace('%20', '+', rawurlencode($value));
+    }
+
+    private static function assertRequiredNames(mixed $section, array $names, string $errorCode): void
+    {
+        $values = is_array($section) ? $section : [];
+
+        foreach ($names as $name) {
+            if (!is_string($values[$name] ?? null) || trim((string) $values[$name]) === '') {
+                throw new RelayV2DomainException($errorCode, 500, ['name' => $name]);
+            }
+        }
+    }
+
+    private static function assertPositiveNames(mixed $section, array $names, string $errorCode): void
+    {
+        $values = is_array($section) ? $section : [];
+
+        foreach ($names as $name) {
+            if ((int) ($values[$name] ?? 0) < 1) {
+                throw new RelayV2DomainException($errorCode, 500, ['name' => $name]);
+            }
+        }
     }
 
     private static function sortJsonValue(mixed $value): mixed

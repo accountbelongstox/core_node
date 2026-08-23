@@ -11,9 +11,13 @@
 
 namespace App\Providers;
 
+use App\Apps\RelayV2\RelayV2Services\RelayV2Contract;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Model;
 use App\Support\DatabaseQueryMonitor;
 use App\Services\UserConfig\UserConfigService;
@@ -51,6 +55,21 @@ class AppServiceProvider extends ServiceProvider
     {
         Model::shouldBeStrict(!app()->isProduction());
         DatabaseQueryMonitor::register();
+        RateLimiter::for('relay-device', static function (Request $request): Limit {
+            $deviceId = (string) $request->header(RelayV2Contract::header('device_id'), '');
+
+            return Limit::perMinute(240)->by($deviceId !== '' ? $deviceId : (string) $request->ip());
+        });
+        RateLimiter::for('relay-owner', static function (Request $request): Limit {
+            $userId = $request->user()?->getAuthIdentifier();
+
+            return Limit::perMinute(120)->by($userId !== null ? (string) $userId : (string) $request->ip());
+        });
+        RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
+            $userId = $request->user()?->getAuthIdentifier();
+
+            return Limit::perMinute(10)->by(($userId !== null ? (string) $userId : 'guest').':'.(string) $request->ip());
+        });
 
         Response::macro('goStyle', function () {
             return Response::make()
