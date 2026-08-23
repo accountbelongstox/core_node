@@ -1107,7 +1107,7 @@ class AiGateway
                 // Best-effort: a configured provider not in cooldown is considered
                 // available here; the per-card Test button runs the real probe.
                 'available' => $configured && $cooldownS <= 0,
-                'key_masked' => $configured ? AiProviderRegistry::maskKey(AiProviderRegistry::firstSecret($name)) : null,
+                'key_masked' => $configured ? SecretStore::maskForDisplay(AiProviderRegistry::firstSecret($name)) : null,
                 'models' => AiProviderRegistry::catalogModels($name, 5),
                 'quota' => self::getQuota($name, $refresh),
                 'calls' => (int) $st['calls'],

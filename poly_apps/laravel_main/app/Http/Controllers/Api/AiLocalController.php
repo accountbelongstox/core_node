@@ -278,7 +278,7 @@ class AiLocalController extends Controller
                     // True secret → mask; plain config (endpoint/deployment/region/
                     // base-url) is safe to show in full so the user can verify it.
                     'secret' => $isSecret,
-                    'masked' => $set ? ($isSecret ? AiProviderRegistry::maskKey($raw) : $raw) : null,
+                    'masked' => $set ? ($isSecret ? SecretStore::maskForDisplay($raw) : $raw) : null,
                 ];
             }
 
@@ -338,7 +338,7 @@ class AiLocalController extends Controller
             'success' => true,
             'key_name' => $keyName,
             'secret' => $isSecret,
-            'masked' => $isSecret ? AiProviderRegistry::maskKey($value) : $value,
+            'masked' => $isSecret ? SecretStore::maskForDisplay($value) : $value,
         ]);
     }
 

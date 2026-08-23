@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 from pycore.pyctl.relay.laravel_relay_operation_processor import (
     laravel_relay_operation_processor,
 )
-from pycore.pyctl.relay.laravel_relay_transport import (
+from pycore.pyutils.laravel.relay_transport import (
     RelayHttpError,
     laravel_relay_transport,
 )

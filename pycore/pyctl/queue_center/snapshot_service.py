@@ -19,7 +19,11 @@ from pycore.pyctl.assist.service import assist_status
 from pycore.pyctl.assist.wiring import resolve_selected_endpoint_for_ui
 from pycore.pyctl.queue_center.control_service import get_control_intent
 from pycore.pyctl.queue_center.lane_registry import LANE_REGISTRY, lane_worker
-from pycore.pyctl.queue_center.task_center_sections import build_section_contracts
+from pycore.pyctl.queue_center.task_center_sections import (
+    build_section_contracts,
+    queue_metrics,
+)
+from pycore.pyctl.tts.status_service import peek_status as peek_tts_status
 from pycore.pyctl.tts.sentence_audio_auto import get_status as get_sentence_audio_status
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
 from pycore.pyctl.translation.worker.worker import translation_worker_service
@@ -41,7 +45,6 @@ from pycore.pyutils.common.queue_center_contract import (
 )
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
-    STATUS_SNAPSHOT_TTS_KEY,
     status_snapshot_cache,
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -80,19 +83,6 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _cached_tts_status() -> Dict[str, Any]:
-    """Return TTS state immediately without initiating a cold engine scan."""
-    cached = status_snapshot_cache.peek(STATUS_SNAPSHOT_TTS_KEY)
-    if isinstance(cached, dict):
-        return cached
-    return {
-        "success": True,
-        "providers": [],
-        "engines": [],
-        "pending": True,
-    }
-
-
 def _response_data(response: Any) -> Dict[str, Any]:
     if response.status_code != 200:
         raise RuntimeError(f"Laravel Queue Center request failed: HTTP {response.status_code}")
@@ -101,22 +91,6 @@ def _response_data(response: Any) -> Dict[str, Any]:
         raise TypeError("Laravel Queue Center response must be an object")
     data = payload.get("data")
     return dict(data) if isinstance(data, dict) else dict(payload)
-
-
-def _queue_metrics(queue_overview: Dict[str, Any], scope: str) -> Optional[Dict[str, int]]:
-    queues = queue_overview.get("queues") if isinstance(queue_overview.get("queues"), dict) else {}
-    metrics = queues.get(scope)
-    if not isinstance(metrics, dict):
-        return None
-    pending = int(metrics.get("pending") or 0)
-    leased = int(metrics.get("assigned") or metrics.get("leased") or 0)
-    processing = int(metrics.get("processing") or 0)
-    return {
-        "pending": pending,
-        "leased": leased,
-        "processing": processing,
-        "total": pending + leased + processing,
-    }
 
 
 class _QueueCenterTokenProvider:
@@ -644,7 +618,7 @@ class _QueueCenterSnapshotService:
         word_audio = get_word_audio_status()
         sentence_audio = get_sentence_audio_status()
         assist = assist_status(include_laravel=False)
-        tts = _cached_tts_status()
+        tts = peek_tts_status()
         result["wordAudio"] = word_audio
         result["sentenceAudio"] = sentence_audio
         result["assist"] = assist
@@ -706,7 +680,7 @@ class _QueueCenterSnapshotService:
         )
         queue_overview = snapshot.get("queueOverview") if isinstance(snapshot.get("queueOverview"), dict) else {}
         for scope in QUEUE_CENTER_QUEUE_POSITION_CONTROLS:
-            metrics = _queue_metrics(queue_overview, scope)
+            metrics = queue_metrics(queue_overview, scope)
             if metrics is not None:
                 contracts[scope]["queue"] = metrics
         contracts["word_audio"]["worker"].update({

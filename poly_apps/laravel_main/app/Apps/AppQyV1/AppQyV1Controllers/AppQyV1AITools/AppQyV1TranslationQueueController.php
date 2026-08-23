@@ -18,34 +18,19 @@ use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationRealtimeService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationQueueService;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BingTranslationIntakeService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Word Translation Queue Controller
- *
- * FE-facing front of the async word-translation pipeline. Enqueues visible
- * words at HIGH priority into the shared global_tasks substrate (task_type
- * "word_translation", execution_type "remote_translation"), and reports per
- * word whether a translation already exists in the dictionary.
- *
- * Consumers of the created tasks (atomic claim, no double work):
- *   - mcp-chrome worker (processor_types ["remote_translation"])
- *   - Laravel AI self-filler timer (AppQyV1WordTranslationFillerTask)
- * Both write back through WordTranslationTaskProcessor.
+ * HTTP control plane for the shared asynchronous word-translation queue.
  */
 class AppQyV1TranslationQueueController extends Controller
 {
     use ApiResponse;
-
-    /**
-     * NO try-catch allowed - trust Laravel validation
-     * NO ?? or || allowed - use explicit if statements
-     */
 
     // Visible (FE) words jump the queue ahead of the background scan (LOW = 0).
     private const PRIORITY_HIGH = AppQyV1WordTranslationQueueService::PRIORITY_HIGH;
@@ -58,14 +43,17 @@ class AppQyV1TranslationQueueController extends Controller
 
     private AppQyV1WordTranslationQueueService $queue;
     private AppQyV1TranslationRealtimeService $realtime;
+    private AppQyV1BingTranslationIntakeService $bingIntake;
 
     public function __construct(
         AppQyV1WordTranslationQueueService $queue,
-        AppQyV1TranslationRealtimeService $realtime
+        AppQyV1TranslationRealtimeService $realtime,
+        AppQyV1BingTranslationIntakeService $bingIntake
     )
     {
         $this->queue = $queue;
         $this->realtime = $realtime;
+        $this->bingIntake = $bingIntake;
     }
 
     /**
@@ -303,7 +291,7 @@ class AppQyV1TranslationQueueController extends Controller
                 $payload = [];
             }
 
-            $words = $this->wordsFromPayload($payload);
+            $words = GlobalTask::displayWordsFromPayload($payload);
             $wordCount = count($words);
             if (isset($payload['word_count'])) {
                 $wordCount = (int) $payload['word_count'];
@@ -630,7 +618,7 @@ class AppQyV1TranslationQueueController extends Controller
             $payload = is_array($task->payload) ? $task->payload : [];
             $result = is_array($task->result) ? $task->result : [];
 
-            $words = $this->wordsFromPayload($payload);
+            $words = GlobalTask::displayWordsFromPayload($payload);
 
             $translations = [];
             if (isset($result['translations']) && is_array($result['translations'])) {
@@ -784,57 +772,8 @@ class AppQyV1TranslationQueueController extends Controller
     }
 
     /**
-     * Public chrome-assist Bing intake (NO-AUTH control plane) — the DIRECT-PUSH
-     * TWIN of the worker result path.
-     *
-     * POST /api/app_qy_v1/ai_tools/translation/queue/submit-bing
-     *
-     * Two ways Bing results reach the dictionary, both ending in the SAME
-     * canonical write-back so there is one source of truth:
-     *   1. Worker path: the chrome worker posts to /worker/tasks/result, which
-     *      WordTranslationTaskProcessor forwards to
-     *      AppQyV1WordTranslationWriteback::apply().
-     *   2. THIS direct-push: an MCP host driving chrome_bing_dictionary submits
-     *      results here, calling the exact same apply() — no global-task round
-     *      trip, no logic duplicated.
-     *
-     * Both paths fill translations / phonetics / images / audio and mark invalid /
-     * region-redirect words as is_valid=false PLACEHOLDERS (markValidity).
-     *
-     * AUDIO is BASE64-ONLY (audio_base64): the chrome side captures the Bing
-     * pronunciation bytes in-page and submits base64. There is NO server-side
-     * audio-URL download (a Bing audio URL is not openable server-side). Stored
-     * fill-missing — existing pycore/edge-TTS audio is never clobbered.
-     *
-     * IMAGES are BASE64-ONLY too (same rule as audio): image_base64 carries the
-     * Bing sample-image bytes captured in-page; the write-back decodes, validates
-     * (magic bytes), and stores them as LOCAL files (fill-missing). No image-URL
-     * fetch anywhere.
-     *
-     * Idempotent + restart-safe: apply() is a direct fill-missing write with no
-     * exclusive/claimed state, so re-submitting the same batch never double-writes
-     * or corrupts a row.
-     *
-     * Body:
-     * {
-     *   "language": "en",                 // source/library language (name or code)
-     *   "target_language": "zh",          // optional; defaults to "zh"
-     *   "source": "bing",                 // optional provider label
-     *   "worker_id": "...",               // optional; traceability only
-     *   "translations": [
-     *     { "word": "...", "md5"?: "...", "translation": "...",
-     *       "phonetic"?, "us_phonetic"?, "uk_phonetic"?,
-     *       "image_base64"?: string[]|[{base64,mime?}], "audio_base64"? }
-     *   ],
-     *   "invalidWords": [ "..." | {word} ],
-     *   "regionRedirectWords": [ "..." | {word} ]
-     * }
-     *
-     * NOTE: the write-back matches rows by md5(word), so each translation entry
-     * must carry `word`. An entry with only `md5` (no `word`) cannot be reversed
-     * to its source string and is skipped (reported in `skipped_no_word`).
-     *
-     * Returns { updated, marked_invalid, marked_region, ... }.
+     * Accept direct Bing assist results and pass them through the canonical,
+     * fill-missing write-back pipeline. Binary media remains base64-only.
      */
     public function submitBing(Request $request): JsonResponse
     {
@@ -854,135 +793,8 @@ class AppQyV1TranslationQueueController extends Controller
             'region_redirect_words' => 'nullable|array',
         ]);
 
-        $language = $validated['language'];
-        $targetLanguage = 'zh';
-        if (isset($validated['target_language']) && $validated['target_language'] !== '') {
-            $targetLanguage = $validated['target_language'];
-        }
-        $provider = 'bing';
-        if (isset($validated['source']) && $validated['source'] !== '') {
-            $provider = $validated['source'];
-        }
-        // Optional worker/host id for traceability (woven into the synthetic
-        // intake task id used only for logging inside apply()).
-        $workerId = '';
-        if (isset($validated['worker_id']) && $validated['worker_id'] !== '') {
-            $workerId = (string) $validated['worker_id'];
-        }
+        $response = $this->bingIntake->apply($validated);
 
-        $rawTranslations = $validated['translations'] ?? [];
-        // camelCase (control plane) OR snake_case (worker result shape) — accept
-        // whichever the caller sent so neither casing silently drops placeholders.
-        $invalidWords = $validated['invalidWords'] ?? $validated['invalid_words'] ?? [];
-        $regionRedirectWords = $validated['regionRedirectWords'] ?? $validated['region_redirect_words'] ?? [];
-
-        // Normalize each entry to the write-back's contract (image_base64 +
-        // audio_base64, both base64-only). Entries carrying only `md5` (no `word`)
-        // cannot be matched (md5 is one-way) and are skipped.
-        $entries = [];
-        $skippedNoWord = 0;
-        foreach ($rawTranslations as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-            $word = isset($item['word']) && is_string($item['word']) ? $item['word'] : '';
-            if ($word === '') {
-                $skippedNoWord++;
-                continue;
-            }
-
-            // Images are BASE64-ONLY (same rule as audio): the Bing image URLs are
-            // not fetchable server-side, so the chrome side captures the bytes
-            // in-page and submits image_base64 (a base64 string list, or a list of
-            // { base64, mime? }). The write-back stores them as LOCAL files.
-            $imageBase64 = null;
-            if (isset($item['image_base64'])) {
-                $imageBase64 = $item['image_base64'];
-            }
-
-            $entry = ['word' => $word];
-            if (isset($item['translation'])) {
-                $entry['translation'] = $item['translation'];
-            }
-            if (isset($item['phonetic'])) {
-                $entry['phonetic'] = $item['phonetic'];
-            }
-            if (isset($item['us_phonetic'])) {
-                $entry['us_phonetic'] = $item['us_phonetic'];
-            }
-            if (isset($item['uk_phonetic'])) {
-                $entry['uk_phonetic'] = $item['uk_phonetic'];
-            }
-            if ($imageBase64 !== null && $imageBase64 !== '' && $imageBase64 !== []) {
-                $entry['image_base64'] = $imageBase64;
-            }
-            if (isset($item['audio_base64']) && is_string($item['audio_base64'])) {
-                $entry['audio_base64'] = $item['audio_base64'];
-            }
-
-            $entries[] = $entry;
-        }
-
-        // Reuse the canonical write-back (no duplicated logic). taskId is a
-        // synthetic intake id for logging only; the optional worker_id is woven
-        // in for traceability.
-        $intakeId = 'chrome-assist:submit-bing';
-        if ($workerId !== '') {
-            $intakeId .= ':' . $workerId;
-        }
-        $result = AppQyV1WordTranslationWriteback::apply(
-            $intakeId,
-            $language,
-            $targetLanguage,
-            $provider,
-            $entries,
-            $invalidWords,
-            $regionRedirectWords
-        );
-
-        // apply() returns a combined `invalidated` count; surface the per-bucket
-        // request counts so the caller can reconcile invalid vs region marks.
-        $response = [
-            'updated' => (int) ($result['processed'] ?? 0),
-            'marked_invalid' => count($invalidWords),
-            'marked_region' => count($regionRedirectWords),
-            'invalidated_total' => (int) ($result['invalidated'] ?? 0),
-            'failed' => (int) ($result['failed'] ?? 0),
-            'skipped_no_word' => $skippedNoWord,
-        ];
-
-        return $this->success($response, 'Bing assist results applied');
-    }
-
-    /**
-     * Resolve display words from a unified task payload (words[] or single content/text/word).
-     *
-     * @return list<string>
-     */
-    private function wordsFromPayload(array $payload): array
-    {
-        $words = [];
-        if (isset($payload['words']) && is_array($payload['words'])) {
-            foreach ($payload['words'] as $entry) {
-                if (is_string($entry) && trim($entry) !== '') {
-                    $words[] = trim($entry);
-                } elseif (is_array($entry)) {
-                    $w = $entry['word'] ?? $entry['content'] ?? null;
-                    if (is_string($w) && trim($w) !== '') {
-                        $words[] = trim($w);
-                    }
-                }
-            }
-        }
-        if ($words !== []) {
-            return $words;
-        }
-        foreach (['content', 'text', 'word'] as $key) {
-            $val = $payload[$key] ?? null;
-            if (is_string($val) && trim($val) !== '') {
-                return [trim($val)];
-            }
-        }
-        return [];
+        return $this->success($response, __('runtime.bing_translation_results_applied'));
     }
 }

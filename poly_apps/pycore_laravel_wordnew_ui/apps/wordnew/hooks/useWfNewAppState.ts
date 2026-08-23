@@ -26,14 +26,12 @@ import {
   dailyReadingHash,
   parseWordGroupHash,
   wordGroupHash,
-  wordNewPageHeader,
   WORDNEW_TABS,
   type WordNewTab,
 } from '../routing/WordNewHashRoutes';
 import { synchronizeDailyReadingWordGroups } from '../components/daily-reading/dailyReadingWordGroupStore';
 
 export type { WordNewTab } from '../routing/WordNewHashRoutes';
-
 export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const { shellLang, dark } = deps;
 

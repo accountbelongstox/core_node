@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import time
-from datetime import datetime
 from typing import Any, Callable, Dict, Iterable, Mapping
 
-from pycore.pyctl.relay.laravel_relay_transport import (
+from pycore.pyutils.laravel.relay_transport import (
     RelayHttpError,
     laravel_relay_transport,
 )
@@ -40,8 +38,6 @@ RELAY_RESULT_EXPIRED = "expired"
 RELAY_LEASE_STOP_PREFIX = "relay.v2.operation.lease.stop"
 RELAY_LEASE_LOST_PREFIX = "relay.v2.operation.lease.lost"
 RELAY_LEASE_DEADLINE_PREFIX = "relay.v2.operation.lease.deadline"
-RELAY_REQUEST_BLOB_ENDPOINT = "device_request_blob_download"
-RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT = "device_response_blob_chunk"
 
 
 class LaravelRelayOperationProcessor:
@@ -104,7 +100,7 @@ class LaravelRelayOperationProcessor:
     ) -> None:
         remote_state = str(descriptor.get("state") or "").strip().lower()
         if remote_state in ("cancel_requested", "canceled"):
-            self._post_nonexecution(
+            laravel_relay_transport.submit_nonexecution(
                 descriptor,
                 RELAY_RESULT_CANCELED,
                 "operation_canceled",
@@ -112,7 +108,7 @@ class LaravelRelayOperationProcessor:
             )
             return
         if remote_state == "expired":
-            self._post_nonexecution(
+            laravel_relay_transport.submit_nonexecution(
                 descriptor,
                 RELAY_RESULT_EXPIRED,
                 "operation_expired",
@@ -294,7 +290,10 @@ class LaravelRelayOperationProcessor:
             raise RuntimeError("relay_execution_start_revision_invalid")
         if claimed_state == "executing" and revision != descriptor_revision:
             raise RuntimeError("relay_execution_start_idempotency_conflict")
-        lease_deadline = self._lease_deadline(server_time, lease_expires_at)
+        lease_deadline = relay_contract.lease_deadline(
+            server_time,
+            lease_expires_at,
+        )
         request["operation_revision"] = revision
         request["lease_server_time"] = server_time
         request["lease_expires_at"] = lease_expires_at
@@ -364,7 +363,7 @@ class LaravelRelayOperationProcessor:
                     raise RuntimeError("relay_lease_renew_revision_conflict")
                 server_time = str(operation.get("server_time") or "")
                 lease_expires_at = str(operation.get("lease_expires_at") or "")
-                lease_deadline = self._lease_deadline(
+                lease_deadline = relay_contract.lease_deadline(
                     server_time,
                     lease_expires_at,
                 )
@@ -576,7 +575,7 @@ class LaravelRelayOperationProcessor:
         if not isinstance(body_present_value, bool):
             raise ValueError("relay_request_body_presence_missing")
         body_present = bool(body_present_value)
-        body = self._request_body(
+        body = laravel_relay_transport.request_body(
             descriptor,
             operation_id,
             body_present,
@@ -591,7 +590,7 @@ class LaravelRelayOperationProcessor:
             raise ValueError("relay_request_body_length_conflict")
         if len(body) > relay_contract.limit("request_body_bytes"):
             raise ValueError("relay_request_body_limit_exceeded")
-        request_digest = self._request_digest(
+        request_digest = relay_contract.request_digest(
             method,
             path,
             query,
@@ -635,79 +634,6 @@ class LaravelRelayOperationProcessor:
             "retry_policy": retry_policy,
         }
 
-    def _request_body(
-        self,
-        descriptor: Mapping[str, Any],
-        operation_id: str,
-        body_present: bool,
-        coordinator_url: str,
-    ) -> bytes:
-        body_base64 = descriptor.get("body_base64")
-        body_ref = str(descriptor.get("body_ref") or "")
-        if body_base64 is not None and body_ref:
-            raise ValueError("relay_request_body_source_conflict")
-        if not body_present and (body_base64 is not None or body_ref):
-            raise ValueError("relay_request_unexpected_body_source")
-        if not body_present:
-            return b""
-        if body_base64 is not None:
-            body = base64.b64decode(str(body_base64), validate=True)
-            relay_activity_log.debug(
-                "operation.request.inline_body.loaded",
-                operation_id=operation_id,
-                body=body,
-            )
-            return body
-        if body_ref:
-            response = laravel_relay_transport.request_bytes(
-                "GET",
-                relay_contract.endpoint(RELAY_REQUEST_BLOB_ENDPOINT, blob_id=body_ref),
-                query=relay_contract.generation_query(
-                    RELAY_REQUEST_BLOB_ENDPOINT,
-                    int(descriptor["revision"]),
-                    int(descriptor["claim_epoch"]),
-                    str(descriptor["lease_owner"]),
-                ),
-                timeout=relay_contract.duration("request_timeout_seconds"),
-                action="operation.request_blob.download",
-                coordinator_url=coordinator_url,
-            )
-            return bytes(response.content or b"")
-        raise ValueError("relay_request_body_source_missing")
-
-    @staticmethod
-    def _request_digest(
-        method: str,
-        path: str,
-        query: Mapping[str, Any],
-        headers: Mapping[str, Any],
-        body_present: bool,
-        body_sha256: str,
-        body_length: int,
-    ) -> str:
-        canonical = json.dumps(
-            {
-                "method": str(method).upper(),
-                "path": relay_contract.canonical_path(path),
-                "query": relay_contract.canonical_query(query),
-                "headers": {
-                    str(key).lower(): str(value)
-                    for key, value in sorted(
-                        dict(headers).items(),
-                        key=lambda item: str(item[0]).lower(),
-                    )
-                },
-                "body_present": bool(body_present),
-                "body_sha256": str(body_sha256),
-                "body_length": int(body_length),
-            },
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        return hashlib.sha256(canonical).hexdigest()
-
     def _post_response(
         self,
         request: Mapping[str, Any],
@@ -737,10 +663,11 @@ class LaravelRelayOperationProcessor:
             if len(response.body) <= relay_contract.limit("inline_body_bytes"):
                 payload["body_base64"] = base64.b64encode(response.body).decode("ascii")
             else:
-                payload["body_ref"] = self._upload_response_blob(
+                payload["body_ref"] = laravel_relay_transport.upload_response_blob(
                     request,
                     response.body,
                     body_digest,
+                    self._assert_active_lease,
                 )
         laravel_relay_transport.request_json(
             "POST",
@@ -802,7 +729,7 @@ class LaravelRelayOperationProcessor:
             else str(error) or "relay_operation_descriptor_invalid"
         )
         try:
-            self._post_nonexecution(
+            laravel_relay_transport.submit_nonexecution(
                 descriptor,
                 RELAY_RESULT_FAILED,
                 error_code,
@@ -816,184 +743,6 @@ class LaravelRelayOperationProcessor:
                 error_type=type(submit_error).__name__,
                 error=submit_error,
             )
-
-    def _post_nonexecution(
-        self,
-        descriptor: Mapping[str, Any],
-        outcome: str,
-        error_code: str,
-        status: int = 0,
-        lease_owner: str = "",
-    ) -> None:
-        operation_id = str(descriptor.get("operation_id") or "")
-        operation_revision = int(descriptor.get("revision") or 0)
-        claim_epoch = int(descriptor.get("claim_epoch") or 0)
-        descriptor_lease_owner = str(descriptor.get("lease_owner") or "")
-        coordinator_url = str(descriptor.get("_coordinator_url") or "")
-        if (
-            not operation_id
-            or operation_revision <= 0
-            or claim_epoch <= 0
-            or not descriptor_lease_owner
-            or descriptor_lease_owner != str(lease_owner)
-            or not coordinator_url
-        ):
-            relay_activity_log.error(
-                "operation.nonexecution.unreportable",
-                operation_id=operation_id,
-                operation_revision=operation_revision,
-                claim_epoch=claim_epoch,
-                lease_owner=descriptor_lease_owner,
-                outcome=outcome,
-                error_code=error_code,
-            )
-            return
-        payload: Dict[str, Any] = {
-            "operation_id": operation_id,
-            "operation_revision": operation_revision,
-            "claim_epoch": claim_epoch,
-            "lease_owner": descriptor_lease_owner,
-            "outcome": str(outcome),
-            "headers": {},
-            "error": {"code": str(error_code)},
-            "body_sha256": hashlib.sha256(b"").hexdigest(),
-            "body_length": 0,
-            "body_present": False,
-        }
-        if status > 0:
-            payload["status"] = int(status)
-        laravel_relay_transport.request_json(
-            "POST",
-            relay_contract.endpoint(
-                "operation_result",
-                operation_id=operation_id,
-            ),
-            payload,
-            action="operation.result.nonexecution",
-            coordinator_url=coordinator_url,
-        )
-        relay_activity_log.success(
-            "operation.nonexecution.submitted",
-            operation_id=operation_id,
-            operation_revision=operation_revision,
-            claim_epoch=claim_epoch,
-            outcome=outcome,
-            error_code=error_code,
-        )
-
-    def _upload_response_blob(
-        self,
-        request: Mapping[str, Any],
-        body: bytes,
-        body_digest: str,
-    ) -> str:
-        operation_id = str(request["operation_id"])
-        self._assert_active_lease(request)
-        allocation = laravel_relay_transport.request_json(
-            "POST",
-            relay_contract.endpoint(
-                "device_response_blob_allocate",
-                operation_id=operation_id,
-            ),
-            {
-                "operation_id": operation_id,
-                "direction": "response",
-                "expected_sha256": body_digest,
-                "expected_length": len(body),
-                "operation_revision": int(request["operation_revision"]),
-                "claim_epoch": int(request["claim_epoch"]),
-                "lease_owner": str(request["lease_owner"]),
-            },
-            action="operation.response_blob.allocate",
-            coordinator_url=str(request["coordinator_url"]),
-        )
-        blob = allocation.get("blob") if isinstance(allocation.get("blob"), dict) else allocation
-        blob_id = str(blob.get("blob_id") or "")
-        if not blob_id:
-            raise RuntimeError("relay_response_blob_id_missing")
-        chunk_size = relay_contract.limit("blob_chunk_bytes")
-        for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
-            self._assert_active_lease(request)
-            chunk = body[offset : offset + chunk_size]
-            laravel_relay_transport.request_bytes(
-                "PUT",
-                relay_contract.endpoint(
-                    RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
-                    blob_id=blob_id,
-                    chunk_index=chunk_index,
-                ),
-                body=chunk,
-                query=relay_contract.generation_query(
-                    RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
-                    int(request["operation_revision"]),
-                    int(request["claim_epoch"]),
-                    str(request["lease_owner"]),
-                ),
-                action="operation.response_blob.chunk",
-                coordinator_url=str(request["coordinator_url"]),
-            )
-        self._assert_active_lease(request)
-        laravel_relay_transport.request_json(
-            "POST",
-            relay_contract.endpoint(
-                "device_response_blob_finalize",
-                blob_id=blob_id,
-            ),
-            {
-                "blob_id": blob_id,
-                "expected_sha256": body_digest,
-                "expected_length": len(body),
-                "operation_revision": int(request["operation_revision"]),
-                "claim_epoch": int(request["claim_epoch"]),
-                "lease_owner": str(request["lease_owner"]),
-            },
-            action="operation.response_blob.finalize",
-            coordinator_url=str(request["coordinator_url"]),
-        )
-        return blob_id
-
-    @staticmethod
-    def _lease_deadline(server_time: str, lease_expires_at: str) -> float:
-        server_datetime = LaravelRelayOperationProcessor._rfc3339_datetime(server_time)
-        expiry_datetime = LaravelRelayOperationProcessor._rfc3339_datetime(
-            lease_expires_at
-        )
-        lease_remaining_seconds = (
-            expiry_datetime - server_datetime
-        ).total_seconds()
-        guard_seconds = relay_contract.duration(
-            "operation_lease_expiry_guard_seconds"
-        )
-        usable_seconds = lease_remaining_seconds - guard_seconds
-        if usable_seconds <= 0:
-            raise RuntimeError("relay_operation_lease_expired")
-        if usable_seconds <= relay_contract.duration(
-            "operation_lease_renew_seconds"
-        ):
-            raise RuntimeError("relay_operation_lease_too_short")
-        if lease_remaining_seconds > relay_contract.duration(
-            "operation_lease_seconds"
-        ):
-            raise RuntimeError("relay_operation_lease_duration_invalid")
-        return time.monotonic() + usable_seconds
-
-    @staticmethod
-    def _rfc3339_datetime(value: str) -> datetime:
-        timestamp = str(value or "").strip()
-        if not timestamp:
-            raise RuntimeError("relay_operation_lease_timestamp_missing")
-        normalized = (
-            timestamp[:-1] + "+00:00"
-            if timestamp.endswith("Z")
-            else timestamp
-        )
-        try:
-            parsed = datetime.fromisoformat(normalized)
-        except ValueError as error:
-            raise RuntimeError("relay_operation_lease_timestamp_invalid") from error
-        if parsed.tzinfo is None or parsed.utcoffset() is None:
-            raise RuntimeError("relay_operation_lease_timestamp_offset_missing")
-        return parsed
 
     @staticmethod
     def _assert_active_lease(request: Mapping[str, Any]) -> None:

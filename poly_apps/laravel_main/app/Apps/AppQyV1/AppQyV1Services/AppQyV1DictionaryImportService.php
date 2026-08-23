@@ -14,20 +14,11 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Utils\FileSystemManager;
 use App\Utils\SystemArchiveManager;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
-/**
- * AppQyV1 dictionary import/promotion pipeline (moved out of the main-layer
- * App\Services\UserSyncService god class — Phase 6 layering fix).
- *
- * Owns the two-stage dictionary bootstrap:
- *   Stage 1: load words/translations into the per-language STAGING tables
- *            (md sources, output.txt word list, split-7z translation JSON).
- *   Stage 2: promote staging rows into the formal tts_cache_{lang} tables
- *            (idempotent, additive, insertOrIgnore by md5 + enrichment).
- */
 class AppQyV1DictionaryImportService
 {
     public static function importMultilingualWordsFromMd(): array
@@ -692,23 +683,9 @@ class AppQyV1DictionaryImportService
             }
             natsort($parts);
 
-            $combined = false;
-            $out = fopen($combinedFile, 'wb');
-            if ($out !== false) {
-                $combined = true;
-                foreach ($parts as $part) {
-                    $in = fopen($part, 'rb');
-                    if ($in === false) {
-                        $combined = false;
-                        $results['errors'][] = "Failed to read part: " . basename($part);
-                        break;
-                    }
-                    stream_copy_to_stream($in, $out);
-                    fclose($in);
-                }
-                fclose($out);
-            } else {
-                $results['errors'][] = "Failed to open combined archive for writing: {$combinedFile}";
+            $combined = FileSystemManager::concatenateFiles($parts, $combinedFile);
+            if (!$combined) {
+                $results['errors'][] = "Failed to combine parts into {$combinedFile}";
             }
 
             if ($combined && file_exists($combinedFile)) {
@@ -728,8 +705,6 @@ class AppQyV1DictionaryImportService
                 } catch (\Throwable $exception) {
                     $results['errors'][] = 'Failed to extract: ' . $exception->getMessage();
                 }
-            } else {
-                $results['errors'][] = "Failed to combine parts into {$combinedFile}";
             }
         }
 

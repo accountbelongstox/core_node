@@ -12,52 +12,69 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1DictionaryService
 {
     /**
-     * Language code mapping
-     */
-    private const LANGUAGE_MAP = [
-        'english' => 'en',
-        'chinese' => 'zh',
-        'spanish' => 'es',
-        'french' => 'fr',
-        'german' => 'de',
-        'japanese' => 'ja',
-        'korean' => 'ko',
-        'vietnamese' => 'vi',
-        'lao' => 'lo',
-    ];
-
-    /**
      * Get language code from language name
      */
     public static function getLanguageCode(string $language): string
     {
-        $normalizedLanguage = strtolower($language);
+        $normalizedLanguage = strtolower(trim($language));
+        $languageCode = AppQyV1VocabularyLibraryModel::languageNameToCode($normalizedLanguage);
 
-        // Primary: local name->code map.
-        if (isset(self::LANGUAGE_MAP[$normalizedLanguage])) {
-            return self::LANGUAGE_MAP[$normalizedLanguage];
+        if ($languageCode !== null) {
+            return $languageCode;
         }
 
-        // Already a known language code -> return as-is.
-        $fullMap = \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService::LANGUAGES;
-        if (isset($fullMap[$normalizedLanguage])) {
+        if (strlen($normalizedLanguage) === 2) {
             return $normalizedLanguage;
         }
 
-        // Fallback: full language name (e.g. "russian") -> code ("ru").
-        foreach ($fullMap as $code => $name) {
-            if (strtolower($name) === $normalizedLanguage) {
-                return $code;
+        return 'en';
+    }
+
+    public static function getLanguageName(string $language): string
+    {
+        $normalizedLanguage = strtolower(trim($language));
+        $languageName = AppQyV1VocabularyLibraryModel::languageCodeToName($normalizedLanguage);
+
+        return $languageName ?? $normalizedLanguage;
+    }
+
+    public static function decodeSimpleTranslations(?string $rawTranslations): ?array
+    {
+        $decodedTranslations = null;
+
+        if ($rawTranslations === null || $rawTranslations === '') {
+            return null;
+        }
+
+        $decodedTranslations = json_decode($rawTranslations, true);
+
+        return self::simpleTranslationsFromDecoded($decodedTranslations);
+    }
+
+    public static function simpleTranslationsFromDecoded(mixed $decodedTranslations): ?array
+    {
+        $simpleTranslations = [];
+
+        if (!is_array($decodedTranslations)) {
+            return null;
+        }
+
+        if (isset($decodedTranslations['word_translation']) && is_array($decodedTranslations['word_translation'])) {
+            foreach ($decodedTranslations['word_translation'] as $translation) {
+                if (is_array($translation) && count($translation) >= 2) {
+                    $simpleTranslations[] = $translation[1];
+                }
             }
         }
 
-        return $normalizedLanguage;
+        return $simpleTranslations === [] ? null : $simpleTranslations;
     }
 
     /**

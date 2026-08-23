@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping
 
 from pycore.pyfoundations.system_paths import get_core_node_root
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
+
+
 RELAY_CONTRACT_PATH = (
     get_core_node_root() / "config" / "pycore_relay_contract.json"
 ).resolve()
@@ -450,6 +454,70 @@ class RelayContract:
             encoding="utf-8",
             errors="strict",
         )
+
+    def request_digest(
+        self,
+        method: str,
+        path: str,
+        query: Mapping[str, Any],
+        headers: Mapping[str, Any],
+        body_present: bool,
+        body_sha256: str,
+        body_length: int,
+    ) -> str:
+        canonical = json.dumps(
+            {
+                "method": str(method).upper(),
+                "path": self.canonical_path(path),
+                "query": self.canonical_query(query),
+                "headers": {
+                    str(key).lower(): str(value)
+                    for key, value in sorted(
+                        dict(headers).items(),
+                        key=lambda item: str(item[0]).lower(),
+                    )
+                },
+                "body_present": bool(body_present),
+                "body_sha256": str(body_sha256),
+                "body_length": int(body_length),
+            },
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    def lease_deadline(self, server_time: str, lease_expires_at: str) -> float:
+        server_datetime = self.rfc3339_datetime(server_time)
+        expiry_datetime = self.rfc3339_datetime(lease_expires_at)
+        lease_remaining_seconds = (
+            expiry_datetime - server_datetime
+        ).total_seconds()
+        usable_seconds = lease_remaining_seconds - self.duration(
+            "operation_lease_expiry_guard_seconds"
+        )
+        if usable_seconds <= 0:
+            raise RuntimeError("relay_operation_lease_expired")
+        if usable_seconds <= self.duration("operation_lease_renew_seconds"):
+            raise RuntimeError("relay_operation_lease_too_short")
+        if lease_remaining_seconds > self.duration("operation_lease_seconds"):
+            raise RuntimeError("relay_operation_lease_duration_invalid")
+        return time.monotonic() + usable_seconds
+
+    @staticmethod
+    def rfc3339_datetime(value: str) -> datetime:
+        timestamp = str(value or "").strip()
+        if not timestamp:
+            raise RuntimeError("relay_operation_lease_timestamp_missing")
+        normalized = timestamp[:-1] + "+00:00" if timestamp.endswith("Z") else timestamp
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError as error:
+            raise RuntimeError("relay_operation_lease_timestamp_invalid") from error
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise RuntimeError("relay_operation_lease_timestamp_offset_missing")
+        return parsed
 
     def transition_allowed(self, source: str, target: str) -> bool:
         transitions = self.document["operation_transitions"]

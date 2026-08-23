@@ -5,6 +5,7 @@ namespace App\Services\AiGateway;
 use App\Ai\Agents\GatewayChatAgent;
 use App\Providers\PathMapper;
 use App\Services\AI\AiConfiguration;
+use App\Utils\SecretStore;
 use Illuminate\Support\Str;
 use Laravel\Ai\Contracts\ConversationStore;
 use Laravel\Ai\Files\Image as AiImageFile;
@@ -114,7 +115,7 @@ class AiSdkChat
                 'name' => $name,
                 'driver' => $driver,
                 'configured' => $key !== '',
-                'key_masked' => $key !== '' ? AiProviderRegistry::maskKey($key) : null,
+                'key_masked' => $key !== '' ? SecretStore::maskForDisplay($key) : null,
                 'models' => $models,
                 'capabilities' => $capabilities,
                 'accepts_images' => in_array('text', $capabilities, true) && self::acceptsImages($driver),

@@ -48,12 +48,12 @@ from pycore.pyutils.laravel.endpoint_manager import (
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
-    GLOBAL_TASK_STATUSES_BY_ROLE,
-    GLOBAL_TASK_TERMINAL_STATUSES,
-    GLOBAL_TASK_WORKER_RESULT_STATUSES,
     QUEUE_CENTER_DIFF_DELIVERY,
-    http_transfer_contract,
     queue_center_endpoint,
+)
+from pycore.pyutils.laravel.worker_result_delivery import (
+    short_http_error,
+    worker_result_delivery,
 )
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
@@ -252,25 +252,8 @@ class BaseLaravelWorkerService:
     # -------------------- HTTP helpers --------------------
 
     @staticmethod
-    def _short_err(exc: Exception) -> str:
-        """
-        Condense a noisy requests/urllib3 exception into a one-line reason, so we
-        never dump a multi-line HTTPConnectionPool stack into the log.
-        """
-        name = type(exc).__name__
-        text = str(exc)
-        low = text.lower()
-        if "actively refused" in low or "refused" in low or "ConnectionRefused" in name:
-            return "connection refused (Laravel not listening)"
-        if "timed out" in low or "timeout" in low.replace("connecttimeout", ""):
-            return "timed out"
-        if "max retries" in low or "newconnectionerror" in low or "failed to establish" in low:
-            return "host unreachable"
-        if "name or service not known" in low or "getaddrinfo" in low:
-            return "host not resolvable"
-        return text.splitlines()[0][:120] if text else name
-
-    # -------------------- Laravel typed pull / accept API --------------------
+    def _short_err(error: Exception) -> str:
+        return short_http_error(error)
 
     def _pull_task_types(self) -> List[str]:
         """Contract task types owned by this concrete worker."""
@@ -737,169 +720,16 @@ class BaseLaravelWorkerService:
         attempts: Optional[int] = None,
         attempt: Optional[int] = None,
     ) -> bool:
-        """
-        POST a task result (processing/completed/failed) back to Laravel.
-
-        NOT a @serialized_method: the retry loop below can hold for
-        RESULT_POST_ATTEMPTS x RESULT_HTTP_TIMEOUT + backoff against a dead endpoint.
-        On the serialized state-owner thread that blocked every status
-        read ('Serialized operation timed out'). The breaker
-        bookkeeping it touches is plain scalars, safe from executor threads.
-
-        Retries transient failures (connection errors / HTTP 5xx) a few times
-        with a short backoff; gives up on 4xx. Returns True when Laravel
-        accepted the result. On final failure the task is NOT lost: Laravel's
-        maintenance timer releases it back to pending at timeout_at and another
-        worker re-claims it.
-
-        ``attempts`` overrides the retry budget - best-effort progress pings
-        pass 1 (a lost ping costs nothing; the next report or the final result
-        carries the same information).
-        """
-        status = GLOBAL_TASK_STATUSES_BY_ROLE.get(status_role, status_role)
-        task_display_id = self._display_task_id(task_id)
-        if status not in GLOBAL_TASK_WORKER_RESULT_STATUSES:
-            raise ValueError(f"Unsupported Laravel worker result status: {status_role}")
-        body: Dict[str, Any] = {
-            "task_id": task_id,
-            "worker_id": self.worker_id,
-            "status": status,
-        }
-        if attempt is not None:
-            body["attempt"] = max(0, int(attempt))
-        if progress is not None:
-            body["progress"] = progress
-        if result is not None:
-            body["result"] = result
-        if error is not None:
-            body["error"] = error
-
-        # Typed result route (/api/worker/tasks/{taskType}/result): the type
-        # normally comes from the dispatch-time registry. A dedicated worker
-        # may declare RESULT_TASK_TYPE as a safe fallback for legacy queued
-        # items; shared multi-type workers still reject unknown routing.
-        task_key = str(task_id)
-        task_type = self._task_type_by_id.get(task_key)
-        if not task_type:
-            task_type = str(getattr(self, "RESULT_TASK_TYPE", "") or "").strip()
-            if task_type:
-                self._task_type_by_id[task_key] = task_type
-                self._task_endpoint_by_id.setdefault(task_key, self.api_url.rstrip("/"))
-                ColorPrint.yellow(
-                    f"{self._log_prefix} Restored missing task_type for task "
-                    f"{task_display_id} as {task_type}"
-                )
-        if not task_type:
-            ColorPrint.red(
-                f"{self._log_prefix} Result for task {task_display_id} has no recorded "
-                "task_type - dropping (Laravel re-queues at lease timeout)"
-            )
-            return False
-        result_url = queue_center_endpoint("worker_task_result", task_type=task_type)
-        result_base_url = self._task_base_url(task_id)
-        terminal_result = status in GLOBAL_TASK_TERMINAL_STATUSES
-
-        last_note = ""
-        last_was_5xx = False
-        max_attempts = self.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
-        activity_contract = http_transfer_contract()
-        for attempt in range(1, max_attempts + 1):
-            if THREAD_BUS.is_shutdown_requested() and not terminal_result:
-                ColorPrint.yellow(
-                    f"{self._log_prefix} Result POST for task {task_display_id} "
-                    "cancelled during shutdown"
-                )
-                return False
-            try:
-                resp = laravel_client.post(
-                    result_url,
-                    base_url=result_base_url,
-                    json=body,
-                    activity_timeout=activity_contract,
-                )
-                if resp.status_code in (200, 201):
-                    if self.LOG_ACCEPTED_RESULTS:
-                        ColorPrint.green(
-                            f"{self._log_prefix} Posted '{status}' for task "
-                            f"{task_display_id}"
-                        )
-                    self._note_result_accepted()
-                    if status in GLOBAL_TASK_TERMINAL_STATUSES:
-                        diff_task_segment_store.consume(
-                            self._diff_segment_scope(result_base_url),
-                            task_id,
-                        )
-                        self._forget_task_endpoint(task_id)
-                    return True
-                if resp.status_code == 409:
-                    # Task reassigned (we lost the claim, e.g. after a timeout
-                    # release) - the new owner reports it; do not retry.
-                    ColorPrint.yellow(
-                        f"{self._log_prefix} Result for task {task_display_id} rejected (409: "
-                        f"task reassigned / not ours) - dropping"
-                    )
-                    diff_task_segment_store.consume(
-                        self._diff_segment_scope(result_base_url),
-                        task_id,
-                    )
-                    self._forget_task_endpoint(task_id)
-                    return False
-                if 400 <= resp.status_code < 500:
-                    ColorPrint.yellow(
-                        f"{self._log_prefix} Result POST for task {task_display_id} -> "
-                        f"HTTP {resp.status_code} (not retryable)"
-                    )
-                    if terminal_result:
-                        diff_task_segment_store.consume(
-                            self._diff_segment_scope(result_base_url),
-                            task_id,
-                        )
-                        self._forget_task_endpoint(task_id)
-                    return False
-                last_note = f"HTTP {resp.status_code}"
-                last_was_5xx = 500 <= resp.status_code < 600
-            except Exception as e:
-                last_note = self._short_err(e)
-                last_was_5xx = False  # transport error, not a backend 5xx
-
-            if attempt < max_attempts:
-                if THREAD_BUS.is_shutdown_requested() and not terminal_result:
-                    ColorPrint.yellow(
-                        f"{self._log_prefix} Result retry for task {task_display_id} "
-                        "cancelled during shutdown"
-                    )
-                    return False
-                delay = self.RESULT_POST_BACKOFF_SECONDS[
-                    min(attempt - 1, len(self.RESULT_POST_BACKOFF_SECONDS) - 1)
-                ]
-                ColorPrint.yellow(
-                    f"{self._log_prefix} Result POST for task {task_display_id} failed "
-                    f"({last_note}); retry {attempt}/{max_attempts - 1} "
-                    f"in {delay}s"
-                )
-                time.sleep(delay)
-
-        if max_attempts > 1:
-            ColorPrint.red(
-                f"{self._log_prefix} Result POST for task {task_display_id} gave up after "
-                f"{max_attempts} attempts ({last_note}); Laravel's timeout "
-                f"release will re-queue the task"
-            )
-        # Only a real budgeted attempt that ended on a backend 5xx counts toward
-        # the breaker. Best-effort single-shot pings (attempts=1) and transport
-        # errors do not.
-        if max_attempts > 1 and last_was_5xx:
-            self._note_result_server_error()
-        if terminal_result:
-            diff_task_segment_store.defer(
-                self._diff_segment_scope(result_base_url),
-                [task_id],
-                self.CIRCUIT_COOLDOWN_SECONDS,
-            )
-            ColorPrint.yellow(
-                f"{self._log_prefix} Deferred task {task_display_id} for persistent retry"
-            )
-        return False
+        return worker_result_delivery.post(
+            self,
+            task_id,
+            status_role,
+            result,
+            error,
+            progress,
+            attempts,
+            attempt,
+        )
 
     def _diff_segment_scope(self, base: str) -> str:
         return f"{self.worker_name}:{self.worker_id}:{base}"

@@ -4,7 +4,6 @@
 Priority persistence and runtime cooldown state live in pyutils.tts.engine_policy.
 """
 
-import importlib.metadata
 import shutil
 import time
 from pathlib import Path
@@ -54,18 +53,18 @@ from pycore.pyutils.tts.engine_registry import (
     TTSSynthesisRequest,
     tts_engine_registry,
 )
-from pycore.pyutils.common.model_tiers import runtime_engine_model
-from pycore.pyutils.common.status_snapshot_cache import (
-    STATUS_SNAPSHOT_CAPABILITIES_KEY,
-    STATUS_SNAPSHOT_TTS_ENGINE_PREFIX,
-    STATUS_SNAPSHOT_TTS_KEY,
-    status_snapshot_cache,
-)
-from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavailable_reason
 from pycore.pyutils.tts.tts_service_manager import (
     get_server_settings,
     is_server_engine,
-    server_runtime_status,
+)
+from pycore.pyutils.tts.tts_status import (
+    best_engine,
+    engine_available,
+    engine_chunked,
+    engine_concurrency,
+    engine_model_id,
+    invalidate_tts_status_cache,
+    tts_status,
 )
 from pycore.pyutils.common.managed_service import (
     ManagedServiceUnavailable,
@@ -76,16 +75,9 @@ import pycore.pyutils.tts.gtts_web_engine as gtts_web_engine
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 
-_TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
 _REQUIRED_ENGINE_RETRY_INITIAL_SECONDS = 0.5
 _REQUIRED_ENGINE_RETRY_MAX_SECONDS = 10.0
 
-
-def _dist_version(dist: str) -> Optional[str]:
-    try:
-        return importlib.metadata.version(dist)
-    except Exception:
-        return None
 
 
 
@@ -98,6 +90,10 @@ def _edge_in_cooldown() -> bool:
 
 def _set_edge_cooldown() -> None:
     cooldown = mark_edge_cooldown()
+    ColorPrint.yellow(
+        f"[tts] edge-tts cooling down for {cooldown:.0f}s; "
+        "using offline engine meanwhile"
+    )
 
 
 def _managed_required_engine_recoverable(name: str) -> bool:
@@ -109,9 +105,10 @@ def _managed_required_engine_recoverable(name: str) -> bool:
         return False
     if not bool(enabled.get(name, True)):
         return False
-    return bool(settings.get("server_auto_manage", True)) or managed_services.is_running(name)
-    ColorPrint.yellow(
-        f"[tts] edge-tts cooling down for {cooldown:.0f}s; using offline engine meanwhile"
+    return bool(
+        settings.get("server_auto_manage", True)
+    ) or managed_services.is_running(
+        name
     )
 
 
@@ -123,167 +120,6 @@ def _edge_voice(lang: Optional[str], accent: Optional[str] = None,
     return voice
 
 
-
-
-def engine_available(name: str) -> bool:
-    adapter = tts_engine_registry.get(name)
-    return bool(adapter and adapter.available())
-
-
-def engine_concurrency(name: str) -> str:
-    adapter = tts_engine_registry.get(name)
-    return adapter.concurrency if adapter else "serial"
-
-
-def engine_model_id(engine: str) -> str:
-    """Model/checkpoint id behind one engine run ("" when not model-tiered).
-
-    For managed server engines the server-side report wins so the label stays
-    strictly aligned with the process that synthesized the audio."""
-    name = (engine or "").strip().lower()
-    adapter = tts_engine_registry.get(name)
-    if adapter is None or not adapter.tiered:
-        return ""
-    if name == "qwen3tts":
-        return qwen_engine.active_model_id()
-    return runtime_engine_model(name)
-
-
-def engine_chunked(engine: str) -> bool:
-    """Whether one engine's run produces multi-sentence (sentence-chunked)
-    audio.
-
-    Single-version pipeline: the local Qwen3-TTS lane ALWAYS synthesizes
-    sentence-sized chunks and concatenates them (long single-shot generation
-    degrades into noise, QwenLM/Qwen3-TTS#258) - there is no version to
-    compare. Callers stamp the multi-sentence marker from this static truth;
-    records that predate the marker are the legacy audio."""
-    return (engine or "").strip().lower() == "qwen3tts"
-
-
-def _engine_disabled_reason(name: str, available: Optional[bool] = None) -> Optional[str]:
-    """UI hint when an engine is off (not installed, needs config, or server down)."""
-    is_available = engine_available(name) if available is None else available
-    if is_available:
-        return None
-    return engine_unavailable_reason(name)
-
-
-def best_engine() -> Optional[str]:
-    for name in _priority():
-        if engine_available(name):
-            return name
-    return None
-
-
-def _build_tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
-    """Build one engine row; normal UI reads never run server health commands."""
-    adapter = tts_engine_registry.get(name)
-    if adapter is None:
-        return {
-            "name": name,
-            "available": False,
-            "installed": False,
-            "note": "",
-            "concurrency": "serial",
-        }
-    installed = engine_installed(name)
-    managed = is_server_engine(name)
-    runtime = server_runtime_status(name, refresh=refresh) if managed else {}
-    if refresh:
-        available = engine_available(name)
-    elif managed:
-        available = bool(
-            (installed and adapter.config_ready())
-            or runtime.get("server_running")
-            or runtime.get("model_loaded")
-        )
-    elif name == "edge":
-        available = installed
-    else:
-        available = engine_available(name)
-    entry: Dict[str, Any] = {
-        "name": name,
-        "available": available,
-        "installed": installed,
-        "note": adapter.note,
-        "concurrency": adapter.concurrency,
-        **runtime,
-    }
-    if adapter.distribution and available:
-        entry["version"] = _dist_version(adapter.distribution)
-    if adapter.tiered:
-        tier_model = runtime_engine_model(name)
-        if tier_model:
-            entry["model"] = tier_model
-    if refresh:
-        reason = _engine_disabled_reason(name, available)
-        if reason:
-            entry["disabled_reason"] = reason
-    return entry
-
-
-def _tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
-    cache_key = f"{STATUS_SNAPSHOT_TTS_ENGINE_PREFIX}{name}"
-    return status_snapshot_cache.get(
-        cache_key,
-        lambda: _build_tts_engine_status(name, refresh),
-        refresh=refresh,
-        ttl_seconds=_TTS_ENGINE_STATUS_TTL_SECONDS,
-    )
-
-
-def invalidate_tts_status_cache(engine: Optional[str] = None) -> None:
-    """Invalidate the aggregate plus one or all per-engine TTS snapshots."""
-    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_TTS_KEY)
-    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_CAPABILITIES_KEY)
-    if engine:
-        status_snapshot_cache.invalidate(
-            f"{STATUS_SNAPSHOT_TTS_ENGINE_PREFIX}{engine}"
-        )
-        return
-    status_snapshot_cache.invalidate_prefix(STATUS_SNAPSHOT_TTS_ENGINE_PREFIX)
-
-
-def tts_status(refresh: bool = False) -> Dict[str, Any]:
-    """Availability snapshot; live health probes run only on explicit refresh."""
-    edge_cooldown = edge_cooldown_remaining()
-    se_cooldown = streamelements_engine.cooldown_remaining()
-    engines: List[Dict[str, Any]] = []
-    for i, name in enumerate(_priority()):
-        entry = _tts_engine_status(name, refresh)
-        entry["priority"] = i + 1
-        if name == "edge":
-            # When cooling down, synthesize() skips edge regardless of availability.
-            entry["cooldown_remaining"] = edge_cooldown
-        if name == "streamelements":
-            entry["cooldown_remaining"] = se_cooldown
-        engines.append(entry)
-    avail = [e for e in engines if e["available"]]
-    # Derive `best` and `active` from the availability we ALREADY computed above
-    # rather than calling best_engine() (which would re-probe every engine a
-    # second time — a redundant round of HTTP/import checks on each poll).
-    # best = first available in priority order; active also respects the edge
-    # cooldown (synthesize() skips edge while cooling down).
-    best = next((e["name"] for e in engines if e["available"]), None)
-    active = None
-    for e in engines:
-        if e["available"] and not (e["name"] == "edge" and edge_cooldown > 0):
-            if e["name"] == "streamelements" and se_cooldown > 0:
-                continue
-            active = e["name"]
-            break
-    return {
-        "success": True,
-        "best": best,
-        "active": active,
-        "edge_cooldown_remaining": edge_cooldown,
-        "streamelements_cooldown_remaining": se_cooldown,
-        "available_count": len(avail),
-        "sentence_priority": list(_priority("sentence")),
-        "word_priority": list(_priority("word")),
-        "engines": engines,
-    }
 
 
 def report_tts_engine_startup() -> None:

@@ -5,19 +5,21 @@ import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import {
   Search, Star, Clock, Play, Loader, Copy, Check, X, ChevronRight, ChevronLeft,
-  Sparkles, Wrench, Hash, Code, Calculator, Globe, Image, FileCode, Lock,
-  Database, Network, Type, Layers, Info, BookOpen, Boxes,
+  Sparkles, Wrench, Code, Layers, Info, BookOpen, Boxes,
   Lightbulb, History, StarOff, Menu, FileText, FileJson, ArrowLeft, Ban
 } from 'lucide-react';
 import { downloadAsFile, toJsonString, copyToClipboard, buildExportFilename } from '@/apps/laravel-manager/utils/exportResult';
 import MCPManager from './MCPManager';
 import AITools from './AITools';
-
-// Sentinel "category" that swaps the tool grid for the embedded MCP Server
-// utilities (screenshots + placeholder images), relocated here when the
-// standalone #/mcp tab was removed.
-const MCP_TOOLS_CATEGORY = '__mcp_server__';
-const AI_TOOLS_CATEGORY = '__ai_tools__';
+import {
+  AI_TOOLS_CATEGORY,
+  MCP_TOOLS_CATEGORY,
+  getUnifiedToolAccent as getAccent,
+  getUnifiedToolCategoryMeta as getCategoryMeta,
+  unifiedToolsInputClass as inputCls,
+  type ToolHistory,
+  type ToolsViewTab as ViewTab,
+} from './unifiedToolsTheme';
 
 /**
  * Unified Tools Page — theme-aware, responsive redesign.
@@ -29,63 +31,6 @@ const AI_TOOLS_CATEGORY = '__ai_tools__';
  *   tool detail + execute panel. Backend-missing tools are shown muted with a
  *   disabled Execute button.
  */
-
-interface ToolHistory {
-  toolId: string;
-  toolName: string;
-  timestamp: number;
-  input: any;
-  output: any;
-}
-
-type ViewTab = 'all' | 'favorites' | 'recent';
-
-// Category metadata: icon + a single accent colour reused for text/border/bg.
-// Theme-aware tints are applied at render time via Tailwind `dark:` variants.
-const categoryConfig: Record<string, { icon: any; accent: string }> = {
-  'Crypto & Security': { icon: Lock, accent: 'emerald' },
-  'Converters': { icon: Code, accent: 'blue' },
-  'Web Development': { icon: Globe, accent: 'cyan' },
-  'Text Processing': { icon: Type, accent: 'purple' },
-  'Math & Calculators': { icon: Calculator, accent: 'orange' },
-  'Network Tools': { icon: Network, accent: 'pink' },
-  'Image Tools': { icon: Image, accent: 'amber' },
-  'PDF Tools': { icon: FileCode, accent: 'indigo' },
-  'AI Tools': { icon: Sparkles, accent: 'fuchsia' },
-  'Server Manager': { icon: Wrench, accent: 'teal' },
-  'Media Tools': { icon: Database, accent: 'lime' },
-  'Vocabulary': { icon: BookOpen, accent: 'rose' },
-};
-
-const FALLBACK_CATEGORY = { icon: Hash, accent: 'slate' };
-
-const getCategoryMeta = (category: string) => categoryConfig[category] || FALLBACK_CATEGORY;
-
-// Map an accent name to a set of theme-aware utility classes. Keeping the
-// strings literal (no dynamic interpolation) so Tailwind's JIT can see them.
-const accentClasses: Record<string, { chip: string; iconBg: string; ring: string }> = {
-  emerald: { chip: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10', iconBg: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400', ring: 'ring-emerald-500/40' },
-  blue: { chip: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10', iconBg: 'bg-blue-100 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400', ring: 'ring-blue-500/40' },
-  cyan: { chip: 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10', iconBg: 'bg-cyan-100 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400', ring: 'ring-cyan-500/40' },
-  purple: { chip: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10', iconBg: 'bg-purple-100 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400', ring: 'ring-purple-500/40' },
-  orange: { chip: 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10', iconBg: 'bg-orange-100 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400', ring: 'ring-orange-500/40' },
-  pink: { chip: 'text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-500/10', iconBg: 'bg-pink-100 dark:bg-pink-500/15 text-pink-600 dark:text-pink-400', ring: 'ring-pink-500/40' },
-  amber: { chip: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10', iconBg: 'bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400', ring: 'ring-amber-500/40' },
-  indigo: { chip: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10', iconBg: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400', ring: 'ring-indigo-500/40' },
-  fuchsia: { chip: 'text-fuchsia-600 dark:text-fuchsia-400 bg-fuchsia-50 dark:bg-fuchsia-500/10', iconBg: 'bg-fuchsia-100 dark:bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400', ring: 'ring-fuchsia-500/40' },
-  teal: { chip: 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10', iconBg: 'bg-teal-100 dark:bg-teal-500/15 text-teal-600 dark:text-teal-400', ring: 'ring-teal-500/40' },
-  lime: { chip: 'text-lime-600 dark:text-lime-400 bg-lime-50 dark:bg-lime-500/10', iconBg: 'bg-lime-100 dark:bg-lime-500/15 text-lime-600 dark:text-lime-400', ring: 'ring-lime-500/40' },
-  rose: { chip: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10', iconBg: 'bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400', ring: 'ring-rose-500/40' },
-  slate: { chip: 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-500/10', iconBg: 'bg-slate-100 dark:bg-slate-500/15 text-slate-600 dark:text-slate-400', ring: 'ring-slate-500/40' },
-};
-
-const getAccent = (accent: string) => accentClasses[accent] || accentClasses.slate;
-
-// Shared theme-aware control classes (mirrors styles/theme.ts commonClasses).
-const inputCls =
-  'w-full px-3 py-2 rounded-lg text-sm transition-all border border-slate-300 dark:border-slate-600 ' +
-  'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 ' +
-  'focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 export function UnifiedToolsPage() {
   const [activeTab, setActiveTab] = useState<ViewTab>('all');

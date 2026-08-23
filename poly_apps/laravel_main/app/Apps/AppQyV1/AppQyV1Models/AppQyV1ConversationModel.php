@@ -124,6 +124,19 @@ class AppQyV1ConversationModel extends AppQyV1Model
         });
     }
 
+    public static function ensureDirect(int $firstUserId, int $secondUserId): void
+    {
+        try {
+            self::findOrCreateDirect($firstUserId, $secondUserId);
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::warning('[AppQyV1Social] Direct conversation creation failed', [
+                'first_user_id' => $firstUserId,
+                'second_user_id' => $secondUserId,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
     public static function touchLastMessageAt(int $conversationId): int
     {
         return (int) static::query()

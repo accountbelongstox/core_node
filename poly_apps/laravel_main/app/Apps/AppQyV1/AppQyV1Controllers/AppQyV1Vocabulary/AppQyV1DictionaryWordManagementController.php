@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +29,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
     /** Resolve + guard the language table; returns [code, modelHasTable]. */
     private function resolveLanguage(string $language): array
     {
-        $code = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
+        $code = AppQyV1DictionaryService::getLanguageCode($language);
         $hasTable = AppQyV1LangDictionaryModel::languageTableExists($code);
         return [$code, $hasTable];
     }

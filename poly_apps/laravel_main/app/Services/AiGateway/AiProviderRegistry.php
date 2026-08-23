@@ -788,18 +788,4 @@ class AiProviderRegistry
         return array_slice(self::freeModels($provider), 0, $maxCount);
     }
 
-    /**
-     * Mask a secret for display: first 4 + "…" + last 4 only. null when absent.
-     */
-    public static function maskKey(?string $key): ?string
-    {
-        if (!$key) {
-            return null;
-        }
-        $key = trim($key);
-        if (strlen($key) <= 8) {
-            return '…';
-        }
-        return substr($key, 0, 4) . '…' . substr($key, -4);
-    }
 }

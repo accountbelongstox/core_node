@@ -1,22 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-Code Sync Manager - role-based peer mesh coordinator.
+"""Role-based CodeSync peer mesh coordinator."""
 
-Each machine has a ROLE (from the committed peer config, peer_config.py):
-  * client (default): RECEIVES code from dev-ends over persistent HTTP SSE streams.
-  * dev: DISTRIBUTES code to clients. Runs the status mesh on startup; file
-    distribution defaults OFF but is restored from unified user settings when the
-    tray/UI last enabled it (set_distributing(True) persists per machine).
-
-Every machine runs the PeerMeshManager (peer_mesh.py): it probes all configured
-peers on a tick, replicates peer-config edits across the mesh (last-writer-wins,
-offline peers get the change when they return), and broadcasts status to the UI
-(THREAD_BUS 'code_sync_update' when running inside pycore; no-op standalone).
-
-Stdlib only: logging / events / shutdown / root path via `.runtime`.
-"""
-
-import os
 import socket
 import time
 import uuid
@@ -42,6 +26,11 @@ from pycore.pyutils.codesync.runtime import (
 
 from pycore.pyutils.codesync.server import CodeSyncServer, get_code_sync_server
 from pycore.pyutils.codesync.client import CodeSyncClient, get_code_sync_client
+from pycore.pyutils.codesync.file_operations import (
+    build_file_tree,
+    file_tree_drift,
+    scan_code_stats,
+)
 from pycore.pyutils.codesync.peer_config import get_peer_config, _local_lan_ip
 from pycore.pyutils.codesync.peer_mesh import PeerMeshManager
 from pycore.pyutils.codesync.runtime_prefs import get_runtime_prefs
@@ -52,7 +41,6 @@ from pycore.pyutils.codesync.sse_transport import code_sync_transport_status
 
 from pycore.pyutils.codesync.sync_settings import build_excluder
 from pycore.pyutils.codesync.sync_settings import get_sync_settings
-import os as _os
 from pycore.pyutils.codesync.watcher import get_watch_manager
 
 
@@ -282,36 +270,9 @@ class CodeSyncManager:
         watcher = get_watch_manager()
         if watcher.running() and watcher.wait_ready(timeout=120.0):
             return watcher.code_stats()
-        files = 0
-        total = 0
-        latest = 0.0
         root = get_core_node_root()
         excluder = build_excluder(root)
-        # Iterative os.scandir walk: DirEntry.stat() reuses the directory listing's
-        # metadata on Windows, avoiding a separate stat() syscall per file.
-        stack = [str(root)]
-        while stack:
-            d = stack.pop()
-            try:
-                with os.scandir(d) as it:
-                    for e in it:
-                        try:
-                            if e.is_dir(follow_symlinks=False):
-                                if not excluder.dir_excluded(e.name, e.path):
-                                    stack.append(e.path)
-                            else:
-                                if excluder.file_excluded(e.name, e.path):
-                                    continue
-                                st = e.stat(follow_symlinks=False)
-                                files += 1
-                                total += st.st_size
-                                if st.st_mtime > latest:
-                                    latest = st.st_mtime
-                        except OSError:
-                            continue
-            except OSError:
-                continue
-        return {"files": files, "bytes": total, "last_modified": latest}
+        return scan_code_stats(root, excluder)
 
     @serialized_method
     def _store_stats(self, stats: Dict[str, Any]) -> None:
@@ -712,24 +673,13 @@ class CodeSyncManager:
         return receiver.clear_pending_update(rel)
 
     def get_file_tree(self, max_files: int = 60000) -> dict:
-        """Build a nested file tree of the live synced set for the UI file-structure
-        panel. Source = the watcher's in-memory index (the EXACT files that sync),
-        so it reflects the same filtering the sync uses and updates in real time.
-        Multiple watch roots map under their dest_rel paths, so they appear together
-        as sibling first-level nodes. Returns the FULL tree (all depths); the UI
-        chooses what to expand (default: first level only)."""
-        # A light client never scans the tree (no watcher): return an empty,
-        # non-scanning tree so the UI shows "no files" rather than spinning.
+        """Build the live synchronized file tree from the watcher index."""
         if self.light and self.role == "client":
             return {"success": False, "light": True, "scanning": False, "children": []}
         wm = get_watch_manager()
         scanning = False
         try:
-            wm.start()  # idempotent: ensures the index is populated on this end too
-            # Wait briefly for the FIRST scan so a freshly-started watcher does not
-            # return an empty tree (the panel would flash "no files" / drift would
-            # read 0). Bounded; the HTTP server is threaded so this only blocks THIS
-            # request. `scanning` lets the UI show "scanning…" instead of "empty".
+            wm.start()
             if not wm.wait_ready(timeout=15):
                 scanning = True
         except Exception:
@@ -740,96 +690,10 @@ class CodeSyncManager:
         except Exception:
             roots = []
 
-        # Build {name -> node} maps for O(1) insert, then roll up + sort into lists.
-        root_children: Dict[str, Any] = {}
-        truncated = False
-        count = 0
-        for dest, meta in snap.items():
-            if count >= max_files:
-                truncated = True
-                break
-            count += 1
-            try:
-                mtime = float(meta[0]) if meta else 0.0
-            except Exception:
-                mtime = 0.0
-            try:
-                fhash = meta[1] if len(meta) > 1 else ""
-            except Exception:
-                fhash = ""
-            try:
-                abspath = meta[2] if len(meta) > 2 else ""
-            except Exception:
-                abspath = ""
-            try:
-                size = int(meta[3]) if len(meta) > 3 else (
-                    _os.path.getsize(abspath) if abspath else 0
-                )
-            except Exception:
-                size = 0
-            parts = [p for p in str(dest).replace("\\", "/").split("/") if p]
-            if not parts:
-                continue
-            cursor = root_children
-            cur_path = ""
-            for i, part in enumerate(parts):
-                cur_path = (cur_path + "/" + part) if cur_path else part
-                if i == len(parts) - 1:
-                    # `hash` is the canonical (LF-normalized) content hash — used for
-                    # CRLF-immune drift comparison against a peer's tree.
-                    cursor[part] = {"name": part, "path": cur_path, "type": "file",
-                                    "size": size, "mtime": mtime, "hash": fhash}
-                else:
-                    node = cursor.get(part)
-                    if not node or node.get("type") != "dir":
-                        node = {"name": part, "path": cur_path, "type": "dir",
-                                "_children": {}}
-                        cursor[part] = node
-                    cursor = node["_children"]
-
-        def _finalize(children_map: Dict[str, Any]):
-            """Convert a {name: node} map into a sorted children list, rolling up
-            size + file-count from descendants. Dirs first, then files; each alpha."""
-            out = []
-            total_size = 0
-            total_files = 0
-            for node in children_map.values():
-                if node.get("type") == "dir":
-                    kids, sz, fc = _finalize(node.pop("_children", {}))
-                    node["children"] = kids
-                    node["size"] = sz
-                    node["count"] = fc
-                    total_size += sz
-                    total_files += fc
-                else:
-                    total_size += int(node.get("size") or 0)
-                    total_files += 1
-                out.append(node)
-            out.sort(key=lambda n: (0 if n.get("type") == "dir" else 1,
-                                    str(n.get("name", "")).lower()))
-            return out, total_size, total_files
-
-        children, total_size, total_files = _finalize(root_children)
-        return {
-            "success": True,
-            "role": self.role,
-            "roots": roots,
-            "children": children,
-            "count": total_files,
-            "size": total_size,
-            "truncated": truncated,
-            "scanning": scanning,   # first index scan still running (tree may be partial)
-        }
+        return build_file_tree(snap, roots, self.role, scanning, max_files)
 
     def get_peer_file_tree(self, peer_id: str) -> dict:
-        """Dev-side drift view of one CLIENT: fetch its /code-sync/file-tree and diff
-        it against THIS dev's synced set by canonical content hash (CRLF-immune, so a
-        Windows-dev/Linux-client EOL difference is NOT flagged as drift). Returns the
-        client's actual received tree (for display) plus a drift summary:
-          missing  -> on the dev, absent on the client (not yet received / lost)
-          extra    -> on the client, not on the dev (stale / locally added)
-          changed  -> present on both but a different content hash
-        Reaches the client the same way the mesh probe does (host:port)."""
+        """Fetch a client tree and compare canonical content hashes."""
         peer = None
         for p in self.config.list_peers():
             if p.get("id") == peer_id:
@@ -853,50 +717,18 @@ class CodeSyncManager:
             return {"success": False, "peer": peer_meta,
                     "error": f"unreachable: {exc}"}
 
-        def _flatten(children, into):
-            for n in children or []:
-                if n.get("type") == "dir":
-                    _flatten(n.get("children"), into)
-                else:
-                    into[n.get("path")] = {"hash": n.get("hash") or "",
-                                           "size": int(n.get("size") or 0)}
-
-        client_files: Dict[str, Any] = {}
-        _flatten(peer_tree.get("children"), client_files)
         dev_tree = self.get_file_tree()
-        dev_files: Dict[str, Any] = {}
-        _flatten(dev_tree.get("children"), dev_files)
         # If EITHER side's first index scan is still running, the diff is provisional
         # (a partial tree inflates "missing"/"extra"); surface it so the UI can mark
         # the drift as not-yet-final rather than alarm the user.
         scanning = bool(peer_tree.get("scanning") or dev_tree.get("scanning"))
 
-        missing, changed = [], []
-        for path, dv in dev_files.items():
-            cv = client_files.get(path)
-            if cv is None:
-                missing.append({"path": path, "size": dv["size"]})
-            elif cv["hash"] != dv["hash"]:
-                changed.append({"path": path, "size_dev": dv["size"],
-                                "size_client": cv["size"]})
-        extra = [{"path": p, "size": v["size"]}
-                 for p, v in client_files.items() if p not in dev_files]
-        missing.sort(key=lambda x: x["path"])
-        extra.sort(key=lambda x: x["path"])
-        changed.sort(key=lambda x: x["path"])
         return {
             "success": True,
             "peer": peer_meta,
             "tree": peer_tree,
             "scanning": scanning,   # dev and/or client index still scanning -> provisional
-            "drift": {
-                "dev_count": len(dev_files),
-                "client_count": len(client_files),
-                "in_sync": max(0, len(dev_files) - len(missing) - len(changed)),
-                "missing": missing,
-                "extra": extra,
-                "changed": changed,
-            },
+            "drift": file_tree_drift(dev_tree, peer_tree),
         }
 
     def _broadcast(self) -> None:

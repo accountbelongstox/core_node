@@ -17,7 +17,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\AvatarService;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserFollowModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
@@ -27,23 +26,14 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotificationModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ConversationModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SocialPresenter;
 
 class AppQyV1SocialController extends Controller
 {
     use ApiResponse;
 
-    /**
-     * NO fabricated data allowed - every field is derived from the global
-     * users table or the app_qy_v1_user_learning_progress table. Users and
-     * app tables live on DIFFERENT database connections (default vs appqyv1),
-     * so they are queried separately and merged in PHP (no cross-DB joins).
-     */
-
     private const ACTIVITY_WINDOW_DAYS = 7;
     private const STUDYING_WINDOW_MINUTES = 30;
-    private const XP_PER_LEARNED_WORD = 10;
-    private const XP_PER_MASTERED_WORD = 30;
-    private const XP_PER_CORRECT_ANSWER = 2;
 
     /**
      * GET /social/friends
@@ -71,7 +61,7 @@ class AppQyV1SocialController extends Controller
         }
 
         $users = User::indexedByIds($followedIds, ['id', 'username', 'nickname', 'name', 'avatar']);
-        $statsByUser = $this->aggregateProgressStats($followedIds, null);
+$statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null);
         $studyingIds = AppQyV1UserLearningProgressModel::recentlyStudyingUserIds(
             $followedIds,
             self::STUDYING_WINDOW_MINUTES
@@ -87,12 +77,12 @@ class AppQyV1SocialController extends Controller
             $friends[] = [
                 'id' => $friendUser->id,
                 'username' => $friendUser->username,
-                'name' => $this->displayName($friendUser),
-                'avatar_url' => $this->avatarUrl($friendUser),
-                'status' => $this->presenceStatus($friendUser, in_array($friendUser->id, $studyingIds), $presenceMap),
+                'name' => AppQyV1SocialPresenter::displayName($friendUser),
+                'avatar_url' => AppQyV1SocialPresenter::avatarUrl($friendUser),
+                'status' => AppQyV1SocialPresenter::presenceStatus($friendUser, in_array($friendUser->id, $studyingIds), $presenceMap),
                 'presence' => $presenceMap[(int) $friendUser->id] ?? ['status' => 'offline', 'last_seen_at' => null],
                 'followed_at' => $row->created_at ? $row->created_at->toISOString() : null,
-                'stats' => $this->statsRowFor($statsByUser, $friendUser->id),
+                'stats' => AppQyV1SocialPresenter::statsRow($statsByUser, $friendUser->id),
             ];
         }
 
@@ -156,11 +146,11 @@ class AppQyV1SocialController extends Controller
             $results[] = [
                 'id' => $foundUser->id,
                 'username' => $foundUser->username,
-                'name' => $this->displayName($foundUser),
-                'avatar_url' => $this->avatarUrl($foundUser),
+                'name' => AppQyV1SocialPresenter::displayName($foundUser),
+                'avatar_url' => AppQyV1SocialPresenter::avatarUrl($foundUser),
                 'native_language' => $foundUser->native_language,
-                'learning_languages' => $this->normalizeLangArray($foundUser->learning_languages),
-                'status' => $this->presenceStatus($foundUser, false, $presenceMap),
+                'learning_languages' => AppQyV1SocialPresenter::normalizeLanguages($foundUser->learning_languages),
+                'status' => AppQyV1SocialPresenter::presenceStatus($foundUser, false, $presenceMap),
                 'is_following' => in_array((int) $foundUser->id, $followedIds),
                 'is_friend' => in_array((int) $foundUser->id, $friendIds),
             ];
@@ -218,7 +208,7 @@ class AppQyV1SocialController extends Controller
         $limit = (int) $request->query('limit', 30);
 
         $myNative = strtolower((string) ($currentUser->native_language ?? ''));
-        $myLearning = $this->normalizeLangArray($currentUser->learning_languages);
+        $myLearning = AppQyV1SocialPresenter::normalizeLanguages($currentUser->learning_languages);
 
         // Exclude self + already-followed + blocked (computed on appqyv1 conn).
         $followedIds = AppQyV1UserFollowModel::getFollowedUserIds((int) $currentUser->id);
@@ -236,7 +226,7 @@ class AppQyV1SocialController extends Controller
 
         // ---- Merge AppQyV1 stats + presence in PHP (separate conn) ----
         $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $statsByUser = $this->aggregateProgressStats($userIds, null);
+        $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($userIds, null);
         $presenceMap = AppQyV1UserPresenceModel::effectiveFor($userIds);
         $studyingIds = AppQyV1UserLearningProgressModel::recentlyStudyingUserIds(
             $userIds,
@@ -245,7 +235,7 @@ class AppQyV1SocialController extends Controller
 
         foreach ($users as $u) {
             $theirNative = strtolower((string) ($u->native_language ?? ''));
-            $theirLearning = $this->normalizeLangArray($u->learning_languages);
+            $theirLearning = AppQyV1SocialPresenter::normalizeLanguages($u->learning_languages);
 
             // Language-exchange match: their learning ∋ my native AND my learning ∋ their native.
             $isExchange = $myNative !== '' && $theirNative !== ''
@@ -263,16 +253,16 @@ class AppQyV1SocialController extends Controller
 
             $results[] = [
                 'id' => (int) $u->id,
-                'nickname' => $this->displayName($u),
-                'avatar' => $this->avatarUrl($u),
+                'nickname' => AppQyV1SocialPresenter::displayName($u),
+                'avatar' => AppQyV1SocialPresenter::avatarUrl($u),
                 'native_language' => $u->native_language,
                 'learning_languages' => $theirLearning,
                 'is_following' => in_array((int) $u->id, $followedIds),
                 'is_friend' => in_array((int) $u->id, $friendIds),
                 'match' => $match,
                 'presence' => $presenceMap[(int) $u->id] ?? ['status' => 'offline', 'last_seen_at' => null],
-                'status' => $this->presenceStatus($u, in_array((int) $u->id, $studyingIds), $presenceMap),
-                'stats' => $this->statsRowFor($statsByUser, (int) $u->id),
+                'status' => AppQyV1SocialPresenter::presenceStatus($u, in_array((int) $u->id, $studyingIds), $presenceMap),
+                'stats' => AppQyV1SocialPresenter::statsRow($statsByUser, (int) $u->id),
                 '_exchange' => $isExchange,
             ];
         }
@@ -343,10 +333,10 @@ class AppQyV1SocialController extends Controller
         return $this->success([
             'user' => [
                 'id' => (int) $targetUser->id,
-                'name' => $this->displayName($targetUser),
-                'avatar_url' => $this->avatarUrl($targetUser),
+                'name' => AppQyV1SocialPresenter::displayName($targetUser),
+                'avatar_url' => AppQyV1SocialPresenter::avatarUrl($targetUser),
                 'native_language' => $targetUser->native_language,
-                'learning_languages' => $this->normalizeLangArray($targetUser->learning_languages),
+                'learning_languages' => AppQyV1SocialPresenter::normalizeLanguages($targetUser->learning_languages),
                 'bio' => $targetUser->bio,
                 'post_count' => $postCount,
                 'follower_count' => $followerCount,
@@ -455,7 +445,7 @@ class AppQyV1SocialController extends Controller
             $since = now()->subDays(self::ACTIVITY_WINDOW_DAYS);
         }
 
-        $statsByUser = $this->aggregateProgressStats(null, $since);
+        $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats(null, $since);
         $userIds = array_keys($statsByUser);
 
         // Always include the current user in the board, even with zero progress.
@@ -473,11 +463,11 @@ class AppQyV1SocialController extends Controller
             $entries[] = [
                 'user_id' => $userId,
                 'username' => $rowUser->username,
-                'name' => $this->displayName($rowUser),
-                'avatar_url' => $this->avatarUrl($rowUser),
-                'xp' => $this->xpFor($statsByUser, $userId),
+                'name' => AppQyV1SocialPresenter::displayName($rowUser),
+                'avatar_url' => AppQyV1SocialPresenter::avatarUrl($rowUser),
+                'xp' => AppQyV1SocialPresenter::xp($statsByUser, $userId),
                 'is_current_user' => $userId === (int) $currentUser->id,
-            ] + $this->statsRowFor($statsByUser, $userId);
+            ] + AppQyV1SocialPresenter::statsRow($statsByUser, $userId);
         }
 
         usort($entries, function ($a, $b) {
@@ -549,8 +539,8 @@ class AppQyV1SocialController extends Controller
             $activities[] = [
                 'id' => 'progress_' . $row->user_id . '_' . md5((string) $row->last_activity_at),
                 'user_id' => (int) $row->user_id,
-                'user_name' => $this->displayName($rowUser),
-                'avatar_url' => $this->avatarUrl($rowUser),
+                'user_name' => AppQyV1SocialPresenter::displayName($rowUser),
+                'avatar_url' => AppQyV1SocialPresenter::avatarUrl($rowUser),
                 'action' => $masteredCount > 0
                     ? "mastered {$masteredCount} words"
                     : "learned {$learnedCount} words",
@@ -569,80 +559,6 @@ class AppQyV1SocialController extends Controller
      * $since = null means lifetime, otherwise only rows updated after $since.
      *
      * @return array<int, array{total_words:int, learned_words:int, mastered_words:int, correct_answers:int}>
-     */
-    private function aggregateProgressStats(?array $userIds, $since): array
-    {
-        $rows = null;
-        $result = [];
-
-        $rows = AppQyV1UserLearningProgressModel::aggregateProgressStats($userIds, $since);
-        foreach ($rows as $row) {
-            $result[(int) $row->user_id] = [
-                'total_words' => (int) $row->total_words,
-                'learned_words' => (int) $row->learned_words,
-                'mastered_words' => (int) $row->mastered_words,
-                'correct_answers' => (int) $row->correct_answers,
-            ];
-        }
-
-        return $result;
-    }
-
-    private function statsRowFor(array $statsByUser, int $userId): array
-    {
-        if (isset($statsByUser[$userId])) {
-            return [
-                'total_words' => $statsByUser[$userId]['total_words'],
-                'learned_words' => $statsByUser[$userId]['learned_words'],
-                'mastered_words' => $statsByUser[$userId]['mastered_words'],
-            ];
-        }
-        return [
-            'total_words' => 0,
-            'learned_words' => 0,
-            'mastered_words' => 0,
-        ];
-    }
-
-    private function xpFor(array $statsByUser, int $userId): int
-    {
-        if (!isset($statsByUser[$userId])) {
-            return 0;
-        }
-        return ($statsByUser[$userId]['learned_words'] * self::XP_PER_LEARNED_WORD)
-            + ($statsByUser[$userId]['mastered_words'] * self::XP_PER_MASTERED_WORD)
-            + ($statsByUser[$userId]['correct_answers'] * self::XP_PER_CORRECT_ANSWER);
-    }
-
-    /**
-     * Effective presence status for a user, read from app_qy_v1_user_presence
-     * (heartbeat-written) — NOT the non-existent users.is_online/last_seen_at the
-     * old implementation relied on. A heartbeat older than 60s reads as offline
-     * (handled by AppQyV1UserPresenceModel::effectiveFor). `studying` derived from
-     * recent learning activity wins as a fallback when presence is online/away.
-     *
-     * @param array<int, array{status:string,last_seen_at:?string}> $presenceMap
-     *        Batched effectiveFor() output keyed by user id.
-     */
-    private function presenceStatus(User $user, bool $isStudying, array $presenceMap = []): string
-    {
-        $entry = $presenceMap[(int) $user->id] ?? null;
-        $status = $entry !== null ? (string) $entry['status'] : AppQyV1UserPresenceModel::STATUS_OFFLINE;
-
-        // Studying derivation (recent learning progress) takes precedence while
-        // the user is effectively present (heartbeat fresh).
-        if ($isStudying && $status !== AppQyV1UserPresenceModel::STATUS_OFFLINE) {
-            return AppQyV1UserPresenceModel::STATUS_STUDYING;
-        }
-        return $status;
-    }
-
-    // ---- Friend requests (SOCIAL_FEATURE_SPECIFICATION.md §3 DISCOVER/FRIENDS) ----
-
-    /**
-     * POST /social/friends/request {user_id}
-     * Create a pending friend_request + a notification + SSE friend.request to
-     * the addressee. Idempotent on the (requester, addressee) pair.
      */
     public function sendFriendRequest(Request $request)
     {
@@ -686,12 +602,12 @@ class AppQyV1SocialController extends Controller
         $notifId = AppQyV1NotificationModel::notify($targetId, 'friend_request', [
             'request_id' => (int) $row->id,
             'requester_id' => $myId,
-            'requester_name' => $this->displayName($currentUser),
+            'requester_name' => AppQyV1SocialPresenter::displayName($currentUser),
         ]);
         AppQyV1SocialEventModel::emit($targetId, 'friend.request', [
             'request_id' => (int) $row->id,
             'requester_id' => $myId,
-            'requester_name' => $this->displayName($currentUser),
+            'requester_name' => AppQyV1SocialPresenter::displayName($currentUser),
         ]);
         if ($notifId > 0) {
             AppQyV1SocialEventModel::emit($targetId, 'notification.new', [
@@ -758,18 +674,18 @@ class AppQyV1SocialController extends Controller
         $row->acceptRequest();
 
         // Ensure a direct conversation between the pair (best-effort).
-        $this->ensureDirectConversation((int) $row->requester_id, (int) $row->addressee_id);
+        AppQyV1ConversationModel::ensureDirect((int) $row->requester_id, (int) $row->addressee_id);
 
         // Notify + SSE the original requester (best-effort).
         $notifId = AppQyV1NotificationModel::notify((int) $row->requester_id, 'friend_accept', [
             'request_id' => $requestId,
             'addressee_id' => $myId,
-            'addressee_name' => $this->displayName($currentUser),
+            'addressee_name' => AppQyV1SocialPresenter::displayName($currentUser),
         ]);
         AppQyV1SocialEventModel::emit((int) $row->requester_id, 'friend.accept', [
             'request_id' => $requestId,
             'addressee_id' => $myId,
-            'addressee_name' => $this->displayName($currentUser),
+            'addressee_name' => AppQyV1SocialPresenter::displayName($currentUser),
         ]);
         if ($notifId > 0) {
             AppQyV1SocialEventModel::emit((int) $row->requester_id, 'notification.new', [
@@ -829,8 +745,8 @@ class AppQyV1SocialController extends Controller
                 'status' => (string) $row->status,
                 'user' => [
                     'id' => (int) $otherUser->id,
-                    'nickname' => $this->displayName($otherUser),
-                    'avatar' => $this->avatarUrl($otherUser),
+                    'nickname' => AppQyV1SocialPresenter::displayName($otherUser),
+                    'avatar' => AppQyV1SocialPresenter::avatarUrl($otherUser),
                 ],
                 'created_at' => $row->created_at ? $row->created_at->toISOString() : null,
             ];
@@ -874,69 +790,4 @@ class AppQyV1SocialController extends Controller
         return $this->success(['user_id' => $targetId, 'status' => $row->status], 'User blocked');
     }
 
-    // ---- Internal helpers ----
-
-    /**
-     * Normalize a learning_languages value (json array, or JSON/CSV string) into
-     * a lowercased list of language codes.
-     *
-     * @return array<int, string>
-     */
-    private function normalizeLangArray($value): array
-    {
-        $arr = [];
-        if (is_array($value)) {
-            $arr = $value;
-        } elseif (is_string($value) && $value !== '') {
-            $decoded = json_decode($value, true);
-            if (is_array($decoded)) {
-                $arr = $decoded;
-            } else {
-                $arr = array_map('trim', explode(',', $value));
-            }
-        }
-        $out = [];
-        foreach ($arr as $code) {
-            if (is_string($code) && $code !== '') {
-                $out[] = strtolower($code);
-            }
-        }
-        return array_values(array_unique($out));
-    }
-
-    /**
-     * Ensure a direct conversation + both participant rows exist for a pair
-     * (deduped by dkey). Best-effort — a failure never breaks friend accept.
-     */
-    private function ensureDirectConversation(int $a, int $b): void
-    {
-        try {
-            AppQyV1ConversationModel::findOrCreateDirect($a, $b);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[AppQyV1Social] ensureDirectConversation failed', [
-                'a' => $a,
-                'b' => $b,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    private function displayName(User $user): string
-    {
-        if (!empty($user->nickname)) {
-            return $user->nickname;
-        }
-        if (!empty($user->name)) {
-            return $user->name;
-        }
-        return (string) $user->username;
-    }
-
-    private function avatarUrl(User $user): ?string
-    {
-        if (!empty($user->avatar)) {
-            return AvatarService::getAvatarUrl($user->avatar);
-        }
-        return null;
-    }
 }

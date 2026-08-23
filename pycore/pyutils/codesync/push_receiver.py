@@ -20,6 +20,7 @@ from pathlib import Path
 
 from pycore.pyutils.codesync.file_operations import (
     atomic_write_bytes,
+    is_source_authoritative_contract_path,
     normalize_relative_path,
     restore_executable_bit,
 )
@@ -688,8 +689,8 @@ class PushReceiver:
                     return result
 
                 server_mtime = self._coerce_float(msg.get("mtime"))
-                should_replace = True
-                if server_mtime is not None:
+                should_replace = is_source_authoritative_contract_path(rel)
+                if not should_replace and server_mtime is not None:
                     should_replace = server_mtime > target.stat().st_mtime
                 if not should_replace:
                     replaced = self._set_pending_update(

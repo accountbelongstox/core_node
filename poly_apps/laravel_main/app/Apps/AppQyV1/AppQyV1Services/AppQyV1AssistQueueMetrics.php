@@ -286,18 +286,8 @@ trait AppQyV1AssistQueueMetrics
         foreach ($rows as $row) {
             $payload = is_array($row->payload) ? $row->payload : [];
             $language = $payload['language'] ?? null;
-            $words = $payload['words'] ?? [];
-            $first = is_array($words) ? ($words[0] ?? null) : null;
-            $word = is_array($first) ? ($first['word'] ?? null) : (is_string($first) ? $first : null);
-            if ($word === null || $word === '') {
-                foreach (['content', 'text', 'word'] as $key) {
-                    $candidate = $payload[$key] ?? null;
-                    if (is_string($candidate) && trim($candidate) !== '') {
-                        $word = trim($candidate);
-                        break;
-                    }
-                }
-            }
+            $words = GlobalTask::displayWordsFromPayload($payload);
+            $word = $words[0] ?? null;
             $sample[] = ['word' => $word, 'language' => $language];
             if (count($sample) >= self::OVERVIEW_SAMPLE_LIMIT) {
                 break;
