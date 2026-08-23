@@ -13,17 +13,31 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.window.screen_capture import capture_screen_regions_png
 
 
-TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = 2.0
-TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS = 10.0
-TERMINAL_VIEWER_DEMAND_LEASE_SECONDS = 15.0
-TERMINAL_VIEWER_MAX_WINDOWS = 64
-TERMINAL_VIEWER_MAX_COUNT = 128
-TERMINAL_SCREENSHOT_RESOURCE_RETENTION_SECONDS = 120.0
-TERMINAL_SCREENSHOT_MAX_RESOURCES = 256
+TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = relay_contract.duration(
+    "terminal_screenshot_freshness_seconds"
+)
+TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS = relay_contract.duration(
+    "terminal_screenshot_capture_lease_seconds"
+)
+TERMINAL_VIEWER_DEMAND_LEASE_SECONDS = relay_contract.duration(
+    "terminal_viewer_demand_lease_seconds"
+)
+TERMINAL_VIEWER_MAX_WINDOWS = relay_contract.limit("terminal_viewer_windows")
+TERMINAL_VIEWER_MAX_COUNT = relay_contract.limit("terminal_viewers")
+TERMINAL_SCREENSHOT_RESOURCE_RETENTION_SECONDS = relay_contract.duration(
+    "terminal_screenshot_resource_retention_seconds"
+)
+TERMINAL_SCREENSHOT_MAX_RESOURCES = relay_contract.limit(
+    "terminal_screenshot_resources"
+)
+TERMINAL_SCREENSHOT_CAPTURE_BATCH = relay_contract.limit(
+    "terminal_screenshot_capture_batch"
+)
 TERMINAL_SCREENSHOT_RESOURCE_ROUTE = "ui/terminal/screenshot"
 
 
@@ -35,6 +49,7 @@ class TerminalScreenshotCache:
         self._resources: Dict[str, Dict[str, Any]] = {}
         self._viewer_leases: Dict[str, Dict[str, Any]] = {}
         self._capture_leases: Dict[str, float] = {}
+        self._capture_epochs: Dict[str, int] = {}
         self._revision = 0
         init_serialized_owner(
             self,
@@ -129,8 +144,10 @@ class TerminalScreenshotCache:
 
     @serialized_method
     def _release_capture(self, plan: Dict[str, Dict[str, Any]]) -> None:
-        for window_id in plan:
-            self._capture_leases.pop(str(window_id), None)
+        for window_id, region in plan.items():
+            capture_epoch = int(region.get("capture_epoch") or 0)
+            if capture_epoch == int(self._capture_epochs.get(window_id) or 0):
+                self._capture_leases.pop(str(window_id), None)
 
     def capture_now(self, region: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         normalized = self._normalize_regions([region])
@@ -145,6 +162,13 @@ class TerminalScreenshotCache:
         if plan:
             captures = capture_screen_regions_png(list(plan.values()))
             self._commit_capture(plan, captures, time.monotonic())
+            capture = captures.get(window_id)
+            if (
+                not isinstance(capture, dict)
+                or not isinstance(capture.get("body"), bytes)
+                or not str(capture.get("digest") or "")
+            ):
+                return None
         return self.metadata(window_id)
 
     @serialized_method
@@ -168,7 +192,7 @@ class TerminalScreenshotCache:
             if window_id not in demanded and window_id not in forced:
                 continue
             capture_lease = float(self._capture_leases.get(window_id) or 0)
-            if now < capture_lease:
+            if now < capture_lease and window_id not in forced:
                 continue
             geometry = self._geometry_version(region)
             entry = self._entries.get(window_id)
@@ -183,7 +207,15 @@ class TerminalScreenshotCache:
             self._capture_leases[window_id] = (
                 now + TERMINAL_SCREENSHOT_CAPTURE_LEASE_SECONDS
             )
-            plan[window_id] = {**region, "geometry": geometry}
+            capture_epoch = int(self._capture_epochs.get(window_id) or 0) + 1
+            self._capture_epochs[window_id] = capture_epoch
+            plan[window_id] = {
+                **region,
+                "geometry": geometry,
+                "capture_epoch": capture_epoch,
+            }
+            if len(plan) >= TERMINAL_SCREENSHOT_CAPTURE_BATCH:
+                break
         return plan
 
     @serialized_method
@@ -195,6 +227,14 @@ class TerminalScreenshotCache:
     ) -> None:
         changed = []
         for window_id, region in plan.items():
+            capture_epoch = int(region.get("capture_epoch") or 0)
+            if capture_epoch != int(self._capture_epochs.get(window_id) or 0):
+                terminal_activity_log.warning(
+                    "screenshot.capture.stale",
+                    window_id=window_id,
+                    capture_epoch=capture_epoch,
+                )
+                continue
             self._capture_leases.pop(window_id, None)
             capture = captures.get(window_id)
             if not isinstance(capture, dict):
@@ -216,7 +256,6 @@ class TerminalScreenshotCache:
                 previous is not None
                 and str(previous.get("digest") or "") == digest
             ):
-                previous["captured_at"] = int(capture.get("captured_at") or 0)
                 previous["geometry"] = str(region["geometry"])
                 previous["stored_at"] = now
                 terminal_activity_log.debug(
@@ -296,6 +335,7 @@ class TerminalScreenshotCache:
         for window_id in removed:
             self._entries.pop(window_id, None)
             self._capture_leases.pop(window_id, None)
+            self._capture_epochs.pop(window_id, None)
         self._prune_resources(now)
         if removed:
             terminal_activity_log.info(
@@ -353,6 +393,30 @@ class TerminalScreenshotCache:
         )
         for _stored_at, key in removable[:overflow]:
             self._resources.pop(key, None)
+        overflow = max(
+            0,
+            len(self._resources) - TERMINAL_SCREENSHOT_MAX_RESOURCES,
+        )
+        current_oldest = sorted(
+            (
+                (float(entry.get("stored_at") or 0), key)
+                for key, entry in self._resources.items()
+                if key in current_resource_keys
+            ),
+        )
+        for _stored_at, key in current_oldest[:overflow]:
+            entry = self._resources.pop(key, None)
+            if entry is None:
+                continue
+            window_id = str(entry.get("window_id") or "")
+            current = self._entries.get(window_id)
+            if current is entry:
+                self._entries.pop(window_id, None)
+            terminal_activity_log.warning(
+                "screenshot.resource.evicted",
+                window_id=window_id,
+                digest=entry.get("digest"),
+            )
 
     @staticmethod
     def _resource_key(window_id: str, digest: str) -> str:
@@ -388,6 +452,7 @@ class TerminalScreenshotCache:
             "etag": f'"{digest}"',
             "width": int(entry["width"]),
             "height": int(entry["height"]),
+            "byte_length": len(entry["body"]),
             "captured_at": int(entry["captured_at"]),
             "revision": int(entry["revision"]),
             "resource": {

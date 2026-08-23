@@ -45,9 +45,13 @@ SHA-256(body-bytes)
 Normalization rules:
 
 - method is uppercase;
-- path is one leading slash plus the supplied path with leading slashes removed;
+- path forbids query/fragment text, gets exactly one leading slash, is strict
+  UTF-8 percent-decoded, then RFC 3986 percent-encoded with only `/-._~` safe;
 - query pairs are sorted by string key then string value and encoded using
   standard URL form encoding (`urllib.parse.urlencode`, spaces become `+`);
+- repeated array/tuple values expand to repeated pairs before sorting; an empty
+  value is `key=`, an existing percent sign becomes `%25`, Unicode is UTF-8
+  without normalization, and an empty array contributes no pair;
 - timestamp is Unix seconds;
 - nonce is a random URL-safe string and is single-use per credential version;
 - body digest is lowercase hexadecimal SHA-256, including the empty body;
@@ -58,6 +62,11 @@ exists. Its credential-version header is the key version and it has no
 credential-ID header. Laravel must verify it against the public key in the
 enrollment payload. Later enrollment status requests are verified against the
 stored proposed key. Credentialed calls require the credential-ID header.
+
+This signed-create proof of possession is the selected project profile, not a
+claim that RFC 8628 mandates it. Laravel still uses a high-entropy enrollment ID,
+one-time human code, bounded expiry, attempt throttling, and explicit user
+confirmation. The issued credential is bound to the enrolled public key.
 
 Laravel validation steps remain independent: protocol, device/enrollment,
 credential state/version, timestamp window, content digest, Ed25519 signature,
@@ -94,7 +103,8 @@ Endpoint templates are authoritative in the shared contract.
 Each claim item contains:
 
 ```text
-operation_id, revision, state, pairing_id, user_id,
+operation_id, revision, state, claim_epoch, lease_owner, lease_expires_at,
+pairing_id, user_id,
 method, path, query, headers,
 body_present, body_base64 OR body_ref,
 body_sha256, body_length, request_digest
@@ -111,7 +121,7 @@ Pycore recalculates the request digest over compact, key-sorted UTF-8 JSON:
 {
   "method": "UPPERCASE",
   "path": "/one-leading-slash/path",
-  "query": {},
+  "query": "canonical-form-urlencoded-query",
   "headers": {"allowed-lowercase-name": "string value"},
   "body_present": true,
   "body_sha256": "lowercase hex",
@@ -124,12 +134,56 @@ ownership is server-derived. A different digest under an existing operation ID
 is rejected. `cancel_requested`/`canceled` and `expired` claim descriptors are
 acknowledged without local execution.
 
+### Execution fencing and lease renewal
+
+PostgreSQL row locks protect only Laravel's short claim transaction. The claim
+transaction increments `claim_epoch`, stores the lease owner and expiry, and
+returns them with the current operation revision. Pycore performs no local RPC
+handler before this conditional call succeeds:
+
+```text
+POST operation_execution_start
+operation_id, operation_revision, claim_epoch, lease_owner,
+request_digest, retry_policy
+```
+
+Laravel updates `leased -> executing` only when device, owner, epoch, revision,
+state, and unexpired lease all match; it increments and returns the operation
+revision. The response also returns RFC 3339 `server_time` and
+`lease_expires_at` values with explicit offsets. Pycore derives the usable
+duration from those two server values, subtracts the contract guard, and maps
+that duration onto its monotonic clock. It does not infer expiry as local
+receive time plus the configured lease. Pycore then marks its local ledger
+running and starts the handler.
+
+Execution-start is independently idempotent. If the transition committed but
+its HTTP response was lost, repeating the identical request for the same owner,
+epoch, request digest, and retry policy while already `executing` returns the
+existing executing revision and does not increment it again. A claimed
+`leased` descriptor requires a newer returned revision; a recovered
+`executing` descriptor requires the same returned revision.
+
+While execution or response-blob upload is active, Pycore calls
+`operation_lease_renew` with operation ID, executing revision, claim epoch, and
+lease owner. Renewal conditionally extends only that generation and does not
+increment the domain revision. Every renewal response repeats `server_time` and
+`lease_expires_at`; Pycore replaces its monotonic deadline only after validating
+both. Transient failures retry within the known lease; 401/403/409/410 or actual
+lease expiry fence the claimant immediately.
+
+Every result and response-blob allocate/finalize step carries the executing
+revision, epoch, and owner. A stale claimant cannot update Laravel even if its
+OS action continues. For `at_most_once_action`, an expired executing generation
+becomes `execution_unknown` and is never automatically reclaimed. Only `read`
+or genuine `idempotent_write` may be reclaimed with a new epoch.
+
 ### Result submission and blobs
 
 Execution result payload fields are:
 
 ```text
-operation_id, claimed_revision, outcome, status, headers,
+operation_id, operation_revision, claim_epoch, lease_owner,
+outcome, status, headers,
 body_present, body_sha256, body_length, result_digest,
 body_base64 OR body_ref
 ```
@@ -147,7 +201,8 @@ Responses at or below `inline_body_bytes` use standard Base64. Larger responses
 use these independently idempotent steps:
 
 1. allocate with `operation_id`, direction `response`, expected SHA-256, and
-   expected length; return `blob:{blob_id,...}` or a root `blob_id`;
+   expected length plus execution revision/epoch/owner; return
+   `blob:{blob_id,...}` or a root `blob_id`;
 2. PUT immutable raw chunks by `(blob_id, chunk_index)` using the contract chunk
    size;
 3. finalize with blob ID, expected SHA-256, and expected length;
@@ -155,6 +210,9 @@ use these independently idempotent steps:
 
 Each repeated allocation/chunk/finalize/result with identical identity and
 bytes resolves the existing step. Conflicting bytes or metadata return conflict.
+Laravel may persist chunk identity in rows or in an immutable file manifest;
+the required behavior is unique index/digest, contiguous finalization, durable
+manifest state, bounded owner storage, and concurrency-safe finalization.
 
 ### Route and execution policy
 
@@ -166,6 +224,16 @@ classified individually. Safe recovery is allowed only for `read` and genuine
 scroll are `at_most_once_action` and become `execution_unknown` after an
 ambiguous crash.
 
+Route entries reference contract-owned profiles. A resolved profile always has
+`exposure`, `permission`, `payload`, `timeout_seconds`, and `retry`. Laravel must
+authorize the permission and validate the payload before admission; Pycore
+re-resolves the same profile and applies its timeout and retry policy.
+
+The contract-pinned Mercure profile uses one authorized SSE subscription with
+repeated `topic` parameters, Bearer private-subscriber JWT, `lastEventID` for the
+initial cursor, `Last-Event-ID` on resume, no redirects, notification-only
+payloads, and mandatory source-resource reconciliation after history loss.
+
 ### Terminal UI contract
 
 - `POST ui/terminal/windows` accepts `viewer_id` and
@@ -173,8 +241,8 @@ ambiguous crash.
   `screenshot_revision`, and optional `window.screenshot_resource`. It never
   returns `window.screenshot` Base64.
 - `POST ui/terminal/viewer_demand` renews the same bounded viewer/window lease.
-- A screenshot descriptor contains MIME, digest, ETag, size, capture timestamp,
-  revision, and `resource:{route,window_id,digest}`.
+- A screenshot descriptor contains MIME, digest, ETag, byte length, pixel size,
+  capture timestamp, revision, and `resource:{route,window_id,digest}`.
 - `GET ui/terminal/screenshot?window_id=...&digest=...` returns raw `image/png`,
   immutable cache headers, and ETag; matching `If-None-Match` returns 304.
 - Capture is asynchronous for snapshots, so the first snapshot may not yet have

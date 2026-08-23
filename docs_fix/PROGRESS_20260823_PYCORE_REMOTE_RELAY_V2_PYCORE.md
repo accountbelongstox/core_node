@@ -40,6 +40,16 @@ task. The parallel Laravel AI must read the main design, this progress file,
   exact response persistence before completion, safe read/idempotent-write
   recovery, at-most-once `execution_unknown`, failed-outcome preservation, and
   byte-exact replay.
+- Added server-side execution fencing to the Python protocol. Every claimed
+  descriptor carries `claim_epoch`, lease owner, revision, and expiry. Pycore
+  conditionally confirms `execution-start` before any handler runs, then renews
+  long leases in a separate ThreadBus task. Results, response blobs, and
+  finalization carry the same epoch/owner/revision. An at-most-once physical
+  action is never started before this acknowledgement; fencing prevents stale
+  state writes but does not claim to undo an action already sent to the OS.
+  Execution-start and renewal provide server time plus expiry; Pycore converts
+  their delta to a guarded monotonic deadline instead of assuming a fresh lease
+  from local receive time.
 - Split large response delivery into independently idempotent allocation, chunk
   PUT, finalization, and result submission steps. No umbrella completed check
   skips repairable missing steps.
@@ -64,9 +74,11 @@ The Python domain now:
   descriptors without Base64 image bytes;
 - records a short viewer-demand lease for explicitly visible window IDs;
 - claims capture per window, coalesces concurrent requests, and performs the
-  capture outside the snapshot request thread;
+  capture outside the snapshot request thread in contract-bounded batches;
 - uses a non-zero freshness interval and does not increment revision or emit an
-  event when the PNG digest is unchanged;
+  event or alter public capture metadata when the PNG digest is unchanged;
+- fences concurrent capture attempts with a per-window epoch so an older
+  asynchronous capture cannot overwrite a newer forced post-action capture;
 - retains bounded immutable digest-addressed PNG resources and serves exact
   bytes through `ui/terminal/screenshot` with ETag and 304 semantics;
 - publishes metadata-only `terminal.changed` events through ThreadBus, then the
@@ -105,6 +117,31 @@ consume the resource contract documented in the integration progress file.
   <https://requests.readthedocs.io/en/stable/user/advanced/>
 - Mercure protocol and private update behavior:
   <https://mercure.rocks/spec>
+- PostgreSQL row-lock lifetime:
+  <https://www.postgresql.org/docs/17/explicit-locking.html>
+- AWS lease heartbeat and conditional-write locking pattern:
+  <https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices_DistributedLocking.html>
+- RFC 8628 device-flow security properties:
+  <https://www.rfc-editor.org/rfc/rfc8628.html>
+- RFC 9449 proof-of-possession binding:
+  <https://www.rfc-editor.org/info/rfc9449/>
+
+## Parallel review disposition
+
+The later architecture review was substantially correct. Mercure remains a
+notification plane; PostgreSQL remains authoritative; row locking protects only
+the short claim transaction; long external execution needs a conditional epoch
+and lease renewal; and canonicalization must be machine-defined. Its report that
+the final `ui/` rule still allowed all routes described an earlier file state:
+the current contract denies that prefix by default.
+
+The contract now also includes legal transitions and guards, heartbeat/lease/
+token/retention durations, per-owner and per-device limits, route profiles with
+permission/payload/timeout/retry, and the pinned Mercure profile. Enrollment
+creation is signed as this project's explicit proof-of-possession choice; the
+progress record does not present it as a requirement imposed by RFC 8628 or RFC
+9449. Blob durability is specified as a persistent immutable chunk manifest,
+not as a mandatory database-table implementation.
 
 ## Review boundary
 

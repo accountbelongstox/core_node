@@ -39,10 +39,24 @@ final class RelayHubJwt
      */
     public static function subscriberToken(string $subject, array $topics, ?string $hubUrl = null): string
     {
+        return self::subscriberTokenForTtl(
+            $subject,
+            $topics,
+            QueueCenterContract::relayHubInt('token_ttl_seconds'),
+            $hubUrl
+        );
+    }
+
+    public static function subscriberTokenForTtl(
+        string $subject,
+        array $topics,
+        int $ttlSeconds,
+        ?string $hubUrl = null
+    ): string {
         return self::build(
             $subject,
             ['subscribe' => array_values(array_unique($topics))],
-            QueueCenterContract::relayHubInt('token_ttl_seconds'),
+            $ttlSeconds,
             self::SUBSCRIBER_KEY,
             $hubUrl
         );

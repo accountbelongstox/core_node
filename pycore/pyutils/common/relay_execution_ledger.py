@@ -59,14 +59,8 @@ class RelayExecutionLedger:
             )
             return {"action": RELAY_REPLAY_RESPONSE, "result": result}
         if operation.status == "pending":
-            self.operations.start(
-                operation_id,
-                stage="executing",
-                message="operation.execution_started",
-                expected_revision=operation.revision,
-            )
-            relay_activity_log.success(
-                "ledger.execution.admitted",
+            relay_activity_log.info(
+                "ledger.execution.awaiting_server_fence",
                 operation_id=operation_id,
                 request_digest=request_digest,
                 retry_policy=retry_policy,
@@ -103,6 +97,22 @@ class RelayExecutionLedger:
         if operation.stage == RELAY_EXECUTION_UNKNOWN:
             return {"action": RELAY_EXECUTION_UNKNOWN, "result": result}
         raise RuntimeError("relay_operation_terminal_without_response")
+
+    def mark_started(self, operation_id: str) -> None:
+        operation = self.operations.get_operation(operation_id)
+        if operation is None:
+            raise RuntimeError("relay_operation_missing")
+        if operation.status == "pending":
+            self.operations.start(
+                operation_id,
+                stage="executing",
+                message="operation.execution_started",
+                expected_revision=operation.revision,
+            )
+        relay_activity_log.success(
+            "ledger.execution.started",
+            operation_id=operation_id,
+        )
 
     def save_response(
         self,

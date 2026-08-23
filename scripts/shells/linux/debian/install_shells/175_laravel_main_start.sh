@@ -193,10 +193,11 @@ RUNTIME_START="yes"
 DOMAIN_SCOPE="all"
 SKIP_SSH="no"
 
-# Optional: also bring the nexus-dash UI up as its own background service when this
-# service is registered (idempotent; the UI script owns its own systemd registration).
+# Optional: converge the nexus-dash dev service and domain binding in every setup mode
+# (idempotent; the UI script owns its own systemd registration).
 INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
+UI_BINDING_CONVERGED="no"
 
 . "$LARAVEL_13_UPGRADE_SCRIPT"
 # Shared global var helpers (file-backed selectors: START_WEB_SERVER/WEB_SERVER_PLANE,
@@ -673,6 +674,39 @@ ask_default_no() {
         read -r reply < /dev/tty
     fi
     case "$reply" in [Yy]*) PROMPT_ANSWER="yes" ;; esac
+}
+
+ensure_ui_domain_binding() {
+    local binding_enabled="no"
+
+    if [ "$UI_BINDING_CONVERGED" = "yes" ]; then
+        return
+    fi
+    if domain_setup_ui_binding_enabled; then
+        binding_enabled="yes"
+    fi
+    if [ "$INCLUDE_UI" != "yes" ] && [ "$binding_enabled" != "yes" ]; then
+        return
+    fi
+
+    if [ "$INCLUDE_UI" = "yes" ]; then
+        if [ -f "$UI_START" ]; then
+            echo "Bringing up pycore_laravel_wordnew_ui dashboard with Vite hot reload (idempotent)..."
+            bash "$UI_START" --no-backend --service --dev
+        else
+            echo "  Warning: UI start script not found: $UI_START (domain binding still converges)."
+        fi
+    else
+        echo "Refreshing the persisted dashboard domain binding (idempotent)..."
+    fi
+
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+            /bin/bash "$LARAVEL_START_FRANKENPHP_SUB" ui-binding
+    else
+        domain_setup_enable_ui_binding
+    fi
+    UI_BINDING_CONVERGED="yes"
 }
 
 # Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
@@ -1182,6 +1216,8 @@ if [ "$DOMAIN_SCOPE" != "none" ]; then
     fi
 fi
 
+ensure_ui_domain_binding
+
 if [ "$RUNTIME_START" != "yes" ]; then
     echo ""
     echo "Setup-only mode complete (runtime start skipped: --domains-only/--ssl-only)."
@@ -1347,26 +1383,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
                 fi
             fi
             if [ "$INCLUDE_UI" = "yes" ]; then
-                if [ -f "$UI_START" ]; then
-                    echo "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..."
-                    bash "$UI_START" --no-backend --service
-                    # Dashboard domain binding: shared state and allowed-host
-                    # inputs, followed by the active plane's canonical route
-                    # renderer. --with-ui is explicit intent and does not
-                    # prompt; interactive selection keeps the default-yes
-                    # binding choice.
-                    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
-                        PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
-                            /bin/bash "$LARAVEL_START_FRANKENPHP_SUB" ui-binding
-                    else
-                        ask_default_yes "Bind <domain>, www.<domain>, <prefix>.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"
-                        if [ "$PROMPT_ANSWER" = "yes" ]; then
-                            domain_setup_enable_ui_binding
-                        fi
-                    fi
-                else
-                    echo "  Warning: UI start script not found: $UI_START (skipping)."
-                fi
+                ensure_ui_domain_binding
             fi
 
             return

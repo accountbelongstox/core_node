@@ -472,7 +472,8 @@ class RelayService:
             lease_owner=self._lease_owner,
         )
         relay_operation_processor.process_many(
-            item for item in operations if isinstance(item, dict)
+            (item for item in operations if isinstance(item, dict)),
+            self._lease_owner,
         )
 
     def _publish_device_event(self, payload: Any) -> None:
@@ -535,6 +536,13 @@ class RelayService:
                 reconnect_max_seconds=relay_contract.duration(
                     "subscriber_reconnect_max_seconds"
                 ),
+                connect_timeout=relay_contract.duration(
+                    "subscriber_connect_timeout_seconds"
+                ),
+                read_timeout=relay_contract.duration(
+                    "subscriber_read_timeout_seconds"
+                ),
+                max_redirects=0,
             )
 
             def subscriber_should_stop() -> bool:
@@ -566,9 +574,19 @@ class RelayService:
             data_length=len(update.data.encode("utf-8")),
         )
         if update.type == relay_contract.event("operation_available"):
-            payload = update.json()
-            if not isinstance(payload, dict):
-                raise ValueError("relay_wake_payload_not_object")
+            try:
+                payload = update.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("relay_wake_payload_not_object")
+            except Exception as error:
+                relay_activity_log.error(
+                    "subscriber.update.rejected",
+                    event_id=update.id,
+                    event_type=update.type,
+                    error_type=type(error).__name__,
+                    error=error,
+                )
+                return
             THREAD_BUS.signal(
                 RELAY_CONTROL_SIGNAL,
                 {

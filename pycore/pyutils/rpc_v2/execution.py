@@ -124,6 +124,8 @@ class RpcExecutionKernel:
             "path_params": {},
             "headers": self.filtered_headers(headers, "request"),
             "relay_policy": dict(policy),
+            "relay_permission": str(policy.get("permission") or ""),
+            "relay_payload_profile": str(policy.get("payload") or ""),
         }
         relay_activity_log.info(
             "rpc.dispatch.started",
@@ -131,14 +133,19 @@ class RpcExecutionKernel:
             method=normalized_method,
             route=route_path,
             retry_policy=policy.get("retry"),
+            permission=policy.get("permission"),
+            payload_profile=policy.get("payload"),
             body_length=len(body),
         )
         contract_timeout = relay_contract.duration("execution_timeout_seconds")
-        execution_timeout = (
-            min(contract_timeout, float(route.timeout))
-            if route.timeout is not None and route.timeout > 0
-            else contract_timeout
-        )
+        timeout_candidates = [contract_timeout]
+        policy_timeout = float(policy.get("timeout_seconds") or 0)
+        if policy_timeout > 0:
+            timeout_candidates.append(policy_timeout)
+        if route.timeout is not None and route.timeout > 0:
+            timeout_candidates.append(float(route.timeout))
+        execution_timeout = min(timeout_candidates)
+        context["execution_timeout_seconds"] = execution_timeout
         try:
             result = await asyncio.wait_for(
                 self.dispatch(route, params, request_id, context),

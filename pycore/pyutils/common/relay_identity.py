@@ -8,7 +8,6 @@ import hashlib
 import os
 import secrets
 import time
-import urllib.parse
 import uuid
 from typing import Any, Dict, Mapping
 
@@ -39,6 +38,14 @@ def _base64url_decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
+def _positive_int(value: Any, default: int = 0) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return int(default)
+    return parsed if parsed > 0 else int(default)
+
+
 class RelayDeviceIdentity:
     """Own independently repairable device, key, enrollment, and credential state."""
 
@@ -58,14 +65,53 @@ class RelayDeviceIdentity:
         document = RELAY_IDENTITY_STORE.read()
         private_key = str(document.get("private_key") or "")
         public_key = str(document.get("public_key") or "")
-        if private_key and public_key:
-            relay_activity_log.debug(
-                "identity.signing_key.present",
-                key_version=self.key_version(),
-            )
-            return public_key
         ed25519 = get_third_package_cryptography_ed25519()
         serialization = get_third_package_cryptography_serialization()
+        if private_key:
+            try:
+                private_bytes = _base64url_decode(private_key)
+                if len(private_bytes) != 32:
+                    raise ValueError("relay_private_key_length_invalid")
+                existing = ed25519.Ed25519PrivateKey.from_private_bytes(
+                    private_bytes
+                )
+                public_bytes = existing.public_key().public_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PublicFormat.Raw,
+                )
+                derived_public_key = _base64url_encode(public_bytes)
+                key_version = _positive_int(
+                    document.get("key_version"),
+                    _positive_int(
+                        document.get("credential_version"),
+                        RELAY_KEY_VERSION_INITIAL,
+                    ),
+                )
+                repaired = public_key != derived_public_key or (
+                    _positive_int(document.get("key_version")) != key_version
+                )
+                if repaired:
+                    document["public_key"] = derived_public_key
+                    document["key_version"] = key_version
+                    self._write(document)
+                    relay_activity_log.success(
+                        "identity.signing_key.metadata.repaired",
+                        key_version=key_version,
+                    )
+                else:
+                    self._repair_permissions()
+                    relay_activity_log.debug(
+                        "identity.signing_key.present",
+                        key_version=key_version,
+                    )
+                return derived_public_key
+            except Exception as error:
+                relay_activity_log.error(
+                    "identity.signing_key.private.invalid",
+                    key_version=document.get("key_version"),
+                    error_type=type(error).__name__,
+                    error=error,
+                )
         generated = ed25519.Ed25519PrivateKey.generate()
         private_bytes = generated.private_bytes(
             encoding=serialization.Encoding.Raw,
@@ -76,19 +122,41 @@ class RelayDeviceIdentity:
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         )
+        previous_key_version = _positive_int(document.get("key_version"))
+        credential_version = _positive_int(document.get("credential_version"))
+        next_key_version = (
+            max(previous_key_version, credential_version) + 1
+            if private_key or public_key
+            else RELAY_KEY_VERSION_INITIAL
+        )
+        credential_invalidated = bool(
+            document.get("credential_id") or document.get("enrollment_id")
+        )
         document["private_key"] = _base64url_encode(private_bytes)
         document["public_key"] = _base64url_encode(public_bytes)
-        document["key_version"] = RELAY_KEY_VERSION_INITIAL
+        document["key_version"] = next_key_version
+        document.pop("credential_id", None)
+        document.pop("credential_version", None)
+        document.pop("enrollment_id", None)
+        document.pop("enrollment_claim_code", None)
+        document.pop("enrollment_expires_at", None)
         self._write(document)
         relay_activity_log.success(
-            "identity.signing_key.created",
-            key_version=RELAY_KEY_VERSION_INITIAL,
+            (
+                "identity.signing_key.rotated"
+                if private_key or public_key
+                else "identity.signing_key.created"
+            ),
+            key_version=next_key_version,
+            credential_invalidated=credential_invalidated,
         )
         return str(document["public_key"])
 
     def ensure(self) -> Dict[str, Any]:
         self.ensure_device_id()
         self.ensure_signing_key()
+        self.ensure_enrollment_state()
+        self.ensure_credential_state()
         document = self.document()
         relay_activity_log.success(
             "identity.ready",
@@ -96,6 +164,42 @@ class RelayDeviceIdentity:
             key_version=document["key_version"],
         )
         return document
+
+    def ensure_enrollment_state(self) -> bool:
+        document = RELAY_IDENTITY_STORE.read()
+        enrollment_fields = (
+            str(document.get("enrollment_id") or ""),
+            str(document.get("enrollment_claim_code") or ""),
+            str(document.get("enrollment_expires_at") or ""),
+        )
+        if all(enrollment_fields):
+            relay_activity_log.debug(
+                "identity.enrollment.present",
+                enrollment_id=enrollment_fields[0],
+                claim_code=enrollment_fields[1],
+                expires_at=enrollment_fields[2],
+            )
+            return True
+        if any(enrollment_fields):
+            self.clear_enrollment()
+            relay_activity_log.warning("identity.enrollment.incomplete.repaired")
+        return False
+
+    def ensure_credential_state(self) -> bool:
+        document = RELAY_IDENTITY_STORE.read()
+        credential_id = str(document.get("credential_id") or "")
+        credential_version = _positive_int(document.get("credential_version"))
+        if credential_id and credential_version > 0:
+            relay_activity_log.debug(
+                "identity.credential.present",
+                credential_id=credential_id,
+                credential_version=credential_version,
+            )
+            return True
+        if credential_id or document.get("credential_version") is not None:
+            self.clear_credential()
+            relay_activity_log.warning("identity.credential.incomplete.repaired")
+        return False
 
     @staticmethod
     def document() -> Dict[str, Any]:
@@ -106,18 +210,19 @@ class RelayDeviceIdentity:
 
     def key_version(self) -> int:
         document = RELAY_IDENTITY_STORE.read()
-        return int(document.get("key_version") or RELAY_KEY_VERSION_INITIAL)
+        return _positive_int(
+            document.get("key_version"),
+            RELAY_KEY_VERSION_INITIAL,
+        )
 
     def public_key(self) -> str:
-        document = RELAY_IDENTITY_STORE.read()
-        return str(document.get("public_key") or self.ensure_signing_key())
+        return self.ensure_signing_key()
 
     def credential_id(self) -> str:
         return str(RELAY_IDENTITY_STORE.read().get("credential_id") or "")
 
     def has_credential(self) -> bool:
-        document = RELAY_IDENTITY_STORE.read()
-        return bool(document.get("credential_id") and document.get("credential_version"))
+        return self.ensure_credential_state()
 
     def save_enrollment(
         self,
@@ -144,6 +249,9 @@ class RelayDeviceIdentity:
         document = RELAY_IDENTITY_STORE.read()
         document["credential_id"] = str(credential_id)
         document["credential_version"] = int(credential_version)
+        document.pop("enrollment_id", None)
+        document.pop("enrollment_claim_code", None)
+        document.pop("enrollment_expires_at", None)
         self._write(document)
         relay_activity_log.success(
             "identity.credential.saved",
@@ -206,8 +314,8 @@ class RelayDeviceIdentity:
         nonce = secrets.token_urlsafe(24)
         content_sha256 = hashlib.sha256(body).hexdigest()
         normalized_method = str(method or "GET").upper()
-        normalized_path = "/" + str(path or "").strip().lstrip("/")
-        normalized_query = self._normalized_query(query)
+        normalized_path = relay_contract.canonical_path(path)
+        normalized_query = relay_contract.canonical_query(query)
         credential_version = int(
             document.get("credential_version") or document["key_version"]
         )
@@ -254,21 +362,12 @@ class RelayDeviceIdentity:
         return headers
 
     @staticmethod
-    def _normalized_query(query: Mapping[str, Any]) -> str:
-        pairs = []
-        for raw_key in sorted(query, key=lambda item: str(item)):
-            key = str(raw_key)
-            value = query[raw_key]
-            if isinstance(value, (list, tuple)):
-                pairs.extend((key, str(item)) for item in value)
-            else:
-                pairs.append((key, str(value)))
-        pairs.sort(key=lambda item: (item[0], item[1]))
-        return urllib.parse.urlencode(pairs, doseq=True)
-
-    @staticmethod
     def _write(document: Dict[str, Any]) -> None:
         RELAY_IDENTITY_STORE.write(document)
+        RelayDeviceIdentity._repair_permissions()
+
+    @staticmethod
+    def _repair_permissions() -> None:
         if os.name != "nt":
             os.chmod(RELAY_IDENTITY_STORE.path, 0o600)
 

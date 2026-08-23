@@ -20,13 +20,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_mss
 from pycore.pyutils.common.activity_log import ActivityLog
+from pycore.pyutils.common.relay_contract import relay_contract
 
 mss = get_third_package_mss()
 Image = get_third_package_PIL_Image()
 
-TERMINAL_CAPTURE_MAX_WIDTH = 640
-TERMINAL_CAPTURE_MAX_HEIGHT = 360
-TERMINAL_CAPTURE_PNG_COMPRESSION = 1
+TERMINAL_CAPTURE_MAX_WIDTH = relay_contract.limit(
+    "terminal_screenshot_max_width"
+)
+TERMINAL_CAPTURE_MAX_HEIGHT = relay_contract.limit(
+    "terminal_screenshot_max_height"
+)
+TERMINAL_CAPTURE_PNG_COMPRESSION = relay_contract.limit(
+    "terminal_screenshot_png_compression"
+)
 screen_capture_activity_log = ActivityLog("ScreenCapture")
 
 

@@ -134,7 +134,9 @@ class RelayTransport:
                 else float(timeout)
             ),
             allow_redirects=False,
+            log_line=False,
             include_default_identity=False,
+            sensitive_request=True,
         )
         status = int(getattr(response, "status_code", 0) or 0)
         elapsed_ms = (time.perf_counter() - started) * 1000

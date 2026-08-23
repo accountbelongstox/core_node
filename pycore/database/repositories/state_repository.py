@@ -1022,6 +1022,10 @@ class StateRepository:
                 raise RuntimeError("relay_execution_result_missing")
             if str(row[1]) != str(request_digest):
                 raise ValueError("relay_operation_request_digest_conflict")
+            if str(row[2]) != str(route):
+                raise ValueError("relay_operation_route_conflict")
+            if str(row[3]) != str(retry_policy):
+                raise ValueError("relay_operation_retry_policy_conflict")
             return self._relay_execution_result(row)
 
     def get_relay_execution_result(

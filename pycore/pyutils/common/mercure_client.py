@@ -274,10 +274,13 @@ class MercureSubscriber:
         if self.on_update is None:
             return
         update = MercureUpdate(self.last_event_id, event_type, "\n".join(data_lines))
-        try:
-            self.on_update(update)
-        except Exception:  # noqa: BLE001 - one bad handler never kills the stream
-            pass
+            try:
+                self.on_update(update)
+        except Exception as exc:  # noqa: BLE001 - one bad handler never kills the stream
+            self._notify(
+                MERCURE_STATE_OFFLINE,
+                str(exc) or exc.__class__.__name__,
+            )
 
     def _apply_retry(self, value: str) -> None:
         try:

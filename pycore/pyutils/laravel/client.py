@@ -176,6 +176,7 @@ class LaravelClient:
                 activity_timeout: Optional[Dict[str, int]] = None,
                 stream: bool = False, allow_redirects: bool = True,
                 log_line: bool = True, include_default_identity: bool = True,
+                sensitive_request: bool = False,
                 **kwargs):
         """Issue a Laravel HTTP request, log + record it, return the raw Response.
 
@@ -189,7 +190,12 @@ class LaravelClient:
         method = (method or "GET").upper()
         url = self._build_url(path, base_url)
         display_path = self._display_path(path)
-        summary = _summarize_params(params, data, json, files)
+        summary = _summarize_params(
+            params,
+            "<redacted>" if sensitive_request and data is not None else data,
+            "<redacted>" if sensitive_request and json is not None else json,
+            files,
+        )
         if timeout is None:
             timeout = _DEFAULT_TIMEOUT
         request_headers = dict(headers or {})
