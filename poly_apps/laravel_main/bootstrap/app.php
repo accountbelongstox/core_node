@@ -204,6 +204,17 @@ $application = Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        $exceptions->render(function (\App\Apps\RelayV2\RelayV2Exceptions\RelayV2DomainException $e, Request $request) {
+            if ($request->is('api/relay/v2/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'error_code' => $e->relayErrorCode(),
+                    'code' => $e->getStatusCode(),
+                ], $e->getStatusCode());
+            }
+        });
+
         // Render all other exceptions. The HTTP status is derived from the
         // exception type — an HttpException (abort(404)/403/405/429/...) keeps its
         // own status — defaulting to 500, so API responses carry the correct code

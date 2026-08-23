@@ -61,7 +61,7 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
         title={trans('home.dailyReading.resourcePreview')}
       >
         <Braces className="h-4 w-4" />
-        <span className="hidden text-[10px] font-bold sm:inline">
+        <span className="text-[10px] font-bold">
           {trans('home.dailyReading.resourcePreview')}
         </span>
       </button>

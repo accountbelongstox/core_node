@@ -80,6 +80,7 @@
             "browserAccess": [
                 "localhost",
                 "loopback",
+                "cloud",
                 "tailnet_nuul"
             ],
             "laravelApi": [

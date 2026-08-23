@@ -71,6 +71,7 @@ final class RelayV2DeviceService
             $pairings = RelayV2PairingModel::query()
                 ->where('device_id', $deviceId)
                 ->where('state', RelayV2Constants::PAIRING_ACTIVE)
+                ->where('credential_version', (int) $device->current_credential_version)
                 ->where('expires_at', '>', now())
                 ->get();
 
@@ -102,7 +103,9 @@ final class RelayV2DeviceService
 
         if ($device === null
             || (string) $device->status !== RelayV2Constants::CREDENTIAL_ACTIVE
-            || $device->revoked_at !== null) {
+            || $device->revoked_at !== null
+            || $device->credential_expires_at === null
+            || $device->credential_expires_at->lte(now())) {
             throw new RelayV2DomainException('device_not_found', 404);
         }
 

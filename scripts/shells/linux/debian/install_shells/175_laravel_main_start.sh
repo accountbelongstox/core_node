@@ -677,15 +677,11 @@ ask_default_no() {
 }
 
 ensure_ui_domain_binding() {
-    local binding_enabled="no"
-
     if [ "$UI_BINDING_CONVERGED" = "yes" ]; then
         return
     fi
-    if domain_setup_ui_binding_enabled; then
-        binding_enabled="yes"
-    fi
-    if [ "$INCLUDE_UI" != "yes" ] && [ "$binding_enabled" != "yes" ]; then
+    domain_setup_resolve_ui_binding_state
+    if [ "$INCLUDE_UI" != "yes" ] && [ "$DOMAIN_UI_BINDING_ENABLED" != "yes" ]; then
         return
     fi
 

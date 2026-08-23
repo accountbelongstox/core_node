@@ -10,6 +10,8 @@ final class RelayV2BlobModel extends RelayV2Model
     {
         return [
             'expected_length' => 'integer',
+            'operation_revision' => 'integer',
+            'claim_epoch' => 'integer',
             'final_length' => 'integer',
             'received_chunk_count' => 'integer',
             'received_length' => 'integer',

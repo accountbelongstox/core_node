@@ -21,6 +21,9 @@ return new class extends Migration
                 'pairing_id' => ['type' => 'uuid'],
                 'operation_id' => ['type' => 'uuid', 'nullable' => true],
                 'direction' => ['type' => 'string', 'length' => 16],
+                'operation_revision' => ['type' => 'unsignedInteger', 'nullable' => true],
+                'claim_epoch' => ['type' => 'unsignedInteger', 'nullable' => true],
+                'lease_owner' => ['type' => 'string', 'length' => 128, 'nullable' => true],
                 'expected_sha256' => ['type' => 'char', 'length' => 64],
                 'expected_length' => ['type' => 'bigInteger'],
                 'final_sha256' => ['type' => 'char', 'length' => 64, 'nullable' => true],
@@ -35,9 +38,10 @@ return new class extends Migration
             ],
             'indexes' => [
                 ['columns' => ['blob_id'], 'name' => 'relay_blobs_id_uq', 'unique' => true],
-                ['columns' => ['operation_id', 'direction', 'expected_sha256'], 'name' => 'relay_blobs_operation_direction_uq', 'unique' => true],
+                ['columns' => ['operation_id', 'direction', 'claim_epoch'], 'name' => 'relay_blobs_operation_direction_uq', 'unique' => true],
                 ['columns' => ['owner_user_id', 'finalized_at', 'expires_at'], 'name' => 'relay_blobs_owner_quota_idx'],
                 ['columns' => ['device_id', 'direction', 'expires_at'], 'name' => 'relay_blobs_device_direction_idx'],
+                ['columns' => ['operation_id', 'claim_epoch'], 'name' => 'relay_blobs_operation_epoch_idx'],
             ],
         ];
 
