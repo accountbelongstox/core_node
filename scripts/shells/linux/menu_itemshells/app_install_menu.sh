@@ -19,6 +19,7 @@ LINUX_DIR=""
 COMMON_DIR=""
 INSTALL_SHELLS_DIR=""
 STEP120_SCRIPT=""
+ARROW_MENU_SCRIPT=""
 
 _resolve_app_install_paths() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,6 +27,7 @@ _resolve_app_install_paths() {
     COMMON_DIR="$LINUX_DIR/common"
     INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
     STEP120_SCRIPT="$INSTALL_SHELLS_DIR/153_install_desktop_applications.sh"
+    ARROW_MENU_SCRIPT="$COMMON_DIR/arrow_menu.sh"
 }
 
 _resolve_app_install_paths
@@ -78,6 +80,7 @@ if [ ! -s "$COMMON_DIR/linux_applications_list.sh" ]; then
     exit 1
 fi
 source "$COMMON_DIR/linux_applications_list.sh"
+source "$ARROW_MENU_SCRIPT"
 
 get_all_packages_flat_list() {
     local list=()
@@ -157,58 +160,46 @@ install_all_entries() {
 
 show_app_install_menu() {
     local flat_list
+    local count
+    local display_name
+    local entry
+    local item_index
+    local selected_index
+    local -a menu_items
+
     mapfile -t flat_list < <(get_all_packages_flat_list)
-    local count=${#flat_list[@]}
+    count=${#flat_list[@]}
 
     while true; do
-        clear
-        echo "================================================================================"
-        echo "Linux Management APP Install Menu - Select a package to install (120 single-package run)"
-        echo "================================================================================"
-        echo ""
-
         if [ "$count" -eq 0 ]; then
             echo "No packages defined in linux_applications_list.sh."
             read -r -p "Press Enter to go back..."
             return 0
         fi
 
-        local i
-        for i in "${!flat_list[@]}"; do
-            local num=$((i + 1))
-            local entry="${flat_list[$i]}"
-            local key="${entry%%|*}"
-            local disp="${entry#*|}"
-            printf "  %3d. %s\n" "$num" "$disp"
+        menu_items=()
+        for item_index in "${!flat_list[@]}"; do
+            entry="${flat_list[$item_index]}"
+            display_name="${entry#*|}"
+            menu_items+=("$display_name")
         done
-        echo ""
-        echo "  A. Install ALL listed packages (heavy; confirmation required)"
-        echo "  0. Back"
-        echo ""
+        menu_items+=("Install ALL listed packages (heavy)" "Back to Linux System Tools")
 
-        read -r -p "Enter number, A = install all (0 = Back): " input_line
-        input_trim="${input_line:-}"
-        input_trim="${input_trim#"${input_trim%%[![:space:]]*}"}"
-        input_trim="${input_trim%"${input_trim##*[![:space:]]}"}"
-        if [ -z "$input_trim" ] || [ "$input_trim" = "0" ] || [ "$input_trim" = "q" ] || [ "$input_trim" = "Q" ]; then
+        arrow_menu_select "APP Install Menu" menu_items 0 "$((count + 1))"
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+
+        if [ "$selected_index" -eq "$((count + 1))" ]; then
             return 0
         fi
 
-        if [ "$input_trim" = "a" ] || [ "$input_trim" = "A" ] || [ "$input_trim" = "all" ] || [ "$input_trim" = "ALL" ]; then
+        if [ "$selected_index" -eq "$count" ]; then
             install_all_entries "${flat_list[@]}"
             echo ""
             read -r -p "Press Enter to return to APP Install Menu..."
             continue
         fi
 
-        if ! [[ "$input_trim" =~ ^[0-9]+$ ]] || [ "$input_trim" -lt 1 ] || [ "$input_trim" -gt "$count" ]; then
-            echo "Invalid input. Enter a number between 1 and $count, A to install all, or 0 to go back."
-            read -r -p "Press Enter to continue..."
-            continue
-        fi
-
-        local idx=$((input_trim - 1))
-        _run_install_entry "${flat_list[$idx]}"
+        _run_install_entry "${flat_list[$selected_index]}"
 
         echo ""
         read -r -p "Press Enter to return to APP Install Menu..."

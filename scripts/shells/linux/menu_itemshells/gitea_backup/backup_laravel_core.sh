@@ -15,7 +15,9 @@ fi
 
 # Source common backup functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKUP_LARAVEL_LINUX_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 source "$SCRIPT_DIR/backup_common.sh"
+source "$BACKUP_LARAVEL_LINUX_DIR/common/arrow_menu.sh"
 
 # Laravel configuration
 LARAVEL_NAMESPACE="laravel"
@@ -219,24 +221,27 @@ list_laravel_backups() {
 # Select Laravel backup
 select_laravel_backup() {
     local backups=($(find "$LARAVEL_BACKUP_DIR" -name "laravel-backup-*.tar.gz" -type f 2>/dev/null | sort -r))
+    local menu_items=()
+    local backup=""
+    local selected_index=0
     
     if [[ ${#backups[@]} -eq 0 ]]; then
         print_error_from_common_functions "No Laravel backups found"
         return 1
     fi
     
-    list_laravel_backups
-    echo ""
-    echo -n "Select backup number (1-${#backups[@]}): "
-    read -r choice
-    
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [[ "$choice" -ge 1 ]] && [[ "$choice" -le ${#backups[@]} ]]; then
-        echo "${backups[$((choice-1))]}"
-        return 0
-    else
-        print_error_from_common_functions "Invalid selection"
+    for backup in "${backups[@]}"; do
+        menu_items+=("$(basename "$backup") [$(du -h "$backup" 2>/dev/null | cut -f1)]")
+    done
+    menu_items+=("Cancel")
+
+    arrow_menu_select "Select Laravel Backup" menu_items 0 "${#backups[@]}"
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    if [[ "$selected_index" -eq "${#backups[@]}" ]]; then
         return 1
     fi
+    echo "${backups[$selected_index]}"
+    return 0
 }
 
 # Show Laravel backup details
@@ -299,4 +304,3 @@ delete_laravel_backup() {
     
     return 0
 }
-

@@ -98,6 +98,11 @@ final class QueueCenterContract
         return (int) (self::wordValidity()['batch_size'] ?? 20);
     }
 
+    public static function wordValidityViewPageSize(): int
+    {
+        return (int) (self::wordValidity()['view_page_size'] ?? 1000);
+    }
+
     public static function wordValidityRequestTimeoutSeconds(): int
     {
         $milliseconds = (int) (self::wordValidity()['request_timeout_ms'] ?? 120000);

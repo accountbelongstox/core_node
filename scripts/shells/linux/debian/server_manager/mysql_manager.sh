@@ -17,6 +17,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 MYSQL_CONFIG="/etc/mysql/mariadb.conf.d/50-server.cnf"
 MYSQL_CLI="mysql"
@@ -266,11 +267,15 @@ create_database() {
 }
 
 show_variables() {
-    show_header
-    echo -e "${COLOR_BLUE}=== MySQL/MariaDB Variables ===${COLOR_RESET}"
-    echo ""
-
     local service_name="mariadb"
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Show all variables"
+        "Show specific variable"
+        "Back to MySQL/MariaDB Manager"
+    )
+
     if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
         service_name="mysql"
     fi
@@ -281,12 +286,9 @@ show_variables() {
         return
     fi
 
-    echo "1) Show all variables"
-    echo "2) Show specific variable"
-    echo "0) Back to main menu"
-    echo ""
-
-    read -p "Select option: " choice
+    arrow_menu_select "MySQL/MariaDB Variables" menu_items 0 2
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    choice=$((selected_index + 1))
 
     case $choice in
         1)
@@ -318,22 +320,26 @@ view_config() {
 }
 
 show_menu() {
-    show_header
-    show_mysql_status
+    local menu_items=(
+        "Start MySQL/MariaDB"
+        "Stop MySQL/MariaDB"
+        "Restart MySQL/MariaDB"
+        "Show Basic Information"
+        "List Databases"
+        "List Users"
+        "Show Active Connections"
+        "Create New Database"
+        "Show Variables"
+        "View Configuration File"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start MySQL/MariaDB"
-    echo "  2) Stop MySQL/MariaDB"
-    echo "  3) Restart MySQL/MariaDB"
-    echo "  4) Show Basic Information"
-    echo "  5) List Databases"
-    echo "  6) List Users"
-    echo "  7) Show Active Connections"
-    echo "  8) Create New Database"
-    echo "  9) Show Variables"
-    echo " 10) View Configuration File"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "MySQL/MariaDB Manager" menu_items 0 10 show_mysql_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 10 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -343,7 +349,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_mysql ;;

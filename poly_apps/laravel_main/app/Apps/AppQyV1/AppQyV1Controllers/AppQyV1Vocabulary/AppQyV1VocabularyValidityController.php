@@ -52,12 +52,13 @@ class AppQyV1VocabularyValidityController extends Controller
         $limit = (int) $request->query('limit', 100);
         $search = mb_substr(trim((string) $request->query('q', '')), 0, 120);
         $includeTotal = $request->boolean('include_total', false);
+        $viewPageSize = QueueCenterContract::wordValidityViewPageSize();
 
         if ($limit < 1) {
             $limit = 1;
         }
-        if ($limit > 1000) {
-            $limit = 1000;
+        if ($limit > $viewPageSize) {
+            $limit = $viewPageSize;
         }
 
         return $this->success($this->queueService->pendingPage(

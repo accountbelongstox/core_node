@@ -21,6 +21,7 @@ if [ -z "${CORE_NODE_ROOT_DIR:-}" ]; then
     _DD_HELPER_SECRETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     CORE_NODE_ROOT_DIR="$(cd "$_DD_HELPER_SECRETS_DIR/../../../.." && pwd)"
 fi
+source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
 
 read_secret_input() {
     local prompt="$1"
@@ -95,6 +96,11 @@ ensure_secret_keys_ready() {
     local enc_file=""
     local use_batch_mode=""
     local bundle_file=""
+    local selected_index=0
+    local mode_menu_items=(
+        "Batch mode (Bundle) - Fast, single process"
+        "Individual mode (Original) - Multiple processes"
+    )
 
     if [ ! -d "$raw_dir" ] && [ ! -d "$encrypted_dir" ] && [ ! -d "$batch_encrypted_dir" ]; then
         return 0
@@ -173,30 +179,11 @@ ensure_secret_keys_ready() {
         # Files need decryption, proceed with decryption phase
 
     if [ "$has_batch_bundle" = true ] && [ ${#pending_files[@]} -gt 0 ]; then
-        echo ""
-        echo -e "\033[36m========================================"
-        echo -e "Encryption Mode Selection"
-        echo -e "========================================\033[0m"
-        echo -e "\033[37mDetected both encryption formats:\033[0m"
-        echo -e "\033[32m  [1] Batch mode (Bundle) - Fast, single process (~0.1s)\033[0m"
-        echo -e "\033[37m      Bundle file: $(basename "$bundle_file")\033[0m"
-        echo -e "\033[33m  [2] Individual mode (Original) - Slower, multiple processes (~2-3s)\033[0m"
-        echo -e "\033[37m      Individual files: ${#pending_files[@]} files in already_encrypted/\033[0m"
-        echo ""
-        read -r -p "Choose decryption mode (1 or 2): " mode_choice
-        echo ""
-
-        case "$mode_choice" in
-            1)
-                use_batch_mode="yes"
-                ;;
-            2)
-                use_batch_mode="no"
-                ;;
-            *)
-                echo -e "\033[33mInvalid choice. Defaulting to batch mode.\033[0m"
-                use_batch_mode="yes"
-                ;;
+        arrow_menu_select "Secret Decryption Mode" mode_menu_items 0 -1
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        case "$selected_index" in
+            0) use_batch_mode="yes" ;;
+            1) use_batch_mode="no" ;;
         esac
     elif [ "$has_batch_bundle" = true ]; then
         use_batch_mode="yes"
@@ -446,22 +433,11 @@ ensure_secret_keys_ready() {
     fi
 
     if [ "$has_batch_bundle" = true ]; then
-        echo -e "\033[37mEncryption mode options:\033[0m"
-        echo -e "\033[32m  [1] Batch mode (Bundle) - Update/add to bundle\033[0m"
-        echo -e "\033[37m      Bundle file: $(basename "$bundle_file")\033[0m"
-        echo -e "\033[33m  [2] Individual mode (Original) - Update individual files\033[0m"
-        echo -e "\033[37m      Output dir: $encrypted_dir\033[0m"
-        echo ""
-        read -r -p "Choose encryption mode (1 or 2): " mode_choice
-        echo ""
-
-        case "$mode_choice" in
-            1) use_batch_mode="yes" ;;
-            2) use_batch_mode="no" ;;
-            *)
-                echo -e "\033[33mInvalid choice. Defaulting to individual mode.\033[0m"
-                use_batch_mode="no"
-                ;;
+        arrow_menu_select "Secret Encryption Mode" mode_menu_items 0 -1
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        case "$selected_index" in
+            0) use_batch_mode="yes" ;;
+            1) use_batch_mode="no" ;;
         esac
     else
         use_batch_mode="no"

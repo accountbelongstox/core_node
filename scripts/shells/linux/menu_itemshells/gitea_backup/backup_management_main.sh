@@ -7,6 +7,7 @@ MAIN_VERSION="1.0.0"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../common/arrow_menu.sh"
 
 # Source all core modules
 source "$SCRIPT_DIR/backup_gitea_core.sh"
@@ -19,48 +20,44 @@ source "$SCRIPT_DIR/restore_core_node_core.sh"
 
 # Main menu display
 show_backup_menu() {
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Gitea: Backup"
+        "Gitea: Restore from Backup"
+        "Gitea: List Backups"
+        "Gitea: Delete Backup"
+        "Gitea: Show Backup Details"
+        "Gitea: Cleanup Old Backups"
+        "Gitea: Test Backup Integrity"
+        "Gitea: Start Download Server"
+        "Laravel: Backup"
+        "Laravel: Restore from Backup"
+        "Laravel: List Backups"
+        "Laravel: Delete Backup"
+        "Laravel: Show Backup Details"
+        "Laravel: Cleanup Old Backups"
+        "Laravel: Test Backup Integrity"
+        "Laravel: Start Download Server"
+        "Core_node: Backup Project"
+        "Core_node: Restore from Backup"
+        "Core_node: List Backups"
+        "Core_node: Delete Backup"
+        "Core_node: Show Backup Details"
+        "Core_node: Cleanup Old Backups"
+        "Core_node: Test Backup Integrity"
+        "Core_node: Start Download Server"
+        "Back to Management & Backup"
+    )
+
     while true; do
-        clear
-        print_header_from_common_functions "Backup Management"
-
-        echo ""
-        echo "-------------------------------------------------------------------------------"
-        echo "Gitea Backup:"
-        echo "  1) Backup Gitea"
-        echo "  2) Restore Gitea from Backup"
-        echo "  3) List Gitea Backups"
-        echo "  4) Delete Gitea Backup"
-        echo "  5) Show Gitea Backup Details"
-        echo "  6) Cleanup Old Gitea Backups"
-        echo "  7) Test Gitea Backup Integrity"
-        echo "  8) Start Download Server for Gitea Backup"
-        echo ""
-        echo "Laravel Backup:"
-        echo "  9) Backup Laravel"
-        echo " 10) Restore Laravel from Backup"
-        echo " 11) List Laravel Backups"
-        echo " 12) Delete Laravel Backup"
-        echo " 13) Show Laravel Backup Details"
-        echo " 14) Cleanup Old Laravel Backups"
-        echo " 15) Test Laravel Backup Integrity"
-        echo " 16) Start Download Server for Laravel Backup"
-        echo ""
-        echo "Core_node Project Backup:"
-        echo " 17) Backup Core_node Project"
-        echo " 18) Restore Core_node from Backup"
-        echo " 19) List Core_node Backups"
-        echo " 20) Delete Core_node Backup"
-        echo " 21) Show Core_node Backup Details"
-        echo " 22) Cleanup Old Core_node Backups"
-        echo " 23) Test Core_node Backup Integrity"
-        echo " 24) Start Download Server for Core_node Backup"
-        echo ""
-        echo "  0) Return to Main Menu"
-        echo "-------------------------------------------------------------------------------"
-        echo ""
-        echo -n "Select an option [0-24]: "
-
-        read -r choice
+        arrow_menu_select "Backup Management" menu_items "$selected_index" 24
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 24 ]; then
+            choice=0
+        else
+            choice=$((selected_index + 1))
+        fi
 
         case "$choice" in
             1)

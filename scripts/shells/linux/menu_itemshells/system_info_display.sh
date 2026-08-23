@@ -24,6 +24,7 @@ COMMON_DIR="$PARENT_DIR/common"
 
 # Source common functions - use dynamic relative path
 source "$COMMON_DIR/gvar_common.sh"
+source "$COMMON_DIR/arrow_menu.sh"
 
 selected_option=""
 current_system=""
@@ -146,32 +147,26 @@ show_global_vars() {
 # =============================================================================
 
 show_menu() {
-    while true; do
-        clear
-        echo "========================================="
-        echo "  System Information & Variables Menu"
-        echo "========================================="
-        echo ""
-        echo "1. Show Complete System Information"
-        echo "2. Show Global Variables"
-        echo "0. Exit"
-        echo ""
-        read -p "Select option: " selected_option
+    local selected_index=0
+    local menu_items=(
+        "Show Complete System Information"
+        "Show Global Variables"
+        "Back to Linux Management"
+    )
 
-        case "$selected_option" in
-            1)
+    while true; do
+        arrow_menu_select "System Information & Variables" menu_items "$selected_index" 2
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        case "$selected_index" in
+            0)
                 show_complete_system_info
                 ;;
-            2)
+            1)
                 show_global_vars
                 ;;
-            0)
+            2)
                 echo "Returning to main menu..."
                 exit 0
-                ;;
-            *)
-                echo "Invalid option. Press Enter to continue..."
-                read
                 ;;
         esac
     done

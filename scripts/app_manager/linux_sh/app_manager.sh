@@ -2,7 +2,7 @@
 # Unified App Manager - Linux SH (multi-file, no Python)
 # Entry point for dd.sh on Linux. Scans apps, shows menu, launches selected app.
 # App types: ncoreApp (./apps), pycoreApp (./pyapps), polyApp (./poly_apps).
-# Input: N+a/s/l, N alone, u/d, [/], go, r/q (see menu).
+# Input: Up/Down arrows, Enter, and Q (see menu).
 
 set -euo pipefail
 
@@ -10,12 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 STATE_FILE="$ROOT_DIR/.app_manager_last_index"
 DEBIAN_SERVICE_MANAGER="$ROOT_DIR/scripts/shells/linux/common/debian_service_manager.sh"
+ARROW_MENU_SCRIPT="$ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
 
 # Config (path constants + budget) must load before we resolve the data dir.
 source "$SCRIPT_DIR/config/app_config.sh"
 source "$SCRIPT_DIR/core/app_scanner.sh"
 source "$SCRIPT_DIR/core/command_generator.sh"
 source "$SCRIPT_DIR/utils/log_budget.sh"
+source "$ARROW_MENU_SCRIPT"
 
 # State + logs (foreground.log, service.log) live under APP_MANAGER_DATA_DIR/logs/namespaces/apps/<name>/
 # ONE unified dir for all users (canonical path-map key 'app_manager_logs' parent).
@@ -39,6 +41,7 @@ LOG_TRIM_STAMP="$APP_MANAGER_DATA_DIR/.log_trim_last"
 CURRENT_INDEX=0
 MAX_NAME_WIDTH=8
 declare -a APP_ACTIVES=()
+declare -a APP_MENU_ITEMS=()
 
 C_HEADER="\033[36m"
 C_SUCCESS="\033[32m"
@@ -196,52 +199,6 @@ load_last_index() {
 save_last_index() {
     (( APP_COUNT > 0 )) || return 0
     echo "$CURRENT_INDEX" > "$STATE_FILE" 2>/dev/null || true
-}
-
-show_menu() {
-    clear
-    print_header "Unified App Manager (Linux SH)"
-    print_info "Platform: Linux | Root: $ROOT_DIR"
-    print_info "Data / logs: $APP_MANAGER_DATA_DIR"
-    echo ""
-
-    if (( APP_COUNT == 0 )); then
-        print_warn "No applications found."
-        print_info "Scanned: apps/, pyapps/, poly_apps/ under the root above."
-        print_info "Input: r rescan | q quit"
-        echo ""
-        echo -ne "${C_HEADER}Input: ${C_RESET}"
-        return
-    fi
-
-    local name_width=$MAX_NAME_WIDTH
-    if (( name_width < 8 )); then name_width=8; fi
-    print_warn "Application List:"
-    printf "No. | %-${name_width}s | %-11s | %-14s | %-6s | %-5s | Debug\n" "App Name" "Type" "Framework" "Active" "Port"
-    echo "----|$(printf '%*s' $((name_width+2)) '' | tr ' ' '-')|-------------|----------------|--------|-------|------"
-
-    local i
-    for (( i=0; i < APP_COUNT; i++ )); do
-        local ind=" "
-        local line_color="$C_RESET"
-        if (( i == CURRENT_INDEX )); then ind=">"; line_color="$C_WARNING"; fi
-        local active="${APP_ACTIVES[$i]:-start}"
-        printf "${line_color}%s%2d | %-${name_width}s | %-11s | %-14s | %-6s | %-5s | %s${C_RESET}\n" \
-            "$ind" $((i+1)) "${APP_NAMES[$i]}" "${APP_TYPES[$i]}" "${APP_FRAMEWORKS[$i]}" "$active" "${APP_PORTS[$i]}" "${APP_DEBUGS[$i]}"
-    done
-    echo ""
-    print_warn "Input (1-based No.):"
-    echo "  Na   foreground start (dev)       e.g. 21a"
-    echo "  Ns   install systemd service       e.g. 21s"
-    echo "  Nl   unified logs (files+journal) e.g. 21l"
-    echo "  N    select row only              e.g. 21"
-    echo "  a s l on current row (no number)"
-    echo "  u d  move selection up / down"
-    echo "  [ ]  toggle Active (install-service vs start) for current row"
-    echo "  go   run Active column for current row (start or install-service)"
-    echo "  r q  rescan | quit"
-    echo ""
-    echo -ne "${C_HEADER}Input: ${C_RESET}"
 }
 
 run_foreground_with_log() {
@@ -509,131 +466,110 @@ pause_return_menu() {
     read -r
 }
 
-handle_line_input() {
-    local line
-    line="$(trim_line "$1")"
-    [[ -z "$line" ]] && return 0
+show_app_menu_context() {
+    print_info "Platform: Linux | Root: $ROOT_DIR"
+    print_info "Data / logs: $APP_MANAGER_DATA_DIR"
+}
 
-    if [[ "$line" == [qQ] ]]; then
-        save_last_index
-        print_warn "Exiting"
-        exit 0
-    fi
+show_selected_app_context() {
+    local active_action="${APP_ACTIVES[$CURRENT_INDEX]:-start}"
 
-    if [[ "$line" == [rR] ]]; then
-        do_scan
-        sleep 1
-        return 0
-    fi
+    print_info "Type: ${APP_TYPES[$CURRENT_INDEX]} | Framework: ${APP_FRAMEWORKS[$CURRENT_INDEX]}"
+    print_info "Port: ${APP_PORTS[$CURRENT_INDEX]} | Debug: ${APP_DEBUGS[$CURRENT_INDEX]} | Active action: $active_action"
+}
 
-    if [[ "$line" == [uU] ]]; then
-        if (( CURRENT_INDEX > 0 )); then CURRENT_INDEX=$((CURRENT_INDEX - 1)); fi
-        save_last_index
-        return 0
-    fi
+build_app_menu_items() {
+    local active_action
+    local app_index
 
-    if [[ "$line" == [dD] ]]; then
-        if (( CURRENT_INDEX < APP_COUNT - 1 )); then CURRENT_INDEX=$((CURRENT_INDEX + 1)); fi
-        save_last_index
-        return 0
-    fi
+    APP_MENU_ITEMS=()
+    for (( app_index=0; app_index < APP_COUNT; app_index++ )); do
+        active_action="${APP_ACTIVES[$app_index]:-start}"
+        APP_MENU_ITEMS+=("${APP_NAMES[$app_index]} | ${APP_TYPES[$app_index]} | ${APP_FRAMEWORKS[$app_index]} | $active_action")
+    done
+    APP_MENU_ITEMS+=("Rescan applications" "Back to Linux Management")
+}
 
-    if [[ "$line" == "[" ]]; then
-        if [[ "${APP_ACTIVES[$CURRENT_INDEX]:-start}" == "start" ]]; then
-            APP_ACTIVES[$CURRENT_INDEX]="install-service"
-        fi
-        return 0
-    fi
+manage_selected_app() {
+    local action_index
+    local active_action
+    local -a action_menu_items
 
-    if [[ "$line" == "]" ]]; then
-        if [[ "${APP_ACTIVES[$CURRENT_INDEX]:-start}" == "install-service" ]]; then
-            APP_ACTIVES[$CURRENT_INDEX]="start"
-        fi
-        return 0
-    fi
+    while true; do
+        active_action="${APP_ACTIVES[$CURRENT_INDEX]:-start}"
+        action_menu_items=(
+            "Launch application (development mode)"
+            "Install as system service"
+            "View unified logs"
+            "Toggle active action (current: $active_action)"
+            "Run active action ($active_action)"
+            "Back to application list"
+        )
+        arrow_menu_select "Manage ${APP_NAMES[$CURRENT_INDEX]}" action_menu_items 0 5 show_selected_app_context
+        action_index=$ARROW_MENU_SELECTED_INDEX
 
-    if [[ "$line" == "go" ]] || [[ "$line" == "GO" ]]; then
-        save_last_index
-        if [[ "${APP_ACTIVES[$CURRENT_INDEX]:-start}" == "install-service" ]]; then
-            install_service_current
-        else
-            launch_current
-        fi
-        pause_return_menu
-        return 0
-    fi
-
-    local n cmd
-    if [[ "$line" =~ ^([0-9]+)([aAsSlL])$ ]]; then
-        n="${BASH_REMATCH[1]}"
-        cmd="${BASH_REMATCH[2],,}"
-    elif [[ "$line" =~ ^([0-9]+)$ ]]; then
-        n="${BASH_REMATCH[1]}"
-        if (( n < 1 || n > APP_COUNT )); then
-            print_err "No. out of range (1-$APP_COUNT): $n"
-            sleep 1
-            return 0
-        fi
-        CURRENT_INDEX=$((n - 1))
-        save_last_index
-        return 0
-    elif [[ "$line" =~ ^([aAsSlL])$ ]]; then
-        cmd="${BASH_REMATCH[1],,}"
-        n=$((CURRENT_INDEX + 1))
-    else
-        print_err "Unknown input: $line"
-        print_info "Try: 21a  21s  21l  21  a  u  d  [ ]  go  r  q"
-        sleep 1
-        return 0
-    fi
-
-    if (( n < 1 || n > APP_COUNT )); then
-        print_err "No. out of range (1-$APP_COUNT): $n"
-        sleep 1
-        return 0
-    fi
-    local idx=$((n - 1))
-
-    case "$cmd" in
-        a)
-            save_last_index
-            CURRENT_INDEX=$idx
-            launch_at_index "$idx"
-            pause_return_menu
-            ;;
-        s)
-            save_last_index
-            CURRENT_INDEX=$idx
-            install_service_at_index "$idx"
-            pause_return_menu
-            ;;
-        l)
-            save_last_index
-            CURRENT_INDEX=$idx
-            show_logs_at_index "$idx"
-            pause_return_menu
-            ;;
-    esac
+        case "$action_index" in
+            0)
+                launch_current
+                pause_return_menu
+                ;;
+            1)
+                install_service_current
+                pause_return_menu
+                ;;
+            2)
+                show_logs_at_index "$CURRENT_INDEX"
+                pause_return_menu
+                ;;
+            3)
+                if [[ "$active_action" == "start" ]]; then
+                    APP_ACTIVES[$CURRENT_INDEX]="install-service"
+                else
+                    APP_ACTIVES[$CURRENT_INDEX]="start"
+                fi
+                ;;
+            4)
+                if [[ "$active_action" == "install-service" ]]; then
+                    install_service_current
+                else
+                    launch_current
+                fi
+                pause_return_menu
+                ;;
+            5)
+                return 0
+                ;;
+        esac
+    done
 }
 
 main_loop() {
+    local back_index
+    local rescan_index
+    local selected_index
+
     mkdir -p "$APP_MANAGER_DATA_DIR/logs/namespaces/apps" 2>/dev/null || true
     chmod -R a+rwX "$APP_MANAGER_DATA_DIR/logs" 2>/dev/null || true   # all users can access
     maybe_trim_logs        # throttled budget check + old-dir purge on startup
     ensure_log_budget_timer
     do_scan || { print_err "Initial application scan failed"; exit 1; }
     while true; do
-        show_menu
-        if (( APP_COUNT == 0 )); then
-            local zline
-            if ! IFS= read -r zline; then exit 0; fi
-            handle_line_input "$zline"
-            continue
-        fi
+        build_app_menu_items
+        rescan_index=$APP_COUNT
+        back_index=$((APP_COUNT + 1))
+        arrow_menu_select "Unified App Manager" APP_MENU_ITEMS "$CURRENT_INDEX" "$back_index" show_app_menu_context
+        selected_index=$ARROW_MENU_SELECTED_INDEX
 
-        local line
-        if ! IFS= read -r line; then exit 0; fi
-        handle_line_input "$line"
+        if (( selected_index < APP_COUNT )); then
+            CURRENT_INDEX=$selected_index
+            save_last_index
+            manage_selected_app
+        elif (( selected_index == rescan_index )); then
+            do_scan
+        else
+            save_last_index
+            return 0
+        fi
     done
 }
 

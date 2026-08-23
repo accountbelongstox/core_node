@@ -1,5 +1,7 @@
 <template>
   <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
+    <TaskCapabilitySelector compact />
+
     <div class="tk-cap-summary">
       <span>{{ readinessHint }}</span>
       <strong>{{ getMessage('taskCenterSelectedCount', [String(checkedCapabilityKeys.length)]) }}</strong>
@@ -147,6 +149,7 @@ import { useTaskCenter } from '../../composables/useTaskCenter';
 import { useTaskCapabilities } from '../../composables/useTaskCapabilities';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { getMessage } from '@/utils/i18n';
+import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
 import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
 const {

@@ -124,11 +124,7 @@ class GitManagement:
         selected_index = 0
 
         if not sys.stdin.isatty():
-            self.show_menu(menu_items, selected_index)
-            try:
-                return input(f"Select an option (1-{option_count}): ").strip()
-            except (KeyboardInterrupt, EOFError):
-                return str(option_count)
+            return str(option_count)
 
         while True:
             self.show_menu(menu_items, selected_index)

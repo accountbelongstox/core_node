@@ -1040,6 +1040,12 @@
   "nativeBridgeLabel": {
     "message": "原生橋接"
   },
+  "automationCoreReadyTitle": { "message": "自動化核心已就緒" },
+  "automationCoreConnectTitle": { "message": "連線自動化核心" },
+  "nativeMcpPortSettingsHint": { "message": "原生 MCP 連接埠 $1 · 可在設定中心設定。" },
+  "reactivateMcpButton": { "message": "重新啟用 MCP 服務" },
+  "reactivatingMcpStatus": { "message": "正在重新啟用 MCP 服務…" },
+  "reactivateMcpFailed": { "message": "MCP 服務重新啟用失敗" },
   "nativeMcpPortLabel": {
     "message": "原生 MCP 端口"
   },
@@ -2073,6 +2079,9 @@
   },
   "taskCenterPageRange": {
     "message": "$1-$2，共 $3 項"
+  },
+  "taskCenterPageLabel": {
+    "message": "頁碼"
   },
   "taskCenterPayloadLabel": {
     "message": "任務數據"

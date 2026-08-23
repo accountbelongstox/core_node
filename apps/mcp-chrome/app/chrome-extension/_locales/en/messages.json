@@ -1123,6 +1123,9 @@
   "taskCenterPageRange": {
     "message": "$1-$2 of $3"
   },
+  "taskCenterPageLabel": {
+    "message": "Page"
+  },
   "taskCenterCategoryLoadError": {
     "message": "Failed to load category tasks"
   },
@@ -2058,6 +2061,12 @@
   "nativeBridgeLabel": {
     "message": "Native bridge"
   },
+  "automationCoreReadyTitle": { "message": "Automation core is ready" },
+  "automationCoreConnectTitle": { "message": "Connect the automation core" },
+  "nativeMcpPortSettingsHint": { "message": "Native MCP port $1 · Configure it in Settings Center." },
+  "reactivateMcpButton": { "message": "Reactivate MCP service" },
+  "reactivatingMcpStatus": { "message": "Reactivating MCP service…" },
+  "reactivateMcpFailed": { "message": "MCP service reactivation failed" },
   "listenerLabel": {
     "message": "Listener"
   },

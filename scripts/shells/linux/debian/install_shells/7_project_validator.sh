@@ -252,7 +252,9 @@ restore_project() {
 # package.json+main.js gate, so a transiently-incomplete checkout is not wiped).
 if [ -d "$CORE_NODE_PROJECT_ROOT" ] && { [ -e "$CORE_NODE_PROJECT_ROOT/.git" ] || [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ]; }; then
     log "Project correctly positioned at: $CORE_NODE_PROJECT_ROOT (adopting; no restore)"
-    repair_owned_tree_777 "$CORE_NODE_PROJECT_ROOT"
+    if [ "${SKIP_PROJECT_PERMISSION_REPAIR:-false}" != "true" ]; then
+        repair_owned_tree_777 "$CORE_NODE_PROJECT_ROOT"
+    fi
     exit 0
 fi
 

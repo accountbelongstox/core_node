@@ -36,6 +36,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 # Initialize global variables
 init_global_vars
@@ -948,10 +949,20 @@ disable_gitea_service() {
 }
 
 prompt_cleanup_reinstall() {
+    local confirm=""
+    local installed_version=""
+    local response=3
+    local selected_index=2
+    local -a action_menu_items=(
+        "Repair configuration (recommended - preserves all data)"
+        "Full reinstall (WARNING: deletes all repositories and data)"
+        "Keep current installation and exit"
+    )
+
     if is_gitea_installed; then
         print_warning_from_common_functions "Gitea is already installed"
 
-        local installed_version=$(get_installed_version)
+        installed_version=$(get_installed_version)
         if [[ -n "$installed_version" ]]; then
             print_info_from_common_functions "Installed version: $installed_version"
             print_info_from_common_functions "Target version: $GITEA_VERSION"
@@ -962,13 +973,9 @@ prompt_cleanup_reinstall() {
         echo ""
         display_user_accounts
 
-        print_info_from_common_functions "Available actions:"
-        echo "  1) Repair configuration (recommended - preserves all data)"
-        echo "  2) Full reinstall (WARNING: deletes all repositories and data)"
-        echo "  3) Keep current installation and exit"
-        echo ""
-        echo -n "Select action (1/2/3) [3]: "
-        read -r response
+        arrow_menu_select "Existing Gitea Installation" action_menu_items 2 2
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        response=$((selected_index + 1))
 
         case "$response" in
             2)

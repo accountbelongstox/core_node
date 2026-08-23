@@ -1123,6 +1123,9 @@
   "taskCenterPageRange": {
     "message": "$1-$2，共 $3 项"
   },
+  "taskCenterPageLabel": {
+    "message": "页码"
+  },
   "taskCenterCategoryLoadError": {
     "message": "无法加载分类任务"
   },
@@ -2042,6 +2045,12 @@
   "nativeBridgeLabel": {
     "message": "原生桥接"
   },
+  "automationCoreReadyTitle": { "message": "自动化核心已就绪" },
+  "automationCoreConnectTitle": { "message": "连接自动化核心" },
+  "nativeMcpPortSettingsHint": { "message": "原生 MCP 端口 $1 · 可在设置中心配置。" },
+  "reactivateMcpButton": { "message": "重新激活 MCP 服务" },
+  "reactivatingMcpStatus": { "message": "正在重新激活 MCP 服务…" },
+  "reactivateMcpFailed": { "message": "MCP 服务重新激活失败" },
   "listenerLabel": {
     "message": "监听器"
   },

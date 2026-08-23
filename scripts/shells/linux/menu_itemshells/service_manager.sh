@@ -28,6 +28,7 @@ LARAVEL_START_SCRIPT="$LARAVEL_DIR/scripts/start.sh"
 # Source global variables
 source "$PARENT_DIR_LEVEL_1/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_1/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_1/common/arrow_menu.sh"
 source "$PARENT_DIR_LEVEL_1/common/runtime_service_policy.sh"
 
 # Color codes
@@ -541,6 +542,16 @@ show_service_logs() {
     local service="$1"
     local systemd_name="${SERVICE_SYSTEMD[$service]}"
     local service_name="${SERVICE_NAME[$service]}"
+    local selected_index=0
+    local log_choice=0
+    local swoole_log="$LARAVEL_DIR/storage/logs/swoole_http.log"
+    local state_file="$LARAVEL_DIR/storage/logs/octane-server-state.json"
+    local menu_items=(
+        "Systemd Journal (All Laravel services)"
+        "Laravel Log File (storage/logs/swoole_http.log)"
+        "Octane State File (storage/logs/octane-server-state.json)"
+        "Back to Service Manager"
+    )
 
     echo ""
     echo "================================================"
@@ -554,14 +565,13 @@ show_service_logs() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        echo ""
-        echo "Choose log source:"
-        echo "1. Systemd Journal (All Laravel services)"
-        echo "2. Laravel Log File (storage/logs/swoole_http.log)"
-        echo "3. Octane State File (storage/logs/octane-server-state.json)"
-        echo "0. Back"
-        echo ""
-        read -p "Choose an option: " log_choice
+        arrow_menu_select "Laravel Log Source" menu_items 0 3
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 3 ]; then
+            log_choice=0
+        else
+            log_choice=$((selected_index + 1))
+        fi
 
         case "$log_choice" in
             1)
@@ -573,7 +583,6 @@ show_service_logs() {
                 echo -e "${YELLOW}Tip: Use 'journalctl -u ncore-laravel-main -f' to follow logs in real-time${NC}"
                 ;;
             2)
-                local swoole_log="$LARAVEL_DIR/storage/logs/swoole_http.log"
                 if [ -f "$swoole_log" ]; then
                     echo ""
                     echo -e "${CYAN}Swoole HTTP Log (last 50 lines):${NC}"
@@ -586,7 +595,6 @@ show_service_logs() {
                 fi
                 ;;
             3)
-                local state_file="$LARAVEL_DIR/storage/logs/octane-server-state.json"
                 if [ -f "$state_file" ]; then
                     echo ""
                     echo -e "${CYAN}Octane Server State:${NC}"
@@ -818,6 +826,17 @@ launch_advanced_manager() {
 manage_service() {
     local service="$1"
     local service_name="${SERVICE_NAME[$service]}"
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Start Service"
+        "Stop Service"
+        "Restart Service"
+        "Show Status"
+        "Toggle Auto-start"
+        "Reinstall Service"
+        "Back to Service Manager"
+    )
     
     # Check if service has advanced manager script
     if has_advanced_manager "$service"; then
@@ -827,24 +846,13 @@ manage_service() {
 
     # Standard management menu for services without advanced manager
     while true; do
-        clear
-        echo "================================================"
-        echo "$service_name Service Management"
-        echo "================================================"
-        echo ""
-        echo -n "Status: "
-        print_status "$service"
-        echo ""
-        echo "1. Start Service"
-        echo "2. Stop Service"
-        echo "3. Restart Service"
-        echo "4. Show Status"
-        echo "5. Toggle Auto-start"
-        echo "6. Reinstall Service"
-        echo ""
-        echo "0. Back to Main Menu"
-        echo ""
-        read -p "Choose an option: " choice
+        arrow_menu_select "$service_name Service Management" menu_items "$selected_index" 6
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 6 ]; then
+            choice=0
+        else
+            choice=$((selected_index + 1))
+        fi
 
         case "$choice" in
             1)
@@ -944,157 +952,114 @@ stop_all_services() {
 }
 
 # Main menu
-show_main_menu() {
-    while true; do
-        clear
-        echo "================================================"
-        echo "Service Manager - Quick Actions"
-        echo "================================================"
-        echo ""
+restart_all_services() {
+    local service=""
+    local confirm=""
 
-        local index=1
-        for service in "${SERVICES[@]}"; do
-            local service_name="${SERVICE_NAME[$service]}"
-            local status=$(get_service_status "$service")
-            local manager_script="${SERVICE_MANAGER_SCRIPT[$service]}"
-            local systemd_name="${SERVICE_SYSTEMD[$service]}"
-
-            # Format: [#] Service Name    [STATUS] [Actions]
-            printf "${CYAN}%d.${NC} %-15s " "$index" "$service_name"
-            print_status "$service"
-
-            # Aggregate entries (Unified Apps / Core Node Services) have no single
-            # systemd unit but own an advanced manager that scans many units. The
-            # generic per-unit keys (s/x/r/l) cannot act on an empty unit name, so
-            # offer only Manage (its sub-menu handles per-unit + bulk actions).
-            local is_aggregate=false
-            if [ -z "$systemd_name" ] && has_advanced_manager "$service"; then
-                is_aggregate=true
-            fi
-
-            # Show quick action hints
-            if [ "$is_aggregate" = true ]; then
-                if [ "$status" = "NOT_INSTALLED" ]; then
-                    echo -e "  ${YELLOW}${index}m${NC} Manage (none discovered yet)"
-                else
-                    echo -e "  ${YELLOW}${index}m${NC} Manage (per-unit + bulk actions inside)"
-                fi
-            elif [ "$status" = "NOT_INSTALLED" ]; then
-                echo -e "  ${YELLOW}${index}i${NC} Install"
-            else
-                # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
-                if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
-                    echo -e "  ${YELLOW}${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
-                else
-                    echo -e "  ${YELLOW}${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
-                fi
-            fi
-
-            # Show systemd service name
-            if [ -n "$systemd_name" ]; then
-                echo -e "   ${BLUE}Service: $systemd_name${NC}"
-            fi
-
-            # Show advanced manager indicator with path
-            if has_advanced_manager "$service"; then
-                echo -e "   ${BLUE}[Advanced Manager: ${index}m]${NC}"
-                echo -e "   ${BLUE}Manager: $manager_script${NC}"
-            fi
-
-            ((index++))
-        done
-
-        echo ""
-        echo "================================================"
-        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}5x${NC}=Stop, ${YELLOW}3i${NC}=Install/Reinstall, ${YELLOW}8l${NC}=Logs, ${YELLOW}7m${NC}=Manage) | ${YELLOW}0${NC}=Exit"
-        echo "================================================"
-        echo ""
-        read -p "Command: " choice
-
-        # Parse command format: <number><action>
-        if [[ "$choice" =~ ^([0-9]+)([sxriml])$ ]]; then
-            local service_num="${BASH_REMATCH[1]}"
-            local action="${BASH_REMATCH[2]}"
-            # Force base-10: a leading zero (e.g. "08") would be parsed as octal and abort.
-            local service_index=$((10#$service_num - 1))
-
-            if [ "$service_index" -ge 0 ] && [ "$service_index" -lt ${#SERVICES[@]} ]; then
-                local service="${SERVICES[$service_index]}"
-
-                case "$action" in
-                    s)
-                        start_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    x)
-                        stop_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    r)
-                        restart_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    i)
-                        reinstall_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    l)
-                        show_service_logs "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    m)
-                        manage_service "$service"
-                        ;;
-                esac
-            else
-                echo -e "${RED}Invalid service number${NC}"
-                read -p "Press Enter to continue..."
-            fi
-        else
-            # Handle special commands and bulk operations
-            case "$choice" in
-                ss|SS)
-                    start_all_services
-                    read -p "Press Enter to continue..."
-                    ;;
-                xx|XX)
-                    stop_all_services
-                    read -p "Press Enter to continue..."
-                    ;;
-                rr|RR)
-                    echo ""
-                    echo "================================================"
-                    echo "Restarting All Services"
-                    echo "================================================"
-                    echo ""
-                    read -p "Do you want to restart all running services? (y/N): " confirm
-                    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                        for service in "${SERVICES[@]}"; do
-                            if is_service_installed "$service"; then
-                                restart_service "$service"
-                                echo ""
-                            fi
-                        done
-                        echo -e "${GREEN}All services restarted${NC}"
-                    else
-                        echo "Operation cancelled"
-                    fi
-                    read -p "Press Enter to continue..."
-                    ;;
-                aa|AA)
-                    show_all_services_status
-                    read -p "Press Enter to continue..."
-                    ;;
-                0)
-                    echo "Exiting Service Manager..."
-                    exit 0
-                    ;;
-                *)
-                    echo -e "${RED}Invalid command. Use format: <number><action> (e.g., 1s, 5x, 7m)${NC}"
-                    read -p "Press Enter to continue..."
-                    ;;
-            esac
+    echo ""
+    read -p "Do you want to restart all installed services? (y/N): " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Operation cancelled"
+        return 0
+    fi
+    for service in "${SERVICES[@]}"; do
+        if is_service_installed "$service"; then
+            restart_service "$service"
+            echo ""
         fi
+    done
+    echo -e "${GREEN}All services restarted${NC}"
+}
+
+show_service_action_menu() {
+    local service="$1"
+    local service_name="${SERVICE_NAME[$service]}"
+    local status="$(get_service_status "$service")"
+    local systemd_name="${SERVICE_SYSTEMD[$service]}"
+    local selected_index=0
+    local selected_action=""
+    local menu_items=()
+    local action_keys=()
+
+    if [ -z "$systemd_name" ] && has_advanced_manager "$service"; then
+        menu_items=("Open Manager" "Back to Service List")
+        action_keys=("manage" "back")
+    elif [ "$status" = "NOT_INSTALLED" ]; then
+        menu_items=("Install Service")
+        action_keys=("reinstall")
+        if has_advanced_manager "$service"; then
+            menu_items+=("Open Advanced Manager")
+            action_keys+=("manage")
+        fi
+        menu_items+=("Back to Service List")
+        action_keys+=("back")
+    else
+        menu_items=(
+            "Start Service"
+            "Stop Service"
+            "Restart Service"
+            "Reinstall Service"
+            "Show Logs"
+            "Open Manager"
+            "Back to Service List"
+        )
+        action_keys=("start" "stop" "restart" "reinstall" "logs" "manage" "back")
+    fi
+
+    arrow_menu_select "$service_name [$status]" menu_items 0 "$((${#menu_items[@]} - 1))"
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    selected_action="${action_keys[$selected_index]}"
+    case "$selected_action" in
+        start) start_service "$service" ;;
+        stop) stop_service "$service" ;;
+        restart) restart_service "$service" ;;
+        reinstall) reinstall_service "$service" ;;
+        logs) show_service_logs "$service" ;;
+        manage) manage_service "$service"; return 0 ;;
+        back) return 0 ;;
+    esac
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
+show_main_menu() {
+    local selected_index=0
+    local service_count="${#SERVICES[@]}"
+    local service=""
+    local service_name=""
+    local status=""
+    local menu_items=()
+
+    while true; do
+        menu_items=()
+        for service in "${SERVICES[@]}"; do
+            service_name="${SERVICE_NAME[$service]}"
+            status="$(get_service_status "$service")"
+            menu_items+=("$service_name [$status]")
+        done
+        menu_items+=(
+            "Show All Services Status"
+            "Start All Installed Services"
+            "Stop All Running Services"
+            "Restart All Installed Services"
+            "Back to Linux Management"
+        )
+
+        arrow_menu_select "Service Manager" menu_items "$selected_index" "$((${#menu_items[@]} - 1))"
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -lt "$service_count" ]; then
+            show_service_action_menu "${SERVICES[$selected_index]}"
+            continue
+        fi
+        case "$((selected_index - service_count))" in
+            0) show_all_services_status ;;
+            1) start_all_services ;;
+            2) stop_all_services ;;
+            3) restart_all_services ;;
+            4) echo "Exiting Service Manager..."; exit 0 ;;
+        esac
+        echo ""
+        read -p "Press Enter to continue..."
     done
 }
 

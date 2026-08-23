@@ -459,4 +459,3 @@ __all__ = [
     'get_platform_type',
     'show_menu'
 ]
-

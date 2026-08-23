@@ -1040,6 +1040,12 @@
   "nativeBridgeLabel": {
     "message": "네이티브 브리지"
   },
+  "automationCoreReadyTitle": { "message": "자동화 코어가 준비되었습니다" },
+  "automationCoreConnectTitle": { "message": "자동화 코어 연결" },
+  "nativeMcpPortSettingsHint": { "message": "네이티브 MCP 포트 $1 · 설정 센터에서 구성할 수 있습니다." },
+  "reactivateMcpButton": { "message": "MCP 서비스 다시 활성화" },
+  "reactivatingMcpStatus": { "message": "MCP 서비스를 다시 활성화하는 중…" },
+  "reactivateMcpFailed": { "message": "MCP 서비스 다시 활성화 실패" },
   "nativeMcpPortLabel": {
     "message": "기본 MCP 포트"
   },
@@ -2073,6 +2079,9 @@
   },
   "taskCenterPageRange": {
     "message": "$3 중 $1-$2"
+  },
+  "taskCenterPageLabel": {
+    "message": "페이지"
   },
   "taskCenterPayloadLabel": {
     "message": "유효 탑재량"

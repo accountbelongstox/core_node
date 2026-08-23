@@ -39,6 +39,8 @@ source "$DOMAIN_SETUP_COMMON_DIR/service_contract_common.sh"
 source "$DOMAIN_SETUP_COMMON_DIR/web_access_common.sh"
 # shellcheck source=/dev/null
 source "$DOMAIN_SETUP_COMMON_DIR/nginx_common.sh"
+# shellcheck source=/dev/null
+source "$DOMAIN_SETUP_COMMON_DIR/arrow_menu.sh"
 
 DOMAIN_SETUP_REPO_ROOT="$(cd "$DOMAIN_SETUP_COMMON_DIR/../../../.." && pwd)"
 DOMAIN_SETUP_CORE_NODE_DIR="${CORE_NODE_DIR:-$DOMAIN_SETUP_REPO_ROOT}"
@@ -194,7 +196,8 @@ domain_setup_ensure_prefix() {
     local stored
     local choice
     local custom
-    local reply
+    local selected_index=0
+    local -a prefix_menu_items=("si" "sh" "sz" "hk" "Custom prefix")
 
     stored=$(domain_state_get "$DOMAIN_API_PREFIX_KEY" "")
     if [ -n "$stored" ]; then
@@ -207,23 +210,16 @@ domain_setup_ensure_prefix() {
         fi
     fi
 
-    echo "[domain] Select the API region prefix (builds api.<prefix>.<domain>):"
-    echo "[domain]   1) si"
-    echo "[domain]   2) sh"
-    echo "[domain]   3) sz"
-    echo "[domain]   4) hk"
-    echo "[domain]   5) custom"
-    reply=""
     if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '[domain] Choice [1-5]: ' > /dev/tty
-        read -r reply < /dev/tty || reply=""
+        arrow_menu_select "Select API Region Prefix" prefix_menu_items 0 -1 || true
+        selected_index=$ARROW_MENU_SELECTED_INDEX
     fi
-    case "$reply" in
-        1|si) choice="si" ;;
-        2|sh) choice="sh" ;;
-        3|sz) choice="sz" ;;
-        4|hk) choice="hk" ;;
-        5)
+    case "$selected_index" in
+        0) choice="si" ;;
+        1) choice="sh" ;;
+        2) choice="sz" ;;
+        3) choice="hk" ;;
+        4)
             custom=""
             if [ -t 0 ] && [ -r /dev/tty ]; then
                 printf '[domain] Custom prefix: ' > /dev/tty

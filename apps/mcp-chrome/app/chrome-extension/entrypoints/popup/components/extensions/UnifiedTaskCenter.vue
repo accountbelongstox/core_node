@@ -186,21 +186,26 @@
 
         <div v-if="categoryError" class="utc-error">⚠ {{ categoryError }}</div>
         <div v-else-if="categoryLoading" class="utc-modal-loading"><span class="spin">↻</span> {{ getMessage('loadingStatus') }}</div>
-        <ul v-else-if="categoryItems.length" class="utc-modal-list">
+        <ul
+          v-else-if="categoryItems.length"
+          class="utc-modal-list"
+          :class="{ 'utc-modal-list--words': isWordValidityCategory }"
+        >
           <li
             v-for="item in categoryItems"
             :key="`${item.media_type || item.language || item.task_type}:${item.task_id || item.id}`"
             class="utc-modal-row"
+            :class="{ 'utc-modal-row--word': isWordValidityCategory }"
           >
             <div class="utc-modal-row-main">
               <strong :title="item.content_text || String(item.task_id || item.id)">
                 {{ item.content_text || item.task_id || `#${item.id}` }}
               </strong>
-              <span>
+              <span v-if="!isWordValidityCategory">
                 {{ item.language || item.media_type || item.task_type }} · ID {{ item.task_id || item.id }}
               </span>
             </div>
-            <div class="utc-modal-row-meta">
+            <div v-if="!isWordValidityCategory" class="utc-modal-row-meta">
               <span class="utc-status-pill" :style="statusStyle(item.status)">
                 <span class="utc-statusdot" />{{ localizedStatus(item.status) }}
               </span>
@@ -215,9 +220,20 @@
 
         <footer class="utc-modal-page">
           <span>{{ categoryPageRange }}</span>
-          <div>
+          <div class="utc-modal-page-actions">
             <button type="button" :disabled="categoryLoading || categoryStart === 0" @click="previousCategoryPage">{{ getMessage('taskCenterPreviousPage') }}</button>
-            <button type="button" :disabled="categoryLoading || categoryStart + CATEGORY_PAGE_SIZE >= categoryTotal" @click="nextCategoryPage">{{ getMessage('taskCenterNextPage') }}</button>
+            <label class="utc-modal-page-jump">
+              <span>{{ getMessage('taskCenterPageLabel') }}</span>
+              <select
+                class="utc-select"
+                :value="categoryCurrentPage"
+                :disabled="categoryLoading || categoryPageCount <= 1"
+                @change="goToCategoryPage"
+              >
+                <option v-for="page in categoryPageCount" :key="page" :value="page">{{ page }}</option>
+              </select>
+            </label>
+            <button type="button" :disabled="categoryLoading || categoryStart + categoryPageSize >= categoryTotal" @click="nextCategoryPage">{{ getMessage('taskCenterNextPage') }}</button>
           </div>
         </footer>
       </section>
@@ -251,6 +267,7 @@ import {
   TASK_LIMITS,
   TASK_STATUS_BY_ROLE,
   TASK_TYPE_CATALOG,
+  WORD_VALIDITY_CONFIG,
   compareTasksByContract,
   isQueuePositionOrderedTask,
 } from '@/utils/queue-center-contract';
@@ -338,13 +355,15 @@ const categoryStatus = ref('pending');
 const categoryLoading = ref(false);
 const categoryError = ref('');
 const validityLanguages = ref<string[]>(['en']);
-const validityFirstPage = ref<ValidityQueuePage | null>(null);
 const CATEGORY_PAGE_SIZE = 20;
+const WORD_VALIDITY_PAGE_SIZE = WORD_VALIDITY_CONFIG.view_page_size;
+const validityPageCache = new Map<string, ValidityQueuePage>();
 
 let taskCenterApi: TaskCenterApiClient | null = null;
 let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let unsubscribeRealtime: (() => void) | null = null;
 let componentMounted = false;
+let validityRevision: number | null = null;
 
 const apiBase = getApiBase;
 const apiClient = (): TaskCenterApiClient => {
@@ -494,6 +513,41 @@ const openTask = (row: TaskRow): void => {
   selectedTaskId.value = row.task_id;
 };
 
+const isWordValidityCategory = computed(() => selectedCategory.value?.type === 'word_validity');
+const categoryPageSize = computed(() =>
+  isWordValidityCategory.value ? WORD_VALIDITY_PAGE_SIZE : CATEGORY_PAGE_SIZE,
+);
+const categoryPageCount = computed(() =>
+  Math.max(1, Math.ceil(categoryTotal.value / categoryPageSize.value)),
+);
+const categoryCurrentPage = computed(() =>
+  Math.floor(categoryStart.value / categoryPageSize.value) + 1,
+);
+
+const validityPageCacheKey = (start: number, search: string): string =>
+  JSON.stringify([validityLanguages.value, start, search]);
+
+const updateValidityRevision = (revision: number): void => {
+  if (validityRevision !== null && validityRevision !== revision) validityPageCache.clear();
+  validityRevision = revision;
+};
+
+const getValidityPage = async (start: number, search: string): Promise<ValidityQueuePage> => {
+  const cacheKey = validityPageCacheKey(start, search);
+  const cached = validityPageCache.get(cacheKey);
+  if (cached) return cached;
+
+  const page = await apiClient().listValidityQueue(
+    validityLanguages.value,
+    start,
+    WORD_VALIDITY_PAGE_SIZE,
+    search,
+  );
+  updateValidityRevision(page.revision);
+  validityPageCache.set(cacheKey, page);
+  return page;
+};
+
 const categoryPageRange = computed(() => {
   if (categoryTotal.value === 0) return getMessage('taskCenterPageRange', ['0', '0', '0']);
   const end = Math.min(categoryStart.value + categoryItems.value.length, categoryTotal.value);
@@ -511,14 +565,7 @@ const loadCategoryPage = async (): Promise<void> => {
   try {
     if (selectedCategory.value.type === 'word_validity'
       && (categoryStatus.value === 'pending' || categoryStatus.value === 'all')) {
-      const page = categoryStart.value === 0 && categorySearch.value === '' && validityFirstPage.value
-        ? validityFirstPage.value
-        : await apiClient().listValidityQueue(
-          validityLanguages.value,
-          categoryStart.value,
-          CATEGORY_PAGE_SIZE,
-          categorySearch.value,
-        );
+      const page = await getValidityPage(categoryStart.value, categorySearch.value);
       categoryItems.value = page.words.map((word) => ({
         id: word.id,
         category: 'word_validity',
@@ -587,13 +634,22 @@ const resetCategoryPage = async (): Promise<void> => {
 };
 
 const previousCategoryPage = async (): Promise<void> => {
-  categoryStart.value = Math.max(0, categoryStart.value - CATEGORY_PAGE_SIZE);
+  categoryStart.value = Math.max(0, categoryStart.value - categoryPageSize.value);
   await loadCategoryPage();
 };
 
 const nextCategoryPage = async (): Promise<void> => {
-  if (categoryStart.value + CATEGORY_PAGE_SIZE >= categoryTotal.value) return;
-  categoryStart.value += CATEGORY_PAGE_SIZE;
+  if (categoryStart.value + categoryPageSize.value >= categoryTotal.value) return;
+  categoryStart.value += categoryPageSize.value;
+  await loadCategoryPage();
+};
+
+const goToCategoryPage = async (event: Event): Promise<void> => {
+  const page = Number((event.target as HTMLSelectElement).value);
+  if (!Number.isInteger(page) || page < 1 || page > categoryPageCount.value) return;
+  const nextStart = (page - 1) * categoryPageSize.value;
+  if (nextStart === categoryStart.value) return;
+  categoryStart.value = nextStart;
   await loadCategoryPage();
 };
 
@@ -604,7 +660,7 @@ const refresh = async (): Promise<void> => {
     validityLanguages.value = await getValidityLanguages();
     const [snapshot, validityPage] = await Promise.all([
       apiClient().snapshot(TASK_LIMITS.list),
-      apiClient().listValidityQueue(validityLanguages.value, 0, CATEGORY_PAGE_SIZE, ''),
+      apiClient().listValidityQueue(validityLanguages.value, 0, 1, ''),
     ]);
     const summaryByType = { ...(snapshot.summaryByType || {}) };
     const existingValidity = summaryByType.word_validity;
@@ -615,7 +671,7 @@ const refresh = async (): Promise<void> => {
     };
     rows.value = snapshot.tasks;
     serverByType.value = summaryByType;
-    validityFirstPage.value = validityPage;
+    updateValidityRevision(validityPage.revision);
     if (snapshot.realtime?.transport === 'mercure') connectRealtime();
     if (selectedCategory.value?.type === 'word_validity') {
       await loadCategoryPage();
@@ -880,18 +936,29 @@ defineExpose({ loadAll });
   min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0;
   display: flex; flex-direction: column; gap: 5px;
 }
+.utc-modal-list--words {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  align-content: start;
+  gap: 3px;
+}
 .utc-modal-row {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 8px 9px; border: 1px solid var(--border); border-radius: 9px;
   background: var(--surface-2);
 }
+.utc-modal-row--word { display: block; min-width: 0; padding: 4px 6px; border-radius: 6px; }
+.utc-modal-row--word .utc-modal-row-main { gap: 0; }
+.utc-modal-row--word .utc-modal-row-main strong { font-size: 10px; }
+.utc-modal-row--word .utc-modal-row-main span { font-size: 8px; }
 .utc-modal-row-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .utc-modal-row-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .utc-modal-row-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 9px; }
 .utc-modal-row-meta { flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
 .utc-modal-priority { color: #f59e0b; font-size: 9px; font-weight: 700; }
 .utc-modal-page { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 10px; }
-.utc-modal-page div { display: flex; gap: 6px; }
+.utc-modal-page-actions { display: flex; align-items: center; gap: 6px; }
+.utc-modal-page-jump { display: flex; align-items: center; gap: 4px; }
 .utc-modal-page button {
   padding: 4px 9px; border: 1px solid var(--border); border-radius: 7px;
   background: var(--surface-2); color: var(--text); font-size: 10px; cursor: pointer;

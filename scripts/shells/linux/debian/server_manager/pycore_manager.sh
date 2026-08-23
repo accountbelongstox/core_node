@@ -17,6 +17,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 source "$PARENT_DIR_LEVEL_2/common/runtime_service_policy.sh"
 
@@ -218,18 +219,19 @@ test_health() {
 }
 
 view_logs() {
-    show_header
-    echo -e "${COLOR_BLUE}=== Pycore HTTP Service Logs ===${COLOR_RESET}"
-    echo ""
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "View last 50 lines"
+        "View last 100 lines"
+        "View last 200 lines"
+        "Follow logs (real-time)"
+        "Back to Pycore HTTP Service Manager"
+    )
 
-    echo "1) View last 50 lines"
-    echo "2) View last 100 lines"
-    echo "3) View last 200 lines"
-    echo "4) Follow logs (real-time)"
-    echo "0) Back to main menu"
-    echo ""
-
-    read -p "Select option: " choice
+    arrow_menu_select "Pycore HTTP Service Logs" menu_items 0 4
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    choice=$((selected_index + 1))
 
     case $choice in
         1)
@@ -294,20 +296,24 @@ show_resource_usage() {
 }
 
 show_menu() {
-    show_header
-    show_service_status
+    local menu_items=(
+        "Start Service"
+        "Stop Service"
+        "Restart Service"
+        "Show Service Information"
+        "Test Health Endpoint"
+        "Show Resource Usage"
+        "View Service Logs"
+        "View Service File"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start Service"
-    echo "  2) Stop Service"
-    echo "  3) Restart Service"
-    echo "  4) Show Service Information"
-    echo "  5) Test Health Endpoint"
-    echo "  6) Show Resource Usage"
-    echo "  7) View Service Logs"
-    echo "  8) View Service File"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "Pycore HTTP Service Manager" menu_items 0 8 show_service_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 8 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -317,7 +323,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_service ;;
