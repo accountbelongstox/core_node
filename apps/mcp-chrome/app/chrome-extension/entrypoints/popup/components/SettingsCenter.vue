@@ -25,6 +25,14 @@
           </span>
           <span v-if="appStore.serverStatus.value.port" class="text-[9px] font-mono" style="color: var(--text-faint)">:{{ appStore.serverStatus.value.port }}</span>
         </div>
+        <button
+          class="tk-btn w-full mt-2 px-2 py-1.5 border rounded text-[9px] font-bold disabled:opacity-50"
+          :disabled="isReactivating"
+          @click="reactivateServer"
+        >
+          {{ getMessage(isReactivating ? 'reactivatingMcpStatus' : 'reactivateMcpButton') }}
+        </button>
+        <span v-if="reactivationError" class="block text-[8px] mt-1 text-rose-400">{{ reactivationError }}</span>
       </div>
 
       <!-- Other Settings -->
@@ -57,10 +65,6 @@
     </div>
 
     <div class="mt-2">
-      <TaskCapabilitySettings />
-    </div>
-
-    <div class="mt-2">
       <QwenTtsSettings />
     </div>
 
@@ -86,10 +90,10 @@
 <script lang="ts" setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useAppStore } from '@/composables/useAppStore';
+import { useServerConnection } from '../composables/useServerConnection';
 import CacheSettings from './CacheSettings.vue';
 import AiWebProviderSettings from './AiWebProviderSettings.vue';
 import ApiSettings from './ApiSettings.vue';
-import TaskCapabilitySettings from './TaskCapabilitySettings.vue';
 import QwenTtsSettings from './QwenTtsSettings.vue';
 import BingWorkerSettings from './BingWorkerSettings.vue';
 import AudioRecordingSettings from './AudioRecordingSettings.vue';
@@ -104,6 +108,11 @@ import { SUBMIT_OUTBOX_MSG } from '@/utils/task-center-types';
 import { getMessage } from '@/utils/i18n';
 
 const appStore = useAppStore();
+const {
+  isReactivating,
+  reactivationError,
+  reactivateServer,
+} = useServerConnection();
 
 // Backend timeout — single-sourced in utils/backend-timeout (NOT in AppSettings,
 // to avoid a second source of truth). Hydrated from storage, written on input.

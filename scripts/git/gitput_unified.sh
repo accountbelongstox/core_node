@@ -47,6 +47,7 @@ CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 PROJECT_NAME="core_node"
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+ARROW_MENU_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/common/arrow_menu.sh"
 
 # SSH key variables
 SSH_DIR="$HOME/.ssh"
@@ -88,6 +89,8 @@ TARGET_FORCE_PUSH_MODE="no"
 GITEE_BACKUP_NOTICE="Gitee is configured as a backup remote only."
 GITEE_PUSH_PROMPT="Push this branch to the Gitee backup? [N/y]: "
 GITEE_FORCE_PUSH_PROMPT="Force push to Gitee as a backup? [Y/n]: "
+
+source "$ARROW_MENU_SCRIPT"
 
 # ===================================================================
 # PARAMETER PARSING
@@ -1134,6 +1137,14 @@ restore_original_remote() {
 
 # Function to handle automated conflict resolution
 handle_conflict_resolution() {
+    local resolution_choice
+    local user_choice
+    local -a resolution_menu_items=(
+        "Keep REMOTE version (recommended for pulling latest changes)"
+        "Keep LOCAL version (preserve your changes)"
+        "Abort operation"
+    )
+
     write_color_text "" "White"
     write_color_text "AUTOMATED CONFLICT RESOLUTION OPTIONS:" "Magenta"
     write_color_text "" "White"
@@ -1143,14 +1154,8 @@ handle_conflict_resolution() {
     user_choice="${user_choice:-Y}"  # Default to Y if empty
     
     if [[ "$user_choice" =~ ^[Yy]$ ]]; then
-        write_color_text "" "White"
-        write_color_text "Select resolution strategy:" "Yellow"
-        write_color_text "1) Keep REMOTE version (recommended for pulling latest changes)" "Cyan"
-        write_color_text "2) Keep LOCAL version (preserve your changes)" "Cyan" 
-        write_color_text "3) Abort operation" "Cyan"
-        write_color_text "Enter choice [1-3]: " "Yellow"
-        
-        read -r resolution_choice
+        arrow_menu_select "Conflict Resolution Strategy" resolution_menu_items 0 2
+        resolution_choice=$((ARROW_MENU_SELECTED_INDEX + 1))
         
         case "$resolution_choice" in
             1)

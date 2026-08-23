@@ -61,6 +61,7 @@ sudo=""
 SYSTEM_VERSION=""
 SYSTEM_NAME=""
 old_settings=""
+BOOTSTRAP_SELECTED_INDEX=0
 
 # URL Constants
 GITHUB_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
@@ -98,30 +99,93 @@ download_with_progress() {
 }
 
 # Installation mode launcher: show menu, download bootstrap file, hand off to it. dd.sh does nothing else.
+select_bootstrap_option() {
+    local title="$1"
+    local options_name="$2"
+    local back_index="$3"
+    local -n bootstrap_options="$options_name"
+    local option_count="${#bootstrap_options[@]}"
+    local selected_index=0
+    local old_settings=""
+    local char=""
+    local sequence=""
+    local index=0
+
+    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+        BOOTSTRAP_SELECTED_INDEX="$back_index"
+        return 1
+    fi
+    old_settings="$(stty -g < /dev/tty 2>/dev/null)"
+    if [ -z "$old_settings" ]; then
+        BOOTSTRAP_SELECTED_INDEX="$back_index"
+        return 1
+    fi
+
+    while true; do
+        {
+            printf "\033c"
+            echo "=========================================="
+            echo "$title"
+            echo "=========================================="
+            echo "Select an option (Up/Down to move, Enter to select):"
+            echo "Press Ctrl+C to go back"
+            echo ""
+            for index in "${!bootstrap_options[@]}"; do
+                if [ "$index" -eq "$selected_index" ]; then
+                    printf "\033[47m\033[30m> %-68s\033[0m\n" "${bootstrap_options[$index]}"
+                else
+                    printf "  %-68s\n" "${bootstrap_options[$index]}"
+                fi
+            done
+        } > /dev/tty
+
+        stty -icanon -echo -isig < /dev/tty 2>/dev/null
+        char="$(dd bs=1 count=1 < /dev/tty 2>/dev/null)"
+        sequence=""
+        if [ "$char" = $'\x1B' ]; then
+            read -r -t 0.1 -d '' sequence < /dev/tty
+        fi
+        stty "$old_settings" < /dev/tty 2>/dev/null
+        case "$char" in
+            $'\x1B')
+                case "$sequence" in
+                    '[A') selected_index=$(((selected_index - 1 + option_count) % option_count)) ;;
+                    '[B') selected_index=$(((selected_index + 1) % option_count)) ;;
+                esac
+                ;;
+            '') BOOTSTRAP_SELECTED_INDEX="$selected_index"; return 0 ;;
+            $'\x03'|q|Q) BOOTSTRAP_SELECTED_INDEX="$back_index"; return 0 ;;
+        esac
+    done
+}
+
 run_installation_mode() {
-    echo ""
-    echo "=========================================="
-    echo "  Install and repair project"
-    echo "=========================================="
-    echo "  1) Install and repair project (download bootstrap, then hand off)"
-    echo "  2) Exit"
-    echo "=========================================="
-    echo -n "Choice (1 or 2): "
-    read -r choice
-    if [ "$choice" != "1" ]; then
+    local install_options=(
+        "Install and repair project (download bootstrap, then hand off)"
+        "Exit"
+    )
+    local region_options=(
+        "Global (GitHub)"
+        "China (Gitee)"
+        "Exit"
+    )
+    local base_url="$GITHUB_BASE_URL"
+    local bootstrap_dest="$SCRIPT_ACTUAL_DIR/install_bootstrap.sh"
+    local bootstrap_url=""
+
+    select_bootstrap_option "Install and Repair Project" install_options 1
+    if [ "$BOOTSTRAP_SELECTED_INDEX" -eq 1 ]; then
         echo "Exit."
         exit 0
     fi
-    echo ""
-    echo "Select download region:"
-    echo "  1) Global (GitHub)"
-    echo "  2) China (Gitee)"
-    echo -n "Choice (1 or 2) [1]: "
-    read -r region_choice
-    local base_url="$GITHUB_BASE_URL"
-    [ "$region_choice" = "2" ] && base_url="$GITEE_BASE_URL"
-    local bootstrap_dest="$SCRIPT_ACTUAL_DIR/install_bootstrap.sh"
-    local bootstrap_url="$base_url/$BOOTSTRAP_RELATIVE"
+
+    select_bootstrap_option "Select Download Region" region_options 2
+    if [ "$BOOTSTRAP_SELECTED_INDEX" -eq 2 ]; then
+        echo "Exit."
+        exit 0
+    fi
+    [ "$BOOTSTRAP_SELECTED_INDEX" -eq 1 ] && base_url="$GITEE_BASE_URL"
+    bootstrap_url="$base_url/$BOOTSTRAP_RELATIVE"
     echo "Downloading bootstrap file..."
     echo "  URL: $bootstrap_url"
     if ! download_with_progress "$bootstrap_url" "$bootstrap_dest"; then
@@ -560,28 +624,22 @@ download_file() {
 
 # Show region selection menu
 show_region_selection_menu() {
-    echo ""
-    echo "=========================================="
-    echo "Select Download Region:"
-    echo "=========================================="
-    echo "1) Global (GitHub)"
-    echo "2) China (Gitee)"
-    echo "=========================================="
-    echo -n "Enter your choice (1-2): "
-    
-    read -r choice
-    case "$choice" in
-        1)
+    local selected_index=0
+    local menu_items=(
+        "Global (GitHub)"
+        "China (Gitee)"
+    )
+
+    arrow_menu_select "Select Download Region" menu_items 0 -1
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    case "$selected_index" in
+        0)
             set_global_var "SELECTED_REGION" "Global" "false"
             echo "Selected region: Global (GitHub)"
             ;;
-        2)
+        1)
             set_global_var "SELECTED_REGION" "China" "false"
             echo "Selected region: China (Gitee)"
-            ;;
-        *)
-            echo "Invalid choice, defaulting to Global"
-            set_global_var "SELECTED_REGION" "Global" "false"
             ;;
     esac
 }
@@ -905,7 +963,7 @@ main() {
     echo ""
     echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
     if [ -s "$PROJECT_VALIDATOR_FILE" ]; then
-        bash "$PROJECT_VALIDATOR_FILE"
+        SKIP_PROJECT_PERMISSION_REPAIR=true bash "$PROJECT_VALIDATOR_FILE"
         if [ $? -eq 0 ]; then
             echo -e "\033[32m[PROJECT VALIDATION] Project validation completed successfully\033[0m"
         else

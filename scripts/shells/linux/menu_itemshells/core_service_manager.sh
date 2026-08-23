@@ -36,6 +36,7 @@ ROOT_DIR="$PARENT_DIR_LEVEL_3"
 RUNTIME_SERVICE_POLICY="$PARENT_DIR_LEVEL_1/common/runtime_service_policy.sh"
 
 source "$RUNTIME_SERVICE_POLICY"
+source "$PARENT_DIR_LEVEL_1/common/arrow_menu.sh"
 
 # Color codes
 RED='\033[0;31m'
@@ -354,28 +355,28 @@ remove_service() {
 # Per-service management submenu.
 manage_service() {
     local service="$1"
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Start Service"
+        "Stop Service"
+        "Restart Service"
+        "Show Status"
+        "Show Logs"
+        "Show Configuration"
+        "Toggle Auto-start"
+        "Remove Service"
+        "Back to Service List"
+    )
 
     while true; do
-        clear
-        echo "================================================"
-        echo "$service Management  [$(categorize_service "$service")]"
-        echo "================================================"
-        echo ""
-        echo -n "Status: "
-        print_status "$(get_service_status "$service")"
-        echo ""
-        echo "1. Start Service"
-        echo "2. Stop Service"
-        echo "3. Restart Service"
-        echo "4. Show Status"
-        echo "5. Show Logs"
-        echo "6. Show Configuration"
-        echo "7. Toggle Auto-start"
-        echo "8. Remove Service"
-        echo ""
-        echo "0. Back to Service List"
-        echo ""
-        read -p "Choose an option: " choice
+        arrow_menu_select "$service Management [$(categorize_service "$service")]" menu_items "$selected_index" 8
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 8 ]; then
+            choice=0
+        else
+            choice=$((selected_index + 1))
+        fi
 
         case "$choice" in
             1) start_service "$service" ;;
@@ -426,94 +427,39 @@ bulk_operation() {
 
 # Main menu.
 show_main_menu() {
-    local services index service status category service_num action service_index
+    local services=()
+    local menu_items=()
+    local service=""
+    local status=""
+    local category=""
+    local service_count=0
+    local selected_index=0
+
     while true; do
-        clear
-        echo "================================================"
-        echo "Core Node Services Manager (NCORE / PYCORE)"
-        echo "================================================"
-        echo ""
-
         services=($(detect_core_services))
+        service_count="${#services[@]}"
+        menu_items=()
+        for service in "${services[@]}"; do
+            status="$(get_service_status "$service")"
+            category="$(categorize_service "$service")"
+            menu_items+=("$service [$category] [$status]")
+        done
+        menu_items+=("Start All Services" "Stop All Services" "Restart All Services" "Back to Service Manager")
 
-        if [ ${#services[@]} -eq 0 ]; then
-            echo -e "${YELLOW}No core_node services found${NC}"
-            echo ""
-            echo "Services are auto-discovered by unit-name prefix:"
-            echo "  - ncore-*            (incl. ncore-laravel-frankenphp, ncore-laravel-nginx)"
-            echo "  - pycore / pycore-module-caller"
-            echo "  - codesync"
-            echo "  - octane-*"
-            echo "  - app-manager-*"
-            echo ""
-            echo "Install them via their installers (Service Manager / dd.sh menu),"
-            echo "e.g. Laravel Octane: poly_apps/laravel_main/scripts/start.sh --service"
-            echo ""
-            echo "0. Back to Service Manager"
-            echo ""
-            read -p "Choose an option: " choice
-            [ "$choice" = "0" ] && return 0
+        arrow_menu_select "Core Node Services Manager (NCORE / PYCORE)" menu_items "$selected_index" "$((${#menu_items[@]} - 1))"
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -lt "$service_count" ]; then
+            manage_service "${services[$selected_index]}"
             continue
         fi
-
-        echo -e "${CYAN}Found ${#services[@]} service(s):${NC}"
+        case "$((selected_index - service_count))" in
+            0) bulk_operation "start" ;;
+            1) bulk_operation "stop" ;;
+            2) bulk_operation "restart" ;;
+            3) echo "Returning to Service Manager..."; return 0 ;;
+        esac
         echo ""
-
-        index=1
-        for service in "${services[@]}"; do
-            status=$(get_service_status "$service")
-            category=$(categorize_service "$service")
-
-            printf "${CYAN}%d.${NC} %-28s ${BLUE}%-13s${NC} " "$index" "$service" "$category"
-            print_status "$status"
-
-            if [[ "$status" == "RUNNING" ]]; then
-                echo -e "   ${YELLOW}${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
-            else
-                echo -e "   ${YELLOW}${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
-            fi
-            ((index++))
-        done
-
-        echo ""
-        echo "================================================"
-        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}2x${NC}=Stop, ${YELLOW}3m${NC}=Manage)"
-        echo -e "Bulk:  ${YELLOW}ss${NC}=Start all  ${YELLOW}xx${NC}=Stop all  ${YELLOW}rr${NC}=Restart all  | ${YELLOW}0${NC}=Back"
-        echo "================================================"
-        echo ""
-        read -p "Command: " choice
-
-        if [[ "$choice" =~ ^([0-9]+)([sxrlm])$ ]]; then
-            service_num="${BASH_REMATCH[1]}"
-            action="${BASH_REMATCH[2]}"
-            # Force base-10: a leading zero (e.g. "08") would be parsed as octal and abort.
-            service_index=$((10#$service_num - 1))
-
-            if [ "$service_index" -ge 0 ] && [ "$service_index" -lt ${#services[@]} ]; then
-                service="${services[$service_index]}"
-                case "$action" in
-                    s) start_service "$service";   read -p "Press Enter to continue..." ;;
-                    x) stop_service "$service";    read -p "Press Enter to continue..." ;;
-                    r) restart_service "$service"; read -p "Press Enter to continue..." ;;
-                    l) show_service_logs "$service"; read -p "Press Enter to continue..." ;;
-                    m) manage_service "$service" ;;
-                esac
-            else
-                echo -e "${RED}Invalid service number${NC}"
-                read -p "Press Enter to continue..."
-            fi
-        else
-            case "$choice" in
-                ss|SS) bulk_operation "start";   read -p "Press Enter to continue..." ;;
-                xx|XX) bulk_operation "stop";    read -p "Press Enter to continue..." ;;
-                rr|RR) bulk_operation "restart"; read -p "Press Enter to continue..." ;;
-                0) echo "Returning to Service Manager..."; return 0 ;;
-                *)
-                    echo -e "${RED}Invalid command. Use format: <number><action> (e.g., 1s, 2x, 3m)${NC}"
-                    read -p "Press Enter to continue..."
-                    ;;
-            esac
-        fi
+        read -p "Press Enter to continue..."
     done
 }
 

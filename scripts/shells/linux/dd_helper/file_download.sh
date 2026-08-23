@@ -17,6 +17,7 @@
 
 # Source constants (backup copy)
 source "$DD_HELPER_DIR/constants.sh"
+source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
 
 # File Download Functions
 download_file() {
@@ -215,8 +216,6 @@ download_file() {
 }
 
 check_and_download_files() {
-    echo "Checking for required files..."
-
     # Build file paths from constants
     local gvar_common_file="$CORE_NODE_ROOT_DIR/$GVAR_COMMON_FILE_RELATIVE"
     local setting_base_file="$CORE_NODE_ROOT_DIR/$SETTING_BASE_FILE_RELATIVE"
@@ -289,28 +288,22 @@ check_and_download_files() {
 }
 
 show_region_selection_menu() {
-    echo ""
-    echo "=========================================="
-    echo "Select Download Region:"
-    echo "=========================================="
-    echo "1) Global (GitHub)"
-    echo "2) China (Gitee)"
-    echo "=========================================="
-    echo -n "Enter your choice (1-2): "
-    
-    read -r choice
-    case "$choice" in
-        1)
+    local selected_index=0
+    local menu_items=(
+        "Global (GitHub)"
+        "China (Gitee)"
+    )
+
+    arrow_menu_select "Select Download Region" menu_items 0 -1
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    case "$selected_index" in
+        0)
             set_global_var "SELECTED_REGION" "Global"
             echo "Selected region: Global (GitHub)"
             ;;
-        2)
+        1)
             set_global_var "SELECTED_REGION" "China"
             echo "Selected region: China (Gitee)"
-            ;;
-        *)
-            echo "Invalid choice, defaulting to Global"
-            set_global_var "SELECTED_REGION" "Global"
             ;;
     esac
 }

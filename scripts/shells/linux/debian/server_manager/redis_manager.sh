@@ -17,6 +17,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 REDIS_CONFIG="/etc/redis/redis.conf"
 REDIS_CLI="redis-cli"
@@ -230,20 +231,24 @@ view_config() {
 }
 
 show_menu() {
-    show_header
-    show_redis_status
+    local menu_items=(
+        "Start Redis"
+        "Stop Redis"
+        "Restart Redis"
+        "Show Basic Information"
+        "Show Statistics"
+        "Show Keys Information"
+        "View Configuration File"
+        "Flush Database (Delete All Keys)"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start Redis"
-    echo "  2) Stop Redis"
-    echo "  3) Restart Redis"
-    echo "  4) Show Basic Information"
-    echo "  5) Show Statistics"
-    echo "  6) Show Keys Information"
-    echo "  7) View Configuration File"
-    echo "  8) Flush Database (Delete All Keys)"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "Redis Manager" menu_items 0 8 show_redis_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 8 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -253,7 +258,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_redis ;;

@@ -18,6 +18,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$SCRIPTS_DIR")"
+ARROW_MENU_SCRIPT="$PROJECT_ROOT/scripts/shells/linux/common/arrow_menu.sh"
 
 USER_HOME="${HOME}"
 # Centralized per-user state dir (CORE_NODE_DATA_DIR, default /var/_core_node).
@@ -32,22 +33,11 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-show_menu() {
-    clear
-    echo "================================================================"
-    echo -e "${CYAN}BFG Repo-Cleaner - Git History Cleanup${NC}"
-    echo "================================================================"
-    echo ""
-    echo "Options:"
-    echo "  1. Remove files larger than 100MB"
-    echo "  2. Remove files larger than 50MB"
-    echo "  3. Remove files larger than 10MB"
-    echo "  4. Remove specific file by name"
-    echo "  5. Remove specific files by pattern (*.hprof, *.log, etc.)"
-    echo "  6. Back to previous menu"
+source "$ARROW_MENU_SCRIPT"
+
+show_bfg_warning() {
     echo ""
     echo -e "${YELLOW}WARNING: This will rewrite Git history!${NC}"
-    echo "================================================================"
 }
 
 ensure_bfg_downloaded() {
@@ -479,6 +469,18 @@ remove_directory() {
 }
 
 main() {
+    local choice
+    local selected_index
+    local -a bfg_menu_items=(
+        "Remove files larger than 100MB"
+        "Remove files larger than 50MB"
+        "Remove files larger than 10MB"
+        "Remove specific file by name"
+        "Remove specific files by pattern (*.hprof, *.log, etc.)"
+        "Remove directory from history"
+        "Back to previous menu"
+    )
+
     cd "$PROJECT_ROOT"
 
     if ! check_prerequisites; then
@@ -492,8 +494,9 @@ main() {
     fi
 
     while true; do
-        show_menu
-        read -p "Select an option (1-7): " choice
+        arrow_menu_select "BFG Repo-Cleaner - Git History Cleanup" bfg_menu_items 0 6 show_bfg_warning
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        choice=$((selected_index + 1))
 
         case "$choice" in
             1)

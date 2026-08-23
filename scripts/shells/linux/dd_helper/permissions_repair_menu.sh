@@ -11,6 +11,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/smart_permissions.sh"
 source "$SCRIPT_DIR/../common/gvar_common.sh"
+source "$SCRIPT_DIR/../common/arrow_menu.sh"
 
 # =============================================================================
 # Comprehensive Permission Repair Functions
@@ -90,27 +91,6 @@ repair_ai_tools_comprehensive() {
 # Menu Functions
 # =============================================================================
 
-show_permissions_menu() {
-    echo ""
-    echo "============================================================"
-    echo "              Permissions Repair Menu"
-    echo "============================================================"
-    echo ""
-    echo "Choose repair operation:"
-    echo ""
-    echo "1) Essential Repair (Fast) - Core Node root & scripts only"
-    echo "2) Full Core Node Repair - All project directories"
-    echo "3) Python Permissions - pycore & pyapps directories"
-    echo "4) Node.js Permissions - ncore & apps directories"
-    echo "5) /var/_core_node Permissions - MyBest directories"
-    echo "6) Environment Variables Setup"
-    echo "7) AI Tools Repair - claude, codex, droid"
-    echo "8) Complete System Repair - All of the above"
-    echo "9) Back to main menu"
-    echo ""
-    echo "============================================================"
-}
-
 handle_permissions_choice() {
     local choice="$1"
     local project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
@@ -176,15 +156,27 @@ handle_permissions_choice() {
 
 permissions_repair_menu() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
+    local selected_index=0
+    local choice=1
+    local menu_items=(
+        "Essential Repair (Fast) - Core Node root & scripts only"
+        "Full Core Node Repair - All project directories"
+        "Python Permissions - pycore & pyapps directories"
+        "Node.js Permissions - ncore & apps directories"
+        "/var/_core_node Permissions - MyBest directories"
+        "Environment Variables Setup"
+        "AI Tools Repair - claude, codex, droid"
+        "Complete System Repair - All of the above"
+        "Back to Linux System Tools"
+    )
     
     while true; do
-        show_permissions_menu
-        read -p "Enter your choice [1-9]: " choice
-        
-        if [ "$choice" = "9" ]; then
+        arrow_menu_select "Permissions Repair Menu" menu_items "$selected_index" 8
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 8 ]; then
             break
         fi
-        
+        choice=$((selected_index + 1))
         handle_permissions_choice "$choice" "$project_root"
     done
 }

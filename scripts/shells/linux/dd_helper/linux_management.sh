@@ -17,6 +17,7 @@
 
 # Source constants (backup copy)
 source "$DD_HELPER_DIR/constants.sh"
+source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
 
 # Build full paths from constants
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
@@ -540,11 +541,7 @@ cap_var_core_node_logs() {
 # Slim & Disk Cleanup sub-submenu: groups the disk/bloat tools (scan + the slim
 # actions) so they don't clutter the top Linux Management menu.
 show_slim_disk_submenu() {
-    local selected=0
-    local total=9
-    local old_settings=$(stty -g)
-    stty -icanon -echo
-
+    local selected_index=0
     local menu_items=(
         "Scan Large Paths (> 1GB, depth up to 5)"
         "Server Slim - ALL (snaps + code-server + LibreOffice + Apache)"
@@ -554,72 +551,29 @@ show_slim_disk_submenu() {
         "Remove LibreOffice + code-server"
         "Block & Remove Apache (pin -1 + purge)"
         "Cap /var/_core_node log sizes (>10MB trim + timer)"
-        "Back to Linux Management"
+        "Back to Linux System Tools"
     )
 
     while true; do
-        printf "\033c"
-        echo "=========================================="
-        echo "Slim & Disk Cleanup"
-        echo "=========================================="
-        echo "Select an option (Up/Down to move, Enter to select):"
-        echo "Press Ctrl+C to go back"
-        echo ""
-
-        for i in "${!menu_items[@]}"; do
-            if [ "$i" -eq "$selected" ]; then
-                printf "\033[47m\033[30m> %-56s\033[0m\n" "${menu_items[$i]}"
-            else
-                printf "  %-56s\n" "${menu_items[$i]}"
-            fi
-        done
-
-        local char
-        char=$(dd bs=1 count=1 2>/dev/null)
-
-        case "$char" in
-            $'\x1B')
-                read -r -t 0.1 -d '' seq
-                case "$seq" in
-                    '[A')
-                        ((selected--))
-                        [ "$selected" -lt 0 ] && selected=$((total - 1))
-                        ;;
-                    '[B')
-                        ((selected++))
-                        [ "$selected" -ge "$total" ] && selected=0
-                        ;;
-                esac
-                ;;
-            '')
-                stty "$old_settings"
-                printf "\033c"
-
-                case "$selected" in
-                    0) scan_large_paths ;;
-                    1) server_slim_all ;;
-                    2) slim_gpu_to_cpu ;;
-                    3) install_cuda_toolkit_menu ;;
-                    4) snap_slim ;;
-                    5) remove_desktop_apps ;;
-                    6) block_and_remove_apache ;;
-                    7) cap_var_core_node_logs ;;
-                    8) return 0 ;;
-                esac
-
-                stty -icanon -echo
-                ;;
+        arrow_menu_select "Slim & Disk Cleanup" menu_items "$selected_index" 8
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        case "$selected_index" in
+            0) scan_large_paths ;;
+            1) server_slim_all ;;
+            2) slim_gpu_to_cpu ;;
+            3) install_cuda_toolkit_menu ;;
+            4) snap_slim ;;
+            5) remove_desktop_apps ;;
+            6) block_and_remove_apache ;;
+            7) cap_var_core_node_logs ;;
+            8) return 0 ;;
         esac
     done
 }
 
 # Function to show Linux system tools submenu
 show_linux_system_tools_submenu() {
-    local selected=0
-    local total=12
-    local old_settings=$(stty -g)
-    local char=""
-    local seq=""
+    local selected_index=0
     local menu_items=(
         "Disable Ubuntu Automatic Updates"
         "Permissions Repair Menu"
@@ -635,87 +589,22 @@ show_linux_system_tools_submenu() {
         "Back to Linux Management"
     )
 
-    stty -icanon -echo
-    
     while true; do
-        printf "\033c"
-        echo "=========================================="
-        echo "Linux System Tools"
-        echo "=========================================="
-        echo "Select an option (Up/Down to move, Enter to select):"
-        echo "Press Ctrl+C to go back"
-        echo ""
-
-        for i in "${!menu_items[@]}"; do
-            if [ "$i" -eq "$selected" ]; then
-                printf "\033[47m\033[30m> %-40s\033[0m\n" "${menu_items[$i]}"
-            else
-                printf "  %-40s\n" "${menu_items[$i]}"
-            fi
-        done
-
-        char=$(dd bs=1 count=1 2>/dev/null)
-
-        case "$char" in
-            $'\x1B')
-                seq=""
-                read -r -t 0.1 -d '' seq
-                case "$seq" in
-                    '[A')
-                        ((selected--))
-                        [ "$selected" -lt 0 ] && selected=$((total - 1))
-                        ;;
-                    '[B')
-                        ((selected++))
-                        [ "$selected" -ge "$total" ] && selected=0
-                        ;;
-                esac
-                ;;
-            '')
-                stty "$old_settings"
-                printf "\033c"
-
-                case "$selected" in
-                    0)
-                        disable_ubuntu_auto_updates
-                        ;;
-                    1)
-                        show_permissions_repair_menu
-                        ;;
-                    2)
-                        manage_natgateway
-                        ;;
-                    3)
-                        restart_gnome_rdp
-                        ;;
-                    4)
-                        clear_and_redecrypt_secrets
-                        ;;
-                    5)
-                        show_system_information
-                        ;;
-                    6)
-                        show_rustdesk_install_info
-                        ;;
-                    7)
-                        show_app_install_menu
-                        ;;
-                    8)
-                        show_slim_disk_submenu
-                        ;;
-                    9)
-                        show_management_and_backup
-                        ;;
-                    10)
-                        show_linux_user_management_menu
-                        ;;
-                    11)
-                        return 0
-                        ;;
-                esac
-
-                stty -icanon -echo
-                ;;
+        arrow_menu_select "Linux System Tools" menu_items "$selected_index" 11
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        case "$selected_index" in
+            0) disable_ubuntu_auto_updates ;;
+            1) show_permissions_repair_menu ;;
+            2) manage_natgateway ;;
+            3) restart_gnome_rdp ;;
+            4) clear_and_redecrypt_secrets ;;
+            5) show_system_information ;;
+            6) show_rustdesk_install_info ;;
+            7) show_app_install_menu ;;
+            8) show_slim_disk_submenu ;;
+            9) show_management_and_backup ;;
+            10) show_linux_user_management_menu ;;
+            11) return 0 ;;
         esac
     done
 }
@@ -798,25 +687,20 @@ delete_linux_managed_user() {
 }
 
 show_linux_user_management_menu() {
-    local choice=""
+    local selected_index=0
+    local menu_items=(
+        "Add User"
+        "Delete User"
+        "Back to Linux System Tools"
+    )
 
     while true; do
-        printf "\033c"
-        echo "=========================================="
-        echo "Linux User Management"
-        echo "=========================================="
-        list_linux_managed_users
-        echo ""
-        echo "1) Add User"
-        echo "2) Delete User"
-        echo "3) Back to Linux Management"
-        printf "Select an option [1-3]: "
-        read -r choice
-        case "$choice" in
-            1) add_linux_managed_user ;;
-            2) delete_linux_managed_user ;;
-            3|q|Q|"") return 0 ;;
-            *) echo "Invalid option: $choice" ;;
+        arrow_menu_select "Linux User Management" menu_items "$selected_index" 2 list_linux_managed_users
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        case "$selected_index" in
+            0) add_linux_managed_user ;;
+            1) delete_linux_managed_user ;;
+            2) return 0 ;;
         esac
         echo ""
         echo "Press Enter to continue..."
@@ -826,11 +710,7 @@ show_linux_user_management_menu() {
 
 # Function to show the consolidated Linux management submenu.
 show_linux_management_submenu() {
-    local selected=0
-    local total=9
-    local old_settings="$(stty -g)"
-    local char=""
-    local seq=""
+    local selected_index=0
     local menu_items=(
         "Install and Test Environment"
         "Git Management"
@@ -843,48 +723,19 @@ show_linux_management_submenu() {
         "Exit Linux Management"
     )
 
-    stty -icanon -echo
     while true; do
-        printf "\033c"
-        echo "=========================================="
-        echo "Linux Management"
-        echo "=========================================="
-        echo "Select an option (Up/Down to move, Enter to select):"
-        echo "Press Ctrl+C to go back"
-        echo ""
-        for i in "${!menu_items[@]}"; do
-            if [ "$i" -eq "$selected" ]; then
-                printf "\033[47m\033[30m> %-68s\033[0m\n" "${menu_items[$i]}"
-            else
-                printf "  %-68s\n" "${menu_items[$i]}"
-            fi
-        done
-        char="$(dd bs=1 count=1 2>/dev/null)"
-        case "$char" in
-            $'\x1B')
-                seq=""
-                read -r -t 0.1 -d '' seq
-                case "$seq" in
-                    '[A') ((selected--)); [ "$selected" -lt 0 ] && selected=$((total - 1)) ;;
-                    '[B') ((selected++)); [ "$selected" -ge "$total" ] && selected=0 ;;
-                esac
-                ;;
-            '')
-                stty "$old_settings"
-                printf "\033c"
-                case "$selected" in
-                    0) bash "$INSTALL_TEST_MENU_SCRIPT_PATH" ;;
-                    1) show_git_management_menu ;;
-                    2) bash "$SYSTEM_INFO_SCRIPT_PATH" ;;
-                    3) (cd "$CORE_NODE_ROOT_DIR" && bash "$UNIFIED_MANAGER_SCRIPT_PATH") ;;
-                    4) show_special_software_env_menu ;;
-                    5) show_service_manager ;;
-                    6) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
-                    7) show_linux_system_tools_submenu ;;
-                    8) return 0 ;;
-                esac
-                stty -icanon -echo
-                ;;
+        arrow_menu_select "Linux Management" menu_items "$selected_index" 8
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        case "$selected_index" in
+            0) bash "$INSTALL_TEST_MENU_SCRIPT_PATH" ;;
+            1) show_git_management_menu ;;
+            2) bash "$SYSTEM_INFO_SCRIPT_PATH" ;;
+            3) (cd "$CORE_NODE_ROOT_DIR" && bash "$UNIFIED_MANAGER_SCRIPT_PATH") ;;
+            4) show_special_software_env_menu ;;
+            5) show_service_manager ;;
+            6) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
+            7) show_linux_system_tools_submenu ;;
+            8) return 0 ;;
         esac
     done
 }

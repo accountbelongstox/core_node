@@ -13,6 +13,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/arrow_menu.sh"
 
 # Test Scripts Selector
 
@@ -51,26 +52,8 @@ get_install_scripts() {
     fi
 }
 
-# Display test scripts menu
-show_test_scripts_menu() {
-    local scripts=($(get_install_scripts))
-    local script_count=${#scripts[@]}
-    
-    clear
-    echo "Test Scripts Menu ($script_count scripts)"
+show_test_scripts_context() {
     echo "GLOBAL_VAR_DIR: ${GLOBAL_VAR_DIR}"
-    echo ""
-    echo "Available installation scripts:"
-    echo "--------------------------------------"
-    
-    for script_path in "${scripts[@]}"; do
-        local script_name=$(basename "$script_path")
-        printf "  %s\n" "$script_name"
-    done
-    
-    echo ""
-    echo "Enter script index to execute (e.g., 1, 11, 12, etc.)"
-    echo "Press 'b' to go back, 'q' to quit"
 }
 
 # Execute selected test script
@@ -112,6 +95,10 @@ execute_test_script() {
 test_scripts_main() {
     local scripts=($(get_install_scripts))
     local script_count=${#scripts[@]}
+    local script_index
+    local script_path
+    local selected_index
+    local -a menu_items=()
     
     if [ $script_count -eq 0 ]; then
         clear
@@ -123,52 +110,20 @@ test_scripts_main() {
         exit 0
     fi
     
+    for script_index in "${!scripts[@]}"; do
+        menu_items+=("$(basename "${scripts[$script_index]}")")
+    done
+    menu_items+=("Back to Install and Test Environment")
+
     while true; do
-        show_test_scripts_menu
-        
-        # Read user input
-        echo -n "Your choice: "
-        read -r user_input
-        
-        case "$user_input" in
-            [bB])  # B to go back
-                exit 0
-                ;;
-            [qQ])  # Q to quit
-                echo "Exiting..."
-                exit 0
-                ;;
-            [0-9]*)  # Number input
-                # Find script by its actual index (from filename)
-                local found_script=""
-                for script_path in "${scripts[@]}"; do
-                    local script_name=$(basename "$script_path")
-                    if [[ $script_name =~ ^${user_input}_ ]]; then
-                        found_script="$script_path"
-                        break
-                    fi
-                done
-                
-                if [ -n "$found_script" ]; then
-                    execute_test_script "$found_script"
-                else
-                    echo "Script with index '$user_input' not found."
-                    echo "Press any key to continue..."
-                    read -n 1
-                fi
-                ;;
-            "")  # Empty input
-                echo "Please enter a script index, 'b' to go back, or 'q' to quit."
-                echo "Press any key to continue..."
-                read -n 1
-                ;;
-            *)  # Invalid input
-                echo "Invalid input: '$user_input'"
-                echo "Please enter a script index, 'b' to go back, or 'q' to quit."
-                echo "Press any key to continue..."
-                read -n 1
-                ;;
-        esac
+        arrow_menu_select "Test Installation Scripts" menu_items 0 "$script_count" show_test_scripts_context
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        if [ "$selected_index" -eq "$script_count" ]; then
+            return 0
+        fi
+
+        script_path="${scripts[$selected_index]}"
+        execute_test_script "$script_path"
     done
 }
 

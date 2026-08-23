@@ -9,7 +9,11 @@ export type NativeConnectionStatus = 'unknown' | 'connected' | 'disconnected';
 
 const nativeConnectionStatus = ref<NativeConnectionStatus>('unknown');
 const isConnecting = ref(false);
+const isReactivating = ref(false);
+const reactivationError = ref('');
 const copyButtonText = ref(getMessage('copyConfigButton'));
+const REACTIVATION_TIMEOUT_MS = 15000;
+let reactivationTimer: ReturnType<typeof setTimeout> | null = null;
 const appStore = useAppStore();
 const nativeServerPort = computed({
   get: () => appStore.settings.value.serverPort || DEFAULT_SERVER_PORT,
@@ -46,6 +50,13 @@ function applyServerResponse(response: { serverStatus?: ServerStatus; connected?
 function handleServerStatusMessage(message: { type?: string; payload?: ServerStatus }): void {
   if (message.type !== BACKGROUND_MESSAGE_TYPES.SERVER_STATUS_CHANGED || !message.payload) return;
   appStore.updateServerStatus(message.payload);
+  if (message.payload.isRunning) finishReactivation();
+}
+
+function finishReactivation(): void {
+  if (reactivationTimer) clearTimeout(reactivationTimer);
+  reactivationTimer = null;
+  isReactivating.value = false;
 }
 
 async function checkNativeConnection(): Promise<void> {
@@ -64,6 +75,31 @@ async function requestServerStatus(type: string): Promise<void> {
     if (response?.success) applyServerResponse(response);
   } catch (error) {
     logger.warn('Popup', 'Server status request failed', error);
+  }
+}
+
+async function reactivateServer(): Promise<void> {
+  if (isReactivating.value || isConnecting.value) return;
+  isReactivating.value = true;
+  reactivationError.value = '';
+  reactivationTimer = setTimeout(() => {
+    void requestServerStatus(BACKGROUND_MESSAGE_TYPES.REFRESH_SERVER_STATUS).finally(() => {
+      if (!isReady.value) reactivationError.value = getMessage('reactivateMcpFailed');
+      finishReactivation();
+    });
+  }, REACTIVATION_TIMEOUT_MS);
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: NativeMessageType.CONNECT_NATIVE,
+      port: nativeServerPort.value,
+      forceReconnect: true,
+    });
+    if (!response?.success) throw new Error('Native host rejected the reactivation request');
+    nativeConnectionStatus.value = 'connected';
+  } catch (error) {
+    reactivationError.value = getMessage('reactivateMcpFailed');
+    finishReactivation();
+    logger.error('Popup', 'Native MCP service reactivation failed', error);
   }
 }
 
@@ -88,7 +124,7 @@ export function useServerConnection() {
     requestServerStatus(BACKGROUND_MESSAGE_TYPES.REFRESH_SERVER_STATUS);
 
   const toggleConnection = async () => {
-    if (isConnecting.value) return;
+    if (isConnecting.value || isReactivating.value) return;
     isConnecting.value = true;
     try {
       if (nativeConnectionStatus.value === 'connected') {
@@ -146,6 +182,8 @@ export function useServerConnection() {
     nativeServerPort,
     serverStatus,
     isConnecting,
+    isReactivating,
+    reactivationError,
     isConnected,
     isReady,
     copyButtonText,
@@ -156,6 +194,7 @@ export function useServerConnection() {
     updatePort,
     refreshServerStatus,
     toggleConnection,
+    reactivateServer,
     copyMcpConfig,
   };
 }

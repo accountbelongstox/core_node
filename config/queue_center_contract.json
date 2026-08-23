@@ -1,9 +1,10 @@
 {
-  "schema_version": 30,
+  "schema_version": 31,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "word_validity": {
     "batch_size": 20,
+    "view_page_size": 1000,
     "request_timeout_ms": 120000,
     "default_languages": ["en"],
     "source_marker": "ai_ensure",

@@ -33,6 +33,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables first
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 # Source common functions
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
@@ -1116,7 +1117,7 @@ show_status() {
         # Check if service unit exists
         if ! service_exists "$full_service_name"; then
             echo -e "  ${YELLOW}Service unit file does not exist${NC}"
-            echo -e "  ${YELLOW}(Use option 5 to create and start the service)${NC}"
+            echo -e "  ${YELLOW}(Use Start/Restart Service to create and start the service)${NC}"
         else
             # Get detailed service status
             local service_status=""
@@ -1138,7 +1139,7 @@ show_status() {
                 echo -e "  ${RED}Service is not running${NC}"
                 # Check if it's enabled but not started
                 if $USE_SUDO systemctl is-enabled --quiet "$full_service_name" 2>/dev/null; then
-                    echo -e "  ${YELLOW}(Service is enabled but not active - use option 5 to start)${NC}"
+                    echo -e "  ${YELLOW}(Service is enabled but not active - use Start/Restart Service)${NC}"
                 fi
             fi
         fi
@@ -1171,22 +1172,27 @@ wait_for_continue() {
 
 # Interactive menu when command is run
 show_interactive_menu() {
+    local option=0
+    local selected_index=0
+    local -a menu_items=(
+        "Show Status"
+        "Modify WAN Keyword"
+        "Modify LAN Keyword"
+        "Toggle System Sharing"
+        "Start/Restart Service"
+        "Stop Service"
+        "View Logs"
+        "Exit NAT Gateway"
+    )
+
     while true; do
-        log_header "NAT Gateway Interactive Menu"
-        echo -e "${CYAN}Configuration Management:${NC}"
-        echo "  1. Show Status"
-        echo "  2. Modify WAN Keyword"
-        echo "  3. Modify LAN Keyword"
-        echo "  4. Toggle System Sharing"
-        echo ""
-        echo -e "${CYAN}Service Management:${NC}"
-        echo "  5. Start/Restart Service"
-        echo "  6. Stop Service"
-        echo "  7. View Logs"
-        echo ""
-        echo "  0. Exit"
-        echo ""
-        read -p "Select option: " option
+        arrow_menu_select "NAT Gateway" menu_items "$selected_index" 7
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        if [ "$selected_index" -eq 7 ]; then
+            option=0
+        else
+            option=$((selected_index + 1))
+        fi
 
         case "$option" in
             1)
@@ -1288,10 +1294,10 @@ show_interactive_menu() {
                                     log_warning "Service restarted but may not be running. Check status manually."
                                 fi
                             else
-                                log_error "Failed to restart service. Please restart manually with option 5."
+                                log_error "Failed to restart service. Use Start/Restart Service."
                             fi
                         else
-                            log_warning "Service is not running. Please start it with option 5 for changes to take effect."
+                            log_warning "Service is not running. Use Start/Restart Service for changes to take effect."
                         fi
                     else
                         log_info "System sharing unchanged: $SYSTEM_SHARING"
@@ -1732,7 +1738,7 @@ main() {
             echo -e "  ${RED}Service is not running${NC}"
             # Check if service is enabled but not started
             if $USE_SUDO systemctl is-enabled --quiet "$full_service_name" 2>/dev/null; then
-                echo -e "  ${YELLOW}(Service is enabled but not active - use option 5 to start)${NC}"
+                echo -e "  ${YELLOW}(Service is enabled but not active - use Start/Restart Service)${NC}"
             fi
         fi
         echo ""

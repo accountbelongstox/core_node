@@ -542,4 +542,3 @@ if ($currentUserPath -notlike "*$newPath*") {{
 
 
 __all__ = ['EnvironmentVariableManager']
-

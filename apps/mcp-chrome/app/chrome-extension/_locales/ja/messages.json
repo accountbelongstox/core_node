@@ -946,6 +946,12 @@
   "nativeBridgeLabel": {
     "message": "ネイティブブリッジ"
   },
+  "automationCoreReadyTitle": { "message": "自動化コアの準備が完了しました" },
+  "automationCoreConnectTitle": { "message": "自動化コアに接続" },
+  "nativeMcpPortSettingsHint": { "message": "ネイティブ MCP ポート $1 · 設定センターで変更できます。" },
+  "reactivateMcpButton": { "message": "MCP サービスを再有効化" },
+  "reactivatingMcpStatus": { "message": "MCP サービスを再有効化しています…" },
+  "reactivateMcpFailed": { "message": "MCP サービスの再有効化に失敗しました" },
   "nativeMcpPortLabel": {
     "message": "ネイティブ MCP ポート"
   },
@@ -1936,6 +1942,9 @@
   },
   "taskCenterPageRange": {
     "message": "$1-$2 of $3"
+  },
+  "taskCenterPageLabel": {
+    "message": "ページ"
   },
   "taskCenterPayloadLabel": {
     "message": "ペイロード"

@@ -26,9 +26,8 @@ initialize_menu_items() {
 }
 
 show_interactive_menu() {
-    local selected=0
-    local total=${#menu_order[@]}
-    local old_settings=$(stty -g)
+    local selected_index=0
+    local -a main_menu_items=("Linux Management" "Exit")
 
     # Pause before showing menu with auto-countdown (before changing terminal settings)
     echo ""
@@ -57,103 +56,19 @@ show_interactive_menu() {
     echo ""
     echo ""
 
-    stty -icanon -echo
-    trap 'stty "$old_settings"; exit' EXIT
-
     while true; do
-        printf "\033c"
-        local current_sys=$(get_global_var "CURRENT_SYSTEM" "$SYSTEM_VERSION")
-        printf "Current system: %s\n" "$current_sys"
-        printf "Select an option (Up/Down to move, Left/Right to change value, Enter to select):\n"
-        printf "Press Ctrl+C to exit\n\n"
-
-        for i in "${!menu_order[@]}"; do
-            local key="${menu_order[$i]}"
-            local item="${menu_items[$key]}"
-            local text=$(echo "$item" | grep -o 'text=[^;]*' | cut -d= -f2)
-            local values=($(echo "$item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
-            local current=$(echo "$item" | grep -o 'current=[0-9]*' | cut -d= -f2)
-            
-            local value_display=""
-            if [ ${#values[@]} -gt 1 ] || [ "${values[$current]}" != "default" ]; then
-                value_display=" [${values[$current]}]"
-            fi
-            
-            if [ "$i" -eq "$selected" ]; then
-                printf "\033[47m\033[30m>%-40s%s\033[0m\n" " $text" "$value_display"
-            else
-                printf " %-40s%s\n" " $text" "$value_display"
-            fi
-        done
-
-        local char
-        char=$(dd bs=1 count=1 2>/dev/null)
-
-        case "$char" in
-            $'\x1B')
-                read -r -t 0.1 -d '' seq
-                case "$seq" in
-                    '[A')
-                        ((selected--))
-                        [ "$selected" -lt 0 ] && selected=$((total - 1))
-                        ;;
-                    '[B')
-                        ((selected++))
-                        [ "$selected" -ge "$total" ] && selected=0
-                        ;;
-                    '[C'|'[D')
-                        local key="${menu_order[$selected]}"
-                        local item="${menu_items[$key]}"
-                        local values=($(echo "$item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
-                        local current=$(echo "$item" | grep -o 'current=[0-9]*' | cut -d= -f2)
-                        local total_values=${#values[@]}
-                        local var_key=$(echo "$item" | grep -o 'key=[^;]*' | cut -d= -f2)
-                        local action=$(echo "$item" | grep -o 'action=[^;]*' | cut -d= -f2)
-                        
-                        if [ "$seq" = '[C' ]; then
-                            ((current++))
-                            [ "$current" -ge "$total_values" ] && current=0
-                        else
-                            ((current--))
-                            [ "$current" -lt 0 ] && current=$((total_values - 1))
-                        fi
-                        
-                        menu_items[$key]=$(echo "$item" | sed "s/current=[0-9]*/current=$current/")
-                        set_global_var "$var_key" "${values[$current]}"
-                        
-                        case "$action" in
-                            "set_region")
-                                echo "Region changed to: ${values[$current]}"
-                                ;;
-                            "set_cloud_provider")
-                                echo "Cloud Provider changed to: ${values[$current]}"
-                                ;;
-                        esac
-                        ;;
-                esac
-                ;;
-            '')
-                local key="${menu_order[$selected]}"
-                local item="${menu_items[$key]}"
-                local values=($(echo "$item" | grep -o 'values=[^;]*' | cut -d= -f2 | tr ',' ' '))
-                local current=$(echo "$item" | grep -o 'current=[0-9]*' | cut -d= -f2)
-                local action=$(echo "$item" | grep -o 'action=[^;]*' | cut -d= -f2)
-                local var_key=$(echo "$item" | grep -o 'key=[^;]*' | cut -d= -f2)
-
-                stty "$old_settings"
-                printf "\033c"
-
-                handle_menu_action "$action" "${values[$current]}" "$var_key"
-
-                echo
-                echo "Press 'q' to quit, any other key to continue..."
-                read -n 1 key
-                if [ "$key" = "q" ]; then
-                    exit 0
-                fi
-
-                stty -icanon -echo
-                ;;
+        arrow_menu_select "Core Node Management" main_menu_items "$selected_index" 1 show_main_menu_context
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        case "$selected_index" in
+            0) handle_menu_action "show_linux_management_submenu" "default" "LINUX_MANAGEMENT_MENU" ;;
+            1) exit_script ;;
         esac
     done
+}
+
+show_main_menu_context() {
+    local current_system
+
+    current_system=$(get_global_var "CURRENT_SYSTEM" "$SYSTEM_VERSION")
+    printf "Current system: %s\n" "$current_system"
 }

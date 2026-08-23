@@ -13,6 +13,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/arrow_menu.sh"
 
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
@@ -318,59 +319,39 @@ done
 
 # Function to show Linux management menu
 show_linux_management_menu() {
-    clear
-    echo "  Linux Management"
-    echo ""
-    echo "Available management options:"
-    echo "  1) Manage Services (Nginx, MySQL, Redis, etc.)"
-    echo "  2) NAT Gateway Configuration"
-    echo "  3) Return to main menu"
-    echo ""
-    echo "Enter your choice (1-3): "
+    local menu_items=(
+        "Manage Services (Nginx, MySQL, Redis, etc.)"
+        "NAT Gateway Configuration"
+        "Return to Installation Menu"
+    )
 
-    read -n 1 choice
-    case "$choice" in
-        1) show_service_management_menu ;;
-        2) manage_natgateway ;;
-        3) return ;;
-        *) 
-            echo ""
-            echo "Invalid choice. Press any key to continue..."
-            read -n 1
-            show_linux_management_menu
-            ;;
+    arrow_menu_select "Linux Management" menu_items 0 2
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) show_service_management_menu ;;
+        1) manage_natgateway ;;
+        2) return ;;
     esac
 }
 
 # Function to show service management menu
 show_service_management_menu() {
-    clear
-    echo "  Service Management"
-    echo ""
-    echo "Available services to manage:"
-    echo "  1) Nginx"
-    echo "  2) MySQL/MariaDB"
-    echo "  3) Redis"
-    echo "  4) Gitea"
-    echo "  5) XRDP (Remote Desktop)"
-    echo "  6) Return to Linux Management"
-    echo ""
-    echo "Enter your choice (1-6): "
+    local menu_items=(
+        "Nginx"
+        "MySQL/MariaDB"
+        "Redis"
+        "Gitea"
+        "XRDP (Remote Desktop)"
+        "Return to Linux Management"
+    )
 
-    read -n 1 choice
-    case "$choice" in
-        1) manage_nginx_service ;;
-        2) manage_mysql_service ;;
-        3) manage_redis_service ;;
-        4) manage_gitea_service ;;
-        5) manage_xrdp_service ;;
-        6) show_linux_management_menu ;;
-        *) 
-            echo ""
-            echo "Invalid choice. Press any key to continue..."
-            read -n 1
-            show_service_management_menu
-            ;;
+    arrow_menu_select "Service Management" menu_items 0 5
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) manage_nginx_service ;;
+        1) manage_mysql_service ;;
+        2) manage_redis_service ;;
+        3) manage_gitea_service ;;
+        4) manage_xrdp_service ;;
+        5) show_linux_management_menu ;;
     esac
 }
 
@@ -418,24 +399,21 @@ manage_natgateway() {
 # Legacy service management functions
 manage_old_service() {
     local service_name="$1"
-    echo ""
-    echo "Managing $service_name..."
-    echo "1) Start service"
-    echo "2) Stop service"
-    echo "3) Restart service"
-    echo "4) Check service status"
-    echo "5) Return"
-    echo ""
-    read -n 1 action
-    
-    case "$action" in
-        1) $USE_SUDO systemctl start "$service_name" && echo "$service_name started" ;;
-        2) $USE_SUDO systemctl stop "$service_name" && echo "$service_name stopped" ;;
-        3) $USE_SUDO systemctl restart "$service_name" && echo "$service_name restarted" ;;
-        4) $USE_SUDO systemctl status "$service_name" ;;
-        5) return ;;
-        6) return ;;
-        *) echo "Invalid choice. Press any key to continue..."; read -n 1 ;;
+    local menu_items=(
+        "Start service"
+        "Stop service"
+        "Restart service"
+        "Check service status"
+        "Return"
+    )
+
+    arrow_menu_select "Managing $service_name" menu_items 0 4
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) $USE_SUDO systemctl start "$service_name" && echo "$service_name started" ;;
+        1) $USE_SUDO systemctl stop "$service_name" && echo "$service_name stopped" ;;
+        2) $USE_SUDO systemctl restart "$service_name" && echo "$service_name restarted" ;;
+        3) $USE_SUDO systemctl status "$service_name" ;;
+        4) return ;;
     esac
 }
 

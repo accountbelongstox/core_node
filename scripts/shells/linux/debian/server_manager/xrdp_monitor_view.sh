@@ -11,12 +11,15 @@
 #   ./xrdp_monitor_view.sh --analysis    # View analysis
 #   ./xrdp_monitor_view.sh --summary     # Show statistics summary
 
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LINUX_DIR="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")"
 MONITOR_DIR="/var/_core_node/xrdp_monitor"
 MONITOR_LOG="$MONITOR_DIR/monitor.log"
 CONNECTIONS_LOG="$MONITOR_DIR/connections.log"
 DISCONNECTS_LOG="$MONITOR_DIR/disconnects.log"
 ERRORS_LOG="$MONITOR_DIR/errors.log"
 ANALYSIS_LOG="$MONITOR_DIR/analysis.log"
+source "$LINUX_DIR/common/arrow_menu.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -173,34 +176,30 @@ view_analysis_live() {
 
 # Show interactive menu
 show_menu() {
-    clear
-    echo -e "${BLUE}+----------------------------------------+${NC}"
-    echo -e "${BLUE}  XRDP Monitor Log Viewer             {NC}"
-    echo -e "${BLUE}+----------------------------------------+${NC}"
-    echo ""
-    show_summary
-    echo ""
-    echo -e "${CYAN}Options:${NC}"
-    echo "  1) Live view all activity"
-    echo "  2) View connections (live)"
-    echo "  3) View errors (live)"
-    echo "  4) View error analysis (live)"
-    echo "  5) Refresh summary"
-    echo "  6) View service logs"
-    echo "  q) Quit"
-    echo ""
-    read -p "Select option: " choice
+    local selected_index=0
+    local menu_items=(
+        "Live view all activity"
+        "View connections (live)"
+        "View errors (live)"
+        "View error analysis (live)"
+        "Refresh summary"
+        "View service logs"
+        "Back to Service Manager"
+    )
 
-    case "$choice" in
-        1) live_view ;;
-        2) view_connections_live ;;
-        3) view_errors_live ;;
-        4) view_analysis_live ;;
-        5) show_menu ;;
-        6) sudo journalctl -u ncore-xrdp-monitor -f ;;
-        q|Q) exit 0 ;;
-        *) echo "Invalid option"; sleep 1; show_menu ;;
-    esac
+    while true; do
+        arrow_menu_select "XRDP Monitor Log Viewer" menu_items "$selected_index" 6 show_summary
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        case "$selected_index" in
+            0) live_view ;;
+            1) view_connections_live ;;
+            2) view_errors_live ;;
+            3) view_analysis_live ;;
+            4) continue ;;
+            5) sudo journalctl -u ncore-xrdp-monitor -f ;;
+            6) exit 0 ;;
+        esac
+    done
 }
 
 # Main execution

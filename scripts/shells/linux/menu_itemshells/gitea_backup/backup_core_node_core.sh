@@ -33,7 +33,9 @@ fi
 # Shared backup helpers (get_backup_dir, verify_backup, cleanup_old_backups,
 # prompt_download_server, BACKUP_ROOT_DIR).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKUP_CORE_NODE_LINUX_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 source "$SCRIPT_DIR/backup_common.sh"
+source "$BACKUP_CORE_NODE_LINUX_DIR/common/arrow_menu.sh"
 
 # --- Variable declarations (all at top) ------------------------------------- #
 CORE_NODE_NAMESPACE="core_node"
@@ -227,26 +229,27 @@ list_core_node_backups() {
 
 # Select a core_node backup; echoes ONLY the chosen path to stdout (prompts -> stderr).
 select_core_node_backup() {
-    local backups choice
+    local backups=()
+    local menu_items=()
+    local backup=""
+    local selected_index=0
     mapfile -t backups < <(_core_node_backups)
     if [[ ${#backups[@]} -eq 0 ]]; then
         print_error_from_common_functions "No Core_node backups found" >&2
         return 1
     fi
-    list_core_node_backups >&2
-    echo "" >&2
-    echo -n "Select backup number (1-${#backups[@]}, 0 to cancel): " >&2
-    read -r choice
-    if [[ "$choice" == "0" ]]; then
-        print_info_from_common_functions "Cancelled" >&2
+    for backup in "${backups[@]}"; do
+        menu_items+=("$(basename "$backup") [$(du -sh "$backup" 2>/dev/null | cut -f1)]")
+    done
+    menu_items+=("Cancel")
+
+    arrow_menu_select "Select Core_node Backup" menu_items 0 "${#backups[@]}"
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    if [[ "$selected_index" -eq "${#backups[@]}" ]]; then
         return 1
     fi
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [[ "$choice" -ge 1 ]] && [[ "$choice" -le ${#backups[@]} ]]; then
-        echo "${backups[$((choice-1))]}"
-        return 0
-    fi
-    print_error_from_common_functions "Invalid selection" >&2
-    return 1
+    echo "${backups[$selected_index]}"
+    return 0
 }
 
 # Show details + contents of a selected backup (dir or archive).

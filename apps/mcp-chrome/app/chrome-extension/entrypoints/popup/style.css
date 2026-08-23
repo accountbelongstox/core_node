@@ -368,6 +368,16 @@
   margin-bottom: 13px;
 }
 
+.ui-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-helper--error {
+  color: var(--danger);
+}
+
 .ui-card h3 {
   margin-top: 2px;
   font-size: 13px;

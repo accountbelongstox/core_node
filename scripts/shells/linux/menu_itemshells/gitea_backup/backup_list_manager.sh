@@ -7,7 +7,9 @@ LIST_MANAGER_VERSION="1.0.0"
 
 # Source backup core to get common configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKUP_LIST_LINUX_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 source "$SCRIPT_DIR/backup_gitea_core.sh"
+source "$BACKUP_LIST_LINUX_DIR/common/arrow_menu.sh"
 
 # List all available backups
 list_backups() {
@@ -50,30 +52,26 @@ list_backups() {
 
 # Select backup from list
 select_backup() {
-    list_backups
-
-    if [[ $? -ne 0 ]]; then
-        return 1
-    fi
-
     local backups=($(find "$BACKUP_DIR" -name "gitea-backup-*.zip" -type f 2>/dev/null | sort -r))
+    local menu_items=()
+    local backup=""
+    local selected_index=0
 
-    echo ""
-    echo -n "Enter backup number (or 0 to cancel): "
-    read -r selection
-
-    if [[ "$selection" == "0" ]]; then
-        print_info_from_common_functions "Selection cancelled"
+    if [[ ${#backups[@]} -eq 0 ]]; then
+        print_info_from_common_functions "No backups found in: $BACKUP_DIR" >&2
         return 1
     fi
+    for backup in "${backups[@]}"; do
+        menu_items+=("$(basename "$backup") [$(du -h "$backup" 2>/dev/null | cut -f1)]")
+    done
+    menu_items+=("Cancel")
 
-    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt ${#backups[@]} ]]; then
-        print_error_from_common_functions "Invalid selection"
+    arrow_menu_select "Select Gitea Backup" menu_items 0 "${#backups[@]}"
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    if [[ "$selected_index" -eq "${#backups[@]}" ]]; then
         return 1
     fi
-
-    local selected_backup="${backups[$((selection-1))]}"
-    echo "$selected_backup"
+    echo "${backups[$selected_index]}"
     return 0
 }
 

@@ -1040,6 +1040,12 @@
   "nativeBridgeLabel": {
     "message": "Einheimische Brücke"
   },
+  "automationCoreReadyTitle": { "message": "Automatisierungskern ist bereit" },
+  "automationCoreConnectTitle": { "message": "Automatisierungskern verbinden" },
+  "nativeMcpPortSettingsHint": { "message": "Nativer MCP-Port $1 · Im Einstellungscenter konfigurierbar." },
+  "reactivateMcpButton": { "message": "MCP-Dienst reaktivieren" },
+  "reactivatingMcpStatus": { "message": "MCP-Dienst wird reaktiviert…" },
+  "reactivateMcpFailed": { "message": "Reaktivierung des MCP-Dienstes fehlgeschlagen" },
   "nativeMcpPortLabel": {
     "message": "Nativer MCP-Port"
   },
@@ -2073,6 +2079,9 @@
   },
   "taskCenterPageRange": {
     "message": "$1-$2 von $3"
+  },
+  "taskCenterPageLabel": {
+    "message": "Seite"
   },
   "taskCenterPayloadLabel": {
     "message": "Nutzlast"

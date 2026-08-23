@@ -17,6 +17,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_SERVICE="ssh"
@@ -273,17 +274,18 @@ view_config() {
 }
 
 view_logs() {
-    show_header
-    echo -e "${COLOR_BLUE}=== SSH Server Logs ===${COLOR_RESET}"
-    echo ""
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "View last 50 lines"
+        "View last 100 lines"
+        "Follow logs (real-time)"
+        "Back to SSH Server Manager"
+    )
 
-    echo "1) View last 50 lines"
-    echo "2) View last 100 lines"
-    echo "3) Follow logs (real-time)"
-    echo "0) Back to main menu"
-    echo ""
-
-    read -p "Select option: " choice
+    arrow_menu_select "SSH Server Logs" menu_items 0 3
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    choice=$((selected_index + 1))
 
     case $choice in
         1)
@@ -304,22 +306,26 @@ view_logs() {
 }
 
 show_menu() {
-    show_header
-    show_ssh_status
+    local menu_items=(
+        "Start SSH Server"
+        "Stop SSH Server"
+        "Restart SSH Server"
+        "Reload Configuration"
+        "Show Basic Information"
+        "Show Active Connections"
+        "Show Authorized Keys"
+        "Test Configuration"
+        "View Configuration File"
+        "View Server Logs"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start SSH Server"
-    echo "  2) Stop SSH Server"
-    echo "  3) Restart SSH Server"
-    echo "  4) Reload Configuration"
-    echo "  5) Show Basic Information"
-    echo "  6) Show Active Connections"
-    echo "  7) Show Authorized Keys"
-    echo "  8) Test Configuration"
-    echo "  9) View Configuration File"
-    echo " 10) View Server Logs"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "SSH Server Manager" menu_items 0 10 show_ssh_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 10 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -329,7 +335,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_ssh ;;
