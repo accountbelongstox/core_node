@@ -25,6 +25,7 @@ class AppQyV1DailyReadingResourceService
     public function __construct(
         private readonly AppQyV1ArticleManagementService $articleManagementService,
         private readonly AppQyV1SentenceWordTableService $sentenceWordTableService,
+        private readonly AppQyV1DailyReadingVirtualProgressService $virtualProgressService,
     ) {
     }
 
@@ -32,7 +33,9 @@ class AppQyV1DailyReadingResourceService
         User $user,
         string $articleId,
         array $requestedSettings = [],
-        ?string $requestedGroupId = null
+        ?string $requestedGroupId = null,
+        ?string $batchName = null,
+        bool $consumeVirtualReads = false
     ): ?array {
         $article = null;
         $articlePayload = [];
@@ -49,6 +52,8 @@ class AppQyV1DailyReadingResourceService
         $sentences = [];
         $audio = [];
         $playbackItems = [];
+        $selection = [];
+        $virtualReadBatch = [];
 
         $article = AppQyV1ArticleModel::findByArticleId($articleId);
         if ($article === null) {
@@ -87,7 +92,22 @@ class AppQyV1DailyReadingResourceService
             $groupId
         );
         $wordRows = $this->uniqueWords($wordRows);
-        $selectedWords = $this->selectWords($wordRows, $settings, (int) $user->id, $articleId);
+        $selection = $this->virtualProgressService->select(
+            (int) $user->id,
+            $this->virtualProgressService->normalizeBatchName($batchName),
+            $language,
+            $wordRows,
+            (int) $settings['newOnlyMaxReadCount'],
+            fn (array $projectedRows): array => $this->selectWords(
+                $projectedRows,
+                $settings,
+                (int) $user->id,
+                $articleId
+            ),
+            $consumeVirtualReads
+        );
+        $selectedWords = $selection['selected_words'];
+        $virtualReadBatch = $selection['batch'];
         $sentences = $this->sentenceResources($articlePayload, $settings);
         $audio = $this->audioResources($articlePayload, $selectedWords, $settings);
         $playbackItems = $this->playbackItems($articlePayload, $selectedWords, $settings);
@@ -110,6 +130,7 @@ class AppQyV1DailyReadingResourceService
                 'language' => (string) $targetGroup->language,
                 'is_language_default' => (bool) $targetGroup->is_language_default,
             ],
+            'virtual_read_batch' => $virtualReadBatch,
             'settings' => $settings,
             'resources' => [
                 'new_words' => array_values(array_filter(

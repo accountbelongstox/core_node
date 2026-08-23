@@ -79,16 +79,16 @@
     "owner_enrollment_claim": "/api/relay/v2/device-enrollments/claim",
     "owner_device_roster": "/api/relay/v2/devices",
     "owner_pairing_create": "/api/relay/v2/pairings",
-    "owner_pairing_renew": "/api/relay/v2/pairings/{pairing_id}/renew",
-    "owner_pairing_revoke": "/api/relay/v2/pairings/{pairing_id}",
+    "owner_pairing_renew": "/api/relay/v2/pairings/{pairingId}/renew",
+    "owner_pairing_revoke": "/api/relay/v2/pairings/{pairingId}",
     "owner_hub_authorization": "/api/relay/v2/mercure-authorization",
     "owner_operation_admit": "/api/relay/v2/operations",
-    "owner_operation_status": "/api/relay/v2/operations/{operation_id}",
-    "owner_operation_cancel": "/api/relay/v2/operations/{operation_id}/cancel",
+    "owner_operation_status": "/api/relay/v2/operations/{operationId}",
+    "owner_operation_cancel": "/api/relay/v2/operations/{operationId}/cancel",
     "owner_request_blob_allocate": "/api/relay/v2/request-blobs",
-    "owner_request_blob_chunk": "/api/relay/v2/blobs/{blob_id}/chunks/{chunk_index}",
-    "owner_request_blob_finalize": "/api/relay/v2/blobs/{blob_id}/finalize",
-    "owner_response_blob_download": "/api/relay/v2/blobs/{blob_id}"
+    "owner_request_blob_chunk": "/api/relay/v2/blobs/{blobId}/chunks/{chunkIndex}",
+    "owner_request_blob_finalize": "/api/relay/v2/blobs/{blobId}/finalize",
+    "owner_response_blob_download": "/api/relay/v2/blobs/{blobId}"
   },
   "public_urls": {
     "laravel_api_origin": "https://api.si.12gm.com",

@@ -37,6 +37,8 @@ RELAY_RESULT_EXPIRED = "expired"
 RELAY_LEASE_STOP_PREFIX = "relay.v2.operation.lease.stop"
 RELAY_LEASE_LOST_PREFIX = "relay.v2.operation.lease.lost"
 RELAY_LEASE_DEADLINE_PREFIX = "relay.v2.operation.lease.deadline"
+RELAY_REQUEST_BLOB_ENDPOINT = "device_request_blob_download"
+RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT = "device_response_blob_chunk"
 
 
 class RelayOperationProcessor:
@@ -654,12 +656,11 @@ class RelayOperationProcessor:
             )
             return body
         if body_ref:
-            endpoint_name = "device_request_blob_download"
             response = relay_transport.request_bytes(
                 "GET",
-                relay_contract.endpoint(endpoint_name, blob_id=body_ref),
+                relay_contract.endpoint(RELAY_REQUEST_BLOB_ENDPOINT, blob_id=body_ref),
                 query=relay_contract.generation_query(
-                    endpoint_name,
+                    RELAY_REQUEST_BLOB_ENDPOINT,
                     int(descriptor["revision"]),
                     int(descriptor["claim_epoch"]),
                     str(descriptor["lease_owner"]),
@@ -911,17 +912,16 @@ class RelayOperationProcessor:
         for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
             self._assert_active_lease(request)
             chunk = body[offset : offset + chunk_size]
-            endpoint_name = "device_response_blob_chunk"
             relay_transport.request_bytes(
                 "PUT",
                 relay_contract.endpoint(
-                    endpoint_name,
+                    RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
                     blob_id=blob_id,
                     chunk_index=chunk_index,
                 ),
                 body=chunk,
                 query=relay_contract.generation_query(
-                    endpoint_name,
+                    RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
                     int(request["operation_revision"]),
                     int(request["claim_epoch"]),
                     str(request["lease_owner"]),

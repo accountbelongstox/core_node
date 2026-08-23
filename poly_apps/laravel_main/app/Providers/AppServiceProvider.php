@@ -58,17 +58,20 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('relay-device', static function (Request $request): Limit {
             $deviceId = (string) $request->header(RelayV2Contract::header('device_id'), '');
 
-            return Limit::perMinute(240)->by($deviceId !== '' ? $deviceId : (string) $request->ip());
+            return Limit::perMinute(RelayV2Contract::rateLimit('device_requests_per_minute'))
+                ->by($deviceId !== '' ? $deviceId : (string) $request->ip());
         });
         RateLimiter::for('relay-owner', static function (Request $request): Limit {
             $userId = $request->user()?->getAuthIdentifier();
 
-            return Limit::perMinute(120)->by($userId !== null ? (string) $userId : (string) $request->ip());
+            return Limit::perMinute(RelayV2Contract::rateLimit('owner_requests_per_minute'))
+                ->by($userId !== null ? (string) $userId : (string) $request->ip());
         });
         RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
             $userId = $request->user()?->getAuthIdentifier();
 
-            return Limit::perMinute(10)->by(($userId !== null ? (string) $userId : 'guest').':'.(string) $request->ip());
+            return Limit::perMinute(RelayV2Contract::rateLimit('enrollment_claims_per_minute'))
+                ->by(($userId !== null ? (string) $userId : 'guest').':'.(string) $request->ip());
         });
 
         Response::macro('goStyle', function () {

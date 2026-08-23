@@ -1,6 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { Braces, ExternalLink, LoaderCircle, X } from 'lucide-react';
-import { wfNewApi, type WfNewDailyReadingResourcePreviewSettings } from '../../api';
+import {
+  WF_NEW_DAILY_READING_DEFAULT_BATCH_NAME,
+  wfNewApi,
+  type WfNewDailyReadingResourcePreviewSettings,
+} from '../../api';
 import { selectedDailyReadingWordGroupId } from './dailyReadingWordGroupStore';
 
 interface Props {
@@ -18,6 +22,7 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [json, setJson] = useState('');
   const [apiUrl, setApiUrl] = useState('');
+  const [batchName, setBatchName] = useState(WF_NEW_DAILY_READING_DEFAULT_BATCH_NAME);
   const [error, setError] = useState<string | null>(null);
 
   const preview = useCallback(async () => {
@@ -42,9 +47,11 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
         articleId,
         requestSettings,
         selectedDailyReadingWordGroupId(),
+        batchName,
       );
       setJson(JSON.stringify(result.resource, null, 2));
       setApiUrl(result.apiUrl);
+      setBatchName(result.batchName);
     } catch (previewError) {
       setJson('');
       setApiUrl('');
@@ -54,7 +61,7 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
     } finally {
       setLoading(false);
     }
-  }, [articleId, settings, trans]);
+  }, [articleId, batchName, settings, trans]);
 
   return (
     <>
@@ -97,6 +104,28 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
                 <X className="h-4 w-4" />
               </button>
             </header>
+            <div className="border-b border-white/10 px-4 py-3">
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                {trans('home.dailyReading.resourcePreviewBatchName')}
+              </label>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  value={batchName}
+                  onChange={(event) => setBatchName(event.target.value)}
+                  maxLength={64}
+                  className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200 outline-none focus:border-sky-500/40"
+                  title={trans('home.dailyReading.resourcePreviewBatchName')}
+                />
+                <button
+                  type="button"
+                  onClick={() => void preview()}
+                  disabled={loading}
+                  className="rounded-lg border border-sky-500/20 px-3 py-2 text-[10px] font-bold text-sky-300 hover:bg-sky-500/10 disabled:opacity-50"
+                >
+                  {trans('home.dailyReading.refreshResourcePreviewBatch')}
+                </button>
+              </div>
+            </div>
             {!loading && !error && apiUrl && (
               <div className="border-b border-white/10 px-4 py-3">
                 <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">

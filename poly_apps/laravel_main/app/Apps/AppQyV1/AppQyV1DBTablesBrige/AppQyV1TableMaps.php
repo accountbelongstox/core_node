@@ -157,6 +157,20 @@ class AppQyV1TableMaps extends TableMaps
         ]
     ];
 
+    public const app_qy_v1_DAILY_READING_VIRTUAL_PROGRESS = [
+        'tablename' => 'daily_reading_virtual_progress',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'batch_name' => 'batch_name',
+            'language_code' => 'language_code',
+            'words' => 'words',
+            'total_words' => 'total_words',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ]
+    ];
+
     public const app_qy_v1_CLIENT_DEVICE_SETTINGS = [
         'tablename' => 'client_device_settings',
         'fields' => [

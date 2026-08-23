@@ -14,8 +14,11 @@ use Illuminate\Support\Str;
 
 final class RelayV2EnrollmentService
 {
-    public function __construct(private readonly RelayV2HubService $hub)
-    {
+    public function __construct(
+        private readonly RelayV2HubService $hub,
+        private readonly RelayV2OutboxRepository $outbox,
+        private readonly RelayV2TopicService $topics
+    ) {
     }
 
     public function create(array $device): array
@@ -122,6 +125,7 @@ final class RelayV2EnrollmentService
             $device = null;
             $credential = null;
             $credentialVersion = 0;
+            $revokedCredentials = collect();
 
             if ($enrollment === null) {
                 throw new RelayV2DomainException('claim_code_invalid', 404);
@@ -144,22 +148,31 @@ final class RelayV2EnrollmentService
             if ($device !== null && $device->owner_user_id !== null && (int) $device->owner_user_id !== $userId) {
                 throw new RelayV2DomainException('device_owned_by_another_user', 409);
             }
-            $credentialVersion = max((int) ($device?->current_credential_version ?? 0) + 1, (int) $enrollment->key_version);
-            RelayV2CredentialModel::query()
+            $credentialVersion = (int) $enrollment->key_version;
+            if ($device !== null && $credentialVersion <= (int) $device->current_credential_version) {
+                throw new RelayV2DomainException('credential_generation_stale', 409);
+            }
+            $revokedCredentials = RelayV2CredentialModel::query()
                 ->where('device_id', (string) $enrollment->device_id)
                 ->where('status', RelayV2Constants::CREDENTIAL_ACTIVE)
-                ->update([
-                    'status' => RelayV2Constants::CREDENTIAL_REVOKED,
-                    'revoked_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                ->lockForUpdate()
+                ->get();
+            if ($revokedCredentials->isNotEmpty()) {
+                RelayV2CredentialModel::query()
+                    ->whereIn('credential_id', $revokedCredentials->pluck('credential_id')->all())
+                    ->update([
+                        'status' => RelayV2Constants::CREDENTIAL_REVOKED,
+                        'revoked_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+            }
             $credential = RelayV2CredentialModel::query()->create([
                 'credential_id' => (string) Str::uuid(),
                 'device_id' => (string) $enrollment->device_id,
                 'credential_version' => $credentialVersion,
                 'public_key' => (string) $enrollment->public_key,
                 'status' => RelayV2Constants::CREDENTIAL_ACTIVE,
-                'expires_at' => now()->addSeconds(RelayV2Contract::duration('pairing_lease_seconds')),
+                'expires_at' => now()->addSeconds(RelayV2Contract::duration('credential_lifetime_seconds')),
             ]);
             if ($device === null) {
                 $device = RelayV2DeviceModel::query()->create([
@@ -195,6 +208,21 @@ final class RelayV2EnrollmentService
                 'claimed_at' => now(),
                 'revision' => (int) $enrollment->revision + 1,
             ])->save();
+            foreach ($revokedCredentials as $revokedCredential) {
+                $this->outbox->append(
+                    'credential',
+                    (string) $revokedCredential->credential_id,
+                    (int) $revokedCredential->credential_version,
+                    RelayV2Contract::event('credential_revoked'),
+                    'device',
+                    $this->topics->device((string) $enrollment->device_id),
+                    [
+                        'device_id' => (string) $enrollment->device_id,
+                        'credential_id' => (string) $revokedCredential->credential_id,
+                        'credential_version' => (int) $revokedCredential->credential_version,
+                    ]
+                );
+            }
 
             return $this->enrollmentResponse($enrollment, false);
         }, 3);

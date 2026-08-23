@@ -61,11 +61,9 @@ class RelayService:
         self._hub_token_value = ""
         self._hub_token_expires_at = 0.0
         self._registered_endpoint = ""
+        self._endpoint_listener_registered = False
         self._operation_batch_active = False
         self._lease_owner = uuid.uuid4().hex
-        laravel_endpoint_manager.register_endpoint_change_listener(
-            self._on_endpoint_changed
-        )
         relay_activity_log.info(
             "runtime.constructed",
             contract_digest=relay_contract.digest,
@@ -80,6 +78,11 @@ class RelayService:
             for thread in self._threads
             if thread.is_alive()
         }
+        if not self._endpoint_listener_registered:
+            laravel_endpoint_manager.register_endpoint_change_listener(
+                self._on_endpoint_changed
+            )
+            self._endpoint_listener_registered = True
         relay_device_identity.ensure_device_id()
         relay_device_identity.ensure_signing_key()
         THREAD_BUS.clear_signal(RELAY_STOP_SIGNAL)
@@ -198,17 +201,12 @@ class RelayService:
     ) -> None:
         hub_url = str(hub.get("url") or "")
         token = str(hub.get("subscriber_token") or "")
-        resolved_coordinator = str(
-            coordinator_url or self._registered_endpoint or relay_transport.endpoint()
-        )
-        coordinator_parts = urllib.parse.urlsplit(resolved_coordinator)
-        coordinator_origin = (
-            f"{coordinator_parts.scheme}://{coordinator_parts.netloc}"
-        )
+        expected_hub_url = relay_contract.public_url("mercure_hub")
+        expected_origin = relay_contract.public_url("laravel_api_origin")
+        coordinator_parts = urllib.parse.urlsplit(expected_origin)
         expected_topic = relay_contract.topic(
             "device_wake",
             device_id=relay_device_identity.device_id(),
-            laravel_api_origin=coordinator_origin,
         )
         topic = str(hub.get("topic") or "") or expected_topic
         expires_in_seconds = float(hub.get("expires_in_seconds") or 0)
@@ -223,15 +221,9 @@ class RelayService:
             "subscriber_token_seconds"
         ):
             raise ValueError("relay_hub_token_lifetime_invalid")
-        expected_hub_path = str(relay_contract.mercure("hub_path"))
         hub_parts = urllib.parse.urlsplit(hub_url)
         if (
-            hub_parts.scheme not in ("http", "https")
-            or hub_parts.username is not None
-            or hub_parts.password is not None
-            or hub_parts.fragment
-            or hub_parts.query
-            or hub_parts.path != expected_hub_path
+            hub_url != expected_hub_url
             or hub_parts.scheme != coordinator_parts.scheme
             or hub_parts.netloc != coordinator_parts.netloc
         ):
@@ -351,8 +343,7 @@ class RelayService:
                 force_claim = signal_kind == RELAY_CONTROL_WAKE
             except RelayHttpError as exc:
                 if exc.status_code in (401, 403):
-                    relay_device_identity.clear_credential()
-                    relay_device_identity.clear_enrollment()
+                    relay_device_identity.prepare_reenrollment()
                     self._clear_hub_authorization(
                         reason="coordinator_authorization_rejected"
                     )

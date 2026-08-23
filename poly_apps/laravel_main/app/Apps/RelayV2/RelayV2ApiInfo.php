@@ -12,13 +12,14 @@ final class RelayV2ApiInfo
             'app_name' => 'RelayV2',
             'api_version' => RelayV2Contract::protocolVersion(),
             'app_description' => __('relay_v2.api_description'),
-            'base_url' => url('/api/relay/v2'),
+            'base_url' => RelayV2Contract::publicUrl('laravel_api_origin').'/api/relay/v2',
             'api_prefix' => '/api/relay/v2',
             'authentication' => [
                 'owner' => __('relay_v2.authentication_owner'),
                 'device' => __('relay_v2.authentication_device'),
             ],
             'contract_digest' => RelayV2Contract::digest(),
+            'public_urls' => RelayV2Contract::document()['public_urls'],
             'endpoints' => RelayV2Contract::document()['endpoints'],
         ];
     }

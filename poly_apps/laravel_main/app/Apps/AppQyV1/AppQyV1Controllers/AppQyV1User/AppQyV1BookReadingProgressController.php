@@ -12,6 +12,7 @@ use App\Helpers\AuthHelper;
 use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookReadingProgressService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingResourceService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingVirtualProgressService;
 
 class AppQyV1BookReadingProgressController extends Controller
 {
@@ -21,6 +22,7 @@ class AppQyV1BookReadingProgressController extends Controller
     private const RESOURCE_PREVIEW_ROUTE = 'app_qy_v1.daily-reading.resource-preview-json';
     private const RESOURCE_PREVIEW_RULES = [
         'group_id' => 'nullable|string|max:64',
+        'batch_name' => 'nullable|string|max:64',
         'settings' => 'nullable|array:playbackMode,wordMode,wordOrder,newOnlyMaxReadCount,underlineCurrentSentence,bilingual,sentenceRate,wordRate,playbackPattern',
         'settings.playbackMode' => 'nullable|string|in:sequential,repeat-all,repeat-one,shuffle',
         'settings.wordMode' => 'nullable|string|in:off,new,all',
@@ -139,6 +141,7 @@ class AppQyV1BookReadingProgressController extends Controller
         $parameters = [];
         $relativeUrl = '';
         $apiUrl = '';
+        $batchName = '';
 
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
@@ -154,11 +157,14 @@ class AppQyV1BookReadingProgressController extends Controller
         }
 
         $validated = $validator->validated();
+        $batchName = (string) ($validated['batch_name'] ?? AppQyV1DailyReadingVirtualProgressService::DEFAULT_BATCH_NAME);
         $preview = $this->resourceService->preview(
             $user,
             $articleId,
             is_array($validated['settings'] ?? null) ? $validated['settings'] : [],
-            isset($validated['group_id']) ? (string) $validated['group_id'] : null
+            isset($validated['group_id']) ? (string) $validated['group_id'] : null,
+            $batchName,
+            false
         );
         if ($preview === null) {
             return $this->error(__('article.daily_reading_not_found'), 404);
@@ -168,6 +174,7 @@ class AppQyV1BookReadingProgressController extends Controller
         $parameters = [
             'articleId' => $articleId,
             'username' => (string) $user->username,
+            'batch_name' => (string) $preview['virtual_read_batch']['name'],
             'settings' => json_encode(
                 $preview['settings'],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
@@ -188,6 +195,7 @@ class AppQyV1BookReadingProgressController extends Controller
             'resource' => $preview,
             'api_url' => $apiUrl,
             'expires_at' => $expiresAt->toIso8601String(),
+            'batch_name' => (string) $preview['virtual_read_batch']['name'],
         ], __('article.daily_reading_preview_retrieved'));
     }
 
@@ -208,6 +216,10 @@ class AppQyV1BookReadingProgressController extends Controller
         $payload = [
             'username' => $username,
             'group_id' => $request->query('group_id'),
+            'batch_name' => $request->query(
+                'batch_name',
+                AppQyV1DailyReadingVirtualProgressService::DEFAULT_BATCH_NAME
+            ),
             'settings' => is_array($settings) ? $settings : null,
         ];
         $validator = Validator::make($payload, [
@@ -231,7 +243,9 @@ class AppQyV1BookReadingProgressController extends Controller
             $user,
             $articleId,
             is_array($validated['settings'] ?? null) ? $validated['settings'] : [],
-            isset($validated['group_id']) ? (string) $validated['group_id'] : null
+            isset($validated['group_id']) ? (string) $validated['group_id'] : null,
+            (string) ($validated['batch_name'] ?? AppQyV1DailyReadingVirtualProgressService::DEFAULT_BATCH_NAME),
+            true
         );
         if ($preview === null) {
             return $this->error(__('article.daily_reading_not_found'), 404);

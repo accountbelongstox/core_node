@@ -142,19 +142,7 @@ class RelayDeviceIdentity:
                 enrollment_present=bool(document.get("enrollment_id")),
             )
             raise RuntimeError("relay_signing_key_incomplete")
-        generated = ed25519.Ed25519PrivateKey.generate()
-        private_bytes = generated.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-        public_bytes = generated.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-        document["private_key"] = _base64url_encode(private_bytes)
-        document["public_key"] = _base64url_encode(public_bytes)
-        document["key_version"] = RELAY_KEY_VERSION_INITIAL
+        self._replace_signing_key(document, RELAY_KEY_VERSION_INITIAL)
         self._write(document)
         relay_activity_log.success(
             "identity.signing_key.created",
@@ -321,6 +309,39 @@ class RelayDeviceIdentity:
         )
 
     @serialized_method
+    def prepare_reenrollment(self) -> bool:
+        document = RELAY_IDENTITY_STORE.read()
+        credential_version = _positive_int(document.get("credential_version"))
+        has_authorization_state = bool(
+            str(document.get("credential_id") or "")
+            or str(document.get("enrollment_id") or "")
+        )
+        if not has_authorization_state:
+            relay_activity_log.info(
+                "identity.reenrollment.already_prepared",
+                device_id=document.get("device_id"),
+                key_version=document.get("key_version"),
+            )
+            return False
+        next_key_version = max(
+            _positive_int(document.get("key_version")),
+            credential_version,
+        ) + 1
+        document.pop("credential_id", None)
+        document.pop("credential_version", None)
+        document.pop("enrollment_id", None)
+        document.pop("enrollment_claim_code", None)
+        document.pop("enrollment_expires_at", None)
+        self._replace_signing_key(document, next_key_version)
+        self._write(document)
+        relay_activity_log.warning(
+            "identity.reenrollment.prepared",
+            device_id=document.get("device_id"),
+            next_key_version=next_key_version,
+        )
+        return True
+
+    @serialized_method
     def revoke_credential_if_current(
         self,
         credential_id: str,
@@ -348,24 +369,11 @@ class RelayDeviceIdentity:
         document.pop("credential_id", None)
         document.pop("credential_version", None)
         if not str(document.get("enrollment_id") or ""):
-            ed25519 = get_third_package_cryptography_ed25519()
-            serialization = get_third_package_cryptography_serialization()
-            generated = ed25519.Ed25519PrivateKey.generate()
-            private_bytes = generated.private_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PrivateFormat.Raw,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-            public_bytes = generated.public_key().public_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PublicFormat.Raw,
-            )
-            document["private_key"] = _base64url_encode(private_bytes)
-            document["public_key"] = _base64url_encode(public_bytes)
-            document["key_version"] = max(
+            next_key_version = max(
                 _positive_int(document.get("key_version")),
                 current_credential_version,
             ) + 1
+            self._replace_signing_key(document, next_key_version)
         self._write(document)
         relay_activity_log.warning(
             "identity.credential.revoked",
@@ -459,6 +467,24 @@ class RelayDeviceIdentity:
             credential_version=credential_version,
         )
         return headers
+
+    @staticmethod
+    def _replace_signing_key(document: Dict[str, Any], key_version: int) -> None:
+        ed25519 = get_third_package_cryptography_ed25519()
+        serialization = get_third_package_cryptography_serialization()
+        generated = ed25519.Ed25519PrivateKey.generate()
+        private_bytes = generated.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_bytes = generated.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        document["private_key"] = _base64url_encode(private_bytes)
+        document["public_key"] = _base64url_encode(public_bytes)
+        document["key_version"] = int(key_version)
 
     @staticmethod
     def _write(document: Dict[str, Any]) -> None:

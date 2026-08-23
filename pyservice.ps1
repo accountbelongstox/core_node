@@ -126,6 +126,8 @@ param(
     [switch]$NoReload,
     [switch]$Only,
     [switch]$NoUi,
+    [ValidateSet('1', '2')]
+    [string]$ServiceMode = '1',
     [switch]$UiBuild,
     [int]$UiPort = 13054,
     [switch]$NoInstall,
@@ -218,6 +220,7 @@ function Show-Usage {
     Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
     Write-Host '  -Only             Provision only (idempotent install), then exit'
     Write-Host '  -NoUi             Do not launch the dashboard UI; use legacy /web/subtitle'
+    Write-Host '  -ServiceMode MODE Select local UI mode (1, default) or Relay UI mode (2)'
     Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
     Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
     Write-Host '  -NoInstall        Skip all PowerShell prerequisite installers'
@@ -232,6 +235,7 @@ function Show-Usage {
     Write-Host '  .\pyservice.ps1'
     Write-Host '  .\pyservice.ps1 install'
     Write-Host '  .\pyservice.ps1 run -NoUi -Port 8000'
+    Write-Host '  .\pyservice.ps1 run -ServiceMode 2'
     Write-Host '  .\pyservice.ps1 -NoInstall'
     Write-Host '  .\pyservice.ps1 config -show'
 }
@@ -307,9 +311,9 @@ switch ($Command.ToLowerInvariant()) {
 Write-Host '======================================================' -ForegroundColor Cyan
 Write-Host ' Pycore Service - entry point' -ForegroundColor Cyan
 Write-Host '======================================================' -ForegroundColor Cyan
-$uiMode = if ($NoUi) { 'legacy' } else { 'dashboard (pycore-manager)' }
+$uiMode = if ($ServiceMode -eq '2') { 'relay' } elseif ($NoUi) { 'legacy' } else { 'dashboard (pycore-manager)' }
 $prerequisiteMode = if ($NoInstall) { 'skipped' } else { 'enabled' }
-Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} ui={2} prerequisites={3})" -f $BindHost, $Port, $uiMode, $prerequisiteMode) -ForegroundColor DarkGray
+Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} mode={2} ui={3} prerequisites={4})" -f $BindHost, $Port, $ServiceMode, $uiMode, $prerequisiteMode) -ForegroundColor DarkGray
 
 $py = Resolve-Python
 if (-not $py) {
@@ -357,7 +361,7 @@ try {
     # The UI is the pure-Vite shell at poly_apps\pycore_laravel_wordnew_ui. It runs as its
     # own dev server (pnpm); PySide6 loads it via PYCORE_UI_URL, which we export
     # here (pointing at the pycore-manager end) so the worker child inherits it.
-    if (-not $NoUi) {
+    if (-not $NoUi -and $ServiceMode -eq '1') {
         $uiDir = Join-Path $PSScriptRoot 'poly_apps\pycore_laravel_wordnew_ui'
         $uiStartPath = Join-Path (Join-Path $uiDir 'scripts') 'start.ps1'
         $env:PORT = "$UiPort"
@@ -370,12 +374,14 @@ try {
         Write-Host ("[..] Starting dashboard through {0} ..." -f $uiStartPath) -ForegroundColor Yellow
         $uiProc = Start-Process -FilePath $powerShellPath -ArgumentList $uiStartArguments -WorkingDirectory $uiDir -WindowStyle Hidden -PassThru
         Write-Host ("[i] Dashboard start dispatched asynchronously: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkGray
+    } elseif ($ServiceMode -eq '2') {
+        Write-Host '[i] Relay UI intermediary mode: local dashboard launch is disabled.' -ForegroundColor DarkYellow
     } else {
         Write-Host '[i] -NoUi: using legacy /web/subtitle UI.' -ForegroundColor DarkYellow
     }
 
     # --- 3) launch the worker -------------------------------------------- #
-    $pyArgs = @('-u', $workerPath, '--host', $BindHost, '--port', $Port)
+    $pyArgs = @('-u', $workerPath, '--host', $BindHost, '--port', $Port, '--service-mode', $ServiceMode)
     if ($DebugMode) { $pyArgs += '--debug' }
     if ($NoReload)  { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
 

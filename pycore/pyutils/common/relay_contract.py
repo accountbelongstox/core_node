@@ -59,6 +59,46 @@ RELAY_CLAIM_GENERATION_FIELDS = (
     "claim_epoch",
     "lease_owner",
 )
+RELAY_REQUIRED_ENDPOINTS = {
+    "enrollment_create",
+    "enrollment_status",
+    "device_heartbeat",
+    "device_event",
+    "device_hub_authorization",
+    "operation_claim",
+    "operation_execution_start",
+    "operation_lease_renew",
+    "operation_result",
+    "device_request_blob_download",
+    "device_response_blob_allocate",
+    "device_response_blob_chunk",
+    "device_response_blob_finalize",
+    "owner_enrollment_claim",
+    "owner_device_roster",
+    "owner_pairing_create",
+    "owner_pairing_renew",
+    "owner_pairing_revoke",
+    "owner_hub_authorization",
+    "owner_operation_admit",
+    "owner_operation_status",
+    "owner_operation_cancel",
+    "owner_request_blob_allocate",
+    "owner_request_blob_chunk",
+    "owner_request_blob_finalize",
+    "owner_response_blob_download",
+}
+RELAY_REQUIRED_TOPICS = {
+    "device_wake",
+    "owner_roster",
+    "pairing_operation",
+}
+RELAY_REQUIRED_EVENTS = {
+    "operation_available",
+    "operation_status",
+    "credential_revoked",
+    "pairing_changed",
+    "terminal_changed",
+}
 
 
 class RelayContract:
@@ -75,6 +115,23 @@ class RelayContract:
                 raise ValueError(f"Relay contract section is required: {section}")
         if int(document.get("schema_version") or 0) != 2:
             raise ValueError("Relay contract schema_version must be 2")
+        self._require_named_values(
+            document["endpoints"],
+            RELAY_REQUIRED_ENDPOINTS,
+            "endpoint",
+        )
+        self._require_named_values(
+            document["topics"],
+            RELAY_REQUIRED_TOPICS,
+            "topic",
+        )
+        self._require_named_values(
+            document["events"],
+            RELAY_REQUIRED_EVENTS,
+            "event",
+        )
+        if len(set(document["events"].values())) != len(document["events"]):
+            raise ValueError("Relay event values must be unique")
         public_urls = document["public_urls"]
         api_origin = str(public_urls.get("laravel_api_origin") or "")
         mercure_hub = str(public_urls.get("mercure_hub") or "")
@@ -232,6 +289,22 @@ class RelayContract:
         self.document: Dict[str, Any] = document
         self.digest = hashlib.sha256(self.raw_bytes).hexdigest()
 
+    @staticmethod
+    def _require_named_values(
+        values: Any,
+        required_names: set[str],
+        value_kind: str,
+    ) -> None:
+        if not isinstance(values, dict):
+            raise ValueError(f"Relay {value_kind} collection must be an object")
+        missing = sorted(
+            name for name in required_names if not str(values.get(name) or "")
+        )
+        if missing:
+            raise ValueError(
+                f"Relay required {value_kind} is missing: {missing[0]}"
+            )
+
     @property
     def protocol_version(self) -> str:
         return str(self.document["protocol_version"])
@@ -246,10 +319,10 @@ class RelayContract:
         template = str(self.document["topics"].get(name) or "")
         if not template:
             raise KeyError(f"Relay topic is not defined: {name}")
-        resolved_tokens = {
-            "laravel_api_origin": self.public_url("laravel_api_origin"),
-            **{key: str(value) for key, value in tokens.items()},
-        }
+        resolved_tokens = {key: str(value) for key, value in tokens.items()}
+        resolved_tokens["laravel_api_origin"] = self.public_url(
+            "laravel_api_origin"
+        )
         return template.format(**resolved_tokens)
 
     def public_url(self, name: str) -> str:

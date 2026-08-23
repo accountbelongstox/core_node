@@ -299,6 +299,7 @@ export interface WfNewApi {
     articleId: string,
     settings: WfNewDailyReadingResourcePreviewSettings,
     groupId?: string | null,
+    batchName?: string,
   ): Promise<WfNewDailyReadingResourcePreviewResult>;
 
   /** Guest device reader settings (PUBLIC, fingerprint client_key). */

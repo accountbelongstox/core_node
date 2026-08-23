@@ -124,6 +124,8 @@ RELOAD=1
 NO_INSTALL=0
 ONLY=0
 NO_UI=0
+SERVICE_MODE="1"
+UI_MODE="dashboard (pycore-manager)"
 UI_BUILD=0
 UI_PORT="13054"
 PREPARE_ARGS=()
@@ -218,6 +220,7 @@ Options (apply to 'run'):
   --no-install     Skip all shell prerequisite installers
   --only           Run ONLY the prerequisite step, then exit
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
+  --service-mode N  Select local UI mode (1, default) or Relay UI mode (2)
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
   --               Everything after a bare -- is forwarded to prepare.sh
@@ -225,6 +228,7 @@ Options (apply to 'run'):
 Examples:
   ./pyservice.sh                              # run: install prereqs, launch 0.0.0.0:59000
   ./pyservice.sh run --no-ui --port 8000      # run on port 8000, legacy UI
+  ./pyservice.sh run --service-mode 2          # run Relay UI intermediary mode
   ./pyservice.sh --port 8000                  # no subcommand == run
   ./pyservice.sh --no-install                   # run without prerequisite installers
   ./pyservice.sh config --show                # show headless config
@@ -375,12 +379,19 @@ while [[ $# -gt 0 ]]; do
         --no-install) NO_INSTALL=1; shift ;;
         --only)       ONLY=1;         shift   ;;
         --no-ui)      NO_UI=1;        shift   ;;
+        --service-mode) SERVICE_MODE="$2"; shift 2 ;;
         --ui-build)   UI_BUILD=1;     shift   ;;
         --ui-port)    UI_PORT="$2";   shift 2 ;;
         --)           shift; PREPARE_ARGS+=("$@"); break ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
 done
+
+case "$SERVICE_MODE" in
+    1) ;;
+    2) NO_UI=1 ;;
+    *) echo "[!] Invalid service mode: $SERVICE_MODE" >&2; exit 2 ;;
+esac
 
 if [[ "$IS_HEADLESS_SERVER" == true ]]; then
     echo "[i] Headless server detected; Pycore runtime is disabled by server policy."
@@ -390,7 +401,14 @@ fi
 echo "======================================================"
 echo " Pycore Service - entry point"
 echo "======================================================"
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT ui=$([[ "$NO_UI" -eq 1 ]] && echo legacy || echo 'dashboard (pycore-manager)') prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled))"
+if [[ "$SERVICE_MODE" == "2" ]]; then
+    UI_MODE="relay"
+elif [[ "$NO_UI" -eq 1 ]]; then
+    UI_MODE="legacy"
+else
+    UI_MODE="dashboard (pycore-manager)"
+fi
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -475,7 +493,9 @@ stop_docker_publisher() {
 # --- 2) launch the unified dashboard UI (unless --no-ui) ----------------- #
 # Delegate frontend lifecycle to its canonical idempotent start script.
 
-if [[ "$NO_UI" -eq 1 ]]; then
+if [[ "$SERVICE_MODE" == "2" ]]; then
+    echo "[i] Relay UI intermediary mode: local dashboard launch is disabled."
+elif [[ "$NO_UI" -eq 1 ]]; then
     echo "[i] --no-ui: using legacy /web/subtitle UI."
 elif [[ ! -f "$UI_START" ]]; then
     echo "[i] dashboard start.sh not found; using legacy /web/subtitle UI."
@@ -552,7 +572,7 @@ if [[ "$(uname)" == "Linux" ]]; then
     fi
 fi
 
-PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT")
+PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT" --service-mode "$SERVICE_MODE")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
 
@@ -562,6 +582,4 @@ stop_docker_publisher "$PORT" || true
 echo ""
 echo "[>] Launching worker: $WORKER_REL"
 echo ""
-"$PY" "${PY_ARGS[@]}"
-CODE=$?
-exit $CODE
+exec "$PY" "${PY_ARGS[@]}"

@@ -15,8 +15,7 @@ final class RelayV2PairingService
     public function __construct(
         private readonly RelayV2DeviceService $devices,
         private readonly RelayV2HubService $hub,
-        private readonly RelayV2OutboxRepository $outbox,
-        private readonly RelayV2TopicService $topics
+        private readonly RelayV2PairingEventService $events
     ) {
     }
 
@@ -72,7 +71,7 @@ final class RelayV2PairingService
                     'revoked_at' => null,
                 ])->save();
             }
-            $this->notifyOwner($pairing);
+            $this->events->changed($pairing);
 
             return ['pairing' => $this->descriptor($pairing)];
         }, 3);
@@ -197,8 +196,8 @@ final class RelayV2PairingService
                         : $pairing->expires_at,
                     'revoked_at' => $targetState === RelayV2Constants::PAIRING_REVOKED ? now() : null,
                 ])->save();
-                $this->notifyOwner($pairing);
             }
+            $this->events->changed($pairing);
 
             return ['pairing' => $this->descriptor($pairing)];
         }, 3);
@@ -222,19 +221,6 @@ final class RelayV2PairingService
         if ((int) $pairing->credential_version !== (int) $device->current_credential_version) {
             throw new RelayV2DomainException('pairing_credential_stale', 409);
         }
-    }
-
-    private function notifyOwner(RelayV2PairingModel $pairing): void
-    {
-        $this->outbox->append(
-            'pairing',
-            (string) $pairing->pairing_id,
-            (int) $pairing->revision,
-            'relay.pairing.changed',
-            'owner',
-            $this->topics->owner((int) $pairing->user_id),
-            ['pairing_id' => (string) $pairing->pairing_id, 'revision' => (int) $pairing->revision]
-        );
     }
 
     private function descriptor(RelayV2PairingModel $pairing): array

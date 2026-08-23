@@ -4,12 +4,12 @@ namespace App\Apps\RelayV2\RelayV2Services;
 
 use App\Apps\RelayV2\RelayV2Gvar\RelayV2Constants;
 use App\Apps\RelayV2\RelayV2Models\RelayV2OutboxModel;
+use App\Apps\RelayV2\RelayV2TablesMaps\RelayV2TablesMaps;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class RelayV2OutboxRepository
 {
-    private const MAX_ATTEMPTS = 10;
-
     public function append(
         string $entityType,
         string $entityId,
@@ -20,6 +20,21 @@ final class RelayV2OutboxRepository
         array $payload,
         bool $private = true
     ): void {
+        $eventName = array_search(
+            $eventType,
+            RelayV2Contract::document()['events'],
+            true
+        );
+        $requiredPayloadFields = [];
+        if (!is_string($eventName)) {
+            throw new \LogicException(__('relay_v2.outbox_transition_conflict'));
+        }
+        $requiredPayloadFields = RelayV2Contract::eventPayloadFields($eventName);
+        foreach ($requiredPayloadFields as $field) {
+            if (!array_key_exists($field, $payload)) {
+                throw new \LogicException(__('relay_v2.outbox_transition_conflict'));
+            }
+        }
         $canonicalPayload = RelayV2Contract::canonicalJson($payload);
         $inserted = RelayV2OutboxModel::query()->insertOrIgnore([[
             'outbox_id' => (string) Str::uuid(),
@@ -82,10 +97,10 @@ final class RelayV2OutboxRepository
     public function markFailed(RelayV2OutboxModel $row, string $error): void
     {
         $attempts = (int) $row->publish_attempts + 1;
-        $delay = min(300, 2 ** min($attempts, 8));
+        $delay = min(RelayV2Contract::duration('outbox_retry_max_seconds'), 2 ** min($attempts, 8));
 
         $row->forceFill([
-            'state' => $attempts >= self::MAX_ATTEMPTS
+            'state' => $attempts >= RelayV2Contract::limit('outbox_publish_attempts')
                 ? RelayV2Constants::OUTBOX_DEAD
                 : RelayV2Constants::OUTBOX_PENDING,
             'publish_attempts' => $attempts,
@@ -93,5 +108,32 @@ final class RelayV2OutboxRepository
             'last_publish_error' => mb_substr($error, 0, 2000),
             'updated_at' => now(),
         ])->save();
+    }
+
+    public function pruneRetained(int $limit): int
+    {
+        $connection = DB::connection(RelayV2TablesMaps::connection());
+
+        return $connection->transaction(function () use ($limit): int {
+            $ids = RelayV2OutboxModel::query()
+                ->whereIn('state', [
+                    RelayV2Constants::OUTBOX_PUBLISHED,
+                    RelayV2Constants::OUTBOX_DEAD,
+                ])
+                ->where('updated_at', '<=', now()->subSeconds(
+                    RelayV2Contract::duration('outbox_retention_seconds')
+                ))
+                ->orderBy('id')
+                ->limit($limit)
+                ->lock('for update skip locked')
+                ->pluck('id')
+                ->all();
+
+            if ($ids === []) {
+                return 0;
+            }
+
+            return RelayV2OutboxModel::query()->whereIn('id', $ids)->delete();
+        }, 3);
     }
 }

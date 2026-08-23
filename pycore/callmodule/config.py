@@ -216,6 +216,7 @@ def build_launcher_config(
     host: str = HTTP_BIND_HOST,
     port: int = PYCORE_HTTP_PORT,
     debug: bool = False,
+    local_ui_enabled: bool = True,
 ):
     """
     Build LauncherConfig for Pycore Module Caller
@@ -266,7 +267,7 @@ def build_launcher_config(
 
     # Add UI service (voice subtitle window) - from callmodule_config/config.py
     # Note: Only on Windows for now, can be extended to other platforms
-    if IS_WINDOWS:
+    if IS_WINDOWS and local_ui_enabled:
         # New desktop-manager UI wants a large window (1788x1159), clamped to the
         # screen when too small (falls back to a screen-appropriate size).
         window_size_tuple = _resolve_window_size()
@@ -304,7 +305,9 @@ def build_launcher_config(
     # PySide6. Used unless TRAY_BACKEND == "pyside" (then the Qt tray in the UI
     # thread is used instead). The PySide6 tray code is kept and gated by config.
     # On Linux desktop (DISPLAY set), use the native tray (AppIndicator/pystray).
-    _can_show_tray = IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY)
+    _can_show_tray = local_ui_enabled and (
+        IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY)
+    )
     if _can_show_tray and not CallmoduleConfig.UI_ENABLE_TRAY:
         services['tray'] = build_tray_service_config(port=port)
         ColorPrint.blue(f"[ConfigBuilder] Added independent tray service (backend={CallmoduleConfig.TRAY_BACKEND})")
@@ -325,5 +328,4 @@ def build_launcher_config(
     ColorPrint.green(f"[ConfigBuilder] Configuration built with {len(services)} services")
     ColorPrint.blue(f"[ConfigBuilder] Services: {', '.join(services.keys())}")
     return config
-
 

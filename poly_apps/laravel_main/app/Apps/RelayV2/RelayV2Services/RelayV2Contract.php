@@ -66,6 +66,60 @@ final class RelayV2Contract
         return $value;
     }
 
+    public static function rateLimit(string $name): int
+    {
+        $document = self::document();
+        $value = (int) ($document['rate_limits'][$name] ?? 0);
+        if ($value < 1) {
+            throw new RelayV2DomainException('contract_rate_limit_missing', 500, ['name' => $name]);
+        }
+
+        return $value;
+    }
+
+    public static function publicUrl(string $name): string
+    {
+        $document = self::document();
+        $value = (string) ($document['public_urls'][$name] ?? '');
+        if ($value === '') {
+            throw new RelayV2DomainException('contract_public_url_missing', 500, ['name' => $name]);
+        }
+
+        return $value;
+    }
+
+    public static function eventPayloadFields(string $name): array
+    {
+        $document = self::document();
+        $values = $document['event_payload_profiles'][$name] ?? [];
+        if (!is_array($values) || $values === []) {
+            throw new RelayV2DomainException('contract_event_payload_missing', 500, ['name' => $name]);
+        }
+
+        return array_values(array_map('strval', $values));
+    }
+
+    public static function generationFields(string $endpointName): array
+    {
+        $document = self::document();
+        $profile = is_array($document['claim_generation_profile'] ?? null)
+            ? $document['claim_generation_profile']
+            : [];
+        $endpoints = array_values(array_map('strval', is_array($profile['query_bound_endpoints'] ?? null)
+            ? $profile['query_bound_endpoints']
+            : []));
+        $fields = array_values(array_map('strval', is_array($profile['fields'] ?? null)
+            ? $profile['fields']
+            : []));
+
+        if (!in_array($endpointName, $endpoints, true)
+            || $fields !== ['operation_revision', 'claim_epoch', 'lease_owner']) {
+            throw new RelayV2DomainException('contract_generation_profile_invalid', 500, ['name' => $endpointName]);
+        }
+
+        return $fields;
+    }
+
     public static function event(string $name): string
     {
         $document = self::document();
@@ -96,6 +150,7 @@ final class RelayV2Contract
         if ($template === '') {
             throw new RelayV2DomainException('contract_topic_missing', 500, ['name' => $name]);
         }
+        $tokens['laravel_api_origin'] = self::publicUrl('laravel_api_origin');
         foreach ($tokens as $key => $value) {
             $resolved = str_replace('{'.$key.'}', (string) $value, $resolved);
         }
@@ -145,57 +200,102 @@ final class RelayV2Contract
         $normalizedMethod = strtoupper($method);
         $policies = is_array($document['route_policies'] ?? null) ? $document['route_policies'] : [];
         $profiles = is_array($document['route_policy_profiles'] ?? null) ? $document['route_policy_profiles'] : [];
+        $matching = is_array($document['route_policy_matching'] ?? null) ? $document['route_policy_matching'] : [];
+        $precedenceValues = is_array($matching['precedence'] ?? null) ? $matching['precedence'] : [];
+        $precedence = [];
         $methods = [];
         $matchKind = '';
         $matchValue = '';
         $matched = false;
         $profileName = '';
         $profile = [];
-        foreach ($policies as $policy) {
+        $bestPolicy = null;
+        $bestScore = null;
+        $score = [];
+        $defaultProfile = (string) ($matching['default_profile'] ?? '');
+        foreach ($precedenceValues as $index => $kind) {
+            $precedence[(string) $kind] = count($precedenceValues) - $index;
+        }
+        foreach ($policies as $declarationIndex => $policy) {
             $methods = array_map('strtoupper', is_array($policy['methods'] ?? null) ? $policy['methods'] : []);
             if (!in_array($normalizedMethod, $methods, true)) {
                 continue;
             }
             $matchKind = (string) ($policy['match'] ?? 'exact');
-            $matchValue = trim((string) ($policy['value'] ?? ''), '/');
+            $matchValue = $matchKind === 'exact'
+                ? trim((string) ($policy['value'] ?? ''), '/')
+                : ($matchKind === 'prefix'
+                    ? ltrim((string) ($policy['value'] ?? ''), '/')
+                    : rtrim((string) ($policy['value'] ?? ''), '/'));
             $matched = $matchKind === 'exact'
                 ? $normalizedPath === $matchValue
                 : ($matchKind === 'prefix'
-                    ? str_starts_with($normalizedPath, ltrim((string) ($policy['value'] ?? ''), '/'))
+                    ? str_starts_with($normalizedPath, $matchValue)
                     : ($matchKind === 'suffix'
-                        ? str_ends_with($normalizedPath, rtrim((string) ($policy['value'] ?? ''), '/'))
+                        ? str_ends_with($normalizedPath, $matchValue)
                         : false));
             if (!$matched) {
                 continue;
             }
-            $profileName = (string) ($policy['profile'] ?? '');
+            $score = [(int) ($precedence[$matchKind] ?? 0), strlen($matchValue), -$declarationIndex];
+            if ($bestScore === null || self::routeScoreIsBetter($score, $bestScore)) {
+                $bestScore = $score;
+                $bestPolicy = $policy;
+            }
+        }
+        if (is_array($bestPolicy)) {
+            $profileName = (string) ($bestPolicy['profile'] ?? '');
             $profile = is_array($profiles[$profileName] ?? null) ? $profiles[$profileName] : [];
 
-            return array_merge($policy, $profile);
+            return array_merge($bestPolicy, $profile);
         }
-        $profile = is_array($profiles['denied'] ?? null) ? $profiles['denied'] : [];
+        $profile = is_array($profiles[$defaultProfile] ?? null) ? $profiles[$defaultProfile] : [];
 
         return array_merge([
             'match' => 'default',
             'value' => $normalizedPath,
             'methods' => [$normalizedMethod],
-            'profile' => 'denied',
+            'profile' => $defaultProfile,
         ], $profile);
     }
 
     public static function canonicalPath(string $path): string
     {
-        $oneSlashPath = '/'.ltrim($path, '/');
-        $decoded = rawurldecode($oneSlashPath);
+        $rawPath = $path;
+        $oneSlashPath = '';
+        $decoded = '';
         $encoded = '';
         $character = '';
         $ordinal = 0;
-        if (str_contains($path, '?') || str_contains($path, '#') || !mb_check_encoding($decoded, 'UTF-8')) {
+        $triplet = '';
+        if (str_contains($rawPath, '?')
+            || str_contains($rawPath, '#')
+            || str_starts_with($rawPath, '//')
+            || str_contains($rawPath, '\\')) {
+            throw new RelayV2DomainException('signature_path_invalid', 400);
+        }
+        for ($index = 0, $length = strlen($rawPath); $index < $length; $index++) {
+            if ($rawPath[$index] !== '%') {
+                continue;
+            }
+            $triplet = substr($rawPath, $index + 1, 2);
+            if (strlen($triplet) !== 2
+                || !ctype_xdigit($triplet)
+                || in_array(strtolower($triplet), ['2f', '5c'], true)) {
+                throw new RelayV2DomainException('signature_path_invalid', 400);
+            }
+        }
+        $oneSlashPath = '/'.ltrim($rawPath, '/');
+        $decoded = rawurldecode($oneSlashPath);
+        if (!mb_check_encoding($decoded, 'UTF-8')) {
             throw new RelayV2DomainException('signature_path_invalid', 400);
         }
         for ($index = 0, $length = strlen($decoded); $index < $length; $index++) {
             $character = $decoded[$index];
             $ordinal = ord($character);
+            if ($ordinal < 32 || $ordinal === 127) {
+                throw new RelayV2DomainException('signature_path_invalid', 400);
+            }
             if (($ordinal >= 65 && $ordinal <= 90)
                 || ($ordinal >= 97 && $ordinal <= 122)
                 || ($ordinal >= 48 && $ordinal <= 57)
@@ -218,8 +318,8 @@ final class RelayV2Contract
         $value = '';
         foreach ($segments as $segment) {
             $parts = explode('=', $segment, 2);
-            $key = urldecode((string) ($parts[0] ?? ''));
-            $value = urldecode((string) ($parts[1] ?? ''));
+            $key = self::decodeFormComponent((string) ($parts[0] ?? ''));
+            $value = self::decodeFormComponent((string) ($parts[1] ?? ''));
             $pairs[] = [$key, $value];
         }
         usort($pairs, static function (array $left, array $right): int {
@@ -239,12 +339,15 @@ final class RelayV2Contract
         $pairs = [];
         $values = [];
         foreach ($query as $rawKey => $rawValue) {
+            if (!is_string($rawKey)) {
+                throw new RelayV2DomainException('query_key_invalid', 422);
+            }
             $values = is_array($rawValue) ? $rawValue : [$rawValue];
             foreach ($values as $rawItem) {
                 if (!is_string($rawItem)) {
                     throw new RelayV2DomainException('query_value_invalid', 422);
                 }
-                $pairs[] = [(string) $rawKey, $rawItem];
+                $pairs[] = [$rawKey, $rawItem];
             }
         }
         usort($pairs, static function (array $left, array $right): int {
@@ -330,20 +433,26 @@ final class RelayV2Contract
             'request_digest_profile',
             'response_digest_profile',
             'endpoints',
+            'public_urls',
             'topics',
             'events',
+            'event_payload_profiles',
+            'claim_generation_profile',
             'mercure_profile',
             'lease_profile',
             'durations',
             'limits',
+            'rate_limits',
             'headers',
             'operation_states',
             'operation_transitions',
             'transition_guards',
             'result_outcomes',
             'retry_policies',
+            'route_policy_matching',
             'route_policy_profiles',
             'route_policies',
+            'capabilities',
         ];
         $requiredProfileFields = ['exposure', 'permission', 'payload', 'timeout_seconds', 'retry'];
         $requiredSignatureHeaders = [
@@ -366,10 +475,23 @@ final class RelayV2Contract
             'operation_execution_start',
             'operation_lease_renew',
             'operation_result',
-            'request_blob',
-            'response_blob_allocate',
-            'response_blob_chunk',
-            'response_blob_finalize',
+            'device_request_blob_download',
+            'device_response_blob_allocate',
+            'device_response_blob_chunk',
+            'device_response_blob_finalize',
+            'owner_enrollment_claim',
+            'owner_device_roster',
+            'owner_pairing_create',
+            'owner_pairing_renew',
+            'owner_pairing_revoke',
+            'owner_hub_authorization',
+            'owner_operation_admit',
+            'owner_operation_status',
+            'owner_operation_cancel',
+            'owner_request_blob_allocate',
+            'owner_request_blob_chunk',
+            'owner_request_blob_finalize',
+            'owner_response_blob_download',
         ];
         $requiredDurations = [
             'operation_lease_seconds',
@@ -377,9 +499,12 @@ final class RelayV2Contract
             'nonce_retention_seconds',
             'enrollment_retention_seconds',
             'subscriber_token_seconds',
+            'credential_lifetime_seconds',
             'pairing_lease_seconds',
             'operation_retention_seconds',
             'blob_retention_seconds',
+            'outbox_retention_seconds',
+            'outbox_retry_max_seconds',
         ];
         $requiredLimits = [
             'claim_batch',
@@ -392,8 +517,25 @@ final class RelayV2Contract
             'owner_pending_operations',
             'device_active_leases',
             'device_event_payload_bytes',
+            'outbox_publish_batch',
+            'outbox_publish_attempts',
+            'maintenance_row_batch',
+            'maintenance_blob_batch',
         ];
-        $requiredEvents = ['operation_available', 'credential_revoked', 'terminal_changed'];
+        $requiredEvents = [
+            'operation_available',
+            'operation_status',
+            'pairing_changed',
+            'credential_revoked',
+            'terminal_changed',
+        ];
+        $requiredTopics = ['device_wake', 'owner_roster', 'pairing_operation'];
+        $requiredPublicUrls = ['laravel_api_origin', 'mercure_hub'];
+        $requiredRateLimits = [
+            'device_requests_per_minute',
+            'owner_requests_per_minute',
+            'enrollment_claims_per_minute',
+        ];
         $profiles = [];
         $states = [];
         $transitionStates = [];
@@ -421,10 +563,32 @@ final class RelayV2Contract
         }
         self::assertRequiredNames($document['signature_profile']['headers'] ?? [], $requiredSignatureHeaders, 'contract_header_missing');
         self::assertRequiredNames($document['endpoints'], $requiredEndpoints, 'contract_endpoint_missing');
-        self::assertRequiredNames($document['topics'], ['device_wake'], 'contract_topic_missing');
+        self::assertRequiredNames($document['public_urls'], $requiredPublicUrls, 'contract_public_url_missing');
+        self::assertRequiredNames($document['topics'], $requiredTopics, 'contract_topic_missing');
         self::assertRequiredNames($document['events'], $requiredEvents, 'contract_event_missing');
+        if (count(array_unique(array_values($document['events']), SORT_STRING)) !== count($document['events'])) {
+            throw new RelayV2DomainException('contract_event_missing', 500, ['name' => 'unique_event_values']);
+        }
         self::assertPositiveNames($document['durations'], $requiredDurations, 'contract_duration_missing');
         self::assertPositiveNames($document['limits'], $requiredLimits, 'contract_limit_missing');
+        self::assertPositiveNames($document['rate_limits'], $requiredRateLimits, 'contract_rate_limit_missing');
+        foreach ($requiredEvents as $eventName) {
+            if (!is_array($document['event_payload_profiles'][$eventName] ?? null)
+                || $document['event_payload_profiles'][$eventName] === []) {
+                throw new RelayV2DomainException('contract_event_payload_missing', 500, ['name' => $eventName]);
+            }
+        }
+        if (($document['claim_generation_profile']['fields'] ?? null) !== ['operation_revision', 'claim_epoch', 'lease_owner']
+            || ($document['claim_generation_profile']['query_bound_endpoints'] ?? null)
+                !== ['device_request_blob_download', 'device_response_blob_chunk']) {
+            throw new RelayV2DomainException('contract_generation_profile_invalid', 500);
+        }
+        self::assertPublicUrls($document);
+        if (($document['route_policy_matching']['precedence'] ?? null) !== ['exact', 'prefix', 'suffix']
+            || (string) ($document['route_policy_matching']['tie_breaker'] ?? '') !== 'longest-value-then-first-declared'
+            || !array_key_exists((string) ($document['route_policy_matching']['default_profile'] ?? ''), $document['route_policy_profiles'])) {
+            throw new RelayV2DomainException('contract_route_profile_invalid', 500, ['name' => 'route_policy_matching']);
+        }
         if ((string) ($document['signature_profile']['algorithm'] ?? '') !== 'ed25519') {
             throw new RelayV2DomainException('contract_signature_profile_invalid', 500);
         }
@@ -475,6 +639,71 @@ final class RelayV2Contract
     private static function formEncode(string $value): string
     {
         return str_replace('%20', '+', rawurlencode($value));
+    }
+
+    private static function decodeFormComponent(string $value): string
+    {
+        $triplet = '';
+        $decoded = '';
+
+        for ($index = 0, $length = strlen($value); $index < $length; $index++) {
+            if ($value[$index] !== '%') {
+                continue;
+            }
+            $triplet = substr($value, $index + 1, 2);
+            if (strlen($triplet) !== 2 || !ctype_xdigit($triplet)) {
+                throw new RelayV2DomainException('signature_query_invalid', 400);
+            }
+        }
+        $decoded = urldecode($value);
+        if (!mb_check_encoding($decoded, 'UTF-8')) {
+            throw new RelayV2DomainException('signature_query_invalid', 400);
+        }
+
+        return $decoded;
+    }
+
+    private static function routeScoreIsBetter(array $candidate, array $current): bool
+    {
+        if ($candidate[0] !== $current[0]) {
+            return $candidate[0] > $current[0];
+        }
+        if ($candidate[1] !== $current[1]) {
+            return $candidate[1] > $current[1];
+        }
+
+        return $candidate[2] > $current[2];
+    }
+
+    private static function assertPublicUrls(array $document): void
+    {
+        $origin = (string) $document['public_urls']['laravel_api_origin'];
+        $hub = (string) $document['public_urls']['mercure_hub'];
+        $originParts = parse_url($origin);
+        $hubParts = parse_url($hub);
+        $hubPath = (string) ($document['mercure_profile']['hub_path'] ?? '');
+
+        if (!is_array($originParts)
+            || ($originParts['scheme'] ?? '') !== 'https'
+            || (string) ($originParts['host'] ?? '') === ''
+            || isset($originParts['user'])
+            || isset($originParts['pass'])
+            || (string) ($originParts['path'] ?? '') !== ''
+            || isset($originParts['query'])
+            || isset($originParts['fragment'])) {
+            throw new RelayV2DomainException('contract_public_url_invalid', 500, ['name' => 'laravel_api_origin']);
+        }
+        if (!is_array($hubParts)
+            || ($hubParts['scheme'] ?? '') !== ($originParts['scheme'] ?? '')
+            || ($hubParts['host'] ?? '') !== ($originParts['host'] ?? '')
+            || ($hubParts['port'] ?? null) !== ($originParts['port'] ?? null)
+            || (string) ($hubParts['path'] ?? '') !== $hubPath
+            || isset($hubParts['user'])
+            || isset($hubParts['pass'])
+            || isset($hubParts['query'])
+            || isset($hubParts['fragment'])) {
+            throw new RelayV2DomainException('contract_public_url_invalid', 500, ['name' => 'mercure_hub']);
+        }
     }
 
     private static function assertRequiredNames(mixed $section, array $names, string $errorCode): void

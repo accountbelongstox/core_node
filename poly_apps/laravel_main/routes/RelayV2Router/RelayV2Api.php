@@ -29,29 +29,29 @@ Route::middleware([RelayV2DeviceSignatureMiddleware::class, 'throttle:relay-devi
     Route::post($relayV2Uri('operation_execution_start'), [RelayV2DeviceCtl::class, 'executionStart']);
     Route::post($relayV2Uri('operation_lease_renew'), [RelayV2DeviceCtl::class, 'renewLease']);
     Route::post($relayV2Uri('operation_result'), [RelayV2DeviceCtl::class, 'result']);
-    Route::get($relayV2Uri('request_blob'), [RelayV2DeviceCtl::class, 'requestBlob']);
-    Route::post($relayV2Uri('response_blob_allocate'), [RelayV2DeviceCtl::class, 'allocateResponseBlob']);
-    Route::put($relayV2Uri('response_blob_chunk'), [RelayV2DeviceCtl::class, 'responseBlobChunk']);
-    Route::post($relayV2Uri('response_blob_finalize'), [RelayV2DeviceCtl::class, 'finalizeResponseBlob']);
+    Route::get($relayV2Uri('device_request_blob_download'), [RelayV2DeviceCtl::class, 'requestBlob']);
+    Route::post($relayV2Uri('device_response_blob_allocate'), [RelayV2DeviceCtl::class, 'allocateResponseBlob']);
+    Route::put($relayV2Uri('device_response_blob_chunk'), [RelayV2DeviceCtl::class, 'responseBlobChunk']);
+    Route::post($relayV2Uri('device_response_blob_finalize'), [RelayV2DeviceCtl::class, 'finalizeResponseBlob']);
 });
 
-Route::prefix('relay/v2')->middleware(['auth:sanctum', 'throttle:relay-owner'])->group(function (): void {
-    Route::post('device-enrollments/claim', [RelayV2OwnerCtl::class, 'claimEnrollment'])
+Route::middleware(['auth:sanctum', 'throttle:relay-owner'])->group(function () use ($relayV2Uri): void {
+    Route::post($relayV2Uri('owner_enrollment_claim'), [RelayV2OwnerCtl::class, 'claimEnrollment'])
         ->middleware('throttle:relay-enrollment-claim');
-    Route::get('devices', [RelayV2OwnerCtl::class, 'roster']);
-    Route::post('pairings', [RelayV2OwnerCtl::class, 'createPairing']);
-    Route::post('pairings/{pairingId}/renew', [RelayV2OwnerCtl::class, 'renewPairing'])->whereUuid('pairingId');
-    Route::delete('pairings/{pairingId}', [RelayV2OwnerCtl::class, 'revokePairing'])->whereUuid('pairingId');
-    Route::post('mercure-authorization', [RelayV2OwnerCtl::class, 'hubAuthorization']);
-    Route::post('operations', [RelayV2OwnerCtl::class, 'admitOperation']);
-    Route::get('operations/{operationId}', [RelayV2OwnerCtl::class, 'operation'])
+    Route::get($relayV2Uri('owner_device_roster'), [RelayV2OwnerCtl::class, 'roster']);
+    Route::post($relayV2Uri('owner_pairing_create'), [RelayV2OwnerCtl::class, 'createPairing']);
+    Route::post($relayV2Uri('owner_pairing_renew'), [RelayV2OwnerCtl::class, 'renewPairing'])->whereUuid('pairingId');
+    Route::delete($relayV2Uri('owner_pairing_revoke'), [RelayV2OwnerCtl::class, 'revokePairing'])->whereUuid('pairingId');
+    Route::post($relayV2Uri('owner_hub_authorization'), [RelayV2OwnerCtl::class, 'hubAuthorization']);
+    Route::post($relayV2Uri('owner_operation_admit'), [RelayV2OwnerCtl::class, 'admitOperation']);
+    Route::get($relayV2Uri('owner_operation_status'), [RelayV2OwnerCtl::class, 'operation'])
         ->whereUuid('operationId')
         ->name('relay.v2.operation.show');
-    Route::post('operations/{operationId}/cancel', [RelayV2OwnerCtl::class, 'cancelOperation'])->whereUuid('operationId');
-    Route::post('request-blobs', [RelayV2OwnerCtl::class, 'allocateRequestBlob']);
-    Route::put('blobs/{blobId}/chunks/{chunkIndex}', [RelayV2OwnerCtl::class, 'requestBlobChunk'])
+    Route::post($relayV2Uri('owner_operation_cancel'), [RelayV2OwnerCtl::class, 'cancelOperation'])->whereUuid('operationId');
+    Route::post($relayV2Uri('owner_request_blob_allocate'), [RelayV2OwnerCtl::class, 'allocateRequestBlob']);
+    Route::put($relayV2Uri('owner_request_blob_chunk'), [RelayV2OwnerCtl::class, 'requestBlobChunk'])
         ->whereUuid('blobId')
         ->whereNumber('chunkIndex');
-    Route::post('blobs/{blobId}/finalize', [RelayV2OwnerCtl::class, 'finalizeRequestBlob'])->whereUuid('blobId');
-    Route::get('blobs/{blobId}', [RelayV2OwnerCtl::class, 'responseBlob'])->whereUuid('blobId');
+    Route::post($relayV2Uri('owner_request_blob_finalize'), [RelayV2OwnerCtl::class, 'finalizeRequestBlob'])->whereUuid('blobId');
+    Route::get($relayV2Uri('owner_response_blob_download'), [RelayV2OwnerCtl::class, 'responseBlob'])->whereUuid('blobId');
 });
