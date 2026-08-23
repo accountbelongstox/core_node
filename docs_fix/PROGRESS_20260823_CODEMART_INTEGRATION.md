@@ -21,6 +21,8 @@ Status: design synchronized; implementation not started.
 | Workstream | Status | Dependency |
 | --- | --- | --- |
 | Main product/architecture design | Complete | None |
+| Public landing visual contract | Desktop baseline captured | Mobile reference and local assets |
+| Public landing data contract | Pending | Publication-safe aggregate definitions |
 | Canonical Laravel contract | Pending | State and compatibility audit |
 | Laravel bootstrap and serializers | Pending | Canonical contract |
 | React API types and foundation | Pending | Bootstrap/serializer handoff |
@@ -47,6 +49,13 @@ command was run.
   and results.
 - Realtime: notification/invalidation only; normal Laravel reads reconcile.
 - Existing data and Flutter source: retained through initial cutover.
+- Public landing route: `/codemart`; authenticated dashboard route:
+  `/codemart/dashboard`.
+- Public landing appearance follows the inspected `mytoken.cloud` desktop
+  baseline, but the implementation uses only local React components, CSS,
+  assets, i18n content, and Laravel data.
+- Reference-site counters, testimonials, identity, contact information, legal
+  text, and assets are not copied into the product contract.
 
 ## Contract handoff checklist
 
@@ -61,6 +70,16 @@ command was run.
 - [ ] Canonical state/display-key vocabulary.
 - [ ] Deposit, commission, currency, upload, pagination, and rating policies.
 - [ ] Dashboard counters and notification unread count.
+
+### Public home
+
+- [ ] Define `GET /public/home` without a bearer requirement.
+- [ ] Define publication-safe aggregate counter names, decimal/integer shape,
+  update cadence, and unavailable-data behavior.
+- [ ] Decide whether approved testimonials are server-managed in MVP; omit the
+  section when no approved records exist.
+- [ ] Confirm that localized marketing copy, navigation labels, and delivery
+  steps remain frontend locale content rather than API data.
 
 ### Common response contract
 
@@ -128,6 +147,11 @@ For each slice:
   wallet/manual funding flows.
 - Exact administrator workflow for KYC approval and exceptional refund
   processing.
+- Exact aggregate definitions for public total amount, project count, and
+  registered-developer count.
+- Whether testimonials are included in MVP and, if included, their approval,
+  consent, ordering, and withdrawal workflow.
+- Exact responsive breakpoints after a reliable mobile reference capture.
 
 Decisions are appended here with date, owner, affected DTOs, and migration
 impact before either side implements them.
@@ -140,4 +164,9 @@ impact before either side implements them.
 - Selected the shared bearer session, server-owned contract, Laravel-only
   browser transport, and durable async ownership model.
 - Recorded all known Flutter/Laravel contract conflicts and handoff order.
+- Added the inspected `mytoken.cloud` desktop landing-page visual contract and
+  separated it from local architecture, assets, identity, content, and data
+  ownership.
+- Added the unauthenticated public-home contract handoff and reserved
+  `/codemart/dashboard` for the authenticated role-aware dashboard.
 - No implementation files were changed.

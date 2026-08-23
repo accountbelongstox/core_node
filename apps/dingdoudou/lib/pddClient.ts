@@ -14,6 +14,7 @@
 
 import type { PddCredential } from './types';
 import { asRecord } from './value';
+import { AppError } from './appError';
 
 const PDD_HOST = 'mobile.yangkeduo.com';
 const PDD_ORIGIN = `https://${PDD_HOST}`;
@@ -156,7 +157,7 @@ export async function fetchOrderListPage(
     type: '0',
   });
   const res = await pddFetch(cred, `/proxy/api/api/aristotle/order_list_v4?${qs.toString()}`);
-  if (!res.ok) throw new Error(`order_list_v4 HTTP ${res.status}`);
+  if (!res.ok) throw new AppError('pdd.requestFailed', { status: res.status });
   const json = await res.json().catch(() => ({}));
   return unwrapOrders(json);
 }

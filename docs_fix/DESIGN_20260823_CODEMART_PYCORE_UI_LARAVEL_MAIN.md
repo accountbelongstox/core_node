@@ -182,6 +182,7 @@ poly_apps/pycore_laravel_wordnew_ui/apps/codemart/
   components/
     common/
     dashboard/
+    public-home/
     projects/
     tasks/
     reviews/
@@ -189,6 +190,7 @@ poly_apps/pycore_laravel_wordnew_ui/apps/codemart/
   contexts/
     CmBootstrapContext.tsx
   pages/
+    CmPublicHomePage.tsx
     CmDashboardPage.tsx
     CmMarketplacePage.tsx
     CmProjectsPage.tsx
@@ -210,6 +212,10 @@ poly_apps/pycore_laravel_wordnew_ui/apps/codemart/
   stores/
     CmDraftStore.ts
     CmQueryState.ts
+  styles/
+    cm-public-home.css
+  assets/
+    public-home/
 ```
 
 `cmPages.tsx` is the single registry for page ID, route, localized label key,
@@ -230,11 +236,65 @@ rootRoute: /codemart
 entry: apps/codemart/CmApp.tsx
 ```
 
-### 5.2 Page map
+### 5.2 Reference visual baseline
+
+The public landing page uses `https://mytoken.cloud/` as its accepted visual
+reference. It was inspected through MCP Chrome on 2026-08-23 at a
+`1424 x 771` desktop viewport. The reference page title was
+`字节码 - 互联网软件外包服务平台`; its rendered document height was approximately
+`4211px`.
+
+"Same UI" means visual and interaction parity for layout hierarchy,
+proportions, spacing, typography, color, responsive ordering, and control
+behavior. It does not mean embedding the site, importing its CSS, hotlinking
+its assets, or copying its logo, contact details, ICP text, testimonials, or
+unverified marketing claims. All components, styles, illustrations, localized
+copy, links, accessibility behavior, and application data are owned locally.
+Laravel remains the authority for live platform data.
+
+The captured desktop baseline is:
+
+| Region | Reference measurements and appearance | Local implementation |
+| --- | --- | --- |
+| Page | `#F0F2F5` body, `#333333` text, 14px base font, PingFang/Helvetica/Arial/Microsoft YaHei fallback stack | CodeMart-scoped tokens in `cm-public-home.css`; no global shell CSS override |
+| Header | Absolute transparent header, about 70px high, 980px centered content, white logo/navigation, five primary links and login/register actions | `CmPublicHeader`; local CodeMart brand asset, localized route registry links, shared AuthSession actions |
+| Hero | Full-width 640px banner, 980px inner content, 42px white heading, 18px subtitle, two 193x49 CTAs, pager/arrows | `CmHero`; local artwork/gradients, accessible carousel controls, reduced-motion behavior, localized copy |
+| Metrics | 113px band with three equal columns; 42px `#8796A8` values and 14px labels | `CmPlatformStats`; values from Laravel public summary, never copied static numbers |
+| Delivery flow | White section, 35px centered title, five alternating 980x420 steps; 42px step titles and 588x294 illustrations | `CmDeliveryFlow`; five local illustrated steps: requirement, cooperation, funding, delivery, warranty |
+| Testimonials | 560px `#DDE3EB` section with centered title and 980px carousel | `CmTestimonials`; shown only when approved local content exists; otherwise omitted without an empty gap |
+| Final CTA | 323px `#2B3747` band with centered white message and primary action | `CmPublicCta`; action resolves through shared authentication and capability state |
+| Footer | Approximately 353px, multi-column links, optional QR area, dark/light text hierarchy | `CmPublicFooter`; local routes and configured organization/legal data only |
+
+Reference colors include primary blue `#4187DB`, link blue `#4289DB`, dark
+heading `#2D3238`, muted text `#8796A8`, testimonial background `#DDE3EB`, and
+dark CTA background `#2B3747`. The primary button has a 5px radius. These are
+CodeMart-scoped presentation tokens; existing shared theme tokens remain the
+default for authenticated application pages.
+
+The landing page is implemented inside the local React shell with native
+React components and CSS. It does not use an iframe or the reference site's
+runtime. The CodeMart content surface may be full-bleed, while shell-owned
+providers, endpoint selection, authentication, error handling, i18n, and app
+switching remain active. Desktop content uses a maximum width of 980px. At
+narrow widths the header becomes a local menu, hero actions stack, metrics
+wrap, and each delivery step becomes a single text-and-illustration column in
+the same semantic order. Exact mobile parity remains subject to a separate
+mobile capture because the inspected reference session exposed only its
+desktop viewport.
+
+The reference site's project links currently resolve to an unavailable
+external host. Therefore it is not a behavioral or data-contract authority
+for marketplace, project, account, payment, or authenticated pages. Those
+pages follow this document, the retained Flutter behavior, and Laravel's
+canonical contract while reusing the landing page's visual language where it
+improves consistency.
+
+### 5.3 Page map
 
 | Route | Page | Capability |
 | --- | --- | --- |
-| `/codemart` | Role-aware dashboard | Authenticated user |
+| `/codemart` | Public visual-parity landing page | Public; account-aware actions when authenticated |
+| `/codemart/dashboard` | Role-aware dashboard | Authenticated user |
 | `/codemart/marketplace` | Open task marketplace | `task.browse` |
 | `/codemart/projects` | Owned or assigned projects | `project.read` |
 | `/codemart/projects/new` | Project creation wizard | `project.create` |
@@ -253,7 +313,7 @@ Unauthorized pages are absent from navigation and still protected by a route
 gate. Hiding navigation is not authorization; every Laravel operation repeats
 the resource and capability check.
 
-### 5.3 Frontend state and transport
+### 5.4 Frontend state and transport
 
 - `CmApi` extends the existing shared `BaseAPI` with prefix
   `/api/codemart/v1` and active-endpoint behavior.
@@ -409,6 +469,7 @@ envelope.
 
 | Domain | Existing coverage | Required extension |
 | --- | --- | --- |
+| Public home | None | Public summary counters and optional approved testimonial/content projection |
 | Bootstrap | Registration status only | Current user projection, roles, capabilities, contract, policy, counters |
 | Projects | List/create/read/update/publish, milestone create, upload | Stable serializers, timeline, cancellation, explicit state actions |
 | AI analysis | Start/read/accept/revise | `global_task_id`, revision, retry-safe status, normalized proposal |
@@ -429,6 +490,9 @@ API rules:
   implementation.
 - API serializers emit stable snake_case JSON. Eloquent models are not exposed
   directly.
+- `GET /public/home` requires no bearer token and returns only aggregate,
+  publication-safe data. Marketing text remains in CodeMart locale files;
+  live counters and optional approved testimonial records come from Laravel.
 - Datetimes are UTC ISO 8601. Money is a fixed decimal string; calculations use
   decimal-safe server operations.
 - Validation and domain conflicts have stable `error_code` values. User-facing

@@ -40,7 +40,13 @@ import {
 } from '@/lib/dashboardBridge';
 import { downloadCsv } from '@/lib/exportCsv';
 import { hasFeature } from '@/lib/superCode';
-import { dashboardText, localeFor, nextLanguage, orderCardText } from '@/lib/uiI18n';
+import {
+  dashboardText,
+  localizedErrorText,
+  localeFor,
+  nextLanguage,
+  orderCardText,
+} from '@/lib/uiI18n';
 import { AccountPanel } from './components/AccountPanel';
 import { LogisticsModal } from './components/LogisticsModal';
 import { OrderCard } from './components/OrderCard';
@@ -202,7 +208,7 @@ export default function App() {
         setActiveAccountState(active);
         await loadOrders(accountScope, active);
       })
-      .catch((error) => notify(error instanceof Error ? error.message : String(error), 'error'));
+      .catch((error) => notify(localizedErrorText(lang, error, ui.genericError), 'error'));
   }, [accountScope, extensionMode, license, loadOrders, notify]);
 
   const recipients = useMemo(() => {
@@ -255,7 +261,7 @@ export default function App() {
     try {
       setLicense(await submitSuperCode(superCode.trim()));
     } catch (error) {
-      setGateError(error instanceof Error ? error.message : String(error));
+      setGateError(localizedErrorText(lang, error, ui.genericError));
     } finally {
       setGateBusy(false);
     }
@@ -271,7 +277,7 @@ export default function App() {
       }
       setLicense(await loginMember(backendUrl.trim(), backendUser.trim(), backendPassword));
     } catch (error) {
-      setGateError(error instanceof Error ? error.message : String(error));
+      setGateError(localizedErrorText(lang, error, ui.genericError));
     } finally {
       setGateBusy(false);
     }
@@ -295,7 +301,7 @@ export default function App() {
       await loadOrders('active', active);
       notify(ui.accountBound(active?.name ?? captured.pddUserId));
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     } finally {
       setCapturing(false);
     }
@@ -309,7 +315,7 @@ export default function App() {
       await setActiveAccount(account.pddUserId);
       await loadOrders('active', account);
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     }
   };
 
@@ -333,7 +339,7 @@ export default function App() {
       await loadOrders(accountScope, activeAccount);
       notify(ui.synced(count));
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     } finally {
       setSyncing(false);
     }
@@ -374,7 +380,7 @@ export default function App() {
         : order));
       notify(ui.refunded(refunded.size));
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     } finally {
       setRefunding(false);
     }
@@ -417,7 +423,7 @@ export default function App() {
         localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(remaining));
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), 'error');
+      notify(localizedErrorText(lang, error, ui.genericError), 'error');
     }
   };
 

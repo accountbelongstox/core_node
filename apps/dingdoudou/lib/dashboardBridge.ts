@@ -8,7 +8,7 @@ import type { Order, PinduoduoAccount, LicenseState, BackendConfig } from './typ
 import type { AppSettings } from './storage';
 import type { ReconcileBatch } from './reconcile';
 import { requestBackendOrigin } from './backendUrl';
-import { AppError } from './appError';
+import { AppError, type AppErrorCode, type AppErrorDetails } from './appError';
 
 // Is the dashboard running inside the extension (vs. a plain web preview)?
 export function inExtension(): boolean {
@@ -19,8 +19,8 @@ function unwrap<T>(res: {
   ok: boolean;
   data?: T;
   error?: string;
-  errorCode?: ConstructorParameters<typeof AppError>[0];
-  errorDetails?: ConstructorParameters<typeof AppError>[1];
+  errorCode?: AppErrorCode;
+  errorDetails?: AppErrorDetails;
 }): T {
   if (!res.ok) {
     if (res.errorCode) throw new AppError(res.errorCode, res.errorDetails);

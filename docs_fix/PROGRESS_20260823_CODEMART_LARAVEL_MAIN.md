@@ -72,6 +72,10 @@ command was run.
 
 ### Phase L-1: application foundation
 
+- [ ] Add unauthenticated `GET /public/home` with publication-safe aggregate
+  counters and optional approved testimonial records.
+- [ ] Define counter semantics, cache/update cadence, unavailable-data
+  behavior, and privacy thresholds before exposing public totals.
 - [ ] Add the bootstrap endpoint with user, onboarding, roles, capabilities,
   policies, enum vocabulary, and counters.
 - [ ] Add policies/authorization services for every role and resource action.
@@ -148,4 +152,7 @@ cutover.
   map, app registration, migrations, and AI analysis timer path.
 - Confirmed that the current backend is reusable but contains contract and
   state inconsistencies that must be normalized before React implementation.
+- Added the public landing-page data handoff required by the inspected
+  `mytoken.cloud` visual baseline; reference-site values and content are not
+  backend seed data.
 - No implementation files were changed.

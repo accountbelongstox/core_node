@@ -19,7 +19,8 @@ notes.
 
 ## Current status
 
-Status: not started; source audit complete; design baseline available.
+Status: not started; source and reference-UI audits complete; design baseline
+available.
 
 No React/TypeScript source, shell registration, flavor, build output, or test
 source was changed while creating this document. No build, test, or service was
@@ -54,6 +55,28 @@ run.
   minimum.
 - Business states, limits, deposit amounts, commission, and currencies: loaded
   from Laravel bootstrap; not copied into TypeScript constants.
+- Public landing visual reference: `https://mytoken.cloud/`, reproduced with
+  local React/CSS/assets and local data rather than an iframe or external
+  runtime dependency.
+- Public root: `/codemart`; authenticated dashboard: `/codemart/dashboard`.
+
+## Reference UI audit
+
+MCP Chrome captured the live reference homepage on 2026-08-23 at a
+`1424 x 771` desktop viewport. The page uses a transparent header over a 640px
+hero, dual CTAs, a three-column metrics band, five alternating delivery steps,
+a testimonial carousel, a dark final CTA, and a multi-column footer. Its main
+desktop content width is 980px.
+
+Captured presentation tokens include `#4187DB` primary blue, `#4289DB` link
+blue, `#2D3238` headings, `#8796A8` muted text, `#DDE3EB` testimonial surface,
+`#2B3747` final CTA, 42px hero/step headings, and 5px button radius. These
+measurements are now binding for the public landing desktop baseline.
+
+Reference assets and operational content are not implementation inputs. Local
+assets replace the logo, hero, process illustrations, avatars, and QR code;
+CodeMart locale files replace page copy; Laravel supplies publication-safe
+counters and any approved testimonial records.
 
 ## Work checklist
 
@@ -74,6 +97,14 @@ run.
 - [ ] Add English and Chinese locale registration.
 - [ ] Add `CmApi`, bootstrap context, access gate, shared page states, and
   namespaced draft/query persistence.
+- [ ] Add `CmPublicHomePage`, `CmPublicHeader`, `CmHero`, `CmPlatformStats`,
+  `CmDeliveryFlow`, `CmTestimonials`, `CmPublicCta`, and `CmPublicFooter`.
+- [ ] Add CodeMart-scoped public-home CSS tokens and local visual assets; do
+  not import or hotlink reference-site CSS, images, logo, or fonts.
+- [ ] Implement the 980px desktop geometry, full-bleed section surfaces,
+  keyboard-accessible hero/testimonial controls, and reduced-motion behavior.
+- [ ] Implement the responsive header, stacked CTAs, wrapping metrics, and
+  single-column delivery steps after the mobile baseline is captured.
 
 ### Phase UI-2: onboarding and dashboard
 
@@ -124,6 +155,13 @@ run.
 
 ## Known blockers
 
+- The reference site's linked project pages currently resolve to an
+  unavailable external host, so only its landing page is an inspected visual
+  authority.
+- Exact reference mobile breakpoints and dimensions were not available from
+  the current MCP Chrome viewport and still require a mobile capture.
+- Laravel does not yet expose the publication-safe `GET /public/home` summary
+  contract.
 - Laravel does not yet expose the required bootstrap contract.
 - Current route metadata and controller validation disagree for multiple KYC
   fields.
@@ -143,4 +181,12 @@ must not be hidden by permanent frontend fallback values.
   global login host, endpoint manager, themes, and i18n owner.
 - Selected the target route, file prefix, backend-only transport, and phased
   page delivery plan.
+- Captured the live `mytoken.cloud` landing page through MCP Chrome and
+  recorded its desktop hierarchy, geometry, colors, typography, and component
+  mapping.
+- Defined visual parity as a local React/CSS reconstruction with CodeMart
+  branding, i18n copy, local assets, and Laravel data; no external embedding or
+  hotlinking.
+- Split the public landing route (`/codemart`) from the authenticated dashboard
+  route (`/codemart/dashboard`).
 - No implementation files were changed.

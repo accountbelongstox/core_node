@@ -18,7 +18,6 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
-
 # Script identification and path setup
 SCRIPT_INDEX="123"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -212,40 +211,6 @@ is_vscode_installed() {
 
 # DEPRECATED: This function is no longer used
 # Use find_file_in_downloads_from_common_functions() instead
-# Find VS Code .deb files inside /home/*/Downloads
-find_vscode_file_deprecated() {
-    local search_dirs=()
-    local latest_file=""
-    local latest_mtime=0
-
-    if [[ -d "/home" ]]; then
-        for user_home in /home/*; do
-            [[ -d "$user_home" ]] || continue
-            if [[ -d "$user_home/Downloads" ]]; then
-                search_dirs+=("$user_home/Downloads")
-            fi
-        done
-    fi
-
-    for dir in "${search_dirs[@]}"; do
-        while IFS= read -r -d '' candidate; do
-            local basename_file=$(basename "$candidate")
-
-            local file_mtime=$(stat -c %Y "$candidate" 2>/dev/null || echo 0)
-            if (( file_mtime > latest_mtime )); then
-                latest_mtime=$file_mtime
-                latest_file="$candidate"
-            fi
-        done < <(find "$dir" -maxdepth 1 -type f -iname "code*.deb" -print0 2>/dev/null)
-    done
-
-    if [[ -n "$latest_file" ]]; then
-        echo "$latest_file"
-        return 0
-    fi
-
-    return 1
-}
 
 filter_self_processes() {
     local pids_list="$1"
@@ -331,45 +296,6 @@ safe_kill_processes() {
 
 # DEPRECATED: This function is no longer used
 # Use prompt_and_wait_for_download_from_common_functions() instead
-# Manual download fallback
-vscode_manual_download_deprecated() {
-    local confirmation=""
-    local downloaded_file=""
-
-    print_step_from_common_functions "Manual VS Code download required"
-    print_info_from_common_functions "Place the VS Code .deb file under /home/<username>/Downloads (any user)"
-    print_info_from_common_functions "Download page: $VSCODE_DOWNLOAD_URL"
-
-    if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$VSCODE_DOWNLOAD_URL" >/dev/null 2>&1 &
-    else
-        print_warning_from_common_functions "xdg-open not available. Please open $VSCODE_DOWNLOAD_URL manually"
-    fi
-
-    while true; do
-        echo -n "Type 'yes' after the VS Code .deb is in /home/<username>/Downloads (any user, or 'quit' to stop): "
-        read -r confirmation
-
-        case "$confirmation" in
-            [yY]|[yY][eE][sS])
-                downloaded_file=$(find_file_in_downloads_from_common_functions "code*.deb" "newest")
-                if [[ -n "$downloaded_file" ]] && [[ -f "$downloaded_file" ]]; then
-                    print_success_from_common_functions "Found VS Code installer: $(basename "$downloaded_file")"
-                    echo "$downloaded_file"
-                    return 0
-                fi
-                print_warning_from_common_functions "No VS Code .deb detected yet in /home/*/Downloads"
-                ;;
-            [qQ]|[qQ][uU][iI][tT])
-                print_warning_from_common_functions "Manual download aborted by user"
-                return 1
-                ;;
-            *)
-                print_info_from_common_functions "Waiting for manual confirmation..."
-                ;;
-        esac
-    done
-}
 
 # Install .deb package
 check_deb_integrity() {

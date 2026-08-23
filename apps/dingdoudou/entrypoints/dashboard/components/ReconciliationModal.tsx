@@ -16,7 +16,7 @@ import {
   CheckCircle2, AlertTriangle, PackageSearch, Loader2,
 } from 'lucide-react';
 import type { Order } from '@/lib/types';
-import { localeFor, reconciliationText } from '@/lib/uiI18n';
+import { localizedErrorText, localeFor, reconciliationText } from '@/lib/uiI18n';
 import {
   reconcile, parseTrackingInput, buildReportHtml,
   type ReconcileBatch,
@@ -24,7 +24,6 @@ import {
 import {
   inExtension, getAllOrders, listBatches, saveBatch, removeBatch,
 } from '@/lib/dashboardBridge';
-import { errorText } from '@/lib/value';
 
 const LOCAL_KEY = 'dd_reconcile_batches_local';
 
@@ -88,7 +87,7 @@ export const ReconciliationModal: React.FC<Props> = ({
         setOrders(o && o.length ? o : fallbackOrders);
         setSelectedIds(b.map((x) => x.id));
       } catch (loadError) {
-        if (alive) setError(errorText(loadError, ui.loadFailed));
+        if (alive) setError(localizedErrorText(lang, loadError, ui.loadFailed));
       } finally {
         if (alive) setLoading(false);
       }
@@ -126,7 +125,7 @@ export const ReconciliationModal: React.FC<Props> = ({
       try {
         next = await saveBatch(batch);
       } catch (saveError) {
-        setError(errorText(saveError, ui.saveFailed));
+        setError(localizedErrorText(lang, saveError, ui.saveFailed));
         return;
       }
     } else {
@@ -145,7 +144,7 @@ export const ReconciliationModal: React.FC<Props> = ({
       try {
         next = await removeBatch(id);
       } catch (removeError) {
-        setError(errorText(removeError, ui.removeFailed));
+        setError(localizedErrorText(lang, removeError, ui.removeFailed));
         return;
       }
     } else {

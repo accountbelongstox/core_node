@@ -6,6 +6,8 @@ export type AppErrorCode =
   | 'account.removedDuringSync'
   | 'account.required'
   | 'backend.credentialsRequired'
+  | 'backend.requestFailed'
+  | 'backend.timeout'
   | 'backend.urlCredentials'
   | 'backend.urlInvalid'
   | 'backend.urlProtocol'
@@ -15,7 +17,8 @@ export type AppErrorCode =
   | 'license.superCodeInvalid'
   | 'message.unknown'
   | 'order.selectionRequired'
-  | 'pdd.loginRequired';
+  | 'pdd.loginRequired'
+  | 'pdd.requestFailed';
 
 export type AppErrorDetails = Record<string, string | number>;
 
