@@ -64,7 +64,13 @@ class AudioDeliveryOutbox:
             / f"{source_sha256}.mp3"
         )
         retained_audio_path.parent.mkdir(parents=True, exist_ok=True)
-        if not retained_audio_path.is_file():
+        if retained_audio_path.is_file():
+            retained_sha256 = hashlib.sha256(
+                retained_audio_path.read_bytes()
+            ).hexdigest()
+            if retained_sha256 != source_sha256:
+                raise ValueError("retained audio digest conflicts with the staged step")
+        else:
             shutil.copy2(str(source_path), str(retained_audio_path))
         staged_record = copy.deepcopy(record)
         staged_record.update({
@@ -108,6 +114,10 @@ class AudioDeliveryOutbox:
         if not delivery_id:
             raise ValueError("audio delivery requires delivery_id")
         current = records.get(delivery_id, {})
+        current_sha256 = str(current.get("audio_sha256") or "")
+        proposed_sha256 = str(record.get("audio_sha256") or "")
+        if current_sha256 and proposed_sha256 and current_sha256 != proposed_sha256:
+            raise ValueError("audio delivery digest conflicts with the idempotent step")
         row = copy.deepcopy(current)
         row.update(copy.deepcopy(record))
         row["delivery_id"] = delivery_id
@@ -164,8 +174,7 @@ class AudioDeliveryOutbox:
         if not row or str(row.get("status") or "pending") == "dead_letter":
             return None
         lease_until = float(row.get("lease_until") or 0)
-        lease_process = str(row.get("lease_process") or "")
-        if lease_until > now and lease_process == process_id:
+        if lease_until > now:
             return None
         row["lease_owner"] = str(owner)
         row["lease_process"] = str(process_id)
