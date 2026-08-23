@@ -18,6 +18,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.mercure_client import (
     MERCURE_STATE_CONNECTING,
@@ -63,6 +64,7 @@ class RelayService:
         self._registered_endpoint = ""
         self._endpoint_listener_registered = False
         self._operation_batch_active = False
+        self._presented_enrollment_id = ""
         self._lease_owner = uuid.uuid4().hex
         relay_activity_log.info(
             "runtime.constructed",
@@ -430,6 +432,7 @@ class RelayService:
             relay_device_identity.clear_enrollment()
             return False
         if state != "claimed":
+            self._present_enrollment_claim(resolved_id)
             relay_activity_log.info(
                 "enrollment.awaiting_claim",
                 endpoint=endpoint,
@@ -453,6 +456,25 @@ class RelayService:
             device_id=relay_device_identity.device_id(),
         )
         return True
+
+    def _present_enrollment_claim(self, enrollment_id: str) -> None:
+        claim = relay_device_identity.enrollment_claim()
+        resolved_id = str(claim.get("enrollment_id") or "")
+        claim_code = str(claim.get("claim_code") or "")
+        expires_at = str(claim.get("expires_at") or "")
+        if (
+            not resolved_id
+            or resolved_id != str(enrollment_id)
+            or not claim_code
+            or self._presented_enrollment_id == resolved_id
+        ):
+            return
+        self._presented_enrollment_id = resolved_id
+        ColorPrint.yellow(
+            "[RelayV2] Enrollment required: "
+            f"enter claim code {claim_code} in the Relay device roster "
+            f"before {expires_at}."
+        )
 
     def _heartbeat(self, coordinator_url: str) -> None:
         data = relay_transport.request_json(

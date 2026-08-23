@@ -314,6 +314,20 @@
       "timeout_seconds": 30,
       "retry": "read"
     },
+    "general_write": {
+      "exposure": "relay",
+      "permission": "relay.route.write",
+      "payload": "json-object",
+      "timeout_seconds": 30,
+      "retry": "idempotent_write"
+    },
+    "general_action": {
+      "exposure": "relay",
+      "permission": "relay.route.control",
+      "payload": "json-object",
+      "timeout_seconds": 30,
+      "retry": "at_most_once_action"
+    },
     "denied": {
       "exposure": "denied",
       "permission": "none",
@@ -478,6 +492,120 @@
       "value": "/resource",
       "profile": "general_read",
       "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/index",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompts",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/session_detail",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/session_id_pages",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/session_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_id_pages",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/runtime_get",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_list",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_logs",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_records",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_record_id_pages",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_record_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_video_media",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/update_prompt",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_config_post",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/refresh",
+      "profile": "general_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/test_extract",
+      "profile": "general_action",
+      "methods": ["POST"]
     },
     {
       "match": "prefix",

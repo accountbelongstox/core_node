@@ -1,37 +1,15 @@
-/**
- * LaravelRelayRoster - the always-on relay roster link
- * (DESIGN_20260817_2115 PART_3 §3.3/§3.4).
- *
- * Roster truth is the server registry (`GET /api/relay/machines`), pushed
- * forward by `roster.update` deltas on the `pycore.machines` topic through
- * the shared authorized Mercure connection. The link
- * runs in BOTH transport modes - designation and the roster view stay
- * available even while the pycore backend is direct. A bounded refresh (the
- * offline window) covers SSE gaps/reconnects; deltas never override a
- * registry refresh.
- */
-import { laravelApi } from './LaravelAPI';
-import type { RelayMachineRecord } from './LaravelTypes';
+import { RELAY_V2_CONTRACT, type RelayV2Device } from '../../contracts/RelayV2Contract';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
-import { getSharedBaseURL } from './transport/BaseAPI';
-import { relayTopic } from '../../contracts/QueueCenterContract';
+import { laravelApi } from './LaravelAPI';
 
-export interface RelayRosterEntry extends RelayMachineRecord {
+export interface RelayRosterEntry extends RelayV2Device {
   online: boolean;
-}
-
-export interface RelayRosterUpdate {
-  machine_id: string;
-  online: boolean;
-  capabilities?: string[];
 }
 
 type RosterChangeHandler = (entries: RelayRosterEntry[]) => void;
 
-// Bounded roster refresh: twice per offline window by default (the registry
-// remains the authority; SSE is the low-latency path).
-const REFRESH_INTERVAL_MS = 20_000;
-const HUB_FALLBACK_PATH = '/.well-known/mercure';
+const REFRESH_INTERVAL_MS = RELAY_V2_CONTRACT.durations.heartbeat_seconds * 1000;
+const OFFLINE_AFTER_MS = (RELAY_V2_CONTRACT.durations.heartbeat_seconds * 2 + 5) * 1000;
 
 class LaravelRelayRoster {
   private entries = new Map<string, RelayRosterEntry>();
@@ -40,15 +18,13 @@ class LaravelRelayRoster {
   private started = false;
   private consumers = 0;
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
-  private offlineAfterMs = 45_000;
 
   start(): void {
     this.consumers += 1;
     if (this.started) return;
     this.started = true;
-    void this.refresh();
-    this.openStream();
-    this.scheduleRefresh();
+    void this.refresh().then(() => this.openStream());
+    this.refreshTimer = setInterval(() => void this.refresh(), REFRESH_INTERVAL_MS);
   }
 
   stop(): void {
@@ -56,14 +32,12 @@ class LaravelRelayRoster {
     if (this.consumers > 0) return;
     this.started = false;
     this.transport.close();
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer);
-      this.refreshTimer = null;
-    }
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+    this.refreshTimer = null;
   }
 
   list(): RelayRosterEntry[] {
-    return [...this.entries.values()].sort((a, b) => a.label.localeCompare(b.label));
+    return [...this.entries.values()].sort((left, right) => left.label.localeCompare(right.label));
   }
 
   online(): RelayRosterEntry[] {
@@ -75,105 +49,56 @@ class LaravelRelayRoster {
     return () => this.handlers.delete(handler);
   }
 
-  /** Registry truth pass; deltas continue on top. */
   async refresh(): Promise<void> {
     try {
-      const response = await laravelApi.getRelayMachines();
-      const offlineAfterSeconds = Math.max(1, response.heartbeat_seconds * 2 + 5);
-      this.offlineAfterMs = offlineAfterSeconds * 1000;
-      const next = new Map<string, RelayRosterEntry>();
-      for (const machine of response.machines) {
-        next.set(machine.machine_id, { ...machine, online: this.isOnline(machine) });
-      }
-      this.entries = next;
+      const devices = await laravelApi.getRelayV2Devices();
+      this.entries = new Map(devices.map((device) => [device.device_id, {
+        ...device,
+        online: this.isOnline(device),
+      }]));
       this.emit();
     } catch {
-      // Registry unreachable - keep the last known roster; the bounded
-      // refresh retries.
+      return;
     }
   }
 
-  private isOnline(machine: RelayMachineRecord): boolean {
-    const seen = Date.parse(machine.last_heartbeat_at || machine.registered_at || '');
-    if (!Number.isFinite(seen)) return false;
-    return Date.now() - seen <= this.offlineAfterMs;
+  private isOnline(device: RelayV2Device): boolean {
+    const lastSeenAt = Date.parse(device.last_seen_at || '');
+    return Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt <= OFFLINE_AFTER_MS;
   }
 
   private openStream(): void {
-    const base = getSharedBaseURL();
+    if (!this.started) return;
     this.transport.connect({
-      hub_url: base ? new URL(HUB_FALLBACK_PATH, base).toString() : HUB_FALLBACK_PATH,
-      topics: [relayTopic('machines')],
+      hub_url: RELAY_V2_CONTRACT.public_urls.mercure_hub,
+      topics: [],
     }, {
-      authorize: () => laravelApi.relayHubAuth(),
+      authorize: async () => {
+        const hub = await laravelApi.relayV2HubAuth();
+        return {
+          subscribe_url: this.subscribeUrl(hub.url, hub.topics),
+          token: hub.subscriber_token,
+          token_ttl_seconds: hub.expires_in_seconds,
+        };
+      },
       onSubscribed: () => undefined,
-      onEvent: (event, data) => this.applyDelta(event, data),
+      onEvent: () => void this.refresh(),
       onClose: () => {
         if (!this.started) return;
-        // Re-open on the next refresh tick after the server is reachable.
-        void this.refresh();
+        setTimeout(() => this.openStream(), REFRESH_INTERVAL_MS);
       },
     });
   }
 
-  private applyDelta(_event: string, data: unknown): void {
-    const update = this.parseUpdate(data);
-    if (!update) return;
-    const current = this.entries.get(update.machine_id);
-    if (!current && !update.online) return;
-    this.entries.set(update.machine_id, {
-      machine_id: update.machine_id,
-      label: current?.label ?? update.machine_id,
-      capabilities: update.capabilities ?? current?.capabilities ?? [],
-      hostname: current?.hostname,
-      platform: current?.platform,
-      registered_at: current?.registered_at,
-      last_heartbeat_at: current?.last_heartbeat_at,
-      online: update.online,
-    });
-    this.emit();
-  }
-
-  private parseUpdate(data: unknown): RelayRosterUpdate | null {
-    const value = typeof data === 'string' ? this.parseJson(data) : data;
-    if (!value || typeof value !== 'object') return null;
-    const candidate = value as Partial<RelayRosterUpdate>;
-    if (typeof candidate.machine_id !== 'string' || !candidate.machine_id) return null;
-    return {
-      machine_id: candidate.machine_id,
-      online: !!candidate.online,
-      capabilities: Array.isArray(candidate.capabilities) ? candidate.capabilities : undefined,
-    };
-  }
-
-  private parseJson(value: string): unknown {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return null;
-    }
-  }
-
-  private scheduleRefresh(): void {
-    if (this.refreshTimer) return;
-    this.refreshTimer = setInterval(() => {
-      if (!this.started) return;
-      void this.refresh();
-      // Re-open the stream when it closed and the refresh confirmed the
-      // server is reachable again.
-      if (!this.transport.isConnected()) this.openStream();
-    }, REFRESH_INTERVAL_MS);
+  private subscribeUrl(hubUrl: string, topics: string[]): string {
+    const url = new URL(hubUrl);
+    topics.forEach((topic) => url.searchParams.append('topic', topic));
+    return url.toString();
   }
 
   private emit(): void {
     const snapshot = this.list();
     this.handlers.forEach((handler) => handler(snapshot));
-  }
-}
-
-declare global {
-  interface Window {
-    __RELAY_ROSTER_REFRESH_MS__?: number;
   }
 }
 

@@ -30,6 +30,14 @@ import {
   QUEUE_CENTER_DIFF_DELIVERY,
   queueCenterEndpoint,
 } from '../../contracts/QueueCenterContract';
+import {
+  relayV2Endpoint,
+  type RelayV2Device,
+  type RelayV2Hub,
+  type RelayV2Operation,
+  type RelayV2OperationAdmission,
+  type RelayV2Pairing,
+} from '../../contracts/RelayV2Contract';
 import type {
   GlobalTaskWorkerRegistration,
   QueueCenterIdPagesResponse,
@@ -133,6 +141,26 @@ const ROUTES = {
     queueCenterEndpoint('relay_blob_create', { machine_id: machineId }),
   relayBlobFetch: (machineId: string, blobId: string): string =>
     queueCenterEndpoint('relay_blob_fetch', { machine_id: machineId, blob_id: blobId }),
+  relayV2EnrollmentClaim: relayV2Endpoint('owner_enrollment_claim'),
+  relayV2Devices: relayV2Endpoint('owner_device_roster'),
+  relayV2Pairings: relayV2Endpoint('owner_pairing_create'),
+  relayV2PairingRenew: (pairingId: string): string =>
+    relayV2Endpoint('owner_pairing_renew', { pairingId }),
+  relayV2PairingRevoke: (pairingId: string): string =>
+    relayV2Endpoint('owner_pairing_revoke', { pairingId }),
+  relayV2HubAuth: relayV2Endpoint('owner_hub_authorization'),
+  relayV2Operations: relayV2Endpoint('owner_operation_admit'),
+  relayV2Operation: (operationId: string): string =>
+    relayV2Endpoint('owner_operation_status', { operationId }),
+  relayV2OperationCancel: (operationId: string): string =>
+    relayV2Endpoint('owner_operation_cancel', { operationId }),
+  relayV2RequestBlobs: relayV2Endpoint('owner_request_blob_allocate'),
+  relayV2RequestBlobChunk: (blobId: string, chunkIndex: number): string =>
+    relayV2Endpoint('owner_request_blob_chunk', { blobId, chunkIndex }),
+  relayV2RequestBlobFinalize: (blobId: string): string =>
+    relayV2Endpoint('owner_request_blob_finalize', { blobId }),
+  relayV2ResponseBlob: (blobId: string): string =>
+    relayV2Endpoint('owner_response_blob_download', { blobId }),
   // Queue Center pump read/claim surface (diff delivery over global_tasks).
   queueCenterIdPages: (queue: string): string =>
     queueCenterEndpoint('queue_center_queue_id_pages', { queue }),
@@ -439,6 +467,87 @@ const laravelMethods = {
       { method: 'GET', credentials: 'include' },
     );
     if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
+    return new Uint8Array(await response.arrayBuffer());
+  },
+  relayV2ClaimEnrollment: async (claimCode: string): Promise<RelayV2Device> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2EnrollmentClaim, { claim_code: claimCode });
+    return unwrapData<{ device: RelayV2Device }>(payload).device;
+  },
+  getRelayV2Devices: async (): Promise<RelayV2Device[]> => {
+    const payload = await requestLaravel<any>('GET', ROUTES.relayV2Devices);
+    return unwrapData<{ devices: RelayV2Device[] }>(payload).devices;
+  },
+  createRelayV2Pairing: async (deviceId: string, clientInstanceId: string): Promise<RelayV2Pairing> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2Pairings, {
+      device_id: deviceId,
+      client_instance_id: clientInstanceId,
+    });
+    return unwrapData<{ pairing: RelayV2Pairing }>(payload).pairing;
+  },
+  renewRelayV2Pairing: async (pairingId: string): Promise<RelayV2Pairing> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2PairingRenew(pairingId));
+    return unwrapData<{ pairing: RelayV2Pairing }>(payload).pairing;
+  },
+  revokeRelayV2Pairing: async (pairingId: string): Promise<RelayV2Pairing> => {
+    const payload = await requestLaravel<any>('DELETE', ROUTES.relayV2PairingRevoke(pairingId));
+    return unwrapData<{ pairing: RelayV2Pairing }>(payload).pairing;
+  },
+  relayV2HubAuth: async (): Promise<RelayV2Hub> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2HubAuth);
+    return unwrapData<{ hub: RelayV2Hub }>(payload).hub;
+  },
+  admitRelayV2Operation: async (frame: RelayV2OperationAdmission): Promise<RelayV2Operation> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2Operations, frame);
+    return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  },
+  getRelayV2Operation: async (operationId: string): Promise<RelayV2Operation> => {
+    const payload = await requestLaravel<any>('GET', ROUTES.relayV2Operation(operationId));
+    return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  },
+  cancelRelayV2Operation: async (operationId: string): Promise<RelayV2Operation> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2OperationCancel(operationId));
+    return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  },
+  allocateRelayV2RequestBlob: async (
+    blobId: string,
+    pairingId: string,
+    sha256: string,
+    length: number,
+  ): Promise<void> => {
+    await requestLaravel<any>('POST', ROUTES.relayV2RequestBlobs, {
+      blob_id: blobId,
+      pairing_id: pairingId,
+      direction: 'request',
+      expected_sha256: sha256,
+      expected_length: length,
+    });
+  },
+  putRelayV2RequestBlobChunk: async (
+    blobId: string,
+    chunkIndex: number,
+    bytes: Uint8Array,
+  ): Promise<void> => {
+    const response = await laravelHttp.rawRequest(ROUTES.relayV2RequestBlobChunk(blobId, chunkIndex), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      credentials: 'include',
+    });
+    if (!response.ok) throw Object.assign(new Error(`LARAVEL_HTTP_${response.status}`), { status: response.status });
+  },
+  finalizeRelayV2RequestBlob: async (blobId: string, sha256: string, length: number): Promise<void> => {
+    await requestLaravel<any>('POST', ROUTES.relayV2RequestBlobFinalize(blobId), {
+      blob_id: blobId,
+      expected_sha256: sha256,
+      expected_length: length,
+    });
+  },
+  getRelayV2ResponseBlob: async (blobId: string): Promise<Uint8Array> => {
+    const response = await laravelHttp.rawRequest(ROUTES.relayV2ResponseBlob(blobId), {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!response.ok) throw Object.assign(new Error(`LARAVEL_HTTP_${response.status}`), { status: response.status });
     return new Uint8Array(await response.arrayBuffer());
   },
   /**
