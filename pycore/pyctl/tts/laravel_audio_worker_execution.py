@@ -8,6 +8,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
 from pycore.pyctl.task_history.store import append_record
 from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_progress
@@ -32,7 +33,6 @@ from pycore.pyutils.tts.audio_delivery_outbox import (
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
-import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 
 _OUTBOX_BATCH_LIMIT = 32
 _OUTBOX_PARALLEL_LIMIT = 4
@@ -295,7 +295,8 @@ class LaravelAudioWorkerExecutionMixin:
         info["stage"] = stage
         info["progress"] = progress
         info["progress_total"] = GLOBAL_TASK_PROGRESS_TOTAL
-        info["backend_uploaded"] = stage in ("finalizing", "completed")
+        if stage != "completed":
+            info["backend_uploaded"] = False
         if provider:
             info["current_provider"] = provider
         changed = self._mark_task_progress(

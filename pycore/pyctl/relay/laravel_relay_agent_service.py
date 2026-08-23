@@ -14,10 +14,6 @@ from typing import Any, Dict, List
 from pycore.pyctl.relay.laravel_relay_operation_processor import (
     laravel_relay_operation_processor,
 )
-from pycore.pyutils.laravel.relay_transport import (
-    RelayHttpError,
-    laravel_relay_transport,
-)
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -37,6 +33,10 @@ from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.relay_transport import (
+    RelayHttpError,
+    laravel_relay_transport,
+)
 
 
 RELAY_STOP_SIGNAL = "relay.v2.runtime.stop"

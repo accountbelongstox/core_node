@@ -8,9 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
 from pycore.database.adapters.sqlite_local import connect_writable
-from pycore.database.repositories.state_rpc_repository import (
-    StateRpcRepositoryMixin,
-)
 from pycore.database.models.state_models import (
     ConsumerOffset,
     Operation,
@@ -19,6 +16,9 @@ from pycore.database.models.state_models import (
     RemoteCursor,
     SystemEvent,
     UiSnapshot,
+)
+from pycore.database.repositories.state_rpc_repository import (
+    StateRpcRepositoryMixin,
 )
 from pycore.database.schema.state_schema import init_schema
 from pycore.pyfoundations.system_paths import get_local_data_dir

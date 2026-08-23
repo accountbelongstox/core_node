@@ -114,6 +114,7 @@ def _server_scripts(engine: str) -> List[Path]:
     if engine == "qwen3tts":
         return [
             _ASSETS_DIR / "qwen3tts_api_server.py",
+            _ASSETS_DIR / "qwen3tts_capabilities.py",
             _ASSETS_DIR / "qwen3tts_synthesis.py",
             _ASSETS_DIR / "qwen3tts_queue.py",
             _ASSETS_DIR / "qwen3tts_gpu.py",

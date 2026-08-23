@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 class StateRpcRepositoryMixin:
     """Compose RPC-specific persistence into the shared state repository."""
+
     def _delivery_envelope(
         self,
         client_id: str,
@@ -612,5 +613,4 @@ class StateRpcRepositoryMixin:
                 }
             )
         return deliveries
-
 
