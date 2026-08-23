@@ -51,6 +51,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_t
 from pycore.pyutils.common.managed_service import ServiceSpec
 from pycore.pyutils.common.managed_service_facade import ManagedServiceFacade
 from pycore.pyutils.common.model_tiers import runtime_engine_model
+from pycore.pyutils.common.port_utils import is_port_in_use
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 import pycore.pyutils.tts.qwen.engine as qwen_engine
@@ -109,7 +110,7 @@ def _server_scripts(engine: str) -> List[Path]:
     hashes exactly what a fresh start would run. Engines whose server code
     pycore does not own (cosyvoice, gptsovits run cloned repositories) return
     [] and stay off the contract. An engine also needs a get_status probe
-    (engine module + /status endpoint) before registration activates it."""
+    (engine lifecycle probe) before registration activates it."""
     if engine == "qwen3tts":
         return [
             _ASSETS_DIR / "qwen3tts_api_server.py",
@@ -354,26 +355,49 @@ def _listener_pids(psutil: Any, port: int) -> List[int]:
     return sorted(pids)
 
 
+def _foreign_listener_pids(engine: str) -> Optional[List[int]]:
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None:
+        return None
+    port = _parse_port(adapter.base_url(), 0)
+    if not port:
+        return None
+    try:
+        psutil = get_third_package_psutil()
+        return _listener_pids(psutil, port)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _foreign_server_present(engine: str) -> Optional[bool]:
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None:
+        return None
+    port = _parse_port(adapter.base_url(), 0)
+    if not port:
+        return None
+    return is_port_in_use(port)
+
+
 def _stop_foreign_server(engine: str) -> Optional[bool]:
     """Terminate a process we did NOT launch that is LISTENING on this engine's
-    port — typically a stale orphan from a previous pycore run (its stdout pipe
+    port - typically a stale orphan from a previous pycore run (its stdout pipe
     is dead, so every synth request 500s instantly while /health keeps passing).
     Returns True when reclaimed, False when a listener remains, and None when
-    no listener can be identified."""
+    listener ownership cannot be inspected. An already-free port is success."""
     adapter = tts_engine_registry.get(engine)
     if adapter is None:
         return False
     port = _parse_port(adapter.base_url(), 0)
     if not port:
         return False
+    listener_pids = _foreign_listener_pids(engine)
+    if listener_pids is None:
+        return None
+    if not listener_pids:
+        return True
     try:
         psutil = get_third_package_psutil()
-    except Exception:  # noqa: BLE001
-        return None
-    try:
-        listener_pids = _listener_pids(psutil, port)
-        if not listener_pids:
-            return None
         if os.getpid() in listener_pids:
             ColorPrint.yellow(
                 f"[tts] refusing to reclaim {engine} port {port} from this process"
@@ -415,10 +439,10 @@ def _register_services() -> None:
     for adapter in tts_engine_registry.values("server"):
         engine = adapter.name
         # Code-identity contract activates only when BOTH halves exist: the
-        # launch script set (identity of what a start runs) and a live status
-        # probe (what the running listener reports). Engines missing either
+        # launch script set (identity of what a start runs) and one canonical
+        # lifecycle probe (health plus code identity). Engines missing either
         # half keep the plain adoption/reclaim behavior.
-        status_capable = callable(getattr(adapter.module, "get_status", None))
+        status_capable = adapter.service_probe is not None
         script_set = _server_scripts(engine)
         code_scripts = (
             (lambda e=engine: _server_scripts(e))
@@ -440,15 +464,11 @@ def _register_services() -> None:
             on_started=lambda engine=engine: _on_server_started(engine),
             on_stopped=lambda engine=engine: _on_server_stopped(engine),
             on_acquired=adapter.invalidate_availability,
-            adopt_foreign=(
-                adapter.healthy
-                if engine == "qwen3tts"
-                else None
-            ),
+            foreign_present=lambda engine=engine: _foreign_server_present(engine),
             stop_foreign=lambda engine=engine: _stop_foreign_server(engine),
             server_scripts=code_scripts,
-            reported_code_id=(
-                adapter.reported_code_id
+            status_report=(
+                adapter.service_report
                 if status_capable
                 else None
             ),
@@ -517,7 +537,7 @@ def server_runtime_status(engine: str, refresh: bool = True) -> Dict[str, Any]:
     status = _TTS_SERVICE_FACADE.runtime_status(engine, refresh=refresh)
     if engine == "qwen3tts" and status.get("server_running") and refresh:
         status["server_url"] = status.get("server_url") or qwen_engine.base_url()
-        queue = qwen_engine.get_queue_status()
+        queue = qwen_engine.get_status()
         if queue is not None:
             status["queue"] = queue
     return status

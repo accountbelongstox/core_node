@@ -113,13 +113,9 @@ function renderJobs(jobs) {
 
 async function refresh() {
   try {
-    const [statusResponse, queueResponse] = await Promise.all([
-      fetch('/status'),
-      fetch('/queue/status'),
-    ]);
-    if (!statusResponse.ok || !queueResponse.ok) throw new Error('Status request failed');
+    const statusResponse = await fetch('/status');
+    if (!statusResponse.ok) throw new Error('Status request failed');
     const status = await statusResponse.json();
-    const queue = await queueResponse.json();
     const gpu = status.gpu || {};
     element('model').textContent = status.model_loaded ? 'loaded' : 'idle';
     element('device').textContent = `${status.device || '—'} / ${status.dtype || '—'}`;
@@ -128,11 +124,11 @@ async function refresh() {
       : 'n/a';
     element('parallel').textContent = String(status.max_parallel || 1);
     element('stats').textContent = `${status.synthesized_count || 0} synthesized · ${status.average_elapsed_ms || 0} ms average`;
-    element('counts').textContent = Object.entries(queue.counts || {})
+    element('counts').textContent = Object.entries(status.counts || {})
       .map(([key, value]) => `${key} ${value}`)
       .join(' · ');
-    renderJobs(queue.jobs || []);
-    pollMs = (queue.counts?.running || 0) > 0 ? 5000 : 2500;
+    renderJobs(status.jobs || []);
+    pollMs = (status.counts?.running || 0) > 0 ? 5000 : 2500;
   } catch (error) {
     pollMs = Math.min(10000, pollMs * 1.5);
     showMessage(String(error), true);

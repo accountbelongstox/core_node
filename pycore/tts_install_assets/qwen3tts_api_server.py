@@ -48,7 +48,7 @@ Env:
   QWEN3TTS_CHUNK_PAUSE_MS        - silence inserted between chunks (default 150)
   PYCORE_MANAGED_CODE_ID        - injected by pycore's managed-service layer at
                                   launch (digest of the launch script set);
-                                  echoed in /status as code_id so the manager
+                                  echoed in /health and /status as code_id so the manager
                                   can reject stale-code listeners (never adopt a
                                   server not running current scripts)
 
@@ -62,15 +62,14 @@ Env:
   QwenSynthesis._generate_chunked).
 
 Endpoints:
-  GET  /health              -> { ok, device, model_loaded, load_error }
+  GET  /health              -> lightweight lifecycle and code identity
   GET  /                     -> dependency-free local Web console
-  GET  /status               -> runtime, GPU, synthesis, and queue summary
+  GET  /status               -> runtime, GPU, synthesis, and full queue state
                                 (includes "speed": default playback speed)
   POST /synthesize           -> { text, language, speaker, instruct?, speed? } -> mp3 bytes
   POST /synthesize_batch     -> { text, language, variants:[{key,accent,gender}] }
                                  -> { results: [{key, ok, audio_base64, error}] }
   POST /queue/submit         -> enqueue an idempotent FIFO job
-  GET  /queue/status         -> authoritative queue snapshot
   GET  /queue/events         -> bounded event replay and long polling
   POST /queue/events/ack     -> acknowledge the processed event sequence
   POST /queue/cancel         -> cancel a pending/running job
@@ -123,6 +122,7 @@ Qwen3TTSModel = qwen_tts.Qwen3TTSModel
 Response = fastapi.responses.Response
 StreamingResponse = fastapi.responses.StreamingResponse
 _DEFAULT_HOST = "0.0.0.0"
+_MANAGED_CODE_ID = os.environ.get("PYCORE_MANAGED_CODE_ID") or ""
 _PYCORE_MODULE_NAME = "pycore"
 _PYFOUNDATIONS_MODULE_NAME = "pycore.pyfoundations"
 _NETWORK_CONSTANTS_MODULE_NAME = "pycore.pyfoundations.network_constants"
@@ -461,6 +461,48 @@ def _service_runtime_snapshot() -> Dict[str, Any]:
     }
 
 
+def _health_snapshot() -> Dict[str, Any]:
+    ready = _model_ready(_model)
+    return {
+        "ok": True,
+        "code_id": _MANAGED_CODE_ID,
+        "device": _device or _resolve_device(),
+        "physical_gpu_index": _physical_gpu_index(),
+        "model_loaded": ready,
+        "capacity_plan": _capacity_plan_snapshot(),
+        "load_error": None if ready else _load_error,
+    }
+
+
+async def _status_snapshot() -> Dict[str, Any]:
+    runtime = await asyncio.to_thread(_service_runtime_snapshot)
+    queue = _get_queue().status()
+    direct = _get_synthesis().stats()
+    queue_count = int(queue.get("synthesized_count") or 0)
+    direct_count = int(direct.get("synthesized_count") or 0)
+    total_count = queue_count + direct_count
+    total_elapsed = (
+        int(queue.get("average_elapsed_ms") or 0) * queue_count
+        + int(direct.get("average_elapsed_ms") or 0) * direct_count
+    )
+    dtype = "float32" if (_device or _resolve_device()) == "cpu" else "bfloat16"
+    return {
+        **_health_snapshot(),
+        "model_id": _model_id(),
+        "chunked": True,
+        "speed": _default_speed(),
+        "dtype": dtype,
+        **runtime,
+        **queue,
+        "synthesized_count": total_count,
+        "failed_count": int(queue.get("failed_count") or 0)
+        + int(direct.get("failed_count") or 0),
+        "average_elapsed_ms": (
+            round(total_elapsed / total_count) if total_count else 0
+        ),
+    }
+
+
 def _load_model():
     global _attention_backend, _device, _load_error
 
@@ -763,15 +805,7 @@ def _get_queue() -> QwenQueue:
 
 @app.get("/health")
 def health():
-    ready = _model_ready(_model)
-    return {
-        "ok": True,
-        "device": _device or _resolve_device(),
-        "physical_gpu_index": _physical_gpu_index(),
-        "model_loaded": ready,
-        "capacity_plan": _capacity_plan_snapshot(),
-        "load_error": None if ready else _load_error,
-    }
+    return _health_snapshot()
 
 @app.get("/capabilities")
 def capabilities():
@@ -810,33 +844,7 @@ def web_javascript():
 
 @app.get("/status")
 async def status():
-    runtime = await asyncio.to_thread(_service_runtime_snapshot)
-    queue = _get_queue().status()
-    direct = _get_synthesis().stats()
-    queue_count = int(queue.get("synthesized_count") or 0)
-    direct_count = int(direct.get("synthesized_count") or 0)
-    total_count = queue_count + direct_count
-    total_elapsed = (
-        int(queue.get("average_elapsed_ms") or 0) * queue_count
-        + int(direct.get("average_elapsed_ms") or 0) * direct_count
-    )
-    dtype = "float32" if (_device or _resolve_device()) == "cpu" else "bfloat16"
-    return {
-        "ok": True,
-        "model_loaded": _model_ready(_model),
-        "model_id": _model_id(),
-        "chunked": True,
-        "speed": _default_speed(),
-        "code_id": os.environ.get("PYCORE_MANAGED_CODE_ID") or "",
-        "device": _device or _resolve_device(),
-        "dtype": dtype,
-        "load_error": _load_error,
-        **runtime,
-        "synthesized_count": total_count,
-        "failed_count": int(queue.get("failed_count") or 0) + int(direct.get("failed_count") or 0),
-        "average_elapsed_ms": round(total_elapsed / total_count) if total_count else 0,
-        "queue": queue.get("counts"),
-    }
+    return await _status_snapshot()
 
 
 @app.get("/load")
@@ -918,16 +926,6 @@ async def queue_submit(req: QueueSubmitRequest):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=429)
     except (TypeError, ValueError) as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
-
-
-@app.get("/queue/status")
-async def queue_status():
-    runtime = await asyncio.to_thread(_service_runtime_snapshot)
-    return {
-        "ok": True,
-        **runtime,
-        **_get_queue().status(),
-    }
 
 
 @app.post("/queue/cancel")

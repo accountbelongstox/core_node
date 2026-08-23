@@ -17,7 +17,7 @@ Contract enforced here:
   - code identity (class C): every server pycore owns declares its launch
     script set; the manager digests it into an expected code id, injects it
     into the launch environment (SERVER_CODE_ID_ENV), and compares it with the
-    id the live server reports in /status. A listener reporting no id or a
+    id the live server reports in its lifecycle status. A listener reporting no id or a
     different id (stale orphan from a previous worker, pre-contract process,
     drifted staging copy) is never adopted and is reclaimed so a start always
     loads current code. Busy services are exempt until their next lease.
@@ -79,12 +79,17 @@ _WATCHDOG_POLL_S = 5.0
 _RUN_CACHE_TTL_S = 10.0
 _START_TIMEOUT_S = 180.0
 _HEALTH_POLL_S = 1.5
+_HEALTH_FAILURE_THRESHOLD = 3
 _READY_MARKER = "QWEN3TTS_READY "
 _READY_SIGNAL_PREFIX = "managed.service.ready_url."
 _SETTINGS_SIGNAL_PREFIX = "managed.service.settings."
+_CODE_IDENTITY_CURRENT = "current"
+_CODE_IDENTITY_DISABLED = "disabled"
+_CODE_IDENTITY_STALE = "stale"
+_CODE_IDENTITY_UNKNOWN = "unknown"
 # Wire contract of the class-C code identity: the manager injects the expected
 # digest into the launch environment under this name and the owned api-server
-# scripts echo it back in /status (standalone scripts cannot import pycore, so
+# scripts echo it back in their lifecycle status (standalone scripts cannot import pycore, so
 # the name is fixed here and mirrored in tts_install_assets/*_api_server.py).
 SERVER_CODE_ID_ENV = "PYCORE_MANAGED_CODE_ID"
 
@@ -150,23 +155,25 @@ class ServiceSpec:
     unload: Optional[Callable[[], None]] = None
     is_loaded: Optional[Callable[[], bool]] = None
     # kind="server": accept a healthy listener from a previous manager process
-    # only when this capability probe confirms the current service contract.
+    # only when this optional capability probe confirms the service contract.
     adopt_foreign: Optional[Callable[[], bool]] = None
+    # Read-only presence probe kept separate from stop_foreign so the manager
+    # can make each idempotent decision before performing a mutation.
+    foreign_present: Optional[Callable[[], Optional[bool]]] = None
     # kind="server": called when the health endpoint answers but the process is
     # NOT one we launched (stale orphan from a previous run, manual start). It
     # should terminate that foreign process and return True when the port is
-    # free, False when a listener could not be stopped, and None when no foreign
-    # listener was found. False aborts startup rather than attaching to old code.
+    # free, False when a listener could not be stopped, and None when ownership
+    # cannot be inspected. False or None aborts startup.
     stop_foreign: Optional[Callable[[], Optional[bool]]] = None
     # kind="server": the exact script files a start launches. The manager
     # digests them (service_script_code_id) into the expected code id and
     # injects it into the launch environment (SERVER_CODE_ID_ENV).
     server_scripts: Optional[Callable[[], List[Path]]] = None
-    # kind="server": the code id the LIVE server reports in /status. Declared
-    # together with server_scripts it activates the code-identity contract: a
-    # listener whose report does not match the expected id is reclaimed instead
-    # of adopted, so adoption can never pin pre-contract or stale code.
-    reported_code_id: Optional[Callable[[], Optional[str]]] = None
+    # kind="server": one canonical lightweight service report. Declared with
+    # server_scripts it activates code identity; one probe supplies both health
+    # and code_id so transport failure cannot be misread as a stale identity.
+    status_report: Optional[Callable[[], Optional[Dict[str, Any]]]] = None
     external: bool = False
     ready_without_process: Optional[Callable[[], bool]] = None
 
@@ -223,6 +230,8 @@ class ManagedServiceManager:
         self._async_holds: Dict[str, Dict[str, float]] = {}
         # server health cache (short TTL - status polls hit many at once)
         self._run_cache: Dict[str, Tuple[float, bool]] = {}
+        self._server_reports: Dict[str, Dict[str, Any]] = {}
+        self._health_failures: Dict[str, int] = {}
         self._active_server_by_category: Dict[str, str] = {}
         self._watchdog_started = False
         init_serialized_owner(
@@ -396,6 +405,8 @@ class ManagedServiceManager:
 
     def _invalidate_run_cache(self, name: str) -> None:
         self._run_cache.pop(name, None)
+        self._server_reports.pop(name, None)
+        self._health_failures.pop(name, None)
 
     def _clear_active_server(self, name: str, category: str) -> None:
         if self._active_server_by_category.get(category) == name:
@@ -423,12 +434,19 @@ class ManagedServiceManager:
                 except OSError:
                     pass
             self._last_activity.pop(name, None)
-            self._run_cache.pop(name, None)
+            self._invalidate_run_cache(name)
         now = time.monotonic()
         cached = self._run_cache.get(name)
         if cached is not None and now - cached[0] < _RUN_CACHE_TTL_S:
             return cached[1]
-        ok = bool(spec.health and spec.health())
+        probed = self._probe_server(spec)
+        managed = self._is_managed_server(name)
+        failures = self._health_failures.get(name, 0)
+        ok = (
+            managed
+            if probed is None
+            else probed or (managed and failures < _HEALTH_FAILURE_THRESHOLD)
+        )
         if not ok:
             self._adopted_servers.discard(name)
         self._run_cache[name] = (now, ok)
@@ -475,10 +493,7 @@ class ManagedServiceManager:
                 0.0,
                 float(idle_seconds) - (time.monotonic() - self._last_activity[name]),
             )
-        expected_code_id = self._expected_code_id(spec)
-        reported_code_id = ""
-        if expected_code_id and spec.reported_code_id is not None:
-            reported_code_id = str(spec.reported_code_id() or "")
+        identity_state, expected_code_id, reported_code_id = self._code_id_state(spec)
         return {
             "name": name,
             "category": spec.category,
@@ -487,13 +502,15 @@ class ManagedServiceManager:
             "managed": managed,
             "enabled": bool(settings.get("enabled", {}).get(name, True)),
             "in_flight": self.in_flight(name),
+            "health_probe_failures": self._health_failures.get(name, 0),
             "idle_remaining_s": idle_remaining,
             "ready_url": THREAD_BUS.get_signal(
                 f"{_READY_SIGNAL_PREFIX}{name}", None
             ),
             "code_id": reported_code_id,
             "expected_code_id": expected_code_id,
-            "code_stale": bool(expected_code_id) and reported_code_id != expected_code_id,
+            "code_identity_state": identity_state,
+            "code_stale": identity_state == _CODE_IDENTITY_STALE,
         }
 
     def _touch(self, name: str) -> None:
@@ -502,21 +519,49 @@ class ManagedServiceManager:
 
     def _expected_code_id(self, spec: ServiceSpec) -> str:
         """Digest of the script set a fresh start would launch ('' = off)."""
-        if spec.kind != "server" or spec.server_scripts is None or spec.reported_code_id is None:
+        if spec.kind != "server" or spec.server_scripts is None or spec.status_report is None:
             return ""
         return service_script_code_id(spec.server_scripts())
 
-    def _code_id_state(self, spec: ServiceSpec) -> Tuple[bool, str, str]:
-        """(current, expected, reported) of the code-identity contract.
+    def _probe_server(self, spec: ServiceSpec) -> Optional[bool]:
+        if spec.status_report is not None:
+            report = spec.status_report()
+            if report is None:
+                self._health_failures[spec.name] = (
+                    self._health_failures.get(spec.name, 0) + 1
+                )
+                return None
+            self._server_reports[spec.name] = dict(report)
+            healthy = bool(report.get("ok"))
+        else:
+            healthy = bool(spec.health and spec.health())
+        if healthy:
+            self._health_failures.pop(spec.name, None)
+        else:
+            self._health_failures[spec.name] = (
+                self._health_failures.get(spec.name, 0) + 1
+            )
+        return healthy
 
-        Contract off (no script set or no probe) -> (True, '', ''). A listener
-        reporting nothing or a different id runs stale or pre-contract code and
-        must be reclaimed before use."""
+    def _code_id_state(self, spec: ServiceSpec) -> Tuple[str, str, str]:
+        """Return identity state, expected id, and last confirmed reported id.
+
+        A missing transport response is unknown and must not trigger a stop. A
+        successful report with a missing or different code_id is confirmed stale
+        and must be reclaimed before use."""
         expected = self._expected_code_id(spec)
         if not expected:
-            return True, "", ""
-        reported = str(spec.reported_code_id() or "")
-        return reported == expected, expected, reported
+            return _CODE_IDENTITY_DISABLED, "", ""
+        report = self._server_reports.get(spec.name)
+        if report is None:
+            return _CODE_IDENTITY_UNKNOWN, expected, ""
+        reported = str(report.get("code_id") or "")
+        state = (
+            _CODE_IDENTITY_CURRENT
+            if reported == expected
+            else _CODE_IDENTITY_STALE
+        )
+        return state, expected, reported
 
     def _log_stale_code(self, name: str, expected: str, reported: str, owner: str) -> None:
         ColorPrint.yellow(
@@ -596,13 +641,13 @@ class ManagedServiceManager:
     def _wait_healthy(self, spec: ServiceSpec, timeout_s: float) -> bool:
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
-            if spec.health and spec.health():
+            if self._probe_server(spec) is True:
                 return True
             proc = self._processes.get(spec.name)
             if proc is not None and proc.poll() is not None:
                 return False
             time.sleep(_HEALTH_POLL_S)
-        return bool(spec.health and spec.health())
+        return self._probe_server(spec) is True
 
     @staticmethod
     def _launch_env(argv: List[str], env: Dict[str, str]) -> Dict[str, str]:
@@ -623,6 +668,9 @@ class ManagedServiceManager:
         return launch
 
     def _start_server(self, spec: ServiceSpec) -> bool:
+        if self._is_managed_process(spec.name):
+            self._touch(spec.name)
+            return True
         cmd = spec.start_command() if spec.start_command else None
         if cmd is None:
             return False
@@ -633,15 +681,11 @@ class ManagedServiceManager:
         else:
             cwd, argv = cmd[0], cmd[1]
         # Code identity: every owned class-C launch carries the digest of the
-        # script set it was started from so /status can prove it later.
+        # script set it was started from so the lifecycle probe can prove it later.
         expected_code_id = self._expected_code_id(spec)
         if expected_code_id:
             env = dict(env) if env is not None else dict(os.environ)
             env[SERVER_CODE_ID_ENV] = expected_code_id
-        # The serialized state owner makes check-and-start non-reentrant.
-        if self._is_managed_process(spec.name):
-            self._touch(spec.name)
-            return True
         self._adopted_servers.discard(spec.name)
         popen_kwargs = self._popen_kwargs(cwd)
         logf = self._open_server_log(spec)
@@ -776,8 +820,8 @@ class ManagedServiceManager:
             # An adopted listener stays usable only while it still runs the
             # code a fresh start would launch (code-identity contract). A busy
             # service is never interrupted; it is refreshed on its next lease.
-            code_current, code_expected, code_reported = self._code_id_state(spec)
-            if self.in_flight(name) > 0 or code_current:
+            identity_state, code_expected, code_reported = self._code_id_state(spec)
+            if self.in_flight(name) > 0 or identity_state != _CODE_IDENTITY_STALE:
                 if st.get("single_active", True):
                     self._stop_others(spec.category, name)
                 self._touch(name)
@@ -794,21 +838,28 @@ class ManagedServiceManager:
                 and not self._is_managed_process(name)
                 and spec.stop_foreign is not None
             ):
-                if spec.adopt_foreign is not None:
-                    try:
-                        compatible = bool(spec.adopt_foreign())
-                    except Exception as e:  # noqa: BLE001
-                        compatible = False
-                        ColorPrint.yellow(
-                            f"[managed] {name}: adoption probe failed: {e}"
-                        )
-                    if compatible:
-                        code_current, code_expected, code_reported = self._code_id_state(spec)
-                        if not code_current:
+                adoption_contract = (
+                    spec.adopt_foreign is not None
+                    or bool(self._expected_code_id(spec))
+                )
+                if adoption_contract:
+                    compatible = True
+                    if spec.adopt_foreign is not None:
+                        try:
+                            compatible = bool(spec.adopt_foreign())
+                        except Exception as e:  # noqa: BLE001
                             compatible = False
-                            self._log_stale_code(
-                                name, code_expected, code_reported, "foreign listener"
+                            ColorPrint.yellow(
+                                f"[managed] {name}: adoption probe failed: {e}"
                             )
+                    identity_state, code_expected, code_reported = self._code_id_state(spec)
+                    if identity_state == _CODE_IDENTITY_UNKNOWN:
+                        return False
+                    if identity_state == _CODE_IDENTITY_STALE:
+                        compatible = False
+                        self._log_stale_code(
+                            name, code_expected, code_reported, "foreign listener"
+                        )
                     if compatible:
                         self._adopted_servers.add(name)
                         self._touch(name)
@@ -849,8 +900,8 @@ class ManagedServiceManager:
                     and self.in_flight(name) == 0
                 )
                 if stale_owned:
-                    code_current, code_expected, code_reported = self._code_id_state(spec)
-                    stale_owned = not code_current
+                    identity_state, code_expected, code_reported = self._code_id_state(spec)
+                    stale_owned = identity_state == _CODE_IDENTITY_STALE
                     if stale_owned:
                         # Script set changed under a live owned process - restart
                         # it so the server always runs the code a start would load.
@@ -874,17 +925,24 @@ class ManagedServiceManager:
             return False
         if spec.kind == "server":
             if spec.stop_foreign is not None and not foreign_checked:
-                try:
-                    reclaim_result = spec.stop_foreign()
-                except Exception as e:  # noqa: BLE001
-                    ColorPrint.yellow(f"[managed] {name} foreign preflight failed: {e}")
-                    reclaim_result = None
+                present = spec.foreign_present() if spec.foreign_present is not None else True
+                if present is None:
+                    return False
+                reclaim_result = None
+                if present:
+                    identity_state, _expected, _reported = self._code_id_state(spec)
+                    if identity_state == _CODE_IDENTITY_UNKNOWN:
+                        return False
+                    try:
+                        reclaim_result = spec.stop_foreign()
+                    except Exception as e:  # noqa: BLE001
+                        ColorPrint.yellow(f"[managed] {name} foreign preflight failed: {e}")
                 if reclaim_result is False:
                     ColorPrint.yellow(
                         f"[managed] {name}: occupied service port could not be reclaimed"
                     )
                     return False
-                if reclaim_result is True:
+                if present and reclaim_result is True:
                     self._invalidate_run_cache(name)
             if st.get("single_active", True):
                 self._stop_others(spec.category, name)
