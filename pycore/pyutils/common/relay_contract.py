@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root
+from pycore.pyutils.codesync.textnorm import normalize_eol
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 
 
@@ -291,7 +292,11 @@ class RelayContract:
         if int(document["limits"]["terminal_screenshot_capture_batch"]) <= 0:
             raise ValueError("Relay terminal capture batch limit is invalid")
         self.document: Dict[str, Any] = document
-        self.digest = hashlib.sha256(self.raw_bytes).hexdigest()
+        # Contract identity follows the Code Sync wire form: text files are
+        # canonicalized to LF before hashing so a Windows CRLF checkout and the
+        # LF coordinator compute the same digest (raw-byte hashing made the
+        # digests permanently diverge -> contract_digest_conflict).
+        self.digest = hashlib.sha256(normalize_eol(self.raw_bytes)).hexdigest()
 
     @staticmethod
     def _require_named_values(

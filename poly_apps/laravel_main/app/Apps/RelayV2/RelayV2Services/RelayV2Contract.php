@@ -661,7 +661,18 @@ final class RelayV2Contract
         }
         self::$rawBytes = $bytes;
         self::$document = $document;
-        self::$digest = hash('sha256', $bytes);
+        self::$digest = hash('sha256', self::canonicalContractBytes($bytes));
+    }
+
+    /**
+     * Contract identity follows the Code Sync wire form: text files are
+     * canonicalized to LF before hashing, so a Windows CRLF device checkout
+     * and this LF coordinator file compute the same digest (raw-byte hashing
+     * made the digests permanently diverge -> contract_digest_conflict).
+     */
+    private static function canonicalContractBytes(string $bytes): string
+    {
+        return str_replace("\r\n", "\n", $bytes);
     }
 
     private static function formEncode(string $value): string

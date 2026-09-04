@@ -158,11 +158,13 @@ def main(
     #     (pyservice.ps1/.sh = dashboard UI dev server + worker). Launchers
     #     written by older versions started the bare worker only, so the UI dev
     #     server never came up in boot mode (webview -> ERR_CONNECTION_REFUSED).
-    if pyservice_mode_service.local_ui_enabled() and refresh_startup_launcher():
+    if refresh_startup_launcher():
         ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
 
-    # 4. Update tray menu with singleton port (callmodule layer - config update)
-    if singleton_port and pyservice_mode_service.local_ui_enabled():
+    # 4. Update tray menu with singleton port (callmodule layer - config update).
+    #    The tray runs in every service mode (relay reroutes UI content through
+    #    Laravel; local desktop surfaces stay), so this signal is never mode-gated.
+    if singleton_port:
         update_tray_menu_with_singleton(launcher, port, singleton_port)
 
     ColorPrint.green("=" * 70)
