@@ -56,6 +56,26 @@ def _machine_id() -> str:
     return get_machine_id()
 
 
+def _local_addresses() -> List[str]:
+    """All local interface addresses (LAN + VPN such as Tailscale).
+
+    ``get_local_lan_ip()`` only returns the default-route source address, so a
+    peer row carrying this machine's VPN/Tailscale address was not recognized
+    as self: after a machine-id rewrite, ``prune_self_duplicates`` never
+    migrated the saved role back and the node silently fell to 'client'.
+    Hostname resolution covers those secondary interface addresses.
+    """
+    addresses = {_local_lan_ip()}
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            addr = str(info[4][0])
+            if addr:
+                addresses.add(addr)
+    except Exception:
+        pass
+    return sorted(addresses)
+
+
 def _local_lan_ip() -> str:
     return get_local_lan_ip()
 
@@ -166,13 +186,12 @@ class PeerConfig:
         if pid and pid == self.machine_id:
             return True
         me = self._ensure_self_locked()
-        local_ip = _local_lan_ip()
         host = str(peer.get("host") or "").strip()
         port = int(peer.get("port", self._port))
         my_port = int(me.get("port", self._port))
         if host and port == my_port:
-            if host in (local_ip, str(me.get("host") or "").strip(),
-                        HTTP_LOOPBACK_HOST, "localhost"):
+            if host in (str(me.get("host") or "").strip(), HTTP_LOOPBACK_HOST,
+                        "localhost", *_local_addresses()):
                 return True
             try:
                 if host == socket.gethostname():

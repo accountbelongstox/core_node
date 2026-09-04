@@ -305,13 +305,15 @@ def build_launcher_config(
     # PySide6. Used unless TRAY_BACKEND == "pyside" (then the Qt tray in the UI
     # thread is used instead). The PySide6 tray code is kept and gated by config.
     # On Linux desktop (DISPLAY set), use the native tray (AppIndicator/pystray).
-    _can_show_tray = local_ui_enabled and (
-        IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY)
-    )
-    if _can_show_tray and not CallmoduleConfig.UI_ENABLE_TRAY:
+    # The tray is LOCAL desktop integration and runs in every service mode:
+    # relay mode only reroutes UI content through Laravel (many-to-many
+    # pycore-group <-> UI-group relay); it never disables local desktop surfaces.
+    _can_show_tray = IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY)
+    _qt_tray_active = CallmoduleConfig.UI_ENABLE_TRAY and 'ui' in services
+    if _can_show_tray and not _qt_tray_active:
         services['tray'] = build_tray_service_config(port=port)
         ColorPrint.blue(f"[ConfigBuilder] Added independent tray service (backend={CallmoduleConfig.TRAY_BACKEND})")
-    elif _can_show_tray and CallmoduleConfig.UI_ENABLE_TRAY:
+    elif _can_show_tray:
         ColorPrint.blue("[ConfigBuilder] Using PySide6 Qt tray (TRAY_BACKEND=pyside)")
 
     # Create launcher configuration - from callmodule_config/config.py

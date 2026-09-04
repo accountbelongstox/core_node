@@ -295,10 +295,13 @@ class BaseLaravelWorkerService:
                 min(int(self._lease_capacity()), GLOBAL_TASK_LIMITS["worker_pull"]),
             ),
         }
-        for index, processor_type in enumerate(processor_types):
-            params[f"processor_types[{index}]"] = processor_type
-        for index, capability in enumerate(capabilities):
-            params[f"capabilities[{index}]"] = capability
+        # Real JSON arrays: the body is sent as application/json, where PHP only
+        # expands bracket keys for form-encoded transport. Flat keys made
+        # `processor_types`/`capabilities` vanish server-side, so the pull's
+        # inline worker register never fired and the claim path failed with
+        # "Worker not found" (HTTP 500).
+        params["processor_types"] = list(processor_types)
+        params["capabilities"] = list(capabilities)
         return params
 
     def _lease_capacity(self) -> int:
