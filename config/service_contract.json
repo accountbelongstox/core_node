@@ -108,7 +108,7 @@
         "request_body_timeout": "20m"
     },
     "http": {
-        "api_early_hints_link": "</debug-assets/css/tailwind.min.css>; rel=preload; as=style, </debug-assets/css/debug-interface.css>; rel=preload; as=style, </debug-assets/js/debug-interface.js>; rel=preload; as=script",
+        "api_early_hints_link": "</debug-assets/css/tailwind.min.css>; rel=preload; as=style",
         "ui_early_hints_link": "</web_access_config.json>; rel=preload; as=fetch; crossorigin"
     },
     "paths": {
