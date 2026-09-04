@@ -62,9 +62,14 @@ async function checkAuthStatus() {
             checkSsoRedirect();
         }
     } catch (error) {
-        console.error('checkAuthStatus error:', error);
-        showLoginSection();
-        updateStatus('error', 'Not authenticated');
+        if (error && error.status === 401) {
+            showLoginSection();
+            updateStatus('unauthenticated', 'Not authenticated');
+        } else {
+            console.error('checkAuthStatus error:', error);
+            showLoginSection();
+            updateStatus('error', 'Not authenticated');
+        }
         checkSsoRedirect();
     }
 }

@@ -61,9 +61,11 @@ class ApiClient {
             try {
                 errorData = JSON.parse(errorText);
             } catch (e) {
-                errorData = { message: errorText || 'Request failed', status: response.status };
+                errorData = { message: errorText || 'Request failed' };
             }
-            throw new Error(errorData.message || 'Request failed');
+            const error = new Error(errorData.message || 'Request failed');
+            error.status = response.status;
+            throw error;
         }
         return response.json();
     }
@@ -158,29 +160,23 @@ class ApiClient {
     }
 
     async json(url, method = 'GET', data = null, options = {}) {
-        let response;
-
+        // The verb helpers below already resolve with parsed JSON (they all
+        // delegate to request()), so return their result directly - calling
+        // .json() on it would fail with "response.json is not a function".
         switch (method.toUpperCase()) {
             case 'GET':
-                response = await this.get(url, options);
-                break;
+                return this.get(url, options);
             case 'POST':
-                response = await this.post(url, data, options);
-                break;
+                return this.post(url, data, options);
             case 'PUT':
-                response = await this.put(url, data, options);
-                break;
+                return this.put(url, data, options);
             case 'DELETE':
-                response = await this.delete(url, options);
-                break;
+                return this.delete(url, options);
             case 'PATCH':
-                response = await this.patch(url, data, options);
-                break;
+                return this.patch(url, data, options);
             default:
                 throw new Error(`Unsupported HTTP method: ${method}`);
         }
-
-        return response.json();
     }
 
     async initCsrfToken() {
