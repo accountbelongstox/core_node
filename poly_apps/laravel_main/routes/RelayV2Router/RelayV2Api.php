@@ -35,7 +35,7 @@ Route::middleware([RelayV2DeviceSignatureMiddleware::class, 'throttle:relay-devi
     Route::post($relayV2Uri('device_response_blob_finalize'), [RelayV2DeviceCtl::class, 'finalizeResponseBlob']);
 });
 
-Route::middleware(['auth:sanctum', 'throttle:relay-owner'])->group(function () use ($relayV2Uri): void {
+Route::middleware(['throttle:relay-owner'])->group(function () use ($relayV2Uri): void {
     Route::post($relayV2Uri('owner_enrollment_claim'), [RelayV2OwnerCtl::class, 'claimEnrollment'])
         ->middleware('throttle:relay-enrollment-claim');
     Route::get($relayV2Uri('owner_device_roster'), [RelayV2OwnerCtl::class, 'roster']);

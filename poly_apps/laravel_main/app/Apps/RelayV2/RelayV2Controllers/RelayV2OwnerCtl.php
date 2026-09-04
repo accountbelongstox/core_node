@@ -6,8 +6,8 @@ use App\Apps\RelayV2\RelayV2Exceptions\RelayV2DomainException;
 use App\Apps\RelayV2\RelayV2Services\RelayV2BlobService;
 use App\Apps\RelayV2\RelayV2Services\RelayV2EnrollmentService;
 use App\Apps\RelayV2\RelayV2Services\RelayV2OperationService;
+use App\Apps\RelayV2\RelayV2Services\RelayV2OwnerResolver;
 use App\Apps\RelayV2\RelayV2Services\RelayV2PairingService;
-use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Traits\ApiResponse;
@@ -20,6 +20,7 @@ final class RelayV2OwnerCtl extends Controller
     use ApiResponse;
 
     public function __construct(
+        private readonly RelayV2OwnerResolver $owners,
         private readonly RelayV2EnrollmentService $enrollments,
         private readonly RelayV2PairingService $pairings,
         private readonly RelayV2OperationService $operations,
@@ -199,12 +200,6 @@ final class RelayV2OwnerCtl extends Controller
 
     private function user(Request $request): User
     {
-        $user = AuthHelper::requireAuth($request);
-
-        if (!$user instanceof User) {
-            throw new RelayV2DomainException('authentication_required', 401);
-        }
-
-        return $user;
+        return $this->owners->resolve($request);
     }
 }
