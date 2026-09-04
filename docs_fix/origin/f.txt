@@ -1,0 +1,69 @@
+ssh1
+cd /www/programing/core_node
+
+piark1
+
+./pyservice 2 先找到代码含义，这是通过laravel中转的，注意你当前就在laravel main的服务器上，修改代码将直接更新api.si.12gm.com。现在，实际扫描代码和API URL
+并找到客户端组对服务端组为什么没有打通，没有中转。客户端先直接扫描代码，pycore并不在当前机器运行。只需要修复代码，服务器直接在本地运行，两端不能应用frankenPHP的mascure以及相关的服务来通信，长连接。
+查找官方文档，同时注意两端都不需要用户登陆，而是直接应用lravel的frankenPHP的通信能力，
+以下是报错信息的一部份，
+···
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+37
+The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ GET https://api.si.12gm.com/api/relay/v2/devices 401 (Unauthorized)
+ProtocolFetch.ts:233 
+ POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
+
+···
