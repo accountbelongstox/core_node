@@ -276,7 +276,7 @@
   "route_policy_matching": {
     "precedence": ["exact", "prefix", "suffix"],
     "tie_breaker": "longest-value-then-first-declared",
-    "default_profile": "denied"
+    "default_profile": "general_action"
   },
   "route_policy_profiles": {
     "terminal_read": {
@@ -627,7 +627,7 @@
     },
     {
       "match": "prefix",
-      "value": "ui/",
+      "value": "ui/code_sync/",
       "profile": "denied",
       "methods": ["GET", "POST"]
     }

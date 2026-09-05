@@ -430,8 +430,14 @@ identity headers are stripped. Pycore receives server-derived user, device,
 pairing, client, and operation context, not browser assertions.
 
 Redirects are not followed implicitly by the relay executor. Streaming routes,
-local filesystem reveal/open actions, CodeSync workspace APIs, and any route not
-explicitly classified are relay-denied by default.
+local filesystem reveal/open actions, CodeSync workspace APIs, and local
+endpoint-assist binding routes are relay-denied. Every other route is
+relay-allowed by default: an unclassified route resolves to the
+general `at_most_once_action` profile (30-second timeout, no automatic
+re-execution after an ambiguous crash), so default forwarding never
+compounds an unknown side effect. Route groups that need read-style
+automatic recovery or longer timeouts must be classified explicitly; the
+contract default is allowed, never denied.
 
 ## 8. Terminal-specific redesign
 

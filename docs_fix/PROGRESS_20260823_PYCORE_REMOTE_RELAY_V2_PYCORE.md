@@ -20,7 +20,9 @@ task. The parallel Laravel AI must read the main design, this progress file,
 - Published `config/pycore_relay_contract.json` as the versioned
   machine-readable authority for endpoints, signing, digests, limits, allowed
   headers, events, capabilities, route exposure, retry policies, and result
-  outcomes. Unclassified UI routes are denied.
+  outcomes. Unclassified routes are allowed by default under the
+general at-most-once profile; only filesystem actions, CodeSync workspace APIs,
+and endpoint-assist binding routes stay denied.
 - Added an independent Ed25519 Relay identity. Device UUID, key generation,
   enrollment, credential state, request signing, and POSIX file permissions are
   repaired as separate minimum steps. Relay V2 does not send the legacy HMAC
