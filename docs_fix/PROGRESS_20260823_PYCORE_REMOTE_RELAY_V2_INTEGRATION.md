@@ -260,7 +260,11 @@ automatically re-executed after an ambiguous crash.
 Route entries reference contract-owned profiles. A resolved profile always has
 `exposure`, `permission`, `payload`, `timeout_seconds`, and `retry`. Laravel must
 authorize the permission and validate the payload before admission; Pycore
-re-resolves the same profile and applies its timeout and retry policy.
+re-resolves the same profile and applies its timeout and retry policy. The
+`json-object` payload rule is identical on both sides: an absent or empty body
+is accepted (a parameter-less POST sends `{}` or nothing), and any non-empty
+body must decode to a single JSON object (updated 2026-09-05; the Laravel gate
+previously rejected empty objects and absent bodies that the kernel accepts).
 
 Matching precedence is `exact > prefix > suffix`; equal-kind matches choose the
 longest value and then the first declaration. The default profile is

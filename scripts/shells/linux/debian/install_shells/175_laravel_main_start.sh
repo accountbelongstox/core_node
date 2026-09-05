@@ -163,9 +163,10 @@ DOMAIN_SCOPE="all"
 SKIP_SSH="no"
 
 # Optional: converge the nexus-dash dev service and domain binding in every setup mode
-# (idempotent; the UI script owns its own systemd registration).
+# (idempotent; 176 owns the fine-grained systemd registration for the dashboard).
 INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
+UI_SERVICE_ENSURE_SCRIPT="${SCRIPT_CURRENT_DIR}/176_laravel_ui_service.sh"
 UI_BINDING_CONVERGED="no"
 
 . "$LARAVEL_13_UPGRADE_SCRIPT"
@@ -739,7 +740,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
 
             # --- Optional: also bring the nexus-dash UI up as its own background service ---
             if [ -z "$INCLUDE_UI" ]; then
-                if [ -f "$UI_START" ]; then
+                if [ -f "$UI_SERVICE_ENSURE_SCRIPT" ]; then
                     ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
                 else
                     PROMPT_ANSWER="no"

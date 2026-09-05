@@ -1,5 +1,6 @@
 import { RELAY_V2_CONTRACT, type RelayV2Operation, type RelayV2Pairing } from '../../contracts/RelayV2Contract';
 import { laravelApi } from '../laravel/LaravelAPI';
+import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
@@ -32,7 +33,61 @@ const TERMINAL_STATES = new Set(['responded', 'failed', 'execution_unknown', 'ex
 const PAIR_RENEW_MARGIN_MS = Math.floor(RELAY_V2_CONTRACT.durations.pairing_lease_seconds * 200);
 const OPERATION_POLL_MS = 400;
 const pairFlights = new Map<string, Promise<RelayV2Pairing>>();
+const operationWakeWaiters = new Map<string, Set<() => void>>();
 let relayState: PersistedRelayState | null = null;
+let wakeWired = false;
+
+function notifyOperationWake(operationId: string): void {
+  const waiters = operationWakeWaiters.get(operationId);
+  if (!waiters) return;
+  for (const resolve of [...waiters]) resolve();
+}
+
+function ensureOperationWake(): void {
+  if (!wakeWired) {
+    wakeWired = true;
+    laravelRelayOperationEvents.onOperationEvent((operationId) => notifyOperationWake(operationId));
+  }
+  laravelRelayOperationEvents.start();
+}
+
+function createOperationWake(operationId: string, signal?: AbortSignal): {
+  wait: (pollMs: number) => Promise<void>;
+  dispose: () => void;
+} {
+  let wakeResolve: (() => void) | null = null;
+  const waiter = (): void => {
+    if (wakeResolve) {
+      wakeResolve();
+      wakeResolve = null;
+    }
+  };
+  const waiters = operationWakeWaiters.get(operationId) ?? new Set<() => void>();
+  waiters.add(waiter);
+  operationWakeWaiters.set(operationId, waiters);
+  return {
+    wait(pollMs: number): Promise<void> {
+      return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          wakeResolve = null;
+          resolve();
+        }, pollMs);
+        wakeResolve = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(new DOMException('Aborted', 'AbortError'));
+        }, { once: true });
+      });
+    },
+    dispose(): void {
+      waiters.delete(waiter);
+      if (waiters.size === 0) operationWakeWaiters.delete(operationId);
+    },
+  };
+}
 
 function newUuid(): string {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -207,17 +262,18 @@ async function waitForOperation(operation: RelayV2Operation, signal?: AbortSigna
   const deadline = Date.now()
     + (RELAY_V2_CONTRACT.durations.claim_timeout_seconds + RELAY_V2_CONTRACT.durations.execution_timeout_seconds) * 1000;
   let current = operation;
-  while (!TERMINAL_STATES.has(current.state)) {
-    abortGuard(signal);
-    if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, OPERATION_POLL_MS);
-      signal?.addEventListener('abort', () => {
-        clearTimeout(timer);
-        reject(new DOMException('Aborted', 'AbortError'));
-      }, { once: true });
-    });
-    current = await laravelApi.getRelayV2Operation(current.operation_id);
+  const wake = createOperationWake(current.operation_id, signal);
+  try {
+    while (!TERMINAL_STATES.has(current.state)) {
+      abortGuard(signal);
+      if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
+      // The SSE wake resolves this wait early; the timer keeps the poll as
+      // the reconciliation fallback.
+      await wake.wait(OPERATION_POLL_MS);
+      current = await laravelApi.getRelayV2Operation(current.operation_id);
+    }
+  } finally {
+    wake.dispose();
   }
   return current;
 }
@@ -241,6 +297,7 @@ export async function deliverThroughLaravelRelay(
 ): Promise<Response> {
   abortGuard(signal);
   const pairing = await ensurePair();
+  ensureOperationWake();
   const parsed = new URL(url);
   const method = String(init.method || 'GET').toUpperCase();
   const bytes = await bodyBytes(init.body);

@@ -470,11 +470,11 @@ ensure_ui_domain_binding() {
     fi
 
     if [ "$INCLUDE_UI" = "yes" ]; then
-        if [ -f "$UI_START" ]; then
-            echo "Bringing up pycore_laravel_wordnew_ui dashboard with Vite hot reload (idempotent)..."
-            bash "$UI_START" --no-backend --service --dev
+        if [ -f "$UI_SERVICE_ENSURE_SCRIPT" ]; then
+            echo "Converging the pycore_laravel_wordnew_ui dashboard background service (idempotent)..."
+            bash "$UI_SERVICE_ENSURE_SCRIPT"
         else
-            echo "  Warning: UI start script not found: $UI_START (domain binding still converges)."
+            echo "  Warning: UI service ensure script not found: $UI_SERVICE_ENSURE_SCRIPT (domain binding still converges)."
         fi
     else
         echo "Refreshing the persisted dashboard domain binding (idempotent)..."

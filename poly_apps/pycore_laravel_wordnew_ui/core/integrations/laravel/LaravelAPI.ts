@@ -33,6 +33,7 @@ import {
 import {
   relayV2Endpoint,
   type RelayV2Device,
+  type RelayV2Hub,
   type RelayV2Operation,
   type RelayV2OperationAdmission,
   type RelayV2Pairing,
@@ -148,6 +149,7 @@ const ROUTES = {
   relayV2PairingRevoke: (pairingId: string): string =>
     relayV2Endpoint('owner_pairing_revoke', { pairingId }),
   relayV2Operations: relayV2Endpoint('owner_operation_admit'),
+  relayV2OwnerHubAuth: relayV2Endpoint('owner_hub_authorization'),
   relayV2Operation: (operationId: string): string =>
     relayV2Endpoint('owner_operation_status', { operationId }),
   relayV2OperationCancel: (operationId: string): string =>
@@ -493,6 +495,10 @@ const laravelMethods = {
   admitRelayV2Operation: async (frame: RelayV2OperationAdmission): Promise<RelayV2Operation> => {
     const payload = await requestLaravel<any>('POST', ROUTES.relayV2Operations, frame);
     return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  },
+  getRelayV2OwnerHubAuth: async (): Promise<RelayV2Hub> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayV2OwnerHubAuth, {});
+    return unwrapData<{ hub: RelayV2Hub }>(payload).hub;
   },
   getRelayV2Operation: async (operationId: string): Promise<RelayV2Operation> => {
     const payload = await requestLaravel<any>('GET', ROUTES.relayV2Operation(operationId));

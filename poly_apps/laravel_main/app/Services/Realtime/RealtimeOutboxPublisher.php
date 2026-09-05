@@ -53,10 +53,32 @@ final class RealtimeOutboxPublisher
         $published = 0;
 
         foreach ($rows as $row) {
-            // The relay V2 plane reconciles through plain HTTP polling on both
-            // ends; wake events are delivered locally instead of through the
-            // Mercure hub, so the outbox never blocks on hub availability.
-            $repository->markPublished($row, 'local:'.(string) $row->outbox_id);
+            $publishError = null;
+            try {
+                $updateId = MercurePublisher::publish(
+                    (string) $row->topic,
+                    (string) $row->payload,
+                    (bool) $row->private,
+                    (string) $row->event_type,
+                    (string) $row->outbox_id
+                );
+            } catch (\Throwable $exception) {
+                $updateId = null;
+                $publishError = $exception->getMessage();
+            }
+            if ($updateId === null) {
+                // Hub delivery failed: back off and retry; the device claim
+                // poll and the UI operation poll remain the reconciliation
+                // safety net while pushes are delayed.
+                $repository->markFailed($row, (string) ($publishError ?? 'mercure hub rejected relay v2 update'));
+                Log::warning('[RealtimeOutboxPublisher] Relay V2 hub publish failed', [
+                    'outbox_id' => (string) $row->outbox_id,
+                    'event' => (string) $row->event_type,
+                    'error' => (string) ($publishError ?? 'hub_rejected'),
+                ]);
+                break;
+            }
+            $repository->markPublished($row, $updateId);
             $published++;
         }
 

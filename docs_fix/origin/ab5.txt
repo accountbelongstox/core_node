@@ -1,0 +1,3942 @@
+ dd.sh > Service Manager
+ ==========================================
+ Service Manager
+
+ Select an option (Up/Down to move, Enter to select):
+ Press Ctrl+C to go back
+
+ │ Redis [STOPPED_ENABLED]
+ │   PostgreSQL [RUNNING]
+ │   Docker [NOT_INSTALLED]
+ │   MySQL [NOT_INSTALLED]
+ │   Nginx [STOPPED_DISABLED]
+ │   SSH Server [RUNNING]
+ │   Pycore HTTP [NOT_INSTALLED]
+ │   Laravel Octane [NOT_INSTALLED]
+ │   Unified Apps [STOPPED:0/3]
+ │   Core Node Services [PARTIAL:4/10]
+ │   Show All Services Status
+ │   Start All Installed Services
+ │   Stop All Running Services
+ │   Restart All Installed Services
+ │   Back to Linux Management     上面的服务管理，进行替换性
+ │ 更新，其中的服务改为替换对应的项管理
+ │ 93_install_frankenphp.sh
+ │    94_install_composer.sh
+ │    96_configure_php85.sh    175_laravel_main_start.sh  这
+ │ 几个脚本中安装的服务，可以重启查看状态等。注意复用代码和
+ │ 已经存在的类库，不要写冗余代码。按规范。
+
+
+ Let me understand the user's request. They have a service
+ manager in dd.sh (or a related script) that shows services
+ like Redis, PostgreSQL, Docker, MySQL, Nginx, SSH Server,
+ Pycore HTTP, Laravel Octane, Unified Apps, Core Node
+ Services. They want to replace/update this service
+ management to manage the services installed by these
+ scripts:
+
+ - 93_install_frankenphp.sh
+ - 94_install_composer.sh
+ - 96_configure_php85.sh
+ - 175_laravel_main_start.sh
+
+ These scripts install services like FrankenPHP, Composer,
+ PHP 8.5, and Laravel Octane presumably. The user wants to
+ be able to restart, view status, etc. for these services.
+
+ Let me explore the project structure first to understand
+ the codebase.
+
+
+ $ find /www/programing/core_node -maxdepth 2 -type d | head
+ -50
+
+ ... (49 earlier lines, ctrl+o to expand)
+ /www/programing/core_node/dotcore/DotCore.Common
+ /www/programing/core_node/dotcore/DotCore.Utils.Ocr.Windows
+ /www/programing/core_node/dotcore/DotCore.UITheme
+ /www/programing/core_node/dotcore/DotCore.YoloRecord
+ /www/programing/core_node/dotcore/DotCore.ScreenCapture
+
+ Took 0.0s
+
+
+
+ $ ls /www/programing/core_node | head -80
+
+ ... (33 earlier lines, ctrl+o to expand)
+ pyservice.sh
+ README.md
+ scripts
+ webclaude_group
+ webpack.config.js
+
+ Took 0.0s
+
+
+
+ $ find /www/programing/core_node/scripts -name "dd.sh" -o
+ -name "93_install*" -o -name "94_install*" -o -name
+ "96_configure*" -o -name "175_laravel*" | head -20; echo
+ "---"; ls /www/programing/core_node/scripts | head -100
+
+ ... (88 earlier lines, ctrl+o to expand)
+ video_processing
+ video_tools
+ webtools
+ winenvs
+ www
+
+ Took 0.0s
+
+
+
+ $ wc -l
+ /www/programing/core_node/scripts/shells/linux/dd.sh; ls
+ /www/programing/core_node/scripts/shells/linux/
+
+ ... (8 earlier lines, ctrl+o to expand)
+ project_init_lib.sh
+ pytools
+ rebuild_docker_compose.sh
+ rebuild_docker.sh
+ refresh_desktop_icons.sh
+
+ Took 0.0s
+
+
+
+ read /www/programing/core_node/scripts/shells/linux/dd.sh
+
+
+
+ $ ls -R
+ /www/programing/core_node/scripts/shells/linux/dd_helper
+ /www/programing/core_node/scripts/shells/linux/common
+ 2>/dev/null | head -60
+
+ ... (55 earlier lines, ctrl+o to expand)
+ install_cuda_toolkit.sh
+ install_test_menu.sh
+ linux_applications_list.sh
+ linux_path_function.sh
+ linux-router
+
+ Took 0.0s
+
+
+ The dd.sh is a launcher for the Python-based special
+ software environment manager. The service manager menu
+ shown in the user's output is part of that Python
+ implementation. Let me find the Python implementation.
+
+
+ $ ls -R
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager | head -80
+
+ ... (85 earlier lines, ctrl+o to expand)
+ env_manager/script_sections:
+ ark_launcher_section.py
+ backup_restore_section.py
+ env_loading_section.py
+ __init__.py
+
+ Took 0.0s
+
+
+
+ $ grep -rn "Service Manager"
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager --include="*.py" -l; echo "---"; grep -rn
+ "Redis"
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager --include="*.py" -l | head
+
+ ---
+
+ Took 0.0s
+
+
+
+ $ grep -rln "Service Manager"
+ /www/programing/core_node/scripts
+ /www/programing/core_node/pycore 2>/dev/null | head; echo
+ "---"; grep -rln "debian_service_manager"
+ /www/programing/core_node/scripts --include="*.sh" | head
+
+ ... (24 earlier lines, ctrl+o to expand)
+ ervice_manager.sh
+ /www/programing/core_node/scripts/unified_manager/modules/l
+ aravel_service_manager.sh
+ /www/programing/core_node/scripts/app_manager/linux_sh/app_
+ manager.sh
+
+ Took 3.7s
+
+
+ The "Service Manager" menu with Redis, PostgreSQL, Docker,
+ MySQL, Nginx, SSH Server, Pycore HTTP, Laravel Octane,
+ Unified Apps, Core Node Services seems to come from the
+ debian service manager. Let me check
+ debian_service_manager.sh and the server_manager scripts.
+
+
+ $ grep -rln "Show All Services Status"
+ /www/programing/core_node/scripts 2>/dev/null; echo "---";
+ ls /www/programing/core_node/scripts/shells/linux/debian/;
+ echo "---"; ls
+ /www/programing/core_node/scripts/shells/linux/debian/serve
+ r_manager/ 2>/dev/null
+
+ ... (18 earlier lines, ctrl+o to expand)
+ rustdesk_list_clients.sh
+ ssh_manager.sh
+ ufw_ssh_blacklist.sh
+ xrdp_monitor.sh
+ xrdp_monitor_view.sh
+
+ Took 3.3s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_ui.sh
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/common/debia
+ n_service_manager.sh
+
+
+
+ $ ls
+ /www/programing/core_node/scripts/shells/linux/common/syste
+ md_service_manager.sh; wc -l
+ /www/programing/core_node/scripts/shells/linux/common/syste
+ md_service_manager.sh
+ /www/programing/core_node/scripts/shells/linux/common/syste
+ md_service_cli.sh
+
+ ... (4 earlier lines, ctrl+o to expand)
+ md_service_manager.sh
+    43
+ /www/programing/core_node/scripts/shells/linux/common/syste
+ md_service_cli.sh
+   823 total
+
+ Took 0.0s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/common/syste
+ md_service_manager.sh
+
+
+ Now let me find where the SERVICE list is defined (Redis,
+ PostgreSQL, Docker, MySQL, Nginx, SSH Server, Pycore HTTP,
+ Laravel Octane, Unified Apps, Core Node Services). Let me
+ search for "SERVICE_NAME" and "Laravel Octane" in
+ menu_itemshells.
+
+
+ $ ls
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/; echo "---"; grep -rln "SERVICE_NAME\|Laravel Octane"
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/ | head
+
+ ... (12 earlier lines, ctrl+o to expand)
+ lls/service_manager.sh
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_ui.sh
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_registry.sh
+
+ Took 0.0s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_registry.sh
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager.sh
+
+
+ Now I understand the structure. The Service Manager menu is
+ defined in
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_registry.sh (service list) and
+ service_manager.sh (functions).
+
+ The user wants to replace the services with the ones
+ installed by:
+ - 93_install_frankenphp.sh
+ - 94_install_composer.sh
+ - 96_configure_php85.sh
+ - 175_laravel_main_start.sh
+
+ Let me look at these scripts to understand what services
+ they install.
+
+ Now let me examine the install scripts the user mentioned:
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/93_install_frankenphp.sh
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/94_install_composer.sh
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/96_configure_php85.sh
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh
+
+
+ Now I understand the install scripts:
+
+ 1. 93_install_frankenphp.sh - Installs FrankenPHP (via
+    frankenphp_install_pipeline.sh)
+ 2. 94_install_composer.sh - Installs Composer
+ 3. 96_configure_php85.sh - Configures PHP 8.5 (FrankenPHP
+    PHP or system PHP)
+ 4. 175_laravel_main_start.sh - Laravel main app (Laravel
+    Octane via FrankenPHP or nginx; registers
+    ncore-laravel-frankenphp / ncore-laravel-nginx systemd
+    services)
+
+ Now let me understand what the current service manager
+ lists and what needs to be replaced:
+ - Current: Redis, PostgreSQL, Docker, MySQL, Nginx, SSH
+   Server, Pycore HTTP, Laravel Octane, Unified Apps, Core
+   Node Services
+
+ The user wants to REPLACE these services with the services
+ from the mentioned scripts. So the new service list should
+ be:
+ - FrankenPHP (93_install_frankenphp.sh)
+ - Composer (94_install_composer.sh) - not a service per se,
+   but a binary
+ - PHP 8.5 (96_configure_php85.sh) - not a service per se,
+   but runtime config
+ - Laravel Main (175_laravel_main_start.sh) - the laravel
+   app services (ncore-laravel-frankenphp /
+   ncore-laravel-nginx)
+
+ Wait, but the user says "上面的服务管理，进行替换性更新，其
+ 中的服务改为替换对应的项管理 93_install_frankenphp.sh
+ 94_install_composer.sh 96_configure_php85.sh
+ 175_laravel_main_start.sh 这几个脚本中安装的服务，可以重启
+ 查看状态等。注意复用代码和已经存在的类库，不要写冗余代码。
+ 按规范。"
+
+ Translation: "Replace/update the service management above,
+ replacing the services with the items installed by these
+ scripts: 93_install_frankenphp.sh, 94_install_composer.sh,
+ 96_configure_php85.sh, 175_laravel_main_start.sh. These
+ installed services should support restart, view status,
+ etc. Reuse existing code and existing libraries, don't
+ write redundant code. Follow the standards."
+
+ So the Service Manager menu should now manage:
+ 1. FrankenPHP - installed by 93_install_frankenphp.sh.
+    FrankenPHP might run as a systemd service or just be a
+    binary? Let me check the frankenphp pipeline.
+ 2. Composer - installed by 94_install_composer.sh (a
+    binary, not a service)
+ 3. PHP 8.5 - configured by 96_configure_php85.sh (runtime
+    config, not a service)
+ 4. Laravel Main - started by 175_laravel_main_start.sh
+    (registers systemd services: ncore-laravel-frankenphp or
+    ncore-laravel-nginx)
+
+ For "restart, view status" for binaries like Composer/PHP,
+ the "status" would be version check / existence check. For
+ reinstall, run the install script.
+
+ Let me look at the frankenphp manager and understand what
+ services FrankenPHP creates.
+
+ Let me look at the frankenphp manager and related common
+ libraries:
+
+
+ $ grep -n "SERVICE\|systemctl\|\.service"
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_manager.sh | head -30; echo "==="; wc -l
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_manager.sh
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_pipeline.sh
+ /www/programing/core_node/scripts/shells/linux/common/compo
+ ser_install_common.sh
+
+ ... (12 earlier lines, ctrl+o to expand)
+ enphp_install_pipeline.sh
+   231
+ /www/programing/core_node/scripts/shells/linux/common/compo
+ ser_install_common.sh
+   796 total
+
+ Took 0.0s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_manager.sh
+
+
+ Now let me check how the Laravel service is registered (the
+ systemd service names: ncore-laravel-frankenphp /
+ ncore-laravel-nginx), and let me look at the existing
+ server_manager scripts like laravel_octane_manager.sh to
+ see if there's already a manager for the Laravel service.
+ Also look at how the current menu is invoked - where does
+ the "Service Manager" get called from (the linux management
+ menu).
+
+
+ $ grep -rn "service_manager.sh"
+ /www/programing/core_node/scripts/shells/linux/
+ --include="*.sh" | grep -v
+ "systemd_service\|debian_service" | head; echo "==="; grep
+ -rn "Service Manager"
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/menu_func/ 2>/dev/null | head; ls
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/menu_func/
+
+ ... (37 earlier lines, ctrl+o to expand)
+ ai_droid_menu.sh
+ ai_mcp_management_menu.sh
+ ai_openai_menu.sh
+ spacial_common_menu.sh
+ ssh_menu.sh
+
+ Took 0.0s
+
+
+
+ $ grep -rn
+ "menu_itemshells/service_manager.sh\|menu_itemshells/servic
+ e_manager\b\|source.*service_manager"
+ /www/programing/core_node/scripts --include="*.sh" -l
+ 2>/dev/null | head; echo "==="; grep -rn
+ "service_manager.sh"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll.sh
+ /www/programing/core_node/scripts/shells/linux/debian/*.sh
+ 2>/dev/null | head
+
+ ... (12 earlier lines, ctrl+o to expand)
+ /www/programing/core_node/scripts/shells/linux/debian/serve
+ r_manager/laravel_octane_manager.sh
+ /www/programing/core_node/scripts/shells/linux/dd_helper/co
+ nstants.sh
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -rn "menu_itemshells"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll.sh | head -20; echo "==="; grep -rln
+ "menu_itemshells/service_manager.sh"
+ /www/programing/core_node/scripts -r 2>/dev/null | head
+
+ ===
+ /www/programing/core_node/scripts/shells/linux/dd_helper/co
+ nstants.sh
+
+ Took 1.3s
+
+
+
+ $ grep -n "service_manager\|SERVICE"
+ /www/programing/core_node/scripts/shells/linux/dd_helper/co
+ nstants.sh | head -20
+
+ 39:SERVICE_MANAGER_SCRIPT_RELATIVE="scripts/shells/linux/me
+ nu_itemshells/service_manager.sh"
+
+ Took 0.0s
+
+
+
+ $ grep -rn "SERVICE_MANAGER_SCRIPT_RELATIVE"
+ /www/programing/core_node/scripts/shells/linux/dd_helper/*.
+ sh | head; echo "==="; grep -rn "Back to Linux Management"
+ /www/programing/core_node/scripts --include="*.sh" -l |
+ head
+
+ ... (12 earlier lines, ctrl+o to expand)
+ nux_management.sh
+ /www/programing/core_node/scripts/shells/linux/dd_helper/ma
+ nagement_and_backup.sh
+ /www/programing/core_node/scripts/app_manager/linux_sh/app_
+ manager.sh
+
+ Took 0.0s
+
+
+
+ $ grep -n "SERVICE_MANAGER\|service_manager"
+ /www/programing/core_node/scripts/shells/linux/dd_helper/li
+ nux_management.sh | head; echo "==="; grep -n
+ "SERVICE_MANAGER\|service_manager"
+ /www/programing/core_node/scripts/shells/linux/dd_helper/ma
+ nagement_and_backup.sh | head
+
+ 732:            5) show_service_manager ;;
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -rn "show_service_manager"
+ /www/programing/core_node/scripts/shells/linux/dd_helper/*.
+ sh | head
+
+ ... (4 earlier lines, ctrl+o to expand)
+ nu_functions.sh:42:show_service_manager() {
+ /www/programing/core_node/scripts/shells/linux/dd_helper/me
+ nu_functions.sh:84:        "show_service_manager")
+ /www/programing/core_node/scripts/shells/linux/dd_helper/me
+ nu_functions.sh:85:            show_service_manager
+
+ Took 0.0s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/dd_helper/me
+ nu_functions.sh:20-89
+
+
+ So the entry point is: dd.sh → special_software_env_manager
+ (Python) → "Linux Management" → "Service Manager" → runs
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager.sh.
+
+ Now I understand the full flow. The user wants to replace
+ the current service list (Redis, PostgreSQL, Docker, MySQL,
+ Nginx, SSH Server, Pycore HTTP, Laravel Octane, Unified
+ Apps, Core Node Services) with the services installed by:
+ - 93_install_frankenphp.sh → FrankenPHP (binary at
+   /usr/local/bin/frankenphp or /usr/bin/frankenphp; variant
+   model)
+ - 94_install_composer.sh → Composer (binary)
+ - 96_configure_php85.sh → PHP 8.5 configuration
+ - 175_laravel_main_start.sh → Laravel Main app (systemd
+   services: ncore-laravel-frankenphp / ncore-laravel-nginx;
+   legacy ncore-laravel-main)
+
+ The user says "可以重启查看状态等" (can restart, view
+ status, etc).
+
+ So the new Service Manager menu should list:
+ 1. FrankenPHP - binary/variant status, reinstall via 93,
+    verify via frankenphp_manager.sh
+ 2. Composer - binary status, reinstall via 94
+ 3. PHP 8.5 - config status, re-run 96
+ 4. Laravel Main - systemd service status,
+    start/stop/restart, reinstall via 175
+
+ Now, how to implement this in a non-redundant way, reusing
+ existing code:
+
+ Existing infrastructure:
+ - service_manager_registry.sh - defines SERVICES array and
+   metadata (SERVICE_NAME, SERVICE_SYSTEMD,
+   SERVICE_INSTALL_SCRIPT, SERVICE_MANAGER_SCRIPT)
+ - service_manager.sh - main logic: is_service_installed,
+   get_service_status, start_service, stop_service,
+   restart_service, show_service_status, show_service_logs,
+   toggle_autostart, reinstall_service, manage_service
+ - service_manager_ui.sh - UI (show_main_menu,
+   show_service_action_menu, show_all_services_status,
+   start_all_services, etc.)
+
+ The replacement approach: replace the registry entries with
+ the new four items. But the new items have different
+ semantics:
+ - FrankenPHP: not a systemd service by itself (it runs as
+   part of the Laravel Octane service via octane:frankenphp,
+   or the binary). Status = binary present (fm_binary_usable
+   / fm_get_binary). Reinstall = 93_install_frankenphp.sh.
+   "Restart" doesn't apply to a binary... but there might be
+   an ncore-acme-cert.timer. Hmm. But the user says "其中的
+   服务改为替换对应的项管理" - replace the services with the
+   corresponding items to manage. So each item should
+   support restart/status as applicable.
+
+ Wait - let me reconsider. Maybe FrankenPHP does have a
+ systemd service? Let me check the
+ frankenphp_install_pipeline and how octane frankenphp runs.
+ In the plane model, the Laravel service
+ ncore-laravel-frankenphp runs octane:frankenphp which
+ embeds FrankenPHP. So FrankenPHP runs embedded within the
+ Laravel service.
+
+ Composer is a CLI binary - not a daemon. PHP 8.5 is a
+ runtime config. So for those, "restart" doesn't make sense;
+ instead status (installed/version) and reinstall.
+
+ The most sensible design consistent with the existing
+ framework:
+ - FrankenPHP: status = binary usable + variant + embedded
+   PHP version; actions: Reinstall (93), Verify (fm_verify),
+   maybe open manager.
+ - Composer: status = command healthy
+   (composer_install_common.sh has functions like
+   composer_command_healthy? Actually that's defined in 175
+   or common?); actions: Reinstall (94), version info.
+ - PHP 8.5: status = config canonical
+   (php_configuration_ensure re-run / php_runtime_plane);
+   actions: Re-run configuration (96).
+ - Laravel Main: systemd service
+   ncore-laravel-frankenphp/ncore-laravel-nginx;
+   start/stop/restart/status/logs/toggle autostart;
+   reinstall via 175 (or the start.sh --service?).
+
+ Let me check the existing laravel_octane_manager.sh in
+ server_manager to see if it can be reused.
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/serve
+ r_manager/laravel_octane_manager.sh
+
+
+ Now, let me look at the composer_install_common.sh to see
+ what functions exist for composer status checking:
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/common/compo
+ ser_install_common.sh
+
+
+ Now let me check the gvar_common.sh for php_runtime_plane,
+ web_server_plane, CORE_RUNTIME_PYCORE_SERVICE, and see how
+ the laravel service name is resolved (in
+ 175_laravel_main_runtime_common.sh -
+ _resolve_laravel_service_plane, register_laravel_service).
+
+
+ $ grep -n
+ "_resolve_laravel_service_plane\|LARAVEL_SERVICE_NAME_BASE\
+ |register_laravel_service\|LARAVEL_SERVICE_PLANE_NAME\|lara
+ vel_service_name"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh | head -30
+
+ ... (26 earlier lines, ctrl+o to expand)
+ "$LARAVEL_SERVICE_TIMEOUT_STOP"
+ 594:    LARAVEL_SERVICE_ENABLED_STATE="$(systemctl
+ is-enabled "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null)"
+ 595:    LARAVEL_SERVICE_ACTIVE_STATE="$(systemctl is-active
+ "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null)"
+
+ Took 0.1s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh:520-619
+
+
+ Now I understand the Laravel service naming:
+ - frankenphp plane → ncore-laravel-frankenphp
+ - nginx plane → ncore-laravel-nginx
+ - legacy → ncore-laravel-main
+
+ Now let me look at gvar_common.sh to understand
+ php_runtime_plane, web_server_plane:
+
+
+ $ grep -n "php_runtime_plane()\|web_server_plane()"
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh; echo ===; sed -n "/^php_runtime_plane()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh; echo ===; sed -n "/^web_server_plane()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh
+
+ ===
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -rn "php_runtime_plane()\|web_server_plane()"
+ /www/programing/core_node/scripts/shells/linux/common/*.sh
+ | head
+
+ ... (6 earlier lines, ctrl+o to expand)
+ l_var_store.sh:262:php_runtime_plane() {
+ /www/programing/core_node/scripts/shells/linux/common/globa
+ l_var_store.sh:280:set_php_runtime_plane() {
+ /www/programing/core_node/scripts/shells/linux/common/globa
+ l_var_store.sh:290:set_web_server_plane() {
+
+ Took 0.0s
+
+
+
+ $ sed -n '230,310p'
+ /www/programing/core_node/scripts/shells/linux/common/globa
+ l_var_store.sh
+
+ ... (92 earlier lines, ctrl+o to expand)
+         echo "Global variable directory does not exist"
+         return 0
+     fi
+
+     # Remove all files in the directory
+
+ Took 0.0s
+
+
+ Now let me check the runtime_service_policy.sh, which is
+ already sourced by service_manager.sh, and also check how
+ CORE_RUNTIME_SERVICE_PREFIXES and
+ runtime_service_policy_core_prefix_pattern are used. Also I
+ need to see how the current service manager handles
+ "CORE_RUNTIME_PYCORE_SERVICE".
+
+
+ $ wc -l
+ /www/programing/core_node/scripts/shells/linux/common/runti
+ me_service_policy.sh; grep -n
+ "CORE_RUNTIME\|runtime_service_policy_core_prefix_pattern\|
+ CORE_RUNTIME_SERVICE_PREFIXES\|CORE_RUNTIME_PYCORE_SERVICE"
+
+ /www/programing/core_node/scripts/shells/linux/common/runti
+ me_service_policy.sh | head -20
+
+ ... (12 earlier lines, ctrl+o to expand)
+ 92:runtime_service_policy_core_prefix_pattern() {
+ 105:        for RUNTIME_SERVICE_POLICY_UNIT in
+ "${CORE_RUNTIME_PYCORE_UNITS[@]}"; do
+ 118:export CORE_RUNTIME_PYCORE_SERVICE
+ 119:export CORE_RUNTIME_LEGACY_PYCORE_SERVICE
+
+ Took 0.0s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/common/runti
+ me_service_policy.sh
+
+
+ Now let me understand what the current service manager UI
+ does and how to replace the services with the four
+ installers. Let me review:
+
+ Current services list:
+
+ ```
+   SERVICES=("redis" "postgresql" "docker" "mysql" "nginx"
+ "ssh" "pycore" "laravel" "unified_apps" "core_services")
+ ```
+
+ The user wants to replace with items managed by:
+ - 93_install_frankenphp.sh → FrankenPHP
+ - 94_install_composer.sh → Composer
+ - 96_configure_php85.sh → PHP 8.5 configuration
+ - 175_laravel_main_start.sh → Laravel Main
+   (ncore-laravel-frankenphp / ncore-laravel-nginx)
+
+ These items map to:
+ 1. FrankenPHP — binary + variant + Caddyfile. Status:
+    fm_binary_usable, fm_version, fm_variant. It's not a
+    standalone systemd service, but it powers the Laravel
+    Octane service. Hmm, but there is also the
+    ncore-acme-cert.timer for cert renewal. The "restart"
+    concept for FrankenPHP: it doesn't run standalone...
+    Actually wait — let me check if the frankenphp plane
+    runs it as a service or only embedded via octane.
+
+ Actually the plane model says: "one octane:frankenphp
+ process on 443" — so FrankenPHP is run by Laravel Octane
+ (embedded). So the Laravel Main service manages the running
+ process.
+
+ But wait — what does "restart" mean for these items?
+ - FrankenPHP: reinstall/verify (fm_verify). Restart doesn't
+   apply to a binary directly. But maybe "restart" could
+   apply to the Laravel service that embeds it.
+ - Composer: binary — reinstall only.
+ - PHP 8.5: configuration — re-run 96.
+ - Laravel Main: systemd service —
+   start/stop/restart/status/logs/autostart.
+
+ Hmm, but the user said "这几个脚本中安装的服务，可以重启查
+ 看状态等" (the services installed by these scripts can be
+ restarted, view status, etc).
+
+ Let me think about the design. The current
+ service_manager.sh has this architecture:
+ - Registry: SERVICES array + metadata maps (SERVICE_NAME,
+   SERVICE_SYSTEMD, SERVICE_INSTALL_SCRIPT,
+   SERVICE_MANAGER_SCRIPT)
+ - Logic functions with special-casing per service key
+ - UI: main menu, per-service action menu, bulk operations
+
+ The cleanest "替换性更新" (replacement update) that reuses
+ the framework:
+ - Replace SERVICES with ("frankenphp" "composer" "php85"
+   "laravel")
+ - Update the metadata maps
+ - Replace the special-case blocks in
+   is_service_installed/get_service_status/start_service/sto
+   p_service/restart_service/show_service_logs/reinstall_ser
+   vice
+
+ But there's a lot of special-casing in the current
+ implementation. The new items have different semantics —
+ mostly binary/config presence rather than systemd services.
+ This suggests I should refactor the per-service special
+ cases into a unified "provider" pattern.
+
+ Actually, let me re-read the user's request: "上面的服务管
+ 理，进行替换性更新，其中的服务改为替换对应的项管理
+ 93_install_frankenphp.sh 94_install_composer.sh
+ 96_configure_php85.sh 175_laravel_main_start.sh 这几个脚本
+ 中安装的服务，可以重启查看状态等。注意复用代码和已经存在的
+ 类库，不要写冗余代码。按规范。"
+
+ Translation: "For the service management above, perform a
+ replacement update: replace the services with the
+ corresponding items managed by 93_install_frankenphp.sh,
+ 94_install_composer.sh, 96_configure_php85.sh,
+ 175_laravel_main_start.sh. The services installed by these
+ scripts should support restart, view status, etc. Note:
+ reuse code and existing libraries, don't write redundant
+ code. Follow the standards."
+
+ So the Service Manager menu should now show:
+ 1. FrankenPHP (93)
+ 2. Composer (94)
+ 3. PHP 8.5 (96)
+ 4. Laravel Main (175)
+
+ Each with start/stop/restart/status/logs/reinstall as
+ applicable.
+
+ For semantics:
+ - FrankenPHP: binary + php-cli shims + Caddyfile. The
+   systemd services related: none directly (embedded in
+   octane). BUT there's ncore-acme-cert.timer (renewal
+   timer) — a timer, not the main service. Status = binary
+   usable (fm_binary_usable = yes/no) + variant. Reinstall =
+   run 93. "Restart" — hmm. Since FrankenPHP runs embedded
+   in the Laravel Octane service, restarting FrankenPHP
+   effectively = restarting the Laravel service. That may be
+   too clever. Alternative: restart action = re-converge?
+   Hmm.
+
+ Let me think about what's most useful and honest:
+ - For binary/config items (FrankenPHP, Composer, PHP 8.5),
+   the meaningful actions are: status (version/health),
+   reinstall (re-run installer), verify (fm_verify for
+   frankenphp).
+ - For Laravel Main: full systemd lifecycle
+   (start/stop/restart/status/logs/toggle autostart).
+
+ But the user explicitly says "可以重启查看状态等" (can
+ restart, view status, etc). Maybe they consider the Laravel
+ service as the main thing to restart. Or they might want
+ restart for all items where applicable.
+
+ Hmm, wait. Let me check if FrankenPHP has its own systemd
+ service somewhere. Let me search for "frankenphp" systemd
+ units.
+
+
+ $ grep -rn
+ "ncore-frankenphp\|frankenphp.service\|systemctl.*frankenph
+ p" /www/programing/core_node/scripts/shells/linux/
+ --include="*.sh" | grep -v "ncore-laravel" | head -20
+
+ ... (57 earlier lines, ctrl+o to expand)
+ show frankenphp.service -p UnitFileState --value
+ 2>/dev/null)"
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_apt.sh:122:        $USE_SUDO systemctl unmask
+ --runtime frankenphp.service >/dev/null 2>&1
+
+ Took 0.0s
+
+
+ OK so frankenphp.service from the apt package is masked —
+ the plane model runs FrankenPHP embedded in the Laravel
+ Octane process. So FrankenPHP itself is NOT a standalone
+ systemd service on this host; it runs inside
+ ncore-laravel-frankenphp.
+
+ So the design:
+ - FrankenPHP item: status = binary usable + version +
+   variant; actions: Reinstall (93), Verify (fm_verify), and
+   "restart" would restart the embedding Laravel service
+   (which makes sense — restarting the octane:frankenphp
+   process restarts FrankenPHP). Actually, I think for the
+   FrankenPHP item, restart/stop/start should apply to the
+   Laravel service that embeds it... no wait, that's
+   redundant with the Laravel Main item.
+
+ Hmm, let me reconsider. Actually let me re-read the user's
+ message once more:
+
+ "上面的服务管理，进行替换性更新，其中的服务改为替换对应的项
+ 管理 93_install_frankenphp.sh 94_install_composer.sh
+ 96_configure_php85.sh 175_laravel_main_start.sh 这几个脚本
+ 中安装的服务，可以重启查看状态等。"
+
+ So the four menu items replace the current ten. For each
+ item:
+ - 93_install_frankenphp.sh → FrankenPHP (binary/runtime)
+ - 94_install_composer.sh → Composer (binary)
+ - 96_configure_php85.sh → PHP 8.5 (config)
+ - 175_laravel_main_start.sh → Laravel Main (systemd service
+   ncore-laravel-frankenphp/nginx)
+
+ "可以重启查看状态等" — restart, view status, etc. For
+ Laravel Main this is clearly systemd restart/status. For
+ the binaries/config, "restart" isn't applicable but
+ "status" and "reinstall" are. However, since FrankenPHP is
+ embedded in the Laravel Octane service, restarting the
+ Laravel service effectively restarts FrankenPHP.
+
+ A pragmatic design that satisfies "重启查看状态等" for all
+ items:
+
+ 1. FrankenPHP:
+     - Status: binary usable (fm_binary_usable), version,
+       variant, plane
+     - Start/Stop/Restart: applies to the embedding laravel
+       service? No... Actually, I think the cleanest:
+       FrankenPHP item manages the runtime binary: status
+       shows version/variant/shims; actions = Reinstall
+       (93), Verify (fm_verify).
+
+
+ 2. Composer:
+     - Status: wrapper present/healthy, version
+     - Actions: Reinstall (94), version
+
+ 3. PHP 8.5:
+     - Status: plane (frankenphp/system), ini config
+       readiness
+     - Actions: Re-apply configuration (96)
+
+ 4. Laravel Main:
+     - Full systemd lifecycle:
+       start/stop/restart/status/logs/toggle
+       autostart/reinstall (175)
+
+ But then the generic action menu (Start/Stop/Restart)
+ doesn't fit items 1-3. The existing framework's
+ show_service_action_menu already handles the case where
+ status = NOT_INSTALLED → "Install Service".
+
+ Hmm, I think the right approach here is to restructure the
+ service manager around the concept of "managed items" where
+ each item can be:
+ - a systemd unit (laravel) → full lifecycle
+ - a binary/runtime (frankenphp, composer) → status +
+   reinstall + verify
+ - a configuration (php85) → status + re-apply
+
+ Let me look at how the UI is built more carefully to reuse
+ as much as possible:
+
+ show_main_menu builds menu_items from SERVICES with status,
+ plus bulk operations.
+
+ show_service_action_menu builds:
+ Start/Stop/Restart/Reinstall/Logs/Open Manager/Back, or
+ Install when NOT_INSTALLED.
+
+ The framework's core functions: is_service_installed,
+ get_service_status, print_status, start_service,
+ stop_service, restart_service, show_service_status,
+ show_service_logs, toggle_autostart, reinstall_service,
+ manage_service, has_advanced_manager,
+ launch_advanced_manager.
+
+ My plan:
+ 1. service_manager_registry.sh: Replace SERVICES with the
+    four new keys (frankenphp, composer, php85,
+    laravel_main). Keep the same metadata structure. Add new
+    metadata for manager script (advanced manager).
+
+ 2. service_manager.sh: Rewrite the special-case blocks:
+     - is_service_installed: frankenphp → fm_binary_usable =
+       yes; composer → composer wrapper executable &
+       healthy; php85 → php binary present + ini configured;
+       laravel_main → systemctl unit
+       ncore-laravel-frankenphp/nginx/main exists.
+     - get_service_status:
+         - frankenphp: "INSTALLED:variant" or
+           "NOT_INSTALLED"... Actually status format used by
+           print_status: RUNNING / STOPPED_ENABLED /
+           STOPPED_DISABLED / NOT_INSTALLED, plus
+           RUNNING:x/y etc. For binaries we could show
+           "READY" or "INSTALLED". I need to extend
+           print_status with new states like READY/BROKEN.
+         - laravel_main: standard systemd status via
+           existing logic
+           (RUNNING/STOPPED_ENABLED/STOPPED_DISABLED).
+     - start/stop/restart: only meaningful for laravel_main
+       (systemd). For frankenphp, restarting the embedding
+       service = restarting laravel service. Hmm.
+
+ Wait, actually — maybe I should reconsider: for frankenphp,
+ since it's embedded in the Laravel Octane service, "restart
+ FrankenPHP" = restart ncore-laravel-frankenphp. That's a
+ reasonable interpretation and satisfies "可以重启". But
+ then two menu items do the same thing... The Laravel item
+ is the direct manager of the service, and the FrankenPHP
+ item's start/stop/restart could just delegate to it.
+
+ Hmm, but that IS redundant. Let me think about what makes
+ the cleanest UX:
+
+ Menu items:
+ 1. FrankenPHP [variant, version] — actions: Verify,
+    Reinstall, Show runtime status (fm_verify)
+ 2. Composer [version/ready] — actions: Reinstall, Show
+    version
+ 3. PHP 8.5 [plane/configured] — actions: Re-apply
+    configuration (96)
+ 4. Laravel Main [RUNNING/STOPPED] — actions:
+    Start/Stop/Restart/Status/Logs/Toggle
+    autostart/Reinstall(175)
+
+ Bulk operations "Start All / Stop All / Restart All" then
+ apply to the systemd-manageable subset (laravel_main only).
+ Hmm, that makes bulk ops weird with only one service item.
+
+ Alternatively — maybe the user wants richer granularity:
+ each script installs multiple things. Let me enumerate what
+ each script actually installs/manages:
+
+ 93_install_frankenphp.sh → frankenphp_install_pipeline:
+ - frankenphp binary (variant: apt/compiled/prebuilt)
+ - php-cli shims (/usr/local/bin/php, php-cli)
+ - Caddyfile? (fm_caddyfile_ensure)
+ - acme.sh (prebuilt variant DNS-01)
+ - ncore-acme-cert.timer (cert renewal timer)
+
+ Let me check the pipeline to see what modes exist and what
+ a "verify" does.
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_pipeline.sh
+
+
+ Now let me check frankenphp_runtime_common.sh for the key
+ probes I'd reuse: fm_get_binary, fm_binary_usable,
+ fm_version, fm_php_version, fm_variant,
+ fm_runtime_converge:
+
+
+ $ grep -n "^fm_[a-z_]*()"
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_runtime_common.sh
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_modes.sh
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_static_builder.sh 2>/dev/null
+
+ ... (112 earlier lines, ctrl+o to expand)
+ enphp_static_builder.sh:141:fm_static_dist_reusable() {
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_static_builder.sh:181:fm_static_git_ensure() {
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_static_builder.sh:241:fm_static_build() {
+
+ Took 0.0s
+
+
+ Excellent. There's a rich set of reusable fm_* functions.
+ Now let me look at the PHP common vars and functions used
+ by 96 (php_common_vars.sh, php_common_functions.sh) to
+ understand how to check PHP config status:
+
+
+ $ grep -n "^PHP_[A-Z_]*="
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_com/php_common_vars.sh | head -20; echo "==="; grep -n
+ "^configure_php_for_laravel_from_php_common\|^php_runtime_p
+ lane\|^[a-z_]*()"
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_com/php_common_functions.sh | head -30
+
+ ... (17 earlier lines, ctrl+o to expand)
+ 323:update_nginx_config_from_php_common() {
+ 356:update_caddy_config_from_php_common() {
+ 384:configure_php_for_laravel_from_php_common() {
+ 451:force_reload_php_fpm_from_php_common() {
+ 462:verify_open_basedir_config_from_php_common() {
+
+ Took 0.0s
+
+
+
+ $ sed -n '197,230p'
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_com/php_common_functions.sh
+
+ ... (33 earlier lines, ctrl+o to expand)
+ # Configure PHP-FPM pool
+ configure_php_fpm_pool_from_php_common() {
+     local version="${1:-8.4}"
+     local socket_path="${2:-/run/php/php8.5-fpm.sock}"
+     local script_index="${3:-[PHP_FPM_POOL]}"
+
+ Took 0.0s
+
+
+ Good. Now let me check how the current service_manager.sh
+ is invoked and check CORE_RUNTIME_PYCORE_SERVICE reference
+ in the registry — it references a variable from
+ runtime_service_policy.sh which is sourced AFTER the
+ registry in service_manager.sh... Actually in
+ service_manager.sh, the sources happen in order:
+ gvar_common, common_functions, arrow_menu,
+ runtime_service_policy, then registry, then UI. OK.
+
+ Now, my design decision. The task: replace the service
+ manager's service list with four items:
+
+ 1. frankenphp (FrankenPHP) — installed by 93
+ 2. composer (Composer) — installed by 94
+ 3. php85 (PHP 8.5) — configured by 96
+ 4. laravel_main (Laravel Main) — started by 175 (registers
+    ncore-laravel-frankenphp / ncore-laravel-nginx systemd
+    service)
+
+ The existing service_manager.sh has heavy per-service
+ special-casing. Per the project rules ("Reuse or upgrade
+ existing components before creating new ones", "Refactor to
+ align underlying logic: extract centralized shared classes,
+ remove duplicate implementations"), I should refactor the
+ special-case blocks into a cleaner dispatch while keeping
+ the framework (registry + UI) intact.
+
+ Let me design the new service_manager.sh structure:
+
+ Registry (service_manager_registry.sh):
+
+ ```bash
+   SERVICES=("frankenphp" "composer" "php85" "laravel_main")
+ ```
+
+ Metadata:
+ - SERVICE_NAME: display names
+ - SERVICE_SYSTEMD: systemd unit (laravel_main → plane-aware
+   resolution; others empty)
+ - SERVICE_INSTALL_SCRIPT: 93/94/96/175
+ - SERVICE_MANAGER_SCRIPT: advanced manager (maybe none now)
+
+ Status logic:
+ - frankenphp:
+     - installed = fm_binary_usable = yes
+     - status: binary present → "READY:variant" (e.g.
+       READY:apt); else NOT_INSTALLED
+ - composer:
+     - installed = composer wrapper executable and runtime
+       ok
+     - status: "READY" (version?) — version probe is
+       expensive; keep to ready/not-installed
+ - php85:
+     - installed = PHP runtime present (frankenphp plane: fm
+       binary + ini; system plane: /usr/bin/php8.5)
+     - status: "READY:plane" or NOT_INSTALLED
+ - laravel_main:
+     - installed = any of ncore-laravel-frankenphp /
+       ncore-laravel-nginx / ncore-laravel-main unit exists
+     - status: standard systemd
+       RUNNING/STOPPED_ENABLED/STOPPED_DISABLED
+
+ print_status needs new states:
+ - READY → GREEN [READY]
+ - READY:xxx → GREEN [READY (xxx)]
+ - BROKEN → RED [BROKEN]? For composer installed but
+   unhealthy? Keep simple: installed = executable wrapper
+   exists; ready = composer --version works? That's slow-ish
+   but ok... Actually composer_command_healthy — let me
+   check where that's defined (used in 175). Let me search.
+
+ Actions:
+ - start/stop/restart/toggle_autostart/show_service_logs:
+   only meaningful for laravel_main (systemd). For
+   frankenphp/composer/php85, these should print a friendly
+   "not applicable" message. Hmm, but the user explicitly
+   said "可以重启查看状态等" (can restart, view status,
+   etc.)...
+
+ Wait, maybe I'm overthinking. Let me re-read again: "这几个
+ 脚本中安装的服务，可以重启查看状态等" — "the services
+ installed by these scripts can be restarted, status viewed,
+ etc."
+
+ Hmm, for FrankerPHP — when the plane is frankenphp and
+ Laravel service runs, restarting = restarting
+ ncore-laravel-frankenphp. For PHP 8.5 — php-fpm? Let me
+ check if 96 configures php-fpm...
+ configure_php_for_laravel_from_php_common configures PHP
+ CLI ini mainly; php-fpm functions exist but for the
+ frankenphp plane it's the embedded PHP.
+
+ I think the most reasonable interpretation that satisfies
+ the user: the menu items should manage the RUNTIME of each
+ component where a runtime exists:
+ - Laravel Main: systemd service
+   (start/stop/restart/status/logs/autostart) — full
+   lifecycle
+ - FrankenPHP: since it's embedded in the Laravel service,
+   its start/stop/restart = the Laravel service lifecycle
+   too. But that's redundant...
+
+ Alternative interpretation: items 93/94/96 are
+ "install/verify" style entries (status + reinstall), and
+ 175 is the actual service. The action menu should adapt per
+ item type. The current UI's show_service_action_menu
+ already adapts (NOT_INSTALLED → Install only).
+
+ Let me look at this from the "least redundant, most useful"
+ angle:
+
+ Menu:
+ 1. FrankenPHP [READY:apt] → actions: Show Details
+    (fm_verify), Reinstall (93)
+ 2. Composer [READY] → actions: Show Version, Reinstall (94)
+ 3. PHP 8.5 [READY:frankenphp] → actions: Show Details (php
+    -v / ini check), Re-apply Config (96)
+ 4. Laravel Main [RUNNING] → actions:
+    Start/Stop/Restart/Status/Logs/Toggle
+    autostart/Reinstall (175)
+
+ Bulk operations (Start All/Stop All/Restart All): only
+ apply to systemd items (laravel_main). With just one
+ systemd item these are a bit silly but harmless — they
+ iterate SERVICES and skip non-systemd ones. Actually, I
+ could keep them — they're generic.
+
+ Hmm wait. But the user said "可以重启查看状态等"
+ explicitly. If FrankenPHP item can't restart, the user
+ might be disappointed. Let me think about whether "restart
+ FrankenPHP" could make sense as restarting the
+ ncore-laravel-frankenphp service...
+
+ Actually — YES, I think that's exactly the right
+ interpretation! Look at the plane model:
+ - FrankenPHP runs as the app server inside the Laravel
+   Octane service (ncore-laravel-frankenphp, port 443).
+ - When you "restart FrankenPHP" you restart the
+   octane:frankenphp process = ncore-laravel-frankenphp
+   service.
+
+ But then the Laravel Main item IS the same service... Hmm.
+
+ OK here's another thought — maybe I should structure it so
+ the four items map to distinct manageable entities:
+
+ 1. FrankenPHP (93): the web server runtime (binary +
+    Caddyfile + cert renewal timer ncore-acme-cert.timer).
+    Restart semantics: restart the Laravel service that
+    embeds it (on the frankenphp plane). Hmm, still
+    overlaps.
+
+ Let me just be pragmatic. The cleanest non-redundant
+ design:
+
+ - Items with systemd lifecycle: laravel_main only.
+ - Items without: frankenphp, composer, php85 → these get
+   "Install/Reinstall", "Show Details", and NOT
+   start/stop/restart.
+
+ And in the action menu, non-lifecycle items show only
+ applicable actions. This follows the existing pattern
+ (has_advanced_manager → "Open Manager" only).
+
+ BUT the user explicitly wants restart capability... Let me
+ reconsider: maybe they want the FrankenPHP item to control
+ the embedding service. Let me look at what systemctl
+ restart ncore-laravel-frankenphp does — it restarts octane
+ which restarts FrankenPHP. And "Laravel Main" item = same
+ service.
+
+ You know what, let me just support lifecycle ops for BOTH
+ frankenphp and laravel_main items by delegating to the same
+ underlying systemd unit — frankenphp's start/stop/restart =
+ the laravel service on frankenphp plane. When plane is
+ nginx, FrankenPHP lifecycle ops would say "not active on
+ this plane". Hmm, this is getting convoluted.
+
+ Let me step back and think about what's simplest and
+ cleanest per the codebase philosophy:
+
+ The service_manager framework treats each SERVICES entry
+ with:
+ - is_service_installed
+ - get_service_status
+ - start/stop/restart service
+ - show_service_status / show_service_logs
+ - toggle_autostart
+ - reinstall_service
+ - manage_service (advanced)
+
+ For the new four items, the semantics per item:
+
+ frankenphp:
+ - installed: fm_binary_usable → yes/no
+ - status: NOT_INSTALLED / READY (binary + version)
+ - start/stop/restart: delegate to the embedding Laravel
+   Octane service (frankenphp plane) — since that's the
+   process that runs FrankenPHP. On nginx plane: "FrankenPHP
+   is not the active web server plane".
+   Hmm, or simply not applicable...
+
+ Actually wait — let me check if there's something I'm
+ missing. Does 93 install any systemd unit? The pipeline:
+ prepare (apt/compile/prebuilt), commit variant,
+ planes_ensure (nginx/certbot disable + set plane),
+ mode_support (acme.sh install for apt/prebuilt; dnspod
+ token for compile), retire nonowners, finalize (Caddyfile +
+ fm_verify). Plus ncore-acme-cert.timer gets installed
+ somewhere (frankenphp_acme_sh_install.sh). Let me check
+ that.
+
+
+ $ grep -n "ncore-acme-cert\|systemctl\|\.timer\|\.service"
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_acme_sh_install.sh | head -20; echo ===; grep -rn
+ "register_laravel_service\|175_laravel_main_start.sh
+ --service\|--service"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh | head -5; grep -n
+ "ARGUMENT\|--service"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh | head -20
+
+ ... (20 earlier lines, ctrl+o to expand)
+ 518:        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN]
+ renewal timer not active; check: systemctl status
+ ${ACME_SH_SERVICE_NAME}.timer"
+ ===
+ 733:    register_laravel_service "$SERVICE_EXEC_CMD"
+
+ Took 0.0s
+
+
+
+ $ grep -n "php_configuration_arguments_read\|case
+ \"\$ARG\"\|--skip-ssh\|--domains-only\|SHOW_SUPER_CODE\|AS_
+ SERVICE="
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh | head; echo ===; sed
+ -n '/^for ARG in/,/^done/p'
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh | head -40
+
+ ... (6 earlier lines, ctrl+o to expand)
+ skipped: --domains-only/--ssl-only)."
+ 689:    AS_SERVICE="no"
+ 695:        AS_SERVICE="yes"
+ 697:        AS_SERVICE="no"
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -n "ARG\b"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh | sed -n '1,25p'
+
+ 137:ARG=""
+
+ Took 0.0s
+
+
+
+ $ sed -n '175,222p'
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh
+
+ ... (55 earlier lines, ctrl+o to expand)
+ # --show-super-code runs HERE: it needs resolve_php +
+ runtime_config_get,
+ # which are defined in the function section above. Cleanup
+ trap is skipped
+ # for this read-only query.
+
+ Took 0.0s
+
+
+
+ $ sed -n '735,800p'
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh; wc -l
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh
+
+ ... (75 earlier lines, ctrl+o to expand)
+     laravel_main_run
+ fi
+ 788
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_start.sh
+
+ Took 0.0s
+
+
+ I see — 175 doesn't parse --service ARG at the top. Let me
+ check how the existing service_manager.sh's laravel
+ reinstall works: it calls
+ $SERVICE_MANAGER_LARAVEL_START_SCRIPT --service. But 175
+ references
+ SERVICE_MANAGER_LARAVEL_START_SCRIPT="$SERVICE_MANAGER_REGI
+ STRY_REPO_ROOT/poly_apps/laravel_main/scripts/start.sh".
+ Let me check that start.sh:
+
+
+ $ ls
+ /www/programing/core_node/poly_apps/laravel_main/scripts/ |
+ head -30; echo ===; grep -n "service\|175"
+ /www/programing/core_node/poly_apps/laravel_main/scripts/st
+ art.sh | head -30
+
+ ... (11 earlier lines, ctrl+o to expand)
+ 14:#
+ scripts/shells/linux/debian/install_shells/175_laravel_main
+ _start.sh
+ 22:CANONICAL_START="${REPO_ROOT}/scripts/shells/linux/debia
+ n/install_shells/175_laravel_main_start.sh"
+
+ Took 0.1s
+
+
+
+ read
+ /www/programing/core_node/poly_apps/laravel_main/scripts/st
+ art.sh
+
+
+
+ $ head -60
+ /www/programing/core_node/poly_apps/laravel_main/scripts/st
+ art_service.sh; echo "==="; grep -rn
+ "start_service.sh\|--service"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh | head
+
+ ... (11 earlier lines, ctrl+o to expand)
+ 33:    echo "  --service           Register and start the
+ background service."
+ 66:        --service) AS_SERVICE="yes" ;;
+ 475:            bash "$UI_START" --no-backend --service
+ --dev
+
+ Took 0.0s
+
+
+
+ $ sed -n '20,90p'
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh
+
+ ... (88 earlier lines, ctrl+o to expand)
+ new_installation_access_code() {
+     local segment_one segment_two segment_three
+ segment_four
+     segment_one="$(od -An -N2 -tx1 /dev/urandom | tr -d '
+ \n' | tr '[:lower:]' '[:upper:]')"
+
+ Took 0.0s
+
+
+ Now I have a full picture:
+
+ - 175_laravel_main_start.sh --service → registers and
+   starts the ncore-laravel-frankenphp (or -nginx) systemd
+   service.
+ - Service names: ncore-laravel-frankenphp,
+   ncore-laravel-nginx, legacy ncore-laravel-main.
+ - The plane selector: web_server_plane() → "frankenphp" |
+   "nginx".
+
+ Now, the composer check: composer_command_healthy — where
+ is it defined?
+
+
+ $ grep -rn "composer_command_healthy()"
+ /www/programing/core_node/scripts/shells/linux/
+ --include="*.sh" | head -3; echo ===; sed -n
+ "/^composer_command_healthy()/,/^}/p" $(grep -rln
+ "composer_command_healthy()"
+ /www/programing/core_node/scripts/shells/linux/
+ --include="*.sh" | head -1)
+
+ ... (17 earlier lines, ctrl+o to expand)
+         else
+             COMPOSER_COMMAND_READY="yes"
+         fi
+     fi
+ }
+
+ Took 0.1s
+
+
+
+ $ grep -rn "resolve_php\b"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh | head -2; sed
+ -n "/^resolve_php()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh; echo ===; sed
+ -n "/^resolve_composer()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/debian/insta
+ ll_shells/175_laravel_main_runtime_common.sh
+
+ ... (70 earlier lines, ctrl+o to expand)
+         COMPOSER_CMD="/usr/bin/composer"
+         return
+     fi
+
+ }
+
+ Took 0.0s
+
+
+ Now I have all the pieces. Let me also check the
+ fm_php_ini_dir/fm_php_ini_ensure and the check in 96 for
+ config status, plus the fm_runtime_converge function to
+ know its cost (it's used by resolve_php). Let me view
+ fm_runtime_converge and fm_ensure_php_cli_shim:
+
+
+ $ sed -n '633,700p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_modes.sh; echo ===; sed -n '572,632p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_modes.sh
+
+ ... (98 earlier lines, ctrl+o to expand)
+ # Runtime-only convergence. Installation, compilation,
+ package cleanup and
+ # service mutex changes remain owned by step 93 and never
+ run from a process
+ # supervisor's start command.
+
+ Took 0.0s
+
+
+ Now I have a complete understanding. Let me now check the
+ arrow_menu.sh to understand arrow_menu_select:
+
+
+ $ grep -n "arrow_menu_select()\|ARROW_MENU_SELECTED_INDEX"
+ /www/programing/core_node/scripts/shells/linux/common/arrow
+ _menu.sh | head -5; echo ===; grep -rn
+ "show_main_menu\|manage_service"
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_ui.sh | head
+
+ ... (3 earlier lines, ctrl+o to expand)
+ 46:        ARROW_MENU_SELECTED_INDEX="$back_index"
+ 53:        ARROW_MENU_SELECTED_INDEX="$back_index"
+ ===
+ 132:        manage) manage_service "$service"; return 0 ;;
+ 139:show_main_menu() {
+
+ Took 0.0s
+
+
+ Now I have the full picture. Let me plan the
+ implementation.
+
+ Design
+
+ Replace the Service Manager's service list (10 items) with
+ 4 items managed by the scripts:
+ 1. frankenphp — FrankenPHP runtime
+    (93_install_frankenphp.sh)
+ 2. composer — Composer (94_install_composer.sh)
+ 3. php85 — PHP 8.5 configuration (96_configure_php85.sh)
+ 4. laravel_main — Laravel Main Octane service
+    (175_laravel_main_start.sh, systemd units
+    ncore-laravel-frankenphp/-nginx/-main)
+
+ ### Architecture (reuse existing framework)
+
+ Keep the three-file structure:
+ - service_manager_registry.sh — registry with new SERVICES
+   + metadata
+ - service_manager.sh — status/lifecycle logic, refactored
+   around a capability dispatch
+ - service_manager_ui.sh — UI, mostly unchanged (it's
+   generic)
+
+ To avoid the current file's problem (huge per-service
+ if-blocks duplicated across
+ is_service_installed/get_service_status/start/stop/restart)
+ , I'll centralize per-service behavior into small
+ probe/action functions in service_manager.sh:
+
+ Core concept — each service key gets:
+ - <key>_installed → probe
+ - status logic centralized in get_service_status with a
+   single dispatch
+ - lifecycle actions (start/stop/restart/logs/autostart)
+   only apply to systemd-backed items (laravel_main); for
+   binary items the action menu shows "Reinstall" + "Show
+   Details" only.
+
+ Wait, but the current UI flow: show_service_action_menu
+ builds the action list based on status/NOT_INSTALLED and
+ has_advanced_manager. The items:
+
+ For NOT_INSTALLED: menu_items=("Install Service" [+ "Open
+ Advanced Manager"] "Back")
+ For installed: Start/Stop/Restart/Reinstall/Logs/[Open
+ Manager]/Back
+
+ For binary items (frankenphp/composer/php85),
+ Start/Stop/Restart don't apply. I'll introduce a capability
+ concept: SERVICE_CAPABILITY per item ("systemd" |
+ "runtime"). In show_service_action_menu:
+ - runtime capability + installed → "Show Details" +
+   "Reinstall/Reconfigure" + "Back"
+ - runtime capability + not installed → "Install" + "Back"
+ - systemd capability → existing
+   Start/Stop/Restart/Reinstall/Logs/Back
+
+ Now the status display:
+ - frankenphp: fm_binary_usable == yes → "READY:<variant>" —
+   print as GREEN [READY (apt)]. NOT_INSTALLED otherwise.
+   Also maybe show version. Status string is recomputed
+   every menu render — keep it cheap: fm_binary_usable +
+   fm_variant are cheap file/gvar probes. fm_version runs
+   the binary — too expensive for menu render. Skip version
+   in status; show it in Details (fm_verify).
+ - composer: installed = /usr/local/bin/composer executable
+   + phar present (composer_command_healthy logic — but
+   that's defined in 175_laravel_main_runtime_common.sh; I
+   can reuse by checking files directly: -x
+   /usr/local/bin/composer && -s
+   /usr/local/lib/composer/composer.phar). Hmm — the
+   composer install contract from
+   composer_install_common.sh:
+   COMPOSER_PHAR_PATH=/usr/local/lib/composer/composer.phar,
+   COMPOSER_TARGET_PATH=/usr/local/bin/composer. I'll source
+   composer_install_common.sh in the registry/manager and
+   use its constants. But sourcing
+   composer_install_common.sh sources frankenphp_manager.sh
+   which sources service_contract_common etc. — that's the
+   standard pattern in this codebase (scripts already do
+   it). service_manager.sh already sources gvar_common +
+   common_functions. Sourcing frankenphp_manager.sh gives
+   fm_* functions. composer_install_common.sh additionally
+   gives COMPOSER_* paths. That's the reuse the user wants.
+
+ Actually wait — sourcing frankenphp_manager.sh has side
+ effects: it sources gvar_common.sh,
+ service_contract_common.sh, web_access_common.sh,
+ frankenphp_install_modes.sh, frankenphp_static_builder.sh,
+ frankenphp_runtime_common.sh. All library-style (function
+ definitions + variable declarations). The 93/94/96/175
+ scripts already source these. Fine.
+
+ - php85: status = plane-aware:
+     - frankenphp plane: binary usable + ini file present →
+       READY (embedded PHP <version>? version probe costs a
+       binary run; keep READY)
+     - system plane: PHP_BIN=/usr/bin/php8.5 present → READY
+     - else NOT_INSTALLED
+       Actually, let me show plane in status:
+       "READY:frankenphp" / "READY:system".
+
+   Hmm, but wait — is the plane really needed in the status?
+   The menu item is "PHP 8.5". Status could be READY or
+   NOT_INSTALLED, with details showing the plane and ini
+   state. Keep status simple: READY / NOT_INSTALLED.
+
+ - laravel_main: installed = systemd unit exists among
+   ncore-laravel-frankenphp / ncore-laravel-nginx /
+   ncore-laravel-main; status = standard
+   RUNNING/STOPPED_ENABLED/STOPPED_DISABLED of the ACTIVE
+   unit (plane-aware + legacy fallback). If multiple exist,
+   pick plane-preferred. This is like the existing "laravel"
+   special case but simpler since we now know the canonical
+   names.
+
+ ### print_status additions
+
+ Current handles: RUNNING:x/y, PARTIAL:x/y, STOPPED:x/y,
+ RUNNING, STOPPED_ENABLED, STOPPED_DISABLED, NOT_INSTALLED.
+ Add:
+ - READY:<detail> → GREEN [READY (<detail>)]
+ - READY → GREEN [READY]
+
+ ### Bulk operations
+
+ "Start All Installed Services" / "Stop All Running
+ Services" / "Restart All Installed Services" — these
+ iterate SERVICES and call
+ start_service/stop_service/restart_service. For runtime
+ items, start/stop/restart print "not applicable"... that
+ would be noisy. Better: make
+ start_service/stop_service/restart_service silently skip
+ (return 0 with a one-line note) for runtime items. In the
+ bulk loops they call is_service_installed first — for
+ runtime items installed=true so they'd call start_service →
+ prints "not a systemd service" line. Hmm.
+
+ Alternative: add a service_is_systemd_managed check in the
+ bulk loops. The bulk functions live in
+ service_manager_ui.sh. I could add a helper
+ has_systemd_lifecycle() in service_manager.sh and use it in
+ the UI bulk loops and action menus. Clean.
+
+ Actually, let me reconsider: should bulk ops still exist
+ with only ONE systemd item? "Start All Installed Services"
+ with one service is still useful (it starts the laravel
+ service). And show_all_services_status shows all four
+ items' statuses. Keep them — they're generic and work.
+
+ Wait, actually — do I even keep "Show All Services Status"
+ etc.? The user's screenshot shows the full menu including
+ these. "进行替换性更新" = replacement update of the service
+ list. The bulk operations and "Back to Linux Management"
+ remain. Keep the UI structure; only the services change.
+
+ Hmm, but hold on. Let me reconsider whether the user wants
+ to REMOVE the old services entirely or ADD to them. "上面的
+ 服务管理，进行替换性更新，其中的服务改为替换对应的项管理" —
+ "perform a replacement update on the service management
+ above; the services in it are replaced with the
+ corresponding items". Clear: REPLACE the 10 items with the
+ 4 new ones.
+
+ ### Action menu per item
+
+ laravel_main (systemd capability):
+ - Start / Stop / Restart / Show Status (systemctl status) /
+   Toggle Auto-start / Show Logs / Reinstall (175 --service)
+   / Back
+
+ Wait — the existing UI has two levels:
+ 1. show_service_action_menu (on select from main list):
+    Start/Stop/Restart/Reinstall/Logs/[Manage]/Back
+ 2. manage_service (via "Open Manager" when
+    SERVICE_MANAGER_SCRIPT exists): another menu with
+    Start/Stop/Restart/Show Status/Toggle
+    Auto-start/Reinstall/Back
+
+ For the new design I'll simplify: since none of the four
+ items have a separate advanced manager script, drop
+ SERVICE_MANAGER_SCRIPT entries (empty → "Open Manager"
+ hidden). But then toggle_autostart is unreachable... The
+ existing show_service_action_menu lacks Toggle Auto-start.
+ Hmm, but the existing menu for installed services without
+ manager shows: Start/Stop/Restart/Reinstall/Logs/Back.
+ Toggle autostart only in manage_service menu. For
+ laravel_main, autostart toggle is valuable. I'll add
+ "Toggle Auto-start" to show_service_action_menu for systemd
+ items.
+
+ Actually — let me not over-engineer. The cleanest:
+ show_service_action_menu adapts by capability:
+ - systemd item: Start / Stop / Restart / Show Status / Show
+   Logs / Toggle Auto-start / Reinstall / Back
+ - runtime item (installed): Show Details /
+   Reconfigure(Reinstall) / Back
+ - runtime item (not installed): Install / Back
+ - systemd item not installed: Install / Back
+
+ This matches the current code's structure but adapted. The
+ existing show_service_action_menu has menu_items +
+ action_keys dispatch — I keep that pattern.
+
+ ### show_service_logs
+
+ For laravel_main: journalctl on the resolved unit. Keep the
+ existing generic journal tail. The current laravel special
+ case has the fancy multi-source menu (journal / swoole log
+ / state file). Since the user said don't write redundant
+ code and this is a "replacement update", I'll simplify:
+ journalctl for the active unit + tip. Should I keep the
+ Laravel log-source submenu? The existing one references
+ ncore-laravel-main/app-manager-laravel*/octane-* patterns.
+ New canonical: plane unit. I'll use the generic journal
+ path with the resolved unit name (existing generic branch
+ already does journalctl -u "$systemd_name"). So
+ show_service_logs becomes fully generic — remove the
+ laravel special case.
+
+ ### reinstall_service
+
+ - frankenphp → bash 93 (interactive mode selection when
+   TTY)
+ - composer → bash 94
+ - php85 → bash 96
+ - laravel_main → bash 175 --service (AS_SERVICE=yes;
+   registers + starts the systemd service)
+
+ The existing reinstall_service has a big generic
+ confirmation flow + special cases. The generic flow uses
+ SERVICE_INSTALL_SCRIPT from registry with
+ SERVICE_MANAGER_INSTALL_SHELLS_DIR. All four scripts live
+ in install_shells/. So reinstall_service becomes fully
+ generic! For laravel_main I need to pass --service. Add
+ SERVICE_INSTALL_ARGS metadata map: laravel_main →
+ "--service", others empty.
+
+ Also the existing laravel special case printed nice info
+ about the canonical installer. With --service arg support
+ in the generic path, that special case disappears.
+
+ ### is_service_installed
+
+ - frankenphp: fm_binary_usable == yes (fm_get_binary
+   resolves variant binary)
+ - composer: composer phar + wrapper present
+   (composer_install_common constants)
+ - php85: plane-aware php runtime present
+ - laravel_main: any laravel unit exists (list-unit-files
+   grep ncore-laravel-)
+
+ Implementation via a dispatch: since bash has no maps of
+ functions, I'll write per-key probe functions with a naming
+ convention and one dispatch function:
+
+ ```bash
+   service_runtime_probe() {  # sets SERVICE_PROBE_INSTALLED
+ + SERVICE_PROBE_DETAIL
+ ```
+
+ Hmm, let me design concretely. In service_manager.sh:
+
+ ```bash
+   # --- Per-service probes (single dispatch; no duplicated
+ blocks) ---
+
+   service_status_frankenphp() { # echo "<state>[:<detail>]"
+       if [ "$(fm_binary_usable "$(fm_get_binary)")" = "yes"
+  ]; then
+           echo "READY:$(fm_variant)"
+       else
+           echo "NOT_INSTALLED"
+       fi
+   }
+ ```
+
+ Wait — fm_binary_usable takes optional arg? Let me check
+ its signature:
+
+
+ $ sed -n '191,260p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_modes.sh; echo ===; sed -n '494,570p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_modes.sh
+
+ ... (178 earlier lines, ctrl+o to expand)
+ embedded PHP
+ # (frankenphp plane PHP runtime; file-probe idempotent - a
+ shim already
+ # execing this binary stays untouched). /usr/local/bin
+ precedes /usr/bin
+
+ Took 0.1s
+
+
+ Note: fm_binary_usable runs the binary's version command —
+ a process spawn. For the menu status that's acceptable
+ (it's one short-lived process; the current menu already
+ runs multiple systemctl calls per item per render). But
+ fm_get_binary → fm_variant → fm_resolve_binary_path — let
+ me check the cost... it's file lookups. OK.
+
+ Actually — to keep menu rendering fast, for frankenphp
+ status I can use file-presence: the variant binary path.
+ But the "ONLY usability gate" per the codebase is
+ fm_binary_usable. One binary exec per menu render is fine
+ (the menu re-renders on each loop; the old code ran several
+ systemctl list-unit-files greps per item). I'll use
+ fm_binary_usable.
+
+ Now let me also confirm what 96's "installed" probe should
+ be. The PHP 8.5 item represents the PHP runtime
+ configuration (frankenphp ini or system php). Probe:
+ - frankenphp plane: fm_binary_usable (embedded PHP exists)
+   + ini file $(fm_php_ini_dir)/99-core-node.ini present?
+   The ini presence is part of "configuration". Hmm — the
+   item is "PHP 8.5 configuration" — installed means the
+   runtime exists; READY means config canonical? Let me
+   keep:
+     - NOT_INSTALLED: no PHP runtime at all (no frankenphp
+       binary on frankenphp plane; no /usr/bin/php8.5 & no
+       /usr/local/bin/php on system plane)
+     - READY: runtime present + config file present
+     - CONFIG_MISSING? Overkill. Actually simpler: installed
+       = runtime present; detail = plane. If ini missing →
+       show "NEEDS_CONFIG"...
+
+ Hmm, let me simplify: status READY when runtime exists; the
+ Details view shows the ini state. The "Reinstall" (re-run
+ 96) fixes the config. That's honest and simple.
+
+ Wait, actually, let me reconsider the status display
+ values. The menu screenshot format: Redis
+ [STOPPED_ENABLED]. For the new items:
+ - FrankenPHP [READY] — binary usable, variant shown in
+   details
+ - Composer [READY] — wrapper healthy
+ - PHP 8.5 [READY] — runtime present, plane shown in details
+
+ - Laravel Main [RUNNING] — systemd
+
+ Good. print_status: add READY (green).
+
+ For php85 I might show plane in the status detail:
+ "READY:frankenphp-plane" — nah. Keep clean; details view
+ shows plane.
+
+ Hmm wait, actually, should the PHP 8.5 status reflect
+ config readiness? The script 96 is "configure" — its whole
+ point is configuration. Let me include the ini check:
+ - frankenphp plane: fm ini file exists
+   ($(fm_php_ini_dir)/99-core-node.ini) → READY; else if
+   binary usable → "CONFIG_PENDING"...
+
+ This adds complexity for little value. Let me look at what
+ the user actually needs: "可以重启查看状态等" — restart,
+ view status. The essential statuses: installed or not, and
+ for laravel running/stopped. I'll keep the runtime probes
+ simple (READY/NOT_INSTALLED) and put rich info in "Show
+ Details":
+ - frankenphp details: fm_verify (binary, embedded PHP
+   version, ini scan path, extensions, variant, dnspod,
+   plane) — already exists, perfect reuse!
+ - composer details: composer --version + paths (via
+   COMPOSER_TARGET_PATH) — simple echo
+ - php85 details: php -v via resolve_php-like probe + ini
+   file state + plane
+
+ Now — what about "restart" for these items? The user said
+ restart/view status. For laravel_main: full systemd
+ lifecycle. For the runtime items... I keep thinking. Let me
+ look at the problem from the menu UX view:
+
+ ```
+   Service Manager
+   > FrankenPHP [READY]
+     Composer [READY]
+     PHP 8.5 [READY]
+     Laravel Main [RUNNING]
+     Show All Services Status
+     Start All Installed Services
+     Stop All Running Services
+     Restart All Installed Services
+     Back to Linux Management
+ ```
+
+ Selecting FrankenPHP → "Show Details / Reinstall / Back".
+ Selecting Laravel Main → "Start / Stop / Restart / Show
+ Status / Show Logs / Toggle Auto-start / Reinstall / Back".
+
+ Hmm OK wait, actually — let me reconsider the "restart" for
+ frankenphp. Since the frankenphp plane embeds the server in
+ the Laravel service, and the user explicitly asked for
+ restart capability, maybe I should wire the frankenphp
+ item's start/stop/restart to the ncore-laravel-frankenphp
+ unit. I keep going back and forth. Decision: NO — keep
+ items orthogonal. The laravel_main item owns the systemd
+ lifecycle; the runtime items own install/verify. This is
+ the least redundant, clearest design. The bulk "Restart All
+ Installed Services" restarts the laravel service (the only
+ restartable item).
+
+ Hmm, hold on, let me reconsider once more by looking at the
+ DEBIAN_TREE.md or docs to see if there's some intended
+ structure. Let me check debian_tree.md for the service
+ manager section.
+
+
+ $ grep -n "service_manager\|Service Manager"
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_tree.md | head; echo ===; grep -rn
+ "93_install_frankenphp\|94_install_composer\|96_configure_p
+ hp85\|175_laravel_main_start"
+ /www/programing/core_node/scripts/shells/linux/dd_helper/*.
+ sh
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager/script_sections/*.py 2>/dev/null | head -20
+
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -rln "93_install_frankenphp\|install_frankenphp"
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager/ 2>/dev/null | head; echo ===; grep -rn
+ "73_install_redis\|85_install_mysql"
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager/managers/*.py 2>/dev/null | head -5
+
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -rln
+ "install_frankenphp\|install_composer\|configure_php85"
+ /www/programing/core_node/scripts --include="*.py"
+ --include="*.json" 2>/dev/null | grep -v node_modules |
+ head; echo ===; ls
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager/script_sections/
+
+ ... (5 earlier lines, ctrl+o to expand)
+ mcp_section.py
+ pi_launcher_section.py
+ __pycache__
+ ssh_command_generator.py
+ user_directory_section.py
+
+ Took 0.1s
+
+
+
+ $ grep -rn "frankenphp\|composer\|php85\|175_"
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager/config/*.py 2>/dev/null | head; echo ===; grep
+ -rln "linux_management\|Linux Management"
+ /www/programing/core_node/scripts/pytools/special_software_
+ env_manager/ | head -5
+
+ ===
+
+ Took 0.0s
+
+
+ The Python manager just calls the bash dd_helper
+ linux_management.sh. The service manager UI is fully in the
+ menu_itemshells scripts. Good — my changes are confined to:
+
+ 1. scripts/shells/linux/menu_itemshells/service_manager_reg
+    istry.sh — new SERVICES + metadata
+ 2. scripts/shells/linux/menu_itemshells/service_manager.sh
+    — new probes/actions (rewrite the special cases)
+ 3. scripts/shells/linux/menu_itemshells/service_manager_ui.
+    sh — adapt action menu for capability differences + bulk
+    loops skip non-systemd items
+
+ Let me also check web_access_common.sh
+ web_access_config_ensure — is it needed? service_manager.sh
+ currently doesn't source frankenphp stuff. I'll source
+ frankenphp_manager.sh (which pulls the full fm_* stack) and
+ composer_install_common.sh? Wait —
+ composer_install_common.sh has top-level variable
+ declarations only (no side-effect execution) — sources
+ gvar_common, common_functions, frankenphp_manager. That's
+ fine.
+
+ But careful: sourcing composer_install_common.sh in
+ service_manager.sh — COMPOSER_* constants available. But
+ composer_install_common.sh sources frankenphp_manager.sh
+ which sources web_access_common.sh... let me check
+ web_access_common for side effects at source time.
+
+
+ $ grep -n "web_access_config_ensure\b"
+ /www/programing/core_node/scripts/shells/linux/common/web_a
+ ccess_common.sh | head -3; sed -n
+ "/^web_access_config_ensure()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/common/web_a
+ ccess_common.sh | head -30; echo ===; grep -n "^[a-z_]*()"
+ /www/programing/core_node/scripts/shells/linux/common/web_a
+ ccess_common.sh | head
+
+ ... (44 earlier lines, ctrl+o to expand)
+ 91:web_access_source_hosts() {
+ 103:web_access_load_sources() {
+ 139:web_access_resolve() {
+ 173:web_access_json_array() {
+ 187:web_access_render() {
+
+ Took 0.0s
+
+
+
+ $ sed -n '230,260p'
+ /www/programing/core_node/scripts/shells/linux/common/web_a
+ ccess_common.sh
+
+ ... (20 earlier lines, ctrl+o to expand)
+
+ web_access_first_domain() {
+     web_access_resolve
+     printf '%s\n' "$WEB_ACCESS_DOMAINS" | sed -n '1p'
+ }
+
+ Took 0.0s
+
+
+ Sourcing web_access_common.sh has no immediate side effects
+ (web_access_config_ensure is a function call, and 93/94
+ call it explicitly). Good — sourcing frankenphp_manager.sh
+ and composer_install_common.sh is safe (function/variable
+ definitions only).
+
+ Wait — one caution: frankenphp_manager.sh sources
+ gvar_common.sh, and service_manager.sh already sources
+ gvar_common.sh + common_functions.sh. Double-sourcing is
+ the norm here (scripts do it all the time with guards? let
+ me check gvar_common for a source guard).
+
+
+ $ head -50
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh; echo ===; grep -n "type \|command -v\|already"
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh | head -5
+
+ ... (69 earlier lines, ctrl+o to expand)
+ 101:    if command -v who >/dev/null 2>&1; then
+ 110:    if command -v loginctl >/dev/null 2>&1; then
+ 145:# Check and set sudo. Skip sudo when already root:
+ sudo-as-root is an
+ 151:elif command -v sudo >/dev/null 2>&1; then
+
+ Took 0.0s
+
+
+ No source guard but re-sourcing is idempotent enough
+ (variable re-assignments + function definitions). This is
+ the established pattern across the codebase (e.g., 96
+ sources gvar_common and frankenphp_manager both source
+ gvar_common again).
+
+ Now let me check the common_functions.sh for USE_SUDO and
+ helpers like ask_default_yes (used by service manager? it
+ uses read -p). And check the systemd_available in
+ service_manager context. Let me now write the
+ implementation.
+
+ Implementation plan
+
+ ### 1. service_manager_registry.sh (rewrite)
+
+ ```bash
+   #!/bin/bash
+
+   # Registry for the Service Manager. Each entry maps one
+ install-shell item:
+   #   frankenphp  -> 93_install_frankenphp.sh  (FrankenPHP
+ runtime, variant-aware)
+   #   composer    -> 94_install_composer.sh    (Composer
+ CLI + wrappers)
+   #   php85       -> 96_configure_php85.sh     (PHP 8.5
+ runtime configuration)
+   #   laravel_main-> 175_laravel_main_start.sh
+ (ncore-laravel-* systemd service)
+
+   SERVICE_MANAGER_REGISTRY_DIR="$(cd "$(dirname
+ "${BASH_SOURCE[0]}")" && pwd)"
+   SERVICE_MANAGER_REGISTRY_LINUX_DIR="$(dirname
+ "$SERVICE_MANAGER_REGISTRY_DIR")"
+
+ SERVICE_MANAGER_INSTALL_SHELLS_DIR="$SERVICE_MANAGER_REGIST
+ RY_LINUX_DIR/debian/install_shells"
+   SERVICE_MANAGER_LARAVEL_SERVICE_BASE="ncore-laravel"
+
+ SERVICE_MANAGER_LARAVEL_UNITS=("${SERVICE_MANAGER_LARAVEL_S
+ ERVICE_BASE}-frankenphp"
+ "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-nginx"
+ "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-main")
+
+ SERVICE_MANAGER_LARAVEL_UNIT_PATTERN="^${SERVICE_MANAGER_LA
+ RAVEL_SERVICE_BASE}-(frankenphp|nginx|main)\.service$"
+
+   SERVICES=("frankenphp" "composer" "php85" "laravel_main")
+
+   declare -A SERVICE_NAME
+   declare -A SERVICE_KIND          # runtime | systemd
+   declare -A SERVICE_INSTALL_SCRIPT
+   declare -A SERVICE_INSTALL_ARGS
+
+   SERVICE_NAME["frankenphp"]="FrankenPHP"
+   SERVICE_KIND["frankenphp"]="runtime"
+
+ SERVICE_INSTALL_SCRIPT["frankenphp"]="93_install_frankenphp
+ .sh"
+
+   SERVICE_NAME["composer"]="Composer"
+   SERVICE_KIND["composer"]="runtime"
+
+ SERVICE_INSTALL_SCRIPT["composer"]="94_install_composer.sh"
+
+   SERVICE_NAME["php85"]="PHP 8.5"
+   SERVICE_KIND["php85"]="runtime"
+   SERVICE_INSTALL_SCRIPT["php85"]="96_configure_php85.sh"
+
+   SERVICE_NAME["laravel_main"]="Laravel Main"
+   SERVICE_KIND["laravel_main"]="systemd"
+
+ SERVICE_INSTALL_SCRIPT["laravel_main"]="175_laravel_main_st
+ art.sh"
+   SERVICE_INSTALL_ARGS["laravel_main"]="--service"
+ ```
+
+ Wait — should I keep SERVICE_SYSTEMD and
+ SERVICE_MANAGER_SCRIPT? The old registry had them.
+ SERVICE_MANAGER_SCRIPT pointed to advanced managers
+ (redis_manager.sh etc.) — none apply to the new items. I'll
+ drop SERVICE_SYSTEMD (the laravel unit is plane-resolved
+ dynamically — a static map doesn't work) and
+ SERVICE_MANAGER_SCRIPT (no advanced managers for these
+ items). SERVICE_INSTALL_ARGS is new for laravel's
+ --service.
+
+ Hmm — but wait: I should double check whether other files
+ reference SERVICE_SYSTEMD / SERVICE_MANAGER_SCRIPT /
+ SERVICES from this registry... The registry is only sourced
+ by service_manager.sh and service_manager_ui.sh (via
+ service_manager.sh). Let me verify nothing else sources
+ service_manager_registry.sh or service_manager_ui.sh.
+
+
+ $ grep -rln "service_manager_registry\|service_manager_ui"
+ /www/programing/core_node/scripts
+ /www/programing/core_node/pycore 2>/dev/null | grep -v
+ __pycache__ | head; echo ===; grep -rn
+ "SERVICE_INSTALL_SCRIPT\|SERVICE_SYSTEMD"
+ /www/programing/core_node/scripts --include="*.sh" -l |
+ head
+
+ ... (4 earlier lines, ctrl+o to expand)
+ lls/service_manager.sh
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_ui.sh
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_registry.sh
+
+ Took 2.1s
+
+
+ Good — the registry is private to the service_manager trio.
+ Now let me check how USE_SUDO is set in common_functions.sh
+ / gvar_common (service_manager.sh uses $USE_SUDO
+ systemctl):
+
+
+ $ grep -n "USE_SUDO="
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh
+ /www/programing/core_node/scripts/shells/linux/common/commo
+ n_functions.sh 2>/dev/null | head; echo ===; grep -n
+ "init_global_vars()"
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh
+
+ ... (17 earlier lines, ctrl+o to expand)
+ common.sh:203:        USE_SUDO=""
+ ===
+
+
+ Command exited with code 1
+
+ Took 0.0s
+
+
+
+ $ sed -n '140,210p'
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh
+
+ ... (73 earlier lines, ctrl+o to expand)
+     fi
+ }
+
+ # Core Node project root directory
+ CORE_NODE_PROJECT_ROOT=""
+
+ Took 0.0s
+
+
+ Good — USE_SUDO is set at gvar_common source time. Now let
+ me check fm_php_ini_dir and the 96 ini file to reference in
+ the PHP details, plus check what php_runtime_plane needs
+ (global_var_store sourced via gvar_common). Let me verify
+ gvar_common sources global_var_store (where
+ web_server_plane/php_runtime_plane live):
+
+
+ $ grep -n "global_var_store\|source"
+ /www/programing/core_node/scripts/shells/linux/common/gvar_
+ common.sh | head -20
+
+ ... (11 earlier lines, ctrl+o to expand)
+ 229:source "$GVAR_SYSTEM_COMMON_SCRIPT"
+ 419:source "$GLOBAL_VAR_STORE_SCRIPT"
+ 493:source "$NEW_SECRET_MANAGER_PATH"
+ 549:# Pinned Go toolchain (single source of truth for
+ 91_install_golang.sh);
+
+ Took 0.0s
+
+
+
+ $ sed -n '1,45p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_runtime_common.sh; sed -n '230,260p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_runtime_common.sh
+
+ ... (99 earlier lines, ctrl+o to expand)
+     local binary=""
+     local unit=""
+     local main_pid=""
+     local unit_cmd=""
+     local leftovers=""
+
+ Took 0.0s
+
+
+ I now have everything needed. Let me also quickly review
+ the arrow_menu_select signature to correctly use it in the
+ UI, and look at the full current service_manager_ui.sh flow
+ once more (already read). Let me now check fm_php_ini_dir
+ value: /etc/frankenphp/php-conf.d.
+
+ For the PHP 8.5 status probe (system plane), the system ini
+ lives where? configure_php_for_laravel_from_php_common —
+ let me look at it to determine the system-plane ini file
+ path.
+
+
+ $ sed -n '384,450p'
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_com/php_common_functions.sh
+
+ ... (81 earlier lines, ctrl+o to expand)
+ }
+
+ # Force reload PHP-FPM service to apply configuration
+ changes
+ # NOTE: DISABLED - Not using PHP-FPM with Swoole setup
+
+ Took 0.0s
+
+
+ I now have the complete picture. Time to implement.
+
+ Final design
+
+ ### service_manager_registry.sh (rewrite)
+
+ New registry with:
+ - SERVICES=("frankenphp" "composer" "php85" "laravel_main")
+ - SERVICE_NAME, SERVICE_KIND (runtime|systemd),
+   SERVICE_INSTALL_SCRIPT, SERVICE_INSTALL_ARGS
+ - Laravel unit constants + pattern
+
+ ### service_manager.sh (rewrite)
+
+ Sources: gvar_common, common_functions, arrow_menu,
+ runtime_service_policy (still needed? no — drop it; it was
+ for core_services/pycore. Actually keep sourcing minimal:
+ gvar_common, common_functions, arrow_menu,
+ frankenphp_manager (fm_* probes), composer_install_common
+ (COMPOSER_* paths). Note frankenphp_manager sources
+ service_contract_common + web_access_common + install modes
+ + static builder + runtime common.
+
+ Wait — one important consideration: sourcing
+ frankenphp_manager.sh runs sc_require calls at source time
+ (FRANKENPHP_MERCURE_VERSION="$(sc_require
+ versions.mercure)" etc.). Let me check sc_require's failure
+ mode when the contract file is missing... it's used by
+ every script sourcing frankenphp_manager (93/94/96/175 do),
+ so it's fine on these hosts.
+
+ Functions:
+
+ ```bash
+   # --- status probes (single dispatch through
+ service_status) ---
+
+   service_status_frankenphp() {
+       local variant_binary="$(fm_get_binary)"
+       if [ "$(fm_binary_usable "$variant_binary")" = "yes"
+ ]; then
+           echo "READY:$(fm_variant)"
+       else
+           echo "NOT_INSTALLED"
+       fi
+   }
+ ```
+
+ Hmm wait, fm_variant with no record + no link → empty.
+ READY:"" would print as READY:. Let me handle:
+ detail="(fmᵥariant)"; detail = "{detail:-unknown}".
+
+ ```bash
+   service_status_composer() {
+       if [ -x "$COMPOSER_TARGET_PATH" ] && [ -s
+ "$COMPOSER_PHAR_PATH" ]; then
+           echo "READY"
+       else
+           echo "NOT_INSTALLED"
+       fi
+   }
+
+   service_status_php85() {
+       local runtime_plane="$(php_runtime_plane)"
+       if [ "$runtime_plane" = "frankenphp" ]; then
+           if [ "$(fm_binary_usable "$(fm_get_binary)")" =
+ "yes" ] && [ -f "$(fm_php_ini_dir)/99-core-node.ini" ];
+ then
+               echo "READY"
+           ...
+ ```
+
+ Hmm — if binary usable but ini missing → the runtime exists
+ but config pending. I'll emit "READY" only when both exist;
+ else if runtime exists → "CONFIG_PENDING"; else
+ NOT_INSTALLED. Wait, but is CONFIG_PENDING worth it? Yes —
+ it's honest: the item is "PHP 8.5 configuration" (96), so
+ config state IS the item's essence. print_status:
+ CONFIG_PENDING → YELLOW [CONFIG PENDING].
+
+ Hmm, but also for the system plane: PHP_BIN candidates
+ /usr/local/bin/php, /usr/bin/php8.5, /usr/bin/php. Config
+ file? PHP_INI_FILES from php_common_vars — let me check
+ what they are. It's in debian_com/php_common_vars.sh line
+ 120. I saw PHP_INI_FILES=( — let me check its contents
+ before finalizing. Actually, for the system plane, simpler
+ probe: php binary exists. The ini readiness uses
+ php_laravel_ini_ready_from_php_common which needs sourcing
+ php_common_vars + php_common_functions from debian_com.
+ Should I source those too? That's heavier. Alternative: for
+ system plane, just probe the php binary and show READY
+ (config detail via php -i? no).
+
+ Let me keep php85 status simple and plane-aware:
+ - frankenphp plane: binary usable + ini → READY; binary
+   usable only → CONFIG_PENDING; none → NOT_INSTALLED
+ - system plane: php binary found → READY (the canonical 96
+   system branch configures /etc/php ini files; verifying
+   them requires the php_common lib; acceptable
+   simplification — actually wait, I CAN source
+   php_common_vars + php_common_functions... they're in
+   debian_com which is a sibling dir. The registry already
+   resolves the linux dir. But php_common_vars.sh calls
+   map_web_path at source time — is that ok? 96 sources it,
+   so yes. Hmm, but php_common_vars.sh uses $(map_web_path
+   "php") at source time, which needs gvar_common — sourced
+   already. OK... but is the added complexity worth it? The
+   php85 item's details view can show the ini state on the
+   frankenphp plane.
+
+ Decision: keep it lean — php85 status: plane-aware
+ binary/ini probe for frankenphp plane; binary probe for
+ system plane (php -v in details). This avoids sourcing the
+ whole php_common stack for a status probe.
+
+ Hmm, wait. Actually let me reconsider — maybe I should
+ check PHP_INI_FILES:
+
+
+ $ sed -n '1,60p'
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_com/php_common_vars.sh; sed -n '118,140p'
+ /www/programing/core_node/scripts/shells/linux/debian/debia
+ n_com/php_common_vars.sh
+
+ ... (98 earlier lines, ctrl+o to expand)
+ get_minimal_open_basedir() {
+     # Return empty string to disable open_basedir
+ restrictions
+     echo ""
+ }
+
+ Took 0.1s
+
+
+ OK. I'll keep the php85 probe plane-aware but simple:
+ - frankenphp plane: fm binary usable + ini file → READY;
+   binary only → CONFIG_PENDING; none → NOT_INSTALLED
+ - system plane: /usr/bin/php8.5 (PHP_BIN) or
+   /usr/local/bin/php exists → READY; else NOT_INSTALLED
+
+ For the laravel_main item, resolve the active systemd unit:
+
+ ```bash
+   service_laravel_unit_resolve() {
+       # echoes the plane-preferred unit name (empty when
+ none exists)
+       local plane_unit=""
+       local unit=""
+
+ plane_unit="${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-$(web_s
+ erver_plane)"
+       for unit in "$plane_unit"
+ "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-frankenphp"
+ "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-nginx"
+ "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-main"; do
+           if systemctl list-unit-files --type=service
+ 2>/dev/null | grep -q "^${unit}\.service"; then
+               echo "$unit"
+               return
+           fi
+       done
+   }
+ ```
+
+ Wait, web_server_plane returns "frankenphp" or "nginx" →
+ plane unit = ncore-laravel-frankenphp or
+ ncore-laravel-nginx. Then fallbacks. Good. But dedupe: if
+ plane is frankenphp, plane_unit = -frankenphp, then
+ fallback list re-checks -frankenphp (grep again, harmless).
+ Fine.
+
+ service_status_laravel_main:
+
+ ```bash
+   local unit="$(service_laravel_unit_resolve)"
+   if [ -z "$unit" ]; then echo NOT_INSTALLED; return; fi
+   if systemctl is-active --quiet "$unit"; then echo
+ "RUNNING"
+   elif systemctl is-enabled --quiet "$unit" 2>/dev/null;
+ then echo "STOPPED_ENABLED"
+   else echo "STOPPED_DISABLED"; fi
+ ```
+
+ This matches the existing generic pattern (redis etc.) —
+ good reuse of format.
+
+ ### Dispatch
+
+ ```bash
+   get_service_status() {
+       "service_status_${1}"
+   }
+
+   is_service_installed() {
+       local status="$(get_service_status "$1")"
+       [ "$status" != "NOT_INSTALLED" ]
+   }
+ ```
+
+ Beautiful — one probe per service, is_service_installed
+ derives from it. This removes the duplicated special-case
+ blocks.
+
+ ### Capability helpers
+
+ ```bash
+   service_is_systemd_managed() {
+       [ "${SERVICE_KIND[$1]}" = "systemd" ]
+   }
+ ```
+
+ ### Lifecycle actions
+
+ start_service/stop_service/restart_service: shared
+ implementation via systemctl on the resolved unit:
+
+ ```bash
+   service_systemd_action() {  # action unit service_name
+       ...
+   }
+   start_service() {
+       local service="$1"
+       if ! service_is_systemd_managed "$service"; then
+           echo -e "${YELLOW}${SERVICE_NAME[$service]} is a
+ runtime component (no daemon to start)${NC}"
+           return 0
+       fi
+       ...
+   }
+ ```
+
+ Hmm — but wait, for bulk ops I said skip runtime items
+ silently. Let me put the skip in the bulk loops (UI) with
+ the service_is_systemd_managed check, and in the per-item
+ action menu runtime items never show Start/Stop/Restart.
+ Then start_service for runtime item shouldn't normally be
+ called; still guard defensively.
+
+ Actually — simpler: make the bulk loops iterate only
+ systemd items. And in start_service guard: if not
+ systemd-managed → info message + return 0.
+
+ ### show_service_status (details view)
+
+ ```bash
+   show_service_status() {
+       case service:
+       frankenphp) fm_verify  # existing rich verify output
+       composer) show composer --version + paths
+       php85) show plane + php version + ini state
+       laravel_main) systemctl status unit
+   }
+ ```
+
+ Hmm wait — there's already show_service_logs and per-item
+ action "Show Details". Let me define a single
+ show_service_details dispatch:
+
+ - frankenphp → fm_verify (reuse!)
+ - composer → "$COMPOSER_TARGET_PATH" --version +
+   wrapper/phar paths + runtime php
+ - php85 → plane + php -v (via resolve: frankenphp binary
+   php-cli or system php) + ini file state
+ - laravel_main → systemctl status --no-pager of the
+   resolved unit
+
+ ### show_service_logs
+
+ - laravel_main → journalctl -u unit (generic existing
+   pattern)
+ - runtime items → message "no service logs (not a daemon)"
+   — or hide Logs from their action menu entirely. Yes,
+   hide.
+
+ ### toggle_autostart
+
+ - laravel_main → generic existing implementation with
+   resolved unit. The existing one uses
+   SERVICE_SYSTEMD[$service]; I'll resolve the unit
+   dynamically: local
+   systemd_name="$(service_laravel_unit_resolve)".
+ - runtime items → hide from menu.
+
+ ### reinstall_service
+
+ Generic flow: script_path from registry + args; confirm;
+ bash it. The existing generic implementation already does
+ this minus args. I'll simplify and keep the confirmation.
+
+ ### The UI (service_manager_ui.sh)
+
+ show_service_action_menu — rebuild capability-aware:
+
+ ```bash
+   show_service_action_menu() {
+       local service="$1"
+       local service_name="${SERVICE_NAME[$service]}"
+       local status="$(get_service_status "$service")"
+       local menu_items=()
+       local action_keys=()
+
+       if service_is_systemd_managed "$service"; then
+           if [ "$status" = "NOT_INSTALLED" ]; then
+               menu_items=("Install Service" "Back to
+ Service List")
+               action_keys=("reinstall" "back")
+           else
+               menu_items=(
+                   "Start Service"
+                   "Stop Service"
+                   "Restart Service"
+                   "Show Status"
+                   "Show Logs"
+                   "Toggle Auto-start"
+                   "Reinstall Service"
+                   "Back to Service List"
+               )
+               action_keys=("start" "stop" "restart"
+ "status" "logs" "autostart" "reinstall" "back")
+           fi
+       else
+           if [ "$status" = "NOT_INSTALLED" ]; then
+               menu_items=("Install Service" "Back to
+ Service List")
+               action_keys=("reinstall" "back")
+           else
+               menu_items=("Show Details" "Reconfigure
+ Service" "Back to Service List")
+               action_keys=("status" "reinstall" "back")
+           fi
+       fi
+       ...dispatch
+   }
+ ```
+
+ Wait, "Reinstall" vs "Reconfigure": for php85 the install
+ script is a configure script; for frankenphp/composer it's
+ an installer. Label: use generic "Reinstall / Re-run
+ Setup"? Hmm. Keep "Reinstall Service"? For 96 it's
+ reconfiguration. I'll label runtime items' reinstall as
+ "Re-run Installer / Configuration"... Let me use per-item
+ label via map? Simplest: "Reinstall / Reconfigure".
+ Actually for systemd item: "Reinstall Service". For
+ runtime: "Reinstall / Reconfigure". Good enough, English.
+
+ show_all_services_status — unchanged (iterates SERVICES
+ with print_status).
+
+ start_all/stop_all/restart_all — add
+ service_is_systemd_managed "$service" || continue guard.
+
+ ### print_status
+
+ Add READY[:detail] and CONFIG_PENDING states.
+
+ Also note: print_status is called by
+ show_all_services_status, and main menu calls
+ get_service_status directly. Both call the probes.
+ fm_binary_usable spawns the binary — two spawns per menu
+ render (menu + status display). Acceptable.
+
+ ### Sourcing plan in service_manager.sh
+
+ ```bash
+   SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"
+  && pwd)"
+   PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+   COMMON_DIR="$PARENT_DIR_LEVEL_1/common"
+
+   source "$COMMON_DIR/gvar_common.sh"
+   source "$COMMON_DIR/common_functions.sh"
+   source "$COMMON_DIR/arrow_menu.sh"
+   source "$COMMON_DIR/frankenphp_manager.sh"       # fm_*
+ probes (binary/variant/ini/verify)
+   source "$COMMON_DIR/composer_install_common.sh"   #
+ COMPOSER_* path contract
+   source "$SERVICE_MANAGER_REGISTRY_SCRIPT"
+   source "$SERVICE_MANAGER_UI_SCRIPT"
+ ```
+
+ Wait — does sourcing composer_install_common.sh source
+ frankenphp_manager.sh again? Yes (it sources gvar_common,
+ common_functions, frankenphp_manager). Redundant but
+ harmless per codebase norms. Actually then I don't need to
+ source frankenphp_manager separately —
+ composer_install_common pulls it. But explicitness is
+ better? The codebase norm: scripts source what they use.
+ I'll source frankenphp_manager.sh explicitly and
+ composer_install_common.sh for paths. Hmm, but
+ composer_install_common sources frankenphp_manager anyway.
+ Either way it works.
+
+ Hmm, actually — wait. Do I even need
+ composer_install_common sourced for the probe? The probe
+ needs COMPOSER_TARGET_PATH (/usr/local/bin/composer) and
+ COMPOSER_PHAR_PATH (/usr/local/lib/composer/composer.phar).
+ These are also what composer_command_healthy checks.
+ Sourcing composer_install_common.sh gives the canonical
+ constants. Yes, source it.
+
+ One concern: composer_install_common.sh declares COMPOSER_*
+ vars and sources frankenphp_manager.sh + gvar_common +
+ common_functions — no side effects at source time (only
+ function defs). Confirmed earlier by reading it.
+
+ But — frankenphp_manager.sh at source time runs sc_require
+ calls. Let me check sc_require failure behavior when
+ service_contract.json is missing:
+
+
+ $ grep -n "sc_require\|sc_get()"
+ /www/programing/core_node/scripts/shells/linux/common/servi
+ ce_contract_common.sh | head -8; sed -n
+ "/^sc_require()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/common/servi
+ ce_contract_common.sh
+
+ ... (8 earlier lines, ctrl+o to expand)
+ $key ($SERVICE_CONTRACT_FILE)" >&2
+         return
+     fi
+     printf '%s' "$value"
+ }
+
+ Took 0.1s
+
+
+ sc_require echoes a failure to stderr but doesn't exit —
+ safe. And the contract file is part of the repo
+ (config/service_contract.json), so it exists.
+
+ Now — one more design question: the current
+ service_manager.sh show_main_menu is in
+ service_manager_ui.sh and ends with show_main_menu call at
+ the bottom of service_manager.sh. Keep that structure.
+
+ Also the header comment of service_manager.sh says "This
+ script provides a menu interface to manage system services
+ (Redis, PostgreSQL, Docker, MySQL)" — update to the new
+ items.
+
+ Now, about reinstall_service for laravel_main with
+ --service: The existing special case used start.sh
+ --service. The registry will set
+ SERVICE_INSTALL_SCRIPT["laravel_main"]="175_laravel_main_st
+ art.sh" and
+ SERVICE_INSTALL_ARGS["laravel_main"]="--service". The
+ generic reinstall runs bash $script $args. 175 with
+ --service runs the full init (installers etc.) then
+ registers the service — that's the documented "Install /
+ Reinstall Laravel" path (matches existing behavior via
+ start.sh which delegates to 175).
+
+ Wait — one thing to verify: the existing service_manager.sh
+ laravel reinstall calls
+ $SERVICE_MANAGER_LARAVEL_START_SCRIPT --service where
+ LARAVEL_START_SCRIPT =
+ poly_apps/laravel_main/scripts/start.sh which exec's 175
+ with args. Calling 175 directly with --service is
+ equivalent. Good — and the registry drops the laravel_main
+ special path entirely.
+
+ Now — the toggle_autostart function in current code uses
+ read -p confirm inside; it's only reachable via
+ manage_service menu (which had advanced manager). In my new
+ UI I expose "Toggle Auto-start" in the action menu for
+ systemd items. Keep the function.
+
+ Now about "Show Logs" for laravel_main: existing generic
+ branch does journalctl -u "$systemd_name" -n 50. I'll
+ resolve unit dynamically.
+
+ Let me also double check arrow_menu_select signature:
+ arrow_menu_select "title" menu_items start_index end_index
+ [status_function]. In show_service_action_menu:
+ arrow_menu_select "$service_name [$status]" menu_items 0
+ "$((${#menu_items[@]} - 1))". OK.
+
+ Now about the CYAN color used in show_service_logs —
+ service_manager.sh defines RED GREEN YELLOW BLUE NC but
+ CYAN was used in service_manager_ui? Let me check:
+ service_manager.sh's show_service_logs uses ${CYAN} but
+ CYAN is defined... where? Let me grep.
+
+
+ $ grep -n "CYAN"
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager.sh
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_ui.sh
+ /www/programing/core_node/scripts/shells/linux/common/commo
+ n_functions.sh 2>/dev/null | head; echo ===; grep -n
+ "init_global_vars"
+ /www/programing/core_node/scripts/shells/linux/common/commo
+ n_functions.sh | head -3
+
+ ... (9 earlier lines, ctrl+o to expand)
+ "${CYAN}Octane Server State:${NC}"
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager.sh:531:    echo -e "${CYAN}Recent logs
+ (last 50 lines):${NC}"
+ ===
+
+ Took 0.0s
+
+
+ CYAN is referenced but never defined in the current
+ service_manager.sh (a latent bug — prints empty). I'll
+ define CYAN in my rewrite.
+
+ Now let me also handle one more piece: the status detail
+ for frankenphp. fm_variant can return "" (unrecorded +
+ apt). READY:apt etc. For display "[READY (apt)]". Actually,
+ let me reconsider — maybe display the version instead?
+ fm_version runs the binary (another spawn). The variant is
+ cheaper (gvar read + link resolution). Keep variant.
+
+ Also — important: fm_get_binary/fm_variant require the
+ global var store (get_global_var) — available via
+ gvar_common → global_var_store. Good.
+
+ Let me now also double-check get_global_var signature:
+ get_global_var "KEY" "default". Yes.
+
+ One more check — runtime_service_policy.sh was sourced by
+ the old service_manager.sh for
+ CORE_RUNTIME_SERVICE_PREFIXES and
+ CORE_RUNTIME_PYCORE_SERVICE (used in registry for pycore).
+ My new version doesn't need it. Dropping the source is
+ fine.
+
+ Now, the UI file references $USE_SUDO in start/stop (no
+ wait, that's service_manager.sh). UI references: GREEN, NC
+ (defined in service_manager.sh), arrow_menu_select,
+ is_service_installed, start_service etc. — all still
+ provided.
+
+ Also
+ has_advanced_manager/launch_advanced_manager/manage_service
+  — the old UI's show_service_action_menu calls
+ has_advanced_manager and manage. I'm rewriting
+ show_service_action_menu; drop those functions (no advanced
+ managers). But wait — should I keep manage_service for
+ potential future use? No — "不要写冗余代码" (no redundant
+ code). Remove.
+
+ Now the show_main_menu in UI stays as-is (it's generic),
+ except... it uses get_service_status per service — fine.
+
+ Let me now write the three files.
+
+ ### File 1: service_manager_registry.sh
+
+ ```bash
+   #!/bin/bash
+
+   # Service Manager registry: each entry maps one
+ install-shell lifecycle to a
+   # menu item (installed prober, status text,
+ install/reinstall target).
+   #   frankenphp   -> 93_install_frankenphp.sh
+ (FrankenPHP runtime, variant-aware)
+   #   composer     -> 94_install_composer.sh     (Composer
+ phar + wrappers)
+   #   php85        -> 96_configure_php85.sh      (PHP 8.5
+ runtime configuration)
+   #   laravel_main -> 175_laravel_main_start.sh
+ (ncore-laravel-* systemd service)
+
+   SERVICE_MANAGER_REGISTRY_DIR="$(cd "$(dirname
+ "${BASH_SOURCE[0]}")" && pwd)"
+   SERVICE_MANAGER_REGISTRY_LINUX_DIR="$(dirname
+ "$SERVICE_MANAGER_REGISTRY_DIR")"
+
+ SERVICE_MANAGER_INSTALL_SHELLS_DIR="$SERVICE_MANAGER_REGIST
+ RY_LINUX_DIR/debian/install_shells"
+   SERVICE_MANAGER_LARAVEL_SERVICE_BASE="ncore-laravel"
+
+ SERVICE_MANAGER_LARAVEL_UNIT_PATTERN="${SERVICE_MANAGER_LAR
+ AVEL_SERVICE_BASE}-(frankenphp|nginx|main)"
+
+   SERVICES=("frankenphp" "composer" "php85" "laravel_main")
+
+   declare -A SERVICE_NAME
+   declare -A SERVICE_KIND
+   declare -A SERVICE_INSTALL_SCRIPT
+   declare -A SERVICE_INSTALL_ARGS
+
+   SERVICE_NAME["frankenphp"]="FrankenPHP"
+   SERVICE_KIND["frankenphp"]="runtime"
+
+ SERVICE_INSTALL_SCRIPT["frankenphp"]="93_install_frankenphp
+ .sh"
+   SERVICE_INSTALL_ARGS["frankenphp"]=""
+
+   ...
+ ```
+
+ Wait, SERVICE_INSTALL_ARGS only needed for laravel. Bash
+ associative arrays: unset keys expand to empty — so I can
+ just declare the ones needed. But per "Declare variables at
+ file top" — declare the map and set laravel's args. Others
+ default empty. OK.
+
+ Hmm, also for php85 reinstall: 96 supports --force. Should
+ the menu pass --force? No — plain re-run is the safer
+ default; --force would be for explicit refresh. Keep plain.
+
+ For composer reinstall: 94 supports --force too. Plain.
+
+ ### File 2: service_manager.sh
+
+ Structure:
+ 1. Header + rules comment
+ 2. Variable declarations at top (colors, dirs, script
+    paths)
+ 3. Sources
+ 4. Status probes per service + dispatch
+ 5. is_service_installed / get_service_status / print_status
+ 6. systemd unit resolution (laravel)
+ 7. start/stop/restart (systemd)
+ 8. show_service_details (dispatch: fm_verify / composer
+    version / php runtime info / systemctl status)
+ 9. show_service_logs (laravel journal)
+ 10. toggle_autostart
+ 11. reinstall_service (generic with args)
+ 12. main execution: show_main_menu
+
+ Let me write out the details of the probes:
+
+ ```bash
+   service_status_frankenphp() {
+       local binary=""
+       local variant=""
+
+       binary="$(fm_get_binary)"
+       if [ "$(fm_binary_usable "$binary")" = "yes" ]; then
+           variant="$(fm_variant)"
+           echo "READY:${variant:-unrecorded}"
+       else
+           echo "NOT_INSTALLED"
+       fi
+   }
+ ```
+
+ Hmm wait — for the apt variant, fm_variant returns... let
+ me re-read fm_variant: record first (compile|prebuilt|apt),
+ else canonical-link inference → compile/prebuilt, else...
+ let me see the rest of the function. Earlier output
+ truncated. Let me view it fully.
+
+
+ $ sed -n '248,302p'
+ /www/programing/core_node/scripts/shells/linux/common/frank
+ enphp_install_modes.sh
+
+ ... (71 earlier lines, ctrl+o to expand)
+ # module and embedded-runtime floor, and the prebuilt
+ variant owns a usable
+ # release binary. This probe never consults the current
+ owner record.
+ fm_variant_binary_ready() {
+
+ Took 0.0s
+
+
+ fm_variant handles the apt fallback (via
+ /usr/bin/frankenphp). So a deb-install without a record
+ returns "apt".
+
+ Now the composer probe needs COMPOSER_TARGET_PATH +
+ COMPOSER_PHAR_PATH from composer_install_common.sh.
+
+ php85 probe:
+
+ ```bash
+   service_status_php85() {
+       local runtime_plane=""
+       local php_ini=""
+
+       runtime_plane="$(php_runtime_plane)"
+       if [ "$runtime_plane" = "frankenphp" ]; then
+           if [ "$(fm_binary_usable "$(fm_get_binary)")" !=
+ "yes" ]; then
+               echo "NOT_INSTALLED"
+               return
+           fi
+           php_ini="$(fm_php_ini_dir)/99-core-node.ini"
+           if [ -f "$php_ini" ]; then
+               echo "READY:frankenphp"
+           else
+               echo "CONFIG_PENDING:frankenphp"
+           fi
+           return
+       fi
+       # System plane: versioned CLI from the 31/32/33 php
+ install steps
+       if [ -x "/usr/bin/php8.5" ] || [ -x
+ "/usr/local/bin/php" ]; then
+           echo "READY:system"
+       else
+           echo "NOT_INSTALLED"
+       fi
+   }
+ ```
+
+ Hmm — status strings with plane detail: print_status
+ formats "READY:x" as [READY (x)]. For laravel_main:
+ RUNNING/STOPPED_ENABLED/STOPPED_DISABLED as before.
+
+ laravel_main probe:
+
+ ```bash
+   service_laravel_unit_resolve() {
+       local plane_unit=""
+       local unit=""
+
+
+ plane_unit="${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-$(web_s
+ erver_plane)"
+       for unit in "$plane_unit" \
+
+ "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-frankenphp" \
+           "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-nginx" \
+           "${SERVICE_MANAGER_LARAVEL_SERVICE_BASE}-main";
+ do
+           if systemctl list-unit-files --type=service
+ 2>/dev/null | awk '{print $1}' | grep -q
+ "^${unit}\.service$"; then
+               echo "$unit"
+               return
+           fi
+       done
+   }
+ ```
+
+ Hmm, plane_unit could duplicate a fallback entry — grep
+ twice, harmless but let me dedupe elegantly... keep it
+ simple, it's cheap. Actually, cleaner: iterate the fixed
+ priority list and always check plane first — the loop
+ naturally returns the first existing. Duplicates just cost
+ one extra grep. Fine.
+
+ Actually wait, there's a subtlety: systemctl
+ list-unit-files --type=service | awk '{print $1}' | grep -q
+ "^${unit}\.service$" — awk's $1 on lines like
+ "ncore-laravel-frankenphp.service enabled enabled". Fine.
+ But grep -q in a pipe with awk in command substitution...
+ I'm using it as a condition, ok.
+
+ Simpler: systemctl list-unit-files "${unit}.service"
+ --type=service 2>/dev/null | grep -q "^${unit}\.service" —
+ systemctl supports unit name patterns as positional args.
+ Hmm, with an exact unit name it prints just that unit's
+ line (or "0 unit files listed"). That's cleaner and faster.
+ But careful: older systemctl versions print to stderr when
+ not found? They print "0 unit files listed." on stdout.
+ grep -q works. The current codebase uses systemctl
+ list-unit-files | grep -q "^$systemd_name.service" — I'll
+ keep the established pattern (pipe grep) for consistency.
+
+ ```bash
+   service_status_laravel_main() {
+       local unit=""
+
+       unit="$(service_laravel_unit_resolve)"
+       if [ -z "$unit" ]; then
+           echo "NOT_INSTALLED"
+           return
+       fi
+       if systemctl is-active --quiet "$unit"; then
+           echo "RUNNING"
+       elif systemctl is-enabled --quiet "$unit"
+ 2>/dev/null; then
+           echo "STOPPED_ENABLED"
+       else
+           echo "STOPPED_DISABLED"
+       fi
+   }
+ ```
+
+ Dispatch:
+
+ ```bash
+   get_service_status() {
+       "service_status_$1"
+   }
+
+   is_service_installed() {
+       [ "$(get_service_status "$1")" != "NOT_INSTALLED" ]
+   }
+ ```
+
+ print_status: handle READY[:detail],
+ CONFIG_PENDING[:detail], plus existing states.
+
+ ```bash
+   print_status() {
+       local status="$(get_service_status "$1")"
+
+       case "$status" in
+           READY:*) echo -e "${GREEN}[READY
+ (${status#READY:})]${NC}" ;;
+           READY) echo -e "${GREEN}[READY]${NC}" ;;
+           CONFIG_PENDING:*) echo -e "${YELLOW}[CONFIG
+ PENDING (${status#CONFIG_PENDING:})]${NC}" ;;
+           CONFIG_PENDING) echo -e "${YELLOW}[CONFIG
+ PENDING]${NC}" ;;
+           RUNNING) ...green
+           STOPPED_ENABLED) yellow [STOPPED - Auto-start
+ ENABLED]
+           STOPPED_DISABLED) yellow [STOPPED - Auto-start
+ DISABLED]
+           NOT_INSTALLED) red [NOT INSTALLED]
+           *) red [UNKNOWN]
+       esac
+   }
+ ```
+
+ Now — start/stop/restart shared:
+
+ ```bash
+   service_systemd_unit() {
+       # echoes the managed systemd unit for a systemd-kind
+ item (empty when absent)
+       service_laravel_unit_resolve
+   }
+ ```
+
+ Hmm — actually only laravel_main is systemd kind, so
+ service_systemd_unit = service_laravel_unit_resolve. To
+ keep the generic shape, I'll have service_systemd_unit()
+ dispatch later if more systemd items appear... but that's
+ speculative generality = redundant code. Since only
+ laravel_main is systemd, I'll write the lifecycle functions
+ to resolve the unit via a small helper that's
+ laravel-specific but named generically enough... Hmm. Let
+ me think about the cleanest minimal code:
+
+ The old code used SERVICE_SYSTEMD[$service] as the unit
+ map, and functions read ${SERVICE_SYSTEMD[$service]}. The
+ problem: laravel unit is dynamic (plane). Solution: keep a
+ service_resolve_systemd_unit "$service" function:
+
+ ```bash
+   service_resolve_systemd_unit() {
+       case "$1" in
+           laravel_main) service_laravel_unit_resolve ;;
+           *) echo "" ;;
+       esac
+   }
+ ```
+
+ This preserves the generic lifecycle functions
+ (start/stop/restart/logs/autostart operate on the resolved
+ unit), matching the old structure with minimal
+ special-casing.
+
+ start_service:
+
+ ```bash
+   start_service() {
+       local service="$1"
+       local systemd_name="$(service_resolve_systemd_unit
+ "$service")"
+       local service_name="${SERVICE_NAME[$service]}"
+
+       echo ""
+       echo
+ "================================================"
+       echo "Starting $service_name..."
+       echo
+ "================================================"
+
+       if ! is_service_installed "$service"; then
+           echo -e "${RED}Error: $service_name is not
+ installed${NC}"
+           return 1
+       fi
+
+       if [ -z "$systemd_name" ]; then
+           echo -e "${YELLOW}$service_name is a runtime
+ component; there is no daemon to start${NC}"
+           return 0
+       fi
+
+       if systemctl is-active --quiet "$systemd_name"; then
+           echo -e "${YELLOW}$service_name is already
+ running${NC}"
+           return 0
+       fi
+
+       if $USE_SUDO systemctl start "$systemd_name"; then
+           echo -e "${GREEN}$service_name ($systemd_name)
+ started successfully${NC}"
+           if ! systemctl is-enabled --quiet "$systemd_name"
+  2>/dev/null; then
+               echo "Enabling auto-start for
+ $service_name..."
+               $USE_SUDO systemctl enable "$systemd_name"
+           fi
+           echo ""
+           echo "Service status:"
+           systemctl status "$systemd_name" --no-pager
+ --lines=10
+           return 0
+       else
+           echo -e "${RED}Failed to start
+ $service_name${NC}"
+           systemctl status "$systemd_name" --no-pager
+           return 1
+       fi
+   }
+ ```
+
+ Similar for stop/restart. show_service_details replaces
+ show_service_status:
+
+ ```bash
+   show_service_details() {
+       local service="$1"
+       local service_name="${SERVICE_NAME[$service]}"
+
+       echo ""
+       echo
+ "================================================"
+       echo "$service_name Details"
+       echo
+ "================================================"
+
+       case "$service" in
+           frankenphp)
+               fm_verify
+               ;;
+           composer)
+               show_composer_details
+               ;;
+           php85)
+               show_php85_details
+               ;;
+           laravel_main)
+               systemctl status
+ "$(service_laravel_unit_resolve)" --no-pager
+               ;;
+       esac
+   }
+ ```
+
+ Wait — for consistency with the UI action naming, let me
+ name the dispatch action "status" → show_service_details?
+ Hmm, old code had show_service_status. The action key in
+ the menu: for runtime items "Show Details", for systemd
+ "Show Status". Both call the same dispatch — I'll keep the
+ function name show_service_status (the details view IS the
+ status view).
+
+ composer details:
+
+ ```bash
+   show_composer_details() {
+       echo "Wrapper:   $([ -x "$COMPOSER_TARGET_PATH" ] &&
+ echo "$COMPOSER_TARGET_PATH" || echo "missing")"
+       echo "Safe wrapper: $([ -x "$COMPOSER_SAFE_PATH" ] &&
+ echo "$COMPOSER_SAFE_PATH" || echo "missing")"
+       echo "PHAR:      $([ -s "$COMPOSER_PHAR_PATH" ] &&
+ echo "$COMPOSER_PHAR_PATH" || echo "missing")"
+       echo "Laravel installer: $([ -x
+ "$COMPOSER_LARAVEL_LINK" ] && echo "$COMPOSER_LARAVEL_LINK"
+  || echo "missing")"
+       echo ""
+       if [ -x "$COMPOSER_TARGET_PATH" ]; then
+           "$COMPOSER_TARGET_PATH" --version 2>/dev/null ||
+ true
+       fi
+   }
+ ```
+
+ Hmm — COMPOSER_LARAVEL_LINK = /usr/local/bin/laravel (from
+ composer_install_common). Good.
+
+ php85 details:
+
+ ```bash
+   show_php85_details() {
+       local runtime_plane="$(php_runtime_plane)"
+       local php_ini=""
+
+       echo "Runtime plane: $runtime_plane"
+       if [ "$runtime_plane" = "frankenphp" ]; then
+           echo "Runtime binary: $(fm_get_binary)"
+           echo "Embedded PHP: $(fm_php_version)"
+           php_ini="$(fm_php_ini_dir)/99-core-node.ini"
+           echo "PHP ini: $( [ -f "$php_ini" ] && echo
+ "$php_ini" || echo "missing ($php_ini)")"
+       else
+           echo "System PHP: ..."
+           php -v?
+       fi
+   }
+ ```
+
+ For system plane details: run "$(php_runtime_resolve?)"...
+ hmm — the system plane php resolution: /usr/local/bin/php,
+ /usr/bin/php8.5, /usr/bin/php. I shouldn't duplicate
+ resolve_php (it's in 175_laravel_main_runtime_common.sh —
+ sourcing that into the service manager would be heavy). A
+ tiny local probe loop over the three candidates is 5 lines;
+ acceptable and mirrors resolve_php's fallback order. Or...
+ simpler: command -v php? On the system plane php is linked
+ via update-alternatives (/usr/bin/php). Hmm, on the
+ frankenphp plane, command -v php finds the shim.
+ Plane-aware:
+
+ ```bash
+   show_php85_details() {
+       local runtime_plane=""
+       local php_ini=""
+       local php_cmd=""
+
+       runtime_plane="$(php_runtime_plane)"
+       echo "Runtime plane: $runtime_plane"
+       if [ "$runtime_plane" = "frankenphp" ]; then
+           echo "Runtime binary: $(fm_get_binary)"
+           echo "Embedded PHP version: $(fm_php_version)"
+           php_ini="$(fm_php_ini_dir)/99-core-node.ini"
+           if [ -f "$php_ini" ]; then
+               echo "PHP ini: $php_ini"
+           else
+               echo "PHP ini: missing (re-run
+ 96_configure_php85.sh)"
+           fi
+           return
+       fi
+       for php_cmd in /usr/local/bin/php /usr/bin/php8.5
+ /usr/bin/php; do
+           if [ -x "$php_cmd" ]; then
+               echo "System PHP: $php_cmd"
+               "$php_cmd" -v 2>/dev/null | sed -n '1p'
+               return
+           fi
+       done
+       echo "System PHP: not found"
+   }
+ ```
+
+ php_runtime_plane calls web_server_plane → get_global_var —
+ needs global var store initialized? get_global_var reads
+ from GLOBAL_VAR_DIR files. Fine.
+
+ show_service_logs:
+
+ ```bash
+   show_service_logs() {
+       local service="$1"
+       local systemd_name="$(service_resolve_systemd_unit
+ "$service")"
+       local service_name="${SERVICE_NAME[$service]}"
+
+       echo ""
+       echo
+ "================================================"
+       echo "$service_name Logs"
+       echo
+ "================================================"
+
+       if ! is_service_installed "$service"; then
+           echo -e "${RED}$service_name is not
+ installed${NC}"
+           return 1
+       fi
+
+       if [ -z "$systemd_name" ]; then
+           echo -e "${YELLOW}$service_name is a runtime
+ component without service logs${NC}"
+           return 0
+       fi
+
+       echo ""
+       echo -e "${CYAN}Recent logs (last 50 lines):${NC}"
+       echo
+ "================================================"
+       journalctl -u "$systemd_name" -n 50 --no-pager
+       echo ""
+       echo -e "${YELLOW}Tip: Use 'journalctl -u
+ $systemd_name -f' to follow logs in real-time${NC}"
+   }
+ ```
+
+ toggle_autostart:
+
+ ```bash
+   toggle_autostart() {
+       local service="$1"
+       local systemd_name="$(service_resolve_systemd_unit
+ "$service")"
+       local service_name="${SERVICE_NAME[$service]}"
+
+       echo ""
+       echo
+ "================================================"
+       echo "Toggle Auto-start for $service_name"
+       echo
+ "================================================"
+
+       if ! is_service_installed "$service"; then
+           echo -e "${RED}Error: $service_name is not
+ installed${NC}"
+           return 1
+       fi
+
+       if [ -z "$systemd_name" ]; then
+           echo -e "${YELLOW}$service_name is a runtime
+ component; auto-start does not apply${NC}"
+           return 0
+       fi
+       ... existing enable/disable logic with $systemd_name
+   }
+ ```
+
+ reinstall_service — generic:
+
+ ```bash
+   reinstall_service() {
+       local service="$1"
+       local
+ install_script="${SERVICE_INSTALL_SCRIPT[$service]}"
+       local
+ install_args="${SERVICE_INSTALL_ARGS[$service]}"
+       local service_name="${SERVICE_NAME[$service]}"
+       local
+ script_path="$SERVICE_MANAGER_INSTALL_SHELLS_DIR/$install_s
+ cript"
+       local confirm=""
+
+       echo ""
+       echo
+ "================================================"
+
+       if is_service_installed "$service"; then
+           echo "Reinstalling $service_name"
+           echo
+ "================================================"
+           echo ""
+           echo -e "${YELLOW}$service_name is already
+ installed${NC}"
+           echo "This will re-run the installation script:
+ $install_script"
+           read -p "Do you want to continue? (Y/n): "
+ confirm
+           if [[ "$confirm" =~ ^[Nn]$ ]]; then
+               echo "Reinstallation cancelled"
+               return 0
+           fi
+       else
+           echo "Installing $service_name"
+           echo
+ "================================================"
+           echo ""
+           echo -e "${GREEN}Installing $service_name for the
+ first time${NC}"
+           echo "This will run the installation script:
+ $install_script"
+           read -p "Do you want to install? (Y/n): " confirm
+           if [[ "$confirm" =~ ^[Nn]$ ]]; then
+               echo "Installation cancelled"
+               return 0
+           fi
+       fi
+
+       if [ ! -f "$script_path" ]; then
+           echo -e "${RED}Error: Installation script not
+ found: $script_path${NC}"
+           return 1
+       fi
+
+       echo ""
+       echo "Executing: bash $script_path $install_args"
+       echo ""
+
+       if bash "$script_path" $install_args; then
+           echo ""
+           if is_service_installed "$service"; then
+               echo -e "${GREEN}$service_name
+ installation/reinstallation completed successfully${NC}"
+           else
+               echo -e "${YELLOW}$service_name script
+ execution completed${NC}"
+               echo -e "${YELLOW}Service may need manual
+ configuration${NC}"
+           fi
+           return 0
+       fi
+       echo ""
+       echo -e "${RED}$service_name
+ installation/reinstallation failed${NC}"
+       return 1
+   }
+ ```
+
+ Note: bash "$script_path" $install_args — unquoted
+ expansion for word splitting of args. Per the project's
+ PowerShell rule about not appending strings... that's
+ PowerShell-specific. Bash word splitting here is
+ intentional. Fine.
+
+ Hmm — wait, for laravel_main reinstall: 175 --service. BUT
+ careful: when AS_SERVICE=yes and systemd present, it
+ registers the service and returns. When systemd is absent
+ (WSL without systemd) it prompts and falls back to
+ foreground run — interactive blocking. That's the script's
+ own behavior; acceptable (the old code did the same via
+ start.sh --service).
+
+ But there's a subtlety — 175 runs the FULL init: php
+ ensure, composer ensure, ssh, pgsql, migrations, domains,
+ then service registration. That's exactly what the old
+ "Install / Reinstall Laravel Octane" special case did
+ (start.sh --service → same 175). Good, behavior preserved.
+
+ Now — "restart" for the runtime items... let me reconsider
+ one final time whether to give frankenphp
+ start/stop/restart delegation to the laravel unit. NO —
+ final decision: laravel_main owns the daemon lifecycle. The
+ menu for runtime items shows Details/Reinstall. Clean.
+
+ Hmm, wait — but then "Restart All Installed Services"
+ restarts only laravel_main. Is that what the user wants? "
+ 这几个脚本中安装的服务，可以重启查看状态等" — the services
+ installed by these scripts CAN be restarted, status viewed,
+ etc. The only daemon among them is the Laravel service
+ (which embeds FrankenPHP+PHP). So restart-all = restart
+ laravel service.
+
+ And actually — thinking about it more, the "restart" of
+ FrankenPHP/PHP/Composer doesn't exist as a concept anywhere
+ in the codebase (they're binaries/config), so the user's "
+ 可以重启查看状态等" is satisfied by the Laravel service
+ lifecycle + status views for all four.
+
+ Now, the UI file. Changes:
+ 1. show_all_services_status — unchanged
+ 2. start_all_services / stop_all_services /
+    restart_all_services — skip non-systemd items
+ 3. show_service_action_menu — capability-aware menus
+ 4. show_main_menu — unchanged
+
+ For bulk ops, add:
+
+ ```bash
+   for service in "${SERVICES[@]}"; do
+       if ! service_is_systemd_managed "$service"; then
+           continue
+       fi
+       ...
+ ```
+
+ And service_is_systemd_managed in service_manager.sh:
+
+ ```bash
+   service_is_systemd_managed() {
+       [ "${SERVICE_KIND[$1]}" = "systemd" ]
+   }
+ ```
+
+ show_service_action_menu rewrite:
+
+ ```bash
+   show_service_action_menu() {
+       local service="$1"
+       local service_name="${SERVICE_NAME[$service]}"
+       local status="$(get_service_status "$service")"
+       local menu_items=()
+       local action_keys=()
+
+       if service_is_systemd_managed "$service"; then
+           if [ "$status" = "NOT_INSTALLED" ]; then
+               menu_items=("Install Service" "Back to
+ Service List")
+               action_keys=("reinstall" "back")
+           else
+               menu_items=(
+                   "Start Service"
+                   "Stop Service"
+                   "Restart Service"
+                   "Show Status"
+                   "Show Logs"
+                   "Toggle Auto-start"
+                   "Reinstall Service"
+                   "Back to Service List"
+               )
+               action_keys=("start" "stop" "restart"
+ "status" "logs" "autostart" "reinstall" "back")
+           fi
+       else
+           if [ "$status" = "NOT_INSTALLED" ]; then
+               menu_items=("Install Service" "Back to
+ Service List")
+               action_keys=("reinstall" "back")
+           else
+               menu_items=("Show Details" "Reinstall /
+ Reconfigure" "Back to Service List")
+               action_keys=("status" "reinstall" "back")
+           fi
+       fi
+
+       arrow_menu_select "$service_name [$status]"
+ menu_items 0 "$((${#menu_items[@]} - 1))"
+       local selected_index="$ARROW_MENU_SELECTED_INDEX"
+       case "${action_keys[$selected_index]}" in
+           start) start_service "$service" ;;
+           stop) stop_service "$service" ;;
+           restart) restart_service "$service" ;;
+           status) show_service_status "$service" ;;
+           logs) show_service_logs "$service" ;;
+           autostart) toggle_autostart "$service" ;;
+           reinstall) reinstall_service "$service" ;;
+           back) return 0 ;;
+       esac
+       echo ""
+       read -p "Press Enter to continue..."
+   }
+ ```
+
+ Wait — "local" inside function after commands... bash
+ allows local anywhere in function. But variables-at-top
+ rule: declare locals at function top. I'll declare
+ selected_index at top with other locals.
+
+ Hmm, the status shown in the menu title: $service_name
+ [$status] — raw status like "STOPPED_ENABLED" — the old
+ code did the same (title shows raw status, list shows
+ colored). Keep.
+
+ Note: the old action menu dispatched manage →
+ manage_service which is removed.
+
+ Also — one behavior change: old show_service_action_menu
+ for NOT_INSTALLED had "Install Service" + optional manager.
+ Mine: "Install Service" + Back. Same shape.
+
+ Wait, there's also the question of whether the action menu
+ should return to the action menu after an action or to the
+ main menu — old behavior: show_service_action_menu runs
+ once per selection then "Press Enter" → back to main loop
+ (show_main_menu's continue). Keep.
+
+ Now, the header comments and structure of
+ service_manager.sh. Also the old file's # Service Manager
+ description mentions Redis/PostgreSQL/Docker/MySQL —
+ update.
+
+ One more thing — the old service_manager.sh had variable
+ declarations: SCRIPT_CURRENT_DIR, PARENT_DIR_LEVEL_1,
+ SERVICE_MANAGER_REGISTRY_SCRIPT, SERVICE_MANAGER_UI_SCRIPT.
+ Keep + add COMMON_DIR.
+
+ Also: RED/GREEN/YELLOW/BLUE/CYAN/NC colors.
+
+ Now — important check: declare -A SERVICE_KIND etc. in
+ registry — associative arrays need bash 4+. The old
+ registry already used declare -A. Fine.
+
+ Also local status="$(get_service_status "$service")" — hmm,
+ one consideration: get_service_status is called multiple
+ times per menu render (main menu once per item + title).
+ For frankenphp each call spawns the binary version check.
+ Menu render: 1 call per item. Selecting frankenphp: +1.
+ Details: fm_verify spawns more. Acceptable.
+
+ Now — what about the "Show All Services Status" print
+ alignment: printf "%-15s : " — service names up to "Laravel
+ Main" (12) fits.
+
+ Let me also double check arrow_menu_select's parameter
+ usage: arrow_menu_select "Service Manager" menu_items
+ "$selected_index" "$((${#menu_items[@]} - 1))" — passes
+ array NAME "menu_items" (nameref). Yes, arrow_menu.sh uses
+ namerefs. My usage matches the existing pattern.
+
+ Now — one more consideration about sourcing
+ composer_install_common.sh in service_manager.sh: it runs
+ at source time... no wait, I verified: it only declares
+ vars + sources. No function calls at top level. ✓.
+
+ But hmm — composer_install_common.sh sources
+ frankenphp_manager.sh, which sources
+ frankenphp_install_modes.sh etc. frankenphp_manager.sh top
+ level: FRANKENPHP_MERCURE_VERSION="$(sc_require
+ versions.mercure)" — spawns sc_require (reads JSON). Fine.
+
+ Wait, actually there's one more potential problem:
+ frankenphp_manager.sh sources web_access_common.sh — no
+ side effects at source. ✓ (93/94 call
+ web_access_config_ensure explicitly after sourcing).
+
+ Now — gvar_common.sh sourced by composer_install_common →
+ also sources secret manager (line 493:
+ NEW_SECRET_MANAGER_PATH). Let me check that has no heavy
+ side effects at source time... it's sourced by gvar_common
+ which service_manager.sh already sources today (current
+ service_manager.sh sources gvar_common). So no change in
+ behavior. ✓
+
+ Now let me also handle: service_manager.sh's show_main_menu
+  call at the bottom — it's defined in
+ service_manager_ui.sh. Keep.
+
+ One more piece: the old registry exported
+ SERVICE_MANAGER_LARAVEL_DIR / START_SCRIPT /
+ UNIFIED_MANAGER_SCRIPT / LARAVEL_SERVICE_PATTERN — only
+ used inside the old service_manager.sh special cases. All
+ removed in the rewrite.
+
+ Let me also think — should I keep "unified_apps" /
+ "core_services"? The user said REPLACE (替换). The new menu
+ has exactly 4 items. OK.
+
+ Wait, actually, let me reconsider one thing. The bulk
+ actions with a single systemd item... "Start All Installed
+ Services", "Stop All Running Services", "Restart All
+ Installed Services" — with only laravel_main restartable,
+ these are still functional. But do they add noise? The
+ user's screenshot shows them; keep them for framework
+ consistency. Hmm — but "Start All Installed Services" that
+ only starts one service... It's fine; the framework
+ supports multiple systemd items later.
+
+ Actually hold on. Let me reconsider the whole design once
+ more. Is there any chance the user wants MORE granularity —
+ e.g., the Laravel item should list BOTH plane services
+ (frankenphp + nginx)? No — only one plane is active at a
+ time (the plane mutex). The plane-aware unit resolution
+ handles it.
+
+ What about the acme renewal timer (ncore-acme-cert.timer)
+ installed by the frankenphp pipeline (93, for apt/prebuilt
+ variants)? It's part of "the services installed by 93".
+ Should it be a menu item? The user named the four scripts;
+ the timer is an implementation detail of 93. I'll show its
+ state in the FrankenPHP details? fm_verify doesn't show the
+ timer... fm_cert_status does (renewal timer line).
+ fm_cert_status needs site_host + routes_dir args. Hmm —
+ skip; not required. Keep fm_verify.
+
+ OK — now let me also double-check the show_service_status
+ name vs UI dispatch. In my action_keys I use "status" →
+ show_service_status. Define show_service_status as the
+ details dispatcher (with the per-service case).
+
+ Wait, one more issue: for laravel_main when NOT_INSTALLED,
+ "Install Service" → reinstall_service → runs 175 --service.
+ But 175 with --service when php is missing auto-installs
+ php via 93, composer via 94... it's the full bootstrap.
+ Correct behavior.
+
+ For frankenphp NOT_INSTALLED → "Install Service" → runs 93
+ interactively (mode selection prompt when TTY). Correct.
+
+ For composer NOT_INSTALLED → 94 runs
+ composer_install_ensure. Correct.
+
+ For php85 NOT_INSTALLED → 96. Correct.
+
+ Now, write the code. Also — per the rules: "Declare
+ variables at the beginning of the file" and "Do not put
+ progress summaries in source files", "Code is
+ documentation. Unless explicitly requested, do not add
+ documentation in the code." — keep comments
+ minimal/functional (the existing files carry structural
+ comments; I'll keep concise ones, matching existing style).
+
+ Let me also make sure about set -e? The old
+ service_manager.sh doesn't use set -e. Keep as-is.
+
+ Also check: systemctl is-enabled --quiet "$systemd_name"
+ 2>/dev/null — when unit is a static/indirect unit,
+ is-enabled returns non-zero — handled.
+
+ One more subtle thing: in service_status_laravel_main,
+ systemctl is-enabled --quiet for a masked unit returns
+ "masked" — falls to STOPPED_DISABLED. Edge case,
+ acceptable.
+
+ Now about "fm_binary_usable" being called with the binary
+ from fm_get_binary — if empty, fm_binary_usable returns
+ "no" (candidate empty → version_line empty → no). ✓
+
+ Let me also double check php_runtime_plane doesn't require
+ sourced global_var_store init — get_global_var: let me
+ check it reads files directly.
+
+
+ $ sed -n "/^get_global_var()/,/^}/p"
+ /www/programing/core_node/scripts/shells/linux/common/globa
+ l_var_store.sh | head -30
+
+ ... (26 earlier lines, ctrl+o to expand)
+         return 0
+     else
+         # Return default value if read fails
+         echo "${default_value:-}"
+         return 0
+
+ Took 0.1s
+
+
+ Good. Now let me write the three files.
+
+ ### File 1: service_manager_registry.sh
+
+ Now I have the complete picture. The Service Manager UI is
+ built from three files in menu_itemshells/ (registry +
+ logic + UI), launched via dd.sh → Linux Management →
+ Service Manager. I'll replace the 10 legacy service entries
+ with the 4 items owned by scripts 93/94/96/175, reusing the
+ existing fm_* probes from frankenphp_manager.sh, the
+ COMPOSER_* path contract from composer_install_common.sh,
+ and the plane-aware ncore-laravel-* unit resolution.
+
+ File 1 — registry:
+
+
+ write
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager_registry.sh
+
+ #!/bin/bash
+
+ # Service Manager registry: every menu item maps one
+ install-shell lifecycle.
+ #   frankenphp   -> 93_install_frankenphp.sh  (FrankenPHP
+ runtime, variant-aware)
+ #   composer     -> 94_install_composer.sh    (Composer
+ phar + wrappers)
+ #   php85        -> 96_configure_php85.sh    (PHP 8.5
+ runtime configuration)
+ #   laravel_main -> 175_laravel_main_start.sh
+ (ncore-laravel-* systemd service)
+
+ SERVICE_MANAGER_REGISTRY_DIR="$(cd "$(dirname
+ "${BASH_SOURCE[0]}")" && pwd)"
+ SERVICE_MANAGER_REGISTRY_LINUX_DIR="$(dirname
+ "$SERVICE_MANAGER_REGISTRY_DIR")"
+ ... (29 more lines, 39 total, ctrl+o to expand)
+
+
+ File 2 — core logic (probes, lifecycle, install/reinstall):
+
+
+ write
+ /www/programing/core_node/scripts/shells/linux/menu_itemshe
+ lls/service_manager.sh
+
+ #!/bin/bash
+ # ### AI SPECIAL ATTENTION RULES START ###
+ # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY
+ COMPLY WITH THESE RULES:
+ # 1. Write all code in English only.
+ # 2. Never execute, create, or modify test code.
+ # 3. Never create or update documentation (*.md).
+ # 4. Never write summaries during development or thinking
+ process.
+ # 5. Declare all variables at the beginning of the file.
+ # 6. For PowerShell (*.ps1) scripts: Do not append strings
+ directly to variables, Do not use relative paths such as
+ "..\..\"; instead resolve absolute paths using parent path
+ parsing (Split-Path, Join-Path, or Resolve-Path).
+ # 7. Do not modify these rules.
+ ... (480 more lines, 490 total, ctrl+o to expand)
+
