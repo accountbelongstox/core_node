@@ -53,7 +53,11 @@ final class RelayV2BlobService
                 return ['blob' => $this->descriptor($blob)];
             }
             $this->assertOwnerQuota($userId, $expectedLength);
-            $blob = RelayV2BlobModel::query()->create([
+            // insertOrIgnore keeps the allocation atomic against a concurrent
+            // identical allocate (same blob_id): the conflicting unique index
+            // would otherwise surface as an uncaught SQLSTATE 23505 instead of
+            // the domain 409 below.
+            RelayV2BlobModel::query()->insertOrIgnore([[
                 'blob_id' => $blobId,
                 'owner_user_id' => $userId,
                 'device_id' => (string) $pairing->device_id,
@@ -66,7 +70,13 @@ final class RelayV2BlobService
                 'received_length' => 0,
                 'expires_at' => now()->addSeconds(RelayV2Contract::duration('blob_retention_seconds')),
                 'revision' => 1,
-            ]);
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]]);
+            $blob = RelayV2BlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
+            if ($blob === null) {
+                throw new RelayV2DomainException('blob_allocation_conflict', 409);
+            }
 
             return ['blob' => $this->descriptor($blob)];
         }, 3);
@@ -119,43 +129,60 @@ final class RelayV2BlobService
             if ($lockedUser === null) {
                 throw new RelayV2DomainException('authentication_required', 401);
             }
-            if ($blob !== null) {
-                $this->assertAllocationDuplicate(
-                    $blob,
-                    (int) $operation->user_id,
-                    $deviceId,
-                    (string) $operation->pairing_id,
-                    RelayV2Constants::BLOB_RESPONSE,
-                    $expectedSha256,
-                    $expectedLength
-                );
-                $blob->forceFill([
+            if ($blob === null) {
+                $this->assertOwnerQuota((int) $operation->user_id, $expectedLength);
+                // insertOrIgnore (INSERT ... ON CONFLICT DO NOTHING) keeps the
+                // allocation atomic against any concurrent or drifted unique
+                // constraint: instead of an uncaught SQLSTATE 23505 (rendered
+                // as a code-less HTTP 500), the row is re-read under the lock
+                // and either reused (identical identity) or rejected with a
+                // domain 409.
+                RelayV2BlobModel::query()->insertOrIgnore([[
+                    'blob_id' => (string) Str::uuid(),
+                    'owner_user_id' => (int) $operation->user_id,
+                    'device_id' => $deviceId,
+                    'pairing_id' => (string) $operation->pairing_id,
+                    'operation_id' => $operationId,
+                    'direction' => RelayV2Constants::BLOB_RESPONSE,
                     'operation_revision' => $operationRevision,
                     'claim_epoch' => $claimEpoch,
                     'lease_owner' => $leaseOwner,
+                    'expected_sha256' => $expectedSha256,
+                    'expected_length' => $expectedLength,
+                    'received_chunk_count' => 0,
+                    'received_length' => 0,
+                    'expires_at' => now()->addSeconds(RelayV2Contract::duration('blob_retention_seconds')),
+                    'revision' => 1,
+                    'created_at' => now(),
                     'updated_at' => now(),
-                ])->save();
+                ]]);
+                $blob = RelayV2BlobModel::query()
+                    ->where('operation_id', $operationId)
+                    ->where('direction', RelayV2Constants::BLOB_RESPONSE)
+                    ->where('claim_epoch', $claimEpoch)
+                    ->lockForUpdate()
+                    ->first();
+                if ($blob === null) {
+                    throw new RelayV2DomainException('blob_allocation_conflict', 409);
+                }
 
                 return ['blob' => $this->descriptor($blob)];
             }
-            $this->assertOwnerQuota((int) $operation->user_id, $expectedLength);
-            $blob = RelayV2BlobModel::query()->create([
-                'blob_id' => (string) Str::uuid(),
-                'owner_user_id' => (int) $operation->user_id,
-                'device_id' => $deviceId,
-                'pairing_id' => (string) $operation->pairing_id,
-                'operation_id' => $operationId,
-                'direction' => RelayV2Constants::BLOB_RESPONSE,
+            $this->assertAllocationDuplicate(
+                $blob,
+                (int) $operation->user_id,
+                $deviceId,
+                (string) $operation->pairing_id,
+                RelayV2Constants::BLOB_RESPONSE,
+                $expectedSha256,
+                $expectedLength
+            );
+            $blob->forceFill([
                 'operation_revision' => $operationRevision,
                 'claim_epoch' => $claimEpoch,
                 'lease_owner' => $leaseOwner,
-                'expected_sha256' => $expectedSha256,
-                'expected_length' => $expectedLength,
-                'received_chunk_count' => 0,
-                'received_length' => 0,
-                'expires_at' => now()->addSeconds(RelayV2Contract::duration('blob_retention_seconds')),
-                'revision' => 1,
-            ]);
+                'updated_at' => now(),
+            ])->save();
 
             return ['blob' => $this->descriptor($blob)];
         }, 3);
