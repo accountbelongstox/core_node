@@ -244,13 +244,18 @@ manifest state, bounded owner storage, and concurrency-safe finalization.
 
 ### Route and execution policy
 
-Pycore applies the local contract again after Laravel validation. Unclassified
-`ui/*`, streaming events, open/reveal/path-picker actions, CodeSync workspace
-operations, and Laravel endpoint-control routes are denied. Terminal routes are
+Pycore applies the local contract again after Laravel validation. Filesystem
+open/reveal/path-picker actions, CodeSync workspace operations, and local
+endpoint-assist binding routes (`ui/assist/bind_laravel_endpoint`,
+`ui/assist/laravel_transport_probe`) are denied. Every other route is
+relay-allowed by default (updated 2026-09-05; the earlier deny-by-default
+contract was replaced by default-allow). Terminal routes are
 classified individually. Safe recovery is allowed only for `read` and genuine
 `idempotent_write`; keyboard, mouse, activation, input, Enter, history, and
 scroll are `at_most_once_action` and become `execution_unknown` after an
-ambiguous crash.
+ambiguous crash. Unclassified routes also resolve to the
+`at_most_once_action` default, so an unknown route forwards but is never
+automatically re-executed after an ambiguous crash.
 
 Route entries reference contract-owned profiles. A resolved profile always has
 `exposure`, `permission`, `payload`, `timeout_seconds`, and `retry`. Laravel must
@@ -258,9 +263,11 @@ authorize the permission and validate the payload before admission; Pycore
 re-resolves the same profile and applies its timeout and retry policy.
 
 Matching precedence is `exact > prefix > suffix`; equal-kind matches choose the
-longest value and then the first declaration. The default profile is denied.
-This makes the `ui/` deny prefix override generic read suffixes while explicit
-Terminal route entries remain allowed. Relay GET operations cannot carry a
+longest value and then the first declaration. The default profile is
+`general_action` (relay exposure, `relay.route.control`, JSON-object requests,
+30-second timeout, at-most-once retry). The `ui/` deny prefix was removed with
+the default-allow change; only `ui/code_sync/` stays an explicit deny prefix.
+Relay GET operations cannot carry a
 request body.
 
 The contract-pinned Mercure profile uses one authorized SSE subscription with
