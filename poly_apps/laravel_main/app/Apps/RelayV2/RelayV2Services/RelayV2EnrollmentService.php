@@ -243,6 +243,31 @@ final class RelayV2EnrollmentService
         }, 3);
     }
 
+    public function autoClaimPending(int $userId): int
+    {
+        $enrollments = RelayV2EnrollmentModel::query()
+            ->where('state', RelayV2Constants::ENROLLMENT_PENDING)
+            ->where('expires_at', '>', now())
+            ->orderBy('id')
+            ->limit(RelayV2Contract::limit('maintenance_row_batch'))
+            ->get();
+        $claimed = 0;
+
+        foreach ($enrollments as $enrollment) {
+            try {
+                $this->claim($userId, Crypt::decryptString((string) $enrollment->claim_code_encrypted));
+                $claimed++;
+            } catch (RelayV2DomainException $exception) {
+                Log::info('[RelayV2] Pending enrollment auto-claim skipped', [
+                    'enrollment_id' => (string) $enrollment->enrollment_id,
+                    'reason' => $exception->relayErrorCode(),
+                ]);
+            }
+        }
+
+        return $claimed;
+    }
+
     private function enrollmentResponse(RelayV2EnrollmentModel $enrollment, bool $includeClaimCode): array
     {
         $response = [

@@ -43,6 +43,8 @@ final class RelayV2OwnerCtl extends Controller
     {
         $user = $this->user($request);
 
+        $this->enrollments->autoClaimPending((int) $user->getAuthIdentifier());
+
         return $this->success($this->pairings->roster((int) $user->getAuthIdentifier()), __('relay_v2.success'));
     }
 
