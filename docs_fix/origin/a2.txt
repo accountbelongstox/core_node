@@ -1,0 +1,1926 @@
+
+ [compaction]
+
+ Compacted from 123,539 tokens (ctrl+o to expand)
+
+
+ The statistics() method already filters tables by required
+ columns (filterTablesByColumns) — skipping partially-migrated
+ languages. So the dictionary coordinator is resilient. The
+ failing tts_status query must come from somewhere else — maybe
+ assistLeasedCount() or the WordAudioWorker pull path... The
+ log error was "Pending snapshot warm failed ... tts_status
+ does not exist".
+
+ Let me search which queries hit _staging tables with
+ tts_status. Wait — actually the earlier QueryMonitor line:
+ select * from "app_qy_v1_tts_cache_en" where "tts_status" is
+ not null order by "updated_at" desc limit 100 — that's on
+ tts_cache_en which HAS tts_status. Hmm but the pending warm
+ error mentions a table without it.
+
+ Let me instead check WHICH migration adds tts_status to
+ STAGING tables: AppQyV1_2026_06_12_000010 targets dictionary
+ tables (getDictionaryTableName) + article library — does
+ getDictionaryTableName return the staging one? Earlier: the
+ validity migration (2026_06_08) targets getDictionaryTableName
+ + getDictionaryStagingTableName separately. The 06_12
+ tts_state migration only targets getDictionaryTableName — NOT
+ staging! So staging tables NEVER get tts_status from any
+ migration? Let me verify what queries staging tables with
+ tts_status.
+
+ Actually wait — maybe staging tables aren't supposed to have
+ tts_status at all, and some code erroneously queries them. Let
+ me find who queries staging with tts_status. Search for
+ getDictionaryStagingTableName usage + tts_status:
+
+ statistics() 已经跳过了部分迁移的表。让我找一下是哪里在查询
+ _staging 表时使用了 tts_status：
+
+
+ $ grep -rn "getDictionaryStagingTableName"
+ /www/programing/core_node/poly_apps/laravel_main/app
+ --include=*.php -l | head -5; echo =====; grep -rn "staging"
+ /www/programing/core_node/poly_apps/laravel_main/app/Apps/AppQ
+ yV1/AppQyV1Services/AppQyV1DictionaryTTSCoordinator.php | head
+ -10
+
+ ... (5 earlier lines, ctrl+o to expand)
+ yV1/AppQyV1Controllers/AppQyV1System/AppQyV1SystemInitComplian
+ ceCtl.php
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ UserSyncService.php
+ =====
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan tinker --execute="
+ \$cols =
+ array_column(DB::connection('appqyv1')->select(\"select
+ column_name from information_schema.columns where table_name =
+ 'app_qy_v1_tts_cache_en_staging'\"), 'column_name');
+ sort(\$cols); print_r(\$cols);
+ " 2>&1 | tail -30 (timeout 60s)
+
+ ... (24 earlier lines, ctrl+o to expand)
+     [22] => validity_checked_at
+     [23] => validity_note
+     [24] => validity_source
+     [25] => word_details
+ )
+
+
+ The staging table has NO tts_* state columns at all. Now —
+ where does the pending snapshot query hit tts_status on a
+ staging table? Let me search the assist overview warm chain —
+ posterCounts, coverCounts, translationCounts...
+ assistLeasedCount. Or maybe the WordTranslation scan/filler
+ tasks (log showed word_translation_scan_task / filler_task
+ warnings). Actually let me search code for queries on staging
+ + tts_status. The TTS coordinator's assistLeasedCount:
+
+
+ $ grep -n "assistLeasedCount" -A 30
+ /www/programing/core_node/poly_apps/laravel_main/app/Apps/AppQ
+ yV1/AppQyV1Services/AppQyV1DictionaryTTSCoordinator.php | head
+ -40
+
+ ... (46 earlier lines, ctrl+o to expand)
+ 570-            return false;
+ 571-        }
+ 572-        if (str_starts_with($bytes, 'ID3')) {
+ 573-            return true;
+ 574-        }
+
+
+ assistLeasedCount uses countByLanguage — which does NOT filter
+ tables by columns! It runs SELECT COUNT(*) ... WHERE has_audio
+ = false AND tts_status = ... on all existing dictionary
+ tables. If ANY dictionary table (or article library) lacks
+ tts_status → error.
+
+ Wait but I verified tts_cache_en HAS tts_status... but do ALL
+ main dictionary tables have it? My earlier scan found 81
+ tables with tts_files but no tts_status — all _staging. But
+ wait, maybe some MAIN tables are also missing it — my second
+ query checked in_array('tts_files', $cols) &&
+ !in_array('tts_status', $cols). All 81 were staging. Hmm, but
+ article library tables don't have tts_files! My filter missed
+ article_library tables. Let me check which article library
+ tables lack tts_status.
+
+ assistLeasedCount 没有列防护。我的扫描之前只检查了包含
+ tts_files 的表——漏掉了 article_library 表。让我检查一下这些：
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan tinker --execute="
+ \$tables = DB::connection('appqyv1')->select(\"select
+ table_name from information_schema.tables where table_name
+ like 'app_qy_v1_%article_library' order by table_name\");
+ \$missing = [];
+ foreach (\$tables as \$t) {
+     \$cols =
+ array_column(DB::connection('appqyv1')->select(\"select
+ column_name from information_schema.columns where table_name =
+ ?\", [\$t->table_name]), 'column_name');
+     if (!in_array('tts_status', \$cols)) { \$missing[] =
+ \$t->table_name; }
+ }
+ echo 'ARTICLE_LIBRARIES MISSING tts_status
+ ('.count(\$missing).'): '; echo implode(', ',
+ \$missing).\"\n\";
+ " 2>&1 | tail -3 (timeout 120s)
+
+ ... (37 earlier lines, ctrl+o to expand)
+ app_qy_v1_tr_article_library, app_qy_v1_uk_article_library,
+ app_qy_v1_ur_article_library, app_qy_v1_uz_article_library,
+ app_qy_v1_vi_article_library, app_qy_v1_wuu_article_library,
+ app_qy_v1_yue_article_library, app_qy_v1_zh_article_library,
+ app_qy_v1_zu_article_library
+
+
+ ALL 81 article_library tables are missing tts_status — the
+ AppQyV1_2026_06_12_000010_add_tts_state_columns_to_canonical_t
+ ables migration (marked Ran, batch 1) never actually ran on
+ this DB. That's the source of the "Pending snapshot warm
+ failed ... tts_status does not exist" error:
+ assistLeasedCount() queries ALL article_library tables without
+ column guards.
+
+ Fix: delete that migration record + re-run migrate. The
+ migration has hasColumn guards per table — idempotent. It'll
+ add the columns to all dictionary + article tables (162 tables
+ × 8 columns — might take a while but fine).
+
+ Wait — but the earlier scan showed main dictionary tables DO
+ have tts_status (only staging lacks it). So the 06_12
+ migration partially applied? Weird. OR: the dictionary tables
+ were created WITH tts_status from the start (create migration
+ includes them) while the migration that adds them to
+ article_library never ran. Either way, re-running the 06_12
+ migration with its hasColumn guards is safe and will add the
+ missing columns.
+
+ Also social_events needs re-running. Let me now also do a
+ comprehensive drift audit of ALL migrations vs the live
+ schema, to fix everything in one pass instead of whack-a-mole.
+ Given the pattern (records for never-run edits), let me write
+ a quick audit script that compares each
+ SafeMigrationHelper-based migration's declared structure vs
+ live schema... that's complex.
+
+ Alternative pragmatic approach: re-run ALL AppQyV1 migrations
+ that are (a) idempotent by design and (b) known-drifted. But
+ auditing all is heavy.
+
+ Actually — better: check the drift class. The migrations that
+ were "edited after ran" are the recent ones (June-Aug). The
+ core pattern: this appqyv1 DB was initialized at some point
+ (batch 1 = init), then migrations were EDITED in place
+ (project style: edit the create-migration rather than add new
+ ones), so re-running requires record deletion. The project's
+ own answer is sys:init with its "re-align" — but it only
+ aligns SOME tables explicitly (createBooksTables etc. lines
+ 782-827).
+
+ Practical approach: the errors in the log tell us exactly
+ which tables are drifted. Known drifted now:
+ 1. ✓ article_words — FIXED
+ 2. ✓ translation_events — FIXED
+ 3. social_events — missing publish columns (4 cols + 2
+    indexes)
+ 4. article_library × 81 + maybe dictionary_staging × 81 —
+    missing tts state columns
+
+ Let me check if the log shows any OTHER missing column errors
+ beyond these. Let me scan the last ~50MB of the log for all
+ distinct "column X of relation Y does not exist" and "no
+ unique or exclusion constraint" errors.
+
+ 所有 81 个 article_library 表都缺少 TTS 列 —— 迁移记录是错误的
+ 。在一次性修复所有问题之前，让我对日志中所有明显的
+ schema-drift 错误进行一次全面审计：
+
+
+ $ tail -c 50000000 /www/wwwroot/laravel_db/logs/laravel.log
+ 2>/dev/null | grep -oE "ERROR:  column [^\\\\\"]+ of relation
+ [^\\\\\"]+ does not exist" | sort | uniq -c | sort -rn | head
+ -15 (timeout 120s)
+
+ (no output)
+
+
+
+ $ tail -c 20000000 /www/wwwroot/laravel_db/logs/laravel.log
+ 2>/dev/null | grep -oE 'column ..[a-z_]+.. of relation
+ ..[a-z_0-9]+.. does not exist' | sort | uniq -c | sort -rn |
+ head -15 (timeout 120s)
+
+ 910 column \"publish_attempts\" of relation
+ \"app_qy_v1_translation_events\" does not exist
+
+
+
+ $ tail -c 20000000
+ /www/wwwroot/laravel_db/logs/laravel.db/logs/laravel.log
+ 2>/dev/null | grep -c "does not exist" ; tail -c 20000000
+ /www/wwwroot/laravel_db/logs/laravel.log | grep "does not
+ exist" | grep -oE 'relation [a-z_0-9]+' | sort | uniq -c |
+ sort -rn | head; echo ===constraints===; tail -c 20000000
+ /www/wwwroot/laravel_db/logs/laravel.log | grep -oE 'no unique
+ or exclusion constraint[^"]*' | sort | uniq -c | head (timeout
+ 120s)
+
+ ... (7 earlier lines, ctrl+o to expand)
+ CONFLICT specification (Connection: appqyv1, Host: 127.0.0.1,
+ Port: 5432, Database: app_qy_v1_database, SQL: insert into
+     136 no unique or exclusion constraint matching the ON
+ CONFLICT specification (Connection: appqyv1, Host: 127.0.0.1,
+ Port: 5432, Database: app_qy_v1_database, SQL: insert into \
+
+
+ In the last 20MB of log:
+ - Only translation_events publish_attempts (fixed) and
+   article_words ON CONFLICT (fixed) column errors.
+ - The tts_status and social_events published_at errors appear
+   in a different message format. Let me search those patterns:
+   column \"tts_status\" does not exist without "of relation" —
+   those errors came without relation info. And social_events
+   published_at errors: "column "published_at" does not exist
+   LINE 1: select * from "app_qy_v1_social_events"..." — the
+   relation info is in the SQL line, not the error.
+
+ Let me count all 42703 undefined column errors and group by
+ column name:
+
+
+ $ tail -c 20000000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep -oE 'SQLSTATE\[42703\][^"]{0,120}' | sed 's/LINE 1.*//' |
+ sort | uniq -c | sort -rn | head -12 (timeout 120s)
+
+ 1970 SQLSTATE[42703]: Undefined column: 7 ERROR:  column \
+
+
+
+ $ tail -c 20000000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep -oE 'ERROR:  column ..([a-z_]+).. does not exist' | sort
+ | uniq -c | sort -rn | head -12 (timeout 120s)
+
+ 852 ERROR:  column \"published_at\" does not exist
+     208 ERROR:  column \"tts_status\" does not exist
+
+
+ Full drift picture from the last 20MB of logs (going back some
+ hours):
+ 1. publish_attempts on translation_events — 910× (FIXED)
+ 2. published_at — 852× (social_events + maybe
+    translation_events; both fixed for translation_events,
+    social_events still TODO)
+ 3. tts_status — 208× (article_library tables, TODO)
+ 4. ON CONFLICT on article_words — 136× (FIXED)
+
+ Now let me fix social_events + the tts_state migration. Both
+ migrations have idempotent guards. Delete their migration rows
+ and re-run migrate:
+ - AppQyV1_2026_06_20_000107_create_app_qy_v1_social_events_tab
+   le (row id 100)
+ - AppQyV1_2026_06_12_000010_add_tts_state_columns_to_canonical
+   _tables (row id 44)
+
+ The tts_state one adds 8 columns × 162 tables (81 langs × 2
+ table types) — wait, only tables that EXIST and LACK columns.
+ Main dictionary tables already have the columns (guard skips
+ them), article libraries get them added. 81 tables × ~8
+ columns with indexes (tts_status index, tts_locked_at index,
+ tts_priority index) — a few minutes maybe. It has a 300s
+ default... Let me run it.
+
+ Also — I should check the OTHER migrations that were
+ edited-late: queue_scan_indexes, fifo_tts_scan_indexes
+ (AppQyV1_2026_07_31, 2026_08_15) and
+ per_language_sentence_tables (06_19). Those might also be
+ drifted. Let me check whether those indexes exist... Actually,
+ let me first check: does the log show missing INDEX errors? No
+ — missing indexes don't error, they just slow queries. The
+ QueueMonitor "Cumulative query time threshold exceeded"
+ warnings suggest slow queries (missing indexes!).
+
+ Per the audit approach, let me be thorough but practical:
+ re-run the drifted ones that produce ERRORS (blocking
+ functionality):
+ 1. social_events (row 100)
+ 2. tts_state_columns (row 44)
+
+ And also verify/repair the index migrations (07_31, 08_15)
+ since slow-query warnings (501ms+) hint missing indexes on
+ tts_cache scans. Let me check whether those indexes exist on
+ tts_cache_en: the migrations named add_queue_scan_indexes and
+ add_fifo_tts_scan_indexes. Let me quickly check pg_indexes for
+ tts_cache_en to see what scan indexes exist.
+
+ 已确认完整的偏差情况：published_at (social_events, 852×)、
+ tts_status (article_library, 208×) 以及两个已修复的问题。让我
+ 来修复剩下的两个问题，并检查索引迁移偏差（慢查询警告提示）：
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan tinker --execute="
+ echo 'deleted: '.DB::table('migrations')->whereIn('migration',
+
+ ['AppQyV1_2026_06_20_000107_create_app_qy_v1_social_events_tab
+ le',
+ 'AppQyV1_2026_06_12_000010_add_tts_state_columns_to_canonical_
+ tables'])->delete().\"\n\";
+ " 2>&1 | tail -2 (timeout 60s)
+
+ deleted: 2
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan tinker
+ --execute="print_r(array_column(DB::connection('appqyv1')->sel
+ ect(\"select indexname from pg_indexes where tablename =
+ 'app_qy_v1_tts_cache_en'\"), 'indexname'));" 2>&1 | tail -20
+ (timeout 60s)
+
+ ... (15 earlier lines, ctrl+o to expand)
+     [16] => idx_app_qy_v1_tts_cache_en_content
+     [17] => idx_app_qy_v1_tts_cache_en_query_count
+     [18] => idx_app_qy_v1_tts_cache_en_has_translation
+     [19] => idx_app_qy_v1_tts_cache_en_has_audio
+ )
+
+
+ The dictionary indexes on tts_cache_en look fine
+ (idx_dct_en_pending exists). Now run migrate to apply
+ social_events + tts_state columns:
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan migrate --force 2>&1 | tail -6 (timeout 600s)
+
+ ... (3 earlier lines, ctrl+o to expand)
+ AppQyV1_2026_06_12_000010_add_tts_state_columns_to_canonical_t
+ ables  3s DONE
+
+ AppQyV1_2026_06_20_000107_create_app_qy_v1_social_events_table
+ 57.13ms DONE
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan tinker --execute="
+ echo 'SOCIAL: ';
+ print_r(array_column(DB::connection('appqyv1')->select(\"selec
+ t column_name from information_schema.columns where table_name
+ = 'app_qy_v1_social_events'\"), 'column_name'));
+ echo 'EN_ARTICLE tts_status: ';
+ var_dump(!empty(DB::connection('appqyv1')->select(\"select 1
+ from information_schema.columns where table_name =
+ 'app_qy_v1_en_article_library' and column_name =
+ 'tts_status'\")));
+ echo 'ZH_ARTICLE tts_status: ';
+ var_dump(!empty(DB::connection('appqyv1')->select(\"select 1
+ from information_schema.columns where table_name =
+ 'app_qy_v1_zh_article_library' and column_name =
+ 'tts_status'\")));
+ " 2>&1 | tail -20 (timeout 60s)
+
+ ... (9 earlier lines, ctrl+o to expand)
+     [7] => data
+     [8] => last_publish_error
+ )
+ EN_ARTICLE tts_status: bool(true)
+ ZH_ARTICLE tts_status: bool(true)
+
+
+ All schema drift fixed:
+ 1. ✓ article_words unique index (article_id, word_md5)
+ 2. ✓ translation_events publish columns
+ 3. ✓ social_events publish columns
+ 4. ✓ article_library tts_state columns (all languages)
+
+ Now let me monitor the log to confirm errors stop, and verify
+ worker/submit works. The client retries the
+ AgentHistoryPipeline upload automatically — let me watch for a
+ successful submit.
+
+ Also — question 1 remains: the SentenceAudioWorker repeat +
+ English priority. And I saw "Task downgraded to failed by
+ result-trust gate ... invalid_shape" for task_e8924af9 — this
+ is likely the sentence audio task failing validation and being
+ retried forever!
+
+ Let me:
+ 1. Check the recent log for new errors (should be stopping).
+ 2. Investigate the sentence audio worker question.
+
+ For the sentence worker, let me find the pycore code:
+ "SentenceAudioWorker" and the progress log line, plus the
+ Laravel side sentence audio pipeline. The user mentioned
+ development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md. Let
+ me read that doc.
+
+ 所有 schema 偏差已修复。现在让我来验证错误是否已停止，并调查问
+ 题 1（SentenceAudioWorker 重复 + English 优先级）。有一份项目
+ 指南文档——让我来阅读一下：
+
+
+ $ sleep 60; tail -c 200000
+ /www/wwwroot/laravel_db/logs/laravel.log | grep -E
+ "^\[2026-09-05 08:3" | grep -oE "production\.(ERROR|WARNING):
+ [a-zA-Z_ ]+" | sort | uniq -c | sort -rn | head -8; echo "===
+ now: $(date -u '+%H:%M:%S')" (timeout 120s)
+
+ 7 production.ERROR: OctaneTimerService
+       3 production.WARNING: app_qy_v
+       2 production.WARNING: Task downgraded to failed by
+ result
+ === now: 08:35:43
+
+
+
+ $ ls /www/programing/core_node/development-guides/ | grep -i
+ "sentence\|audio" | head -5; find /www/programing/core_node
+ -maxdepth 3 -name "SENTENCE_AUDIO*" 2>/dev/null | head -3
+
+ (no output)
+
+
+
+ $ tail -c 200000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep -E "^\[2026-09-05 08:3" | grep -oE "production\.ERROR:
+ OctaneTimerService: Task execution failed
+ \{\"task\":\"[a-z_]+" | sort | uniq -c; echo ===; tail -c
+ 200000 /www/wwwroot/laravel_db/logs/laravel.log | grep -E
+ "^\[2026-09-05 08:3" | grep "Task execution failed" | tail -1
+ | cut -c1-350
+
+ ... (3 earlier lines, ctrl+o to expand)
+ [2026-09-05 08:34:03] production.ERROR: OctaneTimerService:
+ Task execution failed
+ {"task":"realtime_outbox_publish_task","error":"SQLSTATE[42703
+ ]: Undefined column: 7 ERROR:  column \"published_at\" does
+ not exist
+
+
+ Error: 524 status code (no body)
+
+ The realtime_outbox_publish_task STILL fails on published_at
+ at 08:34 — but I fixed social_events AND translation_events.
+ Which table is it now? Let me see the full SQL in the error.
+
+
+ $ tail -c 200000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep -E "^\[2026-09-05 08:3[3-5]" | grep "Task execution
+ failed" | tail -1 | python3 -c "
+ import sys, json, re
+ line = sys.stdin.read()
+ m = re.search(r'\{.*\}', line)
+ try:
+     d = json.loads(m.group(0))
+     print(d.get('error', '')[:600])
+ except Exception as e:
+     print(line[:600])
+ "
+
+ [2026-09-05 08:34:03] production.ERROR: OctaneTimerService:
+ Task execution failed
+ {"task":"realtime_outbox_publish_task","error":"SQLSTATE[42703
+ ]: Undefined column: 7 ERROR:  column \"published_at\" does
+ not exist
+
+
+
+ $ tail -c 200000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep -A 1 '^\[2026-09-05 08:34:03\] production.ERROR:
+ OctaneTimerService' | head -3 | cut -c1-100; tail -c 200000
+ /www/wwwroot/laravel_db/logs/laravel.log | grep
+ "realtime_outbox_publish_task" | tail -1 | grep -oE 'select \*
+ from [^ ]+' | head -2; tail -c 200000
+ /www/wwwroot/laravel_db/logs/laravel.log | grep
+ "realtime_outbox_publish_task" | grep -oE '"app_qy_v1_[a-z_]+"
+ where' | sort | uniq -c
+
+ [2026-09-05 08:34:03] production.ERROR: OctaneTimerService:
+ Task execution failed {"task":"realtime_
+ LINE 1: select * from \"app_qy_v1_social_events\" where
+ \"published_at\"...
+
+
+ Still failing on app_qy_v1_social_events.published_at at
+ 08:34:03 — but I verified the column EXISTS now (my check at
+ ~08:33 showed published_at in the column list).
+
+ Why? The FrankenPHP Octane worker caches the schema! Laravel
+ Octane caches Schema::hasColumn results? No wait — the error
+ is a PDO error "column does not exist" from a query at 08:34.
+ But the column exists since ~08:32.
+
+ OH WAIT. I bet it's the prepared statement cache in the Octane
+ worker! Postgres prepared statements
+ (PDO::ATTR_EMULATE_PREPARES=false with prepared statement
+ caching) — Laravel Octane + FrankenPHP + pgsql persistent
+ connections cache the table's field metadata at PREPARE time.
+ If a prepared statement was created when the column didn't
+ exist, re-executing the cached prepared statement uses STALE
+ metadata → "column does not exist" even after adding the
+ column!
+
+ This is a known Laravel Octane + Postgres issue: after schema
+ changes, workers must be reloaded to clear cached prepared
+ statements. Laravel docs: "Octane... you may need to restart
+ your workers after deploying schema changes."
+
+ Actually more precisely: PDO pgsql with
+ ATTR_EMULATE_PREPARES=false prepares server-side statements;
+ PHP's PDO doesn't cache them by default... Hmm. But Laravel's
+ PostgresConnector sets PDO::ATTR_EMULATE_PREPARES => false and
+ prepares statements each time. Each ->select creates a new
+ statement...
+
+ Hmm, then why does it still fail? Wait — maybe the error line
+ at 08:34:03 was from BEFORE my social_events fix? My migrate
+ finished at... let me check the timeline:
+ - migrate run (social_events + tts_state): finished ~08:32:00
+   (57ms + 3s + INFO overhead).
+ - Verified social columns: ~08:32:30.
+ - Error at 08:34:03 — AFTER the fix.
+
+ So the worker still sees the old schema. This MUST be the
+ Octane worker's cached connection state. Postgres validates
+ prepared statements against the schema at prepare time; a
+ persistent PDO connection + named prepared statements (pdo
+ pgsql uses unnamed or named?) — Laravel's Postgres connection
+ uses PDO prepare with no emulation; PHP PDO pgsql by default
+ uses unnamed prepared statements UNLESS
+ PDO::PGSQL_ATTR_DISABLE_PREPARES... hmm.
+
+ Actually — the simplest, most standard answer (per Laravel
+ Octane docs): after a schema change, hot-reload/restart Octane
+ workers. The project even HAS an OctaneHotReloadCommand! Let
+ me check it and run the reload (that's the standard fix; the
+ user asked "按规范修复" — per standards).
+
+ Wait, but let me first double-check the column really exists
+ right now (maybe my migrate ran on a different DB? No — I
+ verified via the same connection). Let me re-verify and then
+ reload the worker.
+
+ 该列现在已存在，但 Octane worker 仍然报错——这是经典的 Octane
+ worker 在 schema 变更后连接状态过期的问题。Laravel 文档建议在
+ schema 变更后重载 workers。该项目有 octane:hot-reload — 我来检
+ 查一下：
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main && php
+ artisan tinker
+ --execute="var_dump(!empty(DB::connection('appqyv1')->select(\
+ "select 1 from information_schema.columns where table_name =
+ 'app_qy_v1_social_events' and column_name =
+ 'published_at'\")));" 2>&1 | tail -2 (timeout 60s)
+
+ bool(true)
+
+
+
+ $ sed -n 1,50p
+ /www/programing/core_node/poly_apps/laravel_main/app/Console/C
+ ommands/OctaneHotReloadCommand.php
+
+ ... (66 earlier lines, ctrl+o to expand)
+         $this->info('Laravel Root: ' . base_path());
+         $this->info('Watching: ' . implode(', ',
+ $this->watchDirs));
+         $this->info('Extensions: ' . implode(', ',
+ $this->watchExtensions));
+
+
+ octane:hot-reload is dev-only (file watcher). For production
+ schema changes, the Octane worker needs a reload to drop stale
+ persistent PDO connections/prepared statements. Laravel Octane
+ standard: php artisan octane:reload. Let me verify the error
+ really persists right now (post 08:34) and then reload Octane
+ per the official docs.
+
+ Actually wait — let me reconsider WHY the worker still errors.
+ Laravel Octane keeps the app + DB connections alive in worker
+ memory. When a Postgres persistent connection prepares a
+ statement... PDO pgsql by default: PDO::ATTR_EMULATE_PREPARES
+ is false by default in Laravel's PostgresConnector? Actually
+ Laravel sets PDO::ATTR_PERSISTENT per config, and for pgsql,
+ Laravel does NOT use persistent connections by default. Octane
+ reuses the same PDO connection object across requests though.
+
+ Hmm, actually — PHP's PDO pgsql driver:
+ PDO::PGSQL_ATTR_DISABLE_PREPARES — when NOT disabled, PDO
+ pgsql uses native prepared statements and CACHES them per
+ statement string. Actually PHP's pdo_pgsql always uses
+ server-side prepares unless PDO::ATTR_EMULATE_PREPARES=true,
+ and named prepared statements get cached per connection... The
+ "column does not exist" error is raised at EXECUTE of a cached
+ prepared statement whose metadata snapshot predates the ALTER
+ TABLE? No — Postgres replans on DDL invalidation...
+
+ Hmm wait, actually the issue may be different! Let me check:
+ does the realtime_outbox_publish_task query BOTH
+ translation_events AND social_events in a LOOP, and the task
+ FAILED at the social_events query BEFORE my fix, and the
+ errors at 08:33-08:34 are... no, each timer tick re-runs the
+ task.
+
+ Let me check the very latest log entries — is it STILL
+ erroring at 08:35+?
+
+ 让我先确认一下错误是否仍在发生，然后再重新加载：
+
+
+ $ tail -c 100000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep "realtime_outbox_publish_task" | tail -2 | cut -c1-120;
+ echo "=== now: $(date -u '+%H:%M:%S')"
+
+ ... (1 earlier lines, ctrl+o to expand)
+ OctaneTimerServiceProvider: Bootstrapped
+ {"tick_source":"laravel-schedule","serve
+ [2026-09-05 08:39:02] production.INFO: OctaneTimerService:
+ Timer started {"interval":1,"registered_tasks":["app_qy_v1_ag
+ === now: 08:39:03
+
+
+ Interesting! At 08:39:01-02 the Octane timer service
+ BOOTSTRAPPED and restarted — someone/something reloaded the
+ worker. Let me check whether the realtime_outbox errors
+ stopped after that. Let me look for the last realtime_outbox
+ error timestamp and any successful publish.
+
+
+ $ tail -c 400000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep -E "realtime_outbox" | tail -3 | cut -c1-200; echo ===;
+ tail -c 400000 /www/wwwroot/laravel_db/logs/laravel.log | grep
+ -E "^\[2026-09-05 08:3[6-9]" | grep -oE
+ "production\.(ERROR|WARNING): [a-zA-Z_ ]+" | sort | uniq -c |
+ sort -rn | head -6
+
+ ... (12 earlier lines, ctrl+o to expand)
+ ene
+ ===
+       8 production.WARNING: Task downgraded to failed by
+ result
+       1 production.WARNING: app_qy_v
+
+
+ The worker was reloaded at 08:39 (perhaps the 48h auto-restart
+ timer or a schedule reload kicked in — "Bootstrapped" at
+ 08:39:01). After that:
+ - No more realtime_outbox errors.
+ - No more ERROR entries — only "Task downgraded to failed by
+   result..." warnings (8×) — which is the SENTENCE AUDIO issue
+   (question 1)!
+
+ Let me verify the realtime outbox now publishes events
+ properly (check for publish success) and confirm no new
+ 42703/42P10 errors. Then dig into question 1.
+
+ Let me also double check the worker/submit 500 is gone — the
+ AgentHistoryPipeline on the client retries deferred uploads
+ every so often. Actually the log showed "upload retry deferred
+ (article-item_ccd9d6e5e00a4ef181d0ce08c73335b6)" — the client
+ will retry. I can't trigger it from here directly (it's
+ client-side). But the root cause (42P10) is fixed.
+
+ Wait — actually, why did the worker bootstrap at 08:39? Maybe
+ my earlier migrate at 08:32... no. The "48h auto-restart
+ timer" mentioned in OctaneHotReloadCommand description. OR the
+ schedule worker restarted. Either way — worker reloaded,
+ errors gone.
+
+ Now — question 1: the SentenceAudioWorker repeat. The key
+ evidence:
+ 1. [SentenceAudioWorker +0.00s] progress task=task_92f...
+    text='百姓就都摘下他們耳上的金環、拿來給亞倫。'
+    progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+    — repeated many times, progress stuck at 10/100.
+ 2. qwen3tts ... POST /queue/submit HTTP/1.1" 429 Too Many
+    Requests — repeated.
+ 3. [laravel +0.20s] POST
+    /api/worker/tasks/sentence_audio/result -> 200 (792ms) +
+    [SentenceAudioWorker +0.01s] Posted 'processing' for task
+    task_92f... — the worker keeps posting 'processing'
+    progress to Laravel.
+ 4. Task downgraded to failed by result-trust gate
+    {"task_id":"task_e8924af9...","worker_id":"pycore-sentence-
+    desktop-1l9k06n","reason":"invalid_shape"...} —
+    Laravel-side result-trust gate rejects some results as
+    invalid shape!
+
+ So there are two intertwined problems:
+ a) The qwen3tts local queue is at capacity (429) — the worker
+ waits in queue_capacity_wait phase.
+ b) The result-trust gate rejects results with invalid_shape →
+ task retried → infinite loop?
+
+ And the English priority question: the user says UI is set to
+ process English first, but the worker is processing a
+ traditional-Chinese sentence.
+
+ Let me now look at:
+ 1. The Laravel sentence audio pipeline:
+    /api/worker/tasks/sentence_audio/pull & result + the
+    claim/report endpoints (AppQyV1SentenceAudioController) and
+    the result-trust gate.
+ 2. The pycore SentenceAudioWorker code.
+ 3. The qwen3tts queue capacity logic.
+
+ Let me find the development guide doc first.
+
+ Worker 已于 08:39 重新加载 —— 所有 schema 错误已消除。剩余的警
+ 告是 result-trust gate ... invalid_shape —— 这是问题 1 的核心
+ 。让我来调查一下 sentence-audio 流水线。首先是项目自身的指南文
+ 档：
+
+
+ $ find /www/programing/core_node -maxdepth 4 -iname
+ "*sentence*audio*" -o -iname "*SENTENCE*" 2>/dev/null | grep
+ -v node_modules | grep -v vendor | head -10
+
+ ... (7 earlier lines, ctrl+o to expand)
+ ULT_SPEED_SENTENCE_BUDGETS_CACHE_BUST.md
+ /www/programing/core_node/docs_fix/FIX_20260803_SENTENCE_AUDIO
+ _QUEUE_PUMP_TIMEOUT.md
+ /www/programing/core_node/docs_fix/FIX_20260816_2242_SINGLE_VE
+ RSION_MULTI_SENTENCE_PIPELINE.md
+
+
+
+ $ grep -rln "result-trust\|result_trust\|invalid_shape"
+ /www/programing/core_node/poly_apps/laravel_main/app
+ --include=*.php | head -5
+
+ ... (5 earlier lines, ctrl+o to expand)
+ TaskProcessors/TaskProcessorRegistry.php
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskProcessors/WordGeminiImageTaskProcessor.php
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskProcessors/WordTranslationTaskProcessor.php
+
+
+
+ $ ls /www/programing/core_node/docs_fix/ | grep -iE
+ "sentence|tts|trust" | head -20; echo =====; grep -rln
+ "result-trust gate\|ResultTrust\|result_trust_gate"
+ /www/programing/core_node/poly_apps/laravel_main/app
+ --include=*.php | head -5
+
+ ... (6 earlier lines, ctrl+o to expand)
+ ST.md
+ PLAN_20260729_QWEN3TTS_QUEUE_WEB.md
+ =====
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskManagerService.php
+
+
+
+ $ grep -n "result-trust gate\|downgraded to failed" -B 10 -A
+ 30
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskManagerService.php | head -70
+
+ ... (97 earlier lines, ctrl+o to expand)
+ 2076-     */
+ 2077-    protected function failTaskInTransaction(
+ 2078-        GlobalTask $task,
+ 2079-        ?Worker $worker,
+ 2080-        string $error,
+
+
+
+ $ grep -n "Result-trust shape gate" -A 60
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskManagerService.php | head -75
+
+ ... (92 earlier lines, ctrl+o to expand)
+ 1939-                // empty_store gate downgrades to failed
+ if nothing actually stored.
+ 1940-                $hasAny = !empty($inner['valid_words'])
+ 1941-                    || !empty($result['valid_words'])
+ 1942-                    || !empty($inner['invalid_words'])
+
+
+ I see the result-trust gate. Now — the "Task downgraded to
+ failed by result-trust gate ... reason: invalid_shape" for
+ task_e8924af9 — which task type? Let me check the log for the
+ full details of the downgrade (task type) and whether the
+ sentence audio result is being rejected.
+
+ Also let me look at the sentence audio worker on the pycore
+ side. Key questions:
+ 1. Why does the same sentence repeat? (progress stuck at
+    10/100, queue_capacity_wait, 429)
+ 2. Why no English priority?
+
+ Let me look at the pycore sentence audio worker first.
+
+
+ $ tail -c 400000 /www/wwwroot/laravel_db/logs/laravel.log |
+ grep "result-trust gate" | tail -2 | cut -c1-400
+
+ ... (7 earlier lines, ctrl+o to expand)
+ failed by result-trust gate
+ {"task_id":"task_d2cf5af7-08b6-4bff-8fc6-35de195db704","worker
+ _id":"pycore-sentence-desktop-1l9k06n","reason":"invalid_shape
+ ","will_retry":false,"error":"Sentence-audio result carried no
+ audio_files/audio_base64"}
+
+
+
+ $ grep -rln "queue_capacity_wait\|SentenceAudioWorker"
+ /www/programing/core_node/pycore/pyctl/ | head -10
+
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r.py
+
+
+ Key finding: "Sentence-audio result carried no
+ audio_files/audio_base64" — the sentence audio worker reports
+ 'completed' but with NO audio payload → result-trust gate
+ downgrades to failed → retry → that's why the same sentence
+ repeats! Each retry re-pulls the same sentence, tries TTS,
+ fails (or submits empty), reports 'completed' with no audio →
+ retry loop.
+
+ Wait, but the user's log shows the worker posting 'processing'
+ repeatedly with progress=10/100 phase=queue_capacity_wait —
+ the task stuck at queue capacity. And separately, results get
+ downgraded. Two failure modes:
+ 1. qwen queue full → 429 → wait (progress stuck at 10%).
+ 2. When the worker DOES complete a task, the result lacks
+    audio_files/audio_base64 → gate rejects → retry.
+
+ Hmm — actually maybe both connect: the worker submits to qwen
+ queue → 429 → but wait, the log shows the worker posting
+ 'processing' for the same task multiple times — the pull
+ endpoint keeps giving the SAME task (task_92f...). And
+ separately task_d2cf5af9 was downgraded after "completed" with
+ no audio.
+
+ Let me look at the pycore sentence audio worker:
+ laravel_audio_worker.py.
+
+ 已找到重复的根本原因：sentence-audio worker 的“已完成”结果不包
+ 含 audio → result-trust gate 进行降级 → 无限重试。让我检查一下
+ pycore worker：
+
+
+ $ grep -n "class\|def "
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r.py | head -40; wc -l
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r.py
+
+ ... (47 earlier lines, ctrl+o to expand)
+ Dict[str, Any]:
+ 631:class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
+ 652
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r.py
+
+
+
+ $ sed -n 602,652p
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r.py; echo =====; sed -n 631,700p
+ /www/programing/core_node/pycore/pyctl/tts/sentence_audio_auto
+ .py 2>/dev/null | head -20
+
+ ... (56 earlier lines, ctrl+o to expand)
+ laravel_word_audio_worker =
+ LaravelWordAudioWorker(LARAVEL_WORKER_API_URL)
+ laravel_sentence_audio_worker =
+ LaravelSentenceAudioWorker(LARAVEL_WORKER_API_URL)
+ =====
+
+
+
+ $ grep -rln "class
+ BaseLaravelAudioWorker\|_report_completed\|def _report"
+ /www/programing/core_node/pycore/pyctl/tts/*.py
+ /www/programing/core_node/pycore/pyutils/**/*.py 2>/dev/null |
+ head -5; grep -n "import"
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r.py | head -20
+
+ ... (31 earlier lines, ctrl+o to expand)
+ 106:from pycore.pyutils.tts.tts_concurrency import (
+ 110:from pycore.pyutils.tts.qwen.config import ENGINE_NAME as
+ QWEN3TTS_ENGINE
+ 111:from pycore.pyutils.tts.audio_task_queue import
+ AudioTaskQueue
+
+
+
+ $ grep -n "audio_files\|audio_base64\|def
+ _report_completed\|def _process_task\|completed"
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py | head -30
+
+ ... (11 earlier lines, ctrl+o to expand)
+ 476:                "audio_base64": audio_base64,
+ 488:            translation["audio_base64"] = audio_base64
+ 510:    def _process_task(self, task: Dict[str, Any]) -> bool:
+ 698:        """Persist one completed audio record with cache
+ and upload attribution."""
+
+
+
+ $ sed -n 400,510p
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py
+
+ ... (126 earlier lines, ctrl+o to expand)
+             return self._process_task(task)
+         finally:
+             self._release_inflight(task)
+
+     def _process_task(self, task: Dict[str, Any]) -> bool:
+
+
+ I see _build_success_result with include_audio param — when
+ include_audio=False, audio_base64 is empty string. The
+ result-trust gate requires non-empty audio_files/audio_base64!
+ Let me find where _build_success_result is called with
+ include_audio=False — that's the "domain_audio_persisted" path
+ (durable audio delivery via outbox — the worker already
+ uploaded the audio separately and then reports completed
+ WITHOUT embedding audio). The Laravel gate then rejects it as
+ invalid_shape!
+
+ Wait — but let me check the Laravel-side gate for
+ sentence_audio specifically. The error message:
+ "Sentence-audio result carried no audio_files/audio_base64".
+ Let me find that check in Laravel and see whether it accounts
+ for domain_audio_persisted.
+
+ _build_success_result(include_audio=False) 会生成空音频 —— 此
+ 时 domain_audio_persisted 为 true（音频已通过 outbox 单独上传
+ ）。让我检查一下 Laravel 端的网关，看看它是否考虑了这一点：
+
+
+ $ grep -rn "carried no audio_files" -B 20
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskManagerService.php | head -35
+
+ ... (25 earlier lines, ctrl+o to expand)
+ 1999-                    || !empty($result['audio_base64']);
+ 2000-
+ 2001-                if (!$hasAudio) {
+ 2002:                    return 'Sentence-audio result carried
+ no audio_files/audio_base64';
+
+
+
+ $ grep -rn "extractAudioBase64\|domain_audio_persisted"
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskProcessors/SentenceAudioTaskProcessor.php | head -10; echo
+ =====; grep -n "domain_audio_persisted" -B 5 -A 20
+ /www/programing/core_node/poly_apps/laravel_main/app/Services/
+ TaskProcessors/SentenceAudioTaskProcessor.php | head -40
+
+ ... (34 earlier lines, ctrl+o to expand)
+ 131-                    is_string($provider) ? $provider :
+ null,
+ 132-                    null,
+ 133-                    $variantKey,
+ 134-                    $variantMeta ?: null
+
+
+ The PROCESSOR (SentenceAudioTaskProcessor) understands
+ domain_audio_persisted — when audio_base64 is empty but
+ domain_audio_persisted=true, it calls
+ sentenceAudioService->report(...) to mark the sentence
+ completed (audio already delivered via the durable outbox
+ lane).
+
+ BUT the GATE (validateResultShape) does NOT account for
+ domain_audio_persisted — it rejects ANY sentence-audio result
+ without audio_files/audio_base64 as invalid_shape BEFORE the
+ processor runs. So the worker's "already-durably-delivered"
+ completion path ALWAYS gets downgraded to failed → retry → the
+ worker redoes TTS (or re-reports) → rejected again → infinite
+ loop!
+
+ This is a clear bug: gate and processor disagree. The fix per
+ the design: the gate should accept domain_audio_persisted=true
+  results (the durable outbox lane is the audio delivery; the
+ result payload is just the receipt).
+
+ Now — what about the "audio delivery outbox"? In the user's
+ log: [laravel upload +0.00s]
+ /api/app_qy_v1/ai_tools/article/worker/replace-audio ->
+ 100.00% (241772/241772 bytes) and AgentHistoryPipeline ...
+ rebuilt audio durably received by Laravel — that's the article
+ lane. For the sentence lane there's a similar outbox:
+ sentence/report endpoint... wait no — the worker's REPORT_PATH
+ for sentence is /api/app_qy_v1/ai_tools/tts/sentence/report
+ (domain report). The global task result goes to
+ /api/worker/tasks/sentence_audio/result.
+
+ So the flow: worker completes TTS → uploads audio durably
+ (outbox → some endpoint) → posts global task result with
+ domain_audio_persisted=true, audio_base64 empty → GATE rejects
+ (bug) → task retried → worker re-pulls the same sentence →
+ re-runs TTS (or finds cache) → re-reports → rejected → loop.
+ This exactly matches the user's observation: the same sentence
+ repeats forever without progressing.
+
+ Wait — but hold on. The user's log shows progress=10/100
+ phase=queue_capacity_wait — the qwen queue is full (429). So
+ the retried task goes back into the qwen queue, which is at
+ capacity → capacity wait → 429 on new submits... AND the queue
+ is full possibly BECAUSE of the retry loop generating
+ duplicate submissions?? Or because each retry re-submits
+ chunks that never complete.
+
+ Actually the 429 "queue_capacity_wait" is about the local
+ qwen3tts service queue (client-side, 127.0.0.1:56617). If the
+ sentence worker keeps re-submitting the same task's chunks
+ into the qwen queue while previous duplicates sit in the
+ queue, the queue fills to capacity and everything stalls.
+
+ Let me verify the gate code and understand where
+ domain_audio_persisted results come from — check _process_task
+  to see when include_audio=False is used.
+
+ 问题 1 的根本原因已找到：处理器支持 domain_audio_persisted（通
+ 过 outbox 路径传输的音频），但 门控 在运行前会拒绝任何不包含
+ audio_base64 的结果 → 导致结果被降级 → 无限重试循环。让我确认
+ 一下工作流：
+
+
+ $ grep -n "_build_success_result\|include_audio"
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py | head -10
+
+ ... (1 earlier lines, ctrl+o to expand)
+ 448:        include_audio: bool = True,
+ 453:        if include_audio:
+ 460:                "domain_audio_persisted": not
+ include_audio,
+ 487:        if include_audio:
+
+
+
+ $ grep -n
+ "domain_audio_persisted\|include_audio=False\|include_audio, "
+ -B 8 -A 8
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py | sed -n 1,60p
+
+ ... (16 earlier lines, ctrl+o to expand)
+ 465-            }
+ 466-            for field in ("variant_key", "accent",
+ "gender"):
+ 467-                value = info.get(field)
+ 468-                if value:
+
+
+
+ $ grep -rn "_build_success_result("
+ /www/programing/core_node/pycore/pyctl/tts/*.py | grep -v "def
+ _build" | head -10
+
+ (no output)
+
+
+
+ $ grep -rn "build_success_result"
+ /www/programing/core_node/pycore/ 2>/dev/null | grep -v ".pyc"
+ | head -10
+
+ (no output)
+
+
+ Hmm, _build_success_result isn't called anywhere?! Let me
+ search more carefully — maybe it's called via getattr or from
+ another module with different formatting:
+
+
+ $ grep -rn "success_result\|_build_success"
+ /www/programing/core_node/pycore/pyctl/tts/
+ /www/programing/core_node/pycore/pyutils/tts/ 2>/dev/null |
+ head -15
+
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py:443:    def _build_success_result(
+ /www/programing/core_node/pycore/pyutils/tts/audio_delivery_ou
+ tbox.py:487:            result =
+ handler._build_success_result(
+
+
+
+ $ sed -n 440,540p
+ /www/programing/core_node/pycore/pyutils/tts/audio_delivery_ou
+ tbox.py
+
+ ... (113 earlier lines, ctrl+o to expand)
+ bool(claimed.get("history_recorded"))
+         if not history_recorded:
+             history_recorded = handler._append_history(
+                 info,
+                 provider,
+
+
+ Now the full picture is clear:
+
+ The outbox delivery flow (audio_delivery_outbox.py):
+ 1. Worker completes TTS locally.
+ 2. Domain upload: uploads audio to Laravel via the domain
+    endpoint (sentence/report or worker/replace-audio etc.) →
+    domain_uploaded = True.
+ 3. Then posts the GLOBAL TASK result via _post_result(task_id,
+    "completed", result=...) with include_audio = NOT
+    (domain_uploaded and kind in (word, sentence)) — i.e., for
+    word/sentence lanes where the domain upload already
+    delivered the audio, the result carries audio_base64 = ""
+    and domain_audio_persisted = True.
+ 4. Laravel's result-trust gate (validateResultShape) rejects
+    this because audio_files/audio_base64 are both empty →
+    downgrades the task to failed → retry!
+
+ Wait — but the log shows _post_result returning... Actually
+ the gate rejecting would still return HTTP 200 to the worker
+ (the downgrade happens server-side; the worker's posted result
+ is "accepted" at the transport level — posted=True — but the
+ task gets marked failed with retry). That matches the log:
+ POST /api/worker/tasks/sentence_audio/result -> 200 and then
+ server-side WARNING "Task downgraded to failed by result-trust
+ gate ... will_retry":true.
+
+ So the loop:
+ 1. Worker pulls sentence task → TTS → domain upload OK → posts
+    result (empty audio + domain_audio_persisted=true) → 200
+    accepted.
+ 2. Laravel gate: invalid_shape → downgrade to failed, consume
+    retry → task re-queued.
+ 3. Worker pulls the SAME task again → repeats.
+ 4. Each cycle re-submits TTS chunks into the qwen queue →
+    queue fills → 429 queue_capacity_wait for NEW chunks →
+    progress stuck at 10/100.
+
+ Wait, but actually — hmm, on retry, the worker would find the
+ audio in the SENTENCE AUDIO CACHE (sentence_audio_cache) and
+ skip re-doing TTS? Then it would just re-upload/re-report...
+ The log shows the task repeatedly at progress 10/100
+ queue_capacity_wait — meaning TTS re-submission each cycle.
+ Maybe the cache key differs per task/attempt.
+
+ But wait — there's a contradiction: the sentence result the
+ gate rejected... let me re-check WHERE the domain audio upload
+ happens for sentences. In the log: POST
+ /api/worker/tasks/sentence_audio/result -> 200 — and the
+ domain lane? The REPORT_PATH for sentence =
+ /api/app_qy_v1/ai_tools/tts/sentence/report. In the user's log
+ I don't see sentence/report calls... I see
+ /api/worker/tasks/word_audio/result,
+ /api/worker/tasks/sentence_audio/result,
+ /api/worker/tasks/article_audio/pull.
+
+ Hmm — so for the sentence task, was the domain upload even
+ attempted? If the domain upload for sentences uses the
+ CLAIM/REPORT path (/sentence/claim, /sentence/report per
+ routes)... but the worker code says REPORT_PATH =
+ "/api/app_qy_v1/ai_tools/tts/sentence/report".
+
+ Actually — let me look at what domain_uploaded means for the
+ sentence lane. The outbox deliver() function: uploaded = ... —
+ let me look at the earlier part of deliver() to see how the
+ domain upload happens for sentences.
+
+ Actually — the CRITICAL evidence: Task downgraded to failed by
+ result-trust gate {"task_id":"task_e8924af9..." and
+ task_d2cf5af7..., "reason":"invalid_shape",
+ "error":"Sentence-audio result carried no
+ audio_files/audio_base64"}. So results ARE arriving with empty
+ audio — that's the domain_audio_persisted=True path (the audio
+ WAS durably uploaded via the domain lane — I see POST
+ /api/worker/tasks/sentence_audio/result -> 200 and domain
+ reports maybe happened earlier).
+
+ So the fix: the gate must accept domain_audio_persisted=true
+ sentence-audio results (consistent with the processor, which
+ explicitly handles that case). Let me check git history/docs
+ for this gate to understand the intended contract... The
+ comment says: "saved_path alone points at the worker's own
+ filesystem and carries nothing the server-side writeback can
+ trust" — that's about saved_path. But domain_audio_persisted
+ is different: the audio was ALREADY delivered durably through
+ the domain lane, and the processor's report() path confirms
+ it.
+
+ Let me check the SentenceAudioTaskProcessor more fully to see
+ how the domain_audio_persisted path works and confirm the fix
+ should be: in validateResultShape's sentence_audio case,
+ accept when $inner['domain_audio_persisted'] is truthy.
+
+ Let me also see the docs_fix for this pipeline
+ (SINGLE_VERSION_MULTI_SENTENCE_PIPELINE) and the gate's
+ origin. Then check the Laravel-side sentence audio service
+ report() to be sure the processor handles it (it does — lines
+ 123-134 above).
+
+ So the Laravel fix:
+
+ ```php
+   case QueueCenterContract::taskTypeKey('sentence_audio'):
+       $hasAudio = !empty($inner['audio_files'])
+           || !empty($result['audio_files'])
+           || !empty($inner['audio_base64'])
+           || !empty($result['audio_base64'])
+           || !empty($inner['domain_audio_persisted']);   //
+ durable outbox lane already delivered the bytes
+ ```
+
+ Wait — careful: is domain_audio_persisted only ever set for
+ word/sentence lanes when the domain upload succeeded? Yes:
+ include_audio = not (domain_uploaded and kind in ("word",
+ "sentence")) — the result carries domain_audio_persisted=true
+ ONLY when domain_uploaded (the backend accepted the audio).
+ For the WORD lane, the gate doesn't have a word_audio case?
+ The word lane results include translations[0].audio_base64
+ empty when domain-uploaded... Let me check the word_audio gate
+ case — is there one? The user's log also showed
+ WordAudioWorker flows working (Pulled 1 task(s), dispatched 1
+ progress=0/0, diff[200]->true at one point — suggesting a word
+ task completed).
+
+ Let me check the word_audio gate handling — for word tasks
+ with domain delivery, the result has translations[
+
+ Response was truncated before completion.
+
+
+ [compaction]
+
+ Compacted from 123,539 tokens (ctrl+o to expand)
+
+
+ Now the full picture is clear:
+
+ The outbox delivery flow (audio_delivery_outbox.deliver):
+ 1. Worker completes TTS → audio file on disk.
+ 2. Domain upload (word lane: dictionary; sentence lane:
+    sentence/report-ish endpoint — "domain upload" path). If
+    domain_uploaded=True for word/sentence kinds →
+    include_audio=False → result contains
+    domain_audio_persisted=true and EMPTY audio_base64.
+ 3. Post global task result "completed" with that payload.
+ 4. Laravel gate rejects (Sentence-audio result carried no
+    audio_files/audio_base64) → downgrade → retry → the same
+    sentence gets re-pulled and re-synthesized → forever.
+
+ Wait, but hold on — for the SENTENCE lane, is there even a
+ domain upload endpoint? Let me check: domain_uploaded for
+ sentence — what's the domain endpoint for sentence audio? Let
+ me look at what happens for the sentence lane: "domain upload
+ is not required; using global result" — that's the uploaded is
+ None case → domain_uploaded = False → include_audio=True
+ (since domain_uploaded is False) → full audio_base64 sent. So
+ for sentences WITHOUT a domain upload path, the full audio is
+ embedded — gate passes.
+
+ But when DOES the sentence lane have a domain upload? Let me
+ look at how uploaded is determined — _upload_domain or
+ similar. Let me see what happens for the sentence lane: search
+ for the domain upload logic for sentence lane.
+
+
+ $ sed -n 330,440p
+ /www/programing/core_node/pycore/pyutils/tts/audio_delivery_ou
+ tbox.py
+
+ ... (124 earlier lines, ctrl+o to expand)
+                     handler._log_event(
+                         "upload_terminal",
+                         f"domain upload unavailable; global
+ result fallback: {error}",
+                         info,
+
+ Took 0.0s
+
+
+ Now I see:
+ - handler._upload_report(info, provider, audio_path) — the
+   domain upload. For the sentence lane, what does
+   _upload_report do? Let me check. If uploaded is not None and
+   failed terminally ("server validation rejected" / "unknown
+   task on server" / "http 4...") → domain_delivery_finished =
+   True, domain_uploaded = False → "domain upload unavailable;
+   global result fallback" → then include_audio = not
+   (domain_uploaded and kind in ("word","sentence")) = not
+   (False and ...) = True → full audio embedded → gate passes.
+
+ So when domain upload FAILS terminally → fallback with full
+ audio (gate OK).
+
+ When domain upload SUCCEEDS (domain_uploaded=True) →
+ include_audio=False → domain_audio_persisted=True, empty
+ audio_base64 → gate REJECTS → downgrade → retry → infinite
+ loop!
+
+ So the key question: for the SENTENCE lane, does
+ _upload_report do a domain upload? Let me check _upload_report
+  in the worker execution.
+
+
+ $ grep -n "def _upload_report" -A 60
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py | head -75
+
+ ... (62 earlier lines, ctrl+o to expand)
+ 316-        return progress
+ 317-
+ 318-    def _report_progress(
+ 319-        self,
+ 320-        info: Dict[str, Any],
+
+ Took 0.0s
+
+
+ For the SENTENCE lane, _upload_report → _post_report(info,
+ True, provider, audio_path=audio_path) → posts to REPORT_PATH
+ = /api/app_qy_v1/ai_tools/tts/sentence/report. If that
+ endpoint accepts → domain_uploaded=True → the result is posted
+ with include_audio=False → domain_audio_persisted=True + empty
+ audio_base64 → gate rejects it → downgrade → retry loop. This
+ is the exact repeat bug.
+
+ So the chain:
+ 1. Sentence TTS completes (or is cached) → audio file ready.
+ 2. Domain report succeeds (audio uploaded to sentence/report
+    endpoint) → domain_uploaded=True.
+ 3. Global result posted with domain_audio_persisted=true, no
+    audio bytes.
+ 4. Laravel validateResultShape for sentence_audio: requires
+    audio_files/audio_base64 — rejects → "Task downgraded to
+    failed by result-trust gate ... invalid_shape ...
+    Sentence-audio result carried no audio_files/audio_base64"
+    → consumes retry, task requeued.
+ 5. Worker re-pulls the same sentence (it may be cached TTS →
+    immediately re-delivers → same rejection → ...) — matches
+    the log perfectly: same sentence repeatedly, no progress
+    beyond a point.
+
+ And the Q2 retry budget: will_retry:true then will_retry:false
+  — after retries exhausted the task fails permanently, then
+ the UI (probably) re-creates the task or the queue re-scans
+ pending sentences → task re-created → loop continues at a
+ different task id. This matches "进度卡在 10/100,
+ phase=queue_capacity_wait, 429" — wait, actually the
+ queue_capacity_wait is a different sub-problem: the qwen3tts
+ LOCAL queue is at capacity.
+
+ Hmm, let me re-read the user's described log:
+ - [SentenceAudioWorker +0.00s] progress task=task_92f...
+   text='百姓就都摘下他們耳上的金環、拿來給亞倫。'
+   progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+ - qwen3tts POST /queue/submit 429 Too Many Requests
+
+ So the sentence worker is trying to submit this sentence's
+ chunks to qwen3tts and getting 429 (queue capacity). The queue
+ is full — because... the retry loop keeps adding the same
+ sentences? OR because the qwen queue genuinely has capacity
+ issues.
+
+ Actually — wait. Let me think about the whole loop more
+ carefully:
+
+ Task task_92f... — progress stuck at 10/100
+ (phase=queue_capacity_wait). The worker logs "progress" events
+ repeatedly for the SAME task at 10/100 — this is the progress
+ MIRROR logging (each retry of the submit attempt logs
+ progress). The 429 means qwen3tts queue is full — the local
+ qwen service queue. chunks=0/0 — the sentence has 0 chunks
+ submitted?? "qwen phase=queue_capacity_wait chunks=0/0" — so
+ the submit is BLOCKED at queue capacity BEFORE any chunk was
+ submitted.
+
+ Why would the qwen queue be perpetually full? Because tasks
+ are being retried/completed but the queue items aren't
+ draining... OR because the qwen3tts service is slow/stuck.
+ From the user's log: the qwen3tts service is processing queue
+ capacity wait — hmm.
+
+ Actually, let me look at the qwen client's queue_capacity_wait
+ handling (pycore/pyutils/tts/qwen/client.py:485). And the
+ QWEN3TTS queue submit 429. The 429 comes from the qwen3tts
+ SERVER (the web service at 127.0.0.1:56617 or similar — a
+ local qwen3tts web API). If the server-side queue is at
+ capacity (default max concurrent/queued), new submits get 429
+ and the client waits (queue_capacity_wait) and retries.
+
+ WHY is the queue full? Possibly:
+ 1. The retry loop keeps submitting new chunk jobs while old
+    ones are stuck.
+ 2. The qwen3tts service is genuinely backed up (GPU busy, slow
+    synthesis).
+
+ Hmm — but also NOTE: from the user's log excerpt, there were
+ MANY different sentences being processed by qwen3tts: "百姓就
+ 都摘下他們耳上的金環..." is a Chinese sentence (traditional).
+ The user asks: "为什么英文没有优先处理" (why isn't English
+ prioritized).
+
+ The user's UI setting: process English first, then other
+ languages. But the worker is processing a Traditional Chinese
+ sentence. So the PULL ordering on Laravel side doesn't respect
+ the language priority — OR the priority profile for sentence
+ tasks doesn't include language priority.
+
+ Let me check the Laravel-side sentence audio task creation +
+ pull ordering. Let me find the pull endpoint for
+ sentence_audio tasks and its ordering (priority, created_at).
+ And check how language priority is supposed to work.
+
+ Also the docs:
+ development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md — I
+ didn't find it earlier. Let me search for it properly.
+
+ 链路已完全确认。现在让我检查一下 qwen client 的
+ queue_capacity_wait 逻辑和 pull 端点的语言优先级：
+
+
+ $ sed -n 460,540p
+ /www/programing/core_node/pycore/pyutils/tts/qwen/client.py
+
+ ... (83 earlier lines, ctrl+o to expand)
+         parsed = json.loads(body.decode("utf-8")) if body else
+ {}
+     except Exception as exc:  # noqa: BLE001
+         return False, None, f"HTTP {status}: invalid JSON
+ response: {exc}"
+
+ Took 0.0s
+
+
+
+ $ find /www/programing/core_node -maxdepth 2 -iname "*.md"
+ -path "*development*" | head; ls
+ /www/programing/core_node/development-guides/ 2>/dev/null |
+ head -30
+
+ ... (10 earlier lines, ctrl+o to expand)
+ FLUTTER_GUIDE.md
+ LARAVEL_GUIDE.md
+ MCP_CHROME_GUIDE.md
+ NODE_NCORE_GUIDE.md
+ PYTHON_PYCORE.md
+
+ Took 0.0s
+
+
+ No SENTENCE_AUDIO_GENERATION_PIPELINE.md in development-guides
+ — that was a misremembering from the summary (it may be
+ somewhere else). Let me search for it:
+
+
+ $ find /www/programing/core_node -maxdepth 3 -iname
+ "*SENTENCE*" 2>/dev/null | grep -v pycore | head -5; find
+ /www/programing/core_node/docs_fix -iname "*pipeline*"
+ 2>/dev/null | head -10
+
+ ... (7 earlier lines, ctrl+o to expand)
+ AI_ENSURE_COVER_PIPELINE_MERGE.md
+ /www/programing/core_node/docs_fix/FIX_20260816_2242_SINGLE_VE
+ RSION_MULTI_SENTENCE_PIPELINE.md
+ /www/programing/core_node/docs_fix/FIX_20260816_2309_AGENT_HIS
+ TORY_PINNED_QWEN_PIPELINE.md
+
+ Took 0.0s
+
+
+
+ $ grep -rn "queue_capacity_wait"
+ /www/programing/core_node/docs_fix/*.md | head -5
+
+ (no output)
+
+ Took 0.1s
+
+
+ There are several docs_fix records related to the sentence
+ pipeline. Let me read the key ones to understand the design,
+ especially the retry-loop / queue capacity issue history and
+ English priority. Also let me check the Laravel side: the
+ sentence report endpoint + the task pull ordering + language
+ priority. Let me first check the recent FIX docs, then the
+ Laravel pull ordering.
+
+ Priority questions:
+ 1. Gate fix: validateResultShape must accept
+    domain_audio_persisted results. This is a Laravel code fix.
+ 2. Why is the qwen queue perpetually at capacity (429)? Is
+    that because the retry loop creates duplicate submissions?
+    Actually wait — re-read the flow: the retry loop is on the
+    TASK level (Laravel requeues task → worker re-pulls →
+    re-synthesize via qwen). But hmm — actually would the
+    worker re-SYNTHESIZE? If the sentence audio is already in
+    the local cache, the worker would find it cached and
+    immediately re-deliver → re-reject. The log shows the
+    worker repeatedly logging "progress ... qwen
+    phase=queue_capacity_wait" for the SAME task at 10/100 —
+    this suggests each retry RE-SUBMITS to qwen (no cache hit!
+    because... the cache key maybe includes task_id? or the
+    synthesis never completed, so no cache entry).
+
+ Wait — actually, look at the user's log more carefully. The
+ user said: SentenceAudioWorker repeatedly processes the SAME
+ sentence 百姓就都摘下他們耳上的金環..., progress stuck at
+ 10/100, phase=queue_capacity_wait, qwen3tts 429. So THIS task
+ never completed its TTS — it's stuck waiting for qwen queue
+ capacity, forever. Meanwhile the log ALSO showed the
+ result-trust gate downgrading task_d2cf5af9 (a different task)
+ which DID complete but was rejected.
+
+ Hmm wait, but are these two related? Two separate problems:
+ - Task 92f...: stuck in queue_capacity_wait — the qwen queue
+   is full, so this task's chunks never get submitted.
+ - Task d2cf...: completed, but result rejected by gate →
+   retried → will pull again...
+
+ Actually — hold on. Let me re-think. What fills the qwen
+ queue? The qwen3tts queue is a local web service. The
+ WordAudioWorker ALSO uses engines... no wait, word audio uses
+ edge/azure typically. The sentence worker uses qwen3tts
+ exclusively (REQUIRED_ENGINE = QWEN3TTS_ENGINE).
+
+ What fills the qwen3tts queue to capacity? Multi-sentence
+ tasks! The sentence audio tasks each contain multiple chunks
+ (a sentence broken into synthesis chunks?). Actually from
+ FIX_20260816_2242_SINGLE_VERSION_MULTI_SENTENCE_PIPELINE.md —
+ multi-sentence pipeline.
+
+ Actually, maybe the queue capacity is genuinely small (e.g.,
+ maxsize=32) and there are hundreds of sentence chunks from
+ other tasks being submitted... but chunks=0/0 for THIS task
+ means it hasn't submitted ANY chunk — it's waiting for
+ capacity. If the queue is at capacity with chunks from OTHER
+ tasks that ARE progressing (the user's log shows other
+ sentences being synthesized: "voice slice 2/2", "audio ready
+ bytes=...", etc.), then this task waits — that's NORMAL
+ backpressure behavior, not a bug. But the user says it's stuck
+ at 10/100 for a long time ("进度卡在", no recursion/progress).
+
+ Hmm wait — but ALSO: the user's log shows the whole system was
+ processing the SAME sentence repeatedly — "为什么
+ SentenceAudioWorker 会重复处理同一个句子" — the worker
+ repeatedly processes the same sentence. Combined with progress
+ stuck at 10/100 — the sentence task is pulled, qwen queue
+ full, waits... and the worker's LEASE on the task expires?
+ Then Laravel re-queues the task; worker re-pulls the same
+ sentence → repeat. The "progress" log lines repeat every N
+ seconds.
+
+ So the deeper question: why is the qwen queue perpetually
+ full? Let me look at the qwen service queue capacity + the
+ pump logic. From
+ FIX_20260803_SENTENCE_AUDIO_QUEUE_PUMP_TIMEOUT.md and
+ PLAN_20260729_QWEN3TTS_QUEUE_WEB.md. Let me read those two
+ docs to understand the design.
+
+
+ $ wc -l
+ /www/programing/core_node/docs_fix/FIX_20260803_SENTENCE_AUDIO
+ _QUEUE_PUMP_TIMEOUT.md
+ /www/programing/core_node/docs_fix/FIX_20260816_2242_SINGLE_VE
+ RSION_MULTI_SENTENCE_PIPELINE.md
+ /www/programing/core_node/docs_fix/PLAN_20260729_QWEN3TTS_QUEU
+ E_WEB.md
+
+ ... (5 earlier lines, ctrl+o to expand)
+ RSION_MULTI_SENTENCE_PIPELINE.md
+    70
+ /www/programing/core_node/docs_fix/PLAN_20260729_QWEN3TTS_QUEU
+ E_WEB.md
+   235 total
+
+ Took 0.0s
+
+
+
+ $ head -60
+ /www/programing/core_node/docs_fix/PLAN_20260729_QWEN3TTS_QUEU
+ E_WEB.md
+
+ ... (130 earlier lines, ctrl+o to expand)
+ `development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CO
+ NCURRENCY.md`：`QWEN3TTS_QUEUE_MAX`、
+ `QWEN3TTS_QUEUE_RESULT_TTL_S`、`QWEN3TTS_TASK_TIMEOUT_S`。
+ - [ ] F2. `config/queue_center_contract.json` 如需展示新
+ topic/控件则同步更新并保持 schema_version 对齐。
+
+ Took 0.0s
+
+
+
+ $ cat
+ /www/programing/core_node/docs_fix/FIX_20260816_2242_SINGLE_VE
+ RSION_MULTI_SENTENCE_PIPELINE.md
+
+ ... (210 earlier lines, ctrl+o to expand)
+ `py_compile` over all changed pycore files (passed). No tests,
+ builds,
+ services, or process actions were run; the UI/PHP changes are
+ static edits
+ following each end's existing conventions.
+
+ Took 0.0s
+
+
+ OK — that doc is about the article agent-history pipeline,
+ which is a SEPARATE lane from the SentenceAudioWorker. Let me
+ now focus on the actual questions:
+
+ Q1a: Why does the sentence audio worker repeat the same
+ sentence?
+
+ From my analysis: the result-trust gate rejects
+ domain_audio_persisted results. But wait — is that the actual
+ reason for the repeated SAME sentence in the user's log? The
+ user's log shows progress=10/100 with queue_capacity_wait —
+ meaning that task never got past qwen submission. And
+ separately the gate rejected task_d2cf (which did complete).
+
+ Hmm, actually, wait. Let me re-read the exact user log excerpt
+ from the summary:
+ - Task downgraded to failed by result-trust gate
+   {"task_id":"task_e8924af9...","worker_id":"pycore-sentence-d
+   esktop-1l9k06n","reason":"invalid_shape"}
+
+ And the repeated progress lines:
+ - [SentenceAudioWorker +0.00s] progress task=task_92f...
+   text='百姓就都摘下他們耳上的金環、拿來給亞倫。'
+   progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+
+ So there are two failure modes coexisting:
+ 1. task_92f... stuck at queue_capacity_wait (qwen queue full →
+    429 on submit → wait & retry).
+ 2. task_e8924.../task_d2cf... completed but rejected by gate →
+    requeued → re-processed → re-completed (from cache?) →
+    re-rejected → ... this is the repeat loop.
+
+ Are they connected? If the gate keeps rejecting and requeueing
+ tasks, the worker re-pulls the same task. When re-processed,
+ the audio IS cached (outbox already delivered it) — hmm, but
+ if re-synthesized it would re-submit to qwen queue, adding
+ load. Actually — the key: when a task is re-pulled after
+ downgrade, the worker's _process_task path → does it
+ synthesize again? If the sentence audio is already in the
+ local sentence audio cache, it would find it. Let me check
+ _process_task.
+
+ Also the 429/queue_capacity: with CONCURRENCY_LIMIT = 1 for
+ the sentence worker, only ONE task at a time is processed. The
+ qwen queue capacity might be exhausted by the WORD audio...
+ no, word uses edge/azure. Or by the agent-history article
+ pipeline (which also uses qwen3tts — "pinned to qwen3tts (no
+ fallback)"!). The article rebuild lane + new article
+ generation continuously submits qwen jobs. Plus the sentence
+ worker. The queue capacity (QWEN3TTS_QUEUE_MAX, default 200?)
+ — full means 200 pending jobs... that's a lot. OR the capacity
+ is smaller.
+
+ Hmm wait — but actually let me reconsider: is the 429 from
+ queue FULL (QWEN3TTS_QUEUE_MAX reached)? "429 Too Many
+ Requests" from POST /queue/submit — the server rejects when
+ the queue is at capacity. The client waits with backoff
+ (queue_capacity_wait). chunks=0/0 — the first chunk submit
+ fails → the whole task waits at 10/100.
+
+ Why would the queue be full for a long time? If qwen3tts
+ service is slow (GPU busy / model not loaded / inference
+ stuck), pending jobs accumulate → queue full → new submits
+ 429.
+
+ Actually — WAIT. Something important: maybe the qwen3tts
+ service is processing the ARTICLE pipeline's rebuild backlog
+ (from FIX_20260816_2242: "the backlog drains before new
+ articles") — that's by design "a tick that rebuilds never
+ starts new work". The agent-history pipeline might be
+ rebuilding legacy audio en masse, filling the qwen queue,
+ starving the sentence worker.
+
+ But the user's core complaint: the SAME sentence repeats
+ without progress. Let me look at the pycore-side _process_task
+  and how the "progress" log line with queue_capacity_wait gets
+ emitted repeatedly. Let me look at the worker's task loop and
+ progress mirroring. Also — importantly — whether re-pulled
+ tasks re-synthesize or use cache.
+
+ Actually, let me focus. The DEFINITE bug I've confirmed
+ server-side: the gate rejects domain_audio_persisted results
+ that the processor explicitly supports. The comment in the
+ gate even says "gate and processor agree a saved_path-only
+ result is an honest shape error" — for saved_path. But
+ domain_audio_persisted + empty audio_base64 is the DESIGNED
+ durable-delivery receipt (audio already uploaded via
+ sentence/report), and the processor handles it (line 123-134
+ of SentenceAudioTaskProcessor). The gate does NOT account for
+ it → mismatch → task retried forever → the same sentence keeps
+ being processed.
+
+ Wait, let me verify the actual reject path once more. Gate
+ message: "Sentence-audio result carried no
+ audio_files/audio_base64". Processor at 123: if ($audioBase64
+ === null || $audioBase64 === '') → if ($domainAudioPersisted
+ && empty($payload['target_kind'])) → report success... So YES
+ — processor supports it, gate doesn't. The gate fires BEFORE
+ the processor (in submitResult), downgrades the task.
+
+ Hmm — but when was the gate added vs the processor's
+ domain_audio_persisted support? Let me check git blame or the
+ doc trail for the gate. Let me look at docs_fix for
+ "result-trust" or "contract item 3":
+
+ 现在让我检查一下 pycore worker 在降级后重新拉取任务时会发生什
+ 么（缓存命中还是重新合成），并找到 result-trust gate 的设计文
+ 档：
+
+
+ $ grep -rln "result-trust\|result_trust"
+ /www/programing/core_node/docs_fix/*.md | head -5
+
+ (no output)
+
+ Took 0.1s
+
+
+
+ $ sed -n 510,600p
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py
+
+ ... (105 earlier lines, ctrl+o to expand)
+                 self._report_progress(
+                     info,
+                     "uploading",
+                     provider,
+                 )
+
+ Took 0.0s
+
+
+ Now let me see _resolve_audio — the key: when the task is
+ re-pulled after downgrade, does it re-synthesize or hit the
+ sentence audio cache?
+
+
+ $ grep -n "_resolve_audio"
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py | head -3; grep -n "def _resolve_audio" -A 50
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py | head -60
+
+ ... (66 earlier lines, ctrl+o to expand)
+ re-synth).
+ 117-            if os.path.exists(out_path) and
+ os.path.getsize(out_path) > 0:
+ 118-                ok_cache, _why = validate_mp3(out_path)
+ 119-                if ok_cache:
+
+ Took 0.0s
+
+
+
+ $ sed -n 119,175p
+ /www/programing/core_node/pycore/pyctl/tts/laravel_audio_worke
+ r_execution.py
+
+ ... (70 earlier lines, ctrl+o to expand)
+             cache_path = get_cache_path(info["word"],
+ language, provider)
+             if os.path.exists(cache_path) and
+ os.path.getsize(cache_path) > 0:
+                 try:
+
+ Took 0.0s
+
+
+ Key insight: sentence cache hit → report straight from disk
+ (no re-synth) — so when a task gets re-pulled after a gate
+ downgrade:
+ 1. First completion: synthesize → cache saved → domain upload
+    OK (domain_uploaded=True) → result posted with
+    domain_audio_persisted=true, no audio bytes → gate rejects
+    → task requeued.
+ 2. Re-pull: cache HIT → skip synthesis → domain upload again
+    (sentence/report — accepts again, idempotent) → result
+    posted with domain_audio_persisted=true again → gate
+    rejects again → retry budget consumed → after N retries
+    (task retries exhausted, will_retry:false) → task failed
+    permanently.
+ 3. Then the Laravel-side queue scanner re-creates the sentence
+    task (because the sentence still has no audio in the DB? or
+    does it?) — wait, the domain report (sentence/report) DID
+    upload the audio and marked the sentence row... did it? Let
+    me check what /api/app_qy_v1/ai_tools/tts/sentence/report
+    does — does it store the audio and mark the sentence as
+    having audio?
+
+ If the domain report stores the audio + marks sentence audio
+ complete, then even though the task is failed, the SENTENCE
+ itself is done, so the scanner shouldn't re-create the task.
+ But the user sees the same sentence repeatedly — maybe the
+ re-created task IS the same sentence because the domain report
+ FAILED (e.g. 500 due to schema drift!).
+
+ AH WAIT. THIS could be the actual connection! Earlier schema
+ drift: app_qy_v1_article_words upsert failure (42P10) caused
+ worker/submit 500. The sentence report endpoint... let me
+ check what it writes. If the sentence report writes to a table
+ with drift → 500 → uploaded = (False, "http 500...") →
+ terminal error → fallback to global result with FULL audio
+ (include_audio=True) → gate passes → OK. Hmm, that path passes
+ the gate.
+
+ But if the domain report SUCCEEDED (200) — then
+ domain_audio_persisted=true path → gate rejects → downgrade.
+ So the repeat loop happens exactly when the domain report
+ SUCCEEDS.
+
+ So: the sentence repeat = gate-vs-processor mismatch, exactly
+ as I found. The sentence gets synthesized ONCE, cached,
+ domain-uploaded (audio stored server-side), but the task keeps
+ failing (gate), gets re-pulled, cache-hits, re-reports... 2
+ retries (default?) then permanent fail. Then the queue scanner
+ sees the sentence still "pending" (because the task failed →
+ sentence marked failed/not-locked) → re-creates a NEW task for
+ the same sentence → worker pulls it → cache hit → domain
+ report → reject → ... infinite cycle of the same sentence!
+
+ Hold on — but does the sentence/report actually store the
+ audio? If it does, the sentence would be marked as having
+ audio and the scanner wouldn't re-create. Unless the scanner
+ is based on the TASK status (task failed → re-create) rather
+ than the sentence state. Let me check the sentence audio task
+ creation logic (Laravel side) — the queue that generates
+ sentence_audio tasks and how it determines which sentences
+ need audio. And what sentence/report does.
+
+ 关键洞察：sentence cache 意味着重新拉取（re-pull）的任务会立即
+ 重新报告（无需重新合成）→ 被 gate 拒绝 → 循环。让我验证一下
+ Laravel 端：sentence/report 存储了什么，以及是什么重新创建了这
+ 些任务：
+
+
+ $ grep -rn "sentence/report"
+ /www/programing/core_node/poly_apps/laravel_main/routes/*.php
+ | head -3
+
+ (no output)
+
+ Took 0.0s
+
+
+
+ $ grep -rln "SentenceAudioService\b"
+ /www/programing/core_node/poly_apps/laravel_main/app/Apps/AppQ
+ yV1/ | head -5
+
+ ... (5 earlier lines, ctrl+o to expand)
+ yV1/AppQyV1Services/AppQyV1WordAudioFiles.php
+ /www/programing/core_node/poly_apps/laravel_main/app/Apps/AppQ
+ yV1/AppQyV1Services/AppQyV1AudioGateway.php
+ /www/programing/core_node/poly_apps/laravel_main/app/Apps/AppQ
+ yV1/AppQyV1Services/AppQyV1AssistQueueMetrics.php
+
+ Took 0.0s
+
+
+
+ $ grep -rn "sentence/report\|sentence.*report"
+ /www/programing/core_node/poly_apps/laravel_main/routes/app_qy
+ _v1.php 2>/dev/null | head -5; ls
+ /www/programing/core_node/poly_apps/laravel_main/routes/ |
+ head -20
+
+ ... (12 earlier lines, ctrl+o to expand)
+ McpV1Router
+ PddToolV1Router
+ RelayV2Router
+ static.php
+ web.php
+
+ Took 0.0s
+
+
+ ⠋ Working...
+
+────────────────────────────────────────────────────────────────
+client_loop: send disconnect: Connection reset
+────────────────────────────────────────────────────────────────
+SSH session endedore_node (main)
+↑224k ↓50k R10M CH97.4% 30.1%/128k (auto)  ark-code-latest • hig
+Press any key to exit...
