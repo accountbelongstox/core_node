@@ -408,8 +408,9 @@ Mercure is a latency optimization, not delivery truth:
 - an expired operation is never silently converted back to pending.
 
 The current PHP sleep-loop response endpoint is removed. One SSE connection per
-UI runtime multiplexes roster and operation topics; no per-request Laravel
-worker remains blocked.
+UI runtime carries operation status events for the pairing topic, and the
+operation waiters resolve on each status push; the device roster stays on its
+bounded HTTP refresh. No per-request Laravel worker remains blocked.
 
 ## 7. Byte and HTTP semantics
 

@@ -64,7 +64,6 @@ class LaravelRelayOperationEvents {
           { hub_url: hub.url, topics: hub.topics },
           {
             authorize: async () => ({
-              subscribe_url: hub.url,
               token: hub.subscriber_token,
               token_ttl_seconds: hub.expires_in_seconds,
             }),

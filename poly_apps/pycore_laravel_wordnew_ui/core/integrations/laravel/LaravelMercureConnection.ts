@@ -1,9 +1,11 @@
 /**
  * Shared authorized Mercure SSE transport for Laravel clients.
  *
- * The pinned hub uses repeated `topic` parameters and topic-scoped Mercure
- * selectors. Every connection obtains a fresh topic-scoped subscriber token
- * from Laravel and presents it as an Authorization Bearer header.
+ * Per the Mercure protocol profile pinned in the relay contract, the
+ * subscription URL is always built here from `hub_url` plus repeated `topic`
+ * query parameters. Authorization supplies only the Bearer token, so a
+ * subscriber can never reach the hub without topic selectors (the hub rejects
+ * such requests with `Missing "topic" parameter`).
  */
 
 import { protocolFetch } from '../../network/ProtocolFetch';
@@ -11,11 +13,9 @@ import { protocolFetch } from '../../network/ProtocolFetch';
 export interface LaravelMercureHubConfig {
   hub_url: string;
   topics: string[];
-  subscribe_url?: string;
 }
 
 export interface LaravelMercureAuthorization {
-  subscribe_url: string;
   token: string;
   token_ttl_seconds: number;
 }
@@ -67,6 +67,7 @@ export class LaravelMercureConnection {
     const authorization = await callbacks.authorize();
     if (this.generation !== generation) return;
     if (!authorization.token) throw new Error('MERCURE_SUBSCRIBER_TOKEN_UNAVAILABLE');
+    if (!config.topics.length) throw new Error('MERCURE_SUBSCRIPTION_TOPICS_REQUIRED');
     const controller = new AbortController();
     const headers: Record<string, string> = {
       Accept: 'text/event-stream',
@@ -75,9 +76,7 @@ export class LaravelMercureConnection {
     };
     this.controller = controller;
 
-    const response = await protocolFetch(this.resumeUrl(
-      authorization.subscribe_url || config.subscribe_url || this.subscribeUrl(config),
-    ), {
+    const response = await protocolFetch(this.resumeUrl(this.subscribeUrl(config)), {
       credentials: 'omit',
       headers,
       signal: controller.signal,
