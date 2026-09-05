@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -11,6 +12,13 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 ACTIVITY_LOG_VALUE_LIMIT = 320
 ACTIVITY_LOG_REDACTED = "<redacted>"
+
+# Debug actions are per-request chatter (identity facts, request signing,
+# empty reconciliation passes); a healthy process prints lifecycle events
+# only. Set PYCORE_ACTIVITY_DEBUG=1 to audit them.
+ACTIVITY_LOG_DEBUG_ENABLED = os.environ.get(
+    "PYCORE_ACTIVITY_DEBUG", ""
+).strip().lower() not in ("", "0", "false", "no")
 ACTIVITY_LOG_SENSITIVE_PARTS = (
     "authorization",
     "claim_code",
@@ -56,6 +64,8 @@ class ActivityLog:
         return f"[{self.component}] " + " ".join(fields)
 
     def debug(self, action: str, **context: Any) -> None:
+        if not ACTIVITY_LOG_DEBUG_ENABLED:
+            return
         ColorPrint.gray(self._line(action, context))
 
     def info(self, action: str, **context: Any) -> None:

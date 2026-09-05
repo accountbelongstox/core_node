@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 import uuid
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.serialized_worker import (
@@ -61,13 +61,13 @@ class RelayDeviceIdentity:
             "relay.v2.identity.state",
             "RelayV2IdentityStateThread",
         )
+        self._announced_identity: Optional[Tuple[str, int, str]] = None
 
     @serialized_method
     def ensure_device_id(self) -> str:
         document = RELAY_IDENTITY_STORE.read()
         device_id = str(document.get("device_id") or "")
         if device_id:
-            relay_activity_log.debug("identity.device_id.present", device_id=device_id)
             return device_id
         device_id = str(uuid.uuid4())
         document["device_id"] = device_id
@@ -115,10 +115,6 @@ class RelayDeviceIdentity:
                     )
                 else:
                     self._repair_permissions()
-                    relay_activity_log.debug(
-                        "identity.signing_key.present",
-                        key_version=key_version,
-                    )
                 return derived_public_key
             except Exception as error:
                 relay_activity_log.error(
@@ -157,11 +153,20 @@ class RelayDeviceIdentity:
         self.ensure_enrollment_state()
         self.ensure_credential_state()
         document = self.document()
-        relay_activity_log.success(
-            "identity.ready",
-            device_id=document["device_id"],
-            key_version=document["key_version"],
+        # Identity facts are process-static: announce them once per state
+        # (and again on rotation) instead of on every signed request.
+        announced = (
+            str(document["device_id"]),
+            int(document["key_version"]),
+            str(document.get("credential_id") or ""),
         )
+        if announced != self._announced_identity:
+            self._announced_identity = announced
+            relay_activity_log.success(
+                "identity.ready",
+                device_id=document["device_id"],
+                key_version=document["key_version"],
+            )
         return document
 
     @serialized_method
@@ -173,11 +178,6 @@ class RelayDeviceIdentity:
             str(document.get("enrollment_expires_at") or ""),
         )
         if all(enrollment_fields):
-            relay_activity_log.debug(
-                "identity.enrollment.present",
-                enrollment_id=enrollment_fields[0],
-                expires_at=enrollment_fields[2],
-            )
             return True
         if any(enrollment_fields):
             self.clear_enrollment()
@@ -198,11 +198,6 @@ class RelayDeviceIdentity:
                     key_version=key_version,
                 )
                 raise RuntimeError("relay_credential_key_version_conflict")
-            relay_activity_log.debug(
-                "identity.credential.present",
-                credential_id=credential_id,
-                credential_version=credential_version,
-            )
             return True
         if credential_id or document.get("credential_version") is not None:
             self.clear_credential()

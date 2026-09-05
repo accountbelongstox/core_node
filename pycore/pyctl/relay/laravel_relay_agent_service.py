@@ -73,6 +73,7 @@ class LaravelRelayAgentService:
         self._conflict_hint_presented = False
         self._lease_owner = uuid.uuid4().hex
         self._subscriber_response: Any = None
+        self._subscriber_connected: bool = False
         relay_activity_log.info(
             "runtime.constructed",
             contract_digest=relay_contract.digest,
@@ -171,6 +172,14 @@ class LaravelRelayAgentService:
     def capabilities(self) -> List[str]:
         return relay_contract.capabilities()
 
+    def _recovery_claim_seconds(self) -> float:
+        # While the Mercure stream is live, frame loss is impossible without
+        # a detectable disconnect (TCP in-order delivery), so the bounded
+        # recovery pass runs sparsely and the stream drives claim immediacy.
+        # Without the stream the contract floor cadence applies.
+        base_seconds = relay_contract.duration("recovery_claim_seconds")
+        return base_seconds * 4 if self._subscriber_connected else base_seconds
+
     def _should_stop(self) -> bool:
         return THREAD_BUS.is_shutdown_requested() or bool(
             THREAD_BUS.get_signal(RELAY_STOP_SIGNAL, False)
@@ -250,9 +259,7 @@ class LaravelRelayAgentService:
                     else:
                         self._claim_operations(endpoint)
                     force_claim = False
-                    next_claim_at = now + relay_contract.duration(
-                        "recovery_claim_seconds"
-                    )
+                    next_claim_at = now + self._recovery_claim_seconds()
                 retry_seconds = relay_contract.duration(
                     "subscriber_reconnect_min_seconds"
                 )
@@ -330,9 +337,17 @@ class LaravelRelayAgentService:
                 response = self._subscriber_connect(requests, hub, last_event_id)
                 self._subscriber_response = response
                 retry_seconds = min_retry_seconds
+                self._subscriber_connected = True
                 relay_activity_log.success(
                     "subscriber.connected",
                     topics=list(hub.get("topics") or []),
+                )
+                # The hub keeps no event history: frames published while the
+                # stream was down are lost, so every (re)connection must
+                # trigger one immediate claim to reconcile the gap.
+                THREAD_BUS.signal(
+                    RELAY_CONTROL_SIGNAL,
+                    {"kind": RELAY_CONTROL_WAKE},
                 )
                 last_event_id = self._consume_event_stream(response, last_event_id)
             except RelayHttpError as exc:
@@ -356,6 +371,7 @@ class LaravelRelayAgentService:
                 )
             finally:
                 self._subscriber_response = None
+                self._subscriber_connected = False
                 if response is not None:
                     try:
                         response.close()
@@ -423,7 +439,7 @@ class LaravelRelayAgentService:
         event_name = ""
         data_lines: List[str] = []
         event_id = ""
-        for raw_line in response.iter_lines(chunk_size=1):
+        for raw_line in response.iter_lines(chunk_size=512):
             if self._should_stop():
                 break
             line = (
@@ -513,10 +529,6 @@ class LaravelRelayAgentService:
 
     def _ensure_enrollment(self, endpoint: str) -> bool:
         if relay_device_identity.has_credential():
-            relay_activity_log.debug(
-                "enrollment.credential.present",
-                device_id=relay_device_identity.device_id(),
-            )
             return True
         enrollment_id = relay_device_identity.enrollment_id()
         if not enrollment_id:
@@ -637,11 +649,20 @@ class LaravelRelayAgentService:
         operations = data.get("operations")
         if not isinstance(operations, list):
             raise ValueError("relay_claim_operations_missing")
-        relay_activity_log.info(
-            "operation.claim.received",
-            operation_count=len(operations),
-            lease_owner=self._lease_owner,
-        )
+        if operations:
+            relay_activity_log.info(
+                "operation.claim.received",
+                operation_count=len(operations),
+                lease_owner=self._lease_owner,
+            )
+        else:
+            # An empty reconciliation pass is the silent steady state; it only
+            # matters when auditing cadence with debug output enabled.
+            relay_activity_log.debug(
+                "operation.claim.received",
+                operation_count=len(operations),
+                lease_owner=self._lease_owner,
+            )
         descriptors = []
         for item in operations:
             if not isinstance(item, dict):

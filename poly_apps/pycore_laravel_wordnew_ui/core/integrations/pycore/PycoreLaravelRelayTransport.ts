@@ -31,7 +31,16 @@ interface PersistedRelayState {
 
 const TERMINAL_STATES = new Set(['responded', 'failed', 'execution_unknown', 'expired', 'canceled']);
 const PAIR_RENEW_MARGIN_MS = Math.floor(RELAY_V2_CONTRACT.durations.pairing_lease_seconds * 200);
-const OPERATION_POLL_MS = 400;
+// Long-connection-first waiting: the Mercure stream is the notification
+// plane, HTTP polling is only a bounded reconciliation fallback. While the
+// stream is live, waiters reconcile at a slow cadence (the wake resolves
+// them the instant a status push arrives); while it is down, the fallback
+// backs off exponentially so the owner rate limiter can never be exhausted
+// by polling (429s also back the poll off). 
+const OPERATION_CONNECT_WAIT_MS = 3_000;
+const OPERATION_POLL_FLOOR_MS = 1_000;
+const OPERATION_POLL_MAX_MS = 15_000;
+const OPERATION_RECONCILIATION_MS = 10_000;
 const pairFlights = new Map<string, Promise<RelayV2Pairing>>();
 const operationWakeWaiters = new Map<string, Set<() => void>>();
 let relayState: PersistedRelayState | null = null;
@@ -43,20 +52,34 @@ function notifyOperationWake(operationId: string): void {
   for (const resolve of [...waiters]) resolve();
 }
 
+// The hub keeps no event history, so frames published while the stream is
+// down are lost. Every (re)connection must trigger an immediate bounded
+// reconciliation for ALL in-flight operations.
+function notifyAllOperationWakes(): void {
+  for (const operationId of [...operationWakeWaiters.keys()]) {
+    notifyOperationWake(operationId);
+  }
+}
+
 function ensureOperationWake(): void {
   if (!wakeWired) {
     wakeWired = true;
     laravelRelayOperationEvents.onOperationEvent((operationId) => notifyOperationWake(operationId));
+    laravelRelayOperationEvents.onConnectionState((connected) => {
+      if (connected) notifyAllOperationWakes();
+    });
   }
   laravelRelayOperationEvents.start();
 }
 
 function createOperationWake(operationId: string, signal?: AbortSignal): {
-  wait: (pollMs: number) => Promise<void>;
+  wait: (maxMs: number) => Promise<void>;
   dispose: () => void;
 } {
   let wakeResolve: (() => void) | null = null;
+  let pendingWake = false;
   const waiter = (): void => {
+    pendingWake = true;
     if (wakeResolve) {
       wakeResolve();
       wakeResolve = null;
@@ -66,20 +89,28 @@ function createOperationWake(operationId: string, signal?: AbortSignal): {
   waiters.add(waiter);
   operationWakeWaiters.set(operationId, waiters);
   return {
-    wait(pollMs: number): Promise<void> {
+    wait(maxMs: number): Promise<void> {
+      if (pendingWake) {
+        pendingWake = false;
+        return Promise.resolve();
+      }
       return new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => {
+        const settle = (outcome: () => void): void => {
+          clearTimeout(timer);
+          signal?.removeEventListener('abort', onAbort);
           wakeResolve = null;
-          resolve();
-        }, pollMs);
-        wakeResolve = () => {
-          clearTimeout(timer);
-          resolve();
+          outcome();
         };
-        signal?.addEventListener('abort', () => {
-          clearTimeout(timer);
-          reject(new DOMException('Aborted', 'AbortError'));
-        }, { once: true });
+        const onAbort = (): void => {
+          settle(() => reject(new DOMException('Aborted', 'AbortError')));
+        };
+        const timer = setTimeout(() => settle(resolve), maxMs);
+        wakeResolve = () => settle(resolve);
+        if (signal?.aborted) {
+          onAbort();
+          return;
+        }
+        signal?.addEventListener('abort', onAbort, { once: true });
       });
     },
     dispose(): void {
@@ -263,14 +294,28 @@ async function waitForOperation(operation: RelayV2Operation, signal?: AbortSigna
     + (RELAY_V2_CONTRACT.durations.claim_timeout_seconds + RELAY_V2_CONTRACT.durations.execution_timeout_seconds) * 1000;
   let current = operation;
   const wake = createOperationWake(current.operation_id, signal);
+  let fallbackMs = OPERATION_POLL_FLOOR_MS;
   try {
+    // Long connection first: give the Mercure stream a short window to
+    // establish before any HTTP reconciliation runs.
+    await laravelRelayOperationEvents.whenConnected(OPERATION_CONNECT_WAIT_MS);
     while (!TERMINAL_STATES.has(current.state)) {
       abortGuard(signal);
       if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
-      // The SSE wake resolves this wait early; the timer keeps the poll as
-      // the reconciliation fallback.
-      await wake.wait(OPERATION_POLL_MS);
-      current = await laravelApi.getRelayV2Operation(current.operation_id);
+      let connected = laravelRelayOperationEvents.isConnected();
+      await wake.wait(connected ? OPERATION_RECONCILIATION_MS : fallbackMs);
+      abortGuard(signal);
+      if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
+      try {
+        current = await laravelApi.getRelayV2Operation(current.operation_id);
+      } catch (error) {
+        // Yield the owner rate limiter: treat 429 as backpressure and back
+        // the reconciliation poll off instead of hammering the API.
+        if ((error as { status?: number })?.status !== 429) throw error;
+        connected = false;
+      }
+      if (connected) fallbackMs = OPERATION_POLL_FLOOR_MS;
+      else fallbackMs = Math.min(OPERATION_POLL_MAX_MS, fallbackMs * 2);
     }
   } finally {
     wake.dispose();

@@ -3,6 +3,8 @@ import { laravelApi } from './LaravelAPI';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
 
 type OperationEventHandler = (operationId: string, state: string) => void;
+type ReadyWaiter = (connected: boolean) => void;
+type ConnectionStateHandler = (connected: boolean) => void;
 
 const RECONNECT_MIN_MS = RELAY_V2_CONTRACT.durations.subscriber_reconnect_min_seconds * 1000;
 const RECONNECT_MAX_MS = RELAY_V2_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
@@ -12,13 +14,16 @@ const TOKEN_REFRESH_MARGIN_MS = 30_000;
  * One Mercure SSE connection for the pairing operation topic.
  *
  * The hub pushes `relay.operation.status` frames the moment an operation
- * reaches a new state; waiters use them to skip the polling sleep. The
- * plain HTTP operation poll remains the reconciliation safety net, so a
- * missed frame only costs one poll interval.
+ * reaches a new state; waiters use them to skip the polling sleep entirely.
+ * This stream is the notification plane: operation waiters must establish it
+ * first and keep HTTP polling to a bounded reconciliation fallback (the
+ * owner rate limiter only tolerates a handful of requests per minute).
  */
 class LaravelRelayOperationEvents {
   private connection = new LaravelMercureConnection();
   private handlers = new Set<OperationEventHandler>();
+  private stateHandlers = new Set<ConnectionStateHandler>();
+  private readyWaiters = new Set<ReadyWaiter>();
   private started = false;
   private consumers = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -38,12 +43,55 @@ class LaravelRelayOperationEvents {
     if (this.consumers > 0 || !this.started) return;
     this.started = false;
     this.clearTimers();
+    this.resolveReady(false);
     this.connection.close();
   }
 
   onOperationEvent(handler: OperationEventHandler): () => void {
     this.handlers.add(handler);
     return () => this.handlers.delete(handler);
+  }
+
+  onConnectionState(handler: (connected: boolean) => void): () => void {
+    this.stateHandlers.add(handler);
+    return () => this.stateHandlers.delete(handler);
+  }
+
+  notifyConnectionState(connected: boolean): void {
+    for (const handler of [...this.stateHandlers]) {
+      try {
+        handler(connected);
+      } catch {
+        // Listener errors must never break the shared stream.
+      }
+    }
+  }
+
+  isConnected(): boolean {
+    return this.connection.isConnected();
+  }
+
+  /**
+   * Resolves once the Mercure stream is live (or immediately when it already
+   * is), so operation waiters can give the long connection absolute priority
+   * before falling back to HTTP reconciliation. Resolves `false` when the
+   * stream is not live within `timeoutMs`.
+   */
+  whenConnected(timeoutMs: number): Promise<boolean> {
+    if (this.connection.isConnected()) return Promise.resolve(true);
+    if (!this.started) return Promise.resolve(false);
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (connected: boolean): void => {
+        if (settled) return;
+        settled = true;
+        this.readyWaiters.delete(finish);
+        clearTimeout(timer);
+        resolve(connected);
+      };
+      const timer = setTimeout(() => finish(this.connection.isConnected()), timeoutMs);
+      this.readyWaiters.add(finish);
+    });
   }
 
   private clearTimers(): void {
@@ -70,9 +118,14 @@ class LaravelRelayOperationEvents {
             onSubscribed: () => {
               this.reconnectDelayMs = RECONNECT_MIN_MS;
               this.scheduleTokenRefresh(hub.expires_in_seconds);
+              this.resolveReady(true);
+              this.notifyConnectionState(true);
             },
             onEvent: (event, data) => this.handleEvent(event, data),
-            onClose: () => this.scheduleReconnect(),
+            onClose: () => {
+              this.notifyConnectionState(false);
+              this.scheduleReconnect();
+            },
           },
         );
       })
@@ -99,6 +152,11 @@ class LaravelRelayOperationEvents {
       this.connect();
     }, this.reconnectDelayMs);
     this.reconnectDelayMs = Math.min(RECONNECT_MAX_MS, this.reconnectDelayMs * 2);
+  }
+
+  private resolveReady(connected: boolean): void {
+    for (const waiter of [...this.readyWaiters]) waiter(connected);
+    this.readyWaiters.clear();
   }
 
   private handleEvent(event: string, data: unknown): void {
