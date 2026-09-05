@@ -14,7 +14,8 @@ implementation instead of growing per-caller regex patches:
   4. greedy {.*} span (legacy fallback for objects not starting at the
      first brace)
   5. repair variants per candidate: text normalization (BOM / zero-width /
-     smart quotes), python literals (True/False/None), trailing commas,
+     smart quotes), malformed \\uXXXX escapes (RFC 8259 requires four hex
+     digits), python literals (True/False/None), trailing commas,
      single-quoted tokens, truncated-JSON auto-close
 
 Failures raise :class:`LlmContentError` carrying the underlying decoder
@@ -28,6 +29,7 @@ from typing import Any, Dict, Iterator, List, Optional
 _FENCE_RE = re.compile(r"```[ \t]*(?:json)?[ \t]*\r?\n(.*?)```", re.DOTALL | re.IGNORECASE)
 _GREEDY_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _EXCERPT_LEN = 300
+_HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
 
 
 class LlmContentError(ValueError):
@@ -129,6 +131,10 @@ def _repair_variants(candidate: str) -> Iterator[str]:
     current = _normalize_text(candidate)
     if current != candidate:
         variants.append(current)
+    escapes = _fix_invalid_unicode_escapes(current)
+    if escapes != current:
+        variants.append(escapes)
+        current = escapes
     trailing = _drop_trailing_commas(current)
     if trailing != current:
         variants.append(trailing)
@@ -151,6 +157,63 @@ def _repair_variants(candidate: str) -> Iterator[str]:
         if combined != current:
             variants.append(combined)
     yield from variants
+
+
+def _has_four_hex_digits(text: str, start: int) -> bool:
+    """RFC 8259 section 7: a \\u escape carries exactly four hex digits."""
+    end = start + 4
+    if end > len(text):
+        return False
+    return all(text[i] in _HEX_DIGITS for i in range(start, end))
+
+
+def _fix_invalid_unicode_escapes(candidate: str) -> str:
+    """Escape malformed \\u sequences inside string literals.
+
+    Models emitting ensure_ascii-style JSON sometimes truncate a \\uXXXX
+    escape at a token boundary or drop hex digits; json.loads then rejects
+    the whole document ("Invalid \\uXXXX escape"). Doubling the backslash
+    turns each malformed escape into literal "\\u" text so the surrounding
+    object still parses.
+    """
+    if "\\u" not in candidate:
+        return candidate
+    out: List[str] = []
+    in_string = False
+    escaped = False
+    index = 0
+    length = len(candidate)
+    while index < length:
+        char = candidate[index]
+        if not in_string:
+            if char == '"':
+                in_string = True
+            out.append(char)
+            index += 1
+            continue
+        if escaped:
+            escaped = False
+            out.append(char)
+            index += 1
+            continue
+        if char == "\\":
+            if (
+                index + 1 < length
+                and candidate[index + 1] == "u"
+                and not _has_four_hex_digits(candidate, index + 2)
+            ):
+                out.append("\\\\u")
+                index += 2
+                continue
+            escaped = True
+            out.append(char)
+            index += 1
+            continue
+        if char == '"':
+            in_string = False
+        out.append(char)
+        index += 1
+    return "".join(out)
 
 
 def _normalize_text(candidate: str) -> str:
