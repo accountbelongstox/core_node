@@ -531,14 +531,14 @@ final class RelayV2OperationService
         if ($profile !== 'json-object') {
             return;
         }
-        if (!$bodyPresent) {
-            throw new RelayV2DomainException('route_payload_invalid', 422);
+        if (!$bodyPresent || $bodyBytes === '') {
+            return;
         }
         if ($bodyRef !== '') {
             return;
         }
         $decoded = json_decode($bodyBytes, true);
-        if (!is_array($decoded) || array_is_list($decoded)) {
+        if (!is_array($decoded) || ($decoded !== [] && array_is_list($decoded))) {
             throw new RelayV2DomainException('route_payload_invalid', 422);
         }
     }

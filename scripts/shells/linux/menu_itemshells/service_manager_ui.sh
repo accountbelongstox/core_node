@@ -2,6 +2,8 @@
 
 # Function to show all services status
 show_all_services_status() {
+    local service=""
+
     echo ""
     echo "================================================"
     echo "All Services Status"
@@ -15,8 +17,11 @@ show_all_services_status() {
     done
 }
 
-# Function to start all services
+# Function to start all services (systemd-managed items only)
 start_all_services() {
+    local service=""
+    local confirm=""
+
     echo ""
     echo "================================================"
     echo "Starting All Services"
@@ -30,7 +35,7 @@ start_all_services() {
     fi
 
     for service in "${SERVICES[@]}"; do
-        if is_service_installed "$service"; then
+        if service_is_systemd_managed "$service" && is_service_installed "$service"; then
             start_service "$service"
             echo ""
         fi
@@ -40,8 +45,11 @@ start_all_services() {
     echo -e "${GREEN}All services started${NC}"
 }
 
-# Function to stop all services
+# Function to stop all services (systemd-managed items only)
 stop_all_services() {
+    local service=""
+    local confirm=""
+
     echo ""
     echo "================================================"
     echo "Stopping All Services"
@@ -55,7 +63,7 @@ stop_all_services() {
     fi
 
     for service in "${SERVICES[@]}"; do
-        if is_service_installed "$service"; then
+        if service_is_systemd_managed "$service" && is_service_installed "$service"; then
             stop_service "$service"
             echo ""
         fi
@@ -65,7 +73,7 @@ stop_all_services() {
     echo -e "${GREEN}All services stopped${NC}"
 }
 
-# Main menu
+# Function to restart all services (systemd-managed items only)
 restart_all_services() {
     local service=""
     local confirm=""
@@ -77,7 +85,7 @@ restart_all_services() {
         return 0
     fi
     for service in "${SERVICES[@]}"; do
-        if is_service_installed "$service"; then
+        if service_is_systemd_managed "$service" && is_service_installed "$service"; then
             restart_service "$service"
             echo ""
         fi
@@ -85,39 +93,51 @@ restart_all_services() {
     echo -e "${GREEN}All services restarted${NC}"
 }
 
+# Capability-aware action menu:
+#   aggregate items -> status details + their own manager (per-unit lifecycle)
+#   systemd items   -> start/stop/restart/status/logs/autostart/reinstall (+manager)
+#   runtime items   -> status details / reinstall (re-run installer or configuration)
 show_service_action_menu() {
     local service="$1"
     local service_name="${SERVICE_NAME[$service]}"
     local status="$(get_service_status "$service")"
-    local systemd_name="${SERVICE_SYSTEMD[$service]}"
     local selected_index=0
     local selected_action=""
     local menu_items=()
     local action_keys=()
 
-    if [ -z "$systemd_name" ] && has_advanced_manager "$service"; then
-        menu_items=("Open Manager" "Back to Service List")
-        action_keys=("manage" "back")
+    if service_is_aggregate "$service"; then
+        menu_items=("Show Details" "Open Manager" "Back to Service List")
+        action_keys=("status" "manage" "back")
     elif [ "$status" = "NOT_INSTALLED" ]; then
         menu_items=("Install Service")
         action_keys=("reinstall")
         if has_advanced_manager "$service"; then
-            menu_items+=("Open Advanced Manager")
+            menu_items+=("Open Manager")
+            action_keys+=("manage")
+        fi
+        menu_items+=("Back to Service List")
+        action_keys+=("back")
+    elif service_is_systemd_managed "$service"; then
+        menu_items=(
+            "Start Service"
+            "Stop Service"
+            "Restart Service"
+            "Show Status"
+            "Show Logs"
+            "Toggle Auto-start"
+            "Reinstall Service"
+        )
+        action_keys=("start" "stop" "restart" "status" "logs" "autostart" "reinstall")
+        if has_advanced_manager "$service"; then
+            menu_items+=("Open Manager")
             action_keys+=("manage")
         fi
         menu_items+=("Back to Service List")
         action_keys+=("back")
     else
-        menu_items=(
-            "Start Service"
-            "Stop Service"
-            "Restart Service"
-            "Reinstall Service"
-            "Show Logs"
-            "Open Manager"
-            "Back to Service List"
-        )
-        action_keys=("start" "stop" "restart" "reinstall" "logs" "manage" "back")
+        menu_items=("Show Details" "Reinstall / Reconfigure" "Back to Service List")
+        action_keys=("status" "reinstall" "back")
     fi
 
     arrow_menu_select "$service_name [$status]" menu_items 0 "$((${#menu_items[@]} - 1))"
@@ -127,9 +147,11 @@ show_service_action_menu() {
         start) start_service "$service" ;;
         stop) stop_service "$service" ;;
         restart) restart_service "$service" ;;
-        reinstall) reinstall_service "$service" ;;
+        status) show_service_status "$service" ;;
         logs) show_service_logs "$service" ;;
-        manage) manage_service "$service"; return 0 ;;
+        autostart) toggle_autostart "$service" ;;
+        reinstall) reinstall_service "$service" ;;
+        manage) launch_advanced_manager "$service" ;;
         back) return 0 ;;
     esac
     echo ""
@@ -140,16 +162,12 @@ show_main_menu() {
     local selected_index=0
     local service_count="${#SERVICES[@]}"
     local service=""
-    local service_name=""
-    local status=""
     local menu_items=()
 
     while true; do
         menu_items=()
         for service in "${SERVICES[@]}"; do
-            service_name="${SERVICE_NAME[$service]}"
-            status="$(get_service_status "$service")"
-            menu_items+=("$service_name [$status]")
+            menu_items+=("${SERVICE_NAME[$service]} [$(get_service_status "$service")]")
         done
         menu_items+=(
             "Show All Services Status"
@@ -176,4 +194,3 @@ show_main_menu() {
         read -p "Press Enter to continue..."
     done
 }
-

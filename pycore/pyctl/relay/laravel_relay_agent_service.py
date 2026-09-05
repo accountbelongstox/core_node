@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import json
 import platform
 import socket
 import time
 import uuid
 from typing import Any, Dict, List
 
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.relay.laravel_relay_operation_processor import (
     laravel_relay_operation_processor,
 )
@@ -38,6 +40,7 @@ RELAY_SHUTDOWN_HANDLER_NAME = "relay_v2_runtime"
 RELAY_STATE_QUEUE = "relay.v2.runtime.state"
 RELAY_STATE_THREAD = "RelayV2StateThread"
 RELAY_CONTROL_THREAD = "RelayV2ControlThread"
+RELAY_SUBSCRIBER_THREAD = "RelayV2SubscriberThread"
 RELAY_OPERATION_BATCH_THREAD = "RelayV2OperationBatchThread"
 RELAY_REENROLLMENT_ERROR_CODES = frozenset(
     (
@@ -69,6 +72,7 @@ class LaravelRelayAgentService:
         self._presented_enrollment_id = ""
         self._conflict_hint_presented = False
         self._lease_owner = uuid.uuid4().hex
+        self._subscriber_response: Any = None
         relay_activity_log.info(
             "runtime.constructed",
             contract_digest=relay_contract.digest,
@@ -110,6 +114,19 @@ class LaravelRelayAgentService:
                 "runtime.control_thread.present",
                 thread_name=RELAY_CONTROL_THREAD,
             )
+        if RELAY_SUBSCRIBER_THREAD not in alive:
+            threads.append(
+                start_bus_task(
+                    self._subscriber_loop,
+                    thread_name=RELAY_SUBSCRIBER_THREAD,
+                )
+            )
+            relay_activity_log.success("runtime.subscriber_thread.started")
+        else:
+            relay_activity_log.warning(
+                "runtime.subscriber_thread.present",
+                thread_name=RELAY_SUBSCRIBER_THREAD,
+            )
         self._threads = threads
         THREAD_BUS.register_shutdown_handler(
             self.stop,
@@ -132,6 +149,12 @@ class LaravelRelayAgentService:
             RELAY_CONTROL_SIGNAL,
             {"kind": "stop"},
         )
+        subscriber_response = self._subscriber_response
+        if subscriber_response is not None:
+            try:
+                subscriber_response.close()
+            except Exception:
+                pass
         THREAD_BUS.unregister_event_handler(
             TERMINAL_CHANGED_EVENT,
             self._publish_device_event,
@@ -276,6 +299,176 @@ class LaravelRelayAgentService:
                 self._wait_control(retry_seconds)
                 retry_seconds = min(max_retry_seconds, retry_seconds * 2)
         relay_activity_log.info("control.loop.stopped")
+
+    def _subscriber_loop(self) -> None:
+        """Hold one Mercure SSE subscription and wake the claim loop on push.
+
+        The 15s claim poll stays as the reconciliation safety net; this thread
+        only collapses its latency to the hub push. Wake frames carry no
+        operation state, so the control loop always re-claims through the
+        signed HTTP plane.
+        """
+        requests = get_third_package_requests()
+        min_retry_seconds = relay_contract.duration("subscriber_reconnect_min_seconds")
+        max_retry_seconds = relay_contract.duration("subscriber_reconnect_max_seconds")
+        retry_seconds = min_retry_seconds
+        last_event_id = ""
+        relay_activity_log.info("subscriber.loop.started")
+        while not self._should_stop():
+            endpoint = laravel_relay_transport.endpoint()
+            if not endpoint:
+                self._subscriber_wait(max_retry_seconds)
+                continue
+            if not relay_device_identity.has_credential():
+                self._subscriber_wait(
+                    relay_contract.duration("enrollment_poll_seconds")
+                )
+                continue
+            response = None
+            try:
+                hub = self._subscriber_authorization(endpoint)
+                response = self._subscriber_connect(requests, hub, last_event_id)
+                self._subscriber_response = response
+                retry_seconds = min_retry_seconds
+                relay_activity_log.success(
+                    "subscriber.connected",
+                    topics=list(hub.get("topics") or []),
+                )
+                last_event_id = self._consume_event_stream(response, last_event_id)
+            except RelayHttpError as exc:
+                retry_seconds = max_retry_seconds if self._is_permanent_conflict(
+                    exc
+                ) else min(retry_seconds * 2, max_retry_seconds)
+                relay_activity_log.error(
+                    "subscriber.http.failed",
+                    status=exc.status_code,
+                    action_name=exc.action,
+                    error_code=exc.error_code,
+                    retry_seconds=retry_seconds,
+                )
+            except Exception as exc:
+                retry_seconds = min(retry_seconds * 2, max_retry_seconds)
+                relay_activity_log.error(
+                    "subscriber.loop.failed",
+                    error_type=type(exc).__name__,
+                    error=exc,
+                    retry_seconds=retry_seconds,
+                )
+            finally:
+                self._subscriber_response = None
+                if response is not None:
+                    try:
+                        response.close()
+                    except Exception:
+                        pass
+                    response = None
+            if self._should_stop():
+                break
+            self._subscriber_wait(retry_seconds)
+        relay_activity_log.info("subscriber.loop.stopped")
+
+    def _subscriber_wait(self, seconds: float) -> None:
+        deadline = time.monotonic() + max(0.1, float(seconds))
+        while not self._should_stop() and time.monotonic() < deadline:
+            time.sleep(min(0.5, max(0.05, deadline - time.monotonic())))
+
+    def _subscriber_authorization(self, endpoint: str) -> Dict[str, Any]:
+        data = laravel_relay_transport.request_json(
+            "POST",
+            relay_contract.endpoint("device_hub_authorization"),
+            {
+                "device_id": relay_device_identity.device_id(),
+                "contract_digest": relay_contract.digest,
+            },
+            action="device.hub.authorization",
+            coordinator_url=endpoint,
+        )
+        hub = data.get("hub") if isinstance(data, dict) else None
+        if not isinstance(hub, dict):
+            raise ValueError("relay_hub_authorization_missing")
+        hub_url = str(hub.get("url") or "")
+        topics = [str(topic) for topic in (hub.get("topics") or []) if str(topic)]
+        token = str(hub.get("subscriber_token") or "")
+        if not hub_url or not topics or not token:
+            raise ValueError("relay_hub_authorization_incomplete")
+        return hub
+
+    def _subscriber_connect(
+        self,
+        requests: Any,
+        hub: Dict[str, Any],
+        last_event_id: str,
+    ) -> Any:
+        headers = {
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Authorization": "Bearer " + str(hub.get("subscriber_token")),
+        }
+        if last_event_id:
+            headers["Last-Event-ID"] = last_event_id
+        token_seconds = float(
+            hub.get("expires_in_seconds")
+            or relay_contract.duration("subscriber_token_seconds")
+        )
+        return requests.get(
+            str(hub.get("url")),
+            params=[("topic", str(topic)) for topic in hub.get("topics") or []],
+            headers=headers,
+            stream=True,
+            timeout=(10.0, max(30.0, token_seconds)),
+            allow_redirects=False,
+        )
+
+    def _consume_event_stream(self, response: Any, last_event_id: str) -> str:
+        event_name = ""
+        data_lines: List[str] = []
+        event_id = ""
+        for raw_line in response.iter_lines(chunk_size=1):
+            if self._should_stop():
+                break
+            line = (
+                raw_line.decode("utf-8", "replace")
+                if isinstance(raw_line, bytes)
+                else str(raw_line or "")
+            ).rstrip("\r\n")
+            if line == "":
+                if event_name or data_lines:
+                    self._dispatch_event(event_name, "\n".join(data_lines))
+                    if event_id:
+                        last_event_id = event_id
+                event_name = ""
+                data_lines = []
+                event_id = ""
+                continue
+            if line.startswith(":"):
+                continue
+            field, _, value = line.partition(":")
+            if value.startswith(" "):
+                value = value[1:]
+            if field == "event":
+                event_name = value
+            elif field == "data":
+                data_lines.append(value)
+            elif field == "id":
+                event_id = value
+        return last_event_id
+
+    def _dispatch_event(self, event_name: str, data: str) -> None:
+        if str(event_name) != str(relay_contract.event("operation_available")):
+            return
+        try:
+            payload = json.loads(data) if data else {}
+        except (TypeError, ValueError):
+            payload = {}
+        relay_activity_log.info(
+            "subscriber.operation.available",
+            operation_id=str(payload.get("operation_id") or ""),
+            state=str(payload.get("state") or ""),
+        )
+        THREAD_BUS.signal(
+            RELAY_CONTROL_SIGNAL,
+            {"kind": RELAY_CONTROL_WAKE},
+        )
 
     @staticmethod
     def _is_permanent_conflict(exc: RelayHttpError) -> bool:

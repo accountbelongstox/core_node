@@ -416,6 +416,13 @@ worker remains blocked.
 Request and response bodies are opaque bytes. Text and JSON are interpretations
 performed by the shared RPC adapters, not by Relay storage.
 
+Request payload profiles mirror the Pycore RPC execution kernel exactly on
+both sides of admission: a `json-object` route accepts an absent or empty
+request body (no parameters), and a non-empty body must decode to a single
+JSON object. Empty JSON objects are valid bodies; Laravel admission and the
+Pycore kernel enforce the same rule, so a parameter-less POST is never
+rejected by the coordinator alone. GET requests never carry a request body.
+
 The response contract preserves:
 
 - status code;
