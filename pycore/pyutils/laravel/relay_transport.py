@@ -308,7 +308,7 @@ class LaravelRelayTransport:
         if body or normalized_method != "GET":
             headers["Content-Type"] = str(content_type)
         started = time.perf_counter()
-        relay_activity_log.info(
+        relay_activity_log.debug(
             action + ".started",
             method=normalized_method,
             path=path,

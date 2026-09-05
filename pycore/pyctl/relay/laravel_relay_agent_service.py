@@ -627,7 +627,7 @@ class LaravelRelayAgentService:
             action="device.heartbeat",
             coordinator_url=coordinator_url,
         )
-        relay_activity_log.success(
+        relay_activity_log.debug(
             "device.heartbeat.acknowledged",
             device_id=relay_device_identity.device_id(),
         )

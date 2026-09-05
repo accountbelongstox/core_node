@@ -186,6 +186,12 @@ The Pycore relay agent owns one outbound connection lifecycle:
 - upload the byte-exact response and finalize the operation;
 - resume unfinished safe work after restart.
 
+The steady state is silent: identity facts are announced once per identity
+state (not per signed request), per-request transport chatter and empty
+reconciliation passes log at debug level (silenced unless
+`PYCORE_ACTIVITY_DEBUG=1`), and only lifecycle events (connection up/down,
+claimed work, failures) print by default.
+
 Extract a transport-neutral RPC execution kernel from `rpc_v2/server.py`.
 Both the local FastAPI HTTP adapter and the relay agent call the same dispatcher,
 request parser, route policy, timeout handling, response encoder, and request ID
@@ -352,7 +358,13 @@ operation ID. A network retry reuses the original ID and key.
 
 Mercure `operation.available` wakes Pycore. Pycore then calls the machine-only
 claim endpoint. The same claim pass also runs periodically, so a lost Mercure
-update cannot strand work.
+update cannot strand work. Because the hub keeps no event history, frames
+published while the stream is down are lost; every (re)connection therefore
+triggers one immediate claim to reconcile the gap, and while the stream is
+live the periodic pass runs sparsely (the contract `recovery_claim_seconds`
+cadence stretched locally, never below it). TCP in-order delivery makes a
+silently missed frame on a live stream impossible; any disconnect is
+detected and reverts the cadence to the contract floor.
 
 Laravel claims rows in a short transaction using row-level locking. Multiple
 workers cannot lease the same operation. The claim response contains the
