@@ -1,0 +1,53 @@
+pyservice 2，这是使用laravel中转的模式，pycore是一个组，ui是一
+ 个组，ui在poly apps / pycore ui代码中的 pycore manager 路由，
+ 先查看代码了解设计模式，并找到以前的一些文档，了解这是使用
+ frankenPHP的Mercure 作为中转，现在实地查看本机的
+ 93_install_frankenphp.sh
+   94_install_composer.sh
+   96_configure_php85.sh    175_laravel_main_start.sh    中的幂
+ 等逻辑是否有问题，是否环境上支持，如果环境上没问题不要修改代码
+ ，之后查看pycore中的replay模式为什么没有通过laravel main中转成
+ 功，查看现在的UI信息，···ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ ProtocolFetch.ts:233
+  POST https://api.si.12gm.com/api/relay/v2/operations 403
+ (Forbidden)
+ code-sync:1 The resource
+ https://www.12gm.com/web_access_config.json was preloaded
+ using link preload but not used within a few seconds from the
+ window's load event. Please make sure it has an appropriate as
+  value and it is preloaded intentionally.
+ ﻿
+
+ Press ctrl i to turn on code suggestions. Press ctrl x to
+ disable code suggestions.
+ ctrl
+ i
+  to turn on code suggestions. Don't show again
+
+ ···https://api.si.12gm.com/api/relay/v2/operations {
+     "success": false,
+     "message": "Relay route is denied by the contract.",
+     "error_code": "route_denied",
+     "code": 403
+ } 等等问题，完全无法通信。搜索官方文档，并按规范。

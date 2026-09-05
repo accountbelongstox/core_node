@@ -14,6 +14,7 @@ TODO (reuse batch): consolidate with the near-duplicate
 pycore/pyfoundations/shutdown_manager.py once that module is reconciled.
 """
 
+import os
 import threading
 import traceback
 from typing import Callable, List, Optional
@@ -178,24 +179,23 @@ class ShutdownStack:
             # Or just signal (let threads handle it themselves)
             THREAD_BUS.request_shutdown("User exit", execute_handlers=False)
         """
-        # Shutdown-source diagnostics: print WHO requested the shutdown and the
-        # call stack that led here. This is the single load-bearing line for
-        # answering "why did the process exit" - the reason names the trigger
-        # (singleton takeover / tray / Ctrl+C / UI window / API) and the trimmed
-        # stack pinpoints the exact call site. Cheap (only runs on shutdown).
+        # Shutdown-source diagnostics: one informational line always answers
+        # "why did the process exit" (reason names the trigger: singleton
+        # takeover / tray / Ctrl+C / UI window / API). The origin stack dump is
+        # opt-in (PYCORE_SHUTDOWN_TRACE=1) because a full frame list printed on
+        # a normal user exit reads like an unhandled exception traceback.
         if not self._bus.has_signal('global.shutdown.requested'):
             current = threading.current_thread()
-            ColorPrint.yellow(
-                f"[ThreadBus] >>> SHUTDOWN REQUESTED <<< reason='{reason}' "
+            ColorPrint.blue(
+                f"[ThreadBus] Shutdown requested: reason='{reason}' "
                 f"thread='{current.name}' (id={threading.get_ident()})"
             )
-            # Drop this frame (extract_stack includes the current line); keep the
-            # last few callers so the originating module:line is obvious.
-            frames = traceback.extract_stack()[:-1]
-            for f in frames[-8:]:
-                ColorPrint.yellow(
-                    f"[ThreadBus]     at {f.filename}:{f.lineno} {f.name}()"
-                )
+            if os.environ.get('PYCORE_SHUTDOWN_TRACE', '').strip().lower() in ('1', 'true', 'yes'):
+                # Drop this frame (extract_stack includes the current line); keep
+                # the last few callers so the originating module:line is obvious.
+                frames = traceback.extract_stack()[:-1]
+                for f in frames[-8:]:
+                    ColorPrint.blue(f"[ThreadBus]     at {f.filename}:{f.lineno} {f.name}()")
 
         self._bus.signal('global.shutdown.requested', {
             'reason': reason,
