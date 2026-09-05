@@ -1993,15 +1993,28 @@ class TaskManagerService
                 // extractAudioBase64) can trust or read — so it is NOT accepted here;
                 // gate and processor agree a saved_path-only result is an honest shape
                 // error rather than a 0-byte store that downgrades to a fail-loop.
+                // domain_audio_persisted is the durable-delivery receipt: the worker
+                // already uploaded the bytes through the sentence/report lane and the
+                // processor re-reports via AppQyV1SentenceAudioService::report(), which
+                // acks already_done from disk — the gate must accept that receipt for
+                // the plain sentence target (variant-scoped target_kind writebacks read
+                // the bytes from this result and still require them embedded).
                 $hasAudio = !empty($inner['audio_files'])
                     || !empty($result['audio_files'])
                     || !empty($inner['audio_base64'])
                     || !empty($result['audio_base64']);
 
-                if (!$hasAudio) {
-                    return 'Sentence-audio result carried no audio_files/audio_base64';
+                if ($hasAudio) {
+                    return null;
                 }
-                return null;
+                $payload = is_array($task->payload) ? $task->payload : [];
+                if (
+                    (!empty($inner['domain_audio_persisted']) || !empty($result['domain_audio_persisted']))
+                    && empty($payload['target_kind'])
+                ) {
+                    return null;
+                }
+                return 'Sentence-audio result carried no audio_files/audio_base64';
 
             case QueueCenterContract::taskTypeKey('article_audio'):
                 $hasAudio = !empty($inner['audio_base64'])
