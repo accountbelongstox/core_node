@@ -97,11 +97,13 @@ class LaravelAudioWorkerStateMixin:
                 progress_total = int(info.get("progress_total") or GLOBAL_TASK_PROGRESS_TOTAL)
                 label += f" progress={progress}/{progress_total}"
         line = f"{label}: {detail[:160]}" if detail else label
+        # First-use events stay blue; ongoing progress/idle pings are gray;
+        # terminal successes are green; failures stay yellow.
         if kind.endswith("_fail") or kind in ("report_reject", "synth_error"):
             ColorPrint.yellow(line)
-        elif kind == "idle":
+        elif kind in ("progress", "idle"):
             ColorPrint.gray(line)
-        elif kind in ("synth_done", "task_done"):
+        elif kind.endswith("_done"):
             ColorPrint.green(line)
         else:
             ColorPrint.blue(line)
