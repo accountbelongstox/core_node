@@ -67,3 +67,115 @@ ProtocolFetch.ts:233
  POST https://api.si.12gm.com/api/relay/v2/mercure-authorization 401 (Unauthorized)
 
 ···
+
+根据下面的日志，继续搜索官方文档，并按规范修复，注意pycore并不运行在本机，但是laravel main运行在本机。
+1:首先为什么反复的重复 SentenceAudioWorker ，比如 ·· 百姓就都摘下他們耳上的金環··，并没有递归继续，同时，为什么没有英文优先，处理完处理后端的英文后才继续其他语言。UI上也是这么设置。
+2：
+
+SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+[laravel +0.18s] POST /api/worker/tasks/word_audio/result -> 200 (917ms) success=True
+[laravel +0.07s] GET /api/queue-center/events -> 200 (953ms) success=True
+[WordAudioWorker +0.09s] diff[200]->false
+[SentenceAudioWorker +0.00s] diff[200]->false
+[laravel +0.31s] POST /api/worker/tasks/sentence_audio/result -> 200 (657ms) success=True
+[SentenceAudioWorker +0.01s] Posted 'processing' for task task_92f...
+[WordAudioWorker +0.48s] diff[200]->false
+[SentenceAudioWorker +0.20s] diff[200]->false
+[qwen3tts +0.66s] INFO:     127.0.0.1:56681 - "GET /status HTTP/1.1" 200 OK
+[WordAudioWorker +0.25s] diff[200]->false
+[SentenceAudioWorker +0.00s] diff[200]->false
+[RelayV2 +0.38s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.signing_key.present key_version=1
+[RelayV2 +0.00s] action=identity.credential.present credential_id=<redacted> credential_version=<redacted>
+[RelayV2 +0.00s] action=identity.ready device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e key_version=1
+[RelayV2 +0.00s] action=identity.credential.present credential_id=<redacted> credential_version=<redacted>
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=enrollment.credential.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.signing_key.present key_version=1
+[RelayV2 +0.00s] action=identity.credential.present credential_id=<redacted> credential_version=<redacted>
+[RelayV2 +0.00s] action=identity.ready device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e key_version=1
+[RelayV2 +0.00s] action=identity.request.signed body_length=196 content_sha256=a95ae75c08fa27a4e6efa943237c21c35655efe436139afffd6a6e21bd027874 credential_version=<redacted> device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e method=POST path=/api/relay/v2/device/operations/claim
+[RelayV2 +0.00s] action=operation.claim.started body=bytes:196 sha256:a95ae75c08fa27a4e6efa943237c21c35655efe436139afffd6a6e21bd027874 endpoint=https://api.si.12gm.com method=POST path=/api/relay/v2/device/operations/claim query=keys:
+[qwen3tts +0.03s] INFO:     127.0.0.1:56617 - "POST /queue/submit HTTP/1.1" 429 Too Many Requests
+[qwen3tts +0.00s] INFO:     127.0.0.1:56617 - "GET /status HTTP/1.1" 200 OK
+[SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+[WordAudioWorker +0.17s] diff[200]->false
+[laravel +0.03s] GET /api/queue-center/overview -> 200 (740ms) success=True
+[Mercure +0.00s] action=subscription.authorization.rejected error=HTTP 401 Unauthorized\n hub_url=https://api.si.12gm.com/.well-known/mercure
+[QueueCenterCache +0.00s] realtime reconnect: hub rejected the token: HTTP 401 Unauthorized
+
+[SentenceAudioWorker +0.38s] diff[200]->false
+[laravel +0.20s] POST /api/worker/tasks/sentence_audio/result -> 200 (792ms) success=True
+[RelayV2 +0.00s] action=operation.claim.completed duration_ms=831.8 method=POST path=/api/relay/v2/device/operations/claim response_length=92 response_sha256=713f4948e595d8ab612e2c610aee9f0a905cd35942b678b7ee4b7d0552e97c69 status=200
+[RelayV2 +0.00s] action=operation.claim.received lease_owner=041de733f96441b0bdc02f4a30d66dc1 operation_count=0[SentenceAudioWorker +0.00s] Posted 'processing' for task task_92f...
+
+[SentenceAudioWorker +0.79s] diff[200]->false
+[WordAudioWorker +0.01s] diff[200]->false
+[WordAudioWorker +0.69s] diff[200]->false
+[laravel +0.10s] GET /api/queue-center/events -> 200 (611ms) success=True
+[SentenceAudioWorker +0.14s] diff[200]->false
+[laravel +0.20s] POST /api/app_qy_v1/ai_tools/article/worker/submit -> 500 (2806ms) success=False
+[AgentHistoryPipeline +0.07s] upload retry deferred (article-item_ccd9d6e5e00a4ef181d0ce08c73335b6): Laravel upload failed: Internal server error
+[qwen3tts +0.03s] INFO:     127.0.0.1:56617 - "POST /queue/submit HTTP/1.1" 429 Too Many Requests
+[qwen3tts +0.04s] INFO:     127.0.0.1:56617 - "GET /status HTTP/1.1" 200 OK
+[SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+[laravel +0.70s] POST /api/worker/tasks/sentence_audio/result -> 200 (702ms) success=True
+[SentenceAudioWorker +0.00s] Posted 'processing' for task task_92f...
+[SentenceAudioWorker +0.10s] diff[200]->false[WordAudioWorker +0.00s] diff[200]->true
+
+[WordAudioWorker +0.51s] diff[200]->false
+[laravel upload +0.00s] /api/app_qy_v1/ai_tools/article/worker/replace-audio -> 100.00% (241772/241772 bytes)
+[AgentHistoryPipeline +0.09s] rebuilt audio durably received by Laravel for record 987e1d03-471c-4ab8-92fb-bc0c92fddd7c; publication is finalizing
+[SentenceAudioWorker +0.14s] diff[200]->false
+[SentenceAudioWorker +1.15s] diff[200]->false
+[qwen3tts +0.01s] INFO:     127.0.0.1:56617 - "POST /queue/submit HTTP/1.1" 429 Too Many Requests
+[qwen3tts +0.04s] INFO:     127.0.0.1:56617 - "GET /status HTTP/1.1" 200 OK
+[SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+[laravel +0.01s] GET /api/app_qy_v1/ai_tools/tts/queue/stats -> 200 (1430ms) success=True total=312972
+[laravel +0.57s] POST /api/worker/tasks/article_audio/pull -> 200 (560ms) success=True[laravel +0.00s] POST /api/worker/tasks/sentence_audio/result -> 200 (578ms) success=True
+
+[SentenceAudioWorker +0.00s] Posted 'processing' for task task_92f...
+[SentenceAudioWorker +0.25s] diff[200]->false
+[laravel +0.32s] POST /api/worker/tasks/word_audio/pull -> 200 (551ms) success=True
+[WordAudioWorker +0.06s] Pulled 1 task(s), dispatched 1 progress=0/0
+[laravel +0.60s] POST /api/worker/tasks/word_audio/result -> 200 (593ms) success=True
+[WordAudioWorker +0.09s] diff[200]->false
+[SentenceAudioWorker +0.02s] diff[200]->false
+[qwen3tts +0.66s] INFO:     127.0.0.1:56617 - "POST /queue/submit HTTP/1.1" 429 Too Many Requests
+[qwen3tts +0.05s] INFO:     127.0.0.1:56617 - "GET /status HTTP/1.1" 200 OK
+[SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+[qwen3tts +1.02s] INFO:     127.0.0.1:56723 - "GET /status HTTP/1.1" 200 OK
+[SentenceAudioWorker +0.30s] diff[200]->false
+[laravel +0.28s] POST /api/worker/tasks/sentence_audio/result -> 200 (1609ms) success=True
+[SentenceAudioWorker +0.00s] Posted 'processing' for task task_92f...
+[SentenceAudioWorker +0.73s] diff[200]->false
+[WordAudioWorker +0.30s] diff[200]->false
+[WordAudioWorker +0.63s] diff[200]->false
+[SentenceAudioWorker +0.03s] diff[200]->false
+[qwen3tts +0.31s] INFO:     127.0.0.1:56617 - "POST /queue/submit HTTP/1.1" 429 Too Many Requests
+[RelayV2 +0.01s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.signing_key.present key_version=1
+[RelayV2 +0.00s] action=identity.credential.present credential_id=<redacted> credential_version=<redacted>
+[RelayV2 +0.00s] action=identity.ready device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e key_version=1
+[RelayV2 +0.00s] action=identity.credential.present credential_id=<redacted> credential_version=<redacted>
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=enrollment.credential.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=identity.signing_key.present key_version=1
+[RelayV2 +0.00s] action=identity.credential.present credential_id=<redacted> credential_version=<redacted>
+[RelayV2 +0.00s] action=identity.ready device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e key_version=1
+[RelayV2 +0.00s] action=identity.request.signed body_length=440 content_sha256=ec96010d87c1289aa234b4469c7937dbb2647deed8d97b2193db41d9bad6a1cb credential_version=<redacted> device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e method=POST path=/api/relay/v2/device/heartbeat
+[RelayV2 +0.00s] action=device.heartbeat.started body=bytes:440 sha256:ec96010d87c1289aa234b4469c7937dbb2647deed8d97b2193db41d9bad6a1cb endpoint=https://api.si.12gm.com method=POST path=/api/relay/v2/device/heartbeat query=keys:
+[qwen3tts +0.03s] INFO:     127.0.0.1:56617 - "GET /status HTTP/1.1" 200 OK
+[SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
+[laravel +0.62s] POST /api/app_qy_v1/ai_tools/article/worker/submit -> 500 (2540ms) success=False
+[AgentHistoryPipeline +0.07s] upload retry deferred (article-item_b155b5a509ed48648d089f5088e2ccc4): Laravel upload failed: Internal server error
+[SentenceAudioWorker +0.08s] diff[200]->false
+[RelayV2 +0.55s] action=device.heartbeat.completed duration_ms=1355.9 method=POST path=/api/relay/v2/device/heartbeat response_length=1636 response_sha256=5f9fe044e4ce9cb7335b8a62d716db6d98d52cd09bdf79ba96799465cef2acfe status=200
+[RelayV2 +0.00s] action=identity.device_id.present device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[RelayV2 +0.00s] action=device.heartbeat.acknowledged device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e
+[WordAudioWorker +0.14s] diff[200]->false
+[laravel +0.01s] POST /api/worker/tasks/sentence_audio/result -> 200 (1478ms) success=True
