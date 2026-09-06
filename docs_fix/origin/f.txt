@@ -70,7 +70,7 @@ ProtocolFetch.ts:233
 
 根据下面的日志，继续搜索官方文档，并按规范修复，注意pycore并不运行在本机，但是laravel main运行在本机。
 1:首先为什么反复的重复 SentenceAudioWorker ，比如 ·· 百姓就都摘下他們耳上的金環··，并没有递归继续，同时，为什么没有英文优先，处理完处理后端的英文后才继续其他语言。UI上也是这么设置。
-2：
+2：为什么有的URL后端没有，继续查看是否全部支持到frankenPHP,比如 ··[laravel +0.62s] POST /api/app_qy_v1/ai_tools/article/worker/submit -> 500 (2540ms) success=False··
 
 SentenceAudioWorker +0.00s] progress task=task_92f... text='百姓就都摘下他們耳上的金環、拿來給亞倫。' progress=10/100: qwen phase=queue_capacity_wait chunks=0/0
 [laravel +0.18s] POST /api/worker/tasks/word_audio/result -> 200 (917ms) success=True
