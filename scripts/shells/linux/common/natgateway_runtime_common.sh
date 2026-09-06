@@ -155,7 +155,7 @@ check_permissions() {
 check_installation() {
     if [ -f "$NATGATEWAY_LINK" ] && [ -L "$NATGATEWAY_LINK" ]; then
         local link_target=$(readlink -f "$NATGATEWAY_LINK")
-        local current_script=$(readlink -f "${BASH_SOURCE[0]}")
+        local current_script="$REAL_SCRIPT_PATH"
 
         if [ "$link_target" = "$current_script" ]; then
             IS_INSTALLED=true

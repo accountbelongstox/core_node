@@ -622,11 +622,24 @@ class BaseLaravelWorkerService:
             data = self._response_data(response)
             progress = data.get("progress")
             if isinstance(progress, dict):
+                # Keep scalar metrics AND nested dictionaries (language_tiers)
+                # so tier progress survives into worker-facing reports.
                 self._queue_progress[task_type] = {
                     str(key): int(value or 0)
                     for key, value in progress.items()
                     if isinstance(value, (int, float))
                 }
+                for key, value in progress.items():
+                    if isinstance(value, dict):
+                        self._queue_progress[task_type][str(key)] = {
+                            str(tier_key): {
+                                str(metric): int(metric_value or 0)
+                            for metric, metric_value in tier_value.items()
+                            if isinstance(metric_value, (int, float))
+                            }
+                            for tier_key, tier_value in value.items()
+                            if isinstance(tier_value, dict)
+                        }
             raw_tasks = data.get("tasks")
             tasks = (
                 [dict(task) for task in raw_tasks if isinstance(task, dict)]

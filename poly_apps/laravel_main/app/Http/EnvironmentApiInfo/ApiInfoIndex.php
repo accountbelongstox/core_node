@@ -142,52 +142,106 @@ class ApiInfoIndex
 
     /**
      * Load API information for a specific app
-     * 
+     *
      * @param string $appName
-     * @return array|string
+     * @return array
      */
-    private static function loadAppApiInfo(string $appName): array|string
+    private static function loadAppApiInfo(string $appName): array
     {
+        $apiInfoClass = "\\App\\Apps\\{$appName}\\{$appName}ApiInfo";
+
         try {
-            $apiInfoClass = "\\App\\Apps\\{$appName}\\{$appName}ApiInfo";
-            
             if (class_exists($apiInfoClass)) {
-                $apiInfoInstance = new $apiInfoClass();
-                
-                if (method_exists($apiInfoInstance, 'getDetails')) {
-                    return $apiInfoInstance->getDetails();
-                } elseif (method_exists($apiInfoClass, 'getApiInfo')) {
-                    return $apiInfoClass::getApiInfo();
+                if (method_exists($apiInfoClass, 'getDetails')) {
+                    return self::normalizeAppInfo((new $apiInfoClass())->getDetails(), $appName);
+                }
+                if (method_exists($apiInfoClass, 'getApiInfo')) {
+                    return self::normalizeAppInfo($apiInfoClass::getApiInfo(), $appName);
+                }
+                if (method_exists($apiInfoClass, 'getInfo')) {
+                    return self::normalizeAppInfo($apiInfoClass::getInfo(), $appName);
                 }
             }
-            
-            return "API information class not found for {$appName}";
-        } catch (\Exception $e) {
-            return "Error loading API information for {$appName}: " . $e->getMessage();
+
+            return self::normalizeAppInfo("API information class not found for {$appName}", $appName);
+        } catch (\Throwable $e) {
+            return self::normalizeAppInfo("Error loading API information for {$appName}: {$e->getMessage()}", $appName);
         }
     }
 
     /**
      * Load Common API information
-     * 
-     * @return array|string
+     *
+     * @return array
      */
-    private static function loadCommonApiInfo(): array|string
+    private static function loadCommonApiInfo(): array
     {
         try {
             $commonApiInfoClass = "\\App\\Http\\EnvironmentApiInfo\\CommonApiInfo";
-            
-            if (class_exists($commonApiInfoClass)) {
-                $commonApiInfoInstance = new $commonApiInfoClass();
-                
-                if (method_exists($commonApiInfoInstance, 'getDetails')) {
-                    return $commonApiInfoInstance->getDetails();
-                }
+
+            if (class_exists($commonApiInfoClass) && method_exists($commonApiInfoClass, 'getDetails')) {
+                return self::normalizeAppInfo((new $commonApiInfoClass())->getDetails(), 'Common');
             }
-            
-            return "Common API information class not found";
-        } catch (\Exception $e) {
-            return "Error loading Common API information: " . $e->getMessage();
+
+            return self::normalizeAppInfo("Common API information class not found", 'Common');
+        } catch (\Throwable $e) {
+            return self::normalizeAppInfo("Error loading Common API information: {$e->getMessage()}", 'Common');
         }
+    }
+
+    /**
+     * Normalize any app info payload into the client contract shape.
+     *
+     * Contract: app info is always an array containing a sequential list of
+     * endpoint arrays and a supported_headers map, so clients never receive
+     * raw error strings or associative endpoint maps.
+     *
+     * @param mixed $info
+     * @param string $appName
+     * @return array
+     */
+    private static function normalizeAppInfo(mixed $info, string $appName): array
+    {
+        if (!is_array($info)) {
+            return [
+                'app_name' => $appName,
+                'endpoints' => [],
+                'supported_headers' => [],
+                'error' => is_string($info) ? $info : 'Invalid API information payload',
+            ];
+        }
+
+        if (!is_string($info['app_name'] ?? null) || $info['app_name'] === '') {
+            $info['app_name'] = $appName;
+        }
+        $info['endpoints'] = self::normalizeEndpointList($info['endpoints'] ?? []);
+        $info['supported_headers'] = is_array($info['supported_headers'] ?? null) ? $info['supported_headers'] : [];
+
+        return $info;
+    }
+
+    /**
+     * Normalize endpoints into a sequential list of endpoint arrays.
+     *
+     * Accepts both sequential lists and associative maps keyed by endpoint
+     * name; non-array entries are dropped.
+     *
+     * @param mixed $endpoints
+     * @return array
+     */
+    private static function normalizeEndpointList(mixed $endpoints): array
+    {
+        if (!is_array($endpoints)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($endpoints as $endpoint) {
+            if (is_array($endpoint)) {
+                $normalized[] = $endpoint;
+            }
+        }
+
+        return $normalized;
     }
 }

@@ -56,6 +56,9 @@ CADDY_SERVER_WATCH_DIRECTIVES=""
 FRANKENPHP_RUN_ARGS=()
 SCHEDULER_PID=""
 FRANKENPHP_PID=""
+SLEEP_WATCH_PID=""
+SCHEDULER_RESTART_DELAY_SECONDS="5"
+SUPERVISED_EXIT_STATUS="0"
 
 stop_runtime_processes() {
     if [ -n "$SCHEDULER_PID" ]; then
@@ -70,6 +73,19 @@ stop_runtime_processes() {
     if [ -n "$FRANKENPHP_PID" ]; then
         wait "$FRANKENPHP_PID" 2>/dev/null || true
     fi
+}
+
+launch_scheduler() {
+    "$PHP_BIN" artisan schedule:work &
+    SCHEDULER_PID=$!
+}
+
+# Interruptible sleep: a signal breaks the wait immediately instead of
+# waiting out the delay command, so stop/restart paths stay prompt.
+supervised_sleep() {
+    sleep "$1" &
+    SLEEP_WATCH_PID=$!
+    wait "$SLEEP_WATCH_PID"
 }
 
 # shellcheck source=/dev/null
@@ -196,8 +212,25 @@ export CADDY_SERVER_WATCH_DIRECTIVES
 FRANKENPHP_RUN_ARGS=(run -c "$FRANKENPHP_CADDYFILE")
 echo "[laravel-runtime-frankenphp] Starting Laravel scheduler and FrankenPHP supervisor (Octane worker, https :${FRANKENPHP_HTTPS_PORT} h2/h3, admin :${FRANKENPHP_ADMIN_PORT}, Mercure hub on plane)"
 trap stop_runtime_processes EXIT INT TERM
-"$PHP_BIN" artisan schedule:work &
-SCHEDULER_PID=$!
+
+# The scheduler is an AUXILIARY process: its exit (including the periodic
+# php-cli SIGSEGV of the frankenphp CLI build) must never take the serving
+# plane down - relaunch it in place. Only the FrankenPHP supervisor owns
+# the service lifetime; when IT exits, systemd (Restart=always) performs
+# the full unit restart.
+launch_scheduler
 "$FM_BINARY" "${FRANKENPHP_RUN_ARGS[@]}" &
 FRANKENPHP_PID=$!
-wait -n "$SCHEDULER_PID" "$FRANKENPHP_PID"
+while :; do
+    wait -n "$SCHEDULER_PID" "$FRANKENPHP_PID"
+    SUPERVISED_EXIT_STATUS=$?
+    if ! kill -0 "$FRANKENPHP_PID" 2>/dev/null; then
+        wait "$FRANKENPHP_PID" 2>/dev/null || true
+        echo "[laravel-runtime-frankenphp] FrankenPHP supervisor exited (status ${SUPERVISED_EXIT_STATUS}); handing over to systemd"
+        exit "$SUPERVISED_EXIT_STATUS"
+    fi
+    wait "$SCHEDULER_PID" 2>/dev/null || true
+    echo "[laravel-runtime-frankenphp] scheduler exited (status ${SUPERVISED_EXIT_STATUS}); relaunching in ${SCHEDULER_RESTART_DELAY_SECONDS}s"
+    supervised_sleep "$SCHEDULER_RESTART_DELAY_SECONDS"
+    launch_scheduler
+done

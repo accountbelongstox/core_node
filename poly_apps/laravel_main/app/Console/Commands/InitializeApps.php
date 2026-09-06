@@ -28,7 +28,7 @@ class InitializeApps extends Command
         $this->info('Initializing system...');
         $this->newLine();
 
-        $this->info('Checking Octane hot-reload dependencies...');
+        $this->info('Checking hot-reload dependencies...');
         $dependencyInitializer->installChokidar();
         $this->newLine();
 

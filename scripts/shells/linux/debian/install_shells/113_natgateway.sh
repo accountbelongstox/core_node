@@ -30,9 +30,9 @@ REAL_SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "$REAL_SCRIPT_PATH")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-NATGATEWAY_RUNTIME_MODULE="$SCRIPT_CURRENT_DIR/113_natgateway_runtime.sh"
-NATGATEWAY_INTERFACE_MODULE="$SCRIPT_CURRENT_DIR/113_natgateway_interfaces.sh"
-NATGATEWAY_MENU_MODULE="$SCRIPT_CURRENT_DIR/113_natgateway_menu.sh"
+NATGATEWAY_RUNTIME_MODULE="$PARENT_DIR_LEVEL_2/common/natgateway_runtime_common.sh"
+NATGATEWAY_INTERFACE_MODULE="$PARENT_DIR_LEVEL_2/common/natgateway_interfaces_common.sh"
+NATGATEWAY_MENU_MODULE="$PARENT_DIR_LEVEL_2/common/natgateway_menu_common.sh"
 
 # Source global variables first
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

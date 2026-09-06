@@ -42,6 +42,7 @@ import {
   RateStatus,
   TIER_CLS,
   appendProviderTestLogs,
+  availabilityRank,
   mergeGatewayKeyStatus,
   modelsLabel,
   type ImageTestResult,

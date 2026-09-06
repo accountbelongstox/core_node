@@ -59,6 +59,14 @@ FM_DOMAIN_ROUTES_READY="no"
 FM_DOMAIN_ROUTE_FILE_READY="no"
 FM_DOMAIN_INSTALL_READY="no"
 FM_DOMAIN_CERTIFICATES_READY="no"
+# Live-apply contract: the plane service unit the reload/restart fallback
+# owns, plus the bounded /load retry window (tolerates transient admin
+# endpoint blips such as a worker-restart window).
+FM_DOMAIN_SERVICE_UNIT="${FM_DOMAIN_SERVICE_UNIT:-ncore-laravel-frankenphp}"
+FM_DOMAIN_CADDY_APPLY_ATTEMPTS="${FM_DOMAIN_CADDY_APPLY_ATTEMPTS:-3}"
+FM_DOMAIN_CADDY_APPLY_RETRY_DELAY_SECONDS="${FM_DOMAIN_CADDY_APPLY_RETRY_DELAY_SECONDS:-2}"
+FM_DOMAIN_CADDY_RELOAD_CODE=""
+FM_DOMAIN_CADDY_APPLY_ATTEMPT=""
 
 # Ensure the Caddy routes directory exists (lazy sudo, symlink-aware).
 fm_domain_ensure_routes_dir() {
@@ -171,6 +179,70 @@ fm_domain_log_route_topology() {
     echo "[fm-domain] ${indentation}UI: ${ui_hosts} -> ${FM_DOMAIN_UI_BACKEND_URL}"
 }
 
+# Apply the converged Caddy configuration to the live plane. Order per the
+# official Caddy admin API: zero-downtime POST /load with bounded retries
+# first, then a full unit restart as the fallback so a re-run ALWAYS
+# converges the live server. FM_DOMAIN_CADDY_RELOAD_READY is "yes" only
+# when the live server provably serves the converged files; a stopped or
+# crash-looping unit reports the deferred hint instead (its next start
+# reads the canonical files).
+fm_domain_caddy_apply_converged() {
+    local sudo_cmd
+
+    FM_DOMAIN_CADDY_RELOAD_READY="no"
+    FM_DOMAIN_CADDY_RELOAD_CODE=""
+    if command -v curl >/dev/null 2>&1 && [ -f "$FM_DOMAIN_CADDYFILE" ]; then
+        FM_DOMAIN_CADDY_APPLY_ATTEMPT="1"
+        while [ "$FM_DOMAIN_CADDY_APPLY_ATTEMPT" -le "$FM_DOMAIN_CADDY_APPLY_ATTEMPTS" ]; do
+            FM_DOMAIN_CADDY_RELOAD_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+                -H 'Content-Type: text/caddyfile' --data-binary "@${FM_DOMAIN_CADDYFILE}" \
+                "http://127.0.0.1:$(sc_require ports.frankenphp_admin)/load" 2>/dev/null)"
+            if [ "$FM_DOMAIN_CADDY_RELOAD_CODE" = "200" ]; then
+                break
+            fi
+            sleep "$FM_DOMAIN_CADDY_APPLY_RETRY_DELAY_SECONDS"
+            FM_DOMAIN_CADDY_APPLY_ATTEMPT=$((FM_DOMAIN_CADDY_APPLY_ATTEMPT + 1))
+        done
+    fi
+    if [ "$FM_DOMAIN_CADDY_RELOAD_CODE" = "200" ]; then
+        FM_DOMAIN_CADDY_RELOAD_READY="yes"
+        echo "[fm-domain] [OK] Caddy admin /load applied the converged configuration (zero downtime)"
+        return
+    fi
+    # Graceful reload failed (server down or admin endpoint unavailable):
+    # a registered, active unit restarts through the canonical runtime
+    # launcher, which re-renders and re-reads every converged file at start.
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] \
+        && [ -f "/etc/systemd/system/${FM_DOMAIN_SERVICE_UNIT}.service" ] \
+        && systemctl is-active --quiet "$FM_DOMAIN_SERVICE_UNIT"; then
+        sudo_cmd=$(lazy_sudo)
+        echo "[fm-domain] [INFO] Caddy admin /load unavailable; restarting ${FM_DOMAIN_SERVICE_UNIT} (canonical re-convergence)"
+        $sudo_cmd systemctl restart "$FM_DOMAIN_SERVICE_UNIT"
+    fi
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "$FM_DOMAIN_SERVICE_UNIT"; then
+        FM_DOMAIN_CADDY_RELOAD_READY="yes"
+        echo "[fm-domain] [OK] ${FM_DOMAIN_SERVICE_UNIT} active with the converged configuration"
+    else
+        echo "[fm-domain] [INFO] Caddy load deferred; the supervised runtime will read the canonical files at start"
+    fi
+}
+
+# Gracefully restart ALL FrankenPHP workers through the official admin
+# endpoint: the workers re-read application state (.env, config, code
+# caches) without dropping the server. Non-fatal when unavailable - the
+# worker 'watch' directive and max_requests also cycle workers.
+fm_domain_workers_restart() {
+    local workers_code=""
+
+    workers_code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+        "http://127.0.0.1:$(sc_require ports.frankenphp_admin)/frankenphp/workers/restart" 2>/dev/null)"
+    if [ "$workers_code" = "200" ]; then
+        echo "[fm-domain] [OK] FrankenPHP workers restarted gracefully (application state re-read)"
+    else
+        echo "[fm-domain] [INFO] Worker restart endpoint unavailable (code ${workers_code:-none}); workers keep their current state"
+    fi
+}
+
 # Enable and render the dashboard aliases on the FrankenPHP plane. Shared
 # state/allowed-host inputs stay owned by domain_setup_common; this function
 # owns only Caddy route convergence and the zero-downtime admin load.
@@ -178,8 +250,6 @@ fm_domain_enable_ui_binding() {
     local domain=""
     local prefix=""
     local route_drift="no"
-    local admin_port=""
-    local reload_code=""
 
     FM_DOMAIN_UI_BINDING_READY="no"
     FM_DOMAIN_CADDY_RELOAD_READY="no"
@@ -199,23 +269,12 @@ fm_domain_enable_ui_binding() {
         fi
     done <<< "$DOMAIN_DOMAINS_LIST"
 
-    admin_port="$(sc_require ports.frankenphp_admin)"
-    fm_domain_ensure_main_caddyfile "$admin_port" "${FM_DOMAIN_LARAVEL_DIR}/public"
+    fm_domain_ensure_main_caddyfile "" "${FM_DOMAIN_LARAVEL_DIR}/public"
     if [ "$route_drift" = "no" ] && [ "$FM_CADDYFILE_READY" = "yes" ]; then
         FM_DOMAIN_UI_BINDING_READY="yes"
     fi
 
-    if command -v curl >/dev/null 2>&1 && [ -f "$FM_DOMAIN_CADDYFILE" ]; then
-        reload_code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
-            -H 'Content-Type: text/caddyfile' --data-binary "@${FM_DOMAIN_CADDYFILE}" \
-            "http://127.0.0.1:${admin_port}/load" 2>/dev/null)"
-    fi
-    if [ "$reload_code" = "200" ]; then
-        FM_DOMAIN_CADDY_RELOAD_READY="yes"
-        echo "[fm-domain] [OK] Caddy loaded the UI routes"
-    else
-        echo "[fm-domain] [INFO] Caddy load deferred; the supervised runtime will read the canonical files at start"
-    fi
+    fm_domain_caddy_apply_converged
 }
 
 # Idempotently write ONE domain's Caddy route file. Content-hash idempotent

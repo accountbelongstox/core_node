@@ -3,6 +3,7 @@
 namespace App\Services\QueueCenter;
 
 use App\Models\GlobalTask;
+use App\Support\QueueCenterContract;
 
 final class QueueCenterMetricsService
 {
@@ -38,6 +39,7 @@ final class QueueCenterMetricsService
     public function invalidate(string $taskType): void
     {
         QueueCenterCacheStore::get()->forget(self::CACHE_PREFIX . $taskType);
+        QueueCenterCacheStore::get()->forget(self::CACHE_PREFIX . $taskType . ':tiers');
     }
 
     public function progress(string $taskType): array
@@ -51,7 +53,48 @@ final class QueueCenterMetricsService
             'assigned' => (int) ($snapshot['assigned'] ?? 0),
             'processing' => (int) ($snapshot['processing'] ?? 0),
             'failed' => (int) ($snapshot['failed'] ?? 0),
+            'language_tiers' => $this->languageTiers($taskType),
         ];
+    }
+
+    /**
+     * Completion progress per contract language_priority tier. Empty array for
+     * un-tiered task types; otherwise one entry per tier language with
+     * completed/total so remote workers can log e.g. remote en completion.
+     */
+    public function languageTiers(string $taskType): array
+    {
+        $tiers = QueueCenterContract::taskLanguagePriority($taskType);
+        if ($tiers === []) {
+            return [];
+        }
+        return QueueCenterCacheStore::get()->remember(
+            self::CACHE_PREFIX . $taskType . ':tiers',
+            self::CACHE_SECONDS,
+            static function () use ($taskType, $tiers): array {
+                $counts = [];
+                foreach (GlobalTask::languageStatusCountsForTaskType($taskType) as $row) {
+                    $language = (string) ($row->language_key ?? '');
+                    $status = (string) ($row->status_key ?? '');
+                    $aggregate = (int) ($row->aggregate ?? 0);
+                    if ($language === '' || !isset($counts[$language])) {
+                        $counts[$language] = ['completed' => 0, 'total' => 0];
+                    }
+                    $counts[$language]['total'] += $aggregate;
+                    if ($status === GlobalTask::status('completed')
+                        || $status === GlobalTask::status('completed_demo')) {
+                        $counts[$language]['completed'] += $aggregate;
+                    }
+                }
+                $tiersProgress = [];
+                foreach ($tiers as $tier) {
+                    if (isset($counts[$tier])) {
+                        $tiersProgress[$tier] = $counts[$tier];
+                    }
+                }
+                return $tiersProgress;
+            }
+        );
     }
 
     public function liveQueue(string $taskType): array

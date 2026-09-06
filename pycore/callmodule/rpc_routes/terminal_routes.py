@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ACTIVATE,
@@ -51,6 +51,7 @@ def _run_terminal_action(
     action: str,
     request_id: str,
     callback: Callable[[], Any],
+    log_result: bool = True,
 ) -> Any:
     terminal_activity_log.info(
         "rpc.started",
@@ -70,13 +71,14 @@ def _run_terminal_action(
         raise
     success = not isinstance(result, dict) or bool(result.get("success", True))
     log_method = terminal_activity_log.success if success else terminal_activity_log.warning
-    log_method(
-        "rpc.completed",
-        terminal_action=action,
-        request_id=request_id,
-        success=success,
-        result=result,
-    )
+    payload: Dict[str, Any] = {
+        "terminal_action": action,
+        "request_id": request_id,
+        "success": success,
+    }
+    if log_result:
+        payload["result"] = result
+    log_method("rpc.completed", **payload)
     return result
 
 
@@ -94,6 +96,7 @@ def register_terminal_routes(server) -> None:
             "windows",
             request_id,
             read_snapshot,
+            log_result=False,
         )
 
     def activate_handler(params, request_id, _context):

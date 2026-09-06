@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSO Authentication - Documentation</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+    <style>
+        .doc-code { background: #0f172a; color: #e2e8f0; border-radius: 0.5rem; padding: 1rem 1.25rem; font-size: 0.8rem; line-height: 1.6; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+        .doc-anchor { scroll-margin-top: 5rem; }
+    </style>
+</head>
+<!-- Built-in section: SSO documentation (usage, deployment, embedding). -->
+<body class="min-h-screen bg-gray-50 p-4 md:p-8">
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
+                <h1 class="text-2xl font-bold text-white">SSO Authentication</h1>
+                <p class="text-indigo-100 text-sm mt-1">Single Sign-On with WorkOS AuthKit &middot; Laravel 13 + FrankenPHP/Octane</p>
+            </div>
+
+            <nav class="px-8 py-4 border-b border-gray-100 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                <a href="#overview" class="text-indigo-600 hover:underline">Overview</a>
+                <a href="#usage" class="text-indigo-600 hover:underline">Usage</a>
+                <a href="#deployment" class="text-indigo-600 hover:underline">Deployment</a>
+                <a href="#embedding" class="text-indigo-600 hover:underline">Embedding</a>
+                <a href="#api" class="text-indigo-600 hover:underline">HTTP API</a>
+                <a href="#dashboard-auth" class="text-indigo-600 hover:underline">Dashboard Login</a>
+            </nav>
+
+            <div class="p-8 space-y-10 text-gray-700">
+                <!-- Overview -->
+                <section id="overview" class="doc-anchor space-y-3">
+                    <h2 class="text-xl font-bold text-gray-900">Overview</h2>
+                    <p class="text-sm leading-relaxed">
+                        The platform has two independent login surfaces:
+                    </p>
+                    <ul class="list-disc pl-6 text-sm leading-relaxed space-y-2">
+                        <li><strong>Dashboard login</strong> (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/auth/*</code>) &mdash; username / email / phone + password against the canonical Laravel <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">users</code> table. Powers the login wall, the top-right user menu, registration and super-code elevation. Super administrators sign in with their real account.</li>
+                        <li><strong>SSO Authentication</strong> (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/sso/*</code>) &mdash; single sign-on through WorkOS AuthKit and organization identity providers (Google, Microsoft, GitHub, Apple). Related to the dashboard login (same user table, shared tokens) but dedicated to SSO federation.</li>
+                    </ul>
+                    <p class="text-sm leading-relaxed">
+                        Both issue Laravel Sanctum tokens through <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">CommonAuthService::issueLoginToken()</code>, so a token from either surface is valid across the platform.
+                    </p>
+                </section>
+
+                <!-- Usage -->
+                <section id="usage" class="doc-anchor space-y-3">
+                    <h2 class="text-xl font-bold text-gray-900">Usage</h2>
+                    <ol class="list-decimal pl-6 text-sm leading-relaxed space-y-2">
+                        <li>Open <strong>SSO Authentication</strong> in the sidebar (or navigate to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/sso</code>).</li>
+                        <li><strong>Password tab:</strong> sign in with username / email / phone + password. When WorkOS credentials are configured this authenticates through WorkOS AuthKit; otherwise it falls back to Laravel-native authentication.</li>
+                        <li><strong>SSO tab:</strong> optionally enter an Organization ID, pick a provider, then click <em>Sign in with SSO</em>. You are redirected to the identity provider and returned to <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">/sso/callback</code>.</li>
+                        <li>The generated SSO URL can be copied and shared: users who are already signed in get auto-authenticated; others see the login prompt first.</li>
+                    </ol>
+                </section>
+
+                <!-- Deployment -->
+                <section id="deployment" class="doc-anchor space-y-4">
+                    <h2 class="text-xl font-bold text-gray-900">Deployment</h2>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">1. WorkOS credentials (RuntimeConfigurationStore)</h3>
+                        <p class="text-sm leading-relaxed">Persist these keys through <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">RuntimeConfigurationStore</code>; the start shell loads them before Laravel starts (they are read via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">config('services.workos.*')</code>):</p>
+                        <div class="doc-code">WORKOS_CLIENT_ID        # AuthKit client ID
+WORKOS_API_KEY          # WorkOS secret key (sk_...)
+WORKOS_CLIENT_SECRET    # required for password authentication
+WORKOS_REDIRECT_URL     # optional; defaults to {origin}/sso/callback</div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">2. Dashboard authentication keys</h3>
+                        <div class="doc-code">DASHBOARD_LOCAL_DEBUG       # 'true' (default): loopback requests bypass login
+                            # set to 'false' on shared hosts to force real login
+DASHBOARD_INVITATION_CODE   # invitation code required for /auth/register;
+                            # unset closes self-registration
+DASHBOARD_SUPER_CODE        # super code that elevates an account to
+                            # Super Administrator (rolelevel 100); unset closes elevation</div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">3. FrankenPHP / Octane notes</h3>
+                        <ul class="list-disc pl-6 text-sm leading-relaxed space-y-2">
+                            <li>The SSO plane runs under Laravel Octane; the server (FrankenPHP or Swoole) is selected by <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">config/octane.php</code> via <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">WebServerPlane</code>. No code changes are needed when switching servers: controllers are stateless per request and credentials come from the runtime store, never from static state.</li>
+                            <li>Loopback detection relies on <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">trustProxies</code> (loopback proxy only) in <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">bootstrap/app.php</code>, so <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">$request-&gt;ip()</code> resolves the real client behind nginx + FrankenPHP and the debug bypass can never be spoofed by remote visitors.</li>
+                            <li>HTTPS termination: with FrankenPHP the Octane HTTPS flag follows the same plane detection; WorkOS requires the redirect URL to match the registered callback exactly, including scheme.</li>
+                            <li>Auth mutation endpoints are rate limited (<code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">throttle:dashboard-auth</code>, 10/min per IP) following the Laravel 13 authentication guidelines.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Embedding -->
+                <section id="embedding" class="doc-anchor space-y-4">
+                    <h2 class="text-xl font-bold text-gray-900">Embedding Examples</h2>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Redirect login (server-rendered page)</h3>
+                        <div class="doc-code">&lt;a href="/sso"&gt;Sign in with SSO&lt;/a&gt;
+&lt;!-- The page authenticates, then redirects to the identity provider and
+     returns to /sso/callback?code=... which re-renders the SSO page
+     with the session and bearer token injected. --&gt;</div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Password login from any client (fetch)</h3>
+                        <div class="doc-code">// 1. Fetch a CSRF token (web routes are CSRF-protected)
+const { csrf_token } = await fetch('/csrf-token').then(r =&gt; r.json());
+
+// 2. Sign in; the response carries a Sanctum bearer token
+const res = await fetch('/sso/authenticate', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrf_token
+    },
+    body: JSON.stringify({ email: 'user@example.com', password: 'secret' })
+});
+const { success, data } = await res.json();
+localStorage.setItem('auth_token', data.token);</div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Authenticated API calls (Bearer token)</h3>
+                        <div class="doc-code">const res = await fetch('/auth/user', {
+    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('auth_token') }
+});
+const { data } = await res.json();
+console.log(data.user, data.is_super_admin);</div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Embedded iframe login inside a host app</h3>
+                        <div class="doc-code">&lt;iframe src="https://api.example.com/sso"
+        style="width:480px;height:820px;border:0"&gt;&lt;/iframe&gt;
+
+&lt;!-- The embedded page shares the host origin cookies when served from the
+     same domain; for cross-origin hosts use the JSON API above and pass
+     the token yourself. --&gt;</div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">curl</h3>
+                        <div class="doc-code">curl -s https://api.example.com/sso/user
+curl -s -X POST https://api.example.com/auth/login \
+    -H 'Content-Type: application/json' -H 'Accept: application/json' \
+    -d '{"identifier":"admin","password":"secret"}'</div>
+                    </div>
+                </section>
+
+                <!-- API reference -->
+                <section id="api" class="doc-anchor space-y-3">
+                    <h2 class="text-xl font-bold text-gray-900">HTTP API Reference</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-gray-50 text-gray-600">
+                                <tr>
+                                    <th class="px-4 py-2 text-left font-semibold">Endpoint</th>
+                                    <th class="px-4 py-2 text-left font-semibold">Method</th>
+                                    <th class="px-4 py-2 text-left font-semibold">Auth</th>
+                                    <th class="px-4 py-2 text-left font-semibold">Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 font-mono">
+                                <tr><td class="px-4 py-2">/sso</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">SSO login page</td></tr>
+                                <tr><td class="px-4 py-2">/sso/docs</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">this documentation</td></tr>
+                                <tr><td class="px-4 py-2">/sso/authorize</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">session</td><td class="px-4 py-2 font-sans">authorization URL</td></tr>
+                                <tr><td class="px-4 py-2">/sso/authenticate</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">password login (WorkOS or native)</td></tr>
+                                <tr><td class="px-4 py-2">/sso/callback</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">IdP callback</td></tr>
+                                <tr><td class="px-4 py-2">/sso/user</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">current session (always 200)</td></tr>
+                                <tr><td class="px-4 py-2">/sso/logout</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">session</td><td class="px-4 py-2 font-sans">sign out</td></tr>
+                                <tr><td class="px-4 py-2">/auth/status</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">login-wall + user status</td></tr>
+                                <tr><td class="px-4 py-2">/auth/user</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">public</td><td class="px-4 py-2 font-sans">current dashboard user</td></tr>
+                                <tr><td class="px-4 py-2">/auth/login</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">public*</td><td class="px-4 py-2 font-sans">dashboard login (rate limited)</td></tr>
+                                <tr><td class="px-4 py-2">/auth/register</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">public*</td><td class="px-4 py-2 font-sans">self-registration (invitation code)</td></tr>
+                                <tr><td class="px-4 py-2">/auth/elevate</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">super-code elevation</td></tr>
+                                <tr><td class="px-4 py-2">/auth/users</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">super admin</td><td class="px-4 py-2 font-sans">registered accounts</td></tr>
+                                <tr><td class="px-4 py-2">/auth/logout</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">sign out</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="text-xs text-gray-500">* Rate limited to 10 requests per minute per IP via <code class="bg-gray-100 px-1 rounded">throttle:dashboard-auth</code>.</p>
+                </section>
+
+                <!-- Dashboard login -->
+                <section id="dashboard-auth" class="doc-anchor space-y-3">
+                    <h2 class="text-xl font-bold text-gray-900">Dashboard Login &amp; Privileges</h2>
+                    <ul class="list-disc pl-6 text-sm leading-relaxed space-y-2">
+                        <li><strong>Sign in:</strong> top-right <em>Sign In</em> button opens the embedded login modal (username / email / phone + password).</li>
+                        <li><strong>Register:</strong> embedded registration tab; requires the server invitation code when configured.</li>
+                        <li><strong>Elevate:</strong> Management page &rarr; <em>Super Code Elevation</em> &rarr; submit the server-configured super code to become Super Administrator (rolelevel 100).</li>
+                        <li><strong>Loopback bypass:</strong> same-machine requests resolve the highest-privilege account automatically (login-free local development). Disable with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">DASHBOARD_LOCAL_DEBUG=false</code>.</li>
+                        <li><strong>Identity resolution order:</strong> Sanctum bearer token &rarr; web session &rarr; loopback debug bypass.</li>
+                    </ul>
+                </section>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

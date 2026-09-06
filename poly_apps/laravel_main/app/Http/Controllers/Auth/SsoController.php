@@ -49,6 +49,16 @@ class SsoController extends Controller
     }
 
     /**
+     * Display SSO documentation page (usage, deployment, embedding examples)
+     */
+    public function docs()
+    {
+        $html = file_get_contents(public_path('debug-assets/debug-tools/sections/sso-docs.html'));
+
+        return response($html)->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
      * Get authorization URL for SSO
      */
     public function getAuthorizationUrl(Request $request)
@@ -203,7 +213,11 @@ class SsoController extends Controller
     }
 
     /**
-     * Get current SSO user session
+     * Get current SSO user session.
+     *
+     * Always answers 200: an absent session is a normal state (the SSO page
+     * polls this on load), so it must not surface as a transport error. The
+     * payload carries an explicit `authenticated` flag instead.
      */
     public function getUser(Request $request)
     {
@@ -254,7 +268,10 @@ class SsoController extends Controller
             }
         }
 
-        return $this->error('No authenticated user', 401);
+        return $this->success([
+            'user' => null,
+            'authenticated' => false,
+        ], 'No authenticated user');
     }
 
     /**

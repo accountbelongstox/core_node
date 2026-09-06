@@ -240,6 +240,7 @@ const TERMINAL_VIEWER_MAX_WINDOWS = 64;
 const TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS = 20_000;
 const TERMINAL_SCREENSHOT_FAILURE_COOLDOWN_MS = 10_000;
 const TERMINAL_SCREENSHOT_FETCH_CONCURRENCY = 3;
+const TERMINAL_SCREENSHOT_GRACE_MS = 30_000;
 
 interface TerminalScreenshotImage {
   url: string;
@@ -423,6 +424,7 @@ const PcTerminalPage: React.FC = () => {
   const screenshotImagesRef = useRef<Map<string, TerminalScreenshotImage>>(new Map());
   const screenshotFetchesRef = useRef<Set<string>>(new Set());
   const screenshotFailuresRef = useRef<Map<string, number>>(new Map());
+  const screenshotSeenAtRef = useRef<Map<string, number>>(new Map());
   const [screenshotVersion, setScreenshotVersion] = useState(0);
 
   const loadScreenshotResource = useCallback(async (
@@ -473,11 +475,18 @@ const PcTerminalPage: React.FC = () => {
     const resources = nextSnapshot.windows
       .filter((windowInfo) => windowInfo.online && windowInfo.screenshot_resource)
       .map((windowInfo) => windowInfo.screenshot_resource as TerminalScreenshotResourceMeta);
+    const now = Date.now();
     const liveKeys = new Set(
       resources.map((resource) => screenshotImageKey(resource.window_id, resource.digest)),
     );
-    for (const [key, image] of [...screenshotImagesRef.current.entries()]) {
-      if (liveKeys.has(key)) continue;
+    for (const key of liveKeys) screenshotSeenAtRef.current.set(key, now);
+    // Resources can be absent from a single snapshot while a capture lease is
+    // in flight; keep their images for a grace period instead of churning.
+    for (const [key, seenAt] of [...screenshotSeenAtRef.current.entries()]) {
+      if (now - seenAt < TERMINAL_SCREENSHOT_GRACE_MS) continue;
+      screenshotSeenAtRef.current.delete(key);
+      const image = screenshotImagesRef.current.get(key);
+      if (!image) continue;
       URL.revokeObjectURL(image.url);
       screenshotImagesRef.current.delete(key);
     }

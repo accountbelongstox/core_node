@@ -74,6 +74,13 @@ class AppServiceProvider extends ServiceProvider
                 ->by(($userId !== null ? (string) $userId : 'guest').':'.(string) $request->ip());
         });
 
+        // Dashboard auth mutations (login/register/elevate): brute-force guard
+        // per client IP, following the Laravel authentication rate-limiting
+        // convention. Identity polling (/auth/status, /auth/user) is exempt.
+        RateLimiter::for('dashboard-auth', static function (Request $request): Limit {
+            return Limit::perMinute(10)->by((string) $request->ip());
+        });
+
         Response::macro('goStyle', function () {
             return Response::make()
                 ->header('X-Go-Type', 'application/go')

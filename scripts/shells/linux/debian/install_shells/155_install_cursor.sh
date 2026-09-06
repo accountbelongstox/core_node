@@ -24,7 +24,7 @@ SCRIPT_INDEX="122"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-CURSOR_INSTALL_BACKEND="$SCRIPT_CURRENT_DIR/155_install_cursor_backend.sh"
+CURSOR_INSTALL_BACKEND="$PARENT_DIR_LEVEL_2/common/cursor_install_backend_common.sh"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

@@ -18,9 +18,11 @@ bridge) goes through here. Each request:
   * returns the raw requests-compatible response so callers keep
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.
 
-Uses one isolated session per request, so no mutable HTTP state crosses threads.
-All calls use the shared Python Requests transport.
-Streaming responses retain their owning session until the response is closed.
+Uses one keep-alive session per THREAD (pooled transport, see transport.py), so no
+mutable HTTP state crosses threads while consecutive requests reuse pooled
+TCP/TLS connections. All calls use the shared Python Requests transport.
+Streaming responses release their pooled connection back to the thread pool
+when the stream is consumed or closed; they never close the pooled session.
 
 Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorder
 lives in its own zero-dep module so the endpoint manager can import it too without
@@ -237,18 +239,11 @@ class LaravelClient:
             http_version = response_http_version(resp)
             resp.pycore_transport = transport
             resp.pycore_http_version = http_version
-            if stream:
-                original_close = resp.close
-
-                def close_stream_response() -> None:
-                    try:
-                        original_close()
-                    finally:
-                        session.close()
-
-                resp.close = close_stream_response
-            else:
-                session.close()
+            # Keep-alive pooling (transport.py): the session is the calling
+            # thread's pooled session and must never be closed here. Non-
+            # streaming bodies are fully read by callers, which returns the
+            # connection to the pool; streaming responses release theirs on
+            # close()/exhaustion.
             ms = (time.perf_counter() - started) * 1000.0
             status = resp.status_code
             body_summary = "" if stream else _summarize_response(resp)
@@ -269,7 +264,6 @@ class LaravelClient:
             })
             return resp
         except Exception as e:
-            session.close()
             ms = (time.perf_counter() - started) * 1000.0
             err = _short_err(e)
             if log_line:

@@ -95,6 +95,54 @@ const ApiUtils = {
     },
 
     /**
+     * Normalize app endpoints into an array of endpoint objects.
+     * Accepts sequential arrays, keyed maps, or missing values so callers
+     * never iterate a non-array payload.
+     * @param {Object|string} appAPIs - App info entry from api_reference
+     * @returns {Array<Object>} Endpoint objects
+     */
+    normalizeEndpoints(appAPIs) {
+        if (!appAPIs || typeof appAPIs !== 'object') {
+            return [];
+        }
+        const raw = appAPIs.endpoints;
+        if (Array.isArray(raw)) {
+            return raw.filter(ep => ep && typeof ep === 'object');
+        }
+        if (raw && typeof raw === 'object') {
+            return Object.values(raw).filter(ep => ep && typeof ep === 'object');
+        }
+        return [];
+    },
+
+    /**
+     * Resolve the HTTP method declared for an endpoint.
+     * Prefers the explicit method field; falls back to feature string parsing.
+     * @param {Object} api - Endpoint object
+     * @returns {string} HTTP method
+     */
+    resolveMethod(api) {
+        if (api && typeof api === 'object' && typeof api.method === 'string' && api.method.trim()) {
+            return this.extractMethod(api.method);
+        }
+        return this.extractMethod(api && typeof api.feature === 'string' ? api.feature : '');
+    },
+
+    /**
+     * Resolve whether an endpoint requires authentication.
+     * Prefers the explicit auth_required field; falls back to feature string parsing.
+     * @param {Object} api - Endpoint object
+     * @returns {boolean} True when authentication is required
+     */
+    resolveAuthRequired(api) {
+        if (api && typeof api === 'object' && typeof api.auth_required === 'boolean') {
+            return api.auth_required;
+        }
+        const feature = api && typeof api.feature === 'string' ? api.feature : '';
+        return feature.toLowerCase().includes('auth_required');
+    },
+
+    /**
      * Extract HTTP method from feature string
      * @param {string} feature - Feature string
      * @returns {string} HTTP method

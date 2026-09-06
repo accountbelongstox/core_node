@@ -1,0 +1,58 @@
+<div id="dashboard-auth-modal" class="auth-modal hidden">
+    <div class="auth-modal-overlay" id="dashboard-auth-modal-overlay"></div>
+    <div class="auth-modal-content">
+        <button class="auth-modal-close" id="dashboard-auth-modal-close">&times;</button>
+
+        <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login">Sign In</button>
+            <button class="auth-tab" data-tab="register">Register</button>
+        </div>
+
+        <div id="dashboard-login-panel" class="auth-panel">
+            <h3>Sign In to Dashboard</h3>
+            <p class="auth-modal-note">Uses the Laravel user table. Super administrators sign in with their real account.</p>
+            <form id="dashboard-login-form">
+                <div class="auth-form-group">
+                    <label>Username / Email / Phone:</label>
+                    <input type="text" id="dashboard-login-identifier" required class="auth-input" placeholder="your account" autocomplete="username">
+                </div>
+                <div class="auth-form-group">
+                    <label>Password:</label>
+                    <input type="password" id="dashboard-login-password" required class="auth-input" placeholder="Your password" autocomplete="current-password">
+                </div>
+                <div id="dashboard-login-error" class="auth-error hidden"></div>
+                <button type="submit" class="auth-btn auth-btn-primary">Sign In</button>
+            </form>
+        </div>
+
+        <div id="dashboard-register-panel" class="auth-panel hidden">
+            <h3>Register New Account</h3>
+            <p class="auth-modal-note" id="dashboard-register-hint"></p>
+            <form id="dashboard-register-form">
+                <div class="auth-form-group">
+                    <label>Username (Email/Phone):</label>
+                    <input type="text" id="dashboard-register-username" required class="auth-input" placeholder="Email or phone number">
+                </div>
+                <div class="auth-form-group">
+                    <label>Name (Optional):</label>
+                    <input type="text" id="dashboard-register-name" class="auth-input" placeholder="Display name (optional)">
+                </div>
+                <div class="auth-form-group">
+                    <label>Password:</label>
+                    <input type="password" id="dashboard-register-password" required class="auth-input" placeholder="At least 8 characters" autocomplete="new-password">
+                </div>
+                <div class="auth-form-group">
+                    <label>Confirm Password:</label>
+                    <input type="password" id="dashboard-register-password-confirm" required class="auth-input" placeholder="Confirm password" autocomplete="new-password">
+                </div>
+                <div class="auth-form-group">
+                    <label>Invitation Code:</label>
+                    <input type="text" id="dashboard-register-invitation" required class="auth-input" placeholder="Enter invitation code">
+                </div>
+                <div id="dashboard-register-error" class="auth-error hidden"></div>
+                <button type="submit" class="auth-btn auth-btn-primary">Register</button>
+            </form>
+            <p class="auth-modal-note">Super administrator privileges are granted inside Management after signing in, using the server-configured super code.</p>
+        </div>
+    </div>
+</div>

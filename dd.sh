@@ -130,7 +130,6 @@ select_bootstrap_option() {
             echo "=========================================="
             echo "Select an option (Up/Down to move, Enter to select):"
             echo "Press Ctrl+C to go back"
-            echo ""
             for index in "${!bootstrap_options[@]}"; do
                 if [ "$index" -eq "$selected_index" ]; then
                     printf "\033[47m\033[30m> %-68s\033[0m\n" "${bootstrap_options[$index]}"

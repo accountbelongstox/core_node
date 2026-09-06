@@ -2,7 +2,7 @@
 # Include common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-POSTGRESQL_INSTALL_COMMON="$SCRIPT_DIR/75_postgresql_install_common.sh"
+POSTGRESQL_INSTALL_COMMON="$COMMON_DIR/postgresql_install_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 source "$POSTGRESQL_INSTALL_COMMON"
 

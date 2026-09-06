@@ -3,18 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { Gauge, KeyRound, RefreshCcw, Snowflake } from 'lucide-react';
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
 import type { AiChatUiMessage } from '../../../core/contracts/ai';
-import type { AiKeySlot, AiProvider, AiProviderRate } from '@/apps/pycore-manager/api';
+import type { AiGatewayStatus, AiKeySlot, AiProvider, AiProviderRate } from '@/apps/pycore-manager/api';
 
-const TIER_CLS: Record<string, string> = {
+export const TIER_CLS: Record<string, string> = {
   free: 'bg-emerald-500/15 text-emerald-500',
   balance: 'bg-sky-500/15 text-sky-500',
   paid: 'bg-amber-500/15 text-amber-500',
 };
 
-type ProviderSortField = 'original' | 'name' | 'availability' | 'speed';
-type ProviderSortDir = 'asc' | 'desc';
+export type ProviderSortField = 'original' | 'name' | 'availability' | 'speed';
+export type ProviderSortDir = 'asc' | 'desc';
 
-function mergeGatewayKeyStatus(
+export function mergeGatewayKeyStatus(
   providers: AiProvider[],
   gateway: AiGatewayStatus | null,
 ): AiProvider[] {
@@ -39,7 +39,7 @@ function mergeGatewayKeyStatus(
   });
 }
 
-function availabilityRank(p: AiProvider): number {
+export function availabilityRank(p: AiProvider): number {
   if (!p.configured) return 4;
   if (p.rate_limited) return 1;
   if (!p.tested) return 3;
@@ -75,7 +75,7 @@ function formatProviderTestLog(p: AiProvider): AiChatUiMessage {
   };
 }
 
-function appendProviderTestLogs(providers: AiProvider[]): void {
+export function appendProviderTestLogs(providers: AiProvider[]): void {
   appendChatMessages('pycore', providers.map(formatProviderTestLog));
 }
 
@@ -86,12 +86,12 @@ function gatewayModelsLabel(models: string[]): string {
   return `${models[0]} +${n - 1}`;
 }
 
-function modelsLabel(p: AiProvider): string {
+export function modelsLabel(p: AiProvider): string {
   return gatewayModelsLabel(p.models ?? []);
 }
 
 /** Split registry limits string into display chips (semicolon-separated). */
-const LimitChips: React.FC<{ limits: string }> = ({ limits }) => {
+export const LimitChips: React.FC<{ limits: string }> = ({ limits }) => {
   const parts = limits.split(';').map((s) => s.trim()).filter(Boolean);
   if (parts.length === 0) return null;
   return (
@@ -111,7 +111,7 @@ const LimitChips: React.FC<{ limits: string }> = ({ limits }) => {
 };
 
 /** Local rate-budget bars for one provider (minute / day / month usage vs limit). */
-const RateStatus: React.FC<{ rate?: AiProviderRate | null }> = ({ rate }) => {
+export const RateStatus: React.FC<{ rate?: AiProviderRate | null }> = ({ rate }) => {
   const { t } = useTranslation('pc');
   if (!rate) return null;
   if (!rate.enforced) {
@@ -171,7 +171,7 @@ const RateStatus: React.FC<{ rate?: AiProviderRate | null }> = ({ rate }) => {
  * colored dot: green = ready/active, amber = cooling. A cooling chip also gets a
  * small "Reset cooldown" button (wired through onResetCooldown).
  */
-const KeyRotation: React.FC<{
+export const KeyRotation: React.FC<{
   slots?: AiKeySlot[];
   label: string;
   image?: boolean;
@@ -241,13 +241,13 @@ const KeyRotation: React.FC<{
 };
 
 // --- small presentational helpers ---------------------------------------- #
-const Dot: React.FC<{ ok: boolean; warn?: boolean }> = ({ ok, warn }) => (
+export const Dot: React.FC<{ ok: boolean; warn?: boolean }> = ({ ok, warn }) => (
   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
     warn ? 'bg-amber-500' : ok ? 'bg-emerald-500' : 'bg-slate-400/50'
   }`} />
 );
 
-const Meter: React.FC<{ label: string; pct: number; sub?: string; Icon: React.FC<{ className?: string }> }> =
+export const Meter: React.FC<{ label: string; pct: number; sub?: string; Icon: React.FC<{ className?: string }> }> =
   ({ label, pct, sub, Icon }) => {
     const clamped = Math.max(0, Math.min(100, pct || 0));
     const bar = clamped >= 85 ? 'bg-rose-500' : clamped >= 60 ? 'bg-amber-500' : 'bg-emerald-500';
@@ -267,7 +267,7 @@ const Meter: React.FC<{ label: string; pct: number; sub?: string; Icon: React.FC
     );
   };
 
-interface ImageTestResult {
+export interface ImageTestResult {
   provider: string;
   src: string;
   model: string;

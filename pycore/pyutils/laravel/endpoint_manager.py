@@ -158,6 +158,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     started = time.monotonic()
     session, transport_options, transport = create_laravel_http_session()
     http_version = ""
+    resp = None
     try:
         resp = session.get(
             url + HEALTH_PATH,
@@ -183,7 +184,13 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         result["latency_ms"] = int((time.monotonic() - started) * 1000)
         result["error"] = str(exc).splitlines()[0][:200]
     finally:
-        session.close()
+        # Keep-alive pooling (transport.py): the session is the calling
+        # thread's pooled session — do NOT close it, just release the body.
+        if resp is not None:
+            try:
+                resp.close()
+            except Exception:
+                pass
     latency = result.get("latency_ms") or 0
     status = result.get("status") or 0
     error = result.get("error")

@@ -29,7 +29,7 @@ SCRIPT_INDEX="129"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-RUSTDESK_SERVER_CLIENT_CONFIG="$SCRIPT_CURRENT_DIR/169_rustdesk_server_client_config.sh"
+RUSTDESK_SERVER_CLIENT_CONFIG="$PARENT_DIR_LEVEL_2/common/rustdesk_server_client_config_common.sh"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

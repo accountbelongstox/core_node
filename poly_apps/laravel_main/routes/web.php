@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\EnvironmentApiInfo\DebugIndex;
 use App\Http\EnvironmentApiInfo\ApiInfoIndex;
 use App\Http\EnvironmentApiInfo\ApiParamsCache;
+use App\Http\EnvironmentApiInfo\DashboardAuthController;
 use App\Http\EnvironmentApiInfo\ClipboardController;
 use App\Http\EnvironmentApiInfo\CodeBrowserController;
 use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
@@ -39,24 +40,48 @@ use App\Http\Controllers\Auth\SsoController;
 // Root route displays a complete HTML debugging interface (MUST be first to avoid conflicts)
 Route::get('/', [DebugIndex::class, 'index']);
 
-// SSO routes
+// SSO routes (single sign-on). Auth mutations are rate limited; docs is public.
 Route::prefix('sso')->group(function () {
     Route::get('/', [SsoController::class, 'index']);
-    Route::post('/authorize', [SsoController::class, 'getAuthorizationUrl']);
-    Route::post('/authenticate', [SsoController::class, 'authenticate']);
+    Route::get('/docs', [SsoController::class, 'docs']);
+    Route::post('/authorize', [SsoController::class, 'getAuthorizationUrl'])->middleware('throttle:dashboard-auth');
+    Route::post('/authenticate', [SsoController::class, 'authenticate'])->middleware('throttle:dashboard-auth');
     Route::get('/callback', [SsoController::class, 'callback']);
     Route::get('/user', [SsoController::class, 'getUser']);
     Route::post('/logout', [SsoController::class, 'logout']);
 });
 
+// Dashboard authentication: login wall for the debug dashboard, top-right user
+// menu, registration + super-code elevation, and the management page data.
+// status/user are public state queries (always 200); mutations are rate limited;
+// elevate/users/logout reuse the dashboard.auth gate (loopback debug bypass OR
+// Sanctum bearer) so same-machine development stays friction-free.
+Route::prefix('auth')->group(function () {
+    Route::get('/status', [DashboardAuthController::class, 'status']);
+    Route::get('/user', [DashboardAuthController::class, 'user']);
+    Route::post('/login', [DashboardAuthController::class, 'login'])->middleware('throttle:dashboard-auth');
+    Route::post('/register', [DashboardAuthController::class, 'register'])->middleware('throttle:dashboard-auth');
+    Route::middleware('dashboard.auth')->group(function () {
+        Route::post('/elevate', [DashboardAuthController::class, 'elevate'])->middleware('throttle:dashboard-auth');
+        Route::get('/users', [DashboardAuthController::class, 'users']);
+        Route::post('/profile', [DashboardAuthController::class, 'updateProfile'])->middleware('throttle:dashboard-auth');
+        Route::post('/logout', [DashboardAuthController::class, 'logout']);
+    });
+});
+
 // This route is the single web entry point for debugging and must not be modified.
 // It points to the ApiInfoIndex class which is responsible for gathering all information.
-Route::get('/api_info', [ApiInfoIndex::class, 'index']);
+// dashboard.auth enforces the API Testing login wall on the server side: remote
+// guests are rejected even when hitting the endpoints directly, while loopback
+// development keeps the login-free debug bypass.
+Route::get('/api_info', [ApiInfoIndex::class, 'index'])->middleware('dashboard.auth');
 
-// API parameters cache routes
-Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
-Route::get('/api_params_cache/load', [ApiParamsCache::class, 'load']);
-Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
+// API parameters cache routes (same server-side login wall as /api_info)
+Route::middleware('dashboard.auth')->group(function () {
+    Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
+    Route::get('/api_params_cache/load', [ApiParamsCache::class, 'load']);
+    Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
+});
 
 // Debug assets serving routes
 Route::get('/debug-assets/css/{file}', function ($file) {

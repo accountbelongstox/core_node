@@ -51,6 +51,12 @@ final class QueueCenterContract
             if ($key === '' || !in_array($ordering, ['queue_position', 'priority'], true)) {
                 throw new RuntimeException("Queue Center task type has invalid ordering: {$key}");
             }
+            foreach (($definition['language_priority'] ?? []) as $language) {
+                $normalized = strtolower(trim((string) $language));
+                if ($normalized === '' || $normalized !== (string) $language) {
+                    throw new RuntimeException("Queue Center task type has invalid language_priority: {$key}");
+                }
+            }
             $aliases = is_array($definition['aliases'] ?? null) ? $definition['aliases'] : [];
             foreach (array_merge([$key], $aliases) as $name) {
                 $normalized = strtolower(trim((string) $name));
@@ -473,6 +479,24 @@ final class QueueCenterContract
     public static function isQueuePositionOrdered(string $taskType): bool
     {
         return self::taskOrdering($taskType) === 'queue_position';
+    }
+
+    /**
+     * Language priority tiers for a task type (empty = no tiering). A lane
+     * with tiers completes EVERY task of the first tier before any task of a
+     * later tier, ahead of the lane's queue_position/priority ordering.
+     * Pure contract data; the SQL lives in the model query concern
+     * (GlobalTaskQueueQueries), which is the only place allowed to touch the
+     * database.
+     */
+    public static function taskLanguagePriority(string $taskType): array
+    {
+        $definition = self::taskTypeDefinition($taskType);
+        $tiers = is_array($definition['language_priority'] ?? null) ? $definition['language_priority'] : [];
+        return array_values(array_filter(
+            array_map(static fn ($language): string => strtolower(trim((string) $language)), $tiers),
+            static fn (string $language): bool => $language !== ''
+        ));
     }
 
     public static function queuePositionOrderedTaskTypes(): array

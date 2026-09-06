@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\WebServerPlane;
 use Illuminate\Console\Command;
 
 class SystemDependencyInitializer
@@ -12,6 +13,16 @@ class SystemDependencyInitializer
 
     public function installChokidar(): void
     {
+        // The FrankenPHP plane owns hot-reload natively: the Caddyfile worker
+        // 'watch' directive restarts the Octane workers on file changes
+        // (no Node/chokidar involved). Node/chokidar only serve the nginx
+        // plane's `octane:start --watch` path.
+        if (WebServerPlane::isFrankenPhp()) {
+            $this->command->line('  <fg=cyan>FrankenPHP plane: worker \'watch\' file watcher owns hot-reload (Node/chokidar not required)</>');
+
+            return;
+        }
+
         $laravelPath = base_path();
         $isWindows = PHP_OS_FAMILY === 'Windows';
         $separator = $isWindows ? '\\' : '/';

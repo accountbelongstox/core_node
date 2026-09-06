@@ -4,12 +4,15 @@
  * JS only handles API calls and JSON data processing
  */
 
+const AUTH_STATUS_URL = '/auth/status';
+
 let apiData = {};
 let publicInfo = {};
 let cachedParams = {};
 let cachedHeaders = {};
 let currentAppAPIs = [];
 let searchTimeout;
+let authGatePassed = false;
 
 const TEMPLATE_URLS = {
     API_ITEM: '/debug-assets/debug-tools/templates/api-item.html',
@@ -28,9 +31,53 @@ const TEMPLATE_URLS = {
 };
 
 document.addEventListener('DOMContentLoaded', async function() {
+    authGatePassed = await resolveAuthGate();
+    if (!authGatePassed) {
+        listenForAuthChange();
+        return;
+    }
     await loadInitialData();
     setupEventListeners();
 });
+
+/**
+ * The API testing surface is for authenticated accounts. The status endpoint
+ * always answers 200; on loopback debug hosts it reports the bypass identity
+ * so same-machine development stays login-free (DebugAuthService contract).
+ * @returns {boolean} True when testing may proceed
+ */
+async function resolveAuthGate() {
+    const gate = document.getElementById('api-testing-auth-gate');
+    const content = document.getElementById('api-testing-content');
+
+    try {
+        const status = await apiClientInstance.get(AUTH_STATUS_URL);
+        if (status.authenticated) {
+            if (gate) gate.classList.add('hidden');
+            if (content) content.classList.remove('hidden');
+            return true;
+        }
+    } catch (error) {
+        console.error('Auth status check failed:', error);
+    }
+
+    if (gate) gate.classList.remove('hidden');
+    if (content) content.classList.add('hidden');
+    return false;
+}
+
+function listenForAuthChange() {
+    window.addEventListener('message', async (event) => {
+        if (!event.data || event.data.type !== 'dashboard:auth-changed') {
+            return;
+        }
+        authGatePassed = await resolveAuthGate();
+        if (authGatePassed) {
+            await loadInitialData();
+            setupEventListeners();
+        }
+    });
+}
 
 async function loadInitialData() {
     try {
@@ -182,7 +229,7 @@ async function loadAppAPIs() {
     const apiSearchEl = document.getElementById("api-search");
     if (apiSearchEl) apiSearchEl.value = "";
 
-    const endpoints = appAPIs.endpoints || [];
+    const endpoints = ApiUtils.normalizeEndpoints(appAPIs);
     if (endpoints.length === 0) {
         const emptyTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.EMPTY_STATE);
         const emptyEl = TemplateUtils.renderToElement(emptyTemplate, { 
@@ -203,11 +250,11 @@ async function loadAppAPIs() {
 
 async function createAPIItem(api, index, appName) {
     const featureParts = api.feature.split('|');
-    const authAndMethod = featureParts[0];
     const description = featureParts[1] || '';
     const controller = featureParts[2] || '';
 
-    const method = ApiUtils.extractMethod(authAndMethod);
+    const method = ApiUtils.resolveMethod(api);
+    const authRequired = ApiUtils.resolveAuthRequired(api);
     const endpoint = ApiUtils.extractEndpoint(api.path);
     const fullUrl = api.path;
     const cachedAppHeaders = loadAppHeadersFromCache(appName);
@@ -228,7 +275,7 @@ async function createAPIItem(api, index, appName) {
 
     const featureDocsContainer = apiItem.querySelector('.feature-docs-container');
     if (featureDocsContainer) {
-        const featureDocs = await createFeatureDocs(api.feature, authAndMethod, method, description, controller);
+        const featureDocs = await createFeatureDocs(api.feature, authRequired, method, description, controller);
         if (featureDocs) {
             featureDocsContainer.appendChild(featureDocs);
         }
@@ -237,17 +284,16 @@ async function createAPIItem(api, index, appName) {
     return apiItem;
 }
 
-async function createFeatureDocs(feature, authAndMethod, method, description, controller) {
+async function createFeatureDocs(feature, authRequired, method, description, controller) {
     const parsedFeature = ApiUtils.parseFeatureString(feature);
-    const authRequired = authAndMethod.includes('auth_required') ? 'Required' : 'Not Required';
 
     const template = await TemplateUtils.loadTemplate(TEMPLATE_URLS.FEATURE_DOCS);
     const featureDocs = TemplateUtils.renderToElement(template, {});
 
     const authSpan = featureDocs.querySelector('.auth-required');
     if (authSpan) {
-        authSpan.textContent = authRequired;
-        authSpan.className = `px-2 py-1 rounded text-xs font-medium ${authRequired === 'Required' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
+        authSpan.textContent = authRequired ? 'Required' : 'Not Required';
+        authSpan.className = `px-2 py-1 rounded text-xs font-medium ${authRequired ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`;
     }
 
     const methodSpan = featureDocs.querySelector('.method-value');
@@ -470,6 +516,10 @@ function loadParams(index, appName, endpoint) {
             saveToBrowserCache(appName, endpoint, result.data.params);
         }
     }).catch(err => {
+        if (err && err.status === 404) {
+            // No server-side cache yet: preset params from the template remain in place.
+            return;
+        }
         console.error('Failed to load params:', err);
     });
 }
@@ -488,7 +538,7 @@ function loadParamsWithReset(index, appName, endpoint) {
     const api = apiInfo.endpoints.find(ep => ep.path.includes(endpoint));
     if (!api) return;
 
-    const method = ApiUtils.extractMethod(api.feature);
+    const method = ApiUtils.resolveMethod(api);
     const cachedAppHeaders = loadAppHeadersFromCache(appName);
     const parsedParams = ApiUtils.generatePresetJson(api.feature, method, appName, cachedAppHeaders);
     paramsTextarea.value = parsedParams;
@@ -589,7 +639,7 @@ function calculateMatchScore(api, term, index) {
     const apiNumber = (index + 1).toString();
     const path = api.path.toLowerCase();
     const feature = api.feature.toLowerCase();
-    const method = ApiUtils.extractMethod(api.feature).toLowerCase();
+    const method = ApiUtils.resolveMethod(api).toLowerCase();
     const featureParts = feature.split('|');
     const description = featureParts[1]?.toLowerCase() || '';
     const endpoint = ApiUtils.extractEndpoint(path).toLowerCase();

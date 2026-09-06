@@ -41,17 +41,46 @@
                         <span class="menu-tooltip">Single Sign-On Authentication</span>
                     </a>
                 </li>
+                <li class="menu-item">
+                    <a href="#" data-section="sso-docs">
+                        <span class="menu-icon">📘</span>
+                        <span class="menu-text">SSO Documentation</span>
+                        <span class="menu-tooltip">SSO usage, deployment and embedding</span>
+                    </a>
+                </li>
             </ul>
         </div>
 
         <div class="main-content">
             <div class="content-header">
-                <h2 id="page-title">API Testing Dashboard</h2>
-                <p id="page-description">Test and debug your Laravel API endpoints</p>
+                <div class="content-header-text">
+                    <h2 id="page-title">API Testing Dashboard</h2>
+                    <p id="page-description">Test and debug your Laravel API endpoints</p>
+                </div>
+                <div class="header-user-area" id="header-user-area">
+                    <button id="user-menu-signin-btn" class="header-signin-btn hidden">Sign In</button>
+                    <div id="user-menu-chip" class="user-menu-chip hidden">
+                        <div class="user-menu-avatar" id="user-menu-avatar">
+                            <span id="user-menu-initials">U</span>
+                        </div>
+                        <span class="user-menu-name" id="user-menu-name"></span>
+                        <span class="user-menu-role" id="user-menu-role"></span>
+                        <span class="user-menu-caret">▾</span>
+                    </div>
+                    <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
+                        <div class="user-menu-dropdown-header">
+                            <div class="user-menu-dropdown-name" id="user-menu-dropdown-name"></div>
+                            <div class="user-menu-dropdown-email" id="user-menu-dropdown-email"></div>
+                            <div class="user-menu-dropdown-role" id="user-menu-dropdown-role"></div>
+                        </div>
+                        <button id="user-menu-manage-btn" class="user-menu-dropdown-item">Management</button>
+                        <button id="user-menu-logout-btn" class="user-menu-dropdown-item user-menu-dropdown-logout">Sign Out</button>
+                    </div>
+                </div>
             </div>
 
             <div id="content-sections-container" class="content-sections-container">
-                <iframe id="section-iframe" class="section-iframe" src="/debug-assets/debug-tools/sections/api-testing-section.html"></iframe>
+                <iframe id="section-iframe" class="section-iframe"></iframe>
             </div>
         </div>
     </div>
@@ -87,6 +116,7 @@
         })();
     </script>
     <script src="/debug-assets/js/api-client.js"></script>
+    <script src="/debug-assets/js/dashboard-user.js"></script>
     <script src="/debug-assets/js/debug-interface.js"></script>
 </body>
 </html>

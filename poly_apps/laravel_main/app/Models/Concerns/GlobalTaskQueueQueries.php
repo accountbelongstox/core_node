@@ -4,6 +4,7 @@ namespace App\Models\Concerns;
 
 use App\Models\GlobalTask;
 use App\Support\QueueCenterContract;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -40,6 +41,20 @@ trait GlobalTaskQueueQueries
             ->groupBy('status')
             ->selectRaw('status, count(*) as aggregate')
             ->pluck('aggregate', 'status');
+    }
+
+    /**
+     * Per-language status counts for a task type (rows: language_key,
+     * status_key, aggregate). Backs the language_priority progress tiers
+     * exposed to pull responses so remote workers can log tier completion.
+     */
+    public static function languageStatusCountsForTaskType(string $taskType): EloquentCollection
+    {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->groupByRaw("lower(trim(payload->>'language')), status")
+            ->selectRaw("lower(trim(payload->>'language')) as language_key, status as status_key, count(*) as aggregate")
+            ->get();
     }
 
     public static function liveCountsByTypeAndStatus(array $statuses): EloquentCollection
@@ -116,6 +131,7 @@ trait GlobalTaskQueueQueries
         $bindings = implode(', ', array_fill(0, count($liveStatuses), '?'));
         $total = (int) (clone $query)->count();
         $query->orderByRaw("CASE WHEN status IN ({$bindings}) THEN 0 ELSE 1 END", $liveStatuses);
+        self::applyTaskLanguageOrder($query, $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
         $taskIds = $query
             ->orderBy('created_at')
@@ -161,6 +177,7 @@ trait GlobalTaskQueueQueries
 
         $total = (int) (clone $query)->count();
         $orderedQuery = clone $query;
+        self::applyTaskLanguageOrder($orderedQuery, $taskType);
         $orderedQuery->orderByDesc(QueueCenterContract::taskOrdering($taskType));
         $tasks = $orderedQuery
             ->orderBy('created_at')
@@ -217,6 +234,7 @@ trait GlobalTaskQueueQueries
     ): array {
         $query = self::query()->pending()
             ->where('task_type', $taskType);
+        self::applyTaskLanguageOrder($query, $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
 
         return $query
@@ -232,6 +250,7 @@ trait GlobalTaskQueueQueries
     public static function pendingHeadTask(string $taskType): ?GlobalTask
     {
         $query = self::query()->pending()->where('task_type', $taskType);
+        self::applyTaskLanguageOrder($query, $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
 
         return $query
@@ -378,13 +397,12 @@ trait GlobalTaskQueueQueries
         $query = self::query()
             ->where('status', self::status('pending'))
             ->where('task_type', $taskType);
+        // Language tiers are the PRIMARY priority (contract language_priority):
+        // they order BEFORE queue_position so a tiered backlog (sentence_audio
+        // 'en' first) always completes before any later tier, regardless of
+        // enqueue order. Tier SQL lives here, in the model query concern.
+        self::applyTaskLanguageOrder($query, $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
-        if ($taskType === QueueCenterContract::taskTypeKey('sentence_audio')) {
-            $query->orderByRaw(
-                "CASE WHEN lower(trim(payload->>'language')) = ? THEN 0 ELSE 1 END",
-                ['en']
-            );
-        }
 
         return $query
             ->oldest('created_at')
@@ -394,24 +412,81 @@ trait GlobalTaskQueueQueries
             ->get();
     }
 
+    /**
+     * THE single ordered-claim SQL authority for typed claims: composes the
+     * contract language_priority tiers (tier 0 first, non-matching languages
+     * last) onto a pending-task query. No-op for task types without tiers.
+     * Mirrored by pycore's AudioTaskQueue tier ordering so the Laravel claim
+     * head and the local worker drain order never diverge.
+     */
+    private static function applyTaskLanguageOrder(EloquentBuilder $query, string $taskType): EloquentBuilder
+    {
+        $tiers = QueueCenterContract::taskLanguagePriority($taskType);
+        if ($tiers === []) {
+            return $query;
+        }
+        $placeholders = implode(',', array_fill(0, count($tiers), '?'));
+        return $query->orderByRaw(
+            "CASE WHEN lower(trim(payload->>'language')) IN ({$placeholders}) THEN 0 ELSE 1 END",
+            $tiers
+        );
+    }
+
     public static function pendingClaimCandidatesForExecutionType(
         string $executionType,
         int $limit
     ): EloquentCollection {
         $priorityNeutralTaskTypes = QueueCenterContract::queuePositionOrderedTaskTypes();
         $placeholders = implode(',', array_fill(0, max(1, count($priorityNeutralTaskTypes)), '?'));
+        // Fast-lane/processor-type claims span multiple task types: apply the
+        // SAME tiered task types through the same model-layer authority so a
+        // tiered lane ('en'-first sentence_audio) can never be bypassed by a
+        // non-typed claim path.
+        [$tierClause, $tierBindings] = self::executionTypeLanguageOrderClause($priorityNeutralTaskTypes);
         return self::query()
             ->where('status', self::status('pending'))
             ->where('execution_type', $executionType)
-            ->orderByDesc('queue_position')
             ->orderByRaw(
-                "CASE WHEN task_type IN ({$placeholders}) THEN 0 ELSE priority END DESC",
-                $priorityNeutralTaskTypes === [] ? [''] : array_values($priorityNeutralTaskTypes)
+                $tierClause
+                    . 'queue_position DESC, '
+                    . "CASE WHEN task_type IN ({$placeholders}) THEN 0 ELSE priority END DESC",
+                array_merge(
+                    $tierBindings,
+                    $priorityNeutralTaskTypes === [] ? [''] : array_values($priorityNeutralTaskTypes)
+                )
             )
             ->oldest('created_at')
             ->limit($limit)
             ->lockForUpdate()
             ->get();
+    }
+
+    /**
+     * Execution-type claim variant of the language tier clause: ranks rows of
+     * any tiered task type whose payload language matches that type's tiers
+     * ahead of everything else in the same claim batch.
+     */
+    private static function executionTypeLanguageOrderClause(array $taskTypes): array
+    {
+        $tiered = [];
+        foreach ($taskTypes as $taskType) {
+            $tiers = QueueCenterContract::taskLanguagePriority((string) $taskType);
+            if ($tiers !== []) {
+                $tiered[] = [$taskType, $tiers];
+            }
+        }
+        if ($tiered === []) {
+            return ['', []];
+        }
+        $cases = [];
+        $bindings = [];
+        foreach ($tiered as [$taskType, $tiers]) {
+            $placeholders = implode(',', array_fill(0, count($tiers), '?'));
+            $cases[] = "(task_type = ? AND lower(trim(payload->>'language')) IN ({$placeholders}))";
+            $bindings[] = $taskType;
+            $bindings = array_merge($bindings, $tiers);
+        }
+        return ['CASE WHEN ' . implode(' OR ', $cases) . ' THEN 0 ELSE 1 END, ', $bindings];
     }
 
     public static function pendingSignals(
@@ -609,6 +684,7 @@ trait GlobalTaskQueueQueries
             ->where('app_name', $appName)
             ->where('task_type', $taskType)
             ->whereIn('status', [self::status('pending'), self::status('assigned'), self::status('processing')]);
+        self::applyTaskLanguageOrder($query, $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
         if ($capability !== null) {
             $query->where('capability', $capability);
@@ -653,6 +729,7 @@ trait GlobalTaskQueueQueries
         if ($newestFirst) {
             $query->orderByDesc('id');
         } else {
+            self::applyTaskLanguageOrder($query, $taskType);
             $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
             $query->orderBy('created_at')->orderBy('id');
         }

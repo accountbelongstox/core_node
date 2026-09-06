@@ -475,6 +475,42 @@ def is_queue_position_ordered(task_type: object) -> bool:
     return task_ordering(task_type) == "queue_position"
 
 
+def task_language_priority(task_type: object) -> Tuple[str, ...]:
+    """Language priority tiers for a task type (empty tuple = no tiering).
+
+    Mirror of QueueCenterContract::taskLanguagePriority(): a tiered lane
+    completes EVERY task of the first tier before any task of a later tier,
+    ahead of the lane's queue_position/priority ordering. The canonical data
+    is config/queue_center_contract.json (language_priority).
+    """
+    definition = task_type_definition(task_type)
+    if definition is None:
+        return ()
+    tiers = definition.get("language_priority")
+    if not isinstance(tiers, list):
+        return ()
+    normalized = []
+    for language in tiers:
+        value = str(language or "").strip().lower()
+        if value:
+            normalized.append(value)
+    return tuple(normalized)
+
+
+def task_language_tier_rank(task: Mapping[str, Any]) -> int:
+    """Ascending language-tier rank of one task record (0 = first tier).
+
+    Untiered task types and languages outside every tier rank last (1) so the
+    tiered languages complete first, matching the Laravel claim-head SQL
+    (CASE WHEN lower(trim(payload->>'language')) IN (tiers) THEN 0 ELSE 1 END).
+    """
+    tiers = task_language_priority(task.get("task_type"))
+    if not tiers:
+        return 1
+    language = str((task.get("payload") or {}).get("language") or "").strip().lower()
+    return 0 if language in tiers else 1
+
+
 QUEUE_CENTER_QUEUE_POSITION_CONTROLS: Tuple[str, ...] = tuple(
     scope
     for scope in QUEUE_CENTER_CONTROL_NAMES
@@ -496,7 +532,7 @@ def task_order_value(task: Mapping[str, Any]) -> int:
 
 def task_order_key(task: Mapping[str, Any]) -> Tuple[int]:
     """Return a stable ascending-sort key for descending contract order."""
-    return (-task_order_value(task),)
+    return (task_language_tier_rank(task), -task_order_value(task),)
 
 
 def task_prompt_payload_field(task_type: object) -> str:

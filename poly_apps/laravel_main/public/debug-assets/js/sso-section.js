@@ -50,28 +50,31 @@ function setupEventListeners() {
 }
 
 async function checkAuthStatus() {
+    // /sso/user always answers 200 with an explicit `authenticated` flag;
+    // a missing session is a normal state and must not log an error.
     try {
         const response = await apiClient.get('/sso/user');
-        
-        if (response.success && response.data && response.data.user) {
-            currentUser = response.data.user;
+        const user = response.data && response.data.user;
+
+        if (user) {
+            currentUser = user;
             showUserSection();
             updateStatus('authenticated', 'Authenticated');
         } else {
+            currentUser = null;
             showLoginSection();
-            checkSsoRedirect();
         }
     } catch (error) {
-        if (error && error.status === 401) {
-            showLoginSection();
-            updateStatus('unauthenticated', 'Not authenticated');
-        } else {
+        currentUser = null;
+        showLoginSection();
+        if (error && error.status && error.status >= 500) {
             console.error('checkAuthStatus error:', error);
-            showLoginSection();
-            updateStatus('error', 'Not authenticated');
+            updateStatus('error', 'Authentication check failed');
+        } else {
+            updateStatus('unauthenticated', 'Not authenticated');
         }
-        checkSsoRedirect();
     }
+    checkSsoRedirect();
 }
 
 function checkSsoRedirect() {

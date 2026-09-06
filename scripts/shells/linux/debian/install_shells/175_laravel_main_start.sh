@@ -33,7 +33,7 @@ LARAVEL_RUNTIME_NGINX_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_nginx.sh"
 LARAVEL_START_FRANKENPHP_SUB="${DEBIAN_COM_DIR}/175_laravel_main_start_frankenphp.sh"
 LARAVEL_START_NGINX_SUB="${DEBIAN_COM_DIR}/175_laravel_main_start_nginx.sh"
 RUNTIME_CONFIG_COMMON="${COMMON_DIR}/runtime_config_common.sh"
-LARAVEL_MAIN_RUNTIME_COMMON="${SCRIPT_CURRENT_DIR}/175_laravel_main_runtime_common.sh"
+LARAVEL_MAIN_RUNTIME_COMMON="${COMMON_DIR}/laravel_main_runtime_common.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
@@ -176,6 +176,7 @@ UI_BINDING_CONVERGED="no"
 source "$COMMON_DIR/common_functions.sh"
 init_global_vars >/dev/null 2>&1
 FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
+FRANKENPHP_DOMAIN_COMMON_SCRIPT="${LINUX_DIR}/common/frankenphp_domain_common.sh"
 
 # domain_setup_common pulls in the canonical file_ops_common.sh writer
 # (write_file_if_changed + lazy_sudo) and stays sourced here: the UI domain
@@ -183,6 +184,10 @@ FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
 . "$FRANKENPHP_MANAGER_SCRIPT"
+# FrankenPHP plane live-apply library (fm_domain_caddy_apply_converged /
+# fm_domain_workers_restart): the idempotent re-run branch applies the
+# converged Caddy configuration to an ACTIVE plane service.
+. "$FRANKENPHP_DOMAIN_COMMON_SCRIPT"
 web_access_config_ensure
 
 # Runtime port: central service contract (config/service_contract.json), with
@@ -532,7 +537,8 @@ else
     fi
 fi
 
-# --- Ensure Node.js BEFORE sys:init (hot-reload dependency) ---
+# --- Ensure Node.js BEFORE sys:init (composer dev / UI tooling; on the
+# nginx plane also the Octane --watch chokidar dependency) ---
 NODE_BIN="$(command -v node 2>/dev/null)"
 if [ -z "$NODE_BIN" ]; then
     if [ -f "$NODE_INSTALL_SCRIPT" ]; then
@@ -548,11 +554,19 @@ if [ -z "$NODE_BIN" ]; then
 fi
 resolve_npx
 NODE_BIN="$(command -v node 2>/dev/null)"
-if [ -n "$NODE_BIN" ]; then
-    echo "node present -> Octane hot-reload chokidar can be enabled."
+if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+    if [ -n "$NODE_BIN" ]; then
+        echo "node present -> composer dev / UI tooling ready (hot-reload is FrankenPHP worker 'watch': no Node/chokidar needed)."
+    else
+        echo "  *** node unavailable -> composer dev and UI tooling degrade (hot-reload itself is unaffected: FrankenPHP worker 'watch')."
+    fi
 else
-    echo "  *** node still unavailable -> Octane runs without --watch hot reload."
-    echo "  *** Install manually: INSTALL_NODE=true bash $NODE_INSTALL_SCRIPT"
+    if [ -n "$NODE_BIN" ]; then
+        echo "node present -> Octane hot-reload chokidar can be enabled."
+    else
+        echo "  *** node still unavailable -> Octane runs without --watch hot reload."
+        echo "  *** Install manually: INSTALL_NODE=true bash $NODE_INSTALL_SCRIPT"
+    fi
 fi
 
 # Ensure the mapped web data dir is owned by the invoking user BEFORE sys:init.
@@ -590,6 +604,25 @@ ensure_ui_domain_binding
 if [ "$RUNTIME_START" != "yes" ]; then
     echo ""
     echo "Setup-only mode complete (runtime start skipped: --domains-only/--ssl-only)."
+    return
+fi
+
+# --- Idempotent re-run convergence: an ACTIVE plane service owns the
+# runtime ports. Apply the converged files to it (zero-downtime admin
+# reload or a unit restart) and return instead of launching a competing
+# foreground runtime; stop the service first when a foreground run is
+# explicitly wanted.
+_resolve_laravel_service_plane
+if [ -f "/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service" ] \
+    && systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
+    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is active; applying converged state (no competing foreground launch)..."
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        fm_domain_caddy_apply_converged
+        fm_domain_workers_restart
+    else
+        ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
+    fi
+    echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
     return
 fi
 

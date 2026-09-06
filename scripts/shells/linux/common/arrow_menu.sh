@@ -68,8 +68,6 @@ arrow_menu_select() {
             if [ "$back_index" -ge 0 ]; then
                 echo "Press Ctrl+C to go back"
             fi
-            echo ""
-
             for index in "${!arrow_menu_options[@]}"; do
                 if [ "$index" -eq "$selected_index" ]; then
                     printf "\033[47m\033[30m> %-68s\033[0m\n" "${arrow_menu_options[$index]}"

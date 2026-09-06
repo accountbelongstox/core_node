@@ -5,10 +5,16 @@ import heapq
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyutils.common.queue_center_contract import task_language_tier_rank
 
 
 class AudioTaskQueue:
-    """Order head-ticket queues by queue_position and preserve FIFO ties."""
+    """Order head-ticket queues by the canonical claim order.
+
+    Contract language_priority tiers (e.g. sentence_audio 'en'-first) rank
+    ahead of queue_position, mirroring the Laravel claim-head SQL so the local
+    drain order never re-breaks the remote ordering. FIFO ties are preserved.
+    """
 
     def __init__(self, queue_name: str = "audio") -> None:
         self._heap: List[Tuple[int, int, Dict[str, Any]]] = []
@@ -20,12 +26,12 @@ class AudioTaskQueue:
             f"AudioTaskQueueState.{queue_name}",
         )
 
-    def _order(self, task: Dict[str, Any], sequence: int) -> Tuple[int, int]:
+    def _order(self, task: Dict[str, Any], sequence: int) -> Tuple[int, int, int]:
         try:
             queue_position = int(task.get("queue_position") or 0)
         except (TypeError, ValueError):
             queue_position = 0
-        return -queue_position, sequence
+        return task_language_tier_rank(task), -queue_position, sequence
 
     @serialized_method
     def push(self, task: Dict[str, Any]) -> bool:
@@ -94,7 +100,7 @@ class AudioTaskQueue:
             if str(task.get("task_id") or "").strip() != task_key:
                 continue
             task["queue_position"] = position
-            self._heap[index] = (-position, entry[1], task)
+            self._heap[index] = (*self._order(task, entry[1]), task)
             heapq.heapify(self._heap)
             return True
         return False

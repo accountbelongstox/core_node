@@ -30,7 +30,7 @@ SCRIPT_INDEX="124"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-GITEA_INSTALL_BACKEND="$SCRIPT_CURRENT_DIR/159_install_gitea_backend.sh"
+GITEA_INSTALL_BACKEND="$PARENT_DIR_LEVEL_2/common/gitea_install_backend_common.sh"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

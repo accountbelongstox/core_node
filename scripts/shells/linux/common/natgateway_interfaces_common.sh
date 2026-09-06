@@ -470,7 +470,7 @@ create_natgateway_command() {
         echo -e "${WHITE} Creating natgateway Command${NC}"
     echo -e "${CYAN}========================================${NC}"
 
-    current_script=$(readlink -f "${BASH_SOURCE[0]}")
+    current_script="$REAL_SCRIPT_PATH"
 
     # Set script to executable with 777 permissions
     $USE_SUDO chmod 777 "$current_script"
