@@ -10,6 +10,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Source-once guard: repeated `source` is a no-op. NOT exported so child
+# bash processes still perform their own full load.
+if [ "${FRANKENPHP_MANAGER_LOADED:-false}" = "true" ]; then
+    return
+fi
+FRANKENPHP_MANAGER_LOADED="true"
+
 # FrankenPHP Manager (common area; the frankenphp-plane analog of
 # nginx_manager.sh). Every primitive is idempotent and self-probing with
 # STRING contracts only ("yes"/"no"/path/"" - functions never signal via

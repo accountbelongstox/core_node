@@ -2,6 +2,13 @@
 # Common reusable shell functions for scripts
 # Naming rule: function names end with `_from_common_functions` so callers know the source file
 
+# Source-once guard: repeated `source` is a no-op. NOT exported so child
+# bash processes still perform their own full load.
+if [ "${COMMON_FUNCS_LOADED:-false}" = "true" ]; then
+    return
+fi
+COMMON_FUNCS_LOADED="true"
+
 # Resolve current directory and include shared globals
 COMMON_FUNCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
