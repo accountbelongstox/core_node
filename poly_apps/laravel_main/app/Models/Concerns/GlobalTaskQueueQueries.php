@@ -416,8 +416,11 @@ trait GlobalTaskQueueQueries
      * THE single ordered-claim SQL authority for typed claims: composes the
      * contract language_priority tiers (tier 0 first, non-matching languages
      * last) onto a pending-task query. No-op for task types without tiers.
-     * Mirrored by pycore's AudioTaskQueue tier ordering so the Laravel claim
-     * head and the local worker drain order never diverge.
+     * SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+     * tiers order BEFORE queue_position so the tiered backlog (sentence_audio
+     * 'en' first) always completes first. Mirrored by pycore's AudioTaskQueue
+     * tier ordering so the Laravel claim head and the local worker drain
+     * order never diverge.
      */
     private static function applyTaskLanguageOrder(EloquentBuilder $query, string $taskType): EloquentBuilder
     {

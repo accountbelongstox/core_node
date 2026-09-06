@@ -197,6 +197,7 @@ class BaseLaravelAudioWorker(
 
         self._queue = AudioTaskQueue(
             queue_name=self.LANE,
+            task_type=self.QUEUE_KEY,
         )
 
         # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
@@ -659,10 +660,18 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
 
     @property
     def _log_prefix(self) -> str:
-        """Dynamic prefix with worker uptime: [SentenceAudioWorker +0.00s]."""
+        """Dynamic prefix with worker uptime: [SentenceAudioWorker +0.00s].
+
+        SPECIAL OPTIMIZATION (specially optimized script): the prefix carries
+        the remote language-tier completion (remote_en=done/total) so every
+        log line from this worker — task events AND infrastructure lines —
+        mirrors the remote English sentence backlog progress.
+        """
         started = getattr(self, "_log_started_monotonic", None)
         elapsed = time.monotonic() - started if started is not None else 0.0
-        return f"[SentenceAudioWorker +{max(0.0, elapsed):.2f}s]"
+        prefix = f"[SentenceAudioWorker +{max(0.0, elapsed):.2f}s]"
+        tier_label = self._remote_language_tier_label()
+        return f"{prefix} {tier_label}" if tier_label else prefix
 
     @_log_prefix.setter
     def _log_prefix(self, value: str) -> None:

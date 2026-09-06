@@ -70,9 +70,12 @@ arrow_menu_select() {
             fi
             for index in "${!arrow_menu_options[@]}"; do
                 if [ "$index" -eq "$selected_index" ]; then
-                    printf "\033[47m\033[30m> %-68s\033[0m\n" "${arrow_menu_options[$index]}"
+                    printf "\033[47m\033[30m> %-68s\033[0m" "${arrow_menu_options[$index]}"
                 else
-                    printf "  %-68s\n" "${arrow_menu_options[$index]}"
+                    printf "  %-68s" "${arrow_menu_options[$index]}"
+                fi
+                if [ "$index" -lt "$((option_count - 1))" ]; then
+                    printf "\n"
                 fi
             done
         } > /dev/tty
@@ -94,12 +97,14 @@ arrow_menu_select() {
                 ;;
             '')
                 ARROW_MENU_SELECTED_INDEX="$selected_index"
+                printf "\n" > /dev/tty
                 return
                 ;;
             $'\x03'|q|Q)
                 if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
                     ARROW_MENU_SELECTED_INDEX="$back_index"
                     ARROW_MENU_CANCELLED=true
+                    printf "\n" > /dev/tty
                     return
                 fi
                 ;;

@@ -132,9 +132,12 @@ select_bootstrap_option() {
             echo "Press Ctrl+C to go back"
             for index in "${!bootstrap_options[@]}"; do
                 if [ "$index" -eq "$selected_index" ]; then
-                    printf "\033[47m\033[30m> %-68s\033[0m\n" "${bootstrap_options[$index]}"
+                    printf "\033[47m\033[30m> %-68s\033[0m" "${bootstrap_options[$index]}"
                 else
-                    printf "  %-68s\n" "${bootstrap_options[$index]}"
+                    printf "  %-68s" "${bootstrap_options[$index]}"
+                fi
+                if [ "$index" -lt "$((option_count - 1))" ]; then
+                    printf "\n"
                 fi
             done
         } > /dev/tty
@@ -153,8 +156,8 @@ select_bootstrap_option() {
                     '[B') selected_index=$(((selected_index + 1) % option_count)) ;;
                 esac
                 ;;
-            '') BOOTSTRAP_SELECTED_INDEX="$selected_index"; return 0 ;;
-            $'\x03'|q|Q) BOOTSTRAP_SELECTED_INDEX="$back_index"; return 0 ;;
+            '') BOOTSTRAP_SELECTED_INDEX="$selected_index"; printf "\n" > /dev/tty; return 0 ;;
+            $'\x03'|q|Q) BOOTSTRAP_SELECTED_INDEX="$back_index"; printf "\n" > /dev/tty; return 0 ;;
         esac
     done
 }

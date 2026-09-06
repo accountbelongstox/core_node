@@ -16,10 +16,13 @@ class AudioTaskQueue:
     drain order never re-breaks the remote ordering. FIFO ties are preserved.
     """
 
-    def __init__(self, queue_name: str = "audio") -> None:
-        self._heap: List[Tuple[int, int, Dict[str, Any]]] = []
+    def __init__(self, queue_name: str = "audio", task_type: str = "") -> None:
+        self._heap: List[Tuple[int, int, int, Dict[str, Any]]] = []
         self._active_keys: Set[str] = set()
         self._seq = 0
+        # Lane task type (contract key) so tier ranking works even when the
+        # queued task dicts do not carry task_type themselves.
+        self._task_type = str(task_type or "")
         init_serialized_owner(
             self,
             f"tts.audio_queue.{queue_name}",
@@ -31,7 +34,7 @@ class AudioTaskQueue:
             queue_position = int(task.get("queue_position") or 0)
         except (TypeError, ValueError):
             queue_position = 0
-        return task_language_tier_rank(task), -queue_position, sequence
+        return task_language_tier_rank(task, self._task_type), -queue_position, sequence
 
     @serialized_method
     def push(self, task: Dict[str, Any]) -> bool:
@@ -39,7 +42,7 @@ class AudioTaskQueue:
         task_key = self._task_key(task)
         if task_key and task_key in self._active_keys:
             for index, entry in enumerate(self._heap):
-                queued_task = entry[2]
+                queued_task = entry[-1]
                 if self._task_key(queued_task) != task_key:
                     continue
                 order = self._order(task, entry[1])
@@ -60,7 +63,7 @@ class AudioTaskQueue:
         """Pop the current queue head or return None."""
         if not self._heap:
             return None
-        return heapq.heappop(self._heap)[2]
+        return heapq.heappop(self._heap)[-1]
 
     @serialized_method
     def complete(self, task: Dict[str, Any]) -> None:
@@ -96,7 +99,7 @@ class AudioTaskQueue:
         except (TypeError, ValueError):
             return False
         for index, entry in enumerate(self._heap):
-            task = entry[2]
+            task = entry[-1]
             if str(task.get("task_id") or "").strip() != task_key:
                 continue
             task["queue_position"] = position

@@ -175,7 +175,10 @@ curl -s -X POST https://api.example.com/auth/login \
                                 <tr><td class="px-4 py-2">/auth/register</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">public*</td><td class="px-4 py-2 font-sans">self-registration (invitation code)</td></tr>
                                 <tr><td class="px-4 py-2">/auth/elevate</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">super-code elevation</td></tr>
                                 <tr><td class="px-4 py-2">/auth/users</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">super admin</td><td class="px-4 py-2 font-sans">registered accounts</td></tr>
+                                <tr><td class="px-4 py-2">/auth/profile</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">update nickname / email / password</td></tr>
                                 <tr><td class="px-4 py-2">/auth/logout</td><td class="px-4 py-2">POST</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">sign out</td></tr>
+                                <tr><td class="px-4 py-2">/api_info</td><td class="px-4 py-2">GET</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">API testing reference (login wall)</td></tr>
+                                <tr><td class="px-4 py-2">/api_params_cache/*</td><td class="px-4 py-2">GET/POST</td><td class="px-4 py-2">dashboard.auth</td><td class="px-4 py-2 font-sans">saved test parameters cache</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -186,9 +189,11 @@ curl -s -X POST https://api.example.com/auth/login \
                 <section id="dashboard-auth" class="doc-anchor space-y-3">
                     <h2 class="text-xl font-bold text-gray-900">Dashboard Login &amp; Privileges</h2>
                     <ul class="list-disc pl-6 text-sm leading-relaxed space-y-2">
-                        <li><strong>Sign in:</strong> top-right <em>Sign In</em> button opens the embedded login modal (username / email / phone + password).</li>
+                        <li><strong>Sign in:</strong> top-right <em>Sign In</em> button opens the embedded login modal (username / email / phone + password). The signed-in identity is cached in the browser (localStorage <code class="bg-gray-100 px-1 rounded">dashboard_user_cache</code>) and restored instantly on reload.</li>
                         <li><strong>Register:</strong> embedded registration tab; requires the server invitation code when configured.</li>
+                        <li><strong>Profile:</strong> Management page &rarr; <em>Edit Profile</em> updates nickname, email and password (password changes require the current password).</li>
                         <li><strong>Elevate:</strong> Management page &rarr; <em>Super Code Elevation</em> &rarr; submit the server-configured super code to become Super Administrator (rolelevel 100).</li>
+                        <li><strong>Server-side login wall:</strong> the API testing data endpoints (<code class="bg-gray-100 px-1 rounded">/api_info</code>, <code class="bg-gray-100 px-1 rounded">/api_params_cache/*</code>) reject guests with 401 even on direct access; their sidebar entries stay hidden while signed out.</li>
                         <li><strong>Loopback bypass:</strong> same-machine requests resolve the highest-privilege account automatically (login-free local development). Disable with <code class="bg-gray-100 px-1.5 py-0.5 rounded text-xs">DASHBOARD_LOCAL_DEBUG=false</code>.</li>
                         <li><strong>Identity resolution order:</strong> Sanctum bearer token &rarr; web session &rarr; loopback debug bypass.</li>
                     </ul>

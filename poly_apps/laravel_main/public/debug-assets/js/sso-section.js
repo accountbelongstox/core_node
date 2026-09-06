@@ -450,6 +450,14 @@ async function loadConfigInfo() {
             updateConfigItem('config-client-secret', 'badge-client-secret', clientSecret);
         }
     } catch (error) {
+        if (error && error.status === 401) {
+            // /api_info sits behind the dashboard login wall: hide the debug
+            // config panel for guests instead of logging an error.
+            if (configSection) {
+                configSection.style.display = 'none';
+            }
+            return;
+        }
         console.error('Failed to load config info:', error);
         if (configSection) {
             configSection.style.display = 'none';

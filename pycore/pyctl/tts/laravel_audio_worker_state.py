@@ -115,6 +115,30 @@ class LaravelAudioWorkerStateMixin:
         else:
             ColorPrint.blue(line)
 
+    def _remote_language_tier_label(self) -> str:
+        """Remote language-tier completion for this lane (contract-driven).
+
+        SPECIAL OPTIMIZATION (specially optimized script): renders one
+        ``remote_<tier>=completed/total`` fragment per contract language_priority
+        tier from the latest pull progress (language_tiers). ``-/-`` marks
+        tiers with no snapshot yet. Returns "" for un-tiered lanes.
+        """
+        queue_key = getattr(self, "QUEUE_KEY", "")
+        tiers = task_language_priority(queue_key)
+        if not tiers:
+            return ""
+        progress = (self._queue_progress.get(queue_key) or {}).get("language_tiers") or {}
+        fragments = []
+        for tier in tiers:
+            tier_progress = progress.get(tier) or {}
+            completed = tier_progress.get("completed")
+            total = tier_progress.get("total")
+            if completed is None or total is None:
+                fragments.append(f"remote_{tier}=-/-")
+            else:
+                fragments.append(f"remote_{tier}={int(completed)}/{int(total)}")
+        return " ".join(fragments)
+
     @serialized_method
     def _mark_task_started(self, task_id: Any, info: Dict[str, Any]) -> None:
         current = dict(info)

@@ -478,10 +478,11 @@ def is_queue_position_ordered(task_type: object) -> bool:
 def task_language_priority(task_type: object) -> Tuple[str, ...]:
     """Language priority tiers for a task type (empty tuple = no tiering).
 
-    Mirror of QueueCenterContract::taskLanguagePriority(): a tiered lane
-    completes EVERY task of the first tier before any task of a later tier,
-    ahead of the lane's queue_position/priority ordering. The canonical data
-    is config/queue_center_contract.json (language_priority).
+    SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+    tiered lanes complete EVERY task of the first tier before any task of a
+    later tier, ahead of the lane's queue_position/priority ordering. The
+    canonical data is config/queue_center_contract.json (language_priority);
+    mirror of QueueCenterContract::taskLanguagePriority().
     """
     definition = task_type_definition(task_type)
     if definition is None:
@@ -497,14 +498,16 @@ def task_language_priority(task_type: object) -> Tuple[str, ...]:
     return tuple(normalized)
 
 
-def task_language_tier_rank(task: Mapping[str, Any]) -> int:
+def task_language_tier_rank(task: Mapping[str, Any], fallback_task_type: object = None) -> int:
     """Ascending language-tier rank of one task record (0 = first tier).
 
     Untiered task types and languages outside every tier rank last (1) so the
     tiered languages complete first, matching the Laravel claim-head SQL
     (CASE WHEN lower(trim(payload->>'language')) IN (tiers) THEN 0 ELSE 1 END).
+    ``fallback_task_type`` covers lane-scoped queues whose task dicts may not
+    carry task_type themselves.
     """
-    tiers = task_language_priority(task.get("task_type"))
+    tiers = task_language_priority(task.get("task_type") or fallback_task_type)
     if not tiers:
         return 1
     language = str((task.get("payload") or {}).get("language") or "").strip().lower()

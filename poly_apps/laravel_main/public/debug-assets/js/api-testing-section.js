@@ -13,6 +13,7 @@ let cachedHeaders = {};
 let currentAppAPIs = [];
 let searchTimeout;
 let authGatePassed = false;
+let eventsBound = false;
 
 const TEMPLATE_URLS = {
     API_ITEM: '/debug-assets/debug-tools/templates/api-item.html',
@@ -37,8 +38,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
     await loadInitialData();
-    setupEventListeners();
+    bindSectionEvents();
 });
+
+/** Bind section events exactly once, even across gate re-evaluations. */
+function bindSectionEvents() {
+    if (eventsBound) {
+        return;
+    }
+    eventsBound = true;
+    setupEventListeners();
+}
 
 /**
  * The API testing surface is for authenticated accounts. The status endpoint
@@ -66,6 +76,21 @@ async function resolveAuthGate() {
     return false;
 }
 
+/**
+ * Handle an auth rejection from a protected data endpoint: re-run the login
+ * gate so the surface switches back to the sign-in wall (server and client
+ * enforce the same rule).
+ * @returns {boolean} True when the error was an auth rejection
+ */
+async function handleAuthLoss(error) {
+    if (!error || error.status !== 401) {
+        return false;
+    }
+    authGatePassed = false;
+    await resolveAuthGate();
+    return true;
+}
+
 function listenForAuthChange() {
     window.addEventListener('message', async (event) => {
         if (!event.data || event.data.type !== 'dashboard:auth-changed') {
@@ -74,7 +99,7 @@ function listenForAuthChange() {
         authGatePassed = await resolveAuthGate();
         if (authGatePassed) {
             await loadInitialData();
-            setupEventListeners();
+            bindSectionEvents();
         }
     });
 }
@@ -85,6 +110,10 @@ async function loadInitialData() {
         try {
             data = await apiClientInstance.json(ApiClient.PointUrlKey.API_INFO, 'GET');
         } catch (apiError) {
+            if (handleAuthLoss(apiError)) {
+                // Rejected by the server-side login wall: show the sign-in gate.
+                return;
+            }
             console.error('API call failed:', apiError);
             data = { api_reference: {}, public_info: {} };
         }
@@ -96,6 +125,7 @@ async function loadInitialData() {
 
         if (apiData && typeof apiData === 'object' && Object.keys(apiData).length > 0) {
             const optionTemplate = await TemplateUtils.loadTemplate(TEMPLATE_URLS.APP_OPTION);
+            appSelect.innerHTML = '';
             Object.keys(apiData).forEach(appName => {
                 const option = TemplateUtils.renderToElement(optionTemplate, { appName: appName });
                 appSelect.appendChild(option);
@@ -518,6 +548,10 @@ function loadParams(index, appName, endpoint) {
     }).catch(err => {
         if (err && err.status === 404) {
             // No server-side cache yet: preset params from the template remain in place.
+            return;
+        }
+        if (handleAuthLoss(err)) {
+            // Identity expired server-side: re-show the login gate.
             return;
         }
         console.error('Failed to load params:', err);

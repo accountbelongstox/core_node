@@ -482,9 +482,10 @@ final class QueueCenterContract
     }
 
     /**
-     * Language priority tiers for a task type (empty = no tiering). A lane
-     * with tiers completes EVERY task of the first tier before any task of a
-     * later tier, ahead of the lane's queue_position/priority ordering.
+     * Language priority tiers for a task type (empty = no tiering).
+     * SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+     * a tiered lane completes EVERY task of the first tier before any task
+     * of a later tier, ahead of the lane's queue_position/priority ordering.
      * Pure contract data; the SQL lives in the model query concern
      * (GlobalTaskQueueQueries), which is the only place allowed to touch the
      * database.
