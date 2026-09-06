@@ -33,6 +33,8 @@ arrow_menu_select() {
     local char=""
     local sequence=""
     local index=0
+    local menu_width=0
+    local option_length=0
 
     ARROW_MENU_CANCELLED=false
     if [ "$option_count" -eq 0 ]; then
@@ -54,6 +56,12 @@ arrow_menu_select() {
         ARROW_MENU_CANCELLED=true
         return
     fi
+    for index in "${!arrow_menu_options[@]}"; do
+        option_length="${#arrow_menu_options[$index]}"
+        if [ "$option_length" -gt "$menu_width" ]; then
+            menu_width="$option_length"
+        fi
+    done
     while true; do
         {
             printf "\033c"
@@ -70,9 +78,9 @@ arrow_menu_select() {
             fi
             for index in "${!arrow_menu_options[@]}"; do
                 if [ "$index" -eq "$selected_index" ]; then
-                    printf "\033[47m\033[30m> %-68s\033[0m" "${arrow_menu_options[$index]}"
+                    printf "\033[47m\033[30m> %-${menu_width}s\033[0m" "${arrow_menu_options[$index]}"
                 else
-                    printf "  %-68s" "${arrow_menu_options[$index]}"
+                    printf "  %-${menu_width}s" "${arrow_menu_options[$index]}"
                 fi
                 if [ "$index" -lt "$((option_count - 1))" ]; then
                     printf "\n"

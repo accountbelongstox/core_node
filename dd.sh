@@ -111,6 +111,8 @@ select_bootstrap_option() {
     local char=""
     local sequence=""
     local index=0
+    local menu_width=0
+    local option_length=0
 
     if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
         BOOTSTRAP_SELECTED_INDEX="$back_index"
@@ -121,6 +123,12 @@ select_bootstrap_option() {
         BOOTSTRAP_SELECTED_INDEX="$back_index"
         return
     fi
+    for index in "${!bootstrap_options[@]}"; do
+        option_length="${#bootstrap_options[$index]}"
+        if [ "$option_length" -gt "$menu_width" ]; then
+            menu_width="$option_length"
+        fi
+    done
 
     while true; do
         {
@@ -132,9 +140,9 @@ select_bootstrap_option() {
             echo "Press Ctrl+C to go back"
             for index in "${!bootstrap_options[@]}"; do
                 if [ "$index" -eq "$selected_index" ]; then
-                    printf "\033[47m\033[30m> %-68s\033[0m" "${bootstrap_options[$index]}"
+                    printf "\033[47m\033[30m> %-${menu_width}s\033[0m" "${bootstrap_options[$index]}"
                 else
-                    printf "  %-68s" "${bootstrap_options[$index]}"
+                    printf "  %-${menu_width}s" "${bootstrap_options[$index]}"
                 fi
                 if [ "$index" -lt "$((option_count - 1))" ]; then
                     printf "\n"
