@@ -47,6 +47,9 @@ $sshHostAliasPrefix = 'corenode-ssh'
 $sshConnectTimeoutSeconds = 8
 $sshProbeToken = 'corenode-codex-remote-probe-ok'
 $sshConnectionPattern = '^(?:(?<user>[^@]+)@)?(?<host>[^:\s]+)(?::(?<port>\d+))?$'
+$sshAskPassScriptName = 'corenode-askpass.cmd'
+$sshAskPassRequire = 'force'
+$sshAskPassDisplay = 'corenode:0'
 $sshConfigManagedMarker = 'Special Software Environment Manager'
 $sshConfigManagedMarkersPs1 = @($sshConfigManagedMarker, 'Get-SSHSecret', 'WindowsPathFunction.ps1')
 $sshConfigManagedMarkersSh = @($sshConfigManagedMarker, 'get_secret_value')
@@ -104,31 +107,26 @@ else
 fi
 '@
 $sshScriptFiles = @()
+$sshScriptCandidates = @()
+$sshCandidateEntry = $null
 $sshWinConformantCount = 0
 $sshHostEntries = @()
 $hostMapEntries = @()
 $hostEntry = $null
+$entry = $null
+$fileIndex = $null
+$targetConnection = $null
 $sshConfigContent = $null
 $sshConfigManagedBlock = $null
-$sshConfigParentDir = $null
 $remoteSetupScript = $null
 $remoteScriptB64 = $null
 $remoteProbeOutput = $null
 $remoteSetupOutput = $null
 $hostMapJson = $null
-$publisherDir = $null
-$remoteHostMap = $null
-$pipelineOutput = $null
-$pnpmExePath = $null
-$codexCommand = $null
-$resolvedCommand = $null
-$commandInfo = $null
-$candidatePath = $null
-$codexCandidates = @()
+$utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $false
 $sshClientCommand = $null
 $sshExePath = $null
 $gitClientCommand = $null
-$secretValue = $null
 $secretPasswordValue = $null
 $connectionMatch = $null
 $sshConnectionUser = ''
@@ -146,6 +144,25 @@ $markerMissing = $false
 $marker = $null
 $authExitCode = $null
 $configBlockLines = @()
+$secretResult = $null
+$connectionValue = $null
+$askpassScriptPath = $null
+$askpassB64 = $null
+$askpassCreated = $false
+$keyInstallOutput = $null
+$previousAskPass = $null
+$previousAskPassRequire = $null
+$previousDisplay = $null
+$plinkCommand = $null
+$plinkPath = $null
+$sshPortArgs = @()
+$plinkPortArgs = @()
+$pipelineOutput = $null
+$pnpmExePath = $null
+$codexCommand = $null
+$resolvedCommand = $null
+$commandInfo = $null
+$candidatePath = $null
 
 . $globalVarsPath
 . $windowsPathFunctionPath -SkipInit
@@ -181,14 +198,14 @@ function Find-InstalledCommand {
 function Get-SSHSecretValue {
     param([Parameter(Mandatory = $true)][string]$KeyName)
 
-    $script:secretValue = $null
+    $secretResult = $null
     try {
-        $script:secretValue = Get-SecretKey -KeyName $KeyName
+        $secretResult = Get-SecretKey -KeyName $KeyName
     } catch {
         Write-Host "$scriptIndex Secret '$KeyName' is unavailable: $($_.Exception.Message)" -ForegroundColor Yellow
-        $script:secretValue = $null
+        $secretResult = $null
     }
-    return $script:secretValue
+    return $secretResult
 }
 
 function Test-ScriptConformance {
@@ -232,6 +249,67 @@ function Invoke-RemoteCodexSetup {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Install-PasswordlessSSHKey {
+    param(
+        [Parameter(Mandatory = $true)][string]$TargetConnection,
+        [string]$TargetPort = ''
+    )
+
+    $script:sshPortArgs = @()
+    $script:plinkPortArgs = @()
+    if ($TargetPort) {
+        $script:sshPortArgs = @('-p', $TargetPort)
+        $script:plinkPortArgs = @('-P', $TargetPort)
+    }
+
+    $script:plinkCommand = Get-Command plink.exe -ErrorAction SilentlyContinue
+    if ($script:plinkCommand) {
+        $script:plinkPath = $script:plinkCommand.Source
+        'y' | & $script:plinkPath -ssh @script:plinkPortArgs -pw $script:secretPasswordValue $TargetConnection "exit 0" *> $null
+        $script:keyInstallOutput = Get-Content -LiteralPath $sshPubKeyPath -Raw | & $script:plinkPath -ssh -batch @script:plinkPortArgs -pw $script:secretPasswordValue $TargetConnection "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys" 2>&1
+        $script:pipelineOutput = @($script:keyInstallOutput)
+        foreach ($line in $script:pipelineOutput) {
+            Write-Host "$scriptIndex [key-install] $line" -ForegroundColor DarkGray
+        }
+        return ($LASTEXITCODE -eq 0)
+    }
+
+    $script:askpassB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($script:secretPasswordValue))
+    $script:askpassScriptPath = Join-Path $env:TEMP $sshAskPassScriptName
+    Set-Content -LiteralPath $script:askpassScriptPath -Value "@echo off`r`npowershell -NoProfile -Command `"[Console]::Out.Write([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$script:askpassB64')))`"" -Encoding ASCII
+    $script:askpassCreated = $true
+    $script:previousAskPass = $env:SSH_ASKPASS
+    $script:previousAskPassRequire = $env:SSH_ASKPASS_REQUIRE
+    $script:previousDisplay = $env:DISPLAY
+    $env:SSH_ASKPASS = $script:askpassScriptPath
+    $env:SSH_ASKPASS_REQUIRE = $sshAskPassRequire
+    if (-not $env:DISPLAY) {
+        $env:DISPLAY = $sshAskPassDisplay
+    }
+    try {
+        $script:keyInstallOutput = Get-Content -LiteralPath $sshPubKeyPath -Raw | & $sshExePath @script:sshPortArgs -o StrictHostKeyChecking=accept-new -o ConnectTimeout=$sshConnectTimeoutSeconds -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1 $TargetConnection "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys" 2>&1
+        $script:pipelineOutput = @($script:keyInstallOutput)
+        foreach ($line in $script:pipelineOutput) {
+            Write-Host "$scriptIndex [key-install] $line" -ForegroundColor DarkGray
+        }
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        Write-Host "$scriptIndex Automated key installation failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    } finally {
+        Remove-Item Env:SSH_ASKPASS -ErrorAction SilentlyContinue
+        Remove-Item Env:SSH_ASKPASS_REQUIRE -ErrorAction SilentlyContinue
+        Remove-Item Env:DISPLAY -ErrorAction SilentlyContinue
+        if ($script:previousAskPass) { $env:SSH_ASKPASS = $script:previousAskPass }
+        if ($script:previousAskPassRequire) { $env:SSH_ASKPASS_REQUIRE = $script:previousAskPassRequire }
+        if ($script:previousDisplay) { $env:DISPLAY = $script:previousDisplay }
+        if ($script:askpassCreated) {
+            Remove-Item -LiteralPath $script:askpassScriptPath -Force -ErrorAction SilentlyContinue
+            $script:askpassCreated = $false
+        }
+    }
+}
+
 function Write-SSHConfigManagedBlock {
     param([Parameter(Mandatory = $true)][string[]]$BlockLines)
 
@@ -253,7 +331,7 @@ function Write-SSHConfigManagedBlock {
     } else {
         $script:sshConfigContent = $script:sshConfigManagedBlock + "`r`n"
     }
-    Set-Content -LiteralPath $sshConfigPath -Value $script:sshConfigContent -Encoding ASCII
+    [System.IO.File]::WriteAllText($sshConfigPath, $script:sshConfigContent, $utf8NoBomEncoding)
     Write-Host "$scriptIndex Managed Codex host aliases written to $sshConfigPath" -ForegroundColor Green
 }
 
@@ -310,16 +388,22 @@ if ($codexCommand) {
 # ---------------------------------------------------------------------------
 # 2. Discover dynamic ssh{index} scripts (generated by Special Software Env Manager)
 # ---------------------------------------------------------------------------
-$sshScriptFiles = @(Get-ChildItem -LiteralPath $winenvsDirPath -Filter $sshWinScriptFilter -File -ErrorAction SilentlyContinue | Where-Object { $_.BaseName -match $sshWinScriptNamePattern } | Sort-Object { [int]$Matches[1] })
-if ($sshScriptFiles.Count -eq 0) {
+$sshScriptFiles = @(Get-ChildItem -LiteralPath $winenvsDirPath -Filter $sshWinScriptFilter -File -ErrorAction SilentlyContinue)
+foreach ($scriptFile in $sshScriptFiles) {
+    if ($scriptFile.BaseName -match $sshWinScriptNamePattern) {
+        $sshScriptCandidates += ,@([int]$Matches[1], $scriptFile)
+    }
+}
+$sshScriptCandidates = @($sshScriptCandidates | Sort-Object { $_[0] })
+if ($sshScriptCandidates.Count -eq 0) {
     Write-Host "$scriptIndex No ssh{index} scripts found in $winenvsDirPath. Create SSH connections via: $envManagerLauncherHint" -ForegroundColor Yellow
 } else {
-    Write-Host "$scriptIndex Discovered $($sshScriptFiles.Count) configured remote Linux endpoint script(s)." -ForegroundColor Green
+    Write-Host "$scriptIndex Discovered $($sshScriptCandidates.Count) configured remote Linux endpoint script(s)." -ForegroundColor Green
 }
 
-foreach ($scriptFile in $sshScriptFiles) {
-    if ($scriptFile.BaseName -notmatch $sshWinScriptNamePattern) { continue }
-    $fileIndex = [int]$Matches[1]
+foreach ($sshCandidateEntry in $sshScriptCandidates) {
+    $fileIndex = $sshCandidateEntry[0]
+    $scriptFile = $sshCandidateEntry[1]
     $linuxScriptPath = Join-Path $linuxenvsDirPath "$($scriptFile.BaseName).sh"
     $script:linuxScriptExists = Test-Path -LiteralPath $linuxScriptPath -PathType Leaf
 
@@ -335,16 +419,16 @@ foreach ($scriptFile in $sshScriptFiles) {
         continue
     }
 
-    $script:secretValue = Get-SSHSecretValue -KeyName "$sshSecretKeyPrefix$fileIndex"
-    if ([string]::IsNullOrWhiteSpace($script:secretValue)) {
+    $script:connectionValue = Get-SSHSecretValue -KeyName "$sshSecretKeyPrefix$fileIndex"
+    if ([string]::IsNullOrWhiteSpace($script:connectionValue)) {
         Write-Host "$scriptIndex ssh$($fileIndex): secret $sshSecretKeyPrefix$fileIndex is empty; skipping this host." -ForegroundColor Yellow
         continue
     }
     $script:secretPasswordValue = Get-SSHSecretValue -KeyName "$sshPasswordKeyPrefix$fileIndex"
 
-    $script:connectionMatch = [regex]::Match($script:secretValue, $sshConnectionPattern)
+    $script:connectionMatch = [regex]::Match($script:connectionValue, $sshConnectionPattern)
     if (-not $script:connectionMatch.Success) {
-        Write-Host "$scriptIndex ssh$($fileIndex): cannot parse connection '$($script:secretValue -replace '^(.+@)?.+$', '<redacted>')'; expected user@host[:port]." -ForegroundColor Yellow
+        Write-Host "$scriptIndex ssh$($fileIndex): cannot parse connection '$($script:connectionValue -replace '^(.+@)?.+$', '<redacted>')'; expected user@host[:port]." -ForegroundColor Yellow
         continue
     }
     $script:sshConnectionUser = $script:connectionMatch.Groups['user'].Value
@@ -355,12 +439,17 @@ foreach ($scriptFile in $sshScriptFiles) {
     $script:hostEntry = [ordered]@{
         Index = $fileIndex
         Alias = $hostAlias
-        Connection = $script:secretValue
+        Connection = $script:connectionValue
+        ConnectionUser = $script:sshConnectionUser
+        ConnectionHost = $script:sshConnectionHost
+        ConnectionPort = $script:sshConnectionPort
         WindowsScript = $scriptFile.FullName
         LinuxScript = $linuxScriptPath
         HasPasswordSecret = [bool]$script:secretPasswordValue
+        Status = ''
+        RemoteSetup = ''
     }
-    $sshHostEntries += ,@($script:hostEntry)
+    $sshHostEntries += $script:hostEntry
 }
 
 # ---------------------------------------------------------------------------
@@ -378,7 +467,7 @@ if (-not (Test-Path -LiteralPath $sshKeyPath -PathType Leaf)) {
 
 $configBlockLines = @($sshConfigBlockStart)
 foreach ($hostEntry in $sshHostEntries) {
-    $entry = $hostEntry[0]
+    $entry = $hostEntry
     $configBlockLines += "# $sshHostAliasPrefix$($entry.Index) (from $sshSecretKeyPrefix$($entry.Index) / $($entry.WindowsScript))"
     $configBlockLines += "Host $($entry.Alias)"
     $configBlockLines += "    HostName $($entry.ConnectionHost)"
@@ -401,7 +490,7 @@ if ($sshHostEntries.Count -gt 0) {
 # 4. Per-host idempotent remote setup (Node.js + Codex CLI) and association map
 # ---------------------------------------------------------------------------
 foreach ($hostEntry in $sshHostEntries) {
-    $entry = $hostEntry[0]
+    $entry = $hostEntry
     Write-Host ""
     Write-Host "$scriptIndex Configuring remote host $($entry.Alias) ($($entry.ConnectionHost))..." -ForegroundColor Cyan
 
@@ -415,8 +504,24 @@ foreach ($hostEntry in $sshHostEntries) {
             $entry.RemoteSetup = 'Remote setup incomplete; will retry next run'
         }
     } elseif ($entry.HasPasswordSecret) {
-        $entry.Status = 'Password auth required: run ssh1-style script once to finish key setup, then re-run this step'
-        Write-Host "$scriptIndex $($entry.Alias): passwordless SSH is not ready yet. Run '$($entry.WindowsScript)' once to log in and follow its key setup guide, then re-run this step." -ForegroundColor Yellow
+        $script:targetConnection = if ($entry.ConnectionUser) { "$($entry.ConnectionUser)@$($entry.ConnectionHost)" } else { $entry.ConnectionHost }
+        Write-Host "$scriptIndex $($entry.Alias): passwordless SSH not ready; installing local public key on remote host using stored credentials..." -ForegroundColor Cyan
+        if (Install-PasswordlessSSHKey -TargetConnection $script:targetConnection -TargetPort $entry.ConnectionPort) {
+            if (Test-PasswordlessSSH -Alias $entry.Alias) {
+                $entry.Status = 'Passwordless SSH OK (key installed automatically)'
+                if (Invoke-RemoteCodexSetup -Alias $entry.Alias) {
+                    $entry.RemoteSetup = 'Codex CLI ready on remote host'
+                } else {
+                    $entry.RemoteSetup = 'Remote setup incomplete; will retry next run'
+                }
+            } else {
+                $entry.Status = 'Key installed but probe failed; re-run this step'
+                Write-Host "$scriptIndex $($entry.Alias): key was installed but BatchMode probe still failed; re-run this step." -ForegroundColor Yellow
+            }
+        } else {
+            $entry.Status = 'Automated key install failed: run the ssh{index} script once, then re-run this step'
+            Write-Host "$scriptIndex $($entry.Alias): automated key installation failed. Run '$($entry.WindowsScript)' once (its guide shows manual key setup), then re-run this step." -ForegroundColor Yellow
+        }
     } else {
         $entry.Status = 'Unreachable via passwordless SSH'
         Write-Host "$scriptIndex $($entry.Alias): unreachable via BatchMode SSH; check host availability." -ForegroundColor Yellow
@@ -440,8 +545,8 @@ if ($hostMapEntries.Count -gt 0) {
 Write-Host ""
 Write-Host "$scriptIndex Codex multi-device same-task collaboration summary:" -ForegroundColor Cyan
 Write-Host "  - Local Codex CLI : $(if ($codexCommand) { $codexCommand } else { 'not installed yet (retry next run)' })" -ForegroundColor White
-Write-Host "  - SSH aliases     : $(if ($sshHostEntries.Count -gt 0) { ($sshHostEntries | ForEach-Object { $_[0].Alias }) -join ', ' } else { 'none discovered' })" -ForegroundColor White
-Write-Host "  - ssh scripts     : $sshWinConformantCount/$($sshScriptFiles.Count) conform to the generator standard (failures: $conformanceFailures)" -ForegroundColor White
+Write-Host "  - SSH aliases     : $(if ($sshHostEntries.Count -gt 0) { ($sshHostEntries | ForEach-Object { $_.Alias }) -join ', ' } else { 'none discovered' })" -ForegroundColor White
+Write-Host "  - ssh scripts     : $sshWinConformantCount/$($sshScriptCandidates.Count) conform to the generator standard (failures: $conformanceFailures)" -ForegroundColor White
 Write-Host "  - Same task across devices (official):" -ForegroundColor White
 Write-Host "      1. ChatGPT desktop app -> Settings > Connections auto-discovers the aliases above as SSH hosts." -ForegroundColor DarkGray
 Write-Host "      2. Phone -> ChatGPT app 'Remote' to start/steer/approve tasks on this host or SSH hosts." -ForegroundColor DarkGray
