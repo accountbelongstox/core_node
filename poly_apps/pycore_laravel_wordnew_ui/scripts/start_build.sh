@@ -11,7 +11,7 @@
 # Capacitor native build entry (Linux/Debian; incl. WSL) for pycore_laravel_wordnew_ui.
 # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated to
 # the idempotent installer steps referenced by FULL PATH (dd.sh install_shells menu):
-#   17_install_node_toolchain_24.sh - node + pnpm
+#   17_install_node_toolchain_24.sh - node + bun
 #   13_ensure_python.sh          - python
 #   92_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
 #   187_install_android_sdk.sh   - cmdline-tools + licenses + platform-tools +
@@ -80,7 +80,7 @@ err()  { printf '[nexus-build] %s\n' "$1" >&2; }
 
 test_python_ready() { command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; }
 
-test_pnpm_ready() { command -v pnpm >/dev/null 2>&1; }
+test_bun_ready() { command -v bun >/dev/null 2>&1; }
 
 test_vite_ready() { [ -f "$VITE_BIN" ]; }
 
@@ -101,16 +101,22 @@ invoke_step() {
 install_deps() {
     if [ ! -f "$PACKAGE_JSON" ]; then err "package.json not found at: $PACKAGE_JSON"; return; fi
     cd "$APP_ROOT" || return
+    # One-time cutover from a pnpm-created node_modules (symlinked .pnpm layout):
+    # rebuild the tree once so no stale pnpm symlinks survive.
+    if [ -e "${NODE_MODULES}/.pnpm" ]; then
+        log "pnpm node_modules layout detected -> rebuilding it with bun..."
+        rm -rf "$NODE_MODULES"
+    fi
     if [ -n "$FORCE_INSTALL" ] || [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ] || [ ! -f "$VITE_BIN" ]; then
         log "Installing/repairing dependencies (node_modules/vite missing or --force-install)..."
-        pnpm install --config.confirm-modules-purge=false || warn "pnpm install did not complete cleanly."
+        bun install --force || warn "bun install did not complete cleanly."
     else
-        log "node_modules present -> updating in place..."
-        pnpm install --config.confirm-modules-purge=false || warn "Kept existing node_modules (pnpm update did not complete cleanly)."
+        log "node_modules present -> updating dependencies (bun install)..."
+        bun install || warn "Kept existing node_modules (bun update did not complete cleanly)."
     fi
     if [ ! -f "$VITE_BIN" ]; then
         log "vite still missing -> reinstalling dependencies from scratch..."
-        pnpm install --config.confirm-modules-purge=false || warn "pnpm reinstall did not complete cleanly."
+        bun install --force || warn "bun reinstall did not complete cleanly."
     fi
     cd "$ORIGINAL_DIR" || true
 }
@@ -171,15 +177,18 @@ elif [ "$PLATFORM" != "android" ]; then
     READY=0
 fi
 
-# --- Prerequisite: node + pnpm (binary gate: pnpm on PATH) ---
-if [ "$READY" -eq 1 ] && ! test_pnpm_ready; then
+# --- Prerequisite: node + bun (binary gate: bun on PATH) ---
+if [ "$READY" -eq 1 ] && ! test_bun_ready; then
     $SUDO mkdir -p "$GVDIR" 2>/dev/null || true
     printf 'true\n' | $SUDO tee "$GVDIR/INSTALL_NODE" >/dev/null 2>&1 || true
+    log "bun not found. Invoking dd idempotent step (installs node + bun): $STEP_NODE"
     invoke_step "$STEP_NODE"
     hash -r 2>/dev/null || true
-    if ! test_pnpm_ready; then
-        err "pnpm still missing after 17_install_node_toolchain_24.sh."
+    if ! test_bun_ready; then
+        err "bun still missing after 17_install_node_toolchain_24.sh."
         READY=0
+    else
+        log "Upgraded the frontend runtime to bun: $(command -v bun)"
     fi
 fi
 
@@ -200,7 +209,7 @@ fi
 if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ] && ! test_vite_ready; then
     install_deps
     if ! test_vite_ready; then
-        err "Dependencies incomplete (vite missing) after pnpm install."
+        err "Dependencies incomplete (vite missing) after bun install."
         READY=0
     fi
 fi

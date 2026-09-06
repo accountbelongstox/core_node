@@ -10,7 +10,7 @@
 # Capacitor native build entry (Windows) for pycore_laravel_wordnew_ui.
 # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated
 # to the idempotent DevInstaller steps referenced by FULL PATH (dd.cmd menu):
-#   Step4_InstallNodeJS.ps1              - node + pnpm
+#   Step4_InstallNodeJS.ps1              - node + bun
 #   Step8_InstallPython.ps1              - python
 #   Step21_InstallApplications.ps1       - JDK 21 (-ExactPackageName Java -> Oracle.JDK.21,
 #                                          wires JAVA_HOME/JDK_HOME/PATH via ApplicationsList)
@@ -95,7 +95,7 @@ function Write-Err { param([string]$Message) Write-Host "[nexus-build] $Message"
 
 function Test-PythonReady { return [bool]((Get-Command python -ErrorAction SilentlyContinue) -or (Get-Command python3 -ErrorAction SilentlyContinue)) }
 
-function Test-PnpmReady { return [bool](Get-Command pnpm -ErrorAction SilentlyContinue) }
+function Test-BunReady { return [bool](Get-Command bun -ErrorAction SilentlyContinue) }
 
 function Test-ViteReady { return (Test-Path -LiteralPath $ViteBinPath) }
 
@@ -125,16 +125,23 @@ function Install-Deps {
         if (Test-Path -LiteralPath $NodeModulesPath) {
             $HaveModules = [bool](Get-ChildItem -Path $NodeModulesPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)
         }
+        # One-time cutover from a pnpm-created node_modules (symlinked .pnpm layout):
+        # rebuild the tree once so no stale pnpm symlinks survive.
+        if (Test-Path -LiteralPath (Join-Path $NodeModulesPath ".pnpm")) {
+            Write-Info "pnpm node_modules layout detected -> rebuilding it with bun..."
+            Remove-Item -LiteralPath $NodeModulesPath -Recurse -Force -ErrorAction SilentlyContinue
+            $HaveModules = $false
+        }
         if ($ForceInstall -or (-not $HaveModules) -or (-not (Test-ViteReady))) {
             Write-Info "Installing dependencies (node_modules/vite missing or -ForceInstall)..."
-            '' | pnpm install --config.confirm-modules-purge=false
+            bun install --force
         } else {
-            Write-Info "node_modules present -> updating in place..."
-            '' | pnpm install --config.confirm-modules-purge=true
+            Write-Info "node_modules present -> updating dependencies (bun install)..."
+            bun install
         }
         if (-not (Test-ViteReady)) {
             Write-Info "vite still missing -> reinstalling dependencies from scratch..."
-            '' | pnpm install --config.confirm-modules-purge=false
+            bun install --force
         }
     } finally {
         Pop-Location
@@ -150,12 +157,15 @@ if ($Platform -eq 'ios') {
     $AllReady = $false
 }
 
-# --- Prerequisite: node + pnpm (binary gate: pnpm on PATH) ---
-if ($AllReady -and (-not (Test-PnpmReady))) {
+# --- Prerequisite: node + bun (binary gate: bun on PATH) ---
+if ($AllReady -and (-not (Test-BunReady))) {
+    Write-Info "bun not found. Invoking dd idempotent step (installs node + bun): Step4_InstallNodeJS.ps1"
     Invoke-DevStep -StepPath $StepNodeJs
-    if (-not (Test-PnpmReady)) {
-        Write-Err "pnpm still missing after Step4_InstallNodeJS.ps1."
+    if (-not (Test-BunReady)) {
+        Write-Err "bun still missing after Step4_InstallNodeJS.ps1."
         $AllReady = $false
+    } else {
+        Write-Success "Upgraded the frontend runtime to bun: $((Get-Command bun -ErrorAction SilentlyContinue).Source)"
     }
 }
 
@@ -176,7 +186,7 @@ if ($AllReady) {
 if ($AllReady -and (-not $List) -and (-not (Test-ViteReady))) {
     Install-Deps
     if (-not (Test-ViteReady)) {
-        Write-Err "Dependencies incomplete (vite missing) after pnpm install."
+        Write-Err "Dependencies incomplete (vite missing) after bun install."
         $AllReady = $false
     }
 }

@@ -19,7 +19,7 @@
 #   2. enable only when not enabled yet
 #   3. start when inactive; restart only when the unit was rewritten
 #   4. fully converged state -> report and touch nothing
-# Runtime prerequisites (node/pnpm/deps) are owned by the unit's ExecStart
+# Runtime prerequisites (node/bun/deps) are owned by the unit's ExecStart
 # (start.sh --serve), which self-heals them non-interactively under systemd.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

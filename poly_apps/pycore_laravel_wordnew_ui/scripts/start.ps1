@@ -8,8 +8,9 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Single entry (Windows) for pycore_laravel_wordnew_ui (nexus-dash): the Windows
-# counterpart of start.sh. Needs NO parameters. Idempotently resolves pnpm
-# (PATH -> corepack), installs dependencies (skips when already present), launches
+# counterpart of start.sh. Needs NO parameters. Idempotently resolves bun
+# (PATH -> canonical Step4 installer), installs dependencies (skips when already
+# present), launches
 # the laravel_main backend in its own window, then serves the dashboard dev server
 # in the foreground -- unless a background NSSM service is requested (see below).
 # Run from repo: .\poly_apps\pycore_laravel_wordnew_ui\scripts\start.ps1
@@ -81,6 +82,8 @@ $BuildApkScript = Join-Path $ScriptDir "flavor\build_apk.py"
 $PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)
 $NeedInstall = $false
 $hasAnyPackage = $null
+$BunWasMissing = $false
+$BunSource = ''
 $DevPort = $Port
 $DevUrl = ""
 $OpenUrlJob = $null
@@ -118,15 +121,9 @@ function Write-Success { param([string]$Message) Write-Host "[nexus-dash] $Messa
 function Write-Warn { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Yellow }
 function Write-Err { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Red }
 
-# Resolve pnpm onto PATH: direct -> corepack activation. No parameters required.
-function Resolve-Pnpm {
-    if (Get-Command pnpm -ErrorAction SilentlyContinue) { return $true }
-    if (Get-Command corepack -ErrorAction SilentlyContinue) {
-        Write-Info "pnpm not found; activating via corepack..."
-        corepack enable 2>$null | Out-Null
-        corepack prepare pnpm@latest --activate 2>$null | Out-Null
-        if (Get-Command pnpm -ErrorAction SilentlyContinue) { return $true }
-    }
+# Resolve bun onto PATH. No parameters required.
+function Resolve-Bun {
+    if (Get-Command bun -ErrorAction SilentlyContinue) { return $true }
     return $false
 }
 
@@ -156,19 +153,28 @@ function Test-DashboardDevServerHealthy {
 Write-Info "Original directory: $OriginalDir"
 Write-Info "Working directory:  $AppRoot"
 
-# --- 1) Toolchain: node (idempotent auto-install via the canonical DevInstaller step) + pnpm ---
+# --- 1) Toolchain: bun (idempotent auto-install via the canonical DevInstaller step) + node ---
+$BunWasMissing = -not (Resolve-Bun)
+if ($BunWasMissing) {
+    Write-Info "bun not found -> invoking canonical installer (idempotent, installs node + bun): Step4_InstallNodeJS.ps1"
+    Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
+}
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Info "node not found -> invoking canonical installer (idempotent): Step4_InstallNodeJS.ps1"
     Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
 }
-if (-not (Resolve-Pnpm)) {
+if (-not (Resolve-Bun)) {
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
         Write-Err "node still not found after Step4_InstallNodeJS.ps1. Run it manually via the Installer Menu."
     } else {
-        Write-Err "pnpm not found on PATH. Install: npm i -g pnpm  or  corepack enable && corepack prepare pnpm@latest --activate"
+        Write-Err "bun not found on PATH. Install: npm i -g bun"
     }
     Set-Location -LiteralPath $OriginalDir
     exit 1
+}
+if ($BunWasMissing) {
+    $BunSource = (Get-Command bun -ErrorAction SilentlyContinue).Source
+    Write-Success "Upgraded the frontend runtime to bun: $BunSource"
 }
 
 if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
@@ -177,13 +183,13 @@ if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
     exit 1
 }
 
-# --- 2) Dependencies: update in place, never wipe node_modules (parity with start.sh) ---
-# Policy: an EXISTING node_modules is UPDATED in place, never removed and reinstalled from
-# scratch. pnpm's own "... will be removed and reinstalled from scratch" prompt
-# (ERR_PNPM_MODULES_BREAKING_CHANGE) only fires when it can purge; running pnpm
-# non-interactively with confirm-modules-purge left at its default (true) makes pnpm ERROR
-# instead of wiping on a major modules-format change -- so the tree is kept. A from-scratch
-# reinstall happens ONLY when node_modules is missing/empty, or -ForceInstall is passed.
+# --- 2) Dependencies: converge in place with bun (parity with start.sh) ---
+# Policy: bun install is idempotent -- it verifies the tree against bun.lock
+# (migrating a legacy pnpm-lock.yaml on first run) and only touches what differs,
+# so an EXISTING node_modules is UPDATED in place, never removed and reinstalled
+# from scratch. A from-scratch reinstall happens ONLY when node_modules is
+# missing/empty, when a legacy pnpm layout (.pnpm marker) is detected, or when
+# -ForceInstall is passed.
 Push-Location -LiteralPath $AppRoot
 try {
     $FreshInstall = $false
@@ -192,12 +198,20 @@ try {
         $HaveModules = [bool](Get-ChildItem -Path $NodeModulesPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)
     }
 
+    # One-time cutover from a pnpm-created node_modules (symlinked .pnpm layout):
+    # rebuild the tree once so no stale pnpm symlinks survive; the marker
+    # disappears after the first bun install.
+    if (Test-Path -LiteralPath (Join-Path $NodeModulesPath ".pnpm")) {
+        Write-Info "pnpm node_modules layout detected -> rebuilding it with bun..."
+        Remove-Item -LiteralPath $NodeModulesPath -Recurse -Force -ErrorAction SilentlyContinue
+        $HaveModules = $false
+    }
+
     if ($ForceInstall) {
         Write-Info "Force reinstall requested: reinstalling dependencies from scratch..."
-        # Explicit opt-in to the purge; piped (non-interactive) so it cannot block.
-        '' | pnpm install --config.confirm-modules-purge=false
+        bun install --force
         if ($LASTEXITCODE -ne 0) {
-            Write-Err "pnpm install failed."
+            Write-Err "bun install failed."
             Pop-Location
             Set-Location -LiteralPath $OriginalDir
             exit 1
@@ -205,42 +219,41 @@ try {
         $FreshInstall = $true
     } elseif (-not $HaveModules) {
         Write-Info "node_modules missing -> installing dependencies..."
-        pnpm install
+        bun install
         if ($LASTEXITCODE -ne 0) {
-            Write-Err "pnpm install failed."
+            Write-Err "bun install failed."
             Pop-Location
             Set-Location -LiteralPath $OriginalDir
             exit 1
         }
         $FreshInstall = $true
     } else {
-        # node_modules EXISTS -> update in place, never wipe. Piped stdin + default
-        # confirm-modules-purge=true => pnpm aborts rather than purging on a breaking
-        # modules-format change; we then KEEP the tree and warn.
-        Write-Info "node_modules present -> updating in place (no from-scratch reinstall)..."
-        '' | pnpm install --config.confirm-modules-purge=true
+        # node_modules EXISTS -> converge in place. bun install only touches what
+        # differs from bun.lock, so repeated runs never wipe the tree.
+        Write-Info "node_modules present -> updating dependencies (bun install)..."
+        bun install
         if ($LASTEXITCODE -eq 0) {
-            Write-Success "Dependencies updated in place."
+            Write-Success "Dependencies ready (tree verified/updated in place)."
         } else {
-            Write-Warn "Kept existing node_modules (pnpm wanted a from-scratch reinstall -- likely a pnpm major-version change)."
+            Write-Warn "bun install did not complete cleanly; keeping existing node_modules."
         }
 
         # Self-heal: if the in-place update left the toolchain broken (e.g. a stale/
-        # corrupted node_modules\vite entry from an interrupted pnpm major-version
+        # corrupted node_modules\vite entry from an interrupted package-manager
         # switch), fall back to the SAME from-scratch reinstall -ForceInstall uses.
         # Nobody is present to pass -ForceInstall for an NSSM-launched service body --
-        # leaving vite missing here means `pnpm exec vite` fails immediately on every
+        # leaving vite missing here means `bun x vite` fails immediately on every
         # (re)start, and NSSM's AppRestartDelay just retries the same broken tree
         # forever (an endless crash-restart loop instead of a one-time repair).
         if (-not (Test-ViteReady -Root $AppRoot)) {
             Write-Warn "Dev toolchain (vite) still not present -> reinstalling dependencies from scratch..."
-            '' | pnpm install --config.confirm-modules-purge=false
+            bun install --force
             if ($LASTEXITCODE -eq 0) { $FreshInstall = $true }
         }
     }
 
     if (-not (Test-ViteReady -Root $AppRoot)) {
-        Write-Err "pnpm install finished but vite is still missing. Remove node_modules + pnpm-lock.yaml, then re-run with -ForceInstall."
+        Write-Err "bun install finished but vite is still missing. Remove node_modules + bun.lock, then re-run with -ForceInstall."
         Pop-Location
         Set-Location -LiteralPath $OriginalDir
         exit 1
@@ -251,12 +264,12 @@ try {
 }
 
 if ($NeedDistBuild) {
-    Write-Info "Building production dist (pnpm run build)..."
+    Write-Info "Building production dist (bun run build)..."
     Push-Location -LiteralPath $AppRoot
     try {
-        pnpm run build
+        bun run build
         if ($LASTEXITCODE -ne 0) {
-            Write-Err "pnpm run build failed."
+            Write-Err "bun run build failed."
             Set-Location -LiteralPath $OriginalDir
             exit 1
         }
@@ -422,9 +435,9 @@ if ((-not $IsServiceRun) -and (-not $NonInteractive)) {
         Start-Sleep -Seconds $DelaySeconds
         Start-Process $Url
     } -ArgumentList $DevUrl, 4
-    Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort). Browser will open: $DevUrl"
+    Write-Info "Starting dev server (bun x vite --port $DevPort --strictPort). Browser will open: $DevUrl"
 } elseif ($IsServiceRun) {
-    Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort) as service body."
+    Write-Info "Starting dev server (bun x vite --port $DevPort --strictPort) as service body."
 } else {
     Write-Info "Starting frontend non-interactively on $DevUrl."
 }
@@ -432,9 +445,9 @@ $ExitCode = 0
 Push-Location -LiteralPath $AppRoot
 try {
     if ($Dist) {
-        pnpm exec vite preview --port $DevPort --strictPort --host $BindHost
+        bun x vite preview --port $DevPort --strictPort --host $BindHost
     } else {
-        pnpm exec vite --port $DevPort --strictPort --host $BindHost
+        bun x vite --port $DevPort --strictPort --host $BindHost
     }
     $ExitCode = $LASTEXITCODE
 } finally {

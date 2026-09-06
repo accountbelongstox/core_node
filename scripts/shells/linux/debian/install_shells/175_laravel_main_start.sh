@@ -82,6 +82,7 @@ NPX_BIN=""
 PHP_CANDIDATE=""
 COMPOSER_CANDIDATE=""
 NPX_CANDIDATE=""
+BUN_BIN=""
 RUNTIME_DIR=""
 IP_LIST=""
 IP=""
@@ -219,6 +220,34 @@ ensure_ssh_server() {
         fi
     else
         echo "  SSH installation skipped."
+    fi
+}
+
+# Ensure the bun runtime for the pycore_laravel_wordnew_ui dashboard (the
+# frontend package scripts run via bun). Idempotent: bun on PATH short-circuits;
+# otherwise the canonical node toolchain installer (which also provisions bun)
+# is invoked, and the runtime upgrade is printed.
+ensure_ui_bun_runtime() {
+    BUN_BIN="$(command -v bun 2>/dev/null)"
+    if [ -n "$BUN_BIN" ]; then
+        echo "bun present -> dashboard frontend runtime ready ($BUN_BIN)."
+        return
+    fi
+    if [ ! -f "$NODE_INSTALL_SCRIPT" ]; then
+        echo "  *** ACTION REQUIRED: bun not found and node installer missing: $NODE_INSTALL_SCRIPT"
+        return
+    fi
+    persist_global_var_file_value "INSTALL_NODE" "true"
+    echo "bun not found. Invoking init-ensure installer (INSTALL_NODE=true, installs bun idempotently):"
+    echo "  $NODE_INSTALL_SCRIPT"
+    bash "$NODE_INSTALL_SCRIPT"
+    hash -r 2>/dev/null
+    BUN_BIN="$(command -v bun 2>/dev/null)"
+    if [ -n "$BUN_BIN" ]; then
+        echo "Upgraded the dashboard frontend runtime to bun: $BUN_BIN ($(bun --version 2>/dev/null))"
+    else
+        echo "  *** ACTION REQUIRED: bun still unavailable after the installer."
+        echo "  *** Manual (Debian/Ubuntu/WSL): npm i -g bun"
     fi
 }
 
@@ -785,6 +814,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
                 fi
             fi
             if [ "$INCLUDE_UI" = "yes" ]; then
+                ensure_ui_bun_runtime
                 ensure_ui_domain_binding
             fi
 

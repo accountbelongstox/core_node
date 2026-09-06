@@ -17,7 +17,7 @@
 #        default NO.     flags: --service | --no-service     env: AS_SERVICE=yes|no
 # Run mode defaults to the dev server (no prompt). Optional overrides for headless:
 #        --dist | --dev                                       env: RUN_DIST=yes|no
-# Prerequisites (node/pnpm, deps, dist build) are installed/built here, invoking the
+# Prerequisites (node/bun, deps, dist build) are installed/built here, invoking the
 # canonical init-ensure installers under scripts/shells/linux.
 #
 # Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh
@@ -55,16 +55,11 @@ LARAVEL_LOG="${LOG_DIR}/laravel_main.start.log"
 PACKAGE_JSON="${APP_ROOT}/package.json"
 NODE_MODULES="${APP_ROOT}/node_modules"
 VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
-# This script runs under systemd (no TTY). When pnpm decides the on-disk node_modules
-# format is incompatible with the running pnpm -- e.g. a pnpm major-version change, or a
-# DIFFERENT pnpm binary between install and run (the service may use /usr/local/bin/pnpm
-# while node_modules was created by /opt/.../node/.../bin/pnpm) -- it removes and recreates
-# node_modules, but with no TTY it ABORTS (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY) and
-# exits non-zero, crash-looping the service. Auto-confirm that purge so every pnpm call
-# (install, and the pre-run deps check inside `pnpm exec`) recreates node_modules instead of
-# aborting. pnpm still only purges when it genuinely must; a compatible tree updates in place.
-export npm_config_confirm_modules_purge=false
-export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# This script runs under systemd (no TTY). Bun's installer is fully
+# non-interactive (no module-purge prompts), so the dashboard service converges
+# its own node_modules on every start without a TTY. bun install is idempotent:
+# it verifies the tree against bun.lock (migrating a legacy pnpm-lock.yaml on
+# first run) and only touches what changed.
 DIST_DIR="${APP_ROOT}/dist"
 DIST_INDEX="${APP_ROOT}/dist/index.html"
 # Fixed dashboard dev port (no env files). Single source:
@@ -88,7 +83,7 @@ BUILD_INPUT_PATHS=(
     "${APP_ROOT}/index.html"
     "${APP_ROOT}/index.tsx"
     "${APP_ROOT}/package.json"
-    "${APP_ROOT}/pnpm-lock.yaml"
+    "${APP_ROOT}/bun.lock"
     "${APP_ROOT}/tsconfig.json"
     "${APP_ROOT}/vite.config.ts"
 )
@@ -108,9 +103,10 @@ AS_SERVICE="${AS_SERVICE:-}"
 RUN_BACKEND=1
 RUN_FRONTEND=1
 FORCE_INSTALL="${FORCE_INSTALL:-}"
-PNPM_BIN=""
-PNPM_VERSION=""
-PNPM_RESOLVE_READY="no"
+BUN_BIN=""
+BUN_VERSION=""
+BUN_RESOLVE_READY="no"
+PNPM_MODULES_MARKER="${APP_ROOT}/node_modules/.pnpm"
 NEED_INSTALL=""
 NEED_BUILD=""
 SUDO=""
@@ -176,99 +172,88 @@ ask_default_no() {
     case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
-# Resolve pnpm into PNPM_BIN: PATH -> corepack -> node init-ensure installer.
-resolve_pnpm() {
-    PNPM_BIN=""
-    PNPM_VERSION=""
-    PNPM_RESOLVE_READY="no"
+# Resolve bun into BUN_BIN: PATH lookup (canonical /usr/local/bin/bun symlink).
+resolve_bun() {
+    BUN_BIN=""
+    BUN_VERSION=""
+    BUN_RESOLVE_READY="no"
     hash -r 2>/dev/null || true
-    if command -v pnpm >/dev/null 2>&1; then
-        PNPM_BIN="$(command -v pnpm)"
-        PNPM_VERSION="$("$PNPM_BIN" --version 2>/dev/null)"
-        if [ -n "$PNPM_VERSION" ]; then
-            PNPM_RESOLVE_READY="yes"
-            return
-        fi
-    fi
-    if command -v corepack >/dev/null 2>&1; then
-        corepack enable >/dev/null 2>&1 || true
-        corepack prepare pnpm@latest --activate >/dev/null 2>&1 || true
-        hash -r 2>/dev/null || true
-        if command -v pnpm >/dev/null 2>&1; then
-            PNPM_BIN="$(command -v pnpm)"
-            PNPM_VERSION="$("$PNPM_BIN" --version 2>/dev/null)"
-            if [ -n "$PNPM_VERSION" ]; then
-                PNPM_RESOLVE_READY="yes"
-            fi
+    if command -v bun >/dev/null 2>&1; then
+        BUN_BIN="$(command -v bun)"
+        BUN_VERSION="$("$BUN_BIN" --version 2>/dev/null)"
+        if [ -n "$BUN_VERSION" ]; then
+            BUN_RESOLVE_READY="yes"
         fi
     fi
 }
 
-# Ensure node + pnpm are available (installs node via the canonical .sh if missing).
-ensure_node_pnpm() {
-    resolve_pnpm
-    if [ "$PNPM_RESOLVE_READY" = "yes" ]; then
-        log "Using pnpm ${PNPM_VERSION}: $PNPM_BIN"
+# Ensure node + bun are available (installs both via the canonical .sh if missing;
+# 17_install_node_toolchain_24.sh is idempotent and provisions bun).
+ensure_node_bun() {
+    resolve_bun
+    if [ "$BUN_RESOLVE_READY" = "yes" ]; then
+        log "Using bun ${BUN_VERSION}: $BUN_BIN"
         return
     fi
-    if ! node --version >/dev/null 2>&1 && [ -f "$NODE_INSTALL_SCRIPT" ]; then
+    if [ -f "$NODE_INSTALL_SCRIPT" ]; then
         if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && [ -z "$SUDO" ]; then SUDO="sudo"; fi
         GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
         $SUDO mkdir -p "$GVDIR" 2>/dev/null || true
         printf 'true\n' | $SUDO tee "$GVDIR/INSTALL_NODE" >/dev/null 2>&1 || true
-        log "node/pnpm not found. Invoking node init-ensure installer (INSTALL_NODE=true):"
+        log "bun not found. Invoking node toolchain installer (INSTALL_NODE=true, installs bun idempotently):"
         log "  $NODE_INSTALL_SCRIPT"
-        bash "$NODE_INSTALL_SCRIPT" || warn "node init-ensure installer reported failure (continuing)."
+        bash "$NODE_INSTALL_SCRIPT" || warn "node toolchain installer reported failure (continuing)."
         hash -r 2>/dev/null || true
-        resolve_pnpm
     fi
-    if [ "$PNPM_RESOLVE_READY" != "yes" ]; then
-        err "pnpm not found on PATH. Install: npm i -g pnpm  OR  corepack enable && corepack prepare pnpm@latest --activate"
+    resolve_bun
+    if [ "$BUN_RESOLVE_READY" != "yes" ]; then
+        err "bun not found on PATH. Install it manually: npm i -g bun"
         exit 1
     fi
-    log "Using pnpm: $PNPM_BIN"
+    log "Upgraded the frontend runtime to bun: ${BUN_VERSION} (${BUN_BIN})."
 }
 
 # True when the dev toolchain (vite) is present under node_modules.
 vite_ready() { [ -f "$VITE_BIN" ]; }
 
-# Idempotent dependency install. Policy: prefer updating node_modules IN PLACE. pnpm only
-# removes-and-recreates node_modules when it considers the on-disk format incompatible with
-# the running pnpm (a pnpm major-version change, or a different pnpm binary between install
-# and run); a compatible tree is just updated. With confirm-modules-purge=false (exported
-# near the top) that recreate runs non-interactively under systemd instead of aborting on
-# no-TTY. A from-scratch reinstall thus happens when node_modules is missing/empty, when pnpm
-# itself requires it, or when --force-install is passed explicitly.
+# Idempotent dependency install. Policy: bun install converges node_modules IN PLACE --
+# it verifies the tree against bun.lock and only changes what differs, so an up-to-date
+# tree is a fast no-op. A from-scratch reinstall happens when node_modules is
+# missing/empty, when a legacy pnpm layout (.pnpm marker) is detected, or when
+# --force-install is passed explicitly.
 ensure_deps() {
     if [ ! -f "$PACKAGE_JSON" ]; then err "package.json not found at: $PACKAGE_JSON"; exit 1; fi
     cd "$APP_ROOT" || exit 1
 
     local fresh_install=""
+    # One-time cutover from a pnpm-created node_modules (symlinked .pnpm layout):
+    # rebuild the tree once so no stale pnpm symlinks survive; the marker
+    # disappears after the first bun install.
+    if [ -e "$PNPM_MODULES_MARKER" ]; then
+        log "pnpm node_modules layout detected -> rebuilding it with bun..."
+        rm -rf "$NODE_MODULES"
+    fi
     if [ -n "$FORCE_INSTALL" ]; then
-        log "Force reinstall requested: recreating node_modules from scratch..."
-        # Explicit opt-in to the purge; run non-interactively so it does not block.
-        if ! "$PNPM_BIN" install --config.confirm-modules-purge=false; then err "pnpm install failed."; exit 1; fi
+        log "Force reinstall requested: reinstalling all dependencies from scratch..."
+        if ! "$BUN_BIN" install --force; then err "bun install failed."; exit 1; fi
         fresh_install=1
     elif [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ]; then
         log "node_modules missing -> installing dependencies..."
-        if ! "$PNPM_BIN" install; then err "pnpm install failed."; exit 1; fi
+        if ! "$BUN_BIN" install; then err "bun install failed."; exit 1; fi
         fresh_install=1
     else
-        # node_modules EXISTS -> update in place. pnpm recreates it only if it deems the
-        # on-disk format incompatible; confirm-modules-purge=false lets that happen
-        # non-interactively here instead of aborting under systemd's no-TTY.
-        log "node_modules present -> updating dependencies (in place when compatible)..."
-        if "$PNPM_BIN" install --config.confirm-modules-purge=false; then
-            log "Dependencies ready (updated in place, or recreated as pnpm required)."
-        else
-            warn "pnpm install did not complete cleanly; keeping existing node_modules."
+        # node_modules EXISTS -> update in place. bun install only touches what
+        # differs from bun.lock, so repeated runs converge without wiping anything.
+        log "node_modules present -> updating dependencies (bun install)..."
+        if ! "$BUN_BIN" install; then
+            warn "bun install did not complete cleanly; keeping existing node_modules."
             warn "If the dev toolchain is broken below, re-run with --force-install to recreate it."
         fi
     fi
 
     if ! vite_ready; then
         if [ -n "$fresh_install" ]; then
-            err "pnpm install finished but vite is still missing. Remove node_modules + pnpm-lock.yaml, then re-run with --force-install."
+            err "bun install finished but vite is still missing. Remove node_modules + bun.lock, then re-run with --force-install."
             exit 1
         fi
         warn "Dev toolchain (vite) not found under node_modules; keeping node_modules as requested."
@@ -298,9 +283,9 @@ build_dist() {
         done
     fi
     if [ -n "$NEED_BUILD" ]; then
-        log "Building production dist (pnpm run build -> vite build)..."
+        log "Building production dist (bun run build -> vite build)..."
         cd "$APP_ROOT" || exit 1
-        if ! "$PNPM_BIN" run build; then err "pnpm run build failed."; exit 1; fi
+        if ! "$BUN_BIN" run build; then err "bun run build failed."; exit 1; fi
         cd "$ORIGINAL_DIR" || true
     else
         log "Production dist is current: ${DIST_DIR}"
@@ -322,7 +307,7 @@ dashboard_healthy() {
 }
 
 # Free DEV_PORT before starting (idempotent restart). Stops only stale dev
-# servers (vite/node/pnpm); a non-dev holder is reported, never killed.
+# servers (vite/node/pnpm/bun); a non-dev holder is reported, never killed.
 free_dev_port() {
     local port="$1" pids="" pid="" cmd=""
     if command -v ss >/dev/null 2>&1; then
@@ -334,7 +319,7 @@ free_dev_port() {
     [ -z "$pids" ] && return 0
     for pid in $pids; do
         cmd=$(ps -p "$pid" -o args= 2>/dev/null)
-        if printf '%s' "$cmd" | grep -qiE 'vite|node|pnpm'; then
+        if printf '%s' "$cmd" | grep -qiE 'vite|node|pnpm|bun'; then
             warn "Freeing port ${port}: stopping stale dev server PID ${pid}"
             kill "$pid" 2>/dev/null || true
         else
@@ -397,8 +382,8 @@ serve_dashboard() {
         log "Serving production dist with Caddy on ${BIND_HOST}:${DEV_PORT}"
         exec "$FRANKENPHP_BIN" run --config "$STATIC_CADDYFILE" --adapter caddyfile
     else
-        log "Starting dev server (pnpm exec vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
-        "$PNPM_BIN" exec vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
+        log "Starting dev server (bun x vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
+        "$BUN_BIN" x vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
     fi
 }
 
@@ -516,7 +501,7 @@ if [ "$ACTION" = "serve" ] || [ "$ACTION" = "prepare" ]; then
     if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
     log "Action: ${ACTION} | mode: ${RUN_MODE}"
     if [ "$ACTION" = "prepare" ] || [ "$RUN_MODE" = "dev" ]; then
-        ensure_node_pnpm
+        ensure_node_bun
         ensure_deps
     fi
     if [ "$ACTION" = "prepare" ] && [ "$RUN_MODE" = "dist" ]; then
@@ -531,7 +516,7 @@ if [ "$ACTION" = "serve" ] || [ "$ACTION" = "prepare" ]; then
 fi
 
 if [ "$ACTION" = "build-apk" ]; then
-    ensure_node_pnpm
+    ensure_node_bun
     ensure_deps
     build_apk
     exit
@@ -546,10 +531,10 @@ if [ ! -f "$LARAVEL_START" ]; then
     RUN_BACKEND=""
 fi
 
-# 1) Frontend prerequisites FIRST: install node/pnpm + dependencies (no prompt).
+# 1) Frontend prerequisites FIRST: install node/bun + dependencies (no prompt).
 if [ -n "$RUN_FRONTEND" ]; then
-    log "Installing frontend prerequisites (node/pnpm + dependencies)..."
-    ensure_node_pnpm
+    log "Installing frontend prerequisites (node/bun + dependencies)..."
+    ensure_node_bun
     ensure_deps
 fi
 
