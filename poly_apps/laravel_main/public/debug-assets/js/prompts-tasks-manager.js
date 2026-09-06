@@ -84,8 +84,7 @@ const PromptsTasksManager = {
         this.currentCategory = categoryId;
 
         try {
-            const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.MCP_TASK_CATEGORIES_FILES}/${categoryId}/files`);
-            const data = await response.json();
+            const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.MCP_TASK_CATEGORIES_FILES}/${categoryId}/files`);
 
             if (data.success) {
                 this.promptFiles = data.data.files || [];
@@ -224,11 +223,9 @@ const PromptsTasksManager = {
         }
 
         try {
-            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_DELETE_FILE, {
+            const data = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_DELETE_FILE, {
                 path: filePath
             });
-
-            const data = await response.json();
 
             if (data.error) {
                 console.error('[PromptsTasksManager] Delete failed:', data);
@@ -272,8 +269,7 @@ const PromptsTasksManager = {
         }
 
         try {
-            const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.CODE_BROWSER_READ_FILE}?path=${encodeURIComponent(path)}`);
-            const data = await response.json();
+            const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.CODE_BROWSER_READ_FILE}?path=${encodeURIComponent(path)}`);
 
             if (data.error) {
                 this.showNotification('Error: ' + data.error, 'error');
@@ -678,12 +674,11 @@ const PromptsTasksManager = {
         this.updateWindowStatus(path, 'Saving...');
 
         try {
-            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_SAVE_FILE, {
+            const data = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_SAVE_FILE, {
                 path: path,
                 content: content
             });
 
-            const data = await response.json();
             if (data.error) {
                 this.updateWindowStatus(path, 'Save failed!');
                 this.showNotification('Error: ' + data.error, 'error');
@@ -803,11 +798,9 @@ const PromptsTasksManager = {
                 this.updateWindowStatus(path, `Translating line ${i + 1}/${lines.length}...`);
 
                 try {
-                    const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_TRANSLATE_LINE, {
+                    const data = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_TRANSLATE_LINE, {
                         line: line
                     });
-
-                    const data = await response.json();
 
                     if (data.error) {
                         console.error(`[PromptsTasksManager] Translation error for line ${i + 1}:`, data.error);
@@ -838,14 +831,12 @@ const PromptsTasksManager = {
                 console.log(`[PromptsTasksManager] Translation complete. ${translatedCount}/${totalChineseLines} Chinese lines translated. Saving file...`);
                 this.updateWindowStatus(path, 'Saving translated content...');
 
-                const saveResponse = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_SAVE_FILE, {
+                const saveData = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_SAVE_FILE, {
                     path: path,
                     content: newContent,
                     skip_backup: true,
                     cleanup_old_backups: true
                 });
-
-                const saveData = await saveResponse.json();
 
                 if (saveData.error) {
                     console.error(`[PromptsTasksManager] Failed to save file:`, saveData.error);
@@ -970,11 +961,10 @@ const PromptsTasksManager = {
 
     async translateText(text) {
         try {
-            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_TRANSLATE_NAME, {
+            const data = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_TRANSLATE_NAME, {
                 name: text
             });
 
-            const data = await response.json();
             return (data.success && data.translated) ? data.translated : null;
         } catch (error) {
             console.error('Translation failed:', error);
@@ -1013,13 +1003,11 @@ const PromptsTasksManager = {
 
     async requestTTS(text) {
         try {
-            const response = await apiClientInstance.post(ApiClient.PointUrlKey.TTS_GENERATE, {
+            const data = await apiClientInstance.post(ApiClient.PointUrlKey.TTS_GENERATE, {
                 text: text,
                 language: 'en',
                 type: 'sentence'
             });
-
-            const data = await response.json();
 
             if (data.error) {
                 console.error('[PromptsTasksManager] TTS generation error:', data.error);
@@ -1414,8 +1402,7 @@ const PromptsTasksManager = {
         try {
             const fullPath = filePath.replace(/^_prompts[\\/]/, '');
 
-            const readResponse = await apiClientInstance.get(`${ApiClient.PointUrlKey.CODE_BROWSER_READ_FILE}?path=${encodeURIComponent(fullPath)}`);
-            const fileData = await readResponse.json();
+            const fileData = await apiClientInstance.get(`${ApiClient.PointUrlKey.CODE_BROWSER_READ_FILE}?path=${encodeURIComponent(fullPath)}`);
 
             if (fileData.error) {
                 this.showNotification('Failed to read file', 'error');
@@ -1425,13 +1412,11 @@ const PromptsTasksManager = {
             // Ensure content is a string
             const content = (fileData.content != null) ? String(fileData.content) : '';
 
-            const addResponse = await apiClientInstance.post(ApiClient.PointUrlKey.MCP_TASK_QUEUE_ADD, {
+            const result = await apiClientInstance.post(ApiClient.PointUrlKey.MCP_TASK_QUEUE_ADD, {
                 category_id: this.currentCategory,
                 file_path: filePath,
                 content: content
             });
-
-            const result = await addResponse.json();
 
             if (result.success) {
                 this.showNotification(`Added ${result.data.paragraphs_added} tasks to queue`, 'success');
@@ -1457,11 +1442,9 @@ const PromptsTasksManager = {
 
     async createNewTask(path) {
         try {
-            const response = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_CREATE, {
+            const data = await apiClientInstance.post(ApiClient.PointUrlKey.CODE_BROWSER_PROMPTS_CREATE, {
                 name: path.split('/').pop()
             });
-
-            const data = await response.json();
 
             if (data.success) {
                 this.showNotification('Task file created successfully', 'success');

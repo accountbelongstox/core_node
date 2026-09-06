@@ -9,6 +9,8 @@ import {
   requestPycoreHttp,
   requestPycoreHttpGet,
   requestPycoreHttpText,
+  requestPycoreHttpBinary,
+  type PycoreHttpBinaryResult,
   requestPycoreStatus,
 } from './PycoreHttp';
 import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
@@ -28,6 +30,8 @@ export {
   requestPycoreHttp,
   requestPycoreHttpGet,
   requestPycoreHttpText,
+  requestPycoreHttpBinary,
+  type PycoreHttpBinaryResult,
   requestPycoreStatus,
   isHttpConnected,
   PYCORE_HTTP_ROUTES,

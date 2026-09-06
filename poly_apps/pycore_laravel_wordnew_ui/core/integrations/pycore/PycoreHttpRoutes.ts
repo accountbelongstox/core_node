@@ -7,6 +7,7 @@ export const PYCORE_HTTP_ROUTES = {
   pycoreManagerStateGet: 'ui/pycore_manager/state/get',
   pycoreManagerStatePut: 'ui/pycore_manager/state/put',
   terminalWindows: 'ui/terminal/windows',
+  terminalScreenshot: 'ui/terminal/screenshot',
   terminalActivate: 'ui/terminal/activate',
   terminalClick: 'ui/terminal/click',
   terminalCommandHistory: 'ui/terminal/command_history',
