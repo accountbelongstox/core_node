@@ -101,6 +101,32 @@ export class PycoreMasterClient extends MasterApiClient {
     return this.requestJson<T>(path, { method: 'GET', ceilingMs }, label);
   }
 
+  /** Raw binary GET: same framing as JSON GETs, body returned undecoded. */
+  async getBinary(path: string, ceilingMs?: number, label: string = path): Promise<Response> {
+    await this.ensureClientId();
+    const headers = {
+      [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+      [PYCORE_HTTP_HEADER_NAMES.clientId]: this.getClientId(),
+      [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
+    };
+    let response: Response;
+    try {
+      response = await this.request(normalizePycorePath(path), {
+        method: 'GET',
+        ceilingMs,
+        headers,
+      });
+    } catch (error: any) {
+      this.setReachable(false);
+      if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
+        throw new PycoreHttpError(0, `HTTP request ceiling reached: ${label}`);
+      }
+      throw error;
+    }
+    this.setReachable(true);
+    return response;
+  }
+
   async postJson<T>(
     path: string,
     body: unknown,

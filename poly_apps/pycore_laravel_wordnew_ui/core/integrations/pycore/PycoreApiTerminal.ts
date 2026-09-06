@@ -2,6 +2,8 @@ import {
   requestPycoreHttp,
   requestPycoreHttpGet,
   requestPycoreHttpText,
+  requestPycoreHttpBinary,
+  type PycoreHttpBinaryResult,
   PYCORE_HTTP_ROUTES,
 } from './PycoreApiTransport';
 
@@ -18,12 +20,17 @@ export interface TerminalWindowPoint {
   y: number;
 }
 
-export interface TerminalWindowScreenshot {
+export interface TerminalScreenshotResourceMeta {
+  window_id: string;
   mime: string;
-  content_base64: string;
+  digest: string;
+  etag?: string;
   width: number;
   height: number;
+  byte_length: number;
   captured_at: number;
+  revision: number;
+  resource: { route: string; window_id: string; digest: string };
 }
 
 export interface TerminalLogEntry {
@@ -63,7 +70,7 @@ export interface TerminalWindowInfo {
   terminal_number: number;
   rect: TerminalWindowRect;
   center: TerminalWindowPoint;
-  screenshot?: TerminalWindowScreenshot | null;
+  screenshot_resource?: TerminalScreenshotResourceMeta | null;
   preview_expanded: boolean;
   has_draft: boolean;
   log_count: number;
@@ -93,7 +100,7 @@ export interface TerminalActionResult {
   window?: TerminalWindowInfo;
   log?: TerminalLogEntry | null;
   point?: TerminalWindowPoint;
-  screenshot?: TerminalWindowScreenshot | null;
+  screenshot_resource?: TerminalScreenshotResourceMeta | null;
 }
 
 export interface TerminalDraftResult {
@@ -152,8 +159,22 @@ export interface TerminalScheduleClearResult {
 }
 
 export const pycoreApiTerminal = {
-  getTerminalWindows: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalWindows, {}) as Promise<TerminalSnapshot>,
+  getTerminalWindows: (
+    viewerId: string,
+    visibleWindowIds: string[] = [],
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalWindows, {
+    viewer_id: viewerId,
+    visible_window_ids: visibleWindowIds,
+  }) as Promise<TerminalSnapshot>,
+  getTerminalScreenshot: (
+    windowId: string,
+    digest: string,
+    timeoutMs?: number,
+  ) => requestPycoreHttpBinary(
+    PYCORE_HTTP_ROUTES.terminalScreenshot,
+    { window_id: windowId, digest },
+    timeoutMs,
+  ) as Promise<PycoreHttpBinaryResult>,
   activateTerminal: (windowId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
       window_id: windowId,

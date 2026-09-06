@@ -35,6 +35,7 @@ import {
   completeTerminalScheduleClearAll,
   createTerminalScheduleEntryId,
   ensureTerminalScheduleQueue,
+  getBrowserId,
   isTerminalScheduleClearAllPending,
   onHttpStatus,
   pycoreApi,
@@ -49,8 +50,8 @@ import type {
   TerminalActionResult,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
+  TerminalScreenshotResourceMeta,
   TerminalSnapshot,
-  TerminalWindowScreenshot,
   TerminalWindowInfo,
 } from '@/apps/pycore-manager/api';
 
@@ -235,20 +236,21 @@ function formatScheduleCountdown(ms: number): string {
     : `${pad(minutes)}:${pad(seconds)}`;
 }
 
-function replaceTerminalScreenshot(
-  snapshot: TerminalSnapshot | null,
-  windowId: string,
-  screenshot: TerminalWindowScreenshot,
-): TerminalSnapshot | null {
-  if (!snapshot) return snapshot;
-  return {
-    ...snapshot,
-    windows: snapshot.windows.map((windowInfo) => (
-      windowInfo.id === windowId
-        ? { ...windowInfo, screenshot }
-        : windowInfo
-    )),
-  };
+const TERMINAL_VIEWER_MAX_WINDOWS = 64;
+const TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS = 20_000;
+const TERMINAL_SCREENSHOT_FAILURE_COOLDOWN_MS = 10_000;
+const TERMINAL_SCREENSHOT_FETCH_CONCURRENCY = 3;
+
+interface TerminalScreenshotImage {
+  url: string;
+  mime: string;
+  width: number;
+  height: number;
+  captured_at: number;
+}
+
+function screenshotImageKey(windowId: string, digest: string): string {
+  return `${windowId}:${digest}`;
 }
 
 function replaceTerminalScheduleQueue(
@@ -417,6 +419,97 @@ const PcTerminalPage: React.FC = () => {
     ReturnType<typeof pycoreManagerUiStateSync.synchronizeTerminalSchedules>
   >>(new Map());
   const scheduleClearAllInProgressRef = useRef(false);
+  const viewerIdRef = useRef('');
+  const screenshotImagesRef = useRef<Map<string, TerminalScreenshotImage>>(new Map());
+  const screenshotFetchesRef = useRef<Set<string>>(new Set());
+  const screenshotFailuresRef = useRef<Map<string, number>>(new Map());
+  const [screenshotVersion, setScreenshotVersion] = useState(0);
+
+  const loadScreenshotResource = useCallback(async (
+    resource: TerminalScreenshotResourceMeta,
+  ): Promise<boolean> => {
+    const key = screenshotImageKey(resource.window_id, resource.digest);
+    if (screenshotImagesRef.current.has(key)) return false;
+    if (screenshotFetchesRef.current.has(key)) return false;
+    const failedAt = screenshotFailuresRef.current.get(key);
+    if (
+      failedAt
+      && Date.now() - failedAt < TERMINAL_SCREENSHOT_FAILURE_COOLDOWN_MS
+    ) return false;
+    screenshotFetchesRef.current.add(key);
+    try {
+      const result = await pycoreApi.getTerminalScreenshot(
+        resource.window_id,
+        resource.digest,
+        TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS,
+      );
+      if (result.status !== 200 || !result.bytes) {
+        screenshotFailuresRef.current.set(key, Date.now());
+        return false;
+      }
+      const previous = screenshotImagesRef.current.get(key);
+      if (previous) URL.revokeObjectURL(previous.url);
+      const image: TerminalScreenshotImage = {
+        url: URL.createObjectURL(new Blob([result.bytes], { type: resource.mime || 'image/png' })),
+        mime: resource.mime || 'image/png',
+        width: resource.width,
+        height: resource.height,
+        captured_at: resource.captured_at,
+      };
+      screenshotImagesRef.current.set(key, image);
+      screenshotFailuresRef.current.delete(key);
+      return true;
+    } catch {
+      screenshotFailuresRef.current.set(key, Date.now());
+      return false;
+    } finally {
+      screenshotFetchesRef.current.delete(key);
+    }
+  }, []);
+
+  const loadSnapshotScreenshotResources = useCallback(async (
+    nextSnapshot: TerminalSnapshot,
+  ) => {
+    const resources = nextSnapshot.windows
+      .filter((windowInfo) => windowInfo.online && windowInfo.screenshot_resource)
+      .map((windowInfo) => windowInfo.screenshot_resource as TerminalScreenshotResourceMeta);
+    const liveKeys = new Set(
+      resources.map((resource) => screenshotImageKey(resource.window_id, resource.digest)),
+    );
+    for (const [key, image] of [...screenshotImagesRef.current.entries()]) {
+      if (liveKeys.has(key)) continue;
+      URL.revokeObjectURL(image.url);
+      screenshotImagesRef.current.delete(key);
+    }
+    if (resources.length === 0) return;
+    let changed = false;
+    const queue = [...resources];
+    const workerCount = Math.min(
+      TERMINAL_SCREENSHOT_FETCH_CONCURRENCY,
+      queue.length,
+    );
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (queue.length > 0 && mountedRef.current) {
+        const resource = queue.shift();
+        if (!resource) break;
+        if (await loadScreenshotResource(resource)) changed = true;
+      }
+    });
+    await Promise.all(workers);
+    if (changed && mountedRef.current) setScreenshotVersion((value) => value + 1);
+  }, [loadScreenshotResource]);
+
+  const screenshotImageFor = useCallback((windowInfo: TerminalWindowInfo | null) => {
+    if (!windowInfo?.screenshot_resource) return null;
+    return screenshotImagesRef.current.get(
+      screenshotImageKey(windowInfo.id, windowInfo.screenshot_resource.digest),
+    ) || null;
+  }, []);
+
+  // Latest snapshot without widening the refresh callback identity: the
+  // polling interval must not be torn down on every snapshot update.
+  const snapshotRef = useRef<TerminalSnapshot | null>(null);
+  snapshotRef.current = snapshot;
 
   const errorTranslationKey = useCallback((errorCode?: string | null) => (
     ERROR_TRANSLATION_KEYS[String(errorCode || '')] || 'terminal.errors.unknown'
@@ -532,8 +625,17 @@ const PcTerminalPage: React.FC = () => {
     refreshInFlightRef.current = true;
     if (showLoading) setLoading(true);
     try {
-      const nextSnapshot = await pycoreApi.getTerminalWindows();
+      if (!viewerIdRef.current) viewerIdRef.current = getBrowserId();
+      const demandedWindowIds = (snapshotRef.current?.windows || [])
+        .filter((windowInfo) => windowInfo.online)
+        .map((windowInfo) => windowInfo.id)
+        .slice(0, TERMINAL_VIEWER_MAX_WINDOWS);
+      const nextSnapshot = await pycoreApi.getTerminalWindows(
+        viewerIdRef.current,
+        demandedWindowIds,
+      );
       if (!mountedRef.current) return;
+      void loadSnapshotScreenshotResources(nextSnapshot);
       await reconcileTerminalSchedules(nextSnapshot.windows);
       if (!mountedRef.current) return;
       setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
@@ -566,7 +668,7 @@ const PcTerminalPage: React.FC = () => {
       refreshInFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, [reconcileTerminalSchedules]);
+  }, [reconcileTerminalSchedules, loadSnapshotScreenshotResources]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -582,6 +684,8 @@ const PcTerminalPage: React.FC = () => {
       });
       mountedRef.current = false;
       window.clearInterval(pollTimer);
+      screenshotImagesRef.current.forEach((image) => URL.revokeObjectURL(image.url));
+      screenshotImagesRef.current.clear();
     };
   }, [refresh]);
 
@@ -625,6 +729,11 @@ const PcTerminalPage: React.FC = () => {
       (windowInfo) => windowInfo.terminal_number === previewTerminalNumber,
     ) || null
   ), [previewTerminalNumber, snapshot]);
+  // Reads the image cache during render; screenshotVersion re-renders the
+  // page when fetched resources change, so this stays fresh without effects.
+  const previewScreenshot = screenshotVersion >= 0
+    ? screenshotImageFor(previewWindow)
+    : null;
   const previewNextRunAt = (previewWindow?.schedule_queue || []).reduce<number | null>(
     (earliest, entry) => (
       entry.next_run_at && (earliest === null || entry.next_run_at < earliest)
@@ -777,12 +886,9 @@ const PcTerminalPage: React.FC = () => {
     setActionNotice(null);
     try {
       const result = await action();
-      if (result.screenshot) {
-        setSnapshot((current) => replaceTerminalScreenshot(
-          current,
-          windowId,
-          result.screenshot as TerminalWindowScreenshot,
-        ));
+      if (result.screenshot_resource) {
+        await loadScreenshotResource(result.screenshot_resource);
+        if (mountedRef.current) setScreenshotVersion((value) => value + 1);
       }
       if (result.success) {
         setActionNotice({ kind: 'success', translationKey: successTranslationKey });
@@ -800,7 +906,7 @@ const PcTerminalPage: React.FC = () => {
       setActionWindowId('');
       void refresh(false);
     }
-  }, [errorTranslationKey, refresh]);
+  }, [errorTranslationKey, refresh, loadScreenshotResource]);
 
   const commitTerminalScheduleDefinitions = useCallback(async (
     windowInfo: TerminalWindowInfo,
@@ -960,17 +1066,14 @@ const PcTerminalPage: React.FC = () => {
   }, [errorTranslationKey, previewExpanded, previewWindow]);
 
   const clickPreview = useCallback((event: React.MouseEvent<HTMLImageElement>) => {
-    if (
-      !previewWindow?.online
-      || !previewWindow.screenshot
-      || actionWindowId
-    ) {
+    const image = screenshotImageFor(previewWindow);
+    if (!previewWindow?.online || !image || actionWindowId) {
       return;
     }
     const point = normalizedImagePoint(
       event,
-      previewWindow.screenshot.width,
-      previewWindow.screenshot.height,
+      image.width,
+      image.height,
     );
     if (!point) return;
     void runAction(
@@ -982,7 +1085,7 @@ const PcTerminalPage: React.FC = () => {
       ),
       'terminal.clicked',
     );
-  }, [actionWindowId, previewWindow, runAction]);
+  }, [actionWindowId, previewWindow, runAction, screenshotImageFor]);
 
   const selectTerminal = useCallback((terminalNumber: number) => {
     if (
@@ -1575,6 +1678,7 @@ const PcTerminalPage: React.FC = () => {
   ) => {
     const selected = windowInfo.terminal_number === selectedTerminalNumber;
     const busy = actionWindowId === windowInfo.id;
+    const screenshotImage = screenshotImageFor(windowInfo);
     return (
       <article
         key={windowInfo.terminal_number}
@@ -1629,7 +1733,7 @@ const PcTerminalPage: React.FC = () => {
           type="button"
           onClick={() => {
             selectTerminal(windowInfo.terminal_number);
-            if (windowInfo.screenshot?.content_base64) {
+            if (screenshotImage) {
               setPreviewTerminalNumber(windowInfo.terminal_number);
             }
           }}
@@ -1638,10 +1742,10 @@ const PcTerminalPage: React.FC = () => {
             number: windowInfo.terminal_number,
           })}
         >
-          {windowInfo.screenshot?.content_base64 ? (
+          {screenshotImage ? (
             <>
               <img
-                src={`data:${windowInfo.screenshot.mime};base64,${windowInfo.screenshot.content_base64}`}
+                src={screenshotImage.url}
                 alt={terminalName(windowInfo, t('terminal.untitled'))}
                 decoding="async"
                 className="h-full w-full object-contain"
@@ -1805,6 +1909,7 @@ const PcTerminalPage: React.FC = () => {
               const compact = mappedWidth < 180;
               const tiny = mappedWidth < 110;
               const titleBarHeight = Math.min(30, Math.max(18, mappedHeight * 0.22));
+              const screenshotImage = screenshotImageFor(windowInfo);
               return (
                 <article
                   key={windowInfo.terminal_number}
@@ -1876,7 +1981,7 @@ const PcTerminalPage: React.FC = () => {
                       type="button"
                       onClick={() => {
                         selectTerminal(windowInfo.terminal_number);
-                        if (windowInfo.screenshot?.content_base64) {
+                        if (screenshotImage) {
                           setPreviewTerminalNumber(windowInfo.terminal_number);
                         }
                       }}
@@ -1885,10 +1990,10 @@ const PcTerminalPage: React.FC = () => {
                         number: windowInfo.terminal_number,
                       })}
                     >
-                      {windowInfo.screenshot?.content_base64 ? (
+                      {screenshotImage ? (
                         <>
                           <img
-                            src={`data:${windowInfo.screenshot.mime};base64,${windowInfo.screenshot.content_base64}`}
+                            src={screenshotImage.url}
                             alt={terminalName(windowInfo, t('terminal.untitled'))}
                             decoding="async"
                             className="h-full w-full object-contain"
@@ -1924,7 +2029,7 @@ const PcTerminalPage: React.FC = () => {
         </section>
       </div>
 
-      {previewWindow?.screenshot?.content_base64 && (
+      {previewScreenshot && previewWindow && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-sm md:p-4"
           role="dialog"
@@ -1957,7 +2062,7 @@ const PcTerminalPage: React.FC = () => {
             </div>
             <div className="relative min-h-0 flex-1 overflow-hidden">
               <img
-                src={`data:${previewWindow.screenshot.mime};base64,${previewWindow.screenshot.content_base64}`}
+                src={previewScreenshot.url}
                 alt={terminalName(previewWindow, t('terminal.untitled'))}
                 onClick={clickPreview}
                 className={`h-full w-full object-contain ${

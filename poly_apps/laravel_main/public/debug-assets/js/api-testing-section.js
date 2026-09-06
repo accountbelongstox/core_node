@@ -464,8 +464,7 @@ function loadParams(index, appName, endpoint) {
         app_name: appName,
         api_endpoint: endpoint
     });
-    apiClientInstance.get(url).then(async response => {
-        const result = await response.json();
+    apiClientInstance.get(url).then(result => {
         if (result.data && result.data.params) {
             paramsTextarea.value = result.data.params;
             saveToBrowserCache(appName, endpoint, result.data.params);

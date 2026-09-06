@@ -372,6 +372,49 @@ export function requestPycoreHttpGet(
   return requestHttp(route, {}, timeoutMs, routePath, 'GET');
 }
 
+export interface PycoreHttpBinaryResult {
+  status: number;
+  bytes: Uint8Array | null;
+}
+
+export function requestPycoreHttpBinary(
+  route: string,
+  queryParams: HttpQueryParams = {},
+  timeoutMs?: number,
+): Promise<PycoreHttpBinaryResult> {
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const startedAt = now();
+  const routePath = appendHttpQuery(PycorePaths.api(route), queryParams);
+  const fullUrl = rewritePycoreEndpoint(routePath);
+  const record = (status: number, error?: string | null) => {
+    appendHttpDebug({
+      direction: 'pycore',
+      method: 'GET',
+      route,
+      path: routePath,
+      fullUrl,
+      paramsSummary: summarizeHttpParams(queryParams),
+      status,
+      ms: now() - startedAt,
+      error: error || null,
+    });
+  };
+  return pycoreMasterClient.getBinary(routePath, timeoutMs, route)
+    .then(async (response) => {
+      record(response.status);
+      return {
+        status: response.status,
+        bytes: response.status === 200
+          ? new Uint8Array(await response.arrayBuffer())
+          : null,
+      };
+    })
+    .catch((error: any) => {
+      record(error instanceof PycoreHttpError ? error.status : 0, error?.message || String(error));
+      throw error;
+    });
+}
+
 export function requestPycoreStatus(timeoutMs?: number): Promise<any> {
   return requestHttp('status', {}, timeoutMs, PycorePaths.status, 'GET');
 }

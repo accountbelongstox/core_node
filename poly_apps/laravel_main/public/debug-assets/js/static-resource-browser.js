@@ -148,7 +148,7 @@ const StaticResourceBrowser = {
                 if (match) {
                     const numStr = match[1];
                     // Check if it's a Chinese number
-                    {
+                    if (chineseNumbers[numStr] !== undefined) {
                         return chineseNumbers[numStr];
                     }
                     // Check for compound Chinese numbers (e.g. twenty-one)
@@ -192,8 +192,7 @@ const StaticResourceBrowser = {
     async loadExpandedFolders() {
         for (const path of this.expandedFolders) {
             if (!this.folderContents[path]) {
-                const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
-                const data = await response.json();
+                const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
 
                 if (!data.error) {
                     this.folderContents[path] = data.items;
@@ -327,8 +326,7 @@ const StaticResourceBrowser = {
             updatePathDisplay = updateCurrent
         } = options;
 
-        const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
-        const data = await response.json();
+        const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
 
         if (data.error) {
             console.error('[StaticResourceBrowser] Error:', data.error);
@@ -475,9 +473,6 @@ const StaticResourceBrowser = {
         }
 
         this.expandedFolders.add(path);
-            this.expandedFolders.add(path);
-            changed = true;
-        }
 
         if (changed) {
             this.saveExpandedState();
@@ -516,7 +511,7 @@ const StaticResourceBrowser = {
             this.selectFolder(path);
         }
 
-        {
+        if (this.expandedFolders.has(path)) {
             this.expandedFolders.delete(path);
             this.saveExpandedState();
             this.renderFileList();
@@ -525,8 +520,7 @@ const StaticResourceBrowser = {
             this.saveExpandedState();
 
             if (!this.folderContents[path]) {
-                const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
-                const data = await response.json();
+                const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
 
                 if (!data.error) {
                     this.folderContents[path] = data.items;
@@ -568,7 +562,8 @@ const StaticResourceBrowser = {
         this.selectFolder(path);
         this.expandedFolders.add(path);
         this.saveExpandedState();
-        {
+
+        if (!this.folderContents[path]) {
             await this.loadFileList(path, { updateCurrent: false, updatePathDisplay: false });
         } else {
             this.renderFileList();
@@ -577,8 +572,7 @@ const StaticResourceBrowser = {
 
     async expandAllFolders(path) {
         if (!this.folderContents[path]) {
-            const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
-            const data = await response.json();
+            const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_FILE_TREE}?path=${encodeURIComponent(path)}`);
             if (!data.error) {
                 this.folderContents[path] = data.items;
             }
@@ -630,8 +624,7 @@ const StaticResourceBrowser = {
         settingsBar.style.display = 'none';
         playlistPanel.style.display = 'none';
 
-        const response = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_READ_FILE}?path=${encodeURIComponent(path)}`);
-        const data = await response.json();
+        const data = await apiClientInstance.get(`${ApiClient.PointUrlKey.STATIC_READ_FILE}?path=${encodeURIComponent(path)}`);
 
         if (data.error) {
             container.innerHTML = `<div style="color: #dc3545; text-align: center;">${data.error}</div>`;
@@ -975,13 +968,12 @@ const StaticResourceBrowser = {
 
         const fileName = this.selectedItem.split('/').pop();
 
-        const response = await apiClientInstance.post(ApiClient.PointUrlKey.TRANSLATION_GOOGLE, {
+        const data = await apiClientInstance.post(ApiClient.PointUrlKey.TRANSLATION_GOOGLE, {
             text: fileName,
             target_lang: 'en'
         });
 
-        const data = await response.json();
-        const translatedName = data.translated_text;
+        let translatedName = data.translated_text;
 
         translatedName = translatedName.replace(/\s+/g, '_');
         translatedName = translatedName.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
@@ -994,12 +986,10 @@ const StaticResourceBrowser = {
         const confirmed = confirm(`Rename to: ${translatedName}?`);
         if (!confirmed) return;
 
-        const renameResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_RENAME, {
+        const result = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_RENAME, {
             old_path: this.selectedItem,
             new_name: translatedName
         });
-
-        const result = await renameResponse.json();
 
         if (result.success) {
             alert('Renamed successfully!');
@@ -1031,11 +1021,9 @@ const StaticResourceBrowser = {
         dialog.style.display = 'flex';
         confirmInput.focus();
 
-        const response = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_DELETE_PREVIEW, {
+        const data = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_DELETE_PREVIEW, {
             path: this.pendingDeletePath
         });
-
-        const data = await response.json();
 
         if (data.error) {
             alert('Failed to load delete summary: ' + data.error);
@@ -1094,11 +1082,9 @@ const StaticResourceBrowser = {
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Deleting...';
 
-        const response = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_DELETE, {
+        const result = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_DELETE, {
             path: this.pendingDeletePath
         });
-
-        const result = await response.json();
 
         if (result.error) {
             alert('Delete failed: ' + result.error);
@@ -1374,24 +1360,23 @@ const StaticResourceBrowser = {
         let finalName = dirName;
 
         if (translateName) {
-            const response = await apiClientInstance.post(ApiClient.PointUrlKey.TRANSLATION_GOOGLE, {
-                text: dirName,
-                target_language: 'en'
-            }, {
-                headers: {
-                    'X-Translation-Passcode': '12345678'
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                alert(`Translation failed: ${response.status} - ${JSON.stringify(errorData)}`);
+            let data;
+            try {
+                data = await apiClientInstance.post(ApiClient.PointUrlKey.TRANSLATION_GOOGLE, {
+                    text: dirName,
+                    target_language: 'en'
+                }, {
+                    headers: {
+                        'X-Translation-Passcode': '12345678'
+                    }
+                });
+            } catch (error) {
+                alert(`Translation failed: ${error.status || 'error'} - ${error.message}`);
                 createBtn.disabled = false;
                 createBtn.textContent = 'Create';
                 return;
             }
 
-            const data = await response.json();
             finalName = data.translated_text || dirName;
             console.log('[StaticResourceBrowser] Translated:', dirName, '=>', finalName);
 
@@ -1408,14 +1393,17 @@ const StaticResourceBrowser = {
             }
         }
 
-        const response = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CREATE_DIRECTORY, {
-            parent_path: this.currentPath,
-            dir_name: finalName
-        });
+        let result;
+        try {
+            result = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CREATE_DIRECTORY, {
+                parent_path: this.currentPath,
+                dir_name: finalName
+            });
+        } catch (error) {
+            result = { error: error.message };
+        }
 
-        const result = await response.json();
-
-        if (response.ok && result.success) {
+        if (result.success) {
             alert('Folder created successfully!');
             this.closeCreateDirDialog();
             this.refreshList();
@@ -1442,7 +1430,7 @@ const StaticResourceBrowser = {
         if (needReinit) {
             this.clearUploadState(fileId);
 
-            const initResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_INIT, {
+            const initData = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_INIT, {
                 file_name: relativePath,
                 file_size: file.size,
                 chunk_size: this.CHUNK_SIZE,
@@ -1450,11 +1438,6 @@ const StaticResourceBrowser = {
                 file_hash: fileId
             });
 
-            if (!initResponse.ok) {
-                throw new Error('Failed to initialize upload');
-            }
-
-            const initData = await initResponse.json();
             uploadId = initData.upload_id;
             uploadedChunks = [];
 
@@ -1500,19 +1483,15 @@ const StaticResourceBrowser = {
                     formData.append('chunk_index', chunkIndex);
                     formData.append('chunk', chunk);
 
-                    const chunkResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_CHUNK, formData);
-
-                    if (chunkResponse.status === 404) {
-                        const errorData = await chunkResponse.json();
-                        if (errorData.error && errorData.error.includes('Upload session not found')) {
+                    try {
+                        await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_CHUNK, formData);
+                    } catch (error) {
+                        if (error.status === 404) {
                             console.log('[StaticResourceBrowser] Upload session not found, reinitializing...');
                             this.clearUploadState(fileId);
                             return await this.executeChunkedUpload(file, relativePath, progressCallback);
                         }
-                    }
-
-                    if (!chunkResponse.ok) {
-                        throw new Error(`Chunk ${chunkIndex} upload failed`);
+                        throw error;
                     }
 
                     uploadInfo.uploadedChunks.add(chunkIndex);
@@ -1543,27 +1522,23 @@ const StaticResourceBrowser = {
             }
         }
 
-        const mergeResponse = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_MERGE, { upload_id: uploadId });
-
-        if (mergeResponse.status === 404) {
-            const errorData = await mergeResponse.json();
-            if (errorData.error && errorData.error.includes('Upload session not found')) {
+        let mergeData;
+        try {
+            mergeData = await apiClientInstance.post(ApiClient.PointUrlKey.STATIC_CHUNKED_UPLOAD_MERGE, { upload_id: uploadId });
+        } catch (error) {
+            if (error.status === 404) {
                 console.log('[StaticResourceBrowser] Upload session not found during merge, reinitializing...');
                 this.clearUploadState(fileId);
                 this.activeUploads.delete(fileId);
                 return await this.executeChunkedUpload(file, relativePath, progressCallback);
             }
-        }
-
-        if (!mergeResponse.ok) {
-            const errorData = await mergeResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to merge chunks');
+            throw new Error(error.message || 'Failed to merge chunks');
         }
 
         this.clearUploadState(fileId);
         this.activeUploads.delete(fileId);
 
-        return await mergeResponse.json();
+        return mergeData;
     },
 
     saveUploadState(fileId, state) {

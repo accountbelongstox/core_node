@@ -46,11 +46,11 @@ export type {
   TerminalScheduleMode,
   TerminalScheduleSyncResult,
   TerminalSnapshot,
+  TerminalScreenshotResourceMeta,
   TerminalViewResult,
   TerminalWindowInfo,
   TerminalWindowPoint,
   TerminalWindowRect,
-  TerminalWindowScreenshot,
 } from './PycoreApiTerminal';
 
 export {

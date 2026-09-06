@@ -17,6 +17,17 @@ class FileSystemManager
     private static $externalPathMappings = [];
     private static $cachedUserInfo = null;
 
+    /**
+     * Per-process depth of exclusive file locks currently held by this
+     * process, keyed by resolved file path. flock() blocks across separate
+     * file descriptors even within one process, so nested lock-taking on a
+     * path already locked here must be suppressed (read/write helpers check
+     * this registry); otherwise a callback that reads or writes the locked
+     * file deadlocks against itself until the PHP execution limit kills the
+     * request.
+     */
+    private static array $exclusiveLockRegistry = [];
+
     public static function setAutoFixPermissions(bool $enabled): void
     {
         self::$autoFixPermissions = $enabled;
@@ -117,7 +128,8 @@ class FileSystemManager
             }
         }
 
-        $result = file_put_contents($path, $content, LOCK_EX) !== false;
+        $lockHeldBySelf = self::exclusiveLockHeld($path);
+        $result = file_put_contents($path, $content, $lockHeldBySelf ? 0 : LOCK_EX) !== false;
 
         if ($result && $userInfo && isset($userInfo['uid'], $userInfo['gid'])) {
             @chown($path, $userInfo['uid']);
@@ -170,9 +182,17 @@ class FileSystemManager
             return false;
         }
 
-        flock($handle, LOCK_SH);
+        // When this process already holds the exclusive lock on the file
+        // (runWithExclusiveFileLock callback), taking LOCK_SH here would
+        // block against our own LOCK_EX on the other descriptor.
+        $lockHeldBySelf = self::exclusiveLockHeld($mappedPath);
+        if (!$lockHeldBySelf) {
+            flock($handle, LOCK_SH);
+        }
         $content = stream_get_contents($handle);
-        flock($handle, LOCK_UN);
+        if (!$lockHeldBySelf) {
+            flock($handle, LOCK_UN);
+        }
         fclose($handle);
 
         return $content;
@@ -254,8 +274,24 @@ class FileSystemManager
     public static function runWithExclusiveFileLock(string $path, callable $callback, bool $blocking = false): array
     {
         $mappedPath = self::mapExternalPath($path);
+        $lockKey = self::exclusiveLockKey($mappedPath);
         $handle = null;
         $operation = LOCK_EX | ($blocking ? 0 : LOCK_NB);
+
+        if ((self::$exclusiveLockRegistry[$lockKey] ?? 0) > 0) {
+            // Re-entrant: this process already holds the exclusive lock for
+            // this path, so run the callback directly instead of taking a
+            // second flock that would block against our own descriptor.
+            self::$exclusiveLockRegistry[$lockKey] = self::$exclusiveLockRegistry[$lockKey] + 1;
+            try {
+                return ['acquired' => true, 'result' => $callback()];
+            } finally {
+                self::$exclusiveLockRegistry[$lockKey] = self::$exclusiveLockRegistry[$lockKey] - 1;
+                if (self::$exclusiveLockRegistry[$lockKey] <= 0) {
+                    unset(self::$exclusiveLockRegistry[$lockKey]);
+                }
+            }
+        }
 
         self::ensureDirectoryExists(dirname($mappedPath));
         $handle = fopen($mappedPath, 'c+b');
@@ -267,12 +303,26 @@ class FileSystemManager
             return ['acquired' => false, 'result' => null];
         }
 
+        self::$exclusiveLockRegistry[$lockKey] = 1;
         try {
             return ['acquired' => true, 'result' => $callback()];
         } finally {
+            unset(self::$exclusiveLockRegistry[$lockKey]);
             flock($handle, LOCK_UN);
             fclose($handle);
         }
+    }
+
+    private static function exclusiveLockKey(string $mappedPath): string
+    {
+        $resolvedPath = realpath($mappedPath);
+
+        return $resolvedPath === false ? $mappedPath : $resolvedPath;
+    }
+
+    private static function exclusiveLockHeld(string $mappedPath): bool
+    {
+        return (self::$exclusiveLockRegistry[self::exclusiveLockKey($mappedPath)] ?? 0) > 0;
     }
 
     public static function hashFile(string $path, string $algorithm = 'sha256'): string|false
