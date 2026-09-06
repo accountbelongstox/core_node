@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Source-once guard: repeated `source` is a no-op. NOT exported so child
+# bash processes still perform their own full load.
+if [ "${COMPOSER_INSTALL_COMMON_LOADED:-false}" = "true" ]; then
+    return
+fi
+COMPOSER_INSTALL_COMMON_LOADED="true"
+
 COMPOSER_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSER_INSTALL_DIR="/usr/local/lib/composer"
 COMPOSER_PHAR_PATH="$COMPOSER_INSTALL_DIR/composer.phar"

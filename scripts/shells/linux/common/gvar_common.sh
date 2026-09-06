@@ -14,6 +14,14 @@
 # Shared environment hub: this file may export variables for consumers that source it.
 # Other project *.sh files must not export path/config constants; resolve them locally or source hubs like this one.
 
+# Source-once guard: repeated `source` is a no-op so hub side effects (env
+# detection, secret library load, path mapping, store writes) run exactly once
+# per shell process. NOT exported so child bash processes do a full load.
+if [ "${GVAR_COMMON_LOADED:-false}" = "true" ]; then
+    return
+fi
+GVAR_COMMON_LOADED="true"
+
 # Detect environment type
 CURRENT_USER=""
 DESKTOP_WINDOWS_MOUNT_PATH=""

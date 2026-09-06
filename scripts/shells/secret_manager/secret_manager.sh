@@ -12,6 +12,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Source-once guard: repeated `source` is a no-op. NOT exported so child
+# bash processes still perform their own full load.
+if [ "${SECRET_MANAGER_LIB_LOADED:-false}" = "true" ]; then
+    return
+fi
+SECRET_MANAGER_LIB_LOADED="true"
+
 #=============================================================================
 # Secret Manager Library
 #
