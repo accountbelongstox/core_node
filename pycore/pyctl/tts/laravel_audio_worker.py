@@ -629,7 +629,16 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
 
 
 class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
-    """Sentence-audio lane: global_tasks task_type sentence_audio on remote_sentence_audio."""
+    """Sentence-audio lane: global_tasks task_type sentence_audio on remote_sentence_audio.
+
+    SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+    this lane is contract-tiered (queue_center_contract.json language_priority
+    = ["en"]) so the remote Laravel claim head completes ALL English sentence
+    tasks before any other language, and every log line mirrors the remote
+    English completion progress pulled from Laravel (progress language_tiers).
+    Do not generalize this lane's logging/tiering away — it is intentionally
+    optimized for the English-first sentence backlog requirement.
+    """
 
     LANE = "sentence"
     QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
@@ -641,6 +650,25 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     WORKER_ID_PREFIX = "pycore-sentence"
     WORKER_NAME_TAG = "sentence-audio"
     LOG_PREFIX = "[SentenceAudioWorker]"
+
+    def __init__(self, laravel_api_url: str = ""):
+        # Uptime anchor for the dynamic log prefix; set before the base
+        # __init__ so the very first line already carries elapsed time.
+        self._log_started_monotonic = time.monotonic()
+        super().__init__(laravel_api_url)
+
+    @property
+    def _log_prefix(self) -> str:
+        """Dynamic prefix with worker uptime: [SentenceAudioWorker +0.00s]."""
+        started = getattr(self, "_log_started_monotonic", None)
+        elapsed = time.monotonic() - started if started is not None else 0.0
+        return f"[SentenceAudioWorker +{max(0.0, elapsed):.2f}s]"
+
+    @_log_prefix.setter
+    def _log_prefix(self, value: str) -> None:
+        # The base __init__ assigns the static prefix; this lane replaces it
+        # with the dynamic uptime prefix above.
+        del value
     STATE_OWNER_KEY = "tts.sentence_audio_worker.state"
     STATE_OWNER_NAME = "SentenceAudioWorkerState"
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"

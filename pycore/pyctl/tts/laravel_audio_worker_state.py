@@ -11,6 +11,7 @@ from pycore.pyfoundations.serialized_worker import serialized_method
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
+    task_language_priority,
 )
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 
@@ -81,7 +82,13 @@ class LaravelAudioWorkerStateMixin:
             return
 
         label = f"{self._log_prefix} {kind}"
-        if info and info.get("task_id") is not None:
+        if self.LANE == "sentence":
+            # SPECIAL OPTIMIZATION (specially optimized script): mirror the
+            # remote language-tier completion (progress language_tiers, e.g.
+            # remote_en=done/total) on EVERY sentence-lane log line.
+            if info and info.get("task_id") is not None:
+                label += f" progress task={self._display_task_id(info.get('task_id'))}"
+        elif info and info.get("task_id") is not None:
             label += f" task={self._display_task_id(info.get('task_id'))}"
         if info:
             text = str(info.get("text") or info.get("word") or "").strip()
