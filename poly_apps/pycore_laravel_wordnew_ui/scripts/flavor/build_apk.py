@@ -194,7 +194,7 @@ def main() -> int:
     log(f"Build type: {build_type}")
 
     python = sys.executable
-    pnpm = executable("pnpm")
+    bun = executable("bun")
     npx = executable("npx")
     prepare_script = script_dir / "flavor_build.py"
     run([python, str(prepare_script), "--app", str(app["id"]), "--root", str(root)], root)
@@ -202,7 +202,7 @@ def main() -> int:
     environment = os.environ.copy()
     environment["VITE_APP_FLAVOR"] = str(app["id"])
     environment["VITE_BUILD_TARGET"] = "native"
-    run([pnpm, "exec", "vite", "build"], root, environment)
+    run([bun, "x", "vite", "build"], root, environment)
 
     android_dir = root / "native" / str(app["id"]) / "android"
     if not android_dir.is_dir():
