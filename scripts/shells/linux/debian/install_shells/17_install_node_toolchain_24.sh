@@ -2,8 +2,8 @@
 # Node.js Toolchain installer for Debian.
 # Installs or upgrades: node, npm, corepack, pnpm, yarn, bun.
 
-SCRIPT_NAME="17_install_node_toolchain_24.sh"
 SCRIPT_INDEX="17"
+SCRIPT_NAME="17_install_node_toolchain_24.sh"
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
