@@ -23,12 +23,12 @@ $script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_commo
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
 
-$script:STEP_NUMBER = 85
-$script:UBUNTU_VERSION = $Global:UBUNTU_VERSION
-$script:UBUNTU_DISTRO_NAME = "Ubuntu-$script:UBUNTU_VERSION"
-$script:UBUNTU_WSL_URL = $Global:UBUNTU_WSL_DOWNLOAD_URL
-$script:UBUNTU_WSL_FILENAME = $Global:UBUNTU_WSL_FILENAME
-$script:UBUNTU_WSL_LOCAL_PATH = $Global:UBUNTU_WSL_LOCAL_PATH
+$script:STEP_NUMBER = 30
+$script:DEBIAN_VERSION = $Global:DEBIAN_VERSION
+$script:DEBIAN_DISTRO_NAME = "Debian"
+$script:DEBIAN_WSL_URL = $Global:DEBIAN_WSL_DOWNLOAD_URL
+$script:DEBIAN_WSL_FILENAME = $Global:DEBIAN_WSL_FILENAME
+$script:DEBIAN_WSL_LOCAL_PATH = $Global:DEBIAN_WSL_LOCAL_PATH
 $script:WSL2_KERNEL_URL = $Global:WSL2_KERNEL_UPDATE_URL
 $script:WSL2_KERNEL_FILENAME = $Global:WSL2_KERNEL_FILENAME
 $script:WSL2_KERNEL_LOCAL_PATH = $Global:WSL2_KERNEL_LOCAL_PATH
@@ -187,63 +187,63 @@ function Install-WSL2Prerequisites {
     return $true
 }
 
-function Test-UbuntuDownload {
-    Write-StepMessage -Message "Testing Ubuntu download availability..." -Type "Info"
+function Test-DebianDownload {
+    Write-StepMessage -Message "Testing Debian download availability..." -Type "Info"
     
     try {
-        $response = Invoke-WebRequest -Uri $script:UBUNTU_WSL_URL -Method Head -UseBasicParsing -TimeoutSec 10
+        $response = Invoke-WebRequest -Uri $script:DEBIAN_WSL_URL -Method Head -UseBasicParsing -TimeoutSec 10
         if ($response.StatusCode -eq 200) {
-            Write-StepMessage -Message "Ubuntu download is available" -Type "Success"
+            Write-StepMessage -Message "Debian download is available" -Type "Success"
             return $true
         }
     } catch {
-        Write-StepMessage -Message "Ubuntu download test failed: $_" -Type "Warning"
+        Write-StepMessage -Message "Debian download test failed: $_" -Type "Warning"
     }
     
     return $false
 }
 
-function Get-UbuntuWSLFile {
-    Write-StepMessage -Message "Getting Ubuntu WSL file..." -Type "Info"
+function Get-DebianWSLFile {
+    Write-StepMessage -Message "Getting Debian WSL file..." -Type "Info"
 
     # Check Downloads directory first (fuzzy search)
     $downloadsDir = Join-Path $env:USERPROFILE "Downloads"
     if (Test-Path $downloadsDir) {
-        Write-StepMessage -Message "Searching Downloads directory for Ubuntu WSL file..." -Type "Info"
-        $downloadedFiles = @(Get-ChildItem -Path $downloadsDir -Filter "*ubuntu*24*wsl*" -File | Where-Object { $_.Length -gt 100MB })
+        Write-StepMessage -Message "Searching Downloads directory for Debian WSL file..." -Type "Info"
+        $downloadedFiles = @(Get-ChildItem -Path $downloadsDir -Filter "*debian*wsl*" -File | Where-Object { $_.Length -gt 100MB })
 
         if ($downloadedFiles.Count -gt 0) {
             $foundFile = $downloadedFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            Write-StepMessage -Message "Found Ubuntu WSL file in Downloads: $($foundFile.Name)" -Type "Success"
+            Write-StepMessage -Message "Found Debian WSL file in Downloads: $($foundFile.Name)" -Type "Success"
 
             # Copy to temp directory for consistency
             try {
-                Copy-Item $foundFile.FullName $script:UBUNTU_WSL_LOCAL_PATH -Force
-                Write-StepMessage -Message "Copied Ubuntu WSL file to temp directory" -Type "Success"
-                return $script:UBUNTU_WSL_LOCAL_PATH
+                Copy-Item $foundFile.FullName $script:DEBIAN_WSL_LOCAL_PATH -Force
+                Write-StepMessage -Message "Copied Debian WSL file to temp directory" -Type "Success"
+                return $script:DEBIAN_WSL_LOCAL_PATH
             } catch {
                 Write-StepMessage -Message "Failed to copy file from Downloads: $_" -Type "Warning"
             }
         } else {
-            Write-StepMessage -Message "No Ubuntu WSL files found in Downloads directory" -Type "Info"
+            Write-StepMessage -Message "No Debian WSL files found in Downloads directory" -Type "Info"
         }
     }
 
     # Check if file already exists in temp directory
-    if (Test-Path $script:UBUNTU_WSL_LOCAL_PATH) {
-        $fileSize = (Get-Item $script:UBUNTU_WSL_LOCAL_PATH).Length
+    if (Test-Path $script:DEBIAN_WSL_LOCAL_PATH) {
+        $fileSize = (Get-Item $script:DEBIAN_WSL_LOCAL_PATH).Length
         if ($fileSize -gt 100MB) {
-            Write-StepMessage -Message "Ubuntu WSL file already exists in temp directory and appears valid" -Type "Success"
-            return $script:UBUNTU_WSL_LOCAL_PATH
+            Write-StepMessage -Message "Debian WSL file already exists in temp directory and appears valid" -Type "Success"
+            return $script:DEBIAN_WSL_LOCAL_PATH
         } else {
-            Write-StepMessage -Message "Local Ubuntu WSL file appears corrupted, removing..." -Type "Warning"
-            Remove-Item $script:UBUNTU_WSL_LOCAL_PATH -Force
+            Write-StepMessage -Message "Local Debian WSL file appears corrupted, removing..." -Type "Warning"
+            Remove-Item $script:DEBIAN_WSL_LOCAL_PATH -Force
         }
     }
     
     # Prompt user for static package download (default Y with 10s timeout)
-    Write-StepMessage -Message "Do you want to download Ubuntu WSL static package? [Y/n] (Auto-continue in 10 seconds with 'Y')" -Type "Warning"
-    Write-StepMessage -Message "Static package URL: $script:UBUNTU_WSL_URL" -Type "Info"
+    Write-StepMessage -Message "Do you want to download Debian WSL static package? [Y/n] (Auto-continue in 10 seconds with 'Y')" -Type "Warning"
+    Write-StepMessage -Message "Static package URL: $script:DEBIAN_WSL_URL" -Type "Info"
     
     $useStaticPackage = $true
     $timeout = 10
@@ -275,19 +275,19 @@ function Get-UbuntuWSLFile {
     Write-StepMessage -Message "Using static package download method" -Type "Info"
     
     # Test download availability
-    if (Test-UbuntuDownload) {
-        Write-StepMessage -Message "Downloading Ubuntu WSL from: $script:UBUNTU_WSL_URL" -Type "Info"
+    if (Test-DebianDownload) {
+        Write-StepMessage -Message "Downloading Debian WSL from: $script:DEBIAN_WSL_URL" -Type "Info"
         try {
             # Create temp directory if it doesn't exist
             if (-not (Test-Path $Global:TEMP_DIR)) {
                 New-Item -ItemType Directory -Path $Global:TEMP_DIR -Force | Out-Null
             }
             
-            Invoke-WebRequest -Uri $script:UBUNTU_WSL_URL -OutFile $script:UBUNTU_WSL_LOCAL_PATH -UseBasicParsing
-            Write-StepMessage -Message "Ubuntu WSL downloaded successfully" -Type "Success"
-            return $script:UBUNTU_WSL_LOCAL_PATH
+            Invoke-WebRequest -Uri $script:DEBIAN_WSL_URL -OutFile $script:DEBIAN_WSL_LOCAL_PATH -UseBasicParsing
+            Write-StepMessage -Message "Debian WSL downloaded successfully" -Type "Success"
+            return $script:DEBIAN_WSL_LOCAL_PATH
         } catch {
-            Write-StepMessage -Message "Failed to download Ubuntu WSL: $_" -Type "Error"
+            Write-StepMessage -Message "Failed to download Debian WSL: $_" -Type "Error"
         }
     }
     
@@ -296,27 +296,27 @@ function Get-UbuntuWSLFile {
     return $null
 }
 
-function Install-UbuntuWSL {
+function Install-DebianWSL {
     param(
         [string]$WSLFilePath
     )
     
-    Write-StepMessage -Message "Installing Ubuntu WSL..." -Type "Info"
+    Write-StepMessage -Message "Installing Debian WSL..." -Type "Info"
     
     if ($WSLFilePath -and (Test-Path $WSLFilePath)) {
         # Install from downloaded file
         Write-StepMessage -Message "Installing from downloaded file: $WSLFilePath" -Type "Info"
         try {
             # Ensure WSL disk directory exists
-            if (-not (Test-Path $Global:WSL_UBUNTU_DISK_DIR)) {
-                New-Item -ItemType Directory -Path $Global:WSL_UBUNTU_DISK_DIR -Force | Out-Null
-                Write-StepMessage -Message "Created WSL Ubuntu disk directory: $Global:WSL_UBUNTU_DISK_DIR" -Type "Info"
+            if (-not (Test-Path $Global:WSL_DEBIAN_DISK_DIR)) {
+                New-Item -ItemType Directory -Path $Global:WSL_DEBIAN_DISK_DIR -Force | Out-Null
+                Write-StepMessage -Message "Created WSL Debian disk directory: $Global:WSL_DEBIAN_DISK_DIR" -Type "Info"
             }
             
-            & wsl --import $script:UBUNTU_DISTRO_NAME $Global:WSL_UBUNTU_DISK_DIR $WSLFilePath
+            & wsl --import $script:DEBIAN_DISTRO_NAME $Global:WSL_DEBIAN_DISK_DIR $WSLFilePath
             $wslListAfterImport = & wsl --list --verbose 2>&1
-            if (("$wslListAfterImport" -match [regex]::Escape($script:UBUNTU_DISTRO_NAME)) -and (Test-Path $Global:WSL_UBUNTU_DISK_DIR)) {
-                Write-StepMessage -Message "Ubuntu installed successfully from downloaded file to: $Global:WSL_UBUNTU_DISK_DIR" -Type "Success"
+            if (("$wslListAfterImport" -match [regex]::Escape($script:DEBIAN_DISTRO_NAME)) -and (Test-Path $Global:WSL_DEBIAN_DISK_DIR)) {
+                Write-StepMessage -Message "Debian installed successfully from downloaded file to: $Global:WSL_DEBIAN_DISK_DIR" -Type "Success"
                 return $true
             }
         } catch {
@@ -327,10 +327,10 @@ function Install-UbuntuWSL {
     # Fallback to native installation
     Write-StepMessage -Message "Using WSL2 native installation method..." -Type "Info"
     try {
-        & wsl --install -d Ubuntu-24.04
+        & wsl --install -d Debian --no-launch
         $wslListAfterInstall = & wsl --list --verbose 2>&1
-        if (("$wslListAfterInstall").Contains('Ubuntu-24.04') -or ("$wslListAfterInstall").Contains('Ubuntu 24.04')) {
-            Write-StepMessage -Message "Ubuntu installed successfully using native method" -Type "Success"
+        if (("$wslListAfterInstall").Contains('Debian')) {
+            Write-StepMessage -Message "Debian installed successfully using native method" -Type "Success"
             return $true
         }
     } catch {
@@ -340,20 +340,20 @@ function Install-UbuntuWSL {
     return $false
 }
 
-function Restart-UbuntuWSL {
-    Write-StepMessage -Message "Restarting Ubuntu WSL..." -Type "Info"
+function Restart-DebianWSL {
+    Write-StepMessage -Message "Restarting Debian WSL..." -Type "Info"
 
-    # Get all Ubuntu 24 distributions
-    $ubuntu24Distros = @(Get-InstalledUbuntu24Distros)
+    # Get all Debian 13 distributions
+    $debian13Distros = @(Get-InstalledDebian13Distros)
 
-    if (-not $ubuntu24Distros -or $ubuntu24Distros.Count -eq 0) {
-        Write-StepMessage -Message "No Ubuntu 24 distributions found to restart" -Type "Error"
+    if (-not $debian13Distros -or $debian13Distros.Count -eq 0) {
+        Write-StepMessage -Message "No Debian 13 distributions found to restart" -Type "Error"
         return $false
     }
 
     $allRestarted = $true
 
-    foreach ($distroName in $ubuntu24Distros) {
+    foreach ($distroName in $debian13Distros) {
         try {
             Write-StepMessage -Message "Processing: $distroName" -Type "Info"
 
@@ -399,7 +399,7 @@ function Restart-UbuntuWSL {
 
             # Start the distro
             Write-Host "  -> Starting $distroName..." -ForegroundColor Yellow
-            & wsl -d $distroName echo "Ubuntu WSL started successfully" 2>&1 | Out-Null
+            & wsl -d $distroName echo "Debian WSL started successfully" 2>&1 | Out-Null
 
             # Verify it's running
             Write-Host "  -> Verifying startup..." -ForegroundColor Yellow
@@ -432,19 +432,19 @@ function Restart-UbuntuWSL {
     }
 
     if ($allRestarted) {
-        Write-StepMessage -Message "All Ubuntu 24 distributions restarted successfully" -Type "Success"
+        Write-StepMessage -Message "All Debian 13 distributions restarted successfully" -Type "Success"
     }
 
     return $allRestarted
 }
 
-function Get-InstalledUbuntu24Distros {
-    Write-StepMessage -Message "Detecting installed Ubuntu 24 distributions..." -Type "Info"
+function Get-InstalledDebian13Distros {
+    Write-StepMessage -Message "Detecting installed Debian 13 distributions..." -Type "Info"
 
     try {
         $wslList = & wsl --list 2>&1
         if ("$wslList" -match '(?m)^\s*\*?\s*\S') {
-            $ubuntu24Distros = @()
+            $debian13Distros = @()
             foreach ($line in $wslList) {
                 # Convert to string and handle UTF-16 encoding issues
                 $lineStr = $line.ToString()
@@ -452,17 +452,17 @@ function Get-InstalledUbuntu24Distros {
                 # Remove null characters and trim
                 $cleanLine = $lineStr -replace '\x00', '' | ForEach-Object { $_.Trim() }
 
-                # Match various Ubuntu 24 naming patterns
-                if ($cleanLine.IndexOf("Ubuntu") -ge 0 -and $cleanLine.IndexOf("24") -ge 0) {
+                # Match Debian naming patterns (Debian, Debian GNU/Linux)
+                if ($cleanLine.IndexOf("Debian") -ge 0) {
                     # Extract just the distribution name (first word)
                     $distroName = ($cleanLine -split '\s+')[0]
                     if ($distroName -and $distroName -ne "" -and $distroName -ne "NAME") {
-                        $ubuntu24Distros += $distroName
-                        Write-StepMessage -Message "Found Ubuntu 24 distribution: $distroName" -Type "Info"
+                        $debian13Distros += $distroName
+                        Write-StepMessage -Message "Found Debian 13 distribution: $distroName" -Type "Info"
                     }
                 }
             }
-            return ,$ubuntu24Distros  # Force return as array
+            return ,$debian13Distros  # Force return as array
         }
     } catch {
         Write-StepMessage -Message "Error checking installed distros: $_" -Type "Warning"
@@ -471,20 +471,20 @@ function Get-InstalledUbuntu24Distros {
     return @()
 }
 
-function Uninstall-UbuntuWSL {
-    Write-StepMessage -Message "Uninstalling existing Ubuntu WSL..." -Type "Warning"
+function Uninstall-DebianWSL {
+    Write-StepMessage -Message "Uninstalling existing Debian WSL..." -Type "Warning"
 
-    # Get all Ubuntu 24 distributions
-    $ubuntu24Distros = @(Get-InstalledUbuntu24Distros)
+    # Get all Debian 13 distributions
+    $debian13Distros = @(Get-InstalledDebian13Distros)
 
-    if (-not $ubuntu24Distros -or $ubuntu24Distros.Count -eq 0) {
-        Write-StepMessage -Message "No Ubuntu 24 distributions found to uninstall" -Type "Info"
+    if (-not $debian13Distros -or $debian13Distros.Count -eq 0) {
+        Write-StepMessage -Message "No Debian 13 distributions found to uninstall" -Type "Info"
         return $true
     }
 
     $allUninstalled = $true
 
-    foreach ($distroName in $ubuntu24Distros) {
+    foreach ($distroName in $debian13Distros) {
         try {
             Write-StepMessage -Message "Uninstalling: $distroName" -Type "Warning"
 
@@ -508,7 +508,7 @@ function Uninstall-UbuntuWSL {
     }
 
     if ($allUninstalled) {
-        Write-StepMessage -Message "All Ubuntu 24 distributions uninstalled successfully" -Type "Success"
+        Write-StepMessage -Message "All Debian 13 distributions uninstalled successfully" -Type "Success"
     }
 
     return $allUninstalled
@@ -527,12 +527,12 @@ function Wait-ForRestart {
 #endregion
 
 #region Main Execution Logic
-function Invoke-WSLUbuntuAction {
+function Invoke-WSLDebianAction {
     param(
         [Parameter(Mandatory=$true)] [string]$ActionType
     )
 
-    Write-StepMessage -Message "Starting WSL Ubuntu 24 action: $ActionType" -Type "Info"
+    Write-StepMessage -Message "Starting WSL Debian 13 action: $ActionType" -Type "Info"
 
     switch ($ActionType.ToLower()) {
         "install" {
@@ -551,20 +551,20 @@ function Invoke-WSLUbuntuAction {
                     Write-StepMessage -Message "WSL2 installation may require system restart to complete" -Type "Warning"
                     Write-StepMessage -Message "However, you can try to continue installation first" -Type "Info"
 
-                    $continueChoice = Read-Host "Continue with Ubuntu installation anyway? (y/n)"
+                    $continueChoice = Read-Host "Continue with Debian installation anyway? (y/n)"
                     if ($continueChoice -ne "y" -and $continueChoice -ne "Y") {
                         Wait-ForRestart
                         return $false
                     }
-                    Write-StepMessage -Message "Continuing with Ubuntu installation..." -Type "Info"
+                    Write-StepMessage -Message "Continuing with Debian installation..." -Type "Info"
                 }
             }
 
-            # 2. Check if Ubuntu 24 is already installed
-            $ubuntu24Distros = @(Get-InstalledUbuntu24Distros)
-            if ($ubuntu24Distros -and $ubuntu24Distros.Count -gt 0) {
-                Write-StepMessage -Message "Ubuntu 24 is already installed:" -Type "Success"
-                foreach ($distro in $ubuntu24Distros) {
+            # 2. Check if Debian 13 is already installed
+            $debian13Distros = @(Get-InstalledDebian13Distros)
+            if ($debian13Distros -and $debian13Distros.Count -gt 0) {
+                Write-StepMessage -Message "Debian 13 is already installed:" -Type "Success"
+                foreach ($distro in $debian13Distros) {
                     if ($distro -and $distro.Trim() -ne "") {
                         Write-StepMessage -Message "  - $distro" -Type "Info"
                     }
@@ -573,45 +573,45 @@ function Invoke-WSLUbuntuAction {
                 return $true
             }
 
-            # 3. Get Ubuntu WSL file
-            $ubuntuFile = Get-UbuntuWSLFile
+            # 3. Get Debian WSL file
+            $debianFile = Get-DebianWSLFile
 
-            # 4. Install Ubuntu
-            if (Install-UbuntuWSL -WSLFilePath $ubuntuFile) {
-                Write-StepMessage -Message "Ubuntu 24.04 installation completed successfully" -Type "Success"
+            # 4. Install Debian
+            if (Install-DebianWSL -WSLFilePath $debianFile) {
+                Write-StepMessage -Message "Debian 13 installation completed successfully" -Type "Success"
                 return $true
             } else {
-                Write-StepMessage -Message "Ubuntu 24.04 installation failed" -Type "Error"
+                Write-StepMessage -Message "Debian 13 installation failed" -Type "Error"
                 return $false
             }
         }
 
         "reinstall" {
-            # 1. Uninstall existing Ubuntu
-            if (-not (Uninstall-UbuntuWSL)) {
-                Write-StepMessage -Message "Failed to uninstall existing Ubuntu" -Type "Error"
+            # 1. Uninstall existing Debian
+            if (-not (Uninstall-DebianWSL)) {
+                Write-StepMessage -Message "Failed to uninstall existing Debian" -Type "Error"
                 return $false
             }
 
-            # 2. Get Ubuntu WSL file (prefer local cache)
-            $ubuntuFile = Get-UbuntuWSLFile
+            # 2. Get Debian WSL file (prefer local cache)
+            $debianFile = Get-DebianWSLFile
 
-            # 3. Install Ubuntu
-            if (Install-UbuntuWSL -WSLFilePath $ubuntuFile) {
-                Write-StepMessage -Message "Ubuntu 24.04 reinstallation completed successfully" -Type "Success"
+            # 3. Install Debian
+            if (Install-DebianWSL -WSLFilePath $debianFile) {
+                Write-StepMessage -Message "Debian 13 reinstallation completed successfully" -Type "Success"
                 return $true
             } else {
-                Write-StepMessage -Message "Ubuntu 24.04 reinstallation failed" -Type "Error"
+                Write-StepMessage -Message "Debian 13 reinstallation failed" -Type "Error"
                 return $false
             }
         }
 
         "restart" {
-            if (Restart-UbuntuWSL) {
-                Write-StepMessage -Message "Ubuntu 24.04 restart completed successfully" -Type "Success"
+            if (Restart-DebianWSL) {
+                Write-StepMessage -Message "Debian 13 restart completed successfully" -Type "Success"
                 return $true
             } else {
-                Write-StepMessage -Message "Ubuntu 24.04 restart failed" -Type "Error"
+                Write-StepMessage -Message "Debian 13 restart failed" -Type "Error"
                 return $false
             }
         }
@@ -625,7 +625,7 @@ function Invoke-WSLUbuntuAction {
 
 # Main execution
 try {
-    Invoke-WSLUbuntuAction -ActionType $Action
+    Invoke-WSLDebianAction -ActionType $Action
 } catch {
     Write-StepMessage -Message "An error occurred during execution: $_" -Type "Error"
 }

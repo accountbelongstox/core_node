@@ -517,11 +517,11 @@ function Step29_InstallWSL {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Current WSL distributions:" -Type "Info"
     Write-Host $wslList
 
-    # Step 8: Configure default user to root for all Ubuntu distributions (always run, even if already installed)
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Step 8: Configuring default user to root for Ubuntu distributions..." -Type "Info"
+    # Step 8: Configure default user to root for all Ubuntu/Debian distributions (always run, even if already installed)
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Step 8: Configuring default user to root for Ubuntu/Debian distributions..." -Type "Info"
     
     $distros = & wsl -l -q 2>&1
-    $ubuntuDistros = @()
+    $linuxDistros = @()
     
     foreach ($distro in $distros) {
         if ($distro) {
@@ -529,17 +529,17 @@ function Step29_InstallWSL {
             $cleanDistro = $distro.ToString() -replace '\x00', ''
             $cleanDistro = $cleanDistro.Trim()
             
-            # Check if it's an Ubuntu distribution
-            if ($cleanDistro -match "Ubuntu" -and $cleanDistro -ne "" -and $cleanDistro -ne "NAME") {
-                $ubuntuDistros += $cleanDistro
+            # Check if it's an Ubuntu or Debian distribution
+            if ($cleanDistro -match "Ubuntu|Debian" -and $cleanDistro -ne "" -and $cleanDistro -ne "NAME") {
+                $linuxDistros += $cleanDistro
             }
         }
     }
     
-    if ($ubuntuDistros.Count -gt 0) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Found Ubuntu distributions: $($ubuntuDistros -join ', ')" -Type "Info"
+    if ($linuxDistros.Count -gt 0) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Found Ubuntu/Debian distributions: $($linuxDistros -join ', ')" -Type "Info"
         
-        foreach ($distroName in $ubuntuDistros) {
+        foreach ($distroName in $linuxDistros) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking default user for $distroName..." -Type "Info"
             
             try {
@@ -572,13 +572,13 @@ function Step29_InstallWSL {
         Start-Sleep -Seconds 3
         Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL restarted." -Type "Success"
     } else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] No Ubuntu distributions found. Skipping user configuration." -Type "Info"
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] No Ubuntu/Debian distributions found. Skipping user configuration." -Type "Info"
     }
 
-    # Note: Ubuntu distribution installation is handled by Step30_InstallWSLUbuntu24.ps1
+    # Note: Debian distribution installation is handled by Step30_InstallWSLDebian13.ps1
     # This script sets up WSL infrastructure (features, kernel, etc.) and configures existing distributions
     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL setup completed." -Type "Success"
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Run Step30_InstallWSLUbuntu24.ps1 to install Ubuntu distribution." -Type "Info"
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Run Step30_InstallWSLDebian13.ps1 to install Debian distribution." -Type "Info"
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
 

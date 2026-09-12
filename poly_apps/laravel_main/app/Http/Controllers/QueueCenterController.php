@@ -130,10 +130,16 @@ class QueueCenterController extends Controller
         }
         $validated = $request->validate([
             'cursor' => 'nullable|integer|min:0',
+            'sync' => 'nullable|boolean',
         ]);
 
         return $this->success(
-            $this->sliceDiff->snapshot($queue, (int) ($validated['cursor'] ?? 0)),
+            $this->sliceDiff->snapshot(
+                $queue,
+                (int) ($validated['cursor'] ?? 0),
+                true,
+                $request->boolean('sync')
+            ),
             'Queue slice diff'
         );
     }

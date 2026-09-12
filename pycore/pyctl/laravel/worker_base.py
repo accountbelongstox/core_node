@@ -30,12 +30,16 @@ Shared Laravel transport still goes through LaravelClient; every generic
 import platform
 import socket
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
+from pycore.pyutils.common.diff_task_segments import (
+    DATA_LIMIT,
+    STAGED_TASK_LIMIT,
+    diff_task_segment_store,
+)
 from pycore.pyfoundations.serialized_worker import (
     SerializedValue,
     init_serialized_owner,
@@ -99,6 +103,12 @@ class BaseLaravelWorkerService:
     STATE_OWNER_NAME = "LaravelWorkerState"
     WORKER_ID_PREFIX = "pycore-worker"
     LOG_ACCEPTED_RESULTS = True
+    # Full-sync lanes mirror the entire pending claim order from one diff
+    # (sync=1 -> ordered_task_ids), keep the backlog in the persistent
+    # segment store plus the local heap for offline processing, claim
+    # just-in-time at task start, and apply later diffs incrementally
+    # instead of re-pulling bounded claimed batches.
+    FULL_SYNC_ENABLED = False
     # Serialized state-owner timeout (seconds). The audio workers override with
     # 180s: their on-owner engine probe (tts_status) can outlive 60s on a cold box.
     STATE_OWNER_TIMEOUT = 60.0
@@ -151,6 +161,10 @@ class BaseLaravelWorkerService:
         self._task_endpoint_by_id: Dict[str, str] = {}
         self._queue_diff_cursors: Dict[str, int] = {}
         self._queue_progress: Dict[str, Dict[str, int]] = {}
+        # Flipped on the first diff response carrying ordered_task_ids: until
+        # the backend proves sync support the lane keeps the legacy bounded
+        # claim-pull so a deploy window never starves it.
+        self._sync_backend_capable = False
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -308,8 +322,16 @@ class BaseLaravelWorkerService:
         """Maximum live Laravel leases owned by this worker instance."""
         return max(1, int(self.PULL_LIMIT))
 
+    def _full_sync_enabled(self) -> bool:
+        """True when this lane mirrors the full pending queue via diff sync."""
+        return bool(self.FULL_SYNC_ENABLED)
+
+    def _sync_active(self) -> bool:
+        """True once the backend proved diff-sync support (ordered_task_ids)."""
+        return bool(self._full_sync_enabled() and self._sync_backend_capable)
+
     def poll_diff_once(self) -> Dict[str, Any]:
-        """Poll compact queue revisions and pull only when the front slice changed."""
+        """Poll compact queue revisions and sync/pull only what changed."""
         if self._lane_halt_requested():
             return {"ok": True, "changed": False, "processed": 0}
         task_types = self._pull_task_types()
@@ -317,16 +339,23 @@ class BaseLaravelWorkerService:
             return {"ok": True, "changed": False, "processed": 0}
         base_url = self._sync_laravel_endpoint(self.api_url)
         scope = self._diff_segment_scope(base_url)
+        full_sync = self._full_sync_enabled()
         changed = False
+        synced = False
         for task_type in task_types:
             cursor = max(
                 int(self._queue_diff_cursors.get(task_type, 0)),
                 diff_task_segment_store.remote_cursor(scope, task_type),
             )
+            params: Dict[str, Any] = {"cursor": cursor}
+            if full_sync:
+                # sync=1 asks the backend for the full pending claim order
+                # (ordered_task_ids) whenever the revision moved.
+                params["sync"] = 1
             response = laravel_client.get(
                 queue_center_endpoint("queue_center_queue_diff", queue=task_type),
                 base_url=base_url,
-                params={"cursor": cursor},
+                params=params,
                 timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
                 log_line=False,
             )
@@ -336,24 +365,37 @@ class BaseLaravelWorkerService:
                 )
             data = self._response_data(response)
             lane_changed = bool(data.get("changed"))
-            # Compact poll line: diff[200]->true means the remote head moved and
-            # a bounded re-pull follows; false means keep the local segment.
+            # Compact poll line: diff[200]->true means the remote head moved;
+            # full-sync lanes apply the ordered diff incrementally, legacy
+            # lanes follow with a bounded re-pull; false keeps the segment.
             ColorPrint.gray(
                 f"{self._log_prefix} diff[{response.status_code}]->"
                 f"{'true' if lane_changed else 'false'}"
             )
-            progress = data.get("progress")
-            if isinstance(progress, dict):
-                self._queue_progress[task_type] = {
-                    str(key): int(value or 0)
-                    for key, value in progress.items()
-                    if isinstance(value, (int, float))
-                }
+            self._record_queue_progress(task_type, data.get("progress"))
             if not lane_changed:
                 continue
             changed = True
+            ordered_ids = data.get("ordered_task_ids")
+            if isinstance(ordered_ids, list):
+                self._sync_backend_capable = True
+            if full_sync and isinstance(ordered_ids, list):
+                self._apply_ordered_diff(scope, task_type, ordered_ids, base_url)
+                new_cursor = int(data.get("cursor") or 0)
+                if new_cursor > 0:
+                    self._queue_diff_cursors[task_type] = new_cursor
+                    diff_task_segment_store.set_remote_cursor(
+                        scope, task_type, new_cursor
+                    )
+                synced = True
+                continue
             if self._diff_pull_capacity() <= 0:
                 continue
+        if synced:
+            result = self.pull_once()
+            result["changed"] = True
+            result["synced"] = True
+            return result
         if changed and self._diff_pull_capacity() > 0:
             result = self.pull_once(prefer_remote=True)
             result["changed"] = True
@@ -369,6 +411,29 @@ class BaseLaravelWorkerService:
             return result
         return {"ok": True, "changed": changed, "processed": 0}
 
+    def _record_queue_progress(self, task_type: str, progress: Any) -> None:
+        """Store scalar metrics AND nested dictionaries (language_tiers) so
+        tier progress survives into worker-facing reports. Shared by the
+        diff-sync path and the legacy pull path."""
+        if not isinstance(progress, dict):
+            return
+        self._queue_progress[task_type] = {
+            str(key): int(value or 0)
+            for key, value in progress.items()
+            if isinstance(value, (int, float))
+        }
+        for key, value in progress.items():
+            if isinstance(value, dict):
+                self._queue_progress[task_type][str(key)] = {
+                    str(tier_key): {
+                        str(metric): int(metric_value or 0)
+                        for metric, metric_value in tier_value.items()
+                        if isinstance(metric_value, (int, float))
+                    }
+                    for tier_key, tier_value in value.items()
+                    if isinstance(tier_value, dict)
+                }
+
     @staticmethod
     def _response_data(response: Any) -> Dict[str, Any]:
         payload = response.json()
@@ -376,6 +441,109 @@ class BaseLaravelWorkerService:
             raise RuntimeError("Laravel worker API returned a non-object response")
         data = payload.get("data")
         return data if isinstance(data, dict) else payload
+
+    def _apply_ordered_diff(
+        self,
+        scope: str,
+        task_type: str,
+        ordered_ids: List[Any],
+        base_url: str,
+    ) -> None:
+        """Apply one changed diff incrementally against the mirrored backlog.
+
+        The backend reports the full pending claim order; the worker only
+        materializes IDs it does not hold yet (page-data segments), drops
+        staged rows that vanished from the pending set, and re-aligns the
+        local order - never a bounded claim-pull, never a full re-fetch.
+        """
+        seen: Set[str] = set()
+        ordered: List[str] = []
+        for raw_id in ordered_ids:
+            task_id = str(raw_id or "").strip()
+            if task_id and task_id not in seen:
+                seen.add(task_id)
+                ordered.append(task_id)
+        known = diff_task_segment_store.held_task_ids(scope, task_type)
+        missing = [task_id for task_id in ordered if task_id not in known]
+        vanished = [task_id for task_id in known if task_id not in seen]
+        staged_total = 0
+        for offset in range(0, len(missing), DATA_LIMIT):
+            chunk = missing[offset:offset + DATA_LIMIT]
+            response = laravel_client.get(
+                queue_center_endpoint("queue_center_queue_page_data", queue=task_type),
+                base_url=base_url,
+                params=[("ids[]", task_id) for task_id in chunk],
+                timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
+                log_line=False,
+            )
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Laravel queue page-data failed for {task_type}: "
+                    f"HTTP {response.status_code}"
+                )
+            data = self._response_data(response)
+            raw_tasks = data.get("tasks")
+            tasks = (
+                [dict(task) for task in raw_tasks if isinstance(task, dict)]
+                if isinstance(raw_tasks, list)
+                else []
+            )
+            for task in tasks:
+                if not str(task.get("task_type") or "").strip():
+                    task["task_type"] = task_type
+            staged = diff_task_segment_store.stage(scope, tasks) if tasks else []
+            if staged:
+                self._remember_task_types(staged, base_url)
+                staged_total += len(staged)
+        if vanished:
+            diff_task_segment_store.consume_many(scope, vanished)
+        reordered = diff_task_segment_store.apply_order(scope, task_type, ordered)
+        self._apply_local_queue_order(task_type, ordered)
+        ColorPrint.blue(
+            f"{self._log_prefix} sync[{task_type}] +{staged_total} "
+            f"-{len(vanished)} order={len(ordered)} reorder={reordered}"
+        )
+
+    def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
+        """Re-align the in-process queue with the synced claim order (heap lanes)."""
+
+    def _ensure_laravel_claim(self, task: Dict[str, Any]) -> bool:
+        """Just-in-time claim for full-sync lanes at task start.
+
+        Owned or still-pending rows accept fine (the claim lease then covers
+        the short processing window); 404/409 means the row vanished or
+        belongs to another worker - drop it locally. Transport failures keep
+        the task: offline processing continues from the local snapshot and
+        the durable outbox plus the backend pending-claim-on-result settle
+        the bookkeeping when the network returns.
+        """
+        if not self._sync_active():
+            return True
+        task_id = str(task.get("task_id") or "").strip()
+        task_type = str(task.get("task_type") or "").strip()
+        if not task_id or not task_type:
+            return True
+        base_url = (
+            str(task.get("_laravel_base_url") or self._task_base_url(task_id)).strip()
+            or self.api_url
+        )
+        try:
+            claimed = self._validate_recovered_claim(task_type, task_id, base_url)
+        except Exception as exc:  # noqa: BLE001 - offline processing must go on
+            ColorPrint.yellow(
+                f"{self._log_prefix} Claim check for task "
+                f"{self._display_task_id(task_id)} unreachable ({exc}); "
+                "processing from the local snapshot"
+            )
+            return True
+        if claimed:
+            return True
+        diff_task_segment_store.consume(self._diff_segment_scope(base_url), task_id)
+        ColorPrint.gray(
+            f"{self._log_prefix} Task {self._display_task_id(task_id)} is gone "
+            "or owned elsewhere - dropped from the local queue"
+        )
+        return False
 
     def _validate_recovered_claim(
         self,
@@ -404,6 +572,7 @@ class BaseLaravelWorkerService:
         base_url: str,
         scope: str,
         validate_claim: bool = False,
+        allow_backlog: bool = False,
     ) -> int:
         if self._lane_halt_requested():
             # A stop landed while this pull was in flight: hand the staged
@@ -427,7 +596,11 @@ class BaseLaravelWorkerService:
             ):
                 diff_task_segment_store.consume(scope, task_id)
                 continue
-            accepted = self.accept_task(task, base_url)
+            accepted = (
+                self.accept_task(task, base_url, allow_backlog=True)
+                if allow_backlog
+                else self.accept_task(task, base_url)
+            )
             if accepted.get("success"):
                 dispatched += 1
                 continue
@@ -505,6 +678,21 @@ class BaseLaravelWorkerService:
         if not graceful:
             dropped = self._drop_queued_tasks()
             if dropped:
+                # Dropped rows return to the backend pending set; consume the
+                # staged copies so the next diff sync re-fetches them fresh.
+                scope = self._diff_segment_scope(
+                    self._sync_laravel_endpoint(self.api_url)
+                )
+                diff_task_segment_store.consume_many(
+                    scope,
+                    [
+                        task_id
+                        for task_id in (
+                            str(task.get("task_id") or "").strip() for task in dropped
+                        )
+                        if task_id
+                    ],
+                )
                 self._release_claimed_tasks(dropped)
 
     def _drop_queued_tasks(self) -> List[Dict[str, Any]]:
@@ -573,11 +761,18 @@ class BaseLaravelWorkerService:
         if self._circuit_is_open():
             return {"ok": False, "processed": 0, "reason": "result_circuit_open"}
         task_types = self._ordered_pull_task_types()
+        full_sync = self._sync_active()
         capacity = (
             self._diff_pull_capacity()
             if prefer_remote
             else self._pull_capacity()
         )
+        if full_sync:
+            # Sync lanes hold the whole mirrored backlog: sweep every staged
+            # row for dispatch and never run the bounded remote claim-pull
+            # (the diff sync + just-in-time claim at task start replace it).
+            capacity = STAGED_TASK_LIMIT
+            prefer_remote = False
         if not task_types or capacity <= 0:
             return {"ok": True, "processed": 0}
 
@@ -596,7 +791,8 @@ class BaseLaravelWorkerService:
                 recovered,
                 base_url,
                 scope,
-                validate_claim=True,
+                validate_claim=not full_sync,
+                allow_backlog=full_sync,
             )
             capacity = max(0, capacity - recovered_count)
 
@@ -604,6 +800,8 @@ class BaseLaravelWorkerService:
             capacity,
             diff_task_segment_store.available_capacity(scope),
         )
+        if full_sync:
+            remote_capacity = 0
         remaining = remote_capacity
         pulled = 0
         for task_type in task_types:
@@ -620,26 +818,7 @@ class BaseLaravelWorkerService:
                     f"Laravel worker pull failed for {task_type}: HTTP {response.status_code}"
                 )
             data = self._response_data(response)
-            progress = data.get("progress")
-            if isinstance(progress, dict):
-                # Keep scalar metrics AND nested dictionaries (language_tiers)
-                # so tier progress survives into worker-facing reports.
-                self._queue_progress[task_type] = {
-                    str(key): int(value or 0)
-                    for key, value in progress.items()
-                    if isinstance(value, (int, float))
-                }
-                for key, value in progress.items():
-                    if isinstance(value, dict):
-                        self._queue_progress[task_type][str(key)] = {
-                            str(tier_key): {
-                                str(metric): int(metric_value or 0)
-                            for metric, metric_value in tier_value.items()
-                            if isinstance(metric_value, (int, float))
-                            }
-                            for tier_key, tier_value in value.items()
-                            if isinstance(tier_value, dict)
-                        }
+            self._record_queue_progress(task_type, data.get("progress"))
             raw_tasks = data.get("tasks")
             tasks = (
                 [dict(task) for task in raw_tasks if isinstance(task, dict)]

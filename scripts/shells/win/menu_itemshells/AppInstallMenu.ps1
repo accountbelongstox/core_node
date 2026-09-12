@@ -39,7 +39,7 @@ $script:SCRIPT_INSTALL_ENTRIES = @(
     @{ Key = "script:Step20_Install7ipBase.ps1"; Display = "7-Zip Base" },
     @{ Key = "script:Step14_InstallScoopWithChinaMirror.ps1"; Display = "Scoop" },
     @{ Key = "script:Step29_InstallWSL.ps1"; Display = "WSL" },
-    @{ Key = "script:Step30_InstallWSLUbuntu24.ps1"; Display = "WSL Ubuntu 24" },
+    @{ Key = "script:Step30_InstallWSLDebian13.ps1"; Display = "WSL Debian 13" },
     @{ Key = "script:Step31_SetRootLoginWSLUbuntuDebian.ps1"; Display = "WSL Root Login" },
     @{ Key = "script:Step32_InstallVisualStudio.ps1"; Display = "Visual Studio" },
     @{ Key = "script:Step33_InstallQtBuildTools.ps1"; Display = "Qt Build Tools" },

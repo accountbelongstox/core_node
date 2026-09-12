@@ -73,7 +73,7 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step27_InstallAndroidPlatformTools.ps1',
     'scripts/shells/win/install_powershells/Step28_InstallFlutter.ps1',
     'scripts/shells/win/install_powershells/Step29_InstallWSL.ps1',
-    'scripts/shells/win/install_powershells/Step30_InstallWSLUbuntu24.ps1',
+    'scripts/shells/win/install_powershells/Step30_InstallWSLDebian13.ps1',
     'scripts/shells/win/install_powershells/Step31_SetRootLoginWSLUbuntuDebian.ps1',
     'scripts/shells/win/install_powershells/Step32_InstallVisualStudio.ps1',
     'scripts/shells/win/install_powershells/Step33_InstallQtBuildTools.ps1',
@@ -114,7 +114,7 @@ $FILES = @(
     'scripts/shells/win/menu_itemshells/InitializationManager.ps1',
     'scripts/shells/win/menu_itemshells/ScriptScanner.ps1',
     'scripts/shells/win/menu_itemshells/TestInstaller.ps1',
-    'scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1',
+    'scripts/shells/win/menu_itemshells/WSLDebianManager.ps1',
     'scripts/shells/win/tools/ScriptProcessor.ps1'
 )
 

@@ -181,6 +181,12 @@ class BaseLaravelAudioWorker(
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
     CONCURRENCY_LIMIT = 8
     PROGRESS_EVENTS_ENABLED = False
+    # Audio lanes mirror the entire pending claim order from one diff
+    # (sync=1), keep the mirrored backlog in the persistent segment store
+    # plus the local heap for offline processing, claim just-in-time at
+    # task start, and apply later diffs incrementally (new payloads via
+    # page-data segments + local reorder) instead of bounded claim-pulls.
+    FULL_SYNC_ENABLED = True
 
     def __init__(self, laravel_api_url: str = ""):
         """Initialize the worker (idempotent — safe to call repeatedly)."""
@@ -439,11 +445,22 @@ class BaseLaravelAudioWorker(
         super().set_cached_task_head(task_id, queue_position)
         self._queue.move_to_head(task_id, queue_position)
 
-    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
+    def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
+        """Re-align the lane heap with the synced backend pending claim order."""
+        self._queue.reorder(ordered_ids)
+
+    def accept_task(
+        self,
+        task: Dict[str, Any],
+        base_url: str = "",
+        allow_backlog: bool = False,
+    ) -> Dict[str, Any]:
         """Queue one typed-pull or compatibility-RPC task for synthesis.
 
         The task type and Laravel base URL are recorded for the typed result
         route. Exception-safe so compatibility RPC callers are not interrupted.
+        allow_backlog admits the full synced backlog (external RPC callers
+        keep the concurrency-shaped capacity check).
         """
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
@@ -463,7 +480,7 @@ class BaseLaravelAudioWorker(
             concurrency, _engine = self._effective_concurrency()
             local_load = self._queue.active_count()
             local_capacity = concurrency
-            if local_load >= local_capacity:
+            if not allow_backlog and local_load >= local_capacity:
                 return {
                     "success": False,
                     "retryable": True,
