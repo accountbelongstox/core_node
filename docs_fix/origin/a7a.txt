@@ -1,0 +1,5 @@
+
+[AgentHistoryPipeline +0.15s] batch failed: model returned non-object JSON (Invalid control character at: line 3 column 202 (char 239)); text excerpt: '{\n  "title_cn": "应用程序状态管理与API端点选择机制",\n  "reference_cn": "本应用程序采用中心化状态管理方案，通过 useAppStore.ts 模块统一管理全局设置、服务器状态及调试日志。默认配置包括自动连接服务器、默认端口12306及关闭调试模式，所有设置支持持久化存储并实时同步。状态变更通过 watch 机制触发 saveSettings 函数，将最新配置保存至 localStorage， 同时维护 snapshot 防止频繁写入。\n\n服务器连接由 useServerConnection.ts 处理，维护 nativeConnectionStatus '
+ D:\programing\core_node\docs_fix\origin\a7a.txt 查看并按规
+ 范修复pyservice ，如果找到原因直接底层重构，注意查看官方文
+ 档，按项目规范，如果找不到原因不要修改代码。
