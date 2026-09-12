@@ -14,7 +14,8 @@ implementation instead of growing per-caller regex patches:
   4. greedy {.*} span (legacy fallback for objects not starting at the
      first brace)
   5. repair variants per candidate: text normalization (BOM / zero-width /
-     smart quotes), malformed \\uXXXX escapes (RFC 8259 requires four hex
+     smart quotes), raw control characters inside strings (RFC 8259
+     section 7 requires escaping), malformed \\uXXXX escapes (four hex
      digits), python literals (True/False/None), trailing commas,
      single-quoted tokens, truncated-JSON auto-close
 
@@ -30,6 +31,13 @@ _FENCE_RE = re.compile(r"```[ \t]*(?:json)?[ \t]*\r?\n(.*?)```", re.DOTALL | re.
 _GREEDY_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _EXCERPT_LEN = 300
 _HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
+_CONTROL_CHAR_ESCAPES = {
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+}
 
 
 class LlmContentError(ValueError):
@@ -131,6 +139,10 @@ def _repair_variants(candidate: str) -> Iterator[str]:
     current = _normalize_text(candidate)
     if current != candidate:
         variants.append(current)
+    controls = _escape_control_characters(current)
+    if controls != current:
+        variants.append(controls)
+        current = controls
     escapes = _fix_invalid_unicode_escapes(current)
     if escapes != current:
         variants.append(escapes)
@@ -157,6 +169,39 @@ def _repair_variants(candidate: str) -> Iterator[str]:
         if combined != current:
             variants.append(combined)
     yield from variants
+
+
+def _escape_control_characters(candidate: str) -> str:
+    """Escape raw control characters inside string literals.
+
+    RFC 8259 section 7 requires every U+0000-U+001F character inside a
+    string to be escaped, but models routinely emit literal newlines and
+    tabs inside long prose values; strict json.loads then rejects the
+    whole document ("Invalid control character"). Outside strings these
+    characters are legal JSON whitespace and stay untouched.
+    """
+    out: List[str] = []
+    in_string = False
+    escaped = False
+    changed = False
+    for char in candidate:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            elif ord(char) < 0x20:
+                out.append(_CONTROL_CHAR_ESCAPES.get(char) or f"\\u{ord(char):04x}")
+                changed = True
+                continue
+            out.append(char)
+            continue
+        if char == '"':
+            in_string = True
+        out.append(char)
+    return "".join(out) if changed else candidate
 
 
 def _has_four_hex_digits(text: str, start: int) -> bool:
