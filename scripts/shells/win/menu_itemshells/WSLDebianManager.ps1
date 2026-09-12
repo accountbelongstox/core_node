@@ -12,16 +12,16 @@
 
 <#
 .SYNOPSIS
-    WSL Ubuntu Management Menu
+    WSL Debian Management Menu
 .DESCRIPTION
-    Provides a menu interface for WSL Ubuntu 24 installation, reinstallation, and restart operations
+    Provides a menu interface for WSL Debian 13 installation, reinstallation, and restart operations
 #>
 
 #region Variable Declarations
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
-$script:WSL_INSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step30_InstallWSLUbuntu24.ps1"
+$script:WSL_INSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step30_InstallWSLDebian13.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -57,23 +57,23 @@ function Write-ColorMessage {
     Write-Host -ForegroundColor $color "$prefix$Message"
 }
 
-function Get-InstalledUbuntuDistros {
+function Get-InstalledDebianDistros {
     try {
         $wslList = & wsl --list 2>&1
         if ($wslList) {
-            $ubuntuDistros = @()
+            $debianDistros = @()
             foreach ($line in $wslList) {
                 $lineStr = $line.ToString()
                 $cleanLine = $lineStr -replace '\x00', '' | ForEach-Object { $_.Trim() }
 
-                if ($cleanLine.IndexOf("Ubuntu") -ge 0 -and $cleanLine.IndexOf("24") -ge 0) {
+                if ($cleanLine.IndexOf("Debian") -ge 0) {
                     $distroName = ($cleanLine -split '\s+')[0]
                     if ($distroName -and $distroName -ne "" -and $distroName -ne "NAME") {
-                        $ubuntuDistros += $distroName
+                        $debianDistros += $distroName
                     }
                 }
             }
-            return ,$ubuntuDistros
+            return ,$debianDistros
         }
     } catch {
         Write-ColorMessage -Message "Error checking installed distros: $_" -Type "Warning"
@@ -81,14 +81,14 @@ function Get-InstalledUbuntuDistros {
     return @()
 }
 
-function Show-WSLUbuntuStatusHeader {
-    $installedDistros = @(Get-InstalledUbuntuDistros)
+function Show-WSLDebianStatusHeader {
+    $installedDistros = @(Get-InstalledDebianDistros)
     Write-Host ""
-    Write-ColorMessage -Message "WSL Ubuntu 24 Management" -Type "Info"
+    Write-ColorMessage -Message "WSL Debian 13 Management" -Type "Info"
     Write-Host ""
 
     if ($installedDistros -and $installedDistros.Count -gt 0) {
-        Write-ColorMessage -Message "Currently installed Ubuntu distributions:" -Type "Info"
+        Write-ColorMessage -Message "Currently installed Debian distributions:" -Type "Info"
         foreach ($distro in $installedDistros) {
             if ($distro -and $distro.Trim() -ne "") {
                 Write-Host "  - $distro" -ForegroundColor Green
@@ -111,32 +111,32 @@ function Show-WSLUbuntuStatusHeader {
 
         Write-Host "  (Add this command to Windows Terminal for quick access)" -ForegroundColor Gray
     } else {
-        Write-ColorMessage -Message "No Ubuntu 24 distributions currently installed" -Type "Warning"
+        Write-ColorMessage -Message "No Debian 13 distributions currently installed" -Type "Warning"
     }
 
     Write-Host ""
     return $installedDistros
 }
 
-function Invoke-WSLUbuntu24Management {
+function Invoke-WSLDebian13Management {
     param(
         [Parameter(Mandatory=$true)] [string]$Action
     )
 
     if (-not (Test-Path $script:WSL_INSTALL_SCRIPT)) {
-        Write-ColorMessage -Message "Error: WSL Ubuntu installation script not found at: $script:WSL_INSTALL_SCRIPT" -Type "Error"
+        Write-ColorMessage -Message "Error: WSL Debian installation script not found at: $script:WSL_INSTALL_SCRIPT" -Type "Error"
         Write-ColorMessage -Message "Please check if the installation scripts are properly configured" -Type "Info"
         return $false
     }
 
     if ($Action -eq "reinstall") {
-        $installedDistros = @(Get-InstalledUbuntuDistros)
+        $installedDistros = @(Get-InstalledDebianDistros)
         if (-not $installedDistros -or $installedDistros.Count -eq 0) {
-            Write-ColorMessage -Message "No Ubuntu installations found. Use Install instead." -Type "Warning"
+            Write-ColorMessage -Message "No Debian installations found. Use Install instead." -Type "Warning"
             return $false
         }
 
-        Write-ColorMessage -Message "WARNING: This will completely remove and reinstall Ubuntu 24!" -Type "Warning"
+        Write-ColorMessage -Message "WARNING: This will completely remove and reinstall Debian 13!" -Type "Warning"
         Write-ColorMessage -Message "Currently installed distributions will be removed:" -Type "Warning"
         foreach ($distro in $installedDistros) {
             if ($distro -and $distro.Trim() -ne "") {
@@ -151,7 +151,7 @@ function Invoke-WSLUbuntu24Management {
         }
     }
 
-    Write-ColorMessage -Message "Executing WSL Ubuntu 24 script with action: $Action" -Type "Info"
+    Write-ColorMessage -Message "Executing WSL Debian 13 script with action: $Action" -Type "Info"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $script:WSL_INSTALL_SCRIPT -Action $Action
     return $true
 }
@@ -159,33 +159,33 @@ function Invoke-WSLUbuntu24Management {
 function Show-WSLSubMenu {
     $subItems = @(
         @{
-            Text = "Restart Ubuntu 24 (Stop and start)"
+            Text = "Restart Debian 13 (Stop and start)"
             Values = @("default")
             CurrentValueIndex = 0
             Key = $null
             Action = {
-                Write-ColorMessage -Message "Restarting Ubuntu 24..." -Type "Info"
-                Invoke-WSLUbuntu24Management -Action "restart"
+                Write-ColorMessage -Message "Restarting Debian 13..." -Type "Info"
+                Invoke-WSLDebian13Management -Action "restart"
             }
         },
         @{
-            Text = "Install Ubuntu 24 (Default installation)"
+            Text = "Install Debian 13 (Default installation)"
             Values = @("default")
             CurrentValueIndex = 0
             Key = $null
             Action = {
-                Write-ColorMessage -Message "Starting Ubuntu 24 installation..." -Type "Info"
-                Invoke-WSLUbuntu24Management -Action "install"
+                Write-ColorMessage -Message "Starting Debian 13 installation..." -Type "Info"
+                Invoke-WSLDebian13Management -Action "install"
             }
         },
         @{
-            Text = "Reinstall Ubuntu 24 (Complete reinstallation)"
+            Text = "Reinstall Debian 13 (Complete reinstallation)"
             Values = @("default")
             CurrentValueIndex = 0
             Key = $null
             Action = {
-                Write-ColorMessage -Message "Starting Ubuntu 24 reinstallation..." -Type "Warning"
-                Invoke-WSLUbuntu24Management -Action "reinstall"
+                Write-ColorMessage -Message "Starting Debian 13 reinstallation..." -Type "Warning"
+                Invoke-WSLDebian13Management -Action "reinstall"
             }
         },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
@@ -195,8 +195,8 @@ function Show-WSLSubMenu {
     $selected = 0
     while ($true) {
         Clear-Host
-        Show-WSLUbuntuStatusHeader | Out-Null
-        Write-ColorMessage -Message "WSL Ubuntu Menu (Up/Down to move, Enter to select)" -Type "Info"
+        Show-WSLDebianStatusHeader | Out-Null
+        Write-ColorMessage -Message "WSL Debian Menu (Up/Down to move, Enter to select)" -Type "Info"
         for ($i = 0; $i -lt $subItems.Count; $i++) {
             $it = $subItems[$i]
             if ($i -eq $selected) {

@@ -24,6 +24,11 @@ STORE_DEFAULTS_DIR = APP_CONFIG_DIR / "queue_center_empty_defaults"
 PAGE_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_page_limit"])
 ID_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_limit"])
 DATA_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"])
+# Staged backlog capacity per scope. Full-sync workers mirror the whole
+# pending claim order for offline processing, so the cap follows the
+# contract catalog id_limit (the same bound the backend diff reports in
+# ordered_task_ids); the UI pump stages per-page segments far below it.
+STAGED_TASK_LIMIT = max(DATA_LIMIT, ID_LIMIT)
 RETRY_AFTER_KEY = "_segment_retry_after"
 
 
@@ -73,7 +78,7 @@ class _DiffTaskSegmentCenter:
             task_id = str(task.get("task_id") or "")
             if not task_id or task_id in scope_segments:
                 continue
-            if len(scope_segments) >= DATA_LIMIT:
+            if len(scope_segments) >= STAGED_TASK_LIMIT:
                 break
             scope_segments[task_id] = dict(task)
             self._delivered.add(self._delivery_key(scope, task_id))
@@ -143,6 +148,63 @@ class _DiffTaskSegmentCenter:
                 return True
         return False
 
+    def held_task_ids(self, scope: str, task_type: str) -> set[str]:
+        """Task IDs of every staged row of one type (deferred rows included)."""
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = segments.get(scope) or {}
+        held: set[str] = set()
+        for task_id, task in scope_segments.items():
+            if not isinstance(task, dict):
+                continue
+            if str(task.get("task_type") or "") != str(task_type):
+                continue
+            task_key = str(task_id or "").strip()
+            if task_key:
+                held.add(task_key)
+        return held
+
+    @serialized_method
+    def apply_order(self, scope: str, task_type: str, ordered_ids: List[Any]) -> int:
+        """Rewrite staged rows of one type to the backend pending claim order.
+
+        The diff's ordered_task_ids list IS the claim order; queue_position
+        is synthesized as a descending rank (index 0 -> highest value) so
+        every local ordering key pops the queue head first.
+        """
+        rank: Dict[str, int] = {}
+        total = 0
+        for raw_id in ordered_ids:
+            task_key = str(raw_id or "").strip()
+            if task_key and task_key not in rank:
+                total += 1
+                rank[task_key] = total
+        if not rank:
+            return 0
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = dict(segments.get(scope) or {})
+        changed = 0
+        for task_key, task in scope_segments.items():
+            if not isinstance(task, dict):
+                continue
+            if str(task.get("task_type") or "") != str(task_type):
+                continue
+            position = rank.get(str(task_key or "").strip())
+            if position is None:
+                continue
+            synthetic = total + 1 - position
+            try:
+                current = int(task.get("queue_position") or 0)
+            except (TypeError, ValueError):
+                current = 0
+            if current == synthetic:
+                continue
+            task["queue_position"] = synthetic
+            changed += 1
+        if changed:
+            segments[scope] = scope_segments
+            self._store.set_section(DATA_SEGMENT_NAMESPACE, segments)
+        return changed
+
     @serialized_method
     def release(self, scope: str, task_ids: List[Any]) -> None:
         """Make staged payloads dispatchable again without dropping ownership data."""
@@ -177,7 +239,7 @@ class _DiffTaskSegmentCenter:
         """Return free persistent payload slots without loading business rows."""
         segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
         scope_segments = segments.get(scope) or {}
-        return max(0, DATA_LIMIT - len(scope_segments))
+        return max(0, STAGED_TASK_LIMIT - len(scope_segments))
 
     @serialized_method
     def consume(self, scope: str, task_id: Any) -> None:

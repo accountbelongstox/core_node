@@ -594,11 +594,11 @@ $Global:STEP2_WIN10_CONTEXT_MENU_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_
 $Global:TEMP_REG_DIR = Join-Path $Global:USER_CACHE_DIR "reg_files"
 
 # WSL related global variables
-$Global:UBUNTU_VERSION = "24.04"
 $Global:UBUNTU_DEFAULT_PASSWORD = "123456"
-$Global:UBUNTU_WSL_DOWNLOAD_URL = "https://releases.ubuntu.com/noble/ubuntu-24.04.3-wsl-amd64.wsl"
-$Global:UBUNTU_WSL_FILENAME = "ubuntu-24.04.3-wsl-amd64.wsl"
-$Global:UBUNTU_WSL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:UBUNTU_WSL_FILENAME
+$Global:DEBIAN_VERSION = "13"
+$Global:DEBIAN_WSL_DOWNLOAD_URL = "https://salsa.debian.org/debian/WSL/-/jobs/9606244/artifacts/raw/Debian_WSL_AMD64_v1.26.0.0.wsl"
+$Global:DEBIAN_WSL_FILENAME = "Debian_WSL_AMD64_v1.26.0.0.wsl"
+$Global:DEBIAN_WSL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:DEBIAN_WSL_FILENAME
 $Global:WSL2_KERNEL_UPDATE_URL = "https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
 $Global:WSL2_KERNEL_FILENAME = "wsl_update_x64.msi"
 $Global:WSL2_KERNEL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:WSL2_KERNEL_FILENAME

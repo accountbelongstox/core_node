@@ -25,21 +25,36 @@ final class QueueSliceDiffService
      * consumer processing and never carries payload. Head IDs and progress
      * materialize only when the caller's cursor is stale (cursor=0 pull-side
      * snapshots are always stale, so pull responses keep carrying progress).
+     * Sync consumers (sync=1) additionally receive the full pending claim
+     * order (bounded by the contract id_limit) so they mirror the queue
+     * locally and materialize only the IDs they do not hold yet; the
+     * unchanged path stays a bare revision read.
      */
-    public function snapshot(string $taskType, int $cursor = 0, bool $includeHead = true): array
-    {
+    public function snapshot(
+        string $taskType,
+        int $cursor = 0,
+        bool $includeHead = true,
+        bool $includeOrderedIds = false
+    ): array {
         $revision = $this->revision($taskType);
         $changed = $cursor !== $revision;
         $delivery = QueueCenterContract::diffDelivery();
         $pollInterval = max(250, (int) ($delivery['poll_interval_ms'] ?? 1000));
         $sliceLimit = QueueCenterContract::consumerSliceLimit($taskType);
         $headTaskIds = [];
+        $orderedTaskIds = [];
         $progress = null;
         if ($changed) {
             if ($includeHead) {
                 $headTaskIds = GlobalTask::pendingHeadTaskIds(
                     $taskType,
                     $sliceLimit
+                );
+            }
+            if ($includeOrderedIds) {
+                $orderedTaskIds = GlobalTask::pendingHeadTaskIds(
+                    $taskType,
+                    max(1, (int) ($delivery['id_limit'] ?? 4096))
                 );
             }
             $progress = app(QueueCenterMetricsService::class)->progress($taskType);
@@ -53,6 +68,7 @@ final class QueueSliceDiffService
             'poll_after_ms' => $pollInterval,
             'slice_limit' => $sliceLimit,
             'head_task_ids' => $headTaskIds,
+            'ordered_task_ids' => $orderedTaskIds,
             'progress' => $progress,
         ];
     }

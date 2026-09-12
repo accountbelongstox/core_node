@@ -1083,6 +1083,17 @@ class TaskManagerService
                 return true;
             }
 
+            // A full-sync consumer may deliver a result for a row it never
+            // leased (offline-optimistic processing of a pending snapshot):
+            // claim the still-pending row now, mirroring acceptTask's
+            // pending-claim branch, so the durable result can land.
+            if ($task->assigned_to !== $workerId
+                && $task->status === GlobalTask::status('pending')) {
+                $task->assignTo($workerId, $task->timeout_seconds);
+                $worker->assignTask($taskId);
+                $changedTaskType = (string) $task->task_type;
+            }
+
             // Check if this worker is assigned to this task
             if ($task->assigned_to !== $workerId) {
                 Log::warning('Worker not assigned to task or task was reassigned', [
@@ -1241,6 +1252,15 @@ class TaskManagerService
             if (in_array($task->status, QueueCenterContract::taskStatuses('terminal'), true)) {
                 $outcome['status'] = $task->status;
                 return ['accepted' => true, 'queued' => false];
+            }
+            // A full-sync consumer may complete a row it never leased
+            // (offline-optimistic processing of a pending snapshot): claim
+            // the still-pending row now so the completed result can land.
+            if ($task->assigned_to !== $workerId
+                && $task->status === GlobalTask::status('pending')) {
+                $task->assignTo($workerId, $task->timeout_seconds);
+                $worker->assignTask($taskId);
+                $changedTaskType = (string) $task->task_type;
             }
             if ($task->assigned_to !== $workerId) {
                 return ['accepted' => false, 'queued' => false];

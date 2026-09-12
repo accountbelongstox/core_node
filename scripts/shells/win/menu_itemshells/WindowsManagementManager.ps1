@@ -28,7 +28,7 @@ $script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
 $script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\scripts\chromefix" "repair-chrome-crash.ps1"
 $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
-$script:WSL_UBUNTU_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLUbuntuManager.ps1"
+$script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -165,17 +165,17 @@ function Show-WindowsManagementSubMenu {
             }
         },
         @{
-            Text = "WSL Ubuntu Management";
+            Text = "WSL Debian Management";
             Values = @("default");
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                if (Test-Path $script:WSL_UBUNTU_MANAGER_SCRIPT) {
-                    Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
+                if (Test-Path $script:WSL_DEBIAN_MANAGER_SCRIPT) {
+                    Write-ColorMessage -Message "Launching WSL Debian Management..." -Type "Info"
                     Write-Host ""
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:WSL_UBUNTU_MANAGER_SCRIPT
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:WSL_DEBIAN_MANAGER_SCRIPT
                 } else {
-                    Write-ColorMessage -Message "WSLUbuntuManager.ps1 not found: $script:WSL_UBUNTU_MANAGER_SCRIPT" -Type "Error"
+                    Write-ColorMessage -Message "WSLDebianManager.ps1 not found: $script:WSL_DEBIAN_MANAGER_SCRIPT" -Type "Error"
                 }
             }
         },

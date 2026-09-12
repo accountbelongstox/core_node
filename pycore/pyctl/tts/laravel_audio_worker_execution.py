@@ -503,6 +503,11 @@ class LaravelAudioWorkerExecutionMixin:
             )
             return True
         try:
+            # Full-sync lanes claim just-in-time here: the claim lease then
+            # covers only the short processing window, and 404/409 rows are
+            # dropped before any synthesis work happens.
+            if not self._ensure_laravel_claim(task):
+                return True
             return self._process_task(task)
         finally:
             self._release_inflight(task)

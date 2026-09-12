@@ -90,6 +90,47 @@ class AudioTaskQueue:
         return f"{task_id}:{max(0, attempt)}"
 
     @serialized_method
+    def reorder(self, ordered_task_ids: List[Any]) -> int:
+        """Re-align queued entries with the backend pending claim order.
+
+        ordered_task_ids IS the claim order; each queued task's
+        queue_position is synthesized as a descending rank (index 0 ->
+        highest value) so the heap pops the queue head first. Queued tasks
+        absent from the list keep their relative order behind ranked rows
+        until the just-in-time claim at task start drops them.
+        """
+        rank: Dict[str, int] = {}
+        total = 0
+        for raw_id in ordered_task_ids:
+            task_id = str(raw_id or "").strip()
+            if task_id and task_id not in rank:
+                total += 1
+                rank[task_id] = total
+        if not rank:
+            return 0
+        changed = 0
+        for index, entry in enumerate(self._heap):
+            task = entry[-1]
+            if not isinstance(task, dict):
+                continue
+            position = rank.get(str(task.get("task_id") or "").strip())
+            if position is None:
+                continue
+            synthetic = total + 1 - position
+            try:
+                current = int(task.get("queue_position") or 0)
+            except (TypeError, ValueError):
+                current = 0
+            if current == synthetic:
+                continue
+            task["queue_position"] = synthetic
+            self._heap[index] = (*self._order(task, entry[2]), task)
+            changed += 1
+        if changed:
+            heapq.heapify(self._heap)
+        return changed
+
+    @serialized_method
     def move_to_head(self, task_id: Any, queue_position: int) -> bool:
         task_key = str(task_id or "").strip()
         if not task_key:
