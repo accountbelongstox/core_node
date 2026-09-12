@@ -349,13 +349,34 @@ class LaravelAudioWorkerStateMixin:
         return dict(self._last_cycle_summary)
 
     @serialized_method
-    def _record_task_result(self, success: bool) -> None:
+    def _record_task_result(self, success: bool, duration_s: float = 0.0) -> None:
         """Update lifetime counters as soon as one task reaches a terminal state."""
         self._total_claimed += 1
+        self._total_duration_s += max(0.0, float(duration_s or 0.0))
         if success:
             self._total_succeeded += 1
         else:
             self._total_failed += 1
+
+    def _local_runtime_label(self) -> str:
+        """This lane's lifetime local totals + average task duration (minutes).
+
+        Word and sentence counters live on SEPARATE worker instances, so
+        each lane's log line prints only its own lane's statistics under
+        lane-prefixed keys (word_* / sent_*) - interleaved console output
+        stays attributable and the two lanes never mix. The counters
+        accumulate from worker construction (performed at pyservice boot),
+        so they read as "since pyservice start". Early init-phase lines may
+        precede the counter attributes - getattr defaults keep those first
+        lines well-formed.
+        """
+        claimed = int(getattr(self, "_total_claimed", 0) or 0)
+        succeeded = int(getattr(self, "_total_succeeded", 0) or 0)
+        failed = int(getattr(self, "_total_failed", 0) or 0)
+        duration_s = float(getattr(self, "_total_duration_s", 0.0) or 0.0)
+        avg_m = (duration_s / claimed / 60.0) if claimed > 0 else 0.0
+        lane = "sent" if self.LANE == "sentence" else "word"
+        return f"{lane}_ok={succeeded} {lane}_fail={failed} {lane}_avg={avg_m:.2f}m"
 
     def _state_snapshot(self) -> Dict[str, Any]:
         """Read the current counters without entering the worker queue."""
@@ -377,6 +398,7 @@ class LaravelAudioWorkerStateMixin:
             "total_claimed": self._total_claimed,
             "total_succeeded": self._total_succeeded,
             "total_failed": self._total_failed,
+            "total_duration_s": round(getattr(self, "_total_duration_s", 0.0), 2),
             "last_cycle": dict(self._last_cycle_summary),
         }
 

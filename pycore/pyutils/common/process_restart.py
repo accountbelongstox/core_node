@@ -18,6 +18,18 @@ _WINDOWS_DETACHED_PROCESS = 0x00000008
 _WINDOWS_CREATE_NEW_PROCESS_GROUP = 0x00000200
 
 
+def _windows_has_console() -> bool:
+    """True when this process is attached to a console window.
+
+    Canonical Win32 probe (GetConsoleWindow): terminal-started processes
+    (pyservice.ps1 runs python as a direct console child) return a non-NULL
+    handle; tray / launcher / autostart / pythonw contexts return NULL.
+    """
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GetConsoleWindow.restype = ctypes.c_void_p
+    return bool(kernel32.GetConsoleWindow())
+
+
 def wait_for_restart_parent() -> None:
     """Wait for the previous Windows process before singleton initialization."""
     parent_pid_text = os.environ.pop(_RESTART_PARENT_PID_ENV, "").strip()
@@ -54,7 +66,16 @@ def restart_current_process(
     script_argv: Sequence[str],
     cwd: Optional[Path] = None,
 ) -> None:
-    """Replace the process on POSIX or hand off after parent exit on Windows."""
+    """Replace the process on POSIX or hand off after parent exit on Windows.
+
+    Windows console contract (Microsoft Learn, Process Creation Flags):
+    inheriting the parent's console is the DEFAULT - DETACHED_PROCESS is
+    what severs it. A terminal-attached parent therefore hands off WITHOUT
+    console flags and with inherited standard streams so the terminal keeps
+    showing pyservice output across restarts; a console-less parent (tray /
+    launcher / autostart) keeps the fully detached handoff so the successor
+    survives terminal closure and never allocates a window.
+    """
     executable = str(Path(sys.executable).resolve())
     command = [executable, *[str(item) for item in script_argv]]
     restart_cwd = str((cwd or Path.cwd()).resolve())
@@ -65,19 +86,24 @@ def restart_current_process(
         return
 
     restart_env[_RESTART_PARENT_PID_ENV] = str(os.getpid())
-    subprocess.Popen(
-        command,
-        cwd=restart_cwd,
-        env=restart_env,
-        creationflags=(
-            _WINDOWS_DETACHED_PROCESS
-            | _WINDOWS_CREATE_NEW_PROCESS_GROUP
-        ),
-        close_fds=True,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    if _windows_has_console():
+        # No CREATE_NEW_PROCESS_GROUP either: staying in the console's
+        # process group keeps Ctrl+C delivery identical to pre-restart.
+        subprocess.Popen(command, cwd=restart_cwd, env=restart_env)
+    else:
+        subprocess.Popen(
+            command,
+            cwd=restart_cwd,
+            env=restart_env,
+            creationflags=(
+                _WINDOWS_DETACHED_PROCESS
+                | _WINDOWS_CREATE_NEW_PROCESS_GROUP
+            ),
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     os._exit(3)
 
 

@@ -76,6 +76,7 @@ from pycore.pyfoundations.system_paths import get_app_cache_dir
 # Unified pycore->Laravel HTTP gateway (times + logs + records every request).
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
+    PYSERVICE_STARTED_MONOTONIC,
     TTS_SENTENCE_WORKER_CONCURRENCY,
     TTS_WORKER_CONCURRENCY,
 )
@@ -128,6 +129,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
             break
         processed += 1
         success = False
+        started = time.monotonic()
         try:
             success = worker._process_claimed(task)
             if success:
@@ -135,7 +137,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
             else:
                 failed += 1
         finally:
-            worker._record_task_result(success)
+            worker._record_task_result(success, time.monotonic() - started)
             worker._log_cycle_task_result(task, success)
             worker._queue.complete(task)
     return {
@@ -214,6 +216,7 @@ class BaseLaravelAudioWorker(
         self._total_claimed = 0
         self._total_succeeded = 0
         self._total_failed = 0
+        self._total_duration_s = 0.0
         self._processing = 0
         self._current_tasks: Dict[Any, Dict[str, Any]] = {}
         self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
@@ -232,6 +235,34 @@ class BaseLaravelAudioWorker(
             f"{self._log_prefix} Service initialized (worker_id={self.worker_id}, "
             f"enabled={assist_capability_enabled(self.ASSIST_CAPABILITY)})"
         )
+
+    # -------------------- dynamic log prefix (shared by both lanes) --------------------
+
+    @property
+    def _log_prefix(self) -> str:
+        """Dynamic prefix: "[<Tag> +<service uptime>s] <remote tier> <local runtime>".
+
+        Uptime is anchored at the ONE central pyservice start constant
+        (service_config.PYSERVICE_STARTED_MONOTONIC) so every lane measures
+        from the same service boot. The local runtime label mirrors THIS
+        lane's own lifetime counters (word and sentence are separate worker
+        instances - totals and average durations never mix) accumulated
+        since that same boot; the remote tier label (remote_en=done/total)
+        appears only on contract-tiered lanes.
+        """
+        elapsed = time.monotonic() - PYSERVICE_STARTED_MONOTONIC
+        parts = [f"[{self.LOG_PREFIX.strip('[]')} +{max(0.0, elapsed):.2f}s]"]
+        tier_label = self._remote_language_tier_label()
+        if tier_label:
+            parts.append(tier_label)
+        parts.append(self._local_runtime_label())
+        return " ".join(parts)
+
+    @_log_prefix.setter
+    def _log_prefix(self, value: str) -> None:
+        # Both __init__ layers assign the static LOG_PREFIX; the shared
+        # dynamic property replaces it, so the assignment is discarded.
+        del value
 
     # -------------------- identity / lanes --------------------
 
@@ -509,6 +540,7 @@ class BaseLaravelAudioWorker(
                         break
                     processed += 1
                     success = False
+                    started = time.monotonic()
                     try:
                         success = self._process_claimed(task)
                         if success:
@@ -516,7 +548,7 @@ class BaseLaravelAudioWorker(
                         else:
                             failed += 1
                     finally:
-                        self._record_task_result(success)
+                        self._record_task_result(success, time.monotonic() - started)
                         self._log_cycle_task_result(task, success)
                         self._queue.complete(task)
 
@@ -652,32 +684,6 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     WORKER_NAME_TAG = "sentence-audio"
     LOG_PREFIX = "[SentenceAudioWorker]"
 
-    def __init__(self, laravel_api_url: str = ""):
-        # Uptime anchor for the dynamic log prefix; set before the base
-        # __init__ so the very first line already carries elapsed time.
-        self._log_started_monotonic = time.monotonic()
-        super().__init__(laravel_api_url)
-
-    @property
-    def _log_prefix(self) -> str:
-        """Dynamic prefix with worker uptime: [SentenceAudioWorker +0.00s].
-
-        SPECIAL OPTIMIZATION (specially optimized script): the prefix carries
-        the remote language-tier completion (remote_en=done/total) so every
-        log line from this worker — task events AND infrastructure lines —
-        mirrors the remote English sentence backlog progress.
-        """
-        started = getattr(self, "_log_started_monotonic", None)
-        elapsed = time.monotonic() - started if started is not None else 0.0
-        prefix = f"[SentenceAudioWorker +{max(0.0, elapsed):.2f}s]"
-        tier_label = self._remote_language_tier_label()
-        return f"{prefix} {tier_label}" if tier_label else prefix
-
-    @_log_prefix.setter
-    def _log_prefix(self, value: str) -> None:
-        # The base __init__ assigns the static prefix; this lane replaces it
-        # with the dynamic uptime prefix above.
-        del value
     STATE_OWNER_KEY = "tts.sentence_audio_worker.state"
     STATE_OWNER_NAME = "SentenceAudioWorkerState"
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
