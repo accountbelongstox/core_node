@@ -24,7 +24,7 @@ from __future__ import annotations
 import json as json_module
 import time
 import urllib.parse
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pycore.pyutils.common.activity_log import ActivityLog
 from pycore.pyutils.common.laravel_http_transport import (
@@ -43,7 +43,7 @@ UpdateCallback = Callable[["MercureUpdate"], None]
 StateCallback = Callable[[str, str], None]
 StopCheck = Callable[[], bool]
 Sleeper = Callable[[float], None]
-TokenProvider = Callable[[bool], str]
+TokenProvider = Callable[[bool], Union[str, Dict[str, Any]]]
 
 
 class MercureUpdate:
@@ -121,6 +121,8 @@ class MercureSubscriber:
         self.last_event_id = ""
         self._retry_delay_override = 0.0
         self._connection = None
+        self._token_refresh_at = 0.0
+        self._force_token_refresh = False
 
     def close(self) -> None:
         self._close(self._connection)
@@ -131,13 +133,16 @@ class MercureSubscriber:
         """Blocking subscription loop until ``should_stop()`` turns true."""
         reconnect_seconds = self.reconnect_min_seconds
         initial_cursor = self.last_event_id
+        connected_at = 0.0
         while not should_stop():
             connection = None
             reason = "closed"
+            connected_at = 0.0
             try:
                 self._notify(MERCURE_STATE_CONNECTING, self.hub_url)
                 connection, url, _headers = self._open_stream(initial_cursor)
                 self._connection = connection
+                connected_at = time.monotonic()
                 initial_cursor = ""
                 transport = str(connection.get("transport") or "")
                 protocol = str(connection.get("http_version") or "")
@@ -145,7 +150,6 @@ class MercureSubscriber:
                     MERCURE_STATE_ONLINE,
                     f"{url} transport={transport} protocol={protocol}",
                 )
-                reconnect_seconds = self.reconnect_min_seconds
                 reason = self._consume_stream(connection, should_stop)
             except _MercureAuthError as exc:
                 reason = "unauthorized"
@@ -155,7 +159,6 @@ class MercureSubscriber:
                     error=exc,
                 )
                 self._notify(MERCURE_STATE_OFFLINE, f"hub rejected the token: {exc}")
-                reconnect_seconds = self.reconnect_min_seconds
             except Exception as exc:  # noqa: BLE001 - reconnect owns transport failures
                 reason = "error"
                 mercure_activity_log.error(
@@ -171,8 +174,10 @@ class MercureSubscriber:
                 self._notify(MERCURE_STATE_OFFLINE, reason)
             if reason == "stop":
                 return
-            if reason == "closed":
-                # Clean server close - resume at once.
+            if reason == "renew":
+                self._force_token_refresh = True
+                continue
+            if connected_at and time.monotonic() - connected_at >= self.read_timeout:
                 reconnect_seconds = self.reconnect_min_seconds
             delay = self._retry_delay_override or reconnect_seconds
             self._retry_delay_override = 0.0
@@ -187,7 +192,8 @@ class MercureSubscriber:
         self,
         initial_cursor: str,
     ) -> Tuple[Dict[str, Any], str, Dict[str, str]]:
-        token = self._token(force=False)
+        token = self._token(force=self._force_token_refresh)
+        self._force_token_refresh = False
         redirects_left = self.max_redirects
         url = mercure_subscribe_url(self.hub_url, self.topics, initial_cursor)
         while True:
@@ -225,7 +231,7 @@ class MercureSubscriber:
             if status in (401, 403):
                 body = self._short_body(response)
                 self._close(connection)
-                self._token(force=True)
+                self._force_token_refresh = True
                 raise _MercureAuthError(f"HTTP {status} {body[:120]}")
             if status != 200:
                 body = self._short_body(response)
@@ -249,7 +255,17 @@ class MercureSubscriber:
         return headers
 
     def _token(self, force: bool) -> str:
-        return str(self.token_provider(force) or "")
+        authorization = self.token_provider(force)
+        lifetime = 0.0
+        margin = 0.0
+        self._token_refresh_at = 0.0
+        if isinstance(authorization, dict):
+            lifetime = max(0.0, float(authorization.get("token_ttl_seconds") or 0))
+            margin = min(self.read_timeout, lifetime / 2)
+            if lifetime:
+                self._token_refresh_at = time.monotonic() + lifetime - margin
+            return str(authorization.get("token") or "")
+        return str(authorization or "")
 
     # ---------------------------------------------------------------- stream
 
@@ -261,16 +277,20 @@ class MercureSubscriber:
         data_lines: List[str] = []
         data_bytes = 0
         dispatchable = False
+        event_id = self.last_event_id
         try:
             for raw_line in response.iter_lines(chunk_size=1):
                 if should_stop():
                     return "stop"
+                if self._token_refresh_at and time.monotonic() >= self._token_refresh_at:
+                    return "renew"
                 line = (
                     raw_line.decode("utf-8", errors="replace")
                     if isinstance(raw_line, bytes)
                     else str(raw_line)
                 ).rstrip("\r\n")
                 if line == "":
+                    self.last_event_id = event_id
                     if dispatchable:
                         self._dispatch(event_type, data_lines)
                     event_type = MERCURE_DEFAULT_EVENT_TYPE
@@ -295,11 +315,13 @@ class MercureSubscriber:
                     event_type = value or MERCURE_DEFAULT_EVENT_TYPE
                 elif field == "id":
                     if "\x00" not in value:
-                        self.last_event_id = value
+                        event_id = value
                 elif field == "retry":
                     self._apply_retry(value)
             return "closed"
         except Exception as error:  # noqa: BLE001 - transport errors require resume
+            if should_stop():
+                return "stop"
             mercure_activity_log.warning(
                 "subscription.stream.interrupted",
                 hub_url=self.hub_url,
@@ -307,7 +329,7 @@ class MercureSubscriber:
                 error_type=type(error).__name__,
                 error=error,
             )
-            return "closed"
+            return "error"
 
     def _dispatch(self, event_type: str, data_lines: List[str]) -> None:
         if self.on_update is None:

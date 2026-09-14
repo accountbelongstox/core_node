@@ -319,7 +319,7 @@ class LaravelRelayAgentService:
             subscriber = MercureSubscriber(
                 relay_contract.public_url("mercure_hub"),
                 [relay_contract.topic("device_wake", device_id=relay_device_identity.device_id())],
-                lambda force: str(self._subscriber_authorization(endpoint)["subscriber_token"]),
+                lambda force: self._subscriber_authorization(endpoint),
                 on_update=self._subscriber_update,
                 on_state_change=self._subscriber_state,
                 connect_timeout=relay_contract.duration("subscriber_connect_timeout_seconds"),
@@ -343,7 +343,10 @@ class LaravelRelayAgentService:
             {"device_id": relay_device_identity.device_id(), "contract_digest": relay_contract.digest},
             action="device.hub.authorization", coordinator_url=endpoint,
         )
-        return data["hub"]
+        return {
+            "token": data["hub"]["subscriber_token"],
+            "token_ttl_seconds": data["hub"]["expires_in_seconds"],
+        }
 
     def _subscriber_state(self, state: str, detail: str) -> None:
         self._subscriber_connected = state == MERCURE_STATE_ONLINE

@@ -42,6 +42,7 @@ export class LaravelMercureConnection {
     void this.open(generation, config, callbacks).catch(() => {
       if (this.generation !== generation) return;
       this.connected = false;
+      this.controller?.abort();
       this.controller = null;
       callbacks.onClose();
     });
@@ -134,20 +135,20 @@ export class LaravelMercureConnection {
       else if (field === 'id' && !value.includes('\u0000')) eventId = value;
     };
 
-    while (this.generation === generation) {
-      const result = await reader.read();
-      buffer += decoder.decode(result.value, { stream: !result.done });
-      let newline = buffer.indexOf('\n');
-      while (newline >= 0) {
-        consumeLine(buffer.slice(0, newline));
-        buffer = buffer.slice(newline + 1);
-        newline = buffer.indexOf('\n');
+    try {
+      while (this.generation === generation) {
+        const result = await reader.read();
+        if (this.generation !== generation || result.done) return;
+        buffer += decoder.decode(result.value, { stream: true });
+        let newline = buffer.indexOf('\n');
+        while (newline >= 0) {
+          consumeLine(buffer.slice(0, newline));
+          buffer = buffer.slice(newline + 1);
+          newline = buffer.indexOf('\n');
+        }
       }
-      if (result.done) {
-        if (buffer !== '') consumeLine(buffer);
-        dispatch();
-        return;
-      }
+    } finally {
+      reader.releaseLock();
     }
   }
 

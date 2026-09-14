@@ -1,6 +1,7 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
 import { laravelApi } from './LaravelAPI';
 import { laravelRelayOperationEvents } from './LaravelRelayOperationEvents';
+import { subscribeAuthSession } from '../../auth/AuthSession';
 
 export interface RelayRosterEntry extends RelayDevice {
   online: boolean;
@@ -19,6 +20,16 @@ class LaravelRelayRoster {
   private refreshFlight: Promise<void> | null = null;
   private unsubscribe: (() => void)[] = [];
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private generation = 0;
+
+  constructor() {
+    subscribeAuthSession(() => {
+      this.generation += 1;
+      this.refreshFlight = null;
+      this.entries.clear();
+      this.emit();
+    });
+  }
 
   start(): void {
     this.consumers += 1;
@@ -69,14 +80,18 @@ class LaravelRelayRoster {
 
   refresh(): Promise<void> {
     if (!this.refreshFlight) {
-      this.refreshFlight = this.fetchRoster().finally(() => { this.refreshFlight = null; });
+      const flight = this.fetchRoster(this.generation).finally(() => {
+        if (this.refreshFlight === flight) this.refreshFlight = null;
+      });
+      this.refreshFlight = flight;
     }
     return this.refreshFlight;
   }
 
-  private async fetchRoster(): Promise<void> {
+  private async fetchRoster(generation: number): Promise<void> {
     try {
       const devices = await laravelApi.getRelayDevices();
+      if (generation !== this.generation) return;
       this.entries = new Map(devices.map((device) => [device.device_id, {
         ...device,
         online: this.isOnline(device),

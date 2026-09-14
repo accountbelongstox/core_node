@@ -1,5 +1,9 @@
 # A7A Relay Mercure refactor
 
+## Correction (2026-09-15)
+
+The unauthenticated probes below establish route matching only. They do not disprove an authenticated `POST /api/relay/operations` business-level 404. `requireActive` can return `pairing_not_found` after middleware succeeds. The rollout-only attribution in finding 15 and the stronger claims in the live verification section are unsupported. Continued findings and changes are recorded in `A7A_RELAY_ADMISSION_LIFECYCLE.md`.
+
 ## Findings
 
 1. Two Laravel relay implementations coexist: `routes/api/relay.php` uses `app/Services/Relay`, while `routes/RelayV2Router/RelayV2Api.php` uses `app/Apps/RelayV2`. The shared contract and UI still expose `/api/relay/v2`. Consolidation must update consumers and signatures together and preserve persisted database data.

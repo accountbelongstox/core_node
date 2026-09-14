@@ -8,6 +8,7 @@ import React, {
 import { laravelRelayOperationEvents } from '../../../core/integrations/laravel/LaravelRelayOperationEvents';
 import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
 import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
+import { laravelRelayDeviceId } from '../../../core/integrations/pycore/PycoreLaravelRelayTransport';
 import {
   AlertTriangle,
   ArrowDown,
@@ -689,8 +690,10 @@ const PcTerminalPage: React.FC = () => {
     mountedRef.current = true;
     void refresh(true);
     const relayMode = isPycoreRelayMode();
-    const unsubscribe = laravelRelayOperationEvents.onEvent((event) => {
-      if (relayMode && event === RELAY_CONTRACT.events.terminal_changed) void refresh(false);
+    const unsubscribe = laravelRelayOperationEvents.onEvent((event, data) => {
+      const frame = data as { device_id?: string } | null;
+      if (relayMode && event === RELAY_CONTRACT.events.terminal_changed
+        && frame?.device_id === laravelRelayDeviceId()) void refresh(false);
     });
     if (relayMode) laravelRelayOperationEvents.start();
     const pollTimer = window.setInterval(() => void refresh(false), relayMode
