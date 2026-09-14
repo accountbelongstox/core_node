@@ -140,8 +140,11 @@ show_service_action_menu() {
         action_keys=("status" "reinstall" "back")
     fi
 
-    arrow_menu_select "$service_name [$status]" menu_items 0 "$((${#menu_items[@]} - 1))"
+    numeric_menu_select "$service_name [$status]" menu_items "$((${#menu_items[@]} - 1))"
     selected_index="$ARROW_MENU_SELECTED_INDEX"
+    if [ "$selected_index" -lt 0 ]; then
+        return 0
+    fi
     selected_action="${action_keys[$selected_index]}"
     case "$selected_action" in
         start) start_service "$service" ;;
@@ -164,6 +167,8 @@ show_main_menu() {
     local service=""
     local menu_items=()
 
+    # Ctrl+C behaves as "go back" instead of killing the manager
+    trap ':' INT
     while true; do
         menu_items=()
         for service in "${SERVICES[@]}"; do
@@ -177,8 +182,11 @@ show_main_menu() {
             "Back to Linux Management"
         )
 
-        arrow_menu_select "Service Manager" menu_items "$selected_index" "$((${#menu_items[@]} - 1))"
+        numeric_menu_select "Service Manager" menu_items "$((${#menu_items[@]} - 1))"
         selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -lt 0 ]; then
+            break
+        fi
         if [ "$selected_index" -lt "$service_count" ]; then
             show_service_action_menu "${SERVICES[$selected_index]}"
             continue
@@ -188,9 +196,12 @@ show_main_menu() {
             1) start_all_services ;;
             2) stop_all_services ;;
             3) restart_all_services ;;
-            4) echo "Exiting Service Manager..."; return 0 ;;
+            4) break ;;
         esac
         echo ""
         read -p "Press Enter to continue..."
     done
+    trap - INT
+    echo "Exiting Service Manager..."
+    return 0
 }

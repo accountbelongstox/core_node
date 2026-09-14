@@ -119,3 +119,59 @@ arrow_menu_select() {
         esac
     done
 }
+
+# Numbered-input menu: prints options as "N) label" and reads an option number.
+# Shares ARROW_MENU_SELECTED_INDEX / ARROW_MENU_CANCELLED with arrow_menu_select.
+# Ctrl+C (or EOF) selects back_index when it is valid; invalid input re-prompts.
+# Reads stdin (like read -p callers); with an INT trap set by the caller, Ctrl+C
+# makes read return >128 instead of killing the script.
+numeric_menu_select() {
+    local title="$1"
+    local options_name="$2"
+    local back_index="${3:--1}"
+    local -n numeric_menu_options="$options_name"
+    local option_count="${#numeric_menu_options[@]}"
+    local choice=""
+    local index=0
+
+    ARROW_MENU_CANCELLED=false
+    if [ "$option_count" -eq 0 ]; then
+        ARROW_MENU_SELECTED_INDEX=-1
+        return
+    fi
+    if [ ! -t 0 ]; then
+        ARROW_MENU_SELECTED_INDEX="$back_index"
+        ARROW_MENU_CANCELLED=true
+        return
+    fi
+    while true; do
+        echo "=========================================="
+        echo "$title"
+        echo "=========================================="
+        echo "Select an option (enter the option number):"
+        for index in "${!numeric_menu_options[@]}"; do
+            printf "%2d) %s\n" "$((index + 1))" "${numeric_menu_options[$index]}"
+        done
+        if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
+            echo "Press Ctrl+C to go back"
+        fi
+        printf "Enter number: "
+        IFS= read -r choice
+        if [ "$?" -ne 0 ]; then
+            if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
+                ARROW_MENU_SELECTED_INDEX="$back_index"
+                ARROW_MENU_CANCELLED=true
+            else
+                ARROW_MENU_SELECTED_INDEX=-1
+            fi
+            echo ""
+            return
+        fi
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "$option_count" ]; then
+            ARROW_MENU_SELECTED_INDEX=$((choice - 1))
+            return
+        fi
+        echo "Invalid selection: $choice"
+        echo ""
+    done
+}

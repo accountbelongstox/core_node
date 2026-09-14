@@ -9,6 +9,7 @@
  */
 
 import { protocolFetch } from '../../network/ProtocolFetch';
+import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 
 export interface LaravelMercureHubConfig {
   hub_url: string;
@@ -24,7 +25,7 @@ export interface LaravelMercureCallbacks {
   authorize: () => Promise<LaravelMercureAuthorization>;
   onSubscribed: () => void;
   onEvent: (event: string, data: unknown) => void;
-  onClose: () => void;
+  onClose: (error?: unknown) => void;
 }
 
 export class LaravelMercureConnection {
@@ -39,12 +40,12 @@ export class LaravelMercureConnection {
   ): void {
     this.close();
     const generation = ++this.generation;
-    void this.open(generation, config, callbacks).catch(() => {
+    void this.open(generation, config, callbacks).catch((error) => {
       if (this.generation !== generation) return;
       this.connected = false;
       this.controller?.abort();
       this.controller = null;
-      callbacks.onClose();
+      callbacks.onClose(error);
     });
   }
 
@@ -77,12 +78,19 @@ export class LaravelMercureConnection {
     };
     this.controller = controller;
 
-    const response = await protocolFetch(this.resumeUrl(this.subscribeUrl(config)), {
-      credentials: 'omit',
-      redirect: 'error',
-      headers,
-      signal: controller.signal,
-    });
+    const connectTimer = setTimeout(() => controller.abort(),
+      RELAY_CONTRACT.durations.subscriber_connect_timeout_seconds * 1000);
+    let response: Response;
+    try {
+      response = await protocolFetch(this.resumeUrl(this.subscribeUrl(config)), {
+        credentials: 'omit',
+        redirect: 'error',
+        headers,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(connectTimer);
+    }
     if (!response.ok || !response.body
       || response.headers.get('content-type')?.split(';')[0].trim() !== 'text/event-stream') {
       throw new Error(`MERCURE_SUBSCRIPTION_HTTP_${response.status}`);
@@ -108,6 +116,7 @@ export class LaravelMercureConnection {
     let dataLines: string[] = [];
     let eventType = 'message';
     let eventId: string | null = null;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
     const dispatch = (): void => {
       if (dataLines.length > 0) {
@@ -137,7 +146,11 @@ export class LaravelMercureConnection {
 
     try {
       while (this.generation === generation) {
+        idleTimer = setTimeout(() => {
+          if (this.generation === generation) this.controller?.abort();
+        }, RELAY_CONTRACT.durations.subscriber_read_timeout_seconds * 1000);
         const result = await reader.read();
+        clearTimeout(idleTimer);
         if (this.generation !== generation || result.done) return;
         buffer += decoder.decode(result.value, { stream: true });
         let newline = buffer.indexOf('\n');
@@ -148,6 +161,7 @@ export class LaravelMercureConnection {
         }
       }
     } finally {
+      if (idleTimer) clearTimeout(idleTimer);
       reader.releaseLock();
     }
   }

@@ -301,20 +301,32 @@ print_status() {
     esac
 }
 
+# Print the exact command line (copyable), then execute it so its output
+# streams directly to the terminal. No exit-code based success/fail reporting.
+run_service_command() {
+    local command_line="$1"
+
+    echo ""
+    echo "\$ $command_line"
+    echo ""
+    eval "$command_line"
+}
+
 # Function to start service
 start_service() {
     local service="$1"
     local systemd_name="$(service_resolve_systemd_unit "$service")"
     local service_name="${SERVICE_NAME[$service]}"
+    local sudo_prefix="${USE_SUDO:+$USE_SUDO }"
 
     echo ""
     echo "================================================"
-    echo "Starting $service_name..."
+    echo "Starting $service_name"
     echo "================================================"
 
     if ! is_service_installed "$service"; then
-        echo -e "${RED}Error: $service_name is not installed${NC}"
-        return 1
+        echo -e "${RED}$service_name is not installed${NC}"
+        return 0
     fi
 
     if [ -z "$systemd_name" ]; then
@@ -322,30 +334,7 @@ start_service() {
         return 0
     fi
 
-    if systemctl is-active --quiet "$systemd_name"; then
-        echo -e "${YELLOW}$service_name ($systemd_name) is already running${NC}"
-        return 0
-    fi
-
-    if $USE_SUDO systemctl start "$systemd_name"; then
-        echo -e "${GREEN}$service_name ($systemd_name) started successfully${NC}"
-
-        # Enable auto-start
-        if ! systemctl is-enabled --quiet "$systemd_name" 2>/dev/null; then
-            echo "Enabling auto-start for $service_name..."
-            $USE_SUDO systemctl enable "$systemd_name"
-        fi
-
-        # Show status
-        echo ""
-        echo "Service status:"
-        systemctl status "$systemd_name" --no-pager --lines=10
-        return 0
-    else
-        echo -e "${RED}Failed to start $service_name${NC}"
-        systemctl status "$systemd_name" --no-pager
-        return 1
-    fi
+    run_service_command "${sudo_prefix}systemctl start $systemd_name"
 }
 
 # Function to stop service
@@ -353,15 +342,16 @@ stop_service() {
     local service="$1"
     local systemd_name="$(service_resolve_systemd_unit "$service")"
     local service_name="${SERVICE_NAME[$service]}"
+    local sudo_prefix="${USE_SUDO:+$USE_SUDO }"
 
     echo ""
     echo "================================================"
-    echo "Stopping $service_name..."
+    echo "Stopping $service_name"
     echo "================================================"
 
     if ! is_service_installed "$service"; then
-        echo -e "${RED}Error: $service_name is not installed${NC}"
-        return 1
+        echo -e "${RED}$service_name is not installed${NC}"
+        return 0
     fi
 
     if [ -z "$systemd_name" ]; then
@@ -369,18 +359,7 @@ stop_service() {
         return 0
     fi
 
-    if ! systemctl is-active --quiet "$systemd_name"; then
-        echo -e "${YELLOW}$service_name ($systemd_name) is not running${NC}"
-        return 0
-    fi
-
-    if $USE_SUDO systemctl stop "$systemd_name"; then
-        echo -e "${GREEN}$service_name ($systemd_name) stopped successfully${NC}"
-        return 0
-    else
-        echo -e "${RED}Failed to stop $service_name${NC}"
-        return 1
-    fi
+    run_service_command "${sudo_prefix}systemctl stop $systemd_name"
 }
 
 # Function to restart service
@@ -388,15 +367,16 @@ restart_service() {
     local service="$1"
     local systemd_name="$(service_resolve_systemd_unit "$service")"
     local service_name="${SERVICE_NAME[$service]}"
+    local sudo_prefix="${USE_SUDO:+$USE_SUDO }"
 
     echo ""
     echo "================================================"
-    echo "Restarting $service_name..."
+    echo "Restarting $service_name"
     echo "================================================"
 
     if ! is_service_installed "$service"; then
-        echo -e "${RED}Error: $service_name is not installed${NC}"
-        return 1
+        echo -e "${RED}$service_name is not installed${NC}"
+        return 0
     fi
 
     if [ -z "$systemd_name" ]; then
@@ -404,19 +384,7 @@ restart_service() {
         return 0
     fi
 
-    if $USE_SUDO systemctl restart "$systemd_name"; then
-        echo -e "${GREEN}$service_name ($systemd_name) restarted successfully${NC}"
-
-        # Show status
-        echo ""
-        echo "Service status:"
-        systemctl status "$systemd_name" --no-pager --lines=10
-        return 0
-    else
-        echo -e "${RED}Failed to restart $service_name${NC}"
-        systemctl status "$systemd_name" --no-pager
-        return 1
-    fi
+    run_service_command "${sudo_prefix}systemctl restart $systemd_name"
 }
 
 show_composer_details() {
@@ -469,7 +437,7 @@ show_service_status() {
 
     if ! is_service_installed "$service"; then
         echo -e "${RED}$service_name is not installed${NC}"
-        return 1
+        return 0
     fi
 
     case "$service" in
@@ -489,7 +457,7 @@ show_service_status() {
             show_aggregate_details "${CORE_RUNTIME_SERVICE_PREFIXES[@]}"
             ;;
         *)
-            systemctl status "$(service_resolve_systemd_unit "$service")" --no-pager
+            run_service_command "systemctl status $(service_resolve_systemd_unit "$service") --no-pager"
             ;;
     esac
 }
@@ -531,6 +499,7 @@ show_service_logs() {
     local service="$1"
     local systemd_name="$(service_resolve_systemd_unit "$service")"
     local service_name="${SERVICE_NAME[$service]}"
+    local sudo_prefix="${USE_SUDO:+$USE_SUDO }"
 
     echo ""
     echo "================================================"
@@ -539,7 +508,7 @@ show_service_logs() {
 
     if ! is_service_installed "$service"; then
         echo -e "${RED}$service_name is not installed${NC}"
-        return 1
+        return 0
     fi
 
     if [ -z "$systemd_name" ]; then
@@ -547,12 +516,9 @@ show_service_logs() {
         return 0
     fi
 
+    run_service_command "${sudo_prefix}journalctl -u $systemd_name -n 50 --no-pager"
     echo ""
-    echo -e "${CYAN}Recent logs (last 50 lines):${NC}"
-    echo "================================================"
-    journalctl -u "$systemd_name" -n 50 --no-pager
-    echo ""
-    echo -e "${YELLOW}Tip: Use 'journalctl -u $systemd_name -f' to follow logs in real-time${NC}"
+    echo "Follow logs: journalctl -u $systemd_name -f"
 }
 
 # Function to enable/disable auto-start
@@ -560,6 +526,8 @@ toggle_autostart() {
     local service="$1"
     local systemd_name="$(service_resolve_systemd_unit "$service")"
     local service_name="${SERVICE_NAME[$service]}"
+    local sudo_prefix="${USE_SUDO:+$USE_SUDO }"
+    local confirm=""
 
     echo ""
     echo "================================================"
@@ -567,8 +535,8 @@ toggle_autostart() {
     echo "================================================"
 
     if ! is_service_installed "$service"; then
-        echo -e "${RED}Error: $service_name is not installed${NC}"
-        return 1
+        echo -e "${RED}$service_name is not installed${NC}"
+        return 0
     fi
 
     if [ -z "$systemd_name" ]; then
@@ -581,16 +549,18 @@ toggle_autostart() {
         echo ""
         read -p "Do you want to DISABLE auto-start? (y/N): " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            $USE_SUDO systemctl disable "$systemd_name"
-            echo -e "${GREEN}Auto-start disabled${NC}"
+            run_service_command "${sudo_prefix}systemctl disable $systemd_name"
+        else
+            echo "Auto-start unchanged"
         fi
     else
         echo "Auto-start is currently: DISABLED"
         echo ""
         read -p "Do you want to ENABLE auto-start? (y/N): " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            $USE_SUDO systemctl enable "$systemd_name"
-            echo -e "${GREEN}Auto-start enabled${NC}"
+            run_service_command "${sudo_prefix}systemctl enable $systemd_name"
+        else
+            echo "Auto-start unchanged"
         fi
     fi
 }
@@ -603,6 +573,7 @@ reinstall_service() {
     local service_name="${SERVICE_NAME[$service]}"
     local script_path="$SERVICE_MANAGER_INSTALL_SHELLS_DIR/$install_script"
     local confirm=""
+    local read_rc=0
 
     if [ -z "$install_script" ]; then
         echo -e "${YELLOW}$service_name has no standalone installer; use its manager${NC}"
@@ -621,9 +592,10 @@ reinstall_service() {
         echo "This will re-run the installation script: $install_script"
         echo ""
         read -p "Do you want to continue? (Y/n): " confirm
+        read_rc=$?
 
-        # Default to Yes (empty input or Y/y)
-        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+        # Default to Yes; Ctrl+C / EOF cancels
+        if [ "$read_rc" -ne 0 ] || [[ "$confirm" =~ ^[Nn]$ ]]; then
             echo "Reinstallation cancelled"
             return 0
         fi
@@ -635,37 +607,21 @@ reinstall_service() {
         echo "This will run the installation script: $install_script"
         echo ""
         read -p "Do you want to install? (Y/n): " confirm
+        read_rc=$?
 
-        # Default to Yes (empty input or Y/y)
-        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+        # Default to Yes; Ctrl+C / EOF cancels
+        if [ "$read_rc" -ne 0 ] || [[ "$confirm" =~ ^[Nn]$ ]]; then
             echo "Installation cancelled"
             return 0
         fi
     fi
 
     if [ ! -f "$script_path" ]; then
-        echo -e "${RED}Error: Installation script not found: $script_path${NC}"
-        return 1
-    fi
-
-    echo ""
-    echo "Executing: bash $script_path $install_args"
-    echo ""
-
-    if bash "$script_path" $install_args; then
-        echo ""
-        if is_service_installed "$service"; then
-            echo -e "${GREEN}$service_name installation/reinstallation completed successfully${NC}"
-        else
-            echo -e "${YELLOW}$service_name script execution completed${NC}"
-            echo -e "${YELLOW}Service may need manual configuration${NC}"
-        fi
+        echo -e "${RED}Installation script not found: $script_path${NC}"
         return 0
-    else
-        echo ""
-        echo -e "${RED}$service_name installation/reinstallation failed${NC}"
-        return 1
     fi
+
+    run_service_command "bash $script_path $install_args"
 }
 
 # Main execution
