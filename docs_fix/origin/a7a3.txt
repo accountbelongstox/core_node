@@ -38,3 +38,5 @@ request attempts: 0 · provider responses: 0 · provider failures: 0 · blocked 
 LARAVEL_HTTP_404
 
 BUG2:ProtocolFetch.ts:233  GET https://api.si.12gm.com/.well-known/mercure?topic=https%3A%2F%2Fapi.si.12gm.com%2F.well-known%2Frelay%2Fowners%2F2cc9a60708bc212c63f2cee8fb32f3614ac5ca36333eec2507a17eda746ce7c2 net::ERR_QUIC_PROTOCOL_ERROR 200 (OK)
+BUG3:pycore -> [Mercure +0.23s] action=subscription.connection.failed error=HTTPSConnectionPool(host='api.si.12gm.com', port=443): Max retries exceeded with url: /api/relay/device/mercure-authorization (Caused by ConnectTimeoutError(<HTTPSConnection(host='api.si.12gm.com', port=443) at 0x2105f6e3110>, 'Connection to api.si.12gm.com timed out. (connect timeout=30.0)')) error_type=ConnectTimeout hub_url=https://api.si.12gm.com/.well-known/mercure
+BUG4:https://12gm.com/core/integrations/laravel/LaravelAPI.ts / https://12gm.com/core/integrations/laravel/LaravelRelayOperationEvents.ts 前端为什么这两个文件明显阻塞极慢。
