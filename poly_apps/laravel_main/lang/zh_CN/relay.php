@@ -107,6 +107,8 @@ return [
     'owner_blob_limit' => '用户分块存储额度已满。',
     'owner_pending_limit' => '用户待处理操作数量已达上限。',
     'pairing_not_found' => '有效配对不存在。',
+    'pairing_expired' => '配对租约已过期。',
+    'pairing_inactive' => '配对已停止生效。',
     'pairing_credential_stale' => '配对所属的设备凭证代次已失效。',
     'query_value_invalid' => '查询值必须是字符串或字符串列表。',
     'query_key_invalid' => '查询键必须是字符串。',

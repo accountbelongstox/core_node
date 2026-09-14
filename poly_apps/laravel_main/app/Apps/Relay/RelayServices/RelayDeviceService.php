@@ -72,7 +72,7 @@ final class RelayDeviceService
                 ->where('state', RelayConstants::PAIRING_ACTIVE)
                 ->where('credential_version', (int) $device->current_credential_version)
                 ->where('expires_at', '>', now())
-                ->get();
+                ->get()->unique('user_id');
 
             foreach ($pairings as $pairing) {
                 $this->outbox->append(
@@ -80,7 +80,7 @@ final class RelayDeviceService
                     (string) $pairing->pairing_id,
                     $revision,
                     $eventType,
-                    'pairing',
+                    'owner',
                     $this->topics->owner((int) $pairing->user_id),
                     [
                         'pairing_id' => (string) $pairing->pairing_id,

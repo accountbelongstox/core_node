@@ -107,6 +107,8 @@ return [
     'owner_blob_limit' => 'Owner blob storage limit is reached.',
     'owner_pending_limit' => 'Owner pending operation limit is reached.',
     'pairing_not_found' => 'Active pairing is unavailable.',
+    'pairing_expired' => 'Pairing lease has expired.',
+    'pairing_inactive' => 'Pairing is no longer active.',
     'pairing_credential_stale' => 'Pairing belongs to an inactive device credential generation.',
     'query_value_invalid' => 'Query value must be a string or a string list.',
     'query_key_invalid' => 'Query key must be a string.',

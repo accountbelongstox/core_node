@@ -105,16 +105,18 @@ class _QueueCenterTokenProvider:
         self._service = service
         self._endpoint = endpoint
         self._token = str(connection.get("token") or "")
+        self._expires_at = time.monotonic() + float(connection.get("token_ttl_seconds") or 0)
 
-    def __call__(self, force_refresh: bool = False) -> str:
+    def __call__(self, force_refresh: bool = False) -> Dict[str, Any]:
         connection: Dict[str, Any] = {}
 
-        if force_refresh or not self._token:
+        if force_refresh or not self._token or time.monotonic() >= self._expires_at:
             connection = self._service.realtime_connection(self._endpoint)
             self._token = str(connection.get("token") or "")
+            self._expires_at = time.monotonic() + float(connection.get("token_ttl_seconds") or 0)
         if not self._token:
             raise RuntimeError("Laravel Queue Center subscriber token is unavailable")
-        return self._token
+        return {"token": self._token, "token_ttl_seconds": max(0.0, self._expires_at - time.monotonic())}
 
 
 class _QueueCenterRealtimeThread(threading.Thread):
@@ -130,6 +132,7 @@ class _QueueCenterRealtimeThread(threading.Thread):
         super().__init__(name="QueueCenterRealtimeThread", daemon=True)
         self._service = service
         self._last_error = ""
+        self._subscribed_endpoint = ""
 
     def stop(self) -> None:
         THREAD_BUS.signal(QUEUE_CENTER_STOP_SIGNAL, True)
@@ -148,6 +151,7 @@ class _QueueCenterRealtimeThread(threading.Thread):
                 continue
             try:
                 connection = self._service.realtime_connection(endpoint)
+                self._subscribed_endpoint = endpoint
                 self._service.replay_realtime_events(endpoint)
                 subscriber = MercureSubscriber(
                     str(connection["hub_url"]),
@@ -169,7 +173,7 @@ class _QueueCenterRealtimeThread(threading.Thread):
             except Exception as exc:  # noqa: BLE001 - loop must survive
                 self._note_failure(str(exc))
                 self._pause(QUEUE_CENTER_RECONNECT_MIN_SECONDS)
-            if self._should_exit_stream():
+            if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(QUEUE_CENTER_STOP_SIGNAL, False):
                 return
 
     def _should_exit_stream(self) -> bool:
@@ -181,7 +185,7 @@ class _QueueCenterRealtimeThread(threading.Thread):
             return True
         # An endpoint switch invalidates the live stream (hub URL, topics);
         # the outer loop re-derives and re-subscribes against the new winner.
-        return not self._service.realtime_endpoint()
+        return self._service.realtime_endpoint() != self._subscribed_endpoint
 
     def _on_hub_state(self, endpoint: str, state: str, detail: str) -> None:
         if state == MERCURE_STATE_ONLINE:

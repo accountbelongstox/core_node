@@ -41,7 +41,7 @@ final class RelayPairingService
 
             $connection->select(
                 'SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text), 0))',
-                [$userId."\0".$deviceId."\0".$clientHash]
+                [hash('sha256', $userId."\0".$deviceId."\0".$clientHash)]
             );
             $device = $this->ownedDevice($userId, $deviceId);
             $pairing = RelayPairingModel::query()
@@ -120,9 +120,7 @@ final class RelayPairingService
     {
         $query = RelayPairingModel::query()
             ->where('pairing_id', $pairingId)
-            ->where('user_id', $userId)
-            ->where('state', RelayConstants::PAIRING_ACTIVE)
-            ->where('expires_at', '>', now());
+            ->where('user_id', $userId);
         $pairing = null;
 
         if ($lockForUpdate) {
@@ -132,6 +130,15 @@ final class RelayPairingService
 
         if ($pairing === null) {
             throw new RelayDomainException('pairing_not_found', 404);
+        }
+        if ((string) $pairing->state === RelayConstants::PAIRING_EXPIRED) {
+            throw new RelayDomainException('pairing_expired', 409);
+        }
+        if ((string) $pairing->state !== RelayConstants::PAIRING_ACTIVE) {
+            throw new RelayDomainException('pairing_inactive', 409);
+        }
+        if ($pairing->expires_at->lte(now())) {
+            throw new RelayDomainException('pairing_expired', 409);
         }
         $this->assertCurrentCredential($pairing);
 

@@ -53,6 +53,7 @@ FM_DNS01_MODE=""
 FM_BINARY=""
 CADDY_SERVER_WORKER_DIRECTIVE=""
 CADDY_SERVER_WATCH_DIRECTIVES=""
+RELAY_CONTRACT_WATCH_DIR="$(dirname "$(dirname "$LARAVEL_DIR")")/config"
 FRANKENPHP_RUN_ARGS=()
 SCHEDULER_PID=""
 FRANKENPHP_PID=""
@@ -228,7 +229,7 @@ esac
 if [ "$OCTANE_WATCH" = "1" ]; then
     # Official FrankenPHP default watches .env/PHP/Twig/YAML files below
     # the app root, avoiding a duplicate copy of Laravel's watch list.
-    CADDY_SERVER_WATCH_DIRECTIVES="watch"
+    printf -v CADDY_SERVER_WATCH_DIRECTIVES 'watch\nwatch "%s/*.json"' "$RELAY_CONTRACT_WATCH_DIR"
 fi
 export CADDY_SERVER_WORKER_DIRECTIVE
 export CADDY_SERVER_WATCH_DIRECTIVES

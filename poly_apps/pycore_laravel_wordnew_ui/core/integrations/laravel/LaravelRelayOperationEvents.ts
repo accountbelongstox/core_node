@@ -9,7 +9,7 @@ type ConnectionStateHandler = (connected: boolean) => void;
 
 const RECONNECT_MIN_MS = RELAY_CONTRACT.durations.subscriber_reconnect_min_seconds * 1000;
 const RECONNECT_MAX_MS = RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
-const TOKEN_REFRESH_MARGIN_MS = 30_000;
+const TOKEN_REFRESH_MARGIN_MS = RELAY_CONTRACT.durations.subscriber_token_refresh_margin_seconds * 1000;
 
 /**
  * One Mercure SSE connection for the pairing operation topic.
@@ -33,6 +33,7 @@ class LaravelRelayOperationEvents {
   private tokenTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs = RECONNECT_MIN_MS;
   private generation = 0;
+  private subscribedAt = 0;
 
   constructor() {
     subscribeAuthSession(() => {
@@ -40,6 +41,7 @@ class LaravelRelayOperationEvents {
       this.operations.clear();
       this.clearTimers();
       this.connection.close();
+      this.connection = new LaravelMercureConnection();
       this.notifyConnectionState(false);
       if (this.started) this.connect();
     });
@@ -132,6 +134,7 @@ class LaravelRelayOperationEvents {
   private connect(): void {
     if (!this.started) return;
     const generation = ++this.generation;
+    this.subscribedAt = 0;
     void laravelApi.getRelayOwnerHubAuth()
       .then((hub) => {
         if (generation !== this.generation) return;
@@ -146,13 +149,17 @@ class LaravelRelayOperationEvents {
               token_ttl_seconds: hub.expires_in_seconds,
             }),
             onSubscribed: () => {
-              this.reconnectDelayMs = RECONNECT_MIN_MS;
+              this.subscribedAt = Date.now();
               this.scheduleTokenRefresh(hub.expires_in_seconds);
               this.resolveReady(true);
               this.notifyConnectionState(true);
             },
             onEvent: (event, data) => this.handleEvent(event, data),
             onClose: () => {
+              if (this.subscribedAt > 0
+                && Date.now() - this.subscribedAt >= RELAY_CONTRACT.durations.subscriber_read_timeout_seconds * 1000) {
+                this.reconnectDelayMs = RECONNECT_MIN_MS;
+              }
               this.notifyConnectionState(false);
               this.scheduleReconnect();
             },
@@ -198,7 +205,10 @@ class LaravelRelayOperationEvents {
     if (!frame || typeof frame.operation_id !== 'string' || frame.operation_id === '') return;
     const state = typeof frame.state === 'string' ? frame.state : '';
     if (frame.operation?.operation_id === frame.operation_id) {
-      this.operations.set(frame.operation_id, frame.operation);
+      const previous = this.operations.get(frame.operation_id);
+      if (!previous || previous.revision < frame.operation.revision) {
+        this.operations.set(frame.operation_id, frame.operation);
+      }
       if (this.operations.size > RELAY_CONTRACT.limits.owner_pending_operations) {
         this.operations.delete(this.operations.keys().next().value!);
       }
