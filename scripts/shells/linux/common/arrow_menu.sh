@@ -122,16 +122,20 @@ arrow_menu_select() {
 
 # Numbered-input menu: prints options as "N) label" and reads an option number.
 # Shares ARROW_MENU_SELECTED_INDEX / ARROW_MENU_CANCELLED with arrow_menu_select.
-# Ctrl+C (or EOF) selects back_index when it is valid; invalid input re-prompts.
-# Reads stdin (like read -p callers); with an INT trap set by the caller, Ctrl+C
-# makes read return >128 instead of killing the script.
+# Reads raw bytes from /dev/tty (same stty model as arrow_menu_select), so
+# Ctrl+C arrives as a byte and selects back_index when it is valid;
+# invalid input re-prompts without re-rendering the menu.
 numeric_menu_select() {
     local title="$1"
     local options_name="$2"
     local back_index="${3:--1}"
     local -n numeric_menu_options="$options_name"
     local option_count="${#numeric_menu_options[@]}"
-    local choice=""
+    local old_settings=""
+    local char=""
+    local input_buffer=""
+    local read_rc=0
+    local selected_index=-1
     local index=0
 
     ARROW_MENU_CANCELLED=false
@@ -139,39 +143,83 @@ numeric_menu_select() {
         ARROW_MENU_SELECTED_INDEX=-1
         return
     fi
-    if [ ! -t 0 ]; then
+    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
         ARROW_MENU_SELECTED_INDEX="$back_index"
         ARROW_MENU_CANCELLED=true
         return
     fi
-    while true; do
-        echo "=========================================="
-        echo "$title"
-        echo "=========================================="
-        echo "Select an option (enter the option number):"
-        for index in "${!numeric_menu_options[@]}"; do
-            printf "%2d) %s\n" "$((index + 1))" "${numeric_menu_options[$index]}"
-        done
-        if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
-            echo "Press Ctrl+C to go back"
-        fi
-        printf "Enter number: "
-        IFS= read -r choice
-        if [ "$?" -ne 0 ]; then
-            if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
-                ARROW_MENU_SELECTED_INDEX="$back_index"
-                ARROW_MENU_CANCELLED=true
-            else
-                ARROW_MENU_SELECTED_INDEX=-1
-            fi
-            echo ""
-            return
-        fi
-        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "$option_count" ]; then
-            ARROW_MENU_SELECTED_INDEX=$((choice - 1))
-            return
-        fi
-        echo "Invalid selection: $choice"
-        echo ""
+
+    old_settings="$(stty -g < /dev/tty 2>/dev/null)"
+    if [ -z "$old_settings" ]; then
+        ARROW_MENU_SELECTED_INDEX="$back_index"
+        ARROW_MENU_CANCELLED=true
+        return
+    fi
+
+    echo "=========================================="
+    echo "$title"
+    echo "=========================================="
+    echo "Select an option (enter the option number):"
+    for index in "${!numeric_menu_options[@]}"; do
+        printf "%2d) %s\n" "$((index + 1))" "${numeric_menu_options[$index]}"
     done
+    if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
+        echo "Press Ctrl+C to go back"
+    fi
+
+    stty -icanon -echo -isig < /dev/tty 2>/dev/null
+    printf "Enter number: "
+    while true; do
+        char="$(dd bs=1 count=1 < /dev/tty 2>/dev/null)"
+        read_rc=$?
+        if [ "$read_rc" -ne 0 ]; then
+            # tty hangup / read error -> cancel to back target when available
+            selected_index="$back_index"
+            ARROW_MENU_CANCELLED=true
+            break
+        fi
+        case "$char" in
+            $'\x03')
+                # Ctrl+C -> go back
+                selected_index="$back_index"
+                ARROW_MENU_CANCELLED=true
+                break
+                ;;
+            ''|$'\x0d'|$'\x0a')
+                # Enter -> submit (empty char means the stripped newline)
+                if [ -n "$input_buffer" ] && [[ "$input_buffer" =~ ^[0-9]+$ ]] \
+                    && [ "$((10#$input_buffer))" -ge 1 ] && [ "$((10#$input_buffer))" -le "$option_count" ]; then
+                    selected_index=$((10#$input_buffer - 1))
+                    break
+                fi
+                printf "\nInvalid selection%s\n" "${input_buffer:+: $input_buffer}"
+                input_buffer=""
+                printf "Enter number: "
+                ;;
+            $'\x7f'|$'\x08')
+                if [ -n "$input_buffer" ]; then
+                    input_buffer="${input_buffer%?}"
+                    printf "\b \b"
+                fi
+                ;;
+            [0-9])
+                if [ "${#input_buffer}" -lt 3 ]; then
+                    input_buffer+="$char"
+                    printf "%s" "$char"
+                fi
+                ;;
+            *)
+                # ignore other control bytes / escape sequences
+                ;;
+        esac
+    done
+    stty "$old_settings" < /dev/tty 2>/dev/null
+    printf "\n"
+    if [ "$selected_index" -ge 0 ] && [ "$selected_index" -lt "$option_count" ]; then
+        ARROW_MENU_SELECTED_INDEX="$selected_index"
+    elif [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
+        ARROW_MENU_SELECTED_INDEX="$back_index"
+    else
+        ARROW_MENU_SELECTED_INDEX=-1
+    fi
 }
