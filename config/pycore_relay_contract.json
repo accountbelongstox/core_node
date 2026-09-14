@@ -3,7 +3,7 @@
   "protocol_version": "2",
   "signature_profile": {
     "algorithm": "ed25519",
-    "canonical_version": "pycore-relay-v2",
+    "canonical_version": "pycore-relay",
     "canonicalization": {
       "method": "uppercase-ascii",
       "path": "utf8-percent-decode-then-rfc3986-reencode",
@@ -63,47 +63,48 @@
     ]
   },
   "endpoints": {
-    "enrollment_create": "/api/relay/v2/device-enrollments",
-    "enrollment_status": "/api/relay/v2/device-enrollments/{enrollment_id}",
-    "device_heartbeat": "/api/relay/v2/device/heartbeat",
-    "device_event": "/api/relay/v2/device/events",
-    "device_hub_authorization": "/api/relay/v2/device/mercure-authorization",
-    "operation_claim": "/api/relay/v2/device/operations/claim",
-    "operation_execution_start": "/api/relay/v2/device/operations/{operation_id}/execution-start",
-    "operation_lease_renew": "/api/relay/v2/device/operations/{operation_id}/lease",
-    "operation_result": "/api/relay/v2/device/operations/{operation_id}/result",
-    "device_request_blob_download": "/api/relay/v2/device/blobs/{blob_id}",
-    "device_response_blob_allocate": "/api/relay/v2/device/operations/{operation_id}/response-blobs",
-    "device_response_blob_chunk": "/api/relay/v2/device/blobs/{blob_id}/chunks/{chunk_index}",
-    "device_response_blob_finalize": "/api/relay/v2/device/blobs/{blob_id}/finalize",
-    "owner_enrollment_claim": "/api/relay/v2/device-enrollments/claim",
-    "owner_device_roster": "/api/relay/v2/devices",
-    "owner_pairing_create": "/api/relay/v2/pairings",
-    "owner_pairing_renew": "/api/relay/v2/pairings/{pairingId}/renew",
-    "owner_pairing_revoke": "/api/relay/v2/pairings/{pairingId}",
-    "owner_hub_authorization": "/api/relay/v2/mercure-authorization",
-    "owner_operation_admit": "/api/relay/v2/operations",
-    "owner_operation_status": "/api/relay/v2/operations/{operationId}",
-    "owner_operation_cancel": "/api/relay/v2/operations/{operationId}/cancel",
-    "owner_request_blob_allocate": "/api/relay/v2/request-blobs",
-    "owner_request_blob_chunk": "/api/relay/v2/blobs/{blobId}/chunks/{chunkIndex}",
-    "owner_request_blob_finalize": "/api/relay/v2/blobs/{blobId}/finalize",
-    "owner_response_blob_download": "/api/relay/v2/blobs/{blobId}"
+    "enrollment_create": "/api/relay/device-enrollments",
+    "enrollment_status": "/api/relay/device-enrollments/{enrollment_id}",
+    "device_heartbeat": "/api/relay/device/heartbeat",
+    "device_event": "/api/relay/device/events",
+    "device_hub_authorization": "/api/relay/device/mercure-authorization",
+    "operation_claim": "/api/relay/device/operations/claim",
+    "operation_execution_start": "/api/relay/device/operations/{operation_id}/execution-start",
+    "operation_lease_renew": "/api/relay/device/operations/{operation_id}/lease",
+    "operation_result": "/api/relay/device/operations/{operation_id}/result",
+    "device_request_blob_download": "/api/relay/device/blobs/{blob_id}",
+    "device_response_blob_allocate": "/api/relay/device/operations/{operation_id}/response-blobs",
+    "device_response_blob_chunk": "/api/relay/device/blobs/{blob_id}/chunks/{chunk_index}",
+    "device_response_blob_finalize": "/api/relay/device/blobs/{blob_id}/finalize",
+    "owner_enrollment_claim": "/api/relay/device-enrollments/claim",
+    "owner_device_roster": "/api/relay/devices",
+    "owner_pairing_create": "/api/relay/pairings",
+    "owner_pairing_renew": "/api/relay/pairings/{pairingId}/renew",
+    "owner_pairing_revoke": "/api/relay/pairings/{pairingId}",
+    "owner_hub_authorization": "/api/relay/mercure-authorization",
+    "owner_operation_admit": "/api/relay/operations",
+    "owner_operation_status": "/api/relay/operations/{operationId}",
+    "owner_operation_cancel": "/api/relay/operations/{operationId}/cancel",
+    "owner_request_blob_allocate": "/api/relay/request-blobs",
+    "owner_request_blob_chunk": "/api/relay/blobs/{blobId}/chunks/{chunkIndex}",
+    "owner_request_blob_finalize": "/api/relay/blobs/{blobId}/finalize",
+    "owner_response_blob_download": "/api/relay/blobs/{blobId}"
   },
   "public_urls": {
     "laravel_api_origin": "https://api.si.12gm.com",
     "mercure_hub": "https://api.si.12gm.com/.well-known/mercure"
   },
   "topics": {
-    "device_wake": "{laravel_api_origin}/.well-known/relay/v2/devices/{device_id}",
-    "owner_roster": "{laravel_api_origin}/.well-known/relay/v2/owners/{owner_topic_token}",
-    "pairing_operation": "{laravel_api_origin}/.well-known/relay/v2/pairings/{pairing_topic_token}"
+    "device_wake": "{laravel_api_origin}/.well-known/relay/devices/{device_id}",
+    "owner_roster": "{laravel_api_origin}/.well-known/relay/owners/{owner_topic_token}",
+    "pairing_operation": "{laravel_api_origin}/.well-known/relay/pairings/{pairing_topic_token}"
   },
   "events": {
     "operation_available": "relay.operation.available",
     "operation_status": "relay.operation.status",
     "pairing_changed": "relay.pairing.changed",
     "credential_revoked": "relay.credential.revoked",
+    "device_presence": "relay.device.presence",
     "terminal_changed": "terminal.changed"
   },
   "event_payload_profiles": {
@@ -111,6 +112,7 @@
     "operation_status": ["operation_id", "revision", "state"],
     "pairing_changed": ["pairing_id", "revision", "state"],
     "credential_revoked": ["device_id", "credential_id", "credential_version"],
+    "device_presence": ["device_id", "online", "device"],
     "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"]
   },
   "claim_generation_profile": {
@@ -151,6 +153,8 @@
   },
   "durations": {
     "heartbeat_seconds": 20,
+    "presence_timeout_seconds": 65,
+    "roster_reconciliation_seconds": 60,
     "recovery_claim_seconds": 15,
     "enrollment_poll_seconds": 5,
     "request_timeout_seconds": 30,

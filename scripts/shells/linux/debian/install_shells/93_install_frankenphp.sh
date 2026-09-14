@@ -20,3 +20,4 @@ source "$WEB_ACCESS_COMMON"
 source "$FRANKENPHP_INSTALL_PIPELINE"
 web_access_config_ensure
 frankenphp_install_pipeline "$@"
+fm_php_ini_ensure

@@ -118,7 +118,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     if (!code || claiming) return;
     setClaiming(true);
     setClaimNotice('');
-    void laravelApi.relayV2ClaimEnrollment(code)
+    void laravelApi.relayClaimEnrollment(code)
       .then(async (device) => {
         setClaimCode('');
         setClaimNotice(t('relayTarget.enrollmentSuccess'));

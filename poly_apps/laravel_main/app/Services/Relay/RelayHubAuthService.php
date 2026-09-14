@@ -13,32 +13,6 @@ use Symfony\Component\HttpFoundation\Cookie;
  */
 final class RelayHubAuthService
 {
-    public static function issueForMachine(string $machineId): array
-    {
-        if (!RelayMachineRegistry::isValidId($machineId)) {
-            throw new \InvalidArgumentException(__('relay.invalid_machine_id'));
-        }
-
-        return self::issue($machineId, array_merge(
-            [
-                RelayDispatcher::machinesTopic(),
-                RelayDispatcher::pairTopic($machineId),
-            ],
-            self::queueCenterTopics()
-        ));
-    }
-
-    public static function issueForSession(?string $machineId, ?string $subject = null): array
-    {
-        $resolvedSubject = $subject !== null && $subject !== '' ? $subject : 'session';
-        $topics = array_merge([RelayDispatcher::machinesTopic()], self::queueCenterTopics());
-
-        if ($machineId !== null && RelayPairRegistry::isActive($machineId, $resolvedSubject)) {
-            $topics[] = RelayDispatcher::pairTopic($machineId);
-        }
-
-        return self::issue($resolvedSubject, $topics);
-    }
 
     /**
      * @param array<int, string> $topics

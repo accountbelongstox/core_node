@@ -31,13 +31,13 @@ import {
   queueCenterEndpoint,
 } from '../../contracts/QueueCenterContract';
 import {
-  relayV2Endpoint,
-  type RelayV2Device,
-  type RelayV2Hub,
-  type RelayV2Operation,
-  type RelayV2OperationAdmission,
-  type RelayV2Pairing,
-} from '../../contracts/RelayV2Contract';
+  relayEndpoint,
+  type RelayDevice,
+  type RelayHub,
+  type RelayOperation,
+  type RelayOperationAdmission,
+  type RelayPairing,
+} from '../../contracts/RelayContract';
 import type {
   GlobalTaskWorkerRegistration,
   QueueCenterIdPagesResponse,
@@ -53,12 +53,7 @@ import type {
   LaravelTranslationStackResult,
   LaravelVocabTranslateRequest,
   LaravelVocabTtsGenerateRequest,
-  RelayMachinesResponse,
   RelayHubToken,
-  RelayPairResponse,
-  RelayRequestFrame,
-  RelayRequestResponse,
-  RelayStoredResponse,
 } from './LaravelTypes';
 export type {
   MediaSourceListItem,
@@ -126,41 +121,27 @@ const ROUTES = {
   queueCenterOverview: queueCenterEndpoint('queue_center_overview'),
   queueCenterEvents: queueCenterEndpoint('queue_center_events'),
   queueCenterReceipts: queueCenterEndpoint('queue_center_receipts'),
-  // Relay plane (pycore UI <-> machine relay through the central server).
-  relayMachines: queueCenterEndpoint('relay_machines'),
-  relayHubAuth: queueCenterEndpoint('relay_hub_auth'),
-  relayPair: (machineId: string): string =>
-    queueCenterEndpoint('relay_pair_announce', { machine_id: machineId }),
-  relayRequest: (machineId: string): string =>
-    queueCenterEndpoint('relay_request', { machine_id: machineId }),
-  relayResponse: (machineId: string, requestId: string): string =>
-    queueCenterEndpoint('relay_response_fetch', { machine_id: machineId, request_id: requestId }),
-  relayResponsePost: (machineId: string): string =>
-    queueCenterEndpoint('relay_response', { machine_id: machineId }),
-  relayBlobCreate: (machineId: string): string =>
-    queueCenterEndpoint('relay_blob_create', { machine_id: machineId }),
-  relayBlobFetch: (machineId: string, blobId: string): string =>
-    queueCenterEndpoint('relay_blob_fetch', { machine_id: machineId, blob_id: blobId }),
-  relayV2EnrollmentClaim: relayV2Endpoint('owner_enrollment_claim'),
-  relayV2Devices: relayV2Endpoint('owner_device_roster'),
-  relayV2Pairings: relayV2Endpoint('owner_pairing_create'),
-  relayV2PairingRenew: (pairingId: string): string =>
-    relayV2Endpoint('owner_pairing_renew', { pairingId }),
-  relayV2PairingRevoke: (pairingId: string): string =>
-    relayV2Endpoint('owner_pairing_revoke', { pairingId }),
-  relayV2Operations: relayV2Endpoint('owner_operation_admit'),
-  relayV2OwnerHubAuth: relayV2Endpoint('owner_hub_authorization'),
-  relayV2Operation: (operationId: string): string =>
-    relayV2Endpoint('owner_operation_status', { operationId }),
-  relayV2OperationCancel: (operationId: string): string =>
-    relayV2Endpoint('owner_operation_cancel', { operationId }),
-  relayV2RequestBlobs: relayV2Endpoint('owner_request_blob_allocate'),
-  relayV2RequestBlobChunk: (blobId: string, chunkIndex: number): string =>
-    relayV2Endpoint('owner_request_blob_chunk', { blobId, chunkIndex }),
-  relayV2RequestBlobFinalize: (blobId: string): string =>
-    relayV2Endpoint('owner_request_blob_finalize', { blobId }),
-  relayV2ResponseBlob: (blobId: string): string =>
-    relayV2Endpoint('owner_response_blob_download', { blobId }),
+  queueCenterHubAuth: queueCenterEndpoint('queue_center_hub_authorization'),
+  relayEnrollmentClaim: relayEndpoint('owner_enrollment_claim'),
+  relayDevices: relayEndpoint('owner_device_roster'),
+  relayPairings: relayEndpoint('owner_pairing_create'),
+  relayPairingRenew: (pairingId: string): string =>
+    relayEndpoint('owner_pairing_renew', { pairingId }),
+  relayPairingRevoke: (pairingId: string): string =>
+    relayEndpoint('owner_pairing_revoke', { pairingId }),
+  relayOperations: relayEndpoint('owner_operation_admit'),
+  relayOwnerHubAuth: relayEndpoint('owner_hub_authorization'),
+  relayOperation: (operationId: string): string =>
+    relayEndpoint('owner_operation_status', { operationId }),
+  relayOperationCancel: (operationId: string): string =>
+    relayEndpoint('owner_operation_cancel', { operationId }),
+  relayRequestBlobs: relayEndpoint('owner_request_blob_allocate'),
+  relayRequestBlobChunk: (blobId: string, chunkIndex: number): string =>
+    relayEndpoint('owner_request_blob_chunk', { blobId, chunkIndex }),
+  relayRequestBlobFinalize: (blobId: string): string =>
+    relayEndpoint('owner_request_blob_finalize', { blobId }),
+  relayResponseBlob: (blobId: string): string =>
+    relayEndpoint('owner_response_blob_download', { blobId }),
   // Queue Center pump read/claim surface (diff delivery over global_tasks).
   queueCenterIdPages: (queue: string): string =>
     queueCenterEndpoint('queue_center_queue_id_pages', { queue }),
@@ -389,132 +370,56 @@ const laravelMethods = {
     return unwrapData<QueueCenterOverviewResponse>(payload);
   },
 
-  getRelayMachines: async (): Promise<RelayMachinesResponse> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.relayMachines);
-    return unwrapData<RelayMachinesResponse>(payload);
-  },
-  relayHubAuth: async (machineId?: string): Promise<RelayHubToken> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayHubAuth, {
-      mode: 'session',
-      ...(machineId ? { machine_id: machineId } : {}),
-    });
+  queueCenterHubAuth: async (): Promise<RelayHubToken> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.queueCenterHubAuth, {});
     return unwrapData<RelayHubToken>(payload);
   },
-  relayPair: async (machineId: string): Promise<RelayPairResponse> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayPair(machineId));
-    return unwrapData<RelayPairResponse>(payload);
+  relayClaimEnrollment: async (claimCode: string): Promise<RelayDevice> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayEnrollmentClaim, { claim_code: claimCode });
+    return unwrapData<{ device: RelayDevice }>(payload).device;
   },
-  relayRequest: async (
-    machineId: string,
-    frame: RelayRequestFrame,
-  ): Promise<RelayRequestResponse> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayRequest(machineId), frame);
-    return unwrapData<RelayRequestResponse>(payload);
+  getRelayDevices: async (): Promise<RelayDevice[]> => {
+    const payload = await requestLaravel<any>('GET', ROUTES.relayDevices);
+    return unwrapData<{ devices: RelayDevice[] }>(payload).devices;
   },
-  relayResponse: async (
-    machineId: string,
-    requestId: string,
-    wait = false,
-    signal?: AbortSignal,
-  ): Promise<RelayStoredResponse | null> => {
-    // A caller-provided signal owns the deadline - the shared transport's
-    // default ceiling (15 s) is shorter than the server long-poll bound
-    // (~25 s), so the wait=1 poll MUST bypass it.
-    const response = await laravelHttp.rawRequest(
-      ROUTES.relayResponse(machineId, requestId) + (wait ? '?wait=1' : ''),
-      { method: 'GET', credentials: 'include', ...(signal ? { signal } : {}) },
-    );
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
-    const data = unwrapData<{ response: RelayStoredResponse }>(await response.json());
-    return data.response ?? null;
-  },
-  /**
-   * Blob upload (relay plane): one raw-bytes chunk per call. Query params
-   * carry the continuation contract (blob_id reuse, chunk index, last
-   * flag); the server reassembles + enforces the chunk/total caps.
-   */
-  relayBlobCreate: async (
-    machineId: string,
-    blobId: string | null,
-    chunkIndex: number,
-    last: boolean,
-    bytes: ArrayBuffer | Uint8Array,
-  ): Promise<{ blob_id: string; chunks: number; received_bytes: number; complete: boolean }> => {
-    const query = new URLSearchParams({
-      chunk_index: String(chunkIndex),
-      chunk_last: last ? '1' : '0',
-      ...(blobId ? { blob_id: blobId } : {}),
-    });
-    const response = await laravelHttp.rawRequest(
-      `${ROUTES.relayBlobCreate(machineId)}?${query.toString()}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: bytes instanceof Uint8Array ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) : bytes,
-        credentials: 'include',
-      },
-    );
-    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
-    return unwrapData<{ blob: { blob_id: string; chunks: number; received_bytes: number; complete: boolean } }>(
-      await response.json(),
-    ).blob;
-  },
-  /** Blob download (relay plane): reassembled bytes for a body ref. */
-  relayBlobFetch: async (machineId: string, blobId: string): Promise<Uint8Array> => {
-    const response = await laravelHttp.rawRequest(
-      ROUTES.relayBlobFetch(machineId, blobId),
-      { method: 'GET', credentials: 'include' },
-    );
-    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
-    return new Uint8Array(await response.arrayBuffer());
-  },
-  relayV2ClaimEnrollment: async (claimCode: string): Promise<RelayV2Device> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayV2EnrollmentClaim, { claim_code: claimCode });
-    return unwrapData<{ device: RelayV2Device }>(payload).device;
-  },
-  getRelayV2Devices: async (): Promise<RelayV2Device[]> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.relayV2Devices);
-    return unwrapData<{ devices: RelayV2Device[] }>(payload).devices;
-  },
-  createRelayV2Pairing: async (deviceId: string, clientInstanceId: string): Promise<RelayV2Pairing> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayV2Pairings, {
+  createRelayPairing: async (deviceId: string, clientInstanceId: string): Promise<RelayPairing> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayPairings, {
       device_id: deviceId,
       client_instance_id: clientInstanceId,
     });
-    return unwrapData<{ pairing: RelayV2Pairing }>(payload).pairing;
+    return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
-  renewRelayV2Pairing: async (pairingId: string): Promise<RelayV2Pairing> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayV2PairingRenew(pairingId));
-    return unwrapData<{ pairing: RelayV2Pairing }>(payload).pairing;
+  renewRelayPairing: async (pairingId: string): Promise<RelayPairing> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayPairingRenew(pairingId));
+    return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
-  revokeRelayV2Pairing: async (pairingId: string): Promise<RelayV2Pairing> => {
-    const payload = await requestLaravel<any>('DELETE', ROUTES.relayV2PairingRevoke(pairingId));
-    return unwrapData<{ pairing: RelayV2Pairing }>(payload).pairing;
+  revokeRelayPairing: async (pairingId: string): Promise<RelayPairing> => {
+    const payload = await requestLaravel<any>('DELETE', ROUTES.relayPairingRevoke(pairingId));
+    return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
-  admitRelayV2Operation: async (frame: RelayV2OperationAdmission): Promise<RelayV2Operation> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayV2Operations, frame);
-    return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  admitRelayOperation: async (frame: RelayOperationAdmission): Promise<RelayOperation> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayOperations, frame);
+    return unwrapData<{ operation: RelayOperation }>(payload).operation;
   },
-  getRelayV2OwnerHubAuth: async (): Promise<RelayV2Hub> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayV2OwnerHubAuth, {});
-    return unwrapData<{ hub: RelayV2Hub }>(payload).hub;
+  getRelayOwnerHubAuth: async (): Promise<RelayHub> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayOwnerHubAuth, {});
+    return unwrapData<{ hub: RelayHub }>(payload).hub;
   },
-  getRelayV2Operation: async (operationId: string): Promise<RelayV2Operation> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.relayV2Operation(operationId));
-    return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  getRelayOperation: async (operationId: string): Promise<RelayOperation> => {
+    const payload = await requestLaravel<any>('GET', ROUTES.relayOperation(operationId));
+    return unwrapData<{ operation: RelayOperation }>(payload).operation;
   },
-  cancelRelayV2Operation: async (operationId: string): Promise<RelayV2Operation> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayV2OperationCancel(operationId));
-    return unwrapData<{ operation: RelayV2Operation }>(payload).operation;
+  cancelRelayOperation: async (operationId: string): Promise<RelayOperation> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayOperationCancel(operationId));
+    return unwrapData<{ operation: RelayOperation }>(payload).operation;
   },
-  allocateRelayV2RequestBlob: async (
+  allocateRelayRequestBlob: async (
     blobId: string,
     pairingId: string,
     sha256: string,
     length: number,
   ): Promise<void> => {
-    await requestLaravel<any>('POST', ROUTES.relayV2RequestBlobs, {
+    await requestLaravel<any>('POST', ROUTES.relayRequestBlobs, {
       blob_id: blobId,
       pairing_id: pairingId,
       direction: 'request',
@@ -522,12 +427,12 @@ const laravelMethods = {
       expected_length: length,
     });
   },
-  putRelayV2RequestBlobChunk: async (
+  putRelayRequestBlobChunk: async (
     blobId: string,
     chunkIndex: number,
     bytes: Uint8Array,
   ): Promise<void> => {
-    const response = await laravelHttp.rawRequest(ROUTES.relayV2RequestBlobChunk(blobId, chunkIndex), {
+    const response = await laravelHttp.rawRequest(ROUTES.relayRequestBlobChunk(blobId, chunkIndex), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
@@ -535,15 +440,15 @@ const laravelMethods = {
     });
     if (!response.ok) throw Object.assign(new Error(`LARAVEL_HTTP_${response.status}`), { status: response.status });
   },
-  finalizeRelayV2RequestBlob: async (blobId: string, sha256: string, length: number): Promise<void> => {
-    await requestLaravel<any>('POST', ROUTES.relayV2RequestBlobFinalize(blobId), {
+  finalizeRelayRequestBlob: async (blobId: string, sha256: string, length: number): Promise<void> => {
+    await requestLaravel<any>('POST', ROUTES.relayRequestBlobFinalize(blobId), {
       blob_id: blobId,
       expected_sha256: sha256,
       expected_length: length,
     });
   },
-  getRelayV2ResponseBlob: async (blobId: string): Promise<Uint8Array> => {
-    const response = await laravelHttp.rawRequest(ROUTES.relayV2ResponseBlob(blobId), {
+  getRelayResponseBlob: async (blobId: string): Promise<Uint8Array> => {
+    const response = await laravelHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {
       method: 'GET',
       credentials: 'include',
     });

@@ -93,18 +93,7 @@
     "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
     "worker_task_result": "/api/worker/tasks/{task_type}/result",
     "worker_task_release": "/api/worker/tasks/{task_type}/release",
-    "relay_machines": "/api/relay/machines",
-    "relay_machine_register": "/api/relay/machine/register",
-    "relay_machine_heartbeat": "/api/relay/machine/heartbeat",
-    "relay_machine_unregister": "/api/relay/machine/unregister",
-    "relay_hub_auth": "/api/relay/hub-auth",
-    "relay_pair_announce": "/api/relay/{machine_id}/pair",
-    "relay_request": "/api/relay/{machine_id}/requests",
-    "relay_request_fetch": "/api/relay/{machine_id}/requests/{request_id}",
-    "relay_response": "/api/relay/{machine_id}/responses",
-    "relay_response_fetch": "/api/relay/{machine_id}/responses/{request_id}",
-    "relay_blob_create": "/api/relay/{machine_id}/blobs",
-    "relay_blob_fetch": "/api/relay/{machine_id}/blobs/{blob_id}"
+    "queue_center_hub_authorization": "/api/queue-center/mercure-authorization"
   },
   "relay": {
     "hub": {

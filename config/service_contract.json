@@ -55,7 +55,9 @@
     },
     "realtime": {
         "mercure_cookie": "mercureAuthorization",
-        "mercure_transport": "local"
+        "mercure_transport": "local",
+        "mercure_heartbeat": "20s",
+        "mercure_write_timeout": "0s"
     },
     "access": {
         "default_api_region_prefix": "si",

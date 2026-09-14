@@ -35,9 +35,9 @@ RELAY_RESULT_RESPONDED = "responded"
 RELAY_RESULT_FAILED = "failed"
 RELAY_RESULT_CANCELED = "canceled"
 RELAY_RESULT_EXPIRED = "expired"
-RELAY_LEASE_STOP_PREFIX = "relay.v2.operation.lease.stop"
-RELAY_LEASE_LOST_PREFIX = "relay.v2.operation.lease.lost"
-RELAY_LEASE_DEADLINE_PREFIX = "relay.v2.operation.lease.deadline"
+RELAY_LEASE_STOP_PREFIX = "relay.operation.lease.stop"
+RELAY_LEASE_LOST_PREFIX = "relay.operation.lease.lost"
+RELAY_LEASE_DEADLINE_PREFIX = "relay.operation.lease.deadline"
 
 
 class LaravelRelayOperationProcessor:
@@ -72,7 +72,7 @@ class LaravelRelayOperationProcessor:
             self._process_item,
             items,
             max_workers=relay_contract.limit("device_active_leases"),
-            thread_prefix="RelayV2Operation",
+            thread_prefix="RelayOperation",
         )
         relay_activity_log.success(
             "operation.batch.completed",
@@ -188,7 +188,7 @@ class LaravelRelayOperationProcessor:
             dict(request),
             stop_signal,
             lost_signal,
-            thread_name="RelayV2LeaseRenewThread",
+            thread_name="RelayLeaseRenewThread",
         )
         try:
             self._assert_active_lease(request)
@@ -214,7 +214,7 @@ class LaravelRelayOperationProcessor:
                         stop_signal,
                         lost_signal,
                         deadline_signal,
-                        thread_name="RelayV2LeaseCleanupThread",
+                        thread_name="RelayLeaseCleanupThread",
                     )
                 except Exception as error:
                     relay_activity_log.error(

@@ -289,6 +289,8 @@ cd "$LARAVEL_DIR"
 # InstallationAccessCode.php repository file is never rewritten).
 GENERATED_ACCESS_CODE="$(new_installation_access_code)"
 
+set_php_runtime_plane "frankenphp"
+set_web_server_plane "frankenphp"
 resolve_php
 if [ -z "$PHP_BIN" ]; then
     # Plane-aware init-ensure: the frankenphp plane provisions php through

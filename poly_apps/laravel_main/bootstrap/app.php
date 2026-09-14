@@ -204,8 +204,8 @@ $application = Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        $exceptions->render(function (\App\Apps\RelayV2\RelayV2Exceptions\RelayV2DomainException $e, Request $request) {
-            if ($request->is('api/relay/v2/*')) {
+        $exceptions->render(function (\App\Apps\Relay\RelayExceptions\RelayDomainException $e, Request $request) {
+            if ($request->is('api/relay/*')) {
                 return response()->json([
                     'success' => false,
                     'message' => $e->getMessage(),

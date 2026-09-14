@@ -64,7 +64,7 @@ from pycore.pyutils.laravel.identity import (
     LARAVEL_HEALTH_SERVICE,
     build_pycore_identity_headers,
 )
-from pycore.pyutils.laravel.transport import (
+from pycore.pyutils.common.laravel_http_transport import (
     create_laravel_http_session,
     response_http_version,
 )
@@ -796,4 +796,3 @@ class LaravelEndpointManager:
 
 # --- module-level shared instance ------------------------------------------ #
 laravel_endpoint_manager = LaravelEndpointManager()
-

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Machine-side Relay V2 runtime instance."""
+"""Machine-side Relay runtime instance."""
 
 from pycore.pyctl.relay.laravel_relay_agent_service import (
     laravel_relay_agent_service,

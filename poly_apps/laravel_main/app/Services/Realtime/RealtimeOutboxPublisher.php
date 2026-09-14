@@ -4,8 +4,8 @@ namespace App\Services\Realtime;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
-use App\Apps\RelayV2\RelayV2Services\RelayV2OutboxRepository;
-use App\Apps\RelayV2\RelayV2Services\RelayV2Contract;
+use App\Apps\Relay\RelayServices\RelayOutboxRepository;
+use App\Apps\Relay\RelayServices\RelayContract;
 use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -26,7 +26,7 @@ final class RealtimeOutboxPublisher
         $result = [
             'queue_center' => 0,
             'social' => 0,
-            'relay_v2' => 0,
+            'relay' => $this->publishRelay(),
         ];
 
         if (!$lock->get()) {
@@ -36,7 +36,6 @@ final class RealtimeOutboxPublisher
         try {
             $result['queue_center'] = $this->publishQueueCenter();
             $result['social'] = $this->publishSocial();
-            $result['relay_v2'] = $this->publishRelayV2();
             AppQyV1TranslationEventModel::pruneOlderThan(self::RETENTION_SECONDS);
             AppQyV1SocialEventModel::pruneOlderThan(self::RETENTION_SECONDS);
         } finally {
@@ -46,10 +45,24 @@ final class RealtimeOutboxPublisher
         return $result;
     }
 
-    private function publishRelayV2(): int
+    public function publishRelay(): int
     {
-        $repository = app(RelayV2OutboxRepository::class);
-        $rows = $repository->pending(RelayV2Contract::limit('outbox_publish_batch'));
+        $lock = Cache::lock(self::LOCK_KEY.':relay', self::LOCK_SECONDS);
+
+        if (!$lock->get()) {
+            return 0;
+        }
+        try {
+            return $this->drainRelay();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function drainRelay(): int
+    {
+        $repository = app(RelayOutboxRepository::class);
+        $rows = $repository->pending(RelayContract::limit('outbox_publish_batch'));
         $published = 0;
 
         foreach ($rows as $row) {
@@ -71,7 +84,7 @@ final class RealtimeOutboxPublisher
                 // poll and the UI operation poll remain the reconciliation
                 // safety net while pushes are delayed.
                 $repository->markFailed($row, (string) ($publishError ?? 'mercure hub rejected relay v2 update'));
-                Log::warning('[RealtimeOutboxPublisher] Relay V2 hub publish failed', [
+                Log::warning('[RealtimeOutboxPublisher] Relay hub publish failed', [
                     'outbox_id' => (string) $row->outbox_id,
                     'event' => (string) $row->event_type,
                     'error' => (string) ($publishError ?? 'hub_rejected'),

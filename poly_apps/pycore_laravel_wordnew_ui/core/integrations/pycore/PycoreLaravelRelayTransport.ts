@@ -1,4 +1,4 @@
-import { RELAY_V2_CONTRACT, type RelayV2Operation, type RelayV2Pairing } from '../../contracts/RelayV2Contract';
+import { RELAY_CONTRACT, type RelayOperation, type RelayPairing } from '../../contracts/RelayContract';
 import { laravelApi } from '../laravel/LaravelAPI';
 import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { StorageManager } from '../../persistence';
@@ -26,11 +26,11 @@ export function isPycoreRelayError(error: unknown): error is PycoreRelayError {
 interface PersistedRelayState {
   client_instance_id: string;
   selected_device_id: string | null;
-  pairings: Record<string, RelayV2Pairing>;
+  pairings: Record<string, RelayPairing>;
 }
 
 const TERMINAL_STATES = new Set(['responded', 'failed', 'execution_unknown', 'expired', 'canceled']);
-const PAIR_RENEW_MARGIN_MS = Math.floor(RELAY_V2_CONTRACT.durations.pairing_lease_seconds * 200);
+const PAIR_RENEW_MARGIN_MS = Math.floor(RELAY_CONTRACT.durations.pairing_lease_seconds * 200);
 // Long-connection-first waiting: the Mercure stream is the notification
 // plane, HTTP polling is only a bounded reconciliation fallback. While the
 // stream is live, waiters reconcile at a slow cadence (the wake resolves
@@ -41,7 +41,7 @@ const OPERATION_CONNECT_WAIT_MS = 3_000;
 const OPERATION_POLL_FLOOR_MS = 1_000;
 const OPERATION_POLL_MAX_MS = 15_000;
 const OPERATION_RECONCILIATION_MS = 10_000;
-const pairFlights = new Map<string, Promise<RelayV2Pairing>>();
+const pairFlights = new Map<string, Promise<RelayPairing>>();
 const operationWakeWaiters = new Map<string, Set<() => void>>();
 let relayState: PersistedRelayState | null = null;
 let wakeWired = false;
@@ -64,12 +64,14 @@ function notifyAllOperationWakes(): void {
 function ensureOperationWake(): void {
   if (!wakeWired) {
     wakeWired = true;
-    laravelRelayOperationEvents.onOperationEvent((operationId) => notifyOperationWake(operationId));
+    laravelRelayOperationEvents.start();
+    laravelRelayOperationEvents.onOperationEvent((operationId, state) => {
+      if (TERMINAL_STATES.has(state)) notifyOperationWake(operationId);
+    });
     laravelRelayOperationEvents.onConnectionState((connected) => {
       if (connected) notifyAllOperationWakes();
     });
   }
-  laravelRelayOperationEvents.start();
 }
 
 function createOperationWake(operationId: string, signal?: AbortSignal): {
@@ -96,6 +98,7 @@ function createOperationWake(operationId: string, signal?: AbortSignal): {
       }
       return new Promise<void>((resolve, reject) => {
         const settle = (outcome: () => void): void => {
+          pendingWake = false;
           clearTimeout(timer);
           signal?.removeEventListener('abort', onAbort);
           wakeResolve = null;
@@ -131,7 +134,7 @@ function newUuid(): string {
 
 function loadRelayState(): PersistedRelayState {
   if (relayState) return relayState;
-  const stored = StorageManager.get<Partial<PersistedRelayState> | null>(StorageKeys.RELAY_V2_STATE, null);
+  const stored = StorageManager.get<Partial<PersistedRelayState> | null>(StorageKeys.RELAY_STATE, null);
   relayState = {
     client_instance_id: typeof stored?.client_instance_id === 'string' && stored.client_instance_id.length >= 16
       ? stored.client_instance_id
@@ -144,10 +147,10 @@ function loadRelayState(): PersistedRelayState {
 }
 
 function persistRelayState(): void {
-  if (relayState) StorageManager.set(StorageKeys.RELAY_V2_STATE, relayState);
+  if (relayState) StorageManager.set(StorageKeys.RELAY_STATE, relayState);
 }
 
-function pairingFresh(pairing: RelayV2Pairing | undefined): boolean {
+function pairingFresh(pairing: RelayPairing | undefined): boolean {
   if (!pairing || pairing.state !== 'active') return false;
   const expiresAt = Date.parse(pairing.expires_at);
   return Number.isFinite(expiresAt) && expiresAt - Date.now() > PAIR_RENEW_MARGIN_MS;
@@ -161,7 +164,7 @@ export function isLaravelRelayReady(): boolean {
   return isPycoreRelayMode() && laravelRelayDeviceId() !== null;
 }
 
-export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayV2Pairing> {
+export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {
   const state = loadRelayState();
   state.selected_device_id = deviceId;
   persistRelayState();
@@ -170,13 +173,13 @@ export async function designateLaravelRelayDevice(deviceId: string): Promise<Rel
   const inFlight = pairFlights.get(deviceId);
   if (inFlight) return inFlight;
   const request = (current
-    ? laravelApi.renewRelayV2Pairing(current.pairing_id).catch((error: any) => {
+    ? laravelApi.renewRelayPairing(current.pairing_id).catch((error: any) => {
         if (error?.status === 404 || error?.status === 409) {
-          return laravelApi.createRelayV2Pairing(deviceId, state.client_instance_id);
+          return laravelApi.createRelayPairing(deviceId, state.client_instance_id);
         }
         throw error;
       })
-    : laravelApi.createRelayV2Pairing(deviceId, state.client_instance_id))
+    : laravelApi.createRelayPairing(deviceId, state.client_instance_id))
     .then((pairing) => {
       state.pairings[deviceId] = pairing;
       persistRelayState();
@@ -192,21 +195,21 @@ export async function clearLaravelRelayDevice(): Promise<void> {
   const deviceId = state.selected_device_id;
   const pairing = deviceId ? state.pairings[deviceId] : undefined;
   if (pairing) {
-    await laravelApi.revokeRelayV2Pairing(pairing.pairing_id);
+    await laravelApi.revokeRelayPairing(pairing.pairing_id);
     delete state.pairings[pairing.device_id];
   }
   state.selected_device_id = null;
   persistRelayState();
 }
 
-async function ensurePair(): Promise<RelayV2Pairing> {
+async function ensurePair(): Promise<RelayPairing> {
   const state = loadRelayState();
   let deviceId = state.selected_device_id;
   if (!deviceId) {
-    const devices = await laravelApi.getRelayV2Devices();
+    const devices = await laravelApi.getRelayDevices();
     const onlineDevices = devices.filter((device) => {
       const lastSeenAt = Date.parse(device.last_seen_at || '');
-      const offlineAfterMs = (RELAY_V2_CONTRACT.durations.heartbeat_seconds * 2 + 5) * 1000;
+      const offlineAfterMs = (RELAY_CONTRACT.durations.heartbeat_seconds * 2 + 5) * 1000;
       return Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt <= offlineAfterMs;
     });
     if (onlineDevices.length === 1) deviceId = onlineDevices[0].device_id;
@@ -263,7 +266,7 @@ function queryRecord(url: URL): Record<string, string | string[]> {
 }
 
 function allowedHeaders(init: HeadersInit | undefined): Record<string, string> {
-  const allowed = new Set<string>(RELAY_V2_CONTRACT.headers.request_allow);
+  const allowed = new Set<string>(RELAY_CONTRACT.headers.request_allow);
   const result: Record<string, string> = {};
   new Headers(init).forEach((value, name) => {
     if (allowed.has(name.toLowerCase())) result[name.toLowerCase()] = value;
@@ -272,16 +275,16 @@ function allowedHeaders(init: HeadersInit | undefined): Record<string, string> {
 }
 
 async function uploadRequestBlob(pairingId: string, bytes: Uint8Array, digest: string): Promise<string> {
-  if (bytes.byteLength > RELAY_V2_CONTRACT.limits.request_body_bytes) {
+  if (bytes.byteLength > RELAY_CONTRACT.limits.request_body_bytes) {
     throw new PycoreRelayError('too-large', 'RELAY_REQUEST_BODY_TOO_LARGE', 413);
   }
   const blobId = newUuid();
-  await laravelApi.allocateRelayV2RequestBlob(blobId, pairingId, digest, bytes.byteLength);
-  const chunkSize = RELAY_V2_CONTRACT.limits.blob_chunk_bytes;
+  await laravelApi.allocateRelayRequestBlob(blobId, pairingId, digest, bytes.byteLength);
+  const chunkSize = RELAY_CONTRACT.limits.blob_chunk_bytes;
   for (let offset = 0, index = 0; offset < bytes.byteLength; offset += chunkSize, index += 1) {
-    await laravelApi.putRelayV2RequestBlobChunk(blobId, index, bytes.subarray(offset, offset + chunkSize));
+    await laravelApi.putRelayRequestBlobChunk(blobId, index, bytes.subarray(offset, offset + chunkSize));
   }
-  await laravelApi.finalizeRelayV2RequestBlob(blobId, digest, bytes.byteLength);
+  await laravelApi.finalizeRelayRequestBlob(blobId, digest, bytes.byteLength);
   return blobId;
 }
 
@@ -289,10 +292,10 @@ function abortGuard(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 }
 
-async function waitForOperation(operation: RelayV2Operation, signal?: AbortSignal): Promise<RelayV2Operation> {
+async function waitForOperation(operation: RelayOperation, signal?: AbortSignal): Promise<RelayOperation> {
   const deadline = Date.now()
-    + (RELAY_V2_CONTRACT.durations.claim_timeout_seconds + RELAY_V2_CONTRACT.durations.execution_timeout_seconds) * 1000;
-  let current = operation;
+    + (RELAY_CONTRACT.durations.claim_timeout_seconds + RELAY_CONTRACT.durations.execution_timeout_seconds) * 1000;
+  let current = laravelRelayOperationEvents.takeOperation(operation.operation_id) || operation;
   const wake = createOperationWake(current.operation_id, signal);
   let fallbackMs = OPERATION_POLL_FLOOR_MS;
   try {
@@ -307,7 +310,8 @@ async function waitForOperation(operation: RelayV2Operation, signal?: AbortSigna
       abortGuard(signal);
       if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
       try {
-        current = await laravelApi.getRelayV2Operation(current.operation_id);
+        current = laravelRelayOperationEvents.takeOperation(current.operation_id)
+          || await laravelApi.getRelayOperation(current.operation_id);
       } catch (error) {
         // Yield the owner rate limiter: treat 429 as backpressure and back
         // the reconciliation poll off instead of hammering the API.
@@ -323,10 +327,10 @@ async function waitForOperation(operation: RelayV2Operation, signal?: AbortSigna
   return current;
 }
 
-async function responseBytes(operation: RelayV2Operation): Promise<Uint8Array | null> {
+async function responseBytes(operation: RelayOperation): Promise<Uint8Array | null> {
   if (!operation.response_body_present) return null;
   const bytes = operation.response_body_ref
-    ? await laravelApi.getRelayV2ResponseBlob(operation.response_body_ref)
+    ? await laravelApi.getRelayResponseBlob(operation.response_body_ref)
     : base64Bytes(operation.response_body_base64 || '');
   if (operation.response_body_length !== bytes.byteLength
       || operation.response_body_sha256 !== await sha256(bytes)) {
@@ -363,12 +367,12 @@ export async function deliverThroughLaravelRelay(
     body_sha256: digest,
     body_length: exactBytes.byteLength,
   };
-  if (bytes !== null && bytes.byteLength > RELAY_V2_CONTRACT.limits.inline_body_bytes) {
+  if (bytes !== null && bytes.byteLength > RELAY_CONTRACT.limits.inline_body_bytes) {
     Object.assign(frame, { body_ref: await uploadRequestBlob(pairing.pairing_id, bytes, digest) });
   } else if (bytes !== null) {
     Object.assign(frame, { body_base64: bytesBase64(bytes) });
   }
-  const completed = await waitForOperation(await laravelApi.admitRelayV2Operation(frame), signal);
+  const completed = await waitForOperation(await laravelApi.admitRelayOperation(frame), signal);
   if (completed.state !== 'responded' || completed.response_status === null) {
     throw new PycoreRelayError('http', completed.error_code || `RELAY_OPERATION_${completed.state.toUpperCase()}`);
   }

@@ -78,10 +78,12 @@ export class LaravelMercureConnection {
 
     const response = await protocolFetch(this.resumeUrl(this.subscribeUrl(config)), {
       credentials: 'omit',
+      redirect: 'error',
       headers,
       signal: controller.signal,
     });
-    if (!response.ok || !response.body) {
+    if (!response.ok || !response.body
+      || response.headers.get('content-type')?.split(';')[0].trim() !== 'text/event-stream') {
       throw new Error(`MERCURE_SUBSCRIPTION_HTTP_${response.status}`);
     }
     if (this.generation !== generation) return;
