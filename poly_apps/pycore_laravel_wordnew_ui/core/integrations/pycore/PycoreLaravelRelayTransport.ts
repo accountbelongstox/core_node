@@ -1,5 +1,8 @@
 import { RELAY_CONTRACT, type RelayOperation, type RelayOperationAdmission, type RelayPairing } from '../../contracts/RelayContract';
-import { laravelApi } from '../laravel/LaravelAPI';
+import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
+import { laravelRelayRoster } from '../laravel/LaravelRelayRoster';
+import { getSharedBaseURL, SHARED_BASE_URL_CHANGED_EVENT } from '../laravel/transport/BaseAPI';
+import { resolveLaravelBaseURL } from '../laravel/LaravelRequest';
 import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
@@ -47,13 +50,21 @@ const operationWakeWaiters = new Map<string, Set<() => void>>();
 let relayState: PersistedRelayState | null = null;
 let wakeWired = false;
 let sessionGeneration = 0;
+let coordinatorUrl = getSharedBaseURL();
 
-subscribeAuthSession(() => {
+function resetRelayContext(): void {
   sessionGeneration += 1;
   pairFlights.clear();
   relayState = { client_instance_id: newUuid(), selected_device_id: null, pairings: {} };
   persistRelayState();
   notifyAllOperationWakes();
+}
+
+subscribeAuthSession(resetRelayContext);
+if (typeof window !== 'undefined') window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, () => {
+  const nextUrl = getSharedBaseURL();
+  if (coordinatorUrl !== null && coordinatorUrl !== nextUrl) resetRelayContext();
+  coordinatorUrl = nextUrl;
 });
 
 function assertSession(generation: number): void {
@@ -209,6 +220,7 @@ export function isLaravelRelayReady(): boolean {
 }
 
 export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {
+  resolveLaravelBaseURL();
   const state = loadRelayState();
   const generation = sessionGeneration;
   state.selected_device_id = deviceId;
@@ -254,9 +266,18 @@ export async function clearLaravelRelayDevice(): Promise<void> {
 async function ensurePair(generation: number): Promise<RelayPairing> {
   const state = loadRelayState();
   let deviceId = state.selected_device_id;
+  const devices = await laravelRelayRoster.requireDevices();
+  assertSession(generation);
+  const selected = devices.find((device) => device.device_id === deviceId);
+  if (deviceId && !selected) {
+    delete state.pairings[deviceId];
+    persistRelayState();
+    throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
+  }
+  if (selected && !selected.online) {
+    throw new PycoreRelayError('peer-offline', 'RELAY_DEVICE_UNAVAILABLE');
+  }
   if (!deviceId) {
-    const devices = await laravelApi.getRelayDevices();
-    assertSession(generation);
     const onlineDevices = devices.filter((device) => {
       const lastSeenAt = Date.parse(device.last_seen_at || '');
       const offlineAfterMs = RELAY_CONTRACT.durations.presence_timeout_seconds * 1000;
@@ -368,8 +389,9 @@ async function waitForOperation(operation: RelayOperation, generation: number, s
       abortGuard(signal);
       if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
       try {
-        current = laravelRelayOperationEvents.takeOperation(current.operation_id)
+        const observed = laravelRelayOperationEvents.takeOperation(current.operation_id)
           || await laravelApi.getRelayOperation(current.operation_id);
+        if (observed.revision >= current.revision) current = observed;
       } catch (error) {
         // Yield the owner rate limiter: treat 429 as backpressure and back
         // the reconciliation poll off instead of hammering the API.
@@ -402,12 +424,13 @@ export async function deliverThroughLaravelRelay(
   init: RequestInit,
   signal?: AbortSignal,
 ): Promise<Response> {
+  resolveLaravelBaseURL();
   ensureOperationWake();
-  laravelRelayOperationEvents.start();
+  laravelRelayRoster.start();
   try {
     return await deliverOperation(url, init, signal);
   } finally {
-    laravelRelayOperationEvents.stop();
+    laravelRelayRoster.stop();
   }
 }
 

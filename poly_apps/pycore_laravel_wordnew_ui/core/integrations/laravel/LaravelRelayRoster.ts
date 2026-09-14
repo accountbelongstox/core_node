@@ -1,5 +1,6 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
-import { laravelApi } from './LaravelAPI';
+import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
+import { SHARED_BASE_URL_CHANGED_EVENT } from './transport/BaseAPI';
 import { laravelRelayOperationEvents } from './LaravelRelayOperationEvents';
 import { subscribeAuthSession } from '../../auth/AuthSession';
 
@@ -21,14 +22,20 @@ class LaravelRelayRoster {
   private unsubscribe: (() => void)[] = [];
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private generation = 0;
+  private refreshedAt = 0;
+  private refreshError: unknown = null;
 
   constructor() {
-    subscribeAuthSession(() => {
+    const reset = (): void => {
       this.generation += 1;
       this.refreshFlight = null;
       this.entries.clear();
+      this.refreshedAt = 0;
+      this.refreshError = null;
       this.emit();
-    });
+    };
+    subscribeAuthSession(reset);
+    if (typeof window !== 'undefined') window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, reset);
   }
 
   start(): void {
@@ -37,13 +44,17 @@ class LaravelRelayRoster {
     this.started = true;
     this.unsubscribe = [
       laravelRelayOperationEvents.onConnectionState((connected) => {
-        if (connected) void this.refresh();
+        if (connected) {
+          this.refreshedAt = 0;
+          void this.refresh();
+        }
       }),
       laravelRelayOperationEvents.onEvent((event, data) => {
         if (event !== RELAY_CONTRACT.events.device_presence) return;
         const frame = data as { device?: RelayDevice; online?: boolean };
         if (!frame?.device?.device_id) return;
         this.entries.set(frame.device.device_id, { ...frame.device, online: frame.online === true });
+        this.refreshedAt = 0;
         this.emit();
       }),
     ];
@@ -66,7 +77,9 @@ class LaravelRelayRoster {
   }
 
   list(): RelayRosterEntry[] {
-    return [...this.entries.values()].sort((left, right) => left.label.localeCompare(right.label));
+    return [...this.entries.values()]
+      .map((device) => ({ ...device, online: this.isOnline(device) }))
+      .sort((left, right) => left.label.localeCompare(right.label));
   }
 
   online(): RelayRosterEntry[] {
@@ -79,6 +92,7 @@ class LaravelRelayRoster {
   }
 
   refresh(): Promise<void> {
+    if (Date.now() - this.refreshedAt < REFRESH_INTERVAL_MS) return Promise.resolve();
     if (!this.refreshFlight) {
       const flight = this.fetchRoster(this.generation).finally(() => {
         if (this.refreshFlight === flight) this.refreshFlight = null;
@@ -88,17 +102,28 @@ class LaravelRelayRoster {
     return this.refreshFlight;
   }
 
+  async requireDevices(): Promise<RelayRosterEntry[]> {
+    await this.refresh();
+    if (this.refreshError) throw this.refreshError;
+    return this.list();
+  }
+
   private async fetchRoster(generation: number): Promise<void> {
     try {
       const devices = await laravelApi.getRelayDevices();
       if (generation !== this.generation) return;
+      this.refreshedAt = Date.now();
+      this.refreshError = null;
       this.entries = new Map(devices.map((device) => [device.device_id, {
         ...device,
         online: this.isOnline(device),
       }]));
       this.emit();
-    } catch {
-      return;
+    } catch (error) {
+      if (generation !== this.generation) return;
+      this.refreshError = error;
+      this.refreshedAt = Date.now() - REFRESH_INTERVAL_MS
+        + RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
     }
   }
 

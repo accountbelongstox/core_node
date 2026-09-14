@@ -105,6 +105,14 @@ export default defineConfig(() => {
         host: BIND_ANY_HOST,
         strictPort: true,
         allowedHosts: readExternalAllowedHosts(),
+        warmup: {
+          clientFiles: [
+            './core/integrations/laravel/LaravelAPI.ts',
+            './core/integrations/laravel/LaravelRequest.ts',
+            './core/integrations/laravel/LaravelRelayAPI.ts',
+            './core/integrations/laravel/LaravelRelayOperationEvents.ts',
+          ],
+        },
       },
       preview: {
         allowedHosts: readExternalAllowedHosts(),

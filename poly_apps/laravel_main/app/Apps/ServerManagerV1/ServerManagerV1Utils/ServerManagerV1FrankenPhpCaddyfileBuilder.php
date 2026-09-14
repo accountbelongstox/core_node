@@ -99,15 +99,18 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
     private static function renderReverseProxyHandlers(string $upstream, string $earlyHintsLink): string
     {
+        $streamCloseDelay = ServiceContract::string('realtime.mercure_proxy_close_delay');
         if (trim($earlyHintsLink) === '') {
-            return "\treverse_proxy {$upstream}\n";
+            return "\treverse_proxy {$upstream} {\n\t\tstream_close_delay {$streamCloseDelay}\n\t}\n";
         }
 
         return "\troute {\n"
             ."\t\t@early_hints header Accept *text/html*\n"
             ."\t\theader @early_hints Link \"{$earlyHintsLink}\"\n"
             ."\t\trespond @early_hints 103\n"
-            ."\t\treverse_proxy {$upstream}\n"
+            ."\t\treverse_proxy {$upstream} {\n"
+            ."\t\t\tstream_close_delay {$streamCloseDelay}\n"
+            ."\t\t}\n"
             ."\t}\n";
     }
 

@@ -453,13 +453,16 @@ function Get-FrankenPhpReverseProxyHandlers {
         [Parameter(Mandatory = $true)][string]$Upstream,
         [Parameter(Mandatory = $true)][string]$EarlyHintsLink
     )
+    $streamCloseDelay = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_proxy_close_delay')
 
     return @"
 	route {
 		@early_hints header Accept *text/html*
 		header @early_hints Link "$EarlyHintsLink"
 		respond @early_hints 103
-		reverse_proxy $Upstream
+		reverse_proxy $Upstream {
+			stream_close_delay $streamCloseDelay
+		}
 	}
 "@
 }

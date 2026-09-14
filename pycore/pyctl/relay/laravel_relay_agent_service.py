@@ -341,6 +341,7 @@ class LaravelRelayAgentService:
         data = laravel_relay_transport.request_json(
             "POST", relay_contract.endpoint("device_hub_authorization"),
             {"device_id": relay_device_identity.device_id(), "contract_digest": relay_contract.digest},
+            timeout=relay_contract.duration("subscriber_connect_timeout_seconds"),
             action="device.hub.authorization", coordinator_url=endpoint,
         )
         return {

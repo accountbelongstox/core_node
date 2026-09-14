@@ -560,6 +560,7 @@ fm_octane_php_server_stanza() {
 fm_caddy_reverse_proxy_handlers_render() {
     local upstream="$1"
     local early_hints_link="${2:-}"
+    local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
 
     if [ -n "$early_hints_link" ]; then
         cat <<EOF
@@ -567,13 +568,15 @@ fm_caddy_reverse_proxy_handlers_render() {
 		@early_hints header Accept *text/html*
 		header @early_hints Link "${early_hints_link}"
 		respond @early_hints 103
-		reverse_proxy ${upstream}
+		reverse_proxy ${upstream} {
+			stream_close_delay ${stream_close_delay}
+		}
 	}
 EOF
         return
     fi
 
-    printf '\treverse_proxy %s\n' "$upstream"
+    printf '\treverse_proxy %s {\n\t\tstream_close_delay %s\n\t}\n' "$upstream" "$stream_close_delay"
 }
 
 # Canonical Caddyfile render. The contract-owned internal TLS site is kept

@@ -1,5 +1,8 @@
 import { RELAY_CONTRACT, type RelayOperation } from '../../contracts/RelayContract';
-import { laravelApi } from './LaravelAPI';
+import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
+import { SHARED_BASE_URL_CHANGED_EVENT } from './transport/BaseAPI';
+import { resolveLaravelBaseURL } from './LaravelRequest';
+import { appendLog } from '../../logstore/logStore';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
 import { subscribeAuthSession } from '../../auth/AuthSession';
 
@@ -36,7 +39,7 @@ class LaravelRelayOperationEvents {
   private subscribedAt = 0;
 
   constructor() {
-    subscribeAuthSession(() => {
+    const reset = (): void => {
       this.generation += 1;
       this.operations.clear();
       this.clearTimers();
@@ -44,10 +47,13 @@ class LaravelRelayOperationEvents {
       this.connection = new LaravelMercureConnection();
       this.notifyConnectionState(false);
       if (this.started) this.connect();
-    });
+    };
+    subscribeAuthSession(reset);
+    if (typeof window !== 'undefined') window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, reset);
   }
 
   start(): void {
+    resolveLaravelBaseURL();
     this.consumers += 1;
     if (this.started) return;
     this.started = true;
@@ -155,7 +161,8 @@ class LaravelRelayOperationEvents {
               this.notifyConnectionState(true);
             },
             onEvent: (event, data) => this.handleEvent(event, data),
-            onClose: () => {
+            onClose: (error) => {
+              if (error) appendLog('error', 'api', `MERCURE_STREAM_INTERRUPTED: ${String(error)}`);
               if (this.subscribedAt > 0
                 && Date.now() - this.subscribedAt >= RELAY_CONTRACT.durations.subscriber_read_timeout_seconds * 1000) {
                 this.reconnectDelayMs = RECONNECT_MIN_MS;
@@ -189,7 +196,7 @@ class LaravelRelayOperationEvents {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
-    }, this.reconnectDelayMs);
+    }, this.reconnectDelayMs + Math.floor(Math.random() * RECONNECT_MIN_MS));
     this.reconnectDelayMs = Math.min(RECONNECT_MAX_MS, this.reconnectDelayMs * 2);
   }
 

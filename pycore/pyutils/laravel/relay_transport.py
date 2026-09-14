@@ -324,9 +324,9 @@ class LaravelRelayTransport:
             data=body if body else None,
             headers=headers,
             timeout=(
-                relay_contract.duration("request_timeout_seconds")
-                if timeout is None
-                else float(timeout)
+                min(relay_contract.duration("subscriber_connect_timeout_seconds"),
+                    relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout)),
+                relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout),
             ),
             allow_redirects=False,
             log_line=False,
