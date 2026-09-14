@@ -1,6 +1,6 @@
 首先pyservice 是pycore的客户端，是pycore组，注 意这是一组，同时ui在poly apps / pycore ui中，这是ui组，注意这是一组，都通过poly apps / laravel main中转。
 laralve main 100%利用franken PHP的能力，使用长连接替代ws作为中转方案，显然当前系统 上并不具备这个能力，需要重构，先检测175_laravel_main_start.sh 脚本，目前前端UI部署在https://12gm.com也就是poly apps / pycore ui中，而laralvel 通过frankenPHP部署在api.si.12gm.com ，以上均是由175_laravel_main_start /  93_install_frankenphp.sh脚本部署
-注意，如果发现问题就要底层重构，而不是小修小补
+注意，如果发现问题就要底层重构，而不是小修小补，不要弹出选择或询问窗口，而是全部按我要求自主决策。
 注意，需要查询官方文档，同时找到原因就先写到文档 ./docs_fix/A7A 规范命名中，并边找问题边追加，禁止全面分析完再写文档，需要找到一点追加一点，同时确保找出所有问题了再根据文档开始修改代码。注意要按项目规范。
 RelayV2
 1:RelayV2 全量修改为Relay一个版本，去掉其他的版本代码和标识，按最新的合并为一个Relay。
@@ -80,5 +80,5 @@ f02df28c-c0b1-48d2-8856-9f2aa...
 f02df28c-c0b1-48d2-8856-9f2aa...
 602-f28---0k1-48-2-8856-062==···
 注意，发现问题就要底层重构，并要合并冗余代码和类库，必须底层重构并使用新技术、新方案并达到效果。按规范，3个端以及sh的部署文件均需要全面升级，。
-
+不要弹出选择或询问窗口，而是全部按我要求自主决策。
  
