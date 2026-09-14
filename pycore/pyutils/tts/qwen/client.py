@@ -4,13 +4,15 @@
 from __future__ import annotations
 
 import json
-import time
 import urllib.parse
 import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from pycore.pyfoundations.backoff_wait import BackoffWait
 from pycore.pyutils.common.http_client import HttpClient
 from pycore.pyutils.tts.qwen.config import (
+    queue_capacity_wait_seconds,
+    queue_recovery_budget_seconds,
     request_timeout_seconds,
     service_base_url as base_url,
 )
@@ -271,7 +273,7 @@ def queue_submit_and_wait(
     poll_client_id = f"pycore-qwen-wait-{stable_id}"
     cursor = 0
     instance_id = str(job.get("event_instance_id") or "")
-    recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
+    recovery_wait: Optional[BackoffWait] = None
     while True:
         response = queue_events(
             poll_client_id,
@@ -300,13 +302,19 @@ def queue_submit_and_wait(
                     return terminal
             if not _is_retryable_queue_error(poll_error):
                 return False, b"", poll_error
-            time.sleep(recovery_backoff)
-            recovery_backoff = min(
-                _QUEUE_RECOVERY_MAX_BACKOFF_S,
-                recovery_backoff * 2.0,
-            )
+            if recovery_wait is None:
+                recovery_wait = BackoffWait(
+                    queue_recovery_budget_seconds(),
+                    _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+                    _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                )
+            if not recovery_wait.sleep():
+                return False, b"", (
+                    f"qwen3tts queue event recovery exceeded "
+                    f"{recovery_wait.budget_seconds:.0f}s (last error: {poll_error})"
+                )
             continue
-        recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
+        recovery_wait = None
         next_instance = str(response.get("instance_id") or "")
         if (instance_id and next_instance != instance_id) or response.get("replay_lost"):
             reconciled = find_queue_job(
@@ -391,7 +399,11 @@ def fetch_queue_result(
     *,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, bytes, Optional[str]]:
-    delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
+    wait = BackoffWait(
+        queue_recovery_budget_seconds(),
+        _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+        _QUEUE_RECOVERY_MAX_BACKOFF_S,
+    )
     result_path = f"/queue/result/{urllib.parse.quote(str(job_id or ''), safe='')}"
     while True:
         status, _headers, body, transport_error = request(
@@ -406,8 +418,11 @@ def fetch_queue_result(
         retryable = bool(transport_error and _is_retryable_queue_error(error)) or status == 409
         if not retryable:
             return False, b"", error
-        time.sleep(delay)
-        delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
+        if not wait.sleep():
+            return False, b"", (
+                f"qwen3tts result fetch recovery exceeded "
+                f"{wait.budget_seconds:.0f}s (last error: {error})"
+            )
 
 
 def find_queue_job(
@@ -453,9 +468,13 @@ def _submit_with_recovery(
     progress_callback: Optional[ProgressCallback] = None,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
-    delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
+    """Submit with bounded retries: capacity contention and transport recovery
+    each own a separate wait budget; expiry fails the call (retryable for the
+    task) instead of waiting on the single-job queue forever."""
     last_error = "qwen3tts queue submit failed"
     wait_revision = 0
+    capacity_wait: Optional[BackoffWait] = None
+    recovery_wait: Optional[BackoffWait] = None
     while True:
         ok, job, error = queue_submit(
             payload,
@@ -475,6 +494,7 @@ def _submit_with_recovery(
         )
         if reconciled is not None:
             return True, reconciled, None
+        capacity_error = is_queue_capacity_error(last_error)
         wait_revision += 1
         _notify_progress(progress_callback, {
             "status": "pending",
@@ -483,12 +503,34 @@ def _submit_with_recovery(
             "progress_total": 0,
             "progress_phase": (
                 "queue_capacity_wait"
-                if is_queue_capacity_error(last_error)
+                if capacity_error
                 else "queue_recovery"
             ),
         })
-        time.sleep(delay)
-        delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
+        if capacity_error:
+            recovery_wait = None
+            if capacity_wait is None:
+                capacity_wait = BackoffWait(
+                    queue_capacity_wait_seconds(),
+                    _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+                    _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                )
+            wait = capacity_wait
+        else:
+            capacity_wait = None
+            if recovery_wait is None:
+                recovery_wait = BackoffWait(
+                    queue_recovery_budget_seconds(),
+                    _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+                    _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                )
+            wait = recovery_wait
+        if not wait.sleep():
+            phase = "capacity wait" if capacity_error else "recovery"
+            return False, None, (
+                f"qwen3tts queue {phase} exceeded {wait.budget_seconds:.0f}s "
+                f"(last error: {last_error})"
+            )
 
 
 def _is_retryable_queue_error(error: Optional[str]) -> bool:

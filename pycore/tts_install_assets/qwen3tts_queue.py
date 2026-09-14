@@ -56,6 +56,7 @@ class QwenQueue:
         event_publisher: Optional[Callable[[str, Dict[str, Any]], None]] = None,
         batchable: Optional[Callable[[Dict[str, Any]], bool]] = None,
         progress_snapshot: Optional[Callable[[], Dict[str, Any]]] = None,
+        job_text_max_chars: int = 0,
     ) -> None:
         self._synthesize_batch = synthesize_batch
         self._max_parallel = max_parallel
@@ -63,6 +64,10 @@ class QwenQueue:
         self._event_publisher = event_publisher
         self._batchable = batchable or (lambda _job: True)
         self._progress_snapshot = progress_snapshot or (lambda: {})
+        # Admission control: one job owns the whole GPU queue, so an
+        # unbounded text squats the service for days. Injected by the api
+        # server (shared network_constants default); 0 disables the guard.
+        self._job_text_max_chars = max(0, int(job_text_max_chars or 0))
         self._queue_max = DEFAULT_QUEUE_MAX
         self._result_ttl_s = _env_float(
             "QWEN3TTS_QUEUE_RESULT_TTL_S", DEFAULT_RESULT_TTL_S
@@ -109,6 +114,10 @@ class QwenQueue:
         text = str(params.get("text") or "").strip()
         if not text:
             raise ValueError("empty text")
+        if self._job_text_max_chars > 0 and len(text) > self._job_text_max_chars:
+            raise ValueError(
+                f"text is {len(text)} chars (job limit {self._job_text_max_chars})"
+            )
         client_job_id = str(
             params.get("client_job_id") or params.get("job_id") or ""
         ).strip()

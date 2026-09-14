@@ -13,7 +13,7 @@ from pycore.pyutils.common.managed_service import (
     managed_services,
 )
 from pycore.pyutils.common.managed_service_facade import managed_model_load_context
-from pycore.pyutils.tts.qwen.config import ENGINE_NAME
+from pycore.pyutils.tts.qwen.config import ENGINE_NAME, job_text_max_chars
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.qwen.client import is_queue_capacity_error
 
@@ -39,6 +39,15 @@ class QueuedTtsSynthesis:
         state = dict(job_state or {})
         if not clean:
             return {"status": "failed", "error": "empty text", "job": state}
+        max_chars = job_text_max_chars()
+        if len(clean) > max_chars:
+            return {
+                "status": "failed",
+                "error": (
+                    f"qwen3tts job text is {len(clean)} chars (limit {max_chars})"
+                ),
+                "job": state,
+            }
 
         client_job_id = str(state.get("client_job_id") or "")
         if not client_job_id:

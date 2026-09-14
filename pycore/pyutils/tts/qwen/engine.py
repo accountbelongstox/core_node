@@ -46,6 +46,7 @@ from pycore.pyutils.tts.qwen.client import (
 from pycore.pyutils.tts.qwen.config import (
     ENGINE_NAME,
     INSTALL_HINT,
+    job_text_max_chars,
     request_timeout_seconds,
 )
 
@@ -227,6 +228,16 @@ def submit_queued_synthesis(
     )
     if not payload["text"]:
         return {"ok": False, "error": "empty text", "client_job_id": stable_id}
+    max_chars = job_text_max_chars()
+    if len(payload["text"]) > max_chars:
+        return {
+            "ok": False,
+            "error": (
+                f"qwen3tts job text is {len(payload['text'])} chars "
+                f"(limit {max_chars})"
+            ),
+            "client_job_id": stable_id,
+        }
     payload["client_job_id"] = stable_id
     ok, job, error = queue_submit(payload, timeout=30.0)
     if not ok or not isinstance(job, dict):
@@ -380,6 +391,12 @@ def synthesize_queued(
     cleaned = (text or "").strip()
     if not cleaned:
         _LAST_SYNTH_ERROR.set("empty text")
+        return False
+    max_chars = job_text_max_chars()
+    if len(cleaned) > max_chars:
+        _LAST_SYNTH_ERROR.set(
+            f"qwen3tts job text is {len(cleaned)} chars (limit {max_chars})"
+        )
         return False
     output = Path(output_path)
     payload, stable_id = queued_synthesis_request(

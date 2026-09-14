@@ -538,6 +538,22 @@ def _default_speed() -> float:
     return min(3.0, max(0.25, value))
 
 
+def _job_text_max_chars() -> int:
+    """Admission limit for ONE job text: QWEN3TTS_JOB_MAX_CHARS env, else the
+    shared QWEN3TTS_JOB_TEXT_MAX_CHARS constant loaded from
+    pyfoundations.network_constants (single source with the pycore side)."""
+    raw = (os.environ.get("QWEN3TTS_JOB_MAX_CHARS") or "").strip()
+    fallback = int(getattr(_network_constants, "QWEN3TTS_JOB_TEXT_MAX_CHARS", 100000))
+    return int(raw) if raw.isdigit() else fallback
+
+
+def _text_oversize_error(text: str) -> Optional[str]:
+    limit = _job_text_max_chars()
+    if len(text) > limit:
+        return f"text is {len(text)} chars (job limit {limit})"
+    return None
+
+
 def _get_synthesis() -> QwenSynthesis:
     global _SYNTHESIS
     if _SYNTHESIS is None:
@@ -567,6 +583,7 @@ def _get_queue() -> QwenQueue:
             event_publisher=publish_event,
             batchable=_get_synthesis().queue_batchable,
             progress_snapshot=_get_synthesis().runtime,
+            job_text_max_chars=_job_text_max_chars(),
         )
     return _QUEUE
 
@@ -642,6 +659,9 @@ def synthesize(req: SynthRequest):
     text = (req.text or "").strip()
     if not text:
         return JSONResponse({"error": "empty text"}, status_code=400)
+    oversize = _text_oversize_error(text)
+    if oversize:
+        return JSONResponse({"error": oversize}, status_code=400)
     fmt = (req.format or "mp3").strip().lower()
     _log(f"[api] /synthesize lang={req.language} speaker={req.speaker or 'auto'} "
          f"fmt={fmt} chars={len(text)}")
@@ -665,6 +685,9 @@ def synthesize_batch(req: BatchSynthRequest):
     variants = req.variants or []
     if not text or not variants:
         return JSONResponse({"error": "empty text or no variants"}, status_code=400)
+    oversize = _text_oversize_error(text)
+    if oversize:
+        return JSONResponse({"error": oversize}, status_code=400)
     fmt = (req.format or "mp3").strip().lower()
     _log(f"[api] /synthesize_batch lang={req.language} variants={len(variants)} "
          f"fmt={fmt} chars={len(text)}")

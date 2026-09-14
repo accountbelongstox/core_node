@@ -475,6 +475,23 @@ def is_queue_position_ordered(task_type: object) -> bool:
     return task_ordering(task_type) == "queue_position"
 
 
+def task_payload_text_max_chars(task_type: object) -> int:
+    """Maximum accepted payload text characters for one task type.
+
+    Canonical values live in config/queue_center_contract.json
+    (task_types[].payload_limits.text_max_chars); 0 means no contract limit.
+    Worker admission guards fail oversize tasks fast instead of letting one
+    pathological payload squat a serial lane.
+    """
+    definition = task_type_definition(task_type)
+    if definition is None:
+        return 0
+    limits = definition.get("payload_limits")
+    if not isinstance(limits, dict):
+        return 0
+    return max(0, int(limits.get("text_max_chars") or 0))
+
+
 def task_language_priority(task_type: object) -> Tuple[str, ...]:
     """Language priority tiers for a task type (empty tuple = no tiering).
 
@@ -698,6 +715,7 @@ __all__ = [
     "task_ordering",
     "task_order_key",
     "task_order_value",
+    "task_payload_text_max_chars",
     "task_prompt_payload_field",
     "task_prompt_text",
     "task_type_definition",
