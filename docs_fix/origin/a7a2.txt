@@ -2,3 +2,6 @@ https://12gm.com/pycore-manager/terminal
 ProtocolFetch.ts:233  POST https://api.si.12gm.com/api/relay/operations 404 (Not  
 出现大量404，UI端，显然功能还没有正常，结合docs_fix\origin\a7a1.txt 中的要求，继续修复。
 需要达到最终的可用效果，而不是小修小补，注意全面底层重构。
+BUG2 :
+[Mercure +0.12s] action=subscription.stream.interrupted error=Response ended prematurely error_type=ChunkedEncodingError hub_url=https://api.si.12gm.com/.well-known/mercure last_event_id=urn:uuid:01a0a19e-b4bb-7229-b3c2-78d766d1dc4a
+[QueueCenterCache +0.00s] realtime reconnect: closed
