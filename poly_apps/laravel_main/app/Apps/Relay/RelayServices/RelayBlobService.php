@@ -487,7 +487,7 @@ final class RelayBlobService
                 if ((int) $chunk->chunk_index !== $expectedIndex) {
                     throw new RelayDomainException('blob_chunks_noncontiguous', 409);
                 }
-                $bytes = FileSystemManager::readFile($this->absolutePath((string) $chunk->storage_relative_path), false);
+                $bytes = FileSystemManager::readFile($this->readPath((string) $chunk->storage_relative_path), false);
                 if (!is_string($bytes)
                     || strlen($bytes) !== (int) $chunk->chunk_length
                     || !hash_equals(hash('sha256', $bytes), (string) $chunk->chunk_sha256)) {
@@ -522,7 +522,7 @@ final class RelayBlobService
         $bytes = false;
 
         foreach ($chunks as $chunk) {
-            $bytes = FileSystemManager::readFile($this->absolutePath((string) $chunk->storage_relative_path), false);
+            $bytes = FileSystemManager::readFile($this->readPath((string) $chunk->storage_relative_path), false);
             if (!is_string($bytes)
                 || strlen($bytes) !== (int) $chunk->chunk_length
                 || !hash_equals(hash('sha256', $bytes), (string) $chunk->chunk_sha256)) {
@@ -639,6 +639,35 @@ final class RelayBlobService
     }
 
     private function absolutePath(string $relativePath): string
+    {
+        $normalized = str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+        return PathMapper::getLaravelDataDir('relay'.DIRECTORY_SEPARATOR.'private_blobs'.DIRECTORY_SEPARATOR.$normalized);
+    }
+
+    private function readPath(string $relativePath): string
+    {
+        $canonical = $this->absolutePath($relativePath);
+        if (FileSystemManager::isFile($canonical)) {
+            return $canonical;
+        }
+
+        $legacy = $this->legacyPath($relativePath);
+        if (!FileSystemManager::isFile($legacy)) {
+            return $canonical;
+        }
+
+        // Migrate a legacy chunk on first access so subsequent workers only
+        // read the canonical Relay storage tree. Keep the source intact until
+        // normal expiry maintenance removes both trees.
+        if (FileSystemManager::copy($legacy, $canonical) && FileSystemManager::isFile($canonical)) {
+            return $canonical;
+        }
+
+        return $legacy;
+    }
+
+    private function legacyPath(string $relativePath): string
     {
         $normalized = str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
 

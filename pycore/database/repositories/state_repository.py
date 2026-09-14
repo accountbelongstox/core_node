@@ -410,6 +410,24 @@ class StateRepository(StateRpcRepositoryMixin):
                 self._insert_event(cursor, event, outbox)
             return True
 
+    def migrate_operation_kind(
+        self,
+        op_id: str,
+        expected_kind: str,
+        canonical_kind: str,
+    ) -> bool:
+        """Rename a persisted operation kind without changing its revision."""
+        with self.transaction() as cursor:
+            cursor.execute(
+                """
+                UPDATE operations
+                SET kind = ?
+                WHERE id = ? AND kind = ?
+                """,
+                (str(canonical_kind), str(op_id), str(expected_kind)),
+            )
+            return cursor.rowcount == 1
+
     # --- Operation Items ---
 
     def get_operation_items(

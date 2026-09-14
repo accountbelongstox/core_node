@@ -59,6 +59,22 @@ FRANKENPHP_PID=""
 SLEEP_WATCH_PID=""
 SCHEDULER_RESTART_DELAY_SECONDS="5"
 SUPERVISED_EXIT_STATUS="0"
+ROUTE_STATE_READY="no"
+
+converge_laravel_route_state() {
+    ROUTE_STATE_READY="no"
+    if [ ! -f "${LARAVEL_DIR}/artisan" ]; then
+        echo "[laravel-runtime-frankenphp] [ERROR] Laravel artisan entrypoint is missing; refusing to boot with unknown route state"
+        return 1
+    fi
+    if "$PHP_BIN" artisan route:clear >/dev/null 2>&1; then
+        ROUTE_STATE_READY="yes"
+        echo "[laravel-runtime-frankenphp] Laravel route cache cleared before worker boot"
+    else
+        echo "[laravel-runtime-frankenphp] [ERROR] Laravel route cache clear failed; refusing to boot with unknown route state"
+        return 1
+    fi
+}
 
 stop_runtime_processes() {
     if [ -n "$SCHEDULER_PID" ]; then
@@ -185,6 +201,14 @@ fi
 export PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)"
 
 cd "$LARAVEL_DIR" || exit 1
+
+# Routes are loaded once per long-lived Octane worker. A codesync/deploy can
+# replace routes while the previous worker is still alive; clearing the route
+# cache before every supervised boot makes the worker start from the current
+# canonical Relay route file instead of serving a stale 404 table.
+if ! converge_laravel_route_state; then
+    exit 1
+fi
 
 # Laravel Octane's artisan wrapper starts this same Caddy command as a child.
 # Systemd owns supervision here, so running Caddy directly removes the

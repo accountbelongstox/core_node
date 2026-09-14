@@ -134,7 +134,15 @@ function newUuid(): string {
 
 function loadRelayState(): PersistedRelayState {
   if (relayState) return relayState;
-  const stored = StorageManager.get<Partial<PersistedRelayState> | null>(StorageKeys.RELAY_STATE, null);
+  let stored = StorageManager.get<Partial<PersistedRelayState> | null>(StorageKeys.RELAY_STATE, null);
+  const legacy = stored === null
+    ? StorageManager.get<Partial<PersistedRelayState> | null>(StorageKeys.RELAY_STATE_LEGACY, null)
+    : null;
+  if (stored === null && legacy !== null) {
+    stored = legacy;
+    StorageManager.set(StorageKeys.RELAY_STATE, legacy);
+    StorageManager.remove(StorageKeys.RELAY_STATE_LEGACY);
+  }
   relayState = {
     client_instance_id: typeof stored?.client_instance_id === 'string' && stored.client_instance_id.length >= 16
       ? stored.client_instance_id

@@ -37,7 +37,7 @@ final class RelayOperationEventService
             (string) $operation->operation_id,
             (int) $operation->revision,
             RelayContract::event('operation_status'),
-            'pairing',
+            'owner',
             $this->topics->owner((int) $operation->user_id),
             $payload
         );

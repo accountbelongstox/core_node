@@ -555,6 +555,7 @@ final class RelayContract
             'operation_status',
             'pairing_changed',
             'credential_revoked',
+            'device_presence',
             'terminal_changed',
         ];
         $requiredTopics = ['device_wake', 'owner_roster', 'pairing_operation'];

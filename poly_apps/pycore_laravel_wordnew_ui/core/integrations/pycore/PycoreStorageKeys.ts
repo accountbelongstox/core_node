@@ -6,5 +6,7 @@ export const PycoreStorageKeys = {
   HTTP_EVENT_CURSORS: 'pycore_http_event_cursors',
   ROUTE_RECOVERY: 'pycore_route_recovery',
   HEALTH_RECHECK_INTERVAL_MS: 'pc_health_recheck_interval_ms',
-  RELAY_STATE: 'pycore_relay_v2_state',
+  RELAY_STATE: 'pycore_relay_state',
+  /** One-time browser migration source from the pre-consolidation Relay UI. */
+  RELAY_STATE_LEGACY: 'pycore_relay_v2_state',
 } as const;

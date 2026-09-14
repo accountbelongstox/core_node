@@ -148,12 +148,18 @@ final class RelayMaintenanceService
             ->all();
         $deleted = 0;
         $directory = '';
+        $legacyDirectory = '';
 
         foreach ($blobIds as $blobId) {
             $directory = PathMapper::getLaravelDataDir(
+                'relay'.DIRECTORY_SEPARATOR.'private_blobs'.DIRECTORY_SEPARATOR.$blobId
+            );
+            $legacyDirectory = PathMapper::getLaravelDataDir(
                 'relay_v2'.DIRECTORY_SEPARATOR.'private_blobs'.DIRECTORY_SEPARATOR.$blobId
             );
-            if (!FileSystemManager::delete($directory)) {
+            $deletedCanonical = FileSystemManager::delete($directory);
+            $deletedLegacy = FileSystemManager::delete($legacyDirectory);
+            if (!$deletedCanonical && !$deletedLegacy) {
                 continue;
             }
             $deleted += $connection->transaction(function () use ($blobId): int {

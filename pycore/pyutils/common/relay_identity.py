@@ -25,14 +25,34 @@ from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 
 
-RELAY_IDENTITY_FILE_NAME = "pycore_relay_v2_identity.json"
+RELAY_IDENTITY_FILE_NAME = "pycore_relay_identity.json"
+RELAY_LEGACY_IDENTITY_FILE_NAME = "pycore_relay_v2_identity.json"
 RELAY_IDENTITY_FILE_MODE = 0o600
 RELAY_IDENTITY_STORE = AtomicJsonStore(
     APP_CONFIG_DIR / RELAY_IDENTITY_FILE_NAME,
     lambda: {},
     file_mode=RELAY_IDENTITY_FILE_MODE,
 )
+RELAY_LEGACY_IDENTITY_STORE = AtomicJsonStore(
+    APP_CONFIG_DIR / RELAY_LEGACY_IDENTITY_FILE_NAME,
+    lambda: {},
+    file_mode=RELAY_IDENTITY_FILE_MODE,
+)
 RELAY_KEY_VERSION_INITIAL = 1
+
+
+def _read_identity_document() -> Dict[str, Any]:
+    """Read canonical state and migrate an existing pre-consolidation file."""
+    document = RELAY_IDENTITY_STORE.read()
+    if document:
+        return document
+    legacy = RELAY_LEGACY_IDENTITY_STORE.read()
+    if legacy:
+        RELAY_IDENTITY_STORE.write(legacy)
+        if os.name != "nt":
+            os.chmod(RELAY_IDENTITY_STORE.path, RELAY_IDENTITY_FILE_MODE)
+        return legacy
+    return document
 
 
 def _base64url_encode(value: bytes) -> str:
@@ -65,7 +85,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def ensure_device_id(self) -> str:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         device_id = str(document.get("device_id") or "")
         if device_id:
             return device_id
@@ -77,7 +97,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def ensure_signing_key(self) -> str:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         private_key = str(document.get("private_key") or "")
         public_key = str(document.get("public_key") or "")
         ed25519 = get_third_package_cryptography_ed25519()
@@ -171,7 +191,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def ensure_enrollment_state(self) -> bool:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         enrollment_fields = (
             str(document.get("enrollment_id") or ""),
             str(document.get("enrollment_claim_code") or ""),
@@ -186,7 +206,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def ensure_credential_state(self) -> bool:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         credential_id = str(document.get("credential_id") or "")
         credential_version = _positive_int(document.get("credential_version"))
         if credential_id and credential_version > 0:
@@ -206,7 +226,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def document(self) -> Dict[str, Any]:
-        return RELAY_IDENTITY_STORE.read()
+        return _read_identity_document()
 
     @serialized_method
     def device_id(self) -> str:
@@ -214,7 +234,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def key_version(self) -> int:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         return _positive_int(
             document.get("key_version"),
             RELAY_KEY_VERSION_INITIAL,
@@ -226,7 +246,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def credential_id(self) -> str:
-        return str(RELAY_IDENTITY_STORE.read().get("credential_id") or "")
+        return str(_read_identity_document().get("credential_id") or "")
 
     @serialized_method
     def has_credential(self) -> bool:
@@ -241,7 +261,7 @@ class RelayDeviceIdentity:
     ) -> None:
         if not str(enrollment_id) or not str(claim_code) or not str(expires_at):
             raise ValueError("relay_enrollment_state_incomplete")
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         document["enrollment_id"] = str(enrollment_id)
         document["enrollment_claim_code"] = str(claim_code)
         document["enrollment_expires_at"] = str(expires_at)
@@ -261,7 +281,7 @@ class RelayDeviceIdentity:
     ) -> None:
         if not str(credential_id) or int(credential_version) <= 0:
             raise ValueError("relay_credential_incomplete")
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         key_version = _positive_int(document.get("key_version"))
         if int(credential_version) != key_version:
             raise ValueError("relay_credential_key_version_conflict")
@@ -280,7 +300,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def clear_enrollment(self) -> None:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         document.pop("enrollment_id", None)
         document.pop("enrollment_claim_code", None)
         document.pop("enrollment_expires_at", None)
@@ -292,7 +312,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def clear_credential(self) -> None:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         document.pop("credential_id", None)
         document.pop("credential_version", None)
         self._write(document)
@@ -303,7 +323,7 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def prepare_reenrollment(self) -> bool:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         credential_version = _positive_int(document.get("credential_version"))
         has_authorization_state = bool(
             str(document.get("credential_id") or "")
@@ -340,7 +360,7 @@ class RelayDeviceIdentity:
         credential_id: str,
         credential_version: int,
     ) -> bool:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         current_credential_id = str(document.get("credential_id") or "")
         current_credential_version = _positive_int(
             document.get("credential_version")
@@ -380,11 +400,11 @@ class RelayDeviceIdentity:
 
     @serialized_method
     def enrollment_id(self) -> str:
-        return str(RELAY_IDENTITY_STORE.read().get("enrollment_id") or "")
+        return str(_read_identity_document().get("enrollment_id") or "")
 
     @serialized_method
     def enrollment_claim(self) -> Dict[str, str]:
-        document = RELAY_IDENTITY_STORE.read()
+        document = _read_identity_document()
         return {
             "enrollment_id": str(document.get("enrollment_id") or ""),
             "claim_code": str(document.get("enrollment_claim_code") or ""),

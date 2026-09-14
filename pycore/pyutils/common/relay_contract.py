@@ -102,6 +102,7 @@ RELAY_REQUIRED_EVENTS = {
     "operation_status",
     "credential_revoked",
     "pairing_changed",
+    "device_presence",
     "terminal_changed",
 }
 

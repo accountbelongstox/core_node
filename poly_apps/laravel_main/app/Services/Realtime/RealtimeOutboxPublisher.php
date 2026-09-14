@@ -83,7 +83,7 @@ final class RealtimeOutboxPublisher
                 // Hub delivery failed: back off and retry; the device claim
                 // poll and the UI operation poll remain the reconciliation
                 // safety net while pushes are delayed.
-                $repository->markFailed($row, (string) ($publishError ?? 'mercure hub rejected relay v2 update'));
+                $repository->markFailed($row, (string) ($publishError ?? 'mercure hub rejected relay update'));
                 Log::warning('[RealtimeOutboxPublisher] Relay hub publish failed', [
                     'outbox_id' => (string) $row->outbox_id,
                     'event' => (string) $row->event_type,
