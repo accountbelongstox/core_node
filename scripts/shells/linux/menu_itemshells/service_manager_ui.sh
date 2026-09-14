@@ -167,8 +167,6 @@ show_main_menu() {
     local service=""
     local menu_items=()
 
-    # Ctrl+C behaves as "go back" instead of killing the manager
-    trap ':' INT
     while true; do
         menu_items=()
         for service in "${SERVICES[@]}"; do
@@ -201,7 +199,6 @@ show_main_menu() {
         echo ""
         read -p "Press Enter to continue..."
     done
-    trap - INT
     echo "Exiting Service Manager..."
     return 0
 }
