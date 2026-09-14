@@ -1,0 +1,84 @@
+首先pyservice 是pycore的客户端，是pycore组，注 意这是一组，同时ui在poly apps / pycore ui中，这是ui组，注意这是一组，都通过poly apps / laravel main中转。
+laralve main 100%利用franken PHP的能力，使用长连接替代ws作为中转方案，显然当前系统 上并不具备这个能力，需要重构，先检测175_laravel_main_start.sh 脚本，目前前端UI部署在https://12gm.com也就是poly apps / pycore ui中，而laralvel 通过frankenPHP部署在api.si.12gm.com ，以上均是由175_laravel_main_start /  93_install_frankenphp.sh脚本部署
+注意，如果发现问题就要底层重构，而不是小修小补
+注意，需要查询官方文档，同时找到原因就先写到文档 ./docs_fix/A7A 规范命名中，并边找问题边追加，禁止全面分析完再写文档，需要找到一点追加一点，同时确保找出所有问题了再根据文档开始修改代码。注意要按项目规范。
+RelayV2
+1:RelayV2 全量修改为Relay一个版本，去掉其他的版本代码和标识，按最新的合并为一个Relay。
+2：理论上应该按frankenPHP官方的mercure的长连接，但为什么pycore反复连接laravel main，UI也是一样
+2.1 BUG1:https://12gm.com/pycore-manager/terminal 大量的 429 
+···POST https://api.si.12gm.com/api/relay/v2/operations 429 (Too Many Requests)
+ProtocolFetch.ts:233  GET https://api.si.12gm.com/api/relay/v2/operations/5385a328-c473-44ee-8c97-acf2c22d6425 429 (Too Many Requests)
+(anonymous) @ ProtocolFetch.ts:233
+(anonymous) @ BaseAPI.ts:450
+(anonymous) @ LaravelAPI.ts:229
+(anonymous) @ RequestCoordinator.ts:19
+requestLaravel @ LaravelAPI.ts:245
+(anonymous) @ LaravelAPI.ts:504
+waitForOperation @ PycoreLaravelRelayTransport.ts:310
+await in waitForOperation
+(anonymous) @ PycoreLaravelRelayTransport.ts:371
+ProtocolFetch.ts:233  POST https://api.si.12gm.com/api/relay/v2/operations 429 (Too Many Requests)
+(anonymous) @ ProtocolFetch.ts:233
+(anonymous) @ BaseAPI.ts:450
+(anonymous) @ LaravelAPI.ts:229
+requestLaravel @ LaravelAPI.ts:242
+(anonymous) @ LaravelAPI.ts:496
+(anonymous) @ PycoreLaravelRelayTransport.ts:371
+await in (anonymous)
+deliver @ PycoreTransportSelector.ts:18
+(anonymous) @ PycoreClient.ts:45
+(anonymous) @ MasterApiClient.ts:343
+await in (anonymous)
+(anonymous) @ MasterApiClient.ts:236
+(anonymous) @ PycoreClient.ts:187
+await in (anonymous)
+(anonymous) @ PycoreClient.ts:136
+requestHttp @ PycoreHttp.ts:238
+(anonymous) @ PycoreHttp.ts:320
+(anonymous) @ PycoreApiLocal.ts:252
+(anonymous) @ PcAgentHistoryPage.tsx:296
+ProtocolFetch.ts:233  GET https://api.si.12gm.com/api/relay/v2/operations/c1bb73e1-3b8d-4e94-b918-8f9303f2d0e9 429 (Too Many Requests)
+(anonymous) @ ProtocolFetch.ts:233
+(anonymous) @ BaseAPI.ts:450
+(anonymous) @ LaravelAPI.ts:229
+(anonymous) @ RequestCoordinator.ts:19
+requestLaravel @ LaravelAPI.ts:245
+(anonymous) @ LaravelAPI.ts:504
+waitForOperation @ PycoreLaravelRelayTransport.ts:310
+await in waitForOperation
+(anonymous) @ PycoreLaravelRelayTransport.ts:371
+ProtocolFetch.ts:233  GET https://api.si.12gm.com/api/relay/v2/operations/1c8437d9-87dd-4ef9-9fe0-026f4a3de58e 429 (Too Many Requests)
+(anonymous) @ ProtocolFetch.ts:233
+(anonymous) @ BaseAPI.ts:450
+(anonymous) @ LaravelAPI.ts:229
+(anonymous) @ RequestCoordinator.ts:19
+requestLaravel @ LaravelAPI.ts:245
+(anonymous) @ LaravelAPI.ts:504
+waitForOperation @ PycoreLaravelRelayTransport.ts:310
+await in waitForOperation
+(anonymous) @ PycoreLaravelRelayTransport.ts:371
+ProtocolFetch.ts:233  GET ···
+2.1.2 BUG2:terminal也显示为Preview unavailable，需要按原来的实时显示截图。
+2.2 BUG3:https://12gm.com/pycore-manager/agent-history  Provider response timed out: 1 · Counted against quota: 0
+ 存在大量的超时，
+3：显然如果是pycore中转到laravel main和ui，应该速度很快，而不是阻塞，显然整个构架有问题，且可能没有按官方标准写。
+4.1ProtocolFetch.ts:233  GET https://api.si.12gm.com/api/relay/v2/devices 429 (Too Many Requests) 重构，当pycore上线时，主动在laravel main注册在组中，因为pycre是客户端不像浏览器时连时断，所以pycore将一直在laravel main的内存中，除非关闭，所以UI访问时应该直接访问缓存，而不是卡住，同时当pycore关掉时，laralve main应该有机制能通知ui，而不是ui一直请求。
+5: ./pyservice 是运行在windows/ liunx端的，而laravel main 将100%运行在liunx端（也就是本机），显然 pycore没有重构并支持闻新技术，以及代码冗余和重复实现太多，底层构架也有问题，需要从底层全面重构，以支持当前构架。客户端和UI理论上是完美支持最新技术的。
+6：对于pycore  / UI间大量的 请求，是否符合frankenPHP mercure的长连接规范，同时还有很多重复的权限认证，或者无权限需要重构
+···
+operationsc13493b6-c028-4569-8c0b-3d5c...b69152a5-b9d1-4bc0-a652-cc10...0b69152a5-b9d1-4bc0-a652-cc10...(>c13493b6-c028-4569-8c0b-3d5c...(>b69152a5-b9d1-4bc0-a652-cc10...(>c13493b6-c028-4569-8c0b-3d5c...b69152a5-b9d1-4bc0-a652-cc10...operations
+fc65c3dd-dcab-44cf-9a65-f7a4b...(>fc65c3dd-dcab-44cf-9a65-f7a4b...(>fc65c3dd-dcab-44cf-9a65-f7a4b...(>fc65c3dd-dcab-44cf-9a65-f7a4b...operations
+62ab00b4-d2df-44ee-b791-3138...
+62ab00b4-d2df-44ee-b791-3138...
+devices
+62ab00b4-d2df-44ee-b791-3138...62ab00b4-d2df-44ee-b791-3138...62ab00b4-d2df-44ee-b791-3138...devices
+62ab00b4-d2df-44ee-b791-3138...
+I data:image/svg+xml...
+article c7cf39e6d75517599e643
+operationsaa6e8168-097c-4a79-bda5-dd32...aa6e8168-097c-4a79-bda5-dd32...aa6e8168-097c-4a79-bda5-dd32...aa6e8168-097c-4a79-bda5-dd32...aa6e8168-097c-4a79-bda5-dd32...aa6e8168-097c-4a79-bda5-dd32...operations
+f02df28c-c0b1-48d2-8856-9f2aa...
+f02df28c-c0b1-48d2-8856-9f2aa...
+602-f28---0k1-48-2-8856-062==···
+注意，发现问题就要底层重构，并要合并冗余代码和类库，必须底层重构并使用新技术、新方案并达到效果。按规范，3个端以及sh的部署文件均需要全面升级，。
+
+ 
