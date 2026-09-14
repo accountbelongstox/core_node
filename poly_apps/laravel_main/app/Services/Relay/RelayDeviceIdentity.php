@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 
 final class RelayDeviceIdentity
 {
+    private const ID_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/';
     public const MACHINE_HEADER = 'X-Core-Node-Machine-ID';
     public const TIMESTAMP_HEADER = 'X-Core-Node-Timestamp';
     public const NONCE_HEADER = 'X-Core-Node-Nonce';
@@ -39,7 +40,7 @@ final class RelayDeviceIdentity
         if (is_bool($cached)) {
             return $cached;
         }
-        if (!RelayMachineRegistry::isValidId($machineId)
+        if (!self::isValidId($machineId)
             || $requestMachineId === null || !hash_equals($machineId, $requestMachineId)
             || !ctype_digit($timestamp)
             || abs(time() - (int) $timestamp) > $clockSkew
@@ -146,7 +147,7 @@ final class RelayDeviceIdentity
             ? $routeMachineId
             : (is_string($bodyMachineId) ? $bodyMachineId : '');
 
-        return RelayMachineRegistry::isValidId($value) ? $value : null;
+        return self::isValidId($value) ? $value : null;
     }
 
     private static function decodeSecret(string $value): ?string
@@ -171,5 +172,10 @@ final class RelayDeviceIdentity
 
     private function __construct()
     {
+    }
+
+    private static function isValidId(string $machineId): bool
+    {
+        return preg_match(self::ID_PATTERN, $machineId) === 1;
     }
 }

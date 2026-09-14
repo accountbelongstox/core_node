@@ -5,6 +5,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { laravelRelayOperationEvents } from '../../../core/integrations/laravel/LaravelRelayOperationEvents';
+import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
+import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
 import {
   AlertTriangle,
   ArrowDown,
@@ -509,10 +512,13 @@ const PcTerminalPage: React.FC = () => {
   }, [loadScreenshotResource]);
 
   const screenshotImageFor = useCallback((windowInfo: TerminalWindowInfo | null) => {
-    if (!windowInfo?.screenshot_resource) return null;
-    return screenshotImagesRef.current.get(
-      screenshotImageKey(windowInfo.id, windowInfo.screenshot_resource.digest),
-    ) || null;
+    if (!windowInfo?.online) return null;
+    const exact = windowInfo.screenshot_resource && screenshotImagesRef.current.get(
+      screenshotImageKey(windowInfo.id, windowInfo.screenshot_resource.digest));
+    if (exact) return exact;
+    const prefix = screenshotImageKey(windowInfo.id, '');
+    return [...screenshotImagesRef.current.entries()].reverse()
+      .find(([key]) => key.startsWith(prefix))?.[1] || null;
   }, []);
 
   // Latest snapshot without widening the refresh callback identity: the
@@ -682,7 +688,14 @@ const PcTerminalPage: React.FC = () => {
   useEffect(() => {
     mountedRef.current = true;
     void refresh(true);
-    const pollTimer = window.setInterval(() => void refresh(false), POLL_INTERVAL_MS);
+    const relayMode = isPycoreRelayMode();
+    const unsubscribe = laravelRelayOperationEvents.onEvent((event) => {
+      if (relayMode && event === RELAY_CONTRACT.events.terminal_changed) void refresh(false);
+    });
+    if (relayMode) laravelRelayOperationEvents.start();
+    const pollTimer = window.setInterval(() => void refresh(false), relayMode
+      ? RELAY_CONTRACT.durations.terminal_viewer_demand_lease_seconds * 500
+      : POLL_INTERVAL_MS);
     return () => {
       Object.values(draftTimersRef.current).forEach((timer) => {
         window.clearTimeout(timer as number);
@@ -692,6 +705,8 @@ const PcTerminalPage: React.FC = () => {
         void pycoreApi.saveTerminalDraft(terminalNumber, draftsRef.current[key] || '');
       });
       mountedRef.current = false;
+      unsubscribe();
+      if (relayMode) laravelRelayOperationEvents.stop();
       window.clearInterval(pollTimer);
       screenshotImagesRef.current.forEach((image) => URL.revokeObjectURL(image.url));
       screenshotImagesRef.current.clear();

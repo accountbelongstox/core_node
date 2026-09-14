@@ -3,6 +3,7 @@
 namespace App\Services\TimerTasks;
 
 use App\Services\Realtime\RealtimeOutboxPublisher;
+use App\Apps\Relay\RelayServices\RelayDeviceService;
 
 final class RealtimeOutboxPublishTask extends OctaneTimerTaskAbstract
 {
@@ -13,6 +14,7 @@ final class RealtimeOutboxPublishTask extends OctaneTimerTaskAbstract
 
     public function exec(): void
     {
+        app(RelayDeviceService::class)->expirePresence();
         app(RealtimeOutboxPublisher::class)->publishPending();
     }
 }

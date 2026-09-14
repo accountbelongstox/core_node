@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Persistent Ed25519 device identity and Relay V2 request signing."""
+"""Persistent Ed25519 device identity and Relay request signing."""
 
 from __future__ import annotations
 
@@ -58,8 +58,8 @@ class RelayDeviceIdentity:
     def __init__(self) -> None:
         init_serialized_owner(
             self,
-            "relay.v2.identity.state",
-            "RelayV2IdentityStateThread",
+            "relay.identity.state",
+            "RelayIdentityStateThread",
         )
         self._announced_identity: Optional[Tuple[str, int, str]] = None
 

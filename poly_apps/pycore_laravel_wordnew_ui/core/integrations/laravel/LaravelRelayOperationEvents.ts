@@ -1,13 +1,14 @@
-import { RELAY_V2_CONTRACT } from '../../contracts/RelayV2Contract';
+import { RELAY_CONTRACT, type RelayOperation } from '../../contracts/RelayContract';
 import { laravelApi } from './LaravelAPI';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
+import { subscribeAuthSession } from '../../auth/AuthSession';
 
 type OperationEventHandler = (operationId: string, state: string) => void;
 type ReadyWaiter = (connected: boolean) => void;
 type ConnectionStateHandler = (connected: boolean) => void;
 
-const RECONNECT_MIN_MS = RELAY_V2_CONTRACT.durations.subscriber_reconnect_min_seconds * 1000;
-const RECONNECT_MAX_MS = RELAY_V2_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
+const RECONNECT_MIN_MS = RELAY_CONTRACT.durations.subscriber_reconnect_min_seconds * 1000;
+const RECONNECT_MAX_MS = RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
 
 /**
@@ -22,6 +23,8 @@ const TOKEN_REFRESH_MARGIN_MS = 30_000;
 class LaravelRelayOperationEvents {
   private connection = new LaravelMercureConnection();
   private handlers = new Set<OperationEventHandler>();
+  private operations = new Map<string, RelayOperation>();
+  private eventHandlers = new Set<(event: string, data: unknown) => void>();
   private stateHandlers = new Set<ConnectionStateHandler>();
   private readyWaiters = new Set<ReadyWaiter>();
   private started = false;
@@ -29,6 +32,18 @@ class LaravelRelayOperationEvents {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private tokenTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelayMs = RECONNECT_MIN_MS;
+  private generation = 0;
+
+  constructor() {
+    subscribeAuthSession(() => {
+      this.generation += 1;
+      this.operations.clear();
+      this.clearTimers();
+      this.connection.close();
+      this.notifyConnectionState(false);
+      if (this.started) this.connect();
+    });
+  }
 
   start(): void {
     this.consumers += 1;
@@ -42,6 +57,8 @@ class LaravelRelayOperationEvents {
     this.consumers = Math.max(0, this.consumers - 1);
     if (this.consumers > 0 || !this.started) return;
     this.started = false;
+    this.generation += 1;
+    this.operations.clear();
     this.clearTimers();
     this.resolveReady(false);
     this.connection.close();
@@ -50,6 +67,17 @@ class LaravelRelayOperationEvents {
   onOperationEvent(handler: OperationEventHandler): () => void {
     this.handlers.add(handler);
     return () => this.handlers.delete(handler);
+  }
+
+  onEvent(handler: (event: string, data: unknown) => void): () => void {
+    this.eventHandlers.add(handler);
+    return () => this.eventHandlers.delete(handler);
+  }
+
+  takeOperation(operationId: string): RelayOperation | undefined {
+    const operation = this.operations.get(operationId);
+    this.operations.delete(operationId);
+    return operation;
   }
 
   onConnectionState(handler: (connected: boolean) => void): () => void {
@@ -103,8 +131,10 @@ class LaravelRelayOperationEvents {
 
   private connect(): void {
     if (!this.started) return;
-    void laravelApi.getRelayV2OwnerHubAuth()
+    const generation = ++this.generation;
+    void laravelApi.getRelayOwnerHubAuth()
       .then((hub) => {
+        if (generation !== this.generation) return;
         if (!this.started || !hub?.url || !(hub.topics || []).length || !hub.subscriber_token) {
           throw new Error('RELAY_HUB_AUTHORIZATION_INCOMPLETE');
         }
@@ -129,7 +159,9 @@ class LaravelRelayOperationEvents {
           },
         );
       })
-      .catch(() => this.scheduleReconnect());
+      .catch(() => {
+        if (generation === this.generation) this.scheduleReconnect();
+      });
   }
 
   private scheduleTokenRefresh(expiresInSeconds: number): void {
@@ -160,10 +192,17 @@ class LaravelRelayOperationEvents {
   }
 
   private handleEvent(event: string, data: unknown): void {
-    if (event !== String(RELAY_V2_CONTRACT.events.operation_status)) return;
-    const frame = data as { operation_id?: unknown; state?: unknown } | null;
+    for (const handler of this.eventHandlers) handler(event, data);
+    if (event !== String(RELAY_CONTRACT.events.operation_status)) return;
+    const frame = data as { operation_id?: unknown; state?: unknown; operation?: RelayOperation } | null;
     if (!frame || typeof frame.operation_id !== 'string' || frame.operation_id === '') return;
     const state = typeof frame.state === 'string' ? frame.state : '';
+    if (frame.operation?.operation_id === frame.operation_id) {
+      this.operations.set(frame.operation_id, frame.operation);
+      if (this.operations.size > RELAY_CONTRACT.limits.owner_pending_operations) {
+        this.operations.delete(this.operations.keys().next().value!);
+      }
+    }
     for (const handler of [...this.handlers]) {
       try {
         handler(frame.operation_id, state);

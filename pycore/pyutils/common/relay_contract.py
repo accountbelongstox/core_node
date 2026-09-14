@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Versioned machine-readable contract for Pycore Relay V2."""
+"""Versioned machine-readable contract for Pycore Relay."""
 
 from __future__ import annotations
 

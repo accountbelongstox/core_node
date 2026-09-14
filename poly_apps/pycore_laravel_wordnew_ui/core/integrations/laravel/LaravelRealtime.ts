@@ -280,7 +280,7 @@ class LaravelRealtime {
     if (!this.started || this.transport.isConnected()) return;
     const generation = ++this.generation;
     try {
-      const authorization = await laravelApi.relayHubAuth();
+      const authorization = await laravelApi.queueCenterHubAuth();
       if (!this.started || generation !== this.generation) return;
       const baseURL = getSharedBaseURL();
       if (!baseURL || !authorization.hub_url || !(authorization.topics || []).length) {

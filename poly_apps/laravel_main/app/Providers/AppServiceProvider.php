@@ -11,7 +11,7 @@
 
 namespace App\Providers;
 
-use App\Apps\RelayV2\RelayV2Services\RelayV2Contract;
+use App\Apps\Relay\RelayServices\RelayContract;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Response;
@@ -56,21 +56,23 @@ class AppServiceProvider extends ServiceProvider
         Model::shouldBeStrict(!app()->isProduction());
         DatabaseQueryMonitor::register();
         RateLimiter::for('relay-device', static function (Request $request): Limit {
-            $deviceId = (string) $request->header(RelayV2Contract::header('device_id'), '');
+            $deviceId = (string) $request->header(RelayContract::header('device_id'), '');
+            $lane = (string) $request->route()?->getActionMethod();
 
-            return Limit::perMinute(RelayV2Contract::rateLimit('device_requests_per_minute'))
-                ->by($deviceId !== '' ? $deviceId : (string) $request->ip());
+            return Limit::perMinute(RelayContract::rateLimit('device_requests_per_minute'))
+                ->by(($deviceId !== '' ? $deviceId : (string) $request->ip()).':'.$lane);
         });
         RateLimiter::for('relay-owner', static function (Request $request): Limit {
             $userId = $request->user()?->getAuthIdentifier();
+            $lane = (string) $request->route()?->getActionMethod();
 
-            return Limit::perMinute(RelayV2Contract::rateLimit('owner_requests_per_minute'))
-                ->by($userId !== null ? (string) $userId : (string) $request->ip());
+            return Limit::perMinute(RelayContract::rateLimit('owner_requests_per_minute'))
+                ->by(($userId !== null ? (string) $userId : (string) $request->ip()).':'.$lane);
         });
         RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
             $userId = $request->user()?->getAuthIdentifier();
 
-            return Limit::perMinute(RelayV2Contract::rateLimit('enrollment_claims_per_minute'))
+            return Limit::perMinute(RelayContract::rateLimit('enrollment_claims_per_minute'))
                 ->by(($userId !== null ? (string) $userId : 'guest').':'.(string) $request->ip());
         });
 

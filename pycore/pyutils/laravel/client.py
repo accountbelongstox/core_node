@@ -40,7 +40,7 @@ from pycore.pyutils.laravel.http_recorder import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import build_pycore_identity_headers
-from pycore.pyutils.laravel.transport import (
+from pycore.pyutils.common.laravel_http_transport import (
     TRANSPORT_REQUESTS,
     create_laravel_http_session,
     response_http_version,

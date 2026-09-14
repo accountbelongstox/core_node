@@ -27,7 +27,8 @@ upload_max_filesize = ${PHP_RUNTIME_UPLOAD_MAX_FILESIZE}
 post_max_size = ${PHP_RUNTIME_POST_MAX_SIZE}
 max_execution_time = ${PHP_RUNTIME_MAX_EXECUTION_TIME}
 max_input_time = ${PHP_RUNTIME_MAX_INPUT_TIME}
-opcache.enable_cli = 1"
+opcache.enable_cli = 1
+apc.enable_cli = 1"
     existing=""
     [ -f "${ini_dir}/99-core-node.ini" ] && existing="$(cat "${ini_dir}/99-core-node.ini")"
     if [ "$existing" = "$rendered" ]; then
@@ -525,6 +526,8 @@ fm_mercure_config() {
     local subscriber_key=""
     local cookie_name=""
     local cors_origins=""
+    local heartbeat=""
+    local write_timeout=""
 
     FM_MERCURE_STANZA=""
     if [ "$(type -t runtime_config_get)" != "function" ] \
@@ -539,12 +542,14 @@ fm_mercure_config() {
     fi
     cookie_name="$(sc_require realtime.mercure_cookie)"
     mercure_transport="$(sc_require realtime.mercure_transport)"
+    heartbeat="$(sc_require realtime.mercure_heartbeat)"
+    write_timeout="$(sc_require realtime.mercure_write_timeout)"
     cors_origins="$(web_access_config_list corsOrigins)"
     if [ -z "$cookie_name" ] || [ -z "$mercure_transport" ] || [ -z "$cors_origins" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] Mercure service contract is incomplete"
     else
-        printf -v FM_MERCURE_STANZA '\tmercure {\n\t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcors_origins %s\n\t\tcookie_name %s\n\t}\n\n' \
-            "$mercure_transport" "$publisher_key" "$subscriber_key" "$cors_origins" "$cookie_name"
+        printf -v FM_MERCURE_STANZA '\tmercure {\n\t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcors_origins %s\n\t\tcookie_name %s\n\t\theartbeat %s\n\t\twrite_timeout %s\n\t\tsubscriptions\n\t}\n\n' \
+            "$mercure_transport" "$publisher_key" "$subscriber_key" "$cors_origins" "$cookie_name" "$heartbeat" "$write_timeout"
     fi
 }
 
@@ -696,4 +701,3 @@ fm_caddyfile_ensure() {
         fi
     fi
 }
-

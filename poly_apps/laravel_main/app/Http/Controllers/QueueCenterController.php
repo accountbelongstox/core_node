@@ -65,6 +65,11 @@ class QueueCenterController extends Controller
         ], __('relay.queue_center_overview'));
     }
 
+    public function hubAuthorization(): JsonResponse
+    {
+        return $this->success($this->realtime->connection(), __('relay.success'));
+    }
+
     public function events(Request $request): JsonResponse
     {
         $limit = QueueCenterContract::taskLimit('event_batch');

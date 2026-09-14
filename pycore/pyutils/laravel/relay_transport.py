@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Signed outbound transport for the Laravel Relay V2 coordinator."""
+"""Signed outbound transport for the Laravel Relay coordinator."""
 
 from __future__ import annotations
 

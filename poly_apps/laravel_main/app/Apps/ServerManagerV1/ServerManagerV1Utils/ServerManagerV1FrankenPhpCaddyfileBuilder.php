@@ -203,6 +203,9 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\tsubscriber_jwt {$subscriberKey} HS256\n"
             . "\t\tcors_origins ".implode(' ', $corsOrigins)."\n"
             . "\t\tcookie_name ".ServiceContract::string('realtime.mercure_cookie')."\n"
+            . "\t\theartbeat ".ServiceContract::string('realtime.mercure_heartbeat')."\n"
+            . "\t\twrite_timeout ".ServiceContract::string('realtime.mercure_write_timeout')."\n"
+            . "\t\tsubscriptions\n"
             . "\t}\n"
             . "\n";
     }

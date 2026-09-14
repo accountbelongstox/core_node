@@ -27,7 +27,7 @@ import urllib.parse
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyutils.common.activity_log import ActivityLog
-from pycore.pyutils.laravel.transport import (
+from pycore.pyutils.common.laravel_http_transport import (
     create_laravel_http_session,
     response_http_version,
 )
@@ -120,6 +120,10 @@ class MercureSubscriber:
         }
         self.last_event_id = ""
         self._retry_delay_override = 0.0
+        self._connection = None
+
+    def close(self) -> None:
+        self._close(self._connection)
 
     # ------------------------------------------------------------------ loop
 
@@ -133,6 +137,7 @@ class MercureSubscriber:
             try:
                 self._notify(MERCURE_STATE_CONNECTING, self.hub_url)
                 connection, url, _headers = self._open_stream(initial_cursor)
+                self._connection = connection
                 initial_cursor = ""
                 transport = str(connection.get("transport") or "")
                 protocol = str(connection.get("http_version") or "")
@@ -162,6 +167,8 @@ class MercureSubscriber:
                 self._notify(MERCURE_STATE_OFFLINE, str(exc) or exc.__class__.__name__)
             finally:
                 self._close(connection)
+                self._connection = None
+                self._notify(MERCURE_STATE_OFFLINE, reason)
             if reason == "stop":
                 return
             if reason == "closed":
@@ -224,6 +231,9 @@ class MercureSubscriber:
                 body = self._short_body(response)
                 self._close(connection)
                 raise RuntimeError(f"hub returned HTTP {status} {body[:120]}")
+            if response.headers.get('Content-Type', '').split(';', 1)[0].strip().lower() != 'text/event-stream':
+                self._close(connection)
+                raise RuntimeError('mercure_content_type_invalid')
             return connection, url, request_headers
 
     def _request_headers(self, token: str, resume: bool) -> Dict[str, str]:
@@ -252,7 +262,7 @@ class MercureSubscriber:
         data_bytes = 0
         dispatchable = False
         try:
-            for raw_line in response.iter_lines():
+            for raw_line in response.iter_lines(chunk_size=1):
                 if should_stop():
                     return "stop"
                 line = (
@@ -368,16 +378,6 @@ class MercureSubscriber:
         except Exception as error:  # noqa: BLE001 - close remains idempotent
             mercure_activity_log.warning(
                 "subscription.response.close.failed",
-                error_type=type(error).__name__,
-                error=error,
-            )
-        try:
-            session = connection.get("session")
-            if session is not None:
-                session.close()
-        except Exception as error:  # noqa: BLE001 - close remains idempotent
-            mercure_activity_log.warning(
-                "subscription.session.close.failed",
                 error_type=type(error).__name__,
                 error=error,
             )

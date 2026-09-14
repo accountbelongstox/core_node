@@ -383,10 +383,11 @@ Route::prefix('internal/pycore')->middleware('pycore.client')->group(function ()
 });
 
 // Relay control plane shared by the dashboard and Pycore clients.
-require_once __DIR__ . '/api/relay.php';
+Route::post('queue-center/mercure-authorization', [\App\Http\Controllers\QueueCenterController::class, 'hubAuthorization'])
+    ->middleware('dashboard.auth');
 
-// Relay V2 plane (Mercure notifications plus authoritative HTTP data plane).
-require_once __DIR__ . '/RelayV2Router/RelayV2Api.php';
+// Relay plane (Mercure notifications plus authoritative HTTP data plane).
+require_once __DIR__ . '/RelayRouter/RelayApi.php';
 
 // Queue Center - centralized audio queues (word_audio, sentence_audio) over
 // global_tasks. Public control plane, same trust level as /api/task/*.
