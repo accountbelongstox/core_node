@@ -26,6 +26,12 @@ HTTP_EXPECTED_DISCONNECT_WINERRORS = frozenset({64, 10038, 10053, 10054})
 PYCORE_HTTP_PORT = port("pycore_backend")
 QWEN3TTS_HTTP_PORT = 57210
 QWEN3TTS_HTTP_TIMEOUT_SECONDS = 900.0
+# Maximum characters accepted for ONE qwen3tts job (queued or direct). Single
+# source shared by pycore (qwen.config.job_text_max_chars) and the isolated
+# api server (loaded from source); overridable via the QWEN3TTS_JOB_MAX_CHARS
+# env. One job owns the whole GPU queue, so an unbounded text squats the
+# service for days.
+QWEN3TTS_JOB_TEXT_MAX_CHARS = 100000
 # Default playback-speed factor for every Qwen3-TTS generation (1.0 = natural).
 # Single source shared by pycore (qwen.config.default_speed) and the isolated
 # api server (loaded from source); overridable via the QWEN3TTS_SPEED env.
@@ -70,6 +76,7 @@ __all__ = [
     "QWEN3TTS_DEFAULT_SPEED",
     "QWEN3TTS_HTTP_PORT",
     "QWEN3TTS_HTTP_TIMEOUT_SECONDS",
+    "QWEN3TTS_JOB_TEXT_MAX_CHARS",
     "SSE_CONTENT_TYPE",
     "SSE_EVENT_JOURNAL_MAX",
     "SSE_EVENT_MAX_AGE_SECONDS",

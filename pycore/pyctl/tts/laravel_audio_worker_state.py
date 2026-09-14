@@ -12,8 +12,17 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
     task_language_priority,
+    task_payload_text_max_chars,
 )
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
+
+# Qwen progress emission policy: chunk advances emit at most once per
+# _QWEN_PROGRESS_EMIT_MIN_SECONDS, phase changes emit immediately, and a
+# heartbeat still lands every _QWEN_PROGRESS_HEARTBEAT_SECONDS so the Laravel
+# lease stays alive. Without this a queue-capacity heartbeat loop logs and
+# POSTs an identical line every retry interval.
+_QWEN_PROGRESS_EMIT_MIN_SECONDS = 5.0
+_QWEN_PROGRESS_HEARTBEAT_SECONDS = 60.0
 
 
 class LaravelAudioWorkerStateMixin:
@@ -188,22 +197,40 @@ class LaravelAudioWorkerStateMixin:
         progress: int,
         value: Dict[str, Any],
     ) -> bool:
+        """Merge one Qwen progress snapshot; True only when it should emit.
+
+        State always tracks the latest snapshot (status reads stay fresh),
+        but log/POST emission is throttled: phase changes and chunk advances
+        (rate-limited) emit immediately, silent stretches emit one heartbeat
+        per _QWEN_PROGRESS_HEARTBEAT_SECONDS.
+        """
         current = self._current_tasks.get(self._current_task_key(task_id, attempt))
         if current is None:
             return False
-        revision = int(value.get("progress_revision") or 0)
-        changed = (
-            int(current.get("qwen_progress_revision") or 0) != revision
-            or int(current.get("progress") or 0) != progress
+        completed = int(value.get("progress") or 0)
+        phase = str(value.get("progress_phase") or value.get("status") or "")
+        previous_completed = int(current.get("qwen_progress") or 0)
+        previous_phase = str(current.get("qwen_progress_phase") or "")
+        now = time.monotonic()
+        since_emit = now - float(current.get("qwen_last_emit_monotonic") or 0.0)
+        emit = (
+            phase != previous_phase
+            or (
+                completed != previous_completed
+                and since_emit >= _QWEN_PROGRESS_EMIT_MIN_SECONDS
+            )
+            or since_emit >= _QWEN_PROGRESS_HEARTBEAT_SECONDS
         )
         current["stage"] = "synthesizing"
         current["progress"] = progress
         current["current_provider"] = QWEN3TTS_ENGINE
-        current["qwen_progress_revision"] = revision
-        current["qwen_progress"] = int(value.get("progress") or 0)
+        current["qwen_progress_revision"] = int(value.get("progress_revision") or 0)
+        current["qwen_progress"] = completed
         current["qwen_progress_total"] = int(value.get("progress_total") or 0)
-        current["qwen_progress_phase"] = str(value.get("progress_phase") or "")
-        return changed
+        current["qwen_progress_phase"] = phase
+        if emit:
+            current["qwen_last_emit_monotonic"] = now
+        return emit
 
     def _report_qwen_progress(
         self,
@@ -491,10 +518,16 @@ class LaravelAudioWorkerStateMixin:
                 "preferred_engine": str(payload.get("preferred_engine") or "").strip() or None,
                 "speaker": str(payload.get("speaker") or self._speaker or "").strip() or None,
             })
+            text_limit = task_payload_text_max_chars(self.QUEUE_KEY)
             if not text:
                 info["error"] = "sentence_audio payload carried no text"
             elif not content_id:
                 info["error"] = "sentence_audio payload carried no content_id"
+            elif text_limit > 0 and len(text) > text_limit:
+                info["error"] = (
+                    f"sentence_audio payload text is {len(text)} chars "
+                    f"(contract limit {text_limit})"
+                )
             return info
 
         if task_type != self.QUEUE_KEY:
@@ -509,8 +542,14 @@ class LaravelAudioWorkerStateMixin:
                 "accent": str(payload.get("accent") or "").strip() or None,
                 "gender": str(payload.get("gender") or "").strip() or None,
             })
+            text_limit = task_payload_text_max_chars(task_type)
             if not text:
                 info["error"] = f"{task_type} payload carried no content"
+            elif text_limit > 0 and len(text) > text_limit:
+                info["error"] = (
+                    f"{task_type} payload text is {len(text)} chars "
+                    f"(contract limit {text_limit})"
+                )
             return info
 
         word = str(payload.get("word") or payload.get("content") or "").strip()
@@ -533,8 +572,14 @@ class LaravelAudioWorkerStateMixin:
             "gender": str(payload.get("gender") or "").strip() or None,
             "dict_row_id": dict_row_id,
         })
+        word_limit = task_payload_text_max_chars(self.QUEUE_KEY)
         if not word:
             info["error"] = "word_audio payload carried no word/content"
+        elif word_limit > 0 and len(word) > word_limit:
+            info["error"] = (
+                f"word_audio payload word is {len(word)} chars "
+                f"(contract limit {word_limit})"
+            )
         return info
 
     # -------------------- cache + synthesis --------------------

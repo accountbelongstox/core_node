@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.backoff_wait import BackoffWait
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
@@ -77,6 +77,10 @@ import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 
 _REQUIRED_ENGINE_RETRY_INITIAL_SECONDS = 0.5
 _REQUIRED_ENGINE_RETRY_MAX_SECONDS = 10.0
+# Total budget for one required managed engine to recover (service restart /
+# model reload) before the synthesis fails retryable; an unbounded wait blocks
+# a serial worker lane forever.
+_REQUIRED_ENGINE_RECOVERY_BUDGET_SECONDS = 300.0
 
 
 
@@ -319,7 +323,11 @@ def synthesize(
         synth_command = describe_synth_command(
             name, cleaned, language, output_path, want_accent, rate, gender
         )
-        recovery_delay = _REQUIRED_ENGINE_RETRY_INITIAL_SECONDS
+        recovery_wait = BackoffWait(
+            _REQUIRED_ENGINE_RECOVERY_BUDGET_SECONDS,
+            _REQUIRED_ENGINE_RETRY_INITIAL_SECONDS,
+            _REQUIRED_ENGINE_RETRY_MAX_SECONDS,
+        )
         recovery_revision = 0
         while True:
             try:
@@ -337,9 +345,6 @@ def synthesize(
                 if not _managed_required_engine_recoverable(name):
                     ok = False
                     break
-                if THREAD_BUS.is_shutdown_requested():
-                    ok = False
-                    break
                 recovery_revision += 1
                 if progress_callback is not None:
                     progress_callback({
@@ -349,15 +354,14 @@ def synthesize(
                         "progress_total": 0,
                         "progress_phase": "service_recovery",
                     })
-                ColorPrint.gray(
-                    f"[tts] required {name} service recovering; "
-                    f"retrying in {recovery_delay:g}s"
-                )
-                time.sleep(recovery_delay)
-                recovery_delay = min(
-                    _REQUIRED_ENGINE_RETRY_MAX_SECONDS,
-                    recovery_delay * 2.0,
-                )
+                if not recovery_wait.sleep():
+                    ColorPrint.yellow(
+                        f"[tts] required {name} service did not recover within "
+                        f"{_REQUIRED_ENGINE_RECOVERY_BUDGET_SECONDS:.0f}s; giving up"
+                    )
+                    ok = False
+                    break
+                ColorPrint.gray(f"[tts] required {name} service recovering; retrying")
             except Exception as e:  # noqa: BLE001— fall through to next engine
                 last_error = f"{name}: {e}"
                 ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")

@@ -696,6 +696,9 @@
         "interactive": true,
         "fast_promotable": false,
         "pycore_local_label": "remote_audio",
+        "payload_limits": {
+          "text_max_chars": 200
+        },
         "ui": {
           "icon": "🔊",
           "badge": "AUDIO",
@@ -719,6 +722,9 @@
         "interactive": false,
         "fast_promotable": false,
         "pycore_local_label": "remote_audio",
+        "payload_limits": {
+          "text_max_chars": 30000
+        },
         "ui": {
           "icon": "🔊",
           "badge": "ARTICLE AUDIO",
@@ -741,6 +747,9 @@
         "interactive": true,
         "fast_promotable": false,
         "pycore_local_label": "remote_sentence_audio",
+        "payload_limits": {
+          "text_max_chars": 2000
+        },
         "ui": {
           "icon": "🎧",
           "badge": "SENTENCE",

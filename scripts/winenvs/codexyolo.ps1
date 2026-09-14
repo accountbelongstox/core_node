@@ -63,6 +63,7 @@ $versionCandidate = $null
 $currentVersion = $null
 $latestVersion = $null
 $versionGapLarge = $false
+$previousErrorActionPreference = $null
 $model = "gpt-5.6-sol"
 $reasoningEffort = "high"
 $codexArgs = @()
@@ -143,8 +144,14 @@ if ($null -eq $codexCommand) {
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
 $versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
 if ($null -ne $pnpmCommand) {
-    $currentVersionOutput = (& $codexCommand.Source --version 2>$null | Out-String).Trim()
-    $latestVersionOutput = (& $pnpmCommand.Source view "@openai/codex" version 2>$null | Out-String).Trim()
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $currentVersionOutput = (& $codexCommand.Source --version 2>$null | Out-String).Trim()
+        $latestVersionOutput = (& $pnpmCommand.Source view "@openai/codex" version 2>$null | Out-String).Trim()
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $currentVersionTokens = $currentVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
     foreach ($versionToken in $currentVersionTokens) {
         $versionCandidate = $versionToken.Trim()
