@@ -135,6 +135,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $bindHost = ServiceContract::host('any');
 
         $mercureStanza = self::mercureStanza();
+        // Server-SAPI ini floor through the official Caddyfile php_ini
+        // directive; the scan-dir ini does not reach the FrankenPHP server
+        // SAPI for max_execution_time. Byte-synced with fm_caddyfile_render.
+        $maxExecutionTime = ServiceContract::positiveInt('php_runtime.max_execution_time_seconds');
+        $maxInputTime = ServiceContract::positiveInt('php_runtime.max_input_time_seconds');
 
         // Per-domain route import, gated on file presence (caddy errors on
         // an unmatched import glob). Mirrors the shell end.
@@ -157,6 +162,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t}\n"
             . "\n"
             . "\tfrankenphp {\n"
+            . "\t\tphp_ini max_execution_time {$maxExecutionTime}\n"
+            . "\t\tphp_ini max_input_time {$maxInputTime}\n"
             . "\t\tworker {\n"
             . "\t\t\tfile \"{$publicDir}/frankenphp-worker.php\"\n"
             . "\t\t\t{\$CADDY_SERVER_WORKER_DIRECTIVE}\n"
