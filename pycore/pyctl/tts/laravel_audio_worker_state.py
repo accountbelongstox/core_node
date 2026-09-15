@@ -92,11 +92,15 @@ class LaravelAudioWorkerStateMixin:
 
         label = f"{self._log_prefix} {kind}"
         if self.LANE == "sentence":
-            # SPECIAL OPTIMIZATION (specially optimized script): mirror the
-            # remote language-tier completion (progress language_tiers, e.g.
-            # remote_en=done/total) on EVERY sentence-lane log line.
             if info and info.get("task_id") is not None:
-                label += f" progress task={self._display_task_id(info.get('task_id'))}"
+                label += f" task={self._display_task_id(info.get('task_id'))}"
+            queue_progress = self._queue_progress.get(self.QUEUE_KEY) or {}
+            language_tiers = queue_progress.get("language_tiers") or {}
+            tier_progress = language_tiers.get("en") or {}
+            progress_current = tier_progress.get("completed", queue_progress.get("completed"))
+            progress_total = tier_progress.get("total", queue_progress.get("total"))
+            if progress_current is not None and progress_total is not None:
+                label += f" progress={int(progress_current)}/{int(progress_total)}"
         elif info and info.get("task_id") is not None:
             label += f" task={self._display_task_id(info.get('task_id'))}"
         if info:
@@ -108,7 +112,7 @@ class LaravelAudioWorkerStateMixin:
                 backend_progress_current = int(info.get("backend_progress_current") or 0)
                 backend_progress_total = int(info.get("backend_progress_total") or 0)
                 label += f" progress={backend_progress_current}/{backend_progress_total}"
-            elif info.get("progress") is not None:
+            elif self.LANE != "sentence" and info.get("progress") is not None:
                 progress = int(info.get("progress") or 0)
                 progress_total = int(info.get("progress_total") or GLOBAL_TASK_PROGRESS_TOTAL)
                 label += f" progress={progress}/{progress_total}"
@@ -262,7 +266,10 @@ class LaravelAudioWorkerStateMixin:
         if not changed or completed == previous_completed:
             return
         ColorPrint.gray(
-            f"{self._log_prefix} qwen chunks={completed}/{total} phase={phase}"
+            f"{self._log_prefix} progress="
+            f"{int(((self._queue_progress.get(self.QUEUE_KEY) or {}).get('language_tiers') or {}).get('en', {}).get('completed', 0))}/"
+            f"{int(((self._queue_progress.get(self.QUEUE_KEY) or {}).get('language_tiers') or {}).get('en', {}).get('total', 0))} "
+            f"qwen chunks={completed}/{total} phase={phase}"
         )
         self._log_event(
             "progress",
