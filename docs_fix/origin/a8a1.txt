@@ -1,0 +1,4 @@
+[qwen3tts-events +0.13s] HTTP poll failed: [WinError 10054] An existing connection was forcibly closed by the remote host
+[WordAudioWorker +948.70s +0.07s] word_ok=0 word_fail=0 word_avg=0.00m diff[200]->false
+[tts +0.08s] stopped foreign qwen3tts server (pid=25144) on port 57210
+[managed +0.00s] stopped adopted server qwen3tts
