@@ -103,11 +103,6 @@ class EdgeTTSService
 
         $this->initializeDirectories();
         $this->cacheManager = new EdgeTTSPayloadCache($jsonDbDir);
-
-        // Automatic cleanup: 5% chance to clean zero-byte files on initialization
-        if (rand(1, 100) <= 5) {
-            $this->cleanZeroByteFilesBackground();
-        }
     }
 
     private function initializeDirectories(): void
@@ -653,19 +648,22 @@ class EdgeTTSService
     }
 
     /**
-     * Clean zero-byte audio files in background (non-blocking)
-     * Called randomly during service initialization to maintain clean storage
-     * Limits: Max 100 files per call to avoid performance impact
+     * Time-boxed zero-byte audio cleanup, invoked from the CLI maintenance
+     * schedule (QueueCenterAudioScanTask) — never from the request path.
+     * Both the file budget and the wall-clock budget stop the traversal.
+     *
+     * @return int Number of zero-byte files removed
      */
-    private function cleanZeroByteFilesBackground(): void
+    public function cleanZeroByteFilesMaintenance(int $maxFilesToClean = 100, float $wallClockSeconds = 5.0): int
     {
+        $cleaned = 0;
+
         try {
-            $maxFilesToClean = 100;
-            $cleaned = 0;
+            $deadline = microtime(true) + max(0.1, $wallClockSeconds);
 
             // Use RecursiveIteratorIterator for efficient directory traversal
             if (!is_dir($this->audioDir)) {
-                return;
+                return 0;
             }
 
             $iterator = new \RecursiveIteratorIterator(
@@ -674,8 +672,8 @@ class EdgeTTSService
             );
 
             foreach ($iterator as $file) {
-                // Stop after cleaning max files
-                if ($cleaned >= $maxFilesToClean) {
+                // Stop on file budget or wall-clock budget
+                if ($cleaned >= $maxFilesToClean || microtime(true) >= $deadline) {
                     break;
                 }
 
@@ -694,15 +692,17 @@ class EdgeTTSService
             }
 
             if ($cleaned > 0) {
-                Log::info('[EdgeTTS] Background cleanup removed zero-byte files', [
+                Log::info('[EdgeTTS] Maintenance cleanup removed zero-byte files', [
                     'files_cleaned' => $cleaned,
                 ]);
             }
         } catch (\Exception $e) {
             // Silent fail - don't break TTS service if cleanup fails
-            Log::warning('[EdgeTTS] Background cleanup failed', [
+            Log::warning('[EdgeTTS] Maintenance cleanup failed', [
                 'error' => $e->getMessage(),
             ]);
         }
+
+        return $cleaned;
     }
 }

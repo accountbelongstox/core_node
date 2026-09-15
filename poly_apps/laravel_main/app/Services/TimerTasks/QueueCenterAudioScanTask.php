@@ -13,6 +13,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Services\EdgeTTS\EdgeTTSService;
 use App\Services\QueueCenter\QueueCenterService;
 use App\Support\QueueCenterContract;
 
@@ -74,6 +75,7 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
         $sentencesCreated = $this->scanSentences();
         $articlesCreated = $this->scanArticles();
         $libraryArticlesCreated = $this->scanLibraryArticles();
+        $this->maybeCleanZeroByteAudio();
 
         if ($wordsCreated + $sentencesCreated + $articlesCreated + $libraryArticlesCreated > 0) {
             $this->logInfo('Queue center audio scan enqueued tasks', [
@@ -81,6 +83,27 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
                 'sentence_audio' => $sentencesCreated,
                 'article_sentence_audio' => $articlesCreated,
                 'library_article_sentence_audio' => $libraryArticlesCreated,
+            ]);
+        }
+    }
+
+    /**
+     * Zero-byte audio cleanup, carried over from the former EdgeTTSService
+     * constructor roll (same 5% probability). Runs here in the CLI schedule
+     * process — a full-tree scan under the 30s server-SAPI ceiling fatals the
+     * worker thread and restarts it, killing in-flight connections.
+     */
+    private function maybeCleanZeroByteAudio(): void
+    {
+        if (random_int(1, 100) > 5) {
+            return;
+        }
+
+        try {
+            app(EdgeTTSService::class)->cleanZeroByteFilesMaintenance();
+        } catch (\Throwable $e) {
+            $this->logWarning('Zero-byte audio cleanup skipped', [
+                'error' => $e->getMessage(),
             ]);
         }
     }

@@ -89,7 +89,7 @@ def main(
     port: int = PYCORE_HTTP_PORT,
     debug: bool = False,
     reload: bool = True,
-    service_mode: str = "",
+    service_mode: "str | None" = None,
 ):
     """
     Main entry point
@@ -100,8 +100,11 @@ def main(
         debug: Debug mode
         reload: Dev hot-reload. Watch the pycore package's .py files and restart
             (via the existing THREAD_BUS restart -> os.execv path) on any change.
+        service_mode: Explicit startup mode; reconfigures and persists. None
+            keeps the env/persisted-cache/default resolution untouched.
     """
-    pyservice_mode_service.configure(service_mode)
+    if service_mode is not None:
+        pyservice_mode_service.configure(service_mode)
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Starting")
     ColorPrint.blue("=" * 70)
@@ -215,7 +218,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--service-mode',
         choices=pyservice_mode_service.allowed_modes(),
-        default=pyservice_mode_service.mode(),
+        default=None,
+        help='Explicit mode reconfigures and persists; omitted reuses the env/persisted/default resolution',
     )
 
     args = parser.parse_args()

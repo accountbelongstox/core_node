@@ -3,13 +3,18 @@
 
 from __future__ import annotations
 
-from typing import Dict
+import json
+import os
+from typing import Dict, Optional
+
+from pycore.pyfoundations.app_config_path import get_app_config_dir
 
 
 PY_SERVICE_MODE_LOCAL_UI = "1"
 PY_SERVICE_MODE_RELAY_UI = "2"
 PY_SERVICE_MODE_DEFAULT = PY_SERVICE_MODE_LOCAL_UI
 PY_SERVICE_MODE_ENVIRONMENT_KEY = "PYCORE_SERVICE_MODE"
+PY_SERVICE_MODE_CACHE_FILE = "pyservice_mode.json"
 PY_SERVICE_MODE_NAMES: Dict[str, str] = {
     PY_SERVICE_MODE_LOCAL_UI: "local-ui",
     PY_SERVICE_MODE_RELAY_UI: "relay-ui",
@@ -43,4 +48,29 @@ class PyserviceModeContract:
 pyservice_mode_contract = PyserviceModeContract()
 
 
-__all__ = ["pyservice_mode_contract"]
+def read_persisted_pyservice_mode() -> Optional[str]:
+    """Return the cached mode from the user config store, or None."""
+    try:
+        cache_path = get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE
+        with open(cache_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return pyservice_mode_contract.normalize(payload.get("mode"))
+    except (OSError, ValueError, KeyError, AttributeError):
+        return None
+
+
+def persist_pyservice_mode(mode: str) -> None:
+    """Cache the mode in the user config store (atomic write)."""
+    normalized = pyservice_mode_contract.normalize(mode)
+    cache_path = get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE
+    temp_path = cache_path.with_suffix(".json.tmp")
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump({"mode": normalized}, handle)
+    os.replace(temp_path, cache_path)
+
+
+__all__ = [
+    "pyservice_mode_contract",
+    "read_persisted_pyservice_mode",
+    "persist_pyservice_mode",
+]

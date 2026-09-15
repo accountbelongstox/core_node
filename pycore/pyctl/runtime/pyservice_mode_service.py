@@ -8,25 +8,31 @@ import os
 from pycore.pyutils.common.pyservice_mode import (
     PY_SERVICE_MODE_DEFAULT,
     PY_SERVICE_MODE_ENVIRONMENT_KEY,
+    persist_pyservice_mode,
     pyservice_mode_contract,
+    read_persisted_pyservice_mode,
 )
 
 
 class PyserviceModeService:
-    """Own the immutable startup mode used by runtime composition."""
+    """Own the immutable startup mode used by runtime composition.
+
+    Resolution order: explicit environment value (persisted on sight) ->
+    persisted user-config cache -> default local-ui mode.
+    """
 
     def __init__(self) -> None:
-        self._mode = pyservice_mode_contract.normalize(
-            os.environ.get(
-                PY_SERVICE_MODE_ENVIRONMENT_KEY,
-                PY_SERVICE_MODE_DEFAULT,
-            )
-        )
+        env_value = os.environ.get(PY_SERVICE_MODE_ENVIRONMENT_KEY)
+        if env_value is not None:
+            self._mode = self.configure(env_value)
+            return
+        self._mode = read_persisted_pyservice_mode() or PY_SERVICE_MODE_DEFAULT
 
     def configure(self, value: str) -> str:
         mode = pyservice_mode_contract.normalize(value)
         self._mode = mode
         os.environ[PY_SERVICE_MODE_ENVIRONMENT_KEY] = mode
+        persist_pyservice_mode(mode)
         return mode
 
     def mode(self) -> str:

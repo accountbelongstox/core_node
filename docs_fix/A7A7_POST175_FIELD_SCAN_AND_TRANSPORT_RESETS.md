@@ -135,3 +135,61 @@ F5. Deployment convergence (not executed here per rules): 175 convergence
     re-renders the Caddyfile; UI at 12gm.com is served by the dev server from
     live source (ncore-nexus-dash, `--serve --dev`), so the A7A5/A7A6 UI fixes
     are already in the served bundle once recompiled by that server.
+
+## Implemented changes (2026-09-16)
+
+F1 — server-SAPI ini floor, all three renderers emit the same two lines inside
+the global `frankenphp {}` block, values from `service_contract.json
+php_runtime.*` (1200/1200):
+- `scripts/shells/linux/common/frankenphp_runtime_common.sh`
+  (`fm_caddyfile_render`): renders `php_ini max_execution_time|max_input_time`
+  via `printf -v php_ini_stanza`; variables are manager-owned
+  (`frankenphp_manager.sh:109-110`), in scope at both call sites
+  (self and `frankenphp_domain_common.sh`, which sources the manager).
+- `.../ServerManagerV1FrankenPhpCaddyfileBuilder.php` (`render`): same two
+  lines via `ServiceContract::positiveInt('php_runtime.*_seconds')`.
+- `scripts/shells/win/win_common/FrankenPhpManager.ps1`
+  (`Ensure-FrankenPhpCaddyfile`): same two lines via
+  `Get-ServiceContractValue`. (No pwsh on the build host — not
+  machine-validated; change is confined to two added lines in the existing
+  here-string.)
+- The scan-dir ini render is kept unchanged for the CLI shim plane.
+
+F2 — zero-byte cleanup off the request path:
+- `EdgeTTSService::__construct`: the 5% `cleanZeroByteFilesBackground()` roll
+  is removed; construction is pure initialization again.
+- `EdgeTTSService::cleanZeroByteFilesMaintenance(int $maxFilesToClean = 100,
+  float $wallClockSeconds = 5.0)`: former private method, now public,
+  time-boxed (file budget OR wall-clock deadline stops the recursive
+  traversal), returns the cleaned count.
+- `QueueCenterAudioScanTask::exec` calls `maybeCleanZeroByteAudio()` with the
+  original 5% probability per 60s tick, inside the CLI schedule process (no
+  30s SAPI ceiling); failures log a warning and never break the scan.
+
+F3 — pyservice mode persistence:
+- `pycore/pyutils/common/pyservice_mode.py`: `read_persisted_pyservice_mode()`
+  / `persist_pyservice_mode()` over
+  `get_app_config_dir()/pyservice_mode.json` (atomic tmp+replace; corrupt or
+  missing cache reads as None).
+- `PyserviceModeService`: resolution order = explicit env
+  (`PYCORE_SERVICE_MODE`, persisted on sight via `configure()`) -> persisted
+  cache -> default `1`. `configure()` now also persists.
+- `pycore_module_caller.py`: `--service-mode` default is None; `main()` only
+  calls `configure()` when a value was explicitly passed. Bare direct launch
+  therefore reuses the persisted cache; both shell wrappers
+  (`pyservice.sh:128,587`, `pyservice.ps1:130,390`) default the mode to 1 and
+  always pass `--service-mode`, so a shell launch without arguments overwrites
+  the cache with 1 — exactly the required contract. No wrapper changes needed.
+
+## Validation (2026-09-16)
+
+- PHP `token_get_all(..., TOKEN_PARSE)` on the three touched PHP files: OK.
+- `bash -n scripts/shells/linux/common/frankenphp_runtime_common.sh`: OK.
+- Python AST parse on the three touched Python files: OK.
+- Runtime roundtrip of the persistence helpers: persist 2 -> read 2 ->
+  persist 1 -> read 1; env `PYCORE_SERVICE_MODE=2` resolves to 2 AND persists
+  on sight; corrupt JSON cache tolerated (falls back to None -> default).
+- Not run per project rules: builds, tests, service restarts, 175 rerun.
+  The Caddyfile `php_ini` floor takes effect on the next 175 convergence;
+  F2 takes effect on the next laravel-main deploy; F3 on the next pycore
+  start from updated code.
