@@ -169,6 +169,11 @@ class BaseLaravelWorkerService:
         # back to the bounded claim-pull compat path.
         self._sync_backend_capable = False
         self._sync_backend_legacy = False
+        # Task types whose mirror was bootstrapped in THIS process. A stored
+        # cursor is only trustworthy after the mirror was materialized from
+        # an ordered diff; a lane that never synced (or inherited a cursor
+        # written by a legacy claim-pull) must re-sync from cursor=0 once.
+        self._sync_mirror_bootstrapped: Set[str] = set()
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -379,9 +384,14 @@ class BaseLaravelWorkerService:
         changed = False
         synced = False
         for task_type in task_types:
-            cursor = max(
-                int(self._queue_diff_cursors.get(task_type, 0)),
-                diff_task_segment_store.remote_cursor(scope, task_type),
+            bootstrap_sync = full_sync and task_type not in self._sync_mirror_bootstrapped
+            cursor = (
+                0
+                if bootstrap_sync
+                else max(
+                    int(self._queue_diff_cursors.get(task_type, 0)),
+                    diff_task_segment_store.remote_cursor(scope, task_type),
+                )
             )
             params: Dict[str, Any] = {"cursor": cursor}
             if full_sync:
@@ -400,6 +410,8 @@ class BaseLaravelWorkerService:
                     f"Laravel queue diff failed for {task_type}: HTTP {response.status_code}"
                 )
             data = self._response_data(response)
+            if full_sync:
+                self._sync_mirror_bootstrapped.add(task_type)
             lane_changed = bool(data.get("changed"))
             # Compact poll line: diff[200]->true means the remote head moved;
             # full-sync lanes apply the ordered diff incrementally, legacy
@@ -794,22 +806,25 @@ class BaseLaravelWorkerService:
                 )
 
     def _pull_once(self, prefer_remote: bool = False) -> Dict[str, Any]:
-        """Pull and recover one bounded segment, preferring a changed remote head."""
+        """Pull and recover one bounded segment, preferring a changed remote head.
+
+        Full-sync lanes NEVER run the bounded claim-pull here: their intake
+        is the diff mirror (sync -> stage -> dispatch staged rows, claim
+        just-in-time at task start). A pre-sync claim-pull would advance the
+        diff cursor to the head revision without materializing the mirrored
+        backlog, so every later diff would report changed=false and the lane
+        would stall after the first claimed task.
+        """
         if self._circuit_is_open():
             return {"ok": False, "processed": 0, "reason": "result_circuit_open"}
+        if self._full_sync_enabled() and not self._sync_backend_legacy:
+            return self._pull_once_full_sync()
         task_types = self._ordered_pull_task_types()
-        full_sync = self._sync_active()
         capacity = (
             self._diff_pull_capacity()
             if prefer_remote
             else self._pull_capacity()
         )
-        if full_sync:
-            # Sync lanes hold the whole mirrored backlog: sweep every staged
-            # row for dispatch and never run the bounded remote claim-pull
-            # (the diff sync + just-in-time claim at task start replace it).
-            capacity = STAGED_TASK_LIMIT
-            prefer_remote = False
         if not task_types or capacity <= 0:
             return {"ok": True, "processed": 0}
 
@@ -828,8 +843,7 @@ class BaseLaravelWorkerService:
                 recovered,
                 base_url,
                 scope,
-                validate_claim=not full_sync,
-                allow_backlog=full_sync,
+                validate_claim=True,
             )
             capacity = max(0, capacity - recovered_count)
 
@@ -837,8 +851,6 @@ class BaseLaravelWorkerService:
             capacity,
             diff_task_segment_store.available_capacity(scope),
         )
-        if full_sync:
-            remote_capacity = 0
         remaining = remote_capacity
         pulled = 0
         for task_type in task_types:
@@ -866,13 +878,16 @@ class BaseLaravelWorkerService:
             if staged:
                 self._remember_task_types(staged, base_url)
                 pulled += len(staged)
-            queue_cursor = int(
-                data.get("queue_cursor")
-                or self._queue_diff_cursors.get(task_type, 0)
-                or diff_task_segment_store.remote_cursor(scope, task_type)
-            )
-            self._queue_diff_cursors[task_type] = queue_cursor
-            diff_task_segment_store.set_remote_cursor(scope, task_type, queue_cursor)
+            if not self._full_sync_enabled():
+                # Cursor writes are the diff round's job on full-sync lanes;
+                # a claim-pull must never move them (see _pull_once docstring).
+                queue_cursor = int(
+                    data.get("queue_cursor")
+                    or self._queue_diff_cursors.get(task_type, 0)
+                    or diff_task_segment_store.remote_cursor(scope, task_type)
+                )
+                self._queue_diff_cursors[task_type] = queue_cursor
+                diff_task_segment_store.set_remote_cursor(scope, task_type, queue_cursor)
             if not staged:
                 continue
             processed += self._dispatch_staged_tasks(staged, base_url, scope)
@@ -906,6 +921,46 @@ class BaseLaravelWorkerService:
             "processed": processed,
             "pulled": pulled,
             "recovered": recovered_count,
+        }
+
+    def _pull_once_full_sync(self) -> Dict[str, Any]:
+        """Full-sync lane intake: mirror first, then dispatch staged rows.
+
+        Intake order: establish/refresh the mirror through one diff round
+        while sync support is not proven yet (skipped when the backend is
+        unreachable - the persisted mirror plus the local heap keep offline
+        processing alive), then sweep every dispatchable staged row into the
+        local queue. Remote bookkeeping happens just-in-time at task start
+        (_ensure_laravel_claim), so this path never claims and never touches
+        diff cursors.
+        """
+        task_types = self._pull_task_types()
+        if not task_types:
+            return {"ok": True, "processed": 0}
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        scope = self._diff_segment_scope(base_url)
+        if not self._sync_active():
+            try:
+                self._sync_mirror_from_diffs(task_types)
+            except Exception as exc:  # noqa: BLE001 - offline mirror processing
+                ColorPrint.yellow(
+                    f"{self._log_prefix} diff sync unreachable ({exc}); "
+                    "processing the local mirror"
+                )
+        recovered = diff_task_segment_store.pending(scope, STAGED_TASK_LIMIT)
+        if not recovered:
+            return {"ok": True, "processed": 0}
+        self._remember_task_types(recovered, base_url)
+        processed = self._dispatch_staged_tasks(
+            recovered,
+            base_url,
+            scope,
+            allow_backlog=True,
+        )
+        return {
+            "ok": True,
+            "processed": processed,
+            "recovered": len(recovered),
         }
 
     # -------------------- dispatched-task registry --------------------
