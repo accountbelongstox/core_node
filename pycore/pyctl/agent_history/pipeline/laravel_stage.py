@@ -2,6 +2,7 @@
 from typing import Any, Dict
 
 from pycore.pyutils.laravel.article_contract import compose_worker_text_fields
+from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
@@ -76,7 +77,7 @@ def upload_to_laravel(
         f"{_ARTICLE_WORKER_API}/submit",
         base_url=base,
         json=payload,
-        no_timeout=True,
+        activity_timeout=http_transfer_contract(),
     )
     ColorPrint.cyan(
         f"[AgentHistoryPipeline] upload reason=article_submit "

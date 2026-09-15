@@ -137,6 +137,24 @@ class WordTranslationTaskProcessor extends AbstractTaskProcessor
 
         if ($task->task_type === 'word_audio') {
             $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+            // The domain report (tts/worker/report) already marked the linked
+            // dict row has_audio before this result was posted. Trust the
+            // enqueue-time dict linkage FIRST: re-deriving the row from the
+            // worker-supplied word/md5 pair zeroes stored_count whenever the
+            // two identities drift, and the result-trust downgrade then
+            // re-queues a word whose audio is already on disk (endless
+            // re-upload loop).
+            $linkedRowId = (int) ($task->dict_row_id ?? 0);
+            if ($linkedRowId > 0) {
+                $linkedLanguage = trim((string) ($task->dict_language ?? ''));
+                $linkedLangCode = $linkedLanguage !== ''
+                    ? AppQyV1DictionaryService::getLanguageCode($linkedLanguage)
+                    : $langCode;
+                $linkedEntry = AppQyV1LangDictionaryModel::findForLanguage($linkedLangCode, $linkedRowId);
+                if ($linkedEntry && !empty($linkedEntry->has_audio)) {
+                    return 1;
+                }
+            }
             $audioReady = 0;
             foreach ($translations as $item) {
                 $word = is_array($item) ? trim((string) ($item['word'] ?? '')) : '';

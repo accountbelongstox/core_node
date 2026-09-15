@@ -68,6 +68,15 @@ def _enable_windows_ansi_support():
 _WINDOWS_ANSI_ENABLED = _enable_windows_ansi_support()
 
 
+def format_duration_hms(seconds: float) -> str:
+    """Render a runtime length as HH:MM:SS - the ONE shared duration format for
+    log prefixes (hours unbounded, sub-second precision intentionally dropped)."""
+    total = max(0, int(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
 class ColorPrintCallback:
     """ColorPrint callback handler for multiple registrations"""
     
