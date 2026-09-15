@@ -31,7 +31,7 @@ from typing import Sequence
 import pyautogui
 import pyperclip
 
-SCHEDULED_START_TIME = "03:00"
+SCHEDULED_START_TIME = "03:59"
 SCHEDULE_POLL_SECONDS = 30.0
 
 SSH_COMMAND = "ssh1"
@@ -46,7 +46,7 @@ KIMIYOLO_ENTER_WINDOW_SECONDS = 30.0
 KIMIYOLO_ENTER_PRESS_COUNT = 10
 KIMIYOLO_TYPE_INTERVAL_SECONDS = 0.05
 
-PROMPT_TEXT = "阅讲：docs_fix/origin/kimi1.txt，然后从'新任务：'开始完成之前的开发任务(注意之前的文字只是任务指引，作为参数具体要看实际代码)。注意不要使用多agents，只使用一个agent."
+PROMPT_TEXT = "切换工作目录到 /www/programing/core_node/ ，阅讲：docs_fix/origin/kimi1.txt，然后从'新任务：'开始完成之前的开发任务(注意之前的文字只是任务指引，作为参数具体要看实际代码)。注意不要使用多agents，只使用一个agent."
 
 TICK_INTERVAL_SECONDS = 5.0
 MOVE_DURATION_SECONDS = 0.1
