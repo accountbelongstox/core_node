@@ -353,3 +353,11 @@
     Pi: The coordinator returned no available devices for
     this Pycore group. The device list will refresh
     automatically. 其他功能对齐，目前功能仍然不可用。
+    新的BUG ： [laravel +0.01s] POST /api/worker/tasks/word_audio/accept -> ERR (19272ms) ('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))
+[WordAudioWorker 00:05:51 +0.00s] word_ok=102 word_fail=0 word_avg=0.05m Claim check for task task_029... unreachable (('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))); processing from the local snapshot
+[WordAudioWorker 00:05:51 +0.12s] word_ok=102 word_fail=0 word_avg=0.05m diff sync unreachable (('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))); processing the local mirror
+新的BUG2 :[Mercure +1.45s] action=subscription.stream.interrupted error=HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. error_type=ConnectionError hub_url=https://api.si.12gm.com/.well-known/mercure
+[laravel +1.38s] POST /api/worker/tasks/sentence_audio/accept -> ERR (19296ms) ('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))
+[Relay +0.08s] action=subscriber.state.changed coordinator=https://api.si.12gm.com device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e state=offline
+[SentenceAudioWorker 00:07:00 +1.39s] remote_en=347/1677 sent_ok=7 sent_fail=0 sent_avg=0.94m full-sync mirror ready but no dispatchable tasks (scope=pycore-sentence-audio-pycore-sentence-desktop-1l9k06n:pycore-sentence-desktop-1l9k06n:https://api.si.12gm.com)
+[SentenceAudioWorker 00:07:01 +0.70s] remote_en=347/1677 sent_ok=7 sent_fail=0 sent_avg=0.94m Claim check for task task_244... unreachable (('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))); processing from the local snapshot

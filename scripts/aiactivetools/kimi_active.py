@@ -46,7 +46,7 @@ KIMIYOLO_ENTER_WINDOW_SECONDS = 30.0
 KIMIYOLO_ENTER_PRESS_COUNT = 10
 KIMIYOLO_TYPE_INTERVAL_SECONDS = 0.05
 
-PROMPT_TEXT = "阅讲：docs_fix/origin/kimi1.txt，然后继续完成之前的开发任务。注意不要使用多agents，只使用一个agent."
+PROMPT_TEXT = "阅讲：docs_fix/origin/kimi1.txt，然后从'新任务：'开始完成之前的开发任务(注意之前的文字只是任务指引，作为参数具体要看实际代码)。注意不要使用多agents，只使用一个agent."
 
 TICK_INTERVAL_SECONDS = 5.0
 MOVE_DURATION_SECONDS = 0.1
