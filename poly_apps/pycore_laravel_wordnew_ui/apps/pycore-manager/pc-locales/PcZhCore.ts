@@ -45,7 +45,7 @@ relayTarget: {
     enrollmentClaiming: '认领中…',
     enrollmentSuccess: '设备已登记。',
     enrollmentFailed: '设备登记失败。',
-    rosterEmpty: '暂无已归属的 Relay 设备。请以模式 2 启动 Pycore，再在上方输入认领码。',
+    rosterEmpty: '暂无已归属的 Relay 设备。请以模式 2（relay-ui）启动 Pycore，待认领设备会自动加入管理员账户；也可在上方手动输入认领码。',
     designate: '指定',
     paired: '已配对 ✕',
     dropDesignation: '取消指定（解除配对）',

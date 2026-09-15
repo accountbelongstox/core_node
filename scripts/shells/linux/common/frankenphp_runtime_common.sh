@@ -384,12 +384,14 @@ fm_php_runtime_extensions_ready() {
 }
 
 # Embedded-runtime completeness floor for a compile-variant binary (string
-# contract: yes/no): the dnspod DNS-01 module plus the shared runtime
-# extension floor. A binary missing any of them is a rebuild trigger.
+# contract: yes/no): the dnspod DNS-01 module, the embedded Mercure hub
+# module plus the shared runtime extension floor. A binary missing any of
+# them is a rebuild trigger.
 fm_binary_compile_complete() {
     local binary="$1"
 
     if [ "$(fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
+        && [ "$(fm_module_in_bin "$binary" "$FRANKENPHP_MERCURE_MODULE")" = "yes" ] \
         && [ "$(fm_php_runtime_extensions_ready "$binary")" = "yes" ]; then
         echo "yes"
     else

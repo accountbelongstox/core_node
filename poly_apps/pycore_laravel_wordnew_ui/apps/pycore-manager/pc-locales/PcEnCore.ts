@@ -45,7 +45,7 @@ relayTarget: {
     enrollmentClaiming: 'Claiming…',
     enrollmentSuccess: 'Device enrolled.',
     enrollmentFailed: 'Device enrollment failed.',
-    rosterEmpty: 'No owned Relay devices. Start Pycore in mode 2, then enter its claim code above.',
+    rosterEmpty: 'No owned Relay devices. Start Pycore in mode 2 (relay-ui); pending devices join admin accounts automatically. Manual claim code entry above remains available.',
     designate: 'DESIGNATE',
     paired: 'PAIRED ✕',
     dropDesignation: 'Drop the designation (unpair)',

@@ -51,6 +51,7 @@ FRANKENPHP_ACME_RELOAD_CMD=""
 FM_VARIANT=""
 FM_DNS01_MODE=""
 FM_BINARY=""
+FM_MERCURE_MODULE_READY=""
 CADDY_SERVER_WORKER_DIRECTIVE=""
 CADDY_SERVER_WATCH_DIRECTIVES=""
 RELAY_CONTRACT_WATCH_DIR="$(dirname "$(dirname "$LARAVEL_DIR")")/config"
@@ -177,6 +178,17 @@ case "$FM_DNS01_MODE" in
         echo "[laravel-runtime-frankenphp] variant: ${FM_VARIANT:-unrecorded} (acme.sh DNS-01 first; dnspod module fallback)"
         ;;
 esac
+
+# Mercure hub module readiness (all variants, fail closed): the canonical
+# Caddyfile always renders the mercure directive, so a binary without the
+# embedded hub module must be stopped HERE with a clear error instead of
+# surfacing as a Caddy config-load failure after the supervisor starts.
+FM_MERCURE_MODULE_READY="$(fm_module_in_bin "$FM_BINARY" "$FRANKENPHP_MERCURE_MODULE")"
+if [ "$FM_MERCURE_MODULE_READY" != "yes" ]; then
+    echo "[laravel-runtime-frankenphp] [ERROR] frankenphp binary lacks the embedded Mercure module (${FRANKENPHP_MERCURE_MODULE}): $FM_BINARY"
+    echo "[laravel-runtime-frankenphp] [ERROR] Re-run the canonical installer (93_install_frankenphp.sh); the relay long-connection hub cannot boot without it"
+    exit 1
+fi
 
 # Canonical Caddyfile before launch (content-hash idempotent; literal
 # Mercure keys from the store).

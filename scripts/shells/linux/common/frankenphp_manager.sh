@@ -90,6 +90,10 @@ FRANKENPHP_VARIANT_KEY="FRANKENPHP_VARIANT"
 # libdns-v1 tag is released.
 FRANKENPHP_DNSPOD_IMPORT="github.com/caddy-dns/dnspod@master"
 FRANKENPHP_DNSPOD_MODULE="dns.providers.dnspod"
+# Embedded Mercure hub handler (caddy list-modules id). The relay plane fails
+# closed when the live binary lacks it: the Caddyfile mercure directive would
+# otherwise only surface as a Caddy config-load error at boot.
+FRANKENPHP_MERCURE_MODULE="http.handlers.mercure"
 FRANKENPHP_DNSPOD_TOKEN_KEY="DNSPOD_TOKEN"
 # Secret-file keys (.secret_keys/.secret_ignore via the common_functions
 # reader): the DNSPod API token "id,token" + the ACME account email -

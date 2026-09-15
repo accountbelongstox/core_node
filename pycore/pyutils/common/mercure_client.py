@@ -108,7 +108,7 @@ class MercureSubscriber:
         self.reconnect_min_seconds = max(0.1, float(reconnect_min_seconds))
         self.reconnect_max_seconds = max(self.reconnect_min_seconds, float(reconnect_max_seconds))
         self.connect_timeout = max(0.1, float(connect_timeout))
-        # Must exceed the hub heartbeat interval (default 40s) so healthy
+        # Must exceed the hub heartbeat interval (deployed 20s) so healthy
         # streams always yield heartbeat comment lines before this fires.
         self.read_timeout = max(1.0, float(read_timeout))
         self.max_redirects = max(0, int(max_redirects))

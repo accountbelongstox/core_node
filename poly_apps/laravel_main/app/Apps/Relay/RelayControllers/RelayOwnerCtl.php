@@ -13,7 +13,9 @@ use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 final class RelayOwnerCtl extends Controller
 {
@@ -42,6 +44,16 @@ final class RelayOwnerCtl extends Controller
     public function roster(Request $request): JsonResponse
     {
         $user = $this->user($request);
+        if ($user->isAdmin()) {
+            try {
+                $this->enrollments->autoClaimPending((int) $user->getAuthIdentifier());
+            } catch (Throwable $exception) {
+                Log::warning('[Relay] Pending enrollment auto-claim failed', [
+                    'user_id' => (int) $user->getAuthIdentifier(),
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         return $this->success($this->pairings->roster((int) $user->getAuthIdentifier()), __('relay.success'));
     }
