@@ -18,7 +18,8 @@
     "maximum_chunk_bytes": 1048576,
     "connect_timeout_seconds": 15,
     "idle_timeout_seconds": 30,
-    "retry_interval_ms": 250
+    "retry_interval_ms": 250,
+    "dedup_window_seconds": 300
   },
   "realtime": {
     "transport": "mercure",

@@ -35,6 +35,7 @@ def http_transfer_contract() -> Dict[str, Any]:
         "connect_timeout_seconds": int(values.get("connect_timeout_seconds") or 15),
         "idle_timeout_seconds": int(values.get("idle_timeout_seconds") or 30),
         "retry_interval_ms": int(values.get("retry_interval_ms") or 250),
+        "dedup_window_seconds": int(values.get("dedup_window_seconds") or 300),
     }
 
 

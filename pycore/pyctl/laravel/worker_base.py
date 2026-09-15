@@ -182,7 +182,7 @@ class BaseLaravelWorkerService:
         self._diff_probe_count = 0
         self._diff_state_by_type: Dict[str, bool] = {}
         self._diff_checks_since_state: Dict[str, int] = {}
-        self._diff_sync_log_state: Dict[str, tuple[int, int, int, int]] = {}
+        self._diff_sync_log_state: Dict[str, Dict[str, int]] = {}
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -576,12 +576,14 @@ class BaseLaravelWorkerService:
             diff_task_segment_store.consume_many(scope, vanished)
         reordered = diff_task_segment_store.apply_order(scope, task_type, ordered)
         self._apply_local_queue_order(task_type, ordered)
-        sync_values = (staged_total, len(vanished), len(ordered), reordered)
+        keys = QUEUE_CENTER_DIFF_SYNC_LOG_KEYS
+        sync_values = dict(zip(keys, (staged_total, len(vanished), len(ordered), reordered)))
         if self._diff_sync_log_state.get(task_type) != sync_values:
             self._diff_sync_log_state[task_type] = sync_values
             ColorPrint.blue(
-                f"{self._log_prefix} sync[{task_type}] +{staged_total} "
-                f"-{len(vanished)} order={len(ordered)} reorder={reordered}"
+                f"{self._log_prefix} sync[{task_type}] +{sync_values[keys[0]]} "
+                f"-{sync_values[keys[1]]} order={sync_values[keys[2]]} "
+                f"reorder={sync_values[keys[3]]}"
             )
 
     def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:

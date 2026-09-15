@@ -2,8 +2,9 @@
 """Durable offset-based uploads shared by Pycore-to-Laravel producers."""
 
 import hashlib
+import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
@@ -18,6 +19,21 @@ class LaravelProgressUploader:
 
     def __init__(self) -> None:
         self._contract = http_transfer_contract()
+        self._flight_lock = threading.Lock()
+        self._in_flight: Dict[Tuple[Any, ...], threading.Event] = {}
+        self._completed: Dict[Tuple[Any, ...], Tuple[float, Dict[str, Any]]] = {}
+
+    @staticmethod
+    def _dedup_key(
+        path: str,
+        base_url: Optional[str],
+        params: Dict[str, Any],
+        content_sha256: str,
+    ) -> Tuple[Any, ...]:
+        normalized_params = tuple(
+            sorted((str(key), str(value)) for key, value in params.items())
+        )
+        return (str(base_url or ""), str(path), content_sha256, normalized_params)
 
     def upload(
         self,
@@ -31,13 +47,75 @@ class LaravelProgressUploader:
     ) -> Dict[str, Any]:
         total_bytes = len(content)
         content_sha256 = hashlib.sha256(content).hexdigest()
+        if total_bytes <= 0:
+            raise RuntimeError("Laravel upload content is empty")
+
+        # Identical transfers (same endpoint, params, and bytes) are the same
+        # logical delivery: an in-flight leader is awaited and a receipt inside
+        # the dedup window is reused instead of re-POSTing the same bytes.
+        dedup_key = self._dedup_key(path, base_url, params, content_sha256)
+        while True:
+            with self._flight_lock:
+                now = time.monotonic()
+                for expired_key in [
+                    key
+                    for key, entry in self._completed.items()
+                    if entry[0] <= now
+                ]:
+                    self._completed.pop(expired_key, None)
+                cached = self._completed.get(dedup_key)
+                if cached and cached[0] > time.monotonic():
+                    ColorPrint.gray(
+                        f"[laravel upload] reason={reason or 'unspecified'} {path} "
+                        "-> deduplicated (identical transfer already received)"
+                    )
+                    return dict(cached[1])
+                flight = self._in_flight.get(dedup_key)
+                if flight is None:
+                    flight = threading.Event()
+                    self._in_flight[dedup_key] = flight
+                    break
+            flight.wait()
+
+        succeeded = False
+        try:
+            result = self._upload_chunks(
+                path,
+                content,
+                content_sha256,
+                params=params,
+                base_url=base_url,
+                progress_callback=progress_callback,
+                reason=reason,
+            )
+            succeeded = True
+            return result
+        finally:
+            with self._flight_lock:
+                self._in_flight.pop(dedup_key, None)
+                if succeeded:
+                    self._completed[dedup_key] = (
+                        time.monotonic() + float(self._contract["dedup_window_seconds"]),
+                        result,
+                    )
+                flight.set()
+
+    def _upload_chunks(
+        self,
+        path: str,
+        content: bytes,
+        content_sha256: str,
+        *,
+        params: Dict[str, Any],
+        base_url: Optional[str],
+        progress_callback: Optional[ProgressCallback],
+        reason: str,
+    ) -> Dict[str, Any]:
+        total_bytes = len(content)
         chunk_bytes = max(1, int(self._contract["chunk_bytes"]))
         offset = 0
         started_at = time.perf_counter()
         result: Dict[str, Any] = {}
-
-        if total_bytes <= 0:
-            raise RuntimeError("Laravel upload content is empty")
 
         while offset < total_bytes:
             chunk = content[offset:offset + chunk_bytes]
