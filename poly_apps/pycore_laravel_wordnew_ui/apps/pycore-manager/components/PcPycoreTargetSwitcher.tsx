@@ -7,8 +7,8 @@
  *   - Local (this machine): same as Current URL - <page-host>:59000 direct.
  *   - Remote direct: http://<host>:59000 (LAN/Tailscale/public IP).
  *   - Remote relay (https entry): the server-side reverse proxy of the relay -
- *     requests ride the paired machine (PycoreLaravelRelayTransport) and the always-on
- *     roster link offers machine designation below.
+ *     requests ride the paired machine (PycoreLaravelRelayTransport) and the
+ *     Relay-scoped roster link offers machine designation below.
  * Picking any target re-points the canonical pycore HTTP transport and reloads
  * the page so the entire UI manages the chosen node. Fixed quick-connect
  * presets plus Recent history and a custom add input are offered. This is
@@ -62,13 +62,16 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const [claimNotice, setClaimNotice] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  // Always-on roster link: registry truth + roster.update deltas (PART_3 §3.4).
+  // Relay-only roster link: registry truth + presence deltas (PART_3 §3.4).
   useEffect(() => {
+    if (!relayMode) {
+      setRoster([]);
+      return undefined;
+    }
     const stop = laravelRelayRoster.onChange((entries) => {
       setRoster(entries);
-      const online = entries.filter((entry) => entry.online);
-      if (relayMode && !laravelRelayDeviceId() && online.length === 1) {
-        void designateLaravelRelayDevice(online[0].device_id)
+      if (!laravelRelayDeviceId() && entries.length === 1) {
+        void designateLaravelRelayDevice(entries[0].device_id)
           .then((pairing) => setDesignated(pairing.device_id))
           .catch(() => undefined);
       }
@@ -79,7 +82,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
       stop();
       laravelRelayRoster.stop();
     };
-  }, []);
+  }, [relayMode]);
 
   // Close the popover on outside click.
   useEffect(() => {
@@ -287,7 +290,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           {/* Relay scheme section: roster + designation (PART_3 §3.4). */}
           <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-white/5">
             <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">
-              <Users className="w-3.5 h-3.5" /> Relay - machines ({onlineMachines.length} online)
+              <Users className="w-3.5 h-3.5" /> {t('relayTarget.machineCount', { count: onlineMachines.length })}
             </div>
             <div className="space-y-1 rounded-xl border border-slate-200 dark:border-white/5 p-2">
               <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
@@ -333,34 +336,29 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                     <span className="flex items-center gap-2 text-xs truncate">
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 ${entry.online ? 'bg-emerald-500' : 'bg-slate-400'}`}
-                        title={entry.online ? 'online (heartbeat fresh)' : 'offline (heartbeat stale)'}
+                        title={entry.online ? t('relayTarget.heartbeatFresh') : t('relayTarget.heartbeatStale')}
                       />
                       {entry.label}
                     </span>
                     <span className="text-[10px] font-mono text-slate-400 pl-4 truncate">
-                      {entry.device_id} · {entry.online ? 'online' : 'offline'}
+                      {entry.device_id} · {entry.online ? t('relayTarget.online') : t('relayTarget.offline')}
                     </span>
                   </span>
                   {isDesignated ? (
                     <button
                       onClick={undesignate}
                       className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
-                      title="Drop the designation (unpair)"
+                      title={t('relayTarget.dropDesignation')}
                     >
-                      PAIRED ✕
+                      {t('relayTarget.paired')}
                     </button>
                   ) : (
                     <button
                       onClick={() => designate(entry.device_id)}
-                      disabled={!entry.online}
-                      className={`text-[10px] font-mono font-bold shrink-0 ${
-                        entry.online
-                          ? 'text-indigo-600 dark:text-indigo-400 hover:underline'
-                          : 'text-slate-400 cursor-not-allowed'
-                      }`}
-                      title={entry.online ? 'Designate this machine (pair)' : 'Machine offline - the registry refuses pairing'}
+                      className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
+                      title={t('relayTarget.designate')}
                     >
-                      DESIGNATE
+                      {t('relayTarget.designate')}
                     </button>
                   )}
                 </div>
@@ -368,21 +366,17 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             })}
             {!relayMode && (
               <p className="text-[10px] text-slate-400 leading-relaxed px-1">
-                Designation engages with an <b>https</b> backend entry (relay scheme). The
-                roster itself is always live - the registry is the truth, the stream is
-                push-only.
+                {t('relayTarget.relayInfo')}
               </p>
             )}
-            {relayMode && !designated && onlineMachines.length > 0 && (
+            {relayMode && !designated && roster.length > 0 && (
               <p className="text-[10px] text-amber-600 dark:text-amber-300 leading-relaxed px-1">
-                Relay scheme selected but no machine designated - designate one above to
-                enable forwarding.
+                {t('relayTarget.noMachineDesignated')}
               </p>
             )}
             {relayMode && designated && onlineMachines.length === 0 && (
               <p className="text-[10px] text-amber-600 dark:text-amber-300 leading-relaxed px-1">
-                Paired machine {designated} is offline - forwarding refuses (no
-                store-and-forward across offline peers).
+                {t('relayTarget.offlineQueued', { device: designated })}
               </p>
             )}
           </div>

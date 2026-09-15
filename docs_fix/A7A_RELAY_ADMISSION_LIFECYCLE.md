@@ -24,6 +24,17 @@
     `devices.map` and turn a recoverable coordinator response into a UI
     exception. Validate the array at the shared API boundary and surface a
     stable contract error to the roster coordinator.
+13. The pycore target switcher starts the Relay roster and owner Mercure stream
+    while the selected target is direct or local. An anonymous or otherwise
+    unauthenticated page consequently performs owner authorization work even
+    when no Relay feature is active. Relay presence must be lazy and scoped to
+    the Relay target, and an owner 401/403 must pause roster refresh until the
+    auth session changes.
+14. The shared browser Mercure transport resumes with `lastEventID` in the
+    URL but does not send the protocol's `Last-Event-ID` resume header. A
+    reconnect after a stream interruption can therefore use a less reliable
+    cursor path than the Python subscriber and lose the intended replay
+    position. Browser and Python subscribers must use the same resume profile.
 
 ## Implementation boundary
 
@@ -55,8 +66,19 @@ Inspect admission errors, identity transitions, pairing notifications, Python st
 - The owner roster API now validates the `devices` array before the shared
   roster coordinator maps it, converting malformed envelopes into the stable
   `RELAY_ROSTER_PAYLOAD_INVALID` contract error.
+- The target switcher now activates the Relay roster only for a Relay target;
+  roster authorization failures pause refresh until the shared auth session
+  changes, while explicit stop/start remains a retry boundary.
+- Browser Mercure reconnects send `Last-Event-ID` alongside the contract's
+  initial `lastEventID` query cursor.
 - The shared runtime used by the 175 launcher watches the repository contract directory in addition to normal worker files. The 93 installer already uses the canonical FrankenPHP pipeline; no second runtime or installer was added.
 
 ## Validation boundary
 
-No builds, tests, services, deployment scripts or runtime verification were executed under the supplied project rules. No Git commands were used. The browser report does not include the authenticated 404 response body, so its specific production error code is not established. Authenticated operation completion, live screenshot rendering and sustained reconnect behavior remain unverified; this document does not claim production acceptance.
+No project test suite, build, or service start was run. Read-only endpoint and
+browser DOM/console diagnostics were run; they cannot establish authenticated
+operation completion, live screenshot rendering, or sustained reconnect
+behavior without a real dashboard session and an online enrolled pyservice.
+No Git commands were used, and the browser report does not include the
+authenticated 404 response body, so its specific production error code is not
+established.

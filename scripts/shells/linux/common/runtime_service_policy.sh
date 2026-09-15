@@ -11,7 +11,9 @@ RUNTIME_SERVICE_POLICY_READY=false
 RUNTIME_SERVICE_POLICY_SUDO=""
 RUNTIME_SERVICE_POLICY_UNIT=""
 RUNTIME_SERVICE_POLICY_BLOCKED=false
-CORE_RUNTIME_PYCORE_UNITS=("$CORE_RUNTIME_PYCORE_SERVICE" "$CORE_RUNTIME_LEGACY_PYCORE_SERVICE")
+# The canonical pycore unit runs the UI-less Relay agent and is valid on a
+# headless coordinator host. Only the retired duplicate remains blocked.
+CORE_RUNTIME_PYCORE_UNITS=("$CORE_RUNTIME_LEGACY_PYCORE_SERVICE")
 CORE_RUNTIME_SERVICE_PREFIXES=("ncore-" "pycore" "codesync" "octane-" "app-manager-")
 
 if [ -z "${IS_HEADLESS_SERVER+x}" ]; then

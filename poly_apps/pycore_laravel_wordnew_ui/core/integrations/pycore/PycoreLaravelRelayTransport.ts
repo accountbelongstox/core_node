@@ -274,17 +274,20 @@ async function ensurePair(generation: number): Promise<RelayPairing> {
     persistRelayState();
     throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
   }
-  if (selected && !selected.online) {
-    throw new PycoreRelayError('peer-offline', 'RELAY_DEVICE_UNAVAILABLE');
-  }
   if (!deviceId) {
-    const onlineDevices = devices.filter((device) => {
-      const lastSeenAt = Date.parse(device.last_seen_at || '');
-      const offlineAfterMs = RELAY_CONTRACT.durations.presence_timeout_seconds * 1000;
-      return device.online && Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt <= offlineAfterMs;
-    });
-    if (onlineDevices.length === 1) deviceId = onlineDevices[0].device_id;
-    else throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
+    if (devices.length === 1) {
+      deviceId = devices[0].device_id;
+    } else {
+      const onlineDevices = devices.filter((device) => {
+        const lastSeenAt = Date.parse(device.last_seen_at || '');
+        const offlineAfterMs = RELAY_CONTRACT.durations.presence_timeout_seconds * 1000;
+        return device.online && Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt <= offlineAfterMs;
+      });
+      if (onlineDevices.length === 1) deviceId = onlineDevices[0].device_id;
+    }
+    if (!deviceId) {
+      throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
+    }
   }
   return designateLaravelRelayDevice(deviceId).catch((error: any) => {
     if (error?.status === 404 || error?.status === 409) {
