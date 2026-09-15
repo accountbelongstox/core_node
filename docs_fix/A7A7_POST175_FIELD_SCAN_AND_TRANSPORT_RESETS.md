@@ -35,3 +35,62 @@
   UTC). The scheduler loop is being blocked by long-running work roughly once
   per minute. This coincides with the ~19.3s client-side connection resets and
   must be traced (DB lock / cache store / HTTP call inside a scheduled task).
+
+## Root-cause chain for BUG1/BUG2 (field evidence, 2026-09-16 02:10-02:30 CST)
+
+1. Live worker runtime has `max_execution_time = 30`, not the contract's 1200.
+   `/api/config/environment` reports `max_execution_time: "30"` while
+   `memory_limit: 512M` / `upload_max_filesize: 10G` from the same
+   `/etc/frankenphp/php-conf.d/99-core-node.ini` ARE applied. The 1200s value
+   is therefore not effective for the FrankenPHP server SAPI; the effective
+   floor is the ZTS production template `/etc/php-zts/php.ini:414`
+   (`max_execution_time = 30`). Per the official FrankenPHP configuration
+   docs (https://frankenphp.dev/docs/config/), the reliable mechanism for
+   server-SAPI ini values is the Caddyfile `frankenphp { php_ini ... }`
+   directive; the current renderer only writes the scan-dir ini.
+2. `EdgeTTSService::__construct` (app/Services/EdgeTTS/EdgeTTSService.php:107-110)
+   has a 5%-chance `cleanZeroByteFilesBackground()` call that recursively walks
+   the ENTIRE audio tree — measured 196,031 mp3 files / 4.2 GB under
+   `/www/wwwroot/laravel_db/static/app_qy_v1/audio`. The scan burns >30s CPU.
+3. laravel.log (6.9 GB, live) shows a fatal loop: `Maximum execution time of
+   30 seconds exceeded` at `EdgeTTSService.php:683` (the scan loop) and
+   `:676`, each immediately followed by a full application boot
+   (`OctaneTimerServiceProvider: Bootstrapped`, `Timer started`). `Timer
+   started` appears 96,164 times — worker threads restart several times per
+   minute. Every restart kills in-flight requests on that thread: remote
+   clients see `ConnectionResetError(10054)` after the elapsed time their
+   request already spent queued/in-flight (observed ~19.3s), and long-lived
+   Mercure SSE subscriptions die (`Read timed out`, relay subscriber
+   `state=offline`). This single defect explains BUG1, BUG2 and the flapping
+   "machines (0 online)".
+4. schedule:work (frankenphp php-cli, `max_execution_time=0`) stays alive but
+   its 1s heartbeat is serialized with the timer tasks:
+   `app_qy_v1_agent_history_audio_writeback_task` shows last_duration ~38-40s
+   every run (58 stale pending markers in
+   `/www/wwwroot/laravel_db/writeback/app_qy_v1/agent_history_audio`;
+   finalize takes a database `Cache::lock` that can be stranded by a fatally
+   killed worker for up to LOCK_SECONDS=300). While the heartbeat is blocked,
+   `realtime_outbox_publish_task` (interval 1s) and `relay_maintenance_task`
+   (interval 30s) do not run — presence/offline transitions and all Mercure
+   event publications stall, feeding the same UI symptoms.
+5. `[AppQyV1WordTranslationWriteback] ... provider":"edge","processed":0,
+   "failed":1` once per second — an Edge-TTS-bound writeback fails every
+   single attempt (edge endpoint unreachable from this host), each attempt
+   contributing worker load and log volume to the 6.9 GB laravel.log.
+
+## Relay enrollment state (task 2/4 field check)
+
+- `global_relay_devices`: exactly one device `dfa8d11d-...` (DESKTOP-1L9K06N),
+  owner_user_id=1, status=active, credential valid; `last_seen_at` advancing
+  within seconds of real time — the Windows pyservice IS enrolled, claimed and
+  heartbeating after the 175 convergence. Enrollment table: both enrollments
+  `claimed` (Sep 4/5). The A7A6 auto-claim chain works.
+- Presence math: `online` = last_seen within `presence_timeout_seconds` (65),
+  heartbeat cadence 20s. Any transport stall above ~45s of lost heartbeats
+  flips the device offline — exactly what the worker-restart churn produces.
+- The six-client "coordinator returned no available devices" banner is the
+  `relay.group_empty` translation (lang/en/relay.php), rendered only when the
+  owner's roster is empty OR when the (stale) UI bundle misreports a failed
+  roster fetch as empty (A7A5 finding 8). With the roster non-empty on the
+  server, the remaining client-side precondition is the UI rebuild; the
+  server-side precondition is the transport stability fixed above.
