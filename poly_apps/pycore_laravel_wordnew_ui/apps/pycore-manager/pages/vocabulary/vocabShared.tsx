@@ -100,14 +100,56 @@ export function vp<T = Record<string, unknown>>(r: unknown): T {
   return r as T;
 }
 
-/** Coerce a value to an array (handles bare-array payloads + object wrappers). */
+/** Coerce a response payload to an array at the shared API boundary. */
 export function toArray<T = Record<string, unknown>>(v: unknown): T[] {
-  if (Array.isArray(v)) return v as T[];
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return (o.items || o.data || o.words || o.libraries || o.languages || o.breakdown || []) as T[];
+  return findArrayPayload(v) as T[];
+}
+
+function findArrayPayload(v: unknown, depth = 0): unknown[] {
+  let nested: unknown[] | null = null;
+
+  if (Array.isArray(v)) return v;
+  if (!v || typeof v !== 'object' || depth > 3) return [];
+
+  const objectValue = v as Record<string, unknown>;
+  const containerKeys = ['items', 'data', 'words', 'libraries', 'languages', 'breakdown'];
+  for (const key of containerKeys) {
+    const candidate = objectValue[key];
+    if (Array.isArray(candidate)) return candidate;
+    if (key === 'languages' && candidate && typeof candidate === 'object') {
+      return languageOptions(candidate as Record<string, unknown>);
+    }
+    if (key === 'data' && candidate && typeof candidate === 'object') {
+      nested = findArrayPayload(candidate, depth + 1);
+      if (nested.length > 0) return nested;
+    }
   }
-  return [];
+
+  return nested || [];
+}
+
+function languageOptions(value: Record<string, unknown>): unknown[] {
+  const options: Array<{ code: string; name: string; native?: string }> = [];
+
+  for (const [code, entry] of Object.entries(value)) {
+    if (typeof entry === 'string' || typeof entry === 'number') {
+      options.push({ code, name: String(entry) });
+      continue;
+    }
+    if (entry && typeof entry === 'object') {
+      const item = entry as Record<string, unknown>;
+      if (typeof item.name === 'string') {
+        const option: { code: string; name: string; native?: string } = {
+          code,
+          name: item.name,
+        };
+        if (typeof item.native === 'string') option.native = item.native;
+        options.push(option);
+      }
+    }
+  }
+
+  return options;
 }
 
 /** Spinner row. */

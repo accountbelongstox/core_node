@@ -45,6 +45,10 @@ RELAY_REENROLLMENT_ERROR_CODES = frozenset(
     (
         "device_not_found",
         "device_credential_revoked",
+        "enrollment_not_found",
+        "signature_credential_missing",
+        "signature_credential_invalid",
+        "signature_enrollment_not_found",
     )
 )
 RELAY_PERMANENT_CONFLICT_ERROR_CODES = frozenset(
@@ -270,10 +274,7 @@ class LaravelRelayAgentService:
                 signal_kind = self._handle_control_signal(signal)
                 force_claim = signal_kind == RELAY_CONTROL_WAKE
             except RelayHttpError as exc:
-                if exc.status_code in (401, 403) or (
-                    exc.status_code == 404
-                    and exc.error_code in RELAY_REENROLLMENT_ERROR_CODES
-                ):
+                if exc.error_code in RELAY_REENROLLMENT_ERROR_CODES:
                     if relay_device_identity.prepare_reenrollment():
                         relay_activity_log.warning(
                             "coordinator.authorization.rejected",
