@@ -531,7 +531,11 @@ class BaseLaravelWorkerService:
                     f"HTTP {response.status_code}"
                 )
             data = self._response_data(response)
-            raw_tasks = data.get("tasks")
+            # Queue page-data contract names the materialized rows `items`;
+            # accept the legacy `tasks` alias for older Laravel deployments.
+            raw_tasks = data.get("items")
+            if not isinstance(raw_tasks, list):
+                raw_tasks = data.get("tasks")
             tasks = (
                 [dict(task) for task in raw_tasks if isinstance(task, dict)]
                 if isinstance(raw_tasks, list)
