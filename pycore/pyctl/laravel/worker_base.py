@@ -163,8 +163,12 @@ class BaseLaravelWorkerService:
         self._queue_progress: Dict[str, Dict[str, int]] = {}
         # Flipped on the first diff response carrying ordered_task_ids: until
         # the backend proves sync support the lane keeps the legacy bounded
-        # claim-pull so a deploy window never starves it.
+        # claim-pull so a deploy window never starves it. _sync_backend_legacy
+        # is flipped by a CHANGED diff without ordered_task_ids (the backend
+        # proved it has NO sync support): only then may a full-sync lane fall
+        # back to the bounded claim-pull compat path.
         self._sync_backend_capable = False
+        self._sync_backend_legacy = False
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -337,6 +341,38 @@ class BaseLaravelWorkerService:
         task_types = self._pull_task_types()
         if not task_types:
             return {"ok": True, "changed": False, "processed": 0}
+        outcome = self._sync_mirror_from_diffs(task_types)
+        changed = outcome["changed"]
+        synced = outcome["synced"]
+        scope = outcome["scope"]
+        if synced:
+            result = self.pull_once()
+            result["changed"] = True
+            result["synced"] = True
+            return result
+        if changed and self._diff_pull_capacity() > 0:
+            result = self.pull_once(prefer_remote=True)
+            result["changed"] = True
+            return result
+        if (
+            not changed
+            and self._pull_capacity() > 0
+            and diff_task_segment_store.has_pending(scope)
+        ):
+            result = self.pull_once()
+            result["changed"] = False
+            result["recovered_local"] = True
+            return result
+        return {"ok": True, "changed": changed, "processed": 0}
+
+    def _sync_mirror_from_diffs(self, task_types: List[str]) -> Dict[str, Any]:
+        """Run ONE diff round over the lane's task types (no pull follow-up).
+
+        Shared by the heartbeat poll and the full-sync pull intake. This is
+        the ONLY cursor writer for full-sync lanes: the bounded claim-pull
+        never moves their cursors, so a pre-sync claim cannot skip the
+        revisions whose tasks the mirror has not materialized yet.
+        """
         base_url = self._sync_laravel_endpoint(self.api_url)
         scope = self._diff_segment_scope(base_url)
         full_sync = self._full_sync_enabled()
@@ -379,6 +415,12 @@ class BaseLaravelWorkerService:
             ordered_ids = data.get("ordered_task_ids")
             if isinstance(ordered_ids, list):
                 self._sync_backend_capable = True
+                self._sync_backend_legacy = False
+            elif full_sync:
+                # A changed diff without ordered_task_ids proves the backend
+                # has no sync support: the bounded claim-pull compat path
+                # may run for this deploy window.
+                self._sync_backend_legacy = True
             if full_sync and isinstance(ordered_ids, list):
                 self._apply_ordered_diff(scope, task_type, ordered_ids, base_url)
                 new_cursor = int(data.get("cursor") or 0)
@@ -391,25 +433,12 @@ class BaseLaravelWorkerService:
                 continue
             if self._diff_pull_capacity() <= 0:
                 continue
-        if synced:
-            result = self.pull_once()
-            result["changed"] = True
-            result["synced"] = True
-            return result
-        if changed and self._diff_pull_capacity() > 0:
-            result = self.pull_once(prefer_remote=True)
-            result["changed"] = True
-            return result
-        if (
-            not changed
-            and self._pull_capacity() > 0
-            and diff_task_segment_store.has_pending(scope)
-        ):
-            result = self.pull_once()
-            result["changed"] = False
-            result["recovered_local"] = True
-            return result
-        return {"ok": True, "changed": changed, "processed": 0}
+        return {
+            "changed": changed,
+            "synced": synced,
+            "base_url": base_url,
+            "scope": scope,
+        }
 
     def _record_queue_progress(self, task_type: str, progress: Any) -> None:
         """Store scalar metrics AND nested dictionaries (language_tiers) so
@@ -491,7 +520,15 @@ class BaseLaravelWorkerService:
             for task in tasks:
                 if not str(task.get("task_type") or "").strip():
                     task["task_type"] = task_type
-            staged = diff_task_segment_store.stage(scope, tasks) if tasks else []
+            # The mirror stages rows for a LATER dispatch sweep (pending()
+            # inside _pull_once_full_sync), so they must NOT be born
+            # delivered-marked - otherwise the mirrored backlog could never
+            # reach the local queue within this process.
+            staged = (
+                diff_task_segment_store.stage(scope, tasks, mark_delivered=False)
+                if tasks
+                else []
+            )
             if staged:
                 self._remember_task_types(staged, base_url)
                 staged_total += len(staged)
