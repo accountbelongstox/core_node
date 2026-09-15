@@ -180,6 +180,8 @@ QUEUE_CENTER_REALTIME_EVENTS: Dict[str, str] = {
     for key, value in QUEUE_CENTER_REALTIME["events"].items()
 }
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
+# Sync log values are emitted only when at least one of these counters changes.
+QUEUE_CENTER_DIFF_SYNC_LOG_KEYS = ("staged", "vanished", "ordered", "reordered")
 QUEUE_CENTER_ENDPOINTS: Dict[str, str] = {
     str(key): str(value)
     for key, value in _CONTRACT_DOCUMENT["endpoints"].items()
@@ -658,6 +660,7 @@ __all__ = [
     "QUEUE_CENTER_QUEUE_POSITION_CONTROLS",
     "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
     "QUEUE_CENTER_DIFF_DELIVERY",
+    "QUEUE_CENTER_DIFF_SYNC_LOG_KEYS",
     "QUEUE_CENTER_ENDPOINTS",
     "queue_center_endpoint",
     "QUEUE_CENTER_SECTION_DEFINITIONS",

@@ -53,6 +53,7 @@ from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     QUEUE_CENTER_DIFF_DELIVERY,
+    QUEUE_CENTER_DIFF_SYNC_LOG_KEYS,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.worker_result_delivery import (
@@ -178,6 +179,10 @@ class BaseLaravelWorkerService:
         # written by a legacy claim-pull) must re-sync from cursor=0 once.
         self._sync_mirror_bootstrapped: Set[str] = set()
         self._full_sync_reconciled_scopes: Set[str] = set()
+        self._diff_probe_count = 0
+        self._diff_state_by_type: Dict[str, bool] = {}
+        self._diff_checks_since_state: Dict[str, int] = {}
+        self._diff_sync_log_state: Dict[str, tuple[int, int, int, int]] = {}
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -421,10 +426,21 @@ class BaseLaravelWorkerService:
             # Compact poll line: diff[200]->true means the remote head moved;
             # full-sync lanes apply the ordered diff incrementally, legacy
             # lanes follow with a bounded re-pull; false keeps the segment.
-            ColorPrint.gray(
-                f"{self._log_prefix} diff[{response.status_code}]->"
-                f"{'true' if lane_changed else 'false'}"
+            self._diff_probe_count += 1
+            self._diff_checks_since_state[task_type] = (
+                self._diff_checks_since_state.get(task_type, 0) + 1
             )
+            previous_state = self._diff_state_by_type.get(task_type)
+            state_changed = previous_state is None or previous_state != lane_changed
+            if state_changed:
+                ColorPrint.gray(
+                    f"{self._log_prefix} diff[{response.status_code}]->"
+                    f"{'true' if lane_changed else 'false'} "
+                    f"checks_since_change={self._diff_checks_since_state[task_type]} "
+                    f"total_checks={self._diff_probe_count}"
+                )
+                self._diff_state_by_type[task_type] = lane_changed
+                self._diff_checks_since_state[task_type] = 0
             self._record_queue_progress(task_type, data.get("progress"))
             if not lane_changed:
                 continue
@@ -560,10 +576,13 @@ class BaseLaravelWorkerService:
             diff_task_segment_store.consume_many(scope, vanished)
         reordered = diff_task_segment_store.apply_order(scope, task_type, ordered)
         self._apply_local_queue_order(task_type, ordered)
-        ColorPrint.blue(
-            f"{self._log_prefix} sync[{task_type}] +{staged_total} "
-            f"-{len(vanished)} order={len(ordered)} reorder={reordered}"
-        )
+        sync_values = (staged_total, len(vanished), len(ordered), reordered)
+        if self._diff_sync_log_state.get(task_type) != sync_values:
+            self._diff_sync_log_state[task_type] = sync_values
+            ColorPrint.blue(
+                f"{self._log_prefix} sync[{task_type}] +{staged_total} "
+                f"-{len(vanished)} order={len(ordered)} reorder={reordered}"
+            )
 
     def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
         """Re-align the in-process queue with the synced claim order (heap lanes)."""
@@ -965,15 +984,16 @@ class BaseLaravelWorkerService:
                 f"{self._log_prefix} diff sync unreachable ({exc}); "
                 "processing the local mirror"
             )
-        # Full-sync rows remain replayable until the local queue accepts them;
-        # clear stale in-process delivery marks left by an earlier pull path.
+        # Clear stale in-process delivery marks once after startup, then mark
+        # rows delivered when this sweep admits them. This prevents a finished
+        # task from being re-enqueued every heartbeat while its outbox result
+        # is still being finalized.
         if scope not in self._full_sync_reconciled_scopes:
             diff_task_segment_store.requeue_all(scope)
             self._full_sync_reconciled_scopes.add(scope)
         recovered = diff_task_segment_store.pending(
             scope,
             STAGED_TASK_LIMIT,
-            mark_delivered=False,
         )
         if not recovered:
             ColorPrint.gray(
