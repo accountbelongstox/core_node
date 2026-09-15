@@ -950,14 +950,16 @@ class BaseLaravelWorkerService:
             return {"ok": True, "processed": 0}
         base_url = self._sync_laravel_endpoint(self.api_url)
         scope = self._diff_segment_scope(base_url)
-        if not self._sync_active():
-            try:
-                self._sync_mirror_from_diffs(task_types)
-            except Exception as exc:  # noqa: BLE001 - offline mirror processing
-                ColorPrint.yellow(
-                    f"{self._log_prefix} diff sync unreachable ({exc}); "
-                    "processing the local mirror"
-                )
+        # Refresh the authoritative ordered mirror on every intake cycle. The
+        # first successful response proves sync capability; subsequent cycles
+        # must still poll revisions or the local heap will never see new work.
+        try:
+            self._sync_mirror_from_diffs(task_types)
+        except Exception as exc:  # noqa: BLE001 - offline mirror processing
+            ColorPrint.yellow(
+                f"{self._log_prefix} diff sync unreachable ({exc}); "
+                "processing the local mirror"
+            )
         recovered = diff_task_segment_store.pending(scope, STAGED_TASK_LIMIT)
         if not recovered:
             return {"ok": True, "processed": 0}

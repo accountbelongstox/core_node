@@ -269,21 +269,8 @@ class LaravelAudioWorkerStateMixin:
             info,
             mirror=self.LANE != "word",
         )
-        self._post_result(
-            info.get("task_id"),
-            "processing",
-            result={
-                "stage": "synthesizing",
-                "engine": QWEN3TTS_ENGINE,
-                "qwen_progress_revision": int(value.get("progress_revision") or 0),
-                "qwen_progress": completed,
-                "qwen_progress_total": total,
-                "qwen_progress_phase": phase,
-            },
-            progress=progress,
-            attempts=1,
-            attempt=info.get("attempt"),
-        )
+        # Qwen progress is mirrored in the local task state. Final delivery is
+        # handled asynchronously by the durable audio outbox.
 
     @serialized_method
     def _mark_upload_progress(

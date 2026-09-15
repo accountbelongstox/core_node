@@ -198,7 +198,8 @@ class LaravelClient:
             "<redacted>" if sensitive_request and json is not None else json,
             files,
         )
-        if timeout is None:
+        no_timeout = bool(kwargs.pop("no_timeout", False))
+        if timeout is None and not no_timeout:
             timeout = _DEFAULT_TIMEOUT
         request_headers = dict(headers or {})
         started = time.perf_counter()
@@ -225,10 +226,12 @@ class LaravelClient:
             request_headers.update(
                 build_pycore_identity_headers(url, method, identity_body)
             )
-        if activity_timeout:
+        if activity_timeout and not no_timeout:
             connect_timeout = max(1, int(activity_timeout.get("connect_timeout_seconds") or 15))
             if transport == TRANSPORT_REQUESTS:
                 timeout = (connect_timeout, None)
+        if no_timeout:
+            timeout = None
         try:
             resp = session.request(
                 method, url,

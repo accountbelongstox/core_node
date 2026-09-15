@@ -333,6 +333,10 @@ class LaravelAudioWorkerExecutionMixin:
         }
         if self.LANE == "sentence" and self._speaker:
             result["speaker"] = self._speaker
+        # Audio progress is persisted locally and finalized by the durable
+        # outbox. Never hold a synthesis lane on a Laravel progress request.
+        if self.LANE in ("sentence", "word"):
+            return True
         return self._post_result(
             task_id,
             "processing",

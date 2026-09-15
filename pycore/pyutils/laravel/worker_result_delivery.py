@@ -13,7 +13,6 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_STATUSES_BY_ROLE,
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
-    http_transfer_contract,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client
@@ -122,7 +121,6 @@ class WorkerResultDelivery:
         last_note = ""
         last_was_5xx = False
         max_attempts = worker.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
-        activity_contract = http_transfer_contract()
         for attempt in range(1, max_attempts + 1):
             if THREAD_BUS.is_shutdown_requested() and not terminal_result:
                 ColorPrint.yellow(
@@ -135,7 +133,7 @@ class WorkerResultDelivery:
                     result_url,
                     base_url=result_base_url,
                     json=body,
-                    activity_timeout=activity_contract,
+                    no_timeout=True,
                 )
                 if resp.status_code in (200, 201):
                     worker._result_retry_after = 0.0

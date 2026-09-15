@@ -84,3 +84,16 @@ No tests, builds, verification commands, service starts/restarts, deployment scr
 
 13. The sentence lane emitted synthesis lifecycle events and queue counters, but did not print the actual sentence text. This made it impossible to distinguish a stalled Laravel delivery call from a Qwen generation stall using the Windows console alone.
 14. The sentence lane now prints a normalized single-line `Generating sentence` record immediately before synthesis, including the task identifier, queue position, and sentence text. The record is emitted before any progress HTTP call so it remains visible when Laravel is offline.
+
+## Runtime evidence follow-up
+
+15. The reported `remote_en=378/1713` and `sync[sentence_audio] ... order=489` lines prove that the remote diff is being read, but no `Generating sentence` line proves that the local sentence heap is not dispatching a task. The full-sync intake currently suppresses another mirror refresh after sync capability is enabled, so the dispatch path can observe stale or already-delivered segment state indefinitely.
+16. Repeated `qwen3tts: starting` / `ready` messages are lifecycle churn, not sentence progress. Engine startup is being requested by readiness probing and synthesis admission without a single-flight lease; concurrent probes/recovery paths can restart the same managed service repeatedly.
+17. History uploads are currently retried from more than one outbox transition path. Without an idempotency key covering `(delivery_id, operation)`, each retry can produce another history submission even when the prior request was durably accepted.
+18. Progress/result delivery and audio upload use the same request-style timeout contract. This conflicts with the required long-lived FrankenPHP transport: timeout values must be removed from the upload/result path, while reconnect detection and background retry must be driven by connection failure rather than a fixed deadline.
+
+## Runtime correction applied
+
+19. Full-sync intake now refreshes the remote diff on every cycle, including after sync capability is established, and then dispatches the persisted local segment. This closes the stale-mirror path that produced queue counters without a local `Generating sentence` event.
+20. Audio processing progress is now local-only; Qwen chunk progress and stage transitions no longer issue synchronous Laravel POSTs. Article uploads and audio result/upload requests run in background delivery paths and use natural response completion (`no_timeout`) while retry state remains durable.
+21. A Laravel `writeback_pending` response is a durable idempotent receipt. The agent-history upload lane now marks that step accepted locally and waits for FrankenPHP's asynchronous writeback instead of re-uploading the same bytes every scheduler tick. Local history already replaces duplicate `record_id` entries atomically.

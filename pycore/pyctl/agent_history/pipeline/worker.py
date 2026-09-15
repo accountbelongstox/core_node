@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
 import base64
+import threading
 import time
 import traceback
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
 from pycore.pyctl.agent_history.pipeline.config import (
@@ -29,6 +34,8 @@ from pycore.pyctl.agent_history.pipeline.laravel_stage import (
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
 import pycore.pyutils.agent_history.article_records as records
+
+_UPLOAD_TICK_RUNNING = threading.Event()
 
 class _RunGate:
     """Own the pipeline run token on one THREAD_BUS-backed state thread."""
@@ -280,7 +287,20 @@ def tick_upload() -> None:
     cfg = get_config()
     if not cfg.get("enabled") or not cfg.get("extract_as_article"):
         return
-    _piggyback_upload_tick()
+    if _UPLOAD_TICK_RUNNING.is_set():
+        return
+    _UPLOAD_TICK_RUNNING.set()
+    try:
+        start_bus_task(_run_upload_tick, thread_name="agent-history-upload")
+    except Exception:
+        _UPLOAD_TICK_RUNNING.clear()
+
+
+def _run_upload_tick() -> None:
+    try:
+        _piggyback_upload_tick()
+    finally:
+        _UPLOAD_TICK_RUNNING.clear()
 
 
 def _drain_initial_uploads() -> None:
@@ -347,10 +367,14 @@ def _drain_rebuild_uploads() -> None:
             audio_bytes,
         )
         if laravel_data.get("writeback_pending"):
-            records.mark_rebuild_upload_received(record_id, laravel_data)
+            # Laravel has durably accepted the idempotent replacement receipt;
+            # its FrankenPHP writeback continues asynchronously. Mark the
+            # local step complete now so the scheduler does not upload the same
+            # bytes again on every tick.
+            records.mark_rebuild_uploaded(record_id, laravel_data)
             ColorPrint.gray(
-                f"[AgentHistoryPipeline] rebuilt audio durably received by Laravel "
-                f"for record {record_id}; publication is finalizing"
+                f"[AgentHistoryPipeline] rebuilt audio durably accepted by Laravel "
+                f"for record {record_id}; publication is finalizing asynchronously"
             )
             return
         records.mark_rebuild_uploaded(record_id, laravel_data)

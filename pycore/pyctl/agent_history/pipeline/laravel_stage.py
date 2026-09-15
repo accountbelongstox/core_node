@@ -11,7 +11,6 @@ from pycore.pyctl.agent_history.pipeline.config import get_config
 _ARTICLE_TYPE = "daily"
 _ARTICLE_SOURCE = "agent_history"
 _ARTICLE_WORKER_API = "/api/app_qy_v1/ai_tools/article/worker"
-_ARTICLE_WORKER_TIMEOUT = 30.0
 
 
 def _parse_worker_response(resp: Any, action: str) -> Dict[str, Any]:
@@ -76,7 +75,7 @@ def upload_to_laravel(
         f"{_ARTICLE_WORKER_API}/submit",
         base_url=base,
         json=payload,
-        timeout=_ARTICLE_WORKER_TIMEOUT,
+        no_timeout=True,
     )
 
     data = _parse_worker_response(resp, "upload")

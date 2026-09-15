@@ -55,7 +55,7 @@ class LaravelProgressUploader:
                 params=request_params,
                 data=chunk,
                 headers={"Content-Type": "application/octet-stream"},
-                activity_timeout=self._contract,
+                no_timeout=True,
                 log_line=False,
             )
             result = self._response_data(response)
