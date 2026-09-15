@@ -24,7 +24,6 @@ from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.relay_transport import (
     RelayHttpError,
     laravel_relay_transport,
@@ -70,7 +69,6 @@ class LaravelRelayAgentService:
         )
         self._threads: List[Any] = []
         self._registered_endpoint = ""
-        self._endpoint_listener_registered = False
         self._active_operations = set()
         self._presented_enrollment_id = ""
         self._conflict_hint_presented = False
@@ -91,11 +89,6 @@ class LaravelRelayAgentService:
             for thread in self._threads
             if thread.is_alive()
         }
-        if not self._endpoint_listener_registered:
-            laravel_endpoint_manager.register_endpoint_change_listener(
-                self._on_endpoint_changed
-            )
-            self._endpoint_listener_registered = True
         relay_device_identity.ensure_device_id()
         relay_device_identity.ensure_signing_key()
         THREAD_BUS.clear_signal(RELAY_STOP_SIGNAL)
@@ -186,20 +179,6 @@ class LaravelRelayAgentService:
     def _should_stop(self) -> bool:
         return THREAD_BUS.is_shutdown_requested() or bool(
             THREAD_BUS.get_signal(RELAY_STOP_SIGNAL, False)
-        )
-
-    @serialized_method
-    def _on_endpoint_changed(self, base_url: str) -> None:
-        previous = self._registered_endpoint
-        self._registered_endpoint = ""
-        relay_activity_log.warning(
-            "coordinator.endpoint.changed",
-            previous_endpoint=previous,
-            endpoint=base_url,
-        )
-        THREAD_BUS.signal(
-            RELAY_CONTROL_SIGNAL,
-            {"kind": "endpoint_changed"},
         )
 
     @serialized_method

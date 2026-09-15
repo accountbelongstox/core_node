@@ -6,15 +6,16 @@
  *     behavior; origin/local modes and host presets render to this form).
  *   - `https://<host>`       -> relay scheme: the entry is the server-side
  *     reverse proxy of the relay, requests ride the paired machine
- *     (PycoreLaravelRelayTransport), and the always-on Laravel roster link runs.
+ *     (PycoreLaravelRelayTransport), and the Relay-scoped Laravel roster link runs.
  */
 import {
   PYCORE_PORT,
   buildPycoreHttpUrl,
   normalizePycorePath,
 } from './pycoreEndpoints';
+import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
-import { getApiRegionPrefix, getWebAccessConfig } from '../../contracts/DomainConfig';
+import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 
@@ -213,21 +214,20 @@ export function getPycoreTargetPresets(): PycorePresetHost[] {
 
 /**
  * Contract-rendered HTTPS relay preset (PART_3 §3.6): on a domain-served
- * HTTPS page the server-side relay entry is `https://api.<prefix>.<domain>`
- * - prefix from the shell-written domain config (not hardcoded), domain
- * from the page origin. Null on loopback/IP pages and plain-HTTP dev shells
- * (no same-origin relay entry exists there).
+ * HTTPS page the server-side relay entry comes from the shared Relay contract.
+ * Null on loopback/IP pages and plain-HTTP dev shells.
  */
 function relayBackendPreset(): PycorePresetHost | null {
   if (typeof location === 'undefined' || location.protocol !== 'https:') return null;
   const hostname = location.hostname.toLowerCase();
   const labels = hostname.split('.');
   if (labels.length < 2 || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':') || hostname === 'localhost') return null;
-  const prefix = getApiRegionPrefix();
-  const relayHost = `api.${prefix}.${labels.slice(-2).join('.')}`;
+  const relayUrl = String(RELAY_CONTRACT.public_urls.laravel_api_origin || '').replace(/\/+$/, '');
+  const parsedRelay = parseBackendUrl(relayUrl);
+  if (!parsedRelay || parsedRelay.protocol !== 'https:') return null;
   return {
-    host: relayHost,
-    url: `https://${relayHost}`,
+    host: parsedRelay.hostname,
+    url: relayUrl,
     label: 'Relay (this server)',
     hint: 'https relay scheme - rides the designated machine',
   };

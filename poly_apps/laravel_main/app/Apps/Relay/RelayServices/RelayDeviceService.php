@@ -134,25 +134,52 @@ final class RelayDeviceService
 
     private function rosterSnapshot(int $userId): array
     {
-        return ['devices' => RelayDeviceModel::query()
+        $devices = RelayDeviceModel::query()
             ->where('owner_user_id', $userId)
             ->where('status', RelayConstants::CREDENTIAL_ACTIVE)
             ->whereNull('revoked_at')
             ->where('credential_expires_at', '>', now())
-            ->orderBy('label')->get()
-            ->map(fn ($device): array => $this->descriptor($device))->all()];
+            ->orderByDesc('last_seen_at')
+            ->orderBy('label')
+            ->get()
+            ->map(fn ($device): array => $this->descriptor($device))
+            ->all();
+        $recommended = collect($devices)->first(
+            static fn (array $device): bool => (bool) ($device['online'] ?? false)
+        );
+        $selectionReason = 'freshest_online';
+
+        if (!is_array($recommended)) {
+            $recommended = $devices[0] ?? null;
+            $selectionReason = is_array($recommended) ? 'most_recent_known' : 'no_owned_device';
+        }
+
+        return [
+            'devices' => $devices,
+            'recommended_device_id' => is_array($recommended)
+                ? (string) $recommended['device_id']
+                : null,
+            'selection_reason' => $selectionReason,
+        ];
     }
 
     public function publishPresence(RelayDeviceModel $device): void
     {
         $userId = (int) $device->owner_user_id;
         $descriptor = $this->descriptor($device);
+        $snapshot = $this->rosterSnapshot($userId);
 
-        RuntimeSnapshotCache::put($this->rosterKey($userId), $this->rosterSnapshot($userId),
+        RuntimeSnapshotCache::put($this->rosterKey($userId), $snapshot,
             RelayContract::duration('heartbeat_seconds'));
         $this->outbox->append('presence', (string) Str::uuid(), 1,
             RelayContract::event('device_presence'), 'owner', $this->topics->owner($userId),
-            ['device_id' => (string) $device->device_id, 'online' => $descriptor['online'], 'device' => $descriptor]);
+            [
+                'device_id' => (string) $device->device_id,
+                'online' => $descriptor['online'],
+                'device' => $descriptor,
+                'recommended_device_id' => $snapshot['recommended_device_id'],
+                'selection_reason' => $snapshot['selection_reason'],
+            ]);
     }
 
     public function expirePresence(): void

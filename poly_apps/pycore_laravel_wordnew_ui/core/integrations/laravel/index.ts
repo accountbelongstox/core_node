@@ -3,6 +3,7 @@ export { LARAVEL_BROWSER_EVENTS, LaravelAPI, laravelApi } from './LaravelAPI';
 export { LARAVEL_REALTIME_EVENTS, laravelRealtime } from './LaravelRealtime';
 export { laravelRelayRoster } from './LaravelRelayRoster';
 export type { RelayRosterEntry } from './LaravelRelayRoster';
+export type { RelayDeviceRoster } from './LaravelRelayAPI';
 export { LaravelMercureConnection } from './LaravelMercureConnection';
 export type {
   LaravelMercureCallbacks,

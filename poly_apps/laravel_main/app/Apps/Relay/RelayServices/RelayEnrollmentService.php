@@ -18,7 +18,8 @@ final class RelayEnrollmentService
     public function __construct(
         private readonly RelayHubService $hub,
         private readonly RelayOutboxRepository $outbox,
-        private readonly RelayTopicService $topics
+        private readonly RelayTopicService $topics,
+        private readonly RelayDeviceService $devices
     ) {
     }
 
@@ -270,6 +271,8 @@ final class RelayEnrollmentService
 
     private function enrollmentResponse(RelayEnrollmentModel $enrollment, bool $includeClaimCode): array
     {
+        $credential = null;
+        $device = null;
         $response = [
             'enrollment' => [
                 'enrollment_id' => (string) $enrollment->enrollment_id,
@@ -277,7 +280,6 @@ final class RelayEnrollmentService
                 'expires_at' => $enrollment->expires_at->toIso8601String(),
             ],
         ];
-        $credential = null;
 
         if ($includeClaimCode) {
             $response['enrollment']['claim_code'] = Crypt::decryptString((string) $enrollment->claim_code_encrypted);
@@ -293,6 +295,13 @@ final class RelayEnrollmentService
                 'credential_id' => (string) $credential->credential_id,
                 'credential_version' => (int) $credential->credential_version,
             ];
+            $device = RelayDeviceModel::query()
+                ->where('device_id', (string) $enrollment->device_id)
+                ->first();
+            if ($device === null) {
+                throw new RelayDomainException('device_not_found', 500);
+            }
+            $response['device'] = $this->devices->descriptor($device);
             $response['hub'] = $this->hub->deviceAuthorization((string) $enrollment->device_id);
         }
 

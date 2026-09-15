@@ -76,6 +76,7 @@ export class LaravelMercureConnection {
       Authorization: `Bearer ${authorization.token}`,
       'Cache-Control': 'no-cache',
     };
+    if (this.lastEventId) headers['Last-Event-ID'] = this.lastEventId;
     this.controller = controller;
 
     const connectTimer = setTimeout(() => controller.abort(),
