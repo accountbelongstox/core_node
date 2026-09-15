@@ -1,5 +1,5 @@
 /pycore-manager/vocabulary 
-注意UI在 poly apps / pycore ui, 后端运行在本机 poly apps / laravel main , pycore 运行在windows 在pyservice 2 通过relay连接。
+注意UI在 poly apps / pycore ui, 后端运行在Linux poly apps / laravel main , pycore 运行在windows 在pyservice 2 通过relay连接。
 注意不要使用多agents，而只能使用单agent模型，从底层重构，合并冗余和相似类库，按规范，单一类库不要超过800行，超过时使用多parts组合。按项目规范。
 现在添加新功能
 1：注意到 pycore-manager/agent-history 中调用AI openrouter / free 和qwen / edge 音频生成了吗， 以及 /pycore-manager/vocabulary中查询后端的数据，这些都是通过UI调用pycore实现
@@ -13,4 +13,5 @@
     之后，在面板中可以选择Word New Only(并应用虚拟已读) & All word,如果是New Only 则先查询Word Groups中未读过的音频，在编排生成清单时自动运行，当编排中对句子的编排要求读包含单词时只显示没有读过的，同时只要一个单词在前面的句子中显示过一次就记录到本资任务中的虚拟已读，后面不再显示。
 
 3：以上功能中的登陆和任务，都要缓存在本地的记录文件，并在启动时加载。对于旧的编排任务，可以修改后重新生成。
+本机是windows环境，写完后在测可测试的windows端功能。
 
