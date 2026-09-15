@@ -714,7 +714,9 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     STATE_OWNER_NAME = "SentenceAudioWorkerState"
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
     CONCURRENCY_DEFAULT = TTS_SENTENCE_WORKER_CONCURRENCY
-    CONCURRENCY_LIMIT = 1
+    # Qwen3-TTS is a managed HTTP server with its own FIFO queue; allow the
+    # shared worker fan-out to keep multiple local sentences in flight.
+    CONCURRENCY_LIMIT = 3
 
 
 laravel_word_audio_worker = LaravelWordAudioWorker(LARAVEL_WORKER_API_URL)

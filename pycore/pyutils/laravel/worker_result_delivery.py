@@ -54,11 +54,10 @@ class WorkerResultDelivery:
         """
         POST a task result (processing/completed/failed) back to Laravel.
 
-        NOT a @serialized_method: the retry loop below can hold for
-        RESULT_POST_ATTEMPTS x RESULT_HTTP_TIMEOUT + backoff against a dead endpoint.
-        On the serialized state-owner thread that blocked every status
-        read ('Serialized operation timed out'). The breaker
-        bookkeeping it touches is plain scalars, safe from executor threads.
+        NOT a @serialized_method: delivery runs from worker/outbox threads and
+        never holds the serialized state-owner thread. Audio callers use the
+        long-lived Laravel transport and the durable outbox for reconnect
+        recovery; breaker bookkeeping is plain scalars.
 
         Retries transient failures (connection errors / HTTP 5xx) a few times
         with a short backoff; gives up on 4xx. Returns True when Laravel

@@ -962,6 +962,10 @@ class BaseLaravelWorkerService:
             )
         recovered = diff_task_segment_store.pending(scope, STAGED_TASK_LIMIT)
         if not recovered:
+            ColorPrint.gray(
+                f"{self._log_prefix} full-sync mirror ready but no dispatchable "
+                f"tasks (scope={scope})"
+            )
             return {"ok": True, "processed": 0}
         self._remember_task_types(recovered, base_url)
         processed = self._dispatch_staged_tasks(
@@ -969,6 +973,10 @@ class BaseLaravelWorkerService:
             base_url,
             scope,
             allow_backlog=True,
+        )
+        ColorPrint.blue(
+            f"{self._log_prefix} full-sync dispatch recovered={len(recovered)} "
+            f"processed={processed} local_capacity={self._pull_capacity()}"
         )
         return {
             "ok": True,
