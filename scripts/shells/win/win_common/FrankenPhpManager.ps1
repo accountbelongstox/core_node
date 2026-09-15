@@ -602,6 +602,8 @@ function Ensure-FrankenPhpCaddyfile {
     $internalTlsHost = Get-ServiceContractHost -Name 'localhost'
     $anyHost = Get-ServiceContractHost -Name 'any'
     $requestTimeout = [string](Get-ServiceContractValue -ContractPath 'php_runtime.request_body_timeout')
+    $maxExecutionTime = [int](Get-ServiceContractValue -ContractPath 'php_runtime.max_execution_time_seconds')
+    $maxInputTime = [int](Get-ServiceContractValue -ContractPath 'php_runtime.max_input_time_seconds')
     $mercureTransport = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_transport')
     $mercureCookie = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_cookie')
     $publicPath = ConvertTo-FrankenPhpCaddyPath -Path $script:FrankenPhpLaravelPublicDirectory
@@ -635,6 +637,8 @@ function Ensure-FrankenPhpCaddyfile {
 	}
 
 	frankenphp {
+		php_ini max_execution_time $maxExecutionTime
+		php_ini max_input_time $maxInputTime
 		worker {
 			file "$publicPath/frankenphp-worker.php"
 			{`$CADDY_SERVER_WORKER_DIRECTIVE}

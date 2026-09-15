@@ -615,6 +615,15 @@ fm_caddyfile_render() {
     fm_octane_php_server_stanza
     octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
 
+    # Server-SAPI ini floor through the official Caddyfile php_ini directive:
+    # the scan-dir ini demonstrably does not reach the FrankenPHP server SAPI
+    # for max_execution_time (live value 30s from the ZTS production template),
+    # and a 30s ceiling fatals long CPU requests and restarts worker threads,
+    # killing every in-flight connection on the thread. Byte-synced with the
+    # Laravel builder and the PS1 renderer.
+    printf -v php_ini_stanza '\t\tphp_ini max_execution_time %s\n\t\tphp_ini max_input_time %s' \
+        "$PHP_RUNTIME_MAX_EXECUTION_TIME" "$PHP_RUNTIME_MAX_INPUT_TIME"
+
     # Direct HTTP backend block for LAN and local machine clients + the
     # per-domain route import (same routes dir the domain
     # renderer writes; gated on file presence - caddy errors on an
@@ -642,6 +651,7 @@ import ${routes_dir}/*.caddy"
 	}
 
 	frankenphp {
+${php_ini_stanza}
 		worker {
 			file "${laravel_public_dir}/frankenphp-worker.php"
 			{\$CADDY_SERVER_WORKER_DIRECTIVE}
