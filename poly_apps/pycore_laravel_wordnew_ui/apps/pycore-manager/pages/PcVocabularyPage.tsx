@@ -19,6 +19,7 @@ import VocabLibrariesTab from './vocabulary/VocabLibrariesTab';
 import VocabStatisticsTab from './vocabulary/VocabStatisticsTab';
 import VocabTtsQueueTab from './vocabulary/VocabTtsQueueTab';
 import VocabLearningTasksPanel from './vocabulary/VocabLearningTasksPanel';
+import VocabAudioOrchTab from './vocabulary/orchestration/VocabAudioOrchTab';
 
 export default function PcVocabularyPage() {
   const { t } = useTranslation('pc');
@@ -67,6 +68,7 @@ export default function PcVocabularyPage() {
         {activeTab === 'statistics' && <VocabStatisticsTab />}
         {activeTab === 'tts-queue' && <VocabTtsQueueTab />}
         {activeTab === 'learning' && <VocabLearningTasksPanel />}
+        {activeTab === 'audio-orch' && <VocabAudioOrchTab />}
       </div>
     </div>
   );

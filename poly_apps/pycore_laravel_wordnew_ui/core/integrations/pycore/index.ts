@@ -95,6 +95,7 @@ export type { PycoreHealthState } from './PycoreHealth';
 
 export type * from './PycorePlatformTypes';
 export type * from './PycoreAiTypes';
+export type * from './PycoreApiOrchestration';
 export type * from './PycoreSpeechTypes';
 export type * from './PycoreServiceTypes';
 export type * from './PycoreQueueTypes';
