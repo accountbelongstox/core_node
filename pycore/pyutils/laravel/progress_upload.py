@@ -35,6 +35,15 @@ class LaravelProgressUploader:
         )
         return (str(base_url or ""), str(path), content_sha256, normalized_params)
 
+    @staticmethod
+    def _identity_from_params(params: Dict[str, Any]) -> str:
+        """Short producer identity for log lines (task/content/article/record)."""
+        for field in ("task_id", "content_id", "article_id", "record_id"):
+            value = str(params.get(field) or "").strip()
+            if value:
+                return f"{field}={value}"
+        return ""
+
     def upload(
         self,
         path: str,
@@ -54,6 +63,8 @@ class LaravelProgressUploader:
         # logical delivery: an in-flight leader is awaited and a receipt inside
         # the dedup window is reused instead of re-POSTing the same bytes.
         dedup_key = self._dedup_key(path, base_url, params, content_sha256)
+        identity = self._identity_from_params(params)
+        identity_part = f"{identity} " if identity else ""
         while True:
             with self._flight_lock:
                 now = time.monotonic()
@@ -66,7 +77,8 @@ class LaravelProgressUploader:
                 cached = self._completed.get(dedup_key)
                 if cached and cached[0] > time.monotonic():
                     ColorPrint.gray(
-                        f"[laravel upload] reason={reason or 'unspecified'} {path} "
+                        f"[laravel upload] reason={reason or 'unspecified'} "
+                        f"{identity_part}{path} "
                         "-> deduplicated (identical transfer already received)"
                     )
                     return dict(cached[1])
@@ -87,6 +99,7 @@ class LaravelProgressUploader:
                 base_url=base_url,
                 progress_callback=progress_callback,
                 reason=reason,
+                identity=identity_part,
             )
             succeeded = True
             return result
@@ -110,6 +123,7 @@ class LaravelProgressUploader:
         base_url: Optional[str],
         progress_callback: Optional[ProgressCallback],
         reason: str,
+        identity: str = "",
     ) -> Dict[str, Any]:
         total_bytes = len(content)
         chunk_bytes = max(1, int(self._contract["chunk_bytes"]))
@@ -134,7 +148,7 @@ class LaravelProgressUploader:
                 params=request_params,
                 data=chunk,
                 headers={"Content-Type": "application/octet-stream"},
-                no_timeout=True,
+                activity_timeout=self._contract,
                 log_line=False,
             )
             result = self._response_data(response)
@@ -168,6 +182,7 @@ class LaravelProgressUploader:
                 started_at,
                 progress_callback,
                 reason,
+                identity,
             )
 
         if not result.get("upload_complete"):
@@ -203,6 +218,7 @@ class LaravelProgressUploader:
         started_at: float,
         progress_callback: Optional[ProgressCallback],
         reason: str,
+        identity: str = "",
     ) -> None:
         progress = round((offset / total_bytes) * 100.0, 2)
         elapsed_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
@@ -224,7 +240,7 @@ class LaravelProgressUploader:
         }
         laravel_http_recorder.notify(record)
         ColorPrint.cyan(
-            f"[laravel upload] reason={reason or 'unspecified'} {path} -> {progress:.2f}% "
+            f"[laravel upload] reason={reason or 'unspecified'} {identity}{path} -> {progress:.2f}% "
             f"({offset}/{total_bytes} bytes)"
         )
         if progress_callback is not None:

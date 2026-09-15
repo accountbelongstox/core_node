@@ -54,6 +54,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     QUEUE_CENTER_DIFF_DELIVERY,
     QUEUE_CENTER_DIFF_SYNC_LOG_KEYS,
+    http_transfer_contract,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.worker_result_delivery import (
@@ -98,10 +99,8 @@ class BaseLaravelWorkerService:
     # THREAD_BUS serialized state-owner identity. Every concrete singleton with
     # mutable state overrides both values to own a distinct state queue.
     STATE_OWNER_KEY = "laravel.worker.state"
-    RESULT_HTTP_TIMEOUT = 60
     RESULT_OFFLINE_BACKOFF_SECONDS = 30.0
     PULL_LIMIT = GLOBAL_TASK_LIMITS["worker_pull_default"]
-    PULL_HTTP_TIMEOUT_SECONDS = 15
     STATE_OWNER_NAME = "LaravelWorkerState"
     WORKER_ID_PREFIX = "pycore-worker"
     LOG_ACCEPTED_RESULTS = True
@@ -411,7 +410,7 @@ class BaseLaravelWorkerService:
                 queue_center_endpoint("queue_center_queue_diff", queue=task_type),
                 base_url=base_url,
                 params=params,
-                timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
+                activity_timeout=http_transfer_contract(),
                 log_line=False,
             )
             if response.status_code != 200:
@@ -538,7 +537,7 @@ class BaseLaravelWorkerService:
                 queue_center_endpoint("queue_center_queue_page_data", queue=task_type),
                 base_url=base_url,
                 params=[("ids[]", task_id) for task_id in chunk],
-                timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
+                activity_timeout=http_transfer_contract(),
                 log_line=False,
             )
             if response.status_code != 200:
@@ -641,7 +640,7 @@ class BaseLaravelWorkerService:
             queue_center_endpoint("worker_task_accept", task_type=task_type),
             base_url=base_url,
             json={"task_id": task_id, "worker_id": self.worker_id},
-            timeout=self.RESULT_HTTP_TIMEOUT,
+            activity_timeout=http_transfer_contract(),
         )
         if response.status_code in (200, 201):
             return True
@@ -823,7 +822,7 @@ class BaseLaravelWorkerService:
                         "worker_id": self.worker_id,
                         "task_ids": task_ids[: GLOBAL_TASK_LIMITS["worker_pull"]],
                     },
-                    timeout=self.RESULT_HTTP_TIMEOUT,
+                    activity_timeout=http_transfer_contract(),
                 )
                 if response.status_code == 200:
                     ColorPrint.blue(
@@ -897,7 +896,7 @@ class BaseLaravelWorkerService:
                 queue_center_endpoint("worker_task_pull", task_type=task_type),
                 base_url=base_url,
                 json=self._pull_params(remaining),
-                timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
+                activity_timeout=http_transfer_contract(),
             )
             if response.status_code != 200:
                 raise RuntimeError(

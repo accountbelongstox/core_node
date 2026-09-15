@@ -63,7 +63,7 @@ from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 # ColorPrint is the only allowed logger in pycore services.
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint, format_duration_hms
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.serialized_worker import (
     map_bus_tasks,
@@ -187,10 +187,10 @@ class BaseLaravelAudioWorker(
     # task start, and apply later diffs incrementally (new payloads via
     # page-data segments + local reorder) instead of bounded claim-pulls.
     FULL_SYNC_ENABLED = True
-    # Result/progress delivery is independent from synthesis. A dead Laravel
-    # endpoint must not hold the local audio lane for the generic 60s worker
-    # timeout; the durable audio outbox retries delivery after reconnect.
-    RESULT_HTTP_TIMEOUT = 2
+    # Result/progress delivery is independent from synthesis. Laravel traffic
+    # uses the shared progress-driven activity contract (connect + idle
+    # socket-stall bounds, no fixed total deadline); the durable audio outbox
+    # retries delivery after reconnect.
     RESULT_OFFLINE_BACKOFF_SECONDS = 30.0
 
     def _on_laravel_online(self, base_url: str) -> None:
@@ -255,18 +255,19 @@ class BaseLaravelAudioWorker(
 
     @property
     def _log_prefix(self) -> str:
-        """Dynamic prefix: "[<Tag> +<service uptime>s] <remote tier> <local runtime>".
+        """Dynamic prefix: "[<Tag> <service uptime HH:MM:SS>] <remote tier> <local runtime>".
 
         Uptime is anchored at the ONE central pyservice start constant
         (service_config.PYSERVICE_STARTED_MONOTONIC) so every lane measures
-        from the same service boot. The local runtime label mirrors THIS
+        from the same service boot, and renders through the shared
+        format_duration_hms. The local runtime label mirrors THIS
         lane's own lifetime counters (word and sentence are separate worker
         instances - totals and average durations never mix) accumulated
         since that same boot; the remote tier label (remote_en=done/total)
         appears only on contract-tiered lanes.
         """
         elapsed = time.monotonic() - PYSERVICE_STARTED_MONOTONIC
-        parts = [f"[{self.LOG_PREFIX.strip('[]')} +{max(0.0, elapsed):.2f}s]"]
+        parts = [f"[{self.LOG_PREFIX.strip('[]')} {format_duration_hms(elapsed)}]"]
         tier_label = self._remote_language_tier_label()
         if tier_label:
             parts.append(tier_label)

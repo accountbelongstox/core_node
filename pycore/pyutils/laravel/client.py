@@ -188,6 +188,13 @@ class LaravelClient:
         ``log_line=False`` silences the console line for high-frequency polls
         (the caller prints its own compact line); the HTTP recorder still sees
         the request so UI diagnostics keep working.
+        ``activity_timeout`` (the shared ``http_transfer_contract()`` dict) is the
+        ONE progress-driven timeout mode: connect must finish within
+        ``connect_timeout_seconds`` and any socket stall longer than
+        ``idle_timeout_seconds`` fails, but a transfer that keeps making
+        progress never times out - multi-hour uploads are safe while a dead
+        peer still fails fast. Uploads and worker traffic use this mode
+        instead of a fixed total deadline.
         """
         method = (method or "GET").upper()
         url = self._build_url(path, base_url)
@@ -198,8 +205,7 @@ class LaravelClient:
             "<redacted>" if sensitive_request and json is not None else json,
             files,
         )
-        no_timeout = bool(kwargs.pop("no_timeout", False))
-        if timeout is None and not no_timeout:
+        if timeout is None:
             timeout = _DEFAULT_TIMEOUT
         request_headers = dict(headers or {})
         started = time.perf_counter()
@@ -226,12 +232,14 @@ class LaravelClient:
             request_headers.update(
                 build_pycore_identity_headers(url, method, identity_body)
             )
-        if activity_timeout and not no_timeout:
+        if activity_timeout:
             connect_timeout = max(1, int(activity_timeout.get("connect_timeout_seconds") or 15))
+            idle_timeout = max(1, int(activity_timeout.get("idle_timeout_seconds") or 30))
             if transport == TRANSPORT_REQUESTS:
-                timeout = (connect_timeout, None)
-        if no_timeout:
-            timeout = None
+                # requests maps the tuple to (connect, read) and urllib3 applies
+                # the read value per socket operation: progress resets it, so
+                # only a stalled transfer ever times out.
+                timeout = (connect_timeout, idle_timeout)
         try:
             resp = session.request(
                 method, url,

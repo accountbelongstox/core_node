@@ -13,6 +13,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_STATUSES_BY_ROLE,
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
+    http_transfer_contract,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client
@@ -132,7 +133,7 @@ class WorkerResultDelivery:
                     result_url,
                     base_url=result_base_url,
                     json=body,
-                    no_timeout=True,
+                    activity_timeout=http_transfer_contract(),
                 )
                 if resp.status_code in (200, 201):
                     worker._result_retry_after = 0.0
