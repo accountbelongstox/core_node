@@ -167,6 +167,19 @@ class _DiffTaskSegmentCenter:
                 return True
         return False
 
+    @serialized_method
+    def requeue_all(self, scope: str) -> int:
+        """Make every persisted row dispatchable for a full-sync sweep."""
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = segments.get(scope) or {}
+        cleared = 0
+        for task_id in scope_segments:
+            key = self._delivery_key(scope, task_id)
+            if key in self._delivered:
+                self._delivered.discard(key)
+                cleared += 1
+        return cleared
+
     def held_task_ids(self, scope: str, task_type: str) -> set[str]:
         """Task IDs of every staged row of one type (deferred rows included)."""
         segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)

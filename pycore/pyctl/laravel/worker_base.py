@@ -177,6 +177,7 @@ class BaseLaravelWorkerService:
         # an ordered diff; a lane that never synced (or inherited a cursor
         # written by a legacy claim-pull) must re-sync from cursor=0 once.
         self._sync_mirror_bootstrapped: Set[str] = set()
+        self._full_sync_reconciled_scopes: Set[str] = set()
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -961,7 +962,10 @@ class BaseLaravelWorkerService:
                 "processing the local mirror"
             )
         # Full-sync rows remain replayable until the local queue accepts them;
-        # the heap's task-id guard handles duplicate wakeups safely.
+        # clear stale in-process delivery marks left by an earlier pull path.
+        if scope not in self._full_sync_reconciled_scopes:
+            diff_task_segment_store.requeue_all(scope)
+            self._full_sync_reconciled_scopes.add(scope)
         recovered = diff_task_segment_store.pending(
             scope,
             STAGED_TASK_LIMIT,
