@@ -1,0 +1,16 @@
+/pycore-manager/vocabulary 
+注意UI在 poly apps / pycore ui, 后端运行在本机 poly apps / laravel main , pycore 运行在windows 在pyservice 2 通过relay连接。
+注意不要使用多agents，而只能使用单agent模型，从底层重构，合并冗余和相似类库，按规范，单一类库不要超过800行，超过时使用多parts组合。按项目规范。
+现在添加新功能
+1：注意到 pycore-manager/agent-history 中调用AI openrouter / free 和qwen / edge 音频生成了吗， 以及 /pycore-manager/vocabulary中查询后端的数据，这些都是通过UI调用pycore实现
+    现在需要添加：/pycore-manager/vocabulary 添加音频生成编排功能，添加UI，选择对后端的书Books进行音频编排，先实地扫描后端是的API，并添加书的显示，并缓存在本地，找到代码中的书映射句子的逻辑
+    之后，在本地缓存书 - 及对应句子的表，并可以新建任务开始编排音频，比如生成10分钟内容，或将一本书自动生成为多少个段落，这是新建任务的基本，之后在任务中编排
+    编排是指一本书被生成为多少个音频段落后（这是新建任务时设置的），之后该任务的基本属性，然后添加 编排 每一个句子 先读英文再读中文，先读中文再读英文，先读单词再读英文，这些是可以编排的，并应用到该任务的所有句子上。
+    之后点击生成，将调用pycore中的编排中涉及的单词、句子音频缓存，如果pycore中没有对应的音频则通过API从laravel获取，如果laravel没有则组成清单，调用pycore的本地音频生成工具生成，其中音频使用edge-tts、句子或段落使用qwen tts生成，准备所有资源，但生成需要调用复用原来的代码，并缓存在原处，而不能因为编排缓存在新的地方，之后准备好所有资源后则编排生成再次读取，并使用fmpage类库生成该书的X个段落音频，每个段落根据编排来生成句子单词白组合音频。
+    注意，生成后的音频先缓存在pycore本地，不上传到laravel。生成路径为 ${用户数据目录}/编排任务名/${段落1} , ${段落2} ... 注意路径是全英文的。
+2：/pycore-manager/vocabulary 继续增加橷功能，找到laravel qy apps的登陆，在编排中可以使用账户登陆到qy app.并参考  /wordnew#/daily-reading/article_5813bb08bb4f9696a576240a6b3f4f6dc013a9ce 中的 Word Groups 绑定的 Word New Only的逻辑，
+    原理是每个短文和句子出现的单词需要是Word Groups 的Defaut中没有出现过的，并给/pycore-manager/vocabulary中的编排功能添加新功能，复用后端的虚拟单词已读功能，也就是只在本次任务中虚拟一些词已读，实际并不写入后端的主Word Groups中，因为是为了生成音频时，前面读取过的单词不会因为后面的段落中查询到在Word Groups中未读而重复出现，
+    之后，在面板中可以选择Word New Only(并应用虚拟已读) & All word,如果是New Only 则先查询Word Groups中未读过的音频，在编排生成清单时自动运行，当编排中对句子的编排要求读包含单词时只显示没有读过的，同时只要一个单词在前面的句子中显示过一次就记录到本资任务中的虚拟已读，后面不再显示。
+
+3：以上功能中的登陆和任务，都要缓存在本地的记录文件，并在启动时加载。对于旧的编排任务，可以修改后重新生成。
+
