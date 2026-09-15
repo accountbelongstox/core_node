@@ -239,13 +239,11 @@ class LaravelAudioWorkerStateMixin:
     ) -> None:
         completed = max(0, int(value.get("progress") or 0))
         total = max(0, int(value.get("progress_total") or 0))
+        previous_completed = int(info.get("qwen_progress") or 0)
         base = int(GLOBAL_TASK_PROGRESS_STAGES["synthesizing"])
-        ceiling = int(GLOBAL_TASK_PROGRESS_STAGES["uploading"]) - 1
-        progress = (
-            base + round((ceiling - base) * min(1.0, completed / total))
-            if total > 0
-            else base
-        )
+        # Full-sync processing is not a fixed 100-item batch. Keep the global
+        # stage stable and expose Qwen's own chunk counters separately.
+        progress = base
         phase = str(value.get("progress_phase") or value.get("status") or "queued")
         info["stage"] = "synthesizing"
         info["progress"] = progress
@@ -261,13 +259,16 @@ class LaravelAudioWorkerStateMixin:
             progress,
             value,
         )
-        if not changed:
+        if not changed or completed == previous_completed:
             return
+        ColorPrint.gray(
+            f"{self._log_prefix} qwen chunks={completed}/{total} phase={phase}"
+        )
         self._log_event(
             "progress",
             f"qwen phase={phase} chunks={completed}/{total}",
             info,
-            mirror=self.LANE != "word",
+            mirror=False,
         )
         # Qwen progress is mirrored in the local task state. Final delivery is
         # handled asynchronously by the durable audio outbox.
