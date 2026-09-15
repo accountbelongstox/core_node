@@ -578,6 +578,13 @@ class LaravelAudioWorkerExecutionMixin:
             )
             if self.LANE == "sentence":
                 local_id = self._begin_local_task(info)
+                sentence_text = str(info.get("text") or "")
+                sentence_text = sentence_text.replace("\r", " ").replace("\n", " ").strip()
+                ColorPrint.cyan(
+                    f"{self._log_prefix} Generating sentence "
+                    f"task={self._display_task_id(task_id)} "
+                    f"queue_position={task.get('queue_position')} text={sentence_text}"
+                )
             self._report_progress(
                 info,
                 "synthesizing",

@@ -79,3 +79,8 @@ The observed `remote_en=590/2103` followed by no sentence progress is therefore 
 The remote task remains fenced by the existing just-in-time claim when reachable; when unreachable, local synthesis proceeds and the durable outbox preserves the result until the coordinator is available.
 
 No tests, builds, verification commands, service starts/restarts, deployment scripts, or Git operations were executed. The browser page could not be retrieved through the web reader; no authenticated production roster response was available. The source-level races are addressed; their occurrence in the reported production session and the live result after rollout remain unverified. Caddy template edits require normal configuration convergence to become active.
+
+## Sentence text observability follow-up
+
+13. The sentence lane emitted synthesis lifecycle events and queue counters, but did not print the actual sentence text. This made it impossible to distinguish a stalled Laravel delivery call from a Qwen generation stall using the Windows console alone.
+14. The sentence lane now prints a normalized single-line `Generating sentence` record immediately before synthesis, including the task identifier, queue position, and sentence text. The record is emitted before any progress HTTP call so it remains visible when Laravel is offline.
