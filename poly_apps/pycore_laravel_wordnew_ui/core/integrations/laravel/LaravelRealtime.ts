@@ -8,6 +8,7 @@ import {
 } from './transport/BaseAPI';
 import { laravelApi } from './LaravelAPI';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
+import { subscribeAuthSession } from '../../auth/AuthSession';
 
 export interface LaravelQueueHeadItem {
   task_id: string;
@@ -106,9 +107,20 @@ class LaravelRealtime {
   private pendingFrames: RealtimeFrame[] = [];
   private handlers = new Map<string, Set<Handler>>();
 
+  constructor() {
+    subscribeAuthSession(() => {
+      this.generation += 1;
+      this.lastId = null;
+      this.activeBaseURL = null;
+      this.closeSocket();
+      if (this.started) void this.openSocket();
+    });
+  }
+
   private handleBaseURLChanged = (): void => {
     const nextBaseURL = getSharedBaseURL();
     if (!this.started || nextBaseURL === this.activeBaseURL) return;
+    this.generation += 1;
     this.lastId = null;
     this.activeBaseURL = null;
     this.closeSocket();
@@ -302,7 +314,11 @@ class LaravelRealtime {
           });
         },
         onEvent: (event, data) => this.handleMessage(event, data),
-        onClose: () => {
+        onClose: (error) => {
+          if (this.isAuthorizationFailure(error)) {
+            this.closeSocket();
+            return;
+          }
           this.connected = false;
           this.replaying = false;
           this.pendingFrames = [];
@@ -310,9 +326,19 @@ class LaravelRealtime {
         },
       });
     } catch (error) {
+      if (generation !== this.generation) return;
+      if (this.isAuthorizationFailure(error)) {
+        this.closeSocket();
+        return;
+      }
       console.warn('[laravel-realtime] connect failed', error);
       this.reconnectAfterFailure();
     }
+  }
+
+  private isAuthorizationFailure(error: unknown): boolean {
+    const status = Number((error as { status?: unknown } | null)?.status || 0);
+    return status === 401 || status === 403;
   }
 }
 

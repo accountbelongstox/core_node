@@ -25,6 +25,21 @@ const ROUTES = {
     relayEndpoint('owner_response_blob_download', { blobId }),
 } as const;
 
+function readRelayDeviceRoster(payload: unknown): RelayDevice[] {
+  const data = unwrapData<unknown>(payload);
+  const devices = data && typeof data === 'object' && !Array.isArray(data)
+    ? (data as { devices?: unknown }).devices
+    : undefined;
+  if (!Array.isArray(devices)) {
+    throw Object.assign(new Error('RELAY_ROSTER_PAYLOAD_INVALID'), {
+      status: 502,
+      code: 'RELAY_ROSTER_PAYLOAD_INVALID',
+      payload,
+    });
+  }
+  return devices as RelayDevice[];
+}
+
 export const laravelRelayApi = {
   relayClaimEnrollment: async (claimCode: string): Promise<RelayDevice> => {
     const payload = await requestLaravel<any>('POST', ROUTES.relayEnrollmentClaim, { claim_code: claimCode });
@@ -32,7 +47,7 @@ export const laravelRelayApi = {
   },
   getRelayDevices: async (): Promise<RelayDevice[]> => {
     const payload = await requestLaravel<any>('GET', ROUTES.relayDevices);
-    return unwrapData<{ devices: RelayDevice[] }>(payload).devices;
+    return readRelayDeviceRoster(payload);
   },
   createRelayPairing: async (deviceId: string, clientInstanceId: string): Promise<RelayPairing> => {
     const payload = await requestLaravel<any>('POST', ROUTES.relayPairings, {

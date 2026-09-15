@@ -14,6 +14,11 @@ const RECONNECT_MIN_MS = RELAY_CONTRACT.durations.subscriber_reconnect_min_secon
 const RECONNECT_MAX_MS = RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
 const TOKEN_REFRESH_MARGIN_MS = RELAY_CONTRACT.durations.subscriber_token_refresh_margin_seconds * 1000;
 
+function isAuthorizationFailure(error: unknown): boolean {
+  const status = Number((error as { status?: unknown } | null)?.status || 0);
+  return status === 401 || status === 403;
+}
+
 /**
  * One Mercure SSE connection for the pairing operation topic.
  *
@@ -163,6 +168,11 @@ class LaravelRelayOperationEvents {
             onEvent: (event, data) => this.handleEvent(event, data),
             onClose: (error) => {
               if (error) appendLog('error', 'api', `MERCURE_STREAM_INTERRUPTED: ${String(error)}`);
+              if (isAuthorizationFailure(error)) {
+                this.resolveReady(false);
+                this.notifyConnectionState(false);
+                return;
+              }
               if (this.subscribedAt > 0
                 && Date.now() - this.subscribedAt >= RELAY_CONTRACT.durations.subscriber_read_timeout_seconds * 1000) {
                 this.reconnectDelayMs = RECONNECT_MIN_MS;
@@ -173,8 +183,14 @@ class LaravelRelayOperationEvents {
           },
         );
       })
-      .catch(() => {
-        if (generation === this.generation) this.scheduleReconnect();
+      .catch((error) => {
+        if (generation !== this.generation) return;
+        if (isAuthorizationFailure(error)) {
+          this.resolveReady(false);
+          this.notifyConnectionState(false);
+          return;
+        }
+        this.scheduleReconnect();
       });
   }
 

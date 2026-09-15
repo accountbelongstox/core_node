@@ -10,6 +10,11 @@
 
 4. The translation endpoint returns the supported-language catalog as an associative object (`code => name`), while the shared `toArray` helper returns its first truthy wrapper value without checking that it is an array. This violates the JavaScript array boundary described by `Array.isArray()` and sends the object to `LangSelect.map`. The shared normalizer must accept array payloads, unwrap nested array containers, and convert the language catalog object to the typed option list.
 5. `RelayEnrollmentService::status` deliberately reports a deleted pending enrollment as `enrollment_not_found` (404), but the Python control loop only treats `device_not_found` and `device_credential_revoked` as enrollment recovery signals. It therefore keeps the stale enrollment ID and polls it forever. The same loop currently rotates the signing key for every 401/403, including timestamp, nonce, body-digest, protocol, and signature errors. Recovery must be driven by the coordinator's explicit credential/enrollment error codes; unrelated authentication failures must retain the identity and retry with backoff.
+6. The Linux startup path classifies this host as headless and exits before
+   launching `pyservice.sh 2`; the systemd helper independently blocks the
+   `pycore` unit. Relay mode is intentionally UI-less and must be allowed on a
+   headless coordinator host, otherwise its control loop can never create or
+   recover the device registration that the browser roster depends on.
 
 ## Official references
 
@@ -25,6 +30,10 @@ Record each finding before implementation. Inspect all seven reported bugs and e
 
 - The shared vocabulary response normalizer now returns only verified arrays, unwraps nested response containers, and converts associative language catalogs into `{ code, name, native? }` options before any consumer can call `map`.
 - Pycore enrollment recovery now includes deleted enrollments and explicit credential lifecycle failures (`signature_credential_missing`, `signature_credential_invalid`, and `signature_enrollment_not_found`). Generic HTTP 401/403 responses no longer rotate the device key, preserving the identity across transient or malformed-request failures.
+- Headless Linux startup now keeps local UI mode blocked but permits Relay
+  mode 2 to run without a dashboard. The Linux service unit uses Relay mode so
+  its registration, heartbeat, Mercure subscription, and operation claim loops
+  can run after boot.
 
 ## Validation boundary
 

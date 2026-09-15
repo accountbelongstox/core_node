@@ -93,7 +93,10 @@ export class LaravelMercureConnection {
     }
     if (!response.ok || !response.body
       || response.headers.get('content-type')?.split(';')[0].trim() !== 'text/event-stream') {
-      throw new Error(`MERCURE_SUBSCRIPTION_HTTP_${response.status}`);
+      throw Object.assign(
+        new Error(`MERCURE_SUBSCRIPTION_HTTP_${response.status}`),
+        { status: response.status },
+      );
     }
     if (this.generation !== generation) return;
     this.connected = true;

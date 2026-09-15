@@ -2,6 +2,13 @@
 
 ## Findings
 
+11. The browser starts the shared Relay/Queue Center stream even when no
+    dashboard session exists. A 401 from the authorization endpoint is treated
+    as a transport failure and schedules another reconnect, so an anonymous
+    page can create an avoidable authorization/request storm. Authentication
+    rejection must pause reconnecting until the shared auth session changes;
+    network failures should retain bounded backoff.
+
 1. An unauthenticated 401 does not establish authenticated admission health. `RelayOperationService::admit` calls `RelayPairingService::requireActive`, which returns `pairing_not_found` with HTTP 404 for missing, expired, revoked, or differently owned pairings. The previous report incorrectly excluded business-level 404 responses.
 2. The UI trusts persisted pairings until their local expiry, without reconciling server invalidation. Admission failures leave the same pairing cached, so terminal refreshes repeatedly submit it. Pairing state is also stored globally rather than scoped to the authenticated owner.
 3. Pairing notifications contain identity, revision and state, but the transport ignores them. Missing and expired pairings share a 404 even though expiration is a recoverable lease conflict. Recovery must inspect domain error codes, preserve the operation/idempotency identifiers, and never replay a request after ambiguous transport failure.
@@ -12,6 +19,11 @@
 8. The FrankenPHP worker watches default app files, but the shared Relay JSON contract is outside the Laravel app directory. Contract edits can leave worker-resident contract caches stale after synchronization. Add the shared contract directory to the existing worker watch configuration.
 9. Pair creation passes a NUL-delimited identifier to PostgreSQL `text` for advisory locking. PostgreSQL text cannot represent NUL; hash the composite identity in PHP before binding it so the lock key remains portable and complete.
 10. The shared browser stream resets backoff at subscription headers, retains its event cursor across auth transitions, and leaves reader cleanup implicit. Apply the same stable-stream backoff and explicit stream cleanup policy as Python.
+12. The owner roster client assumes that the Laravel `devices` field is always
+    an array. A malformed, partial, or changed envelope can therefore reach
+    `devices.map` and turn a recoverable coordinator response into a UI
+    exception. Validate the array at the shared API boundary and surface a
+    stable contract error to the roster coordinator.
 
 ## Implementation boundary
 
@@ -35,6 +47,14 @@ Inspect admission errors, identity transitions, pairing notifications, Python st
 - Browser operation consumers release the shared stream when finished. Roster refreshes cannot publish an older account's response. Stream cursors reset on auth transitions, incomplete SSE frames are discarded, and readers release their locks.
 - Shared Python subscriptions accept token lifetimes, renew before expiration, retain exponential backoff across short abnormal streams, and commit event cursors at complete frame boundaries. Queue Center follows coordinator changes.
 - Terminal event delivery deduplicates pairings per owner and filters the selected device in the UI. Existing screenshot byte transfer, digest validation and previous-image retention remain in use.
+- Browser Relay and Queue Center authorization failures now pause reconnecting
+  until the shared auth session changes; network and stream failures still use
+  bounded backoff. Mercure HTTP failures retain their status so this decision
+  is made at the shared stream boundary. Authentication and coordinator
+  transitions also fence stale in-flight realtime connections and cursors.
+- The owner roster API now validates the `devices` array before the shared
+  roster coordinator maps it, converting malformed envelopes into the stable
+  `RELAY_ROSTER_PAYLOAD_INVALID` contract error.
 - The shared runtime used by the 175 launcher watches the repository contract directory in addition to normal worker files. The 93 installer already uses the canonical FrankenPHP pipeline; no second runtime or installer was added.
 
 ## Validation boundary
