@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AI window activation tick with SSH / Kimiyolo bootstrap.
+kimi_active: SSH / Kimiyolo bootstrap plus window activation.
+
+Optional scheduled start: set SCHEDULED_START_TIME = "02:47" or pass HH:MM as the
+first CLI argument. The script waits until that local time, then runs.
 
 Startup sequence (once):
   1. Click terminal target, type SSH_COMMAND, press Enter repeatedly; repeat
@@ -10,7 +13,7 @@ Startup sequence (once):
      KIMIYOLO_ENTER_WINDOW_SECONDS to enter the Kimiyolo environment.
   3. Click target, paste PROMPT_TEXT, press Enter.
 
-Main loop (same as scripts/utilities/window_activate_tick.py):
+Main loop:
   Random click + space 1-3 times + optional Enter; every RESUME_INTERVAL_SECONDS
   paste RESUME_TEXT and press Enter.
 
@@ -22,10 +25,14 @@ from __future__ import annotations
 import random
 import sys
 import time
+from datetime import datetime, timedelta
 from typing import Sequence
 
 import pyautogui
 import pyperclip
+
+SCHEDULED_START_TIME = "03:00"
+SCHEDULE_POLL_SECONDS = 30.0
 
 SSH_COMMAND = "ssh1"
 SSH_CONNECT_ATTEMPTS = 10
@@ -39,7 +46,7 @@ KIMIYOLO_ENTER_WINDOW_SECONDS = 30.0
 KIMIYOLO_ENTER_PRESS_COUNT = 10
 KIMIYOLO_TYPE_INTERVAL_SECONDS = 0.05
 
-PROMPT_TEXT = "请继续完成之前的开发任务。"
+PROMPT_TEXT = "阅讲：docs_fix/origin/kimi1.txt，然后从'新任务：'开始完成之前的开发任务(注意之前的文字只是任务指引，作为参数具体要看实际代码)。注意不要使用多agents，只使用一个agent."
 
 TICK_INTERVAL_SECONDS = 5.0
 MOVE_DURATION_SECONDS = 0.1
@@ -167,6 +174,65 @@ def run_with_mouse_restore(action) -> None:
     original_position = pyautogui.position()
     action()
     restore_mouse_position(original_position.x, original_position.y)
+
+
+def parse_schedule_time(schedule_text: str) -> tuple[int, int]:
+    text = schedule_text.strip()
+    parts = text.split(":")
+    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+        raise ValueError(f"Invalid schedule time {schedule_text!r}; use HH:MM such as 02:47")
+
+    hour = int(parts[0])
+    minute = int(parts[1])
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise ValueError(f"Invalid schedule time {schedule_text!r}; hour must be 0-23, minute 0-59")
+    return hour, minute
+
+
+def format_remaining_hms(total_seconds: float) -> str:
+    seconds = max(0, int(total_seconds))
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
+
+def resolve_target_datetime(schedule_text: str, now: datetime | None = None) -> datetime:
+    current = now or datetime.now()
+    hour, minute = parse_schedule_time(schedule_text)
+    target = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target <= current:
+        target += timedelta(days=1)
+    return target
+
+
+def resolve_scheduled_start_time() -> str | None:
+    if len(sys.argv) >= 2:
+        cli_value = sys.argv[1].strip()
+        if cli_value.lower() in ("", "now", "immediate"):
+            return None
+        return cli_value
+
+    constant_value = SCHEDULED_START_TIME.strip()
+    if constant_value:
+        return constant_value
+    return None
+
+
+def wait_until_scheduled_time(schedule_text: str) -> None:
+    target = resolve_target_datetime(schedule_text)
+    print(
+        f"[SCHEDULE] Waiting until {target.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"(input {schedule_text!r}, Ctrl+C to cancel)"
+    )
+
+    while True:
+        remaining_seconds = (target - datetime.now()).total_seconds()
+        if remaining_seconds <= 0:
+            break
+        print(f"[SCHEDULE] Remaining {format_remaining_hms(remaining_seconds)}")
+        time.sleep(min(remaining_seconds, SCHEDULE_POLL_SECONDS))
+
+    print("[SCHEDULE] Start time reached; running kimi_active")
 
 
 def run_ssh_bootstrap() -> None:
@@ -321,10 +387,21 @@ def main() -> int:
         print("TARGETS is empty; configure at least one [[x,y],[]] entry.", file=sys.stderr)
         return 1
 
+    schedule_text = resolve_scheduled_start_time()
+    if schedule_text:
+        try:
+            wait_until_scheduled_time(schedule_text)
+        except ValueError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            print("\n[SCHEDULE] Cancelled before start.")
+            return 0
+
     _warmup_pyautogui()
 
     print(
-        f"AI window activate tick started: {len(TARGETS)} target(s), "
+        f"kimi_active started: {len(TARGETS)} target(s), "
         f"tick={TICK_INTERVAL_SECONDS}s, resume={RESUME_INTERVAL_SECONDS}s "
         f"(Ctrl+C to stop)"
     )
@@ -333,7 +410,7 @@ def main() -> int:
         run_bootstrap()
         run_activation_loop()
     except KeyboardInterrupt:
-        print("\nAI window activate tick stopped.")
+        print("\nkimi_active stopped.")
     return 0
 
 
