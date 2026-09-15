@@ -55,7 +55,7 @@ relayTarget: {
     heartbeatStale: '离线（心跳过期）',
     machineCount: 'Relay - 设备（{{count}} 台在线）',
     relayInfo: '选择 https Relay 后端后才会加载归属设备列表。设备列表以注册表为准，Mercure 只推送变更。',
-    noMachineDesignated: '已选择 Relay，但尚未指定设备。请在上方指定设备以启用转发。',
+    noMachineDesignated: '正在等待已归属的 Relay 设备。模式 2 设备启动或重新登记后会自动选中。',
     offlineQueued: '已配对设备 {{device}} 当前离线，请求会排队等待设备重新连接。',
   },
 testPopup: {

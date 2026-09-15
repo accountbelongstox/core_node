@@ -23,6 +23,7 @@ import {
   localPycoreHost, isPycoreSecureContext, pnaBlockedReason,
   pycoreLocalConnectionHint, isPycoreRelayMode,
   designateLaravelRelayDevice, laravelRelayDeviceId, clearLaravelRelayDevice,
+  subscribeLaravelRelayDevice,
 } from '@/apps/pycore-manager/api';
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
 import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
@@ -70,16 +71,18 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     }
     const stop = laravelRelayRoster.onChange((entries) => {
       setRoster(entries);
-      if (!laravelRelayDeviceId() && entries.length === 1) {
-        void designateLaravelRelayDevice(entries[0].device_id)
-          .then((pairing) => setDesignated(pairing.device_id))
+      const preferredDeviceId = laravelRelayRoster.preferredDeviceId();
+      if (!laravelRelayDeviceId() && preferredDeviceId) {
+        void designateLaravelRelayDevice(preferredDeviceId)
           .catch(() => undefined);
       }
     });
+    const stopSelection = subscribeLaravelRelayDevice(setDesignated);
     laravelRelayRoster.start();
     setRoster(laravelRelayRoster.list());
     return () => {
       stop();
+      stopSelection();
       laravelRelayRoster.stop();
     };
   }, [relayMode]);
@@ -125,7 +128,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
       .then(async (device) => {
         setClaimCode('');
         setClaimNotice(t('relayTarget.enrollmentSuccess'));
-        await laravelRelayRoster.refresh();
+        await laravelRelayRoster.refresh(true);
         const pairing = await designateLaravelRelayDevice(device.device_id);
         setDesignated(pairing.device_id);
       })

@@ -25,6 +25,8 @@ class LaravelRelayRoster {
   private refreshedAt = 0;
   private refreshError: unknown = null;
   private authorizationBlocked = false;
+  private recommendedDeviceId: string | null = null;
+  private selectionReason = '';
 
   constructor() {
     const reset = (): void => {
@@ -34,6 +36,8 @@ class LaravelRelayRoster {
       this.refreshedAt = 0;
       this.refreshError = null;
       this.authorizationBlocked = false;
+      this.recommendedDeviceId = null;
+      this.selectionReason = '';
       this.emit();
     };
     subscribeAuthSession(reset);
@@ -53,9 +57,20 @@ class LaravelRelayRoster {
       }),
       laravelRelayOperationEvents.onEvent((event, data) => {
         if (event !== RELAY_CONTRACT.events.device_presence) return;
-        const frame = data as { device?: RelayDevice; online?: boolean };
+        const frame = data as {
+          device?: RelayDevice;
+          online?: boolean;
+          recommended_device_id?: string | null;
+          selection_reason?: string;
+        };
         if (!frame?.device?.device_id) return;
         this.entries.set(frame.device.device_id, { ...frame.device, online: frame.online === true });
+        this.recommendedDeviceId = typeof frame.recommended_device_id === 'string'
+          ? frame.recommended_device_id
+          : this.recommendedDeviceId;
+        this.selectionReason = typeof frame.selection_reason === 'string'
+          ? frame.selection_reason
+          : this.selectionReason;
         this.refreshedAt = 0;
         this.emit();
       }),
@@ -91,12 +106,34 @@ class LaravelRelayRoster {
     return this.list().filter((entry) => entry.online);
   }
 
+  preferredDeviceId(): string | null {
+    if (this.recommendedDeviceId && this.entries.has(this.recommendedDeviceId)) {
+      return this.recommendedDeviceId;
+    }
+    const ordered = this.list().sort((left, right) => {
+      const leftSeen = Date.parse(left.last_seen_at || '') || 0;
+      const rightSeen = Date.parse(right.last_seen_at || '') || 0;
+      return rightSeen - leftSeen || left.device_id.localeCompare(right.device_id);
+    });
+    return ordered.find((entry) => entry.online)?.device_id
+      ?? ordered[0]?.device_id
+      ?? null;
+  }
+
+  recommendationReason(): string {
+    return this.selectionReason;
+  }
+
   onChange(handler: RosterChangeHandler): () => void {
     this.handlers.add(handler);
     return () => this.handlers.delete(handler);
   }
 
-  refresh(): Promise<void> {
+  refresh(force = false): Promise<void> {
+    if (force) {
+      this.authorizationBlocked = false;
+      this.refreshedAt = 0;
+    }
     if (this.authorizationBlocked) return Promise.resolve();
     if (Date.now() - this.refreshedAt < REFRESH_INTERVAL_MS) return Promise.resolve();
     if (!this.refreshFlight) {
@@ -116,11 +153,13 @@ class LaravelRelayRoster {
 
   private async fetchRoster(generation: number): Promise<void> {
     try {
-      const devices = await laravelApi.getRelayDevices();
+      const roster = await laravelApi.getRelayDevices();
       if (generation !== this.generation) return;
       this.refreshedAt = Date.now();
       this.refreshError = null;
-      this.entries = new Map(devices.map((device) => [device.device_id, {
+      this.recommendedDeviceId = roster.recommended_device_id;
+      this.selectionReason = roster.selection_reason;
+      this.entries = new Map(roster.devices.map((device) => [device.device_id, {
         ...device,
         online: this.isOnline(device),
       }]));

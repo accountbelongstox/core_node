@@ -73,7 +73,7 @@ export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
 export {
   deliverThroughLaravelRelay, designateLaravelRelayDevice,
   clearLaravelRelayDevice, laravelRelayDeviceId,
-  isLaravelRelayReady, isPycoreRelayError,
+  subscribeLaravelRelayDevice, isLaravelRelayReady, isPycoreRelayError,
 } from './PycoreLaravelRelayTransport';
 export type {
   PycoreRelayError,

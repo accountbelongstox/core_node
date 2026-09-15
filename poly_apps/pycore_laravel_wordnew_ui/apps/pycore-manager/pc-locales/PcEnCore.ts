@@ -55,7 +55,7 @@ relayTarget: {
     heartbeatStale: 'offline (heartbeat stale)',
     machineCount: 'Relay - machines ({{count}} online)',
     relayInfo: 'Select an https relay backend to load the owned-device roster. The registry is authoritative; Mercure only pushes changes.',
-    noMachineDesignated: 'Relay scheme selected but no machine designated - designate one above to enable forwarding.',
+    noMachineDesignated: 'Waiting for an owned Relay device. A newly started or re-enrolled mode 2 device is selected automatically.',
     offlineQueued: 'Paired machine {{device}} is offline - requests remain queued until it reconnects.',
   },
 testPopup: {

@@ -1,8 +1,6 @@
 import { RELAY_CONTRACT, type RelayOperation, type RelayOperationAdmission, type RelayPairing } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
 import { laravelRelayRoster } from '../laravel/LaravelRelayRoster';
-import { getSharedBaseURL, SHARED_BASE_URL_CHANGED_EVENT } from '../laravel/transport/BaseAPI';
-import { resolveLaravelBaseURL } from '../laravel/LaravelRequest';
 import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
@@ -47,25 +45,32 @@ const OPERATION_POLL_MAX_MS = 15_000;
 const OPERATION_RECONCILIATION_MS = 10_000;
 const pairFlights = new Map<string, Promise<RelayPairing>>();
 const operationWakeWaiters = new Map<string, Set<() => void>>();
+const selectionHandlers = new Set<(deviceId: string | null) => void>();
 let relayState: PersistedRelayState | null = null;
 let wakeWired = false;
 let sessionGeneration = 0;
-let coordinatorUrl = getSharedBaseURL();
+
+function notifySelection(deviceId: string | null): void {
+  selectionHandlers.forEach((handler) => handler(deviceId));
+}
+
+function assignSelectedDevice(state: PersistedRelayState, deviceId: string | null): void {
+  if (state.selected_device_id === deviceId) return;
+  state.selected_device_id = deviceId;
+  persistRelayState();
+  notifySelection(deviceId);
+}
 
 function resetRelayContext(): void {
   sessionGeneration += 1;
   pairFlights.clear();
   relayState = { client_instance_id: newUuid(), selected_device_id: null, pairings: {} };
   persistRelayState();
+  notifySelection(null);
   notifyAllOperationWakes();
 }
 
 subscribeAuthSession(resetRelayContext);
-if (typeof window !== 'undefined') window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, () => {
-  const nextUrl = getSharedBaseURL();
-  if (coordinatorUrl !== null && coordinatorUrl !== nextUrl) resetRelayContext();
-  coordinatorUrl = nextUrl;
-});
 
 function assertSession(generation: number): void {
   if (generation !== sessionGeneration) throw new DOMException('Aborted', 'AbortError');
@@ -215,16 +220,22 @@ export function laravelRelayDeviceId(): string | null {
   return loadRelayState().selected_device_id;
 }
 
+export function subscribeLaravelRelayDevice(
+  handler: (deviceId: string | null) => void,
+): () => void {
+  selectionHandlers.add(handler);
+  handler(laravelRelayDeviceId());
+  return () => selectionHandlers.delete(handler);
+}
+
 export function isLaravelRelayReady(): boolean {
   return isPycoreRelayMode() && laravelRelayDeviceId() !== null;
 }
 
 export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {
-  resolveLaravelBaseURL();
   const state = loadRelayState();
   const generation = sessionGeneration;
-  state.selected_device_id = deviceId;
-  persistRelayState();
+  assignSelectedDevice(state, deviceId);
   const current = state.pairings[deviceId];
   if (pairingFresh(current)) return current!;
   const inFlight = pairFlights.get(deviceId);
@@ -259,34 +270,28 @@ export async function clearLaravelRelayDevice(): Promise<void> {
     await laravelApi.revokeRelayPairing(pairing.pairing_id);
     delete state.pairings[pairing.device_id];
   }
-  state.selected_device_id = null;
-  persistRelayState();
+  assignSelectedDevice(state, null);
 }
 
 async function ensurePair(generation: number): Promise<RelayPairing> {
   const state = loadRelayState();
   let deviceId = state.selected_device_id;
-  const devices = await laravelRelayRoster.requireDevices();
+  let devices = await laravelRelayRoster.requireDevices();
+  if (devices.length === 0) {
+    await laravelRelayRoster.refresh(true);
+    devices = await laravelRelayRoster.requireDevices();
+  }
   assertSession(generation);
   const selected = devices.find((device) => device.device_id === deviceId);
   if (deviceId && !selected) {
     delete state.pairings[deviceId];
-    persistRelayState();
-    throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
+    assignSelectedDevice(state, null);
+    deviceId = null;
   }
   if (!deviceId) {
-    if (devices.length === 1) {
-      deviceId = devices[0].device_id;
-    } else {
-      const onlineDevices = devices.filter((device) => {
-        const lastSeenAt = Date.parse(device.last_seen_at || '');
-        const offlineAfterMs = RELAY_CONTRACT.durations.presence_timeout_seconds * 1000;
-        return device.online && Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt <= offlineAfterMs;
-      });
-      if (onlineDevices.length === 1) deviceId = onlineDevices[0].device_id;
-    }
+    deviceId = laravelRelayRoster.preferredDeviceId();
     if (!deviceId) {
-      throw new PycoreRelayError('not-paired', 'RELAY_DEVICE_SELECTION_REQUIRED');
+      throw new PycoreRelayError('peer-offline', 'RELAY_DEVICE_ENROLLMENT_REQUIRED', 503);
     }
   }
   return designateLaravelRelayDevice(deviceId).catch((error: any) => {
@@ -427,7 +432,6 @@ export async function deliverThroughLaravelRelay(
   init: RequestInit,
   signal?: AbortSignal,
 ): Promise<Response> {
-  resolveLaravelBaseURL();
   ensureOperationWake();
   laravelRelayRoster.start();
   try {

@@ -1,6 +1,21 @@
-import { relayEndpoint, type RelayDevice, type RelayHub, type RelayOperation, type RelayOperationAdmission, type RelayPairing } from '../../contracts/RelayContract';
-import { laravelHttp, requestLaravel, readLaravelResponse } from './LaravelRequest';
+import { RELAY_CONTRACT, relayEndpoint, type RelayDevice, type RelayHub, type RelayOperation, type RelayOperationAdmission, type RelayPairing } from '../../contracts/RelayContract';
+import { BaseAPI } from './transport/BaseAPI';
+import { createFixedLaravelModuleConfig } from './transport/ApiContract';
+import { readLaravelResponse } from './LaravelRequest';
 import { unwrapLaravelData as unwrapData } from './transport/LaravelEnvelope';
+
+type RelayMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+export interface RelayDeviceRoster {
+  devices: RelayDevice[];
+  recommended_device_id: string | null;
+  selection_reason: string;
+}
+
+const relayHttp = new BaseAPI(createFixedLaravelModuleConfig(
+  '',
+  RELAY_CONTRACT.public_urls.laravel_api_origin,
+));
 
 const ROUTES = {
   relayEnrollmentClaim: relayEndpoint('owner_enrollment_claim'),
@@ -25,7 +40,7 @@ const ROUTES = {
     relayEndpoint('owner_response_blob_download', { blobId }),
 } as const;
 
-function readRelayDeviceRoster(payload: unknown): RelayDevice[] {
+function readRelayDeviceRoster(payload: unknown): RelayDeviceRoster {
   const data = unwrapData<unknown>(payload);
   const devices = data && typeof data === 'object' && !Array.isArray(data)
     ? (data as { devices?: unknown }).devices
@@ -37,47 +52,65 @@ function readRelayDeviceRoster(payload: unknown): RelayDevice[] {
       payload,
     });
   }
-  return devices as RelayDevice[];
+  const recommendedDeviceId = (data as { recommended_device_id?: unknown }).recommended_device_id;
+  const selectionReason = (data as { selection_reason?: unknown }).selection_reason;
+  return {
+    devices: devices as RelayDevice[],
+    recommended_device_id: typeof recommendedDeviceId === 'string' && recommendedDeviceId
+      ? recommendedDeviceId
+      : null,
+    selection_reason: typeof selectionReason === 'string' ? selectionReason : '',
+  };
+}
+
+async function requestRelay<T>(method: RelayMethod, path: string, payload?: unknown): Promise<T> {
+  const hasBody = method !== 'GET' && payload !== undefined;
+  const response = await relayHttp.rawRequest(path, {
+    method,
+    headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+    body: hasBody ? JSON.stringify(payload) : undefined,
+  });
+  return readLaravelResponse<T>(response, path);
 }
 
 export const laravelRelayApi = {
   relayClaimEnrollment: async (claimCode: string): Promise<RelayDevice> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayEnrollmentClaim, { claim_code: claimCode });
+    const payload = await requestRelay<any>('POST', ROUTES.relayEnrollmentClaim, { claim_code: claimCode });
     return unwrapData<{ device: RelayDevice }>(payload).device;
   },
-  getRelayDevices: async (): Promise<RelayDevice[]> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.relayDevices);
+  getRelayDevices: async (): Promise<RelayDeviceRoster> => {
+    const payload = await requestRelay<any>('GET', ROUTES.relayDevices);
     return readRelayDeviceRoster(payload);
   },
   createRelayPairing: async (deviceId: string, clientInstanceId: string): Promise<RelayPairing> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayPairings, {
+    const payload = await requestRelay<any>('POST', ROUTES.relayPairings, {
       device_id: deviceId,
       client_instance_id: clientInstanceId,
     });
     return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
   renewRelayPairing: async (pairingId: string): Promise<RelayPairing> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayPairingRenew(pairingId));
+    const payload = await requestRelay<any>('POST', ROUTES.relayPairingRenew(pairingId));
     return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
   revokeRelayPairing: async (pairingId: string): Promise<RelayPairing> => {
-    const payload = await requestLaravel<any>('DELETE', ROUTES.relayPairingRevoke(pairingId));
+    const payload = await requestRelay<any>('DELETE', ROUTES.relayPairingRevoke(pairingId));
     return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
   admitRelayOperation: async (frame: RelayOperationAdmission): Promise<RelayOperation> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayOperations, frame);
+    const payload = await requestRelay<any>('POST', ROUTES.relayOperations, frame);
     return unwrapData<{ operation: RelayOperation }>(payload).operation;
   },
   getRelayOwnerHubAuth: async (): Promise<RelayHub> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayOwnerHubAuth, {});
+    const payload = await requestRelay<any>('POST', ROUTES.relayOwnerHubAuth, {});
     return unwrapData<{ hub: RelayHub }>(payload).hub;
   },
   getRelayOperation: async (operationId: string): Promise<RelayOperation> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.relayOperation(operationId));
+    const payload = await requestRelay<any>('GET', ROUTES.relayOperation(operationId));
     return unwrapData<{ operation: RelayOperation }>(payload).operation;
   },
   cancelRelayOperation: async (operationId: string): Promise<RelayOperation> => {
-    const payload = await requestLaravel<any>('POST', ROUTES.relayOperationCancel(operationId));
+    const payload = await requestRelay<any>('POST', ROUTES.relayOperationCancel(operationId));
     return unwrapData<{ operation: RelayOperation }>(payload).operation;
   },
   allocateRelayRequestBlob: async (
@@ -86,7 +119,7 @@ export const laravelRelayApi = {
     sha256: string,
     length: number,
   ): Promise<void> => {
-    await requestLaravel<any>('POST', ROUTES.relayRequestBlobs, {
+    await requestRelay<any>('POST', ROUTES.relayRequestBlobs, {
       blob_id: blobId,
       pairing_id: pairingId,
       direction: 'request',
@@ -99,7 +132,7 @@ export const laravelRelayApi = {
     chunkIndex: number,
     bytes: Uint8Array,
   ): Promise<void> => {
-    const response = await laravelHttp.rawRequest(ROUTES.relayRequestBlobChunk(blobId, chunkIndex), {
+    const response = await relayHttp.rawRequest(ROUTES.relayRequestBlobChunk(blobId, chunkIndex), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
@@ -108,14 +141,14 @@ export const laravelRelayApi = {
     if (!response.ok) await readLaravelResponse(response, response.url);
   },
   finalizeRelayRequestBlob: async (blobId: string, sha256: string, length: number): Promise<void> => {
-    await requestLaravel<any>('POST', ROUTES.relayRequestBlobFinalize(blobId), {
+    await requestRelay<any>('POST', ROUTES.relayRequestBlobFinalize(blobId), {
       blob_id: blobId,
       expected_sha256: sha256,
       expected_length: length,
     });
   },
   getRelayResponseBlob: async (blobId: string): Promise<Uint8Array> => {
-    const response = await laravelHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {
+    const response = await relayHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {
       method: 'GET',
       credentials: 'include',
     });

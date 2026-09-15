@@ -13,7 +13,6 @@ from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 
 RELAY_JSON_CONTENT_TYPE = "application/json"
@@ -44,7 +43,7 @@ class LaravelRelayTransport:
 
     @staticmethod
     def endpoint() -> str:
-        return str(laravel_endpoint_manager.get_active_base_url() or "").rstrip("/")
+        return relay_contract.public_url("laravel_api_origin").rstrip("/")
 
     def request_json(
         self,

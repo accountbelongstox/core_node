@@ -112,7 +112,7 @@
     "operation_status": ["operation_id", "revision", "state"],
     "pairing_changed": ["pairing_id", "revision", "state"],
     "credential_revoked": ["device_id", "credential_id", "credential_version"],
-    "device_presence": ["device_id", "online", "device"],
+    "device_presence": ["device_id", "online", "device", "recommended_device_id", "selection_reason"],
     "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"]
   },
   "claim_generation_profile": {
@@ -602,6 +602,12 @@
     {
       "match": "exact",
       "value": "ui/agent_history/article_video_media",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/queue_center/event_page",
       "profile": "general_read",
       "methods": ["POST"]
     },
