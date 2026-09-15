@@ -27,6 +27,7 @@ class LaravelProgressUploader:
         params: Dict[str, Any],
         base_url: Optional[str] = None,
         progress_callback: Optional[ProgressCallback] = None,
+        reason: str = "unspecified",
     ) -> Dict[str, Any]:
         total_bytes = len(content)
         content_sha256 = hashlib.sha256(content).hexdigest()
@@ -88,6 +89,7 @@ class LaravelProgressUploader:
                 total_bytes,
                 started_at,
                 progress_callback,
+                reason,
             )
 
         if not result.get("upload_complete"):
@@ -122,6 +124,7 @@ class LaravelProgressUploader:
         total_bytes: int,
         started_at: float,
         progress_callback: Optional[ProgressCallback],
+        reason: str,
     ) -> None:
         progress = round((offset / total_bytes) * 100.0, 2)
         elapsed_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
@@ -138,11 +141,12 @@ class LaravelProgressUploader:
             "transferred_bytes": offset,
             "total_bytes": total_bytes,
             "transfer_id": transfer_id,
+            "reason": str(reason or "unspecified"),
             "phase": "uploading" if offset < total_bytes else "received",
         }
         laravel_http_recorder.notify(record)
         ColorPrint.cyan(
-            f"[laravel upload] {path} -> {progress:.2f}% "
+            f"[laravel upload] reason={reason or 'unspecified'} {path} -> {progress:.2f}% "
             f"({offset}/{total_bytes} bytes)"
         )
         if progress_callback is not None:

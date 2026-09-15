@@ -238,6 +238,7 @@ class LaravelAudioWorkerExecutionMixin:
                         info,
                         provider,
                     ),
+                    reason=f"{self.LANE}_audio_delivery",
                 )
                 return (
                     bool(receipt.get("upload_complete")),

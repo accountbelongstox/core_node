@@ -124,7 +124,12 @@ class _DiffTaskSegmentCenter:
         return new_tasks
 
     @serialized_method
-    def pending(self, scope: str, limit: int = DATA_LIMIT) -> List[Dict[str, Any]]:
+    def pending(
+        self,
+        scope: str,
+        limit: int = DATA_LIMIT,
+        mark_delivered: bool = True,
+    ) -> List[Dict[str, Any]]:
         segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
         scope_segments = dict(segments.get(scope) or {})
         candidates: List[Dict[str, Any]] = []
@@ -140,10 +145,11 @@ class _DiffTaskSegmentCenter:
             candidates.append(item)
         candidates.sort(key=self._task_order)
         pending = candidates[:max(0, int(limit))]
-        for task in pending:
-            self._delivered.add(
-                self._delivery_key(scope, str(task.get("task_id") or ""))
-            )
+        if mark_delivered:
+            for task in pending:
+                self._delivered.add(
+                    self._delivery_key(scope, str(task.get("task_id") or ""))
+                )
         return pending
 
     @serialized_method

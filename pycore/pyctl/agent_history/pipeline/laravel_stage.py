@@ -5,6 +5,7 @@ from pycore.pyutils.laravel.article_contract import compose_worker_text_fields
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.agent_history.pipeline.config import get_config
 
 
@@ -77,6 +78,10 @@ def upload_to_laravel(
         json=payload,
         no_timeout=True,
     )
+    ColorPrint.cyan(
+        f"[AgentHistoryPipeline] upload reason=article_submit "
+        f"record={idempotency_key}"
+    )
 
     data = _parse_worker_response(resp, "upload")
     article_id = data.get("article_id")
@@ -123,6 +128,7 @@ def replace_audio_on_laravel(
         audio_bytes,
         base_url=base,
         params=payload,
+        reason="agent_history_audio_rebuild",
     )
     return {
         "article_id": data.get("article_id"),

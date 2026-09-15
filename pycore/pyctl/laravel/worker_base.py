@@ -960,7 +960,13 @@ class BaseLaravelWorkerService:
                 f"{self._log_prefix} diff sync unreachable ({exc}); "
                 "processing the local mirror"
             )
-        recovered = diff_task_segment_store.pending(scope, STAGED_TASK_LIMIT)
+        # Full-sync rows remain replayable until the local queue accepts them;
+        # the heap's task-id guard handles duplicate wakeups safely.
+        recovered = diff_task_segment_store.pending(
+            scope,
+            STAGED_TASK_LIMIT,
+            mark_delivered=False,
+        )
         if not recovered:
             ColorPrint.gray(
                 f"{self._log_prefix} full-sync mirror ready but no dispatchable "

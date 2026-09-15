@@ -501,6 +501,17 @@ class BaseLaravelAudioWorker(
             queued_task["_laravel_base_url"] = endpoint
             self._remember_task_types([queued_task], endpoint)
             queued = self._queue.push(queued_task)
+            if self.LANE == "sentence" and queued:
+                sentence_text = str(queued_task.get("text") or "")
+                if not sentence_text:
+                    payload = queued_task.get("payload")
+                    if isinstance(payload, dict):
+                        sentence_text = str(payload.get("text") or payload.get("content") or "")
+                ColorPrint.cyan(
+                    f"{self._log_prefix} Queued sentence "
+                    f"task={self._display_task_id(queued_task.get('task_id'))} "
+                    f"text={sentence_text.replace(chr(10), ' ').replace(chr(13), ' ').strip()}"
+                )
             self._start_drain()
             return {
                 "success": True,
