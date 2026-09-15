@@ -94,3 +94,44 @@
   roster fetch as empty (A7A5 finding 8). With the roster non-empty on the
   server, the remaining client-side precondition is the UI rebuild; the
   server-side precondition is the transport stability fixed above.
+
+## Implementation plan (agreed scope, then code)
+
+F1. FrankenPHP server SAPI ini: add `php_ini max_execution_time <contract>` and
+    `php_ini max_input_time <contract>` inside the global `frankenphp {}` block
+    of the Caddyfile, rendered byte-identically by all three canonical
+    renderers: `fm_caddyfile_render` (shell), `ServerManagerV1FrankenPhpCaddyfileBuilder::render`
+    (PHP), `Ensure-FrankenPhpCaddyfile` (PS1). Values come from
+    `service_contract.json php_runtime.*` (1200/1200). This follows the official
+    FrankenPHP configuration mechanism; the scan-dir ini demonstrably does not
+    reach the server SAPI for `max_execution_time` on the apt variant (live
+    `/api/config/environment` shows 30 while other keys from the same ini file
+    apply). The scan-dir ini render is kept for the CLI shim plane.
+F2. EdgeTTS zero-byte cleanup off the request path:
+    `EdgeTTSService::__construct` no longer rolls the 5% full-tree scan
+    (196k files, >30s CPU, worker-thread fatal + restart churn).
+    `cleanZeroByteFilesBackground` becomes a public, time-boxed maintenance
+    entry (max files + wall-clock budget) invoked from the existing 60s
+    `QueueCenterAudioScanTask` (audio-domain maintenance, CLI schedule process,
+    no 30s SAPI limit), preserving the original 5% probability per tick.
+F3. pyservice mode persistence (task 3):
+    - `pycore/pyutils/common/pyservice_mode.py`: persisted-mode read/write
+      helpers under `pyfoundations.app_config_path.get_app_config_dir()`
+      (`.core_node/config/pyservice_mode.json`, atomic write).
+    - `PyserviceModeService`: resolution order = explicit env
+      (`PYCORE_SERVICE_MODE`, persisted on sight) -> persisted cache -> default
+      mode 1. `configure()` (explicit argv) persists.
+    - `pycore_module_caller.py`: `--service-mode` default becomes None; only an
+      explicitly passed value reconfigures (and persists). Bare direct launch
+      reuses the cache; shell wrappers already always pass `--service-mode`
+      (default 1), so a shell launch without arguments overwrites the cache
+      with 1 as required.
+F4. NOT changed: `Cache::lock(...)->get()` in the agent-history writeback is a
+    single non-blocking acquire in Laravel 13 (verified in vendor), so the ~38s
+    writeback durations are attributed to worker-churn contention (stranded
+    300s locks, DB pressure during restart storms), not to a blocking lock
+    wait. Re-verify durations after F1/F2 converge; no speculative change.
+F5. Deployment convergence (not executed here per rules): 175 convergence
+    re-renders the Caddyfile; UI at 12gm.com is served by the dev server from
+    live source (ncore-nexus-dash, `--serve --dev`), so the A7A5/A7A6 UI fixes
+    are already in the served bundle once recompiled by that server.

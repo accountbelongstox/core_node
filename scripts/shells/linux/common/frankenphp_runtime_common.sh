@@ -600,6 +600,7 @@ fm_caddyfile_render() {
     local internal_tls_host=""
     local octane_php_server_stanza=""
     local bind_host=""
+    local php_ini_stanza=""
     local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
