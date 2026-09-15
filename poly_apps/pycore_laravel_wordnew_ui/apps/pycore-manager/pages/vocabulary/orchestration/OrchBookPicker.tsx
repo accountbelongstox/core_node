@@ -1,0 +1,100 @@
+/**
+ * Backend book picker for the audio-orchestration tab. Lists the pycore-cached
+ * Laravel book list, refreshes from the backend on demand, and syncs a book's
+ * sentence table into the local cache (required before planning/generation).
+ */
+import React, { useState } from 'react';
+import { BookOpen, Database, Loader2, RefreshCw } from 'lucide-react';
+import { pycoreApi, type OrchBookItem } from '@/apps/pycore-manager/api';
+import { VocabBanner, humanInt } from '../vocabShared';
+import { ORCH_L } from './orchShared';
+
+const OrchBookPicker: React.FC<{
+  books: OrchBookItem[];
+  cachedSentenceBooks: Set<string>;
+  selectedKey: string | null;
+  onSelect: (book: OrchBookItem) => void;
+  onRefresh: () => void;
+  loading: boolean;
+  error: string | null;
+}> = ({ books, cachedSentenceBooks, selectedKey, onSelect, onRefresh, loading, error }) => {
+  const [syncingKey, setSyncingKey] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const syncSentences = async (book: OrchBookItem) => {
+    setSyncingKey(book.source_key);
+    setSyncError(null);
+    try {
+      const r = await pycoreApi.orchBookSentences(book.source_key, true);
+      if (!r.success) setSyncError(String(r.error || 'sync failed'));
+    } catch (e) {
+      setSyncError(e instanceof Error ? e.message : 'sync failed');
+    } finally {
+      setSyncingKey(null);
+      onRefresh();
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-sky-400" />
+          <h3 className="text-sm font-semibold text-slate-200">{ORCH_L.booksTitle}</h3>
+          <span className="text-xs text-slate-500">{humanInt(books.length)}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2.5 py-1 text-xs text-slate-300 hover:border-sky-500/50 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          {ORCH_L.refresh}
+        </button>
+      </div>
+      {error && <VocabBanner kind="error" message={error} />}
+      {syncError && <VocabBanner kind="error" message={syncError} />}
+      {books.length === 0 && !loading && (
+        <p className="text-xs text-slate-500">{ORCH_L.noBooks}</p>
+      )}
+      <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
+        {books.map((book) => {
+          const cached = cachedSentenceBooks.has(book.source_key);
+          const selected = selectedKey === book.source_key;
+          return (
+            <div
+              key={book.source_key}
+              className={`flex items-center gap-3 py-2 px-1 cursor-pointer rounded ${selected ? 'bg-sky-500/10' : 'hover:bg-slate-800/40'}`}
+              onClick={() => onSelect(book)}
+            >
+              {book.image_url && (
+                <img src={book.image_url} alt="" className="w-8 h-10 rounded object-cover flex-shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm text-slate-200">{book.title || book.original_name || book.source_key}</p>
+                <p className="text-[11px] text-slate-500">
+                  {book.language || 'en'} · {humanInt(book.sentence_count)} {ORCH_L.sentences}
+                  {cached && <span className="ml-2 text-emerald-400">· {ORCH_L.sentencesCached}</span>}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); void syncSentences(book); }}
+                disabled={syncingKey !== null}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-1 text-[11px] text-slate-300 hover:border-sky-500/50 disabled:opacity-50"
+              >
+                {syncingKey === book.source_key
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Database className="w-3 h-3" />}
+                {syncingKey === book.source_key ? ORCH_L.syncing : ORCH_L.syncSentences}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+export default OrchBookPicker;

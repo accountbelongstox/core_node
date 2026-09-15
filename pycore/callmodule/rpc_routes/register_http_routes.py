@@ -9,6 +9,9 @@ from pycore.callmodule.rpc_routes.local_ai_image_routes import register_local_ai
 from pycore.callmodule.rpc_routes.local_ai_keys_routes import register_local_ai_keys_routes
 from pycore.callmodule.rpc_routes.local_ai_probe_routes import register_local_ai_probe_routes
 from pycore.callmodule.rpc_routes.local_assist_routes import register_local_assist_routes
+from pycore.callmodule.rpc_routes.local_audio_orchestration_routes import (
+    register_local_audio_orchestration_routes,
+)
 from pycore.callmodule.rpc_routes.local_books_routes import register_local_books_routes
 from pycore.callmodule.rpc_routes.local_capability_status_routes import register_local_capability_status_routes
 from pycore.callmodule.rpc_routes.local_dictionary_routes import register_local_dictionary_routes
@@ -72,6 +75,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_local_ai_keys_routes,
     register_local_ai_probe_routes,
     register_local_assist_routes,
+    register_local_audio_orchestration_routes,
     register_local_capability_status_routes,
     register_local_dictionary_routes,
     register_local_engines_load_status_routes,

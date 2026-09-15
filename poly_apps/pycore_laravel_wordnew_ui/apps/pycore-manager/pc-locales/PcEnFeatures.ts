@@ -10,6 +10,7 @@ vocabularyPage: {
       statistics: 'Statistics',
       ttsQueue: 'TTS Queue',
       learning: 'Learning Tasks',
+      audioOrch: 'Audio Orchestration',
     },
     ttsQueue: {
       byStatus: 'By status',
