@@ -98,6 +98,7 @@ class BaseLaravelWorkerService:
     # mutable state overrides both values to own a distinct state queue.
     STATE_OWNER_KEY = "laravel.worker.state"
     RESULT_HTTP_TIMEOUT = 60
+    RESULT_OFFLINE_BACKOFF_SECONDS = 30.0
     PULL_LIMIT = GLOBAL_TASK_LIMITS["worker_pull_default"]
     PULL_HTTP_TIMEOUT_SECONDS = 15
     STATE_OWNER_NAME = "LaravelWorkerState"
@@ -144,6 +145,8 @@ class BaseLaravelWorkerService:
         # CONSECUTIVE server-side (HTTP 5xx) result-POST give-ups; the circuit is
         # open while monotonic time() < _circuit_open_until.
         self._result_5xx_streak = 0
+        self._result_retry_after = 0.0
+        self._claim_retry_after = 0.0
         self._circuit_open_until = 0.0
         self._circuit_warned = False
         # Guards against dispatching the same task to two background threads while
@@ -409,6 +412,7 @@ class BaseLaravelWorkerService:
                 raise RuntimeError(
                     f"Laravel queue diff failed for {task_type}: HTTP {response.status_code}"
                 )
+            self._on_laravel_online(base_url)
             data = self._response_data(response)
             if full_sync:
                 self._sync_mirror_bootstrapped.add(task_type)
@@ -451,6 +455,9 @@ class BaseLaravelWorkerService:
             "base_url": base_url,
             "scope": scope,
         }
+
+    def _on_laravel_online(self, base_url: str) -> None:
+        """Reconnect hook for workers with a durable local delivery outbox."""
 
     def _record_queue_progress(self, task_type: str, progress: Any) -> None:
         """Store scalar metrics AND nested dictionaries (language_tiers) so
@@ -572,6 +579,8 @@ class BaseLaravelWorkerService:
         task_type = str(task.get("task_type") or "").strip()
         if not task_id or not task_type:
             return True
+        if self._claim_retry_after > time.monotonic():
+            return True
         base_url = (
             str(task.get("_laravel_base_url") or self._task_base_url(task_id)).strip()
             or self.api_url
@@ -579,6 +588,7 @@ class BaseLaravelWorkerService:
         try:
             claimed = self._validate_recovered_claim(task_type, task_id, base_url)
         except Exception as exc:  # noqa: BLE001 - offline processing must go on
+            self._claim_retry_after = time.monotonic() + 30.0
             ColorPrint.yellow(
                 f"{self._log_prefix} Claim check for task "
                 f"{self._display_task_id(task_id)} unreachable ({exc}); "
@@ -586,6 +596,7 @@ class BaseLaravelWorkerService:
             )
             return True
         if claimed:
+            self._claim_retry_after = 0.0
             return True
         diff_task_segment_store.consume(self._diff_segment_scope(base_url), task_id)
         ColorPrint.gray(

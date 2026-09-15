@@ -224,6 +224,9 @@ final class RelayEnrollmentService
                 'claimed_at' => now(),
                 'revision' => (int) $enrollment->revision + 1,
             ])->save();
+            DB::connection(RelayTablesMaps::connection())->afterCommit(
+                fn () => $this->devices->publishPresence($device->fresh())
+            );
             foreach ($revokedCredentials as $revokedCredential) {
                 $this->outbox->append(
                     'credential',

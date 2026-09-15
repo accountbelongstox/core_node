@@ -10,6 +10,9 @@ export interface RelayDeviceRoster {
   devices: RelayDevice[];
   recommended_device_id: string | null;
   selection_reason: string;
+  group_id: string | null;
+  unavailable_code: string | null;
+  unavailable_message: string | null;
 }
 
 const relayHttp = new BaseAPI(createFixedLaravelModuleConfig(
@@ -54,12 +57,16 @@ function readRelayDeviceRoster(payload: unknown): RelayDeviceRoster {
   }
   const recommendedDeviceId = (data as { recommended_device_id?: unknown }).recommended_device_id;
   const selectionReason = (data as { selection_reason?: unknown }).selection_reason;
+  const group = data as { group_id?: unknown; unavailable_code?: unknown; unavailable_message?: unknown };
   return {
     devices: devices as RelayDevice[],
     recommended_device_id: typeof recommendedDeviceId === 'string' && recommendedDeviceId
       ? recommendedDeviceId
       : null,
     selection_reason: typeof selectionReason === 'string' ? selectionReason : '',
+    group_id: typeof group.group_id === 'string' ? group.group_id : null,
+    unavailable_code: typeof group.unavailable_code === 'string' ? group.unavailable_code : null,
+    unavailable_message: typeof group.unavailable_message === 'string' ? group.unavailable_message : null,
   };
 }
 

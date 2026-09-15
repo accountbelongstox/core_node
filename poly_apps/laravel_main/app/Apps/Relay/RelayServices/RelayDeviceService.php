@@ -8,7 +8,6 @@ use App\Apps\Relay\RelayModels\RelayDeviceModel;
 use App\Apps\Relay\RelayModels\RelayPairingModel;
 use App\Apps\Relay\RelayTablesMaps\RelayTablesMaps;
 use Illuminate\Support\Facades\DB;
-use App\Utils\RuntimeSnapshotCache;
 use Illuminate\Support\Str;
 
 final class RelayDeviceService
@@ -115,6 +114,7 @@ final class RelayDeviceService
     {
         return [
             'device_id' => (string) $device->device_id,
+            'group_id' => $this->topics->owner((int) $device->owner_user_id),
             'online' => $device->last_seen_at !== null
                 && $device->last_seen_at->gt(now()->subSeconds(RelayContract::duration('presence_timeout_seconds'))),
             'label' => (string) $device->label,
@@ -128,8 +128,13 @@ final class RelayDeviceService
 
     public function roster(int $userId): array
     {
-        return RuntimeSnapshotCache::remember($this->rosterKey($userId), RelayContract::duration('heartbeat_seconds'),
-            fn (): array => $this->rosterSnapshot($userId));
+        $snapshot = $this->rosterSnapshot($userId);
+
+        return array_merge($snapshot, [
+            'group_id' => $this->topics->owner($userId),
+            'unavailable_code' => $snapshot['devices'] === [] ? 'RELAY_GROUP_EMPTY' : null,
+            'unavailable_message' => $snapshot['devices'] === [] ? __('relay.group_empty') : null,
+        ]);
     }
 
     private function rosterSnapshot(int $userId): array
@@ -169,8 +174,6 @@ final class RelayDeviceService
         $descriptor = $this->descriptor($device);
         $snapshot = $this->rosterSnapshot($userId);
 
-        RuntimeSnapshotCache::put($this->rosterKey($userId), $snapshot,
-            RelayContract::duration('heartbeat_seconds'));
         $this->outbox->append('presence', (string) Str::uuid(), 1,
             RelayContract::event('device_presence'), 'owner', $this->topics->owner($userId),
             [
@@ -198,8 +201,4 @@ final class RelayDeviceService
         }
     }
 
-    private function rosterKey(int $userId): string
-    {
-        return 'relay:roster:'.$userId;
-    }
 }

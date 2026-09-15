@@ -217,7 +217,9 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     {
         return "\troute {\n"
             . "\t\t@mercure path /.well-known/mercure*\n"
-            . "\t\treverse_proxy @mercure http://".ServiceContract::host('loopback').":{$backendPort}\n"
+            . "\t\treverse_proxy @mercure http://".ServiceContract::host('loopback').":{$backendPort} {\n"
+            . "\t\t\tstream_close_delay ".ServiceContract::string('realtime.mercure_proxy_close_delay')."\n"
+            . "\t\t}\n"
             . "\t\tphp_server {\n"
             . "\t\t\tindex frankenphp-worker.php\n"
             . "\t\t\ttry_files {path} frankenphp-worker.php\n"

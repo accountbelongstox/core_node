@@ -276,11 +276,7 @@ export async function clearLaravelRelayDevice(): Promise<void> {
 async function ensurePair(generation: number): Promise<RelayPairing> {
   const state = loadRelayState();
   let deviceId = state.selected_device_id;
-  let devices = await laravelRelayRoster.requireDevices();
-  if (devices.length === 0) {
-    await laravelRelayRoster.refresh(true);
-    devices = await laravelRelayRoster.requireDevices();
-  }
+  const devices = await laravelRelayRoster.requireDevices();
   assertSession(generation);
   const selected = devices.find((device) => device.device_id === deviceId);
   if (deviceId && !selected) {
@@ -291,7 +287,8 @@ async function ensurePair(generation: number): Promise<RelayPairing> {
   if (!deviceId) {
     deviceId = laravelRelayRoster.preferredDeviceId();
     if (!deviceId) {
-      throw new PycoreRelayError('peer-offline', 'RELAY_DEVICE_ENROLLMENT_REQUIRED', 503);
+      const unavailable = laravelRelayRoster.unavailableError();
+      throw Object.assign(new PycoreRelayError('not-paired', unavailable.message, 503), unavailable);
     }
   }
   return designateLaravelRelayDevice(deviceId).catch((error: any) => {

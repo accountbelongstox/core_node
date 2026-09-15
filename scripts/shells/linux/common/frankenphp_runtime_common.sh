@@ -598,6 +598,7 @@ fm_caddyfile_render() {
     local internal_tls_host=""
     local octane_php_server_stanza=""
     local bind_host=""
+    local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
     internal_tls_host="$(sc_require hosts.localhost)"
@@ -606,8 +607,8 @@ fm_caddyfile_render() {
     # One direct-backend hub owns the transport and native PHP publisher.
     fm_mercure_config
     mercure_stanza="$FM_MERCURE_STANZA"
-    printf -v mercure_proxy '\troute {\n\t\t@mercure path /.well-known/mercure*\n\t\treverse_proxy @mercure http://%s:%s\n\t\tphp_server {\n\t\t\tindex frankenphp-worker.php\n\t\t\ttry_files {path} frankenphp-worker.php\n\t\t\trequest_body_timeout %s\n\t\t\tresolve_root_symlink\n\t\t}\n\t}\n' \
-        "$(sc_require hosts.loopback)" "$backend_port" "$FRANKENPHP_REQUEST_BODY_TIMEOUT"
+    printf -v mercure_proxy '\troute {\n\t\t@mercure path /.well-known/mercure*\n\t\treverse_proxy @mercure http://%s:%s {\n\t\t\tstream_close_delay %s\n\t\t}\n\t\tphp_server {\n\t\t\tindex frankenphp-worker.php\n\t\t\ttry_files {path} frankenphp-worker.php\n\t\t\trequest_body_timeout %s\n\t\t\tresolve_root_symlink\n\t\t}\n\t}\n' \
+        "$(sc_require hosts.loopback)" "$backend_port" "$stream_close_delay" "$FRANKENPHP_REQUEST_BODY_TIMEOUT"
     fm_octane_php_server_stanza
     octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
 

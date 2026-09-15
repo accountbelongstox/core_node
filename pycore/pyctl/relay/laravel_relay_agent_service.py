@@ -75,6 +75,7 @@ class LaravelRelayAgentService:
         self._lease_owner = uuid.uuid4().hex
         self._subscriber_response: Any = None
         self._subscriber_connected: bool = False
+        self._group_id = ""
         relay_activity_log.info(
             "runtime.constructed",
             contract_digest=relay_contract.digest,
@@ -331,6 +332,12 @@ class LaravelRelayAgentService:
 
     def _subscriber_state(self, state: str, detail: str) -> None:
         self._subscriber_connected = state == MERCURE_STATE_ONLINE
+        relay_activity_log.info(
+            "subscriber.state.changed",
+            state=state,
+            device_id=relay_device_identity.device_id(),
+            coordinator=laravel_relay_transport.endpoint(),
+        )
         if self._subscriber_connected:
             THREAD_BUS.signal(RELAY_CONTROL_SIGNAL, {"kind": RELAY_CONTROL_WAKE})
 
@@ -472,6 +479,7 @@ class LaravelRelayAgentService:
         )
 
     def _heartbeat(self, coordinator_url: str, online: bool = True) -> None:
+        group_id = ""
         data = laravel_relay_transport.request_json(
             "POST",
             relay_contract.endpoint("device_heartbeat"),
@@ -484,6 +492,15 @@ class LaravelRelayAgentService:
             action="device.heartbeat",
             coordinator_url=coordinator_url,
         )
+        group_id = str(data.get("device", {}).get("group_id") or "")
+        if group_id and group_id != self._group_id:
+            self._group_id = group_id
+            relay_activity_log.info(
+                "device.group.bound",
+                device_id=relay_device_identity.device_id(),
+                group_id=group_id,
+                coordinator=coordinator_url,
+            )
         relay_activity_log.debug(
             "device.heartbeat.acknowledged",
             device_id=relay_device_identity.device_id(),

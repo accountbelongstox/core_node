@@ -1,7 +1,5 @@
 import { RELAY_CONTRACT, type RelayOperation } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
-import { SHARED_BASE_URL_CHANGED_EVENT } from './transport/BaseAPI';
-import { resolveLaravelBaseURL } from './LaravelRequest';
 import { appendLog } from '../../logstore/logStore';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
 import { subscribeAuthSession } from '../../auth/AuthSession';
@@ -54,11 +52,9 @@ class LaravelRelayOperationEvents {
       if (this.started) this.connect();
     };
     subscribeAuthSession(reset);
-    if (typeof window !== 'undefined') window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, reset);
   }
 
   start(): void {
-    resolveLaravelBaseURL();
     this.consumers += 1;
     if (this.started) return;
     this.started = true;

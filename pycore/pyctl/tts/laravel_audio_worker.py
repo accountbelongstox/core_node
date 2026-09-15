@@ -187,6 +187,15 @@ class BaseLaravelAudioWorker(
     # task start, and apply later diffs incrementally (new payloads via
     # page-data segments + local reorder) instead of bounded claim-pulls.
     FULL_SYNC_ENABLED = True
+    # Result/progress delivery is independent from synthesis. A dead Laravel
+    # endpoint must not hold the local audio lane for the generic 60s worker
+    # timeout; the durable audio outbox retries delivery after reconnect.
+    RESULT_HTTP_TIMEOUT = 2
+    RESULT_OFFLINE_BACKOFF_SECONDS = 30.0
+
+    def _on_laravel_online(self, base_url: str) -> None:
+        """Flush generated local audio before admitting more remote work."""
+        self._start_outbox_drain()
 
     def __init__(self, laravel_api_url: str = ""):
         """Initialize the worker (idempotent — safe to call repeatedly)."""

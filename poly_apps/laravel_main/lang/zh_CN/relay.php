@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'group_empty' => '中转服务返回的当前 Pycore 组暂无可用设备，设备列表将自动刷新。',
     'absolute_path_required' => '路径必须是 Pycore 的绝对路由。',
     'blob_directory_failed' => '无法创建中继分块目录。',
     'blob_incomplete' => '分块不完整、不存在或已过期。',

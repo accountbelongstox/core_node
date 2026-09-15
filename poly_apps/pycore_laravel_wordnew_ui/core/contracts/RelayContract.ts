@@ -5,6 +5,7 @@ export type RelayOperationState = typeof relayContract.operation_states[number];
 
 export interface RelayDevice {
   online: boolean;
+  group_id?: string;
   device_id: string;
   label: string;
   platform: string;

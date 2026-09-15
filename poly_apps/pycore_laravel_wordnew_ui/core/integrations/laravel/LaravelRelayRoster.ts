@@ -1,6 +1,5 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
-import { SHARED_BASE_URL_CHANGED_EVENT } from './transport/BaseAPI';
 import { laravelRelayOperationEvents } from './LaravelRelayOperationEvents';
 import { subscribeAuthSession } from '../../auth/AuthSession';
 
@@ -27,6 +26,10 @@ class LaravelRelayRoster {
   private authorizationBlocked = false;
   private recommendedDeviceId: string | null = null;
   private selectionReason = '';
+  private presenceChanges = new Map<string, RelayRosterEntry>();
+  private groupId: string | null = null;
+  private unavailableCode: string | null = null;
+  private unavailableMessage: string | null = null;
 
   constructor() {
     const reset = (): void => {
@@ -38,10 +41,14 @@ class LaravelRelayRoster {
       this.authorizationBlocked = false;
       this.recommendedDeviceId = null;
       this.selectionReason = '';
+      this.presenceChanges.clear();
+      this.groupId = null;
+      this.unavailableCode = null;
+      this.unavailableMessage = null;
       this.emit();
+      if (this.started) void this.refresh();
     };
     subscribeAuthSession(reset);
-    if (typeof window !== 'undefined') window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, reset);
   }
 
   start(): void {
@@ -64,10 +71,12 @@ class LaravelRelayRoster {
           selection_reason?: string;
         };
         if (!frame?.device?.device_id) return;
-        this.entries.set(frame.device.device_id, { ...frame.device, online: frame.online === true });
-        this.recommendedDeviceId = typeof frame.recommended_device_id === 'string'
-          ? frame.recommended_device_id
-          : this.recommendedDeviceId;
+        const entry = { ...frame.device, online: frame.online === true };
+        this.entries.set(entry.device_id, entry);
+        if (this.refreshFlight) this.presenceChanges.set(entry.device_id, entry);
+        if (frame.recommended_device_id === null || typeof frame.recommended_device_id === 'string') {
+          this.recommendedDeviceId = frame.recommended_device_id;
+        }
         this.selectionReason = typeof frame.selection_reason === 'string'
           ? frame.selection_reason
           : this.selectionReason;
@@ -78,7 +87,7 @@ class LaravelRelayRoster {
     laravelRelayOperationEvents.start();
     void this.refresh();
     this.refreshTimer = setInterval(() => {
-      if (!laravelRelayOperationEvents.isConnected()) void this.refresh();
+      void this.refresh();
     }, REFRESH_INTERVAL_MS);
   }
 
@@ -146,23 +155,41 @@ class LaravelRelayRoster {
   }
 
   async requireDevices(): Promise<RelayRosterEntry[]> {
+    const generation = this.generation;
     await this.refresh();
+    if (generation !== this.generation) throw new DOMException('Aborted', 'AbortError');
     if (this.refreshError) throw this.refreshError;
     return this.list();
   }
 
+  unavailableError(): Error {
+    return Object.assign(new Error(this.unavailableMessage || this.unavailableCode || 'RELAY_GROUP_EMPTY'), {
+      code: this.unavailableCode || 'RELAY_GROUP_EMPTY',
+      status: 503,
+      group_id: this.groupId,
+    });
+  }
+
   private async fetchRoster(generation: number): Promise<void> {
+    this.presenceChanges.clear();
     try {
       const roster = await laravelApi.getRelayDevices();
       if (generation !== this.generation) return;
       this.refreshedAt = Date.now();
       this.refreshError = null;
-      this.recommendedDeviceId = roster.recommended_device_id;
-      this.selectionReason = roster.selection_reason;
+      if (this.presenceChanges.size === 0) {
+        this.recommendedDeviceId = roster.recommended_device_id;
+        this.selectionReason = roster.selection_reason;
+      }
+      this.groupId = roster.group_id;
+      this.unavailableCode = roster.unavailable_code;
+      this.unavailableMessage = roster.unavailable_message;
       this.entries = new Map(roster.devices.map((device) => [device.device_id, {
         ...device,
         online: this.isOnline(device),
       }]));
+      this.presenceChanges.forEach((entry, deviceId) => this.entries.set(deviceId, entry));
+      this.presenceChanges.clear();
       this.emit();
     } catch (error) {
       if (generation !== this.generation) return;

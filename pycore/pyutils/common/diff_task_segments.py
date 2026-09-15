@@ -24,11 +24,9 @@ STORE_DEFAULTS_DIR = APP_CONFIG_DIR / "queue_center_empty_defaults"
 PAGE_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_page_limit"])
 ID_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_limit"])
 DATA_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"])
-# Staged backlog capacity per scope. Full-sync workers mirror the whole
-# pending claim order for offline processing, so the cap follows the
-# contract catalog id_limit (the same bound the backend diff reports in
-# ordered_task_ids); the UI pump stages per-page segments far below it.
-STAGED_TASK_LIMIT = max(DATA_LIMIT, ID_LIMIT)
+# Staged backlog capacity per scope. Full-sync workers must retain the complete
+# ordered claim window for offline processing; DATA_LIMIT is only the page size.
+STAGED_TASK_LIMIT = ID_LIMIT
 RETRY_AFTER_KEY = "_segment_retry_after"
 
 

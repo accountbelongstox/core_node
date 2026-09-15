@@ -36,7 +36,10 @@ from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
 
 _OUTBOX_BATCH_LIMIT = 32
 _OUTBOX_PARALLEL_LIMIT = 4
-_OUTBOX_IDLE_WAIT_SECONDS = 15.0
+# Reconnect recovery is latency-sensitive: a cached sentence should be
+# uploaded on the first reachable cycle, while this short sleep avoids a hot
+# loop when retry_at is in the future.
+_OUTBOX_IDLE_WAIT_SECONDS = 1.0
 _UPLOAD_RETRY_INITIAL_SECONDS = max(
     1.0,
     float(QUEUE_CENTER_DIFF_DELIVERY["consumer_upload_retry"]["initial_seconds"]),

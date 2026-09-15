@@ -73,6 +73,9 @@ class WorkerResultDelivery:
         """
         status = GLOBAL_TASK_STATUSES_BY_ROLE.get(status_role, status_role)
         task_display_id = worker._display_task_id(task_id)
+        retry_after = float(getattr(worker, "_result_retry_after", 0.0) or 0.0)
+        if retry_after > time.monotonic():
+            return False
         if status not in GLOBAL_TASK_WORKER_RESULT_STATUSES:
             raise ValueError(f"Unsupported Laravel worker result status: {status_role}")
         body: Dict[str, Any] = {
@@ -135,6 +138,7 @@ class WorkerResultDelivery:
                     activity_timeout=activity_contract,
                 )
                 if resp.status_code in (200, 201):
+                    worker._result_retry_after = 0.0
                     if worker.LOG_ACCEPTED_RESULTS:
                         ColorPrint.green(
                             f"{worker._log_prefix} Posted '{status}' for task "
@@ -175,9 +179,16 @@ class WorkerResultDelivery:
                     return False
                 last_note = f"HTTP {resp.status_code}"
                 last_was_5xx = 500 <= resp.status_code < 600
+                if last_was_5xx:
+                    worker._result_retry_after = time.monotonic() + float(
+                        getattr(worker, "RESULT_OFFLINE_BACKOFF_SECONDS", 30.0)
+                    )
             except Exception as e:
                 last_note = short_http_error(e)
                 last_was_5xx = False  # transport error, not a backend 5xx
+                worker._result_retry_after = time.monotonic() + float(
+                    getattr(worker, "RESULT_OFFLINE_BACKOFF_SECONDS", 30.0)
+                )
 
             if attempt < max_attempts:
                 if THREAD_BUS.is_shutdown_requested() and not terminal_result:

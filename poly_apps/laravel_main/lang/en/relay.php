@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'group_empty' => 'The coordinator returned no available devices for this Pycore group. The device list will refresh automatically.',
     'absolute_path_required' => 'Path must be an absolute Pycore route.',
     'blob_directory_failed' => 'Unable to create the relay blob directory.',
     'blob_incomplete' => 'Blob is incomplete, unknown, or expired.',
