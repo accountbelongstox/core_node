@@ -66,7 +66,21 @@ class _DiffTaskSegmentCenter:
         self._store.set_section(CURSOR_NAMESPACE, cursors)
 
     @serialized_method
-    def stage(self, scope: str, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def stage(
+        self,
+        scope: str,
+        tasks: List[Dict[str, Any]],
+        mark_delivered: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Persist newly fetched task payloads and return the new rows.
+
+        mark_delivered=True (default) records each row as already dispatched
+        in this process: callers that dispatch the returned rows immediately
+        (the bounded claim-pull path) keep pending()/has_pending() from
+        redelivering them. The full-sync mirror stages rows for a LATER
+        dispatch sweep and passes False, otherwise the mirrored backlog
+        would be born undispatchable within this process.
+        """
         cursors = self._store.get_section(CURSOR_NAMESPACE)
         pages = self._store.get_section(ID_PAGE_NAMESPACE)
         segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
@@ -81,7 +95,8 @@ class _DiffTaskSegmentCenter:
             if len(scope_segments) >= STAGED_TASK_LIMIT:
                 break
             scope_segments[task_id] = dict(task)
-            self._delivered.add(self._delivery_key(scope, task_id))
+            if mark_delivered:
+                self._delivered.add(self._delivery_key(scope, task_id))
             ids.append(task_id)
             new_tasks.append(task)
 
