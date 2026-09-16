@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CloudClipboardPanel from '../../shared/cloud-clipboard/CloudClipboardPanel';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import MediaHub from './components/views/MediaHub';
@@ -185,6 +186,8 @@ const LmDashboardContent: React.FC = () => {
 
   const renderView = () => {
     switch (activeView) {
+      case ViewType.CLOUD_CLIPBOARD:
+        return <CloudClipboardPanel />;
       case ViewType.MEDIA_BROWSER:
         return (
           <MediaHub

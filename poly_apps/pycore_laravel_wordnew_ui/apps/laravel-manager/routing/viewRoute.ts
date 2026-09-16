@@ -16,6 +16,7 @@ import { ViewType } from '../uiTypes';
 
 /** ViewType → URL slug. Values are URL-friendly kebab-case. */
 export const VIEW_TO_SLUG: Record<ViewType, string> = {
+  [ViewType.CLOUD_CLIPBOARD]: 'cloud-clipboard',
   [ViewType.DASHBOARD]: 'dashboard',
   [ViewType.MEDIA_BROWSER]: 'media',
   [ViewType.TOOLS]: 'tools',

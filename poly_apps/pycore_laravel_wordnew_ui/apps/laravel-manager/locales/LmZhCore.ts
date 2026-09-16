@@ -1,6 +1,7 @@
 /** Laravel Manager translation resource fragment. */
 export const lmZhCore = {
 nav: {
+    cloudClipboard: '云剪贴板',
       media: "资源",
       moviesBooks: "影片与书籍",
       code: "代码节点",
@@ -762,4 +763,3 @@ octane: {
       failed_tasks: "失败任务"
     }
 } as const;
-

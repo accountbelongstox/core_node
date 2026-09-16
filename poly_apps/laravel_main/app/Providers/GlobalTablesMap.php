@@ -12,6 +12,34 @@ namespace App\Providers;
 
 class GlobalTablesMap extends TableMaps
 {
+    public const CLOUD_CLIPBOARD_ROOMS = [
+        'tablename' => 'global_cloud_clipboard_rooms',
+        'fields' => [
+            'id' => 'id',
+            'namespace' => 'namespace',
+            'password_hash' => 'password_hash',
+            'topic_key' => 'topic_key',
+            'current_entry_id' => 'current_entry_id',
+            'revision' => 'revision',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ],
+    ];
+
+    public const CLOUD_CLIPBOARD_ENTRIES = [
+        'tablename' => 'global_cloud_clipboard_entries',
+        'fields' => [
+            'id' => 'id',
+            'room_id' => 'room_id',
+            'text' => 'text',
+            'files' => 'files',
+            'revision' => 'revision',
+            'editor_user_id' => 'editor_user_id',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ],
+    ];
+
     public const CONNECTION = 'main';
 
     /**
@@ -332,6 +360,8 @@ class GlobalTablesMap extends TableMaps
     public static function getAvailableTableKeys(): array
     {
         return [
+            'CLOUD_CLIPBOARD_ROOMS',
+            'CLOUD_CLIPBOARD_ENTRIES',
             'GLOBAL_USERS',
             'PERSONAL_ACCESS_TOKENS',
             'PASSWORD_RESET_TOKENS',

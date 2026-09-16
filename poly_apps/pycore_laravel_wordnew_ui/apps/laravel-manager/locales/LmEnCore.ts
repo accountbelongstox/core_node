@@ -1,6 +1,7 @@
 /** Laravel Manager translation resource fragment. */
 export const lmEnCore = {
 nav: {
+    cloudClipboard: 'Cloud Clipboard',
       media: "Resources",
       moviesBooks: "Movies & Books",
       code: "Code Node",
@@ -780,4 +781,3 @@ octane: {
       failed_tasks: "Failed Tasks"
     }
 } as const;
-

@@ -14,6 +14,7 @@ use App\Services\OctaneTaskStatusService;
 use App\Services\SystemDependencyInitializer;
 use App\Services\AI\UnifiedAIRouter;
 use App\Utils\FileSystemManager;
+use App\Utils\CloudClipboardInitializer;
 
 class InitializeApps extends Command
 {
@@ -23,6 +24,9 @@ class InitializeApps extends Command
 
     public function handle(): int
     {
+        $cloudClipboardResults = [];
+        $cloudClipboardResource = '';
+        $cloudClipboardStatus = '';
         $dependencyInitializer = new SystemDependencyInitializer($this);
 
         $this->info('Initializing system...');
@@ -69,6 +73,17 @@ class InitializeApps extends Command
             \App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleIdentityRepairService::repair();
         } catch (\Throwable $e) {
             $this->error($e->getMessage());
+            return Command::FAILURE;
+        }
+        $this->newLine();
+
+        $this->info(__('cloud_clipboard.initializing', [], 'en'));
+        $cloudClipboardResults = CloudClipboardInitializer::ensureTablesExist();
+        foreach ($cloudClipboardResults as $cloudClipboardResource => $cloudClipboardStatus) {
+            $this->line("  {$cloudClipboardResource}: {$cloudClipboardStatus}");
+        }
+        if (!$this->initializationStatusesSucceeded($cloudClipboardResults, ['created', 'updated', 'exists'])) {
+            $this->error(__('cloud_clipboard.initialization_failed', ['resource' => 'cloud-clipboard'], 'en'));
             return Command::FAILURE;
         }
         $this->newLine();
