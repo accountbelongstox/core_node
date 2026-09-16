@@ -11,7 +11,9 @@ export const ORCH_L = Object.defineProperties({}, Object.fromEntries(
 )) as OrchLabels;
 
 export const ORCH_STEP_LABELS = {
-  get words() { return ORCH_L.patternWords; },
+  get words() { return ORCH_L.wordModeAll; },
+  get words_new() { return ORCH_L.wordsOnlyNew; },
+  get words_all() { return ORCH_L.wordModeAll; },
   get sentence_en() { return ORCH_L.patternEn; },
   get sentence_zh() { return ORCH_L.patternZh; },
 } satisfies Record<OrchPatternStepType, string>;
@@ -34,4 +36,9 @@ export function formatDuration(seconds: number | undefined | null): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export function newOrchTaskName(book: { title?: string; source_key: string }): string {
+  const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').replace('Z', '');
+  return `${book.title || book.source_key}_${timestamp}_${crypto.randomUUID().slice(0, 8)}`;
 }

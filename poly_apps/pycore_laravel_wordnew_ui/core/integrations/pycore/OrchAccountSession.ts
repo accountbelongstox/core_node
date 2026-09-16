@@ -1,5 +1,5 @@
 import { StorageManager } from '../../persistence';
-import { LaravelQyAccountAPI, type QyAccountCredentials } from '../laravel/LaravelQyAccountAPI';
+import { LaravelQyAccountAPI, type QyAccountCredentials, type QyWordGroup } from '../laravel/LaravelQyAccountAPI';
 import { resolveLaravelBaseURL } from '../laravel/LaravelRequest';
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { pycoreTargetBackendUrl } from './pycoreTarget';
@@ -7,7 +7,7 @@ import { laravelRelayDeviceId } from './PycoreLaravelRelayTransport';
 import { PycoreStorageKeys } from './PycoreStorageKeys';
 import type { OrchAuthStatus } from './PycoreApiOrchestration';
 
-type StoredAccount = QyAccountCredentials & { username: string; logged_at: number };
+type StoredAccount = QyAccountCredentials & { username: string; logged_at: number; word_groups?: QyWordGroup[]; word_group_id?: string };
 type StoredAccounts = Record<string, StoredAccount | null>;
 type PendingLogout = { backend: string; device_id: string | null; user_id?: number };
 
@@ -42,7 +42,10 @@ class OrchAccountSession {
     const credentials = await new LaravelQyAccountAPI(baseURL).login(username, password);
     const accounts = StorageManager.get<StoredAccounts>(PycoreStorageKeys.QY_ACCOUNTS, {});
     if (generation !== this.generation || resolveLaravelBaseURL() !== baseURL) throw new DOMException('Aborted', 'AbortError');
-    accounts[baseURL] = { ...credentials, username: credentials.user.username || username, logged_at: Date.now() / 1000 };
+    const previous = accounts[baseURL];
+    accounts[baseURL] = { ...credentials, username: credentials.user.username || username, logged_at: Date.now() / 1000,
+      ...(previous?.user.id === credentials.user.id ? { word_groups: previous.word_groups, word_group_id: previous.word_group_id } : {}),
+    };
     StorageManager.set(PycoreStorageKeys.QY_ACCOUNTS, accounts);
     if (this.syncFlight) await this.syncFlight;
     if (generation !== this.generation) throw new DOMException('Aborted', 'AbortError');
@@ -123,11 +126,40 @@ class OrchAccountSession {
     if (status.sync_error) throw new Error(status.sync_error);
   }
 
-  generationAccount(): { expected_user_id?: number; expected_base_url?: string; use_qy_account?: boolean } {
+  async wordGroups(refresh = false): Promise<OrchAuthStatus> {
     const account = this.account();
     const baseURL = resolveLaravelBaseURL();
     const accounts = StorageManager.get<StoredAccounts>(PycoreStorageKeys.QY_ACCOUNTS, {});
-    return account ? { expected_user_id: account.user.id, expected_base_url: baseURL, use_qy_account: true }
+    if (!account) return { success: true, logged_in: false };
+    if (!refresh && account.word_groups) return this.describe(account);
+    const groups = await new LaravelQyAccountAPI(baseURL).groups(account.token);
+    if (this.account()?.token !== account.token || resolveLaravelBaseURL() !== baseURL) throw new DOMException('Aborted', 'AbortError');
+    account.word_groups = groups;
+    if (!groups.some((group) => group.gid === account.word_group_id)) {
+      account.word_group_id = groups.find((group) => group.is_default)?.gid
+        || groups.find((group) => group.is_language_default && group.language === 'en')?.gid
+        || groups.find((group) => group.is_language_default)?.gid || groups[0]?.gid;
+    }
+    accounts[baseURL] = account;
+    StorageManager.set(PycoreStorageKeys.QY_ACCOUNTS, accounts);
+    return this.describe(account);
+  }
+
+  selectWordGroup(groupId: string): OrchAuthStatus {
+    const account = this.account();
+    const accounts = StorageManager.get<StoredAccounts>(PycoreStorageKeys.QY_ACCOUNTS, {});
+    if (!account || !account.word_groups?.some((group) => group.gid === groupId)) throw new Error('QY_WORD_GROUP_NOT_FOUND');
+    account.word_group_id = groupId;
+    accounts[resolveLaravelBaseURL()] = account;
+    StorageManager.set(PycoreStorageKeys.QY_ACCOUNTS, accounts);
+    return this.describe(account);
+  }
+
+  generationAccount(): { expected_user_id?: number; expected_base_url?: string; use_qy_account?: boolean; word_group_id?: string } {
+    const account = this.account();
+    const baseURL = resolveLaravelBaseURL();
+    const accounts = StorageManager.get<StoredAccounts>(PycoreStorageKeys.QY_ACCOUNTS, {});
+    return account ? { expected_user_id: account.user.id, expected_base_url: baseURL, use_qy_account: true, word_group_id: account.word_group_id }
       : Object.prototype.hasOwnProperty.call(accounts, baseURL) ? { use_qy_account: false } : {};
   }
 
@@ -153,6 +185,8 @@ class OrchAccountSession {
       success: true, logged_in: true, username: account.username,
       user: account.user, logged_at: account.logged_at,
       machine_synced: synced,
+      word_groups: account.word_groups,
+      word_group_id: account.word_group_id,
       sync_error: synced ? undefined : this.syncError || 'QY_ACCOUNT_MACHINE_SYNC_PENDING',
     };
   }

@@ -245,9 +245,9 @@ def missing_batch(limit: int = 1000, language: str = "en"):
         return {"success": False, "error": f"proxy error: {exc}", "words": []}
 
 
-def word_audio_media(word: str, language: str = "en"):
+def word_audio_media(word: str, language: str = "en", base_url: Optional[str] = None, metadata_only: bool = False):
     """Stream a Laravel-owned word audio file through pycore."""
-    base = _laravel_base()
+    base = base_url or _laravel_base()
     clean_word = (word or "").strip()
     clean_language = (language or "en").strip() or "en"
     if not base or not clean_word:
@@ -256,7 +256,7 @@ def word_audio_media(word: str, language: str = "en"):
         lang=quote(clean_language, safe=""),
         word=quote(clean_word, safe=""),
     )
-    metadata_response = laravel_client.get(media_path, base_url=base, timeout=30)
+    metadata_response = laravel_client.get(media_path, base_url=base, params={"passive": "1"}, timeout=30)
     if metadata_response.status_code != 200:
         return {"success": False, "error": "Word media lookup failed", "status_code": metadata_response.status_code}
     metadata = metadata_response.json()
@@ -264,6 +264,8 @@ def word_audio_media(word: str, language: str = "en"):
     audio_url = data.get("audio_url") if isinstance(data, dict) else metadata.get("url") if isinstance(metadata, dict) else None
     if not isinstance(audio_url, str) or not audio_url:
         return {"success": False, "error": "Word audio unavailable"}
+    if metadata_only:
+        return {"success": True, "exists": True, "audio_url": audio_url}
     audio_response = laravel_client.get(audio_url, base_url=base, timeout=60)
     if audio_response.status_code != 200:
         return {"success": False, "error": "Word audio fetch failed", "status_code": audio_response.status_code}
@@ -277,13 +279,13 @@ def word_audio_media(word: str, language: str = "en"):
     }
 
 
-def upload_word_audio(payload: Dict[str, Any]):
+def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
     """POST /upload { md5, lang, audio_base64, provider?, accent?, cleaned_word? }
     -> proxy to laravel /word/audio/upload. The browser Puter.js generator posts
     each synthesized clip here; laravel validates + stores (fill-missing). Never
     raises - returns a graceful JSON on any error (no 500)."""
     try:
-        base = _laravel_base()
+        base = base_url or _laravel_base()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured"}
         resp = laravel_client.post(_LARAVEL_UPLOAD, base_url=base, json=payload, timeout=_BATCH_TIMEOUT)

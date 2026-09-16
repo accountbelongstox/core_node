@@ -51,6 +51,7 @@ def register_local_audio_orchestration_routes(server) -> None:
             params.get("expected_user_id"),
             params.get("expected_base_url"),
             params.get("use_qy_account"),
+            params.get("word_group_id"),
         )
 
     def task_cancel(params, request_id, context):

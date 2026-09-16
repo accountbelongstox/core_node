@@ -47,6 +47,7 @@ def resolve_sentence_words(
     target_language: Optional[str],
     max_read_count: int,
     auth_record: Optional[Dict[str, Any]] = None,
+    group_id: Optional[str] = None,
 ) -> Optional[List[Dict[str, Any]]]:
     """Query the backend word rows for one sentence with the stored qy login.
     Returns None when logged out or on any transport error (caller then falls
@@ -63,6 +64,7 @@ def resolve_sentence_words(
                 "language": language or "en",
                 "target_language": target_language or None,
                 "client_key": _CLIENT_KEY,
+                "group_id": group_id or None,
                 "max_read_count": max(0, int(max_read_count)),
             },
             headers={"Authorization": f"Bearer {token}"},
@@ -115,8 +117,8 @@ def select_words(
     apply_virtual = word_mode == "new_only"
 
     rows = (
-        resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record)
-        if use_backend
+        resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record, task.get("word_group_id"))
+        if use_backend and word_mode == "new_only"
         else None
     )
     if rows is not None:

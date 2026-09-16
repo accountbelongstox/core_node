@@ -3,7 +3,7 @@
  * on the pycore side (auth.json in the pycore user data dir) so it survives
  * restarts; this panel only renders status + credentials form.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { KeyRound, Loader2, LogOut, UserCheck } from 'lucide-react';
 import { pycoreApi, type OrchAuthStatus } from '@/apps/pycore-manager/api';
 import { VocabBanner } from '../vocabShared';
@@ -17,6 +17,30 @@ const OrchLoginPanel: React.FC<{
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupStatus, setGroupStatus] = useState<OrchAuthStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setGroupStatus(null);
+    if (!auth?.logged_in) return;
+    setGroupsLoading(true);
+    void pycoreApi.orchWordGroups(true).then((status) => {
+      if (!cancelled) setGroupStatus(status);
+    }).catch((failure) => {
+      if (!cancelled) setError(orchErrorMessage(failure, ORCH_L.groupsLoadFailed));
+    }).finally(() => { if (!cancelled) setGroupsLoading(false); });
+    return () => { cancelled = true; };
+  }, [auth?.logged_in, auth?.user?.id, auth?.logged_at]);
+
+  const selectGroup = (groupId: string) => {
+    try {
+      setGroupStatus(pycoreApi.orchSelectWordGroup(groupId));
+      onChanged();
+    } catch (failure) {
+      setError(orchErrorMessage(failure, ORCH_L.groupsLoadFailed));
+    }
+  };
 
   const submit = async () => {
     if (busy || !username.trim() || !password) return;
@@ -79,6 +103,25 @@ const OrchLoginPanel: React.FC<{
           <VocabBanner kind="warn" message={orchErrorMessage(auth.sync_error, ORCH_L.machineSyncPending)} />
           <button type="button" disabled={busy} onClick={() => void sync()}
             className="text-xs text-sky-400 disabled:opacity-50">{ORCH_L.retrySync}</button>
+        </div>
+      )}
+      {auth?.logged_in && (
+        <div className="space-y-1">
+          <label className="block text-xs text-slate-400">
+            {ORCH_L.wordGroupBaseline}
+            <select value={groupStatus?.word_group_id || auth.word_group_id || ''}
+              disabled={groupsLoading} onChange={(event) => selectGroup(event.target.value)}
+              className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200">
+              <option value="">{groupsLoading ? ORCH_L.checking : ORCH_L.noWordGroups}</option>
+              {(groupStatus?.word_groups || auth.word_groups || []).map((group) => (
+                <option key={group.gid} value={group.gid}>
+                  {group.gname}{group.is_default || group.is_language_default ? ` (${ORCH_L.defaultGroup})` : ''}
+                  {group.language ? ` · ${group.language}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-[11px] text-slate-500">{ORCH_L.wordGroupHint}</p>
         </div>
       )}
       {auth?.logged_in ? (

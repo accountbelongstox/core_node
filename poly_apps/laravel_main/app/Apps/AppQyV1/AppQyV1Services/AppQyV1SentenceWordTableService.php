@@ -26,7 +26,8 @@ class AppQyV1SentenceWordTableService
         string $clientKey,
         ?int $userId,
         int $maxReadCount = 0,
-        ?string $groupId = null
+        ?string $groupId = null,
+        bool $includeMedia = true
     ): array
     {
         $words = $this->tokenize($sentence);
@@ -43,7 +44,9 @@ class AppQyV1SentenceWordTableService
         $rows = [];
 
         foreach ($words as $word) {
-            if (!isset($mediaByWord[$word])) {
+            if (!$includeMedia) {
+                $mediaByWord[$word] = ['word' => $word];
+            } elseif (!isset($mediaByWord[$word])) {
                 $mediaByWord[$word] = $this->mediaService->resolve(
                     $word,
                     $language,

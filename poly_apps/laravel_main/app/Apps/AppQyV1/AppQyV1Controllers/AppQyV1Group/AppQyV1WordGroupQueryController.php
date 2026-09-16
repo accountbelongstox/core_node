@@ -406,6 +406,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'cover_category' => $group->cover_category ?? 'custom',
                 'language' => $group->language ?? 'en',
                 'is_language_default' => $group->is_language_default ?? false,
+                'is_default' => $group->gname === DGroupAPublic::$default_group_name,
             ];
 
             return $data;

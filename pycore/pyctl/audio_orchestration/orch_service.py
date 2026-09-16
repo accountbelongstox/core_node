@@ -30,7 +30,7 @@ _SYSTEM_STATUS_TTL_SECONDS = 300
 _SYSTEM_STATUS_MISSING_TTL_SECONDS = 5
 _SYSTEM_STATUS_SCHEMA = 1
 
-_STEP_TYPES = ("sentence_en", "sentence_zh", "words")
+_STEP_TYPES = ("sentence_en", "sentence_zh", "words_new", "words_all", "words")
 _WORD_MODES = ("new_only", "all")
 _SEGMENT_MODES = ("count", "minutes")
 _EDITABLE_FIELDS = (
@@ -170,7 +170,7 @@ def book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # tasks                                                                        #
 # --------------------------------------------------------------------------- #
-def _normalize_pattern(value: Any) -> List[Dict[str, Any]]:
+def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any]]:
     steps: List[Dict[str, Any]] = []
     if not isinstance(value, list):
         return steps
@@ -178,6 +178,8 @@ def _normalize_pattern(value: Any) -> List[Dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
         step_type = str(entry.get("type") or "")
+        if step_type == "words":
+            step_type = "words_new" if word_mode == "new_only" else "words_all"
         if step_type not in _STEP_TYPES:
             continue
         steps.append({"type": step_type, "times": max(1, min(5, int(entry.get("times") or 1)))})
@@ -232,7 +234,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
     word_mode = str(payload.get("word_mode") or "all")
     if word_mode not in _WORD_MODES:
         word_mode = "all"
-    name = str(payload.get("name") or "").strip() or f"task_{int(time.time())}"
+    name = str(payload.get("name") or "").strip()
     task = orch_store.create_task({
         "name": name,
         "book": {
@@ -243,7 +245,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
         "segment_mode": segment_mode,
         "segment_value": max(1, int(payload.get("segment_value") or 1)),
-        "pattern": _normalize_pattern(payload.get("pattern")) or list(_DEFAULT_PATTERN),
+        "pattern": _normalize_pattern(payload.get("pattern"), word_mode) or list(_DEFAULT_PATTERN),
         "word_mode": word_mode,
         "new_only_max_read_count": max(0, int(payload.get("new_only_max_read_count") or 0)),
     })
@@ -261,7 +263,7 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             continue
         value = patch[field]
         if field == "pattern":
-            value = _normalize_pattern(value)
+            value = _normalize_pattern(value, str(patch.get("word_mode") or task.get("word_mode") or "all"))
         elif field == "segment_mode" and value not in _SEGMENT_MODES:
             continue
         elif field == "word_mode" and value not in _WORD_MODES:
@@ -274,7 +276,6 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             value = max(0 if field == "new_only_max_read_count" else 1, value)
         elif field == "name":
             value = str(value or "").strip() or task.get("name")
-            task["slug"] = orch_store.slugify(str(value))
         elif field == "book":
             if not isinstance(value, dict) or not str(value.get("source_key") or "").strip():
                 continue
@@ -316,8 +317,9 @@ def task_generate(
     expected_user_id: Optional[int] = None,
     expected_base_url: Optional[str] = None,
     use_qy_account: Optional[bool] = None,
+    word_group_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    return orch_generate.start_generation(str(task_id or ""), expected_user_id, expected_base_url, use_qy_account)
+    return orch_generate.start_generation(str(task_id or ""), expected_user_id, expected_base_url, use_qy_account, word_group_id)
 
 
 def task_cancel(task_id: str) -> Dict[str, Any]:

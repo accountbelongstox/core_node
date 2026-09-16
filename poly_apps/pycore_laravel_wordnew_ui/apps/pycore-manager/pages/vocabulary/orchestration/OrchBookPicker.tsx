@@ -4,7 +4,7 @@
  * sentence table into the local cache (required before planning/generation).
  */
 import React, { useState } from 'react';
-import { BookOpen, Database, Loader2, RefreshCw } from 'lucide-react';
+import { BookOpen, Database, Loader2, Plus, RefreshCw } from 'lucide-react';
 import { pycoreApi, type OrchBookItem } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabShared';
 import { ORCH_L, orchErrorMessage } from './orchShared';
@@ -15,11 +15,12 @@ const OrchBookPicker: React.FC<{
   pendingSyncs: Set<string>;
   selectedKey: string | null;
   onSelect: (book: OrchBookItem) => void;
+  onNewTask: (book: OrchBookItem) => void;
   onRefresh: () => void;
   onSyncStarted: (sourceKey: string) => void;
   loading: boolean;
   error: string | null;
-}> = ({ books, cachedSentenceBooks, pendingSyncs, selectedKey, onSelect, onRefresh, onSyncStarted, loading, error }) => {
+}> = ({ books, cachedSentenceBooks, pendingSyncs, selectedKey, onSelect, onNewTask, onRefresh, onSyncStarted, loading, error }) => {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const syncSentences = async (book: OrchBookItem) => {
@@ -82,6 +83,10 @@ const OrchBookPicker: React.FC<{
                   {cached && <span className="ml-2 text-emerald-400">· {ORCH_L.sentencesCached}</span>}
                 </p>
               </div>
+              <button type="button" onClick={(event) => { event.stopPropagation(); onNewTask(book); }}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-500">
+                <Plus className="w-3 h-3" /> {ORCH_L.newTask}
+              </button>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); void syncSentences(book); }}

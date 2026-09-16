@@ -256,6 +256,13 @@ def status(params: Any, _request_id: str) -> Dict[str, Any]:
     }
 
 def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
+    result = status_snapshot_cache.get_background(
+        "agent_history.runtime", _build_runtime, ttl_seconds=3.0,
+    )
+    return {**(result["snapshot"] or {"success": True, "data": {}}), "refreshing": result["refreshing"]}
+
+
+def _build_runtime() -> Dict[str, Any]:
     """One combined UI bootstrap exchange for config, load, and operation state."""
     config = get_config()
     operation = operation_service.get_snapshot(

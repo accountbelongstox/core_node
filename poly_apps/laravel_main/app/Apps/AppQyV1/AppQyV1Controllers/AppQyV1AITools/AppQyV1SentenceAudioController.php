@@ -117,6 +117,7 @@ class AppQyV1SentenceAudioController extends Controller
 
         $validator = Validator::make($request->all(), [
             'content_id' => 'nullable|string|max:64',
+            'text' => 'nullable|string|max:16000',
             'hash' => 'nullable|string|max:64',
             'sentence_id' => 'nullable|string|max:64',
             'language' => 'required|string|max:20',
@@ -216,7 +217,8 @@ class AppQyV1SentenceAudioController extends Controller
                 $request->input('provider'),
                 $request->input('error'),
                 $request->input('variant_key'),
-                $variantMeta ?: null
+                $variantMeta ?: null,
+                $request->input('text')
             );
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] report failed', [

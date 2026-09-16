@@ -7,6 +7,7 @@
  */
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { orchAccountSession } from './OrchAccountSession';
+import type { QyWordGroup } from '../laravel/LaravelQyAccountAPI';
 
 export interface OrchBookItem {
   id?: number;
@@ -69,9 +70,11 @@ export interface OrchAuthStatus {
   logged_at?: number;
   machine_synced?: boolean;
   sync_error?: string;
+  word_groups?: QyWordGroup[];
+  word_group_id?: string;
 }
 
-export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words';
+export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words_new' | 'words_all' | 'words';
 export interface OrchPatternStep { type: OrchPatternStepType; times: number }
 
 export interface OrchTaskPayload {
@@ -154,6 +157,8 @@ export const pycoreApiOrchestration = {
   orchAuthLogout: () =>
     orchAccountSession.logout(),
   orchAuthSync: (force = false) => orchAccountSession.sync(force),
+  orchWordGroups: (refresh = false) => orchAccountSession.wordGroups(refresh),
+  orchSelectWordGroup: (groupId: string) => orchAccountSession.selectWordGroup(groupId),
 
   // --- Laravel books (cached on the pycore side) ---------------------------- #
   orchBooksList: (refresh = false) =>
