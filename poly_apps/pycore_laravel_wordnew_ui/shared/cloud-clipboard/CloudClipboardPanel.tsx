@@ -5,6 +5,8 @@ import { Cloud, Link, LockKeyhole, Plus, Upload, Pencil, Trash2, RotateCcw } fro
 import { CLOUD_CLIPBOARD, type CloudClipboardEntry, type CloudClipboardAction } from '../../core/contracts/CloudClipboardContract';
 import { CloudClipboardModel } from './CloudClipboardModel';
 import CloudClipboardAttachment from './CloudClipboardAttachment';
+import CloudClipboardCopyButton from './CloudClipboardCopyButton';
+import { copyTextToSystemClipboard } from '../../core/browser/SystemClipboard';
 import './CloudClipboardLocales';
 
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-500/10 disabled:opacity-40';
@@ -72,12 +74,8 @@ export default function CloudClipboardPanel() {
   };
 
   const copyLink = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setNotice('copied');
-    } catch {
-      setNotice('requestFailed');
-    }
+    const copied = await copyTextToSystemClipboard(window.location.href);
+    setNotice(copied ? 'copied' : 'copyFailed');
   };
 
   const action = async (name: CloudClipboardAction, entry: CloudClipboardEntry, extra: Record<string, unknown> = {}): Promise<boolean> => {
@@ -139,6 +137,7 @@ export default function CloudClipboardPanel() {
       <div className={cardClass} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); }}>
         <div className="flex items-center gap-2 flex-wrap"><h2 className="text-lg font-semibold mr-auto">{t('current')}</h2>
           <span className="text-xs text-slate-500" aria-live="polite">{t(state.busy ? 'saving' : state.dirty ? 'pending' : 'saved')}</span>
+          <CloudClipboardCopyButton text={state.draft} />
           <button type="button" className={buttonClass} disabled={controlsDisabled} onClick={() => void action('new', current)}><Plus size={16} />{t('new')}</button>
           <button type="button" className={buttonClass} disabled={controlsDisabled} onClick={() => void action('delete', current)}><Trash2 size={16} />{t('delete')}</button>
         </div>
@@ -153,7 +152,9 @@ export default function CloudClipboardPanel() {
           <span className="text-xs text-slate-500">{t('uploadLimit', { count: CLOUD_CLIPBOARD.max_files_per_upload, mb: CLOUD_CLIPBOARD.max_file_kb / 1024 })}</span>
         </div>
         {state.conflict && <div className="space-y-3 rounded-xl bg-amber-500/10 p-3">
-          <h3 className="text-sm font-semibold">{t('cloudVersion')}</h3><pre className="whitespace-pre-wrap break-words text-sm max-h-52 overflow-auto">{current.text}</pre>
+          <div className="flex gap-2 items-center flex-wrap"><h3 className="text-sm font-semibold mr-auto">{t('cloudVersion')}</h3>
+            <CloudClipboardCopyButton text={current.text} /></div>
+          <pre className="whitespace-pre-wrap break-words text-sm max-h-52 overflow-auto">{current.text}</pre>
           <div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={state.busy} onClick={() => void model.preserveDraft()}>{t('preserveDraft')}</button>
             <button type="button" className={buttonClass} disabled={state.busy} onClick={() => model.discardDraft()}>{t('discardDraft')}</button></div>
         </div>}
@@ -173,6 +174,7 @@ export default function CloudClipboardPanel() {
           <textarea className={`${inputClass} w-full min-h-32`} value={historyText} aria-label={t('history', { count: snapshot.history_total })}
             maxLength={CLOUD_CLIPBOARD.max_text_length} onChange={(event) => setHistoryText(event.target.value)} />
           <div className="flex gap-2 flex-wrap">
+            <CloudClipboardCopyButton text={historyText} />
             <button type="button" className={buttonClass} disabled={controlsDisabled} onClick={async () => {
               if (await action('text', editing, { text: historyText })) setEditing(null);
             }}>{t('save')}</button>
@@ -188,6 +190,7 @@ export default function CloudClipboardPanel() {
         {!snapshot.history.length && <p className="text-sm text-slate-500">{t('emptyHistory')}</p>}
         {snapshot.history.map((entry) => <article key={entry.id} className={cardClass}>
           <div className="flex items-center gap-2 flex-wrap"><time className="text-xs text-slate-500 mr-auto">{new Date(entry.updated_at).toLocaleString()}</time>
+            <CloudClipboardCopyButton text={entry.text} />
             <button type="button" className={buttonClass} disabled={controlsDisabled} onClick={() => { setEditing(entry); setHistoryText(entry.text); }}><Pencil size={14} />{t('edit')}</button>
             <button type="button" className={buttonClass} disabled={controlsDisabled} onClick={() => void action('restore', entry)}><RotateCcw size={14} />{t('restore')}</button>
             <button type="button" className={buttonClass} disabled={controlsDisabled} onClick={() => void action('delete', entry)}><Trash2 size={14} />{t('delete')}</button>

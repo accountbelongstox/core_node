@@ -1,11 +1,17 @@
-import { CLOUD_CLIPBOARD, type CloudClipboardAction, type CloudClipboardSnapshot } from '../../contracts/CloudClipboardContract';
+import { CLOUD_CLIPBOARD, type CloudClipboardAction, type CloudClipboardSnapshot, type CloudClipboardEntry } from '../../contracts/CloudClipboardContract';
 import { BaseAPI } from './transport/BaseAPI';
 import { createLaravelModuleConfig } from './transport/ApiContract';
 import { readLaravelResponse, resolveLaravelBaseURL, withQuery } from './LaravelRequest';
 import type { LaravelMercureAuthorization } from './LaravelMercureConnection';
 
 interface Envelope<T> { success: boolean; data: T }
-export interface ClipboardMutation { changed: boolean; revision: number }
+export interface ClipboardMutation {
+  changed: boolean;
+  revision: number;
+  entry?: CloudClipboardEntry | null;
+  removed_entry_id?: string | null;
+  current_entry_id?: string;
+}
 
 const http = new BaseAPI({ ...createLaravelModuleConfig(''), timeout: 60000, retry: { count: 0, delay: 0 } });
 
@@ -32,8 +38,8 @@ export class LaravelCloudClipboardAPI {
     return envelope.data;
   }
 
-  snapshot(page: number, revision?: number): Promise<CloudClipboardSnapshot | { unchanged: true; revision: number }> {
-    return this.json(withQuery('data', { page, since_revision: revision }));
+  snapshot(page: number, revision?: number, entryIds: string[] = []): Promise<CloudClipboardSnapshot | { unchanged: true; revision: number }> {
+    return this.json(withQuery('data', { page, since_revision: revision, list_mode: 1, entry_ids: entryIds }));
   }
 
   generate(): Promise<{ namespace: string }> {

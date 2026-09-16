@@ -1,6 +1,10 @@
 import i18n from '../../core/i18n/UiI18n';
 
 const en = {
+  copyContent: 'Copy to system clipboard', copyImage: 'Copy image', copying: 'Copying…', contentCopied: 'Copied to system clipboard',
+  copyFailed: 'Copy failed. Allow clipboard access or select the content and copy it manually.',
+  imageCopyUnsupported: 'This browser cannot copy images here. Use an HTTPS browser with image clipboard support, or download the image.',
+  initializationRequired: 'Cloud clipboard is not initialized on this server. The server start.sh runs sys:init to create its tables and storage. Your draft is kept.',
   title: 'Cloud Clipboard',
   description: 'Anything typed here is saved automatically and synced to every browser in this namespace. History stays until you delete it.',
   namespace: 'Namespace', public: 'Public clipboard', open: 'Open', generate: 'Generate 5 letters',
@@ -24,6 +28,10 @@ const en = {
   uploadLimit: 'Up to {{count}} files per upload, {{mb}} MB each.', unsaved: 'Your clipboard draft has not been saved.',
 };
 const zh: typeof en = {
+  copyContent: '一键复制到系统', copyImage: '复制图片', copying: '复制中…', contentCopied: '已复制到系统剪贴板',
+  copyFailed: '复制失败，请允许剪贴板访问，或选中内容手动复制。',
+  imageCopyUnsupported: '当前浏览器无法复制图片，请使用支持图片剪贴板的 HTTPS 浏览器，或下载图片。',
+  initializationRequired: '服务器云剪贴板尚未初始化，服务器 start.sh 会调用 sys:init 创建数据库表和存储。你的草稿已保留。',
   title: '云剪贴板', description: '输入内容自动保存到云端，同一命名空间的所有浏览器同步更新。历史记录保留，直到手动删除。',
   namespace: '命名空间', public: '公共剪贴板', open: '打开', generate: '生成 5 位字母',
   namespaceHint: '留空进入公共剪贴板；命名剪贴板的 URL 会包含命名空间。', copyLink: '复制链接', copied: '链接已复制',

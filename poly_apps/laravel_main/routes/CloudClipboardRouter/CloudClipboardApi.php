@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\CloudClipboardCtl;
+use App\Http\Middleware\CloudClipboardReady;
 use App\Support\CloudClipboardContract;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
+    ->middleware(CloudClipboardReady::class)
     ->prefix(ltrim(str_replace('/api/', '', CloudClipboardContract::get('api_prefix')), '/'))
     ->group(function () {
         Route::get('data', [CloudClipboardCtl::class, 'data']);

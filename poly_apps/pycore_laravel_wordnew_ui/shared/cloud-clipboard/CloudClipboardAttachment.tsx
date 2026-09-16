@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Download, Trash2 } from 'lucide-react';
 import type { CloudClipboardFile } from '../../core/contracts/CloudClipboardContract';
 import type { CloudClipboardModel } from './CloudClipboardModel';
+import { SYSTEM_CLIPBOARD_IMAGE_MIMES } from '../../core/browser/SystemClipboard';
+import CloudClipboardCopyButton from './CloudClipboardCopyButton';
 
 interface Props {
   model: CloudClipboardModel;
@@ -12,7 +14,6 @@ interface Props {
   disabled: boolean;
 }
 
-const PREVIEW_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp']);
 const buttonClass = 'inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1 text-sm disabled:opacity-40';
 
 export default function CloudClipboardAttachment({ model, entryId, file, onRemove, disabled }: Props) {
@@ -20,7 +21,7 @@ export default function CloudClipboardAttachment({ model, entryId, file, onRemov
   const [url, setUrl] = useState('');
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const preview = PREVIEW_MIMES.has(file.mime_type);
+  const preview = SYSTEM_CLIPBOARD_IMAGE_MIMES.has(file.mime_type);
 
   useEffect(() => {
     let active = true;
@@ -61,6 +62,10 @@ export default function CloudClipboardAttachment({ model, entryId, file, onRemov
       : <span className="text-xs text-slate-500">{t(error ? 'fileFailed' : 'fileLoading')}</span>)}
     <p className="text-sm break-all">{file.original_name} <span className="text-slate-500">({Math.ceil(file.size / 1024)} KB)</span></p>
     <div className="flex gap-2 flex-wrap">
+      {preview && <CloudClipboardCopyButton className={buttonClass} loadImage={async () => {
+        const blob = await model.api.file(entryId, file.id);
+        return new Blob([blob], { type: file.mime_type });
+      }} />}
       <button type="button" className={buttonClass} onClick={() => void download()}><Download size={14} />{t('download')}</button>
       <button type="button" className={buttonClass} disabled={disabled} onClick={onRemove}><Trash2 size={14} />{t('removeFile')}</button>
       {error && <button type="button" className={buttonClass} onClick={() => setAttempt((value) => value + 1)}>{t('retry')}</button>}

@@ -17,6 +17,22 @@ use Illuminate\Support\Str;
 
 final class CloudClipboardService
 {
+    public function missingTables(): array
+    {
+        $schema = $this->db()->getSchemaBuilder();
+        $missing = [];
+        $tableName = '';
+
+        foreach (CloudClipboardInitializer::TABLE_KEYS as $key) {
+            $tableName = GlobalTablesMap::getTableName($key);
+            if (!$schema->hasTable($tableName)) {
+                $missing[] = $tableName;
+            }
+        }
+
+        return $missing;
+    }
+
     private function db(): ConnectionInterface
     {
         return DB::connection(GlobalTablesMap::getConnection());
@@ -45,7 +61,7 @@ final class CloudClipboardService
     private function emptyEntry(string $roomId, ?string $entryId = null): array
     {
         return [
-            'id' => $entryId ?? (string) Str::uuid(), 'room_id' => $roomId,
+            'id' => $entryId ?? (string) Str::uuid7(), 'room_id' => $roomId,
             'text' => '', 'files' => '[]', 'revision' => 0, 'editor_user_id' => null,
             'created_at' => now(), 'updated_at' => now(),
         ];
@@ -135,16 +151,24 @@ final class CloudClipboardService
             $history = $this->entries()->where('room_id', $room->id)->where('id', '!=', $room->current_entry_id);
             $count = (clone $history)->count();
             $current = $this->entries()->where('id', $room->current_entry_id)->first();
+            $historyEntries = collect();
 
             if ($request->has('since_revision') && (int) $request->input('since_revision') === (int) $room->revision) {
                 return ['unchanged' => true, 'revision' => (int) $room->revision];
+            }
+            $historyEntries = $history->orderByDesc('created_at')->orderByDesc('id');
+            $historyEntries = $request->boolean('list_mode')
+                ? $historyEntries->limit($page * Contract::get('history_page_size'))->get()
+                : $historyEntries->forPage($page, Contract::get('history_page_size'))->get();
+            if ($request->boolean('list_mode') && $request->filled('entry_ids')) {
+                $historyEntries = $historyEntries->concat($this->entries()->where('room_id', $room->id)
+                    ->where('id', '!=', $room->current_entry_id)->whereIn('id', $request->input('entry_ids'))->get())->unique('id');
             }
 
             return [
                 'namespace' => $room->namespace, 'revision' => (int) $room->revision,
                 'protected' => $room->password_hash !== null, 'current' => $this->present($current),
-                'history' => $history->orderByDesc('created_at')->orderByDesc('id')
-                    ->forPage($page, Contract::get('history_page_size'))->get()->map(fn ($entry) => $this->present($entry))->all(),
+                'history' => $historyEntries->map(fn ($entry) => $this->present($entry))->values()->all(),
                 'history_total' => $count, 'page' => $page, 'page_size' => Contract::get('history_page_size'),
                 'hub_url' => RelayHubJwt::hubUrl(), 'topics' => [$this->topic($room)],
             ];
@@ -191,10 +215,15 @@ final class CloudClipboardService
             $id = '';
             $path = '';
             $removedFiles = [];
+            $resultEntry = null;
+            $mergeText = $action === 'text' && $request->has('base_text');
 
+            if ($entry === null && $action === 'new') {
+                $entry = $this->entries()->where('id', $room->current_entry_id)->first();
+            }
             abort_if($entry === null, 404, __('cloud_clipboard.entry_missing'));
-            abort_unless($request->has('expected_revision')
-                && (int) $request->input('expected_revision') === (int) $entry->revision,
+            abort_unless($action === 'new' || $mergeText || ($request->has('expected_revision')
+                && (int) $request->input('expected_revision') === (int) $entry->revision),
                 409, __('cloud_clipboard.conflict'));
             if ($action === 'password') {
                 abort_unless($request->has('expected_room_revision')
@@ -206,9 +235,10 @@ final class CloudClipboardService
                     'topic_key' => (string) Str::uuid(),
                 ]);
             } elseif ($action === 'new' || $action === 'restore') {
-                abort_unless((string) $request->input('expected_current_entry_id') === $room->current_entry_id,
+                abort_unless($action === 'new' || (string) $request->input('expected_current_entry_id') === $room->current_entry_id,
                     409, __('cloud_clipboard.conflict'));
                 $newEntry = $this->emptyEntry($room->id);
+                if ($action === 'new') $newEntry['text'] = (string) $request->input('text', '');
                 if ($action === 'restore') {
                     $newEntry['text'] = $entry->text;
                     $newEntry['files'] = $entry->files;
@@ -237,8 +267,15 @@ final class CloudClipboardService
                 $files = json_decode($entry->files, true, 512, JSON_THROW_ON_ERROR);
                 if ($action === 'text') {
                     $changes['text'] = (string) $request->input('text', '');
+                    if ($mergeText) {
+                        $changes['text'] = CloudClipboardTextMerge::merge((string) $request->input('base_text', ''),
+                            $changes['text'], $entry->text);
+                    }
+                    abort_if(mb_strlen($changes['text']) > Contract::get('max_text_length'),
+                        422, __('cloud_clipboard.text_too_large'));
                     if ($changes['text'] === $entry->text) {
-                        return ['changed' => false, 'revision' => (int) $room->revision];
+                        return ['changed' => false, 'revision' => (int) $room->revision,
+                            'entry' => $this->present($entry), 'current_entry_id' => $room->current_entry_id];
                     }
                 } elseif ($action === 'upload') {
                     foreach ($request->file('files', []) as $file) {
@@ -258,7 +295,7 @@ final class CloudClipboardService
                     $changes['files'] = json_encode(array_values(array_filter($files,
                         fn ($file) => $file['id'] !== $fileId)), JSON_THROW_ON_ERROR);
                 }
-                $this->archive($entry);
+                if (!$request->boolean('inline')) $this->archive($entry);
                 $changes['revision'] = (int) $entry->revision + 1;
                 $changes['updated_at'] = now();
                 $changes['editor_user_id'] = AuthHelper::requireAuth($request)?->getKey();
@@ -266,8 +303,13 @@ final class CloudClipboardService
             }
             $this->rooms()->where('id', $room->id)->update(['revision' => $revision, 'updated_at' => now()]);
             $room = $this->rooms()->where('id', $room->id)->first();
+            $resultEntry = $this->entries()->where('id', $newEntry['id'] ?? $entry->id)->first();
 
-            return ['changed' => true, 'revision' => $revision, 'topics' => array_unique([$oldTopic, $this->topic($room)])];
+            return ['changed' => true, 'revision' => $revision,
+                'entry' => $resultEntry ? $this->present($resultEntry) : null,
+                'removed_entry_id' => $action === 'delete' ? $entry->id : null,
+                'current_entry_id' => $room->current_entry_id,
+                'topics' => array_unique([$oldTopic, $this->topic($room)])];
         });
 
         if ($result['changed']) {

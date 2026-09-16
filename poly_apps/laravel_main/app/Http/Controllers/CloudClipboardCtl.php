@@ -17,7 +17,11 @@ final class CloudClipboardCtl extends Controller
 
     public function data(Request $request)
     {
-        $request->validate(['page' => 'sometimes|integer|min:1', 'since_revision' => 'sometimes|integer|min:0']);
+        $request->validate([
+            'page' => 'sometimes|integer|min:1', 'since_revision' => 'sometimes|integer|min:0',
+            'list_mode' => 'sometimes|boolean', 'entry_ids' => 'sometimes|array|max:100',
+            'entry_ids.*' => 'uuid',
+        ]);
 
         return $this->success($this->clipboard->snapshot($request), __('cloud_clipboard.success'))
             ->header('Cache-Control', 'no-store, private');
@@ -41,6 +45,8 @@ final class CloudClipboardCtl extends Controller
             'expected_revision' => 'required|integer|min:0',
             'entry_id' => 'required|uuid',
             'text' => 'present|nullable|string|max:'.Contract::get('max_text_length'),
+            'base_text' => 'sometimes|nullable|string|max:'.Contract::get('max_text_length'),
+            'inline' => 'sometimes|boolean',
             'new_password' => 'present|nullable|string|max:255',
             'expected_room_revision' => 'required|integer|min:0',
             'expected_current_entry_id' => 'required|uuid',
@@ -48,12 +54,13 @@ final class CloudClipboardCtl extends Controller
             'files' => 'required|array|min:1|max:'.Contract::get('max_files_per_upload'),
             'files.*' => 'required|file|max:'.Contract::get('max_file_kb'),
         ];
-        $keys = ['expected_revision', 'entry_id'];
+        $keys = ['expected_revision', 'entry_id', 'inline'];
 
         if (is_array($original)) {
-            $request->merge(array_intersect_key($original, array_flip(['text', 'new_password'])));
+            $request->merge(array_intersect_key($original, array_flip(['text', 'base_text', 'new_password'])));
         }
-        if ($action === 'text') $keys[] = 'text';
+        if ($action === 'text') $keys = array_merge($keys, ['text', 'base_text']);
+        if ($action === 'new' && $request->has('text')) $keys[] = 'text';
         if ($action === 'password') $keys = array_merge($keys, ['new_password', 'expected_room_revision']);
         if ($action === 'new' || $action === 'restore') $keys[] = 'expected_current_entry_id';
         if ($action === 'delete-file') $keys[] = 'file_id';
