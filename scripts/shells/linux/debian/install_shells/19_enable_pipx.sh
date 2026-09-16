@@ -60,8 +60,8 @@ ensure_pip3_installed() {
     # Check if python3 is available
     if ! command_exists python3; then
         echo "Installing python3..."
-        $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
-        $USE_SUDO apt install -y python3 2>/dev/null || {
+        $USE_SUDO apt update --allow-unauthenticated || true
+        $USE_SUDO apt install -y python3 || {
             echo "Warning: Failed to install python3 via apt"
             echo "Please install python3 manually or check your system"
             return 1
@@ -76,13 +76,13 @@ ensure_pip3_installed() {
     # Try to install python3-pip
     if ! command_exists pip3; then
         echo "Installing python3-pip..."
-        if $USE_SUDO apt install -y python3-pip 2>/dev/null; then
+        if $USE_SUDO apt install -y python3-pip; then
             echo "python3-pip installed successfully"
         else
             echo "Warning: Failed to install python3-pip via apt"
             # Try alternative method
             echo "Trying alternative pip installation method..."
-            if python3 -m ensurepip --upgrade 2>/dev/null; then
+            if python3 -m ensurepip --upgrade; then
                 echo "pip installed via ensurepip"
             else
                 echo "Warning: ensurepip also failed"
@@ -92,7 +92,7 @@ ensure_pip3_installed() {
     
     # Try to install python3-venv
     echo "Installing python3-venv..."
-    if $USE_SUDO apt install -y python3-venv 2>/dev/null; then
+    if $USE_SUDO apt install -y python3-venv; then
         echo "python3-venv installed successfully"
     else
         echo "Warning: Failed to install python3-venv, but continuing..."
@@ -100,7 +100,7 @@ ensure_pip3_installed() {
     
     # Try to install python3-dev
     echo "Installing python3-dev..."
-    if $USE_SUDO apt install -y python3-dev 2>/dev/null; then
+    if $USE_SUDO apt install -y python3-dev; then
         echo "python3-dev installed successfully"
     else
         echo "Warning: Failed to install python3-dev, but continuing..."
@@ -121,9 +121,15 @@ ensure_pip3_installed() {
 install_pipx_in_uv_venv() {
     echo "Installing pipx in uv virtual environment..."
 
-    # Check if uv is available
+    # Check if uv is available; when missing (e.g. numeric order ran this before
+    # 25_install_uv.sh), ensure it inline -- 25 is idempotent, so this is a no-op
+    # when uv is already installed.
     if ! command_exists uv; then
-        echo "Error: uv not found. Please install uv first (script 25_install_uv.sh)"
+        echo "uv not found; ensuring it via 25_install_uv.sh first..."
+        bash "$SCRIPT_CURRENT_DIR/25_install_uv.sh" || true
+    fi
+    if ! command_exists uv; then
+        echo "Error: uv still not found after running 25_install_uv.sh"
         return 1
     fi
 

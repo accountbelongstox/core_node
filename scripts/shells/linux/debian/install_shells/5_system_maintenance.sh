@@ -67,8 +67,8 @@ configure_mirrors() {
     echo "[$SCRIPT_INDEX]   SET_MIRROR: $SET_MIRROR"
 
     if [ "$SET_MIRROR" = true ]; then
-        echo "[$SCRIPT_INDEX]   Region is China; ensuring https transport prerequisites..."
-        $USE_SUDO apt-get install -y apt-transport-https ca-certificates >/dev/null 2>&1 || true
+        echo "[$SCRIPT_INDEX]   Region is China; ensuring https transport prerequisites (real-time output)..."
+        $USE_SUDO apt-get install -y apt-transport-https ca-certificates || true
 
         # IMPORTANT (per project APT-repo policy): never delete the distro's own
         # sources (/etc/apt/sources.list.d/debian*.sources etc.). A China mirror,
@@ -76,9 +76,9 @@ configure_mirrors() {
         # remove distro-shipped sources -- otherwise the system is left with no
         # working repositories. Mirror switching is not yet implemented.
         echo "[$SCRIPT_INDEX]   China mirror configuration not yet implemented; leaving system sources untouched."
-        echo "[$SCRIPT_INDEX]   Refreshing package lists..."
-        $USE_SUDO apt clean >/dev/null 2>&1 || true
-        $USE_SUDO apt update >/dev/null 2>&1 || true
+        echo "[$SCRIPT_INDEX]   Refreshing package lists (real-time output)..."
+        $USE_SUDO apt clean || true
+        $USE_SUDO apt update || true
     else
         echo "[$SCRIPT_INDEX]   Region is not China; keeping original mirrors (no apt changes)."
     fi
