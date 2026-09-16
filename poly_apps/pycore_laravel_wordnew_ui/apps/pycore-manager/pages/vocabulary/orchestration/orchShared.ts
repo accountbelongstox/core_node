@@ -20,11 +20,11 @@ export function orchErrorMessage(error: unknown, fallback: string = ORCH_L.actio
   const failure = error as { status?: number; message?: string; path?: string } | null;
   const message = failure?.message || (typeof error === 'string' ? error : '');
   const accountRequest = failure?.path === '/login' || failure?.path?.startsWith('/api/app_qy_v1/') === true;
-  if (!accountRequest && (failure?.status === 401 || failure?.status === 403 || message.includes('RELAY_TRANSPORT_AUTH_REQUIRED'))) return ORCH_L.relayTransportRequired;
+  if (message === 'QY_ACCOUNT_AUTH_REQUIRED') return ORCH_L.accountExpired;
+  if (!accountRequest && (failure?.status === 401 || failure?.status === 403)) return ORCH_L.relayConnectionFailed;
   if (message === 'QY_ACCOUNT_MACHINE_SYNC_PENDING') return ORCH_L.machineSyncPending;
   if (message === 'QY_ACCOUNT_LOGOUT_PENDING') return ORCH_L.logoutPending;
   if (message === 'QY_ACCOUNT_LOGOUT_TARGET_CHANGED') return ORCH_L.logoutTargetChanged;
-  if (message === 'QY_ACCOUNT_AUTH_REQUIRED') return ORCH_L.accountExpired;
   return message || fallback;
 }
 

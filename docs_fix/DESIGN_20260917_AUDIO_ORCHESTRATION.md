@@ -1,0 +1,45 @@
+# Audio Orchestration Requirements
+
+## Relay reliability
+
+- Restore responsive Relay transport and resolve `rpc_execution_timeout` on vocabulary status and orchestration requests.
+- Relay does not require Qy or manager login. Device signatures, pairing leases, and Mercure transport authorization remain independent.
+- Signed client requests use server time. Do not rotate working credentials to repair timing errors.
+
+## Qy word groups
+
+- After Qy App V1 login, load all available default word groups and their read-word records.
+- Select the default group initially and allow another group as the read/edit baseline for Words Only New.
+- Persist the selection per account and Laravel endpoint, and retain it across refreshes.
+- Qy login is required only for account word-group/read-word access.
+
+## Book tasks
+
+- Every Backend Books item has its own New Task action on the right.
+- Creating a task selects that book and generates a unique editable name from the book name and formatted creation time.
+- The task editor uses a book dropdown and permits switching books.
+
+## Pattern steps
+
+- The Add Step dropdown offers Words Only New, All Words, and the existing sentence steps.
+- Remove the separate Word Selection control. Word policy belongs to each pattern step and preserves its ordering.
+- Words Only New uses the selected Qy group when available, retaining the existing task-local fallback without Qy login.
+- Existing task patterns remain readable through compatibility normalization.
+
+## Resource manifest and generation
+
+- Generate first collects the complete manifest of words and sentences for the selected book and pattern.
+- Resolve each audio resource in order: existing Pycore cache, Laravel resource, then live Pycore TTS generation.
+- Reuse the established cache keys, resource download, upload, and durable delivery mechanisms.
+- Newly generated resources synchronize to Laravel; retries remain idempotent and preserve pending uploads.
+- Final audio/video generation starts only after manifest collection and required resource completion.
+- Show manifest collection, resource resolution/generation/synchronization, and final generation as separate phases with detailed steps, counts, progress bars, and actionable errors.
+- Persist phase/progress data so refreshes and reconnects recover the active job.
+
+## Constraints and acceptance
+
+- Reuse shared components and services, keep code/logs/comments English, and put UI strings in i18n.
+- Preserve task history, cached resources, working credentials, and upload records.
+- Do not perform Git operations or create/run/modify tests. Do not run builds or services without a separate request.
+- Maintain the accompanying `DESIGN_20260917_AUDIO_ORCHESTRATION_PROGRESS.md` as the implementation progress record.
+- Completion requires code changes across UI, Pycore, and Laravel where needed; documentation alone is insufficient.

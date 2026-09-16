@@ -7,6 +7,7 @@ import { unwrapLaravelData as unwrapData } from './transport/LaravelEnvelope';
 type RelayMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 export interface RelayDeviceRoster {
+  server_time_unix: number | null;
   devices: RelayDevice[];
   recommended_device_id: string | null;
   selection_reason: string;
@@ -57,8 +58,9 @@ function readRelayDeviceRoster(payload: unknown): RelayDeviceRoster {
   }
   const recommendedDeviceId = (data as { recommended_device_id?: unknown }).recommended_device_id;
   const selectionReason = (data as { selection_reason?: unknown }).selection_reason;
-  const group = data as { group_id?: unknown; unavailable_code?: unknown; unavailable_message?: unknown };
+  const group = data as { server_time_unix?: unknown; group_id?: unknown; unavailable_code?: unknown; unavailable_message?: unknown };
   return {
+    server_time_unix: typeof group.server_time_unix === 'number' ? group.server_time_unix : null,
     devices: devices as RelayDevice[],
     recommended_device_id: typeof recommendedDeviceId === 'string' && recommendedDeviceId
       ? recommendedDeviceId
@@ -76,7 +78,8 @@ async function requestRelay<T>(method: RelayMethod, path: string, payload?: unkn
     method,
     headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
     body: hasBody ? JSON.stringify(payload) : undefined,
-  });
+    credentials: 'omit',
+  }, false);
   return readLaravelResponse<T>(response, path);
 }
 
@@ -143,8 +146,8 @@ export const laravelRelayApi = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-      credentials: 'include',
-    });
+      credentials: 'omit',
+    }, false);
     if (!response.ok) await readLaravelResponse(response, response.url);
   },
   finalizeRelayRequestBlob: async (blobId: string, sha256: string, length: number): Promise<void> => {
@@ -157,8 +160,8 @@ export const laravelRelayApi = {
   getRelayResponseBlob: async (blobId: string): Promise<Uint8Array> => {
     const response = await relayHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {
       method: 'GET',
-      credentials: 'include',
-    });
+      credentials: 'omit',
+    }, false);
     if (!response.ok) await readLaravelResponse(response, response.url);
     return new Uint8Array(await response.arrayBuffer());
   },

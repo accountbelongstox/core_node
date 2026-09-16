@@ -2,7 +2,6 @@ import { RELAY_CONTRACT, type RelayOperation } from '../../contracts/RelayContra
 import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
 import { appendLog } from '../../logstore/logStore';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
-import { subscribeAuthSession } from '../../auth/AuthSession';
 
 type OperationEventHandler = (operationId: string, state: string) => void;
 type ReadyWaiter = (connected: boolean) => void;
@@ -11,11 +10,6 @@ type ConnectionStateHandler = (connected: boolean) => void;
 const RECONNECT_MIN_MS = RELAY_CONTRACT.durations.subscriber_reconnect_min_seconds * 1000;
 const RECONNECT_MAX_MS = RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
 const TOKEN_REFRESH_MARGIN_MS = RELAY_CONTRACT.durations.subscriber_token_refresh_margin_seconds * 1000;
-
-function isAuthorizationFailure(error: unknown): boolean {
-  const status = Number((error as { status?: unknown } | null)?.status || 0);
-  return status === 401 || status === 403;
-}
 
 /**
  * One Mercure SSE connection for the pairing operation topic.
@@ -40,19 +34,6 @@ class LaravelRelayOperationEvents {
   private reconnectDelayMs = RECONNECT_MIN_MS;
   private generation = 0;
   private subscribedAt = 0;
-
-  constructor() {
-    const reset = (): void => {
-      this.generation += 1;
-      this.operations.clear();
-      this.clearTimers();
-      this.connection.close();
-      this.connection = new LaravelMercureConnection();
-      this.notifyConnectionState(false);
-      if (this.started) this.connect();
-    };
-    subscribeAuthSession(reset);
-  }
 
   start(): void {
     this.consumers += 1;
@@ -156,7 +137,7 @@ class LaravelRelayOperationEvents {
               token_ttl_seconds: hub.expires_in_seconds,
             }),
             onSubscribed: () => {
-              this.subscribedAt = Date.now();
+              this.subscribedAt = performance.now();
               this.scheduleTokenRefresh(hub.expires_in_seconds);
               this.resolveReady(true);
               this.notifyConnectionState(true);
@@ -164,13 +145,8 @@ class LaravelRelayOperationEvents {
             onEvent: (event, data) => this.handleEvent(event, data),
             onClose: (error) => {
               if (error) appendLog('error', 'api', `MERCURE_STREAM_INTERRUPTED: ${String(error)}`);
-              if (isAuthorizationFailure(error)) {
-                this.resolveReady(false);
-                this.notifyConnectionState(false);
-                return;
-              }
               if (this.subscribedAt > 0
-                && Date.now() - this.subscribedAt >= RELAY_CONTRACT.durations.subscriber_read_timeout_seconds * 1000) {
+                && performance.now() - this.subscribedAt >= RELAY_CONTRACT.durations.subscriber_read_timeout_seconds * 1000) {
                 this.reconnectDelayMs = RECONNECT_MIN_MS;
               }
               this.notifyConnectionState(false);
@@ -181,11 +157,9 @@ class LaravelRelayOperationEvents {
       })
       .catch((error) => {
         if (generation !== this.generation) return;
-        if (isAuthorizationFailure(error)) {
-          this.resolveReady(false);
-          this.notifyConnectionState(false);
-          return;
-        }
+        appendLog('error', 'api', `RELAY_HUB_AUTHORIZATION_FAILED: ${String(error)}`);
+        this.resolveReady(false);
+        this.notifyConnectionState(false);
         this.scheduleReconnect();
       });
   }

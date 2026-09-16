@@ -131,6 +131,7 @@ final class RelayDeviceService
         $snapshot = $this->rosterSnapshot($userId);
 
         return array_merge($snapshot, [
+            'server_time_unix' => microtime(true),
             'group_id' => $this->topics->owner($userId),
             'unavailable_code' => $snapshot['devices'] === [] ? 'RELAY_GROUP_EMPTY' : null,
             'unavailable_message' => $snapshot['devices'] === [] ? __('relay.group_empty') : null,
@@ -172,15 +173,13 @@ final class RelayDeviceService
     {
         $descriptor = $this->descriptor($device);
 
-        // Fan out to the whole super-admin fleet (one outbox row per target)
-        // so every admin's UI receives live presence on its own authorized
-        // owner topic; non-admin owners keep the single-recipient path.
         foreach (RelayFleetScope::presenceAudienceIds((int) $device->owner_user_id) as $audienceId) {
             $snapshot = $this->rosterSnapshot($audienceId);
 
             $this->outbox->append('presence', (string) Str::uuid(), 1,
                 RelayContract::event('device_presence'), 'owner', $this->topics->owner($audienceId),
                 [
+                    'server_time_unix' => microtime(true),
                     'device_id' => (string) $device->device_id,
                     'online' => $descriptor['online'],
                     'device' => $descriptor,

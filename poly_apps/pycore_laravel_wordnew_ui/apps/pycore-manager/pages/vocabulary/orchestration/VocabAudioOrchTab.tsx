@@ -20,7 +20,6 @@ import {
 } from '@/apps/pycore-manager/api';
 import { ORCH_L, orchErrorMessage } from './orchShared';
 import { VocabBanner } from '../vocabShared';
-import { subscribeAuthSession } from '../../../../../core/auth/AuthSession';
 import { SHARED_BASE_URL_CHANGED_EVENT } from '../../../../../core/integrations/laravel/transport/BaseAPI';
 import OrchLoginPanel from './OrchLoginPanel';
 import OrchSystemPanel from './OrchSystemPanel';
@@ -155,7 +154,6 @@ const VocabAudioOrchTab: React.FC = () => {
       void loadTasks();
     };
     const unsubscribe = [
-      subscribeAuthSession(refresh),
       subscribeLaravelRelayDevice(() => void syncAuth()),
       onHttpStatus((connected) => {
         if (!connected) return;

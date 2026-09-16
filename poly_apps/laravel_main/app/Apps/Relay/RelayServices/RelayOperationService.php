@@ -116,7 +116,7 @@ final class RelayOperationService
             $pendingCount = 0;
 
             if ($lockedUser === null) {
-                throw new RelayDomainException('authentication_required', 401);
+                throw new RelayDomainException('group_empty', 503);
             }
             $this->authorization->authorizeRoute($user, $pairing, $permission);
             if ($bodyRef !== '') {

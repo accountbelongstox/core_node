@@ -1,9 +1,8 @@
-import { getAuthToken } from '../../auth/AuthSession';
 import { StorageManager } from '../../persistence';
 import { LaravelQyAccountAPI, type QyAccountCredentials } from '../laravel/LaravelQyAccountAPI';
 import { resolveLaravelBaseURL } from '../laravel/LaravelRequest';
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
-import { isPycoreRelayMode, pycoreTargetBackendUrl } from './pycoreTarget';
+import { pycoreTargetBackendUrl } from './pycoreTarget';
 import { laravelRelayDeviceId } from './PycoreLaravelRelayTransport';
 import { PycoreStorageKeys } from './PycoreStorageKeys';
 import type { OrchAuthStatus } from './PycoreApiOrchestration';
@@ -37,10 +36,6 @@ class OrchAccountSession {
     return `${resolveLaravelBaseURL()}:${pycoreTargetBackendUrl()}:${laravelRelayDeviceId() || ''}`;
   }
 
-  private canReachMachine(): boolean {
-    return !isPycoreRelayMode() || Boolean(getAuthToken());
-  }
-
   async login(username: string, password: string): Promise<OrchAuthStatus> {
     const baseURL = resolveLaravelBaseURL();
     const generation = ++this.generation;
@@ -65,7 +60,6 @@ class OrchAccountSession {
     if (account) return this.describe(account);
     if (this.pendingLogout()) return { success: true, logged_in: false, sync_error: this.syncError || 'QY_ACCOUNT_LOGOUT_PENDING' };
     if (Object.prototype.hasOwnProperty.call(accounts, resolveLaravelBaseURL())) return { success: true, logged_in: false };
-    if (!this.canReachMachine()) return { success: true, logged_in: false };
     const status = await requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthStatus, {}) as OrchAuthStatus;
     const current = this.account();
     const updated = StorageManager.get<StoredAccounts>(PycoreStorageKeys.QY_ACCOUNTS, {});
@@ -90,10 +84,6 @@ class OrchAccountSession {
     if (!account && logout && (logout.backend !== backend || (logout.device_id && logout.device_id !== deviceId))) {
       this.syncError = 'QY_ACCOUNT_LOGOUT_TARGET_CHANGED';
       return { success: true, logged_in: false, sync_error: this.syncError };
-    }
-    if (!this.canReachMachine()) {
-      this.syncError = 'RELAY_TRANSPORT_AUTH_REQUIRED';
-      return account ? this.describe(account) : { success: true, logged_in: false, sync_error: this.syncError };
     }
     if (account && this.syncedTarget === target && this.syncedToken === account.token) return this.describe(account);
     const flight = (async (): Promise<OrchAuthStatus> => {
