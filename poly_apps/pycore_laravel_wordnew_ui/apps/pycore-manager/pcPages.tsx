@@ -6,7 +6,7 @@
 import React, { lazy } from 'react';
 import {
   ListOrdered, AppWindow, FolderSync, Terminal,
-  Settings, Library, Sparkles, History, BookOpen, type LucideIcon,
+  Settings, Library, Sparkles, History, BookOpen, Cloud, type LucideIcon,
 } from 'lucide-react';
 
 export const PcQueueCenterPage = lazy(() => import('./pages/PcQueueCenterPage'));
@@ -38,6 +38,7 @@ export const PcVocabularyPage = lazy(() => import('./pages/PcVocabularyPage'));
 // backtest belongs to the Vortex app, not the operator panel. Do not re-add a
 // PcOkxMarketPage here; edit the shared OkxBacktestPanel in vortex instead.
 export const PcSettingsPage = lazy(() => import('./pages/PcSettingsPage'));
+export const PcCloudClipboardPage = lazy(() => import('../../shared/cloud-clipboard/CloudClipboardPanel'));
 
 export interface PcPageDef {
   id: string;
@@ -50,6 +51,7 @@ export interface PcPageDef {
 }
 
 export const PC_PAGES: PcPageDef[] = [
+  { id: 'cloud-clipboard', labelKey: 'nav.cloudClipboard', Icon: Cloud, Component: PcCloudClipboardPage },
   { id: 'queue-center', labelKey: 'nav.queueCenter', Icon: ListOrdered, Component: PcQueueCenterPage },
   { id: 'terminal', labelKey: 'nav.terminal', Icon: Terminal, Component: PcTerminalPage },
   { id: 'window-automation', labelKey: 'nav.windowAutomation', Icon: AppWindow, Component: PcWindowAutomationPage },

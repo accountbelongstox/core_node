@@ -44,6 +44,7 @@ Route::withoutMiddleware([
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
 require_once __DIR__ . '/api/public_api.php';
+require_once __DIR__ . '/CloudClipboardRouter/CloudClipboardApi.php';
 require_once __DIR__ . '/files.php';
 
 // Octane Timer Status API Routes

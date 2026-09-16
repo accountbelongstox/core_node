@@ -5,6 +5,7 @@ export type Theme = 'light' | 'dark';
 export type LayoutMode = 'vertical' | 'horizontal';
 
 export enum ViewType {
+  CLOUD_CLIPBOARD = 'cloud_clipboard',
   DASHBOARD = 'dashboard',
   MEDIA_BROWSER = 'media',
   TOOLS = 'tools',
@@ -708,4 +709,3 @@ export interface PaginationInfo {
   has_next: boolean;
   has_prev: boolean;
 }
-

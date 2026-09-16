@@ -2,6 +2,7 @@
 export const pcEnCore = {
 appTitle: 'Pycore',
 nav: {
+    cloudClipboard: 'Cloud Clipboard',
     queueCenter: 'Queue Center',
     terminal: 'Terminal Control',
     windowAutomation: 'Window Automation',

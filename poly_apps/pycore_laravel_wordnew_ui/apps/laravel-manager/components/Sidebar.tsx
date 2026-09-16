@@ -14,6 +14,7 @@ import {
   AudioLines,
   DatabaseZap,
   Clapperboard,
+  Cloud,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -23,6 +24,7 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: ViewType.CLOUD_CLIPBOARD, icon: Cloud, labelKey: 'cloudClipboard' },
   { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
   // Unified resources hub: Movies, Books, Files, and Code in one explorer.
   { id: ViewType.MEDIA_BROWSER, icon: Clapperboard, labelKey: 'media' },

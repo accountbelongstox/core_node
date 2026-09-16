@@ -2,6 +2,7 @@
 export const pcZhCore = {
 appTitle: 'Pycore',
 nav: {
+    cloudClipboard: '云剪贴板',
     queueCenter: '队列中心',
     terminal: '终端控制',
     windowAutomation: '窗口自动化',

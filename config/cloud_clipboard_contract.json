@@ -1,0 +1,19 @@
+{
+  "api_prefix": "/api/cloud-clipboard",
+  "namespace_query": "namespace",
+  "password_header": "X-Clipboard-Password",
+  "password_encoding": "base64-utf8",
+  "namespace_length": 5,
+  "namespace_pattern": "^[a-z0-9_-]{1,40}$",
+  "namespace_alphabet": "abcdefghijklmnopqrstuvwxyz",
+  "history_page_size": 30,
+  "autosave_ms": 450,
+  "fallback_poll_ms": 2000,
+  "reconnect_ms": 3000,
+  "token_ttl_seconds": 120,
+  "max_text_length": 2000000,
+  "max_files_per_upload": 20,
+  "max_file_kb": 20480,
+  "event_type": "clipboard.changed",
+  "upload_subdirectory": "cloud-clipboard"
+}
