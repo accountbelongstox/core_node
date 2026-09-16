@@ -140,7 +140,7 @@ final class RelayDeviceService
     private function rosterSnapshot(int $userId): array
     {
         $devices = RelayDeviceModel::query()
-            ->where('owner_user_id', $userId)
+            ->whereIn('owner_user_id', RelayFleetScope::deviceOwnerIds($userId))
             ->where('status', RelayConstants::CREDENTIAL_ACTIVE)
             ->whereNull('revoked_at')
             ->where('credential_expires_at', '>', now())
@@ -170,19 +170,24 @@ final class RelayDeviceService
 
     public function publishPresence(RelayDeviceModel $device): void
     {
-        $userId = (int) $device->owner_user_id;
         $descriptor = $this->descriptor($device);
-        $snapshot = $this->rosterSnapshot($userId);
 
-        $this->outbox->append('presence', (string) Str::uuid(), 1,
-            RelayContract::event('device_presence'), 'owner', $this->topics->owner($userId),
-            [
-                'device_id' => (string) $device->device_id,
-                'online' => $descriptor['online'],
-                'device' => $descriptor,
-                'recommended_device_id' => $snapshot['recommended_device_id'],
-                'selection_reason' => $snapshot['selection_reason'],
-            ]);
+        // Fan out to the whole super-admin fleet (one outbox row per target)
+        // so every admin's UI receives live presence on its own authorized
+        // owner topic; non-admin owners keep the single-recipient path.
+        foreach (RelayFleetScope::presenceAudienceIds((int) $device->owner_user_id) as $audienceId) {
+            $snapshot = $this->rosterSnapshot($audienceId);
+
+            $this->outbox->append('presence', (string) Str::uuid(), 1,
+                RelayContract::event('device_presence'), 'owner', $this->topics->owner($audienceId),
+                [
+                    'device_id' => (string) $device->device_id,
+                    'online' => $descriptor['online'],
+                    'device' => $descriptor,
+                    'recommended_device_id' => $snapshot['recommended_device_id'],
+                    'selection_reason' => $snapshot['selection_reason'],
+                ]);
+        }
     }
 
     public function expirePresence(): void

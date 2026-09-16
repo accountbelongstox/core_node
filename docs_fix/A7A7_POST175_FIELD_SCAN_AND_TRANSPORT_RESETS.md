@@ -221,3 +221,99 @@ G3. Log-plane hardening (the unrotated live log reached 6.9 GB):
     - The pre-existing 6.9 GB `laravel.log` is left in place (destructive
       truncation needs operator approval); new writes go to
       `laravel-YYYY-MM-DD.log`.
+
+## Relay "coordinator returned no available devices" — root cause (2026-09-16, third pass)
+
+Field evidence (all timestamps UTC unless noted):
+
+1. The device IS enrolled, online and heartbeating cleanly: `last_seen_at`
+   advances every exactly 20s (`pycore_relay_contract.json
+   heartbeat_seconds=20`); the 30s fatal loop stopped at 2026-09-15 18:50 UTC
+   (last `Maximum execution time` entry); `GET /api/relay/devices` with a
+   fresh user-1 token returns the device `online:true`,
+   `selection_reason:freshest_online`, `unavailable_*:null` in 0.14s.
+2. BUT the live UI session is a DIFFERENT account: `personal_access_tokens`
+   id 56 (`auth_token`, tokenable_id=2) has `last_used_at` advancing in real
+   time — the browser at 12gm.com is authenticated as user 2 (`test`,
+   rolelevel 100). The only relay device is owned by user 1 (`adminroot`,
+   rolelevel 100). All 8,172 historical operations and all 46 pairings also
+   belong to user 1; the last operation was created 2026-09-14 15:12 UTC —
+   nothing since, matching the moment the UI switched accounts.
+3. Roster is strictly owner-scoped (`rosterSnapshot` filters
+   `owner_user_id = auth user`). User 2's roster is therefore empty; the UI
+   throws `unavailableError()` (= server `relay.group_empty` translation) from
+   `PycoreLaravelRelayTransport.ensurePair`, which every one of the six
+   agent-history providers surfaces as the reported banner. No operation is
+   ever admitted, so agent-history relay is dead.
+4. This REVERSES the A7A5 premise "device belongs to the currently logged-in
+   UI account" — true on 2026-09-15 (UI ran as adminroot), false now (UI runs
+   as test). Data-level reassignment would just move the problem: the operator
+   uses BOTH super-admin accounts (46 pairings/8172 operations under
+   adminroot, 14 live tokens under test).
+
+Design decision (底层重构, not a data patch): super admins (rolelevel >= 100,
+`User::isSuperAdmin()`) operate ONE shared fleet. Device visibility, pairing
+authorization and presence publication span all super-admin accounts; every
+other user stays strictly owner-scoped. Laravel remains the membership
+authority (pairings stay per-user; device auth stays signature-based; no
+heartbeat grants access). Centralized in a new `RelayFleetScope` helper; the
+ownership anchors touched are exactly:
+- `RelayDeviceService::rosterSnapshot` (visibility),
+- `RelayDeviceService::publishPresence` (Mercure owner-topic fan-out with a
+  per-target roster snapshot, so each admin's UI gets live presence on its
+  own authorized topic),
+- `RelayPairingService::ownedDevice` / `authorization` / `isActiveForDevice`
+  (pairing anchor gates),
+- operation/blob rows stay keyed by the ADMITTING user (already correct:
+  `responseBlob` scopes by `operation->user_id`, not device owner).
+
+## Fleet-scope implementation + deployment + verification (2026-09-16)
+
+Code:
+- NEW `RelayServices/RelayFleetScope.php`: `deviceOwnerIds(userId)` /
+  `presenceAudienceIds(ownerUserId)` / `superAdminIds()` — super admins
+  (rolelevel >= 100, `User::isSuperAdmin()` semantics) share one fleet;
+  everyone else stays owner-scoped.
+- `RelayDeviceService::rosterSnapshot`: owner filter -> `whereIn(fleet ids)`.
+- `RelayDeviceService::publishPresence`: one outbox row per fleet member's
+  owner topic, each with that member's roster snapshot.
+- `RelayPairingService::ownedDevice` / `authorization` / `isActiveForDevice`:
+  device-ownership gates widened through `RelayFleetScope`; pairings
+  themselves remain strictly per-user (`requireActive` unchanged).
+
+Additional root cause found during verification (supersedes the "ZTS
+template" attribution in the F1 notes): the operative 30s ceiling came from
+`laravel_runtime_frankenphp.sh:39` `REQUEST_MAX_EXECUTION_TIME="${...:-30}"`
+— exported into the Octane worker, whose bootstrap calls
+`set_time_limit(REQUEST_MAX_EXECUTION_TIME)` once at worker boot
+(`vendor/laravel/octane/bin/frankenphp-worker.php:69`), making 30s the
+per-request ceiling for the worker lifetime regardless of scan-dir ini or
+Caddyfile `php_ini`. Fixed: the default now resolves from
+`service_contract.json php_runtime.max_execution_time_seconds` (1200) after
+the contract layer is sourced; env override still wins. The F1 `php_ini`
+lines stay as defense for the non-worker plane.
+
+Deployment executed (user directive "确保能用"): `systemctl restart
+ncore-laravel-frankenphp.service` twice (16:09 CST fleet+php_ini, 16:2x CST
+REQUEST_MAX_EXECUTION_TIME). Live post-deploy state:
+- On-disk Caddyfile carries the two `php_ini` lines; frankenphp v1.12.7
+  validated the syntax and booted with it.
+- `/api/config/environment` now reports `max_execution_time: "1200"`.
+- Roster as user 2 (the live UI account): device `online:true`,
+  `selection_reason:freshest_online`, `unavailable_*:null`; user 3
+  (non-admin) still gets an empty roster + `RELAY_GROUP_EMPTY` (strict
+  scoping preserved).
+- Presence fan-out confirmed in `global_relay_outbox`: every
+  `relay.device.presence` event now appears on BOTH owner topics (user 1 and
+  user 2) with identical timestamps.
+- End-to-end relay chain as user 2: pairing created -> operation
+  `POST ui/agent_history/status` admitted -> claimed by the Windows pycore ->
+  `responded` in ~2s, repeatedly (three operations, all `responded`).
+- Verification artifacts removed: pairing revoked, temp tokens 65/66 deleted.
+
+Remaining known issues (documented, not blocking relay):
+- `[AppQyV1WordTranslationWriteback] provider:"edge" failed:1` loop — the
+  edge-tts endpoint is unreachable from this host (environmental); tasks
+  retry within their attempt budget.
+- The pre-existing 6.9 GB `laravel.log` is superseded by daily rotation but
+  not truncated (destructive action left to the operator).
