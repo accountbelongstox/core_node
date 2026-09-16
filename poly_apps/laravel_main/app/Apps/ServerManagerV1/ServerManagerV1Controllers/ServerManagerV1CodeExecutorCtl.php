@@ -349,6 +349,26 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
     /**
      * Extract timestamp from log line
      */
+    /**
+     * Bounded tail of the active Laravel log. Full-file reads of an
+     * unbounded log fatal on memory_limit; rotation-aware resolution keeps
+     * this correct under the daily channel.
+     */
+    private function readLogTail(): string
+    {
+        $logFile = app(LaravelLogTailService::class)->resolveActiveLogPath();
+        if (!FileSystemManager::isFile($logFile)) {
+            return '';
+        }
+        $fileSize = FileSystemManager::filesize($logFile);
+        if ($fileSize === false || $fileSize <= 0) {
+            return '';
+        }
+        $readBytes = min(self::LOG_TAIL_BYTES, $fileSize);
+        $buffer = FileSystemManager::readFileSegment($logFile, $fileSize - $readBytes, $readBytes);
+        return $buffer === false ? '' : $buffer;
+    }
+
     private function extractTimestamp(string $line): string
     {
         if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {
