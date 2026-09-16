@@ -5,7 +5,6 @@ import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEve
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
-import { subscribeAuthSession } from '../../auth/AuthSession';
 
 export type PycoreRelayErrorKind = 'not-paired' | 'peer-offline' | 'request-timeout' | 'too-large' | 'http';
 
@@ -48,7 +47,6 @@ const operationWakeWaiters = new Map<string, Set<() => void>>();
 const selectionHandlers = new Set<(deviceId: string | null) => void>();
 let relayState: PersistedRelayState | null = null;
 let wakeWired = false;
-let sessionGeneration = 0;
 
 function notifySelection(deviceId: string | null): void {
   selectionHandlers.forEach((handler) => handler(deviceId));
@@ -59,21 +57,6 @@ function assignSelectedDevice(state: PersistedRelayState, deviceId: string | nul
   state.selected_device_id = deviceId;
   persistRelayState();
   notifySelection(deviceId);
-}
-
-function resetRelayContext(): void {
-  sessionGeneration += 1;
-  pairFlights.clear();
-  relayState = { client_instance_id: newUuid(), selected_device_id: null, pairings: {} };
-  persistRelayState();
-  notifySelection(null);
-  notifyAllOperationWakes();
-}
-
-subscribeAuthSession(resetRelayContext);
-
-function assertSession(generation: number): void {
-  if (generation !== sessionGeneration) throw new DOMException('Aborted', 'AbortError');
 }
 
 function recoverablePairingError(error: unknown): boolean {
@@ -234,7 +217,6 @@ export function isLaravelRelayReady(): boolean {
 
 export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {
   const state = loadRelayState();
-  const generation = sessionGeneration;
   assignSelectedDevice(state, deviceId);
   const current = state.pairings[deviceId];
   if (pairingFresh(current)) return current!;
@@ -242,7 +224,6 @@ export async function designateLaravelRelayDevice(deviceId: string): Promise<Rel
   if (inFlight) return inFlight;
   const request = (current
     ? laravelApi.renewRelayPairing(current.pairing_id).catch((error: any) => {
-        assertSession(generation);
         if (recoverablePairingError(error)) {
           return laravelApi.createRelayPairing(deviceId, state.client_instance_id);
         }
@@ -250,7 +231,6 @@ export async function designateLaravelRelayDevice(deviceId: string): Promise<Rel
       })
     : laravelApi.createRelayPairing(deviceId, state.client_instance_id))
     .then((pairing) => {
-      assertSession(generation);
       state.pairings[deviceId] = pairing;
       persistRelayState();
       return pairing;
@@ -273,11 +253,10 @@ export async function clearLaravelRelayDevice(): Promise<void> {
   assignSelectedDevice(state, null);
 }
 
-async function ensurePair(generation: number): Promise<RelayPairing> {
+async function ensurePair(): Promise<RelayPairing> {
   const state = loadRelayState();
   let deviceId = state.selected_device_id;
   const devices = await laravelRelayRoster.requireDevices();
-  assertSession(generation);
   const selected = devices.find((device) => device.device_id === deviceId);
   if (deviceId && !selected) {
     delete state.pairings[deviceId];
@@ -350,21 +329,18 @@ function allowedHeaders(init: HeadersInit | undefined): Record<string, string> {
   return result;
 }
 
-async function uploadRequestBlob(pairingId: string, bytes: Uint8Array, digest: string, generation: number, signal?: AbortSignal): Promise<string> {
+async function uploadRequestBlob(pairingId: string, bytes: Uint8Array, digest: string, signal?: AbortSignal): Promise<string> {
   if (bytes.byteLength > RELAY_CONTRACT.limits.request_body_bytes) {
     throw new PycoreRelayError('too-large', 'RELAY_REQUEST_BODY_TOO_LARGE', 413);
   }
   const blobId = newUuid();
-  assertSession(generation);
   abortGuard(signal);
   await laravelApi.allocateRelayRequestBlob(blobId, pairingId, digest, bytes.byteLength);
   const chunkSize = RELAY_CONTRACT.limits.blob_chunk_bytes;
   for (let offset = 0, index = 0; offset < bytes.byteLength; offset += chunkSize, index += 1) {
-    assertSession(generation);
     abortGuard(signal);
     await laravelApi.putRelayRequestBlobChunk(blobId, index, bytes.subarray(offset, offset + chunkSize));
   }
-  assertSession(generation);
   abortGuard(signal);
   await laravelApi.finalizeRelayRequestBlob(blobId, digest, bytes.byteLength);
   return blobId;
@@ -374,8 +350,8 @@ function abortGuard(signal?: AbortSignal): void {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 }
 
-async function waitForOperation(operation: RelayOperation, generation: number, signal?: AbortSignal): Promise<RelayOperation> {
-  const deadline = Date.now()
+async function waitForOperation(operation: RelayOperation, signal?: AbortSignal): Promise<RelayOperation> {
+  const deadline = performance.now()
     + (RELAY_CONTRACT.durations.claim_timeout_seconds + RELAY_CONTRACT.durations.execution_timeout_seconds) * 1000;
   let current = laravelRelayOperationEvents.takeOperation(operation.operation_id) || operation;
   const wake = createOperationWake(current.operation_id, signal);
@@ -385,14 +361,12 @@ async function waitForOperation(operation: RelayOperation, generation: number, s
     // establish before any HTTP reconciliation runs.
     await laravelRelayOperationEvents.whenConnected(OPERATION_CONNECT_WAIT_MS);
     while (!TERMINAL_STATES.has(current.state)) {
-      assertSession(generation);
       abortGuard(signal);
-      if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
+      if (performance.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
       let connected = laravelRelayOperationEvents.isConnected();
       await wake.wait(connected ? OPERATION_RECONCILIATION_MS : fallbackMs);
-      assertSession(generation);
       abortGuard(signal);
-      if (Date.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
+      if (performance.now() >= deadline) throw new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT');
       try {
         const observed = laravelRelayOperationEvents.takeOperation(current.operation_id)
           || await laravelApi.getRelayOperation(current.operation_id);
@@ -443,10 +417,8 @@ async function deliverOperation(
   init: RequestInit,
   signal?: AbortSignal,
 ): Promise<Response> {
-  const generation = sessionGeneration;
   abortGuard(signal);
-  let pairing = await ensurePair(generation);
-  assertSession(generation);
+  let pairing = await ensurePair();
   const parsed = new URL(url);
   const method = String(init.method || 'GET').toUpperCase();
   const bytes = await bodyBytes(init.body);
@@ -468,40 +440,32 @@ async function deliverOperation(
     body_length: exactBytes.byteLength,
   };
   const admit = async (): Promise<RelayOperation> => {
-    assertSession(generation);
     abortGuard(signal);
     if (bytes !== null && bytes.byteLength > RELAY_CONTRACT.limits.inline_body_bytes) {
-      frame.body_ref = await uploadRequestBlob(pairing.pairing_id, bytes, digest, generation, signal);
+      frame.body_ref = await uploadRequestBlob(pairing.pairing_id, bytes, digest, signal);
     } else if (bytes !== null) {
       frame.body_base64 = bytesBase64(bytes);
     }
-    assertSession(generation);
     abortGuard(signal);
     return laravelApi.admitRelayOperation(frame);
   };
   let admitted: RelayOperation;
-  assertSession(generation);
   abortGuard(signal);
   try {
     admitted = await admit();
   } catch (error) {
-    assertSession(generation);
     if (!recoverablePairingError(error)) throw error;
     invalidatePairing(pairing);
     pairing = await designateLaravelRelayDevice(pairing.device_id);
-    assertSession(generation);
     frame.pairing_id = pairing.pairing_id;
-    assertSession(generation);
     abortGuard(signal);
     admitted = await admit();
   }
-  const completed = await waitForOperation(admitted, generation, signal);
-  assertSession(generation);
+  const completed = await waitForOperation(admitted, signal);
   if (completed.state !== 'responded' || completed.response_status === null) {
     throw new PycoreRelayError('http', completed.error_code || `RELAY_OPERATION_${completed.state.toUpperCase()}`);
   }
   const responseBody = await responseBytes(completed);
-  assertSession(generation);
   return new Response(responseBody, {
     status: completed.response_status,
     headers: completed.response_headers || {},

@@ -5,6 +5,7 @@ use App\Apps\Relay\RelayControllers\RelayOwnerCtl;
 use App\Apps\Relay\RelayMiddleware\RelayDeviceSignatureMiddleware;
 use App\Apps\Relay\RelayServices\RelayContract;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 $relayUri = static function (string $role): string {
     $endpoint = RelayContract::endpoint($role);
@@ -17,7 +18,7 @@ $relayUri = static function (string $role): string {
     return substr($endpoint, strlen($prefix));
 };
 
-Route::middleware([RelayDeviceSignatureMiddleware::class, 'throttle:relay-device'])->group(function () use ($relayUri): void {
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware([RelayDeviceSignatureMiddleware::class, 'throttle:relay-device'])->group(function () use ($relayUri): void {
     Route::post($relayUri('enrollment_create'), [RelayDeviceCtl::class, 'createEnrollment'])
         ->name('relay.enrollment.create');
     Route::get($relayUri('enrollment_status'), [RelayDeviceCtl::class, 'enrollmentStatus'])
@@ -35,7 +36,7 @@ Route::middleware([RelayDeviceSignatureMiddleware::class, 'throttle:relay-device
     Route::post($relayUri('device_response_blob_finalize'), [RelayDeviceCtl::class, 'finalizeResponseBlob']);
 });
 
-Route::middleware(['dashboard.auth', 'throttle:relay-owner'])->group(function () use ($relayUri): void {
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware('throttle:relay-owner')->group(function () use ($relayUri): void {
     Route::post($relayUri('owner_enrollment_claim'), [RelayOwnerCtl::class, 'claimEnrollment'])
         ->middleware('throttle:relay-enrollment-claim');
     Route::get($relayUri('owner_device_roster'), [RelayOwnerCtl::class, 'roster']);

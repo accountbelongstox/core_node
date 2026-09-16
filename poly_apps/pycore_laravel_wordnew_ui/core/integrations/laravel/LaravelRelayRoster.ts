@@ -1,7 +1,6 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
 import { laravelRelayOperationEvents } from './LaravelRelayOperationEvents';
-import { subscribeAuthSession } from '../../auth/AuthSession';
 
 export interface RelayRosterEntry extends RelayDevice {
   online: boolean;
@@ -23,33 +22,14 @@ class LaravelRelayRoster {
   private generation = 0;
   private refreshedAt = 0;
   private refreshError: unknown = null;
-  private authorizationBlocked = false;
   private recommendedDeviceId: string | null = null;
   private selectionReason = '';
   private presenceChanges = new Map<string, RelayRosterEntry>();
+  private serverEpochMs: number | null = null;
+  private serverObservedAt = 0;
   private groupId: string | null = null;
   private unavailableCode: string | null = null;
   private unavailableMessage: string | null = null;
-
-  constructor() {
-    const reset = (): void => {
-      this.generation += 1;
-      this.refreshFlight = null;
-      this.entries.clear();
-      this.refreshedAt = 0;
-      this.refreshError = null;
-      this.authorizationBlocked = false;
-      this.recommendedDeviceId = null;
-      this.selectionReason = '';
-      this.presenceChanges.clear();
-      this.groupId = null;
-      this.unavailableCode = null;
-      this.unavailableMessage = null;
-      this.emit();
-      if (this.started) void this.refresh();
-    };
-    subscribeAuthSession(reset);
-  }
 
   start(): void {
     this.consumers += 1;
@@ -67,10 +47,12 @@ class LaravelRelayRoster {
         const frame = data as {
           device?: RelayDevice;
           online?: boolean;
+          server_time_unix?: number;
           recommended_device_id?: string | null;
           selection_reason?: string;
         };
         if (!frame?.device?.device_id) return;
+        this.observeServerTime(frame.server_time_unix);
         const entry = { ...frame.device, online: frame.online === true };
         this.entries.set(entry.device_id, entry);
         if (this.refreshFlight) this.presenceChanges.set(entry.device_id, entry);
@@ -95,7 +77,6 @@ class LaravelRelayRoster {
     this.consumers = Math.max(0, this.consumers - 1);
     if (this.consumers > 0) return;
     this.started = false;
-    this.authorizationBlocked = false;
     this.refreshedAt = 0;
     this.refreshError = null;
     this.unsubscribe.forEach((unsubscribe) => unsubscribe());
@@ -140,10 +121,8 @@ class LaravelRelayRoster {
 
   refresh(force = false): Promise<void> {
     if (force) {
-      this.authorizationBlocked = false;
-      this.refreshedAt = 0;
+        this.refreshedAt = 0;
     }
-    if (this.authorizationBlocked) return Promise.resolve();
     if (Date.now() - this.refreshedAt < REFRESH_INTERVAL_MS) return Promise.resolve();
     if (!this.refreshFlight) {
       const flight = this.fetchRoster(this.generation).finally(() => {
@@ -175,6 +154,7 @@ class LaravelRelayRoster {
     try {
       const roster = await laravelApi.getRelayDevices();
       if (generation !== this.generation) return;
+      this.observeServerTime(roster.server_time_unix);
       this.refreshedAt = Date.now();
       this.refreshError = null;
       if (this.presenceChanges.size === 0) {
@@ -194,24 +174,23 @@ class LaravelRelayRoster {
     } catch (error) {
       if (generation !== this.generation) return;
       this.refreshError = error;
-      if (this.isAuthorizationFailure(error)) {
-        this.authorizationBlocked = true;
-        this.refreshedAt = Date.now();
-        return;
-      }
       this.refreshedAt = Date.now() - REFRESH_INTERVAL_MS
         + RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
     }
   }
 
-  private isAuthorizationFailure(error: unknown): boolean {
-    const status = Number((error as { status?: unknown } | null)?.status || 0);
-    return status === 401 || status === 403;
+  private observeServerTime(epoch: unknown): void {
+    if (typeof epoch !== 'number' || !Number.isFinite(epoch) || epoch <= 0) return;
+    this.serverEpochMs = epoch * 1000;
+    this.serverObservedAt = performance.now();
   }
 
   private isOnline(device: RelayDevice): boolean {
     const lastSeenAt = Date.parse(device.last_seen_at || '');
-    return device.online !== false && Number.isFinite(lastSeenAt) && Date.now() - lastSeenAt <= OFFLINE_AFTER_MS;
+    const serverNow = this.serverEpochMs === null ? null
+      : this.serverEpochMs + performance.now() - this.serverObservedAt;
+    if (serverNow === null) return device.online === true;
+    return device.online !== false && Number.isFinite(lastSeenAt) && serverNow - lastSeenAt <= OFFLINE_AFTER_MS;
   }
 
   private emit(): void {
