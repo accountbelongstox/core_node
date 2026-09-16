@@ -6,11 +6,14 @@ Thin adapters over orch_store / orch_books / orch_words / orch_generate. Every
 function returns a JSON-able dict with a ``success`` flag and never raises.
 """
 
+import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_launcher import open_path
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.media_processing.ffmpeg_ops import resolve_ffmpeg
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
@@ -108,6 +111,8 @@ def auth_logout() -> Dict[str, Any]:
 def books_list(refresh: bool = False) -> Dict[str, Any]:
     result = orch_books.fetch_books(refresh=bool(refresh))
     result["cached_sentence_books"] = orch_store.cached_book_keys()
+    # Per-book sentence sync states so the UI can stop polling on failure too.
+    result["sync_states"] = orch_store.load_sync_state()
     return result
 
 
@@ -288,7 +293,78 @@ def task_progress(task_id: str) -> Dict[str, Any]:
         "running": orch_generate.is_running(str(task_id or "")),
         "progress": task.get("progress") or {},
         "segments": task.get("segments") or [],
+        "events": task.get("events") or [],
     }
+
+
+# --------------------------------------------------------------------------- #
+# system status + generated files                                              #
+# --------------------------------------------------------------------------- #
+_SYSTEM_STATUS_TTL_SECONDS = 300
+
+
+def _probe_ffmpeg() -> Dict[str, Any]:
+    binary = resolve_ffmpeg()
+    info: Dict[str, Any] = {"available": bool(binary), "path": binary or "", "version": ""}
+    if binary:
+        try:
+            proc = subprocess.run(
+                [binary, "-version"], capture_output=True, timeout=15,
+                encoding="utf-8", errors="replace",
+            )
+            first_line = (proc.stdout or "").splitlines()[0] if proc.stdout else ""
+            info["version"] = first_line.strip()
+        except Exception as exc:  # noqa: BLE001
+            info["version"] = ""
+            info["probe_error"] = str(exc)
+    return info
+
+
+def system_status(refresh: bool = False) -> Dict[str, Any]:
+    """Cached pycore-side system probe (ffmpeg + storage paths). The ffmpeg
+    check is TTL-cached on disk so UI polls never pay the probe cost."""
+    cached = orch_store.load_system_status()
+    now = int(time.time())
+    if not refresh and cached and now - int(cached.get("probed_at") or 0) < _SYSTEM_STATUS_TTL_SECONDS:
+        return {"success": True, **cached}
+    ffmpeg = _probe_ffmpeg()
+    status = {
+        "probed_at": now,
+        "ffmpeg": ffmpeg,
+        "data_dir": str(orch_store.base_dir()),
+        "output_root": str(orch_store.base_dir() / "output"),
+        "tasks_total": len(orch_store.list_tasks()),
+        "books_cached": len(orch_store.load_books_cache().get("items") or []),
+        "sentence_books_cached": len(orch_store.cached_book_keys()),
+        "logged_in": bool(orch_store.auth_token()),
+    }
+    orch_store.save_system_status(status)
+    return {"success": True, **status}
+
+
+def task_files(task_id: str) -> Dict[str, Any]:
+    task = orch_store.get_task(str(task_id or ""))
+    if not task:
+        return {"success": False, "error": "task not found"}
+    return {
+        "success": True,
+        "output_dir": str(orch_store.base_dir() / "output" / str(task.get("slug") or "task")),
+        "files": orch_store.task_files(task),
+    }
+
+
+def open_output(task_id: Optional[str] = None) -> Dict[str, Any]:
+    """Open the output directory (one task's, or the shared root) in the OS
+    file manager. Path is resolved server-side; never raises."""
+    directory = orch_store.base_dir() / "output"
+    if task_id:
+        task = orch_store.get_task(str(task_id))
+        if not task:
+            return {"success": False, "error": "task not found"}
+        directory = directory / str(task.get("slug") or "task")
+    directory.mkdir(parents=True, exist_ok=True)
+    ok = open_path(directory)
+    return {"success": bool(ok), "path": str(directory)}
 
 
 __all__ = [
@@ -306,4 +382,7 @@ __all__ = [
     "task_generate",
     "task_cancel",
     "task_progress",
+    "system_status",
+    "task_files",
+    "open_output",
 ]

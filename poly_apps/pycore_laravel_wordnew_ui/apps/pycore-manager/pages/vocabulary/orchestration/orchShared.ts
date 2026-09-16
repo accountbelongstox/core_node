@@ -63,6 +63,27 @@ export const ORCH_L = {
   outputDir: 'Output',                                   // 输出目录
   error: 'Error',                                        // 错误
   loginRequiredForNewOnly: 'Word New Only needs a logged-in qy account (falls back to task-local tracking when logged out).',  // 仅新词需登录 qy 账户（未登录时退化为本任务内去重）
+  systemTitle: 'Pycore System',                          // Pycore 系统状态
+  ffmpeg: 'ffmpeg',                                      // ffmpeg
+  available: 'available',                                // 可用
+  missing: 'missing',                                    // 缺失
+  dataDir: 'Data directory',                             // 数据目录
+  outputRoot: 'Output root',                             // 输出根目录
+  openFolder: 'Open folder',                             // 打开目录
+  booksCached: 'books cached',                           // 已缓存书籍
+  sentenceBooks: 'sentence tables',                      // 句子表
+  details: 'Details',                                    // 详情
+  hideDetails: 'Hide',                                   // 收起
+  files: 'Files',                                        // 文件
+  noFiles: 'No generated files yet.',                    // 暂无生成文件
+  logTitle: 'Generation log',                            // 生成日志
+  noLog: 'No log entries yet.',                          // 暂无日志
+  manifestCache: 'cache',                                // 缓存命中
+  manifestLaravel: 'from Laravel',                       // 来自 Laravel
+  manifestGenerated: 'generated',                        // 本地生成
+  manifestMissing: 'missing',                            // 缺失
+  syncingNow: 'syncing',                                 // 同步中
+  refreshDone: 'refresh done',                           // 刷新完成
 };
 
 export const ORCH_STEP_LABELS: Record<OrchPatternStepType, string> = {

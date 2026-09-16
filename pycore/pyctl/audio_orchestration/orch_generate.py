@@ -32,7 +32,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
@@ -51,21 +51,23 @@ _GAP_SECONDS = 0.6
 # --------------------------------------------------------------------------- #
 # single-item audio resolution                                                 #
 # --------------------------------------------------------------------------- #
-def ensure_word_audio(word: str, language: str) -> Optional[Path]:
-    """Resolve one word pronunciation file: local cache -> Laravel -> edge-tts.
-    Freshly obtained clips are stored into the EXISTING word audio cache."""
+def ensure_word_audio(word: str, language: str) -> Tuple[Optional[Path], str]:
+    """Resolve one word pronunciation file: local cache -> Laravel -> local
+    synthesis. Returns (path, source) where source is "cache" | "laravel" |
+    the synthesis engine name; (None, "missing") on failure. Freshly obtained
+    clips are stored into the EXISTING word audio cache."""
     word = (word or "").strip().lower()
     if not word:
-        return None
+        return None, "missing"
     cached = word_audio_cache.find_cached(word, language)
     if cached is not None:
-        return cached
+        return cached, "cache"
     try:
         media = word_audio_service.word_audio_media(word, language)
         if media.get("success") and media.get("content_base64"):
             raw = base64.b64decode(media["content_base64"])
             if raw:
-                return word_audio_cache.store_bytes(word, language, "laravel", raw)
+                return word_audio_cache.store_bytes(word, language, "laravel", raw), "laravel"
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] laravel word media failed for '{word}': {exc}")
     # Local synthesis goes through the SHARED orchestrator word profile so the
@@ -79,7 +81,7 @@ def ensure_word_audio(word: str, language: str) -> Optional[Path]:
         result = synthesize(word, language, tmp_path, priority_profile="word")
         if result.get("success") and tmp_path.exists() and tmp_path.stat().st_size > 0:
             provider = str(result.get("engine") or "edge")
-            return word_audio_cache.store_bytes(word, language, provider, tmp_path.read_bytes())
+            return word_audio_cache.store_bytes(word, language, provider, tmp_path.read_bytes()), provider
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] local word synth failed for '{word}': {exc}")
     finally:
@@ -88,15 +90,16 @@ def ensure_word_audio(word: str, language: str) -> Optional[Path]:
                 tmp_path.unlink()
             except OSError:
                 pass
-    return None
+    return None, "missing"
 
 
-def ensure_sentence_audio(text: str, language: str, output_path: Path) -> bool:
+def ensure_sentence_audio(text: str, language: str, output_path: Path) -> Tuple[bool, str]:
     """Synthesize one sentence into ``output_path`` via the shared orchestrator
-    (sentence cache lookup/store + engine priority are internal to it)."""
+    (sentence cache lookup/store + engine priority are internal to it).
+    Returns (ok, source): "cache" | engine name | "missing"."""
     text = (text or "").strip()
     if not text:
-        return False
+        return False, "missing"
     try:
         result = synthesize(
             text,
@@ -104,10 +107,12 @@ def ensure_sentence_audio(text: str, language: str, output_path: Path) -> bool:
             Path(output_path),
             priority_profile="sentence",
         )
-        return bool(result.get("success"))
+        if result.get("success"):
+            source = "cache" if result.get("cached") else str(result.get("engine") or "generated")
+            return True, source
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] sentence synth failed: {exc}")
-        return False
+    return False, "missing"
 
 
 # --------------------------------------------------------------------------- #
@@ -125,6 +130,7 @@ def build_sentence_items(
     task: Dict[str, Any],
     sentence: Dict[str, Any],
     consume: bool,
+    use_backend: bool = True,
 ) -> List[Dict[str, Any]]:
     """Expand the task pattern for one sentence into audio items.
     Item: {kind: word|sentence, language, text}."""
@@ -141,6 +147,7 @@ def build_sentence_items(
                 language,
                 target_language,
                 consume,
+                use_backend=use_backend,
             )
             for _ in range(times):
                 items.extend(
@@ -173,7 +180,10 @@ def plan_task(task: Dict[str, Any], sentences: List[Dict[str, Any]]) -> Dict[str
         item_count = 0
         word_count = 0
         for index in range(segment["start"], segment["end"] + 1):
-            items = build_sentence_items(simulated, sentences[index], consume=True)
+            # Relay-safe preview: local tokenization only — the per-sentence
+            # backend read-state queries run later, inside background
+            # generation where no relay deadline applies.
+            items = build_sentence_items(simulated, sentences[index], consume=True, use_backend=False)
             item_count += len(items)
             word_count += sum(1 for item in items if item["kind"] == "word")
         segments.append({**segment, "item_count": item_count, "word_count": word_count})
@@ -285,16 +295,22 @@ def _generate(task: Dict[str, Any]) -> None:
     task_id = str(task["task_id"])
     book = task.get("book") or {}
     source_key = str(book.get("source_key") or "")
-    synced = orch_books.sync_book_sentences(source_key)
+    # Regenerate = replace: start with a clean log (stale segment files are
+    # removed below, before the new partition is assembled).
+    task["events"] = []
+    orch_store.append_task_event(task, f"generation started for book {source_key}")
+    synced = orch_books.ensure_book_sentences(source_key)
     sentences = synced.get("sentences") if isinstance(synced, dict) else None
     if not sentences:
         task["status"] = "failed"
+        orch_store.append_task_event(task, "sentence sync failed")
         _progress(task, message=f"no sentences for book {source_key}: {synced.get('error') if isinstance(synced, dict) else 'unknown'}")
         return
 
     ffmpeg = resolve_ffmpeg()
     if not ffmpeg:
         task["status"] = "failed"
+        orch_store.append_task_event(task, "ffmpeg not found")
         _progress(task, message="ffmpeg not found")
         return
 
@@ -310,12 +326,25 @@ def _generate(task: Dict[str, Any]) -> None:
     task["virtual_read"] = []
     task["cancel_requested"] = False
     task["status"] = "generating"
-    _progress(task, message="starting", segment_index=0, item_index=0, item_total=0)
+    _progress(
+        task,
+        message="starting", segment_index=0, item_index=0, item_total=0,
+        current_item="", cache_hits=0, laravel_hits=0, generated=0, missing=0,
+    )
 
     output_dir = orch_store.output_dir_for(task)
+    # Regenerate = replace: drop stale segment files from the previous run so
+    # the directory only ever holds the CURRENT plan's output.
+    for stale in output_dir.glob("segment_*.mp3"):
+        try:
+            stale.unlink()
+        except OSError:
+            pass
     staging = output_dir / "staging"
     staging.mkdir(parents=True, exist_ok=True)
     gap = _ensure_gap_file(ffmpeg, staging)
+
+    stats = {"cache_hits": 0, "laravel_hits": 0, "generated": 0, "missing": 0}
 
     for segment in task["segments"]:
         if task.get("cancel_requested"):
@@ -323,7 +352,11 @@ def _generate(task: Dict[str, Any]) -> None:
             _progress(task, message="cancelled")
             return
         segment["status"] = "preparing"
-        _progress(task, message=f"segment {segment['index']}: preparing", segment_index=segment["index"])
+        orch_store.append_task_event(
+            task,
+            f"segment {segment['index']}: preparing {segment['sentence_count']} sentences",
+        )
+        _progress(task, message=f"segment {segment['index']}: preparing", segment_index=segment["index"], **stats)
         files: List[Path] = []
         item_index = 0
         segment_items: List[Dict[str, Any]] = []
@@ -334,55 +367,76 @@ def _generate(task: Dict[str, Any]) -> None:
         for item in segment_items:
             if task.get("cancel_requested"):
                 task["status"] = "draft"
-                _progress(task, message="cancelled")
+                _progress(task, message="cancelled", **stats)
                 return
             item_index += 1
             target = staging / f"s{segment['index']:03d}_{item_index:05d}.mp3"
-            ok = False
+            source = "missing"
             if item["kind"] == "word":
-                word_path = ensure_word_audio(item["text"], item["language"])
+                word_path, source = ensure_word_audio(item["text"], item["language"])
                 if word_path is not None:
                     files.append(word_path)
-                    ok = True
             else:
-                ok = ensure_sentence_audio(item["text"], item["language"], target)
+                ok, source = ensure_sentence_audio(item["text"], item["language"], target)
                 if ok:
                     files.append(target)
-            if not ok:
+            if source == "missing":
+                stats["missing"] += 1
+                orch_store.append_task_event(
+                    task,
+                    f"missing {item['kind']}: {item['text'][:60]}",
+                )
                 ColorPrint.yellow(
                     f"[AudioOrch] item failed ({item['kind']}: {item['text'][:40]})"
                 )
-            if item_index % 5 == 0 or item_index == item_total:
-                _progress(
-                    task,
-                    message=f"segment {segment['index']}: item {item_index}/{item_total}",
-                    segment_index=segment["index"],
-                    item_index=item_index,
-                    item_total=item_total,
-                )
+            elif source == "cache":
+                stats["cache_hits"] += 1
+            elif source == "laravel":
+                stats["laravel_hits"] += 1
+            else:
+                stats["generated"] += 1
+            _progress(
+                task,
+                message=f"segment {segment['index']}: item {item_index}/{item_total}",
+                segment_index=segment["index"],
+                item_index=item_index,
+                item_total=item_total,
+                current_item=f"{item['kind']}: {item['text'][:60]} [{source}]",
+                **stats,
+            )
         if not files:
             segment["status"] = "failed"
             segment["error"] = "no audio items resolved"
+            orch_store.append_task_event(task, f"segment {segment['index']}: no audio items resolved")
             orch_store.save_task(task)
             continue
         segment["status"] = "assembling"
-        _progress(task, message=f"segment {segment['index']}: assembling", segment_index=segment["index"])
+        _progress(task, message=f"segment {segment['index']}: assembling", segment_index=segment["index"], **stats)
         output = output_dir / f"segment_{segment['index']:03d}.mp3"
         error = _concat_segment(ffmpeg, gap, files, output)
         if error:
             segment["status"] = "failed"
             segment["error"] = error
+            orch_store.append_task_event(task, f"segment {segment['index']}: concat failed: {error[:120]}")
         else:
             segment["status"] = "done"
             segment["output"] = str(output)
+            orch_store.append_task_event(task, f"segment {segment['index']}: done -> {output.name}")
         orch_store.save_task(task)
 
     failed = [s for s in task["segments"] if s.get("status") == "failed"]
     task["status"] = "failed" if len(failed) == len(task["segments"]) else "done"
+    orch_store.append_task_event(
+        task,
+        f"generation finished: {task['status']} "
+        f"(cache={stats['cache_hits']} laravel={stats['laravel_hits']} "
+        f"generated={stats['generated']} missing={stats['missing']})",
+    )
     _progress(
         task,
         message="done" if task["status"] == "done" else "all segments failed",
         output_dir=str(output_dir),
+        **stats,
     )
     ColorPrint.green(f"[AudioOrch] task {task_id} finished: {task['status']}")
 

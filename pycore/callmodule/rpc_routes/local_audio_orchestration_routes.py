@@ -49,6 +49,15 @@ def register_local_audio_orchestration_routes(server) -> None:
     def task_progress(params, request_id, context):
         return orch_service.task_progress(str(params.get("task_id") or ""))
 
+    def system_status(params, request_id, context):
+        return orch_service.system_status(refresh=bool(params.get("refresh")))
+
+    def task_files(params, request_id, context):
+        return orch_service.task_files(str(params.get("task_id") or ""))
+
+    def open_output(params, request_id, context):
+        return orch_service.open_output(params.get("task_id") or None)
+
     routes = (
         (route_names.UI_AUDIO_ORCH_BOOKS_LIST, books_list),
         (route_names.UI_AUDIO_ORCH_BOOK_SENTENCES, book_sentences),
@@ -64,5 +73,8 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_TASK_GENERATE, task_generate),
         (route_names.UI_AUDIO_ORCH_TASK_CANCEL, task_cancel),
         (route_names.UI_AUDIO_ORCH_TASK_PROGRESS, task_progress),
+        (route_names.UI_AUDIO_ORCH_SYSTEM_STATUS, system_status),
+        (route_names.UI_AUDIO_ORCH_TASK_FILES, task_files),
+        (route_names.UI_AUDIO_ORCH_OPEN_OUTPUT, open_output),
     )
     server.register_routes(routes, group="audio_orchestration")

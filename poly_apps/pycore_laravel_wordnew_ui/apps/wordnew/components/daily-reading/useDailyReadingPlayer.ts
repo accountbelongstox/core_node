@@ -505,7 +505,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
               in_target_group: true,
               added_to_target_group: word.added_to_target_group || !word.in_target_group,
               in_default_group: true,
-              added_to_default_group: word.added_to_default_group || !word.in_target_group,
+              added_to_default_group: word.added_to_default_group || !word.in_default_group,
             }
             : word
         );
@@ -591,7 +591,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       try {
         speechSynthesis.pause();
       } catch {
-        return;
+        // Fall through: the transport must still reach 'paused'.
       }
     }
     transitionTransport('paused');

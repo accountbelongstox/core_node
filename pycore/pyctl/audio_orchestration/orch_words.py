@@ -86,6 +86,7 @@ def select_words(
     language: str,
     target_language: Optional[str],
     consume: bool,
+    use_backend: bool = True,
 ) -> Dict[str, Any]:
     """Pick the words to read for one sentence of a task.
 
@@ -95,6 +96,8 @@ def select_words(
                            task's virtual_read set yet.
     With ``consume=True`` (new_only only) the selected words are appended to
     the task's virtual_read set (the caller persists the task record).
+    ``use_backend=False`` skips the per-sentence Laravel call (plan previews
+    must stay relay-safe; generation always uses the backend when logged in).
 
     Returns {words: [...], source: "backend"|"local"|"none"}.
     """
@@ -105,7 +108,11 @@ def select_words(
     # they occur in a sentence and never consumes the virtual set.
     apply_virtual = word_mode == "new_only"
 
-    rows = resolve_sentence_words(sentence, language, target_language, max_read_count)
+    rows = (
+        resolve_sentence_words(sentence, language, target_language, max_read_count)
+        if use_backend
+        else None
+    )
     if rows is not None:
         words: List[str] = []
         for row in rows:
