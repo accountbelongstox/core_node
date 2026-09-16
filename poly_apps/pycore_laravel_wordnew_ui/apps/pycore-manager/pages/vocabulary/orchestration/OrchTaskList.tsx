@@ -13,8 +13,8 @@ import {
   type OrchTaskFile,
   type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
-import { humanBytes, humanInt } from '../vocabShared';
-import { ORCH_L } from './orchShared';
+import { humanBytes, humanInt, VocabBanner } from '../vocabShared';
+import { ORCH_L, orchErrorMessage } from './orchShared';
 
 function statusBadgeClass(status: string | undefined, running: boolean | undefined): string {
   if (running || status === 'generating') return 'bg-indigo-500/15 text-indigo-400';
@@ -23,38 +23,59 @@ function statusBadgeClass(status: string | undefined, running: boolean | undefin
   return 'bg-slate-500/15 text-slate-400';
 }
 
-const OrchTaskDetail: React.FC<{ taskId: string }> = ({ taskId }) => {
+const OrchTaskDetail: React.FC<{ taskId: string; running: boolean }> = ({ taskId, running }) => {
   const [detail, setDetail] = useState<OrchTask | null>(null);
   const [files, setFiles] = useState<OrchTaskFile[]>([]);
   const [outputDir, setOutputDir] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let loading = false;
     const load = async () => {
-      const [task, fileList] = await Promise.all([
-        pycoreApi.orchTaskGet(taskId),
-        pycoreApi.orchTaskFiles(taskId),
-      ]);
-      if (cancelled) return;
-      if (task.success) setDetail(task);
-      if (fileList.success) {
+      if (loading) return;
+      loading = true;
+      try {
+        const [task, fileList] = await Promise.all([
+          pycoreApi.orchTaskGet(taskId),
+          pycoreApi.orchTaskFiles(taskId),
+        ]);
+        if (cancelled) return;
+        if (!task.success || !fileList.success) throw new Error(task.error || fileList.error || ORCH_L.loadFailed);
+        setDetail(task);
         setFiles(fileList.files || []);
         setOutputDir(fileList.output_dir || '');
+        setError(null);
+      } catch (e) {
+        if (!cancelled) setError(orchErrorMessage(e, ORCH_L.loadFailed));
+      } finally {
+        loading = false;
       }
     };
+    const timer = running ? setInterval(() => void load(), 3000) : null;
     void load();
-    return () => { cancelled = true; };
-  }, [taskId]);
+    return () => { cancelled = true; if (timer) clearInterval(timer); };
+  }, [taskId, running]);
+
+  const openFolder = async () => {
+    try {
+      const response = await pycoreApi.orchOpenOutput(taskId);
+      if (!response.success) throw new Error(ORCH_L.actionFailed);
+    } catch (e) {
+      setError(orchErrorMessage(e));
+    }
+  };
 
   const events = detail?.events || [];
 
   return (
     <div className="mt-2 space-y-2 border-t border-slate-700/60 pt-2" onClick={(e) => e.stopPropagation()}>
+      {error && <VocabBanner kind="error" message={error} />}
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold text-slate-400">{ORCH_L.files} ({files.length})</p>
         <button
           type="button"
-          onClick={() => void pycoreApi.orchOpenOutput(taskId)}
+          onClick={() => void openFolder()}
           className="inline-flex items-center gap-1 rounded border border-slate-600 px-2 py-0.5 text-[11px] text-slate-300 hover:border-sky-500/50"
         >
           <FolderOpen className="w-3 h-3" /> {ORCH_L.openFolder}
@@ -88,20 +109,34 @@ const OrchTaskList: React.FC<{
   onGenerate: (taskId: string) => void;
   onChanged: () => void;
 }> = ({ tasks, selectedTaskId, onSelect, onEdit, onGenerate, onChanged }) => {
+  const [error, setError] = useState<string | null>(null);
   const remove = async (taskId: string) => {
     if (!window.confirm(ORCH_L.confirmDelete)) return;
-    await pycoreApi.orchTaskDelete(taskId);
-    onChanged();
+    setError(null);
+    try {
+      const response = await pycoreApi.orchTaskDelete(taskId);
+      if (!response.success) throw new Error(response.error || ORCH_L.actionFailed);
+      onChanged();
+    } catch (e) {
+      setError(orchErrorMessage(e));
+    }
   };
 
   const cancel = async (taskId: string) => {
-    await pycoreApi.orchTaskCancel(taskId);
-    onChanged();
+    setError(null);
+    try {
+      const response = await pycoreApi.orchTaskCancel(taskId);
+      if (!response.success) throw new Error(response.error || ORCH_L.actionFailed);
+      onChanged();
+    } catch (e) {
+      setError(orchErrorMessage(e));
+    }
   };
 
   return (
     <section className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 space-y-2">
       <h3 className="text-sm font-semibold text-slate-200">{ORCH_L.tasksTitle}</h3>
+      {error && <VocabBanner kind="error" message={error} />}
       {tasks.length === 0 && <p className="text-xs text-slate-500">{ORCH_L.noTasks}</p>}
       <div className="space-y-2">
         {tasks.map((task) => {
@@ -125,13 +160,13 @@ const OrchTaskList: React.FC<{
                   <p className="truncate text-sm font-medium text-slate-200">{task.name}</p>
                   <p className="text-[11px] text-slate-500 truncate">
                     {task.book?.title || task.book?.source_key} · {task.segment_mode === 'minutes'
-                      ? `${task.segment_value} min`
+                      ? `${task.segment_value} ${ORCH_L.minutesUnit}`
                       : `${task.segment_value} ${ORCH_L.segments}`}
                     {' · '}{task.word_mode === 'new_only' ? ORCH_L.wordModeNewOnly : ORCH_L.wordModeAll}
                   </p>
                 </div>
                 <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${statusBadgeClass(task.status, task.running)}`}>
-                  {task.running ? ORCH_L.generating : (task.status || 'draft')}
+                  {task.running ? ORCH_L.generating : ORCH_L[task.status as keyof typeof ORCH_L] || task.status || ORCH_L.draft}
                 </span>
               </div>
               {(task.running || (task.segments_total || 0) > 0) && (
@@ -204,7 +239,7 @@ const OrchTaskList: React.FC<{
                 </span>
                 {task.running && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
               </div>
-              {expanded && <OrchTaskDetail taskId={task.task_id} />}
+              {expanded && <OrchTaskDetail taskId={task.task_id} running={Boolean(task.running || task.status === 'generating')} />}
             </div>
           );
         })}

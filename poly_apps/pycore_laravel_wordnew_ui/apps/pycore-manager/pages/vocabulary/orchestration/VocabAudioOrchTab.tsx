@@ -10,13 +10,18 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
   pycoreApi,
+  onHttpStatus,
+  subscribeLaravelRelayDevice,
   type OrchAuthStatus,
   type OrchBookItem,
   type OrchSystemStatus,
   type OrchTask,
   type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
-import { ORCH_L } from './orchShared';
+import { ORCH_L, orchErrorMessage } from './orchShared';
+import { VocabBanner } from '../vocabShared';
+import { subscribeAuthSession } from '../../../../../core/auth/AuthSession';
+import { SHARED_BASE_URL_CHANGED_EVENT } from '../../../../../core/integrations/laravel/transport/BaseAPI';
 import OrchLoginPanel from './OrchLoginPanel';
 import OrchSystemPanel from './OrchSystemPanel';
 import OrchBookPicker from './OrchBookPicker';
@@ -29,17 +34,21 @@ const VocabAudioOrchTab: React.FC = () => {
   const [auth, setAuth] = useState<OrchAuthStatus | null>(null);
   const [systemStatus, setSystemStatus] = useState<OrchSystemStatus | null>(null);
   const [systemLoading, setSystemLoading] = useState(false);
+  const [systemError, setSystemError] = useState<string | null>(null);
   const [books, setBooks] = useState<OrchBookItem[]>([]);
   const [cachedSentenceBooks, setCachedSentenceBooks] = useState<Set<string>>(new Set());
   const [pendingSyncs, setPendingSyncs] = useState<Set<string>>(new Set());
   const [booksLoading, setBooksLoading] = useState(false);
+  const [booksRefreshing, setBooksRefreshing] = useState(false);
   const [booksError, setBooksError] = useState<string | null>(null);
   const [selectedBookKey, setSelectedBookKey] = useState<string | null>(null);
   const [tasks, setTasks] = useState<OrchTaskSummary[]>([]);
+  const [tasksError, setTasksError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [editorTask, setEditorTask] = useState<OrchTask | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const requestsRef = useRef({ system: false, books: false, tasks: false });
 
   const loadAuth = useCallback(async () => {
     try {
@@ -50,12 +59,18 @@ const VocabAudioOrchTab: React.FC = () => {
   }, []);
 
   const loadSystem = useCallback(async (refresh: boolean) => {
+    if (requestsRef.current.system) return;
+    requestsRef.current.system = true;
     setSystemLoading(true);
     try {
-      setSystemStatus(await pycoreApi.orchSystemStatus(refresh));
-    } catch {
-      setSystemStatus(null);
+      const response = await pycoreApi.orchSystemStatus(refresh);
+      if (!response.success) throw new Error(response.error || ORCH_L.loadFailed);
+      setSystemStatus(response);
+      setSystemError(null);
+    } catch (e) {
+      setSystemError(orchErrorMessage(e, ORCH_L.loadFailed));
     } finally {
+      requestsRef.current.system = false;
       setSystemLoading(false);
     }
   }, []);
@@ -63,10 +78,13 @@ const VocabAudioOrchTab: React.FC = () => {
   // Returns true while a background books/sentences fetch is still running
   // (the caller keeps polling until pycore's background job lands).
   const loadBooks = useCallback(async (refresh: boolean): Promise<boolean> => {
+    if (requestsRef.current.books) return true;
+    requestsRef.current.books = true;
     setBooksLoading(true);
     setBooksError(null);
     try {
       const r = await pycoreApi.orchBooksList(refresh);
+      if (!r.success) throw new Error(r.error || ORCH_L.loadFailed);
       setBooks(Array.isArray(r.items) ? r.items : []);
       const cachedKeys = new Set(r.cached_sentence_books || []);
       setCachedSentenceBooks(cachedKeys);
@@ -84,32 +102,72 @@ const VocabAudioOrchTab: React.FC = () => {
         return next;
       });
       const syncFailure = r.sync?.status === 'failed' ? r.sync.error : null;
-      if (!r.success && r.error) setBooksError(String(r.error));
-      else if (syncFailure) setBooksError(String(syncFailure));
+      const sentenceFailure = Object.values(syncStates).find((state) => state.status === 'failed' && state.error)?.error;
+      if (syncFailure || sentenceFailure) setBooksError(String(syncFailure || sentenceFailure));
+      setBooksRefreshing(Boolean(r.refreshing));
       return Boolean(r.refreshing);
     } catch (e) {
-      setBooksError(e instanceof Error ? e.message : 'load failed');
+      setBooksError(orchErrorMessage(e, ORCH_L.loadFailed));
+      setBooksRefreshing(false);
       return false;
     } finally {
+      requestsRef.current.books = false;
       setBooksLoading(false);
     }
   }, []);
 
   const loadTasks = useCallback(async () => {
+    if (requestsRef.current.tasks) return;
+    requestsRef.current.tasks = true;
     try {
       const r = await pycoreApi.orchTasksList();
+      if (!r.success) throw new Error(ORCH_L.loadFailed);
       setTasks(Array.isArray(r.tasks) ? r.tasks : []);
-    } catch {
-      setTasks([]);
+      setTasksError(null);
+    } catch (e) {
+      setTasksError(orchErrorMessage(e, ORCH_L.loadFailed));
+    } finally {
+      requestsRef.current.tasks = false;
+    }
+  }, []);
+
+  const syncAuth = useCallback(async () => {
+    try {
+      setAuth(await pycoreApi.orchAuthSync());
+    } catch (e) {
+      setSystemError(orchErrorMessage(e));
     }
   }, []);
 
   useEffect(() => {
     void loadAuth();
+    void syncAuth();
     void loadSystem(false);
     void loadBooks(false);
     void loadTasks();
-  }, [loadAuth, loadSystem, loadBooks, loadTasks]);
+  }, [loadAuth, syncAuth, loadSystem, loadBooks, loadTasks]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void syncAuth();
+      void loadSystem(false);
+      void loadBooks(false);
+      void loadTasks();
+    };
+    const unsubscribe = [
+      subscribeAuthSession(refresh),
+      subscribeLaravelRelayDevice(() => void syncAuth()),
+      onHttpStatus((connected) => {
+        if (!connected) return;
+        refresh();
+      }),
+    ];
+    window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, refresh);
+    return () => {
+      unsubscribe.forEach((stop) => stop());
+      window.removeEventListener(SHARED_BASE_URL_CHANGED_EVENT, refresh);
+    };
+  }, [syncAuth, loadSystem, loadBooks, loadTasks]);
 
   // Poll while any task is generating so progress bars + statuses stay live.
   useEffect(() => {
@@ -124,10 +182,10 @@ const VocabAudioOrchTab: React.FC = () => {
 
   // Poll while books/sentence background syncs run on the pycore side.
   useEffect(() => {
-    if (pendingSyncs.size === 0) return;
+    if (pendingSyncs.size === 0 && !booksRefreshing) return;
     const timer = setInterval(() => void loadBooks(false), POLL_MS);
     return () => clearInterval(timer);
-  }, [pendingSyncs, loadBooks]);
+  }, [pendingSyncs, booksRefreshing, loadBooks]);
 
   // Always stop the poller on unmount (the effect above skips cleanup while
   // a task is still running).
@@ -139,26 +197,30 @@ const VocabAudioOrchTab: React.FC = () => {
   }, []);
 
   const openEdit = async (taskId: string) => {
-    const r = await pycoreApi.orchTaskGet(taskId);
-    if (r.success) {
+    try {
+      const r = await pycoreApi.orchTaskGet(taskId);
+      if (!r.success) throw new Error(r.error || ORCH_L.actionFailed);
       setEditorTask(r);
       setEditorOpen(true);
+      setTasksError(null);
+    } catch (e) {
+      setTasksError(orchErrorMessage(e));
     }
   };
 
   const generate = async (taskId: string) => {
-    await pycoreApi.orchTaskGenerate(taskId);
-    void loadTasks();
+    try {
+      const r = await pycoreApi.orchTaskGenerate(taskId);
+      if (!r.success) throw new Error(r.error || ORCH_L.generateFailed);
+      void loadTasks();
+    } catch (e) {
+      setTasksError(orchErrorMessage(e, ORCH_L.generateFailed));
+    }
   };
 
   const refreshBooks = async () => {
     // Kick the background fetch, then poll until it lands.
-    const refreshing = await loadBooks(true);
-    if (!refreshing) return;
-    const timer = setInterval(async () => {
-      const still = await loadBooks(false);
-      if (!still) clearInterval(timer);
-    }, POLL_MS);
+    await loadBooks(true);
   };
 
   const selectedBook = books.find((b) => b.source_key === selectedBookKey) || null;
@@ -168,10 +230,11 @@ const VocabAudioOrchTab: React.FC = () => {
       <OrchSystemPanel
         status={systemStatus}
         loading={systemLoading}
-        onRefresh={() => void loadSystem(true)}
+        error={systemError}
+        onRefresh={() => { void syncAuth(); void loadSystem(true); }}
       />
 
-      <OrchLoginPanel auth={auth} onChanged={() => void loadAuth()} />
+      <OrchLoginPanel auth={auth} onChanged={() => { void loadAuth(); void loadSystem(false); }} />
 
       <OrchBookPicker
         books={books}
@@ -204,6 +267,7 @@ const VocabAudioOrchTab: React.FC = () => {
         />
       )}
 
+      {tasksError && <VocabBanner kind="error" message={tasksError} />}
       <OrchTaskList
         tasks={tasks}
         selectedTaskId={selectedTaskId}

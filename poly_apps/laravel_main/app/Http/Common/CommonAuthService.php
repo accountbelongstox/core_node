@@ -11,6 +11,7 @@
 namespace App\Http\Common;
 
 use App\Models\User;
+use App\Constants\AppKeys;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -270,6 +271,10 @@ class CommonAuthService
      */
     public static function getAppAuthConfig($appName)
     {
+        $normalizedAppName = strtolower(str_replace('_', '', (string) $appName));
+        if ($normalizedAppName === 'dictv1') {
+            $normalizedAppName = AppKeys::APPQYV1;
+        }
         $defaultConfig = [
             'allow_multi_device' => false,
             'user_token_expires_days' => self::USER_TOKEN_EXPIRES_DAYS,
@@ -277,7 +282,7 @@ class CommonAuthService
         ];
 
         $appConfigs = [
-            'DictV1' => [
+            AppKeys::APPQYV1 => [
                 'allow_multi_device' => true,  // Dictionary app allows multi-device
                 'user_token_expires_days' => 7,
                 'auto_refresh_user_token' => true
@@ -289,7 +294,7 @@ class CommonAuthService
             ]
         ];
 
-        return array_merge($defaultConfig, $appConfigs[$appName] ?? []);
+        return array_merge($defaultConfig, $appConfigs[$normalizedAppName] ?? []);
     }
 
     /**

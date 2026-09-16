@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 
@@ -36,7 +37,14 @@ DEFAULT_PROGRESS_TRACK_COLOR = "#303846"
 DEFAULT_PROGRESS_FILL_COLOR = "#4DA3FF"
 DEFAULT_PROGRESS_BAR_HEIGHT = 24
 LINUX_BINARY_DIRECTORIES = (Path("/usr/local/bin"), Path("/usr/bin"), Path("/bin"))
-WINDOWS_INSTALL_ROOTS = (Path("D:/applications/FFmpeg"),)
+WINDOWS_INSTALL_ROOTS = (
+    Path("D:/applications/FFmpeg"),
+    Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "ffmpeg",
+    Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "ffmpeg",
+    Path.home() / "scoop" / "shims",
+    Path.home() / "scoop" / "apps" / "ffmpeg" / "current",
+    Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))) / "Microsoft" / "WinGet" / "Links",
+)
 WINDOWS_SEARCH_DEPTH = 4
 
 ERROR_BINARY_NOT_FOUND = "ffmpeg_binary_not_found"

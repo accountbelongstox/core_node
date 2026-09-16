@@ -46,11 +46,13 @@ def resolve_sentence_words(
     language: str,
     target_language: Optional[str],
     max_read_count: int,
+    auth_record: Optional[Dict[str, Any]] = None,
 ) -> Optional[List[Dict[str, Any]]]:
     """Query the backend word rows for one sentence with the stored qy login.
     Returns None when logged out or on any transport error (caller then falls
     back to local tokenization)."""
-    token = orch_store.auth_token()
+    record = auth_record if auth_record is not None else orch_store.load_auth() or {}
+    token = str(record.get("token") or "")
     if not token:
         return None
     try:
@@ -64,9 +66,12 @@ def resolve_sentence_words(
                 "max_read_count": max(0, int(max_read_count)),
             },
             headers={"Authorization": f"Bearer {token}"},
+            base_url=record.get("base_url") or None,
             timeout=_REQUEST_TIMEOUT,
         )
         if resp.status_code != 200:
+            if resp.status_code == 401 and orch_store.auth_token() == token:
+                orch_store.clear_auth()
             ColorPrint.yellow(
                 f"[AudioOrch] sentence-words HTTP {resp.status_code}"
             )
@@ -87,6 +92,7 @@ def select_words(
     target_language: Optional[str],
     consume: bool,
     use_backend: bool = True,
+    auth_record: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Pick the words to read for one sentence of a task.
 
@@ -109,7 +115,7 @@ def select_words(
     apply_virtual = word_mode == "new_only"
 
     rows = (
-        resolve_sentence_words(sentence, language, target_language, max_read_count)
+        resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record)
         if use_backend
         else None
     )

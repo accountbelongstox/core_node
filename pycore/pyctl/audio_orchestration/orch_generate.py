@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyctl.tts import word_audio_service
-from pycore.pyutils.media_processing.ffmpeg_ops import resolve_ffmpeg
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.tts import word_audio_cache
 from pycore.pyutils.tts.tts_orchestrator import synthesize
 
@@ -45,6 +45,7 @@ from pycore.pyctl.audio_orchestration import orch_books, orch_store, orch_words
 
 _GEN_THREADS: Dict[str, threading.Thread] = {}
 _GEN_LOCK = threading.Lock()
+_CANCEL_REQUESTS: set[str] = set()
 _GAP_SECONDS = 0.6
 
 
@@ -131,6 +132,7 @@ def build_sentence_items(
     sentence: Dict[str, Any],
     consume: bool,
     use_backend: bool = True,
+    auth_record: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Expand the task pattern for one sentence into audio items.
     Item: {kind: word|sentence, language, text}."""
@@ -148,6 +150,7 @@ def build_sentence_items(
                 target_language,
                 consume,
                 use_backend=use_backend,
+                auth_record=auth_record,
             )
             for _ in range(times):
                 items.extend(
@@ -249,26 +252,40 @@ def request_cancel(task_id: str) -> bool:
     task = orch_store.get_task(task_id)
     if not task:
         return False
+    _CANCEL_REQUESTS.add(task_id)
     task["cancel_requested"] = True
     orch_store.save_task(task)
     return True
 
 
-def start_generation(task_id: str) -> Dict[str, Any]:
+def start_generation(
+    task_id: str,
+    expected_user_id: Optional[int] = None,
+    expected_base_url: Optional[str] = None,
+    use_qy_account: Optional[bool] = None,
+) -> Dict[str, Any]:
     task = orch_store.get_task(task_id)
+    auth_record = {} if use_qy_account is False else orch_store.load_auth() or {}
     if not task:
         return {"success": False, "error": "task not found"}
-    if is_running(task_id):
-        return {"success": False, "error": "generation already running"}
+    if expected_user_id is not None and (
+        (auth_record.get("user") or {}).get("id") != expected_user_id
+        or str(auth_record.get("base_url") or "").rstrip("/") != str(expected_base_url or "").rstrip("/")
+    ):
+        return {"success": False, "error": "QY_ACCOUNT_MACHINE_SYNC_PENDING"}
     thread = threading.Thread(
         target=_run_generation,
-        args=(task_id,),
+        args=(task_id, auth_record),
         name=f"audio-orch-{task_id}",
         daemon=True,
     )
     with _GEN_LOCK:
+        current = _GEN_THREADS.get(task_id)
+        if current and current.is_alive():
+            return {"success": False, "error": "generation already running"}
+        _CANCEL_REQUESTS.discard(task_id)
         _GEN_THREADS[task_id] = thread
-    thread.start()
+        thread.start()
     return {"success": True, "task_id": task_id}
 
 
@@ -276,22 +293,25 @@ def _progress(task: Dict[str, Any], **fields: Any) -> None:
     progress = dict(task.get("progress") or {})
     progress.update(fields)
     task["progress"] = progress
+    task["cancel_requested"] = str(task.get("task_id") or "") in _CANCEL_REQUESTS
     orch_store.save_task(task)
 
 
-def _run_generation(task_id: str) -> None:
+def _run_generation(task_id: str, auth_record: Dict[str, Any]) -> None:
     task = orch_store.get_task(task_id)
     if not task:
         return
     try:
-        _generate(task)
+        _generate(task, auth_record)
     except Exception as exc:  # noqa: BLE001
         ColorPrint.red(f"[AudioOrch] generation crashed for {task_id}: {exc}")
         task["status"] = "failed"
         _progress(task, message=f"generation crashed: {exc}")
+    finally:
+        _CANCEL_REQUESTS.discard(task_id)
 
 
-def _generate(task: Dict[str, Any]) -> None:
+def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     task_id = str(task["task_id"])
     book = task.get("book") or {}
     source_key = str(book.get("source_key") or "")
@@ -307,7 +327,8 @@ def _generate(task: Dict[str, Any]) -> None:
         _progress(task, message=f"no sentences for book {source_key}: {synced.get('error') if isinstance(synced, dict) else 'unknown'}")
         return
 
-    ffmpeg = resolve_ffmpeg()
+    binary = ffmpeg_runtime.binaries().ffmpeg
+    ffmpeg = str(binary) if binary is not None else None
     if not ffmpeg:
         task["status"] = "failed"
         orch_store.append_task_event(task, "ffmpeg not found")
@@ -347,7 +368,7 @@ def _generate(task: Dict[str, Any]) -> None:
     stats = {"cache_hits": 0, "laravel_hits": 0, "generated": 0, "missing": 0}
 
     for segment in task["segments"]:
-        if task.get("cancel_requested"):
+        if task_id in _CANCEL_REQUESTS:
             task["status"] = "draft"
             _progress(task, message="cancelled")
             return
@@ -361,11 +382,15 @@ def _generate(task: Dict[str, Any]) -> None:
         item_index = 0
         segment_items: List[Dict[str, Any]] = []
         for sentence_pos in range(segment["start"], segment["end"] + 1):
-            segment_items.extend(build_sentence_items(task, sentences[sentence_pos], consume=True))
+            if task_id in _CANCEL_REQUESTS:
+                task["status"] = "draft"
+                _progress(task, message="cancelled", **stats)
+                return
+            segment_items.extend(build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record))
         orch_store.save_task(task)
         item_total = len(segment_items)
         for item in segment_items:
-            if task.get("cancel_requested"):
+            if task_id in _CANCEL_REQUESTS:
                 task["status"] = "draft"
                 _progress(task, message="cancelled", **stats)
                 return
@@ -414,6 +439,10 @@ def _generate(task: Dict[str, Any]) -> None:
         _progress(task, message=f"segment {segment['index']}: assembling", segment_index=segment["index"], **stats)
         output = output_dir / f"segment_{segment['index']:03d}.mp3"
         error = _concat_segment(ffmpeg, gap, files, output)
+        if task_id in _CANCEL_REQUESTS:
+            task["status"] = "draft"
+            _progress(task, message="cancelled", **stats)
+            return
         if error:
             segment["status"] = "failed"
             segment["error"] = error

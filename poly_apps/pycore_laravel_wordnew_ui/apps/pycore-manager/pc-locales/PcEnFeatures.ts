@@ -1,6 +1,8 @@
+import { orchEn } from './OrchLocales';
 /** Pycore Manager locale resource fragment. */
 export const pcEnFeatures = {
 vocabularyPage: {
+    orchestration: orchEn,
     title: 'Vocabulary',
     subtitle: 'Dictionary words, libraries, statistics, translation, and TTS queues from Laravel.',
     tabs: {

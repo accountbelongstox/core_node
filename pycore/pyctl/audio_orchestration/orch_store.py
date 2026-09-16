@@ -94,11 +94,12 @@ def slugify(name: str) -> str:
 # --------------------------------------------------------------------------- #
 # qy-app auth session                                                          #
 # --------------------------------------------------------------------------- #
-def save_auth(username: str, token: str, user: Dict[str, Any]) -> bool:
+def save_auth(username: str, token: str, user: Dict[str, Any], base_url: str = "") -> bool:
     record = {
         "username": username,
         "token": token,
         "user": user or {},
+        "base_url": base_url,
         "logged_at": int(time.time()),
     }
     with _LOCK:

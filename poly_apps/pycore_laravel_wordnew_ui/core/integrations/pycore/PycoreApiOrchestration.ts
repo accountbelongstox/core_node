@@ -6,6 +6,7 @@
  * plan preview and background generation with progress polling.
  */
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
+import { orchAccountSession } from './OrchAccountSession';
 
 export interface OrchBookItem {
   id?: number;
@@ -66,6 +67,8 @@ export interface OrchAuthStatus {
   username?: string;
   user?: { id?: number; username?: string; native_language?: string };
   logged_at?: number;
+  machine_synced?: boolean;
+  sync_error?: string;
 }
 
 export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words';
@@ -125,6 +128,7 @@ export interface OrchTask extends OrchTaskSummary {
 
 export interface OrchSystemStatus {
   success: boolean;
+  error?: string;
   probed_at?: number;
   ffmpeg?: { available: boolean; path?: string; version?: string; probe_error?: string };
   data_dir?: string;
@@ -144,11 +148,12 @@ export interface OrchTaskFile {
 export const pycoreApiOrchestration = {
   // --- qy-app login (persisted on the pycore side, loaded at startup) ------ #
   orchAuthLogin: (username: string, password: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthLogin, { username, password }) as Promise<OrchAuthStatus & { error?: string }>,
+    orchAccountSession.login(username, password),
   orchAuthStatus: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthStatus, {}) as Promise<OrchAuthStatus>,
+    orchAccountSession.status(),
   orchAuthLogout: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthLogout, {}) as Promise<OrchAuthStatus>,
+    orchAccountSession.logout(),
+  orchAuthSync: (force = false) => orchAccountSession.sync(force),
 
   // --- Laravel books (cached on the pycore side) ---------------------------- #
   orchBooksList: (refresh = false) =>
@@ -169,8 +174,10 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskDelete, { task_id: taskId }) as Promise<{ success: boolean; error?: string }>,
   orchTaskPlan: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskPlan, { task_id: taskId }, 180_000) as Promise<{ success: boolean; error?: string; segments?: OrchSegment[]; sentence_total?: number }>,
-  orchTaskGenerate: (taskId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGenerate, { task_id: taskId }) as Promise<{ success: boolean; error?: string }>,
+  orchTaskGenerate: async (taskId: string): Promise<{ success: boolean; error?: string }> => {
+    await orchAccountSession.requireSynced();
+    return requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGenerate, { task_id: taskId, ...orchAccountSession.generationAccount() });
+  },
   orchTaskCancel: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskCancel, { task_id: taskId }) as Promise<{ success: boolean; error?: string }>,
   orchTaskProgress: (taskId: string) =>

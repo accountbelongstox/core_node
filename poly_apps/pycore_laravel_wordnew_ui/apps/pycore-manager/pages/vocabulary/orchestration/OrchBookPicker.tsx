@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { BookOpen, Database, Loader2, RefreshCw } from 'lucide-react';
 import { pycoreApi, type OrchBookItem } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabShared';
-import { ORCH_L } from './orchShared';
+import { ORCH_L, orchErrorMessage } from './orchShared';
 
 const OrchBookPicker: React.FC<{
   books: OrchBookItem[];
@@ -29,12 +29,12 @@ const OrchBookPicker: React.FC<{
       // the parent polls until the book lands in cached_sentence_books.
       const r = await pycoreApi.orchBookSentences(book.source_key, true);
       if (!r.success) {
-        setSyncError(String(r.error || 'sync failed'));
+        setSyncError(String(r.error || ORCH_L.loadFailed));
         return;
       }
       onSyncStarted(book.source_key);
     } catch (e) {
-      setSyncError(e instanceof Error ? e.message : 'sync failed');
+      setSyncError(orchErrorMessage(e, ORCH_L.loadFailed));
     }
   };
 

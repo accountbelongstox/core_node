@@ -108,7 +108,7 @@ def fetch_books(refresh: bool = False) -> Dict[str, Any]:
     cached = orch_store.load_books_cache()
     state = orch_store.load_sync_state().get("books") or {}
     running = _job_running("books")
-    if (refresh or not cached.get("items")) and not running:
+    if (refresh or (not cached.get("items") and state.get("status") != "failed")) and not running:
         orch_store.save_sync_state("books", {"status": "running", "fetched": 0})
         _start_job("books", _books_job)
         running = True
@@ -118,7 +118,7 @@ def fetch_books(refresh: bool = False) -> Dict[str, Any]:
         "items": cached.get("items") or [],
         "fetched_at": cached.get("fetched_at") or 0,
         "refreshing": running,
-        "sync": state,
+        "sync": orch_store.load_sync_state().get("books") or state,
     }
 
 
@@ -228,7 +228,8 @@ def sync_book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any
         cached and isinstance(cached.get("sentences"), list) and cached["sentences"]
     )
     running = _job_running(source_key)
-    if (refresh or not has_cache) and not running:
+    state = orch_store.load_sync_state().get(source_key) or {}
+    if (refresh or (not has_cache and state.get("status") != "failed")) and not running:
         orch_store.save_sync_state(source_key, {"status": "running", "fetched": 0})
         _start_job(source_key, lambda: _sentences_job(source_key))
         running = True

@@ -82,9 +82,10 @@ export function summarizeHttpParams(value: unknown): string {
   if (value == null) return '';
   if (typeof FormData !== 'undefined' && value instanceof FormData) return '[FormData]';
   try {
-    const s = JSON.stringify(value, (_k, v) =>
-      typeof v === 'string' && v.length > 120 ? v.slice(0, 120) + '…' : v,
-    );
+    const s = JSON.stringify(value, (key, item) => {
+      if (/password|token|authorization|credential|secret/i.test(key)) return '<redacted>';
+      return typeof item === 'string' && item.length > 120 ? item.slice(0, 120) + '…' : item;
+    });
     return s.length > 240 ? s.slice(0, 240) + '…' : s;
   } catch {
     return String(value).slice(0, 240);

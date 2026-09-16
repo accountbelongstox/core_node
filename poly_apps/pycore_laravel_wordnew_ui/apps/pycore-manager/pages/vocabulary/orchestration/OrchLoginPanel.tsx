@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { KeyRound, Loader2, LogOut, UserCheck } from 'lucide-react';
 import { pycoreApi, type OrchAuthStatus } from '@/apps/pycore-manager/api';
 import { VocabBanner } from '../vocabShared';
-import { ORCH_L } from './orchShared';
+import { ORCH_L, orchErrorMessage } from './orchShared';
 
 const OrchLoginPanel: React.FC<{
   auth: OrchAuthStatus | null;
@@ -19,18 +19,19 @@ const OrchLoginPanel: React.FC<{
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
+    if (busy || !username.trim() || !password) return;
     setBusy(true);
     setError(null);
     try {
       const r = await pycoreApi.orchAuthLogin(username.trim(), password);
       if (!r.success) {
-        setError(String(r.error || 'Login failed'));
+        setError(ORCH_L.loginFailed);
         return;
       }
       setPassword('');
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed');
+      setError(orchErrorMessage(e, ORCH_L.loginFailed));
     } finally {
       setBusy(false);
     }
@@ -41,6 +42,21 @@ const OrchLoginPanel: React.FC<{
     try {
       await pycoreApi.orchAuthLogout();
       onChanged();
+    } catch (e) {
+      setError(orchErrorMessage(e, ORCH_L.logoutFailed));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sync = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await pycoreApi.orchAuthSync(true);
+      onChanged();
+    } catch (e) {
+      setError(orchErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -58,6 +74,13 @@ const OrchLoginPanel: React.FC<{
         )}
       </div>
       {error && <VocabBanner kind="error" message={error} />}
+      {auth?.sync_error && (
+        <div className="space-y-2">
+          <VocabBanner kind="warn" message={orchErrorMessage(auth.sync_error, ORCH_L.machineSyncPending)} />
+          <button type="button" disabled={busy} onClick={() => void sync()}
+            className="text-xs text-sky-400 disabled:opacity-50">{ORCH_L.retrySync}</button>
+        </div>
+      )}
       {auth?.logged_in ? (
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-400">{ORCH_L.loginHint}</p>

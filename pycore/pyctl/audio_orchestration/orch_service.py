@@ -8,12 +8,14 @@ function returns a JSON-able dict with a ``success`` flag and never raises.
 
 import subprocess
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_launcher import open_path
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.media_processing.ffmpeg_ops import resolve_ffmpeg
+from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
@@ -22,7 +24,11 @@ from pycore.pyctl.audio_orchestration import (
 )
 
 _LARAVEL_LOGIN = "/api/app_qy_v1/login"
+_LARAVEL_USER = "/api/app_qy_v1/user"
 _LOGIN_TIMEOUT = 60
+_SYSTEM_STATUS_TTL_SECONDS = 300
+_SYSTEM_STATUS_MISSING_TTL_SECONDS = 5
+_SYSTEM_STATUS_SCHEMA = 1
 
 _STEP_TYPES = ("sentence_en", "sentence_zh", "words")
 _WORD_MODES = ("new_only", "all")
@@ -45,34 +51,61 @@ _DEFAULT_PATTERN = [
 # --------------------------------------------------------------------------- #
 # qy-app auth                                                                  #
 # --------------------------------------------------------------------------- #
-def auth_login(username: str, password: str) -> Dict[str, Any]:
+def auth_login(username: str, password: str, access_token: str = "", base_url: str = "") -> Dict[str, Any]:
     username = (username or "").strip()
-    if not username or not password:
+    endpoint = urlsplit(base_url) if base_url else None
+    token = access_token.strip()
+    user: Dict[str, Any] = {}
+    data: Dict[str, Any] = {}
+    token_data: Any = None
+    if endpoint and (endpoint.scheme not in ("http", "https") or not endpoint.netloc or endpoint.username):
+        return {"success": False, "error": "invalid Laravel endpoint"}
+    if not token and (not username or not password):
         return {"success": False, "error": "username and password are required"}
     try:
-        resp = laravel_client.post(
-            _LARAVEL_LOGIN,
-            json={"username": username, "password": password},
-            timeout=_LOGIN_TIMEOUT,
-            sensitive_request=True,
-        )
+        if token:
+            resp = laravel_client.get(
+                _LARAVEL_USER, headers={"Authorization": f"Bearer {token}"},
+                base_url=base_url or None, timeout=_LOGIN_TIMEOUT,
+                sensitive_request=True,
+            )
+        else:
+            resp = laravel_client.post(
+                _LARAVEL_LOGIN, json={"username": username, "password": password},
+                base_url=base_url or None, timeout=_LOGIN_TIMEOUT,
+                sensitive_request=True,
+            )
         body = resp.json() if resp.content else {}
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] login failed: {exc}")
         return {"success": False, "error": str(exc)}
     if resp.status_code != 200 or not isinstance(body, dict):
         message = body.get("error") or body.get("message") if isinstance(body, dict) else None
-        return {"success": False, "error": str(message or f"HTTP {resp.status_code}")}
-    token = body.get("token")
+        return {
+            "success": False, "error": str(message or f"HTTP {resp.status_code}"),
+            "error_code": "QY_ACCOUNT_AUTH_REQUIRED" if resp.status_code == 401 else "QY_ACCOUNT_REQUEST_FAILED",
+        }
     data = body.get("data") if isinstance(body.get("data"), dict) else {}
     if not token:
-        token = data.get("token") or data.get("access_token")
-    if not token:
+        token_data = body.get("login_token") or body.get("token") or data.get("login_token") or data.get("token") or data.get("access_token")
+        if isinstance(token_data, dict):
+            token_data = token_data.get("accessToken") or token_data.get("access_token")
+        token = token_data if isinstance(token_data, str) else ""
+    if body.get("success") is False or not token:
         return {"success": False, "error": str(body.get("message") or "login rejected")}
-    user = data.get("user") if isinstance(data.get("user"), dict) else {}
-    orch_store.save_auth(username, str(token), user)
+    user = data.get("user") if isinstance(data.get("user"), dict) else data
+    if not user.get("id") and body.get("id"):
+        user = body
+    if not user.get("id") and isinstance(body.get("user"), dict):
+        user = body["user"]
+    if access_token and not user.get("id"):
+        return {"success": False, "error": "Qy account verification failed"}
+    username = str(user.get("username") or username)
+    if not orch_store.save_auth(username, token, user, base_url):
+        return {"success": False, "error": "Qy account session could not be persisted"}
     return {
         "success": True,
+        "logged_in": True,
         "username": username,
         "user": {
             "id": user.get("id"),
@@ -100,8 +133,13 @@ def auth_status() -> Dict[str, Any]:
     }
 
 
-def auth_logout() -> Dict[str, Any]:
-    orch_store.clear_auth()
+def auth_logout(expected_user_id: Optional[int] = None) -> Dict[str, Any]:
+    record = orch_store.load_auth() or {}
+    user = record.get("user") or {}
+    if expected_user_id is not None and user.get("id") != expected_user_id:
+        return {"success": True, "logged_in": False}
+    if not orch_store.clear_auth():
+        return {"success": False, "error": "Qy account session could not be cleared"}
     return {"success": True, "logged_in": False}
 
 
@@ -273,8 +311,13 @@ def task_plan(task_id: str) -> Dict[str, Any]:
     return {"success": True, **plan}
 
 
-def task_generate(task_id: str) -> Dict[str, Any]:
-    return orch_generate.start_generation(str(task_id or ""))
+def task_generate(
+    task_id: str,
+    expected_user_id: Optional[int] = None,
+    expected_base_url: Optional[str] = None,
+    use_qy_account: Optional[bool] = None,
+) -> Dict[str, Any]:
+    return orch_generate.start_generation(str(task_id or ""), expected_user_id, expected_base_url, use_qy_account)
 
 
 def task_cancel(task_id: str) -> Dict[str, Any]:
@@ -300,11 +343,9 @@ def task_progress(task_id: str) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # system status + generated files                                              #
 # --------------------------------------------------------------------------- #
-_SYSTEM_STATUS_TTL_SECONDS = 300
-
-
 def _probe_ffmpeg() -> Dict[str, Any]:
-    binary = resolve_ffmpeg()
+    resolved = ffmpeg_runtime.binaries().ffmpeg
+    binary = str(resolved) if resolved is not None else None
     info: Dict[str, Any] = {"available": bool(binary), "path": binary or "", "version": ""}
     if binary:
         try:
@@ -314,8 +355,12 @@ def _probe_ffmpeg() -> Dict[str, Any]:
             )
             first_line = (proc.stdout or "").splitlines()[0] if proc.stdout else ""
             info["version"] = first_line.strip()
+            if proc.returncode != 0:
+                info["available"] = False
+                info["probe_error"] = (proc.stderr or "").strip() or f"process exit {proc.returncode}"
         except Exception as exc:  # noqa: BLE001
             info["version"] = ""
+            info["available"] = False
             info["probe_error"] = str(exc)
     return info
 
@@ -325,11 +370,17 @@ def system_status(refresh: bool = False) -> Dict[str, Any]:
     check is TTL-cached on disk so UI polls never pay the probe cost."""
     cached = orch_store.load_system_status()
     now = int(time.time())
-    if not refresh and cached and now - int(cached.get("probed_at") or 0) < _SYSTEM_STATUS_TTL_SECONDS:
-        return {"success": True, **cached}
-    ffmpeg = _probe_ffmpeg()
+    cached_ffmpeg = (cached or {}).get("ffmpeg") or {}
+    ttl = _SYSTEM_STATUS_TTL_SECONDS if cached_ffmpeg.get("available") else _SYSTEM_STATUS_MISSING_TTL_SECONDS
+    reusable = (
+        not refresh and cached and cached.get("schema") == _SYSTEM_STATUS_SCHEMA
+        and now - int(cached.get("probed_at") or 0) < ttl
+        and (not cached_ffmpeg.get("available") or Path(str(cached_ffmpeg.get("path") or "")).is_file())
+    )
+    ffmpeg = cached_ffmpeg if reusable else _probe_ffmpeg()
     status = {
-        "probed_at": now,
+        "schema": _SYSTEM_STATUS_SCHEMA,
+        "probed_at": cached["probed_at"] if reusable else now,
         "ffmpeg": ffmpeg,
         "data_dir": str(orch_store.base_dir()),
         "output_root": str(orch_store.base_dir() / "output"),
@@ -338,7 +389,8 @@ def system_status(refresh: bool = False) -> Dict[str, Any]:
         "sentence_books_cached": len(orch_store.cached_book_keys()),
         "logged_in": bool(orch_store.auth_token()),
     }
-    orch_store.save_system_status(status)
+    if not reusable:
+        orch_store.save_system_status(status)
     return {"success": True, **status}
 
 

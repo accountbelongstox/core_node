@@ -15,13 +15,13 @@ import {
   type OrchTask,
 } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabShared';
-import { ORCH_L, ORCH_STEP_LABELS, formatDuration } from './orchShared';
+import { ORCH_L, ORCH_STEP_LABELS, formatDuration, orchErrorMessage } from './orchShared';
 
 const STEP_TYPES: OrchPatternStepType[] = ['words', 'sentence_en', 'sentence_zh'];
 const PRESETS: Array<{ label: string; steps: OrchPatternStep[] }> = [
-  { label: ORCH_L.presetEnZh, steps: [{ type: 'sentence_en', times: 1 }, { type: 'sentence_zh', times: 1 }] },
-  { label: ORCH_L.presetZhEn, steps: [{ type: 'sentence_zh', times: 1 }, { type: 'sentence_en', times: 1 }] },
-  { label: ORCH_L.presetWordEn, steps: [{ type: 'words', times: 1 }, { type: 'sentence_en', times: 1 }] },
+  { get label() { return ORCH_L.presetEnZh; }, steps: [{ type: 'sentence_en', times: 1 }, { type: 'sentence_zh', times: 1 }] },
+  { get label() { return ORCH_L.presetZhEn; }, steps: [{ type: 'sentence_zh', times: 1 }, { type: 'sentence_en', times: 1 }] },
+  { get label() { return ORCH_L.presetWordEn; }, steps: [{ type: 'words', times: 1 }, { type: 'sentence_en', times: 1 }] },
 ];
 
 const OrchTaskEditor: React.FC<{
@@ -91,13 +91,13 @@ const OrchTaskEditor: React.FC<{
         ? await pycoreApi.orchTaskUpdate(task.task_id, payload)
         : await pycoreApi.orchTaskCreate(payload);
       if (!r.success || !r.task) {
-        setError(String(r.error || 'save failed'));
+        setError(String(r.error || ORCH_L.saveFailed));
         return null;
       }
       onSaved(String(r.task.task_id));
       return String(r.task.task_id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'save failed');
+      setError(orchErrorMessage(e, ORCH_L.saveFailed));
       return null;
     } finally {
       setBusy(false);
@@ -111,12 +111,12 @@ const OrchTaskEditor: React.FC<{
     try {
       const r = await pycoreApi.orchTaskPlan(taskId);
       if (!r.success) {
-        setError(String(r.error || 'plan failed'));
+        setError(String(r.error || ORCH_L.planFailed));
         return;
       }
       setPlan({ segments: r.segments || [], sentence_total: r.sentence_total });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'plan failed');
+      setError(orchErrorMessage(e, ORCH_L.planFailed));
     } finally {
       setBusy(false);
     }
@@ -125,12 +125,19 @@ const OrchTaskEditor: React.FC<{
   const generate = async () => {
     const taskId = await save();
     if (!taskId) return;
-    const r = await pycoreApi.orchTaskGenerate(taskId);
-    if (!r.success) {
-      setError(String(r.error || 'generate failed'));
-      return;
+    setBusy(true);
+    try {
+      const r = await pycoreApi.orchTaskGenerate(taskId);
+      if (!r.success) {
+        setError(orchErrorMessage(r.error, ORCH_L.generateFailed));
+        return;
+      }
+      onClose();
+    } catch (e) {
+      setError(orchErrorMessage(e, ORCH_L.generateFailed));
+    } finally {
+      setBusy(false);
     }
-    onClose();
   };
 
   return (

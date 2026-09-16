@@ -1,96 +1,32 @@
-/**
- * Shared labels + helpers for the vocabulary audio-orchestration tab parts.
- * English literals with zh comments, matching the vocabShared VL convention.
- */
+import i18n from '../../../../../core/i18n/UiI18n';
+import { orchEn } from '../../../pc-locales/OrchLocales';
 import type { OrchPatternStepType } from '@/apps/pycore-manager/api';
 
-export const ORCH_L = {
-  loginTitle: 'Qy App Account',                          // Qy 应用账户
-  username: 'Username',                                  // 用户名
-  password: 'Password',                                  // 密码
-  login: 'Login',                                        // 登录
-  logout: 'Logout',                                      // 退出登录
-  loggingIn: 'Logging in…',                              // 登录中…
-  loggedInAs: 'Logged in as',                            // 已登录
-  notLoggedIn: 'Not logged in',                          // 未登录
-  loginHint: 'Login enables Word New Only against your default Word Group.',  // 登录后可按默认 Word Group 过滤新词
-  booksTitle: 'Backend Books',                           // 后端书库
-  refresh: 'Refresh',                                    // 刷新
-  syncing: 'Syncing…',                                   // 同步中…
-  syncSentences: 'Sync sentences',                       // 同步句子
-  sentencesCached: 'sentences cached',                   // 句子已缓存
-  noBooks: 'No books. Refresh to fetch from Laravel.',   // 暂无书籍，点击刷新从 Laravel 获取
-  tasksTitle: 'Orchestration Tasks',                     // 编排任务
-  newTask: 'New Task',                                   // 新建任务
-  edit: 'Edit',                                          // 编辑
-  delete: 'Delete',                                      // 删除
-  confirmDelete: 'Delete this task? Generated audio stays on disk.',  // 删除任务？已生成音频保留在磁盘
-  noTasks: 'No tasks yet.',                              // 暂无任务
-  generating: 'Generating',                              // 生成中
-  cancel: 'Cancel',                                      // 取消
-  regenerate: 'Regenerate',                              // 重新生成
-  editorTitleNew: 'New Orchestration Task',              // 新建编排任务
-  editorTitleEdit: 'Edit Orchestration Task',            // 编辑编排任务
-  taskName: 'Task name',                                 // 任务名
-  book: 'Book',                                          // 书籍
-  pickBook: 'Select a book above first',                 // 请先在上方选择书籍
-  segmentMode: 'Split by',                               // 分段方式
-  segmentCount: 'Segment count',                         // 段落数
-  segmentMinutes: 'Minutes per segment',                 // 每段分钟数
-  pattern: 'Sentence pattern',                           // 句子编排
-  patternWords: 'Words',                                 // 单词
-  patternEn: 'EN sentence',                              // 英文句子
-  patternZh: 'ZH sentence',                              // 中文句子
-  times: 'times',                                        // 次数
-  addStep: 'Add step',                                   // 添加步骤
-  moveUp: 'Up',                                          // 上移
-  moveDown: 'Down',                                      // 下移
-  remove: 'Remove',                                      // 移除
-  presetEnZh: 'EN → ZH',                                 // 先英后中
-  presetZhEn: 'ZH → EN',                                 // 先中后英
-  presetWordEn: 'Words → EN',                            // 先词后英
-  wordMode: 'Word selection',                            // 单词选择
-  wordModeNewOnly: 'Word New Only (virtual read)',       // 仅新词（虚拟已读）
-  wordModeAll: 'All words',                              // 全部单词
-  save: 'Save',                                          // 保存
-  create: 'Create',                                      // 创建
-  planPreview: 'Preview plan',                           // 预览编排
-  generate: 'Generate',                                  // 生成
-  segments: 'segments',                                  // 段落
-  sentences: 'sentences',                                // 句子
-  words: 'words',                                        // 单词
-  items: 'audio items',                                  // 音频项
-  outputDir: 'Output',                                   // 输出目录
-  error: 'Error',                                        // 错误
-  loginRequiredForNewOnly: 'Word New Only needs a logged-in qy account (falls back to task-local tracking when logged out).',  // 仅新词需登录 qy 账户（未登录时退化为本任务内去重）
-  systemTitle: 'Pycore System',                          // Pycore 系统状态
-  ffmpeg: 'ffmpeg',                                      // ffmpeg
-  available: 'available',                                // 可用
-  missing: 'missing',                                    // 缺失
-  dataDir: 'Data directory',                             // 数据目录
-  outputRoot: 'Output root',                             // 输出根目录
-  openFolder: 'Open folder',                             // 打开目录
-  booksCached: 'books cached',                           // 已缓存书籍
-  sentenceBooks: 'sentence tables',                      // 句子表
-  details: 'Details',                                    // 详情
-  hideDetails: 'Hide',                                   // 收起
-  files: 'Files',                                        // 文件
-  noFiles: 'No generated files yet.',                    // 暂无生成文件
-  logTitle: 'Generation log',                            // 生成日志
-  noLog: 'No log entries yet.',                          // 暂无日志
-  manifestCache: 'cache',                                // 缓存命中
-  manifestLaravel: 'from Laravel',                       // 来自 Laravel
-  manifestGenerated: 'generated',                        // 本地生成
-  manifestMissing: 'missing',                            // 缺失
-  syncingNow: 'syncing',                                 // 同步中
-  refreshDone: 'refresh done',                           // 刷新完成
-};
+type OrchLabels = { [K in keyof typeof orchEn]: string };
 
-export const ORCH_STEP_LABELS: Record<OrchPatternStepType, string> = {
-  words: ORCH_L.patternWords,
-  sentence_en: ORCH_L.patternEn,
-  sentence_zh: ORCH_L.patternZh,
-};
+export const ORCH_L = Object.defineProperties({}, Object.fromEntries(
+  Object.keys(orchEn).map((key) => [key, {
+    enumerable: true, get: () => String(i18n.t(`vocabularyPage.orchestration.${key}`, { ns: 'pc' })),
+  }]),
+)) as OrchLabels;
+
+export const ORCH_STEP_LABELS = {
+  get words() { return ORCH_L.patternWords; },
+  get sentence_en() { return ORCH_L.patternEn; },
+  get sentence_zh() { return ORCH_L.patternZh; },
+} satisfies Record<OrchPatternStepType, string>;
+
+export function orchErrorMessage(error: unknown, fallback: string = ORCH_L.actionFailed): string {
+  const failure = error as { status?: number; message?: string; path?: string } | null;
+  const message = failure?.message || (typeof error === 'string' ? error : '');
+  const accountRequest = failure?.path === '/login' || failure?.path?.startsWith('/api/app_qy_v1/') === true;
+  if (!accountRequest && (failure?.status === 401 || failure?.status === 403 || message.includes('RELAY_TRANSPORT_AUTH_REQUIRED'))) return ORCH_L.relayTransportRequired;
+  if (message === 'QY_ACCOUNT_MACHINE_SYNC_PENDING') return ORCH_L.machineSyncPending;
+  if (message === 'QY_ACCOUNT_LOGOUT_PENDING') return ORCH_L.logoutPending;
+  if (message === 'QY_ACCOUNT_LOGOUT_TARGET_CHANGED') return ORCH_L.logoutTargetChanged;
+  if (message === 'QY_ACCOUNT_AUTH_REQUIRED') return ORCH_L.accountExpired;
+  return message || fallback;
+}
 
 /** minutes:seconds for plan/preview estimates. */
 export function formatDuration(seconds: number | undefined | null): string {

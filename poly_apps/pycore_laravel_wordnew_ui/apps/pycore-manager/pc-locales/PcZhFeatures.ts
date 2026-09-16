@@ -1,6 +1,8 @@
+import { orchZh } from './OrchLocales';
 /** Pycore Manager locale resource fragment. */
 export const pcZhFeatures = {
 vocabularyPage: {
+    orchestration: orchZh,
     title: '词汇',
     subtitle: '直接管理 Laravel 中的词典单词、词库、统计、翻译与 TTS 队列。',
     tabs: {

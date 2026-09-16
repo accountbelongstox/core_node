@@ -12,10 +12,15 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.auth_login(
             str(params.get("username") or ""),
             str(params.get("password") or ""),
+            str(params.get("access_token") or ""),
+            str(params.get("laravel_base_url") or ""),
         )
 
     def books_list(params, request_id, context):
         return orch_service.books_list(refresh=bool(params.get("refresh")))
+
+    def auth_logout(params, request_id, context):
+        return orch_service.auth_logout(params.get("expected_user_id"))
 
     def book_sentences(params, request_id, context):
         return orch_service.book_sentences(
@@ -41,7 +46,12 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.task_plan(str(params.get("task_id") or ""))
 
     def task_generate(params, request_id, context):
-        return orch_service.task_generate(str(params.get("task_id") or ""))
+        return orch_service.task_generate(
+            str(params.get("task_id") or ""),
+            params.get("expected_user_id"),
+            params.get("expected_base_url"),
+            params.get("use_qy_account"),
+        )
 
     def task_cancel(params, request_id, context):
         return orch_service.task_cancel(str(params.get("task_id") or ""))
@@ -63,7 +73,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_BOOK_SENTENCES, book_sentences),
         (route_names.UI_AUDIO_ORCH_AUTH_LOGIN, auth_login),
         (route_names.UI_AUDIO_ORCH_AUTH_STATUS, orch_service.auth_status),
-        (route_names.UI_AUDIO_ORCH_AUTH_LOGOUT, orch_service.auth_logout),
+        (route_names.UI_AUDIO_ORCH_AUTH_LOGOUT, auth_logout),
         (route_names.UI_AUDIO_ORCH_TASKS_LIST, orch_service.tasks_list),
         (route_names.UI_AUDIO_ORCH_TASK_GET, task_get),
         (route_names.UI_AUDIO_ORCH_TASK_CREATE, task_create),

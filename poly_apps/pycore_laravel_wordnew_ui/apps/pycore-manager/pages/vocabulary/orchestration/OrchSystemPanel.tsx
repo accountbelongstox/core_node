@@ -3,21 +3,31 @@
  * (available / path / version), the pycore data directory and output root,
  * plus an "open folder" action (resolved + opened on the pycore side).
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, FolderOpen, Loader2, MinusCircle, RefreshCw, Wrench } from 'lucide-react';
 import { pycoreApi, type OrchSystemStatus } from '@/apps/pycore-manager/api';
-import { humanInt } from '../vocabShared';
-import { ORCH_L } from './orchShared';
+import { humanInt, VocabBanner } from '../vocabShared';
+import { ORCH_L, orchErrorMessage } from './orchShared';
 
 const OrchSystemPanel: React.FC<{
   status: OrchSystemStatus | null;
   loading: boolean;
+  error: string | null;
   onRefresh: () => void;
-}> = ({ status, loading, onRefresh }) => {
+}> = ({ status, loading, error, onRefresh }) => {
   const ffmpeg = status?.ffmpeg;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const ffmpegLabel = !ffmpeg ? (loading ? ORCH_L.checking : ORCH_L.unknown)
+    : ffmpeg.available ? ORCH_L.available : ffmpeg.probe_error ? ORCH_L.probeFailed : ORCH_L.missing;
 
   const openFolder = async () => {
-    await pycoreApi.orchOpenOutput();
+    setActionError(null);
+    try {
+      const response = await pycoreApi.orchOpenOutput();
+      if (!response.success) setActionError(ORCH_L.actionFailed);
+    } catch (e) {
+      setActionError(orchErrorMessage(e));
+    }
   };
 
   return (
@@ -31,6 +41,7 @@ const OrchSystemPanel: React.FC<{
           <button
             type="button"
             onClick={() => void openFolder()}
+            disabled={!status?.success}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2.5 py-1 text-xs text-slate-300 hover:border-sky-500/50"
           >
             <FolderOpen className="w-3.5 h-3.5" /> {ORCH_L.openFolder}
@@ -46,14 +57,16 @@ const OrchSystemPanel: React.FC<{
           </button>
         </div>
       </div>
+      {(error || actionError) && <VocabBanner kind="error" message={error || actionError || ''} />}
+      {ffmpeg?.probe_error && <VocabBanner kind="warn" message={ffmpeg.probe_error} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg bg-slate-950/60 border border-slate-800 p-2 flex items-center gap-2">
-          {ffmpeg?.available
+          {!ffmpeg ? <MinusCircle className="w-3.5 h-3.5 text-slate-500 shrink-0" /> : ffmpeg.available
             ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             : <MinusCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
           <div className="min-w-0">
             <p className="text-slate-300 font-medium">
-              {ORCH_L.ffmpeg} {ffmpeg?.available ? ORCH_L.available : ORCH_L.missing}
+              {ORCH_L.ffmpeg} {ffmpegLabel}
             </p>
             <p className="text-[10px] font-mono text-slate-500 truncate" title={ffmpeg?.path || ''}>
               {ffmpeg?.version || ffmpeg?.path || '—'}

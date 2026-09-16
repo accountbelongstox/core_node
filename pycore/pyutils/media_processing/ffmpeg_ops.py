@@ -15,9 +15,10 @@ package.
 
 import os
 import re
-import shutil
 import subprocess
 from typing import List, Optional
+
+from pycore.pyutils.common.ffmpeg.ffmpeg_binary import ffmpeg_binary_resolver
 
 
 # --------------------------------------------------------------------------- #
@@ -55,29 +56,13 @@ def _file_size(path: str) -> int:
 # ffmpeg helpers                                                               #
 # --------------------------------------------------------------------------- #
 def resolve_ffmpeg(explicit: str = "") -> Optional[str]:
-    if explicit and os.path.isfile(explicit):
-        return explicit
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    # A few common Windows install locations (mirrors extract_audio.ps1).
-    for p in (
-        r"D:\applications\FFmpeg\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe",
-        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "ffmpeg", "bin", "ffmpeg.exe"),
-        os.path.join(os.path.expanduser("~"), "scoop", "shims", "ffmpeg.exe"),
-    ):
-        if os.path.isfile(p):
-            return p
-    return None
+    binary = ffmpeg_binary_resolver.resolve(explicit_ffmpeg=explicit).ffmpeg
+    return str(binary) if binary is not None else None
 
 
 def resolve_ffprobe(ffmpeg: Optional[str]) -> Optional[str]:
-    if ffmpeg:
-        exe = "ffprobe.exe" if os.name == "nt" else "ffprobe"
-        cand = os.path.join(os.path.dirname(ffmpeg), exe)
-        if os.path.isfile(cand):
-            return cand
-    return shutil.which("ffprobe")
+    binary = ffmpeg_binary_resolver.resolve(explicit_ffmpeg=ffmpeg).ffprobe
+    return str(binary) if binary is not None else None
 
 
 def has_audio_stream(ffprobe: Optional[str], src: str):
