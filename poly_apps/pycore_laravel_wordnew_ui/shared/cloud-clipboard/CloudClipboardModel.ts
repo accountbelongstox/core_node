@@ -2,6 +2,7 @@ import { CLOUD_CLIPBOARD, type CloudClipboardAction, type CloudClipboardEntry, t
 import { LaravelCloudClipboardAPI, type ClipboardMutation } from '../../core/integrations/laravel/LaravelCloudClipboardAPI';
 import { LaravelMercureConnection } from '../../core/integrations/laravel/LaravelMercureConnection';
 import { SHARED_BASE_URL_CHANGED_EVENT } from '../../core/integrations/laravel/transport/BaseAPI';
+import { resolveLaravelBaseURL } from '../../core/integrations/laravel/LaravelRequest';
 
 interface EntryDraft {
   text: string;
@@ -53,9 +54,12 @@ export class CloudClipboardModel {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private renewTimer: ReturnType<typeof setTimeout> | null = null;
   private topic = '';
+  private endpoint = '';
+  private endpointPaused = false;
 
   constructor(readonly namespace: string) {
     this.api = new LaravelCloudClipboardAPI(namespace);
+    this.endpoint = resolveLaravelBaseURL();
   }
 
   getState = (): CloudClipboardState => this.state;
@@ -80,7 +84,7 @@ export class CloudClipboardModel {
       entries.push(old && old.text === text && old.revision === cloud.revision && old.files === cloud.files
         && old.updated_at === cloud.updated_at ? old : { ...cloud, text });
     }
-    this.state = { ...this.state, ...update, entries: update.locked ? [] : entries,
+    this.state = { ...this.state, ...update, entries: (update.locked ?? this.state.locked) ? [] : entries,
       pendingIds: [...this.drafts.keys()], busyIds: [...this.busy] };
     this.listeners.forEach((listener) => listener());
   }
@@ -100,7 +104,7 @@ export class CloudClipboardModel {
   }
 
   stop(): void {
-    if (!this.state.locked) {
+    if (!this.state.locked && !this.endpointPaused) {
       this.drafts.forEach((draft, id) => {
         if (!this.saves.has(id) && !draft.composing) {
           void this.api.mutate('text', { entry_id: id, expected_revision: draft.revision,
@@ -124,10 +128,20 @@ export class CloudClipboardModel {
 
   private onWake = (): void => { void this.refresh(true); this.schedulePending(); };
   private onEndpoint = (): void => {
-    if (this.drafts.size) {
+    const endpoint = resolveLaravelBaseURL();
+    if (this.drafts.size && endpoint !== this.endpoint) {
+      this.endpointPaused = true;
       this.publish({ error: 'endpointChanged' });
       return;
     }
+    this.endpointPaused = false;
+    if (endpoint === this.endpoint) {
+      this.publish({ error: null });
+      void this.refresh(true);
+      this.schedulePending();
+      return;
+    }
+    this.endpoint = endpoint;
     this.generation += 1;
     this.topic = '';
     this.knownRevision = 0;
@@ -161,6 +175,8 @@ export class CloudClipboardModel {
   }
 
   private applyMutation(result: ClipboardMutation): void {
+    const authoritative = result.revision >= this.knownRevision;
+    const currentId = authoritative ? result.current_entry_id : this.state.snapshot?.current.id;
     this.knownRevision = Math.max(this.knownRevision, result.revision);
     if (result.removed_entry_id) {
       this.cloud.delete(result.removed_entry_id);
@@ -171,10 +187,10 @@ export class CloudClipboardModel {
       this.accept(result.entry);
       if (!this.order.includes(result.entry.id)) this.order.unshift(result.entry.id);
     }
-    if (result.current_entry_id && this.cloud.has(result.current_entry_id)) {
-      this.order = [result.current_entry_id, ...this.order.filter((id) => id !== result.current_entry_id)];
+    if (currentId && this.cloud.has(currentId)) {
+      this.order = [currentId, ...this.order.filter((id) => id !== currentId)];
       if (this.state.snapshot) this.state = { ...this.state, snapshot: {
-        ...this.state.snapshot, current: this.cloud.get(result.current_entry_id)!,
+        ...this.state.snapshot, current: this.cloud.get(currentId)!,
       } };
     }
     this.publish({ error: null });
@@ -182,7 +198,7 @@ export class CloudClipboardModel {
 
   async refresh(force = false): Promise<void> {
     const generation = this.generation;
-    if (!this.active || this.state.locked) return;
+    if (!this.active || this.state.locked || this.endpointPaused) return;
     if (this.refreshTask) {
       this.refreshRequested ||= force;
       await this.refreshTask;
@@ -300,7 +316,7 @@ export class CloudClipboardModel {
   private schedule(id: string, delay = CLOUD_CLIPBOARD.autosave_ms): void {
     const timer = this.timers.get(id);
     if (timer) clearTimeout(timer);
-    if (!this.active || this.state.locked || this.drafts.get(id)?.composing) return;
+    if (!this.active || this.state.locked || this.endpointPaused || this.drafts.get(id)?.composing) return;
     this.timers.set(id, setTimeout(() => {
       this.timers.delete(id);
       void this.flush(id);
@@ -321,7 +337,7 @@ export class CloudClipboardModel {
       return this.flush(id);
     }
     if (!this.drafts.has(id)) return true;
-    if (!this.active || this.state.locked || this.busy.has(id) || this.drafts.get(id)?.composing) return false;
+    if (!this.active || this.state.locked || this.endpointPaused || this.busy.has(id) || this.drafts.get(id)?.composing) return false;
     task = this.saveEntry(id);
     this.saves.set(id, task);
     try {
@@ -365,13 +381,15 @@ export class CloudClipboardModel {
 
   async action(action: CloudClipboardAction, id: string, extra: Record<string, unknown> = {}, files?: File[]): Promise<ClipboardMutation | null> {
     const generation = this.generation;
+    const actionKey = action === 'new' ? 'new' : id;
     let entry: CloudClipboardEntry | undefined;
     let payload: Record<string, unknown>;
     let form: FormData;
     let result: ClipboardMutation;
-    if (!this.state.snapshot || this.state.locked || this.busy.has(id)) return null;
+    if (!this.state.snapshot || this.state.locked || this.endpointPaused
+      || (this.busy.has(actionKey) && !this.saves.has(id))) return null;
     if (action !== 'new' && !(await this.flush(id))) return null;
-    this.busy.add(id);
+    this.busy.add(actionKey);
     this.publish();
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -408,7 +426,7 @@ export class CloudClipboardModel {
       if (this.active && generation === this.generation) this.fail(error);
       return null;
     } finally {
-      this.busy.delete(id);
+      this.busy.delete(actionKey);
       this.publish();
       if (this.active && generation === this.generation) void this.refresh(true);
       this.schedulePending();
