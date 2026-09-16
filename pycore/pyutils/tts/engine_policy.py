@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Persistent TTS priority, cooldown, and display-command policy (canonical: pyutils.tts)."""
 
 import os
@@ -304,6 +304,16 @@ def edge_cooldown_remaining() -> float:
     )
     remaining = float(until or 0.0) - time.monotonic()
     return round(remaining, 1) if remaining > 0 else 0.0
+
+
+def clear_edge_cooldown() -> None:
+    """End the edge cooldown NOW (the recovery probe proved edge is back)."""
+    call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _set_orchestrator_state,
+        "edge_cooldown_until",
+        0.0,
+    )
 
 
 def get_edge_cooldown_seconds() -> float:

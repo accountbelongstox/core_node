@@ -18,6 +18,7 @@ from pycore.pyfoundations.system_paths import (
     get_edge_tts_voice_cache_dir,
 )
 from pycore.pyutils.tts.engine_policy import (
+    CLOUD_TTS_ENGINES,
     TTS_ENGINE_PRIORITY,
     TTS_SENTENCE_PRIORITY,
     TTS_WORD_PRIORITY,
@@ -49,6 +50,7 @@ from pycore.pyutils.tts.engine_policy import (
 )
 import pycore.pyutils.tts.sentence_audio_cache as sentence_audio_cache
 from pycore.pyutils.tts.edge.config import TTSConfig
+from pycore.pyutils.tts.edge.recovery import start_edge_recovery_probe
 from pycore.pyutils.tts.engine_registry import (
     TTSSynthesisRequest,
     tts_engine_registry,
@@ -94,6 +96,9 @@ def _edge_in_cooldown() -> bool:
 
 def _set_edge_cooldown() -> None:
     cooldown = mark_edge_cooldown()
+    # While local engines take over, a parallel probe thread re-tests edge and
+    # clears the cooldown the moment edge answers again (no full-window wait).
+    start_edge_recovery_probe()
     ColorPrint.yellow(
         f"[tts] edge-tts cooling down for {cooldown:.0f}s; "
         "using offline engine meanwhile"
@@ -291,11 +296,27 @@ def synthesize(
     tried: List[str] = []
     last_error: Optional[str] = None
     last_synth_command = ""
+    edge_down = _edge_in_cooldown()
     for name in engine_order:
         # Skip a recently-failed edge endpoint so a whole batch doesn't repeatedly
         # pay the per-attempt timeout when edge is down — go straight to offline.
-        if name == "edge" and _edge_in_cooldown():
+        if name == "edge" and edge_down:
             ColorPrint.gray("[tts] edge in cooldown (recent failure); skipping to offline engine")
+            continue
+        # While edge is down the failure is almost certainly the network, so
+        # word synthesis must not burn per-attempt timeouts on the remaining
+        # CLOUD engines either — local models take over until the recovery
+        # probe brings edge back.
+        if (
+            profile == "word"
+            and edge_down
+            and name in CLOUD_TTS_ENGINES
+            and not engine_name
+        ):
+            ColorPrint.gray(
+                f"[tts] edge cooldown: skipping cloud engine {name} for word; "
+                "using local engines meanwhile"
+            )
             continue
         if name == "streamelements" and streamelements_engine.in_cooldown():
             ColorPrint.gray(

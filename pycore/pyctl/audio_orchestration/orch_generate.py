@@ -10,7 +10,9 @@ Per task, per segment:
      engines — nothing is cached in a new location:
        words     -> word_audio_cache.find_cached
                     -> Laravel word media (word_audio_service.word_audio_media)
-                    -> edge-tts (word_audio_service.edge_synth)
+                    -> local synthesis via tts_orchestrator.synthesize
+                       (word profile: edge first, local engines take over
+                       while edge is in cooldown; qwen is sentence-only)
                     (results stored back via word_audio_cache.store_bytes)
        sentences -> tts_orchestrator.synthesize (sentence profile: the shared
                     sentence_audio_cache lookup/store and the qwen-first engine
@@ -24,13 +26,16 @@ task record so the UI polls it via the task routes.
 """
 
 import base64
+import os
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyctl.tts import word_audio_service
 from pycore.pyutils.media_processing.ffmpeg_ops import resolve_ffmpeg
 from pycore.pyutils.tts import word_audio_cache
@@ -41,7 +46,6 @@ from pycore.pyctl.audio_orchestration import orch_books, orch_store, orch_words
 _GEN_THREADS: Dict[str, threading.Thread] = {}
 _GEN_LOCK = threading.Lock()
 _GAP_SECONDS = 0.6
-_WORD_PROVIDERS = ("laravel", "edge")
 
 
 # --------------------------------------------------------------------------- #
@@ -64,14 +68,26 @@ def ensure_word_audio(word: str, language: str) -> Optional[Path]:
                 return word_audio_cache.store_bytes(word, language, "laravel", raw)
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] laravel word media failed for '{word}': {exc}")
+    # Local synthesis goes through the SHARED orchestrator word profile so the
+    # edge cooldown + local-engine fallback + recovery probe all apply (never
+    # qwen — the word profile excludes it; qwen stays sentence-only).
+    tmp_path: Optional[Path] = None
     try:
-        synth = word_audio_service.edge_synth(word, language)
-        if synth.get("success") and synth.get("audio_base64"):
-            raw = base64.b64decode(synth["audio_base64"])
-            if raw:
-                return word_audio_cache.store_bytes(word, language, "edge", raw)
+        fd, tmp_name = tempfile.mkstemp(suffix=".mp3", dir=str(TMP_DIR))
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+        result = synthesize(word, language, tmp_path, priority_profile="word")
+        if result.get("success") and tmp_path.exists() and tmp_path.stat().st_size > 0:
+            provider = str(result.get("engine") or "edge")
+            return word_audio_cache.store_bytes(word, language, provider, tmp_path.read_bytes())
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] edge synth failed for '{word}': {exc}")
+        ColorPrint.yellow(f"[AudioOrch] local word synth failed for '{word}': {exc}")
+    finally:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
     return None
 
 
