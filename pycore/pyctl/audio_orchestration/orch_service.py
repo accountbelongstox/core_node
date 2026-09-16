@@ -224,7 +224,11 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         elif field == "word_mode" and value not in _WORD_MODES:
             continue
         elif field in ("segment_value", "new_only_max_read_count"):
-            value = max(0 if field == "new_only_max_read_count" else 1, int(value or 0))
+            try:
+                value = int(value or 0)
+            except (TypeError, ValueError):
+                continue
+            value = max(0 if field == "new_only_max_read_count" else 1, value)
         elif field == "name":
             value = str(value or "").strip() or task.get("name")
             task["slug"] = orch_store.slugify(str(value))

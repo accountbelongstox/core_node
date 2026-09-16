@@ -3,10 +3,12 @@
 
 import base64
 import os
+import threading
 import time
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+from urllib.parse import quote
 
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
@@ -54,6 +56,13 @@ _LANG_INDEX = {
 }
 _TYPE_DIGIT_WORD = 1
 _SENTENCE_HISTORY_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
+# Per-word "backend already has the audio" probe (skip duplicate uploads when
+# the queue re-issues tasks for rows whose file already exists on Laravel).
+_LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
+_WORD_MEDIA_PROBE_TIMEOUT = 15
+_WORD_MEDIA_PROBE_CACHE_MAX = 5000
+_word_media_probe_cache: Dict[str, bool] = {}
+_word_media_probe_lock = threading.Lock()
 
 
 def encode_word_report_task_id(dict_row_id: int, language: str) -> int:
@@ -261,6 +270,51 @@ class LaravelAudioWorkerExecutionMixin:
             return False, "unknown task on server (404)"
         return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
+    def _backend_word_audio_present(self, word: str, language: str, base_url: str) -> bool:
+        """Probe Laravel's per-word media endpoint: True when the backend already
+        stores an audio file for this word (its reportWordResult would hit the
+        already_done short-circuit, so re-uploading the bytes is pure waste).
+        Answers are cached in-process; transport errors fail open (upload as
+        usual)."""
+        clean_word = str(word or "").strip().lower()
+        if not clean_word:
+            return False
+        key = f"{str(language or 'en').strip().lower()}:{clean_word}"
+        with _word_media_probe_lock:
+            cached = _word_media_probe_cache.get(key)
+        if cached is not None:
+            return cached
+        present = False
+        try:
+            lang, term = key.split(":", 1)
+            resp = laravel_client.get(
+                _LARAVEL_WORD_MEDIA.format(lang=quote(lang, safe=""), word=quote(term, safe="")),
+                base_url=base_url or None,
+                timeout=_WORD_MEDIA_PROBE_TIMEOUT,
+                log_line=False,
+            )
+            if resp.status_code == 200:
+                body = resp.json()
+                data = body.get("data") if isinstance(body, dict) else None
+                audio_url = data.get("audio_url") if isinstance(data, dict) else None
+                present = bool(audio_url)
+        except Exception:  # noqa: BLE001 - probe failure must never block delivery
+            return False
+        with _word_media_probe_lock:
+            if len(_word_media_probe_cache) >= _WORD_MEDIA_PROBE_CACHE_MAX:
+                _word_media_probe_cache.clear()
+            _word_media_probe_cache[key] = present
+        return present
+
+    @staticmethod
+    def _cache_word_audio_present(word: str, language: str) -> None:
+        """Record a just-uploaded word audio as present on the backend."""
+        key = f"{str(language or 'en').strip().lower()}:{str(word or '').strip().lower()}"
+        with _word_media_probe_lock:
+            if len(_word_media_probe_cache) >= _WORD_MEDIA_PROBE_CACHE_MAX:
+                _word_media_probe_cache.clear()
+            _word_media_probe_cache[key] = True
+
     def _upload_report(
         self,
         info: Dict[str, Any],
@@ -282,12 +336,32 @@ class LaravelAudioWorkerExecutionMixin:
             )
         if info["kind"] != "word" or not info.get("dict_row_id"):
             return None
-        return self._post_report(
+        report_base_url = self._task_base_url(info.get("task_id"))
+        if self._backend_word_audio_present(
+            str(info.get("word") or ""),
+            str(info.get("language") or "en"),
+            report_base_url,
+        ):
+            # The deterministic backend file already exists: skip the byte
+            # transfer and report delivery as if uploaded, so the global
+            # result omits the audio payload too (no duplicate upload).
+            ColorPrint.gray(
+                f"{self._log_prefix} backend already has word audio "
+                f"'{str(info.get('word') or '')[:40]}'; skipping duplicate upload"
+            )
+            return True, "backend already has the audio"
+        uploaded = self._post_report(
             info,
             True,
             provider,
             audio_path=audio_path,
         )
+        if uploaded[0]:
+            self._cache_word_audio_present(
+                str(info.get("word") or ""),
+                str(info.get("language") or "en"),
+            )
+        return uploaded
 
     def _set_task_progress(
         self,

@@ -146,8 +146,30 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
   return <PcLiveContext.Provider value={value}>{children}</PcLiveContext.Provider>;
 }
 
+// Shared no-op fallback: an HMR (react-refresh) module swap can briefly leave
+// a mounted provider of the OLD context identity while consumers re-render
+// with the NEW one. Throwing there crashes the whole app in a loop; degrading
+// to an empty buffer keeps the UI alive until the next consistent render.
+const PC_LIVE_FALLBACK: PcLiveContextValue = {
+  logs: [],
+  httpConnected: false,
+  clearLogs: () => {},
+  latestSettings: null,
+  onSystemSettings: () => () => {},
+};
+let pcLiveFallbackWarned = false;
+
 export function usePcLive(): PcLiveContextValue {
   const ctx = useContext(PcLiveContext);
-  if (!ctx) throw new Error('usePcLive must be used within <PcLiveProvider>');
+  if (!ctx) {
+    if (!pcLiveFallbackWarned) {
+      pcLiveFallbackWarned = true;
+      console.warn(
+        '[PcLive] usePcLive outside <PcLiveProvider>; '
+        + 'using an empty live buffer (HMR context swap or wiring bug).',
+      );
+    }
+    return PC_LIVE_FALLBACK;
+  }
   return ctx;
 }
