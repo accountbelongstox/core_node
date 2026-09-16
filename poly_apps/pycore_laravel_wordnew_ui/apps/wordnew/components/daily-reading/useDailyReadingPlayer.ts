@@ -5,6 +5,7 @@ import {
   getSentenceWordTable,
   mergeSentenceWordRuntimeState,
   sentenceWordKey,
+  sentenceWordTranslations,
   uniqueSentenceWordRows,
   type WordNewSentenceWordRow,
 } from '../../services/WordNewSentenceWordTable';
