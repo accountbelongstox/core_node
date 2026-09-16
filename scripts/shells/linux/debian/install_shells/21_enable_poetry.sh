@@ -52,9 +52,15 @@ check_poetry() {
 install_poetry_in_uv_venv() {
     echo "Installing Poetry in uv virtual environment..."
 
-    # Check if uv is available
+    # Check if uv is available; when missing (e.g. numeric order ran this before
+    # 25_install_uv.sh), ensure it inline -- 25 is idempotent, so this is a no-op
+    # when uv is already installed.
     if ! command -v uv >/dev/null 2>&1; then
-        echo "Error: uv not found. Please install uv first (script 25_install_uv.sh)"
+        echo "uv not found; ensuring it via 25_install_uv.sh first..."
+        bash "$SCRIPT_CURRENT_DIR/25_install_uv.sh" || true
+    fi
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "Error: uv still not found after running 25_install_uv.sh"
         return 1
     fi
 
