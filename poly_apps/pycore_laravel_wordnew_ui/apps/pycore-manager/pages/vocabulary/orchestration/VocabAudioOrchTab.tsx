@@ -83,13 +83,16 @@ const VocabAudioOrchTab: React.FC = () => {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
-    return () => {
-      if (pollRef.current && !running) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
   }, [tasks, loadTasks]);
+
+  // Always stop the poller on unmount (the effect above skips cleanup while
+  // a task is still running).
+  useEffect(() => () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
 
   const openEdit = async (taskId: string) => {
     const r = await pycoreApi.orchTaskGet(taskId);

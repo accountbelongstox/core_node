@@ -239,7 +239,9 @@ def partition_sentences(
         remaining = count - len(segments)
         if remaining <= 1:
             continue
-        if acc >= per_segment and (total - index - 1) >= remaining:
+        # Cut here when this segment reached its duration share AND enough
+        # sentences remain for the segments still to come (>= 1 each).
+        if acc >= per_segment and (total - index - 1) >= remaining - 1:
             segments.append({
                 "index": len(segments) + 1,
                 "start": start,

@@ -2,7 +2,8 @@
  * PcVocabularyPage is a self-contained direct-Laravel vocabulary surface.
  * Each tab uses the pycore-manager Laravel API boundary and owns local state.
  *
- * Tabs: Translate / Words / Libraries / Statistics / TTS Queue / Learning Tasks.
+ * Tabs: Translate / Words / Libraries / Statistics / TTS Queue /
+ * Learning Tasks / Audio Orchestration.
  * The active tab is persisted to localStorage. Every tab guards its own calls
  * and shows its own offline/error banner.
  */

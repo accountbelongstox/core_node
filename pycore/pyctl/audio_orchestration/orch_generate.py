@@ -149,9 +149,11 @@ def plan_task(task: Dict[str, Any], sentences: List[Dict[str, Any]]) -> Dict[str
     mode = str(task.get("segment_mode") or "count")
     value = int(task.get("segment_value") or 1)
     segments = []
+    # One shared simulation across ALL segments: the virtual-read set carries
+    # over segment boundaries exactly like the real generation does.
+    simulated = dict(task)
+    simulated["virtual_read"] = list(task.get("virtual_read") or [])
     for segment in orch_books.partition_sentences(sentences, mode, value):
-        simulated = dict(task)
-        simulated["virtual_read"] = list(task.get("virtual_read") or [])
         item_count = 0
         word_count = 0
         for index in range(segment["start"], segment["end"] + 1):
