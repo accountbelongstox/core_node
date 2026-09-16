@@ -467,19 +467,42 @@ def _largest_device_of_type(want_ntfs: bool) -> Tuple[int, str]:
     return best_size, best_dev
 
 
+def _avail_bytes(path: str) -> int:
+    """Free bytes available at *path*; 0 when it cannot be measured."""
+    try:
+        st = os.statvfs(path)
+        return st.f_bavail * st.f_frsize
+    except OSError:
+        return 0
+
+
 def _detect_largest_disk_base() -> Optional[Path]:
-    """Full blkid/blockdev/findmnt detection (used only when sh provided no base)."""
-    n_size, n_dev = _largest_device_of_type(True)
-    d_size, d_dev = _largest_device_of_type(False)
-    if n_dev and d_dev:
-        chosen = n_dev if n_size >= d_size else d_dev
-    else:
-        chosen = n_dev or d_dev
-    if chosen:
-        path = _resolve_device_mount_path(chosen)
-        if path:
-            return Path(path)
-    return None
+    """Free-space-aware disk detection (used only when sh provided no base).
+
+    Mirrors gvar_common.sh Priority 3: candidates are the largest NTFS and largest
+    POSIX data devices, each resolved to its current mount; the root filesystem
+    wins (as /www) when '/' has at least as much AVAILABLE space as the best
+    candidate -- ties included. Only a disk with strictly more free space is used.
+    Unmeasurable paths count as 0.
+    """
+    _n_size, n_dev = _largest_device_of_type(True)
+    _d_size, d_dev = _largest_device_of_type(False)
+    best_path = ''
+    best_free = 0
+    for dev in (n_dev, d_dev):
+        if not dev:
+            continue
+        path = _resolve_device_mount_path(dev)
+        if not path:
+            continue
+        free = _avail_bytes(path)
+        if free > best_free:
+            best_free, best_path = free, path
+    if not best_path:
+        return None
+    if _avail_bytes('/') >= best_free:
+        return Path('/www')
+    return Path(best_path)
 
 
 def _get_base_data_directory() -> Path:

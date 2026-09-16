@@ -258,14 +258,56 @@ initialize_core_node_directories() {
     fi
 }
 
+# Install packages with fine-grained idempotency: skip packages that are already
+# installed (dpkg -s), skip packages apt cannot install on this distro (checked via
+# a per-package `apt-get -s install` simulation, which also resolves virtual names
+# like libncurses5-dev -> libncurses-dev, while apt-cache show would report them as
+# missing), batch-install the rest, and on batch failure retry per-package so one
+# bad package cannot block the others. Never aborts the caller.
+install_packages_idempotent() {
+    local pkg
+    local already=0 installed=0 skipped=0 failed=0
+    local -a to_install=()
+    for pkg in "$@"; do
+        if dpkg -s "$pkg" >/dev/null 2>&1; then
+            info "$pkg already installed"
+            already=$((already + 1))
+            continue
+        fi
+        if ! $USE_SUDO apt-get -s install "$pkg" >/dev/null 2>&1; then
+            warning "$pkg not available on this distro, skipping"
+            skipped=$((skipped + 1))
+            continue
+        fi
+        to_install+=("$pkg")
+    done
+    if [ ${#to_install[@]} -gt 0 ]; then
+        if $USE_SUDO apt-get install -y "${to_install[@]}" >/dev/null 2>&1; then
+            installed=${#to_install[@]}
+        else
+            warning "Batch install failed; retrying per-package..."
+            for pkg in "${to_install[@]}"; do
+                if $USE_SUDO apt-get install -y "$pkg" >/dev/null 2>&1; then
+                    installed=$((installed + 1))
+                else
+                    error "Failed to install $pkg"
+                    failed=$((failed + 1))
+                fi
+            done
+        fi
+    fi
+    echo "Package summary: already installed: $already, newly installed: $installed, skipped unavailable: $skipped, failed: $failed"
+    return 0
+}
+
 # Install essential packages and configure Git (was 12).
 install_packages_and_configure_git() {
     echo "Installing essential packages..."
-    $USE_SUDO apt install -y lsof cron curl vim git build-essential rsync htop \
+    install_packages_idempotent lsof cron curl vim git build-essential rsync htop \
         nano wget openssl libssl-dev zlib1g-dev libbz2-dev \
         libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
         xz-utils tk-dev libffi-dev liblzma-dev make software-properties-common \
-        cron dnsutils libvips-dev cpulimit expect tar gzip procps || true
+        cron dnsutils libvips-dev cpulimit expect tar gzip procps
     # xdg-utils provides xdg-open (used by pycore to open files/URLs). Idempotent,
     # non-fatal: only installs when xdg-open is missing.
     if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils >/dev/null 2>&1 || true; fi

@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Self-sufficiency: the backup helpers (init_apt_backup_dir_from_apt_repository_manager,
+# backup_apt_sources_from_apt_repository_manager) live in apt_repository_backup.sh,
+# which the remote bootstrap may not have downloaded (optional component). Source it
+# from this file's own directory when it is missing; the per-call guards below still
+# cover the case where the file is truly absent.
+if ! command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
+    _apt_repo_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    if [ -n "$_apt_repo_self_dir" ] && [ -f "$_apt_repo_self_dir/apt_repository_backup.sh" ]; then
+        source "$_apt_repo_self_dir/apt_repository_backup.sh"
+    fi
+    unset _apt_repo_self_dir
+fi
+
 # ============================================================================
 # COMMON REPOSITORY MANAGEMENT FUNCTIONS
 # ============================================================================
@@ -436,15 +449,23 @@ add_mysql_repository_from_apt_repository_manager() {
     local backup_dir="$APT_BACKUP_BASE_DIR/$backup_id"
     
     # Initialize backup directory
-    if ! init_apt_backup_dir_from_apt_repository_manager; then
-        echo "ERROR: Failed to initialize backup directory" >&2
-        return 1
+    if command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! init_apt_backup_dir_from_apt_repository_manager; then
+            echo "ERROR: Failed to initialize backup directory" >&2
+            return 1
+        fi
+    else
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping backup directory init" >&2
     fi
-    
+
     # Backup current state
-    if ! backup_apt_sources_from_apt_repository_manager "$backup_id"; then
-        echo "ERROR: Failed to backup current state" >&2
-        return 1
+    if command -v backup_apt_sources_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! backup_apt_sources_from_apt_repository_manager "$backup_id"; then
+            echo "ERROR: Failed to backup current state" >&2
+            return 1
+        fi
+    else
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping pre-install backup" >&2
     fi
     
     # Ensure required packages are available
@@ -630,8 +651,12 @@ manage_repositories_from_apt_repository_manager() {
     echo "INSTALL_EDGE: $install_edge, INSTALL_MYSQL: $install_mysql"
     
     # Initialize backup directory (ensure original backup exists)
-    if ! init_apt_backup_dir_from_apt_repository_manager; then
-        echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+    if command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! init_apt_backup_dir_from_apt_repository_manager; then
+            echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+        fi
+    else
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping backup directory init" >&2
     fi
     
     # Manage Edge repository
@@ -736,14 +761,22 @@ cleanup_all_custom_repositories_from_apt_repository_manager() {
     echo "Cleaning up all custom repositories..."
     
     # Initialize backup directory
-    if ! init_apt_backup_dir_from_apt_repository_manager; then
-        echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+    if command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! init_apt_backup_dir_from_apt_repository_manager; then
+            echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+        fi
+    else
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping backup directory init" >&2
     fi
-    
+
     # Backup current state before cleanup
     local cleanup_backup_id="cleanup_$(date +%Y%m%d_%H%M%S)"
-    if ! backup_apt_sources_from_apt_repository_manager "$cleanup_backup_id"; then
-        echo "WARNING: Failed to backup before cleanup, continuing anyway..." >&2
+    if command -v backup_apt_sources_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! backup_apt_sources_from_apt_repository_manager "$cleanup_backup_id"; then
+            echo "WARNING: Failed to backup before cleanup, continuing anyway..." >&2
+        fi
+    else
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping pre-cleanup backup" >&2
     fi
     
     # Remove all custom repository files (keep system defaults)

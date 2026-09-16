@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Self-sufficiency: the backup helpers (init_apt_backup_dir_from_apt_repository_manager,
+# backup_apt_sources_from_apt_repository_manager) live in apt_repository_backup.sh,
+# which the remote bootstrap may not have downloaded (optional component). Source it
+# from this file's own directory when it is missing; the per-call guards below still
+# cover the case where the file is truly absent.
+if ! command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
+    _apt_repo_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    if [ -n "$_apt_repo_self_dir" ] && [ -f "$_apt_repo_self_dir/apt_repository_backup.sh" ]; then
+        source "$_apt_repo_self_dir/apt_repository_backup.sh"
+    fi
+    unset _apt_repo_self_dir
+fi
+
 # Detect and fix repository configuration issues
 detect_and_fix_repository_issues_from_apt_repository_manager() {
     echo "Detecting repository configuration issues..."
@@ -202,16 +215,24 @@ repair_repositories_from_apt_repository_manager() {
     ensure_distro_archive_keyring_from_apt_repository_manager
     
     # Initialize backup directory
-    if ! init_apt_backup_dir_from_apt_repository_manager; then
-        echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+    if command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! init_apt_backup_dir_from_apt_repository_manager; then
+            echo "WARNING: Failed to initialize backup directory, continuing anyway..." >&2
+        fi
+    else
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping backup directory init" >&2
     fi
-    
+
     # Backup current state before repair
     local repair_backup_id="repair_$(date +%Y%m%d_%H%M%S)"
-    if ! backup_apt_sources_from_apt_repository_manager "$repair_backup_id"; then
-        echo "WARNING: Failed to backup before repair, continuing anyway..." >&2
+    if command -v backup_apt_sources_from_apt_repository_manager >/dev/null 2>&1; then
+        if ! backup_apt_sources_from_apt_repository_manager "$repair_backup_id"; then
+            echo "WARNING: Failed to backup before repair, continuing anyway..." >&2
+        else
+            echo "Backup created: $repair_backup_id"
+        fi
     else
-        echo "Backup created: $repair_backup_id"
+        echo "WARNING: apt_repository_backup.sh not loaded; skipping pre-repair backup" >&2
     fi
     
     # Step 1: Clean up problematic repositories

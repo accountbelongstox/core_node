@@ -128,7 +128,8 @@ _path_hosts_project() {
 # requirement applies ONLY to the WEB DATA base, which map_web_path derives and
 # guards separately (PostgreSQL/Laravel need ownership). Keeping them separate is
 # why CORE_NODE_PROJECT_ROOT maps to the real /mnt checkout while web data uses /www.
-# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> free-space comparison (root fs
+# vs largest NTFS/data disk) -> Desktop Windows -> /www
 get_base_data_directory() {
     local base_dir="" run_anchor="" run_base="" persisted_now=""
 
@@ -175,36 +176,48 @@ get_base_data_directory() {
         fi
     fi
 
-    # Priority 3: Compare largest NTFS vs largest data disk; use the absolute largest
-    local ntfs_line data_line ntfs_size data_size ntfs_device data_device chosen_device path
+    # Priority 3: Free-space comparison. Candidates are the largest NTFS device and
+    # the largest ext4/xfs/btrfs data device, each resolved to its current mount
+    # path; AVAILABLE space (df) decides, not total device size. The root filesystem
+    # wins (as /www) whenever '/' has at least as much free space as the best
+    # candidate disk -- ties included -- so the code base stays on the root fs
+    # unless some other disk has STRICTLY more free space. A path whose free space
+    # cannot be measured counts as 0 (never beats a measurable root, and an
+    # unmeasurable root never beats a measurable disk).
+    local ntfs_line data_line ntfs_device data_device
+    local cand_device cand_path cand_free best_path best_free root_free
     ntfs_line=$(get_largest_ntfs_with_size)
     data_line=$(get_largest_data_with_size)
-    ntfs_size=0
-    data_size=0
     ntfs_device=""
     data_device=""
-    [ -n "$ntfs_line" ] && ntfs_size=$(echo "$ntfs_line" | awk '{print $1}') && ntfs_device=$(echo "$ntfs_line" | awk '{print $2}')
-    [ -n "$data_line" ] && data_size=$(echo "$data_line" | awk '{print $1}') && data_device=$(echo "$data_line" | awk '{print $2}')
-    chosen_device=""
-    if [ -n "$ntfs_device" ] && [ -n "$data_device" ]; then
-        if [ "${ntfs_size:-0}" -ge "${data_size:-0}" ] 2>/dev/null; then
-            chosen_device="$ntfs_device"
-        else
-            chosen_device="$data_device"
-        fi
-    elif [ -n "$ntfs_device" ]; then
-        chosen_device="$ntfs_device"
-    elif [ -n "$data_device" ]; then
-        chosen_device="$data_device"
-    fi
+    [ -n "$ntfs_line" ] && ntfs_device=$(echo "$ntfs_line" | awk '{print $2}')
+    [ -n "$data_line" ] && data_device=$(echo "$data_line" | awk '{print $2}')
 
-    if [ -n "$chosen_device" ]; then
-        path=$(_resolve_device_mount_path "$chosen_device")
-        if [ -n "$path" ]; then
-            base_dir="$path"
-            echo "$base_dir"
-            return 0
+    root_free=$(df -B1 --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
+    [ -n "$root_free" ] || root_free=0
+
+    best_path=""
+    best_free=0
+    for cand_device in "$ntfs_device" "$data_device"; do
+        [ -n "$cand_device" ] || continue
+        cand_path=$(_resolve_device_mount_path "$cand_device")
+        [ -n "$cand_path" ] || continue
+        cand_free=$(df -B1 --output=avail "$cand_path" 2>/dev/null | tail -1 | tr -dc '0-9')
+        [ -n "$cand_free" ] || cand_free=0
+        if [ "$cand_free" -gt "$best_free" ] 2>/dev/null; then
+            best_free="$cand_free"
+            best_path="$cand_path"
         fi
+    done
+
+    if [ -n "$best_path" ]; then
+        if [ "$root_free" -ge "$best_free" ] 2>/dev/null; then
+            base_dir="/www"
+        else
+            base_dir="$best_path"
+        fi
+        echo "$base_dir"
+        return 0
     fi
 
     # Priority 4: Desktop with Windows drives

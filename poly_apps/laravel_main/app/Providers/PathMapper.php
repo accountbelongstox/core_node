@@ -265,21 +265,41 @@ class PathMapper
         return [$bestSize, $bestDev];
     }
 
-    /** Full blkid/blockdev/findmnt detection (used only when the shell provided no base). */
+    /**
+     * Free-space-aware disk detection (used only when the shell provided no base).
+     * Mirrors gvar_common.sh Priority 3: candidates are the largest NTFS and largest
+     * POSIX data devices, each resolved to its current mount; the root filesystem
+     * wins (as /www) when '/' has at least as much AVAILABLE space as the best
+     * candidate -- ties included. Only a disk with strictly more free space is used.
+     * Unmeasurable paths count as 0.
+     */
     private static function detectLargestDiskBase(): ?string
     {
-        [$nSize, $nDev] = self::largestDeviceOfType(true);
-        [$dSize, $dDev] = self::largestDeviceOfType(false);
-        if ($nDev !== '' && $dDev !== '') {
-            $chosen = ($nSize >= $dSize) ? $nDev : $dDev;
-        } else {
-            $chosen = $nDev !== '' ? $nDev : $dDev;
+        [, $nDev] = self::largestDeviceOfType(true);
+        [, $dDev] = self::largestDeviceOfType(false);
+        $bestPath = '';
+        $bestFree = 0.0;
+        foreach ([$nDev, $dDev] as $dev) {
+            if ($dev === '') {
+                continue;
+            }
+            $tgt = (string) strtok(self::shellTrim('findmnt -n -o TARGET --source ' . escapeshellarg($dev)), "\r\n");
+            if ($tgt === '' || !is_dir($tgt)) {
+                continue;
+            }
+            $free = @disk_free_space($tgt);
+            $free = ($free === false) ? 0.0 : (float) $free;
+            if ($free > $bestFree) {
+                $bestFree = $free;
+                $bestPath = $tgt;
+            }
         }
-        if ($chosen === '') {
+        if ($bestPath === '') {
             return null;
         }
-        $tgt = (string) strtok(self::shellTrim('findmnt -n -o TARGET --source ' . escapeshellarg($chosen)), "\r\n");
-        return ($tgt !== '' && is_dir($tgt)) ? $tgt : null;
+        $rootFree = @disk_free_space('/');
+        $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
+        return $rootFree >= $bestFree ? '/www' : $bestPath;
     }
 
     /**
