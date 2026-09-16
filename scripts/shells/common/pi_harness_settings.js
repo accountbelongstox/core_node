@@ -314,7 +314,10 @@ if (mode === 'pi-mcp-source') {
 
 // Provider-independent web reference: https://pi.dev/packages/pi-web-kit
 // Volcengine models do not expose the OpenAI/Anthropic native search transports.
-// Use key-optional Exa MCP for search and keyless markdown.new for page fetches.
+// pi-web-kit >= 0.3.0 removed the key-optional 'exa_mcp' transport; select the
+// direct Exa API for search (EXA_API_KEY required at call time) and keyless
+// markdown.new for page fetches. Legacy 'exa_mcp' values are overwritten here,
+// so every launcher run self-heals configs written by older helper builds.
 if (mode === 'pi-web-kit') {
     if (fs.existsSync(targetPath)) {
         try {
@@ -325,7 +328,7 @@ if (mode === 'pi-web-kit') {
         }
     }
     if (webKitConfigValid) {
-        webKitConfig.provider_search = 'exa_mcp';
+        webKitConfig.provider_search = 'exa';
         webKitConfig.provider_fetch = 'markdown_new';
         serializedWebKitConfig = `${JSON.stringify(webKitConfig, null, 2)}\n`;
         currentWebKitConfigContent = fs.existsSync(targetPath)

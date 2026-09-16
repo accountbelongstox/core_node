@@ -7,10 +7,18 @@ stripped so every piark launcher can only run Pi with the Volcengine coding
 plan provider; passing a mode name such as 'claude' never switches harness.
 """
 
+import json
+import os
 import re
+from pathlib import Path
 from typing import List, Dict, Any
 
-from utils.common_utils import get_linuxenvs_dir, get_winenvs_dir
+from utils.common_utils import ColorMessage, get_linuxenvs_dir, get_winenvs_dir
+
+# pi-web-kit >= 0.3.0 removed the 'exa_mcp' transport; configs still carrying
+# it break extension startup, so every regeneration migrates them to 'exa'.
+WEB_KIT_PROVIDER_MIGRATIONS = {'exa_mcp': 'exa'}
+WEB_KIT_CONFIG_RELPATH = Path('.pi') / 'agent' / 'pi-web-kit.json'
 
 SH_MODE_ARG_PARSER = re.compile(
     r'if \[ "\$#" -gt 0 \]; then\n'
@@ -30,12 +38,43 @@ PS1_MODE_ARG_PARSER = re.compile(
 )
 
 
+def repair_pi_web_kit_configs() -> None:
+    """Migrate legacy web-kit providers in existing Pi agent configs."""
+    config_relpath = str(WEB_KIT_CONFIG_RELPATH)
+    candidates = [Path.home() / WEB_KIT_CONFIG_RELPATH]
+    users_root = os.environ.get('PROGRAMING_USERS_DIR')
+    if not users_root:
+        core_node_data_dir = os.environ.get('CORE_NODE_DATA_DIR')
+        if core_node_data_dir:
+            users_root = str(Path(core_node_data_dir) / 'Users')
+    if users_root:
+        candidates.extend(sorted(Path(users_root).glob(f'*/{config_relpath}')))
+    for config_path in candidates:
+        if not config_path.is_file():
+            continue
+        try:
+            config = json.loads(config_path.read_text(encoding='utf-8'))
+            legacy_provider = config.get('provider_search', '') if isinstance(config, dict) else ''
+            migrated_provider = WEB_KIT_PROVIDER_MIGRATIONS.get(legacy_provider)
+            if not migrated_provider:
+                continue
+            config['provider_search'] = migrated_provider
+            config_path.write_text(json.dumps(config, indent=2) + '\n', encoding='utf-8')
+            ColorMessage.write(
+                f"[OK] Migrated legacy web-kit search provider to '{migrated_provider}': {config_path}",
+                'success',
+            )
+        except (OSError, ValueError) as e:
+            ColorMessage.write(f"[X] Failed to migrate web-kit config {config_path}: {e}", 'error')
+
+
 class PiLauncherSectionGenerator:
     """Generate standalone piark${index} launchers."""
 
     def generate_sh(self, display_name: str, file_number: int,
                     variables: List[Dict[str, Any]], command_prefix: str) -> str:
         """Generate the Linux bash piark -> Pi launcher script."""
+        repair_pi_web_kit_configs()
         linuxenvs_dir = get_linuxenvs_dir()
         piyolo_sh_path = linuxenvs_dir / "piyolo.sh"
         
@@ -85,6 +124,7 @@ class PiLauncherSectionGenerator:
     def generate_ps1(self, display_name: str, file_number: int,
                      variables: List[Dict[str, Any]], command_prefix: str) -> str:
         """Generate the Windows PowerShell piark -> Pi launcher script."""
+        repair_pi_web_kit_configs()
         winenvs_dir = get_winenvs_dir()
         piyolo_ps1_path = winenvs_dir / "piyolo.ps1"
         
