@@ -105,7 +105,7 @@ final class RelayPairingService
             ->where($pairingTable.'.user_id', $userId)
             ->where($pairingTable.'.state', RelayConstants::PAIRING_ACTIVE)
             ->where($pairingTable.'.expires_at', '>', now())
-            ->where($deviceTable.'.owner_user_id', $userId)
+            ->whereIn($deviceTable.'.owner_user_id', RelayFleetScope::deviceOwnerIds($userId))
             ->where($deviceTable.'.status', RelayConstants::CREDENTIAL_ACTIVE)
             ->whereNull($deviceTable.'.revoked_at')
             ->where($deviceTable.'.credential_expires_at', '>', now())
@@ -161,7 +161,7 @@ final class RelayPairingService
         }
         $device = RelayDeviceModel::query()
             ->where('device_id', $deviceId)
-            ->where('owner_user_id', $userId)
+            ->whereIn('owner_user_id', RelayFleetScope::deviceOwnerIds($userId))
             ->where('status', RelayConstants::CREDENTIAL_ACTIVE)
             ->whereNull('revoked_at')
             ->where('credential_expires_at', '>', now())
@@ -225,7 +225,7 @@ final class RelayPairingService
     {
         $device = $this->devices->activeDevice($deviceId);
 
-        if ((int) $device->owner_user_id !== $userId) {
+        if (!in_array((int) $device->owner_user_id, RelayFleetScope::deviceOwnerIds($userId), true)) {
             throw new RelayDomainException('device_not_found', 404);
         }
 

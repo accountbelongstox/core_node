@@ -36,7 +36,7 @@ WORKERS="${WORKERS:-4}"
 MAX_REQUESTS="${MAX_REQUESTS:-500}"
 OCTANE_WATCH="${OCTANE_WATCH:-1}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
-REQUEST_MAX_EXECUTION_TIME="${REQUEST_MAX_EXECUTION_TIME:-30}"
+REQUEST_MAX_EXECUTION_TIME="${REQUEST_MAX_EXECUTION_TIME:-}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 FRANKENPHP_CADDYFILE="${LARAVEL_DIR}/storage/frankenphp/Caddyfile"
@@ -118,6 +118,13 @@ supervised_sleep() {
 . "$LINUX_COMMON_DIR/frankenphp_manager.sh"
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/frankenphp_acme_sh_install.sh"
+
+# Octane's frankenphp worker applies REQUEST_MAX_EXECUTION_TIME through a
+# single set_time_limit() at worker boot; that value becomes the per-request
+# ceiling for the whole worker lifetime. Default it from the service contract
+# (1200s), not a hardcoded 30 — a 30s ceiling fatals long CPU requests and
+# restarts worker threads, killing every in-flight connection on the thread.
+REQUEST_MAX_EXECUTION_TIME="${REQUEST_MAX_EXECUTION_TIME:-$(sc_require php_runtime.max_execution_time_seconds)}"
 
 FRANKENPHP_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 FRANKENPHP_ADMIN_PORT="$(sc_get ports.frankenphp_admin)"
