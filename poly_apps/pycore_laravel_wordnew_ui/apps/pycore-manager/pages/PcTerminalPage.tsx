@@ -456,7 +456,7 @@ const PcTerminalPage: React.FC = () => {
       const previous = screenshotImagesRef.current.get(key);
       if (previous) URL.revokeObjectURL(previous.url);
       const image: TerminalScreenshotImage = {
-        url: URL.createObjectURL(new Blob([result.bytes], { type: resource.mime || 'image/png' })),
+        url: URL.createObjectURL(new Blob([new Uint8Array(result.bytes)], { type: resource.mime || 'image/png' })),
         mime: resource.mime || 'image/png',
         width: resource.width,
         height: resource.height,

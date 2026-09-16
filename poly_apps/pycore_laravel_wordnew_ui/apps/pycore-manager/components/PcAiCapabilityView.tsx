@@ -24,7 +24,7 @@ import {
 import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type {
-  AiGatewayStatus, AiProvider,
+  AiGatewayStatus, AiProvider, AiRateLimitsResponse,
   SystemResourcesResponse, SystemInfo,
 } from '@/apps/pycore-manager/api';
 import { usePycoreCapability } from '@/apps/pycore-manager/api';
@@ -243,7 +243,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
 
   const refreshRates = useCallback(async () => {
     try {
-      const r = await pycoreApi.getAiRateLimits();
+      const r = (await pycoreApi.getAiRateLimits()) as AiRateLimitsResponse | null;
       const byName = new Map((r?.providers ?? []).map((rt) => [rt.provider, rt]));
       if (byName.size === 0) return;
       setProviders((prev) => {
