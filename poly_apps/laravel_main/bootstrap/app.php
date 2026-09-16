@@ -210,6 +210,7 @@ $application = Application::configure(basePath: dirname(__DIR__))
                     'success' => false,
                     'message' => $e->getMessage(),
                     'error_code' => $e->relayErrorCode(),
+                    'server_time_unix' => microtime(true),
                     'code' => $e->getStatusCode(),
                 ], $e->getStatusCode());
             }

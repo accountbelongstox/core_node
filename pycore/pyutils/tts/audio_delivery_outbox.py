@@ -11,13 +11,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
+from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
 
 
 AUDIO_DELIVERY_OUTBOX_SECTION = "audio_delivery_outbox"
 AUDIO_DELIVERY_OUTBOX_SCHEMA = 2
 AUDIO_DELIVERY_PROCESS_ID = f"{os.getpid()}:{uuid.uuid4().hex}"
 DEFAULT_LEASE_SECONDS = 180.0
+AUDIO_DELIVERY_OUTBOX_FILE = "audio_delivery_outbox.json"
+AUDIO_DELIVERY_OUTBOX_DEFAULTS = APP_CONFIG_DIR / "audio_delivery_outbox_empty_defaults"
 
 
 def _now() -> float:
@@ -28,6 +31,7 @@ class AudioDeliveryOutbox:
     """Persist generated audio until Laravel delivery and local history finish."""
 
     def __init__(self) -> None:
+        self._store = UserDataStore(file_name=AUDIO_DELIVERY_OUTBOX_FILE, defaults_dir=AUDIO_DELIVERY_OUTBOX_DEFAULTS)
         init_serialized_owner(
             self,
             "tts.audio_delivery_outbox",
@@ -80,10 +84,17 @@ class AudioDeliveryOutbox:
         })
         return self.put(staged_record)
 
-    @staticmethod
-    def _load_records() -> Dict[str, Dict[str, Any]]:
-        section = user_data_store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION) or {}
+    def _load_records(self) -> Dict[str, Dict[str, Any]]:
+        section = self._store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION) or {}
         records = section.get("records")
+        legacy_records = {}
+        if not section.get("legacy_migrated"):
+            legacy_records = user_data_store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION).get("records") or {}
+            records = {
+                **(legacy_records if isinstance(legacy_records, dict) else {}),
+                **(records if isinstance(records, dict) else {}),
+            }
+            self._save_records({str(key): dict(value) for key, value in records.items() if isinstance(value, dict) and value.get("delivery_id")})
         if not isinstance(records, dict):
             return {}
         return {
@@ -92,12 +103,12 @@ class AudioDeliveryOutbox:
             if isinstance(value, dict)
         }
 
-    @staticmethod
-    def _save_records(records: Dict[str, Dict[str, Any]]) -> None:
-        user_data_store.set_section(
+    def _save_records(self, records: Dict[str, Dict[str, Any]]) -> None:
+        self._store.set_section(
             AUDIO_DELIVERY_OUTBOX_SECTION,
             {
                 "schema": AUDIO_DELIVERY_OUTBOX_SCHEMA,
+                "legacy_migrated": True,
                 "records": {
                     str(row["delivery_id"]): row
                     for row in records.values()

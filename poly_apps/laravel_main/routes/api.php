@@ -27,6 +27,7 @@ Route::withoutMiddleware([
         'api_role' => 'primary',
         'ui_direct' => true,
         'timestamp' => now()->toIso8601String(),
+        'server_time_unix' => microtime(true),
         'version' => app()->version()
     ]);
 
