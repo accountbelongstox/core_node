@@ -65,7 +65,11 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single'],
+            // Daily rotation bounds the live log (the unrotated single file
+            // reached 6.9 GB under the worker-restart fatal loop). Readers
+            // resolve the active file through LaravelLogTailService, which
+            // handles both layouts.
+            'channels' => ['daily'],
             'ignore_exceptions' => false,
         ],
 

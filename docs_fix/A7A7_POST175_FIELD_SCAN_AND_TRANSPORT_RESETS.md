@@ -193,3 +193,31 @@ F3 — pyservice mode persistence:
   The Caddyfile `php_ini` floor takes effect on the next 175 convergence;
   F2 takes effect on the next laravel-main deploy; F3 on the next pycore
   start from updated code.
+
+## Follow-up fixes (2026-09-16, second pass)
+
+G1. `persist_pyservice_mode()` is now best-effort: an unwritable user config
+    store (e.g. a Windows host without the hardcoded `D:` data drive, where
+    `get_system_cache_dir()` mkdir raises OSError) degrades to `False`
+    instead of crashing startup inside `PyserviceModeService.configure()`.
+    Reads were already OSError-tolerant.
+G2. Caddyfile `php_ini` placement proven against the live binary:
+    `frankenphp validate --adapter caddyfile` on a synthetic Caddyfile with
+    the two `php_ini` lines inside the global `frankenphp {}` block returns
+    "Valid configuration".
+G3. Log-plane hardening (the unrotated live log reached 6.9 GB):
+    - `config/logging.php`: default stack channel `single` -> `daily`
+      (channel already defined, `max_files = 14`). The explicit
+      `Log::channel('single')` users keep the legacy file.
+    - `ServerManagerV1CodeExecutorCtl::getLogs/getStatus` read the ENTIRE log
+      into memory per request (`file()` / `file_get_contents`) — a guaranteed
+      512M memory_limit fatal against a 6.9 GB log. Both now read a bounded
+      1 MB tail via `FileSystemManager::readFileSegment`, with
+      rotation-aware path resolution through the new public
+      `LaravelLogTailService::resolveActiveLogPath()`.
+    - Pre-existing bug fixed in `getStatus`: `strpos($content, $id . '.*completed')`
+      matched a literal `.*` (never true) — status could never report
+      `completed`; now a real per-line regex over the tail buffer.
+    - The pre-existing 6.9 GB `laravel.log` is left in place (destructive
+      truncation needs operator approval); new writes go to
+      `laravel-YYYY-MM-DD.log`.
