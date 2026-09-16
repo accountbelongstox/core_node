@@ -129,8 +129,9 @@ _path_hosts_project() {
 # requirement applies ONLY to the WEB DATA base, which map_web_path derives and
 # guards separately (PostgreSQL/Laravel need ownership). Keeping them separate is
 # why CORE_NODE_PROJECT_ROOT maps to the real /mnt checkout while web data uses /www.
-# Priority: WSL -> persisted BASE_DATA_DIR (center) -> free-space comparison (root fs
-# vs largest NTFS/data disk) -> Desktop Windows -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (re-validated against current free space
+# every run) -> free-space comparison (root fs vs largest NTFS/data disk) ->
+# Desktop Windows -> /www
 get_base_data_directory() {
     local base_dir="" run_anchor="" run_base="" persisted_now=""
     local read_base="" persisted_root_free=0 persisted_disk_free=0
