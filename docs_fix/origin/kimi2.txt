@@ -15,3 +15,15 @@
 3：以上功能中的登陆和任务，都要缓存在本地的记录文件，并在启动时加载。对于旧的编排任务，可以修改后重新生成。
 本机是windows环境，写完后在测可测试的windows端功能。
 
+
+1:UI上的功能和pycore的不可用 ···
+Backend Books
+    18
+    Refresh
+    rpc_execution_timeout [Relay +0.05s]
+    action=ledger.execution.unknown
+    code=rpc_execution_timeout
+    operation_id=f96c26ef-aa44-44d3-9573-69e493c3a637 f···
+2：需要在UI上增加小面板，显示pycore端的ffempage状态，注意这些都是要缓存的数据。
+3：需要在UI上显示数据保存目录，pycore端的，同时可以查看生成的日志，同时一个书可以有多个任务进行不同的编排，每个任务的编排和文件都要显示在UI上。可以查看。如果点击重新生成，则替换生成，在生成前准备清单需要显示进度，比如那些单词不存在，实时补档生成等等。同时，清单要按先查pycore缓存，再查laravel main，最后pycore补生成的规范。
+4：全面核对一下逻辑。

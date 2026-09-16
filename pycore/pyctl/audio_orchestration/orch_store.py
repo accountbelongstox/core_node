@@ -8,6 +8,8 @@ user data directory — resolved via system_paths, never hardcoded):
     auth.json                    qy-app login session (username, token, user id)
     books_cache.json             Laravel media/books list snapshot
     book_sentences/<key>.json    per-book ordered sentence cache
+    sync_state.json              background fetch progress (books + sentences)
+    system_status.json           cached ffmpeg/system probe (TTL-refreshed)
     tasks/<task_id>.json         one orchestration task record per file
     output/<task_slug>/          generated segment audio (segment_001.mp3, ...)
 
@@ -22,7 +24,9 @@ Task record shape (all JSON-able):
                                      back to the backend Word Groups),
     segments: [{index, start, end, status, output, error}],
     status: draft|planned|generating|done|failed,
-    progress: {segment_index, item_index, item_total, message},
+    progress: {segment_index, item_index, item_total, message, current_item,
+               cache_hits, laravel_hits, generated, missing},
+    events: [{ts, message}]        capped generation log (viewable in the UI),
     created_at, updated_at
 
 All functions are thread-safe (one module lock) and never raise; callers get
@@ -43,9 +47,12 @@ from pycore.pyfoundations.system_paths import get_app_data_dir
 _LOCK = threading.RLock()
 _AUTH_FILE = "auth.json"
 _BOOKS_CACHE_FILE = "books_cache.json"
+_SYNC_STATE_FILE = "sync_state.json"
+_SYSTEM_STATUS_FILE = "system_status.json"
 _TASKS_DIR = "tasks"
 _BOOK_SENTENCES_DIR = "book_sentences"
 _OUTPUT_DIR = "output"
+_TASK_EVENT_CAP = 200
 
 
 def base_dir() -> Path:
@@ -240,6 +247,67 @@ def output_dir_for(task: Dict[str, Any]) -> Path:
     return directory
 
 
+# --------------------------------------------------------------------------- #
+# background sync state (books list / per-book sentence fetches)               #
+# --------------------------------------------------------------------------- #
+def save_sync_state(key: str, state: Dict[str, Any]) -> bool:
+    """Persist one fetch job's state ("books" or a book source_key)."""
+    with _LOCK:
+        record = _read_json(base_dir() / _SYNC_STATE_FILE)
+        if not isinstance(record, dict):
+            record = {}
+        record[str(key)] = {**state, "updated_at": int(time.time())}
+        return _write_json(base_dir() / _SYNC_STATE_FILE, record)
+
+
+def load_sync_state() -> Dict[str, Any]:
+    with _LOCK:
+        record = _read_json(base_dir() / _SYNC_STATE_FILE)
+    return record if isinstance(record, dict) else {}
+
+
+# --------------------------------------------------------------------------- #
+# cached system status (ffmpeg probe etc.)                                     #
+# --------------------------------------------------------------------------- #
+def save_system_status(status: Dict[str, Any]) -> bool:
+    with _LOCK:
+        return _write_json(base_dir() / _SYSTEM_STATUS_FILE, status)
+
+
+def load_system_status() -> Optional[Dict[str, Any]]:
+    with _LOCK:
+        record = _read_json(base_dir() / _SYSTEM_STATUS_FILE)
+    return record if isinstance(record, dict) else None
+
+
+# --------------------------------------------------------------------------- #
+# per-task event log + generated file listing                                  #
+# --------------------------------------------------------------------------- #
+def append_task_event(task: Dict[str, Any], message: str) -> None:
+    """Append one line to the task's viewable generation log (capped)."""
+    events = list(task.get("events") or [])
+    events.append({"ts": int(time.time()), "message": str(message)[:300]})
+    task["events"] = events[-_TASK_EVENT_CAP:]
+
+
+def task_files(task: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """List the generated segment files of one task (name, size, mtime)."""
+    directory = base_dir() / _OUTPUT_DIR / str(task.get("slug") or "task")
+    files: List[Dict[str, Any]] = []
+    if directory.is_dir():
+        for path in sorted(directory.glob("segment_*.mp3")):
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            files.append({
+                "name": path.name,
+                "bytes": stat.st_size,
+                "modified_at": int(stat.st_mtime),
+            })
+    return files
+
+
 __all__ = [
     "base_dir",
     "slugify",
@@ -252,6 +320,12 @@ __all__ = [
     "save_book_sentences",
     "load_book_sentences",
     "cached_book_keys",
+    "save_sync_state",
+    "load_sync_state",
+    "save_system_status",
+    "load_system_status",
+    "append_task_event",
+    "task_files",
     "new_task_id",
     "create_task",
     "save_task",

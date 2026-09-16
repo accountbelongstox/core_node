@@ -12,26 +12,29 @@ import { ORCH_L } from './orchShared';
 const OrchBookPicker: React.FC<{
   books: OrchBookItem[];
   cachedSentenceBooks: Set<string>;
+  pendingSyncs: Set<string>;
   selectedKey: string | null;
   onSelect: (book: OrchBookItem) => void;
   onRefresh: () => void;
+  onSyncStarted: (sourceKey: string) => void;
   loading: boolean;
   error: string | null;
-}> = ({ books, cachedSentenceBooks, selectedKey, onSelect, onRefresh, loading, error }) => {
-  const [syncingKey, setSyncingKey] = useState<string | null>(null);
+}> = ({ books, cachedSentenceBooks, pendingSyncs, selectedKey, onSelect, onRefresh, onSyncStarted, loading, error }) => {
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const syncSentences = async (book: OrchBookItem) => {
-    setSyncingKey(book.source_key);
     setSyncError(null);
     try {
+      // Relay-safe: pycore answers instantly and fetches in the background;
+      // the parent polls until the book lands in cached_sentence_books.
       const r = await pycoreApi.orchBookSentences(book.source_key, true);
-      if (!r.success) setSyncError(String(r.error || 'sync failed'));
+      if (!r.success) {
+        setSyncError(String(r.error || 'sync failed'));
+        return;
+      }
+      onSyncStarted(book.source_key);
     } catch (e) {
       setSyncError(e instanceof Error ? e.message : 'sync failed');
-    } finally {
-      setSyncingKey(null);
-      onRefresh();
     }
   };
 
@@ -61,6 +64,7 @@ const OrchBookPicker: React.FC<{
       <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
         {books.map((book) => {
           const cached = cachedSentenceBooks.has(book.source_key);
+          const syncing = pendingSyncs.has(book.source_key) && !cached;
           const selected = selectedKey === book.source_key;
           return (
             <div
@@ -81,13 +85,13 @@ const OrchBookPicker: React.FC<{
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); void syncSentences(book); }}
-                disabled={syncingKey !== null}
+                disabled={syncing}
                 className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-1 text-[11px] text-slate-300 hover:border-sky-500/50 disabled:opacity-50"
               >
-                {syncingKey === book.source_key
+                {syncing
                   ? <Loader2 className="w-3 h-3 animate-spin" />
                   : <Database className="w-3 h-3" />}
-                {syncingKey === book.source_key ? ORCH_L.syncing : ORCH_L.syncSentences}
+                {syncing ? ORCH_L.syncing : ORCH_L.syncSentences}
               </button>
             </div>
           );

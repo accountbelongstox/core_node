@@ -13,6 +13,7 @@ Fetched data is cached locally via orch_store so the UI works offline after the
 first sync and old tasks can be regenerated without re-fetching.
 """
 
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
@@ -27,63 +28,98 @@ _BOOKS_PAGE_SIZE = 100
 _SENTENCES_PAGE_SIZE = 2000
 _REQUEST_TIMEOUT = 60
 
+# Background fetch jobs (UI calls return immediately — relay-safe — while these
+# threads do the multi-page Laravel walk; state is visible via sync_state).
+_SYNC_THREADS: Dict[str, threading.Thread] = {}
+_SYNC_LOCK = threading.Lock()
+
 # Rough speaking-rate estimates used for the "minutes" partition mode.
 _EN_WORDS_PER_SECOND = 2.5
 _ZH_CHARS_PER_SECOND = 4.5
 _SENTENCE_GAP_SECONDS = 1.0
 
 
-def fetch_books(refresh: bool = False) -> Dict[str, Any]:
-    """Return the cached book list, refreshing from Laravel when asked or when
-    no cache exists yet. Never raises."""
-    cached = orch_store.load_books_cache()
-    if not refresh and cached.get("items"):
-        return {"success": True, "cached": True, **cached}
+def _job_running(key: str) -> bool:
+    with _SYNC_LOCK:
+        thread = _SYNC_THREADS.get(key)
+        return bool(thread and thread.is_alive())
+
+
+def _start_job(key: str, target) -> None:
+    with _SYNC_LOCK:
+        thread = _SYNC_THREADS.get(key)
+        if thread and thread.is_alive():
+            return
+        thread = threading.Thread(
+            target=target, name=f"audio-orch-sync-{key[:24]}", daemon=True
+        )
+        _SYNC_THREADS[key] = thread
+        thread.start()
+
+
+def _fetch_books_blocking() -> Dict[str, Any]:
+    """Full multi-page books fetch (runs on a background thread only)."""
+    items: List[Dict[str, Any]] = []
+    page = 1
+    while True:
+        resp = laravel_client.get(
+            _LARAVEL_BOOKS,
+            params={"page": page, "per_page": _BOOKS_PAGE_SIZE},
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            if items:
+                break
+            raise RuntimeError(f"HTTP {resp.status_code}")
+        body = resp.json()
+        data = body.get("data") if isinstance(body, dict) else None
+        page_items = data.get("items") if isinstance(data, dict) else None
+        if not isinstance(page_items, list) or not page_items:
+            break
+        items.extend(page_items)
+        orch_store.save_sync_state("books", {
+            "status": "running", "fetched": len(items),
+        })
+        last_page = int(data.get("last_page") or page)
+        if page >= last_page:
+            break
+        page += 1
+    orch_store.save_books_cache(items)
+    return {"items": items, "fetched_at": int(time.time())}
+
+
+def _books_job() -> None:
     try:
-        items: List[Dict[str, Any]] = []
-        page = 1
-        while True:
-            resp = laravel_client.get(
-                _LARAVEL_BOOKS,
-                params={"page": page, "per_page": _BOOKS_PAGE_SIZE},
-                timeout=_REQUEST_TIMEOUT,
-            )
-            if resp.status_code != 200:
-                if items:
-                    break
-                return {
-                    "success": False,
-                    "error": f"HTTP {resp.status_code}",
-                    "items": cached.get("items") or [],
-                    "fetched_at": cached.get("fetched_at") or 0,
-                    "cached": True,
-                }
-            body = resp.json()
-            data = body.get("data") if isinstance(body, dict) else None
-            page_items = data.get("items") if isinstance(data, dict) else None
-            if not isinstance(page_items, list) or not page_items:
-                break
-            items.extend(page_items)
-            last_page = int(data.get("last_page") or page)
-            if page >= last_page:
-                break
-            page += 1
-        orch_store.save_books_cache(items)
-        return {
-            "success": True,
-            "cached": False,
-            "items": items,
-            "fetched_at": int(time.time()),
-        }
+        result = _fetch_books_blocking()
+        orch_store.save_sync_state("books", {
+            "status": "done", "fetched": len(result["items"]),
+        })
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] books fetch failed: {exc}")
-        return {
-            "success": False,
-            "error": str(exc),
-            "items": cached.get("items") or [],
-            "fetched_at": cached.get("fetched_at") or 0,
-            "cached": True,
-        }
+        orch_store.save_sync_state("books", {
+            "status": "failed", "error": str(exc),
+        })
+
+
+def fetch_books(refresh: bool = False) -> Dict[str, Any]:
+    """Relay-safe books listing: always answers from the local cache instantly.
+    ``refresh=True`` (or an empty cache) starts a background Laravel fetch whose
+    progress is readable through sync_state; the UI polls for the result."""
+    cached = orch_store.load_books_cache()
+    state = orch_store.load_sync_state().get("books") or {}
+    running = _job_running("books")
+    if (refresh or not cached.get("items")) and not running:
+        orch_store.save_sync_state("books", {"status": "running", "fetched": 0})
+        _start_job("books", _books_job)
+        running = True
+    return {
+        "success": True,
+        "cached": True,
+        "items": cached.get("items") or [],
+        "fetched_at": cached.get("fetched_at") or 0,
+        "refreshing": running,
+        "sync": state,
+    }
 
 
 def _extract_sentence(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -119,63 +155,115 @@ def _extract_sentence(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _fetch_sentences_blocking(source_key: str) -> Dict[str, Any]:
+    """Full multi-page sentence fetch (background thread or generation only)."""
+    sentences: List[Dict[str, Any]] = []
+    source: Dict[str, Any] = {}
+    page = 1
+    while True:
+        resp = laravel_client.get(
+            _LARAVEL_BOOK_DETAIL.format(source_key=source_key),
+            params={
+                "grain": "sentence",
+                "per_page": _SENTENCES_PAGE_SIZE,
+                "page": page,
+            },
+            timeout=_REQUEST_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}")
+        body = resp.json()
+        data = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(data, dict):
+            raise RuntimeError("unexpected response shape")
+        if not source and isinstance(data.get("source"), dict):
+            source = data["source"]
+        page_data = data.get("sentences") if isinstance(data.get("sentences"), dict) else {}
+        items = page_data.get("items") if isinstance(page_data.get("items"), list) else []
+        for item in items:
+            if isinstance(item, dict):
+                sentence = _extract_sentence(item)
+                if sentence is not None:
+                    sentences.append(sentence)
+        total = int(page_data.get("total") or 0)
+        orch_store.save_sync_state(source_key, {
+            "status": "running", "fetched": len(sentences), "total": total,
+        })
+        last_page = int(page_data.get("last_page") or page)
+        if page >= last_page or not items:
+            break
+        page += 1
+    payload = {
+        "source_key": source_key,
+        "title": str(source.get("title") or source.get("original_name") or source_key),
+        "language": str(source.get("language") or "en"),
+        "fetched_at": int(time.time()),
+        "sentences": sentences,
+    }
+    orch_store.save_book_sentences(source_key, payload)
+    return payload
+
+
+def _sentences_job(source_key: str) -> None:
+    try:
+        payload = _fetch_sentences_blocking(source_key)
+        orch_store.save_sync_state(source_key, {
+            "status": "done", "fetched": len(payload["sentences"]),
+        })
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[AudioOrch] sentence sync failed for {source_key}: {exc}")
+        orch_store.save_sync_state(source_key, {
+            "status": "failed", "error": str(exc),
+        })
+
+
 def sync_book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any]:
-    """Fetch (or read from cache) the ordered sentence list of one book.
-    Never raises."""
+    """Relay-safe sentence sync: answers from the local cache instantly and
+    runs the (long) Laravel walk on a background thread. Never raises."""
     source_key = str(source_key or "").strip()
     if not source_key:
         return {"success": False, "error": "source_key is required"}
-    if not refresh:
-        cached = orch_store.load_book_sentences(source_key)
-        if cached and isinstance(cached.get("sentences"), list) and cached["sentences"]:
-            return {"success": True, "cached": True, **cached}
+    cached = orch_store.load_book_sentences(source_key)
+    has_cache = bool(
+        cached and isinstance(cached.get("sentences"), list) and cached["sentences"]
+    )
+    running = _job_running(source_key)
+    if (refresh or not has_cache) and not running:
+        orch_store.save_sync_state(source_key, {"status": "running", "fetched": 0})
+        _start_job(source_key, lambda: _sentences_job(source_key))
+        running = True
+    state = orch_store.load_sync_state().get(source_key) or {}
+    result: Dict[str, Any] = {
+        "success": True,
+        "cached": has_cache,
+        "syncing": running,
+        "sync": state,
+        "source_key": source_key,
+    }
+    if isinstance(cached, dict):
+        result.update({
+            "title": cached.get("title"),
+            "language": cached.get("language"),
+            "fetched_at": cached.get("fetched_at") or 0,
+            "sentences": cached.get("sentences") or [],
+        })
+    return result
+
+
+def ensure_book_sentences(source_key: str) -> Dict[str, Any]:
+    """Blocking sentence fetch for GENERATION (worker thread, no relay
+    deadline). Uses the cache when present; otherwise fetches inline."""
+    source_key = str(source_key or "").strip()
+    cached = orch_store.load_book_sentences(source_key)
+    if cached and isinstance(cached.get("sentences"), list) and cached["sentences"]:
+        return {"success": True, "cached": True, **cached}
     try:
-        sentences: List[Dict[str, Any]] = []
-        source: Dict[str, Any] = {}
-        page = 1
-        while True:
-            resp = laravel_client.get(
-                _LARAVEL_BOOK_DETAIL.format(source_key=source_key),
-                params={
-                    "grain": "sentence",
-                    "per_page": _SENTENCES_PAGE_SIZE,
-                    "page": page,
-                },
-                timeout=_REQUEST_TIMEOUT,
-            )
-            if resp.status_code != 200:
-                return {"success": False, "error": f"HTTP {resp.status_code}"}
-            body = resp.json()
-            data = body.get("data") if isinstance(body, dict) else None
-            if not isinstance(data, dict):
-                return {"success": False, "error": "unexpected response shape"}
-            if not source and isinstance(data.get("source"), dict):
-                source = data["source"]
-            page_data = data.get("sentences") if isinstance(data.get("sentences"), dict) else {}
-            items = page_data.get("items") if isinstance(page_data.get("items"), list) else []
-            for item in items:
-                if isinstance(item, dict):
-                    sentence = _extract_sentence(item)
-                    if sentence is not None:
-                        sentences.append(sentence)
-            last_page = int(page_data.get("last_page") or page)
-            if page >= last_page or not items:
-                break
-            page += 1
-        payload = {
-            "source_key": source_key,
-            "title": str(source.get("title") or source.get("original_name") or source_key),
-            "language": str(source.get("language") or "en"),
-            "fetched_at": int(time.time()),
-            "sentences": sentences,
-        }
-        orch_store.save_book_sentences(source_key, payload)
+        payload = _fetch_sentences_blocking(source_key)
+        orch_store.save_sync_state(source_key, {
+            "status": "done", "fetched": len(payload["sentences"]),
+        })
         return {"success": True, "cached": False, **payload}
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] sentence sync failed for {source_key}: {exc}")
-        cached = orch_store.load_book_sentences(source_key)
-        if cached:
-            return {"success": False, "error": str(exc), "cached": True, **cached}
         return {"success": False, "error": str(exc)}
 
 
@@ -264,6 +352,7 @@ def partition_sentences(
 __all__ = [
     "fetch_books",
     "sync_book_sentences",
+    "ensure_book_sentences",
     "estimate_sentence_seconds",
     "partition_sentences",
 ]

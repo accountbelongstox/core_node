@@ -17,11 +17,22 @@ export interface OrchBookItem {
   image_url?: string | null;
 }
 
+export interface OrchSyncState {
+  status?: 'running' | 'done' | 'failed';
+  fetched?: number;
+  total?: number;
+  error?: string;
+  updated_at?: number;
+}
+
 export interface OrchBooksResponse {
   success: boolean;
   error?: string;
   cached?: boolean;
   fetched_at?: number;
+  refreshing?: boolean;
+  sync?: OrchSyncState;
+  sync_states?: Record<string, OrchSyncState>;
   items: OrchBookItem[];
   cached_sentence_books?: string[];
 }
@@ -38,6 +49,8 @@ export interface OrchBookSentencesResponse {
   success: boolean;
   error?: string;
   cached?: boolean;
+  syncing?: boolean;
+  sync?: OrchSyncState;
   source_key?: string;
   title?: string;
   language?: string;
@@ -93,7 +106,11 @@ export interface OrchTaskSummary {
   running?: boolean;
   segments_done?: number;
   segments_total?: number;
-  progress?: { message?: string; segment_index?: number; item_index?: number; item_total?: number; output_dir?: string };
+  progress?: {
+    message?: string; segment_index?: number; item_index?: number; item_total?: number;
+    output_dir?: string; current_item?: string;
+    cache_hits?: number; laravel_hits?: number; generated?: number; missing?: number;
+  };
   created_at?: number;
   updated_at?: number;
 }
@@ -103,6 +120,25 @@ export interface OrchTask extends OrchTaskSummary {
   new_only_max_read_count?: number;
   virtual_read?: string[];
   segments?: OrchSegment[];
+  events?: Array<{ ts: number; message: string }>;
+}
+
+export interface OrchSystemStatus {
+  success: boolean;
+  probed_at?: number;
+  ffmpeg?: { available: boolean; path?: string; version?: string; probe_error?: string };
+  data_dir?: string;
+  output_root?: string;
+  tasks_total?: number;
+  books_cached?: number;
+  sentence_books_cached?: number;
+  logged_in?: boolean;
+}
+
+export interface OrchTaskFile {
+  name: string;
+  bytes: number;
+  modified_at: number;
 }
 
 export const pycoreApiOrchestration = {
@@ -141,5 +177,16 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskProgress, { task_id: taskId }) as Promise<{
       success: boolean; error?: string; status?: string; running?: boolean;
       progress?: Record<string, unknown>; segments?: OrchSegment[];
+      events?: Array<{ ts: number; message: string }>;
     }>,
+
+  // --- pycore system status (cached ffmpeg probe) + generated files -------- #
+  orchSystemStatus: (refresh = false) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchSystemStatus, { refresh }) as Promise<OrchSystemStatus>,
+  orchTaskFiles: (taskId: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskFiles, { task_id: taskId }) as Promise<{
+      success: boolean; error?: string; output_dir?: string; files: OrchTaskFile[];
+    }>,
+  orchOpenOutput: (taskId?: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchOpenOutput, taskId ? { task_id: taskId } : {}) as Promise<{ success: boolean; path?: string }>,
 };
