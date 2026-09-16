@@ -33,8 +33,9 @@ XRDP_LOG="/var/log/xrdp.log"
 XRDP_SESMAN_LOG="/var/log/xrdp-sesman.log"
 XRDP_SYSLOG_PATTERN="xrdp|xorgxrdp"
 
-# Monitor configuration
-MONITOR_DIR="/var/_core_node/xrdp_monitor"
+# Monitor configuration (CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh)
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$COMMON_DIR/runtime_environment.sh"
+MONITOR_DIR="$CORE_NODE_DATA_DIR/xrdp_monitor"
 MONITOR_LOG="$MONITOR_DIR/monitor.log"
 CONNECTIONS_LOG="$MONITOR_DIR/connections.log"
 DISCONNECTS_LOG="$MONITOR_DIR/disconnects.log"

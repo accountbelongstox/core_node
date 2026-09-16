@@ -222,8 +222,8 @@ mount_additional_disk() {
     fi
 }
 
-# Determine CORE_NODE_DATA_DIR based on environment (standardized location)
-CORE_NODE_DATA_DIR="/var/_core_node"
+# CORE_NODE_DATA_DIR is defined once in runtime_environment.sh (sourced first by
+# gvar_common.sh); here it is only consumed to derive the standardized subtrees.
 PROGRAMING_USERS_DIR="$CORE_NODE_DATA_DIR/Users"
 PI_COMMON_USER_DIR="$PROGRAMING_USERS_DIR/PiYolo"
 PI_KIMI_USER_DIR="$PROGRAMING_USERS_DIR/PiKimi"

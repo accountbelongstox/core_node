@@ -217,7 +217,23 @@ class PathMapper
         if ($val === '') {
             return null;
         }
-        return (self::isRealDistinctMount($val) || self::pathHostsProject($val)) ? $val : null;
+        // Mirrors gvar_storage_common.sh Priority 2: re-validate the persisted base
+        // against the CURRENT free-space policy on every run, so a stale cache left
+        // by an older script version cannot override it.
+        if (self::pathHostsProject($val)) {
+            return $val;
+        }
+        if ($val === '/www' || $val === '/mnt/d') {
+            return $val;
+        }
+        if (self::isRealDistinctMount($val)) {
+            $diskFree = @disk_free_space($val);
+            $rootFree = @disk_free_space('/');
+            $diskFree = ($diskFree === false) ? 0.0 : (float) $diskFree;
+            $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
+            return $diskFree > $rootFree ? $val : '/www';
+        }
+        return null;
     }
 
     /** Largest device whose TYPE is ntfs ($wantNtfs) or a POSIX data fs; ranked by raw bytes. */

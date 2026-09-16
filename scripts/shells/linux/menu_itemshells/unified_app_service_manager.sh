@@ -20,6 +20,8 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
 ROOT_DIR="$PARENT_DIR_LEVEL_3"
 source "$PARENT_DIR_LEVEL_1/common/arrow_menu.sh"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$PARENT_DIR_LEVEL_1/common/runtime_environment.sh"
 
 # Color codes
 RED='\033[0;31m'
@@ -311,7 +313,7 @@ remove_service() {
     fi
 
     # Remove launcher script if exists
-    local launcher_script="/var/_core_node/unified_manager/temp_scripts/${service}.sh"
+    local launcher_script="$CORE_NODE_DATA_DIR/unified_manager/temp_scripts/${service}.sh"
     if [ -f "$launcher_script" ]; then
         echo "Removing launcher script..."
         sudo rm -f "$launcher_script"

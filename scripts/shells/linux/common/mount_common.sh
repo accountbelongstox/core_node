@@ -16,6 +16,8 @@
 
 MOUNT_USE_SUDO="${USE_SUDO:-sudo}"
 MOUNT_LOG_PREFIX="${MOUNT_LOG_PREFIX:-[MOUNT]}"
+# Single definition of the standardized mount base (was duplicated in 3_setting_base.sh).
+DEFAULT_MOUNT_BASE="/mnt"
 
 # Ensure exactly one fstab entry for this UUID: backup, remove all lines with this UUID, append one.
 # Usage: mount_fstab_ensure_single_entry <uuid> <mount_point> <fstype> <options>
@@ -249,8 +251,8 @@ mount_disk() {
     if [ "$fstype" = "ntfs" ]; then
         if ! command -v ntfs-3g >/dev/null 2>&1; then
             warning "ntfs-3g not installed, installing..."
-            echo "[2] $USE_SUDO apt-get update -qq"
-            $USE_SUDO apt-get update -qq
+            echo "[2] $USE_SUDO apt-get update"
+            $USE_SUDO apt-get update
             echo "[2] $USE_SUDO apt-get install -y ntfs-3g"
             $USE_SUDO apt-get install -y ntfs-3g
         fi

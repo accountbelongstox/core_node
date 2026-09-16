@@ -13,7 +13,9 @@
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINUX_DIR="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")"
-MONITOR_DIR="/var/_core_node/xrdp_monitor"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$LINUX_DIR/common/runtime_environment.sh"
+MONITOR_DIR="$CORE_NODE_DATA_DIR/xrdp_monitor"
 MONITOR_LOG="$MONITOR_DIR/monitor.log"
 CONNECTIONS_LOG="$MONITOR_DIR/connections.log"
 DISCONNECTS_LOG="$MONITOR_DIR/disconnects.log"

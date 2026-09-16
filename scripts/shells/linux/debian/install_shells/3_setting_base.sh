@@ -48,9 +48,6 @@ source "$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/apt_sources_restore.sh"
 MOUNT_LOG_PREFIX="[2]"
 
-# Default mount base directory
-DEFAULT_MOUNT_BASE="/mnt"
-
 # PID of the background sudo keepalive loop (empty when not started / as root)
 SUDO_KEEPALIVE_PID=""
 
@@ -121,7 +118,7 @@ stop_sudo_keepalive() {
 ensure_ntfs_support() {
     if ! command -v ntfs-3g >/dev/null 2>&1; then
         warning "ntfs-3g not installed, installing..."
-        $USE_SUDO apt-get update -qq
+        $USE_SUDO apt-get update
         if $USE_SUDO apt-get install -y ntfs-3g; then
             log "ntfs-3g installed successfully"
             return 0
@@ -282,12 +279,15 @@ install_packages_idempotent() {
         to_install+=("$pkg")
     done
     if [ ${#to_install[@]} -gt 0 ]; then
-        if $USE_SUDO apt-get install -y "${to_install[@]}" >/dev/null 2>&1; then
+        info "Installing ${#to_install[@]} missing package(s): ${to_install[*]}"
+        # Installs always stream their real output (no redirection), so progress
+        # and failures are visible live.
+        if $USE_SUDO apt-get install -y "${to_install[@]}"; then
             installed=${#to_install[@]}
         else
             warning "Batch install failed; retrying per-package..."
             for pkg in "${to_install[@]}"; do
-                if $USE_SUDO apt-get install -y "$pkg" >/dev/null 2>&1; then
+                if $USE_SUDO apt-get install -y "$pkg"; then
                     installed=$((installed + 1))
                 else
                     error "Failed to install $pkg"
@@ -307,10 +307,10 @@ install_packages_and_configure_git() {
         nano wget openssl libssl-dev zlib1g-dev libbz2-dev \
         libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
         xz-utils tk-dev libffi-dev liblzma-dev make software-properties-common \
-        cron dnsutils libvips-dev cpulimit expect tar gzip procps
+        dnsutils libvips-dev cpulimit expect tar gzip procps
     # xdg-utils provides xdg-open (used by pycore to open files/URLs). Idempotent,
-    # non-fatal: only installs when xdg-open is missing.
-    if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils >/dev/null 2>&1 || true; fi
+    # non-fatal: only installs when xdg-open is missing. Output streams live.
+    if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils || true; fi
     git config --global http.sslVerify "false" || true
     git config --global user.name "prop-dev" || true
     git config --global user.email "prop-dev@serve.com" || true
@@ -385,13 +385,14 @@ main() {
     # Native sources self-heal AFTER repository repair: repair may restore a
     # polluted "original" backup (foreign suites); this converges the native
     # distro sources as the final writer before the apt update below.
+    # apt output streams live (no redirection) so update progress/errors are visible.
     if command -v apt_sources_restore_ensure >/dev/null 2>&1; then
         apt_sources_restore_ensure
         if [ "$APT_SOURCES_RESTORE_CHANGED" = "true" ]; then
-            $USE_SUDO apt-get update 2>/dev/null || true
+            $USE_SUDO apt-get update || true
         fi
     fi
-    $USE_SUDO apt update 2>/dev/null || $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
+    $USE_SUDO apt update || $USE_SUDO apt update --allow-unauthenticated || true
     install_packages_and_configure_git
     $USE_SUDO sysctl fs.inotify.max_user_watches=524288 2>/dev/null || true
     $USE_SUDO sysctl -p 2>/dev/null || true

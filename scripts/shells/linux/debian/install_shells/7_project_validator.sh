@@ -20,9 +20,7 @@ set -e
 # Script index for logging
 SCRIPT_INDEX="8"
 
-# Repository URLs
-GITHUB_REPO_URL="https://github.com/accountbelongstox/core_node.git"
-GITEE_REPO_URL="https://gitee.com/accountbelongstox/core_node.git"
+# Repository URLs are resolved from gvar_common.sh after it is sourced below.
 
 # Color codes
 YELLOW='\033[33m'
@@ -54,6 +52,10 @@ PERMISSION_HELPER="$PARENT_DIR_LEVEL_2/common/fs_perm_helpers.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 # shellcheck source=/dev/null
 source "$PERMISSION_HELPER"
+
+# Repository URLs (single definition lives in gvar_common.sh)
+GITHUB_REPO_URL="$CORE_NODE_GITHUB_REPO"
+GITEE_REPO_URL="$CORE_NODE_GITEE_REPO"
 
 # Print comprehensive environment information
 log "=========================================="
