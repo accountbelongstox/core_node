@@ -95,6 +95,7 @@ def select_words(
     consume: bool,
     use_backend: bool = True,
     auth_record: Optional[Dict[str, Any]] = None,
+    word_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Pick the words to read for one sentence of a task.
 
@@ -102,6 +103,8 @@ def select_words(
     word_mode="new_only" -> words whose backend group read count is within
                            ``new_only_max_read_count`` AND which are not in the
                            task's virtual_read set yet.
+    ``word_mode=None`` falls back to the task-level ``word_mode`` (legacy
+    "words" steps); per-step "words_new"/"words_all" pass their own policy.
     With ``consume=True`` (new_only only) the selected words are appended to
     the task's virtual_read set (the caller persists the task record).
     ``use_backend=False`` skips the per-sentence Laravel call (plan previews
@@ -109,7 +112,7 @@ def select_words(
 
     Returns {words: [...], source: "backend"|"local"|"none"}.
     """
-    word_mode = str(task.get("word_mode") or "all")
+    word_mode = word_mode or str(task.get("word_mode") or "all")
     max_read_count = int(task.get("new_only_max_read_count") or 0)
     virtual_read = set(str(w).lower() for w in (task.get("virtual_read") or []))
     # Virtual-read dedup applies to new_only only: "all" repeats words whenever

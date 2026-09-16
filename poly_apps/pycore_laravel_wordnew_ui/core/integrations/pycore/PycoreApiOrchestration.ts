@@ -115,7 +115,10 @@ export interface OrchTaskSummary {
   progress?: {
     message?: string; segment_index?: number; item_index?: number; item_total?: number;
     output_dir?: string; current_item?: string;
+    phase?: 'manifest' | 'resources' | 'assemble' | 'done';
+    resource_index?: number; resource_total?: number;
     cache_hits?: number; laravel_hits?: number; generated?: number; missing?: number;
+    synced?: number;
   };
   created_at?: number;
   updated_at?: number;

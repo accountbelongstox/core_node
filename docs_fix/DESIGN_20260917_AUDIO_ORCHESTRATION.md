@@ -8,10 +8,11 @@
 
 ## Qy word groups
 
-- After Qy App V1 login, load all available default word groups and their read-word records.
+- After Qy App V1 login, load all available default word groups and pull their read-word (已读) records from the backend; read state is server-authoritative, never inferred locally.
 - Select the default group initially and allow another group as the read/edit baseline for Words Only New.
 - Persist the selection per account and Laravel endpoint, and retain it across refreshes.
 - Qy login is required only for account word-group/read-word access.
+- Reference the wordnew implementation: `poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/components/daily-reading/WordNewDailyReadingWordGroupsPanel.tsx` and `dailyReadingWordGroupStore.ts` (load groups, pull the roamed selection, default to the "Default Vocabulary Group", persist locally and roam to the account; "All Classical Packs" / "★ Pack" / "Enroll" enrollment UI).
 
 ## Book tasks
 
