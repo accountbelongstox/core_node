@@ -4,12 +4,16 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
+use App\Services\Logs\LaravelLogTailService;
+use App\Utils\FileSystemManager;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
 {
+    private const LOG_TAIL_BYTES = 1048576;
+
     /**
      * Hardcoded predefined scripts for security
      */
@@ -261,17 +265,16 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
         
         try {
             // Since we don't have database access, return recent log entries from Laravel logs
-            $logFile = storage_path('logs/laravel.log');
+            $buffer = $this->readLogTail();
             $logs = [];
-            
-            if (file_exists($logFile)) {
-                $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                $lines = array_reverse($lines); // Most recent first
-                
+
+            if ($buffer !== '') {
+                $lines = array_reverse(array_filter(explode("\n", $buffer)));
+
                 $executionLogs = [];
                 $count = 0;
                 $limit = (int)$request->input('limit', 50);
-                
+
                 foreach ($lines as $line) {
                     if (strpos($line, 'ServerManagerV1: Script execution') !== false && $count < $limit) {
                         $executionLogs[] = [
@@ -282,7 +285,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                         $count++;
                     }
                 }
-                
+
                 $logs = $executionLogs;
             }
             
@@ -319,22 +322,20 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             }
             
             // Since we don't have database, we'll check recent logs
-            $logFile = storage_path('logs/laravel.log');
             $status = [
                 'execution_id' => $executionId,
                 'status' => 'unknown',
                 'found' => false
             ];
-            
-            if (file_exists($logFile)) {
-                $content = file_get_contents($logFile);
-                if (strpos($content, $executionId) !== false) {
-                    $status['found'] = true;
-                    if (strpos($content, $executionId . '.*completed') !== false) {
-                        $status['status'] = 'completed';
-                    } elseif (strpos($content, $executionId . '.*started') !== false) {
-                        $status['status'] = 'running';
-                    }
+
+            $buffer = $this->readLogTail();
+            if ($buffer !== '' && strpos($buffer, $executionId) !== false) {
+                $status['found'] = true;
+                $quotedId = preg_quote($executionId, '/');
+                if (preg_match('/' . $quotedId . '[^\n]*completed/', $buffer)) {
+                    $status['status'] = 'completed';
+                } elseif (preg_match('/' . $quotedId . '[^\n]*started/', $buffer)) {
+                    $status['status'] = 'running';
                 }
             }
             
@@ -348,6 +349,26 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
     /**
      * Extract timestamp from log line
      */
+    /**
+     * Bounded tail of the active Laravel log. Full-file reads of an
+     * unbounded log fatal on memory_limit; rotation-aware resolution keeps
+     * this correct under the daily channel.
+     */
+    private function readLogTail(): string
+    {
+        $logFile = app(LaravelLogTailService::class)->resolveActiveLogPath();
+        if (!FileSystemManager::isFile($logFile)) {
+            return '';
+        }
+        $fileSize = FileSystemManager::filesize($logFile);
+        if ($fileSize === false || $fileSize <= 0) {
+            return '';
+        }
+        $readBytes = min(self::LOG_TAIL_BYTES, $fileSize);
+        $buffer = FileSystemManager::readFileSegment($logFile, $fileSize - $readBytes, $readBytes);
+        return $buffer === false ? '' : $buffer;
+    }
+
     private function extractTimestamp(string $line): string
     {
         if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {

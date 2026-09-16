@@ -55,6 +55,16 @@ class LaravelLogTailService
         return $this->readBackward($logPath, $actualFileId, $fileSize, $mtime, $limit, $maxBytes);
     }
 
+    /**
+     * Resolve the currently written log file (laravel.log, or the latest
+     * laravel-*.log under daily rotation). Shared by log readers so they
+     * stay rotation-agnostic.
+     */
+    public function resolveActiveLogPath(): string
+    {
+        return $this->resolveLogPath(null);
+    }
+
     private function resolveLogPath(?string $fileId): string
     {
         $logDir = PathMapper::mapWebPath('logs');
