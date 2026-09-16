@@ -59,14 +59,22 @@ def read_persisted_pyservice_mode() -> Optional[str]:
         return None
 
 
-def persist_pyservice_mode(mode: str) -> None:
-    """Cache the mode in the user config store (atomic write)."""
+def persist_pyservice_mode(mode: str) -> bool:
+    """Cache the mode in the user config store (atomic write).
+
+    Best-effort: an unwritable store (e.g. a missing Windows D: drive) must
+    never break startup, so OSError degrades to False instead of raising.
+    """
     normalized = pyservice_mode_contract.normalize(mode)
-    cache_path = get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE
-    temp_path = cache_path.with_suffix(".json.tmp")
-    with open(temp_path, "w", encoding="utf-8") as handle:
-        json.dump({"mode": normalized}, handle)
-    os.replace(temp_path, cache_path)
+    try:
+        cache_path = get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE
+        temp_path = cache_path.with_suffix(".json.tmp")
+        with open(temp_path, "w", encoding="utf-8") as handle:
+            json.dump({"mode": normalized}, handle)
+        os.replace(temp_path, cache_path)
+    except OSError:
+        return False
+    return True
 
 
 __all__ = [
