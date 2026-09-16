@@ -8,12 +8,14 @@ loop.call_soon_threadsafe. There is no sleep-poll on any hot path.
 import asyncio
 import copy
 import threading
+import time
 import uuid
 from collections import deque
 from functools import wraps
 from typing import Any, Callable
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 DEFAULT_SERIALIZED_TIMEOUT = 30.0
@@ -87,11 +89,21 @@ class SerializedWorkerThread(threading.Thread):
             callback = request.get("callback")
             args = request.get("args", ())
             kwargs = request.get("kwargs", {})
+            method = args[0] if callback is _invoke_serialized_method and args else callback
+            active_signal = f"{self._queue_name}.active"
+            THREAD_BUS.signal(active_signal, {
+                "callback": getattr(method, "__qualname__", type(method).__name__),
+                "thread": self.name,
+                "started_at": time.monotonic(),
+                "queued_at": request.get("queued_at"),
+            })
             try:
                 result = callback(*args, **kwargs)
                 response = {"success": True, "result": result}
             except Exception as exc:
                 response = _error_response(exc)
+            finally:
+                THREAD_BUS.clear_signal(active_signal)
             _publish_response(response_signal, response_guard, response)
 
 
@@ -485,6 +497,7 @@ def call_serialized(
     """Execute one callback on its queue owner and return the bus response."""
     response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
     response_guard = _response_guard_name(response_signal)
+    started = time.monotonic()
     THREAD_BUS.signal(response_guard, True)
     THREAD_BUS.send_message(queue_name, {
         "callback": callback,
@@ -492,11 +505,21 @@ def call_serialized(
         "kwargs": kwargs,
         "response_signal": response_signal,
         "response_guard": response_guard,
+        "queued_at": started,
     })
     response = THREAD_BUS.wait_signal(response_signal, timeout=timeout)
     THREAD_BUS.clear_signal(response_guard)
     THREAD_BUS.clear_signal(response_signal)
     if not isinstance(response, dict):
+        active = THREAD_BUS.get_signal(f"{queue_name}.active", {}) or {}
+        active_since = active.get("started_at")
+        active_elapsed = round(time.monotonic() - active_since, 3) if isinstance(active_since, (int, float)) else None
+        ColorPrint.yellow(
+            f"[SerializedWorker] timeout queue={queue_name} "
+            f"wait_seconds={time.monotonic() - started:.3f} "
+            f"active_callback={active.get('callback', 'idle')} "
+            f"active_seconds={active_elapsed} thread={active.get('thread', 'unknown')}"
+        )
         raise TimeoutError(f"Serialized operation timed out: {queue_name}")
     if not response.get("success"):
         _raise_serialized_error(response, "Serialized operation failed")

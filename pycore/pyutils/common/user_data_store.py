@@ -54,6 +54,11 @@ class _UserDataDocument:
         self._defaults: Optional[Dict[str, Any]] = None
         self._overrides: Optional[Dict[str, Any]] = None
         self._data: Optional[Dict[str, Any]] = None
+        init_serialized_owner(self, "user_data_store.document", "UserDataDocument")
+
+    @serialized_method
+    def execute(self, operation: str, payload: Dict[str, Any]) -> Any:
+        return getattr(self, operation)(**payload)
 
     @property
     def path(self) -> Path:
@@ -251,13 +256,19 @@ class _UserDataStoreCenter:
             "UserDataStoreCenter",
         )
 
-    @serialized_method
     def execute(
         self,
         store_key: str,
         operation: str,
         payload: Dict[str, Any],
     ) -> Any:
+        document = self._document(store_key, operation, payload)
+        if operation == "configure":
+            return True
+        return document.execute(operation, payload)
+
+    @serialized_method
+    def _document(self, store_key: str, operation: str, payload: Dict[str, Any]) -> _UserDataDocument:
         if operation == "configure":
             if store_key not in self._documents:
                 self._documents[store_key] = _UserDataDocument(
@@ -265,11 +276,10 @@ class _UserDataStoreCenter:
                     defaults_dir=Path(payload["defaults_dir"]),
                     file_name=payload["file_name"],
                 )
-            return True
         document = self._documents.get(store_key)
         if document is None:
             raise RuntimeError(f"User data store is not configured: {store_key}")
-        return getattr(document, operation)(**payload)
+        return document
 
 
 user_data_store_center = _UserDataStoreCenter()

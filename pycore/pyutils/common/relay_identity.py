@@ -7,7 +7,6 @@ import base64
 import hashlib
 import os
 import secrets
-import time
 import uuid
 from typing import Any, Dict, Mapping, Optional, Tuple
 
@@ -23,6 +22,7 @@ from pycore.pyfoundations.third_party.api import (
 )
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
+from pycore.pyutils.common.relay_request_clock import relay_request_clock
 
 
 RELAY_IDENTITY_FILE_NAME = "pycore_relay_identity.json"
@@ -435,9 +435,11 @@ class RelayDeviceIdentity:
         path: str,
         query: Mapping[str, Any],
         body: bytes,
+        coordinator_url: str = "",
     ) -> Dict[str, str]:
         document = self.ensure()
-        timestamp = str(int(time.time()))
+        endpoint = coordinator_url or relay_contract.public_url("laravel_api_origin")
+        timestamp = str(relay_request_clock.timestamp(endpoint))
         nonce = secrets.token_urlsafe(24)
         content_sha256 = hashlib.sha256(body).hexdigest()
         normalized_method = str(method or "GET").upper()

@@ -7,12 +7,16 @@ import base64
 import hashlib
 import json
 import time
+import uuid
+from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
+from pycore.pyutils.common.relay_request_clock import relay_request_clock
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.endpoint_manager import HEALTH_PATH
 
 
 RELAY_JSON_CONTENT_TYPE = "application/json"
@@ -44,6 +48,49 @@ class LaravelRelayTransport:
     @staticmethod
     def endpoint() -> str:
         return relay_contract.public_url("laravel_api_origin").rstrip("/")
+
+    @staticmethod
+    def _server_epoch(response: Any, document: Optional[Mapping[str, Any]] = None) -> Optional[float]:
+        data = document or {}
+        epoch = data.get("server_time_unix")
+        timestamp = data.get("timestamp")
+        date_header = str(response.headers.get("Date") or "")
+        parsed = None
+        if isinstance(epoch, (int, float)) and not isinstance(epoch, bool):
+            return float(epoch)
+        try:
+            if isinstance(timestamp, str) and timestamp:
+                return relay_contract.rfc3339_datetime(timestamp).timestamp()
+            if date_header:
+                parsed = parsedate_to_datetime(date_header)
+                if parsed.tzinfo is not None:
+                    return parsed.timestamp()
+        except (ValueError, TypeError, RuntimeError) as error:
+            relay_activity_log.warning("clock.server.response.invalid", error_type=type(error).__name__)
+        return None
+
+    def _ensure_clock(self, endpoint: str, force: bool = False) -> None:
+        started = time.monotonic()
+        received = started
+        epoch = None
+        document: Dict[str, Any] = {}
+        if not force and relay_request_clock.ready(endpoint):
+            return
+        response = laravel_client.request(
+            "GET", HEALTH_PATH, base_url=endpoint,
+            params={"clock_probe": uuid.uuid4().hex},
+            headers={"Accept": RELAY_JSON_CONTENT_TYPE, "Cache-Control": "no-cache", "Accept-Encoding": "identity"},
+            timeout=(relay_contract.duration("subscriber_connect_timeout_seconds"), relay_contract.duration("request_timeout_seconds")),
+            allow_redirects=False, log_line=False, include_default_identity=False,
+        )
+        received = time.monotonic()
+        if response.status_code != 200:
+            raise RelayHttpError(response.status_code, "clock.server.probe", "relay_server_clock_probe_failed")
+        if "json" in str(response.headers.get("Content-Type") or "").lower():
+            document = response.json()
+        epoch = self._server_epoch(response, document if isinstance(document, dict) else None)
+        if epoch is None or not relay_request_clock.observe(endpoint, epoch, started, received):
+            raise RelayHttpError(503, "clock.server.probe", "relay_server_clock_unavailable")
 
     def request_json(
         self,
@@ -297,73 +344,63 @@ class LaravelRelayTransport:
         if not endpoint:
             raise RuntimeError("relay_coordinator_endpoint_unavailable")
         normalized_method = str(method or "GET").upper()
-        headers = relay_device_identity.signed_headers(
-            normalized_method,
-            path,
-            query,
-            body,
-        )
-        headers["Accept-Encoding"] = "identity"
-        if body or normalized_method != "GET":
-            headers["Content-Type"] = str(content_type)
-        started = time.perf_counter()
-        relay_activity_log.debug(
-            action + ".started",
-            method=normalized_method,
-            path=path,
-            query=dict(query),
-            body=body,
-            endpoint=endpoint,
-        )
-        response = laravel_client.request(
-            normalized_method,
-            path,
-            base_url=endpoint,
-            params=dict(query),
-            data=body if body else None,
-            headers=headers,
-            timeout=(
-                min(relay_contract.duration("subscriber_connect_timeout_seconds"),
-                    relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout)),
-                relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout),
-            ),
-            allow_redirects=False,
-            log_line=False,
-            include_default_identity=False,
-            sensitive_request=True,
-        )
-        status = int(getattr(response, "status_code", 0) or 0)
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        if status < 200 or status >= 300:
-            response_type = str(
-                getattr(response, "headers", {}).get("Content-Type") or ""
-            ).lower()
-            error_document = response.json() if "json" in response_type else {}
-            error_code = (
-                str(error_document.get("error_code") or "")
-                if isinstance(error_document, dict)
-                else ""
+        self._ensure_clock(endpoint)
+        for attempt in range(2):
+            headers = relay_device_identity.signed_headers(
+                normalized_method, path, query, body, endpoint,
             )
-            relay_activity_log.error(
-                action + ".failed",
-                method=normalized_method,
-                path=path,
-                status=status,
-                error_code=error_code,
-                duration_ms=f"{elapsed_ms:.1f}",
+            headers["Accept-Encoding"] = "identity"
+            if body or normalized_method != "GET":
+                headers["Content-Type"] = str(content_type)
+            started = time.monotonic()
+            relay_activity_log.debug(
+                action + ".started", method=normalized_method, path=path,
+                query=dict(query), body=body, endpoint=endpoint,
             )
-            raise RelayHttpError(status, action, error_code)
-        content = bytes(getattr(response, "content", b"") or b"")
-        relay_activity_log.success(
-            action + ".completed",
-            method=normalized_method,
-            path=path,
-            status=status,
-            duration_ms=f"{elapsed_ms:.1f}",
-            response_length=len(content),
-            response_sha256=hashlib.sha256(content).hexdigest(),
-        )
-        return response
+            response = laravel_client.request(
+                normalized_method, path, base_url=endpoint,
+                params=dict(query), data=body if body else None, headers=headers,
+                timeout=(
+                    min(relay_contract.duration("subscriber_connect_timeout_seconds"),
+                        relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout)),
+                    relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout),
+                ),
+                allow_redirects=False, log_line=False,
+                include_default_identity=False, sensitive_request=True,
+            )
+            received = time.monotonic()
+            status = int(getattr(response, "status_code", 0) or 0)
+            elapsed_ms = (received - started) * 1000
+            error_document = {}
+            error_code = ""
+            if status < 200 or status >= 300:
+                response_type = str(response.headers.get("Content-Type") or "").lower()
+                error_document = response.json() if "json" in response_type else {}
+                error_code = str(error_document.get("error_code") or "") if isinstance(error_document, dict) else ""
+            epoch = self._server_epoch(response, error_document if isinstance(error_document, dict) else None)
+            if epoch is not None:
+                relay_request_clock.observe(endpoint, epoch, started, received)
+            if status == 403 and error_code == "signature_timestamp_invalid" and attempt == 0:
+                relay_activity_log.warning(
+                    "clock.signature.resynchronizing", action_name=action,
+                    endpoint=endpoint, sent_timestamp=headers.get(relay_contract.signature_header("timestamp")),
+                )
+                self._ensure_clock(endpoint, force=True)
+                continue
+            if status < 200 or status >= 300:
+                relay_activity_log.error(
+                    action + ".failed", method=normalized_method, path=path,
+                    status=status, error_code=error_code, duration_ms=f"{elapsed_ms:.1f}",
+                )
+                raise RelayHttpError(status, action, error_code)
+            content = bytes(getattr(response, "content", b"") or b"")
+            relay_activity_log.success(
+                action + ".completed", method=normalized_method, path=path,
+                status=status, duration_ms=f"{elapsed_ms:.1f}",
+                response_length=len(content), response_sha256=hashlib.sha256(content).hexdigest(),
+            )
+            return response
+
 
 
 laravel_relay_transport = LaravelRelayTransport()
