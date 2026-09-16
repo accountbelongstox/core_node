@@ -20,6 +20,12 @@ declare -gA AUTO_FILLED_VARIABLES=()
 declare -gA USER_INPUT_VALUES=()
 declare -gA INPUT_TYPE_INDEX_TRACKER=()
 
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+    SPACIAL_MENU_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$SPACIAL_MENU_DIR/../../common/runtime_environment.sh"
+fi
+
 # Helper Functions
 
 print_color() {
@@ -629,7 +635,7 @@ generate_global_command() {
     CURRENT_FILE_NUMBER=1
 
     if [ -z "$GLOBAL_SCRIPTS_DIR" ]; then
-        GLOBAL_SCRIPTS_DIR="/var/_core_node/gloe/ai_tools"
+        GLOBAL_SCRIPTS_DIR="${CORE_NODE_DATA_DIR}/gloe/ai_tools"
     fi
 
     $USE_SUDO mkdir -p "$GLOBAL_SCRIPTS_DIR" 2>/dev/null || true

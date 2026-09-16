@@ -427,7 +427,20 @@ def _read_persisted_base() -> Optional[Path]:
     if not val:
         return None
     p = Path(val)
-    return p if (_is_real_distinct_mount(p) or _path_hosts_project(p)) else None
+    # Mirrors gvar_storage_common.sh Priority 2: re-validate the persisted base
+    # against the CURRENT free-space policy on every run, so a stale cache left by
+    # an older script version cannot override it. Real work (a hosted project) and
+    # the sanctioned logical roots are kept; a real disk mount is kept only while
+    # its free space STRICTLY beats the root filesystem, else the root fs wins.
+    if _path_hosts_project(p):
+        return p
+    if val in ('/www', '/mnt/d'):
+        return p
+    if _is_real_distinct_mount(p):
+        if _avail_bytes(str(p)) > _avail_bytes('/'):
+            return p
+        return Path('/www')
+    return None
 
 
 def _resolve_device_mount_path(device: str) -> str:

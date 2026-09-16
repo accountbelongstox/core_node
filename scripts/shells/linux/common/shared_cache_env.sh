@@ -34,12 +34,13 @@ SHARED_CACHE_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_CACHE_RUNTIME_ENV="$SHARED_CACHE_ENV_DIR/runtime_environment.sh"
 __scc_d=""
 
-if [ -z "${IS_HEADLESS_SERVER+x}" ]; then
+if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
     source "$SHARED_CACHE_RUNTIME_ENV"
 fi
 
-# Resolve the shared data root (gvar_common.sh usually already sets CORE_NODE_DATA_DIR).
-: "${CORE_NODE_DATA_DIR:=/var/_core_node}"
+# Shared root comes from runtime_environment.sh (single definition of
+# CORE_NODE_DATA_DIR); cache lives under it, created 1777 (sticky +
+# world-writable, like /tmp) so any user can read/write it.
 SHARED_CACHE_DATA_ROOT="$CORE_NODE_DATA_DIR"
 SHARED_CACHE_DIR="$SHARED_CACHE_DATA_ROOT/cache"
 

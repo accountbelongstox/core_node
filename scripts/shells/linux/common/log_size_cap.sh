@@ -21,7 +21,9 @@
 #   source log_size_cap.sh; cap_log_file <f> [bytes]; cap_log_dir <dir> [bytes]
 # ---------------------------------------------------------------------------
 
-LSC_DEFAULT_DIR="/var/_core_node"
+# CORE_NODE_DATA_DIR is defined once in runtime_environment.sh (same directory)
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/runtime_environment.sh"
+LSC_DEFAULT_DIR="$CORE_NODE_DATA_DIR"
 LSC_DEFAULT_MAX=$((10 * 1024 * 1024))
 LSC_TIMER_INTERVAL=1800
 

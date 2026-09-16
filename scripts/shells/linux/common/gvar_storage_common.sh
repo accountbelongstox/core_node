@@ -75,7 +75,8 @@ safe_path_for_recursive_chown() {
 export -f safe_path_for_recursive_chown
 
 # Centralized path for persisted base data directory (used by bootstrap and project)
-BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
+# GLOBAL_VAR_DIR is defined once in gvar_system_common.sh (sourced before this file).
+BASE_DATA_DIR_FILE="$GLOBAL_VAR_DIR/BASE_DATA_DIR"
 
 # True when the filesystem backing $1 supports POSIX ownership/permissions, which
 # the web DATA root REQUIRES: PostgreSQL needs a postgres-owned 0700 data dir and
@@ -128,10 +129,12 @@ _path_hosts_project() {
 # requirement applies ONLY to the WEB DATA base, which map_web_path derives and
 # guards separately (PostgreSQL/Laravel need ownership). Keeping them separate is
 # why CORE_NODE_PROJECT_ROOT maps to the real /mnt checkout while web data uses /www.
-# Priority: WSL -> persisted BASE_DATA_DIR (center) -> free-space comparison (root fs
-# vs largest NTFS/data disk) -> Desktop Windows -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (re-validated against current free space
+# every run) -> free-space comparison (root fs vs largest NTFS/data disk) ->
+# Desktop Windows -> /www
 get_base_data_directory() {
     local base_dir="" run_anchor="" run_base="" persisted_now=""
+    local read_base="" persisted_root_free=0 persisted_disk_free=0
 
     # Priority 1: WSL /mnt/d
     if [ "$IS_WSL" = true ]; then
@@ -164,15 +167,35 @@ get_base_data_directory() {
             ;;
     esac
 
-    # Priority 2: persisted base, but ONLY when still valid. A bare existence test
-    # accepts a stale leftover dir on the root fs; instead require that it is a real
-    # distinct disk mount OR actually hosts the project. An invalid value falls
-    # through (and is re-persisted by the adopt step / callers), so it self-heals.
+    # Priority 2: persisted base, re-validated against the CURRENT free-space policy
+    # on every run so a stale cache left by an older script version cannot override
+    # it. Kept only when it hosts the project (real work is never abandoned), is a
+    # sanctioned logical root, or is a real distinct mount whose free space still
+    # STRICTLY beats the root filesystem; otherwise the root fs wins as /www and the
+    # cache self-heals. Only cheap df probes run here (no blkid scan).
     if [ -s "$BASE_DATA_DIR_FILE" ]; then
         read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [ -n "$read_base" ] && { _is_real_distinct_mount "$read_base" || _path_hosts_project "$read_base"; }; then
-            echo "$read_base"
-            return 0
+        if [ -n "$read_base" ]; then
+            if _path_hosts_project "$read_base"; then
+                echo "$read_base"
+                return 0
+            fi
+            case "$read_base" in
+                /www|/mnt/d) echo "$read_base"; return 0 ;;
+            esac
+            if _is_real_distinct_mount "$read_base"; then
+                persisted_root_free=$(df -B1 --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
+                persisted_disk_free=$(df -B1 --output=avail "$read_base" 2>/dev/null | tail -1 | tr -dc '0-9')
+                [ -n "$persisted_root_free" ] || persisted_root_free=0
+                [ -n "$persisted_disk_free" ] || persisted_disk_free=0
+                if [ "$persisted_disk_free" -gt "$persisted_root_free" ] 2>/dev/null; then
+                    echo "$read_base"
+                    return 0
+                fi
+                persist_base_data_directory "/www"
+                echo "/www"
+                return 0
+            fi
         fi
     fi
 

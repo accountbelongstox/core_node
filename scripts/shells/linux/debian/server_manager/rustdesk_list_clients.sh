@@ -18,7 +18,13 @@ if command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 fi
 
-RUSTDESK_SERVER_CONFIG_FILE="/var/_core_node/rustdesk_server/server.conf"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+    RUSTDESK_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$RUSTDESK_SCRIPT_DIR/../../common/runtime_environment.sh"
+fi
+
+RUSTDESK_SERVER_CONFIG_FILE="$CORE_NODE_DATA_DIR/rustdesk_server/server.conf"
 JOURNAL_SINCE=""
 DATA_DIR=""
 SKIP_JOURNAL=""

@@ -23,8 +23,8 @@ GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 GIT_MANAGEMENT_PY="$CORE_NODE_ROOT_DIR/scripts/git/git_management.py"
 
 # File variables directory (must match scripts/git/git_management_vars.py cache path)
-if [ -w "/var/_core_node" ] || [ -d "/var/_core_node/.build_global_vars" ]; then
-    GIT_VARS_DIR="/var/_core_node/.build_global_vars"
+if [ -w "$CORE_NODE_DATA_DIR" ] || [ -d "$CORE_NODE_DATA_DIR/.build_global_vars" ]; then
+    GIT_VARS_DIR="$CORE_NODE_DATA_DIR/.build_global_vars"
 else
     GIT_VARS_DIR="$HOME/.core_node/.build_global_vars"
 fi

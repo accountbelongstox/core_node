@@ -30,8 +30,13 @@ GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 LINUXENVS_DIR_RELATIVE="scripts/linuxenvs"
 BIN_DIR_PATH="/usr/local/bin"
 
-# Temporary directory for core_node operations
-CORE_NODE_TMP_DIR="/var/_core_node/_tmp"
+# Temporary directory for core_node operations (CORE_NODE_DATA_DIR is defined once
+# in common/runtime_environment.sh)
+if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+    _DD_HELPER_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../common" && pwd)"
+    source "$_DD_HELPER_COMMON_DIR/runtime_environment.sh"
+fi
+CORE_NODE_TMP_DIR="$CORE_NODE_DATA_DIR/_tmp"
 
 # Script Paths (relative to CORE_NODE_ROOT_DIR)
 GITPUT_UNIFIED_SCRIPT_RELATIVE="scripts/git/gitput_unified.sh"

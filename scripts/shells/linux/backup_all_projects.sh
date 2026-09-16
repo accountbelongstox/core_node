@@ -26,7 +26,10 @@
 # Variable Declarations
 SCRIPT_NAME="backup_all_projects"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-DEFAULT_BACKUP_DIR="/var/_core_node/backups/projects_${TIMESTAMP}"
+BACKUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$BACKUP_SCRIPT_DIR/common/runtime_environment.sh"
+DEFAULT_BACKUP_DIR="$CORE_NODE_DATA_DIR/backups/projects_${TIMESTAMP}"
 BACKUP_DIR="${1:-$DEFAULT_BACKUP_DIR}"
 MANIFEST_FILE=""
 LOG_FILE=""

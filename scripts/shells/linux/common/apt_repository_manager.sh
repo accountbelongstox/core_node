@@ -22,9 +22,14 @@ APT_SOURCES_LIST="$APT_SOURCES_DIR/sources.list"
 APT_SOURCES_LIST_D="$APT_SOURCES_DIR/sources.list.d"
 APT_KEYRINGS_DIR="/usr/share/keyrings"
 APT_TRUSTED_KEYS_DIR="/etc/apt/trusted.gpg.d"
-# Backups live OUTSIDE the repo (under /var) so a foreign distro's captured sources
-# (e.g. an Ubuntu-noble snapshot) can never be committed and restored onto Debian/Kali.
-APT_BACKUP_BASE_DIR="/var/_core_node/apt_repository_backups"
+# Backups live OUTSIDE the repo (under the shared data root) so a foreign distro's
+# captured sources (e.g. an Ubuntu-noble snapshot) can never be committed and
+# restored onto Debian/Kali. CORE_NODE_DATA_DIR is defined once in
+# runtime_environment.sh; source it when a standalone caller has not loaded gvar.
+if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+    source "$APT_REPO_MANAGER_DIR/runtime_environment.sh"
+fi
+APT_BACKUP_BASE_DIR="$CORE_NODE_DATA_DIR/apt_repository_backups"
 APT_ORIGINAL_BACKUP_DIR="$APT_BACKUP_BASE_DIR/original"
 # Shared native-sources templates + self-heal (single source of truth;
 # also consumed by 3_setting_base.sh and frankenphp_static_prereq.sh).

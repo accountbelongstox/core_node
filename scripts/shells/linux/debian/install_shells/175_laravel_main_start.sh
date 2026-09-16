@@ -54,7 +54,7 @@ PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
-GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+# GLOBAL_VAR_DIR comes from gvar_system_common.sh via common_functions.sh (sourced below).
 
 # Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
 # $polyConnection(... , pgDatabase) targets). Created idempotently before migrate.

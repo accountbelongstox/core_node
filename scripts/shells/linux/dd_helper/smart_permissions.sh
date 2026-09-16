@@ -16,6 +16,8 @@ SMART_PERMISSIONS_HELPER="$SMART_PERMISSIONS_DIR/../common/fs_perm_helpers.sh"
 
 # shellcheck source=/dev/null
 source "$SMART_PERMISSIONS_HELPER"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$SMART_PERMISSIONS_DIR/../common/runtime_environment.sh"
 
 # Get real user information
 get_real_user_info() {
@@ -62,7 +64,7 @@ fix_var_core_node_permissions() {
     local user_info="$2"
     local real_user="${user_info%%:*}"
     local real_group=""
-    local target_path="/var/_core_node"
+    local target_path="$CORE_NODE_DATA_DIR"
 
     echo "[INFO] Fixing /var/_core_node permissions for MyBest directories..."
     echo "[SAFE_PATH] target_path=$target_path (fixed path, allowed)"

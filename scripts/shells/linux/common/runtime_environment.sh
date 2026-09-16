@@ -7,6 +7,9 @@ HAS_DESKTOP_ENVIRONMENT=false
 IS_HEADLESS_SERVER=false
 DESKTOP_ENVIRONMENT=""
 WSL_USERS_PATH="/mnt/c/Users"
+# Single definition of the shared core_node data root; every other script sources
+# this file (directly or via gvar_common.sh) and reuses the variable.
+CORE_NODE_DATA_DIR="/var/_core_node"
 RUNTIME_DESKTOP_PROCESS_PATTERN="gnome-session|startplasma|plasma_session|xfce4-session|mate-session|cinnamon-session|lxde-session|lxqt-session|openbox|fluxbox|i3|awesome|dwm"
 RUNTIME_SYSTEM_NAME="$(uname -s 2>/dev/null)"
 
@@ -50,3 +53,4 @@ export HAS_DESKTOP_ENVIRONMENT
 export IS_HEADLESS_SERVER
 export DESKTOP_ENVIRONMENT
 export WSL_USERS_PATH
+export CORE_NODE_DATA_DIR

@@ -26,6 +26,10 @@ GVAR_COMMON_LOADED="true"
 CURRENT_USER=""
 DESKTOP_WINDOWS_MOUNT_PATH=""
 DESKTOP_WINDOWS_DRIVES=""
+# Project repository URLs (single definition for all project scripts; the
+# pre-download entry points dd.sh / install_bootstrap.sh must self-contain theirs).
+CORE_NODE_GITHUB_REPO="https://github.com/accountbelongstox/core_node.git"
+CORE_NODE_GITEE_REPO="https://gitee.com/accountbelongstox/core_node.git"
 GVAR_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME_ENVIRONMENT_SCRIPT="$GVAR_COMMON_DIR/runtime_environment.sh"
 GVAR_STORAGE_COMMON_SCRIPT="$GVAR_COMMON_DIR/gvar_storage_common.sh"
@@ -232,9 +236,11 @@ detect_actual_desktop_user() {
 # Detect actual desktop user (if running as root)
 detect_actual_desktop_user
 
-source "$GVAR_STORAGE_COMMON_SCRIPT"
-
+# system before storage: storage derives BASE_DATA_DIR_FILE from GLOBAL_VAR_DIR,
+# which gvar_system_common.sh defines.
 source "$GVAR_SYSTEM_COMMON_SCRIPT"
+
+source "$GVAR_STORAGE_COMMON_SCRIPT"
 
 # Function to map paths based on environment (using get_base_data_directory)
 # SYNC WARNING: This function MUST be kept in sync with:

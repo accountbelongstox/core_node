@@ -19,7 +19,9 @@
 SCRIPT_PATH="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_PATH/../../../../.." && pwd)"
 SCRIPTS_DIR="$ROOT_DIR/scripts"
-LAUNCH_DIR="/var/_core_node/scripts_launch_dir"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$ROOT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+LAUNCH_DIR="$CORE_NODE_DATA_DIR/scripts_launch_dir"
 GET_REAL_USER_SCRIPT="$ROOT_DIR/scripts/shells/linux/common/get_real_user.sh"
 DESKTOP_APPLICATION_ENTRY_MODULE="$SCRIPT_PATH/desktop_application_entry.sh"
 
