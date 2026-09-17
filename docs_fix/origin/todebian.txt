@@ -1,0 +1,595 @@
+Features initialized in the log:
+     - I18nManager
+     - Edge TTS
+     - TableRegistry / DatabaseManager
+     - TaskManager (max concurrency 4)
+     - TranslationWorker (remote translate service
+       candidates)
+     - WordAudioWorker / SentenceAudioWorker (TTS audio
+       pipeline to Laravel backend)
+     - Relay (contract, runtime)
+     - NativeUIBusManager
+     - ai_hooks (text + image AI handlers) → LLM (local
+       ollama/lmstudio/llamacpp + cloud ai_cluster:
+       deepseek, gemini, groq, cerebras, cohere, mistral,
+       nvidia, openrouter, zhipuai, spark, cloudflare,
+       huggingface, github)
+     - Services: heartbeat, rpc_v2, tray
+     - Singleton detector
+     - CodeSync
+
+ 3. Prerequisites (Windows log) and their Debian 13 status:
+
+ ┌───────────────────────┬──────────┬──────────────────────┐
+ │ Component             │ Windows  │ Debian 13 status     │
+ │                       │ status   │                      │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ CUDA policy (NVIDIA   │ cu130    │ ✔                    │
+ │ driver)               │          │ 11_cuda_nvidia_prere │
+ │                       │          │ q.sh installs NVIDIA │
+ │                       │          │ driver on Debian;    │
+ │                       │          │ CUDA 13 wheels exist │
+ │                       │          │ for Linux            │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ torch/torchvision/tor │ ✔        │ ✔ torch-2.9.1+cu130  │
+ │ chaudio cu130         │          │ cp313                │
+ │                       │          │ manylinux_2_28_x86_6 │
+ │                       │          │ 4 exists (verified   │
+ │                       │          │ via                  │
+ │                       │          │ download.pytorch.org │
+ │                       │          │ index)               │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ paddlepaddle-gpu      │ ✔        │ ✔                    │
+ │ cu130                 │          │ paddlepaddle_gpu-3.2 │
+ │                       │          │ .x-cp313             │
+ │                       │          │ linux_x86_64 exists  │
+ │                       │          │ (verified via paddle │
+ │                       │          │ CDN index)           │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Python prereq         │ ✔        │ ✔ mostly; EXCEPT     │
+ │ packages (67 pkgs)    │          │ Windows-only:        │
+ │                       │          │ pywin32, pywinauto,  │
+ │                       │          │ uiautomation, winrt  │
+ │                       │          │ (6 pkgs),            │
+ │                       │          │ pyaudiowpatch        │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Dashboard UI (pnpm)   │ ✔        │ ✔ mode 2 disables    │
+ │                       │          │ local dashboard      │
+ │                       │          │ anyway; UI works on  │
+ │                       │          │ Linux desktop too    │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ launcher (Windows     │ ✔        │ Linux equivalent     │
+ │ Terminal wt.exe)      │          │ (119_install_launche │
+ │                       │          │ r.sh,                │
+ │                       │          │ multi-terminal)      │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ ffmpeg                │ ✔ (found │ ✔                    │
+ │                       │ on PATH) │ 115_install_ffmpeg.s │
+ │                       │          │ h (apt)              │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ document parsing (7   │ ✔        │ ✔ 121                │
+ │ pkgs: python-docx,    │          │                      │
+ │ pdfplumber, etc.)     │          │                      │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ dictionaries          │ n/a      │ ✔ 123 (Linux extra)  │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ OCR: windows-native   │ ✔        │ ⚠ winrt unavailable  │
+ │ (winrt) + easyocr     │          │ → easyocr is the top │
+ │                       │          │ engine on Linux;     │
+ │                       │          │ cnocr + AI-vision    │
+ │                       │          │ fallback             │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ faster-whisper        │ CPU int8 │ ✔ works; on Linux    │
+ │                       │          │ pip                  │
+ │                       │ (CTransl │ nvidia-cublas-cu12 + │
+ │                       │ ate2     │                      │
+ │                       │ needs    │ nvidia-cudnn-cu12==9 │
+ │                       │ CUDA 12; │ .* is officially     │
+ │                       │ cu130    │ documented → GPU     │
+ │                       │ canonica │ possible with        │
+ │                       │ l → no   │ LD_LIBRARY_PATH; or  │
+ │                       │ second   │ CPU int8 same as     │
+ │                       │ CUDA     │ Windows              │
+ │                       │ stack on │                      │
+ │                       │ Windows) │                      │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ openai-whisper        │ ✔ GPU    │ ✔ GPU on cu130 torch │
+ │ large-v3              │          │ (whisper works fine  │
+ │                       │          │ with any CUDA torch) │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ vosk big model        │ ✔        │ ✔ (vosk has Linux    │
+ │                       │          │ wheels; CPU)         │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ edge-tts              │ ✔        │ ✔ pure Python        │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ ChatTTS               │ ✔        │ ✔ Linux supported    │
+ │                       │          │ (pip; torch)         │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ CosyVoice             │ ✘ skip   │ ✘ same — Debian 13   │
+ │                       │ (Py 3.13 │ ships Python 3.13.5; │
+ │                       │ outside  │ official repo pins   │
+ │                       │ 3.10–3.1 │ conda python=3.10.   │
+ │                       │ 2)       │ Needs isolated       │
+ │                       │          │ 3.10–3.12            │
+ │                       │          │ interpreter          │
+ │                       │          │ (COSYVOICE_PYTHON or │
+ │                       │          │ similar)             │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Fish Speech           │ ✘ skip   │ ✘ same               │
+ │                       │ (same)   │ (requires_python     │
+ │                       │          │ >=3.10, official     │
+ │                       │          │ docs use 3.10-3.12   │
+ │                       │          │ env; project policy  │
+ │                       │          │ skips on 3.13)       │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Kokoro (sherpa-onnx)  │ ✔        │ ✔ sherpa-onnx has    │
+ │                       │          │ Linux wheels; CPU    │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ VoxCPM2               │ ✘ skip   │ ✘ same (voxcpm 2.0.3 │
+ │                       │ (3.13    │ requires_python      │
+ │                       │ outside  │ >=3.10 but project   │
+ │                       │ 3.10-3.1 │ pins 3.10-3.12       │
+ │                       │ 2)       │ window) — needs      │
+ │                       │          │ isolated interpreter │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Bark                  │ ✔        │ ✔                    │
+ │                       │          │ transformers-based,  │
+ │                       │          │ Linux fine           │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Parler-TTS            │ ✔        │ ✔ Linux fine         │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ Qwen3-TTS (isolated   │ ✔        │ ✔ qwen-tts 0.1.1     │
+ │ venv)                 │          │ requires_python      │
+ │                       │          │ >=3.9 (3.13 OK);     │
+ │                       │          │ isolated venv        │
+ │                       │          │ approach identical   │
+ │                       │          │ on Linux             │
+ │                       │          │ (183_install_qwen3tt │
+ │                       │          │ s.sh exists)         │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ F5-TTS                │ ✔        │ ✔ Linux supported    │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ GPT-SoVITS            │ ✘ skip   │ ✘ same; official     │
+ │                       │ (3.13    │ tested env Python    │
+ │                       │ outside  │ 3.9–3.11 conda;      │
+ │                       │ 3.9–3.11 │ needs                │
+ │                       │ )        │ GPTSOVITS_PYTHON     │
+ │                       │          │ isolated             │
+ │                       │          │ interpreter; Linux   │
+ │                       │          │ officially supported │
+ │                       │          │ (bash install.sh     │
+ │                       │          │ --device             │
+ │                       │          │ CU126|CU128)         │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ MeloTTS               │ ✘ opt-in │ ✘ opt-in on Linux    │
+ │                       │ not      │ too                  │
+ │                       │ built    │ (MELOTTS_INSTALL=1 / │
+ │                       │          │ --full); Linux needs │
+ │                       │          │ unidic + MeCab       │
+ │                       │          │ (fugashi) which the  │
+ │                       │          │ script handles       │
+ ├───────────────────────┼──────────┼──────────────────────┤
+ │ device_tools (adb)    │ n/a      │ ✔ Linux extra        │
+ └───────────────────────┴──────────┴──────────────────────┘
+
+ 4. LLM (大模型) features:
+     - Local: ollama (managed auto-start), lmstudio
+       (external), llamacpp server (external). Ollama:
+       official Linux support (verified download). LM Studio
+       has Linux builds. llama.cpp server builds on Debian.
+     - Cloud (ai_cluster): cerebras, cloudflare, cohere,
+       deepseek, gemini, github, groq, huggingface, mistral,
+       nvidia, openai_compat, openrouter, spark, zhipuai —
+       all HTTP APIs → fully platform-independent.
+     - TranslationWorker uses remote services — fine.
+
+ 5. Worker features that are Windows-only / degraded on
+    Debian:
+     - pywin32, pywinauto, uiautomation → desktop UI
+       automation Windows-only
+     - pyaudiowpatch (WASAPI loopback recording) →
+       Windows-only; on Linux would need PulseAudio/PipeWire
+       monitor source (different code path)
+     - winrt OCR (Windows native OCR) → not available
+     - keyboard/pynput/pyautogui/mss → work on Linux X11;
+       Wayland has restrictions (global hotkeys/screen
+       capture need X11 or portals)
+     - PySide6 Qt UI + tray: on Linux desktop with display
+       works (AppIndicator3 needed for tray on GNOME);
+       headless → no Qt/tray, worker becomes pure RPC
+       server. Mode 2 (relay) → no local dashboard anyway.
+     - Windows Terminal launcher → Linux terminals instead.
+     - Codesync → fully supported on Linux (dedicated
+       systemd path).
+     - systemd service install (pyservice.sh install) →
+       Linux-only feature actually (Windows uses startup
+       .lnk).
+
+ 6. Note the date weirdness: log says 2026-09-17, Debian 13
+    ships python 3.13.5, torch cu130 exists etc. Fine.
+
+ Also RTX 4060 Laptop + driver CUDA 13.3 → on Debian 13,
+ install NVIDIA driver 580+ (supports CUDA 13.x); cu130
+ torch/paddle wheels work; faster-whisper can use pip cu12
+ libs (driver backward compatible).
+
+ Let me write the final answer in Chinese (user speaks
+ Chinese) with clear tables. The AGENTS.md says "Write all
+ code, comments, logs, and commit messages in English" —
+ that's for code; the response to the user can be Chinese
+ since the user asked in Chinese. I'll answer in Chinese.
+
+ Keep it structured but concise. Cover:
+ 1. pyservice 2 是什么（relay 模式）
+ 2. 功能清单（按日志+代码）
+ 3. Debian 13 可行性逐项表（含已验证的官方依据）
+ 4. 不能运行/降级的
+ 5. 大模型部分单独说明
+ 6. 结论
+
+ 已完成实际核查（项目脚本 + 官方文档/索引）。结论如下：
+
+ 1. pyservice 2 是什么
+
+ Mode 2 = Relay UI intermediary 模式：不启动本地
+ dashboard，worker 作为 RPC/中继节点运行（--service-mode
+ 2，local_ui_enabled=False），服务为 heartbeat, rpc_v2, tray
+ 。Windows 与 Linux 的入口逻辑一致（pyservice.ps1 /
+ pyservice.sh），且 Linux 侧 prerequisite 清单与 Windows 完
+ 全对齐（prepare_pycore_prerequisites.sh 的
+ manifest：cuda_policy → python_prereqs → … → qwen3tts →
+ f5tts → gptsovits → melotts → device_tools）。
+
+ 2. 功能清单 + Debian 13 可行性（逐项核实）
+
+ ### AI 底座（已验证官方 wheel 索引）
+
+ ┌────────────────────┬───────┬──────┬─────────────────────┐
+ │ 组件               │ Windo │ Debi │ 官方依据（已抓取核  │
+ │                    │ ws 现 │ an   │ 实）                │
+ │                    │ 状    │ 13   │                     │
+ ├────────────────────┼───────┼──────┼─────────────────────┤
+ │ NVIDIA 驱动 / CUDA │ ✔     │ ✔    │ 11_cuda_nvidia_prer │
+ │ 13                 │ cu130 │      │ eq.sh；驱动向后兼容 │
+ │                    │       │      │ cu12 运行时         │
+ ├────────────────────┼───────┼──────┼─────────────────────┤
+ │ torch/torchvision/ │ ✔     │ ✔    │ download.pytorch.or │
+ │ torchaudio cu130   │       │      │ g/whl/cu130/torch/  │
+ │                    │       │      │ 存在                │
+ │                    │       │      │ torch-2.9.1+cu130-c │
+ │                    │       │      │ p313-manylinux_2_28 │
+ │                    │       │      │ _x86_64.whl         │
+ ├────────────────────┼───────┼──────┼─────────────────────┤
+ │ paddlepaddle-gpu   │ ✔     │ ✔    │ Paddle 官方 CDN 存  │
+ │ cu130              │       │      │ 在                  │
+ │                    │       │      │ paddlepaddle_gpu-3. │
+ │                    │       │      │ 2.2-cp313-cp313-lin │
+ │                    │       │      │ ux_x86_64.whl       │
+ ├────────────────────┼───────┼──────┼─────────────────────┤
+ │ Python 3.13        │ 3.13. │ ✔    │ packages.debian.org │
+ │                    │ 14    │ 3.13 │ /trixie/python3 =   │
+ │                    │       │ .5   │ 3.13.5              │
+ └────────────────────┴───────┴──────┴─────────────────────┘
+
+ ### STT（全部可运行）
+
+ ┌───────────────────┬─────────────────────────────────────┐
+ │ 引擎              │ Debian 13                           │
+ ├───────────────────┼─────────────────────────────────────┤
+ │ faster-whisper    │ ✔ 且比 Windows 更好：官方 README 明 │
+ │                   │ 确 pip install nvidia-cublas-cu12   │
+ │                   │ nvidia-cudnn-cu12==9.* 是           │
+ │                   │ Linux-only 的 GPU 装法              │
+ │                   │ （+LD_LIBRARY_PATH），Windows 上只  │
+ │                   │ 能 CPU int8，Debian 上可上 GPU      │
+ ├───────────────────┼─────────────────────────────────────┤
+ │ openai-whisper    │ ✔（torch cu130 + ffmpeg via apt）   │
+ │ large-v3          │                                     │
+ ├───────────────────┼─────────────────────────────────────┤
+ │ vosk（gigaspeech  │ ✔（纯 CPU，Linux wheel 官方提供）   │
+ │ 大模型）          │                                     │
+ └───────────────────┴─────────────────────────────────────┘
+
+ ### TTS（13 引擎中 8 个开箱即用）
+
+ ┌───────────────────┬───────────┬─────────────────────────┐
+ │ 引擎              │ Debian 13 │ 说明                    │
+ ├───────────────────┼───────────┼─────────────────────────┤
+ │ edge-tts /        │ ✔         │ qwen-tts 0.1.1 PyPI     │
+ │ ChatTTS /         │           │ requires_python>=3.9（3 │
+ │ Kokoro(sherpa-onn │           │ .13 OK）；sherpa-onnx   │
+ │ x) / Bark /       │           │ >=3.7；其余为           │
+ │ Parler /          │           │ transformers/torch 系   │
+ │ Qwen3-TTS(隔离    │           │ ，Linux 官方支持        │
+ │ venv) / F5-TTS    │           │                         │
+ ├───────────────────┼───────────┼─────────────────────────┤
+ │ CosyVoice         │ ✘ 同      │ 官方 README 固定 conda  │
+ │                   │ Windows   │ python=3.10；Debian 13  │
+ │                   │ 被跳过    │ 系统 Python=3.13，同样  │
+ │                   │           │ 触发"3.13 在 3.10–3.12  │
+ │                   │           │ 之外"策略，需提供隔离   │
+ │                   │           │ 3.10–3.12 解释器        │
+ ├───────────────────┼───────────┼─────────────────────────┤
+ │ Fish Speech       │ ✘ 同上    │ 官方安装文档同窗口      │
+ ├───────────────────┼───────────┼─────────────────────────┤
+ │ VoxCPM2           │ ✘ 同上    │ voxcpm 2.0.3 PyPI       │
+ │                   │           │ >=3.10，项目策略仍按    │
+ │                   │           │ 3.10–3.12 窗口跳过      │
+ ├───────────────────┼───────────┼─────────────────────────┤
+ │ GPT-SoVITS        │ ✘ 同上    │ 官方 Tested             │
+ │                   │           │ Environments 为 Python  │
+ │                   │           │ 3.9–3.11；Linux 官方支  │
+ │                   │           │ 持（bash install.sh     │
+ │                   │           │ --device                │
+ │                   │           │ CU126|CU128），设       │
+ │                   │           │ GPTSOVITS_PYTHON 指向   │
+ │                   │           │ 3.10 隔离解释器即可启用 │
+ ├───────────────────┼───────────┼─────────────────────────┤
+ │ MeloTTS           │ ○         │ MELOTTS_INSTALL=1 才构  │
+ │                   │ opt-in（  │ 建；Linux 额外需        │
+ │                   │ 与        │ MeCab/unidic，脚本已处  │
+ │                   │ Windows   │ 理                      │
+ │                   │ 相同）    │                         │
+ └───────────────────┴───────────┴─────────────────────────┘
+
+ 即：Python 版本限制的 4 个引擎在 Debian 13 上状态不变（两边
+ 都是 3.13），不是平台问题而是解释器窗口问题。
+
+ ### 大模型（LLM）—— 全部可运行 ✔
+
+ - 本地 LLM：pycore/pyutils/llm 优先级 ollama → lmstudio →
+   llamacpp。Ollama 官方提供 Linux 安装包（已验证
+   ollama.com/download/ollama-linux-amd64.tgz 有效），且是托
+   管引擎（自动 ollama serve）；LM Studio 有 Linux 版
+   ；llama.cpp server 可自行编译。
+ - 云端 LLM（ai_cluster）：deepseek、gemini、groq、cerebras
+   、cohere、mistral、nvidia、openrouter、zhipuai、spark、
+   cloudflare、huggingface、github、openai_compat —— 纯 HTTP
+   API，平台无关，全部可用。
+ - ai_hooks (text=True, image=True) 在 Debian 下同样可接线。
+
+ ### 其他功能
+
+ ┌───────────────────────────────┬─────────────────────────┐
+ │ 功能                          │ Debian 13               │
+ ├───────────────────────────────┼─────────────────────────┤
+ │ TranslationWorker /           │ ✔ 纯 HTTP + TTS         │
+ │ WordAudioWorker /             │                         │
+ │ SentenceAudioWorker（Laravel  │                         │
+ │ 上报）                        │                         │
+ ├───────────────────────────────┼─────────────────────────┤
+ │ Relay / CodeSync / RPC v2 /   │ ✔（CodeSync 在 Linux 还 │
+ │ heartbeat / singleton         │ 有专属 systemd 路径，反 │
+ │                               │ 而更完整）              │
+ ├───────────────────────────────┼─────────────────────────┤
+ │ OCR                           │ ⚠ 降级：Windows 的      │
+ │                               │ winrt 原生 OCR 不存在   │
+ │                               │ ；Linux 最高引擎为      │
+ │                               │ easyocr，其次 cnocr，再 │
+ │                               │ AI-vision 兜底          │
+ │                               │ （125_install_ocr.sh 官 │
+ │                               │ 方注释明确此层级）      │
+ ├───────────────────────────────┼─────────────────────────┤
+ │ 文档解析                      │ ✔                       │
+ │ （docx/pdfplumber/pptx 等 7   │                         │
+ │ 包）、ffmpeg、adb             │                         │
+ │ device_tools、字典            │                         │
+ ├───────────────────────────────┼─────────────────────────┤
+ │ systemd 服务化                │ ✔ Linux 独有（Windows   │
+ │ （install/start/stop/...）    │ 用启动文件夹 .lnk 替代  │
+ │                               │ ）                      │
+ └───────────────────────────────┴─────────────────────────┘
+
+ ### ❌ 在 Debian 13 上不能运行的（Windows 专属）
+
+ 1. 桌面 UI 自动化：pywin32、pywinauto、uiautomation —— 无
+    Linux 等价物
+ 2. pyaudiowpatch（WASAPI 回环录音）—— Windows 音频架构专属
+ 3. winrt 系（6 个包，含 Windows 原生 OCR）
+ 4. Windows Terminal (wt.exe) 启动器 —— Linux 用各自终端替代
+ 5. Qt 窗口/托盘：Linux 桌面下可用（需 AppIndicator3，脚本已
+    处理 DISPLAY/DBUS）；headless 则无窗口无托盘，worker 纯
+    RPC——mode 2 本来就不开 dashboard，无影响
+ 6. keyboard/pynput/pyautogui/mss：X11 下可用，Wayland 下受
+    限（全局热键/截屏需 X11 或 portal）
+
+ 3. 总结
+
+ 从 Windows 切到 Debian 13：
+
+ - ✅ 可运行：全部 STT、8/13 TTS 引擎、全部 LLM（本地 ollama
+   + 14 家云端）、翻译/音频 worker、Relay/CodeSync/RPC、文档
+   解析、OCR（easyocr 路线）、CUDA/torch/paddle cu130 GPU 栈
+   （cp313 wheel 均已核实存在）
+ - ⬆ 反而更好：faster-whisper 可用 GPU（官方 cu12 pip 库仅支
+   持 Linux）；获得 systemd 服务化
+ - ⚠ 状态不变：CosyVoice / FishSpeech / VoxCPM2 / GPT-SoVITS
+   因 Python 3.13 窗口在两边都被跳过，解法相同（隔离
+   3.10–3.12 解释器）；MeloTTS 两边都是 opt-in
+ - ❌ 损失：Windows 桌面自动化三件套
+   （pywin32/pywinauto/uiautomation）、WASAPI 回环录音、
+   winrt 原生 OCR、wt 启动器
+
+   要求1：
+   Wwindos端，在下面的脚本中扩展出python 3.10的安装，并连接为python310，不要占用默认的python （python3.13）
+    以支持  CosyVoice  Fish Speech  VoxCPM2 GPT-SoVITS  MeloTTS 
+    参考 Qwen3-TTS(隔离    │           │ ，Linux 官方支持        │
+ │ venv) ，写出上面模型的服务类库，并搜索各个模型的最长生成限制，如果长文本生成有BUG由像qwen一样内部自支使用chunk生成并拼接。
+ 注意，添加的脚本为新的脚本，Step8_InstallPython.ps1 修改为Step8_InstallDefaultPython.ps1,添加新的脚本，给 pyservice 扩展以上的类库调用，并应用在实际任务中。
+ 以上需要按规范开发，搜索官方文档。
+     1     Step1_InitializeBaseDirectories.ps1
+  2     Step2_SetBaseSettings.ps1
+  3     Step3_InitWinget.ps1
+  4     Step4_InstallNodeJS.ps1
+  5     Step5_InstallGitSSH.ps1
+  6     Step6_InstallGit.ps1
+  7     Step7_FixCoreNodeProjectLocation.ps1
+  8     Step8_InstallPython.ps1
+  9     Step9_InstallCudaNvidiaPrereq.ps1
+  10    Step10_InstallPythonPrereqPackages.ps1
+  11    Step11_InstallFasterWhisper.ps1
+  12    Step12_InstallEdgeTts.ps1
+  14    Step14_InstallScoopWithChinaMirror.ps1
+  15    Step15_ExtendWindowsUpdate.ps1
+  16    Step16_InstallPHP.ps1
+  17    Step17_InstallPostgreSQL.ps1
+  18    Step18_SetFileAssociations.ps1
+  19    Step19_DV.ps1
+  20    Step20_Install7ipBase.ps1
+  21    Step21_InstallApplications.ps1
+  22    Step22_InstallChrome.ps1
+  23    Step23_InstallPuppeteerPlugins.ps1
+  24    Step24_InstallSecurityTools.ps1
+  25    Step25_InstallApkTool.ps1
+  26    Step26_InstallAndroidStudio.ps1
+  27    Step27_InstallAndroidPlatformTools.ps1
+  28    Step28_InstallFlutter.ps1
+  29    Step29_InstallWSL.ps1
+  30    Step30_InstallWSLDebian13.ps1
+  31    Step31_SetRootLoginWSLUbuntuDebian.ps1
+  32    Step32_InstallVisualStudio.ps1
+  33    Step33_InstallQtBuildTools.ps1
+  34    Step34_InstallQt.ps1
+  35    Step35_InstallQtOfficial.ps1
+  36    Step36_InstallDeepSeek.ps1
+  37    Step37_InstallDeepSeekOCR.ps1
+  38    Step38_InstallQwen25.ps1
+  39    Step39_InstallNLLB200.ps1
+  40    Step40_InstallNSSM.ps1
+  41    Step41_InstallPiHarness.ps1
+  42    Step42_InstallWhisper.ps1
+  43    Step43_InstallVosk.ps1
+  44    Step44_CheckCoreNodeProject.ps1
+  45    Step45_InstallRedis.ps1
+  46    Step46_InstallOcr.ps1
+  47    Step47_InstallDocumentParsing.ps1
+  48    Step48_InstallDesktopManager.ps1
+  49    Step49_InstallLauncher.ps1
+  51    Step51_InstallChatTts.ps1
+  52    Step52_InstallCosyVoice.ps1
+  53    Step53_InstallF5Tts.ps1
+  54    Step54_InstallGptsovits.ps1
+  55    Step55_InstallMelotts.ps1
+  56    Step56_InstallFishspeech.ps1
+  57    Step57_InstallKokoro.ps1
+  58    Step58_InstallVoxcpm2.ps1
+  59    Step59_InstallBark.ps1
+  60    Step60_InstallParler.ps1
+  61    Step61_InstallQwen3Tts.ps1
+  62    Step62_InstallAndroidSdkPackages.ps1
+  63    Step63_InstallCodexMultiDevice.ps1
+  93    Step93_InstallFrankenPHP.ps1
+  94    Step94_InstallComposer.ps1
+  96    Step96_ConfigurePHP85.ps1
+  175   Step175_LaravelMainStart.ps1
+
+    要求2：
+    Linux端，在下面的脚本中扩展出python 3.10的安装，并连接为python310 / pip310 等，不要占用默认的python 
+    Liunx端安装沿用代码风格，全部连接到/usr/local/bin中的试，不要使用source等高级方式，
+    注意，重点适配Debian 13服务器版和桌面版。
+    以支持  CosyVoice  Fish Speech  VoxCPM2 GPT-SoVITS  MeloTTS 
+    参考 Qwen3-TTS(隔离    │           │ ，Linux 官方支持        │
+ │ venv) ，写出上面模型的服务类库，并搜索各个模型的最长生成限制，如果长文本生成有BUG由像qwen一样内部自支使用chunk生成并拼接。
+ 同时注意，对于有些模型，如果debian没有GPU的，搜索官方文档安装cpu版，需要全面支持deiban / ubuntu 
+ 注意，添加的脚本为新的脚本，  13_ensure_python.sh
+  15_install_python_prereq_packages.sh
+  19_enable_pipx.sh
+  21_enable_poetry.sh 修改为install default的名称,添加新的脚本，给 pyservice 扩展以上的类库调用，并应用在实际任务中(和windows一样)。
+ 以上需要按规范开发，搜索官方文档。
+ 
+  1_stop_cloud_monitors.sh
+  3_setting_base.sh
+  5_system_maintenance.sh
+  7_project_validator.sh
+  9_fix_dns.sh
+  11_cuda_nvidia_prereq.sh
+  13_ensure_python.sh
+  15_install_python_prereq_packages.sh
+  17_install_node_toolchain_24.sh
+  19_enable_pipx.sh
+  21_enable_poetry.sh
+  23_setup_ssh_remote.sh
+  25_install_uv.sh
+  27_install_git_ssh.sh
+  29_install_edge_tts.sh
+  31_install_tts_offline.sh
+  33_install_nginx.sh
+  35_install_certbot.sh
+  37_ensure_pnpm_packages.sh
+  39_ensure_npmrc.sh
+  41_install_edge.sh
+  51_install_chrome.sh
+  53_install_swoole.sh
+  55_install_puppeteer_plugins.sh
+  57_install_dotnet.sh
+  59_install_flutter.sh
+  61_install_android_studio.sh
+  63_install_ittools_binaries.sh
+  65_install_ruby.sh
+  67_install_rust.sh
+  69_install_p7zip.sh
+  71_ensure_dragonfly_intelligent.sh
+  73_install_redis.sh
+  75_install_postgresql.sh
+  77_ensure_php_pgsql.sh
+  79_install_docker.sh
+  81_set_docker_daemon.sh
+  83_docker-compose-finish.sh
+  85_install_mysql.sh
+  87_install_shama.sh
+  91_install_golang.sh
+  92_install_java.sh
+  93_install_frankenphp.sh
+  94_install_composer.sh
+  96_configure_php85.sh
+  97_install_tailscale.sh
+  99_generate_docker_compose_yml.sh
+  101_core_node_finish.sh
+  103_install_code_server.sh
+  105_install_deepseek.sh
+  107_install_deepseek_ocr.sh
+  109_install_qwen25.sh
+  111_install_nllb200.sh
+  113_natgateway.sh
+  115_install_ffmpeg.sh
+  117_install_desktop_manager.sh
+  119_install_launcher.sh
+  121_install_document_parsing.sh
+  123_install_dictionaries.sh
+  125_install_ocr.sh
+  127_install_whisper.sh
+  129_install_vosk.sh
+  131_install_chattts.sh
+  133_install_cosyvoice.sh
+  135_install_f5tts.sh
+  137_install_gptsovits.sh
+  139_install_melotts.sh
+  141_install_bark.sh
+  143_install_fishspeech.sh
+  145_install_kokoro.sh
+  147_install_voxcpm2.sh
+  149_install_device_tools.sh
+  151_install_faster_whisper.sh
+  153_install_desktop_applications.sh
+  155_install_cursor.sh
+  157_install_vscode.sh
+  159_install_gitea.sh
+  161_install_rustdesk_client_1.4.4.sh
+  163_setup_gnome_rdp.sh
+  165_install_antigravity.sh
+  167_install_wechat.sh
+  169_install_rustdesk_server_1.1.14.sh
+  171_install_claude_code.sh
+  173_install_chinese_wubi.sh
+  175_laravel_main_start.sh
+  176_laravel_ui_service.sh
+  177_install_qwen_code.sh
+  179_install_zhipu_cli.sh
+  181_install_parler.sh
+  183_install_qwen3tts.sh
+  185_install_pi_harness.sh
+  187_install_android_sdk.sh
+  189_install_pycore_http_service.sh
+  191_install_octane_watcher_daemon.sh
+  193_install_terminal_grid_shortcut.sh
+  999_check_circular_symlinks.sh
