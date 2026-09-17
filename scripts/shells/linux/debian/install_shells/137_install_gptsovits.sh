@@ -80,7 +80,12 @@ if [[ "${GPTSOVITS_SKIP:-0}" != "1" ]]; then
             exit 1
         fi
         install_method_record_backend gptsovits docker
-        echo "[gptsovits][i] docker platform ready; per-engine compose service assets are delivered by the compose generation step (tracked as pending)."
+        . "$SCRIPT_DIR/../../common/tts_docker_compose_common.sh"
+        if ! tts_docker_apply_engine gptsovits "$TARGET_DIR"; then
+            echo "[gptsovits][!] docker compose apply failed (phase above); docker backend is not ready." >&2
+            exit 1
+        fi
+        echo "[gptsovits][OK] docker compose service converged (project pycore-tts-gptsovits)."
         exit 0
     fi
     install_method_record_backend gptsovits native

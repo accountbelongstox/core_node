@@ -80,7 +80,11 @@ if ($installMethod -eq 'docker') {
         exit 1
     }
     Save-TtsInstallBackend -Engine cosyvoice -Backend docker
-    Write-Host "$SCRIPT_INDEX [i] docker platform ready; per-engine compose assets are delivered by the compose generation step (tracked as pending)." -ForegroundColor Cyan
+    if (-not (Invoke-TtsDockerApply -Engine cosyvoice -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker compose apply failed (phase above); docker backend is not ready." -ForegroundColor DarkYellow
+        exit 1
+    }
+    Write-Host "$SCRIPT_INDEX [OK] docker compose service converged (project pycore-tts-cosyvoice)." -ForegroundColor Green
     return
 }
 Save-TtsInstallBackend -Engine cosyvoice -Backend native

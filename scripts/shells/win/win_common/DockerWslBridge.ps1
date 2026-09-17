@@ -160,3 +160,113 @@ function Invoke-TtsDockerEnsure {
     Write-Host "$Prefix [OK] Docker Engine inside WSL distro '$distro' is ready (START_DOCKER force-enabled there)." -ForegroundColor Green
     return $true
 }
+
+# Engine -> container port map (loopback-published; mirrors
+# linux/common/tts_docker_compose_common.sh).
+$script:TTS_DOCKER_PORT_MAP = @{
+    melotts    = 57212
+    voxcpm2    = 57214
+    cosyvoice  = 50000
+    fishspeech = 8080
+    gptsovits  = 9880
+}
+
+function script:Copy-TtsDockerAssetIfChanged {
+    param([string]$Source, [string]$Destination)
+    if ((Test-Path -LiteralPath $Destination) -and
+        ((Get-FileHash -LiteralPath $Source).Hash -eq (Get-FileHash -LiteralPath $Destination).Hash)) {
+        return
+    }
+    Copy-Item -LiteralPath $Source -Destination $Destination -Force
+    Write-Host "[docker-bridge] synced $(Split-Path -Leaf $Destination)"
+}
+
+function Invoke-TtsDockerApply {
+    <#
+    .SYNOPSIS
+        Converge one engine's compose service (project pycore-tts-<Engine>).
+        wsl_engine: dispatch the SAME linux apply entry inside the distro with
+        translated paths. desktop_wsl2: run docker compose from Windows (Docker
+        Desktop translates Windows volume paths). Idempotent: a running
+        container with the same compose fingerprint is left untouched.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Engine,
+        [Parameter(Mandatory = $true)][string]$StagingDir,
+        [string]$CoreNodeRoot = $Global:CORE_NODE_DIR,
+        [string]$Prefix = '[docker-bridge]'
+    )
+    $provider = Get-GlobalVar -key 'TTS_DOCKER_PROVIDER' -defaultValue ''
+    if ($provider -eq 'wsl_engine') {
+        $distro = Get-GlobalVar -key 'TTS_DOCKER_WSL_DISTRO' -defaultValue $script:DOCKER_BRIDGE_DEFAULT_DISTRO
+        $wslRepo = script:Resolve-WslRepoPath -Distro $distro -WindowsPath $CoreNodeRoot
+        $wslStaging = script:Resolve-WslRepoPath -Distro $distro -WindowsPath $StagingDir
+        if (-not $wslRepo -or -not $wslStaging) {
+            Write-Host "$Prefix [!] could not translate repo/staging paths into distro '$distro'." -ForegroundColor DarkYellow
+            return $false
+        }
+        $entry = "$wslRepo/scripts/shells/linux/debian/install_shells/apply_tts_docker_for_engine.sh"
+        Write-Host "$Prefix dispatching in-WSL compose apply: bash $entry $Engine $wslStaging (distro: $distro)"
+        & wsl.exe --distribution $distro --user root --exec bash "$entry" "$Engine" "$wslStaging"
+        return ($LASTEXITCODE -eq 0)
+    }
+
+    # desktop_wsl2: docker compose from Windows; Docker Desktop translates paths.
+    $assetDir = Join-Path $CoreNodeRoot (Join-Path 'scripts\shells\docker_compose\tts' $Engine)
+    if (-not (Test-Path -LiteralPath (Join-Path $assetDir 'compose.yml'))) {
+        Write-Host "$Prefix [!] no compose assets for $Engine ($assetDir)." -ForegroundColor DarkYellow
+        return $false
+    }
+    $dockerDir = Join-Path $StagingDir 'docker'
+    New-Item -ItemType Directory -Force -Path $dockerDir | Out-Null
+    foreach ($file in @('Dockerfile', 'compose.yml', 'compose.gpu.yml')) {
+        script:Copy-TtsDockerAssetIfChanged -Source (Join-Path $assetDir $file) -Destination (Join-Path $dockerDir $file)
+    }
+    $assetNames = @()
+    if ($Engine -eq 'melotts') { $assetNames = @('melotts_api_server.py', 'tts_text_chunking.py') }
+    if ($Engine -eq 'voxcpm2') { $assetNames = @('voxcpm2_api_server.py', 'tts_text_chunking.py', 'tts_audio_assembly.py') }
+    $assetRoot = Join-Path $CoreNodeRoot 'pycore\tts_install_assets'
+    foreach ($assetName in $assetNames) {
+        script:Copy-TtsDockerAssetIfChanged -Source (Join-Path $assetRoot $assetName) -Destination (Join-Path $dockerDir $assetName)
+    }
+
+    $device = 'cpu'
+    $deviceWant = [string](Get-Item -LiteralPath "Env:$($Engine.ToUpperInvariant())_DEVICE" -ErrorAction SilentlyContinue).Value
+    if ($deviceWant -match '^cuda') { $device = 'cuda' }
+    elseif (-not $deviceWant -and (Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue)) { $device = 'cuda' }
+    $torchIndex = 'https://download.pytorch.org/whl/cpu'
+    if ($device -eq 'cuda') {
+        $torchIndex = if ($Engine -eq 'fishspeech') { 'https://download.pytorch.org/whl/cu128' } else { 'https://download.pytorch.org/whl/cu130' }
+    }
+    $port = $script:TTS_DOCKER_PORT_MAP[$Engine]
+
+    $fingerprintSource = @('Dockerfile', 'compose.yml', 'compose.gpu.yml') |
+        ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $dockerDir $_)).Hash }
+    $fingerprint = (($fingerprintSource -join ':') + ":$device")
+    $fingerprintFile = Join-Path $dockerDir '.compose_fingerprint'
+    $containerId = (& docker ps -aq -f "name=^pycore-tts-$Engine$" 2>$null | Select-Object -First 1)
+    if ($containerId -and (Test-Path -LiteralPath $fingerprintFile) -and
+        ((Get-Content -LiteralPath $fingerprintFile -Raw).Trim() -eq $fingerprint)) {
+        Write-Host "$Prefix $Engine compose service unchanged; container $containerId left as-is."
+        return $true
+    }
+
+    $composeArgs = @('compose', '-p', "pycore-tts-$Engine", '-f', (Join-Path $dockerDir 'compose.yml'))
+    if ($device -eq 'cuda') { $composeArgs += @('-f', (Join-Path $dockerDir 'compose.gpu.yml')) }
+    $composeArgs += @('up', '-d', '--build')
+    Write-Host "$Prefix converging compose project pycore-tts-$Engine (device=$device, first build takes minutes) ..."
+    $prevStaging = $env:TTS_STAGING; $prevPort = $env:TTS_PORT; $prevDevice = $env:TTS_DEVICE; $prevTorchIndex = $env:TORCH_INDEX
+    $env:TTS_STAGING = $StagingDir; $env:TTS_PORT = "$port"; $env:TTS_DEVICE = $device; $env:TORCH_INDEX = $torchIndex
+    try {
+        & docker @composeArgs
+    } finally {
+        $env:TTS_STAGING = $prevStaging; $env:TTS_PORT = $prevPort; $env:TTS_DEVICE = $prevDevice; $env:TORCH_INDEX = $prevTorchIndex
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "$Prefix [!] docker compose up failed for $Engine (exit $LASTEXITCODE)." -ForegroundColor DarkYellow
+        return $false
+    }
+    Set-Content -LiteralPath $fingerprintFile -Value $fingerprint -Encoding ASCII -NoNewline
+    Write-Host "$Prefix [OK] pycore-tts-$Engine is up (loopback port $port)." -ForegroundColor Green
+    return $true
+}

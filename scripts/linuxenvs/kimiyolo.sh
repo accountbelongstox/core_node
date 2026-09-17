@@ -48,9 +48,11 @@ kimi_base_url=""
 kimi_config_toml_path=""
 kimi_config_api_key=""
 kimi_args=(--auto)
-moonshot_key_indices=()
-moonshot_key_values=()
-moonshot_key_file=""
+kimi_key_indices=()
+kimi_key_values=()
+kimi_key_file=""
+kimi_key_path=""
+kimi_key_name=""
 selected_key_index=0
 switch_choice=""
 switch_pick=""
@@ -60,8 +62,6 @@ kimi_model="k3-256k"
 kimi_model_label="kimi k3 256K"
 entry_index=0
 entry_marker=""
-moonshot_key_path=""
-moonshot_key_name=""
 permission_line='default_permission_mode = "auto"'
 
 script_source_path="${BASH_SOURCE[0]}"
@@ -137,53 +137,53 @@ if [ -f "$kimi_config_toml_path" ]; then
     kimi_config_api_key="$(grep -E '^[[:space:]]*api_key[[:space:]]*=' "$kimi_config_toml_path" 2>/dev/null | head -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/^"//; s/"[[:space:]]*$//')"
 fi
 
-# MOONSHOT_API_KEY_${index} pool: default = the key already in config.toml;
+# KIMI_API_KEY_${index} pool: default = the key already in config.toml;
 # offer a switch prompt [y/N] when more than one key exists.
-moonshot_key_indices=()
-moonshot_key_values=()
-for moonshot_key_path in "$kimi_secret_dir_path"/MOONSHOT_API_KEY_*; do
-    [ -f "$moonshot_key_path" ] || continue
-    moonshot_key_name="$(basename "$moonshot_key_path")"
-    if [[ "$moonshot_key_name" =~ ^MOONSHOT_API_KEY_([0-9]+)$ ]]; then
-        moonshot_key_file="$(kimi_read_secret_file "$moonshot_key_path")"
-        if [ -n "$moonshot_key_file" ]; then
-            moonshot_key_indices+=("${BASH_REMATCH[1]}")
-            moonshot_key_values+=("$moonshot_key_file")
+kimi_key_indices=()
+kimi_key_values=()
+for kimi_key_path in "$kimi_secret_dir_path"/KIMI_API_KEY_*; do
+    [ -f "$kimi_key_path" ] || continue
+    kimi_key_name="$(basename "$kimi_key_path")"
+    if [[ "$kimi_key_name" =~ ^KIMI_API_KEY_([0-9]+)$ ]]; then
+        kimi_key_file="$(kimi_read_secret_file "$kimi_key_path")"
+        if [ -n "$kimi_key_file" ]; then
+            kimi_key_indices+=("${BASH_REMATCH[1]}")
+            kimi_key_values+=("$kimi_key_file")
         fi
     fi
 done
 
-if [ "${#moonshot_key_values[@]}" -gt 0 ]; then
+if [ "${#kimi_key_values[@]}" -gt 0 ]; then
     selected_key_index=0
     if [ -n "$kimi_config_api_key" ]; then
-        for ((entry_index = 0; entry_index < ${#moonshot_key_values[@]}; entry_index++)); do
-            if [ "${moonshot_key_values[$entry_index]}" = "$kimi_config_api_key" ]; then
+        for ((entry_index = 0; entry_index < ${#kimi_key_values[@]}; entry_index++)); do
+            if [ "${kimi_key_values[$entry_index]}" = "$kimi_config_api_key" ]; then
                 selected_key_index=$entry_index
                 break
             fi
         done
     fi
-    if [ "${#moonshot_key_values[@]}" -gt 1 ]; then
-        echo "[INFO] Current key: MOONSHOT_API_KEY_${moonshot_key_indices[$selected_key_index]} (from config.toml)"
-        printf '\033[33mSwitch Moonshot API key? [y/N]: \033[0m'
+    if [ "${#kimi_key_values[@]}" -gt 1 ]; then
+        echo "[INFO] Current key: KIMI_API_KEY_${kimi_key_indices[$selected_key_index]} (from config.toml)"
+        printf '\033[33mSwitch Kimi API key? [y/N]: \033[0m'
         read -r switch_choice || switch_choice=""
         if [ "$switch_choice" = "y" ] || [ "$switch_choice" = "Y" ]; then
-            for ((entry_index = 0; entry_index < ${#moonshot_key_values[@]}; entry_index++)); do
+            for ((entry_index = 0; entry_index < ${#kimi_key_values[@]}; entry_index++)); do
                 entry_marker=""
                 if [ "$entry_index" -eq "$selected_key_index" ]; then
                     entry_marker=" (current)"
                 fi
-                echo "  [$((entry_index + 1))] MOONSHOT_API_KEY_${moonshot_key_indices[$entry_index]}: ${moonshot_key_values[$entry_index]}${entry_marker}"
+                echo "  [$((entry_index + 1))] KIMI_API_KEY_${kimi_key_indices[$entry_index]}: ${kimi_key_values[$entry_index]}${entry_marker}"
             done
-            printf '\033[33mSelect key number [1-%s]: \033[0m' "${#moonshot_key_values[@]}"
+            printf '\033[33mSelect key number [1-%s]: \033[0m' "${#kimi_key_values[@]}"
             read -r switch_pick || switch_pick=""
-            if [[ "$switch_pick" =~ ^[0-9]+$ ]] && [ "$switch_pick" -ge 1 ] && [ "$switch_pick" -le "${#moonshot_key_values[@]}" ]; then
+            if [[ "$switch_pick" =~ ^[0-9]+$ ]] && [ "$switch_pick" -ge 1 ] && [ "$switch_pick" -le "${#kimi_key_values[@]}" ]; then
                 selected_key_index=$((switch_pick - 1))
             fi
         fi
     fi
-    kimi_api_key="${moonshot_key_values[$selected_key_index]}"
-    echo "[INFO] Using MOONSHOT_API_KEY_${moonshot_key_indices[$selected_key_index]}: $kimi_api_key"
+    kimi_api_key="${kimi_key_values[$selected_key_index]}"
+    echo "[INFO] Using KIMI_API_KEY_${kimi_key_indices[$selected_key_index]}: $kimi_api_key"
 fi
 
 echo ""
@@ -214,7 +214,7 @@ fi
 echo "[INFO] KIMI_BASE_URL: ${kimi_base_url:-[empty]}"
 echo "[INFO] API key: ${kimi_api_key:-[empty]}"
 if [ -z "$kimi_api_key" ]; then
-    echo "[WARN] No API key found (MOONSHOT_API_KEY_* or KIMI_API_KEY_1); provider setup will be skipped."
+    echo "[WARN] No API key found (KIMI_API_KEY_*); provider setup will be skipped."
 fi
 if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
     current_version_output="$(kimi --version 2>/dev/null || true)"
@@ -290,6 +290,37 @@ if [ -n "$kimi_api_key" ]; then
         echo "[INFO]   and paste this key: $kimi_api_key"
     else
         echo "[INFO] Provider kimi-for-coding configured (default model: $kimi_model)."
+    fi
+fi
+
+# Idempotent repair: kimi-for-coding is now K2.8 Preview (1M context).
+# Older config.toml model entries may still declare 262144 (256K); refresh them.
+if [ -f "$kimi_config_toml_path" ]; then
+    awk '
+{
+    lines[NR] = $0
+    if ($0 ~ /^[[:space:]]*\[/) {
+        current_section = NR
+    }
+    section_of[NR] = current_section
+    if (current_section >= 1 && $0 ~ /^[[:space:]]*model[[:space:]]*=[[:space:]]*"kimi-for-coding"/) {
+        kfc_sections[current_section] = 1
+    }
+}
+END {
+    for (i = 1; i <= NR; i++) {
+        if (kfc_sections[section_of[i]] && lines[i] ~ /^[[:space:]]*max_context_size[[:space:]]*=[[:space:]]*262144/) {
+            lines[i] = "max_context_size = 1048576"
+        }
+        print lines[i]
+    }
+}
+' "$kimi_config_toml_path" > "$kimi_config_toml_path.kfc_tmp"
+    if ! cmp -s "$kimi_config_toml_path.kfc_tmp" "$kimi_config_toml_path"; then
+        mv "$kimi_config_toml_path.kfc_tmp" "$kimi_config_toml_path"
+        echo "[INFO] Repaired kimi-for-coding model entries to K2.8 Preview (1M context)."
+    else
+        rm -f "$kimi_config_toml_path.kfc_tmp"
     fi
 fi
 
