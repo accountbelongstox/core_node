@@ -3,10 +3,11 @@
 import threading
 from typing import Any, Dict, Tuple
 
-from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_httpx, get_third_package_requests
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 TRANSPORT_REQUESTS = "requests"
+TRANSPORT_HTTPX = "httpx"
 
 # urllib3 pool sizing per thread-session: pycore fans out bounded lanes
 # (audio workers <= 8 lanes, relay agent 2-3 threads, RPC servers) and each
@@ -21,26 +22,32 @@ class LaravelHttpSessions:
         self._sessions = {}
 
     @serialized_method
-    def acquire(self, owner: Any) -> Any:
-        retired = [thread for thread in self._sessions if not thread.is_alive()]
-        for thread in retired:
-            self._sessions.pop(thread).close()
-        if owner not in self._sessions:
-            self._sessions[owner] = _build_session()
-        return self._sessions[owner]
+    def acquire(self, owner: Any, transport: str = TRANSPORT_REQUESTS) -> Any:
+        retired = [key for key in self._sessions if not key[0].is_alive()]
+        for key in retired:
+            self._sessions.pop(key).close()
+        key = (owner, transport)
+        if key not in self._sessions:
+            self._sessions[key] = _build_session(transport)
+        return self._sessions[key]
 
     @serialized_method
     def release(self, owner: Any) -> None:
-        session = self._sessions.pop(owner, None)
-        if session is not None:
-            session.close()
+        for key in [key for key in self._sessions if key[0] is owner]:
+            self._sessions.pop(key).close()
 
 
 laravel_http_sessions = LaravelHttpSessions()
 
 
-def _build_session() -> Any:
+def _build_session(transport: str = TRANSPORT_REQUESTS) -> Any:
     """Create one keep-alive session (called once per thread, then reused)."""
+    if transport == TRANSPORT_HTTPX:
+        httpx = get_third_package_httpx()
+        return httpx.Client(limits=httpx.Limits(
+            max_connections=_POOL_MAXSIZE,
+            max_keepalive_connections=_POOL_CONNECTIONS,
+        ))
     requests = get_third_package_requests()
     session = requests.Session()
     adapter = requests.adapters.HTTPAdapter(
@@ -67,6 +74,10 @@ def create_laravel_http_session() -> Tuple[Any, Dict[str, Any], str]:
 def close_thread_laravel_session() -> None:
     """Drop and close the calling thread's pooled session (tests/shutdown)."""
     laravel_http_sessions.release(threading.current_thread())
+
+
+def create_progress_http_session() -> Any:
+    return laravel_http_sessions.acquire(threading.current_thread(), TRANSPORT_HTTPX)
 
 
 def response_http_version(response: Any) -> str:

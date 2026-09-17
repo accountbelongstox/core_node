@@ -20,6 +20,7 @@ import requests
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.stdio_utils import ensure_stdio_has_buffer_attributes
 from pycore.pyctl.mcpctl.debug_config import debug_print, is_proxy_debug
 
@@ -84,7 +85,7 @@ async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     debug_print(f"Forwarding {tool_name} to backend: {kwargs}", "Proxy")
 
     try:
-        response = requests.post(
+        response = http_progress_client.post(
             f"{BACKEND_URL}/tool/{tool_name}",
             json=kwargs,
             timeout=30

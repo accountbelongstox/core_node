@@ -116,7 +116,7 @@ if ($installMethod -eq 'docker') {
 Save-TtsInstallBackend -Engine melotts -Backend native
 
 if (-not ($resolvedPython -and (Test-Path -LiteralPath $resolvedPython))) {
-    Write-Host "$SCRIPT_INDEX [!] Python 3 not found at $Global:PYTHON_EXE_PATH. Run Step8_InstallPython first." -ForegroundColor DarkYellow
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found at $Global:PYTHON_EXE_PATH. Run Step8_InstallDefaultPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @()
     return
 }

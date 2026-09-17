@@ -181,7 +181,7 @@ if ($pythonExePathGlobal -and (Test-Path -LiteralPath $pythonExePathGlobal)) {
 }
 else {
     Write-Host "  [$SCRIPT_INDEX] Python not found at $pythonExePathGlobal" -ForegroundColor Yellow
-    Write-Host "  [$SCRIPT_INDEX] Please run Step8_InstallPython.ps1 to install Python $($Global:PYTHON_VERSION)" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Please run Step8_InstallDefaultPython.ps1 to install Python $($Global:PYTHON_VERSION)" -ForegroundColor Yellow
     Write-Host "  [$SCRIPT_INDEX] Expected path: $pythonExePathGlobal" -ForegroundColor Gray
     $pythonInstalled = $false
 }
@@ -248,7 +248,7 @@ else {
         Write-Host "  [$SCRIPT_INDEX]   Ninja:  winget install Ninja-build.Ninja" -ForegroundColor Gray
     }
     if (-not $pythonInstalled) {
-        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step8_InstallPython.ps1 to install Python $($Global:PYTHON_VERSION)" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step8_InstallDefaultPython.ps1 to install Python $($Global:PYTHON_VERSION)" -ForegroundColor Gray
     }
 }
 

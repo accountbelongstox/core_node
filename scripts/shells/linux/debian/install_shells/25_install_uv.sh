@@ -30,7 +30,7 @@ echo "[$SCRIPT_INDEX] Features: Fast Python package management, Cross-platform c
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 # Source shared venv resolution (exports VENV_DIR / VENV_PYTHON3 / VENV_PIP3 and
-# helpers) so uv targets the shared venv built by 13_ensure_python.sh.
+# helpers) so uv targets the shared venv built by 13_install_default_python.sh.
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -65,7 +65,7 @@ run_as_real_user() {
 # Set UV installation directories from COMPILE_DIR
 UV_INSTALL_DIR="$COMPILE_DIR/uv_bin"
 UV_BINARY="$UV_INSTALL_DIR/uv"
-# Reuse the SHARED venv built by 13_ensure_python.sh ($COMPILE_DIR/python3_venv,
+# Reuse the SHARED venv built by 13_install_default_python.sh ($COMPILE_DIR/python3_venv,
 # exported as VENV_DIR by venv_python_common.sh) instead of forking a separate
 # uv_default_venv, so uv installs land in the project interpreter.
 UV_DEFAULT_VENV_DIR="$VENV_DIR"
@@ -330,7 +330,7 @@ create_uv_default_venv() {
         $USE_SUDO chmod 755 "$COMPILE_DIR"
     fi
 
-    # Reuse the SHARED venv built by 13_ensure_python.sh. Only create it here as
+    # Reuse the SHARED venv built by 13_install_default_python.sh. Only create it here as
     # a fallback when 13 has not run yet (the shared venv is missing).
     if [ ! -d "$UV_DEFAULT_VENV_DIR" ]; then
         echo "[$SCRIPT_INDEX] Shared venv missing, creating it with UV: $UV_DEFAULT_VENV_DIR"

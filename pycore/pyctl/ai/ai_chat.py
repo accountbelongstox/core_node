@@ -31,6 +31,7 @@ import time
 from functools import partial
 from typing import Dict, Any, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret, default_model, OPENAI_COMPAT_PROVIDERS, is_configured
@@ -180,7 +181,7 @@ def _chat_openai(messages, model, key, out):
     requests = get_third_package_requests()
     model = model or default_model("openai")
     out["model"] = model
-    resp = requests.post(
+    resp = http_progress_client.post(
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": model, "messages": messages},
@@ -209,7 +210,7 @@ def _chat_anthropic(messages, model, key, out):
     body = {"model": model, "max_tokens": 1024, "messages": turns}
     if system:
         body["system"] = system
-    resp = requests.post(
+    resp = http_progress_client.post(
         "https://api.anthropic.com/v1/messages",
         headers={
             "x-api-key": key,

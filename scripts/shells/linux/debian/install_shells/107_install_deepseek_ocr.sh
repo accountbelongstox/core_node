@@ -214,7 +214,7 @@ clone_repository() {
     fi
 }
 
-# Resolve the SHARED project virtualenv interpreter built by 13_ensure_python.sh
+# Resolve the SHARED project virtualenv interpreter built by 13_install_default_python.sh
 # at "$COMPILE_DIR/python3_venv" (exposed as $VENV_PYTHON3 by venv_python_common.sh).
 # All install scripts must install INTO this single venv -- never a per-install
 # fork or the externally-managed system python with --break-system-packages
@@ -235,7 +235,7 @@ get_venv_python() {
         return 1
     fi
 
-    # The shared venv is normally created by 13_ensure_python.sh; only create it
+    # The shared venv is normally created by 13_install_default_python.sh; only create it
     # here (with --system-site-packages) if that step has not run yet.
     print_info "Creating shared virtualenv: $VENV_DIR" >&2
     echo "[run] $base_python -m venv --system-site-packages $VENV_DIR" >&2
@@ -292,7 +292,7 @@ install_dependencies() {
 
     print_info "Installing Python dependencies..."
 
-    # Install INTO the shared venv ($VENV_PYTHON3) built by 13_ensure_python.sh.
+    # Install INTO the shared venv ($VENV_PYTHON3) built by 13_install_default_python.sh.
     # No system-python fallback and no PEP 668 escape flags: the venv is not
     # externally managed, so --break-system-packages/--no-user are unnecessary
     # and would scatter packages outside the venv.
@@ -300,7 +300,7 @@ install_dependencies() {
     venv_python=$(get_venv_python "$install_dir" "$python_cmd")
     if [ -z "$venv_python" ] || [ ! -x "$venv_python" ]; then
         print_error "Shared virtualenv interpreter not available; cannot install dependencies"
-        print_warning "Run 13_ensure_python.sh first to build $VENV_DIR"
+        print_warning "Run 13_install_default_python.sh first to build $VENV_DIR"
         return 1
     fi
     print_info "Using shared virtualenv interpreter: $venv_python"
@@ -320,7 +320,7 @@ install_dependencies() {
         has_gpu=true
     fi
 
-    # REUSE the torch provided by the prerequisite install (13_ensure_python.sh /
+    # REUSE the torch provided by the prerequisite install (13_install_default_python.sh /
     # 11_cuda_nvidia_prereq.sh) when it is importable; never reinstall it (avoids
     # version churn and conflicts in the shared venv). Only install torch if absent.
     torch_metadata="$("$run_python" -m pip show torch 2>/dev/null || true)"

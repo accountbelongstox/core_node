@@ -33,6 +33,7 @@ import requests
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.stdio_utils import ensure_stdio_has_buffer_attributes
 
 # Ensure STDIO compatibility
@@ -72,7 +73,7 @@ ncore_info: Optional[Dict[str, Any]] = None
 def check_pycore_backend() -> bool:
     """Check if PyCore backend is available"""
     try:
-        response = requests.post(
+        response = http_progress_client.post(
             f"{PYCORE_URL}/backend_info",
             json={},
             timeout=2
@@ -102,7 +103,7 @@ def get_pycore_info() -> Dict[str, Any]:
         return pycore_info
 
     try:
-        response = requests.post(
+        response = http_progress_client.post(
             f"{PYCORE_URL}/backend_info",
             json={},
             timeout=5
@@ -176,7 +177,7 @@ async def call_pycore_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
     """
     try:
         # Forward to PyCore backend at /mcp/{tool_name}
-        response = requests.post(
+        response = http_progress_client.post(
             f"{PYCORE_URL}/{tool_name}",
             json=kwargs,
             timeout=60  # Longer timeout for OCR operations
@@ -222,7 +223,7 @@ async def call_ncore_tool(endpoint: str, **kwargs) -> Dict[str, Any]:
     """
     try:
         # Forward to NCore backend
-        response = requests.post(
+        response = http_progress_client.post(
             f"{NCORE_URL}{endpoint}",
             json=kwargs,
             timeout=60

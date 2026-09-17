@@ -4,6 +4,7 @@
 
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.secret_manager import get_secret_key, get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
@@ -41,7 +42,7 @@ class CloudflareAIClient:
         if not self.api_token or not self.account_id:
             return {"success": False, "text": "", "model": use_model, "error": "Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID"}
         try:
-            resp = requests.post(
+            resp = http_progress_client.post(
                 f"{self.base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_token}", "Content-Type": "application/json"},
                 json={"model": use_model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens},

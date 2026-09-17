@@ -12,6 +12,10 @@ models + GPU. We therefore do NOT install it; instead, if the user has it runnin
 it for voice-cloned, emotion-rich output. When the server is unreachable this
 engine simply reports unavailable and the orchestrator falls through.
 
+Long text: api_v2 already splits natively (text_split_method); the client only
+applies the protective guard (chunked_synthesis) for over-long inputs and
+concatenates the wav chunks in order before the mp3 conversion.
+
 Config:
   GPTSOVITS_URL          - base url (default: http://127.0.0.1:9880)
   GPTSOVITS_REF_AUDIO    - path to a short reference clip (REQUIRED for synth;
@@ -25,9 +29,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
@@ -75,15 +81,13 @@ def available() -> bool:
     return ok
 
 
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    """Synthesize via the GPT-SoVITS api_v2 /tts endpoint. Returns False on failure."""
-    ref = _ref_audio()
-    if ref is None:
-        return False
-    text_lang = _LANG_MAP.get((lang or "en").lower(), "en")
+def _synthesize_chunk_to_wav(
+    chunk_text: str, chunk_wav: Path, ref: Path, text_lang: str, speed: float
+) -> bool:
+    """POST one (chunk) text to /tts and store the wav response."""
     prompt_lang = (os.environ.get("GPTSOVITS_PROMPT_LANG") or text_lang).strip()
     body = {
-        "text": text,
+        "text": chunk_text,
         "text_lang": text_lang,
         "ref_audio_path": str(ref),
         "prompt_text": os.environ.get("GPTSOVITS_PROMPT_TEXT", ""),
@@ -96,25 +100,53 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         requests = get_third_package_requests()
         if requests is None:
             return False
-        resp = requests.post(f"{base_url()}/tts", json=body, timeout=120)
+        resp = http_progress_client.post(f"{base_url()}/tts", json=body, timeout=120)
         if resp.status_code != 200 or not resp.content:
             ColorPrint.red(
                 f"[gptsovits] /tts HTTP {resp.status_code}: {resp.text[:160]}"
             )
             return False
-        tmp_wav = output_mp3.with_suffix(".gsv.wav")
-        tmp_wav.parent.mkdir(parents=True, exist_ok=True)
-        tmp_wav.write_bytes(resp.content)
-        try:
-            return wav_to_mp3(tmp_wav, output_mp3)
-        finally:
-            try:
-                tmp_wav.unlink()
-            except OSError:
-                pass
+        chunk_wav.parent.mkdir(parents=True, exist_ok=True)
+        chunk_wav.write_bytes(resp.content)
+        return True
     except Exception as e:
         ColorPrint.red(f"[gptsovits] synth failed: {e}")
         return False
+
+
+def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    """Synthesize via the GPT-SoVITS api_v2 /tts endpoint. Returns False on failure."""
+    ref = _ref_audio()
+    if ref is None:
+        return False
+    text_lang = _LANG_MAP.get((lang or "en").lower(), "en")
+    tmp_wav = output_mp3.with_suffix(".gsv.wav")
+    ok, error, stats = chunked_synthesis.synthesize_chunked(
+        "gptsovits",
+        text,
+        lambda chunk_text, chunk_path: _synthesize_chunk_to_wav(
+            chunk_text, chunk_path, ref, text_lang, speed
+        ),
+        tmp_wav,
+    )
+    if not ok:
+        ColorPrint.red(f"[gptsovits] synth failed: {error}")
+        try:
+            tmp_wav.unlink()
+        except OSError:
+            pass
+        return False
+    if stats.get("chunked"):
+        ColorPrint.blue(
+            f"[gptsovits] protective chunking: {stats.get('chunk_count')} chunks"
+        )
+    try:
+        return wav_to_mp3(tmp_wav, output_mp3)
+    finally:
+        try:
+            tmp_wav.unlink()
+        except OSError:
+            pass
 
 
 __all__ = ["available", "synthesize", "base_url"]

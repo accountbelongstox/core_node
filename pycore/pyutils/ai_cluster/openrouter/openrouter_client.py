@@ -26,6 +26,7 @@ Usage:
 import json
 from typing import Dict, Any, Optional, List, Iterator, Callable
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
@@ -179,7 +180,7 @@ class OpenRouterClient:
 
         # Make request
         try:
-            response = requests.post(
+            response = http_progress_client.post(
                 url=f"{self.BASE_URL}/chat/completions",
                 headers=self._build_headers(),
                 json=payload,

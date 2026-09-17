@@ -18,7 +18,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
-DEFAULT_SERIALIZED_TIMEOUT = 30.0
+DEFAULT_SERIALIZED_TIMEOUT = None
 
 
 def _response_guard_name(response_signal: str) -> str:
@@ -29,13 +29,14 @@ def _publish_response(
     response_signal: str,
     response_guard: str,
     response: dict[str, Any],
+    bus: Any = THREAD_BUS,
 ) -> None:
     if not response_signal:
         return
     if response_guard:
-        THREAD_BUS.signal_if_present(response_guard, response_signal, response)
+        bus.signal_if_present(response_guard, response_signal, response)
         return
-    THREAD_BUS.signal(response_signal, response)
+    bus.signal(response_signal, response)
 
 
 # Exception types that must survive the THREAD_BUS boundary with their class
@@ -72,26 +73,27 @@ class SerializedWorkerThread(threading.Thread):
     CPU while idle. Daemon thread — the process exit clears it.
     """
 
-    def __init__(self, queue_name: str, thread_name: str) -> None:
+    def __init__(self, queue_name: str, thread_name: str, bus: Any = THREAD_BUS) -> None:
         super().__init__(name=thread_name, daemon=True)
         self._queue_name = queue_name
+        self._bus = bus
 
     def run(self) -> None:
         while True:
-            request = THREAD_BUS.receive_message(self._queue_name, block=True)
+            request = self._bus.receive_message(self._queue_name, block=True)
             if not isinstance(request, dict):
                 continue
 
             response_signal = request.get("response_signal", "")
             response_guard = request.get("response_guard", "")
-            if response_guard and not THREAD_BUS.has_signal(response_guard):
+            if response_guard and not self._bus.has_signal(response_guard):
                 continue
             callback = request.get("callback")
             args = request.get("args", ())
             kwargs = request.get("kwargs", {})
             method = args[0] if callback is _invoke_serialized_method and args else callback
             active_signal = f"{self._queue_name}.active"
-            THREAD_BUS.signal(active_signal, {
+            self._bus.signal(active_signal, {
                 "callback": getattr(method, "__qualname__", type(method).__name__),
                 "thread": self.name,
                 "started_at": time.monotonic(),
@@ -103,8 +105,8 @@ class SerializedWorkerThread(threading.Thread):
             except Exception as exc:
                 response = _error_response(exc)
             finally:
-                THREAD_BUS.clear_signal(active_signal)
-            _publish_response(response_signal, response_guard, response)
+                self._bus.clear_signal(active_signal)
+            _publish_response(response_signal, response_guard, response, self._bus)
 
 
 class BusTaskThread(threading.Thread):
@@ -303,7 +305,8 @@ def init_serialized_owner(
     owner: Any,
     queue_prefix: str,
     thread_prefix: str,
-    timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
+    timeout: float | None = DEFAULT_SERIALIZED_TIMEOUT,
+    bus: Any = THREAD_BUS,
 ) -> None:
     """Give one object a dedicated THREAD_BUS-backed state-owner thread."""
     existing_worker = getattr(owner, "_serialized_worker", None)
@@ -316,9 +319,11 @@ def init_serialized_owner(
     owner._serialized_queue_name = f"{queue_prefix}.{owner_id}"
     owner._serialized_thread_name = f"{thread_prefix}-{owner_id[:8]}"
     owner._serialized_timeout = timeout
+    owner._serialized_bus = bus
     worker = SerializedWorkerThread(
         owner._serialized_queue_name,
         owner._serialized_thread_name,
+        bus,
     )
     owner._serialized_worker = worker
     worker.start()
@@ -348,7 +353,8 @@ def serialized_method(method: Callable[..., Any]) -> Callable[..., Any]:
             instance,
             args,
             kwargs,
-            timeout=float(getattr(instance, "_serialized_timeout", DEFAULT_SERIALIZED_TIMEOUT)),
+            timeout=getattr(instance, "_serialized_timeout", DEFAULT_SERIALIZED_TIMEOUT),
+            bus=getattr(instance, "_serialized_bus", THREAD_BUS),
         )
     return wrapper
 
@@ -360,7 +366,7 @@ class SerializedStateObject:
         self,
         queue_prefix: str,
         thread_prefix: str,
-        timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
+        timeout: float | None = DEFAULT_SERIALIZED_TIMEOUT,
     ) -> None:
         init_serialized_owner(self, queue_prefix, thread_prefix, timeout)
 
@@ -441,7 +447,7 @@ class SerializedSingletonProvider:
         factory: Callable[..., Any],
         queue_prefix: str,
         thread_prefix: str,
-        timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
+        timeout: float | None = DEFAULT_SERIALIZED_TIMEOUT,
     ) -> None:
         self._factory = factory
         self._instance = None
@@ -491,15 +497,16 @@ def call_serialized(
     queue_name: str,
     callback: Callable[..., Any],
     *args: Any,
-    timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
+    timeout: float | None = DEFAULT_SERIALIZED_TIMEOUT,
+    bus: Any = THREAD_BUS,
     **kwargs: Any,
 ) -> Any:
     """Execute one callback on its queue owner and return the bus response."""
     response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
     response_guard = _response_guard_name(response_signal)
     started = time.monotonic()
-    THREAD_BUS.signal(response_guard, True)
-    THREAD_BUS.send_message(queue_name, {
+    bus.signal(response_guard, True)
+    bus.send_message(queue_name, {
         "callback": callback,
         "args": args,
         "kwargs": kwargs,
@@ -507,11 +514,11 @@ def call_serialized(
         "response_guard": response_guard,
         "queued_at": started,
     })
-    response = THREAD_BUS.wait_signal(response_signal, timeout=timeout)
-    THREAD_BUS.clear_signal(response_guard)
-    THREAD_BUS.clear_signal(response_signal)
+    response = bus.wait_signal(response_signal, timeout=timeout)
+    bus.clear_signal(response_guard)
+    bus.clear_signal(response_signal)
     if not isinstance(response, dict):
-        active = THREAD_BUS.get_signal(f"{queue_name}.active", {}) or {}
+        active = bus.get_signal(f"{queue_name}.active", {}) or {}
         active_since = active.get("started_at")
         active_elapsed = round(time.monotonic() - active_since, 3) if isinstance(active_since, (int, float)) else None
         ColorPrint.yellow(

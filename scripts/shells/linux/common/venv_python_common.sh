@@ -13,12 +13,12 @@
 #
 # ============================================================================
 # Shared Python-venv resolution for every install script that consumes the
-# virtual environment built by 13_ensure_python.sh.
+# virtual environment built by 13_install_default_python.sh.
 #
 # Single source of truth for the venv location: "$COMPILE_DIR/python3_venv",
 # where COMPILE_DIR is exported by common/gvar_common.sh (source that FIRST).
 #
-# Design contract (see 13_ensure_python.sh):
+# Design contract (see 13_install_default_python.sh):
 #   - The venv at $COMPILE_DIR/python3_venv is THE project interpreter.
 #   - python / python3 / python3.<minor> all resolve to that venv (via
 #     /usr/local/bin, which precedes /usr/bin on PATH); the original system
@@ -38,7 +38,7 @@ VENV_PYTHON_COMMON_DIR=""
 
 # Resolve the interpreter a consumer should use: the venv python if it exists,
 # otherwise fall back to whatever python3/python is on PATH (first run, before
-# 13_ensure_python.sh has built the venv).
+# 13_install_default_python.sh has built the venv).
 venv_python_from_common() {
     if [ -x "$VENV_PYTHON3" ]; then
         echo "$VENV_PYTHON3"

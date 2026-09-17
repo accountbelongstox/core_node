@@ -7,6 +7,7 @@ Provides text generation using Zhipu AI's GLM models via REST API.
 """
 
 from typing import Dict, Any, List, Optional
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
@@ -65,7 +66,7 @@ class ZhipuAIClient:
                 "max_tokens": max_tokens,
             }
             
-            response = requests.post(
+            response = http_progress_client.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=payload,

@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -138,7 +139,7 @@ def _describe_with_openai(image_path: str, prompt: Optional[str], out: Dict[str,
         {"type": "text", "text": prompt or _DEFAULT_IMAGE_PROMPT},
         {"type": "image_url", "image_url": {"url": _image_data_url(image_path)}},
     ]
-    resp = requests.post(
+    resp = http_progress_client.post(
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": model, "messages": [{"role": "user", "content": content}]},
@@ -178,7 +179,7 @@ def _describe_with_anthropic(image_path: str, prompt: Optional[str], out: Dict[s
             ],
         }],
     }
-    resp = requests.post(
+    resp = http_progress_client.post(
         "https://api.anthropic.com/v1/messages",
         headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                  "Content-Type": "application/json"},

@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from pathlib import Path
 import json
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
@@ -93,7 +94,7 @@ class WordValidityService:
             'temperature': 0
         }
 
-        response = requests.post(
+        response = http_progress_client.post(
             'https://api.openai.com/v1/chat/completions',
             headers=headers,
             json=payload

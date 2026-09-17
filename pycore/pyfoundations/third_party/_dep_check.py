@@ -28,7 +28,7 @@ def check_and_install_dependencies():
     ENCYCLOPEDIA.add("pycore_dependencies_checking", True)
 
     # NOTE: System packages are now installed by shell scripts
-    # See: scripts/shells/linux/debian/install_shells/13_ensure_python.sh
+    # See: scripts/shells/linux/debian/install_shells/13_install_default_python.sh
 
     installed_packages = set()
 

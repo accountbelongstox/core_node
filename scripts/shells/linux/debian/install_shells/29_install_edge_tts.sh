@@ -17,13 +17,13 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables (COMPILE_DIR) then the shared venv resolver, so package
 # installs land in the project venv ("$COMPILE_DIR/python3_venv") built by
-# 13_ensure_python.sh instead of the externally-managed system python.
+# 13_install_default_python.sh instead of the externally-managed system python.
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 
 # Single source of truth for the edge-tts prerequisite (DEFAULT text-to-speech
 # engine for the pycore voice-subtitle pipeline) on Linux/macOS. Prefix 21 sorts
-# AFTER 13_ensure_python.sh in install.sh's numeric-ordered run, so pip is ready.
+# AFTER 13_install_default_python.sh in install.sh's numeric-ordered run, so pip is ready.
 # Also invoked by prepare_pycore_prerequisites.sh (pyservice).
 # pyservice prerequisite reference) to keep one copy of the logic.
 #
@@ -39,7 +39,7 @@ PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
 
 # Declare all variables at the beginning
-# Default to the shared project venv interpreter (13_ensure_python.sh); --python
+# Default to the shared project venv interpreter (13_install_default_python.sh); --python
 # overrides it for the pyservice flow. venv_python_from_common falls back to
 # /usr/local/bin/python then system python3 when the venv is not yet built.
 PYTHON="$(venv_python_from_common)"
@@ -76,10 +76,10 @@ echo "============================================================"
 echo " Installing edge-tts (text-to-speech)"
 echo "============================================================"
 
-# --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
+# --- 0) resolve python (13_install_default_python.sh has already run in install flow) --- #
 RESOLVED_PYTHON="$(resolve_python "$PYTHON")"
 if [[ -z "$RESOLVED_PYTHON" ]]; then
-    echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
+    echo "[X] Python 3 was NOT found. Run 13_install_default_python.sh first, or pass --python <path>." >&2
 else
     PYTHON="$RESOLVED_PYTHON"
     echo "  python : $PYTHON"

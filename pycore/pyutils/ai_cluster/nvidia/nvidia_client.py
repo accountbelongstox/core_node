@@ -9,6 +9,7 @@ Uses OpenAI-compatible API format.
 
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
@@ -43,7 +44,7 @@ class NVIDIAClient:
         use_model = model or self.default_model
 
         try:
-            response = requests.post(
+            response = http_progress_client.post(
                 f"{self.base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",

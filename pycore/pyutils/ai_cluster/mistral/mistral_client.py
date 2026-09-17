@@ -8,6 +8,7 @@ Mistral AI provides European LLMs with free tier access via La Plateforme.
 
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
@@ -42,7 +43,7 @@ class MistralClient:
         use_model = model or self.default_model
 
         try:
-            response = requests.post(
+            response = http_progress_client.post(
                 f"{self.base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",

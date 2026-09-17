@@ -1,21 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-codesync.runtime - the bridge / shim layer.
-
-This module is the ONLY place the codesync library talks to the outside world.
-It depends only on the standard library and the shared pyfoundations HTTP leaf,
-so the whole `codesync` package can run standalone
-(`pyservice.sh codesync ...`) without booting the full pycore runtime, without
-`third_party`, and without the `pyservice.sh` prerequisite install.
-
-When the full pycore runtime IS running, it calls `codesync.configure(...)` once
-at startup to *inject* its richer services (ColorPrint logging, THREAD_BUS event
-bus / shutdown, machine-id). Until/unless that happens, the stdlib defaults below
-are used — and they are deliberately byte-for-byte compatible with the pycore
-implementations they replace (same machine-id algorithm, same `~/.core_node`
-cache dir, same repo-root resolution) so both modes share one committed
-`code_sync_peers.json` and the same self-identity.
-"""
+"""codesync.runtime - the bridge / shim layer."""
 
 import hashlib
 import json as _json
@@ -29,13 +13,20 @@ import threading
 import time
 import uuid
 from collections import deque
-from functools import wraps
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyutils.common.http_client import HttpClient
 from pycore.pyutils.common.strtools.normalization import to_bool
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS as shared_thread_bus
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread as SharedSerializedWorkerThread,
+    call_serialized as shared_call_serialized,
+    init_serialized_owner as shared_init_serialized_owner,
+    serialized_method,
+)
 
 try:
     import winreg
@@ -43,133 +34,13 @@ except ImportError:  # Windows-only standard-library module.
     winreg = None
 
 
-class CodeSyncBusStateThread(threading.Thread):
-    """Own standalone CodeSync bus containers without threading locks."""
-
-    def __init__(self) -> None:
-        super().__init__(name="CodeSyncBusStateThread", daemon=True)
-        self._requests: deque = deque()
-
-    def call(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
-        if threading.current_thread() is self:
-            return callback(*args, **kwargs)
-
-        response: deque = deque(maxlen=1)
-        self._requests.append((callback, args, kwargs, response))
-        while not response:
-            time.sleep(0.001)
-        succeeded, result = response.popleft()
-        if succeeded:
-            return result
-        raise result
-
-    def run(self) -> None:
-        while True:
-            try:
-                callback, args, kwargs, response = self._requests.popleft()
-            except IndexError:
-                time.sleep(0.001)
-                continue
-            try:
-                result = callback(*args, **kwargs)
-                response.append((True, result))
-            except Exception as exc:
-                response.append((False, exc))
-
-
-class _FallbackThreadBus:
-    """State-owner in-process bus used only by standalone CodeSync."""
-
-    def __init__(self) -> None:
-        self._queues: Dict[str, deque] = {}
-        self._signals: Dict[str, Any] = {}
-        self._state_owner = CodeSyncBusStateThread()
-        self._state_owner.start()
-
-    def _call_state(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
-        return self._state_owner.call(callback, *args, **kwargs)
-
-    def send_message(self, name: str, message: Any) -> None:
-        self._call_state(
-            lambda: self._queues.setdefault(name, deque()).append(message)
-        )
-
-    def receive_message(
-        self,
-        name: str,
-        block: bool = False,
-        timeout: Optional[float] = None,
-    ) -> Any:
-        started_at = time.monotonic()
-        missing = object()
-
-        def receive() -> Any:
-            message_queue = self._queues.get(name)
-            if not message_queue:
-                return missing
-            return message_queue.popleft()
-
-        while True:
-            message = self._call_state(receive)
-            if message is not missing:
-                return message
-            if not block:
-                return None
-            if timeout is not None and time.monotonic() - started_at >= timeout:
-                return None
-            time.sleep(0.01)
-
-    def queue_size(self, name: str) -> int:
-        return int(self._call_state(
-            lambda: len(self._queues.get(name, ()))
-        ))
-
-    def clear_queue(self, name: str) -> None:
-        self._call_state(self._queues.pop, name, None)
-
-    def signal(self, name: str, data: Any = None) -> None:
-        self._call_state(self._signals.__setitem__, name, data)
-
-    def signal_if_present(
-        self,
-        guard_name: str,
-        name: str,
-        data: Any = None,
-    ) -> bool:
-        def publish() -> bool:
-            if guard_name not in self._signals:
-                return False
-            self._signals.pop(guard_name, None)
-            self._signals[name] = data
-            return True
-
-        return bool(self._call_state(publish))
-
-    def get_signal(self, name: str, default: Any = None) -> Any:
-        return self._call_state(self._signals.get, name, default)
-
-    def clear_signal(self, name: str) -> None:
-        def clear() -> None:
-            self._signals.pop(name, None)
-            self._signals.pop(f"{name}.waiting", None)
-
-        self._call_state(clear)
-
-    def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
-        started_at = time.monotonic()
-        missing = object()
-        while self.get_signal(name, missing) is missing:
-            if timeout is not None and time.monotonic() - started_at >= timeout:
-                return None
-            time.sleep(0.01)
-        return self.get_signal(name)
 
 
 class _ThreadBusProxy:
     """Forward to pycore THREAD_BUS when injected, otherwise use fallback."""
 
     def __init__(self) -> None:
-        self._delegate = _FallbackThreadBus()
+        self._delegate = shared_thread_bus
 
     def attach(self, delegate: Any) -> None:
         if delegate is not None:
@@ -269,80 +140,9 @@ def start_bus_task(
     return worker
 
 
-class SerializedWorkerThread(threading.Thread):
-    """Own mutable state and execute requests received from THREAD_BUS."""
-
-    def __init__(self, queue_name: str, thread_name: str) -> None:
-        super().__init__(name=thread_name, daemon=True)
-        self._queue_name = queue_name
-
-    def run(self) -> None:
-        while True:
-            request = THREAD_BUS.receive_message(self._queue_name, block=True, timeout=0.1)
-            if not isinstance(request, dict):
-                continue
-            response_signal = request.get("response_signal", "")
-            response_guard = request.get("response_guard", "")
-            try:
-                result = request["callback"](*request.get("args", ()), **request.get("kwargs", {}))
-                response = {"success": True, "result": result}
-            except Exception as exc:
-                response = {"success": False, "error": str(exc)}
-            _publish_response(response_signal, response_guard, response)
-
-
-def call_serialized(queue_name: str, callback: Callable, *args: Any, **kwargs: Any) -> Any:
-    response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
-    response_guard = _response_guard_name(response_signal)
-    THREAD_BUS.signal(response_guard, True)
-    THREAD_BUS.send_message(queue_name, {
-        "callback": callback,
-        "args": args,
-        "kwargs": kwargs,
-        "response_signal": response_signal,
-        "response_guard": response_guard,
-    })
-    response = THREAD_BUS.wait_signal(response_signal, timeout=30.0)
-    THREAD_BUS.clear_signal(response_guard)
-    THREAD_BUS.clear_signal(response_signal)
-    if not isinstance(response, dict):
-        raise TimeoutError(f"CodeSync serialized operation timed out: {queue_name}")
-    if not response.get("success"):
-        raise RuntimeError(response.get("error", "CodeSync serialized operation failed"))
-    return response.get("result")
-
-
-def init_serialized_owner(owner: Any, queue_prefix: str, thread_prefix: str) -> None:
-    owner_id = uuid.uuid4().hex
-    owner._serialized_queue_name = f"{queue_prefix}.{owner_id}"
-    owner._serialized_thread_name = f"{thread_prefix}-{owner_id[:8]}"
-    worker = SerializedWorkerThread(owner._serialized_queue_name, owner._serialized_thread_name)
-    worker.start()
-
-
-def _invoke_serialized_method(
-    method: Callable,
-    owner: Any,
-    args: tuple,
-    kwargs: Dict[str, Any],
-) -> Any:
-    return method(owner, *args, **kwargs)
-
-
-def serialized_method(method: Callable) -> Callable:
-    @wraps(method)
-    def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
-        if threading.current_thread().name == getattr(owner, "_serialized_thread_name", ""):
-            return method(owner, *args, **kwargs)
-        return call_serialized(
-            owner._serialized_queue_name,
-            _invoke_serialized_method,
-            method,
-            owner,
-            args,
-            kwargs,
-        )
-    return wrapper
+SerializedWorkerThread = partial(SharedSerializedWorkerThread, bus=THREAD_BUS)
+call_serialized = partial(shared_call_serialized, bus=THREAD_BUS)
+init_serialized_owner = partial(shared_init_serialized_owner, bus=THREAD_BUS)
 
 
 class LocalShutdownRegistry:

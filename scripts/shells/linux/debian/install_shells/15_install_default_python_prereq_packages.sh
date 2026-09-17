@@ -13,7 +13,7 @@
 
 # Python prerequisite packages installer (Linux - Debian/Ubuntu/Kali).
 #
-# Runs immediately AFTER 13_ensure_python.sh (pip confirmed) and 11_cuda_nvidia_prereq.sh
+# Runs immediately AFTER 13_install_default_python.sh (pip confirmed) and 11_cuda_nvidia_prereq.sh
 # (CUDA/driver when GPU present). Installs captcha/AI backend deps into $VENV_PYTHON3:
 #   - torch + torchvision + torchaudio + ultralytics (YOLO) - one resolver pass
 #   - paddlepaddle (CPU or GPU, driver-matched) + paddleocr + paddlex
@@ -21,7 +21,7 @@
 #
 # GPU/CPU: torch_cpu_guard.sh and paddle_cpu_guard.sh auto-select the correct wheel
 # index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
-# Python: 3.12 or 3.13 - whichever the system / venv provides (13_ensure_python).
+# Python: 3.12 or 3.13 - whichever the system / venv provides (13_install_default_python.sh).
 # Idempotent: each bundle skips when imports already succeed.
 
 SCRIPT_INDEX="14"
@@ -125,7 +125,7 @@ ipp_resolve_target_python() {
 ipp_verify_pip_ready() {
     if [ ! -f "$VENV_PIP" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] pip binary not found at $VENV_PIP."
-        echo "[$SCRIPT_INDEX]        Run 13_ensure_python.sh first."
+        echo "[$SCRIPT_INDEX]        Run 13_install_default_python.sh first."
     else
         local pip_ver
         pip_ver="$("$VENV_PIP" --version 2>&1 | awk '{print $2}')"
@@ -307,7 +307,7 @@ if ipp_resolve_target_python; then
     echo ""
 else
     echo "[$SCRIPT_INDEX] [ERROR] no Python 3.12/3.13 found (VENV_PYTHON3=$VENV_PYTHON3)."
-    echo "[$SCRIPT_INDEX]        Run 13_ensure_python.sh first."
+    echo "[$SCRIPT_INDEX]        Run 13_install_default_python.sh first."
 fi
 
 if [[ -n "$TARGET_PY" ]] && [ -f "$VENV_PIP" ]; then

@@ -31,14 +31,20 @@ Endpoints:
 
 import io
 import os
+import sys
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+
+from tts_text_chunking import ChunkPolicy, default_policy, split_text
 
 app = FastAPI()
 _models: Dict[str, Any] = {}
@@ -119,6 +125,38 @@ def _wav_bytes(samples, sample_rate: int) -> bytes:
     return buf.read()
 
 
+def _synthesize_guarded(model, sid: int, text: str, speed: float) -> Tuple[Any, int]:
+    """Protective chunking for a native-owner engine.
+
+    melo's tts_to_file already splits sentences and concatenates internally, so
+    normal texts go through ONE native call (no project splitting, no extra
+    pause, speed applied once natively). Only an input whose merged text would
+    exceed the hard character cap (soft == hard, so the splitter acts purely as
+    a guard against punctuation-free over-long runs) is pre-split here; chunks
+    are synthesized natively one by one (speed applied once per chunk) and
+    concatenated with the policy pause at chunk boundaries only."""
+    base = default_policy("melotts")
+    guard = ChunkPolicy(
+        owner="native",
+        soft_limit=base.hard_limit,
+        hard_limit=base.hard_limit,
+        max_chunks=base.max_chunks,
+        pause_ms=base.pause_ms,
+    )
+    chunks = split_text(text, guard)
+    if len(chunks) <= 1:
+        return model.tts_to_file(text, sid, output_path=None, speed=speed), 1
+    sr = int(model.hps.data.sampling_rate)
+    pause = np.zeros(max(0, sr * base.pause_ms // 1000), dtype=np.float32)
+    pieces: List[Any] = []
+    for index, chunk in enumerate(chunks):
+        audio = model.tts_to_file(chunk.text, sid, output_path=None, speed=speed)
+        if index:
+            pieces.append(pause)
+        pieces.append(np.asarray(audio, dtype=np.float32).reshape(-1))
+    return np.concatenate(pieces), len(chunks)
+
+
 def _mp3_bytes(samples, sample_rate: int) -> bytes:
     arr = np.asarray(samples, dtype=np.float32)
     arr = np.clip(arr, -1.0, 1.0)
@@ -197,13 +235,13 @@ def synthesize(req: SynthRequest):
         sid = _speaker_id(model, (req.speaker or "").strip() or default_spk)
         t0 = time.time()
         with _model_lock:
-            audio = model.tts_to_file(
-                text, sid, output_path=None, speed=float(req.speed or 1.0),
+            audio, chunk_count = _synthesize_guarded(
+                model, sid, text, float(req.speed or 1.0)
             )
         sr = int(model.hps.data.sampling_rate)
         data, media = _encode_audio(audio, sr, fmt)
         print(f"[api] synthesized {len(data)} bytes ({fmt}) @ {sr}Hz "
-              f"in {time.time() - t0:.2f}s", flush=True)
+              f"chunks={chunk_count} in {time.time() - t0:.2f}s", flush=True)
         return StreamingResponse(io.BytesIO(data), media_type=media)
     except Exception as exc:  # noqa: BLE001
         print(f"[api] /synthesize FAILED: {exc}", flush=True)
