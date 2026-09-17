@@ -672,7 +672,14 @@ def _base_identity_matches(
     engine: str,
     expected_identity: Optional[str] = None,
 ) -> bool:
-    current_identity = expected_identity or _base_interpreter_identity()
+    # Self-contained engines default to the venv's own confirmed base (stamp
+    # consistency checks); the ensure flow passes the RESOLVED base identity
+    # explicitly so a base-interpreter change blocks reuse and is reported.
+    current_identity = expected_identity or (
+        _venv_interpreter_identity(engine)
+        if _self_contained(engine)
+        else _base_interpreter_identity()
+    )
     stamp_path = _base_identity_stamp_path(engine)
     if stamp_path is None:
         return False
@@ -713,10 +720,16 @@ def _write_base_identity(engine: str, identity: Optional[str] = None) -> None:
 
 
 def _venv_fingerprint(engine: str, identity: Optional[str] = None) -> str:
+    if identity is None:
+        identity = (
+            _venv_interpreter_identity(engine)
+            if _self_contained(engine)
+            else _base_interpreter_identity()
+        )
     payload = "|".join(
         (
             engine_fingerprint(engine),
-            identity or _base_interpreter_identity(),
+            identity,
         )
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()

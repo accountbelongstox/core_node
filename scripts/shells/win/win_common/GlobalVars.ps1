@@ -234,6 +234,17 @@ $Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHO
 $Global:PYTHON_SCRIPTS_DIR = Join-Path $Global:PYTHON_DIR "Scripts"
 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
 $Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pip.exe"
+
+# Dedicated Python 3.10 interpreter for the five self-contained TTS engines
+# (cosyvoice, fishspeech, voxcpm2, gptsovits, melotts). Registered separately
+# from the default host interpreter; never overrides PYTHON_DIR.
+$Global:PYTHON310_VERSION = Get-AiRuntimePolicyValue -Name 'AI_PYTHON310_VERSION' -Default '3.10'
+$Global:PYTHON310_VERSION_COMPACT = ($Global:PYTHON310_VERSION -replace '\.', '')
+$Global:PYTHON310_WINGET_ID = "Python.Python.$($Global:PYTHON310_VERSION)"
+$Global:PYTHON310_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON310_VERSION_COMPACT)")
+$Global:PYTHON310_SCRIPTS_DIR = Join-Path $Global:PYTHON310_DIR "Scripts"
+$Global:PYTHON310_EXE_PATH = Join-Path $Global:PYTHON310_DIR "python.exe"
+$Global:PYTHON310_PIP_EXE_PATH = Join-Path $Global:PYTHON310_SCRIPTS_DIR "pip.exe"
 $Global:UV_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "uv.exe"
 $Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
 $Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "poetry.exe"
