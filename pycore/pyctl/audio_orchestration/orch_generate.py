@@ -26,7 +26,6 @@ import base64
 import os
 import subprocess
 import tempfile
-import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -35,14 +34,13 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyctl.tts import word_audio_service
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
+from pycore.pyutils.common.background_jobs import BackgroundJobs
 from pycore.pyutils.tts import word_audio_cache
 from pycore.pyutils.tts.tts_orchestrator import synthesize
 
 from pycore.pyctl.audio_orchestration import orch_books, orch_resources, orch_store, orch_words
 
-_GEN_THREADS: Dict[str, threading.Thread] = {}
-_GEN_LOCK = threading.Lock()
-_CANCEL_REQUESTS: set[str] = set()
+_generation_jobs = BackgroundJobs("AudioOrchGeneration")
 _GAP_SECONDS = 0.6
 
 
@@ -244,19 +242,14 @@ def _concat_segment(ffmpeg: str, gap: Optional[Path], files: List[Path], output:
 # background generation                                                        #
 # --------------------------------------------------------------------------- #
 def is_running(task_id: str) -> bool:
-    with _GEN_LOCK:
-        thread = _GEN_THREADS.get(task_id)
-        return bool(thread and thread.is_alive())
+    return _generation_jobs.running(task_id)
 
 
 def request_cancel(task_id: str) -> bool:
     task = orch_store.get_task(task_id)
     if not task:
         return False
-    _CANCEL_REQUESTS.add(task_id)
-    task["cancel_requested"] = True
-    orch_store.save_task(task)
-    return True
+    return _generation_jobs.cancel(task_id)
 
 
 def start_generation(
@@ -270,6 +263,8 @@ def start_generation(
     auth_record = {} if use_qy_account is False else orch_store.load_auth() or {}
     if not task:
         return {"success": False, "error": "task not found"}
+    if is_running(task_id):
+        return {"success": False, "error": "generation already running"}
     if expected_user_id is not None and (
         (auth_record.get("user") or {}).get("id") != expected_user_id
         or str(auth_record.get("base_url") or "").rstrip("/") != str(expected_base_url or "").rstrip("/")
@@ -285,28 +280,18 @@ def start_generation(
         task["word_group_id"] = str(auth_record["word_group_id"])
         orch_store.save_task(task)
     orch_resources.recover_deliveries()
-    thread = threading.Thread(
-        target=_run_generation,
-        args=(task_id, auth_record),
-        name=f"audio-orch-{task_id}",
-        daemon=True,
-    )
-    with _GEN_LOCK:
-        current = _GEN_THREADS.get(task_id)
-        if current and current.is_alive():
-            return {"success": False, "error": "generation already running"}
-        _CANCEL_REQUESTS.discard(task_id)
-        _GEN_THREADS[task_id] = thread
-        thread.start()
+    if not _generation_jobs.start(task_id, _run_generation, task_id, auth_record):
+        return {"success": False, "error": "generation already running"}
     return {"success": True, "task_id": task_id}
 
 
-def _progress(task: Dict[str, Any], **fields: Any) -> None:
+def _progress(task: Dict[str, Any], persist: bool = True, **fields: Any) -> None:
     progress = dict(task.get("progress") or {})
     progress.update(fields)
     task["progress"] = progress
-    task["cancel_requested"] = str(task.get("task_id") or "") in _CANCEL_REQUESTS
-    orch_store.save_task(task)
+    task["cancel_requested"] = _generation_jobs.cancelled(str(task.get("task_id") or ""))
+    if persist:
+        orch_store.save_task(task)
 
 
 def _run_generation(task_id: str, auth_record: Dict[str, Any]) -> None:
@@ -319,12 +304,10 @@ def _run_generation(task_id: str, auth_record: Dict[str, Any]) -> None:
         ColorPrint.red(f"[AudioOrch] generation crashed for {task_id}: {exc}")
         task["status"] = "failed"
         _progress(task, message=f"generation crashed: {exc}")
-    finally:
-        _CANCEL_REQUESTS.discard(task_id)
 
 
 def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
-    if str(task.get("task_id") or "") not in _CANCEL_REQUESTS:
+    if not _generation_jobs.cancelled(str(task.get("task_id") or "")):
         return False
     task["status"] = "draft"
     _progress(task, message="cancelled", **stats)
@@ -340,7 +323,20 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     # removed below, before the new partition is assembled).
     task["events"] = []
     orch_store.append_task_event(task, f"generation started for book {source_key}")
-    synced = orch_books.ensure_book_sentences(source_key)
+    task["status"] = "generating"
+    task["progress"] = {}
+    task["delivery_ids"] = []
+    _progress(task, phase="sync", message="syncing book sentences", current_item="")
+    synced = orch_books.ensure_book_sentences(
+        source_key,
+        cancel_requested=lambda: _generation_jobs.cancelled(task_id),
+        progress_callback=lambda state: _progress(
+            task, phase="sync", message="syncing book sentences",
+            item_index=state.get("fetched") or 0, item_total=state.get("total") or 0,
+        ),
+    )
+    if _cancel(task, {}):
+        return
     sentences = synced.get("sentences") if isinstance(synced, dict) else None
     if not sentences:
         task["status"] = "failed"
@@ -381,6 +377,16 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     staging.mkdir(parents=True, exist_ok=True)
 
     stats = {"cache_hits": 0, "laravel_hits": 0, "generated": 0, "missing": 0, "synced": 0}
+    orch_words.prepare_word_states(
+        task, sentences, auth_record,
+        cancel_requested=lambda: _generation_jobs.cancelled(task_id),
+        progress_callback=lambda index, total: _progress(
+            task, phase="manifest", message="loading word read states",
+            item_index=index, item_total=total, **stats,
+        ),
+    )
+    if _cancel(task, stats):
+        return
 
     # Phase 1: manifest — expand every segment into ordered audio items
     # (consuming the virtual-read set exactly once) and collect the unique
@@ -388,6 +394,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     _progress(
         task, phase="manifest", message="building manifest",
         segment_index=0, resource_index=0, resource_total=0, **stats,
+        item_index=0, item_total=len(sentences),
     )
     segment_items: List[List[Dict[str, Any]]] = []
     resources: Dict[str, Dict[str, Any]] = {}
@@ -399,6 +406,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
             if _cancel(task, stats):
                 return
             items.extend(build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record))
+            if sentence_pos % 100 == 0:
+                _progress(task, phase="manifest", item_index=sentence_pos + 1,
+                          item_total=len(sentences), segment_index=segment["index"], **stats)
         for item in items:
             resource_id = orch_resources.resource_id(item["kind"], item["language"], item["text"])
             item["resource_id"] = resource_id
@@ -414,6 +424,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
             task, phase="manifest",
             message=f"manifest: segment {segment['index']}/{len(task['segments'])}",
             segment_index=segment["index"], resource_total=len(resources), **stats,
+            item_index=segment["end"] + 1, item_total=len(sentences),
         )
     # Persist the consumed virtual-read set before any slow resource work.
     orch_store.save_task(task)
@@ -429,8 +440,17 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     resolved: Dict[str, str] = {}
     resource_list = list(resources.values())
     resource_total = len(resource_list)
+    last_resource_write = 0.0
+    _progress(task, phase="resources", message="scanning local audio caches",
+              resource_index=0, resource_total=resource_total, item_index=0, item_total=0, **stats)
+
+    def _resource_activity(resource: Dict[str, Any], event: Dict[str, Any]) -> None:
+        _progress(task, phase="resources",
+                  message=str(event.get("stage") or event.get("status") or "preparing audio resource"),
+                  current_item=f"{resource['kind']}: {resource['text'][:60]}", **stats)
 
     def _resource_done(index: int, resource: Dict[str, Any], result: Dict[str, Any]) -> None:
+        nonlocal last_resource_write
         source = str(result.get("source") or "missing")
         if result.get("status") == "ready" and result.get("audio_path"):
             resolved[resource["resource_id"]] = str(result["audio_path"])
@@ -444,9 +464,11 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
                     {**resource, "audio_path": result["audio_path"], "provider": result.get("provider")},
                     base_url,
                 )
-                if sync.get("success") or sync.get("already_uploaded"):
+                if sync.get("delivery_id"):
+                    task["delivery_ids"].append(sync["delivery_id"])
+                if sync.get("already_uploaded"):
                     stats["synced"] += 1
-                else:
+                elif not sync.get("queued"):
                     orch_store.append_task_event(
                         task,
                         f"sync pending: {resource['text'][:60]} ({sync.get('error') or 'queued'})",
@@ -455,11 +477,15 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
             stats["missing"] += 1
             orch_store.append_task_event(task, f"missing {resource['kind']}: {resource['text'][:60]}")
             ColorPrint.yellow(f"[AudioOrch] resource failed ({resource['kind']}: {resource['text'][:40]})")
+        persist = time.monotonic() - last_resource_write >= 0.5 or index == resource_total
+        if persist:
+            last_resource_write = time.monotonic()
         _progress(
             task, phase="resources",
             message=f"resources: {index}/{resource_total}",
             resource_index=index, resource_total=resource_total,
             current_item=f"{resource['kind']}: {resource['text'][:60]} [{source}]",
+            persist=persist,
             **stats,
         )
 
@@ -467,8 +493,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
         resource_list,
         staging,
         base_url=base_url,
-        cancel_requested=lambda: task_id in _CANCEL_REQUESTS,
+        cancel_requested=lambda: _generation_jobs.cancelled(task_id),
         progress_callback=_resource_done,
+        activity_callback=_resource_activity,
     )
     if _cancel(task, stats):
         return
@@ -517,7 +544,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
         orch_store.save_task(task)
 
     failed = [s for s in task["segments"] if s.get("status") == "failed"]
-    task["status"] = "failed" if len(failed) == len(task["segments"]) else "done"
+    task["status"] = "failed" if failed else "done"
     orch_store.append_task_event(
         task,
         f"generation finished: {task['status']} "

@@ -240,6 +240,11 @@ class AudioDeliveryOutbox:
         return copy.deepcopy(row)
 
     @serialized_method
+    def pending_ids(self, lane: str) -> set[str]:
+        records = self._load_records()
+        return {key for key, row in records.items() if row.get("lane") == lane}
+
+    @serialized_method
     def complete(self, delivery_id: str, owner: str = "") -> bool:
         records = self._load_records()
         row = records.get(str(delivery_id))

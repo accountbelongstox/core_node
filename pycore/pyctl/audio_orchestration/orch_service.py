@@ -20,6 +20,7 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_generate,
+    orch_resources,
     orch_store,
 )
 
@@ -284,7 +285,7 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
     return steps
 
 
-def _task_summary(task: Dict[str, Any]) -> Dict[str, Any]:
+def _task_summary(task: Dict[str, Any], pending_ids=None) -> Dict[str, Any]:
     segments = task.get("segments") or []
     return {
         "task_id": task.get("task_id"),
@@ -298,16 +299,18 @@ def _task_summary(task: Dict[str, Any]) -> Dict[str, Any]:
         "running": orch_generate.is_running(str(task.get("task_id") or "")),
         "segments_done": sum(1 for s in segments if s.get("status") == "done"),
         "segments_total": len(segments),
-        "progress": task.get("progress") or {},
+        "progress": _task_progress(task, pending_ids),
         "created_at": task.get("created_at"),
         "updated_at": task.get("updated_at"),
     }
 
 
 def tasks_list() -> Dict[str, Any]:
+    orch_resources.recover_deliveries()
+    pending_ids = orch_resources.pending_delivery_ids()
     return {
         "success": True,
-        "tasks": [_task_summary(task) for task in orch_store.list_tasks()],
+        "tasks": [_task_summary(task, pending_ids) for task in orch_store.list_tasks()],
     }
 
 
@@ -316,9 +319,21 @@ def task_get(task_id: str) -> Dict[str, Any]:
     if not task:
         return {"success": False, "error": "task not found"}
     result = dict(task)
+    result["progress"] = _task_progress(task)
     result["running"] = orch_generate.is_running(str(task.get("task_id") or ""))
     result["success"] = True
     return result
+
+
+def _task_progress(task: Dict[str, Any], pending_ids=None) -> Dict[str, Any]:
+    progress = dict(task.get("progress") or {})
+    delivery_ids = set(task.get("delivery_ids") or [])
+    if delivery_ids:
+        if pending_ids is None:
+            pending_ids = orch_resources.pending_delivery_ids()
+        progress["synced"] = int(progress.get("synced") or 0) + len(delivery_ids - pending_ids)
+        progress["sync_pending"] = len(delivery_ids & pending_ids)
+    return progress
 
 
 def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -347,6 +362,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
         "word_mode": word_mode,
         "new_only_max_read_count": max(0, int(payload.get("new_only_max_read_count") or 0)),
     })
+    orch_books.sync_book_sentences(source_key)
     return {"success": True, "task": task}
 
 
@@ -403,9 +419,13 @@ def task_plan(task_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "task not found"}
     source_key = str((task.get("book") or {}).get("source_key") or "")
     cached = orch_store.load_book_sentences(source_key)
+    sync = orch_store.load_sync_state().get(source_key) or {}
+    if sync.get("status") == "running":
+        return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
     sentences = cached.get("sentences") if isinstance(cached, dict) else None
     if not sentences:
-        return {"success": False, "error": "book sentences not synced yet"}
+        orch_books.sync_book_sentences(source_key)
+        return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
     plan = orch_generate.plan_task(task, sentences)
     return {"success": True, **plan}
 
@@ -434,7 +454,7 @@ def task_progress(task_id: str) -> Dict[str, Any]:
         "success": True,
         "status": task.get("status"),
         "running": orch_generate.is_running(str(task_id or "")),
-        "progress": task.get("progress") or {},
+        "progress": _task_progress(task),
         "segments": task.get("segments") or [],
         "events": task.get("events") or [],
     }

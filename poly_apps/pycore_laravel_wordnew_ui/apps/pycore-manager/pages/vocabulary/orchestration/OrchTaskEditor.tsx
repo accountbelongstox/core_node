@@ -117,7 +117,7 @@ const OrchTaskEditor: React.FC<{
     try {
       const r = await pycoreApi.orchTaskPlan(taskId);
       if (!r.success) {
-        setError(String(r.error || ORCH_L.planFailed));
+        setError(orchErrorMessage(r.error, ORCH_L.planFailed));
         return;
       }
       setPlan({ segments: r.segments || [], sentence_total: r.sentence_total });

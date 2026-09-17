@@ -93,9 +93,11 @@ const VocabAudioOrchTab: React.FC = () => {
           const state = syncStates[key];
           // Keep polling only while the background fetch is genuinely running;
           // done (cached) and failed both stop the loop.
-          if (cachedKeys.has(key)) return;
           if (state && state.status && state.status !== 'running') return;
           next.add(key);
+        });
+        Object.entries(syncStates).forEach(([key, state]) => {
+          if (key !== 'books' && state.status === 'running') next.add(key);
         });
         return next;
       });
@@ -168,7 +170,7 @@ const VocabAudioOrchTab: React.FC = () => {
 
   // Poll while any task is generating so progress bars + statuses stay live.
   useEffect(() => {
-    const running = tasks.some((task) => task.running || task.status === 'generating');
+    const running = tasks.some((task) => task.running || task.status === 'generating' || task.progress?.sync_pending);
     if (running && !pollRef.current) {
       pollRef.current = setInterval(() => void loadTasks(), POLL_MS);
     } else if (!running && pollRef.current) {

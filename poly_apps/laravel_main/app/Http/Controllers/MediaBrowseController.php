@@ -257,6 +257,7 @@ class MediaBrowseController extends Controller
             'page' => 'nullable|integer|min:1',
             // Books v3.1: scope verses to a single chapter (book -> chapter -> verses).
             'chapter_index' => 'nullable|integer|min:0',
+            'include_enrichment' => 'nullable|boolean',
         ]);
 
         $book = Book::findBySourceKey($source_key);
@@ -282,7 +283,10 @@ class MediaBrowseController extends Controller
         $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
         $languages = $this->sourceLanguages($sourceType, $source);
         $adaptation = $this->resolveChapterIndex($sourceType, $source_key, $languages, $chapterIndex, $grain);
-        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage, $adaptation['slot_index']);
+        $sentences = $this->buildSentencesPaginator(
+            $source_key, $grain, $perPage, $adaptation['slot_index'],
+            $request->boolean('include_enrichment', true)
+        );
 
         $payload = [
             'source' => $source,
@@ -479,7 +483,7 @@ class MediaBrowseController extends Controller
      * Build an ordered (grain, seq) sentences paginator joining
      * SourceSentence (for this source_key) -> per-language LangSentence.
      */
-    private function buildSentencesPaginator(string $sourceKey, string $grain, int $perPage, ?int $chapterIndex = null)
+    private function buildSentencesPaginator(string $sourceKey, string $grain, int $perPage, ?int $chapterIndex = null, bool $includeEnrichment = true)
     {
         // Books v3.1: the shared `sentence` relation is gone; per-language text is
         // resolved per row via resolveSlotPrimary()/langSentence() below.
@@ -490,13 +494,13 @@ class MediaBrowseController extends Controller
         // per slot, i.e. O(rows x languages) round-trips for a 500-verse chapter).
         $preload = $this->preloadLangRows($paginator->getCollection());
 
-        $paginator->through(function (SourceSentence $link) use ($preload) {
+        $paginator->through(function (SourceSentence $link) use ($preload, $includeEnrichment) {
             // Books v3.1: resolve the slot's primary-language sentence from the
             // per-language store via lang_content_ids; the full per-language map
             // is exposed under `languages`. The legacy shared `sentence` relation
             // was removed, so a slot with no v3 correspondence resolves to the
             // per-language row (or null) — never the dropped shared table.
-            $v3 = $this->resolveSlotPrimary($link, $preload);
+            $v3 = $this->resolveSlotPrimary($link, $preload, $includeEnrichment);
             $sentence = $v3 !== null
                 ? $v3['row']
                 : $link->langSentence($link->primary_language ?: 'en');
@@ -504,6 +508,16 @@ class MediaBrowseController extends Controller
             // Slot metadata carries the verse's real reference (e.g. "1:1") + book
             // for sources seeded as one book with chapter-per-sub-book (the Bible).
             $meta = is_array($link->metadata) ? $link->metadata : [];
+
+            if (!$includeEnrichment) {
+                return [
+                    'seq' => $link->seq,
+                    'chapter_index' => $link->chapter_index,
+                    'text' => $sentence->text ?? null,
+                    'language' => $sentence->language ?? null,
+                    'languages' => $v3['languages'] ?? [],
+                ];
+            }
 
             $entry = [
                 'grain' => $link->grain,
@@ -549,7 +563,7 @@ class MediaBrowseController extends Controller
      * @param array<string,array<string,LangSentence>> $preload  [lang][content_id] => row (see preloadLangRows)
      * @return array{row:?LangSentence,languages:array<string,mixed>}|null
      */
-    private function resolveSlotPrimary(SourceSentence $link, array $preload = []): ?array
+    private function resolveSlotPrimary(SourceSentence $link, array $preload = [], bool $includeEnrichment = true): ?array
     {
         $map = $link->lang_content_ids;
         if (!is_array($map) || count($map) === 0) {
@@ -566,14 +580,14 @@ class MediaBrowseController extends Controller
                 $row = $preload[(string) $lang][(string) $contentId] ?? null;
             }
 
-            $languages[$lang] = [
+            $languages[$lang] = $includeEnrichment ? [
                 'text' => $row->text ?? null,
                 'audio' => $row->audio ?? null,
                 'explanation' => $row->explanation ?? null,
                 'has_audio' => $row !== null ? (bool) $row->has_audio : false,
                 'tts_status' => $row->tts_status ?? null,
                 'audio_files' => $row !== null ? $this->formatSentenceAudioFiles($row) : [],
-            ];
+            ] : ['text' => $row->text ?? null];
 
             if ($row !== null) {
                 $isPrimary = $primaryLang !== null && $primaryLang !== '' && $lang === $primaryLang;

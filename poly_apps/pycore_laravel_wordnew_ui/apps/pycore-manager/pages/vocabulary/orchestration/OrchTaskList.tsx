@@ -144,7 +144,8 @@ const OrchTaskList: React.FC<{
           const pct = task.segments_total
             ? Math.round(((task.segments_done || 0) / task.segments_total) * 100)
             : 0;
-          const phaseLabel = progress.phase === 'manifest' ? ORCH_L.phaseManifest
+          const phaseLabel = progress.phase === 'sync' ? ORCH_L.syncing
+            : progress.phase === 'manifest' ? ORCH_L.phaseManifest
             : progress.phase === 'resources' ? ORCH_L.phaseResources
             : progress.phase === 'assemble' ? ORCH_L.phaseAssemble
             : progress.phase === 'done' ? ORCH_L.phaseDone : '';
@@ -198,12 +199,13 @@ const OrchTaskList: React.FC<{
                     {task.segments_done || 0}/{task.segments_total || 0} {ORCH_L.segments}
                     {progress.item_total ? ` · ${progress.item_index || 0}/${progress.item_total} ${ORCH_L.items}` : ''}
                   </p>
-                  {(task.running || progress.missing) && (
+                  {(task.running || progress.phase === 'done' || progress.missing || progress.sync_pending) && (
                     <p className="text-[10px] font-mono text-slate-500">
                       {ORCH_L.manifestCache} {humanInt(progress.cache_hits)}
                       {' · '}{ORCH_L.manifestLaravel} {humanInt(progress.laravel_hits)}
                       {' · '}{ORCH_L.manifestGenerated} {humanInt(progress.generated)}
                       {' · '}{ORCH_L.manifestSynced} {humanInt(progress.synced)}
+                      {progress.sync_pending ? ` · ${ORCH_L.syncingNow} ${humanInt(progress.sync_pending)}` : ''}
                       {' · '}<span className={progress.missing ? 'text-amber-400' : ''}>{ORCH_L.manifestMissing} {humanInt(progress.missing)}</span>
                     </p>
                   )}

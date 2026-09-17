@@ -4,7 +4,7 @@
  * sentence table into the local cache (required before planning/generation).
  */
 import React, { useState } from 'react';
-import { BookOpen, Database, Loader2, Plus, RefreshCw } from 'lucide-react';
+import { BookOpen, Loader2, Plus, RefreshCw } from 'lucide-react';
 import { pycoreApi, type OrchBookItem } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabShared';
 import { ORCH_L, orchErrorMessage } from './orchShared';
@@ -33,7 +33,7 @@ const OrchBookPicker: React.FC<{
         setSyncError(String(r.error || ORCH_L.loadFailed));
         return;
       }
-      onSyncStarted(book.source_key);
+      if (r.syncing) onSyncStarted(book.source_key);
     } catch (e) {
       setSyncError(orchErrorMessage(e, ORCH_L.loadFailed));
     }
@@ -65,7 +65,7 @@ const OrchBookPicker: React.FC<{
       <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
         {books.map((book) => {
           const cached = cachedSentenceBooks.has(book.source_key);
-          const syncing = pendingSyncs.has(book.source_key) && !cached;
+          const syncing = pendingSyncs.has(book.source_key);
           const selected = selectedKey === book.source_key;
           return (
             <div
@@ -81,22 +81,12 @@ const OrchBookPicker: React.FC<{
                 <p className="text-[11px] text-slate-500">
                   {book.language || 'en'} · {humanInt(book.sentence_count)} {ORCH_L.sentences}
                   {cached && <span className="ml-2 text-emerald-400">· {ORCH_L.sentencesCached}</span>}
+                  {syncing && <span className="ml-2 text-sky-400">· {ORCH_L.syncing}</span>}
                 </p>
               </div>
-              <button type="button" onClick={(event) => { event.stopPropagation(); onNewTask(book); }}
+              <button type="button" onClick={(event) => { event.stopPropagation(); onNewTask(book); void syncSentences(book); }}
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-500">
                 <Plus className="w-3 h-3" /> {ORCH_L.newTask}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); void syncSentences(book); }}
-                disabled={syncing}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-1 text-[11px] text-slate-300 hover:border-sky-500/50 disabled:opacity-50"
-              >
-                {syncing
-                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                  : <Database className="w-3 h-3" />}
-                {syncing ? ORCH_L.syncing : ORCH_L.syncSentences}
               </button>
             </div>
           );

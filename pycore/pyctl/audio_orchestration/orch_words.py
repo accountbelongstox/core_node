@@ -26,6 +26,39 @@ _LARAVEL_SENTENCE_WORDS = "/api/app_qy_v1/learning/sentence-words"
 _CLIENT_KEY = "audio_orchestration"
 _REQUEST_TIMEOUT = 60
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z'\-]*")
+_WORD_STATE_BATCH_SIZE = 300
+
+
+def prepare_word_states(task, sentences, auth_record, cancel_requested=None, progress_callback=None) -> None:
+    language = str((task.get("book") or {}).get("language") or "en")
+    target_language = str((task.get("book") or {}).get("target_language") or "zh")
+    needs_states = any(
+        step.get("type") == "words_new"
+        or (step.get("type") == "words" and task.get("word_mode") == "new_only")
+        for step in task.get("pattern") or []
+    )
+    if not needs_states or not auth_record.get("token"):
+        return
+    words = list(dict.fromkeys(word for sentence in sentences for word in tokenize(sentence.get("text") or "")))
+    states = {}
+    auth_record["word_states"] = states
+    for offset in range(0, len(words), _WORD_STATE_BATCH_SIZE):
+        if cancel_requested is not None and cancel_requested():
+            return
+        if progress_callback is not None:
+            progress_callback(offset, len(words))
+        rows = resolve_sentence_words(
+            " ".join(words[offset:offset + _WORD_STATE_BATCH_SIZE]),
+            language, target_language, int(task.get("new_only_max_read_count") or 0),
+            auth_record, task.get("word_group_id"),
+        )
+        if rows is None:
+            ColorPrint.yellow("[AudioOrch] word read-state batch unavailable; using task-local word tracking")
+            auth_record["word_states"] = None
+            return
+        states.update({str(row.get("word") or "").strip().lower(): row for row in rows})
+    if progress_callback is not None:
+        progress_callback(len(words), len(words))
 
 
 def tokenize(sentence: str) -> List[str]:
@@ -66,6 +99,7 @@ def resolve_sentence_words(
                 "client_key": _CLIENT_KEY,
                 "group_id": group_id or None,
                 "max_read_count": max(0, int(max_read_count)),
+                "include_media": False,
             },
             headers={"Authorization": f"Bearer {token}"},
             base_url=record.get("base_url") or None,
@@ -119,22 +153,30 @@ def select_words(
     # they occur in a sentence and never consumes the virtual set.
     apply_virtual = word_mode == "new_only"
 
+    prepared = auth_record is not None and "word_states" in auth_record
+    states = (auth_record or {}).get("word_states")
     rows = (
+        [states.get(word, {"word": word, "group_read_count": 0}) for word in tokenize(sentence)]
+        if use_backend and word_mode == "new_only" and prepared and isinstance(states, dict)
+        else None if prepared else (
         resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record, task.get("word_group_id"))
         if use_backend and word_mode == "new_only"
         else None
+        )
     )
     if rows is not None:
         words: List[str] = []
+        seen = set()
         for row in rows:
             word = str(row.get("word") or "").strip().lower()
-            if not word or (apply_virtual and word in virtual_read):
+            if not word or word in seen or (apply_virtual and word in virtual_read):
                 continue
             if word_mode == "new_only":
                 read_count = int(row.get("group_read_count") or row.get("play_count") or 0)
                 if read_count > max_read_count:
                     continue
             words.append(word)
+            seen.add(word)
         if consume and apply_virtual and words:
             existing = list(task.get("virtual_read") or [])
             existing.extend(w for w in words if w not in virtual_read)
