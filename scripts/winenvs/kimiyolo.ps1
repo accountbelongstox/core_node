@@ -77,8 +77,8 @@ $kimiBaseUrl = ""
 $kimiConfigTomlPath = $null
 $kimiConfigApiKey = $null
 $kimiConfigTomlLine = $null
-$moonshotKeyFile = $null
-$moonshotKeyEntries = @()
+$kimiKeyFile = $null
+$kimiKeyEntries = @()
 $selectedKeyIndex = 0
 $switchChoice = $null
 $switchPick = $null
@@ -95,6 +95,14 @@ $permissionLine = 'default_permission_mode = "auto"'
 $permissionFound = $false
 $configLines = @()
 $configLineIndex = 0
+$repairLines = @()
+$repairSectionOf = @()
+$repairCurrentSection = -1
+$repairKfcSections = @{}
+$repairIndex = 0
+$repairLine = ""
+$repairSectionKey = -1
+$repairChanged = $false
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -193,55 +201,55 @@ if (Test-Path -LiteralPath $kimiConfigTomlPath) {
     }
 }
 
-# MOONSHOT_API_KEY_${index} pool: default = the key already in config.toml;
+# KIMI_API_KEY_${index} pool: default = the key already in config.toml;
 # offer a switch prompt [y/N] when more than one key exists.
-$moonshotKeyEntries = @()
-Get-ChildItem -LiteralPath $kimiSecretDirPath -Filter "MOONSHOT_API_KEY_*" -File -ErrorAction SilentlyContinue | ForEach-Object {
-    if ($_.Name -match '^MOONSHOT_API_KEY_(\d+)$') {
-        $moonshotKeyFile = Read-KimiyoloSecretFile -FilePath $_.FullName
-        if (-not [string]::IsNullOrWhiteSpace($moonshotKeyFile)) {
-            $moonshotKeyEntries += [PSCustomObject]@{
+$kimiKeyEntries = @()
+Get-ChildItem -LiteralPath $kimiSecretDirPath -Filter "KIMI_API_KEY_*" -File -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.Name -match '^KIMI_API_KEY_(\d+)$') {
+        $kimiKeyFile = Read-KimiyoloSecretFile -FilePath $_.FullName
+        if (-not [string]::IsNullOrWhiteSpace($kimiKeyFile)) {
+            $kimiKeyEntries += [PSCustomObject]@{
                 Index = [int]$Matches[1]
-                Key = $moonshotKeyFile
+                Key = $kimiKeyFile
             }
         }
     }
 }
-$moonshotKeyEntries = @($moonshotKeyEntries | Sort-Object Index)
+$kimiKeyEntries = @($kimiKeyEntries | Sort-Object Index)
 
-if ($moonshotKeyEntries.Count -gt 0) {
+if ($kimiKeyEntries.Count -gt 0) {
     $selectedKeyIndex = 0
     if (-not [string]::IsNullOrWhiteSpace($kimiConfigApiKey)) {
-        for ($entryIndex = 0; $entryIndex -lt $moonshotKeyEntries.Count; $entryIndex++) {
-            if ($moonshotKeyEntries[$entryIndex].Key -eq $kimiConfigApiKey) {
+        for ($entryIndex = 0; $entryIndex -lt $kimiKeyEntries.Count; $entryIndex++) {
+            if ($kimiKeyEntries[$entryIndex].Key -eq $kimiConfigApiKey) {
                 $selectedKeyIndex = $entryIndex
                 break
             }
         }
     }
-    if ($moonshotKeyEntries.Count -gt 1) {
-        Write-Host "[INFO] Current key: MOONSHOT_API_KEY_$($moonshotKeyEntries[$selectedKeyIndex].Index) (from config.toml)" -ForegroundColor White
-        Write-Host "Switch Moonshot API key? [y/N]: " -ForegroundColor Yellow -NoNewline
+    if ($kimiKeyEntries.Count -gt 1) {
+        Write-Host "[INFO] Current key: KIMI_API_KEY_$($kimiKeyEntries[$selectedKeyIndex].Index) (from config.toml)" -ForegroundColor White
+        Write-Host "Switch Kimi API key? [y/N]: " -ForegroundColor Yellow -NoNewline
         $switchChoice = Read-Host
         if (($switchChoice -eq "y") -or ($switchChoice -eq "Y")) {
-            for ($entryIndex = 0; $entryIndex -lt $moonshotKeyEntries.Count; $entryIndex++) {
+            for ($entryIndex = 0; $entryIndex -lt $kimiKeyEntries.Count; $entryIndex++) {
                 $entryMarker = ""
                 if ($entryIndex -eq $selectedKeyIndex) {
                     $entryMarker = " (current)"
                 }
-                Write-Host "  [$($entryIndex + 1)] MOONSHOT_API_KEY_$($moonshotKeyEntries[$entryIndex].Index): $($moonshotKeyEntries[$entryIndex].Key)$entryMarker" -ForegroundColor White
+                Write-Host "  [$($entryIndex + 1)] KIMI_API_KEY_$($kimiKeyEntries[$entryIndex].Index): $($kimiKeyEntries[$entryIndex].Key)$entryMarker" -ForegroundColor White
             }
-            Write-Host "Select key number [1-$($moonshotKeyEntries.Count)]: " -ForegroundColor Yellow -NoNewline
+            Write-Host "Select key number [1-$($kimiKeyEntries.Count)]: " -ForegroundColor Yellow -NoNewline
             $switchPick = Read-Host
             if ([int]::TryParse($switchPick, [ref]$switchPickNumber)) {
-                if (($switchPickNumber -ge 1) -and ($switchPickNumber -le $moonshotKeyEntries.Count)) {
+                if (($switchPickNumber -ge 1) -and ($switchPickNumber -le $kimiKeyEntries.Count)) {
                     $selectedKeyIndex = $switchPickNumber - 1
                 }
             }
         }
     }
-    $kimiApiKey = $moonshotKeyEntries[$selectedKeyIndex].Key
-    Write-Host "[INFO] Using MOONSHOT_API_KEY_$($moonshotKeyEntries[$selectedKeyIndex].Index): $kimiApiKey" -ForegroundColor White
+    $kimiApiKey = $kimiKeyEntries[$selectedKeyIndex].Key
+    Write-Host "[INFO] Using KIMI_API_KEY_$($kimiKeyEntries[$selectedKeyIndex].Index): $kimiApiKey" -ForegroundColor White
 }
 
 Write-Host ""
@@ -331,11 +339,42 @@ if (-not [string]::IsNullOrWhiteSpace($kimiApiKey)) {
         Write-Host "[INFO] Provider kimi-for-coding configured (default model: $kimiModel)." -ForegroundColor Green
     }
 } else {
-    Write-Host "[WARN] No API key found (MOONSHOT_API_KEY_* or KIMI_API_KEY_1); skipping provider setup." -ForegroundColor Yellow
+    Write-Host "[WARN] No API key found (KIMI_API_KEY_*); skipping provider setup." -ForegroundColor Yellow
+}
+
+# Idempotent repair: kimi-for-coding is now K2.8 Preview (1M context).
+# Older config.toml model entries may still declare 262144 (256K); refresh them.
+$utf8Encoding = New-Object System.Text.UTF8Encoding($false)
+if (Test-Path -LiteralPath $kimiConfigTomlPath) {
+    $repairLines = [System.IO.File]::ReadAllLines($kimiConfigTomlPath)
+    $repairSectionOf = @()
+    $repairCurrentSection = -1
+    $repairKfcSections = @{}
+    for ($repairIndex = 0; $repairIndex -lt $repairLines.Count; $repairIndex++) {
+        $repairLine = $repairLines[$repairIndex]
+        if ($repairLine -match '^\s*\[') {
+            $repairCurrentSection = $repairIndex
+        }
+        $repairSectionOf += $repairCurrentSection
+        if (($repairCurrentSection -ge 0) -and ($repairLine -match '^\s*model\s*=\s*"kimi-for-coding"')) {
+            $repairKfcSections[$repairCurrentSection] = $true
+        }
+    }
+    $repairChanged = $false
+    for ($repairIndex = 0; $repairIndex -lt $repairLines.Count; $repairIndex++) {
+        $repairSectionKey = $repairSectionOf[$repairIndex]
+        if (($repairSectionKey -ge 0) -and $repairKfcSections.ContainsKey($repairSectionKey) -and ($repairLines[$repairIndex] -match '^\s*max_context_size\s*=\s*262144')) {
+            $repairLines[$repairIndex] = 'max_context_size = 1048576'
+            $repairChanged = $true
+        }
+    }
+    if ($repairChanged) {
+        [System.IO.File]::WriteAllLines($kimiConfigTomlPath, [string[]]$repairLines, $utf8Encoding)
+        Write-Host "[INFO] Repaired kimi-for-coding model entries to K2.8 Preview (1M context)." -ForegroundColor Green
+    }
 }
 
 # Permission mode: Never Ask (disables "Approve once" prompts); idempotent.
-$utf8Encoding = New-Object System.Text.UTF8Encoding($false)
 if (Test-Path -LiteralPath $kimiConfigTomlPath) {
     $configLines = [System.IO.File]::ReadAllLines($kimiConfigTomlPath)
     $permissionFound = $false

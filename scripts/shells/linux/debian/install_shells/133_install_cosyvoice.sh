@@ -64,7 +64,12 @@ if [[ "${COSYVOICE_SKIP:-0}" != "1" ]]; then
             exit 1
         fi
         install_method_record_backend cosyvoice docker
-        echo "[cosyvoice][i] docker platform ready; per-engine compose service assets are delivered by the compose generation step (tracked as pending)."
+        . "$SCRIPT_DIR/../../common/tts_docker_compose_common.sh"
+        if ! tts_docker_apply_engine cosyvoice "$TARGET_DIR"; then
+            echo "[cosyvoice][!] docker compose apply failed (phase above); docker backend is not ready." >&2
+            exit 1
+        fi
+        echo "[cosyvoice][OK] docker compose service converged (project pycore-tts-cosyvoice)."
         exit 0
     fi
     install_method_record_backend cosyvoice native

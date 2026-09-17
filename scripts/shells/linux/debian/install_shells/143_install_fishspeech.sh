@@ -62,7 +62,12 @@ if [[ "${FISHSPEECH_SKIP:-0}" != "1" ]]; then
             exit 1
         fi
         install_method_record_backend fishspeech docker
-        echo "[fishspeech][i] docker platform ready; per-engine compose service assets are delivered by the compose generation step (tracked as pending)."
+        . "$SCRIPT_DIR/../../common/tts_docker_compose_common.sh"
+        if ! tts_docker_apply_engine fishspeech "$TARGET_DIR"; then
+            echo "[fishspeech][!] docker compose apply failed (phase above); docker backend is not ready." >&2
+            exit 1
+        fi
+        echo "[fishspeech][OK] docker compose service converged (project pycore-tts-fishspeech)."
         exit 0
     fi
     install_method_record_backend fishspeech native

@@ -601,3 +601,35 @@
 1. **pyservice 自动运行反复弹 20 秒安装方式倒计时**：根因——`win_common/InstallMethodCommon.ps1::Select-TtsInstallMethod` 缺少 Linux 侧已有的 "2b 单选项快速路径"（`install_method_common.sh` 第 200-208 行）：voxcpm2 等 native 单选项引擎在 Windows 上首次运行也进倒计时。已补 PS 版 2b 分支：单选项引擎直接持久化默认方式（source=timeout_default）并返回，无倒计时；多选项引擎行为不变（已保存选择直接复用）。PS AST 解析通过。
 2. **pip/临时目录落到 C 盘**：pycore 侧本就全部经 `pygvar.TMP_DIR`（`D:\.tmp`）且 pygvar import 时已重定向 TEMP/TMP/TMPDIR + `tempfile.tempdir`；C 盘来源是 PowerShell 安装器直接调 pip 时进程 TEMP/TMP 仍为系统默认。修复：`win_common/GlobalVars.ps1` 在 `$Global:TEMP_DIR` 定义后确保目录存在并把 `$env:TEMP`/`$env:TMP` 重定向到 `D:\.tmp`（单点修复，所有引用 `$env:TEMP` 的既有脚本随之落到 D 盘）。pycore 内 6 处 `tempfile` 调用复查全部已带 `dir=TMP_DIR`，无遗留。
 3. **qwen3tts 每次启动“重新安装”**：实查本机 `.ai_policy_fingerprint` 与当前指纹一致、`_stamp_matches/core_ready/venv_ready` 均 True；实跑 `ensure_venv('qwen3tts')` 2.8s 短路返回、无任何 pip 调用。用户所见修复段是本轮步骤 03 给 qwen3tts spec 增补 `isolation_mode` 字段导致的一次性指纹迁移重建（`engine_fingerprint` 含该字段），之后已稳定。非递归 bug。
+
+---
+
+## 步骤 10.1/14/19 与 Fish Speech 本地推理 实现记录（2026-09-17 第四轮）
+
+### 10.1 CosyVoice PCM 采样率元数据化 — 完成
+
+- `cosyvoice_engine.py`：删除硬编码 `_SAMPLE_RATE=22050`，新增 `_sample_rate()`：`COSYVOICE_SAMPLE_RATE` 覆盖 → 模型元数据推导（CosyVoice2 家族 24000 Hz，1.x 22050 Hz；默认 tier `iic/CosyVoice2-0.5B` → 24000）。**顺带修正了默认值错误**（旧 22050 对 CosyVoice2 会产生降速音频）。冒烟：默认 24000、覆盖 16000 生效。
+
+### 步骤 14 — 状态/故障细分 — 完成（核心）
+
+- `tts_engine_probe.py`：新增 `_self_contained_reason()`——五引擎的状态按“python310 未注册（含安装指引）/ 基解释器不兼容 / venv 未构建”分层，兼容性判定基于解析出的基解释器而非宿主 3.13。voxcpm2 删除“宿主 3.13 不兼容”旧逻辑；cosyvoice/gptsovits/fishspeech 的 reason 顺序为 配置 → 显式外部 URL → venv/基解释器 → 不可达。
+- fishspeech 的 SDK 就绪判定改认 venv（fishaudio 已不在主解释器）。
+- `tts_status.py::engine_chunked`：分块能力集扩为 qwen3tts/voxcpm2/melotts/fishspeech/cosyvoice/gptsovits（能力标志，与逐任务统计分离）。
+- 冒烟：五引擎 reason 分别给出 python310_not_registered（含 Step13/14 指引）或配置缺失提示，不再是误导性的宿主版本错误。
+
+### Fish Speech 本地推理托管 — 完成
+
+- `runtime_policy.py` fishspeech：`torch_packages=("torch==2.8.0","torchaudio==2.8.0")`（上游 pyproject ABI 钉版）+ `torch_index_tag="cu128"`（2.8.0 无 cu130 wheel）；health_imports 补 torch。
+- `isolated_venv.py::_torch_stack_target` 支持 per-engine `torch_index_tag` 覆盖。
+- `tts_service_manager.py`：fishspeech 启动分支——本地模式（staging 有官方 `tools/api_server.py` 且 `checkpoints/<name>/config.json` 就绪）优先，用 venv 解释器带 `--listen host:port --checkpoint-path` 启动官方服务；否则回退桥接（bridge/SDK）。绑定改为 loopback（原 0.0.0.0），新增 `_fishspeech_checkpoint_dir()`。
+- 安装器 143/Step56：新增 checkpoint 下载段（`fishaudio/openaudio-s1[-mini]` → `checkpoints/<name>`，sentinel + 断点续传；失败只告警不失败整步——bridge/SDK 模式不依赖权重）。
+- 验证：bash -n / PS AST / py_compile 通过；compose/venv 路径静态一致。**未运行真实安装与推理**。
+
+### 步骤 19 — 逐引擎 compose 资产 — 完成（资产 + 收敛链）
+
+- 新增 `scripts/shells/docker_compose/tts/<engine>/` × 5：`Dockerfile`（python:3.10-slim 固定基底、torch 走官方 cpu index 构建参数、权重/缓存走卷、project-managed 标注）+ `compose.yml`（loopback 端口、`restart: "no"` 服从托管生命周期、ownership labels、内容指纹）+ `compose.gpu.yml`（NVIDIA 设备预约 overlay）。
+- 新增 `linux/common/tts_docker_compose_common.sh`：`tts_docker_apply_engine`——资产按内容比对同步到 `<staging>/docker`、设备解析（`<ENGINE>_DEVICE` 显式优先，auto 探测 nvidia-smi）、compose 指纹一致且容器存在则跳过 up（不重建、不重拉）、仅本项目 `pycore-tts-<engine>` 项目级 `up -d --build`。
+- 新增无编号入口 `apply_tts_docker_for_engine.sh`（与 ensure_docker_for_tts.sh 同角色，供 Windows WSL 桥复用同一 Linux 链）。
+- Linux 四个安装器（133/137/139/143）docker 分支从“打印 pending”改为实际 `tts_docker_apply_engine`；voxcpm2 保持 native 单选项。
+- Windows：`DockerWslBridge.ps1` 新增 `Invoke-TtsDockerApply`——wsl_engine 经 `wsl.exe --exec` + wslpath 调同一 Linux 入口；desktop_wsl2 直接在 Windows 上 `docker compose`（Desktop 自行转换卷路径）；指纹跳过逻辑与 Linux 一致。Step52/54/55/56 docker 分支接入。
+- 验证：5×3 compose 文件 YAML 解析通过且服务名匹配；新增/改动 sh `bash -n` 通过；PS AST 通过。**未运行 docker build/up**（按约束）；83/99/selector 的旧服务器栈生成器与 TTS 逐引擎服务正交，其共享生成函数重构仍 deferred。
