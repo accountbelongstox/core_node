@@ -134,7 +134,8 @@ execute_installation_scripts() {
         if [ ! -x "$script" ]; then
             chmod +x "$script"
         fi
-        "$script" 
+        # Unattended chain: prompt_read_default calls return defaults immediately.
+        DD_AUTO_CONTINUE=true "$script"
     done
 }
 

@@ -421,7 +421,7 @@ prompt_installation() {
         echo "You appear to be on a server without a desktop environment."
         echo ""
         echo -n "Install RustDesk Client anyway? (N/y): "
-        read -r response
+        prompt_read_default response "n" 30
 
         case "$response" in
             [yY]|[yY][eE][sS])

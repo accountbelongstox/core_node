@@ -121,6 +121,10 @@ echo
 # (INSTALL_* follows the START_* toggles; the apt repo is skipped/removed too).
 echo "Services will be installed, START_* variables control service startup..."
 
+# The selector above is the only interactive step. From here on the chain runs
+# unattended: every prompt_read_default call returns its documented default
+# immediately instead of waiting on the TTY.
+export DD_AUTO_CONTINUE=true
 
 execute_installation_scripts
 

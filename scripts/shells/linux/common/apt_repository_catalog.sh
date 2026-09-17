@@ -557,7 +557,7 @@ add_apt_repository_from_apt_repository_manager() {
             return 1
         fi
         
-        if curl -fsSL "$key_url" | $USE_SUDO gpg --dearmor -o "$key_file" 2>/dev/null; then
+        if curl -fsSL "$key_url" | $USE_SUDO gpg --dearmor --yes -o "$key_file" 2>/dev/null; then
             echo "GPG key added successfully"
         else
             echo "WARNING: Failed to add GPG key" >&2
