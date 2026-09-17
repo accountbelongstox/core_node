@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Persistent TTS priority, cooldown, and display-command policy (canonical: pyutils.tts)."""
 
+import hashlib
 import os
 import shlex
 import time
