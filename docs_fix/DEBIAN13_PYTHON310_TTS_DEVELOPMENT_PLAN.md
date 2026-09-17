@@ -528,3 +528,76 @@
 - **步骤 20（Windows WSL 桥）**：已实现。`DockerWslBridge.ps1` 提供 desktop_wsl2/wsl_engine 双提供者；wsl_engine 经 `wslpath` + `wsl.exe --exec` 参数数组调用同一 Linux 链并强制 START_DOCKER；Step30 缺失发行版时调度，Step29（需重启）有意仅报告不自动触发。
 - **句子 Qwen 独占（业务契约）**：已实现。`engine_policy.py` 新增 `_SENTENCE_PINNED_TTS`，`configured_tts_priority("sentence")` 仅返回 qwen3tts；import 冒烟验证三链正确；词语链既有 `_WORD_EXCLUDED` 未改。
 - **验证**：9 bash `bash -n` OK；7 PS AST 解析 OK；`node --check` OK；`py_compile` OK；安装端到端 **未运行**。
+
+---
+
+## 步骤 02/03/07/08/09/10/11/12/13 实现记录（2026-09-17 第三轮）
+
+> 前两轮记录见步骤 16-20 实现记录与 `docs_fix/TTS_DOCKER_INSTALL_METHOD_DEVELOPMENT_PROGRESS.md`。
+> 注意：02/03/07 的记录此前因写入标记错误未落盘，本节补齐。本轮验证为静态语法/解析与逻辑冒烟；**未运行真实安装、venv 创建或推理**。
+
+### 步骤 02 — 完成（前序轮次）
+
+- `scripts/shells/ai_runtime_policy.env` 新增 `AI_PYTHON310_VERSION='3.10'`；`runtime_abi.py` 新增 `PYTHON310_VERSION`、`ISOLATION_MODE_OVERLAY/SELF_CONTAINED`。
+- `runtime_policy.py::resolve_engine_base_python(engine)`：引擎 override `<ENGINE>_PYTHON` → 已注册 3.10（env/pygvar/`python310` 链接）→ 报告缺失，**永不回落宿主 3.13**。
+- `win_common/GlobalVars.ps1` 注册 `PYTHON310_*` 全局变量；不复写默认 `PYTHON_EXE_PATH`。
+
+### 步骤 03 — 完成（前序轮次）
+
+- 五引擎 spec：`isolated=True`、`isolation_mode=self_contained`、`python_recommended=3.10`、`device_policy=auto`、`upstream`/`limits` 证据落码；qwen3tts 显式 `overlay` 不变。新字段进入 `engine_fingerprint`。
+
+### 步骤 07 — 完成（前序轮次）
+
+- `isolated_venv_runtime.py`：`venv_dir(engine, version_tag)`、`_find_existing_venv_python`（跨 ABI 扫描）、`_engine_venv_dir`、`resolve_python` self_contained 分支、`_subprocess_env(clean=)`（剥 PYTHONPATH/PYTHONHOME + PYTHONNOUSERSITE，仅 self_contained venv 子进程）、`_create_venv(base_python, target)`、基身份 stamp/指纹。
+- `isolated_venv.py`：`_ensure_venv_self_contained`（解析基→兼容窗口→按基 tag 建 venv→基身份比对阻断→`_install_into(self_contained=True)` 跳过共享覆盖移除与共享约束）。
+
+### 步骤 04/05/06 — 完成（前序轮次，本轮核实代码）
+
+- `Step8_InstallPython.ps1`→`Step8_InstallDefaultPython.ps1`；Linux `13_install_default_python.sh`、`15_install_default_python_prereq_packages.sh`、`19_install_default_pipx.sh`、`21_install_default_poetry.sh` 均已改名在库。
+- 新增 `Step13_InstallPython310.ps1`（winget `Python.Python.3.10`，写 GlobalVar + pygvar `PYTHON310_EXE_PATH`，python310.cmd/pip310.cmd 独立入口）与 `14_install_python310.sh`（独立 prefix + `make altinstall` 语义 + `/usr/local/bin/python310|pip310` 链接 + set_var 登记）。引用（InstallerScriptsList、WinScriptsInstaller、AppInstallMenu、pyservice.ps1 提示）已同步。
+
+### 步骤 08 — 完成（本轮）
+
+- **政策层**：`runtime_policy.py` 五引擎 spec 新增 `torch_packages`（cosyvoice/gptsovits: torch+torchaudio；melotts/voxcpm2: torch；fishspeech 桥接范围不带 torch，health_imports 去掉 `import torch` 并注明本地推理托管为待办）；`engine_spec()` 归一化该字段；新增 `base_interpreter_compatibility()` + CLI `base-compatibility`（解析基解释器并探测其版本，宿主 3.13 不再误杀 3.10-3.12 窗口引擎）。
+- **venv 层**：`isolated_venv.py` 新增 `_torch_stack_target()`（`<ENGINE>_DEVICE=cpu` 显式优先 → cpu index；`cuda*` → 已配置 CUDA tier 索引；auto → 宿主 torch 探测）与 `_install_torch_stack()`（先于引擎包装入 venv，设备感知 index：CPU 用官方 cpu index，CUDA 用 `TORCH_INDEX_BASE/<tag>`）；`_ensure_venv_self_contained` 在 `_install_into` 前调用。修复 `_install_package_steps` 把 `-r <file>` 拆成两次 pip 调用的缺陷（选项与路径现在成组）。
+- **兼容门**：`TtsCompatibilityCommon.ps1::Test-TtsEngineCompatible` 与 `tts_install_assets_common.sh::tts_engine_compatible` 的 isolated 回落从“仅 `<ENGINE>_PYTHON` override”改为 `base-compatibility`（override → 注册 3.10）。
+- **十个安装器**：Step52/56/58 与 133/143/147 的依赖段从“主解释器 pip”改为 `Invoke-IsolatedTtsVenvEnsure` / `tts_provision_isolated_venv`（linux 助手扩展为可传显式 pip 包列表，cosyvoice 传 `-r requirements.txt`）；完成探针去掉主解释器 import 检查（voxcpm/fishaudio 不再入主环境）；就绪捷径增加 venv provisioned 条件；fishspeech 安装器同步 `tts_text_chunking.py` 到 staging。Step54/55/137/139 清扫“--system-site-packages 复用宿主 torch”的过期注释，移除对主/基解释器的 `Install-PycoreTorchStack`/`install_pycore_torch_stack` 调用（torch 由 venv 自带）。
+- **验证**：6 个 PS AST 解析 OK（含 TtsCompatibilityCommon）；5 个 sh `bash -n` OK（含 tts_install_assets_common）；runtime_policy/isolated_venv `py_compile` OK；`base-compatibility` CLI 在无 3.10 时正确报 `python310_not_registered`。未运行真实安装。
+
+### 步骤 09/10 — 完成（本轮，服务层）
+
+- **VoxCPM2 model→server**：新增 `pycore/tts_install_assets/voxcpm2_api_server.py`（FastAPI；`/health` `/load` `/synthesize`；模型常驻一次加载；服务端 `generate_chunked` 分段：拆分→逐块原生 generate→校验→按序拼接；prompt_wav/prompt_text/cfg/timesteps 可透传；恒出 PCM16 WAV）；`voxcpm2_engine.py` 重写为 stdlib urllib HTTP 客户端（镜像 melotts_engine；mp3 目标在主进程经 `audio_utils.wav_to_mp3` 转换）；`engine_registry.py` 改 `managed_kind="server"` + health_paths + availability_signal；`tts_service_manager.py` 新增 `_voxcpm2_start_command`（venv 解析、资产直启、VOXCPM2_* 透传、模型 id 解析）、`_server_scripts` 代码身份三文件；`network_constants.py` 新增 `VOXCPM2_HTTP_PORT=57214`/`VOXCPM2_HTTP_TIMEOUT_SECONDS=900`。
+- **MeloTTS（10.5）**：`melotts_api_server.py` 新增 `_synthesize_guarded`——owner=native、soft==hard==400 的保护性分段：正常文本单次原生调用（不二次插静音、不二次调速），仅超长输入分段、逐块原生合成、块间策略停顿。
+- **CosyVoice/GPT-SoVITS（10.1/10.4）**：客户端保护性分段——新增 `pycore/pyutils/tts/chunked_synthesis.py`（按路径加载共享 `tts_text_chunking.py`；stdlib wave 做 PCM 帧级拼接，参数不一致即报错）；两个 engine 接入，单块直达保持旧行为；`tts_service_manager` 的 cosyvoice/fishspeech 启动切到 `resolve_isolated_python` + `_isolated_env`（剥 PYTHONPATH/PYTHONHOME）。
+- **Fish Speech（10.2）**：桥接 `fishspeech_api_server.py` upstream 模式服务端分段（project owner，soft 200；逐块 `format=wav` 请求上游、wave PCM 拼接；云 SDK 路径保持单发）；修掉硬编码临时目录之外的改造维持现状（TMP_DIR 仍为既有行为）。
+- **验证**：10 文件 py_compile OK；chunked_synthesis 冒烟（单块直达、4 块拼接帧数精确 11938、块失败整任务失败）；voxcpm2 服务模块按路径加载冒烟（health/400 正常）；melotts guard 与 fishspeech 桥拼接帧数精确；主进程注册表/服务管理器导入冒烟通过（voxcpm2 无 venv 时 `start_command` 返回 None、disabled_reason 指向安装器）。**未运行真实推理**。
+
+### 步骤 11 — 完成（前序轮次 + 本轮接入）
+
+- `tts_text_chunking.py`（纯 stdlib：缩写/小数/域名/首字母屏蔽，句→从句→空白→Unicode 安全硬切，ChunkBudgetError）与 `tts_audio_assembly.py`（重试上限、总期限、块边界取消、校验、定停拼接、拒绝半成品）前序已建并经功能验证；本轮被 melotts/voxcpm2/fishspeech 服务端与 pycore 客户端助手实际接入。
+
+### 步骤 12 — 完成（核实既有 + 本轮小修）
+
+- `engine_policy.py`：`configured_tts_priority("sentence")` 钉死 qwen3tts；word 链 `_DEFAULT_WORD_PRIORITY` 含五引擎且排除 qwen3tts；用户持久化 word 偏好档（`TTS_WORD_PRIORITY`/`word_tts`）既有。`laravel_audio_worker.py`：`PRIORITY_PROFILE="word"` + `REQUIRED_ENGINE=None`（自动 word 优先级），句子 worker 子类 `REQUIRED_ENGINE=QWEN3TTS_ENGINE` 未动。`word_audio_cache` 键含 engine。
+- 本轮小修：`tts_engine_probe.engine_installed` 的 cosyvoice/fishspeech/voxcpm2 改以 `isolated_venv.venv_ready` 为准（不再探测主解释器包）。
+- 验证：`configured_tts_priority` 三链断言冒烟通过。
+
+### 步骤 13 — 完成（核实既有 + 本轮小修）
+
+- Linux `prepare_pycore_prerequisites.sh` manifest：`python310|14_install_python310.sh` 位于 cuda_policy 之后、五个 TTS 引擎之前；五引擎条目齐全（neural/explicit 模式正确）。
+- Windows：`InstallerScriptsList.ps1`/`WinScriptsInstaller.ps1`/`AppInstallMenu.ps1` 已登记 Step13；**本轮补** `PycorePrerequisitesList.ps1` 缺失的 `python310` 条目（位于 cuda_policy 与 python_prereqs 之间），否则五引擎自包含安装在 Windows 全量链上缺基解释器。
+- Mode 2 / headless / systemd 路径沿用既有实现，未改动。
+
+### 衔接状态（未完成项）
+
+- 步骤 14（状态枚举/故障细分/迁移）：未开始。
+- 步骤 19（逐引擎 compose 服务资产）：仍 pending（16-20 记录已声明）。
+- Fish Speech 本地 `fish_speech` 推理托管（10.2 的 local 模式权重+codec）：仍 pending；当前 venv 承载 bridge/SDK 范围。
+- 10.1 的“PCM 采样率从服务元数据读取”（cosyvoice 客户端当前固定 22050）：未实施。
+- 真实安装/推理/听验：未运行（按约束）。
+
+### BUG 修复记录（2026-09-17 第三轮续，来源 docs_fix/origin/todebian_fix_item）
+
+1. **pyservice 自动运行反复弹 20 秒安装方式倒计时**：根因——`win_common/InstallMethodCommon.ps1::Select-TtsInstallMethod` 缺少 Linux 侧已有的 "2b 单选项快速路径"（`install_method_common.sh` 第 200-208 行）：voxcpm2 等 native 单选项引擎在 Windows 上首次运行也进倒计时。已补 PS 版 2b 分支：单选项引擎直接持久化默认方式（source=timeout_default）并返回，无倒计时；多选项引擎行为不变（已保存选择直接复用）。PS AST 解析通过。
+2. **pip/临时目录落到 C 盘**：pycore 侧本就全部经 `pygvar.TMP_DIR`（`D:\.tmp`）且 pygvar import 时已重定向 TEMP/TMP/TMPDIR + `tempfile.tempdir`；C 盘来源是 PowerShell 安装器直接调 pip 时进程 TEMP/TMP 仍为系统默认。修复：`win_common/GlobalVars.ps1` 在 `$Global:TEMP_DIR` 定义后确保目录存在并把 `$env:TEMP`/`$env:TMP` 重定向到 `D:\.tmp`（单点修复，所有引用 `$env:TEMP` 的既有脚本随之落到 D 盘）。pycore 内 6 处 `tempfile` 调用复查全部已带 `dir=TMP_DIR`，无遗留。
+3. **qwen3tts 每次启动“重新安装”**：实查本机 `.ai_policy_fingerprint` 与当前指纹一致、`_stamp_matches/core_ready/venv_ready` 均 True；实跑 `ensure_venv('qwen3tts')` 2.8s 短路返回、无任何 pip 调用。用户所见修复段是本轮步骤 03 给 qwen3tts spec 增补 `isolation_mode` 字段导致的一次性指纹迁移重建（`engine_fingerprint` 含该字段），之后已稳定。非递归 bug。

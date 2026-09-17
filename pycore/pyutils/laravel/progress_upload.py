@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Durable offset-based uploads shared by Pycore-to-Laravel producers."""
 
+import copy
 import hashlib
 import sys
 import time
@@ -35,7 +36,7 @@ class LaravelProgressUploader:
             self._completed.pop(expired_key)
         cached = self._completed.get(key)
         if cached is not None:
-            return {"receipt": dict(cached[1])}
+            return {"receipt": copy.deepcopy(cached[1])}
         signal = self._in_flight.get(key)
         if signal is not None:
             self._waiters[signal] += 1
@@ -50,10 +51,10 @@ class LaravelProgressUploader:
         self._in_flight.pop(key, None)
         if succeeded:
             self._completed[key] = (
-                time.monotonic() + float(self._contract["dedup_window_seconds"]), dict(result),
+                time.monotonic() + float(self._contract["dedup_window_seconds"]), copy.deepcopy(result),
             )
         if self._waiters[signal]:
-            THREAD_BUS.signal(signal, {"success": succeeded, "result": dict(result), "error": error})
+            THREAD_BUS.signal(signal, {"success": succeeded, "result": copy.deepcopy(result), "error": error})
         else:
             self._waiters.pop(signal)
 
@@ -100,7 +101,8 @@ class LaravelProgressUploader:
         if total_bytes <= 0:
             raise RuntimeError("Laravel upload content is empty")
 
-        dedup_key = self._dedup_key(path, base_url, params, content_sha256)
+        target_url = laravel_client._build_url(path, base_url)
+        dedup_key = self._dedup_key(target_url, None, params, content_sha256)
         identity = self._identity_from_params(params)
         identity_part = f"{identity} " if identity else ""
         flight = self._begin(dedup_key)
@@ -113,12 +115,12 @@ class LaravelProgressUploader:
                 self._consume(flight["signal"])
             if not outcome["success"]:
                 raise RuntimeError(outcome["error"] or "The shared Laravel upload failed")
-            return dict(outcome["result"])
+            return copy.deepcopy(outcome["result"])
         succeeded = False
         result: Dict[str, Any] = {}
         try:
             result = self._upload_chunks(
-                path,
+                target_url,
                 content,
                 content_sha256,
                 params=params,
@@ -230,6 +232,8 @@ class LaravelProgressUploader:
             offset = next_offset
             busy = False
             progress_state.advance(offset)
+            if offset == total_bytes and not result.get("upload_complete"):
+                raise RuntimeError("Laravel upload reached the final offset without completion receipt")
             self._publish_progress(
                 path,
                 content_sha256,
@@ -241,8 +245,6 @@ class LaravelProgressUploader:
                 identity,
             )
 
-        if not result.get("upload_complete"):
-            raise RuntimeError("Laravel upload reached the final offset without completion receipt")
         return result
 
     @staticmethod
@@ -251,7 +253,7 @@ class LaravelProgressUploader:
             body = response.json()
         except ValueError as exc:
             raise RuntimeError(
-                f"Laravel upload returned HTTP {response.status_code} with invalid JSON"
+                f"HTTP {response.status_code}: Laravel upload returned invalid JSON"
             ) from exc
         if response.status_code >= 400 or not isinstance(body, dict) or not body.get("success"):
             error = (
@@ -259,7 +261,8 @@ class LaravelProgressUploader:
                 if isinstance(body, dict)
                 else None
             )
-            raise RuntimeError(f"Laravel upload failed: {error or response.status_code}")
+            detail = f"Laravel upload failed: {error or response.status_code}"
+            raise RuntimeError(f"HTTP {response.status_code}: {detail}" if response.status_code >= 400 else detail)
         data = body.get("data")
         if not isinstance(data, dict):
             raise RuntimeError("Laravel upload response has no data receipt")

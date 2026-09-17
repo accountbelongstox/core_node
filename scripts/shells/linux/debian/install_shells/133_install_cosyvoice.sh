@@ -1,7 +1,10 @@
 #!/bin/bash
 # CosyVoice prerequisite (Linux) - FunAudioLLM FastAPI server on :50000.
-# Auto-run by prepare_pycore_prerequisites.sh (pyservice). Clones FunAudioLLM/CosyVoice idempotently.
-# pycore's cosyvoice engine is an HTTP CLIENT to runtime/python/fastapi/server.py.
+# Auto-run by prepare_pycore_prerequisites.sh (pyservice). Clones FunAudioLLM/CosyVoice idempotently
+# and builds a DEDICATED self-contained per-engine venv (base Python 3.10) via
+# isolated_venv.ensure_venv('cosyvoice', ...) - never the main interpreter.
+# pycore launches runtime/python/fastapi/server.py under that venv on demand (class C);
+# the main interpreter is only an HTTP CLIENT.
 #
 # Official: https://github.com/FunAudioLLM/CosyVoice
 #   python runtime/python/fastapi/server.py --port 50000 --model_dir iic/CosyVoice2-0.5B
@@ -128,9 +131,12 @@ fi
 if tts_engine_compatible "$PYTHON" "cosyvoice" "[install_cosyvoice] " \
     && [[ -f "$REPO_MARKER" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
     && tts_dependencies_ready "$PYTHON" "cosyvoice" "$DEPS_SENTINEL"; then
-    echo "[install_cosyvoice] [OK] already installed."
-    echo "[install_cosyvoice]  START: cd \"$TARGET_DIR\" && python runtime/python/fastapi/server.py --port 50000"
-    complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    tts_probe_isolated_venv_provisioned "$PYTHON" "cosyvoice"
+    if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]]; then
+        echo "[install_cosyvoice] [OK] already installed."
+        echo "[install_cosyvoice]  Runtime: pycore launches runtime/python/fastapi/server.py (class C) under the isolated venv on demand."
+        complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    fi
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_cosyvoice] [i] opt-in only. Pass --full, COSYVOICE_INSTALL=1, or NEURAL_TTS_INSTALL=1."
@@ -165,20 +171,30 @@ if ! init_cosyvoice_submodules; then
     fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
 fi
 
-if tts_dependencies_ready "$PYTHON" "cosyvoice" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
+# --- Isolated venv (Bucket B, self-contained): CosyVoice and its pinned
+#     dependencies go only into the dedicated Python 3.10 venv; the main
+#     interpreter (3.13) is outside the official 3.10-3.12 window and is never
+#     touched. pycore launches runtime/python/fastapi/server.py under that venv
+#     on demand (class C). --- #
+tts_probe_isolated_venv_provisioned "$PYTHON" "cosyvoice"
+if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_dependencies_ready "$PYTHON" "cosyvoice" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated venv already provisioned (.deps_done)"
 else
-    install_pycore_torch_stack "$PYTHON" "[install_cosyvoice] "
-    [[ -f "$TARGET_DIR/requirements.txt" ]] && pip_i -r "$TARGET_DIR/requirements.txt" || true
-    pip_i fastapi uvicorn modelscope huggingface_hub onnxruntime || true
-    if tts_engine_health_ok "$PYTHON" "cosyvoice" && tts_write_dependency_stamp "$PYTHON" "cosyvoice" "$DEPS_SENTINEL"; then
-        echo "[install_cosyvoice] [OK] dependencies installed."
+    if [[ ! -f "$TARGET_DIR/requirements.txt" ]]; then
+        echo "[install_cosyvoice] [!] requirements.txt missing at $TARGET_DIR." >&2
+        fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    fi
+    echo "[install_cosyvoice] [..] building/verifying isolated cosyvoice venv (ensure_venv; first build takes minutes) ..."
+    tts_provision_isolated_venv "$PYTHON" "cosyvoice" "$FORCE" \
+        -r "$TARGET_DIR/requirements.txt" fastapi uvicorn modelscope huggingface_hub onnxruntime
+    if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_write_dependency_stamp "$PYTHON" "cosyvoice" "$DEPS_SENTINEL"; then
+        echo "[install_cosyvoice] [OK] isolated cosyvoice venv ready (policy stamp written)."
     else
-        echo "[install_cosyvoice] [!] dependencies are incomplete; retrying next run." >&2
+        echo "[install_cosyvoice] [!] venv build incomplete; will retry next run (main interpreter untouched)." >&2
         fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
     fi
 fi
 
 echo "[install_cosyvoice] [OK] ready. Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)."
-echo "[install_cosyvoice]  START: cd \"$TARGET_DIR\" && python runtime/python/fastapi/server.py --port 50000 --model_dir $_cosy_model"
+echo "[install_cosyvoice]  Runtime: pycore launches runtime/python/fastapi/server.py (class C) under the isolated venv on demand."
 complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch

@@ -73,19 +73,16 @@ tts_engine_compatible() {
     if printf '%s' "$result" | grep -q '"compatible": true'; then
         return 0
     fi
-    override_name="${engine^^}_PYTHON"
-    override_python="${!override_name:-}"
-    if [[ -n "$override_python" && -x "$override_python" ]]; then
-        python_version="$("$override_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
-        if ! result="$(tts_runtime_policy_run "$py" compatibility "$engine" --python-version "$python_version")"; then
-            echo "$prefix[SKIP] $engine runtime policy failed for override interpreter." >&2
-            return 1
-        fi
-        if printf '%s' "$result" | grep -q '"compatible": true'; then
+    # Isolated engines are gated by their resolved BASE interpreter (engine
+    # override, else the registered dedicated Python 3.10), never by the host
+    # interpreter version.
+    if printf '%s' "$result" | grep -q '"isolated": true'; then
+        if result="$(tts_runtime_policy_run "$py" base-compatibility "$engine")" \
+            && printf '%s' "$result" | grep -q '"compatible": true'; then
             return 0
         fi
     fi
-    echo "${prefix}[SKIP] $engine is incompatible with Python $python_version; configure ${engine^^}_PYTHON with a supported interpreter." >&2
+    echo "${prefix}[SKIP] $engine is incompatible with Python $python_version; install the dedicated Python 3.10 or configure ${engine^^}_PYTHON with a supported interpreter." >&2
     return 1
 }
 
@@ -125,28 +122,37 @@ tts_write_dependency_stamp() {
 
 tts_provision_isolated_venv() {
     local py="$1" engine="$2" force="${3:-0}"
-    local repo_root force_value result_file provision_state
+    shift 3 2>/dev/null || shift $#
+    local repo_root force_value result_file provision_state packages_env
     repo_root="$(_core_node_repo_root_from_tts_common)"
     force_value="0"
     [[ "$force" == "1" ]] && force_value="1"
+    packages_env=""
+    if [[ "$#" -gt 0 ]]; then
+        packages_env="$(printf '%s\n' "$@")"
+    fi
     TTS_ISOLATED_VENV_READY=0
     result_file="$(mktemp)"
     PYCORE_ISOLATED_ROOT="$repo_root" \
     PYCORE_ISOLATED_ENGINE="$engine" \
     PYCORE_ISOLATED_FORCE="$force_value" \
+    PYCORE_ISOLATED_PACKAGES="$packages_env" \
     PYCORE_ISOLATED_RESULT_FILE="$result_file" \
     "$py" -c 'import os, sys
 from pathlib import Path
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyutils.common.python_env import isolated_venv
+packages_raw = os.environ.get("PYCORE_ISOLATED_PACKAGES", "")
+pip_packages = [item for item in packages_raw.split("\n") if item] or None
 result = isolated_venv.ensure_venv(
     os.environ["PYCORE_ISOLATED_ENGINE"],
+    pip_packages=pip_packages,
     force=os.environ.get("PYCORE_ISOLATED_FORCE") == "1",
 )
 Path(os.environ["PYCORE_ISOLATED_RESULT_FILE"]).write_text(
     "ready" if result else "not-ready",
     encoding="ascii",
-)' 
+)'
     provision_state="$(tr -d '\r\n' < "$result_file" 2>/dev/null || true)"
     rm -f -- "$result_file"
     [[ "$provision_state" == "ready" ]] && TTS_ISOLATED_VENV_READY=1

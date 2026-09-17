@@ -1,6 +1,10 @@
 #!/bin/bash
-# VoxCPM2 prerequisite (Linux) - OpenBMB in-process TTS (pip voxcpm).
-# GPU hosts install CUDA torch by default (~8GB VRAM recommended).
+# VoxCPM2 prerequisite (Linux) - OpenBMB TTS, ISOLATED self-contained per-engine
+# venv (base Python 3.10; the main 3.13 interpreter is outside the official
+# 3.10-3.12 window and is never touched). Production runs VoxCPM2 as a class-C
+# HTTP server (voxcpm2_api_server.py, port 57214) under that venv; the main
+# interpreter only talks to it over HTTP.
+# GPU hosts install CUDA torch into the venv by default (~8GB VRAM recommended).
 #
 # Official: https://voxcpm.readthedocs.io/en/latest/quickstart.html
 #
@@ -77,31 +81,31 @@ echo "============================================================"
 
 if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
     echo "[install_voxcpm2] [skip] Server environment without desktop and GPU detected. Skipping VoxCPM2 installation."
-    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "server CPU host" voxcpm
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "server CPU host"
     exit 0
 fi
 
 # Honor the skip flag FIRST (before the opt-in / --full gate) so it wins even when the
 # NEURAL_TTS_INSTALL batch would otherwise force a full install. --absent-ok keeps the skip
 # a clean idempotent no-op when VOXCPM2_SKIP=1 (voxcpm legitimately absent).
-[[ "${VOXCPM2_SKIP:-0}" == "1" ]] && { echo "[install_voxcpm2] [i] VOXCPM2_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "VOXCPM2_SKIP=1" voxcpm; }
+[[ "${VOXCPM2_SKIP:-0}" == "1" ]] && { echo "[install_voxcpm2] [i] VOXCPM2_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "VOXCPM2_SKIP=1"; }
 if tts_engine_compatible "$PYTHON" "voxcpm2" "[install_voxcpm2] " \
     && [[ "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
     && tts_dependencies_ready "$PYTHON" "voxcpm2" "$DEPS_SENTINEL"; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "VoxCPM2 already installed"
-    complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] "
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_voxcpm2] [i] opt-in only. Pass --full, VOXCPM2_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "opt-in" voxcpm
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "opt-in"
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_voxcpm2] [!] Python 3 not found."
-    fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+    fail_prereq_step "$PYTHON" "[install_voxcpm2] "
 fi
 if ! tts_engine_compatible "$PYTHON" "voxcpm2" "[install_voxcpm2] "; then
-    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "incompatible Python" voxcpm
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "incompatible Python"
 fi
 
 mkdir -p "$TARGET_DIR"
@@ -115,17 +119,19 @@ _vox_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" voxcpm2_model --gpu)"
 echo "[install_voxcpm2]  model   : ${_vox_model}"
 echo "[install_voxcpm2]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 
-if tts_dependencies_ready "$PYTHON" "voxcpm2" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
+# --- Isolated venv (Bucket B, self-contained): VoxCPM2 and its pinned
+#     dependencies go only into the dedicated Python 3.10 venv. --- #
+tts_probe_isolated_venv_provisioned "$PYTHON" "voxcpm2"
+if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_dependencies_ready "$PYTHON" "voxcpm2" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated venv already provisioned (.deps_done)"
 else
-    install_pycore_torch_stack "$PYTHON" "[install_voxcpm2] "
-    echo "[install_voxcpm2] [..] pip install voxcpm soundfile ..."
-    pip_i voxcpm soundfile || true
-    if tts_engine_health_ok "$PYTHON" "voxcpm2" && tts_write_dependency_stamp "$PYTHON" "voxcpm2" "$DEPS_SENTINEL"; then
-        echo "[install_voxcpm2] [OK] dependencies installed."
+    echo "[install_voxcpm2] [..] building/verifying isolated voxcpm2 venv (ensure_venv; first build takes minutes) ..."
+    tts_provision_isolated_venv "$PYTHON" "voxcpm2" "$FORCE"
+    if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_write_dependency_stamp "$PYTHON" "voxcpm2" "$DEPS_SENTINEL"; then
+        echo "[install_voxcpm2] [OK] isolated voxcpm2 venv ready (policy stamp written)."
     else
-        echo "[install_voxcpm2] [!] dependencies are incomplete; retrying next run." >&2
-        fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+        echo "[install_voxcpm2] [!] venv build incomplete; will retry next run (main interpreter untouched)." >&2
+        fail_prereq_step "$PYTHON" "[install_voxcpm2] "
     fi
 fi
 
@@ -151,12 +157,12 @@ if [[ "$_model_ready" -eq 0 ]]; then
         echo "[install_voxcpm2] [OK] model '$_vox_model' ready at $WEIGHTS_DIR."
     else
         echo "[install_voxcpm2] [!] model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
-        fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+        fail_prereq_step "$PYTHON" "[install_voxcpm2] "
     fi
 fi
 
 if [[ "$_model_ready" -ne 1 ]]; then
-    fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+    fail_prereq_step "$PYTHON" "[install_voxcpm2] "
 fi
 
 echo "[install_voxcpm2] [OK] VoxCPM2 ready. Weights pre-downloaded (idempotent); engine auto-detects local."
@@ -164,4 +170,4 @@ if [[ -f "$MODEL_SENTINEL" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "
     echo "[install_voxcpm2]  local weights auto-detected: $WEIGHTS_DIR"
 fi
 echo "[install_voxcpm2]  Optional: export VOXCPM2_MODEL=${_vox_model}"
-complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+complete_prereq_step "$PYTHON" "[install_voxcpm2] "

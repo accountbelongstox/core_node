@@ -19,6 +19,19 @@ HTTP_PROGRESS_SIGNAL_PREFIX = "http.transfer"
 HTTP_PROGRESS_SCOPE_PREFIX = "http.transfer.scope"
 
 
+def _close_progress(signal: str, method: str, path: str) -> None:
+    progress = THREAD_BUS.get_signal(signal)
+    try:
+        if progress is not None:
+            ColorPrint.gray(
+                f"[http upload] {method} {path} "
+                f"bytes={progress['transferred_bytes']}/{progress['total_bytes']} "
+                f"phase={progress['phase']}"
+            )
+    finally:
+        THREAD_BUS.clear_signal(signal)
+
+
 def _request_error(error: Any) -> Exception:
     httpx = get_third_package_httpx()
     requests = get_third_package_requests()
@@ -72,7 +85,10 @@ class HttpProgressContent:
         self._publish(transferred, "awaiting_receipt")
 
     def _publish(self, transferred: int, phase: str) -> None:
+        signal = f"{HTTP_PROGRESS_SIGNAL_PREFIX}.{self._transfer_id}"
+        previous = THREAD_BUS.get_signal(signal, {})
         record = {
+            **previous,
             "transfer_id": self._transfer_id,
             "path": self._path,
             "transferred_bytes": transferred,
@@ -81,26 +97,45 @@ class HttpProgressContent:
             "phase": phase,
             "observed_at": time.monotonic(),
         }
-        THREAD_BUS.signal(f"{HTTP_PROGRESS_SIGNAL_PREFIX}.{self._transfer_id}", record)
+        THREAD_BUS.signal(signal, record)
         if self._callback is not None:
             self._callback(dict(record))
 
 
 class HttpProgressResponseStream:
-    def __init__(self, response: Any) -> None:
+    def __init__(self, response: Any, content: HttpProgressContent,
+                 signal: str, callbacks: Any) -> None:
         self._response = response
+        self._content = content
+        self._signal = signal
+        self._callbacks = callbacks
+        self._closed = False
 
-    def stream(self, amt: int, decode_content: bool = True):
+    def stream(self, amt: Optional[int] = None, decode_content: bool = True):
         httpx = get_third_package_httpx()
         try:
-            yield from self._response.iter_bytes(chunk_size=amt)
+            yield from HttpProgressClient._response_content(
+                self._response, self._signal, self._callbacks, amt, decode_content,
+            )
+            progress = THREAD_BUS.get_signal(self._signal)
+            if progress is not None:
+                self._content._publish(
+                    progress["transferred_bytes"],
+                    "received" if self._response.status_code < 400 else "rejected",
+                )
         except httpx.HTTPError as error:
             raise _request_error(error) from error
         finally:
             self.close()
 
     def close(self) -> None:
-        self._response.close()
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._response.close()
+        finally:
+            _close_progress(self._signal, self._response.request.method, self._content._path)
 
     def release_conn(self) -> None:
         self.close()
@@ -136,6 +171,7 @@ class HttpProgressClient:
         request_options = dict(kwargs)
         auth = request_options.pop("auth", httpx.USE_CLIENT_DEFAULT)
         response_idle = timeout[1] if isinstance(timeout, (tuple, list)) else timeout
+        connect_idle = timeout[0] if isinstance(timeout, (tuple, list)) else None
         idle = float(contract["idle_timeout_seconds"])
         callbacks = THREAD_BUS.get_signal(f"{HTTP_PROGRESS_SCOPE_PREFIX}.{threading.get_ident()}", ())
         if progress_callback is not None:
@@ -149,11 +185,13 @@ class HttpProgressClient:
             "params": params,
             "headers": headers,
             "timeout": httpx.Timeout(
-                None, connect=float(contract["connect_timeout_seconds"]),
+                None, connect=float(contract["connect_timeout_seconds"] if connect_idle is None else connect_idle),
                 read=idle if response_idle is None else float(response_idle),
                 write=idle, pool=idle,
             ),
         })
+        if isinstance(data, bytearray):
+            data = bytes(data)
         if isinstance(data, (bytes, bytearray, str)) or (data is not None and not isinstance(data, (dict, list, tuple))):
             request_options["content"] = data
         else:
@@ -168,6 +206,9 @@ class HttpProgressClient:
         )
         request.stream = httpx.Request(method, url, content=content).stream
         started = time.monotonic()
+        response = None
+        response_stream = None
+        stream_returned = False
         try:
             response = session.send(request, stream=True, follow_redirects=allow_redirects, auth=auth)
             result = requests.Response()
@@ -175,38 +216,39 @@ class HttpProgressClient:
             result.headers = requests.structures.CaseInsensitiveDict(response.headers)
             result.url = str(response.url)
             result.reason = response.reason_phrase
-            result.encoding = response.encoding
+            result.encoding = requests.utils.get_encoding_from_headers(result.headers)
             result.cookies.update(response.cookies.jar)
             result.elapsed = timedelta(seconds=time.monotonic() - started)
             result.http_version = response.http_version
-            result.request = requests.Request(method, result.url, headers=dict(request.headers)).prepare()
-            result.raw = HttpProgressResponseStream(response)
-            if not stream or response.status_code >= 400:
-                try:
-                    result._content = b"".join(self._response_content(response, signal, callbacks))
-                    result._content_consumed = True
-                finally:
-                    response.close()
-            progress = THREAD_BUS.get_signal(signal)
-            if progress is not None:
-                content._publish(progress["transferred_bytes"], "received" if response.status_code < 400 else "rejected")
+            result.request = requests.Request(
+                response.request.method, result.url, headers=dict(response.request.headers),
+            ).prepare()
+            response_stream = HttpProgressResponseStream(response, content, signal, callbacks)
+            result.raw = response_stream
+            if not stream:
+                result._content = b"".join(response_stream.stream())
+                result._content_consumed = True
+            stream_returned = stream
             return result
         except httpx.HTTPError as error:
             raise _request_error(error) from error
         finally:
-            progress = THREAD_BUS.get_signal(signal)
-            if progress is not None:
-                ColorPrint.gray(
-                    f"[http upload] {method} {content._path} "
-                    f"bytes={progress['transferred_bytes']}/{progress['total_bytes']} "
-                    f"phase={progress['phase']}"
-                )
-            THREAD_BUS.clear_signal(signal)
+            if not stream_returned:
+                if response_stream is not None:
+                    response_stream.close()
+                else:
+                    try:
+                        if response is not None:
+                            response.close()
+                    finally:
+                        _close_progress(signal, method, content._path)
 
     @staticmethod
-    def _response_content(response: Any, signal: str, callbacks: Any):
+    def _response_content(response: Any, signal: str, callbacks: Any,
+                          chunk_size: Optional[int] = None, decode_content: bool = True):
         received = 0
-        for chunk in response.iter_bytes():
+        chunks = response.iter_bytes(chunk_size=chunk_size) if decode_content else response.iter_raw(chunk_size=chunk_size)
+        for chunk in chunks:
             received += len(chunk)
             record = THREAD_BUS.get_signal(signal)
             if record is not None:

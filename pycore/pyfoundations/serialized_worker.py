@@ -296,6 +296,7 @@ def map_bus_tasks(
                 pass
     finally:
         for _index, pending_signal in pending:
+            THREAD_BUS.clear_signal(_response_guard_name(pending_signal))
             THREAD_BUS.clear_signal(pending_signal)
 
     return [results[index] for index in range(len(items))]
@@ -342,7 +343,7 @@ def _invoke_serialized_method(
 def serialized_method(method: Callable[..., Any]) -> Callable[..., Any]:
     """Route a synchronous instance method through its state-owner queue."""
     @wraps(method)
-    def wrapper(instance: Any, *args: Any, **kwargs: Any) -> Any:
+    def wrapper(instance: Any, /, *args: Any, **kwargs: Any) -> Any:
         owner_thread = getattr(instance, "_serialized_worker", None)
         if threading.current_thread() is owner_thread:
             return method(instance, *args, **kwargs)

@@ -107,6 +107,13 @@ $Global:APPS_DIR = Join-Path $BASE_DIR "apps"
 $Global:TEMP_DIR = "D:\.tmp"
 $Global:DOWNLOADS_DIR = Join-Path $TEMP_DIR "Downloads"
 $Global:LOGS_DIR = Join-Path $TEMP_DIR ".logs"
+# Redirect this session's temp variables onto the project temp drive so every
+# child process (pip, installers, downloaders) never builds on C:.
+if (-not (Test-Path -LiteralPath $Global:TEMP_DIR)) {
+    New-Item -ItemType Directory -Force -Path $Global:TEMP_DIR | Out-Null
+}
+$env:TEMP = $Global:TEMP_DIR
+$env:TMP = $Global:TEMP_DIR
 $Global:LOG_FILE = Join-Path $LOGS_DIR "devops_setup.log"
 $Global:STEP_COUNT = 1
 

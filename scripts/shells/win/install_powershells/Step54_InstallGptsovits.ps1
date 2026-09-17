@@ -13,7 +13,7 @@
       1. clones RVC-Boss/GPT-SoVITS into <cache>\pycore\gptsovits  (the
          staging/data root; override with GPTSOVITS_DIR) — skipped if already cloned.
       2. builds a DEDICATED isolated venv (isolated_venv.ensure_venv,
-         --system-site-packages reuses the system CUDA torch) and installs the repo
+         self-contained: dedicated base Python 3.10, no host package sharing) and installs the repo
          requirements INTO it -- the main interpreter is NEVER touched.
       3. downloads the pretrained models from HuggingFace lj1995/GPT-SoVITS into
          GPT_SoVITS\pretrained_models via curl mirror download (resumable,
@@ -200,17 +200,16 @@ if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
 # 2) isolated per-engine venv (Bucket B) + the system torch it reuses -- ONE-TIME via a
 #    .deps_done sentinel + a venv-ready probe. GPT-SoVITS's requirements.txt pins an OLD
 #    transformers that would clobber the shared Bucket-A pin, so it is installed INTO a
-#    DEDICATED venv (isolated_venv.ensure_venv, --system-site-packages reuses the system
-#    CUDA torch), NEVER the main interpreter. Self-repairing: ensure_venv re-runs an
+#    DEDICATED venv (isolated_venv.ensure_venv, self-contained base Python 3.10;
+#    the venv carries its own torch stack), NEVER the main interpreter. Self-repairing: ensure_venv re-runs an
 #    import-health probe and repairs a broken venv. pycore launches api_v2.py under this
 #    venv. See lifecycle doc §5/§7.
 if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'isolated venv already provisioned (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
-    # System CUDA torch the venv will REUSE (idempotent), plus the huggingface_hub the
-    # weight downloader falls back to (install only when MISSING -- NEVER --upgrade).
-    # Neither touches the shared transformers pin.
-    Install-PycoreTorchStack -PythonExe $enginePython -Prefix "$SCRIPT_INDEX "
+    # The self-contained venv carries its own torch stack (device-aware index,
+    # installed by ensure_venv); only the huggingface_hub the weight downloader
+    # falls back to is ensured here (install only when MISSING -- NEVER --upgrade).
     if (-not (Test-PycorePythonModulePresent -PythonExe $enginePython -ModuleName 'huggingface_hub')) {
         try { & $enginePython -m pip install huggingface_hub } catch { }
     }

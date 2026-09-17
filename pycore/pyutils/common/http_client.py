@@ -110,10 +110,13 @@ class HttpClient:
             {str(key): str(value) for key, value in dict(headers or {}).items()}
         )
         if body is not None or json is not None:
-            return http_progress_client.request(
-                method, request_url, params=query, json=json, data=body,
-                headers=request_headers, timeout=timeout,
+            response = http_progress_client.request(
+                method, request_url, params=query, json=json,
+                data=body if json is None else None,
+                headers=request_headers,
+                timeout=self.default_timeout if timeout is None else max(0.1, float(timeout)),
             )
+            return HttpResponse(response.status_code, response.headers, response.content)
         request_body = body
         request_path = self._request_path(parsed_url, query)
         request_timeout = (

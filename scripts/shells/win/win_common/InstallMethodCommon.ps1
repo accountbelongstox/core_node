@@ -151,6 +151,14 @@ function Select-TtsInstallMethod {
         Write-Host ("[install-method] saved method '{0}' for {1} is no longer supported; re-selecting." -f $saved, $Engine) -ForegroundColor DarkYellow
     }
 
+    # 2b) Single-option engines: no meaningful choice exists, so the only
+    # supported backend is persisted directly (no countdown noise); mirrors
+    # linux/common/install_method_common.sh branch 2b.
+    if (-not $Reselect -and $SupportedBackends.Count -eq 1) {
+        Save-TtsInstallMethodChoice -Engine $Engine -Method $DefaultBackend -Source 'timeout_default' -SupportedBackends $SupportedBackends
+        return $DefaultBackend
+    }
+
     # 3) First selection (or reselect): 20s monotonic countdown.
     if ([Console]::IsInputRedirected) {
         # No console input exists: apply the same 20s auto-default rule without

@@ -98,12 +98,7 @@ class ConfigManager:
                     },
                     {
                         'Name': 'KIMI_BASE_URL',
-                        'Description': 'Kimi Coding Base URL (ignored: relay URLs are blocked by upstream WAF, always uses official endpoint)',
-                        'Required': False
-                    },
-                    {
-                        'Name': 'KIMI_MODEL',
-                        'Description': 'Kimi model (optional, e.g. k3, kimi-for-coding); empty = k3 (latest)',
+                        'Description': 'Optional Kimi Coding Base URL override (passed as --base-url to kimi provider catalog add; empty = official endpoint)',
                         'Required': False
                     }
                 ],
@@ -827,29 +822,6 @@ class ConfigManager:
                         'Name': 'ZHIPUAI_BASE_URL',
                         'DisplayName': 'Zhipu Base URL',
                         'Description': 'Zhipu API Base URL (default: https://open.bigmodel.cn/api/paas/v4)',
-                        'InputType': 'Url',
-                        'Required': False
-                    }
-                ],
-                'MCPSupport': {'Enabled': False},
-                'SmartRecognition': {'Enabled': False}
-            },
-            'Moonshot Kimi': {
-                'Common': 'moonshot',
-                'DisplayName': 'Moonshot Kimi',
-                'StorageType': 'encrypted_constant',
-                'Variables': [
-                    {
-                        'Name': 'MOONSHOT_API_KEY',
-                        'DisplayName': 'Moonshot API Key',
-                        'Description': 'Moonshot Kimi API Key',
-                        'InputType': 'Token',
-                        'Required': True
-                    },
-                    {
-                        'Name': 'MOONSHOT_BASE_URL',
-                        'DisplayName': 'Moonshot Base URL',
-                        'Description': 'Moonshot API Base URL (default: https://api.moonshot.cn/v1)',
                         'InputType': 'Url',
                         'Required': False
                     }

@@ -10,6 +10,7 @@ $installerCatalogPath = Join-Path $winCommonDir 'InstallerScriptsList.ps1'
 
 $PycorePrerequisiteScripts = @(
     @{ Key = 'cuda_policy';      Script = $InstallerScriptsMap['InstallCudaNvidiaPrereq'];     SkipEnv = ''; InstallMode = '';         Full = $false }
+    @{ Key = 'python310';        Script = $InstallerScriptsMap['InstallPython310'];            SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'python_prereqs';   Script = $InstallerScriptsMap['InstallPythonPrereqPackages']; SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'desktop_manager';  Script = $InstallerScriptsMap['InstallDesktopManager'];       SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'launcher';         Script = $InstallerScriptsMap['InstallLauncher'];             SkipEnv = ''; InstallMode = '';         Full = $false }

@@ -19,11 +19,11 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('9SKiX5h6rzaI/+596Z6iG0dPIhtiRWWiwcv+mHo6L1VBP0EmA0cHkpeeKt/jZbZ32u8HXQWH5nyCOG7Dc1sG4fwq3nS1x7WDpwaQtv5rVBA=', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('qUxaMdA0N8Lh76aMl1skRSbqZM2G6Pa+lUg4B/OosViOLLGoen++J8A2r4YpDaYh36+l7hlxeAsGAzV35KSxsyEudbD3Ai04rcE9Qjn8JIywhI+rCs/MQdN1RiKGoygqYoXfpX6b8RxRKopD2ltbE6lNP5wUT++Dxd4sCzGo6g5oSy/dqPVtflaUFiPo7sFj/LxNRngLS6OM5uzi0h6Hu20vm655xuj6/iCJWms54urwpv7eEtU5RKJ3MzcAOdvIyhdDcJn0PB7GtqzwfCjLP+PxDxXNKbxyxAm7TehCoNHjEsipur0Xk4Jn9ElGJn9X4wY7GGXvtaonJSmkcCBs6peS2amd9wZ9ds/fperaMKFVDcmiR6wHtEJtlhxRGLfp5NlK0c2lKc6XAE+xID4VDgwHFVnKWtED8GNL26cI1sEVcJo6dPngAMonbtw7Zp49CP0n0npo0YhIQWrLn+UhUOo4SOuWTgOako4/gK4rkaykQMLO4rwT8G9u+peDEXsh', 'base64');
-const PARAMS_KEY = Buffer.from('g726Fht+hKtGUn8fdQHTM8nUjKH73WElclpS5Ar97BA=', 'base64');
-const PARAMS_IV = Buffer.from('sH+DYuMUhTlNdIPw66/ymw==', 'base64');
-const ORIGINAL_FILENAME = 'MOONSHOT_API_KEY_1';
+const ENCRYPTED_DATA = Buffer.from('KFZdPDyGsD6EbQvpS94GdZX0Zq28kJf/k4peW8VT0k2pod4ZUMZ0rjUHby49PISsO2s9uj3Ebjjdp74QH+J9TMQfW5Y8+IjfK1gVQ9LsAUs=', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('ruWkkg3zg3KlWAUfagg44lZFxkfUAZAkJQG4DB+yQ8AIG9Hkc7eZADVRaP7nsWa6B0BnP4TBMtb3WCamDRR3ESshRUgVOeCCVVEpZ6Em+zYpO5Gwy3LM6mQdtYXpxr0KAFJd7VoW+7oFIiIAUB9Zc69/+/8beGGnK/HnkGAV3A0zFfcPSjP2KdK0sWZrLLV7ERKLH/euKqJe1Cq2QGHNYnhC83iFHHpBm158QFzIJB1RoZEgHCFwRFfXg5Nc7Ybw77l8In/2Yp+ALxKz6wWuKiwMMpBewt6qtr+Ocul3PqCyI74Vxzcm4oW290L5iojwcWwfrOjZV0Og5CakKTHGIhQvDUNFtVbR6EzVc74oYgQ3XvWH23xBSPk2e7K8RrV1oLb5kF7EoY/hSnuIRJufno5c5yAkC7lKmJ3W0CQgDmxw/hoodkSPimR5YLnd+ySbuFwcrgTs6aUW/pqZKxnr2/gsoK17A9N1Cy/tP7z71EDAJqBIueGcZ2AaDdQaA2JC', 'base64');
+const PARAMS_KEY = Buffer.from('rxsduZIO/kCtSUlLiHs9wR+1OxypfP9ShU/TkZn6Oas=', 'base64');
+const PARAMS_IV = Buffer.from('m2Yp0wnIDJCbbp6N4fpIhw==', 'base64');
+const ORIGINAL_FILENAME = 'KIMI_API_KEY_2';
 
 // Function to deobfuscate parameters
 function deobfuscateParams() {

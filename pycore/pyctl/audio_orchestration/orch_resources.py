@@ -249,13 +249,20 @@ def resolve_batch(
 
 
 def _deliver(record: Dict[str, Any], progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
-    delivery_id = record["delivery_id"]
     owner = f"{AUDIO_DELIVERY_PROCESS_ID}:{uuid.uuid4().hex}"
+    with audio_delivery_outbox.delivery_scope(record["delivery_id"], owner):
+        return _deliver_owned(record, owner, progress_callback)
+
+
+def _deliver_owned(record: Dict[str, Any], owner: str, progress_callback: Optional[Callable[[Dict[str, Any]], None]]) -> Dict[str, Any]:
+    delivery_id = record["delivery_id"]
     claimed = audio_delivery_outbox.claim(delivery_id, owner)
     resource = record["resource"]
     if claimed is None:
         return {"success": False, "error": "audio_delivery_in_progress"}
+    attempts = int(claimed.get("delivery_attempts") or 0) + 1
     try:
+        audio_delivery_outbox.patch(delivery_id, {"delivery_attempts": attempts}, owner)
         if resource["kind"] == "sentence":
             receipt = laravel_progress_uploader.upload(
                 SENTENCE_REPORT_PATH, Path(claimed["audio_path"]).read_bytes(),
@@ -278,12 +285,11 @@ def _deliver(record: Dict[str, Any], progress_callback: Optional[Callable[[Dict[
             if not receipt.get("success") or (receipt.get("data") or {}).get("status") not in ("stored", "exists"):
                 raise RuntimeError(str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete"))
     except Exception as error:
-        attempts = int(claimed.get("delivery_attempts") or 0) + 1
-        audio_delivery_outbox.patch(delivery_id, {"delivery_attempts": attempts}, owner)
         audio_delivery_outbox.release(delivery_id, owner, error=str(error), retry_at=time.time() + audio_delivery_outbox.retry_delay(attempts, 5, 300))
         ColorPrint.yellow(f"[AudioOrch] delivery={delivery_id} pending: {error}")
         return {"success": False, "error": str(error)}
-    audio_delivery_outbox.complete(delivery_id, owner)
+    if not audio_delivery_outbox.complete(delivery_id, owner):
+        return {"success": False, "error": "audio_delivery_ownership_changed"}
     return {"success": True}
 
 

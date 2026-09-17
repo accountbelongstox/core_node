@@ -8,6 +8,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
@@ -63,6 +64,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "torch_packages": ("torch", "torchaudio"),
         "packages": (
             "requirements.txt",
             "fastapi",
@@ -116,6 +118,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "torch_packages": ("torch", "torchaudio"),
         "packages": ("requirements.txt",),
         "health_imports": "import torch, transformers",
         "upstream": {
@@ -141,6 +144,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "torch_packages": ("torch",),
         "packages": ("melotts", "unidic-lite"),
         "pins": (),
         "health_imports": (
@@ -169,13 +173,19 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        # Bridge/SDK scope lives in this venv; local inference (fish_speech from
+        # the cloned repo + matching checkpoints) pins torch/torchaudio 2.8.0
+        # per the upstream pyproject (see limits) - cu130 has no 2.8.0 wheels,
+        # so the CUDA wheel tier for this engine is pinned to cu128.
+        "torch_packages": ("torch==2.8.0", "torchaudio==2.8.0"),
+        "torch_index_tag": "cu128",
         "packages": (
             "fish-audio-sdk",
             "fastapi",
             "uvicorn",
             "requests",
         ),
-        "health_imports": "import fishaudio, fastapi, uvicorn, torch",
+        "health_imports": "import fishaudio, fastapi, uvicorn, requests, torch",
         "upstream": {
             "repo": "https://github.com/fishaudio/fish-speech",
             "evidence_date": "2026-09-17",
@@ -214,6 +224,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "torch_packages": ("torch",),
         "packages": ("voxcpm", "soundfile"),
         "health_imports": "import voxcpm, soundfile, torch",
         "upstream": {
@@ -319,6 +330,7 @@ def engine_spec(engine: str) -> Dict[str, Any]:
         "accelerator_build_packages",
         "accelerator_pip_args",
         "accelerator_platforms",
+        "torch_packages",
     ):
         if sequence_key in result:
             result[sequence_key] = list(result[sequence_key])
@@ -427,6 +439,66 @@ def resolve_engine_base_python(engine: str) -> Dict[str, Any]:
     }
 
 
+def _probe_python_version(python_exe: str) -> str:
+    """Return the "major.minor" version of an arbitrary interpreter."""
+    try:
+        result = subprocess.run(
+            [
+                python_exe,
+                "-c",
+                "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return ""
+    if result.returncode != 0:
+        return ""
+    return (result.stdout or "").strip()
+
+
+def base_interpreter_compatibility(engine: str) -> Dict[str, Any]:
+    """Compatibility of the engine's resolved BASE interpreter.
+
+    Self-contained engines are gated by their venv base interpreter (dedicated
+    Python 3.10), never by the host interpreter version. Resolution order is
+    resolve_engine_base_python(): engine override -> registered Python 3.10 ->
+    report missing. Installers use this so a 3.13 host no longer skips engines
+    whose window excludes 3.13.
+    """
+    key = str(engine or "").strip().lower().replace("-", "")
+    resolved = resolve_engine_base_python(key)
+    if not resolved.get("found"):
+        return {
+            "compatible": False,
+            "engine": key,
+            "base_found": False,
+            "base_python": "",
+            "base_source": resolved.get("source", "none"),
+            "reason": resolved.get("reason", "base interpreter missing"),
+        }
+    base = str(resolved["path"])
+    version = _probe_python_version(base)
+    if not version:
+        return {
+            "compatible": False,
+            "engine": key,
+            "base_found": True,
+            "base_python": base,
+            "base_source": resolved.get("source", ""),
+            "reason": f"could not probe base interpreter version: {base}",
+        }
+    result = engine_compatibility(key, version)
+    result["base_found"] = True
+    result["base_python"] = base
+    result["base_source"] = resolved.get("source", "")
+    return result
+
+
 def engine_compatibility(
     engine: str,
     python_version: str,
@@ -509,6 +581,8 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
         "--python-version",
         required=True,
     )
+    base_compat_parser = subparsers.add_parser("base-compatibility")
+    base_compat_parser.add_argument("engine")
     fingerprint_parser = subparsers.add_parser("fingerprint")
     fingerprint_parser.add_argument("engine")
     health_parser = subparsers.add_parser("health-probe")
@@ -533,6 +607,14 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
     if args.command == "fingerprint":
         print(engine_fingerprint(args.engine))
+        return 0
+    if args.command == "base-compatibility":
+        print(
+            json.dumps(
+                base_interpreter_compatibility(args.engine),
+                sort_keys=True,
+            )
+        )
         return 0
     if args.command == "health-probe":
         probe = engine_spec(args.engine).get("health_imports", "")
@@ -585,6 +667,7 @@ __all__ = [
     "TORCH_PACKAGES",
     "cuda_tier_by_tag",
     "cuda_tier_for_driver",
+    "base_interpreter_compatibility",
     "engine_compatibility",
     "engine_fingerprint",
     "engine_isolation_mode",

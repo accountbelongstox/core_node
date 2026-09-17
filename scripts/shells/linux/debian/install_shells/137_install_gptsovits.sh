@@ -7,8 +7,8 @@
 # pins an OLD transformers, INCOMPATIBLE with the main interpreter's shared 4.46.x pin
 # (deepseek/qwen25/nllb/bark). So the requirements are NEVER installed into the main
 # interpreter: they are built into a DEDICATED per-engine venv by
-# pycore.pyutils.common.python_env.isolated_venv.ensure_venv("gptsovits", ...) (created --system-site-packages
-# so it REUSES the system CUDA torch; the old-transformers stack is layered inside it only,
+# pycore.pyutils.common.python_env.isolated_venv.ensure_venv("gptsovits", ...) (self-contained:
+# dedicated base Python 3.10, no host package sharing; the venv carries its own torch stack,
 # shadowing the main copies). pycore's tts_service_manager launches the cloned api_v2.py
 # under that venv (isolated_venv.resolve_python("gptsovits")) and the gptsovits engine talks
 # to it over HTTP as a managed class-C server, so the conflicting pins never touch the main
@@ -122,7 +122,7 @@ pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null
 # requirements.txt. Delegates to the single source of truth
 # pycore.pyutils.common.python_env.isolated_venv.ensure_venv("gptsovits", ...), run UNDER $PYTHON so the
 # venv is built next to that interpreter and reuses its system CUDA torch via
-# --system-site-packages; the requirements (old transformers) install INTO the venv only.
+# dedicated base Python 3.10; the requirements (old transformers) install INTO the venv only.
 # Cheap when already healthy; repairs a broken venv. $1 is a Python bool literal (True on
 # --force). Readiness is exposed through TTS_ISOLATED_VENV_READY, not a child exit code.
 provision_gptsovits_venv() {
@@ -211,7 +211,7 @@ fi
 
 # 2) isolated venv from requirements.txt -- ONE-TIME via a .deps_done sentinel, self-repairing.
 # The repo's requirements.txt pins an OLD transformers; building it into a DEDICATED
-# per-engine venv (isolated_venv.ensure_venv, --system-site-packages reuses the system CUDA
+# per-engine venv (isolated_venv.ensure_venv, self-contained base Python 3.10; the venv carries its own CUDA
 # torch) keeps that pin OUT of the main interpreter. This also ends the huggingface_hub
 # upgrade<->downgrade ping-pong the old shared-interpreter install caused: any hub version
 # the requirements need now lives only inside the venv. ensure_venv is idempotent (a cheap
@@ -230,8 +230,7 @@ if tts_dependency_stamp_matches "$PYTHON" "gptsovits" "$DEPS_SENTINEL" && [[ "$F
         fail_prereq_step "$PYTHON" "[install_gptsovits] "
     fi
 else
-    install_pycore_torch_stack "$ENGINE_PYTHON" "[install_gptsovits] "
-    echo "[install_gptsovits] [..] building isolated GPT-SoVITS venv from requirements.txt (old transformers isolated; system torch reused) ..."
+    echo "[install_gptsovits] [..] building isolated GPT-SoVITS venv from requirements.txt (old transformers isolated; the venv carries its own torch stack) ..."
     provision_gptsovits_venv "$_GPTSOVITS_FORCE_PY"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_write_dependency_stamp "$PYTHON" "gptsovits" "$DEPS_SENTINEL"

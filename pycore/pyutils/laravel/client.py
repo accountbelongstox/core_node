@@ -20,7 +20,8 @@ bridge) goes through here. Each request:
 
 Uses one keep-alive session per THREAD (pooled transport, see transport.py), so no
 mutable HTTP state crosses threads while consecutive requests reuse pooled
-TCP/TLS connections. All calls use the shared Python Requests transport.
+TCP/TLS connections. Payload uploads use the shared progress transport;
+bodyless requests use Requests.
 Streaming responses release their pooled connection back to the thread pool
 when the stream is consumed or closed; they never close the pooled session.
 
