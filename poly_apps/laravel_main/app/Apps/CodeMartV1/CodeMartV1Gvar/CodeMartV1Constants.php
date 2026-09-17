@@ -33,6 +33,8 @@ class CodeMartV1Constants
 
     // Project Status
     public const PROJECT_STATUS_DRAFT = 'draft';
+    public const PROJECT_STATUS_PROPOSAL_REVIEW = 'proposal_review';
+    public const PROJECT_STATUS_FUNDING_PENDING = 'funding_pending';
     public const PROJECT_STATUS_OPEN = 'open';
     public const PROJECT_STATUS_IN_PROGRESS = 'in_progress';
     public const PROJECT_STATUS_PAUSED = 'paused';
@@ -52,10 +54,13 @@ class CodeMartV1Constants
 
     // Task Status
     public const TASK_STATUS_PENDING = 'pending';
+    public const TASK_STATUS_OPEN = 'open';
+    public const TASK_STATUS_ASSIGNED = 'assigned';
     public const TASK_STATUS_IN_PROGRESS = 'in_progress';
     public const TASK_STATUS_REVIEW = 'review';
     public const TASK_STATUS_COMPLETED = 'completed';
     public const TASK_STATUS_BLOCKED = 'blocked';
+    public const TASK_STATUS_CANCELLED = 'cancelled';
 
     // Task Priority
     public const TASK_PRIORITY_LOW = 'low';
@@ -65,16 +70,51 @@ class CodeMartV1Constants
 
     // Submission Status
     public const SUBMISSION_STATUS_PENDING = 'pending';
+    public const SUBMISSION_STATUS_PENDING_REVIEW = 'pending_review';
     public const SUBMISSION_STATUS_APPROVED = 'approved';
     public const SUBMISSION_STATUS_NEEDS_REVISION = 'needs_revision';
     public const SUBMISSION_STATUS_REJECTED = 'rejected';
 
     // Payment Status
     public const PAYMENT_STATUS_PENDING = 'pending';
+    public const PAYMENT_STATUS_PROCESSING = 'processing';
     public const PAYMENT_STATUS_COMPLETED = 'completed';
     public const PAYMENT_STATUS_FAILED = 'failed';
     public const PAYMENT_STATUS_CANCELLED = 'cancelled';
     public const PAYMENT_STATUS_DISPUTED = 'disputed';
+    public const PAYMENT_STATUS_REFUNDED = 'refunded';
+
+    // Escrow Status
+    public const ESCROW_STATUS_HELD = 'held';
+    public const ESCROW_STATUS_RELEASED = 'released';
+    public const ESCROW_STATUS_REFUNDED = 'refunded';
+
+    // Notification Types
+    public const NOTIFICATION_TYPE_ANALYSIS = 'analysis';
+    public const NOTIFICATION_TYPE_TASK = 'task';
+    public const NOTIFICATION_TYPE_REVIEW = 'review';
+    public const NOTIFICATION_TYPE_FINANCE = 'finance';
+    public const NOTIFICATION_TYPE_ONBOARDING = 'onboarding';
+    public const NOTIFICATION_TYPE_ADMIN = 'admin';
+
+    // Capability keys returned by GET /bootstrap; the UI derives visibility
+    // from these instead of inferring role names locally.
+    public const CAPABILITY_TASK_BROWSE = 'task.browse';
+    public const CAPABILITY_TASK_READ = 'task.read';
+    public const CAPABILITY_PROJECT_READ = 'project.read';
+    public const CAPABILITY_PROJECT_CREATE = 'project.create';
+    public const CAPABILITY_REVIEW_READ = 'review.read';
+    public const CAPABILITY_ARCHITECT_READ = 'architect.read';
+    public const CAPABILITY_FINANCE_READ = 'finance.read';
+    public const CAPABILITY_ONBOARDING_READ = 'onboarding.read';
+    public const CAPABILITY_PROFILE_READ = 'profile.read';
+    public const CAPABILITY_NOTIFICATION_READ = 'notification.read';
+    public const CAPABILITY_ADMIN_ACCESS = 'admin.access';
+
+    // Versioned contract exposed through GET /bootstrap; an incompatible
+    // major version blocks mutations with a precise upgrade message.
+    public const CONTRACT_VERSION = '1.0.0';
+    public const MIN_SUPPORTED_UI_VERSION = '1.0.0';
 
     // Payment Types
     public const PAYMENT_TYPE_MILESTONE = 'milestone';
@@ -166,6 +206,8 @@ class CodeMartV1Constants
     {
         return [
             self::PROJECT_STATUS_DRAFT,
+            self::PROJECT_STATUS_PROPOSAL_REVIEW,
+            self::PROJECT_STATUS_FUNDING_PENDING,
             self::PROJECT_STATUS_OPEN,
             self::PROJECT_STATUS_IN_PROGRESS,
             self::PROJECT_STATUS_PAUSED,
@@ -179,10 +221,13 @@ class CodeMartV1Constants
     {
         return [
             self::TASK_STATUS_PENDING,
+            self::TASK_STATUS_OPEN,
+            self::TASK_STATUS_ASSIGNED,
             self::TASK_STATUS_IN_PROGRESS,
             self::TASK_STATUS_REVIEW,
             self::TASK_STATUS_COMPLETED,
             self::TASK_STATUS_BLOCKED,
+            self::TASK_STATUS_CANCELLED,
         ];
     }
 
@@ -205,5 +250,91 @@ class CodeMartV1Constants
             self::ROLE_CLIENT => self::DEPOSIT_CLIENT,
             default => 0,
         };
+    }
+
+    /**
+     * Server-owned state/policy vocabulary exposed through GET /bootstrap.
+     * UI source never duplicates these defaults.
+     */
+    public static function contractVocabulary(): array
+    {
+        return [
+            'contract_version' => self::CONTRACT_VERSION,
+            'min_supported_ui_version' => self::MIN_SUPPORTED_UI_VERSION,
+            'states' => [
+                'role' => [
+                    self::ROLE_STATUS_PENDING,
+                    self::ROLE_STATUS_ACTIVE,
+                    self::ROLE_STATUS_SUSPENDED,
+                    self::ROLE_STATUS_REJECTED,
+                ],
+                'project' => self::getAllProjectStatuses(),
+                'task' => self::getAllTaskStatuses(),
+                'submission' => [
+                    self::SUBMISSION_STATUS_PENDING_REVIEW,
+                    self::SUBMISSION_STATUS_APPROVED,
+                    self::SUBMISSION_STATUS_NEEDS_REVISION,
+                    self::SUBMISSION_STATUS_REJECTED,
+                ],
+                'payment' => [
+                    self::PAYMENT_STATUS_PENDING,
+                    self::PAYMENT_STATUS_PROCESSING,
+                    self::PAYMENT_STATUS_COMPLETED,
+                    self::PAYMENT_STATUS_FAILED,
+                    self::PAYMENT_STATUS_CANCELLED,
+                    self::PAYMENT_STATUS_DISPUTED,
+                    self::PAYMENT_STATUS_REFUNDED,
+                ],
+                'analysis' => [
+                    self::AI_ANALYSIS_PENDING,
+                    self::AI_ANALYSIS_PROCESSING,
+                    self::AI_ANALYSIS_COMPLETED,
+                    self::AI_ANALYSIS_FAILED,
+                ],
+                'kyc' => [
+                    self::KYC_STATUS_NOT_STARTED,
+                    self::KYC_STATUS_PENDING,
+                    self::KYC_STATUS_APPROVED,
+                    self::KYC_STATUS_REJECTED,
+                ],
+                'milestone' => [
+                    self::MILESTONE_STATUS_PENDING,
+                    self::MILESTONE_STATUS_IN_PROGRESS,
+                    self::MILESTONE_STATUS_COMPLETED,
+                    self::MILESTONE_STATUS_FAILED,
+                    self::MILESTONE_STATUS_CANCELLED,
+                ],
+                'escrow' => [
+                    self::ESCROW_STATUS_HELD,
+                    self::ESCROW_STATUS_RELEASED,
+                    self::ESCROW_STATUS_REFUNDED,
+                ],
+            ],
+            'roles' => self::getAllRoles(),
+            'policy' => [
+                'currency' => self::DEFAULT_CURRENCY,
+                'supported_currencies' => self::SUPPORTED_CURRENCIES,
+                'deposit_amounts' => [
+                    self::ROLE_CLIENT => self::DEPOSIT_CLIENT,
+                    self::ROLE_DEVELOPER => self::DEPOSIT_DEVELOPER,
+                    self::ROLE_ARCHITECT => self::DEPOSIT_DEVELOPER + self::DEPOSIT_ARCHITECT_ADDITIONAL,
+                ],
+                'platform_commission_rate' => self::PLATFORM_COMMISSION_RATE,
+                'default_page_size' => self::DEFAULT_PAGE_SIZE,
+                'max_page_size' => self::MAX_PAGE_SIZE,
+                'max_attachment_size_kb' => self::MAX_ATTACHMENT_SIZE,
+                'max_kyc_image_size_kb' => self::MAX_KYC_IMAGE_SIZE,
+                'allowed_document_types' => self::ALLOWED_DOCUMENT_TYPES,
+                'allowed_image_types' => self::ALLOWED_IMAGE_TYPES,
+                'review_dimensions' => [
+                    self::REVIEW_DIMENSION_QUALITY,
+                    self::REVIEW_DIMENSION_READABILITY,
+                    self::REVIEW_DIMENSION_EFFICIENCY,
+                    self::REVIEW_DIMENSION_SECURITY,
+                ],
+                'rating_range' => [self::MIN_RATING, self::MAX_RATING],
+                'payment_methods' => self::getAllPaymentMethods(),
+            ],
+        ];
     }
 }

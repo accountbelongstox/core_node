@@ -21,6 +21,17 @@ class CodeMartV1UserModel extends AppModel
 
     protected $table = 'users';
 
+    /**
+     * Global Laravel identity is the only login identity: the shared users
+     * table lives on the default connection, not the CodeMart database.
+     */
+    protected ?string $appKey = null;
+
+    public function getConnectionName(): ?string
+    {
+        return config('database.default');
+    }
+
     protected $fillable = [
         'username',
         'email',
