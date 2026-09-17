@@ -35,6 +35,9 @@ from pycore.pyutils.common.python_env.isolated_venv_runtime import (
     _stamp_matches,
     _venv_healthy,
     _venv_python_path,
+    _engine_venv_dir,
+    _base_interpreter_identity_for,
+    _self_contained,
     _write_base_identity,
     _write_stamp,
     resolve_python,
@@ -42,6 +45,9 @@ from pycore.pyutils.common.python_env.isolated_venv_runtime import (
     venv_healthy,
     venv_provisioned,
     venv_ready,
+)
+from pycore.pyutils.common.python_env.runtime_policy import (
+    resolve_engine_base_python,
 )
 from pycore.pyutils.common.python_env.runtime_policy import engine_spec
 
@@ -382,6 +388,7 @@ def _install_into(
     health_imports: str,
     shared_packages: Sequence[str],
     managed_venv: bool,
+    self_contained: bool = False,
 ) -> bool:
     constraint_path: Optional[Path] = None
     repair_candidates = _repair_candidates(engine, pip_packages)
@@ -390,10 +397,14 @@ def _install_into(
     if managed_venv and engine == "qwen3tts":
         if not _ensure_local_packages(venv_python, ("qwen-tts",)):
             return False
-    if managed_venv and not _remove_local_shared_overrides(venv_python, shared_packages):
+    # Self-contained venvs share no host packages: host shared-runtime
+    # override removal and shared constraints do not apply (07.7).
+    if managed_venv and not self_contained and not _remove_local_shared_overrides(venv_python, shared_packages):
         return False
     install_list = [*pins, *pip_packages]
-    constraints = _shared_constraints(venv_python, shared_packages)
+    constraints = (
+        () if self_contained else _shared_constraints(venv_python, shared_packages)
+    )
     try:
         pip_args = [venv_python, "-m", "pip", "install"]
         if constraints:
