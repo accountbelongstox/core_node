@@ -309,7 +309,8 @@ class AppQyV1SentenceAudioService
         ?string $provider,
         ?string $error,
         ?string $variantKey = null,
-        ?array $variantMeta = null
+        ?array $variantMeta = null,
+        ?string $text = null
     ): array {
         $language = AppQyV1TableMaps::normalizeLangCode($language);
         if ($language === '' || !$this->tableExists($language)) {
@@ -317,6 +318,12 @@ class AppQyV1SentenceAudioService
         }
 
         $sentence = LangSentence::findByContentId($language, $contentId);
+        if ($sentence === null && $success && is_string($text) && trim($text) !== '') {
+            if (!hash_equals(MediaIngestService::computeContentId($text), $contentId)) {
+                return ['ok' => false, 'status' => 'invalid', 'error' => __('audio_orchestration.content_id_mismatch'), 'http_status' => 422];
+            }
+            $sentence = $this->ensureSentenceRow($contentId, $language, trim($text));
+        }
         if (!$sentence) {
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Sentence not found', 'http_status' => 404];
         }

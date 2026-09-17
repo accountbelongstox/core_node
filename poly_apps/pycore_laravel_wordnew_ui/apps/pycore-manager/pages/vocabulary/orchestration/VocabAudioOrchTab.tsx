@@ -7,7 +7,6 @@
  * OrchTaskEditor.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
 import {
   pycoreApi,
   onHttpStatus,
@@ -210,6 +209,7 @@ const VocabAudioOrchTab: React.FC = () => {
     try {
       const r = await pycoreApi.orchTaskGenerate(taskId);
       if (!r.success) throw new Error(r.error || ORCH_L.generateFailed);
+      setSelectedTaskId(taskId);
       void loadTasks();
     } catch (e) {
       setTasksError(orchErrorMessage(e, ORCH_L.generateFailed));
@@ -240,25 +240,18 @@ const VocabAudioOrchTab: React.FC = () => {
         pendingSyncs={pendingSyncs}
         selectedKey={selectedBookKey}
         onSelect={(b) => setSelectedBookKey(b.source_key)}
+        onNewTask={(b) => { setSelectedBookKey(b.source_key); setEditorTask(null); setEditorOpen(true); }}
         onRefresh={() => void refreshBooks()}
         onSyncStarted={(key) => setPendingSyncs((prev) => new Set(prev).add(key))}
         loading={booksLoading}
         error={booksError}
       />
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => { setEditorTask(null); setEditorOpen(true); }}
-          className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-500"
-        >
-          <Plus className="w-4 h-4" /> {ORCH_L.newTask}
-        </button>
-      </div>
-
       {editorOpen && (
         <OrchTaskEditor
+          key={editorTask?.task_id || selectedBook?.source_key || 'new'}
           book={selectedBook}
+          books={books}
           task={editorTask}
           onSaved={(taskId) => { setSelectedTaskId(taskId); void loadTasks(); }}
           onClose={() => { setEditorOpen(false); setEditorTask(null); void loadTasks(); }}

@@ -611,7 +611,7 @@ with open(p, 'w') as f: json.dump(d, f, indent=2)
 prompt_ensure_service() {
     echo ""
     echo -n "Ensure installation to service (RustDesk dashboard)? (Y/n): "
-    read -r response
+    prompt_read_default response "y" 30
     case "$response" in
         [nN]|[nN][oO]) return 1 ;;
         *) return 0 ;;
@@ -652,7 +652,7 @@ prompt_installation() {
         echo "Version: $RUSTDESK_SERVER_VERSION (Latest)"
         echo ""
         echo -n "Install RustDesk Server? (Y/n): "
-        read -r response
+        prompt_read_default response "y" 30
 
         case "$response" in
             [nN]|[nN][oO])
@@ -672,7 +672,7 @@ prompt_installation() {
         echo "Version: $RUSTDESK_SERVER_VERSION (Latest)"
         echo ""
         echo -n "Install RustDesk Server anyway? (N/y): "
-        read -r response
+        prompt_read_default response "n" 30
 
         case "$response" in
             [yY]|[yY][eE][sS])

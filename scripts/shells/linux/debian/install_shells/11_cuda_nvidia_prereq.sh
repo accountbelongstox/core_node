@@ -71,7 +71,7 @@ OS_ID="$(cnp_os_id)"
 # Step 2: kernel build prerequisites (idempotent; apt is no-op when present).
 if cnp_have apt-get; then
     echo "[$SCRIPT_INDEX] Ensuring kernel build prerequisites (gcc/make/headers/dkms)..."
-    $USE_SUDO apt-get install -y gcc make dkms "linux-headers-$(uname -r)" >/dev/null 2>&1 \
+    $USE_SUDO apt-get install -y gcc make dkms "linux-headers-$(uname -r)" \
         || echo "[$SCRIPT_INDEX] WARN: some build prerequisites could not be installed (continuing)."
 fi
 
@@ -83,12 +83,12 @@ else
         kali|debian)
             echo "[$SCRIPT_INDEX] Installing NVIDIA driver from the distro repo (nvidia-detect, nvidia-driver)..."
             echo "[$SCRIPT_INDEX] NOTE: requires the 'non-free'/'non-free-firmware' apt components; a REBOOT may be needed for the driver to load."
-            $USE_SUDO apt-get install -y nvidia-detect nvidia-driver >/dev/null 2>&1 \
+            $USE_SUDO apt-get install -y nvidia-detect nvidia-driver \
                 || echo "[$SCRIPT_INDEX] WARN: nvidia-driver install failed (enable non-free repos, then re-run). Continuing to toolkit."
             ;;
         ubuntu)
             echo "[$SCRIPT_INDEX] Installing NVIDIA driver via ubuntu-drivers (autoinstall)..."
-            $USE_SUDO ubuntu-drivers autoinstall >/dev/null 2>&1 \
+            $USE_SUDO ubuntu-drivers autoinstall \
                 || echo "[$SCRIPT_INDEX] WARN: driver autoinstall failed (continuing to toolkit)."
             ;;
         *)

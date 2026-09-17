@@ -144,6 +144,13 @@ const OrchTaskList: React.FC<{
           const pct = task.segments_total
             ? Math.round(((task.segments_done || 0) / task.segments_total) * 100)
             : 0;
+          const phaseLabel = progress.phase === 'manifest' ? ORCH_L.phaseManifest
+            : progress.phase === 'resources' ? ORCH_L.phaseResources
+            : progress.phase === 'assemble' ? ORCH_L.phaseAssemble
+            : progress.phase === 'done' ? ORCH_L.phaseDone : '';
+          const resourcePct = progress.resource_total
+            ? Math.round(((progress.resource_index || 0) / progress.resource_total) * 100)
+            : 0;
           const expanded = selectedTaskId === task.task_id;
           return (
             <div
@@ -171,6 +178,19 @@ const OrchTaskList: React.FC<{
               </div>
               {(task.running || (task.segments_total || 0) > 0) && (
                 <div className="mt-2 space-y-1">
+                  {phaseLabel && (task.running || progress.phase === 'done') && (
+                    <p className="text-[10px] font-mono text-indigo-300">{phaseLabel}</p>
+                  )}
+                  {task.running && progress.phase === 'resources' && (progress.resource_total || 0) > 0 && (
+                    <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${resourcePct}%` }} />
+                    </div>
+                  )}
+                  {progress.phase === 'resources' && (progress.resource_total || 0) > 0 && (
+                    <p className="text-[10px] font-mono text-slate-500">
+                      {progress.resource_index || 0}/{progress.resource_total || 0} {ORCH_L.items}
+                    </p>
+                  )}
                   <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
                     <div className="h-full rounded-full bg-sky-500" style={{ width: `${pct}%` }} />
                   </div>
@@ -183,6 +203,7 @@ const OrchTaskList: React.FC<{
                       {ORCH_L.manifestCache} {humanInt(progress.cache_hits)}
                       {' · '}{ORCH_L.manifestLaravel} {humanInt(progress.laravel_hits)}
                       {' · '}{ORCH_L.manifestGenerated} {humanInt(progress.generated)}
+                      {' · '}{ORCH_L.manifestSynced} {humanInt(progress.synced)}
                       {' · '}<span className={progress.missing ? 'text-amber-400' : ''}>{ORCH_L.manifestMissing} {humanInt(progress.missing)}</span>
                     </p>
                   )}

@@ -30,7 +30,7 @@ _SYSTEM_STATUS_TTL_SECONDS = 300
 _SYSTEM_STATUS_MISSING_TTL_SECONDS = 5
 _SYSTEM_STATUS_SCHEMA = 1
 
-_STEP_TYPES = ("sentence_en", "sentence_zh", "words")
+_STEP_TYPES = ("sentence_en", "sentence_zh", "words_new", "words_all", "words")
 _WORD_MODES = ("new_only", "all")
 _SEGMENT_MODES = ("count", "minutes")
 _EDITABLE_FIELDS = (
@@ -144,6 +144,104 @@ def auth_logout(expected_user_id: Optional[int] = None) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# qy word groups (pycore-authoritative: the session lives in auth.json)        #
+# --------------------------------------------------------------------------- #
+_LARAVEL_QUERY_ALL_GROUPS = "/api/app_qy_v1/query_all_groups"
+_GROUPS_PAGE_SIZE = 1000
+
+
+def _fetch_word_groups(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Paginated /query_all_groups walk with the stored bearer token."""
+    token = str(record.get("token") or "")
+    if not token:
+        raise RuntimeError("QY_ACCOUNT_AUTH_REQUIRED")
+    groups: List[Dict[str, Any]] = []
+    start = 0
+    while True:
+        resp = laravel_client.get(
+            _LARAVEL_QUERY_ALL_GROUPS,
+            params={"start": start, "limit": _GROUPS_PAGE_SIZE, "with_words": 0},
+            headers={"Authorization": f"Bearer {token}"},
+            base_url=record.get("base_url") or None,
+            timeout=_LOGIN_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            if resp.status_code == 401 and orch_store.auth_token() == token:
+                orch_store.clear_auth()
+            raise RuntimeError(f"word groups HTTP {resp.status_code}")
+        body = resp.json()
+        data = body.get("data") if isinstance(body, dict) else None
+        page = data.get("groups") if isinstance(data, dict) else None
+        if not isinstance(page, list):
+            raise RuntimeError("word groups payload invalid")
+        groups.extend(g for g in page if isinstance(g, dict) and g.get("gid"))
+        if len(page) < _GROUPS_PAGE_SIZE:
+            return groups
+        start += _GROUPS_PAGE_SIZE
+
+
+def _default_group_id(groups: List[Dict[str, Any]]) -> Optional[str]:
+    for group in groups:
+        if group.get("is_default"):
+            return str(group["gid"])
+    for group in groups:
+        if group.get("is_language_default") and str(group.get("language") or "") == "en":
+            return str(group["gid"])
+    for group in groups:
+        if group.get("is_language_default"):
+            return str(group["gid"])
+    return str(groups[0]["gid"]) if groups else None
+
+
+def auth_groups(refresh: bool = False) -> Dict[str, Any]:
+    """Word groups + the selected read-baseline group. Served from the pycore
+    auth record cache; ``refresh=True`` re-pulls from Laravel. The pycore side
+    is authoritative because the session (auth.json) lives here — the browser
+    may hold no account at all."""
+    record = orch_store.load_auth()
+    if not record:
+        return {"success": True, "logged_in": False, "word_groups": [], "word_group_id": None}
+    groups = record.get("word_groups")
+    if refresh or not isinstance(groups, list):
+        try:
+            groups = _fetch_word_groups(record)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "success": False,
+                "logged_in": True,
+                "error": str(exc),
+                "word_groups": record.get("word_groups") if isinstance(record.get("word_groups"), list) else [],
+                "word_group_id": record.get("word_group_id"),
+            }
+        selected = str(record.get("word_group_id") or "")
+        if not any(str(group.get("gid")) == selected for group in groups):
+            selected = _default_group_id(groups) or ""
+        updated = orch_store.update_auth({"word_groups": groups, "word_group_id": selected or None})
+        if updated is None:
+            return {"success": False, "logged_in": False, "error": "Qy account session expired", "word_groups": [], "word_group_id": None}
+        record = updated
+    return {
+        "success": True,
+        "logged_in": True,
+        "word_groups": record.get("word_groups") or [],
+        "word_group_id": record.get("word_group_id"),
+    }
+
+
+def auth_select_group(group_id: str) -> Dict[str, Any]:
+    group_id = str(group_id or "").strip()
+    record = orch_store.load_auth()
+    if not record:
+        return {"success": False, "logged_in": False, "error": "not logged in"}
+    groups = record.get("word_groups") if isinstance(record.get("word_groups"), list) else []
+    if not any(str(group.get("gid")) == group_id for group in groups):
+        return {"success": False, "error": "QY_WORD_GROUP_NOT_FOUND"}
+    if orch_store.update_auth({"word_group_id": group_id}) is None:
+        return {"success": False, "error": "word group selection could not be persisted"}
+    return {"success": True, "logged_in": True, "word_groups": groups, "word_group_id": group_id}
+
+
+# --------------------------------------------------------------------------- #
 # books                                                                        #
 # --------------------------------------------------------------------------- #
 def books_list(refresh: bool = False) -> Dict[str, Any]:
@@ -170,7 +268,7 @@ def book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # tasks                                                                        #
 # --------------------------------------------------------------------------- #
-def _normalize_pattern(value: Any) -> List[Dict[str, Any]]:
+def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any]]:
     steps: List[Dict[str, Any]] = []
     if not isinstance(value, list):
         return steps
@@ -178,6 +276,8 @@ def _normalize_pattern(value: Any) -> List[Dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
         step_type = str(entry.get("type") or "")
+        if step_type == "words":
+            step_type = "words_new" if word_mode == "new_only" else "words_all"
         if step_type not in _STEP_TYPES:
             continue
         steps.append({"type": step_type, "times": max(1, min(5, int(entry.get("times") or 1)))})
@@ -232,7 +332,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
     word_mode = str(payload.get("word_mode") or "all")
     if word_mode not in _WORD_MODES:
         word_mode = "all"
-    name = str(payload.get("name") or "").strip() or f"task_{int(time.time())}"
+    name = str(payload.get("name") or "").strip()
     task = orch_store.create_task({
         "name": name,
         "book": {
@@ -243,7 +343,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
         "segment_mode": segment_mode,
         "segment_value": max(1, int(payload.get("segment_value") or 1)),
-        "pattern": _normalize_pattern(payload.get("pattern")) or list(_DEFAULT_PATTERN),
+        "pattern": _normalize_pattern(payload.get("pattern"), word_mode) or list(_DEFAULT_PATTERN),
         "word_mode": word_mode,
         "new_only_max_read_count": max(0, int(payload.get("new_only_max_read_count") or 0)),
     })
@@ -261,7 +361,7 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             continue
         value = patch[field]
         if field == "pattern":
-            value = _normalize_pattern(value)
+            value = _normalize_pattern(value, str(patch.get("word_mode") or task.get("word_mode") or "all"))
         elif field == "segment_mode" and value not in _SEGMENT_MODES:
             continue
         elif field == "word_mode" and value not in _WORD_MODES:
@@ -274,7 +374,6 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
             value = max(0 if field == "new_only_max_read_count" else 1, value)
         elif field == "name":
             value = str(value or "").strip() or task.get("name")
-            task["slug"] = orch_store.slugify(str(value))
         elif field == "book":
             if not isinstance(value, dict) or not str(value.get("source_key") or "").strip():
                 continue
@@ -316,8 +415,9 @@ def task_generate(
     expected_user_id: Optional[int] = None,
     expected_base_url: Optional[str] = None,
     use_qy_account: Optional[bool] = None,
+    word_group_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    return orch_generate.start_generation(str(task_id or ""), expected_user_id, expected_base_url, use_qy_account)
+    return orch_generate.start_generation(str(task_id or ""), expected_user_id, expected_base_url, use_qy_account, word_group_id)
 
 
 def task_cancel(task_id: str) -> Dict[str, Any]:
@@ -423,6 +523,8 @@ __all__ = [
     "auth_login",
     "auth_status",
     "auth_logout",
+    "auth_groups",
+    "auth_select_group",
     "books_list",
     "book_sentences",
     "tasks_list",

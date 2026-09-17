@@ -15,43 +15,48 @@ import {
   type OrchTask,
 } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabShared';
-import { ORCH_L, ORCH_STEP_LABELS, formatDuration, orchErrorMessage } from './orchShared';
+import { ORCH_L, ORCH_STEP_LABELS, formatDuration, orchErrorMessage, newOrchTaskName } from './orchShared';
 
-const STEP_TYPES: OrchPatternStepType[] = ['words', 'sentence_en', 'sentence_zh'];
+const STEP_TYPES: OrchPatternStepType[] = ['words_new', 'words_all', 'sentence_en', 'sentence_zh'];
 const PRESETS: Array<{ label: string; steps: OrchPatternStep[] }> = [
   { get label() { return ORCH_L.presetEnZh; }, steps: [{ type: 'sentence_en', times: 1 }, { type: 'sentence_zh', times: 1 }] },
   { get label() { return ORCH_L.presetZhEn; }, steps: [{ type: 'sentence_zh', times: 1 }, { type: 'sentence_en', times: 1 }] },
-  { get label() { return ORCH_L.presetWordEn; }, steps: [{ type: 'words', times: 1 }, { type: 'sentence_en', times: 1 }] },
+  { get label() { return ORCH_L.presetWordEn; }, steps: [{ type: 'words_new', times: 1 }, { type: 'sentence_en', times: 1 }] },
 ];
 
 const OrchTaskEditor: React.FC<{
   book: OrchBookItem | null;
+  books: OrchBookItem[];
   task: OrchTask | null;
   onSaved: (taskId: string) => void;
   onClose: () => void;
-}> = ({ book, task, onSaved, onClose }) => {
+}> = ({ book, books, task, onSaved, onClose }) => {
   const [name, setName] = useState('');
   const [segmentMode, setSegmentMode] = useState<'count' | 'minutes'>('count');
   const [segmentValue, setSegmentValue] = useState(10);
   const [pattern, setPattern] = useState<OrchPatternStep[]>(PRESETS[0].steps);
-  const [wordMode, setWordMode] = useState<'new_only' | 'all'>('all');
+  const [bookKey, setBookKey] = useState(task?.book?.source_key || book?.source_key || '');
+  const [savedTaskId, setSavedTaskId] = useState<string | null>(task?.task_id || null);
+  const [addStepType, setAddStepType] = useState<OrchPatternStepType>('words_new');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<{ segments: OrchSegment[]; sentence_total?: number } | null>(null);
 
   useEffect(() => {
-    if (!task) return;
-    setName(task.name || '');
-    setSegmentMode(task.segment_mode === 'minutes' ? 'minutes' : 'count');
-    setSegmentValue(Number(task.segment_value) || 1);
-    setPattern(Array.isArray(task.pattern) && task.pattern.length ? task.pattern : PRESETS[0].steps);
-    setWordMode(task.word_mode === 'new_only' ? 'new_only' : 'all');
+    setSavedTaskId(task?.task_id || null);
+    setBookKey(task?.book?.source_key || book?.source_key || '');
+    setName(task?.name || (book ? newOrchTaskName(book) : ''));
+    setSegmentMode(task?.segment_mode === 'minutes' ? 'minutes' : 'count');
+    setSegmentValue(Number(task?.segment_value) || 10);
+    setPattern(task?.pattern?.length ? task.pattern.map((step) => ({
+      ...step, type: step.type === 'words' ? task.word_mode === 'new_only' ? 'words_new' : 'words_all' : step.type,
+    })) : PRESETS[0].steps.map((step) => ({ ...step })));
     setPlan(null);
-  }, [task]);
+  }, [task, book?.source_key]);
 
-  const activeBook: OrchBookItem | null = task
-    ? { source_key: task.book?.source_key || '', title: task.book?.title, language: task.book?.language }
-    : book;
+  const activeBook = books.find((item) => item.source_key === bookKey)
+    || (book?.source_key === bookKey ? book : null)
+    || (task?.book?.source_key === bookKey ? task.book : null);
 
   const updateStep = (index: number, patch: Partial<OrchPatternStep>) => {
     setPattern((steps) => steps.map((s, i) => (i === index ? { ...s, ...patch } : s)));
@@ -75,7 +80,7 @@ const OrchTaskEditor: React.FC<{
     setError(null);
     try {
       const payload = {
-        name: name.trim() || `${activeBook.title || activeBook.source_key}`,
+        name: name.trim() || newOrchTaskName(activeBook),
         book: {
           source_key: activeBook.source_key,
           title: activeBook.title,
@@ -85,15 +90,16 @@ const OrchTaskEditor: React.FC<{
         segment_mode: segmentMode,
         segment_value: segmentValue,
         pattern,
-        word_mode: wordMode,
       };
-      const r = task
-        ? await pycoreApi.orchTaskUpdate(task.task_id, payload)
+      const r = savedTaskId
+        ? await pycoreApi.orchTaskUpdate(savedTaskId, payload)
         : await pycoreApi.orchTaskCreate(payload);
       if (!r.success || !r.task) {
         setError(String(r.error || ORCH_L.saveFailed));
         return null;
       }
+      setSavedTaskId(String(r.task.task_id));
+      setName(r.task.name);
       onSaved(String(r.task.task_id));
       return String(r.task.task_id);
     } catch (e) {
@@ -156,12 +162,17 @@ const OrchTaskEditor: React.FC<{
             className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200"
           />
         </label>
-        <div className="text-xs text-slate-400">
+        <label className="text-xs text-slate-400">
           {ORCH_L.book}
-          <p className="mt-1 rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-300 truncate">
-            {activeBook?.title || activeBook?.source_key || ORCH_L.pickBook}
-          </p>
-        </div>
+          <select value={bookKey} onChange={(event) => { setBookKey(event.target.value); setPlan(null); }}
+            className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200">
+            <option value="">{ORCH_L.pickBook}</option>
+            {activeBook && !books.some((item) => item.source_key === activeBook.source_key) && (
+              <option value={activeBook.source_key}>{activeBook.title || activeBook.source_key}</option>
+            )}
+            {books.map((item) => <option key={item.source_key} value={item.source_key}>{item.title || item.original_name || item.source_key}</option>)}
+          </select>
+        </label>
         <label className="text-xs text-slate-400">
           {ORCH_L.segmentMode}
           <select
@@ -235,37 +246,23 @@ const OrchTaskEditor: React.FC<{
             </button>
           </div>
         ))}
+        <select value={addStepType} aria-label={ORCH_L.addStep}
+          onChange={(event) => setAddStepType(event.target.value as OrchPatternStepType)}
+          className="rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1 text-sm text-slate-200">
+          {STEP_TYPES.map((type) => <option key={type} value={type}>{ORCH_STEP_LABELS[type]}</option>)}
+        </select>
         <button
           type="button"
-          onClick={() => setPattern((steps) => [...steps, { type: 'sentence_en', times: 1 }])}
+          onClick={() => setPattern((steps) => [...steps, { type: addStepType, times: 1 }])}
           className="inline-flex items-center gap-1 rounded border border-slate-600 px-2 py-0.5 text-[11px] text-slate-300 hover:border-sky-500/50"
         >
           <Plus className="w-3 h-3" /> {ORCH_L.addStep}
         </button>
       </div>
 
-      <div className="space-y-1">
-        <span className="text-xs text-slate-400">{ORCH_L.wordMode}</span>
-        <div className="flex gap-2">
-          {(['new_only', 'all'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setWordMode(mode)}
-              className={`rounded-lg border px-3 py-1.5 text-xs ${
-                wordMode === mode
-                  ? 'border-sky-500 bg-sky-500/10 text-sky-300'
-                  : 'border-slate-700 text-slate-400 hover:border-slate-500'
-              }`}
-            >
-              {mode === 'new_only' ? ORCH_L.wordModeNewOnly : ORCH_L.wordModeAll}
-            </button>
-          ))}
-        </div>
-        {wordMode === 'new_only' && (
-          <p className="text-[11px] text-amber-400/80">{ORCH_L.loginRequiredForNewOnly}</p>
-        )}
-      </div>
+      {pattern.some((step) => step.type === 'words_new') && (
+        <p className="text-[11px] text-amber-400/80">{ORCH_L.loginRequiredForNewOnly}</p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -274,7 +271,7 @@ const OrchTaskEditor: React.FC<{
           disabled={busy}
           className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:border-sky-500/50 disabled:opacity-50"
         >
-          {task ? ORCH_L.save : ORCH_L.create}
+          {savedTaskId ? ORCH_L.save : ORCH_L.create}
         </button>
         <button
           type="button"

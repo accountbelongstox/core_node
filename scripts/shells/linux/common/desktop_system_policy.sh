@@ -148,6 +148,12 @@ configure_kde_desktop() {
         $USE_SUDO -u "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key LockOnResume false 2>/dev/null || true
         $USE_SUDO -u "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Enabled false 2>/dev/null || true
         $USE_SUDO -u "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Lock false 2>/dev/null || true
+        # PowerDevil on AC: never turn off the display, never suspend the session.
+        # Key names per KDE docs/bugs (bugs.kde.org #520940); keys unknown to the
+        # installed Plasma version are simply ignored, so Plasma 5 and 6 both work.
+        $USE_SUDO -u "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group Display --key TurnOffDisplayWhenIdle false 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group Display --key TurnOffDisplayIdleTimeoutSec 0 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group SuspendSession --key idleTime 0 2>/dev/null || true
     elif [ -f "$screensaver_config" ] && grep -q "^\[ScreenSaver\]" "$screensaver_config" 2>/dev/null; then
         # Section exists: update IN PLACE, scoped to [ScreenSaver] (idempotent).
         $USE_SUDO -u "$desktop_user" sed -i \
@@ -694,12 +700,34 @@ EOF
 
 # Disks: keep fixed (non-removable) ATA/SATA disks spinning; persist in
 # /etc/hdparm.conf. USB/removable disks are skipped.
+# Install hdparm when missing (fine-grained: only on hosts that actually have ATA
+# disks; NVMe/SSD have no spindown to control). Real-time apt output.
+ensure_hdparm_installed() {
+    local has_ata="false"
+    local disk=""
+    if command -v hdparm >/dev/null 2>&1; then
+        info "hdparm already installed."
+        return 0
+    fi
+    for disk in /sys/block/sd*; do
+        [ -e "$disk" ] && has_ata="true" && break
+    done
+    if [ "$has_ata" != "true" ]; then
+        info "No ATA (sd*) disks present; hdparm not needed."
+        return 0
+    fi
+    log "Installing hdparm for disk spindown control..."
+    $USE_SUDO apt-get install -y hdparm || warning "hdparm install failed; spindown control skipped."
+    return 0
+}
+
 power_disable_disk_spindown() {
     local hdparm_conf="/etc/hdparm.conf"
     local marker="# core_node: keep disk spinning"
     local disk="" dev="" rm=""
     local persisted_any="false"
 
+    ensure_hdparm_installed
     if ! command -v hdparm >/dev/null 2>&1; then
         info "hdparm not installed; skipping disk spindown control."
         return 0
@@ -731,6 +759,55 @@ power_disable_disk_spindown() {
     fi
 }
 
+# Auto-detect the correct timezone from the public IP (multiple providers, the
+# first valid IANA name wins), apply via timedatectl only when it differs, and
+# make sure NTP sync is enabled so the clock stays correct. Idempotent: an
+# already-correct timezone and enabled NTP are skipped. timedatectl exists on all
+# supported systemd distros (Ubuntu 18+, Debian 10+, Kali).
+ensure_timezone_correct() {
+    local current_tz="" detected_tz="" provider="" raw=""
+    if ! command -v timedatectl >/dev/null 2>&1; then
+        info "timedatectl not available; skipping timezone check."
+        return 0
+    fi
+    current_tz="$(timedatectl show -p Timezone --value 2>/dev/null || true)"
+    [ -n "$current_tz" ] || current_tz="$(cat /etc/timezone 2>/dev/null || true)"
+
+    if command -v curl >/dev/null 2>&1; then
+        for provider in \
+            "https://ipapi.co/timezone/" \
+            "https://ipinfo.io/timezone" \
+            "http://ip-api.com/line/?fields=timezone"; do
+            raw="$(curl -fsSL --max-time 8 "$provider" 2>/dev/null | tr -d '[:space:]' || true)"
+            if [ -n "$raw" ] && [ -f "/usr/share/zoneinfo/$raw" ]; then
+                detected_tz="$raw"
+                break
+            fi
+        done
+    fi
+
+    if [ -z "$detected_tz" ]; then
+        warning "Could not detect timezone from public IP; keeping current: ${current_tz:-unknown}"
+    elif [ "$current_tz" = "$detected_tz" ]; then
+        info "Timezone already correct: $current_tz"
+    else
+        log "Setting timezone: ${current_tz:-unknown} -> $detected_tz"
+        if $USE_SUDO timedatectl set-timezone "$detected_tz"; then
+            log "Timezone is now: $(timedatectl show -p Timezone --value 2>/dev/null || echo "$detected_tz")"
+        else
+            warning "timedatectl set-timezone $detected_tz failed"
+        fi
+    fi
+
+    if [ "$(timedatectl show -p NTP --value 2>/dev/null || true)" != "yes" ]; then
+        $USE_SUDO timedatectl set-ntp true 2>/dev/null || true
+        log "Enabled NTP time synchronization."
+    else
+        info "NTP time synchronization already enabled."
+    fi
+    return 0
+}
+
 # Orchestrator: apply the keep-awake policy on a graphical desktop (skip on
 # headless/server). Uses robust detection so it still runs when a root install
 # leaves HAS_DESKTOP_ENVIRONMENT unset.
@@ -742,11 +819,35 @@ configure_desktop_power_policy() {
     log "Applying desktop power policy: no suspend, no display blank, no disk spindown"
     power_disable_systemd_sleep
     power_disable_gnome_blanking
+    # Mixed-DE installs: apply every INSTALLED desktop's per-user policy, keyed by
+    # on-disk session binaries -- not only the currently running session. Each
+    # configure_* is idempotent and no-ops when the DE's tools are absent, so
+    # GNOME+XFCE+KDE side by side all converge on every run.
+    if command -v gnome-shell >/dev/null 2>&1; then
+        configure_gnome_desktop || true
+    fi
+    if command -v plasmashell >/dev/null 2>&1 \
+        || command -v kwriteconfig6 >/dev/null 2>&1 \
+        || command -v kwriteconfig5 >/dev/null 2>&1; then
+        configure_kde_desktop || true
+    fi
     # XFCE (Kali default): the per-DE pass above only runs with a live session;
     # cover the root-install case here too, where on-disk Xfce tools are present
     # but no session is active. Idempotent, so a second pass is harmless.
     if command -v xfce4-session >/dev/null 2>&1 || command -v xfce4-screensaver >/dev/null 2>&1; then
         configure_xfce_desktop || true
+    fi
+    if command -v mate-session >/dev/null 2>&1; then
+        configure_mate_desktop || true
+    fi
+    if command -v cinnamon-session >/dev/null 2>&1; then
+        configure_cinnamon_desktop || true
+    fi
+    if command -v lxqt-session >/dev/null 2>&1; then
+        configure_lxqt_lxde_desktop "LXQt" "lxqt-session" || true
+    fi
+    if command -v lxsession >/dev/null 2>&1; then
+        configure_lxqt_lxde_desktop "LXDE" "lxsession" || true
     fi
     # Lightweight DEs (LXDE/LXQt) and any stray locker: neutralize light-locker /
     # xscreensaver for the primary user even when no session is active. Both are
@@ -755,6 +856,7 @@ configure_desktop_power_policy() {
     disable_light_locker "$primary_user" || true
     disable_xscreensaver "$primary_user" || true
     power_disable_disk_spindown
+    ensure_timezone_correct
     log "Desktop power policy applied"
     return 0
 }

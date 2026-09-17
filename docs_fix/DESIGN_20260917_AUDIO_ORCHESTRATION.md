@@ -8,10 +8,18 @@
 
 ## Qy word groups
 
-- After Qy App V1 login, load all available default word groups and their read-word records.
+- After Qy App V1 login, load all available default word groups and pull their read-word (已读) records from the backend; read state is server-authoritative, never inferred locally.
 - Select the default group initially and allow another group as the read/edit baseline for Words Only New.
 - Persist the selection per account and Laravel endpoint, and retain it across refreshes.
 - Qy login is required only for account word-group/read-word access.
+- Reference the wordnew implementation: `poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/components/daily-reading/WordNewDailyReadingWordGroupsPanel.tsx` and `dailyReadingWordGroupStore.ts` (load groups, pull the roamed selection, default to the "Default Vocabulary Group", persist locally and roam to the account; "All Classical Packs" / "★ Pack" / "Enroll" enrollment UI).
+- Word groups and the selected baseline are pycore-authoritative (the qy session lives in pycore `auth.json`): routes `ui/audio_orch/auth/groups` and `ui/audio_orch/auth/select_group` serve and persist them; the browser never needs its own copy.
+
+## Central audio cache
+
+- Sentence audio lives ONLY in the content-addressed `tts_sentence_cache` shared with every TTS entry point (`sentence_audio_cache`); orchestration looks it up with the same identity tuple `tts_orchestrator.synthesize` uses, and stores Laravel-downloaded clips into it under the current sentence-engine identity.
+- Word audio lives ONLY in the unified `word_audio_cache` base (`{word}_{provider}.mp3`, any provider counts).
+- Resource resolution is batch-first: one word-cache directory scan per language (`find_cached_many`) plus content-addressed sentence stats; Laravel and local generation run for cache misses only.
 
 ## Book tasks
 

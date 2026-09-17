@@ -44,10 +44,8 @@ port_in_use() {
 prompt_default_no() {
     local msg="$1" reply=""
     case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
-    fi
+    command -v prompt_read_default >/dev/null 2>&1 || source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
+    prompt_read_default reply "" 30 "$msg [y/N] "
     case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 

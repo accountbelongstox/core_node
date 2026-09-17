@@ -13,12 +13,12 @@ Fetched data is cached locally via orch_store so the UI works offline after the
 first sync and old tasks can be regenerated without re-fetching.
 """
 
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.common.background_jobs import BackgroundJobs
 
 from pycore.pyctl.audio_orchestration import orch_store
 
@@ -30,8 +30,7 @@ _REQUEST_TIMEOUT = 60
 
 # Background fetch jobs (UI calls return immediately — relay-safe — while these
 # threads do the multi-page Laravel walk; state is visible via sync_state).
-_SYNC_THREADS: Dict[str, threading.Thread] = {}
-_SYNC_LOCK = threading.Lock()
+_sync_jobs = BackgroundJobs("AudioOrchSync")
 
 # Rough speaking-rate estimates used for the "minutes" partition mode.
 _EN_WORDS_PER_SECOND = 2.5
@@ -40,21 +39,11 @@ _SENTENCE_GAP_SECONDS = 1.0
 
 
 def _job_running(key: str) -> bool:
-    with _SYNC_LOCK:
-        thread = _SYNC_THREADS.get(key)
-        return bool(thread and thread.is_alive())
+    return _sync_jobs.running(key)
 
 
 def _start_job(key: str, target) -> None:
-    with _SYNC_LOCK:
-        thread = _SYNC_THREADS.get(key)
-        if thread and thread.is_alive():
-            return
-        thread = threading.Thread(
-            target=target, name=f"audio-orch-sync-{key[:24]}", daemon=True
-        )
-        _SYNC_THREADS[key] = thread
-        thread.start()
+    _sync_jobs.start(key, target)
 
 
 def _fetch_books_blocking() -> Dict[str, Any]:

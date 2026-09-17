@@ -219,6 +219,7 @@ def synthesize(
     client_job_id: Optional[str] = None,
     excluded_engines: Optional[Tuple[str, ...]] = None,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    cache_only: bool = False,
 ) -> Dict[str, Any]:
     """Synthesize text with one required engine or the selected fallback profile."""
     cleaned = (text or "").strip()
@@ -291,7 +292,11 @@ def synthesize(
                 "synth_command": describe_synth_command(
                     cand, cleaned, language, output_path, want_accent, rate, gender),
             }
-        ColorPrint.gray("[tts] sentence cache MISS; synthesizing")
+        if not cache_only:
+            ColorPrint.gray("[tts] sentence cache MISS; synthesizing")
+
+    if cache_only:
+        return {"success": False, "cached": False, "error": "audio_cache_miss"}
 
     tried: List[str] = []
     last_error: Optional[str] = None

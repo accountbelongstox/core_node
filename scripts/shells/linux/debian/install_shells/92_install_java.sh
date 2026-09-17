@@ -151,7 +151,7 @@ detect_and_fix_previous_issues() {
     for wrong_location in "${wrong_locations[@]}"; do
         if [ -d "$wrong_location" ] && [ "$wrong_location" != "$JAVA_INSTALL_DIR" ]; then
             echo "Found old Java installation in wrong location: $wrong_location"
-            read -p "Remove old installation at $wrong_location? (y/N): " -n 1 -r
+            prompt_read_default REPLY "n" 30 "Remove old installation at $wrong_location? (y/N): "
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 sudo rm -rf "$wrong_location"

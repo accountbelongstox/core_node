@@ -81,13 +81,15 @@ frankenphp_install_pipeline_read_mode() {
         esac
     done
 
-    if [ -z "$FRANKENPHP_INSTALL_MODE" ] && [ -t 0 ] && [ -r /dev/tty ]; then
+    if [ -z "$FRANKENPHP_INSTALL_MODE" ]; then
         echo "[${FRANKENPHP_INSTALL_INDEX}] Select FrankenPHP installation mode:"
         echo "[${FRANKENPHP_INSTALL_INDEX}]   [1] apt install - official deb repo + php-zts extensions incl. PostgreSQL (default)"
         echo "[${FRANKENPHP_INSTALL_INDEX}]   [2] Compile (dnspod DNS-01 module embedded)"
         echo "[${FRANKENPHP_INSTALL_INDEX}]   [3] GitHub prebuilt binary"
-        echo -n "[${FRANKENPHP_INSTALL_INDEX}] Choose mode (1/2/3, default 1): "
-        read -r FRANKENPHP_INSTALL_SELECTION < /dev/tty
+        # Auto-select the default after 30s; never blocks (no TTY / background job
+        # / no answer -> default). See prompt_read_default in gvar_common.sh.
+        prompt_read_default FRANKENPHP_INSTALL_SELECTION "1" 30 \
+            "[${FRANKENPHP_INSTALL_INDEX}] Choose mode (1/2/3, default 1, auto in 30s): "
         FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normalize "$FRANKENPHP_INSTALL_SELECTION")"
     fi
     FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normalize "$FRANKENPHP_INSTALL_MODE")"

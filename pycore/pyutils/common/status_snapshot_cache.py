@@ -371,6 +371,27 @@ class VersionedSnapshotCache:
         )
         return {"success": not missing_keys, "error": error, "values": values}
 
+    def get_background(
+        self,
+        key: str,
+        loader: Callable[[], Dict[str, Any]],
+        ttl_seconds: Optional[float] = None,
+        version: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        effective_ttl, effective_lease = self._effective_limits(ttl_seconds, None)
+        claim = self._claim(key, time.monotonic(), effective_ttl, version, effective_lease, True)
+        if claim["state"] in ("cached", "stale"):
+            return {"snapshot": claim["value"], "refreshing": claim["state"] != "cached"}
+        if claim["state"] == "loading":
+            self._start_background_load(
+                self._load_and_finish,
+                (key, int(claim["generation"]), str(claim["signal"]), loader, version),
+                {key: claim}, {key: version}, "StatusSnapshotRefreshThread",
+            )
+        else:
+            self._release_waiter(str(claim["signal"]), int(claim["generation"]))
+        return {"snapshot": self.peek(key), "refreshing": True}
+
     def get_many(
         self,
         versions: Dict[str, Optional[str]],

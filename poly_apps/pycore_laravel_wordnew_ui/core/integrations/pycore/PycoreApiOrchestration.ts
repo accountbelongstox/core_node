@@ -7,6 +7,7 @@
  */
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { orchAccountSession } from './OrchAccountSession';
+import type { QyWordGroup } from '../laravel/LaravelQyAccountAPI';
 
 export interface OrchBookItem {
   id?: number;
@@ -64,14 +65,17 @@ export interface OrchBookSentencesResponse {
 export interface OrchAuthStatus {
   success: boolean;
   logged_in: boolean;
+  error?: string;
   username?: string;
   user?: { id?: number; username?: string; native_language?: string };
   logged_at?: number;
   machine_synced?: boolean;
   sync_error?: string;
+  word_groups?: QyWordGroup[];
+  word_group_id?: string;
 }
 
-export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words';
+export type OrchPatternStepType = 'sentence_en' | 'sentence_zh' | 'words_new' | 'words_all' | 'words';
 export interface OrchPatternStep { type: OrchPatternStepType; times: number }
 
 export interface OrchTaskPayload {
@@ -112,7 +116,10 @@ export interface OrchTaskSummary {
   progress?: {
     message?: string; segment_index?: number; item_index?: number; item_total?: number;
     output_dir?: string; current_item?: string;
+    phase?: 'manifest' | 'resources' | 'assemble' | 'done';
+    resource_index?: number; resource_total?: number;
     cache_hits?: number; laravel_hits?: number; generated?: number; missing?: number;
+    synced?: number;
   };
   created_at?: number;
   updated_at?: number;
@@ -154,6 +161,12 @@ export const pycoreApiOrchestration = {
   orchAuthLogout: () =>
     orchAccountSession.logout(),
   orchAuthSync: (force = false) => orchAccountSession.sync(force),
+  // Word groups are served by the pycore side, which owns the qy session
+  // (auth.json) — the browser may hold no account at all.
+  orchWordGroups: (refresh = false) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthGroups, { refresh }, 90_000) as Promise<OrchAuthStatus>,
+  orchSelectWordGroup: (groupId: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthSelectGroup, { group_id: groupId }, 30_000) as Promise<OrchAuthStatus>,
 
   // --- Laravel books (cached on the pycore side) ---------------------------- #
   orchBooksList: (refresh = false) =>

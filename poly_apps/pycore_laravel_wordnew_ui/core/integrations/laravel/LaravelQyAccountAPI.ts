@@ -13,6 +13,15 @@ export interface QyAccountCredentials {
   user: QyAccountUser;
 }
 
+export interface QyWordGroup {
+  gid: string;
+  gname: string;
+  language?: string;
+  total_words?: number;
+  is_default?: boolean;
+  is_language_default?: boolean;
+}
+
 type AccountEnvelope = {
   success?: boolean;
   message?: string;

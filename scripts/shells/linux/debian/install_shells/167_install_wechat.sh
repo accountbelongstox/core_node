@@ -495,7 +495,7 @@ prompt_update_or_skip() {
 
     local response
     echo -n "Update / reinstall WeChat? [Y/n]: "
-    read -r response
+    prompt_read_default response "y" 30
     case "$response" in
         [nN] | [nN][oO])
             print_info_from_common_functions "Keeping existing installation"

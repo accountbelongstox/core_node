@@ -386,7 +386,7 @@ main() {
         echo ""
 
         echo -e "${YELLOW}Do you want to skip this script? (Y/n, default: Yes)${NC}"
-        read -p "Skip? [Y/n]: " skip_response
+        prompt_read_default skip_response "y" 30 "Skip? [Y/n]: "
 
         # Default to Yes (skip)
         if [[ -z "$skip_response" ]]; then
@@ -497,7 +497,7 @@ main() {
             echo -e "  5. Start NAT Gateway service"
             echo ""
             echo -e "${CYAN}Do you want to install NAT Gateway? (N/y, default: No)${NC}"
-            read -p "Install? [N/y]: " install_response
+            prompt_read_default install_response "n" 30 "Install? [N/y]: "
 
             # Default to No for desktop systems
             if [[ -z "$install_response" ]]; then

@@ -68,6 +68,10 @@ CODESYNC_SERVICE_DEPS_LOADED=0
 # the full prerequisite environment during standalone startup.
 # shellcheck source=/dev/null
 source "$CODESYNC_PERMISSION_HELPER"
+# Prompt helpers: single definition in prompt_common.sh (zero side effects).
+if ! command -v prompt_read_default >/dev/null 2>&1; then
+    source "$CODESYNC_SVC_SCRIPT_DIR/prompt_common.sh"
+fi
 
 # --- Load service-management infrastructure only when needed ------------- #
 # The run-prompt path is executed by the resident systemd service itself.
@@ -123,10 +127,7 @@ codesync_prompt_yes() {
     local msg="$1" reply=""
     # Non-interactive override: CODESYNC_SERVICE_ASSUME_YES=1 -> yes without asking.
     case "${CODESYNC_SERVICE_ASSUME_YES:-}" in [Yy1]*) return 0 ;; esac
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [Y/n] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
-    fi
+    prompt_read_default reply "" 30 "$msg [Y/n] "
     case "$reply" in
         [Nn]*) return 1 ;;
         *)     return 0 ;;   # default = YES (empty input included)
@@ -146,7 +147,7 @@ codesync_confirm_force_git_alignment() {
     echo "[codesync-service] The local CodeSync chain can be damaged by receiving its own code."
     echo "[codesync-service] Force-aligning the working tree from Git can restore the service code."
     printf '%s [y/N] ' "[codesync-service] Force-align local code from origin/main now?"
-    read -r answer < /dev/tty || answer=""
+    prompt_read_default answer "" 30 ""
     case "$answer" in
         [Yy]) ;;
         *)
@@ -156,7 +157,7 @@ codesync_confirm_force_git_alignment() {
     esac
 
     printf '%s ' "[codesync-service] Type 'yes' to confirm the force-alignment prompt:"
-    read -r answer < /dev/tty || answer=""
+    prompt_read_default answer "" 30 ""
     if [ "$answer" != "yes" ]; then
         echo "[codesync-service] Force-alignment cancelled."
         return 0
@@ -165,7 +166,7 @@ codesync_confirm_force_git_alignment() {
     echo "[codesync-service] The next command will be executed in $CODESYNC_REPO_ROOT:"
     echo "git remote -v"
     printf '%s ' "[codesync-service] Type 'yes' to run this command:"
-    read -r remote_answer < /dev/tty || remote_answer=""
+    prompt_read_default remote_answer "" 30 ""
     if [ "$remote_answer" != "yes" ]; then
         echo "[codesync-service] Remote inspection cancelled."
         return 0
@@ -180,7 +181,7 @@ codesync_confirm_force_git_alignment() {
     echo "[codesync-service] The next command will discard local tracked and untracked changes:"
     echo "git fetch origin && git reset --hard origin/main && git clean -fd"
     printf '%s ' "[codesync-service] Type 'yes' to execute this destructive command:"
-    read -r sync_answer < /dev/tty || sync_answer=""
+    prompt_read_default sync_answer "" 30 ""
     if [ "$sync_answer" != "yes" ]; then
         echo "[codesync-service] Force-alignment cancelled."
         return 0

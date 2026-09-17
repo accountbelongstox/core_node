@@ -278,6 +278,7 @@ export const pycoreApiLocal = {
   getAgentHistoryRuntime: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet, {}) as Promise<{
       success: boolean;
+      refreshing?: boolean;
       data?: {
         article_config?: Record<string, unknown>;
         article_config_storage_path?: string;

@@ -29,13 +29,12 @@ Task record shape (all JSON-able):
     events: [{ts, message}]        capped generation log (viewable in the UI),
     created_at, updated_at
 
-All functions are thread-safe (one module lock) and never raise; callers get
+File operations use independent THREAD_BUS state owners and never raise; callers get
 None / [] / False on missing data.
 """
 
 import json
 import re
-import threading
 import time
 import uuid
 from pathlib import Path
@@ -43,8 +42,8 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.pyutils.common.serialized_files import serialized_file
 
-_LOCK = threading.RLock()
 _AUTH_FILE = "auth.json"
 _BOOKS_CACHE_FILE = "books_cache.json"
 _SYNC_STATE_FILE = "sync_state.json"
@@ -61,6 +60,7 @@ def base_dir() -> Path:
     return directory
 
 
+@serialized_file
 def _read_json(path: Path) -> Optional[Any]:
     try:
         if not path.is_file():
@@ -71,6 +71,7 @@ def _read_json(path: Path) -> Optional[Any]:
         return None
 
 
+@serialized_file
 def _write_json(path: Path, payload: Any) -> bool:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,27 +103,29 @@ def save_auth(username: str, token: str, user: Dict[str, Any], base_url: str = "
         "base_url": base_url,
         "logged_at": int(time.time()),
     }
-    with _LOCK:
-        return _write_json(base_dir() / _AUTH_FILE, record)
+    return _write_json(base_dir() / _AUTH_FILE, record)
 
 
 def load_auth() -> Optional[Dict[str, Any]]:
-    with _LOCK:
-        record = _read_json(base_dir() / _AUTH_FILE)
+    record = _read_json(base_dir() / _AUTH_FILE)
     if not isinstance(record, dict) or not record.get("token"):
         return None
     return record
 
 
+@serialized_file
+def _delete_json(path: Path) -> bool:
+    if path.is_file():
+        path.unlink()
+        return True
+    return False
+
+
 def clear_auth() -> bool:
-    with _LOCK:
-        path = base_dir() / _AUTH_FILE
-        try:
-            if path.is_file():
-                path.unlink()
-        except OSError:
-            return False
-    return True
+    path = base_dir() / _AUTH_FILE
+    if not path.is_file():
+        return True
+    return _delete_json(path)
 
 
 def auth_token() -> str:
@@ -130,20 +133,28 @@ def auth_token() -> str:
     return str(record.get("token") or "") if record else ""
 
 
+def update_auth(patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Merge fields into the stored auth record (word group cache/selection).
+    Returns the updated record, or None when logged out / the write failed."""
+    record = load_auth()
+    if record is None:
+        return None
+    record.update(patch or {})
+    return record if _write_json(base_dir() / _AUTH_FILE, record) else None
+
+
 # --------------------------------------------------------------------------- #
 # books list cache                                                             #
 # --------------------------------------------------------------------------- #
 def save_books_cache(items: List[Dict[str, Any]]) -> bool:
-    with _LOCK:
-        return _write_json(
-            base_dir() / _BOOKS_CACHE_FILE,
-            {"fetched_at": int(time.time()), "items": items or []},
-        )
+    return _write_json(
+        base_dir() / _BOOKS_CACHE_FILE,
+        {"fetched_at": int(time.time()), "items": items or []},
+    )
 
 
 def load_books_cache() -> Dict[str, Any]:
-    with _LOCK:
-        record = _read_json(base_dir() / _BOOKS_CACHE_FILE)
+    record = _read_json(base_dir() / _BOOKS_CACHE_FILE)
     if not isinstance(record, dict) or not isinstance(record.get("items"), list):
         return {"fetched_at": 0, "items": []}
     return record
@@ -156,16 +167,14 @@ def save_book_sentences(source_key: str, payload: Dict[str, Any]) -> bool:
     safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(source_key or ""))
     if not safe:
         return False
-    with _LOCK:
-        return _write_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json", payload)
+    return _write_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json", payload)
 
 
 def load_book_sentences(source_key: str) -> Optional[Dict[str, Any]]:
     safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(source_key or ""))
     if not safe:
         return None
-    with _LOCK:
-        record = _read_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json")
+    record = _read_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json")
     return record if isinstance(record, dict) else None
 
 
@@ -191,8 +200,11 @@ def new_task_id() -> str:
 def create_task(record: Dict[str, Any]) -> Dict[str, Any]:
     now = int(time.time())
     task = dict(record)
+    book = task.get("book") or {}
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime(now))
     task.setdefault("task_id", new_task_id())
-    task["slug"] = slugify(str(task.get("name") or task["task_id"]))
+    task["name"] = str(task.get("name") or "").strip() or f"{book.get('title') or book.get('source_key')}_{timestamp}_{task['task_id']}"
+    task["slug"] = f"{slugify(task['name'])}_{task['task_id']}"
     task.setdefault("status", "draft")
     task.setdefault("virtual_read", [])
     task.setdefault("segments", [])
@@ -201,20 +213,17 @@ def create_task(record: Dict[str, Any]) -> Dict[str, Any]:
     task.setdefault("new_only_max_read_count", 0)
     task["created_at"] = now
     task["updated_at"] = now
-    with _LOCK:
-        _write_json(_task_path(task["task_id"]), task)
+    _write_json(_task_path(task["task_id"]), task)
     return task
 
 
 def save_task(task: Dict[str, Any]) -> bool:
     task["updated_at"] = int(time.time())
-    with _LOCK:
-        return _write_json(_task_path(str(task.get("task_id") or "")), task)
+    return _write_json(_task_path(str(task.get("task_id") or "")), task)
 
 
 def get_task(task_id: str) -> Optional[Dict[str, Any]]:
-    with _LOCK:
-        record = _read_json(_task_path(task_id))
+    record = _read_json(_task_path(task_id))
     return record if isinstance(record, dict) else None
 
 
@@ -222,24 +231,16 @@ def list_tasks() -> List[Dict[str, Any]]:
     directory = base_dir() / _TASKS_DIR
     tasks: List[Dict[str, Any]] = []
     if directory.is_dir():
-        with _LOCK:
-            for path in sorted(directory.glob("*.json")):
-                record = _read_json(path)
-                if isinstance(record, dict):
-                    tasks.append(record)
+        for path in sorted(directory.glob("*.json")):
+            record = _read_json(path)
+            if isinstance(record, dict):
+                tasks.append(record)
     tasks.sort(key=lambda item: int(item.get("updated_at") or 0), reverse=True)
     return tasks
 
 
 def delete_task(task_id: str) -> bool:
-    with _LOCK:
-        path = _task_path(task_id)
-        try:
-            if path.is_file():
-                path.unlink()
-        except OSError:
-            return False
-    return True
+    return _delete_json(_task_path(task_id))
 
 
 def output_dir_for(task: Dict[str, Any]) -> Path:
@@ -251,19 +252,21 @@ def output_dir_for(task: Dict[str, Any]) -> Path:
 # --------------------------------------------------------------------------- #
 # background sync state (books list / per-book sentence fetches)               #
 # --------------------------------------------------------------------------- #
+@serialized_file
+def _save_sync_state(path: Path, key: str, state: Dict[str, Any]) -> bool:
+    record = _read_json(path)
+    if not isinstance(record, dict):
+        record = {}
+    record[str(key)] = {**state, "updated_at": int(time.time())}
+    return _write_json(path, record)
+
+
 def save_sync_state(key: str, state: Dict[str, Any]) -> bool:
-    """Persist one fetch job's state ("books" or a book source_key)."""
-    with _LOCK:
-        record = _read_json(base_dir() / _SYNC_STATE_FILE)
-        if not isinstance(record, dict):
-            record = {}
-        record[str(key)] = {**state, "updated_at": int(time.time())}
-        return _write_json(base_dir() / _SYNC_STATE_FILE, record)
+    return _save_sync_state(base_dir() / _SYNC_STATE_FILE, key, state)
 
 
 def load_sync_state() -> Dict[str, Any]:
-    with _LOCK:
-        record = _read_json(base_dir() / _SYNC_STATE_FILE)
+    record = _read_json(base_dir() / _SYNC_STATE_FILE)
     return record if isinstance(record, dict) else {}
 
 
@@ -271,13 +274,11 @@ def load_sync_state() -> Dict[str, Any]:
 # cached system status (ffmpeg probe etc.)                                     #
 # --------------------------------------------------------------------------- #
 def save_system_status(status: Dict[str, Any]) -> bool:
-    with _LOCK:
-        return _write_json(base_dir() / _SYSTEM_STATUS_FILE, status)
+    return _write_json(base_dir() / _SYSTEM_STATUS_FILE, status)
 
 
 def load_system_status() -> Optional[Dict[str, Any]]:
-    with _LOCK:
-        record = _read_json(base_dir() / _SYSTEM_STATUS_FILE)
+    record = _read_json(base_dir() / _SYSTEM_STATUS_FILE)
     return record if isinstance(record, dict) else None
 
 
@@ -316,6 +317,7 @@ __all__ = [
     "load_auth",
     "clear_auth",
     "auth_token",
+    "update_auth",
     "save_books_cache",
     "load_books_cache",
     "save_book_sentences",
@@ -335,3 +337,14 @@ __all__ = [
     "delete_task",
     "output_dir_for",
 ]
+
+def manifest_path(task_id: str) -> Path:
+    return base_dir() / "manifests" / _task_path(task_id).name
+
+
+def save_manifest(task_id: str, manifest: Dict[str, Any]) -> bool:
+    return _write_json(manifest_path(task_id), manifest)
+
+
+def load_manifest(task_id: str) -> Dict[str, Any]:
+    return _read_json(manifest_path(task_id)) or {}

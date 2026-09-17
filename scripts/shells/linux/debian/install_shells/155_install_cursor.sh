@@ -383,7 +383,7 @@ install_cursor() {
             print_warning_from_common_functions "Newer Cursor available: ${installed_version:-unknown} -> ${remote_version}"
             echo -n "Reinstall/upgrade Cursor now? [y/N]: "
             local reinstall_response=""
-            read -r reinstall_response
+            prompt_read_default reinstall_response "n" 30
             case "$reinstall_response" in
                 [yY]|[yY][eE][sS])
                     do_reinstall=true

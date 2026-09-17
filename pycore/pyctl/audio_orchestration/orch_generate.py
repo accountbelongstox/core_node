@@ -1,25 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Audio generation pipeline for orchestration tasks.
+Audio generation pipeline for orchestration tasks (manifest-first).
 
-Per task, per segment:
-  1. Build the item plan from the task pattern (sentence_en / sentence_zh /
-     words steps). Word steps honor word_mode + the task's virtual-read set
-     (orch_words) — a word shown once is consumed and never repeats later.
-  2. Resolve every item to a local audio file REUSING the existing caches and
-     engines — nothing is cached in a new location:
-       words     -> word_audio_cache.find_cached
-                    -> Laravel word media (word_audio_service.word_audio_media)
-                    -> local synthesis via tts_orchestrator.synthesize
-                       (word profile: edge first, local engines take over
-                       while edge is in cooldown; qwen is sentence-only)
-                    (results stored back via word_audio_cache.store_bytes)
-       sentences -> tts_orchestrator.synthesize (sentence profile: the shared
-                    sentence_audio_cache lookup/store and the qwen-first engine
-                    priority are built into it)
-  3. Concatenate with ffmpeg (re-encode to one uniform mp3) into
-     <user data dir>/audio_orchestration/output/<task_slug>/segment_XXX.mp3.
-     Output stays local on this machine; nothing is uploaded to Laravel.
+Per task, three persisted phases:
+  1. manifest  — expand the task pattern (sentence_en / sentence_zh /
+                 words_new / words_all steps; per-step word policy, task-local
+                 virtual read via orch_words) into ordered per-segment items
+                 and the unique word/sentence resource list.
+  2. resources — resolve every unique resource REUSING the existing caches
+                 and engines (orch_resources.resolve_audio: pycore cache ->
+                 Laravel -> local synthesis, stored back in the original cache
+                 locations); newly generated clips sync to Laravel through the
+                 durable delivery outbox (orch_resources.synchronize_audio).
+  3. assemble  — concatenate each segment's resolved items with ffmpeg
+                 (re-encode to one uniform mp3) into
+                 <user data dir>/audio_orchestration/output/<task_slug>/segment_XXX.mp3.
+                 Output stays local on this machine; nothing is uploaded to
+                 Laravel.
 
 Generation runs on a daemon thread per task; progress is persisted into the
 task record so the UI polls it via the task routes.
@@ -41,7 +38,7 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.tts import word_audio_cache
 from pycore.pyutils.tts.tts_orchestrator import synthesize
 
-from pycore.pyctl.audio_orchestration import orch_books, orch_store, orch_words
+from pycore.pyctl.audio_orchestration import orch_books, orch_resources, orch_store, orch_words
 
 _GEN_THREADS: Dict[str, threading.Thread] = {}
 _GEN_LOCK = threading.Lock()
@@ -142,7 +139,10 @@ def build_sentence_items(
     for step in task.get("pattern") or []:
         step_type = str(step.get("type") or "")
         times = max(1, int(step.get("times") or 1))
-        if step_type == "words":
+        # Per-step word policy: "words_new"/"words_all" carry their own mode;
+        # legacy "words" defers to the task-level word_mode.
+        step_word_mode = {"words_new": "new_only", "words_all": "all"}.get(step_type)
+        if step_type in ("words", "words_new", "words_all"):
             selected = orch_words.select_words(
                 task,
                 str(sentence.get("text") or ""),
@@ -151,6 +151,7 @@ def build_sentence_items(
                 consume,
                 use_backend=use_backend,
                 auth_record=auth_record,
+                word_mode=step_word_mode,
             )
             for _ in range(times):
                 items.extend(
@@ -263,6 +264,7 @@ def start_generation(
     expected_user_id: Optional[int] = None,
     expected_base_url: Optional[str] = None,
     use_qy_account: Optional[bool] = None,
+    word_group_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     task = orch_store.get_task(task_id)
     auth_record = {} if use_qy_account is False else orch_store.load_auth() or {}
@@ -273,6 +275,16 @@ def start_generation(
         or str(auth_record.get("base_url") or "").rstrip("/") != str(expected_base_url or "").rstrip("/")
     ):
         return {"success": False, "error": "QY_ACCOUNT_MACHINE_SYNC_PENDING"}
+    if word_group_id:
+        # The UI-selected read-state baseline travels with the task so later
+        # regenerations keep using the same Word Group.
+        task["word_group_id"] = str(word_group_id)
+        orch_store.save_task(task)
+    elif not task.get("word_group_id") and auth_record.get("word_group_id"):
+        # Default to the pycore-side persisted baseline selection.
+        task["word_group_id"] = str(auth_record["word_group_id"])
+        orch_store.save_task(task)
+    orch_resources.recover_deliveries()
     thread = threading.Thread(
         target=_run_generation,
         args=(task_id, auth_record),
@@ -311,10 +323,19 @@ def _run_generation(task_id: str, auth_record: Dict[str, Any]) -> None:
         _CANCEL_REQUESTS.discard(task_id)
 
 
+def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
+    if str(task.get("task_id") or "") not in _CANCEL_REQUESTS:
+        return False
+    task["status"] = "draft"
+    _progress(task, message="cancelled", **stats)
+    return True
+
+
 def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     task_id = str(task["task_id"])
     book = task.get("book") or {}
     source_key = str(book.get("source_key") or "")
+    base_url = str(auth_record.get("base_url") or "") or None
     # Regenerate = replace: start with a clean log (stale segment files are
     # removed below, before the new partition is assembled).
     task["events"] = []
@@ -347,11 +368,6 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
     task["virtual_read"] = []
     task["cancel_requested"] = False
     task["status"] = "generating"
-    _progress(
-        task,
-        message="starting", segment_index=0, item_index=0, item_total=0,
-        current_item="", cache_hits=0, laravel_hits=0, generated=0, missing=0,
-    )
 
     output_dir = orch_store.output_dir_for(task)
     # Regenerate = replace: drop stale segment files from the previous run so
@@ -363,72 +379,117 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
             pass
     staging = output_dir / "staging"
     staging.mkdir(parents=True, exist_ok=True)
-    gap = _ensure_gap_file(ffmpeg, staging)
 
-    stats = {"cache_hits": 0, "laravel_hits": 0, "generated": 0, "missing": 0}
+    stats = {"cache_hits": 0, "laravel_hits": 0, "generated": 0, "missing": 0, "synced": 0}
 
+    # Phase 1: manifest — expand every segment into ordered audio items
+    # (consuming the virtual-read set exactly once) and collect the unique
+    # word/sentence resources the whole task needs.
+    _progress(
+        task, phase="manifest", message="building manifest",
+        segment_index=0, resource_index=0, resource_total=0, **stats,
+    )
+    segment_items: List[List[Dict[str, Any]]] = []
+    resources: Dict[str, Dict[str, Any]] = {}
     for segment in task["segments"]:
-        if task_id in _CANCEL_REQUESTS:
-            task["status"] = "draft"
-            _progress(task, message="cancelled")
+        if _cancel(task, stats):
             return
-        segment["status"] = "preparing"
-        orch_store.append_task_event(
-            task,
-            f"segment {segment['index']}: preparing {segment['sentence_count']} sentences",
-        )
-        _progress(task, message=f"segment {segment['index']}: preparing", segment_index=segment["index"], **stats)
-        files: List[Path] = []
-        item_index = 0
-        segment_items: List[Dict[str, Any]] = []
+        items: List[Dict[str, Any]] = []
         for sentence_pos in range(segment["start"], segment["end"] + 1):
-            if task_id in _CANCEL_REQUESTS:
-                task["status"] = "draft"
-                _progress(task, message="cancelled", **stats)
+            if _cancel(task, stats):
                 return
-            segment_items.extend(build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record))
-        orch_store.save_task(task)
-        item_total = len(segment_items)
-        for item in segment_items:
-            if task_id in _CANCEL_REQUESTS:
-                task["status"] = "draft"
-                _progress(task, message="cancelled", **stats)
-                return
-            item_index += 1
-            target = staging / f"s{segment['index']:03d}_{item_index:05d}.mp3"
-            source = "missing"
-            if item["kind"] == "word":
-                word_path, source = ensure_word_audio(item["text"], item["language"])
-                if word_path is not None:
-                    files.append(word_path)
-            else:
-                ok, source = ensure_sentence_audio(item["text"], item["language"], target)
-                if ok:
-                    files.append(target)
-            if source == "missing":
-                stats["missing"] += 1
-                orch_store.append_task_event(
-                    task,
-                    f"missing {item['kind']}: {item['text'][:60]}",
-                )
-                ColorPrint.yellow(
-                    f"[AudioOrch] item failed ({item['kind']}: {item['text'][:40]})"
-                )
-            elif source == "cache":
+            items.extend(build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record))
+        for item in items:
+            resource_id = orch_resources.resource_id(item["kind"], item["language"], item["text"])
+            item["resource_id"] = resource_id
+            if resource_id not in resources:
+                resources[resource_id] = {
+                    "kind": item["kind"],
+                    "language": item["language"],
+                    "text": item["text"],
+                    "resource_id": resource_id,
+                }
+        segment_items.append(items)
+        _progress(
+            task, phase="manifest",
+            message=f"manifest: segment {segment['index']}/{len(task['segments'])}",
+            segment_index=segment["index"], resource_total=len(resources), **stats,
+        )
+    # Persist the consumed virtual-read set before any slow resource work.
+    orch_store.save_task(task)
+    orch_store.append_task_event(
+        task,
+        f"manifest ready: {len(resources)} unique resources across {len(task['segments'])} segments",
+    )
+
+    # Phase 2: resources — local caches first in BATCH (orch_resources
+    # .resolve_batch), then Laravel / local generation for the misses only;
+    # newly generated clips sync back to Laravel through the durable delivery
+    # outbox.
+    resolved: Dict[str, str] = {}
+    resource_list = list(resources.values())
+    resource_total = len(resource_list)
+
+    def _resource_done(index: int, resource: Dict[str, Any], result: Dict[str, Any]) -> None:
+        source = str(result.get("source") or "missing")
+        if result.get("status") == "ready" and result.get("audio_path"):
+            resolved[resource["resource_id"]] = str(result["audio_path"])
+            if source == "cache":
                 stats["cache_hits"] += 1
             elif source == "laravel":
                 stats["laravel_hits"] += 1
             else:
                 stats["generated"] += 1
-            _progress(
-                task,
-                message=f"segment {segment['index']}: item {item_index}/{item_total}",
-                segment_index=segment["index"],
-                item_index=item_index,
-                item_total=item_total,
-                current_item=f"{item['kind']}: {item['text'][:60]} [{source}]",
-                **stats,
-            )
+                sync = orch_resources.synchronize_audio(
+                    {**resource, "audio_path": result["audio_path"], "provider": result.get("provider")},
+                    base_url,
+                )
+                if sync.get("success") or sync.get("already_uploaded"):
+                    stats["synced"] += 1
+                else:
+                    orch_store.append_task_event(
+                        task,
+                        f"sync pending: {resource['text'][:60]} ({sync.get('error') or 'queued'})",
+                    )
+        else:
+            stats["missing"] += 1
+            orch_store.append_task_event(task, f"missing {resource['kind']}: {resource['text'][:60]}")
+            ColorPrint.yellow(f"[AudioOrch] resource failed ({resource['kind']}: {resource['text'][:40]})")
+        _progress(
+            task, phase="resources",
+            message=f"resources: {index}/{resource_total}",
+            resource_index=index, resource_total=resource_total,
+            current_item=f"{resource['kind']}: {resource['text'][:60]} [{source}]",
+            **stats,
+        )
+
+    orch_resources.resolve_batch(
+        resource_list,
+        staging,
+        base_url=base_url,
+        cancel_requested=lambda: task_id in _CANCEL_REQUESTS,
+        progress_callback=_resource_done,
+    )
+    if _cancel(task, stats):
+        return
+    orch_store.append_task_event(
+        task,
+        f"resources ready (cache={stats['cache_hits']} laravel={stats['laravel_hits']} "
+        f"generated={stats['generated']} synced={stats['synced']} missing={stats['missing']})",
+    )
+
+    # Phase 3: assemble — concat each segment's resolved items in pattern
+    # order; segments whose every item is missing fail without aborting the
+    # rest of the task.
+    gap = _ensure_gap_file(ffmpeg, staging)
+    for segment, items in zip(task["segments"], segment_items):
+        if _cancel(task, stats):
+            return
+        files = [
+            Path(resolved[item["resource_id"]])
+            for item in items
+            if item.get("resource_id") in resolved
+        ]
         if not files:
             segment["status"] = "failed"
             segment["error"] = "no audio items resolved"
@@ -436,12 +497,14 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
             orch_store.save_task(task)
             continue
         segment["status"] = "assembling"
-        _progress(task, message=f"segment {segment['index']}: assembling", segment_index=segment["index"], **stats)
+        _progress(
+            task, phase="assemble",
+            message=f"segment {segment['index']}: assembling {len(files)} items",
+            segment_index=segment["index"], item_index=0, item_total=len(files), **stats,
+        )
         output = output_dir / f"segment_{segment['index']:03d}.mp3"
         error = _concat_segment(ffmpeg, gap, files, output)
-        if task_id in _CANCEL_REQUESTS:
-            task["status"] = "draft"
-            _progress(task, message="cancelled", **stats)
+        if _cancel(task, stats):
             return
         if error:
             segment["status"] = "failed"
@@ -459,10 +522,11 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
         task,
         f"generation finished: {task['status']} "
         f"(cache={stats['cache_hits']} laravel={stats['laravel_hits']} "
-        f"generated={stats['generated']} missing={stats['missing']})",
+        f"generated={stats['generated']} synced={stats['synced']} missing={stats['missing']})",
     )
     _progress(
         task,
+        phase="done",
         message="done" if task["status"] == "done" else "all segments failed",
         output_dir=str(output_dir),
         **stats,

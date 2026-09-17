@@ -46,6 +46,12 @@ export const orchEn = {
   "wordMode": "Word selection",
   "wordModeNewOnly": "Word New Only (virtual read)",
   "wordModeAll": "All words",
+  "wordsOnlyNew": "Words Only NEW",
+  "phaseManifest": "Collecting manifest",
+  "phaseResources": "Preparing resources",
+  "phaseAssemble": "Assembling segments",
+  "phaseDone": "Finished",
+  "manifestSynced": "synced",
   "save": "Save",
   "create": "Create",
   "planPreview": "Preview plan",
@@ -99,7 +105,12 @@ export const orchEn = {
   "minutesUnit": "min",
   "logoutPending": "Signed out of Qy App V1 in this browser. The selected Pycore session will be cleared when the connection is available.",
   "logoutTargetChanged": "Return to the previous Pycore connection to finish clearing its Qy account session.",
-  "accountExpired": "The Qy App V1 account session has expired. Sign out and sign in to Qy App V1 again."
+  "accountExpired": "The Qy App V1 account session has expired. Sign out and sign in to Qy App V1 again.",
+  "wordGroupBaseline": "Word Group baseline (read state)",
+  "wordGroupHint": "Words Only NEW steps use this group's read-word records, pulled after login.",
+  "noWordGroups": "No word groups",
+  "groupsLoadFailed": "Unable to load word groups.",
+  "defaultGroup": "Default Vocabulary Group"
 } as const;
 
 export const orchZh = {
@@ -150,6 +161,12 @@ export const orchZh = {
   "wordMode": "单词选择",
   "wordModeNewOnly": "仅新词（虚拟已读）",
   "wordModeAll": "全部单词",
+  "wordsOnlyNew": "仅新词",
+  "phaseManifest": "清点清单",
+  "phaseResources": "补齐资源",
+  "phaseAssemble": "合成段落",
+  "phaseDone": "已完成",
+  "manifestSynced": "已同步",
   "save": "保存",
   "create": "创建",
   "planPreview": "预览编排",
@@ -203,5 +220,10 @@ export const orchZh = {
   "minutesUnit": "分钟",
   "logoutPending": "此浏览器已退出 Qy App V1。连接恢复后会清除所选 Pycore 上的账户会话。",
   "logoutTargetChanged": "请切回之前的 Pycore 连接，以完成清除它的 Qy 账户会话。",
-  "accountExpired": "Qy App V1 账户会话已失效，请退出并重新登录 Qy App V1。"
+  "accountExpired": "Qy App V1 账户会话已失效，请退出并重新登录 Qy App V1。",
+  "wordGroupBaseline": "单词组基准（已读状态）",
+  "wordGroupHint": "“仅新词”步骤使用该组的已读记录，登录后从后端拉取。",
+  "noWordGroups": "暂无单词组",
+  "groupsLoadFailed": "无法加载单词组。",
+  "defaultGroup": "默认单词组"
 } as const;

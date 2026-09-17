@@ -473,7 +473,7 @@ install_vscode() {
     if true; then
         echo ""
         echo -n "Do you want to install VS Code with root privileges (pkexec)? (Y/n): "
-        read -r response
+        prompt_read_default response "y" 30
         case "$response" in
             [nN]|[nN][oO])
                 USE_ROOT_MODE=false
@@ -675,7 +675,9 @@ prompt_cleanup_reinstall() {
         fi
 
         echo -n "$prompt_message"
-        read -r response
+        local prompt_default="n"
+        [[ "$prompt_message" == *"Upgrade"* ]] && prompt_default="y"
+        prompt_read_default response "$prompt_default" 30
 
         # Handle upgrade prompt
         local should_proceed=false

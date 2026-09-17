@@ -58,6 +58,8 @@ if (recovered?.data) {
 }
 let operationFlight: Promise<void> | null = null;
 let runtimeFlight: Promise<void> | null = null;
+let runtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let runtimeRefreshing = false;
 let operationRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeUnsubscribers: Array<() => void> = [];
@@ -137,6 +139,14 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
   patch({ configLoading: true, operationLoading: true });
   runtimeFlight = pycoreApi.getAgentHistoryRuntime()
     .then((response) => {
+      runtimeRefreshing = response.refreshing === true;
+      if (runtimeRefreshing && consumerCount > 0 && runtimeRefreshTimer === null) {
+        runtimeRefreshTimer = setTimeout(() => {
+          runtimeRefreshTimer = null;
+          void refreshAgentHistoryRuntime();
+        }, 1500);
+      }
+      if (runtimeRefreshing && !response.data?.article_config) return;
       if (!response.success || !response.data) {
         const error = response.error || 'AGENT_HISTORY_RUNTIME_UNAVAILABLE';
         patch({ configError: error, operationError: error });
@@ -161,9 +171,9 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
     .finally(() => {
       runtimeFlight = null;
       patch({
-        configLoading: false,
-        operationLoading: false,
-        initialized: true,
+        configLoading: runtimeRefreshing,
+        operationLoading: runtimeRefreshing,
+        initialized: !runtimeRefreshing,
       });
     });
   return runtimeFlight;
@@ -286,6 +296,8 @@ function startAgentHistoryRuntime(): void {
 function stopAgentHistoryRuntime(): void {
   consumerCount = Math.max(0, consumerCount - 1);
   if (consumerCount !== 0) return;
+  if (runtimeRefreshTimer !== null) clearTimeout(runtimeRefreshTimer);
+  runtimeRefreshTimer = null;
   if (operationRefreshTimer !== null) {
     clearTimeout(operationRefreshTimer);
     operationRefreshTimer = null;
