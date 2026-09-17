@@ -23,6 +23,8 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRANKENPHP_INSTALL_INDEX="93-install-system"
 FRANKENPHP_APT_RUNTIME_MASK_PATH="/run/systemd/system/frankenphp.service"
 FRANKENPHP_APT_LEGACY_MASK_PATH="/etc/systemd/system/frankenphp.service"
+FRANKENPHP_APT_POLICY_RC_PATH="/usr/sbin/policy-rc.d"
+FRANKENPHP_APT_POLICY_RC_MARKER="93_install_frankenphp"
 
 source "$SCRIPT_CURRENT_DIR/frankenphp_install_modes.sh"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
@@ -38,6 +40,40 @@ frankenphp_install_apt_package_missing() {
         echo "no"
     else
         echo "yes"
+    fi
+}
+
+# Install-window service guard: a runtime mask makes the package postinst fail
+# with "Failed to preset unit: Unit /run/systemd/system/frankenphp.service is
+# masked". The Debian-native mechanism is /usr/sbin/policy-rc.d: invoke-rc.d
+# treats exit 101 as "action forbidden", so the vendor postinst cannot START the
+# service while preset/enable still succeed cleanly. Removed right after install.
+frankenphp_install_apt_policy_rc_ensure() {
+    # Clear any stale mask left by an older run so postinst preset succeeds.
+    frankenphp_install_apt_packaged_service_unmask_ensure >/dev/null 2>&1 || true
+    printf '#!/bin/sh\n# %s: deny service starts during frankenphp package install\nexit 101\n' \
+        "$FRANKENPHP_APT_POLICY_RC_MARKER" | $USE_SUDO tee "$FRANKENPHP_APT_POLICY_RC_PATH" >/dev/null
+    $USE_SUDO chmod 755 "$FRANKENPHP_APT_POLICY_RC_PATH" 2>/dev/null || true
+    if [ -x "$FRANKENPHP_APT_POLICY_RC_PATH" ] && grep -q "$FRANKENPHP_APT_POLICY_RC_MARKER" "$FRANKENPHP_APT_POLICY_RC_PATH" 2>/dev/null; then
+        echo "[${FRANKENPHP_INSTALL_INDEX}] packaged service start blocked via policy-rc.d for package preparation"
+    else
+        echo "[${FRANKENPHP_INSTALL_INDEX}] [WARN] policy-rc.d guard did not converge"
+    fi
+}
+
+frankenphp_install_apt_policy_rc_ready() {
+    if [ -x "$FRANKENPHP_APT_POLICY_RC_PATH" ] && grep -q "$FRANKENPHP_APT_POLICY_RC_MARKER" "$FRANKENPHP_APT_POLICY_RC_PATH" 2>/dev/null; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+frankenphp_install_apt_policy_rc_clear() {
+    # Only remove the file when it is OURS (another tool may legitimately own it).
+    if [ -f "$FRANKENPHP_APT_POLICY_RC_PATH" ] && grep -q "$FRANKENPHP_APT_POLICY_RC_MARKER" "$FRANKENPHP_APT_POLICY_RC_PATH" 2>/dev/null; then
+        $USE_SUDO rm -f "$FRANKENPHP_APT_POLICY_RC_PATH"
+        echo "[${FRANKENPHP_INSTALL_INDEX}] policy-rc.d guard removed"
     fi
 }
 
@@ -178,9 +214,9 @@ frankenphp_install_apt_repo_ensure() {
 frankenphp_install_apt_packages_ensure() {
     local package=""
     local packages_missing="no"
-    local service_mask_ready=""
+    local service_guard_ready=""
 
-    service_mask_ready="$(frankenphp_install_apt_packaged_service_mask_ready)"
+    service_guard_ready="$(frankenphp_install_apt_policy_rc_ready)"
 
     for package in "${FRANKENPHP_APT_PACKAGES[@]}"; do
         if [ "$(frankenphp_install_apt_package_missing "$package")" = "yes" ]; then
@@ -194,11 +230,11 @@ frankenphp_install_apt_packages_ensure() {
     fi
     for package in "${FRANKENPHP_APT_PACKAGES[@]}"; do
         if [ "$(frankenphp_install_apt_package_missing "$package")" = "yes" ]; then
-            if [ "$service_mask_ready" = "yes" ]; then
+            if [ "$service_guard_ready" = "yes" ]; then
                 echo "[${FRANKENPHP_INSTALL_INDEX}] installing missing package: ${package}"
                 $USE_SUDO apt-get install -y "$package"
             else
-                echo "[${FRANKENPHP_INSTALL_INDEX}] [WARN] package deferred because the vendor service mask is absent: ${package}"
+                echo "[${FRANKENPHP_INSTALL_INDEX}] [WARN] package deferred because the service start guard is absent: ${package}"
             fi
         fi
         if [ "$(frankenphp_install_apt_package_missing "$package")" = "yes" ]; then
@@ -214,9 +250,10 @@ frankenphp_install_apt() {
     echo "  - packages: ${FRANKENPHP_APT_PACKAGES[*]}"
 
     frankenphp_install_apt_repo_ensure
-    frankenphp_install_apt_packaged_service_mask_ensure
+    frankenphp_install_apt_policy_rc_ensure
     frankenphp_install_apt_packages_ensure
     frankenphp_install_apt_packaged_service_stop_ensure
+    frankenphp_install_apt_policy_rc_clear
     frankenphp_install_apt_packaged_service_unmask_ensure
     frankenphp_install_apt_packaged_service_disable_ensure
     frankenphp_install_apt_packaged_service_stop_ensure

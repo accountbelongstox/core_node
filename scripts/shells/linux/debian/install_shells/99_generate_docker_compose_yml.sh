@@ -39,8 +39,15 @@ if [ "$START_DOCKER" = "false" ]; then
 fi
 
 docker_compose_selector="$SHELLS_SCRIPTS_DIR/docker-compose-selector.js"
-echo "docker-compose-selector: node $docker_compose_selector"
-node "$docker_compose_selector"
+# Absolute path first: install-time shells may run with a minimal PATH.
+NODE_CMD="${NODE_BIN:-}"
+{ [ -z "$NODE_CMD" ] || [ ! -x "$NODE_CMD" ]; } && NODE_CMD="$(command -v node 2>/dev/null || true)"
+if [ -z "$NODE_CMD" ]; then
+    echo "node not found. Run 17_install_node_toolchain_26.sh first. Skipping docker-compose generation."
+    exit 0
+fi
+echo "docker-compose-selector: $NODE_CMD $docker_compose_selector"
+"$NODE_CMD" "$docker_compose_selector"
     
 
 

@@ -647,11 +647,17 @@ main() {
     echo "[$SCRIPT_INDEX] PostgreSQL configuration completed"
 }
 
-# Check if PostgreSQL should be processed based on installation mode
+# Check if PostgreSQL should be processed based on installation mode.
+# START_POSTGRESQL=true is an explicit opt-in (e.g. FrankenPHP php-zts-pgsql was
+# selected) and overrides base mode; base mode only skips when it is not set.
 case "$INSTALL_MODE" in
     "base")
-        echo "[$SCRIPT_INDEX] Base mode - PostgreSQL installation skipped"
-        exit 0
+        if [ "$START_POSTGRESQL" = "true" ]; then
+            echo "[$SCRIPT_INDEX] Base mode with START_POSTGRESQL=true - explicit opt-in, processing PostgreSQL..."
+        else
+            echo "[$SCRIPT_INDEX] Base mode - PostgreSQL installation skipped"
+            exit 0
+        fi
         ;;
     "server"|"full"|"desktop")
         echo "[$SCRIPT_INDEX] Mode: $INSTALL_MODE - Processing PostgreSQL..."

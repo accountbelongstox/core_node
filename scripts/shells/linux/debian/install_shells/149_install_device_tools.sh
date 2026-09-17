@@ -14,7 +14,9 @@
 #
 # IDEMPOTENT: each binary is skipped when already on PATH.
 # Cross-distro: the `adb` (android-tools-adb -> adb) and `scrcpy` apt packages
-# ship on Debian 11-13, Ubuntu 18.04-26.04 and Kali (distro main repos).
+# ship on Debian 11-12, Ubuntu 18.04-26.04 and Kali (distro main repos). scrcpy is
+# NOT in Debian 13 trixie, so each package installs independently and a missing one
+# falls back to pycore's scrcpy_init.py self-download.
 #
 # Usage:  ./install_device_tools.sh [--python <py>] [--force]
 #         (--python is accepted but unused: these are system binaries, not pip pkgs.)
@@ -22,6 +24,7 @@
 set -uo pipefail
 
 FORCE=0
+FAILED=()
 
 # Accept (and ignore) prepare_pycore_prerequisites.sh's --python; honor --force to reinstall when present.
 while [[ $# -gt 0 ]]; do
@@ -69,12 +72,20 @@ if [[ ${#NEED[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# Install one package at a time: a package missing from the current distro repo
+# (e.g. scrcpy is not in Debian 13 trixie) must not block the others.
 echo "[install_device_tools] [..] apt-get install: ${NEED[*]}"
 $SUDO apt-get update -qq 2>/dev/null || true
-if $SUDO apt-get install -y "${NEED[@]}" >/dev/null 2>&1; then
-    echo "[install_device_tools] [OK] device tools installed: ${NEED[*]}"
-else
-    echo "[install_device_tools] [!] failed to apt-install ${NEED[*]}; pycore's scrcpy_init.py self-download is the fallback."
+for dev_pkg in "${NEED[@]}"; do
+    if $SUDO apt-get install -y "$dev_pkg" >/dev/null 2>&1; then
+        echo "[install_device_tools] [OK] installed: $dev_pkg"
+    else
+        echo "[install_device_tools] [!] failed to apt-install $dev_pkg (not in this distro's repos?)"
+        FAILED+=("$dev_pkg")
+    fi
+done
+if [[ ${#FAILED[@]} -gt 0 ]]; then
+    echo "[install_device_tools] [!] unavailable via apt: ${FAILED[*]}; pycore's scrcpy_init.py self-download is the fallback."
 fi
 
 # Non-fatal by design: the service runs regardless of what got installed.

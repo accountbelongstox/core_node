@@ -86,7 +86,31 @@ install_pycore_package_policy() {
     failed=0
     pip_flags=()
 
-    if [[ ! -f "$(dirname "$py")/../pyvenv.cfg" ]]; then
+    # Venv detection must resolve symlinks ONE hop at a time and stop at the
+    # first location carrying pyvenv.cfg: a venv's bin/python3 is itself a
+    # symlink to the base interpreter, so full `readlink -f` jumps PAST the venv.
+    local py_walk="$py"
+    local py_dir=""
+    local py_guard=0
+    local py_is_venv=0
+    while [ $py_guard -lt 10 ]; do
+        py_guard=$((py_guard + 1))
+        py_dir="$(dirname "$py_walk")"
+        if [[ -f "$py_dir/../pyvenv.cfg" ]]; then
+            py_is_venv=1
+            break
+        fi
+        if [[ -L "$py_walk" ]]; then
+            py_walk="$(readlink "$py_walk")"
+            case "$py_walk" in
+                /*) ;;
+                *) py_walk="$py_dir/$py_walk" ;;
+            esac
+        else
+            break
+        fi
+    done
+    if [[ "$py_is_venv" -eq 0 ]]; then
         pip_flags=(--break-system-packages --no-user)
     fi
 

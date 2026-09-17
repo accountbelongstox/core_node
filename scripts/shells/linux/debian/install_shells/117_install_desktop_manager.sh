@@ -21,6 +21,17 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # iniscripts -> common -> linux -> shells -> scripts -> core_node (repo root, five up) -> poly_apps/pycore_laravel_wordnew_ui
 UI_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)/poly_apps/pycore_laravel_wordnew_ui"
+COMMON_DIR="$SCRIPT_DIR/../../common"
+
+# shellcheck source=/dev/null
+source "$COMMON_DIR/gvar_common.sh"
+
+# Resolve pnpm by ABSOLUTE path: this runs under prepare_pycore_prerequisites.sh,
+# which may have a minimal PATH. Prefer the gvar path, then the /usr/local/bin
+# link, then PATH.
+PNPM_CMD="${PNPM_BIN:-}"
+{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && [ -x /usr/local/bin/pnpm ] && PNPM_CMD="/usr/local/bin/pnpm"
+{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && PNPM_CMD="$(command -v pnpm 2>/dev/null || true)"
 
 FORCE=0
 while [[ $# -gt 0 ]]; do
@@ -38,9 +49,9 @@ echo "============================================================"
 if [[ ! -f "$UI_DIR/package.json" ]]; then
     echo "[skip] pycore_laravel_wordnew_ui not found at $UI_DIR"; exit 0
 fi
-if ! command -v pnpm >/dev/null 2>&1; then
-    echo "[skip] pnpm not found on PATH. UI is optional; install Node 18+ and pnpm to enable it."
-    echo "       (npm install -g pnpm)"
+if [ -z "$PNPM_CMD" ]; then
+    echo "[skip] pnpm not found. UI is optional; install Node and pnpm to enable it."
+    echo "       (run 17_install_node_toolchain_26.sh)"
     exit 0
 fi
 if [[ -d "$UI_DIR/node_modules" && "$FORCE" -eq 0 ]]; then
@@ -48,6 +59,6 @@ if [[ -d "$UI_DIR/node_modules" && "$FORCE" -eq 0 ]]; then
 fi
 
 echo "[..] pnpm install in $UI_DIR ..."
-( cd "$UI_DIR" && pnpm install ) || { echo "[!] pnpm install error; UI may not start."; exit 0; }
+( cd "$UI_DIR" && "$PNPM_CMD" install ) || { echo "[!] pnpm install error; UI may not start."; exit 0; }
 echo "[OK] Dashboard UI dependencies installed."
 exit 0
