@@ -24,22 +24,23 @@ interface PortalProps {
   children: React.ReactNode;
   /** Lock background scroll while mounted (default true). */
   lockScroll?: boolean;
+  container?: HTMLElement | null;
 }
 
-const Portal: React.FC<PortalProps> = ({ children, lockScroll = true }) => {
+const Portal: React.FC<PortalProps> = ({ children, lockScroll = true, container }) => {
   const [host] = useState<HTMLDivElement | null>(() =>
     typeof document !== 'undefined' ? document.createElement('div') : null
   );
 
-  // Attach/detach the host node to <body>.
   useEffect(() => {
-    if (!host) return;
+    const parent = container ?? host?.ownerDocument.body;
+    if (!host || !parent) return;
     host.setAttribute('data-overlay-portal', '');
-    document.body.appendChild(host);
+    parent.appendChild(host);
     return () => {
-      document.body.removeChild(host);
+      parent.removeChild(host);
     };
-  }, [host]);
+  }, [host, container]);
 
   // Ref-counted background scroll lock.
   useEffect(() => {

@@ -20,6 +20,7 @@ function readClipboardState(): ShellClipboardState {
   return {
     open: saved?.open === true,
     collapsed: saved?.collapsed === true,
+    expanded: saved?.expanded === true,
     namespace: new RegExp(CLOUD_CLIPBOARD.namespace_pattern).test(namespace) ? namespace : '',
   };
 }

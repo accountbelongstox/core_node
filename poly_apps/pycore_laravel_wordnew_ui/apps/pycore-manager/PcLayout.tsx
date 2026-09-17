@@ -17,6 +17,7 @@ import { PcTestPopupProvider } from './components/PcTestPopupContext';
 import { PcTopBar } from './components/PcTopBar';
 import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
 import { useIsMobile } from './hooks/useIsMobile';
+import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from '../../shell/shellChrome';
 
 const linkBase =
   'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150';
@@ -106,8 +107,10 @@ export const PcLayout: React.FC = () => {
         <main className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <PcTopBar onOpenNav={isMobile ? () => setNavOpen(true) : undefined} />
           {/* Reserve bottom space for the collapsed floating log (~56px). */}
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pb-16">
-            <Outlet />
+          <div {...{ [SHELL_CLIPBOARD_HOST_ATTRIBUTE]: '' }} className="relative z-0 flex-1 min-h-0 overflow-hidden">
+            <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain pb-16">
+              <Outlet />
+            </div>
           </div>
         </main>
         {/* Global floating live-log: present on every pycore page. */}

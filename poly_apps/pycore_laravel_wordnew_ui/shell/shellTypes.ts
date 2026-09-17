@@ -19,6 +19,7 @@ export type ThemeId = 'nexus' | 'pycore' | 'iris';
 export interface ShellClipboardState {
   open: boolean;
   collapsed: boolean;
+  expanded: boolean;
   namespace: string;
 }
 

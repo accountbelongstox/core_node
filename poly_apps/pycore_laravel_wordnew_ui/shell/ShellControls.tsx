@@ -22,7 +22,7 @@ import { useShell } from './ShellContext';
 import { END_META, SHELL_LANGUAGES, ThemeId } from './shellTypes';
 import {
   SHELL_DOCK_INSET_PX, SHELL_DOCK_BUTTON_PX,
-  SHELL_DOCK_PANEL_GAP_PX, SHELL_DOCK_PANEL_WIDTH_PX, SHELL_DOCK_Z_INDEX,
+  SHELL_DOCK_PANEL_GAP_PX, SHELL_DOCK_PANEL_WIDTH_PX, SHELL_DOCK_Z_INDEX, SHELL_DOCK_STACK_HEIGHT_PX,
 } from './shellChrome';
 import { StorageManager } from '../core/persistence';
 import { ShellStorageKeys as StorageKeys } from './ShellStorageKeys';
@@ -33,13 +33,13 @@ const DRAG_THRESHOLD_PX = 4;
 /** Default Y = vertically centered. */
 function defaultDockY(): number {
   const h = typeof window !== 'undefined' ? window.innerHeight : 800;
-  return Math.max(SHELL_DOCK_INSET_PX, Math.round(h / 2 - SHELL_DOCK_BUTTON_PX / 2));
+  return clampDockY(Math.round(h / 2 - SHELL_DOCK_STACK_HEIGHT_PX / 2));
 }
 
 /** Clamp a top-Y so the button stays fully on-screen with the standard inset. */
 function clampDockY(y: number): number {
   const h = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const maxY = h - SHELL_DOCK_BUTTON_PX - SHELL_DOCK_INSET_PX;
+  const maxY = h - SHELL_DOCK_STACK_HEIGHT_PX - SHELL_DOCK_INSET_PX;
   return Math.min(Math.max(y, SHELL_DOCK_INSET_PX), Math.max(SHELL_DOCK_INSET_PX, maxY));
 }
 
@@ -115,7 +115,7 @@ export const ShellControls: React.FC = () => {
   const dragging = drag !== null;
   // Open upward when the button lives in the lower half so the panel stays visible.
   const openUp = dockY > ((typeof window !== 'undefined' ? window.innerHeight : 800) / 2);
-  const panelOffset = SHELL_DOCK_BUTTON_PX + SHELL_DOCK_PANEL_GAP_PX;
+  const panelOffset = SHELL_DOCK_STACK_HEIGHT_PX + SHELL_DOCK_PANEL_GAP_PX;
 
   return (
     <div
@@ -124,8 +124,12 @@ export const ShellControls: React.FC = () => {
         top: dockY,
         right: SHELL_DOCK_INSET_PX,
         width: SHELL_DOCK_BUTTON_PX,
-        height: SHELL_DOCK_BUTTON_PX,
+        height: SHELL_DOCK_STACK_HEIGHT_PX,
         zIndex: SHELL_DOCK_Z_INDEX,
+        transform: drag
+          ? `translate(${drag.dx}px, ${drag.dy}px)`
+          : (snapX ? `translateX(${snapX}px)` : undefined),
+        transition: dragging ? 'none' : 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
       }}
     >
       <button
@@ -138,13 +142,6 @@ export const ShellControls: React.FC = () => {
           height: SHELL_DOCK_BUTTON_PX,
           touchAction: 'none',
           cursor: dragging ? 'grabbing' : 'grab',
-          // Live-follow the pointer while dragging; ease the horizontal offset
-          // back to 0 on release (the right-edge magnet). Vertical is committed
-          // straight into `top`, so only X animates here.
-          transform: drag
-            ? `translate(${drag.dx}px, ${drag.dy}px)`
-            : (snapX ? `translateX(${snapX}px)` : undefined),
-          transition: dragging ? 'none' : 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
         }}
         title="Shell controls (drag to move — snaps to the right edge)"
       >
@@ -155,8 +152,8 @@ export const ShellControls: React.FC = () => {
         aria-label={t('toggleFloating')} onClick={toggleClipboard}
         className={`absolute rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center ${clipboard.open ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}
         style={{
-          top: 0,
-          right: SHELL_DOCK_BUTTON_PX + SHELL_DOCK_PANEL_GAP_PX,
+          top: SHELL_DOCK_BUTTON_PX + SHELL_DOCK_PANEL_GAP_PX,
+          right: 0,
           width: SHELL_DOCK_BUTTON_PX,
           height: SHELL_DOCK_BUTTON_PX,
         }}>

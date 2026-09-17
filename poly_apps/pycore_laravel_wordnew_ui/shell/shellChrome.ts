@@ -19,6 +19,9 @@ export const SHELL_DOCK_BUTTON_PX = 40;
 /** `gap-2` between toggle and expanded panel */
 export const SHELL_DOCK_PANEL_GAP_PX = 8;
 
+export const SHELL_DOCK_STACK_HEIGHT_PX = SHELL_DOCK_BUTTON_PX * 2 + SHELL_DOCK_PANEL_GAP_PX;
+export const SHELL_CLIPBOARD_HOST_ATTRIBUTE = 'data-shell-clipboard-host';
+
 /** Expanded panel `w-60` → 15rem */
 export const SHELL_DOCK_PANEL_WIDTH_PX = 240;
 
