@@ -161,7 +161,7 @@ if (-not $doFull -and -not $Force -and -not (Test-Path -LiteralPath $depsSentine
 }
 
 if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallPython first." -ForegroundColor DarkYellow
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallDefaultPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     return
 }

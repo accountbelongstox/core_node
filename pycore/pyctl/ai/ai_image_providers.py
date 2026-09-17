@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
@@ -136,7 +137,7 @@ def _generate_image_with_openai(
     # route "openai" through a proxy whose key is NOT valid on api.openai.com;
     # default to the real API otherwise.
     api = (get_secret_key_indexed("OPENAI_BASE_URL") or "https://api.openai.com/v1").rstrip("/")
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{api}/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json=body, timeout=_IMG_HTTP_TIMEOUT,
@@ -168,7 +169,7 @@ def _generate_image_with_openrouter(
     out["model"] = use_model
     requests = get_third_package_requests()
     api = base_url("openrouter") or "https://openrouter.ai/api/v1"
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{api}/chat/completions",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model,
@@ -205,7 +206,7 @@ def _generate_image_with_zhipuai(
     use_model = model or image_model("zhipuai") or "cogview-3"
     out["model"] = use_model
     requests = get_third_package_requests()
-    resp = requests.post(
+    resp = http_progress_client.post(
         "https://open.bigmodel.cn/api/paas/v4/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt,
@@ -239,7 +240,7 @@ def _generate_image_with_dashscope(
     use_model = model or image_model("dashscope") or "wanx2.1-t2i-turbo"
     out["model"] = use_model
     requests = get_third_package_requests()
-    submit = requests.post(
+    submit = http_progress_client.post(
         "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                  "X-DashScope-Async": "enable"},
@@ -295,7 +296,7 @@ def _generate_image_with_stepfun(
     out["model"] = use_model
     requests = get_third_package_requests()
     api = base_url("stepfun") or "https://api.stepfun.com/v1"
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{api}/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt, "response_format": "b64_json",
@@ -337,7 +338,7 @@ def _generate_image_with_qianfan(
     out["model"] = use_model
     requests = get_third_package_requests()
     api = base_url("qianfan") or "https://qianfan.baidubce.com/v2"
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{api}/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt,
@@ -373,7 +374,7 @@ def _generate_image_with_spark(
     out["model"] = model or image_model("spark") or "spark-tti-v2.1"
     width, height = _SPARK_SIZES[_orientation(size)]
     requests = get_third_package_requests()
-    resp = requests.post(
+    resp = http_progress_client.post(
         _spark_tti_signed_url(api_key, api_secret),
         json={"header": {"app_id": app_id},
               "parameter": {"chat": {"domain": "general", "width": width, "height": height}},
@@ -412,7 +413,7 @@ def _generate_image_with_cloudflare(
     use_model = model or image_model("cloudflare") or "@cf/stabilityai/stable-diffusion-xl-base-1.0"
     out["model"] = use_model
     requests = get_third_package_requests()
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{use_model}",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         json={"prompt": prompt}, timeout=_IMG_HTTP_TIMEOUT,
@@ -453,7 +454,7 @@ def _generate_image_with_siliconflow(
     out["model"] = use_model
     requests = get_third_package_requests()
     api = base_url("siliconflow") or "https://api.siliconflow.cn/v1"
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{api}/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt,
@@ -518,7 +519,7 @@ def _generate_image_with_imagen(
     out["model"] = use_model
     requests = get_third_package_requests()
     aspect = size if (size and _ASPECT_RATIO_RE.match(size)) else "1:1"
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{use_model}:predict?key={key}",
         headers={"Content-Type": "application/json"},
         json={"instances": [{"prompt": prompt}],
@@ -552,7 +553,7 @@ def _generate_image_with_azure(
                   or model or image_model("azure") or "dall-e-3")
     out["model"] = deployment
     requests = get_third_package_requests()
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{endpoint}/openai/deployments/{deployment}/images/generations?api-version=2024-02-01",
         headers={"api-key": key, "Content-Type": "application/json"},
         json={"prompt": prompt, "n": 1, "size": _provider_image_size("openai", size)},
@@ -592,7 +593,7 @@ def _generate_image_with_volcano(
     out["model"] = use_model
     requests = get_third_package_requests()
     api = base_url("volcano") or "https://ark.cn-beijing.volces.com/api/v3"
-    resp = requests.post(
+    resp = http_progress_client.post(
         f"{api}/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt,
@@ -644,7 +645,7 @@ def _generate_image_with_bedrock(
         access_key, secret_key, region, "bedrock", host, path, body,
         now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d"))
     requests = get_third_package_requests()
-    resp = requests.post(f"https://{host}{path}", headers=headers, data=body, timeout=_IMG_HTTP_TIMEOUT)
+    resp = http_progress_client.post(f"https://{host}{path}", headers=headers, data=body, timeout=_IMG_HTTP_TIMEOUT)
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
         return out
@@ -679,7 +680,7 @@ def _generate_image_with_vertex(
     aspect = size if (size and _ASPECT_RATIO_RE.match(size)) else "1:1"
     url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{project}"
            f"/locations/{region}/publishers/google/models/{use_model}:predict")
-    resp = requests.post(
+    resp = http_progress_client.post(
         url,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         json={"instances": [{"prompt": prompt}],

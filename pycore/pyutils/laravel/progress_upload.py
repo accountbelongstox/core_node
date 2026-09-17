@@ -2,12 +2,16 @@
 """Durable offset-based uploads shared by Pycore-to-Laravel producers."""
 
 import hashlib
-import threading
+import sys
 import time
+import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
+from pycore.pyutils.common.http_progress_upload import HttpTransferProgress
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 
@@ -19,9 +23,46 @@ class LaravelProgressUploader:
 
     def __init__(self) -> None:
         self._contract = http_transfer_contract()
-        self._flight_lock = threading.Lock()
-        self._in_flight: Dict[Tuple[Any, ...], threading.Event] = {}
+        init_serialized_owner(self, "laravel.upload.flights", "LaravelUploadFlightsThread")
+        self._in_flight: Dict[Tuple[Any, ...], str] = {}
         self._completed: Dict[Tuple[Any, ...], Tuple[float, Dict[str, Any]]] = {}
+        self._waiters: Dict[str, int] = {}
+
+    @serialized_method
+    def _begin(self, key: Tuple[Any, ...]) -> Dict[str, Any]:
+        now = time.monotonic()
+        for expired_key in [key for key, entry in self._completed.items() if entry[0] <= now]:
+            self._completed.pop(expired_key)
+        cached = self._completed.get(key)
+        if cached is not None:
+            return {"receipt": dict(cached[1])}
+        signal = self._in_flight.get(key)
+        if signal is not None:
+            self._waiters[signal] += 1
+            return {"leader": False, "signal": signal}
+        signal = f"{self._serialized_queue_name}.flight.{time.monotonic_ns()}"
+        self._in_flight[key] = signal
+        self._waiters[signal] = 0
+        return {"leader": True, "signal": signal}
+
+    @serialized_method
+    def _finish(self, key: Tuple[Any, ...], signal: str, result: Dict[str, Any], succeeded: bool, error: str) -> None:
+        self._in_flight.pop(key, None)
+        if succeeded:
+            self._completed[key] = (
+                time.monotonic() + float(self._contract["dedup_window_seconds"]), dict(result),
+            )
+        if self._waiters[signal]:
+            THREAD_BUS.signal(signal, {"success": succeeded, "result": dict(result), "error": error})
+        else:
+            self._waiters.pop(signal)
+
+    @serialized_method
+    def _consume(self, signal: str) -> None:
+        self._waiters[signal] -= 1
+        if not self._waiters[signal] and THREAD_BUS.has_signal(signal):
+            self._waiters.pop(signal)
+            THREAD_BUS.clear_signal(signal)
 
     @staticmethod
     def _dedup_key(
@@ -59,37 +100,22 @@ class LaravelProgressUploader:
         if total_bytes <= 0:
             raise RuntimeError("Laravel upload content is empty")
 
-        # Identical transfers (same endpoint, params, and bytes) are the same
-        # logical delivery: an in-flight leader is awaited and a receipt inside
-        # the dedup window is reused instead of re-POSTing the same bytes.
         dedup_key = self._dedup_key(path, base_url, params, content_sha256)
         identity = self._identity_from_params(params)
         identity_part = f"{identity} " if identity else ""
-        while True:
-            with self._flight_lock:
-                now = time.monotonic()
-                for expired_key in [
-                    key
-                    for key, entry in self._completed.items()
-                    if entry[0] <= now
-                ]:
-                    self._completed.pop(expired_key, None)
-                cached = self._completed.get(dedup_key)
-                if cached and cached[0] > time.monotonic():
-                    ColorPrint.gray(
-                        f"[laravel upload] reason={reason or 'unspecified'} "
-                        f"{identity_part}{path} "
-                        "-> deduplicated (identical transfer already received)"
-                    )
-                    return dict(cached[1])
-                flight = self._in_flight.get(dedup_key)
-                if flight is None:
-                    flight = threading.Event()
-                    self._in_flight[dedup_key] = flight
-                    break
-            flight.wait()
-
+        flight = self._begin(dedup_key)
+        if "receipt" in flight:
+            return flight["receipt"]
+        if not flight["leader"]:
+            try:
+                outcome = THREAD_BUS.wait_signal(flight["signal"])
+            finally:
+                self._consume(flight["signal"])
+            if not outcome["success"]:
+                raise RuntimeError(outcome["error"] or "The shared Laravel upload failed")
+            return dict(outcome["result"])
         succeeded = False
+        result: Dict[str, Any] = {}
         try:
             result = self._upload_chunks(
                 path,
@@ -104,14 +130,7 @@ class LaravelProgressUploader:
             succeeded = True
             return result
         finally:
-            with self._flight_lock:
-                self._in_flight.pop(dedup_key, None)
-                if succeeded:
-                    self._completed[dedup_key] = (
-                        time.monotonic() + float(self._contract["dedup_window_seconds"]),
-                        result,
-                    )
-                flight.set()
+            self._finish(dedup_key, flight["signal"], result, succeeded, str(sys.exc_info()[1] or ""))
 
     def _upload_chunks(
         self,
@@ -125,11 +144,39 @@ class LaravelProgressUploader:
         reason: str,
         identity: str = "",
     ) -> Dict[str, Any]:
-        total_bytes = len(content)
-        chunk_bytes = max(1, int(self._contract["chunk_bytes"]))
-        offset = 0
+        chunk_bytes = max(1, min(int(self._contract["chunk_bytes"]), int(self._contract["maximum_chunk_bytes"])))
         started_at = time.perf_counter()
+        progress_state = HttpTransferProgress(
+            f"{self._serialized_queue_name}.progress.{uuid.uuid4().hex}",
+            float(self._contract["idle_timeout_seconds"]),
+        )
+
+        try:
+            return self._advance_chunks(
+                path, content, content_sha256, params, base_url, progress_callback,
+                reason, identity, chunk_bytes, started_at, progress_state,
+            )
+        finally:
+            progress_state.close()
+
+    def _advance_chunks(
+        self, path: str, content: bytes, content_sha256: str, params: Dict[str, Any],
+        base_url: Optional[str], progress_callback: Optional[ProgressCallback],
+        reason: str, identity: str, chunk_bytes: int, started_at: float,
+        progress_state: HttpTransferProgress,
+    ) -> Dict[str, Any]:
+        total_bytes = len(content)
+        offset = 0
         result: Dict[str, Any] = {}
+        busy = False
+
+        def transport_progress(record: Dict[str, Any]) -> None:
+            self._publish_progress(
+                path, content_sha256,
+                min(total_bytes, offset + int(record["transferred_bytes"])),
+                total_bytes, started_at, progress_callback, reason, identity,
+                durable_offset=offset, phase="awaiting_receipt" if record["phase"] == "received" else record["phase"],
+            )
 
         while offset < total_bytes:
             chunk = content[offset:offset + chunk_bytes]
@@ -149,6 +196,7 @@ class LaravelProgressUploader:
                 data=chunk,
                 headers={"Content-Type": "application/octet-stream"},
                 activity_timeout=self._contract,
+                progress_callback=transport_progress,
                 log_line=False,
             )
             result = self._response_data(response)
@@ -164,6 +212,12 @@ class LaravelProgressUploader:
                 )
             if next_offset == offset:
                 if result.get("busy"):
+                    if not busy:
+                        progress_state.close()
+                        progress_state.advance(offset)
+                        busy = True
+                    if progress_state.stalled():
+                        raise RuntimeError(f"Laravel upload durable progress stalled at offset {offset}")
                     retry_after_ms = max(
                         1,
                         int(result.get("retry_after_ms") or self._contract["retry_interval_ms"]),
@@ -174,6 +228,8 @@ class LaravelProgressUploader:
                     f"Laravel upload made no durable progress at offset {offset}"
                 )
             offset = next_offset
+            busy = False
+            progress_state.advance(offset)
             self._publish_progress(
                 path,
                 content_sha256,
@@ -219,6 +275,8 @@ class LaravelProgressUploader:
         progress_callback: Optional[ProgressCallback],
         reason: str,
         identity: str = "",
+        durable_offset: Optional[int] = None,
+        phase: Optional[str] = None,
     ) -> None:
         progress = round((offset / total_bytes) * 100.0, 2)
         elapsed_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
@@ -228,15 +286,16 @@ class LaravelProgressUploader:
             "url": path,
             "path": path,
             "params_summary": f"progress={progress:.2f}% offset={offset}/{total_bytes}",
-            "status": 102 if offset < total_bytes else 200,
+            "status": 102 if (offset if durable_offset is None else durable_offset) < total_bytes else 200,
             "ms": elapsed_ms,
             "error": None,
             "progress": progress,
             "transferred_bytes": offset,
+            "durable_bytes": offset if durable_offset is None else durable_offset,
             "total_bytes": total_bytes,
             "transfer_id": transfer_id,
             "reason": str(reason or "unspecified"),
-            "phase": "uploading" if offset < total_bytes else "received",
+            "phase": phase or ("uploading" if offset < total_bytes else "received"),
         }
         laravel_http_recorder.notify(record)
         ColorPrint.cyan(

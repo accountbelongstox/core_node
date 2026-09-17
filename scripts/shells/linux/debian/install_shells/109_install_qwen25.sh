@@ -107,7 +107,7 @@ install_dependencies() {
     fi
     echo ""
 
-    # REUSE the torch provided by the prerequisite install (13_ensure_python.sh /
+    # REUSE the torch provided by the prerequisite install (13_install_default_python.sh /
     # 11_cuda_nvidia_prereq.sh) whenever it is importable. NEVER uninstall it: that
     # torch may live in system site-packages this venv only reads (so the uninstall is
     # a no-op), and reinstalling just churns versions and risks conflicts with the

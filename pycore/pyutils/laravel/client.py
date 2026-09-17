@@ -35,13 +35,14 @@ from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.laravel.http_recorder import (
     laravel_http_recorder,
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import build_pycore_identity_headers
 from pycore.pyutils.common.laravel_http_transport import (
-    TRANSPORT_REQUESTS,
+    TRANSPORT_HTTPX,
     create_laravel_http_session,
     response_http_version,
 )
@@ -175,7 +176,8 @@ class LaravelClient:
     def request(self, method: str, path: str, *, base_url: Optional[str] = None,
                 params: Any = None, data: Any = None, json: Any = None,
                 files: Any = None, headers: Any = None, timeout: Any = None,
-                activity_timeout: Optional[Dict[str, int]] = None,
+                activity_timeout: Optional[Dict[str, Any]] = None,
+                progress_callback: Any = None,
                 stream: bool = False, allow_redirects: bool = True,
                 log_line: bool = True, include_default_identity: bool = True,
                 sensitive_request: bool = False,
@@ -205,7 +207,7 @@ class LaravelClient:
             "<redacted>" if sensitive_request and json is not None else json,
             files,
         )
-        if timeout is None:
+        if timeout is None and not activity_timeout:
             timeout = _DEFAULT_TIMEOUT
         request_headers = dict(headers or {})
         started = time.perf_counter()
@@ -232,16 +234,16 @@ class LaravelClient:
             request_headers.update(
                 build_pycore_identity_headers(url, method, identity_body)
             )
-        if activity_timeout:
-            connect_timeout = max(1, int(activity_timeout.get("connect_timeout_seconds") or 15))
-            idle_timeout = max(1, int(activity_timeout.get("idle_timeout_seconds") or 30))
-            if transport == TRANSPORT_REQUESTS:
-                # requests maps the tuple to (connect, read) and urllib3 applies
-                # the read value per socket operation: progress resets it, so
-                # only a stalled transfer ever times out.
-                timeout = (connect_timeout, idle_timeout)
         try:
-            resp = session.request(
+            uploading = request_data is not None or request_json is not None or request_files is not None
+            sender = http_progress_client if uploading else session
+            if uploading:
+                transport = TRANSPORT_HTTPX
+                request_options["activity_timeout"] = activity_timeout
+                request_options["progress_callback"] = progress_callback
+            elif activity_timeout:
+                timeout = (activity_timeout["connect_timeout_seconds"], activity_timeout["idle_timeout_seconds"])
+            resp = sender.request(
                 method, url,
                 params=params, data=request_data, json=request_json, files=request_files,
                 headers=request_headers, timeout=timeout, stream=stream,

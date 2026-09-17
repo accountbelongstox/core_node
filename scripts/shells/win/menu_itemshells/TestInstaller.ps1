@@ -57,7 +57,7 @@ if ($preSelectedStep) {
     if ($resolvedPython) {
         Write-Host ("Python (absolute): {0}" -f $resolvedPython) -ForegroundColor DarkGray
     } else {
-        Write-ColorMessage -Message 'Python (absolute): not found yet — run Step8_InstallPython first for Python-dependent steps.' -Type 'Warning'
+        Write-ColorMessage -Message 'Python (absolute): not found yet — run Step8_InstallDefaultPython first for Python-dependent steps.' -Type 'Warning'
     }
     Write-Host ''
 

@@ -2,7 +2,7 @@
 # Pycore prerequisite orchestrator (caller: pyservice.sh).
 # Runs numbered install_shells in dependency order; scripts in that dir never call each other.
 #
-# Prerequisite chain (after 13_ensure_python / venv):
+# Prerequisite chain (after 13_install_default_python.sh / venv):
 #   UI & system -> ffmpeg -> light pip -> OCR -> STT -> TTS -> neural TTS (opt-in) -> melotts (opt-in, last) -> device tools
 #
 # Install-time environment shielding (see development-guides/cross-docs/
@@ -96,7 +96,8 @@ set_var "PYCORE_RUNTIME_STATE_PROCESS_ID" "$$" false
 # Central prerequisite manifest: key|script|skip environment variable|install mode|supports full.
 PREREQ_ENTRIES=(
     "cuda_policy|11_cuda_nvidia_prereq.sh|||0"
-    "python_prereqs|15_install_python_prereq_packages.sh|||0"
+    "python310|14_install_python310.sh|||0"
+    "python_prereqs|15_install_default_python_prereq_packages.sh|||0"
     "desktop_manager|117_install_desktop_manager.sh|||0"
     "launcher|119_install_launcher.sh|||0"
     "ffmpeg|115_install_ffmpeg.sh|||0"

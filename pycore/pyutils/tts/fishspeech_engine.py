@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
@@ -213,7 +214,7 @@ def _synth_via_http(text: str, output_mp3: Path) -> bool:
     if ref:
         body["reference_id"] = ref
     try:
-        resp = requests.post(f"{base_url()}/v1/tts", json=body, timeout=180)
+        resp = http_progress_client.post(f"{base_url()}/v1/tts", json=body, timeout=180)
         if resp.status_code != 200 or not resp.content:
             err = _parse_http_error(resp)
             _LAST_SYNTH_ERROR.set(err)

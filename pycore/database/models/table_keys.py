@@ -32,6 +32,7 @@ class TableKeys:
     COMMON_CONFIG = f"{TableNamespaces.COMMON}.config"
     COMMON_LOGS = f"{TableNamespaces.COMMON}.logs"
     TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
+    JSON_RECORDS = f"{TableNamespaces.COMMON}.json_records"
 
     # ===== Example App Tables =====
     EXAMPLE_USERS = f"{TableNamespaces.APP_EXAMPLE}.users"

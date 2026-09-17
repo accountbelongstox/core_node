@@ -323,7 +323,7 @@ Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (
 
 $py = Resolve-Python
 if (-not $py) {
-    throw ("System Python 3.13 was not found at {0}; run Step8_InstallPython.ps1." -f $Global:PYTHON_EXE_PATH)
+    throw ("System Python 3.13 was not found at {0}; run Step8_InstallDefaultPython.ps1." -f $Global:PYTHON_EXE_PATH)
 }
 Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
 Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green

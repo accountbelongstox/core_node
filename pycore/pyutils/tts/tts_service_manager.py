@@ -7,20 +7,21 @@ development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md (§3-�
 
 Covers TWO kinds of TTS services under category "tts":
   - kind="server" : subprocess HTTP API servers (chattts, cosyvoice, fishspeech,
-                    gptsovits, f5tts, qwen3tts, melotts). start = Popen + HTTP
-                    health; stop = terminate. Single-active applies ONLY among
-                    these servers (class C, spec §1). qwen3tts, melotts and
-                    gptsovits are ISOLATED-VENV class-C servers (Bucket B): their
-                    api server (qwen3tts_api_server.py / melotts_api_server.py /
-                    the cloned GPT-SoVITS api_v2.py) runs under a DEDICATED
-                    per-engine venv resolved by isolated_venv - because
-                    each pins a transformers that cannot coexist with the main
-                    interpreter's shared pin. PYTHONPATH/PYTHONHOME are stripped so
-                    the venv's packages are never shadowed. Per-engine venv dirs +
-                    ports: qwen3tts py_venv_<ver> :57210, melotts
-                    py_venv_melotts_<ver> :57212, gptsovits py_venv_gptsovits_<ver>
-                    :9880 (existing GPTSOVITS_URL bind).
-  - kind="model"  : in-process model engines (bark, voxcpm2, kokoro, sherpa).
+                    gptsovits, f5tts, qwen3tts, melotts, voxcpm2). start = Popen +
+                    HTTP health; stop = terminate. Single-active applies ONLY
+                    among these servers (class C, spec §1). qwen3tts, melotts,
+                    gptsovits, cosyvoice, fishspeech and voxcpm2 are
+                    ISOLATED-VENV class-C servers (Bucket B): their api server
+                    runs under a DEDICATED per-engine venv resolved by
+                    isolated_venv - because each pins a transformers (or a Python
+                    ABI window) that cannot coexist with the main interpreter.
+                    PYTHONPATH/PYTHONHOME are stripped so the venv's packages are
+                    never shadowed. Per-engine venv dirs + ports: qwen3tts
+                    py_venv_qwen3tts_<ver> :57210, melotts py_venv_melotts_<ver>
+                    :57212, gptsovits py_venv_gptsovits_<ver> :9880 (existing
+                    GPTSOVITS_URL bind), voxcpm2 py_venv_voxcpm2_3.10 :57214
+                    (self-contained, dedicated base Python 3.10).
+  - kind="model"  : in-process model engines (bark, kokoro, sherpa).
                     load on first synth; parallel OK; each idle-unloads
                     independently (class B, spec §1).
 
@@ -51,6 +52,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_t
 from pycore.pyutils.common.managed_service import ServiceSpec
 from pycore.pyutils.common.managed_service_facade import ManagedServiceFacade
 from pycore.pyutils.common.model_tiers import runtime_engine_model
+import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.common.port_utils import is_port_in_use
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
@@ -123,11 +125,23 @@ def _server_scripts(engine: str) -> List[Path]:
     if engine == "chattts":
         return [_ASSETS_DIR / "chattts_api_server.py"]
     if engine == "fishspeech":
-        return [_ASSETS_DIR / "fishspeech_api_server.py"]
+        return [
+            _ASSETS_DIR / "fishspeech_api_server.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+        ]
     if engine == "f5tts":
         return [_ASSETS_DIR / "f5tts_api_server.py"]
     if engine == "melotts":
-        return [_ASSETS_DIR / "melotts_api_server.py"]
+        return [
+            _ASSETS_DIR / "melotts_api_server.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+        ]
+    if engine == "voxcpm2":
+        return [
+            _ASSETS_DIR / "voxcpm2_api_server.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_audio_assembly.py",
+        ]
     return []
 
 
@@ -154,22 +168,48 @@ def _start_command(engine: str) -> Optional[Tuple]:
         script = staging / "runtime" / "python" / "fastapi" / "server.py"
         if not script.is_file():
             return None
+        venv_python = resolve_isolated_python("cosyvoice")
+        if not venv_python:
+            return None
         adapter = tts_engine_registry.get(engine)
         port = _parse_port(adapter.base_url() if adapter else "", 50000)
         model = runtime_engine_model("cosyvoice") or "iic/CosyVoice2-0.5B"
-        return staging, [py, str(script), "--port", str(port), "--model_dir", model]
+        return (
+            staging,
+            [venv_python, str(script), "--port", str(port), "--model_dir", model],
+            _isolated_env({}),
+        )
     if engine == "fishspeech":
         _sync_server_script(staging, "fishspeech_api_server.py")
+        _sync_server_script(staging, "tts_text_chunking.py")
         script = staging / "fishspeech_api_server.py"
         if not script.is_file():
             script = staging / "tools" / "api_server.py"
         if not script.is_file():
             return None
+        venv_python = resolve_isolated_python("fishspeech")
+        if not venv_python:
+            return None
         adapter = tts_engine_registry.get(engine)
         port = _parse_port(adapter.base_url() if adapter else "", 8080)
+        extra: Dict[str, str] = {}
+        for key in (
+            "FISHSPEECH_HOST",
+            "FISHSPEECH_PORT",
+            "FISHSPEECH_UPSTREAM",
+            "FISHSPEECH_REFERENCE_ID",
+            "FISH_API_KEY",
+        ):
+            value = (os.environ.get(key) or "").strip()
+            if value:
+                extra[key] = value
         if script.name == "fishspeech_api_server.py":
-            return staging, [py, str(script)]
-        return staging, [py, str(script), "--listen", f"0.0.0.0:{port}"]
+            return staging, [venv_python, str(script)], _isolated_env(extra)
+        return (
+            staging,
+            [venv_python, str(script), "--listen", f"0.0.0.0:{port}"],
+            _isolated_env(extra),
+        )
     if engine == "gptsovits":
         return _gptsovits_start_command(staging)
     if engine == "f5tts":
@@ -182,6 +222,8 @@ def _start_command(engine: str) -> Optional[Tuple]:
         return _qwen3tts_start_command(staging)
     if engine == "melotts":
         return _melotts_start_command(staging)
+    if engine == "voxcpm2":
+        return _voxcpm2_start_command(staging)
     return None
 
 
@@ -237,6 +279,47 @@ def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
     device = (os.environ.get("MELOTTS_DEVICE") or "").strip()
     if device:
         extra["MELOTTS_DEVICE"] = device
+    return staging, [venv_python, str(api_server)], _isolated_env(extra)
+
+
+def _voxcpm2_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for voxcpm2: launch the api server under the
+    ISOLATED self-contained per-engine venv (base Python 3.10; never the main
+    3.13 interpreter, which is outside VoxCPM2's official 3.10-3.12 window).
+    Mirrors _melotts_start_command.
+
+    RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never
+    builds/pips at start time; a missing venv -> no start (the installer
+    provisions it via isolated_venv.ensure_venv)."""
+    venv_python = resolve_isolated_python("voxcpm2")
+    if not venv_python:
+        return None
+    api_server = _ASSETS_DIR / "voxcpm2_api_server.py"
+    if not api_server.is_file():
+        return None
+    adapter = tts_engine_registry.get("voxcpm2")
+    parsed = urlparse(adapter.base_url() if adapter else "")
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 57214
+    extra: Dict[str, str] = {"VOXCPM2_HOST": host, "VOXCPM2_PORT": str(port)}
+    model = (os.environ.get("VOXCPM2_MODEL") or "").strip()
+    if not model:
+        try:
+            tier = runtime_engine_model("voxcpm2") or "openbmb/VoxCPM2"
+        except Exception:  # noqa: BLE001
+            tier = "openbmb/VoxCPM2"
+        model = hf_local_weights.resolve_model_id("VOXCPM2_DIR", "voxcpm2", tier)
+    extra["VOXCPM2_MODEL"] = model
+    for key in (
+        "VOXCPM2_DEVICE",
+        "VOXCPM2_CFG",
+        "VOXCPM2_TIMESTEPS",
+        "VOXCPM2_PROMPT_WAV",
+        "VOXCPM2_PROMPT_TEXT",
+    ):
+        value = (os.environ.get(key) or "").strip()
+        if value:
+            extra[key] = value
     return staging, [venv_python, str(api_server)], _isolated_env(extra)
 
 

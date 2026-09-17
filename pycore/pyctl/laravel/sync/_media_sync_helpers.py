@@ -46,13 +46,6 @@ SUBTITLES_PATH = "/api/app_qy_v1/media/subtitles"
 _TERMINAL_PUNCT = ".!?。！？…；"
 _TERMINAL_RE = re.compile(r".*[" + re.escape(_TERMINAL_PUNCT) + r"]\s*$")
 
-# HTTP timeouts (seconds). The JSON ingest of a feature-length movie carries
-# thousands of sentence rows - Laravel commits it in one transaction (seconds),
-# but a cold/busy single-worker backend can still queue requests, so the ingest
-# timeout must cover worst-case waiting, not just processing. Clip uploads move
-# real video bytes and keep their own longer budget.
-_INGEST_TIMEOUT = 180
-_CLIP_TIMEOUT = 300
 # backend_status only PROBES Laravel (paginated subtitle list); keep it snappy so
 # an unreachable backend degrades to reachable=False fast instead of hanging.
 _STATUS_TIMEOUT = 5
@@ -72,7 +65,7 @@ _TRACK_RE = re.compile(r"^(?P<stem>.+)\.(?P<lang>[A-Za-z]{2,3})\.(?:srt|vtt)$",
 
 # Chunk size for book/subtitle ingest: keeps each POST a SMALL, fast DB
 # transaction so a huge book (e.g. a Bible ~39k sentences / ~15k words) or a
-# feature-length subtitle set never exceeds the ingest timeout. The book row
+# feature-length subtitle set stays bounded. The book row
 # (full_content + sentence_seq + word_ids) / subtitle source row is sent only on
 # the FIRST chunk; later chunks carry a minimal source {source_key}.
 _BOOK_CHUNK = 1500

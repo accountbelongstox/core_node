@@ -304,9 +304,10 @@ _ENGINE_ADAPTERS = (
     SpeedTTSEngineAdapter(
         "voxcpm2",
         voxcpm2_engine,
-        managed_kind="model",
-        note="VoxCPM2 in-process (OpenBMB; GPU preferred; pip voxcpm)",
-        distribution="voxcpm",
+        managed_kind="server",
+        health_paths=("/health", "/"),
+        availability_signal="pyutils.tts.voxcpm2.available",
+        note="VoxCPM2 class-C HTTP server (self-contained 3.10 venv; managed lifecycle)",
         tiered=True,
     ),
     SpeedTTSEngineAdapter(

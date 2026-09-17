@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 #
 # 11_cuda_nvidia_prereq.sh - NVIDIA driver + CUDA Toolkit prerequisite (idempotent).
-# Runs before 13_ensure_python.sh so the torch guard can pick the GPU build.
+# Runs before 13_install_default_python.sh so the torch guard can pick the GPU build.
 #   1. Skip entirely when there is NO NVIDIA GPU (CPU-only host).
 #   2. Ensure kernel build prerequisites (gcc/make/headers/dkms).
 #   3. Best-effort ensure the NVIDIA driver (Debian/Kali: nvidia-detect+nvidia-driver)

@@ -16,6 +16,7 @@ See https://docs.github.com/en/github-models/use-github-models/prototyping-with-
 
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.secret_manager import get_secret_key
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
@@ -60,7 +61,7 @@ class GitHubModelsClient:
         requests = get_third_package_requests()
         use_model = model or self.default_model
         try:
-            response = requests.post(
+            response = http_progress_client.post(
                 f"{self.base_url}/chat/completions",
                 headers=self._headers(json_body=True),
                 json={

@@ -19,6 +19,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 
 # Reuse the processor's output-dir resolution (no duplication). video_extract_processor
 # imports nothing from this package, so this stays cycle-free.
@@ -31,8 +32,6 @@ from pycore.pyctl.laravel.sync._media_sync_helpers import (
     INGEST_PATH,
     INGEST_CLIP_PATH,
     SUBTITLES_PATH,
-    _INGEST_TIMEOUT,
-    _CLIP_TIMEOUT,
     _STATUS_TIMEOUT,
     _STATUS_PER_PAGE,
     _STATUS_MAX_PAGES,
@@ -46,7 +45,7 @@ from pycore.pyctl.laravel.sync._media_sync_helpers import (
 def _post_ingest(base_url: str, payload: Dict[str, Any]) -> Tuple[bool, str]:
     """POST the JSON ingest body. Returns (ok, detail)."""
     try:
-        resp = laravel_client.post(INGEST_PATH, base_url=base_url, json=payload, timeout=_INGEST_TIMEOUT)
+        resp = laravel_client.post(INGEST_PATH, base_url=base_url, json=payload, activity_timeout=http_transfer_contract())
         if resp.status_code in (200, 201):
             return True, f"HTTP {resp.status_code}"
         return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -63,7 +62,7 @@ def _post_clip(base_url: str, source_key: str, name: str, file_path: str) -> Tup
                 base_url=base_url,
                 data={"source_key": source_key, "name": name},
                 files={"file": (name, fh)},
-                timeout=_CLIP_TIMEOUT,
+                activity_timeout=http_transfer_contract(),
             )
         if resp.status_code in (200, 201):
             return True, f"HTTP {resp.status_code}"

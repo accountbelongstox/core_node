@@ -10,6 +10,9 @@ import threading
 import urllib.parse
 from typing import Any, Dict, Mapping, Optional, Tuple
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyutils.common.laravel_http_transport import close_thread_laravel_session
+
 
 ConnectionKey = Tuple[int, str, str, int]
 _RETRYABLE_HTTP_ERRORS = (http.client.HTTPException, OSError)
@@ -106,10 +109,12 @@ class HttpClient:
         request_headers.update(
             {str(key): str(value) for key, value in dict(headers or {}).items()}
         )
+        if body is not None or json is not None:
+            return http_progress_client.request(
+                method, request_url, params=query, json=json, data=body,
+                headers=request_headers, timeout=timeout,
+            )
         request_body = body
-        if json is not None:
-            request_body = json_module.dumps(json, ensure_ascii=False).encode("utf-8")
-            request_headers.setdefault("Content-Type", "application/json")
         request_path = self._request_path(parsed_url, query)
         request_timeout = (
             self.default_timeout if timeout is None else max(0.1, float(timeout))
@@ -145,6 +150,7 @@ class HttpClient:
             connection.close()
 
     def close_current_thread(self) -> None:
+        close_thread_laravel_session()
         thread_id = threading.get_ident()
         connection_keys = tuple(self._connection_keys_by_thread.pop(thread_id, ()))
         connections = tuple(

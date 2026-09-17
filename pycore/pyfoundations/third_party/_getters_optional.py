@@ -225,7 +225,7 @@ def get_third_package_tkinter():
             ColorPrint.yellow("")
 
             if platform.system() == 'Linux':
-                ColorPrint.cyan("      sudo bash scripts/shells/linux/debian/install_shells/13_ensure_python.sh")
+                ColorPrint.cyan("      sudo bash scripts/shells/linux/debian/install_shells/13_install_default_python.sh")
             else:
                 ColorPrint.cyan("      (tkinter should be included with Python on Windows/Mac)")
 
@@ -234,7 +234,7 @@ def get_third_package_tkinter():
 
             raise ImportError(
                 f"tkinter not available for Python {sys.version_info.major}.{sys.version_info.minor}\n"
-                f"Run installation script: scripts/shells/linux/debian/install_shells/13_ensure_python.sh"
+                f"Run installation script: scripts/shells/linux/debian/install_shells/13_install_default_python.sh"
             ) from e
     return _PACKAGE_CACHE['tkinter']
 

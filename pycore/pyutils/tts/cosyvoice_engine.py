@@ -31,9 +31,11 @@ import wave
 from pathlib import Path
 from typing import Optional, Tuple
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.cosyvoice.available'
@@ -107,23 +109,16 @@ def available() -> bool:
     return ok
 
 
-def _pcm_bytes_to_mp3(pcm_bytes: bytes, output_mp3: Path) -> bool:
+def _write_pcm_wav(pcm_bytes: bytes, wav_path: Path) -> bool:
     if not pcm_bytes:
         return False
-    tmp_wav = output_mp3.with_suffix(".cosy.wav")
-    tmp_wav.parent.mkdir(parents=True, exist_ok=True)
-    with wave.open(str(tmp_wav), "wb") as w:
+    wav_path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(wav_path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(_SAMPLE_RATE)
         w.writeframes(pcm_bytes)
-    try:
-        return wav_to_mp3(tmp_wav, output_mp3)
-    finally:
-        try:
-            tmp_wav.unlink()
-        except OSError:
-            pass
+    return True
 
 
 def _endpoint_and_form(text: str) -> Tuple[str, dict, Optional[dict]]:
@@ -155,38 +150,62 @@ def _endpoint_and_form(text: str) -> Tuple[str, dict, Optional[dict]]:
     return "/inference_sft", data, None
 
 
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    """Synthesize via the CosyVoice FastAPI server. Returns False on failure."""
-    cleaned = (text or "").strip()
-    if not cleaned or not _configured():
-        return False
-    path, data, files = _endpoint_and_form(cleaned)
+def _post_pcm(text: str) -> Optional[bytes]:
+    """POST one (chunk) text to the configured endpoint; return raw PCM16 bytes."""
+    path, data, files = _endpoint_and_form(text)
     requests = get_third_package_requests()
     if requests is None:
-        return False
+        return None
     try:
-        if files:
-            resp = requests.post(
-                f"{base_url()}{path}",
-                data=data,
-                files=files,
-                timeout=180,
-            )
-        else:
-            resp = requests.post(
-                f"{base_url()}{path}",
-                data=data,
-                timeout=180,
-            )
+        resp = http_progress_client.post(
+            f"{base_url()}{path}", data=data, files=files, timeout=180,
+        )
         if resp.status_code != 200 or not resp.content:
             ColorPrint.red(
                 f"[cosyvoice] {path} HTTP {resp.status_code}: {resp.text[:160]}"
             )
-            return False
-        return _pcm_bytes_to_mp3(resp.content, output_mp3)
+            return None
+        return resp.content
     except Exception as e:
         ColorPrint.red(f"[cosyvoice] synth failed: {e}")
+        return None
+
+
+def _synthesize_chunk_to_wav(chunk_text: str, chunk_wav: Path) -> bool:
+    return _write_pcm_wav(_post_pcm(chunk_text) or b"", chunk_wav)
+
+
+def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    """Synthesize via the CosyVoice FastAPI server. Returns False on failure.
+
+    Long text: the official frontend already splits natively; the client only
+    applies the protective guard (chunked_synthesis) for over-long inputs and
+    concatenates the PCM chunks before the mp3 conversion."""
+    cleaned = (text or "").strip()
+    if not cleaned or not _configured():
         return False
+    tmp_wav = output_mp3.with_suffix(".cosy.wav")
+    ok, error, stats = chunked_synthesis.synthesize_chunked(
+        "cosyvoice", cleaned, _synthesize_chunk_to_wav, tmp_wav
+    )
+    if not ok:
+        ColorPrint.red(f"[cosyvoice] synth failed: {error}")
+        try:
+            tmp_wav.unlink()
+        except OSError:
+            pass
+        return False
+    if stats.get("chunked"):
+        ColorPrint.blue(
+            f"[cosyvoice] protective chunking: {stats.get('chunk_count')} chunks"
+        )
+    try:
+        return wav_to_mp3(tmp_wav, output_mp3)
+    finally:
+        try:
+            tmp_wav.unlink()
+        except OSError:
+            pass
 
 
 __all__ = ["available", "synthesize", "base_url", "disabled_reason"]

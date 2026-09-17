@@ -61,7 +61,7 @@ SYSTEM_UNWANTED_PATHS=(
 )
 
 # Resolve the pip command consistently with the rest of the codebase:
-# prefer pip3, then plain pip, then `python3 -m pip` (mirrors 13_ensure_python.sh).
+# prefer pip3, then plain pip, then `python3 -m pip` (mirrors 13_install_default_python.sh).
 _devcache_resolve_pip() {
     if command -v pip3 >/dev/null 2>&1; then
         echo "pip3"

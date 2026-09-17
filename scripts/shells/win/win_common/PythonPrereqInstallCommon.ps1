@@ -1,5 +1,5 @@
 # Shared idempotent captcha/AI backend Python package installer (Windows).
-# Package bundles mirror linux/debian/install_shells/15_install_python_prereq_packages.sh.
+# Package bundles mirror linux/debian/install_shells/15_install_default_python_prereq_packages.sh.
 # CUDA wheel indexes mirror linux/common/base_libs/cuda_index.sh (PyTorch + PaddlePaddle 3.3 docs).
 
 $cudaIndexPath = Join-Path $PSScriptRoot 'CudaIndex.ps1'
@@ -335,7 +335,7 @@ function Invoke-PythonPrereqInstall {
     $PythonCmd = Resolve-PrereqPythonExe -PreferredPath $PreferredPythonPath
     if (-not $PythonCmd) {
         Write-Host "$LogPrefix [ERROR] no Python $($Global:PYTHON_VERSION) found at $($Global:PYTHON_EXE_PATH)." -ForegroundColor Red
-        Write-Host "$LogPrefix        Run Step8_InstallPython.ps1 first." -ForegroundColor Red
+        Write-Host "$LogPrefix        Run Step8_InstallDefaultPython.ps1 first." -ForegroundColor Red
         throw 'Canonical Python interpreter is unavailable.'
     }
 
@@ -350,7 +350,7 @@ function Invoke-PythonPrereqInstall {
 
     if (-not $PipExe -or -not (Test-Path -LiteralPath $PipExe)) {
         Write-Host "$LogPrefix [ERROR] pip is not available for $PythonCmd." -ForegroundColor Red
-        Write-Host "$LogPrefix        Run Step8_InstallPython.ps1 first." -ForegroundColor Red
+        Write-Host "$LogPrefix        Run Step8_InstallDefaultPython.ps1 first." -ForegroundColor Red
         throw 'Canonical pip executable is unavailable.'
     }
 

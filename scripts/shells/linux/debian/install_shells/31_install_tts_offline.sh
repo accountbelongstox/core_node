@@ -109,7 +109,7 @@ echo "============================================================"
 
 PYTHON="$(resolve_python "$PYTHON")"
 if [ -z "$PYTHON" ]; then
-    echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first." >&2
+    echo "[X] Python 3 was NOT found. Run 13_install_default_python.sh first." >&2
 else
     echo "  python : $PYTHON"
     _gpu_flag="--cpu"

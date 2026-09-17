@@ -13,7 +13,7 @@
 
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
 # for the pycore "Video Extraction" feature) on Linux/macOS. Prefix 15 sorts right
-# AFTER 13_ensure_python.sh and 15_install_python_prereq_packages.sh in install.sh's
+# AFTER 13_install_default_python.sh and 15_install_default_python_prereq_packages.sh in install.sh's
 # numeric-ordered run, so pip and ML prereqs are ready.
 # Also invoked by prepare_pycore_prerequisites.sh (pyservice).
 # (the pyservice prerequisite reference) to keep one copy of the logic.
@@ -61,7 +61,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables (exports COMPILE_DIR), then the shared venv resolution
 # (exports VENV_DIR / VENV_PYTHON3 / VENV_PIP3 and helpers) so package installs
-# target the shared venv built by 13_ensure_python.sh, not the system python.
+# target the shared venv built by 13_install_default_python.sh, not the system python.
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # Serialize pip into the shared venv.
@@ -173,8 +173,8 @@ if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
     exit 0
 fi
 
-# --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
-# Prefer the shared venv built by 13_ensure_python.sh so packages install INTO the
+# --- 0) resolve python (13_install_default_python.sh has already run in install flow) --- #
+# Prefer the shared venv built by 13_install_default_python.sh so packages install INTO the
 # venv (not the externally-managed system python). An explicit --python still wins.
 if [[ "$PYTHON" == "python3" ]]; then
     PYTHON="$(venv_python_from_common)"

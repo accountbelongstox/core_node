@@ -101,7 +101,7 @@ function Test-GitAvailable {
 function Test-PythonAvailable {
     $pythonCommand = $Global:PYTHON_EXE_PATH
     if (-not (Test-Path -LiteralPath $pythonCommand)) {
-        Write-Host "$SCRIPT_INDEX Python not found at $pythonCommand. Run Step8_InstallPython.ps1" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX Python not found at $pythonCommand. Run Step8_InstallDefaultPython.ps1" -ForegroundColor Red
         return @{ Available = $false; Command = "" }
     }
 

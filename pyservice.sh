@@ -140,7 +140,7 @@ ORIGINAL_ARGS=("$@")
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
 resolve_python() {
-    # Prefer the project venv built by 13_ensure_python.sh ($COMPILE_DIR/python3_venv):
+    # Prefer the project venv built by 13_install_default_python.sh ($COMPILE_DIR/python3_venv):
     # venv_python_common.sh calls it "THE project interpreter", and it is created
     # --system-site-packages (a SUPERSET of the system python). The worker AND the
     # prerequisites must use it - otherwise packages installed INTO the venv (22/96 and the

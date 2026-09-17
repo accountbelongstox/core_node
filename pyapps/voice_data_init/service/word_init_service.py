@@ -7,6 +7,7 @@ Handles local vocabulary file loading and synchronization
 from pathlib import Path
 from typing import List, Set, Dict, Any
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.database.exports import database_manager
 from pycore.database.models.table_keys import TableKeys
@@ -156,7 +157,7 @@ class WordInitService:
 
         from pycore.pyfoundations.third_party.api import requests
 
-        response = requests.post(
+        response = http_progress_client.post(
             find_url,
             json={'contents': all_contents},
             headers=headers
@@ -200,7 +201,7 @@ class WordInitService:
             if entries:
                 ColorPrint.blue(f"Uploading batch {i // batch_size + 1} ({len(entries)} entries)...")
 
-                response = requests.post(
+                response = http_progress_client.post(
                     add_url,
                     json={'entries': entries},
                     headers=headers

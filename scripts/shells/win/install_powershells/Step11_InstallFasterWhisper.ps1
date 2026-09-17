@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
-# for the pycore "Video Extraction" feature). Runs AFTER Step8_InstallPython,
+# for the pycore "Video Extraction" feature). Runs AFTER Step8_InstallDefaultPython,
 # Step9_InstallCudaNvidiaPrereq, and Step10_InstallPythonPrereqPackages so
 # torch/paddle cu13 are already present. Also invoked by PreparePycorePrerequisites.ps1.
 #
@@ -119,7 +119,7 @@ Write-Host '============================================================' -Foreg
 
 $resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [X] System Python 3.13 was NOT found. Run Step8_InstallPython first." -ForegroundColor Red
+    Write-Host "$SCRIPT_INDEX [X] System Python 3.13 was NOT found. Run Step8_InstallDefaultPython first." -ForegroundColor Red
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
     return
 }

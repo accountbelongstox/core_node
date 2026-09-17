@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Single source of truth for the edge-tts prerequisite (DEFAULT text-to-speech
-# engine for the pycore voice-subtitle pipeline). Runs AFTER Step8_InstallPython,
+# engine for the pycore voice-subtitle pipeline). Runs AFTER Step8_InstallDefaultPython,
 # Step9_InstallCudaNvidiaPrereq, and Step10_InstallPythonPrereqPackages so
 # pip and torch/paddle stacks are ready. Also invoked directly by
 # PreparePycorePrerequisites.ps1 (pyservice prerequisite reference).
@@ -47,7 +47,7 @@ Write-Host '============================================================' -Foreg
 
 $resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [X] Python 3 was NOT found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
+    Write-Host "$SCRIPT_INDEX [X] Python 3 was NOT found. Run Step8_InstallDefaultPython first, or pass -Python <path>." -ForegroundColor Red
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('edge_tts')
     return
 }
@@ -55,7 +55,7 @@ Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor Da
 
 $pipExePath = $Global:PIP_EXE_PATH
 if (-not $pipExePath) {
-    Write-Host "$SCRIPT_INDEX [X] pip.exe not found. Run Step8_InstallPython first." -ForegroundColor Red
+    Write-Host "$SCRIPT_INDEX [X] pip.exe not found. Run Step8_InstallDefaultPython first." -ForegroundColor Red
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('edge_tts')
     return
 }

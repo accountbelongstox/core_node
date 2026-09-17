@@ -26,7 +26,8 @@ $script:STEP16_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step21_Instal
 # Script-based installs: Key must start with "script:" then filename; Display = menu text
 $script:SCRIPT_INSTALL_ENTRIES = @(
     @{ Key = "script:Step4_InstallNodeJS.ps1"; Display = "Node.js" },
-    @{ Key = "script:Step8_InstallPython.ps1"; Display = "Python" },
+    @{ Key = "script:Step8_InstallDefaultPython.ps1"; Display = "Python" },
+    @{ Key = "script:Step13_InstallPython310.ps1"; Display = "Python 3.10 (isolated TTS runtime)" },
     @{ Key = "script:Step16_InstallPHP.ps1"; Display = "PHP" },
     @{ Key = "script:Step6_InstallGit.ps1"; Display = "Git" },
     @{ Key = "script:Step22_InstallChrome.ps1"; Display = "Chrome (script)" },

@@ -28,6 +28,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
@@ -304,7 +305,7 @@ class PeerMeshManager:
         local: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         try:
-            response = requests.post(
+            response = http_progress_client.post(
                 self._peer_url(peer, routes.PEER_HEARTBEAT_PATH),
                 json=local,
                 timeout=PROBE_TIMEOUT,
@@ -371,7 +372,7 @@ class PeerMeshManager:
         pid = peer.get("id")
         payload = self.config.to_payload()
         try:
-            r = requests.post(self._peer_url(peer, routes.PEER_CONFIG_PATH),
+            r = http_progress_client.post(self._peer_url(peer, routes.PEER_CONFIG_PATH),
                               json=payload, timeout=PROBE_TIMEOUT)
             ok = r.status_code == 200
         except Exception:

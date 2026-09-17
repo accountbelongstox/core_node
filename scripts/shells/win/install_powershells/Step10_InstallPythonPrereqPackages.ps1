@@ -12,7 +12,7 @@
 
 # Python prerequisite packages installer (Windows).
 #
-# Runs immediately AFTER Step8_InstallPython.ps1 (pip confirmed) and
+# Runs immediately AFTER Step8_InstallDefaultPython.ps1 (pip confirmed) and
 # Step9_InstallCudaNvidiaPrereq.ps1 (CUDA/driver when GPU present).
 # Installs everything pyservice's third_party.py and prepare.ps1 pip steps need:
 #   - torch + torchvision + torchaudio + ultralytics (YOLO) — driver-matched index
@@ -24,7 +24,7 @@
 # GPU/CPU: TorchCpuGuard.ps1 and PaddleCpuGuard.ps1 auto-select the correct wheel
 # index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
 # Idempotent: each bundle skips when pip metadata already exists.
-# Mirrors linux/debian/install_shells/15_install_python_prereq_packages.sh.
+# Mirrors linux/debian/install_shells/15_install_default_python_prereq_packages.sh.
 
 [CmdletBinding()]
 param(

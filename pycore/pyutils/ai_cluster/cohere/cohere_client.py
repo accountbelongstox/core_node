@@ -8,6 +8,7 @@ Cohere provides LLMs with free tier access.
 
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
@@ -52,7 +53,7 @@ class CohereClient:
         message = messages[-1].get("content", "") if messages else ""
 
         try:
-            response = requests.post(
+            response = http_progress_client.post(
                 f"{self.base_url}/chat",
                 headers={
                     "Authorization": f"Bearer {self.api_key}",

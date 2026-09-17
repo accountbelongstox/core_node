@@ -37,6 +37,10 @@ QWEN3TTS_JOB_TEXT_MAX_CHARS = 100000
 # api server (loaded from source); overridable via the QWEN3TTS_SPEED env.
 QWEN3TTS_DEFAULT_SPEED = 0.75
 
+# VoxCPM2 class-C HTTP server (isolated Python 3.10 venv; managed lifecycle).
+VOXCPM2_HTTP_PORT = 57214
+VOXCPM2_HTTP_TIMEOUT_SECONDS = 900.0
+
 SSE_CONTENT_TYPE = "text/event-stream"
 SSE_RESPONSE_HEADERS = (
     ("Cache-Control", "no-cache, no-transform"),
@@ -78,6 +82,8 @@ __all__ = [
     "QWEN3TTS_HTTP_TIMEOUT_SECONDS",
     "QWEN3TTS_JOB_TEXT_MAX_CHARS",
     "SSE_CONTENT_TYPE",
+    "VOXCPM2_HTTP_PORT",
+    "VOXCPM2_HTTP_TIMEOUT_SECONDS",
     "SSE_EVENT_JOURNAL_MAX",
     "SSE_EVENT_MAX_AGE_SECONDS",
     "SSE_EVENT_MAX_WAIT_SECONDS",

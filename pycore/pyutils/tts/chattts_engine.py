@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
@@ -115,7 +116,7 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         _LAST_SYNTH_ERROR.set("requests package unavailable")
         return False
     try:
-        resp = requests.post(
+        resp = http_progress_client.post(
             f"{base_url()}/v1/audio/speech",
             json=body,
             timeout=120,

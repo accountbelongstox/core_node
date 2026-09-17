@@ -5,14 +5,19 @@ import copy
 import hashlib
 import os
 import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
+from functools import partial, wraps
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
+from pycore.pyutils.common.durable_record_store import open_record_store
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 
 
 AUDIO_DELIVERY_OUTBOX_SECTION = "audio_delivery_outbox"
@@ -21,10 +26,30 @@ AUDIO_DELIVERY_PROCESS_ID = f"{os.getpid()}:{uuid.uuid4().hex}"
 DEFAULT_LEASE_SECONDS = 180.0
 AUDIO_DELIVERY_OUTBOX_FILE = "audio_delivery_outbox.json"
 AUDIO_DELIVERY_OUTBOX_DEFAULTS = APP_CONFIG_DIR / "audio_delivery_outbox_empty_defaults"
+ACTIVE_AUDIO_DELIVERY_PREFIX = "tts.audio_delivery.active"
 
 
 def _now() -> float:
     return time.time()
+
+
+def _active_delivery(owner: str) -> bool:
+    worker = THREAD_BUS.get_signal(f"{ACTIVE_AUDIO_DELIVERY_PREFIX}.{owner}")
+    return worker is not None and worker.is_alive()
+
+
+def _delivery_available(row: Dict[str, Any], now: float) -> bool:
+    if str(row.get("lease_process") or "") == AUDIO_DELIVERY_PROCESS_ID and _active_delivery(str(row.get("lease_owner") or "")):
+        return False
+    return float(row.get("lease_until") or 0) <= now
+
+
+def _record_transaction(method: Any) -> Any:
+    @wraps(method)
+    def transaction(owner: Any, *args: Any, **kwargs: Any) -> Any:
+        with owner._record_store().transaction():
+            return method(owner, *args, **kwargs)
+    return transaction
 
 
 class AudioDeliveryOutbox:
@@ -32,6 +57,7 @@ class AudioDeliveryOutbox:
 
     def __init__(self) -> None:
         self._store = UserDataStore(file_name=AUDIO_DELIVERY_OUTBOX_FILE, defaults_dir=AUDIO_DELIVERY_OUTBOX_DEFAULTS)
+        self._records_store: Any = None
         init_serialized_owner(
             self,
             "tts.audio_delivery_outbox",
@@ -84,47 +110,36 @@ class AudioDeliveryOutbox:
         })
         return self.put(staged_record)
 
-    def _load_records(self) -> Dict[str, Dict[str, Any]]:
-        section = self._store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION) or {}
-        records = section.get("records")
-        legacy_records = {}
-        if not section.get("legacy_migrated"):
-            legacy_records = user_data_store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION).get("records") or {}
-            records = {
-                **(legacy_records if isinstance(legacy_records, dict) else {}),
+    def _record_store(self) -> Any:
+        if self._records_store is None:
+            self._records_store = open_record_store(self._store.path.with_suffix(".sqlite3"))
+        if not self._records_store.migration_complete():
+            section = self._store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION) or {}
+            records = section.get("records") or {}
+            legacy = {} if section.get("legacy_migrated") else user_data_store.get_section(AUDIO_DELIVERY_OUTBOX_SECTION).get("records") or {}
+            combined = {
+                **(legacy if isinstance(legacy, dict) else {}),
                 **(records if isinstance(records, dict) else {}),
             }
-            self._save_records({str(key): dict(value) for key, value in records.items() if isinstance(value, dict) and value.get("delivery_id")})
-        if not isinstance(records, dict):
-            return {}
-        return {
-            str(key): dict(value)
-            for key, value in records.items()
-            if isinstance(value, dict)
-        }
+            self._records_store.import_once({
+                str(row["delivery_id"]): dict(row) for row in combined.values()
+                if isinstance(row, dict) and row.get("delivery_id")
+            })
+        return self._records_store
 
-    def _save_records(self, records: Dict[str, Dict[str, Any]]) -> None:
-        self._store.set_section(
-            AUDIO_DELIVERY_OUTBOX_SECTION,
-            {
-                "schema": AUDIO_DELIVERY_OUTBOX_SCHEMA,
-                "legacy_migrated": True,
-                "records": {
-                    str(row["delivery_id"]): row
-                    for row in records.values()
-                    if row.get("delivery_id")
-                },
-                "updated_at": _now(),
-            },
-        )
+    def _load_records(self) -> Dict[str, Dict[str, Any]]:
+        return self._record_store().records()
+
+    def _save_record(self, row: Dict[str, Any]) -> None:
+        self._record_store().put(str(row["delivery_id"]), row)
 
     @serialized_method
+    @_record_transaction
     def put(self, record: Dict[str, Any]) -> Dict[str, Any]:
-        records = self._load_records()
         delivery_id = str(record.get("delivery_id") or "").strip()
         if not delivery_id:
             raise ValueError("audio delivery requires delivery_id")
-        current = records.get(delivery_id, {})
+        current = self._record_store().get(delivery_id) or {}
         current_sha256 = str(current.get("audio_sha256") or "")
         proposed_sha256 = str(record.get("audio_sha256") or "")
         if current_sha256 and proposed_sha256 and current_sha256 != proposed_sha256:
@@ -167,11 +182,11 @@ class AudioDeliveryOutbox:
                 if lease_key in current:
                     row[lease_key] = current[lease_key]
         row["updated_at"] = _now()
-        records[delivery_id] = row
-        self._save_records(records)
+        self._save_record(row)
         return copy.deepcopy(row)
 
     @serialized_method
+    @_record_transaction
     def claim(
         self,
         delivery_id: str,
@@ -179,42 +194,52 @@ class AudioDeliveryOutbox:
         process_id: str = AUDIO_DELIVERY_PROCESS_ID,
         lease_seconds: float = DEFAULT_LEASE_SECONDS,
     ) -> Optional[Dict[str, Any]]:
-        records = self._load_records()
-        row = records.get(str(delivery_id))
+        row = self._record_store().get(str(delivery_id))
         now = _now()
         if not row or str(row.get("status") or "pending") == "dead_letter":
             return None
-        lease_until = float(row.get("lease_until") or 0)
-        if lease_until > now:
+        if not _delivery_available(row, now):
             return None
         row["lease_owner"] = str(owner)
         row["lease_process"] = str(process_id)
         row["lease_until"] = now + max(1.0, float(lease_seconds))
         row["updated_at"] = now
-        records[str(delivery_id)] = row
-        self._save_records(records)
+        self._save_record(row)
         return copy.deepcopy(row)
 
     @serialized_method
+    @_record_transaction
+    def renew(self, delivery_id: str, owner: str, progress: Dict[str, Any]) -> None:
+        row = self._record_store().get(str(delivery_id))
+        now = _now()
+        if row is None or str(row.get("lease_owner") or "") != owner:
+            raise RuntimeError("Audio delivery ownership changed during upload")
+        if float(row.get("lease_until") or 0) - now > DEFAULT_LEASE_SECONDS / 2:
+            return
+        row["lease_until"] = now + DEFAULT_LEASE_SECONDS
+        row["updated_at"] = now
+        self._save_record(row)
+
+    @serialized_method
+    @_record_transaction
     def patch(
         self,
         delivery_id: str,
         patch: Dict[str, Any],
         owner: str = "",
     ) -> Optional[Dict[str, Any]]:
-        records = self._load_records()
-        row = records.get(str(delivery_id))
+        row = self._record_store().get(str(delivery_id))
         if not row:
             return None
         if owner and str(row.get("lease_owner") or "") != str(owner):
             return None
         row.update(copy.deepcopy(patch))
         row["updated_at"] = _now()
-        records[str(delivery_id)] = row
-        self._save_records(records)
+        self._save_record(row)
         return copy.deepcopy(row)
 
     @serialized_method
+    @_record_transaction
     def release(
         self,
         delivery_id: str,
@@ -223,8 +248,7 @@ class AudioDeliveryOutbox:
         error: str = "",
         retry_at: float = 0.0,
     ) -> Optional[Dict[str, Any]]:
-        records = self._load_records()
-        row = records.get(str(delivery_id))
+        row = self._record_store().get(str(delivery_id))
         if not row or str(row.get("lease_owner") or "") != str(owner):
             return None
         row.update({
@@ -235,8 +259,7 @@ class AudioDeliveryOutbox:
             "lease_until": 0.0,
             "updated_at": _now(),
         })
-        records[str(delivery_id)] = row
-        self._save_records(records)
+        self._save_record(row)
         return copy.deepcopy(row)
 
     @serialized_method
@@ -250,21 +273,20 @@ class AudioDeliveryOutbox:
         return counts
 
     @serialized_method
+    @_record_transaction
     def complete(self, delivery_id: str, owner: str = "") -> bool:
-        records = self._load_records()
-        row = records.get(str(delivery_id))
+        row = self._record_store().get(str(delivery_id))
         if not row:
             return False
         if owner and str(row.get("lease_owner") or "") != str(owner):
             return False
-        records.pop(str(delivery_id), None)
-        self._save_records(records)
+        self._record_store().delete(str(delivery_id))
         return True
 
     @serialized_method
+    @_record_transaction
     def mark_dead_letter(self, delivery_id: str, owner: str, error: str) -> bool:
-        records = self._load_records()
-        row = records.get(str(delivery_id))
+        row = self._record_store().get(str(delivery_id))
         if not row or str(row.get("lease_owner") or "") != str(owner):
             return False
         row.update({
@@ -276,8 +298,7 @@ class AudioDeliveryOutbox:
             "lease_until": 0.0,
             "updated_at": _now(),
         })
-        records[str(delivery_id)] = row
-        self._save_records(records)
+        self._save_record(row)
         return True
 
     @serialized_method
@@ -289,15 +310,13 @@ class AudioDeliveryOutbox:
             if str(row.get("lane") or "") == str(lane)
             and str(row.get("status") or "pending") != "dead_letter"
             and float(row.get("retry_at") or 0) <= now
-            and (
-                float(row.get("lease_until") or 0) <= now
-                or str(row.get("lease_process") or "") != AUDIO_DELIVERY_PROCESS_ID
-            )
+            and _delivery_available(row, now)
         ]
         rows.sort(key=lambda row: float(row.get("created_at") or 0))
         return [copy.deepcopy(row) for row in rows[:max(1, int(limit))]]
 
     @serialized_method
+    @_record_transaction
     def retry_dead_letters(self, lane: str) -> int:
         records = self._load_records()
         changed = 0
@@ -310,9 +329,8 @@ class AudioDeliveryOutbox:
             row["retry_at"] = 0.0
             row["last_error"] = ""
             row["updated_at"] = _now()
+            self._save_record(row)
             changed += 1
-        if changed:
-            self._save_records(records)
         return changed
 
     @serialized_method
@@ -395,6 +413,19 @@ class AudioDeliveryExecutor:
     ) -> Dict[str, Any]:
         delivery_id = str(record.get("delivery_id") or "")
         owner = f"{AUDIO_DELIVERY_PROCESS_ID}:{delivery_id}:{time.monotonic_ns()}"
+        active_signal = f"{ACTIVE_AUDIO_DELIVERY_PREFIX}.{owner}"
+        THREAD_BUS.signal(active_signal, threading.current_thread())
+        try:
+            with http_progress_client.transfer_scope(partial(audio_delivery_outbox.renew, delivery_id, owner)):
+                return self._deliver(handler, record, owner, initial_retry_seconds, maximum_retry_seconds)
+        finally:
+            THREAD_BUS.clear_signal(active_signal)
+
+    def _deliver(
+        self, handler: Any, record: Dict[str, Any], owner: str,
+        initial_retry_seconds: float, maximum_retry_seconds: float,
+    ) -> Dict[str, Any]:
+        delivery_id = str(record.get("delivery_id") or "")
         claimed = audio_delivery_outbox.claim(delivery_id, owner)
         if not claimed:
             return {"delivery_id": delivery_id, "processed": False}

@@ -19,10 +19,10 @@ debian/
 │   ├── 153_install_desktop_applications.sh
 │   ├── 155_install_cursor.sh
 │   ├── 157_install_vscode.sh
-│   ├── 13_ensure_python.sh
+│   ├── 13_install_default_python.sh
 │   ├── 17_install_node_toolchain_24.sh
-│   ├── 19_enable_pipx.sh
-│   ├── 21_enable_poetry.sh
+│   ├── 19_install_default_pipx.sh
+│   ├── 21_install_default_poetry.sh
 │   ├── 25_install_uv.sh
 │   ├── 27_install_git_ssh.sh
 │   ├── 33_install_nginx.sh

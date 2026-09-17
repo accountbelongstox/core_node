@@ -10,6 +10,11 @@ Proxies POST /v1/tts to a running fish-speech tools/api_server.py when
 FISHSPEECH_UPSTREAM is set, otherwise uses the Fish Audio Python SDK when
 FISH_API_KEY is present.
 
+Upstream mode owns outer text segmentation (tts_text_chunking, staged as a
+sibling file): long texts are split into bounded chunks, each chunk is
+synthesized upstream with format=wav, and the PCM chunks are concatenated in
+order with the policy pause. The cloud SDK path stays single-shot.
+
 Official SDK: https://docs.fish.audio/developer-guide/sdk-guide/quickstart
 Local server: https://speech.fish.audio/server/
 
@@ -22,13 +27,20 @@ Env:
   FISH_API_KEY                       - Fish Audio cloud API key
 """
 
+import io
 import os
+import sys
+import wave
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+
+from tts_text_chunking import default_policy, split_text
 
 TMP_DIR = Path(r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -52,18 +64,93 @@ def health():
     return {"status": "ok", "upstream": _upstream or None, "synth_ready": synth_ready}
 
 
+def _read_wav_bytes(data: bytes):
+    """(frames, (channels, sampwidth, framerate)) from uncompressed PCM wav."""
+    with wave.open(io.BytesIO(data), "rb") as handle:
+        params = (handle.getnchannels(), handle.getsampwidth(), handle.getframerate())
+        if handle.getcomptype() != "NONE":
+            raise ValueError(f"compressed wav ({handle.getcomptype()}) not supported")
+        if params[0] <= 0 or params[1] <= 0 or params[2] <= 0:
+            raise ValueError(f"invalid wav params {params}")
+        return handle.readframes(handle.getnframes()), params
+
+
+def _concat_wav_chunks(chunk_data, pause_ms: int) -> bytes:
+    """Order-preserving PCM concat of upstream wav chunks with the policy
+    pause; fails loudly on mixed stream parameters (never transcodes)."""
+    parts = []
+    params = None
+    for index, data in enumerate(chunk_data):
+        frames, chunk_params = _read_wav_bytes(data)
+        if params is None:
+            params = chunk_params
+        elif chunk_params != params:
+            raise ValueError(
+                f"chunk {index + 1} wav params {chunk_params} != {params}"
+            )
+        if index:
+            pause_frames = params[2] * max(0, pause_ms) // 1000
+            parts.append(b"\x00" * pause_frames * params[0] * params[1])
+        parts.append(frames)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as handle:
+        handle.setnchannels(params[0])
+        handle.setsampwidth(params[1])
+        handle.setframerate(params[2])
+        handle.writeframes(b"".join(parts))
+    return buf.getvalue()
+
+
+def _synthesize_upstream_chunked(text: str, reference_id):
+    """Server-side chunked generation against the upstream fish-speech server.
+
+    The upstream request chunk_length is a TOKEN budget (default 200), not a
+    character cap, so the bridge owns outer text segmentation
+    (tts_text_chunking, owner=project): one upstream POST per chunk with
+    format=wav, then an order-preserving PCM concatenation. The cloud SDK path
+    is untouched (the hosted API handles long text itself)."""
+    policy = default_policy("fishspeech")
+    chunks = split_text(text, policy)
+    if len(chunks) <= 1:
+        body = {"text": text}
+        if reference_id:
+            body["reference_id"] = reference_id
+        resp = requests.post(f"{_upstream}/v1/tts", json=body, timeout=180)
+        return Response(
+            content=resp.content,
+            media_type=resp.headers.get("content-type", "audio/mpeg"),
+        )
+    chunk_data = []
+    for index, chunk in enumerate(chunks):
+        body = {"text": chunk.text, "format": "wav"}
+        if reference_id:
+            body["reference_id"] = reference_id
+        resp = requests.post(f"{_upstream}/v1/tts", json=body, timeout=180)
+        if resp.status_code != 200 or not resp.content:
+            detail = resp.text[:160] if hasattr(resp, "text") else "empty response"
+            return JSONResponse(
+                {"error": f"chunk {index + 1}/{len(chunks)} failed: HTTP "
+                          f"{resp.status_code}: {detail}"},
+                status_code=502,
+            )
+        chunk_data.append(resp.content)
+    try:
+        combined = _concat_wav_chunks(chunk_data, policy.pause_ms)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=502)
+    print(f"[api] chunked upstream synth: {len(chunks)} chunks "
+          f"({len(text)} chars)", flush=True)
+    return Response(content=combined, media_type="audio/wav")
+
+
 @app.post("/v1/tts")
 def tts(req: TtsRequest):
     text = (req.text or "").strip()
     if not text:
         return JSONResponse({"error": "empty text"}, status_code=400)
     if _upstream:
-        body = {"text": text}
-        if req.reference_id:
-            body["reference_id"] = req.reference_id
         try:
-            resp = requests.post(f"{_upstream}/v1/tts", json=body, timeout=180)
-            return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/mpeg"))
+            return _synthesize_upstream_chunked(text, req.reference_id)
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=502)
     api_key = (os.environ.get("FISH_API_KEY") or "").strip()

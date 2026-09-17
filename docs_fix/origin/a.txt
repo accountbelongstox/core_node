@@ -1,0 +1,2830 @@
+escape interrupt · ctrl+c/ctrl+d clear/exit · / commands ·
+ ! bash · ctrl+o more
+ Press ctrl+o to show full startup help and loaded
+ resources.
+
+ Pi can explain its own features and look up its docs. Ask
+ it how to use or extend Pi.
+
+
+[Context]
+  AGENTS.md
+
+[Extensions]
+  pi-mcp-extension:src, pi-web-kit
+
+
+
+ [compaction]
+
+ Compacted from 123,994 tokens (ctrl+o to expand)
+
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py:440-639
+
+
+ Now I have the complete picture of the isolation machinery.
+ Design for the self_contained implementation (step 07) +
+ base python resolution (step 02) + policy evidence (step
+ 03):
+
+ ### A. runtime_policy.py changes (steps 02+03)
+
+ 1. Add to _ENGINE_SPECS for the five engines:
+     - cosyvoice: "isolated": False → True,
+       "isolation_mode": "self_contained",
+       "python_recommended": "3.10", upstream + limits
+     - fishspeech: same; packages need local inference note
+       (step 03/08 handles package list separately — keep
+       packages as-is but add "notes"? No — step 08 owns
+       package flows. Here only policy/evidence/isolation
+       fields).
+     - voxcpm2: same
+     - gptsovits: "isolation_mode": "self_contained"
+       (isolated already True)
+     - melotts: "isolation_mode": "self_contained"
+     - qwen3tts: "isolation_mode": "overlay" (explicit, no
+       behavior change)
+
+ 2. Add per-engine "upstream" (repo, evidence_revision_note)
+    and "limits" (list of dicts: source, parameter, value,
+    unit, hard_limit bool, note) from plan step 03 table.
+
+ 3. Add ISOLATION_MODE_OVERLAY = "overlay" /
+    ISOLATION_MODE_SELF_CONTAINED = "self_contained"
+    constants in runtime_abi.py + PYTHON310_VERSION =
+    policy_value("AI_PYTHON310_VERSION", "3.10")? The policy
+    env file pattern — runtime_abi reads
+    ai_runtime_policy.env. Check if that file has entries;
+    adding AI_PYTHON310_VERSION=3.10 there is the consistent
+    route. Let me check the env file.
+
+ 4. New in runtime_policy.py:
+     - engine_isolation_mode(engine) →
+       spec.get("isolation_mode", "overlay" if not isolated
+       else existing-default). Default rule: if
+       "isolation_mode" absent → legacy behavior
+       (isolated=True means overlay). So
+       engine_isolation_mode returns
+       spec.get("isolation_mode") or "overlay".
+     - resolve_engine_base_python(engine) → dict(found,
+       path, source, reason):
+         1. env <ENGINE>_PYTHON (file exists) → source
+            "engine_override"
+         2. env PYTHON310_EXE_PATH (file) → "registered_env"
+         3. pygvar file PYTHON310_EXE_PATH via pycore pygvar
+            GlobalVarManager? Check the class: pygvar.py
+            line 229 def set/get — there's a class with
+            get/set. Import path? Let me check what class
+            wraps it (lines 220-250). Use it lazily inside
+            function (avoid import cost at module top?
+            runtime_policy is imported by installers; pygvar
+            import does heavy machine-id stuff maybe already
+            imported anyway. Lazy import inside function is
+            safest).
+         4. Well-known link: /usr/local/bin/python310
+            (posix) or %LocalAppData%? For Windows,
+            GlobalVars registered path — Python side reads
+            pygvar file PYTHON310_EXE_PATH which the PS
+            installer will write (step 05 writes BOTH
+            stores). Well-known fallback:
+            shutil.which("python310").
+         5. Missing → {found: False, reason:
+            "python310_not_registered", next_step: "run
+            Step13_InstallPython310.ps1 /
+            14_install_python310.sh"}
+
+    Never returns sys.executable for self_contained engines.
+
+ ### B. isolated_venv_runtime.py changes (step 07)
+
+ 1. venv_dir(engine, version_tag=None): tag = version_tag or
+    _python_version_tag(); add param, keep default.
+ 2. New _self_contained(engine) →
+    engine_isolation_mode(engine) == "self_contained".
+ 3. _venv_python_path(engine, version_tag=None).
+ 4. New find_existing_venv_python(engine): scan
+    get_lang_compiler_dir().glob(f"{_VENV_PREFIX}{engine}_*"
+    ) sorted; return first with valid python binary. Used by
+    resolve path for self_contained (tag unknown until
+    found).
+ 5. resolve_python(engine): self_contained → scan dirs
+    (ignore override; override is now base-interpreter
+    semantics); overlay → legacy.
+ 6. _create_venv(engine, base_python=None,
+    isolation_mode=None): mode = param or engine's;
+    self_contained: [base_python, "-m", "venv", target] no
+    system-site-packages; overlay: legacy.
+ 7. Base identity for self_contained: identity must describe
+    the BASE python (not host). Generalize:
+    _base_interpreter_identity(python_exe=None) — when
+    python_exe given, run the identity probe code against it
+    (same probe as _venv_interpreter_identity but for the
+    base); else host. Then _write_base_identity(engine,
+    python_exe=None), _base_identity_matches(engine,
+    base_python=None): for self_contained pass resolved
+    base.
+ 8. _subprocess_env: strip PYTHONPATH/PYTHONHOME, set
+    PYTHONNOUSERSITE="1" (07.6).
+ 9. _venv_fingerprint(engine, base_python=None): include
+    base identity of resolved base for self_contained.
+
+ ### C. isolated_venv.py ensure_venv changes
+
+ - Signature: add base_python: Optional[str] = None.
+ - Determine mode = engine_isolation_mode(engine) (import
+   from runtime_policy).
+ - self_contained flow:
+     - resolved_base = base_python or
+       resolve_engine_base_python(engine)["path"]; if none →
+       ColorPrint yellow reason; return None (never host
+       fallback).
+     - _compatible(engine, resolved_base) gate (checks 3.10
+       window against the BASE — 3.10 passes).
+     - tag = _interpreter_version(resolved_base);
+       python_path = _venv_python_path(engine, tag).
+     - create via _create_venv(engine, resolved_base,
+       "self_contained"); write base identity with
+       python_exe=resolved_base.
+     - _install_into(...): pass self_contained=True → inside
+       skip _remove_local_shared_overrides and skip shared
+       constraints (shared_packages=()). Let me check
+       _install_into and _remove_local_shared_overrides call
+       sites in isolated_venv.py lines 290-436.
+     - The legacy override direct-use branch: apply only for
+       overlay engines (keep Qwen behavior). For
+       self_contained engines, override is consumed as base
+       candidate via resolve_engine_base_python (which reads
+       env override first) — no direct-use branch.
+ - resolve_python for self_contained — from runtime module
+   change above.
+
+ Also venv_provisioned, venv_ready, _core_environment_ready
+ use resolve_python/venv paths — they inherit the scan-based
+ resolution. _stamp_path, _health_failure_path,
+ _base_identity_stamp_path use venv_dir(engine) (host tag!)
+ — for self_contained these must use the tag-aware dir. Make
+ internal _engine_venv_dir(engine) that for self_contained
+ derives dir from resolve scan or from resolved base tag,
+ else legacy. To minimize risk: add _venv_dir_for(engine,
+ base_tag=None) and update stamp/identity/fingerprint
+ functions to take the dir of the resolved venv python's
+ parent... Simpler: for self_contained, derive paths from
+ the venv python location when it exists; during creation,
+ from resolved base tag.
+
+ Implementation approach: add module-level helper
+ _engine_venv_dir(engine) -> Path:
+
+ ```python
+   def _engine_venv_dir(engine):
+       if _self_contained(engine):
+           existing = find_existing_venv_python(engine)
+           if existing: return Path(existing).parent.parent
+ # bin/Scripts parent
+           base = resolve_engine_base_python(engine)
+           tag = base.get("python_version") if
+ base.get("found") else None
+           if tag: return venv_dir(engine, tag)
+           return venv_dir(engine, "3.10")  # target tag for
+ not-yet-resolved; deterministic
+       return venv_dir(engine)
+ ```
+
+ Hmm — when base missing, dir is hypothetical; functions
+ that only check existence will just not find it. Use spec
+ python_recommended ("3.10") as the deterministic target
+ tag. That's consistent: self_contained engines all target
+ 3.10.
+
+ But careful — calling resolve_engine_base_python inside
+ _engine_venv_dir creates import cycle? runtime_policy has
+ no dependency on isolated_venv — fine. But running the
+ interpreter version probe each call is a subprocess — cache
+ per engine. Add small dict cache.
+
+ Simplify: _engine_venv_dir(engine):
+ - overlay → venv_dir(engine) [host tag, legacy]
+ - self_contained → if existing venv found via glob → its
+   dir; else venv_dir(engine, spec python_recommended or
+   "3.10").
+
+ No subprocess in path resolution. _create_venv gets
+ base_python passed in and validates tag matches dir tag? At
+ creation, dir computed from recommended tag; base resolved
+ must match recommended major.minor — check _compatible +
+ warn if base version != recommended tag? If a user override
+ points to 3.11 (within window for some engines), dir tag
+ should be 3.11! So at creation: tag =
+ _interpreter_version(resolved_base) and dir =
+ venv_dir(engine, tag). Creation path in ensure_venv uses
+ its own computed dir — pass target_dir explicitly into
+ _create_venv. And _engine_venv_dir for existing: scan
+ covers any tag. For not-existing + not-creating contexts
+ (stamp checks when venv absent), dir is moot (stamp absent
+ → not ready). But _venv_python_path used by resolve: for
+ self_contained, use scan instead. OK.
+
+ So:
+ - _engine_venv_dir(engine): overlay → legacy venv_dir;
+   self_contained → scan (first valid), else None? Functions
+   calling _stamp_path etc. handle None → treat as
+   not-ready. Let me define _engine_venv_dir(engine) ->
+   Optional[Path].
+ - ensure_venv self_contained creation: computes target =
+   venv_dir(engine, tag) explicitly and calls
+   _create_venv_at(engine, base_python, target).
+
+ Keep _create_venv(engine) legacy signature for overlay; add
+ _create_venv_self_contained(engine, base_python, target).
+
+ _write_base_identity/_base_identity_matches need engine +
+ optional base identity string. Generalize:
+ _base_interpreter_identity_for(python_exe) runs probe code
+ (like _venv_interpreter_identity but against arbitrary
+ exe). For host: existing _base_interpreter_identity().
+
+ _write_base_identity(engine, identity=None): writes
+ identity or host identity.
+ _base_identity_matches(engine, expected_identity=None):
+ compares stored vs expected (or host).
+
+ For self_contained in ensure_venv: expected =
+ _base_interpreter_identity_for(resolved_base).
+
+ _venv_fingerprint(engine, identity=None): fingerprint
+ combines engine_fingerprint + identity.
+
+ _subprocess_env: strip PYTHONPATH/PYTHONHOME +
+ PYTHONNOUSERSITE. This applies to ALL engines — is that
+ safe for overlay? Overlay venvs rely on
+ system-site-packages, not PYTHONPATH. Stripping PYTHONPATH
+ is generally safer (07.6 mandates it). Qwen risk: if Qwen
+ venv relied on PYTHONPATH for something (e.g., repo path)?
+ _subprocess_env prepends executable dir to PATH only.
+ Health probes run -c strings; pycore imports inside venv?
+ ensure_venv provision_modules maybe import pycore inside
+ venv via PYTHONPATH? Check _install_package_steps/provision
+ usage of PYTHONPATH... To be safe: apply PYTHONPATH
+ stripping ONLY for self_contained engines (scoped change;
+ Qwen untouched). 07.6 says "启动子进程清理 PYTHONPATH、
+ PYTHONHOME" — for the five engines. Scoped to
+ self_contained is compliant and non-breaking.
+
+ _install_into + _remove_local_shared_overrides call site:
+ need to view lines 377-455 of isolated_venv.py to thread
+ the flag.
+
+ Also missing-package checks:
+ _core_environment_ready(engine, python_exe, ...) runs
+ against venv python — already target-interpreter based.
+ Good (07.7 satisfied: missing judgment based on venv
+ distribution).
+
+ Let me view _install_into and call sites of
+ _remove_local_shared_overrides.
+
+ 查看 _install_into 与 _remove_local_shared_overrides 的调用
+ 关系，以及 pygvar 的 get API 和 ai_runtime_policy.env：
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py:377-456
+
+
+
+ $ cd "D:/programing/core_node" && sed -n '220,260p'
+ pycore/pyfoundations/pygvar.py; echo "=== policy env tail
+ ==="; grep -n "AI_PYTHON\|PYTHON310"
+ scripts/shells/ai_runtime_policy.env | head; tail -5
+ scripts/shells/ai_runtime_policy.env
+
+ ... (49 earlier lines, ctrl+o to expand)
+ AI_QWEN_TTS_ACCELERATOR_PIP_ARGS='--upgrade,--no-build-isol
+ ation'
+ AI_QWEN_TTS_ACCELERATOR_PLATFORMS='linux'
+ AI_QWEN_TTS_ACCELERATOR_CUDA_MIN_MAJOR='12'
+ AI_QWEN_TTS_ACCELERATOR_COMPUTE_MIN_MAJOR='8'
+
+
+ I have everything. The pygvar class — what's its name and
+ how to instantiate? Let me check line ~215-228 for the
+ class definition and any singleton. Let me grep quickly,
+ then write all the code.
+
+ Implementation batch:
+
+ 1. scripts/shells/ai_runtime_policy.env: add
+    AI_PYTHON310_VERSION='3.10'
+ 2. runtime_abi.py: add PYTHON310_VERSION =
+    policy_value("AI_PYTHON310_VERSION", "3.10"),
+    ISOLATION_MODE_OVERLAY = "overlay",
+    ISOLATION_MODE_SELF_CONTAINED = "self_contained" +
+    exports.
+ 3. runtime_policy.py:
+     - five engines spec updates
+       (isolated/isolation_mode/python_recommended/upstream/
+       limits/device_policy)
+     - qwen3tts "isolation_mode": "overlay"
+     - engine_isolation_mode(engine)
+     - resolve_engine_base_python(engine) with lazy pygvar
+       read
+     - export new names
+ 4. isolated_venv_runtime.py:
+     - venv_dir(engine, version_tag=None)
+     - _self_contained(engine),
+       find_existing_venv_python(engine),
+       _engine_venv_dir(engine)
+     - _venv_python_path(engine, version_tag=None);
+       self_contained → scan
+     - resolve_python(engine) branch
+     - _base_interpreter_identity_for(python_exe)
+     - _write_base_identity(engine, identity=None),
+       _base_identity_matches(engine,
+       expected_identity=None)
+     - _venv_fingerprint(engine, identity=None),
+       _stamp_matches, _write_stamp use _engine_venv_dir
+     - _create_venv(engine, base_python=None, target=None) —
+       self_contained path
+     - _subprocess_env(executable, clean=False) — clean
+       strips PYTHONPATH/PYTHONHOME + PYTHONNOUSERSITE
+       (self_contained only)
+     - stamp/health/identity paths via _engine_venv_dir
+     - exports update
+ 5. isolated_venv.py:
+     - imports update
+     - _install_into(..., self_contained: bool = False) —
+       skip shared-override removal + constraints when
+       self_contained
+     - ensure_venv(..., base_python=None) — self_contained
+       flow
+     - venv_provisioned uses resolve (already)
+ 6. GlobalVars.ps1: PYTHON310 globals (step 02 partial; step
+    05 fills real install)
+ 7. Records append.
+
+ For the pygvar singleton — check the class name.
+
+
+ $ cd "D:/programing/core_node" && grep -n "^class
+ \|^GLOBAL_VAR_MANAGER\|^_GLOBAL_VAR\|get_global_var_manager
+ \|def get_global_var" pycore/pyfoundations/pygvar.py | head
+ -8
+
+ 169:class GlobalVarManager:
+
+
+
+ $ cd "D:/programing/core_node" && sed -n '169,200p'
+ pycore/pyfoundations/pygvar.py && grep -n
+ "GlobalVarManager(" pycore/pyfoundations/pygvar.py | head
+ -4
+
+ ... (34 earlier lines, ctrl+o to expand)
+ ".core_node" / "global_var")
+
+     @staticmethod
+     def _ensure_directory(path: Path) -> Path:
+         path.mkdir(parents=True, exist_ok=True)
+
+
+ OK — GlobalVarManager() with no args auto-discovers. I'll
+ instantiate lazily inside resolve_engine_base_python. Now
+ write all the code. Start with the policy env +
+ runtime_abi:
+
+ 开始批量实现步骤 02/03/07。先是政策常量层：
+
+
+ $ cd "D:/programing/core_node" && sed -n '1,6p'
+ scripts/shells/ai_runtime_policy.env
+
+ ... (3 earlier lines, ctrl+o to expand)
+ AI_PYTHON_VERSION='3.13'
+ AI_SHARED_TRANSFORMERS_SPEC='transformers>=4,<5'
+ AI_CTRANSLATE2_CUDA_MAJOR='12'
+ AI_CTRANSLATE2_GPU_PACKAGES='nvidia-cublas-cu12,nvidia-cudn
+ n-cu12'
+
+
+
+ $ cd "D:/programing/core_node" && python - <<'EOF'
+ import io
+ p = 'scripts/shells/ai_runtime_policy.env'
+ s = io.open(p, encoding='utf-8').read()
+ old = "AI_PYTHON_VERSION='3.13'\n"
+ new = "AI_PYTHON_VERSION='3.13'\n# Dedicated Python 3.10
+ interpreter for the five self-contained TTS engines\n#
+ (cosyvoice, fishspeech, voxcpm2, gptsovits, melotts).
+ Registered separately\n# from the default 3.13 host
+ interpreter; never overrides
+ AI_PYTHON_VERSION.\nAI_PYTHON310_VERSION='3.10'\n"
+ assert old in s and 'AI_PYTHON310_VERSION' not in s
+ io.open(p, 'w', encoding='utf-8',
+ newline='').write(s.replace(old, new, 1))
+ print('policy env updated')
+ EOF
+
+ policy env updated
+
+
+
+ $ cd "D:/programing/core_node" && grep -n "PYTHON_VERSION =
+ policy_value" pycore/pyfoundations/runtime_abi.py && sed -n
+ '55,60p' pycore/pyfoundations/runtime_abi.py && sed -n
+ '160,170p' pycore/pyfoundations/runtime_abi.py
+
+ ... (14 earlier lines, ctrl+o to expand)
+     "TORCH_CPU_INDEX",
+     "TORCH_INDEX_BASE",
+     "TORCH_PACKAGES",
+     "cuda_tier_by_tag",
+     "cuda_tier_for_driver",
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyfoundations/runtime_abi.py
+
+      ...
+   54
+   55
+   56 POLICY_VERSION = policy_value("AI_POLICY_VERSION",
+ "0")
+   57 PYTHON_VERSION = policy_value("AI_PYTHON_VERSION",
+ "3.13")
+ + 58 # Dedicated 3.10 interpreter for the five
+ self-contained TTS engines. This is
+ + 59 # registered independently of the default host
+ interpreter (PYTHON_VERSION).
+ + 60 PYTHON310_VERSION =
+ policy_value("AI_PYTHON310_VERSION", "3.10")
+ + 61
+ + 62 # Isolation modes for managed engine environments.
+ "overlay" reuses the host
+ + 63 # site-packages (--system-site-packages, legacy
+ behavior); "self_contained"
+ + 64 # builds the venv from a dedicated base interpreter
+ without host package
+ + 65 # sharing (required when host and engine ABIs differ).
+ + 66 ISOLATION_MODE_OVERLAY = "overlay"
+ + 67 ISOLATION_MODE_SELF_CONTAINED = "self_contained"
+   58 SHARED_TRANSFORMERS_SPEC = policy_value(
+   59     "AI_SHARED_TRANSFORMERS_SPEC",
+   60     "transformers",
+   61 )
+      ...
+  161     "PADDLE_GPU_PACKAGE",
+  162     "PADDLE_INDEX_BASE",
+  163     "POLICY_VERSION",
+  164     "PYTHON_VERSION",
+ +175     "PYTHON310_VERSION",
+ +176     "ISOLATION_MODE_OVERLAY",
+ +177     "ISOLATION_MODE_SELF_CONTAINED",
+  165     "SHARED_TRANSFORMERS_SPEC",
+  166     "TORCH_CPU_INDEX",
+  167     "TORCH_INDEX_BASE",
+  168     "TORCH_PACKAGES",
+      ...
+
+
+ Now update runtime_policy.py:
+ 1. Import the new constants.
+ 2. Update the five engine specs + qwen3tts isolation_mode.
+ 3. Add upstream/limits evidence per engine (from plan step
+    03).
+ 4. Add engine_isolation_mode() and
+    resolve_engine_base_python().
+
+ 现在更新 runtime_policy.py —— 五引擎政策、上游证据、基解释
+ 器解析（步骤 02+03 核心）：
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/ru
+ ntime_policy.py
+
+      ...
+   24     CUDA_TIERS,
+   25     CTRANSLATE2_CUDA_MAJOR,
+   26     CTRANSLATE2_GPU_PACKAGES,
+   27     ISOLATED_SHARED_PACKAGES,
+ + 28     ISOLATION_MODE_OVERLAY,
+ + 29     ISOLATION_MODE_SELF_CONTAINED,
+   28     OCR_PACKAGES,
+   29     ONNXRUNTIME_CUDA_MAJOR,
+   30     PADDLE_CPU_INDEX,
+   31     PADDLE_CPU_PACKAGE,
+   32     PADDLE_GPU_PACKAGE,
+   33     PADDLE_INDEX_BASE,
+   34     POLICY_VERSION,
+   35     PYTHON_VERSION,
+ + 38     PYTHON310_VERSION,
+   36     SHARED_TRANSFORMERS_SPEC,
+   37     TORCH_CPU_INDEX,
+   38     TORCH_INDEX_BASE,
+   39     TORCH_PACKAGES,
+      ...
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/ru
+ ntime_policy.py
+
+      ...
+   57     },
+   58     "cosyvoice": {
+   59         "python_min": "3.10",
+   60         "python_max": "3.12",
+ - 61         "isolated": False,
+ + 61         "python_recommended": PYTHON310_VERSION,
+ + 62         "isolated": True,
+ + 63         "isolation_mode":
+ ISOLATION_MODE_SELF_CONTAINED,
+ + 64         "device_policy": "auto",
+   62         "packages": (
+   63             "requirements.txt",
+   64             "fastapi",
+   65             "uvicorn",
+      ...
+   68         ),
+   69         "health_imports": (
+   70             "import torch, fastapi, uvicorn,
+ modelscope, onnxruntime"
+   71         ),
+ + 75         "upstream": {
+ + 76             "repo":
+ "https://github.com/FunAudioLLM/CosyVoice",
+ + 77             "evidence_date": "2026-09-17",
+ + 78             "revision": None,
+ + 79         },
+ + 80         "limits": (
+ + 81             {
+ + 82                 "source": "cosyvoice/cli/frontend.py
+ (upstream main)",
+ + 83                 "parameter": "token_max_n",
+ + 84                 "value": 80,
+ + 85                 "unit": "token",
+ + 86                 "hard_limit": False,
+ + 87                 "note": "Frontend text-split
+ parameter, not a model character cap; keep the official
+ frontend and add project-level protection for long
+ unpunctuated spans.",
+ + 88             },
+ + 89             {
+ + 90                 "source": "cosyvoice/cli/frontend.py
+ (upstream main)",
+ + 91                 "parameter": "token_min_n /
+ merge_len",
+ + 92                 "value": "60 / 20",
+ + 93                 "unit": "token",
+ + 94                 "hard_limit": False,
+ + 95                 "note": "Frontend merge parameters; no
+ unified full-text hard limit published.",
+ + 96             },
+ + 97         ),
+   72     },
+   73     "f5tts": {
+   74         "python_min": "3.10",
+   75         "python_max": "3.13",
+      ...
+   84     },
+   85     "gptsovits": {
+   86         "python_min": "3.9",
+   87         "python_max": "3.11",
+ +114         "python_recommended": PYTHON310_VERSION,
+   88         "isolated": True,
+ +116         "isolation_mode":
+ ISOLATION_MODE_SELF_CONTAINED,
+ +117         "device_policy": "auto",
+   89         "packages": ("requirements.txt",),
+   90         "health_imports": "import torch,
+ transformers",
+ +120         "upstream": {
+ +121             "repo":
+ "https://github.com/RVC-Boss/GPT-SoVITS",
+ +122             "evidence_date": "2026-09-17",
+ +123             "revision": None,
+ +124         },
+ +125         "limits": (
+ +126             {
+ +127                 "source": "api_v2.py +
+ GPT_SoVITS/TTS_infer_pack/text_segmentation_method.py
+ (upstream main)",
+ +128                 "parameter": "text segmentation
+ entry",
+ +129                 "value": None,
+ +130                 "unit": "unknown",
+ +131                 "hard_limit": False,
+ +132                 "note": "Official cut methods exist;
+ no unified hard cap published. Reference-audio duration and
+ target-audio max duration are recorded separately;
+ arbitrary-length single-shot generation is not promised.",
+ +133             },
+ +134         ),
+   91     },
+   92     "melotts": {
+   93         "python_min": "3.8",
+   94         "python_max": "3.13",
+ +139         "python_recommended": PYTHON310_VERSION,
+   95         "isolated": True,
+ +141         "isolation_mode":
+ ISOLATION_MODE_SELF_CONTAINED,
+ +142         "device_policy": "auto",
+   96         "packages": ("melotts", "unidic-lite"),
+   97         "pins": (),
+   98         "health_imports": (
+   99             "import torch, transformers; from melo.api
+ import TTS"
+  100         ),
+ +148         "upstream": {
+ +149             "repo":
+ "https://github.com/myshell-ai/MeloTTS",
+ +150             "evidence_date": "2026-09-17",
+ +151             "revision": None,
+ +152         },
+ +153         "limits": (
+ +154             {
+ +155                 "source": "docs/install.md +
+ melo/api.py (upstream main)",
+ +156                 "parameter": "native sentence
+ splitting",
+ +157                 "value": None,
+ +158                 "unit": "unknown",
+ +159                 "hard_limit": False,
+ +160                 "note": "Official tested env is Ubuntu
+ 20.04/Python 3.9; Windows docker is officially recommended.
+ Native sentence splitting is kept; project protection added
+ for unpunctuated overlong input. No unified full-text hard
+ limit published.",
+ +161             },
+ +162         ),
+  101     },
+  102     "fishspeech": {
+  103         "python_min": "3.10",
+  104         "python_max": "3.12",
+ -105         "isolated": False,
+ +167         "python_recommended": PYTHON310_VERSION,
+ +168         "isolated": True,
+ +169         "isolation_mode":
+ ISOLATION_MODE_SELF_CONTAINED,
+ +170         "device_policy": "auto",
+  106         "packages": (
+  107             "fish-audio-sdk",
+  108             "fastapi",
+  109             "uvicorn",
+  110             "requests",
+  111         ),
+  112         "health_imports": "import fishaudio, fastapi,
+ uvicorn, torch",
+ +178         "upstream": {
+ +179             "repo":
+ "https://github.com/fishaudio/fish-speech",
+ +180             "evidence_date": "2026-09-17",
+ +181             "revision": None,
+ +182         },
+ +183         "limits": (
+ +184             {
+ +185                 "source": "pyproject.toml +
+ fish_speech/utils/schema.py (upstream main)",
+ +186                 "parameter": "chunk_length",
+ +187                 "value": 200,
+ +188                 "unit": "token",
+ +189                 "hard_limit": False,
+ +190                 "note": "Request chunking parameter
+ (range 100-1000), not a full-text character cap. pyproject
+ declares Python >=3.10 and torch/torchaudio 2.8.0 with a
+ CPU extra.",
+ +191             },
+ +192             {
+ +193                 "source": "fish_speech/utils/schema.py
+ (upstream main)",
+ +194                 "parameter": "max_new_tokens",
+ +195                 "value": 1024,
+ +196                 "unit": "token",
+ +197                 "hard_limit": False,
+ +198                 "note": "Generation token budget;
+ model context must also subtract reference audio/text and
+ history. Do not substitute cloud SDK ranges for the local
+ API.",
+ +199             },
+ +200         ),
+  113     },
+  114     "kokoro": {
+  115         "python_min": "3.8",
+  116         "python_max": "3.13",
+      ...
+  120     },
+  121     "voxcpm2": {
+  122         "python_min": "3.10",
+  123         "python_max": "3.12",
+ -124         "isolated": False,
+ +212         "python_recommended": PYTHON310_VERSION,
+ +213         "isolated": True,
+ +214         "isolation_mode":
+ ISOLATION_MODE_SELF_CONTAINED,
+ +215         "device_policy": "auto",
+  125         "packages": ("voxcpm", "soundfile"),
+  126         "health_imports": "import voxcpm, soundfile,
+ torch",
+ +218         "upstream": {
+ +219             "repo":
+ "https://github.com/OpenBMB/VoxCPM",
+ +220             "evidence_date": "2026-09-17",
+ +221             "revision": None,
+ +222         },
+ +223         "limits": (
+ +224             {
+ +225                 "source": "src/voxcpm/core.py
+ (upstream main)",
+ +226                 "parameter": "max_len",
+ +227                 "value": 4096,
+ +228                 "unit": "token",
+ +229                 "hard_limit": False,
+ +230                 "note": "Generation token length, NOT
+ 4096 characters or seconds. Service adds outer text
+ segmentation, a total task deadline, and a budget merged
+ with the native badcase retry (up to 3). core.py accepts an
+ explicit device.",
+ +231             },
+ +232         ),
+  127     },
+  128     "bark": {
+  129         "python_min": "3.10",
+  130         "python_max": "3.13",
+      ...
+  154         "python_min": "3.9",
+  155         "python_max": "3.13",
+  156         "python_recommended": "3.12",
+  157         "isolated": True,
+ +264         "isolation_mode": ISOLATION_MODE_OVERLAY,
+  158         "packages":
+ policy_csv("AI_QWEN_TTS_PACKAGES"),
+  159         "pins": policy_csv("AI_QWEN_TTS_PINS"),
+  160         "health_imports": policy_value(
+  161             "AI_QWEN_TTS_HEALTH_IMPORTS",
+      ...
+
+
+ Now add engine_isolation_mode() and
+ resolve_engine_base_python() functions to
+ runtime_policy.py, plus export them. Also engine_spec
+ should normalize new sequence fields (limits → list of
+ dicts, upstream → dict copy). Update engine_spec to detach
+ upstream/limits.
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/ru
+ ntime_policy.py
+
+      ...
+  328             if result.get("isolated")
+  329             else (),
+  330         )
+  331     )
+ +332     if "upstream" in result:
+ +333         result["upstream"] = dict(result["upstream"])
+ +334     result["limits"] = [dict(item) for item in
+ result.get("limits", ())]
+  332     return result
+  333
+  334
+ +338 def engine_isolation_mode(engine: str) -> str:
+ +339     """Return the isolation mode for one engine
+ (default: legacy overlay)."""
+ +340     spec = engine_spec(engine)
+ +341     mode = str(spec.get("isolation_mode") or
+ "").strip()
+ +342     if mode in (ISOLATION_MODE_OVERLAY,
+ ISOLATION_MODE_SELF_CONTAINED):
+ +343         return mode
+ +344     return ISOLATION_MODE_OVERLAY
+ +345
+ +346
+ +347 def _registered_python310_path() -> str:
+ +348     """Read the registered Python 3.10 interpreter
+ path.
+ +349
+ +350     Resolution order (never the host 3.13
+ interpreter):
+ +351       1. PYTHON310_EXE_PATH environment variable
+ (launcher-provided)
+ +352       2. pygvar file store key PYTHON310_EXE_PATH
+ (written by the platform
+ +353          installers: Step13_InstallPython310.ps1 /
+ 14_install_python310.sh)
+ +354       3. A python310 command visible on PATH
+ (well-known link created by the
+ +355          same installers)
+ +356     """
+ +357     candidate = (os.environ.get("PYTHON310_EXE_PATH")
+ or "").strip()
+ +358     if candidate and Path(candidate).is_file():
+ +359         return candidate
+ +360     try:
+ +361         from pycore.pyfoundations.pygvar import
+ GlobalVarManager
+ +362
+ +363         stored =
+ GlobalVarManager().get("PYTHON310_EXE_PATH", "") or ""
+ +364         stored = stored.strip()
+ +365         if stored and Path(stored).is_file():
+ +366             return stored
+ +367     except Exception:
+ +368         pass
+ +369     try:
+ +370         import shutil
+ +371
+ +372         linked = shutil.which("python310")
+ +373         if linked and Path(linked).is_file():
+ +374             return linked
+ +375     except Exception:
+ +376         pass
+ +377     return ""
+ +378
+ +379
+ +380 def resolve_engine_base_python(engine: str) ->
+ Dict[str, Any]:
+ +381     """Resolve the base interpreter used to create one
+ engine's venv.
+ +382
+ +383     Contract (plan step 02): engine explicit override
+ (<ENGINE>_PYTHON) ->
+ +384     registered Python 3.10 -> report missing. The host
+ 3.13 interpreter is
+ +385     NEVER returned as a silent fallback for
+ self-contained engines. The
+ +386     override means "base interpreter for venv
+ creation"; the runtime always
+ +387     launches the venv's own absolute interpreter.
+ +388     """
+ +389     key = str(engine or
+ "").strip().lower().replace("-", "")
+ +390     override =
+ (os.environ.get(f"{key.upper()}_PYTHON") or "").strip()
+ +391     if override:
+ +392         if Path(override).is_file():
+ +393             return {
+ +394                 "found": True,
+ +395                 "engine": key,
+ +396                 "path": override,
+ +397                 "source": "engine_override",
+ +398                 "env_name": f"{key.upper()}_PYTHON",
+ +399             }
+ +400         return {
+ +401             "found": False,
+ +402             "engine": key,
+ +403             "path": "",
+ +404             "source": "engine_override",
+ +405             "reason": f"override {key.upper()}_PYTHON
+ points to a missing file: {override}",
+ +406         }
+ +407     registered = _registered_python310_path()
+ +408     if registered:
+ +409         return {
+ +410             "found": True,
+ +411             "engine": key,
+ +412             "path": registered,
+ +413             "source": "registered_python310",
+ +414         }
+ +415     return {
+ +416         "found": False,
+ +417         "engine": key,
+ +418         "path": "",
+ +419         "source": "none",
+ +420         "reason": (
+ +421             "python310_not_registered: install the
+ dedicated Python "
+ +422             f"{PYTHON310_VERSION} first (Windows:
+ Step13_InstallPython310.ps1; "
+ +423             "Linux: 14_install_python310.sh) or set "
+ +424             f"{key.upper()}_PYTHON to a compatible
+ base interpreter"
+ +425         ),
+ +426     }
+ +427
+ +428
+  335 def engine_compatibility(
+  336     engine: str,
+  337     python_version: str,
+  338 ) -> Dict[str, Any]:
+      ...
+
+
+ runtime_policy.py needs import os at top (it has argparse,
+ hashlib, importlib.metadata, json, sys, pathlib — no os).
+ Add it. Also update __all__ with new names. And the
+ fingerprint function: engine_fingerprint pops
+ policy_version and accelerator keys; the new
+ limits/upstream fields are included in fingerprint — good,
+ policy changes invalidate venvs. But upstream.revision:
+ None etc is fine.
+
+ Wait — one issue: engine_fingerprint includes "limits" with
+ dicts — json.dumps with sort_keys handles nested dicts
+ fine.
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/ru
+ ntime_policy.py
+
+      ...
+    6 import argparse
+    7 import hashlib
+    8 import importlib.metadata
+    9 import json
+ + 10 import os
+   10 import sys
+   11 from pathlib import Path
+   12 from typing import Any, Dict, Optional, Sequence,
+ Tuple
+   13
+      ...
+  574     "PADDLE_GPU_PACKAGE",
+  575     "PADDLE_INDEX_BASE",
+  576     "POLICY_VERSION",
+  577     "PYTHON_VERSION",
+ +579     "PYTHON310_VERSION",
+ +580     "ISOLATION_MODE_OVERLAY",
+ +581     "ISOLATION_MODE_SELF_CONTAINED",
+  578     "SHARED_TRANSFORMERS_SPEC",
+  579     "TORCH_CPU_INDEX",
+  580     "TORCH_INDEX_BASE",
+  581     "TORCH_PACKAGES",
+  582     "cuda_tier_by_tag",
+  583     "cuda_tier_for_driver",
+  584     "engine_compatibility",
+  585     "engine_fingerprint",
+ +590     "engine_isolation_mode",
+  586     "engine_spec",
+ +592     "resolve_engine_base_python",
+  587 ]
+
+
+ Now step 07: the isolated_venv_runtime.py changes. This is
+ the most delicate part. Changes:
+
+ 1. Import engine_isolation_mode, resolve_engine_base_python
+     from runtime_policy (already imports engine_spec,
+    engine_fingerprint, engine_compatibility — check the
+    import block at top of isolated_venv_runtime.py).
+ 2. venv_dir(engine, version_tag=None).
+ 3. _self_contained(engine).
+ 4. find_existing_venv_python(engine) — scan glob.
+ 5. _engine_venv_dir(engine) — Optional[Path].
+ 6. _venv_python_path(engine) — self_contained → scan; else
+    legacy.
+ 7. resolve_python(engine) — self_contained → venv only
+    (scan); overlay → legacy override direct-use.
+ 8. _base_interpreter_identity_for(python_exe) — probe
+    arbitrary exe.
+ 9. _write_base_identity(engine, identity=None),
+    _base_identity_matches(engine, expected_identity=None).
+ 10. _engine_venv_dir-based stamp/health paths.
+ 11. _create_venv(engine, base_python=None, target=None).
+ 12. _subprocess_env(executable, clean=False).
+ 13. _venv_fingerprint(engine, identity=None).
+ 14. exports.
+
+ Let me view the top imports of isolated_venv_runtime.py and
+ lines 101-135 (_subprocess_env/_run).
+
+ 现在做步骤 07 核心 —— isolated_venv_runtime.py 的
+ self_contained 支持。先看文件头导入：
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py:1-20
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+   17 from pycore.pyfoundations.system_paths import
+ get_lang_compiler_dir
+   18 from pycore.pyutils.common.python_env.runtime_policy
+ import (
+   19     engine_compatibility,
+   20     engine_fingerprint,
+ + 21     engine_isolation_mode,
+ + 22     resolve_engine_base_python,
+   21     engine_spec,
+   22 )
+   23
+   24 MAIN_INTERPRETER = Path(
+      ...
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+   65 def _python_version_tag() -> str:
+   66     return
+ f"{sys.version_info.major}.{sys.version_info.minor}"
+   67
+   68
+ - 69 def venv_dir(engine: str) -> Path:
+ + 69 def _self_contained(engine: str) -> bool:
+ + 70     return engine_isolation_mode(engine) ==
+ "self_contained"
+ + 71
+ + 72
+ + 73 def venv_dir(engine: str, version_tag: Optional[str] =
+ None) -> Path:
+ + 74     tag = str(version_tag or "").strip() or
+ _python_version_tag()
+   70     return get_lang_compiler_dir() / (
+ - 71
+ f"{_VENV_PREFIX}{engine}_{_python_version_tag()}"
+ + 76         f"{_VENV_PREFIX}{engine}_{tag}"
+   72     )
+   73
+   74
+ + 80 def _find_existing_venv_python(engine: str) ->
+ Optional[Path]:
+ + 81     """Locate an already-created venv for one engine
+ across any ABI tag.
+ + 82
+ + 83     Self-contained venvs are tagged with their BASE
+ interpreter version (e.g.
+ + 84     3.10) while the managing host may be 3.13, so the
+ tag cannot be derived
+ + 85     from the host; discovery scans the versioned
+ directories instead.
+ + 86     """
+ + 87     root = get_lang_compiler_dir()
+ + 88     try:
+ + 89         candidates =
+ sorted(root.glob(f"{_VENV_PREFIX}{engine}_*"))
+ + 90     except OSError:
+ + 91         return None
+ + 92     for candidate in candidates:
+ + 93         python_path = (
+ + 94             candidate / "Scripts" / "python.exe"
+ + 95             if sys.platform == "win32"
+ + 96             else candidate / "bin" / "python3"
+ + 97         )
+ + 98         if python_path.is_file():
+ + 99             return python_path
+ +100     return None
+ +101
+ +102
+ +103 def _engine_venv_dir(engine: str) -> Optional[Path]:
+ +104     """Return the venv directory of an existing engine
+ venv, if present."""
+ +105     if _self_contained(engine):
+ +106         python_path =
+ _find_existing_venv_python(engine)
+ +107         if python_path is None:
+ +108             return None
+ +109         return python_path.parent.parent
+ +110     return venv_dir(engine)
+ +111
+ +112
+   75 def _venv_python_path(engine: str) -> Path:
+ +114     if _self_contained(engine):
+ +115         existing = _find_existing_venv_python(engine)
+ +116         if existing is not None:
+ +117             return existing
+ +118         # Not yet created: report the deterministic
+ target path for the
+ +119         # recommended base version (creation computes
+ the real tag from the
+ +120         # resolved base interpreter and passes it
+ explicitly).
+ +121         recommended =
+ str(engine_spec(engine).get("python_recommended") or "")
+ +122         base_dir = venv_dir(engine, recommended or
+ None)
+ +123     else:
+ +124         base_dir = venv_dir(engine)
+   76     if sys.platform == "win32":
+ - 77         return venv_dir(engine) / "Scripts" /
+ "python.exe"
+ - 78     return venv_dir(engine) / "bin" / "python3"
+ +126         return base_dir / "Scripts" / "python.exe"
+ +127     return base_dir / "bin" / "python3"
+   79
+   80
+   81 def _override_env(engine: str) -> str:
+   82     return f"{engine.upper()}_PYTHON"
+      ...
+   89         return False
+   90
+   91
+   92 def resolve_python(engine: str) -> Optional[str]:
+ - 93     """Resolve a pre-built isolated interpreter
+ without installing anything."""
+ - 94     override = (os.environ.get(_override_env(engine))
+ or "").strip()
+ - 95     if override and Path(override).is_file() and not
+ _same_interpreter(override, sys.executable):
+ - 96         return override
+ +142     """Resolve a pre-built isolated interpreter
+ without installing anything.
+ +143
+ +144     For self-contained engines the <ENGINE>_PYTHON
+ override means the BASE
+ +145     interpreter for venv creation (consumed by
+ ensure_venv), never the
+ +146     runtime interpreter itself, so only the venv's own
+ python is returned.
+ +147     """
+ +148     if not _self_contained(engine):
+ +149         override =
+ (os.environ.get(_override_env(engine)) or "").strip()
+ +150         if override and Path(override).is_file() and
+ not _same_interpreter(override, sys.executable):
+ +151             return override
+   97     python_path = _venv_python_path(engine)
+   98     if python_path.is_file():
+   99         return str(python_path)
+  100     return None
+      ...
+
+
+ Now:
+ 1. _subprocess_env — add clean mode.
+ 2. Stamp/health/identity paths — use _engine_venv_dir.
+ 3. _base_interpreter_identity_for(python_exe).
+ 4. _base_identity_matches(engine, expected_identity=None) /
+    _write_base_identity(engine, identity=None).
+ 5. _venv_fingerprint(engine, identity=None).
+ 6. _create_venv(engine, base_python=None, target=None).
+
+ Note _venv_interpreter_identity(engine) uses
+ _venv_python_path — works with the new resolution.
+ _stamp_path/_health_failure_path/_base_identity_stamp_path
+ use venv_dir(engine) — must switch to _engine_venv_dir with
+ None handling.
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+  158 def venv_ready(engine: str) -> bool:
+  159     return resolve_python(engine) is not None
+  160
+  161
+ -162 def _subprocess_env(executable: str) -> dict:
+ +162 def _subprocess_env(executable: str, clean: bool =
+ False) -> dict:
+  163     env = os.environ.copy()
+  164     executable_dir =
+ str(Path(executable).resolve().parent)
+  165     current_path = env.get("PATH", "")
+  166     env["PATH"] = os.pathsep.join(
+  167         part for part in (executable_dir,
+ current_path) if part
+  168     )
+ +169     if clean:
+ +170         # Self-contained subprocesses must not inherit
+ host package paths:
+ +171         # PYTHONPATH/PYTHONHOME would leak the 3.13
+ site-packages into a 3.10
+ +172         # engine venv, and user site-packages shadow
+ pinned engine versions.
+ +173         env.pop("PYTHONPATH", None)
+ +174         env.pop("PYTHONHOME", None)
+ +175         env["PYTHONNOUSERSITE"] = "1"
+  169     return env
+  170
+  171
+  172 def _run(
+      ...
+  540     ColorPrint.yellow(f"[isolated-venv] {engine}
+ skipped: {result.get('reason', 'incompatible Python')}")
+  541     return False
+  542
+  543
+ -544 def _stamp_path(engine: str) -> Path:
+ -545     return venv_dir(engine) / _STAMP_NAME
+ +551 def _stamp_path(engine: str) -> Optional[Path]:
+ +552     base = _engine_venv_dir(engine)
+ +553     return base / _STAMP_NAME if base is not None else
+ None
+  546
+  547
+ -548 def _health_failure_path(engine: str) -> Path:
+ -549     return venv_dir(engine) / _HEALTH_FAILURE_NAME
+ +556 def _health_failure_path(engine: str) ->
+ Optional[Path]:
+ +557     base = _engine_venv_dir(engine)
+ +558     return base / _HEALTH_FAILURE_NAME if base is not
+ None else None
+  550
+  551
+  552 def _record_health_failure(engine: str) -> None:
+  553     # AI remediation plan (documented, not executed
+ here): when an isolated
+      ...
+
+
+ Now fix the functions using these Optional paths:
+ _record_health_failure (uses _health_failure_path()),
+ _clear_health_failure, _base_identity_stamp_path,
+ _base_identity_matches, _write_base_identity,
+ _venv_fingerprint, _stamp_matches, _write_stamp, and add
+ _base_interpreter_identity_for, update _create_venv. Let me
+ apply these edits carefully.
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+  566     # model weights and sentinels, then reinstall the
+ Qwen requirements with
+  567     # pip and rerun the health probes. If the rebuilt
+ venv still fails, print
+  568     # this plan and the failing probe so an AI
+ operator can apply it safely.
+  569     path = _health_failure_path(engine)
+ +570     if path is None:
+ +571         return
+  570     try:
+  571         count =
+ int(path.read_text(encoding="utf-8-sig").strip() or "0") +
+ 1
+  572     except (OSError, ValueError):
+  573         count = 1
+      ...
+  582         )
+  583
+  584
+  585 def _clear_health_failure(engine: str) -> None:
+ +588     path = _health_failure_path(engine)
+ +589     if path is None:
+ +590         return
+  586     try:
+ -587
+ _health_failure_path(engine).unlink(missing_ok=True)
+ +592         path.unlink(missing_ok=True)
+  588     except OSError:
+  589         pass
+  590
+  591
+ -592 def _base_identity_stamp_path(engine: str) -> Path:
+ -593     return venv_dir(engine) /
+ _BASE_IDENTITY_STAMP_NAME
+ +597 def _base_identity_stamp_path(engine: str) ->
+ Optional[Path]:
+ +598     base = _engine_venv_dir(engine)
+ +599     return base / _BASE_IDENTITY_STAMP_NAME if base is
+ not None else None
+  594
+  595
+ +602 def _base_interpreter_identity_for(python_exe: str) ->
+ str:
+ +603     """Return the base-interpreter identity probed
+ from an arbitrary binary."""
+ +604     code = (
+ +605         "import pathlib, sys\n"
+ +606         "base = getattr(sys, '_base_executable', None)
+ or sys.executable\n"
+ +607
+ "print('|'.join((str(pathlib.Path(base).resolve()), "
+ +608         "sys.implementation.name,
+ sys.implementation.cache_tag or '', str(sys.maxsize))))\n"
+ +609     )
+ +610     try:
+ +611         result = subprocess.run(
+ +612             [python_exe, "-c", code],
+ +613             check=False,
+ +614             capture_output=True,
+ +615             text=True,
+ +616             encoding="utf-8",
+ +617             errors="replace",
+ +618         )
+ +619     except OSError:
+ +620         return ""
+ +621     if result.returncode != 0:
+ +622         return ""
+ +623     return (result.stdout or "").strip()
+ +624
+ +625
+  596 def _venv_interpreter_identity(engine: str) -> str:
+  597     code = (
+  598         "import pathlib, sys\n"
+  599         "base = getattr(sys, '_base_executable', None)
+ or sys.executable\n"
+      ...
+  620         return ""
+  621     return result.stdout.strip()
+  622
+  623
+ -624 def _base_identity_matches(engine: str) -> bool:
+ -625     current_identity = _base_interpreter_identity()
+ +654 def _base_identity_matches(
+ +655     engine: str,
+ +656     expected_identity: Optional[str] = None,
+ +657 ) -> bool:
+ +658     current_identity = expected_identity or
+ _base_interpreter_identity()
+ +659     stamp_path = _base_identity_stamp_path(engine)
+ +660     if stamp_path is None:
+ +661         return False
+  626     stored_identity = ""
+  627
+  628     try:
+ -629         stored_identity =
+ _base_identity_stamp_path(engine).read_text(
+ +665         stored_identity = stamp_path.read_text(
+  630             encoding="utf-8-sig"
+  631         ).strip()
+  632     except OSError:
+  633         pass
+      ...
+  637     # Adopt pre-stamp environments only after the venv
+ confirms its real base
+  638     # interpreter. A missing migration stamp is not
+ evidence of a stale venv.
+  639     if _venv_interpreter_identity(engine) !=
+ current_identity:
+  640         return False
+ -641     _write_base_identity(engine)
+ +677     _write_base_identity(engine,
+ identity=current_identity)
+  642     ColorPrint.blue(f"[isolated-venv] adopted existing
+ {engine} venv identity in place")
+  643     return True
+  644
+  645
+ -646 def _write_base_identity(engine: str) -> None:
+ +682 def _write_base_identity(engine: str, identity:
+ Optional[str] = None) -> None:
+ +683     stamp_path = _base_identity_stamp_path(engine)
+ +684     if stamp_path is None:
+ +685         return
+  647     try:
+ -648         _base_identity_stamp_path(engine).write_text(
+ -649             _base_interpreter_identity(),
+ +687         stamp_path.write_text(
+ +688             identity or _base_interpreter_identity(),
+  650             encoding="utf-8",
+  651         )
+  652     except OSError as exc:
+  653         ColorPrint.yellow(
+      ...
+  655             f"{exc}"
+  656         )
+  657
+  658
+ -659 def _venv_fingerprint(engine: str) -> str:
+ +698 def _venv_fingerprint(engine: str, identity:
+ Optional[str] = None) -> str:
+  660     payload = "|".join(
+  661         (
+  662             engine_fingerprint(engine),
+ -663 _base_interpreter_identity(),
+ +702             identity or _base_interpreter_identity(),
+  664         )
+  665     )
+  666     return
+ hashlib.sha256(payload.encode("utf-8")).hexdigest()
+  667
+  668
+ -669 def _stamp_matches(engine: str) -> bool:
+ +708 def _stamp_matches(engine: str, identity:
+ Optional[str] = None) -> bool:
+ +709     stamp_path = _stamp_path(engine)
+ +710     if stamp_path is None:
+ +711         return False
+  670     try:
+ -671         stored = _stamp_path(engine).read_text(
+ +713         stored = stamp_path.read_text(
+  672             encoding="utf-8-sig"
+  673         ).strip()
+ -674         return stored == _venv_fingerprint(engine)
+ +716         return stored == _venv_fingerprint(engine,
+ identity=identity)
+  675     except OSError:
+  676         return False
+  677
+  678
+ -679 def _write_stamp(engine: str) -> None:
+ +721 def _write_stamp(engine: str, identity: Optional[str]
+ = None) -> None:
+ +722     stamp_path = _stamp_path(engine)
+ +723     if stamp_path is None:
+ +724         return
+  680     try:
+ -681         _stamp_path(engine).write_text(
+ -682             _venv_fingerprint(engine),
+ +726         stamp_path.write_text(
+ +727             _venv_fingerprint(engine,
+ identity=identity),
+  683             encoding="utf-8",
+  684         )
+  685     except OSError as exc:
+  686         ColorPrint.yellow(f"[isolated-venv] could not
+ write policy stamp: {exc}")
+  687
+  688
+ -689 def _create_venv(engine: str) -> bool:
+ -690     target = venv_dir(engine)
+ -691     target.parent.mkdir(parents=True, exist_ok=True)
+ +734 def _create_venv(
+ +735     engine: str,
+ +736     base_python: Optional[str] = None,
+ +737     target: Optional[Path] = None,
+ +738 ) -> bool:
+ +739     """Create the engine venv.
+ +740
+ +741     Overlay mode (legacy): host interpreter +
+ --system-site-packages.
+ +742     Self-contained mode: the resolved BASE interpreter
+ builds the venv with no
+ +743     host package sharing, so a 3.13 host can manage a
+ 3.10 engine venv.
+ +744     """
+ +745     if _self_contained(engine):
+ +746         if not base_python or target is None:
+ +747             ColorPrint.yellow(
+ +748                 f"[isolated-venv] {engine}
+ self-contained creation requires "
+ +749                 "a resolved base interpreter and
+ explicit target directory"
+ +750             )
+ +751             return False
+ +752         target.parent.mkdir(parents=True,
+ exist_ok=True)
+ +753         ColorPrint.blue(
+ +754             f"[isolated-venv] creating self-contained
+ venv (base: {base_python}, "
+ +755             f"no host package sharing) at {target}
+ ..."
+ +756         )
+ +757         return _run([str(base_python), "-m", "venv",
+ str(target)])
+ +758     target_dir = target or venv_dir(engine)
+ +759     target_dir.parent.mkdir(parents=True,
+ exist_ok=True)
+  692     ColorPrint.blue(
+  693         "[isolated-venv] creating shared-runtime
+ overlay "
+ -694         f"(--system-site-packages) at {target} ..."
+ +762         f"(--system-site-packages) at {target_dir}
+ ..."
+  695     )
+ -696     return _run([sys.executable, "-m", "venv",
+ "--system-site-packages", str(target)])
+ +764     return _run([sys.executable, "-m", "venv",
+ "--system-site-packages", str(target_dir)])
+  697
+  698
+  699
+  700
+      ...
+
+
+ Now update _run to support clean env? The _run function
+ takes extra_env; _subprocess_env(executable) is called
+ somewhere in _run. Let me check _run body and where
+ _subprocess_env is used, plus add exports
+ (engine_isolation_mode re-export not needed but
+ resolve_engine_base_python re-export useful for
+ isolated_venv.py).
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py:210-249
+
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py:177-209
+
+
+ _run builds env via _subprocess_env(str(argv[0])). To scope
+ the clean env to self_contained engines, _run doesn't know
+ the engine. The subprocesses that matter (venv creation,
+ pip installs, health probes) run with argv[0] = the venv
+ python or base python. For self_contained engines, argv[0]
+ is either the base python (3.10) or the venv python. A
+ pragmatic approach: detect from the executable path — if
+ the executable is inside a _VENV_PREFIX dir OR is the
+ resolved base python for any self_contained engine... too
+ indirect.
+
+ Cleaner: thread an engine param through _run. _run is
+ called in several places: _create_venv (has engine),
+ _run_health_step(venv_python, ...) (no engine),
+ _run_cuda_probe(venv_python) (no engine),
+ _install_package_steps(venv_python, ...) (no engine),
+ _repair_broken_distributions, _ensure_local_packages,
+ _remove_local_shared_overrides (isolated_venv.py),
+ _interpreter_version (uses subprocess.run directly without
+ env!).
+
+ Minimal-risk approach: add optional clean: bool = False
+ param to _run and pass it from the sites that know the
+ engine. The important ones for self_contained correctness:
+ - _create_venv → _run([...], clean=self_contained)
+ - install steps (_install_package_steps) and health steps —
+   these run the venv python; leaking host PYTHONPATH here
+   would break isolation guarantees.
+
+ But threading clean through many functions is invasive.
+ Alternative: make _subprocess_env decide by the executable
+ path: if the resolved executable lives under
+ get_lang_compiler_dir() with a _VENV_PREFIX parent → it's
+ one of our managed engine venvs → clean? For overlay venvs
+ (qwen3tts), cleaning PYTHONPATH is also actually correct
+ (they rely on system-site-packages, not PYTHONPATH) — but
+ "Qwen 不被一刀切改坏" warns against changing Qwen's
+ behavior. Hmm.
+
+ Actually — does anything today RELY on PYTHONPATH being
+ inherited into these subprocesses? The install scripts set
+ PYTHONPATH so import pycore works when running ensure_venv
+ as a module of the host. Subprocesses run venv_python -m
+ pip ... or -c "import torch...". If pip subprocess needs
+ pycore — no. Health probes import engine packages only. The
+ provision_modules for qwen3tts — check
+ _ensure_local_packages/provision: managed_venv and engine
+ == "qwen3tts": _ensure_local_packages(venv_python,
+ ("qwen-tts",)) — pip install. No pycore import inside venv
+ subprocess.
+
+ BUT: there's one risk — venv python resolving pycore via
+ PYTHONPATH during health probe exec(probe) for qwen3tts:
+ probe is import torch, torchaudio; from qwen_tts import
+ Qwen3TTSModel — no pycore. So stripping PYTHONPATH globally
+ in _subprocess_env is behavior-preserving for known flows.
+ Still, to be conservative and compliant with 07.6 ("启动子
+ 进程清理 PYTHONPATH、PYTHONHOME，禁止用户 site 污染" —
+ stated for the five engines' context), I'll apply clean
+ only when argv[0] is inside a managed venv dir OR when
+ explicitly requested by _create_venv (base python case).
+ Implement in _run:
+
+ ```python
+   def _run(argv, extra_env=None, clean=False):
+       executable = str(argv[0])
+       if not clean:
+           try:
+               path = Path(executable).resolve()
+               clean = _VENV_PREFIX in
+ (path.parent.parent.name or "")
+           except OSError:
+               clean = False
+       command_env = _subprocess_env(executable,
+ clean=clean)
+ ```
+
+ venv python path:
+ <lang_compiler>/py_venv_<eng>_<tag>/{bin|Scripts}/python →
+ parent.parent.name = py_venv_<eng>_<tag> — startswith
+ _VENV_PREFIX. This auto-cleans all managed venv
+ subprocesses (including qwen overlay venv) — overlay venvs
+ don't need host PYTHONPATH for the reasons above; risk
+ accepted? "Qwen 既有环境策略保持可选且不被一刀切改坏" —
+ stripping PYTHONPATH from qwen venv subprocess could
+ theoretically break a deployment where qwen-tts is
+ installed via PYTHONPATH pointing at a source checkout
+ instead of pip-installed...
+ _ensure_local_packages(venv_python, ("qwen-tts",)) suggests
+ qwen-tts IS pip-installed into the venv. I'll accept the
+ auto-clean for managed venvs but keep host-python
+ subprocesses (MAIN_INTERPRETER-based) uncleaned. Document
+ in record.
+
+ Actually wait — safer compromise: only auto-clean for
+ self_contained engine venvs. The venv dir name includes the
+ engine: py_venv_<engine>_<tag>. I can extract the engine
+ name and check _self_contained(engine). If parsing fails →
+ don't clean. This is precise and zero-risk for Qwen:
+
+ ```python
+   def _managed_self_contained_venv_python(executable: str)
+ -> bool:
+       try:
+           path = Path(executable).resolve()
+       except OSError:
+           return False
+       marker = path.parent.parent.name  #
+ py_venv_<engine>_<tag>
+       if not marker.startswith(_VENV_PREFIX):
+           return False
+       engine = marker[len(_VENV_PREFIX):].rsplit("_", 1)[0]
+       return _self_contained(engine)
+ ```
+
+ And _create_venv passes clean=True explicitly for
+ self_contained (base python isn't in a venv dir).
+
+ _interpreter_version runs subprocess without env — inherits
+ host env. For probing version that's harmless. Leave.
+
+ Now update _run:
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+  175         env["PYTHONNOUSERSITE"] = "1"
+  176     return env
+  177
+  178
+ +179 def _is_self_contained_venv_python(executable: str) ->
+ bool:
+ +180     """Return whether the executable lives in a
+ self-contained engine venv."""
+ +181     try:
+ +182         path = Path(executable).resolve()
+ +183     except OSError:
+ +184         return False
+ +185     marker = path.parent.parent.name or ""
+ +186     if not marker.startswith(_VENV_PREFIX):
+ +187         return False
+ +188     engine = marker[len(_VENV_PREFIX):].rsplit("_",
+ 1)[0]
+ +189     return _self_contained(engine)
+ +190
+ +191
+  179 def _run(
+  180     argv: Sequence[str],
+  181     extra_env: Optional[dict] = None,
+ +195     clean: bool = False,
+  182 ) -> bool:
+  183     try:
+ -184         command_env = _subprocess_env(str(argv[0]))
+ +198         executable = str(argv[0])
+ +199         if not clean:
+ +200             clean =
+ _is_self_contained_venv_python(executable)
+ +201         command_env = _subprocess_env(executable,
+ clean=clean)
+  185         if extra_env:
+  186             command_env.update(extra_env)
+  187         ColorPrint.blue(f"[isolated-venv] {'
+ '.join(str(item) for item in argv)}")
+  188         subprocess.run(
+      ...
+  753         ColorPrint.blue(
+  754             f"[isolated-venv] creating self-contained
+ venv (base: {base_python}, "
+  755             f"no host package sharing) at {target}
+ ..."
+  756         )
+ -757         return _run([str(base_python), "-m", "venv",
+ str(target)])
+ +774         return _run([str(base_python), "-m", "venv",
+ str(target)], clean=True)
+  758     target_dir = target or venv_dir(engine)
+  759     target_dir.parent.mkdir(parents=True,
+ exist_ok=True)
+  760     ColorPrint.blue(
+  761         "[isolated-venv] creating shared-runtime
+ overlay "
+      ...
+
+
+ Now update the __all__ in isolated_venv_runtime.py to
+ export new helpers (_base_interpreter_identity_for,
+ _engine_venv_dir, find_existing...). Let me check the
+ current all block end and update. Then modify
+ isolated_venv.py ensure_venv + _install_into.
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py:738-777
+
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py:778-819
+
+
+ Response was truncated before completion.
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+
+ Tool call "edit" was not executed: the response hit the
+ output token limit, so its arguments may be truncated.
+ Re-issue the tool call with complete arguments.
+
+ My
+
+ Response was truncated before completion.
+
+
+ [compaction]
+
+ Compacted from 123,994 tokens (ctrl+o to expand)
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+  785
+  786 __all__ = [
+  787     "MAIN_INTERPRETER",
+  788     "_base_identity_matches",
+ +789     "_base_interpreter_identity_for",
+  789     "_broken_distribution_specs",
+  790     "_clear_health_failure",
+  791     "_compatible",
+  792     "_core_environment_ready",
+  793     "_create_venv",
+  794     "_cuda_probe_required",
+  795     "_default_health_imports",
+ +797     "_engine_venv_dir",
+ +798     "_find_existing_venv_python",
+  796     "_gpu_required_probe",
+  797     "_interpreter_version",
+  798     "_override_env",
+  799     "_pip_to_import",
+      ...
+  802     "_run",
+  803     "_run_cuda_probe",
+  804     "_run_health_step",
+  805     "_same_interpreter",
+ +809     "_self_contained",
+  806     "_stamp_matches",
+  807     "_subprocess_env",
+  808     "_venv_healthy",
+  809     "_venv_python_path",
+      ...
+
+
+ Now modify isolated_venv.py — ensure_venv self_contained
+ flow and _install_into skip shared constraints:
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py
+
+ Could not find edits[0] in
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py. The oldText must match exactly including
+ all whitespace and newlines.
+
+
+
+ $ cd "D:/programing/core_node" && sed -n '52,90p'
+ pycore/pyutils/common/python_env/isolated_venv.py
+
+ ... (42 earlier lines, ctrl+o to expand)
+     return _run([venv_python, "-m", "pip", "uninstall",
+ "-y", *overrides])
+
+
+ def _ensure_local_packages(
+
+ Took 0.1s
+
+
+
+ $ cd "D:/programing/core_node" && grep -n
+ "_subprocess_env,\|_venv_python_path,\|_write_stamp,\|venv_
+ ready,\|resolve_python,"
+ pycore/pyutils/common/python_env/isolated_venv.py | head
+
+ 37:    _venv_python_path,
+ 39:    _write_stamp,
+ 40:    resolve_python,
+ 44:    venv_ready,
+
+ Took 0.1s
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py
+
+      ...
+   34     _same_interpreter,
+   35     _stamp_matches,
+   36     _venv_healthy,
+   37     _venv_python_path,
+ + 38     _engine_venv_dir,
+ + 39     _base_interpreter_identity_for,
+ + 40     _self_contained,
+   38     _write_base_identity,
+   39     _write_stamp,
+   40     resolve_python,
+   41     venv_dir,
+   42     venv_healthy,
+   43     venv_provisioned,
+   44     venv_ready,
+   45 )
+ + 49 from pycore.pyutils.common.python_env.runtime_policy
+ import (
+ + 50     resolve_engine_base_python,
+ + 51 )
+   46 from pycore.pyutils.common.python_env.runtime_policy
+ import engine_spec
+   47
+   48
+   49 def _local_shared_overrides(venv_python: str,
+ package_names: Sequence[str]) -> List[str]:
+      ...
+
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py
+
+      ...
+  387     pins: Sequence[str],
+  388     health_imports: str,
+  389     shared_packages: Sequence[str],
+  390     managed_venv: bool,
+ +391     self_contained: bool = False,
+  391 ) -> bool:
+  392     constraint_path: Optional[Path] = None
+  393     repair_candidates = _repair_candidates(engine,
+ pip_packages)
+  394     if not _repair_broken_distributions(venv_python,
+ repair_candidates):
+  395         return False
+  396     if managed_venv and engine == "qwen3tts":
+  397         if not _ensure_local_packages(venv_python,
+ ("qwen-tts",)):
+  398             return False
+ -399     if managed_venv and not
+ _remove_local_shared_overrides(venv_python,
+ shared_packages):
+ +400     # Self-contained venvs share no host packages:
+ host shared-runtime
+ +401     # override removal and shared constraints do not
+ apply (07.7).
+ +402     if managed_venv and not self_contained and not
+ _remove_local_shared_overrides(venv_python,
+ shared_packages):
+  400         return False
+  401     install_list = [*pins, *pip_packages]
+ -402     constraints = _shared_constraints(venv_python,
+ shared_packages)
+ +405     constraints = (
+ +406         () if self_contained else
+ _shared_constraints(venv_python, shared_packages)
+ +407     )
+  403     try:
+  404         pip_args = [venv_python, "-m", "pip",
+ "install"]
+  405         if constraints:
+  406             with tempfile.NamedTemporaryFile(
+      ...
+
+
+ Now rewrite ensure_venv to add the self_contained flow.
+ Current body (lines 457-567 viewed earlier):
+
+ ```python
+   def ensure_venv(
+       engine: str,
+       *,
+       override: Optional[str] = None,
+       provision_modules: Optional[Sequence[str]] = None,
+   ) -> Optional[str]:
+       spec = engine_spec(engine)
+       override = (override or
+ os.environ.get(_override_env(engine)) or "").strip()
+       using_override = bool(override and
+ Path(override).is_file() and not
+ _same_interpreter(override, sys.executable))
+       python_path = str(_venv_python_path(engine))
+       create_venv = True
+       if using_override:
+           ... direct-use override branch ...
+       if not override:
+           python_path = resolve_python(engine) or
+ python_path
+       if Path(python_path).is_file() and not
+ using_override:
+           create_venv = False
+       if not override and not _compatible(engine,
+ python_path):
+           return None
+       target_dir = venv_dir(engine)
+       if create_venv:
+           if not _create_venv(engine):
+               return None
+           _write_base_identity(engine)
+           if not _compatible(engine, python_path):
+               ColorPrint.yellow(f"[isolated-venv] {engine}
+ venv created on an incompatible base; rerun the installer
+ after upgrading Python")
+               return None
+       if not using_override and not
+ _base_identity_matches(engine):
+           return None
+       ...
+ ```
+
+ New structure:
+
+ ```python
+   def ensure_venv(engine, *, override=None,
+ provision_modules=None, base_python=None):
+       spec = engine_spec(engine)
+       if _self_contained(engine):
+           return _ensure_venv_self_contained(engine,
+ spec=spec, base_python=base_python,
+ provision_modules=provision_modules)
+       ... legacy body unchanged ...
+ ```
+
+ And a new _ensure_venv_self_contained:
+
+ ```python
+   def _ensure_venv_self_contained(engine, *, spec,
+ base_python=None, provision_modules=None) -> Optional[str]:
+       resolved = {"found": True, "path": base_python} if
+ base_python else resolve_engine_base_python(engine)
+       if not resolved.get("found"):
+           ColorPrint.yellow(f"[isolated-venv] {engine}:
+ {resolved.get('reason', 'base interpreter missing')}")
+           return None
+       base = str(resolved["path"])
+       if not _compatible(engine, base):  # checks base
+ version in 3.10-3.12 window
+           return None
+       base_tag = _interpreter_version(base)
+       target_dir = venv_dir(engine, base_tag)
+       python_path = str(_venv_python_path(engine))  #
+ existing venv, if any
+       create_venv = True
+       existing = resolve_python(engine)  # scan
+       if existing:
+           python_path = existing
+           create_venv = False
+       base_identity = _base_interpreter_identity_for(base)
+       if create_venv:
+           if not _create_venv(engine, base_python=base,
+ target=target_dir):
+               return None
+           python_path = str(target_dir /
+ ("Scripts/python.exe" if win else "bin/python3"))
+           _write_base_identity(engine,
+ identity=base_identity)
+           if not _compatible(engine, python_path):
+               ... return None
+       if not _base_identity_matches(engine,
+ expected_identity=base_identity):
+           return None
+       pip_packages = _effective_packages(engine,
+ provision_modules)
+       installed = _install_into(engine, python_path,
+ pip_packages, tuple(spec.get("pins", ())),
+ _health_probe_text(spec), tuple(spec.get("shared_packages",
+ ())), True, self_contained=True)
+       if not installed:
+           return None
+       if not _stamp_matches(engine,
+ identity=base_identity):
+           _write_stamp(engine, identity=base_identity)
+       ColorPrint.blue(f"[isolated-venv] {engine} ready at
+ {python_path}")
+       return python_path
+ ```
+
+ Wait — careful with _venv_python_path(engine) for
+ self_contained when venv doesn't exist yet: it returns the
+ deterministic path with recommended tag. After creation
+ with the resolved base tag, the real dir may differ if the
+ override base is e.g. 3.11 while recommended is 3.10. So
+ after _create_venv, compute python path from target_dir
+ directly.
+
+ Also
+ _stamp_matches/_write_stamp/_base_identity_matches/_write_b
+ ase_identity internally use _engine_venv_dir(engine) which
+ scans for existing venv — after creation it will find the
+ real dir. Good. But before creation with create_venv=False
+ path (existing venv), scan finds it. Good. When venv
+ missing entirely and create path taken, stamp functions
+ only called after creation. Good.
+
+ One subtlety in _base_identity_matches(engine,
+ expected_identity=base_identity) when the venv exists but
+ its base differs from the CURRENT resolved base (e.g. user
+ re-registered a different 3.10 build): stored stamp !=
+ expected → adoption check
+ _venv_interpreter_identity(engine) vs expected → mismatch →
+ returns False → ensure returns None (treated as stale; user
+ reruns with force/rebuild). That matches "发现基解释器变化
+ 时立即报告并阻断复用" — good, reports via ColorPrint?
+ _base_identity_matches currently doesn't print on mismatch.
+ Add a yellow print before returning False in ensure flow.
+ The legacy path relies on callers; I'll add a print in the
+ self_contained wrapper.
+
+ Also venv_ready in runtime uses _stamp_matches(engine) (no
+ identity) — for self_contained that recomputes fingerprint
+ with HOST identity — mismatch! Need
+ venv_ready/_core_environment_ready to use the resolved-base
+ identity for self_contained. _venv_fingerprint(engine,
+ identity=None) defaults host identity. For self_contained
+ engines, the stamp was written with base identity. Fix:
+ inside _venv_fingerprint, when identity is None AND engine
+ is self_contained, resolve base identity: identity =
+ _base_interpreter_identity_for(resolve_engine_base_python(e
+ ngine)["path"]) if found else "". But subprocess per call —
+ venv_ready is called repeatedly (service status checks).
+ Cache: the venv itself knows its base —
+ _venv_interpreter_identity(engine) probes the venv python
+ (one subprocess) — that's the most robust identity source
+ for stamp comparison of an existing venv. Use that for
+ self_contained: identity =
+ _venv_interpreter_identity(engine) (returns "" if venv
+ missing → fingerprint mismatch → not ready, correct).
+
+ So in _venv_fingerprint:
+
+ ```python
+   if identity is None:
+       if _self_contained(engine):
+           identity = _venv_interpreter_identity(engine)
+       else:
+           identity = _base_interpreter_identity()
+ ```
+
+ This makes _stamp_matches(engine) correct for
+ self_contained without threading identity everywhere. And
+ _base_identity_matches(engine) default expected = host
+ identity — for self_contained, default should be the venv's
+ own identity too:
+
+ ```python
+   current_identity = expected_identity or
+ (_venv_interpreter_identity(engine) if
+ _self_contained(engine) else _base_interpreter_identity())
+ ```
+
+ Hmm but _base_identity_matches's purpose: verify the venv's
+ base equals the EXPECTED base. For self_contained with
+ default expected = venv's own identity, stored stamp vs
+ venv's own → adoption always succeeds trivially. That's too
+ weak: the real check "venv base == resolved base" happens
+ in ensure flow where expected_identity=base_identity is
+ passed explicitly. For status-only checks (venv_ready),
+ _base_identity_matches isn't called — only _stamp_matches +
+ _core_environment_ready. OK: default for self_contained =
+ venv's own identity (stamp consistency), explicit param for
+ ensure flow (base correctness).
+
+ Let me now write the edits: modify _venv_fingerprint and
+ _base_identity_matches defaults in runtime file, then
+ rewrite ensure_venv in isolated_venv.py.
+
+ 补上指纹/身份默认值对 self_contained 的适配：
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv_runtime.py
+
+      ...
+  671 def _base_identity_matches(
+  672     engine: str,
+  673     expected_identity: Optional[str] = None,
+  674 ) -> bool:
+ -675     current_identity = expected_identity or
+ _base_interpreter_identity()
+ +675     # Self-contained engines default to the venv's own
+ confirmed base (stamp
+ +676     # consistency checks); the ensure flow passes the
+ RESOLVED base identity
+ +677     # explicitly so a base-interpreter change blocks
+ reuse and is reported.
+ +678     current_identity = expected_identity or (
+ +679         _venv_interpreter_identity(engine)
+ +680         if _self_contained(engine)
+ +681         else _base_interpreter_identity()
+ +682     )
+  676     stamp_path = _base_identity_stamp_path(engine)
+  677     if stamp_path is None:
+  678         return False
+  679     stored_identity = ""
+      ...
+  712         )
+  713
+  714
+  715 def _venv_fingerprint(engine: str, identity:
+ Optional[str] = None) -> str:
+ +723     if identity is None:
+ +724         identity = (
+ +725             _venv_interpreter_identity(engine)
+ +726             if _self_contained(engine)
+ +727             else _base_interpreter_identity()
+ +728         )
+  716     payload = "|".join(
+  717         (
+  718             engine_fingerprint(engine),
+ -719             identity or _base_interpreter_identity(),
+ +732             identity,
+  720         )
+  721     )
+  722     return
+ hashlib.sha256(payload.encode("utf-8")).hexdigest()
+  723
+      ...
+
+
+ Now rewrite ensure_venv with the self_contained flow:
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py
+
+ Could not find the exact text in
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py. The old text must match exactly including
+ all whitespace and newlines.
+
+
+
+ $ cd "D:/programing/core_node" && sed -n '457,470p'
+ pycore/pyutils/common/python_env/isolated_venv.py
+
+ ... (11 earlier lines, ctrl+o to expand)
+
+ def ensure_venv(
+     engine: str,
+     pip_packages: Optional[Sequence[str]] = None,
+     pins: Optional[Sequence[str]] = None,
+
+ Took 0.1s
+
+
+ The actual ensure_venv signature differs from what I read
+ earlier (the earlier read at line 457 must have shifted
+ after my edits, and the real signature has
+ pip_packages/pins params). Let me view the real current
+ ensure_venv.
+
+
+ read
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py:466-585
+
+
+ The real ensure_venv is different from what the summary
+ described — it's the actual current version. Also there are
+ imports like _default_health_imports, _gpu_required_probe,
+ _install_accelerators used. I need to write the
+ self_contained branch matching THIS code. Also
+ _core_environment_ready is called with (engine, python,
+ packages, probe, spec) signature.
+
+ Now write the self_contained branch at the top of
+ ensure_venv, plus a helper _ensure_venv_self_contained.
+ Also need to check imports available in isolated_venv.py:
+ _default_health_imports, _gpu_required_probe,
+ _install_accelerators — must be imported already since
+ used. Let me check the import list.
+
+
+ $ cd "D:/programing/core_node" && sed -n '1,50p'
+ pycore/pyutils/common/python_env/isolated_venv.py
+
+ ... (49 earlier lines, ctrl+o to expand)
+     venv_ready,
+ )
+ from pycore.pyutils.common.python_env.runtime_policy import
+ (
+     resolve_engine_base_python,
+
+ Took 0.1s
+
+
+ Imports are in place. Now insert the self_contained branch
+ into ensure_venv. The current signature:
+ ensure_venv(engine, pip_packages=None, pins=None,
+ health_imports=None, force=False). I'll add base_python:
+ Optional[str] = None keyword param and branch after
+ computing packages/pins/probe.
+
+
+ edit
+ D:/programing/core_node/pycore/pyutils/common/python_env/is
+ olated_venv.py
+
+      ...
+  463         "[isolated-venv] pip check: " + (output if
+ output else "no output")
+  464     )
+  465
+  466
+ +467 def _ensure_venv_self_contained(
+ +468     engine: str,
+ +469     packages: Sequence[str],
+ +470     resolved_pins: Sequence[str],
+ +471     probe: str,
+ +472     shared_packages: Sequence[str],
+ +473     force: bool,
+ +474     base_python: Optional[str],
+ +475 ) -> Optional[str]:
+ +476     """Build or repair a self-contained engine venv
+ (plan step 07).
+ +477
+ +478     The resolved base interpreter (dedicated Python
+ 3.10 by default) creates
+ +479     the venv without host package sharing; the host
+ 3.13 interpreter is never
+ +480     a silent fallback; the runtime always launches the
+ venv's own absolute
+ +481     interpreter. A resolved-base change blocks reuse
+ and is reported.
+ +482     """
+ +483     if base_python:
+ +484         resolved = {"found": True, "path":
+ base_python, "source": "explicit_parameter"}
+ +485     else:
+ +486         resolved = resolve_engine_base_python(engine)
+ +487     base = str(resolved.get("path") or "")
+ +488     if not resolved.get("found") or not
+ Path(base).is_file():
+ +489         ColorPrint.yellow(
+ +490             f"[isolated-venv] {engine}: "
+ +491             f"{resolved.get('reason', 'base
+ interpreter missing')}"
+ +492         )
+ +493         return None
+ +494     if not _compatible(engine, base):
+ +495         return None
+ +496     base_tag = _interpreter_version(base)
+ +497     base_identity =
+ _base_interpreter_identity_for(base)
+ +498     if not base_identity:
+ +499         ColorPrint.yellow(
+ +500             f"[isolated-venv] {engine}: could not
+ probe base interpreter {base}"
+ +501         )
+ +502         return None
+ +503     target_dir = venv_dir(engine, base_tag)
+ +504     binary = target_dir / (
+ +505         "Scripts" / "python.exe" if sys.platform ==
+ "win32" else "bin" / "python3"
+ +506     )
+ +507     python_path = Path(resolve_python(engine) or
+ str(binary))
+ +508     created = False
+ +509     if not python_path.is_file():
+ +510         if not _create_venv(engine, base_python=base,
+ target=target_dir) or not binary.is_file():
+ +511             return None
+ +512         python_path = binary
+ +513         created = True
+ +514         _write_base_identity(engine,
+ identity=base_identity)
+ +515     elif not _base_identity_matches(engine,
+ expected_identity=base_identity):
+ +516         ColorPrint.yellow(
+ +517             f"[isolated-venv] {engine} venv base
+ interpreter no longer matches "
+ +518             f"the resolved base ({base}); automatic
+ removal is disabled"
+ +519         )
+ +520         return None
+ +521     elif not _interpreter_version(str(python_path)):
+ +522         ColorPrint.yellow(
+ +523             f"[isolated-venv] {engine} venv
+ interpreter is unavailable; "
+ +524             "automatic removal is disabled"
+ +525         )
+ +526         return None
+ +527
+ +528     policy_ready = _stamp_matches(engine,
+ identity=base_identity)
+ +529     core_ready = _core_environment_ready(
+ +530         engine,
+ +531         str(python_path),
+ +532         packages,
+ +533         probe,
+ +534         engine_spec(engine),
+ +535     )
+ +536     needs_repair = force or created or not
+ policy_ready or not core_ready
+ +537     if needs_repair:
+ +538         if not _install_into(
+ +539             engine,
+ +540             str(python_path),
+ +541             packages,
+ +542             resolved_pins,
+ +543             probe,
+ +544             shared_packages=shared_packages,
+ +545             managed_venv=True,
+ +546             self_contained=True,
+ +547         ):
+ +548             return None
+ +549         _write_base_identity(engine,
+ identity=base_identity)
+ +550         _write_stamp(engine, identity=base_identity)
+ +551
+ +552     accelerator_ready =
+ _install_accelerators(str(python_path),
+ engine_spec(engine))
+ +553     if not accelerator_ready:
+ +554         ColorPrint.yellow(
+ +555             f"[isolated-venv] core environment ready
+ ({engine}); "
+ +556             "optional accelerator remains pending"
+ +557         )
+ +558
+ +559     result = str(python_path)
+ +560     ColorPrint.green(f"[isolated-venv] ready
+ ({engine}): {result}")
+ +561     return result
+ +562
+ +563
+  467 def ensure_venv(
+  468     engine: str,
+  469     pip_packages: Optional[Sequence[str]] = None,
+  470     pins: Optional[Sequence[str]] = None,
+  471     health_imports: Optional[str] = None,
+  472     force: bool = False,
+ +570     base_python: Optional[str] = None,
+  473 ) -> Optional[str]:
+  474     """Build or repair one engine venv. This function
+ is install-time only."""
+  475     spec = engine_spec(engine)
+  476     packages = tuple(spec.get("packages", ())) if
+ pip_packages is None else tuple(pip_packages)
+  477     resolved_pins = tuple(spec.get("pins", ())) if
+ pins is None else tuple(pins)
+  478     shared_packages =
+ tuple(spec.get("shared_packages", ()))
+  479     probe = health_imports or
+ spec.get("health_imports") or
+ _default_health_imports(packages, resolved_pins)
+  480     probe = _gpu_required_probe(engine, probe)
+ +579     if _self_contained(engine):
+ +580         return _ensure_venv_self_contained(
+ +581             engine,
+ +582             packages,
+ +583             resolved_pins,
+ +584             probe,
+ +585             shared_packages,
+ +586             force,
+ +587             base_python,
+ +588         )
+  481     override = (os.environ.get(_override_env(engine))
+ or "").strip()
+  482
+  483     if override and Path(override).is_file() and not
+ _same_interpreter(override, sys.executable):
+  484         if not _compatible(engine, override):
+      ...
+
+
+ Note _install_accelerators is used in the legacy body —
+ verify it's imported in isolated_venv.py. From the import
+ list shown: _default_health_imports, _gpu_required_probe
+ are imported but I didn't see _install_accelerators. Since
+ legacy code uses it, it must be imported somewhere. grep:
+
+
+ $ cd "D:/programing/core_node" && grep -n
+ "_install_accelerators\|_effective_packages\|_health_probe_
+ text" pycore/pyutils/common/python_env/isolated_venv.py |
+ head; "D:/.dev_win10/python313/python.exe" -m py_compile
+ pycore/pyutils/common/python_env/isolated_venv.py
+ pycore/pyutils/common/python_env/isolated_venv_runtime.py
+ pycore/pyutils/common/python_env/runtime_policy.py
+ pycore/pyfoundations/runtime_abi.py && echo "py_compile OK"
+
+ ... (4 earlier lines, ctrl+o to expand)
+ 612:        accelerator_ready =
+ _install_accelerators(override, spec)
+ 666:    accelerator_ready =
+ _install_accelerators(str(python_path), spec)
+ py_compile OK
+
+ Took 0.2s
+
+
+ _install_accelerators is defined locally (line 319).
+ py_compile OK. Now run a functional smoke test:
+ resolve_engine_base_python, engine_isolation_mode,
+ engine_spec for the five engines, fingerprint stability,
+ ensure self_contained path doesn't break qwen overlay
+ behavior (dry logic only, no venv creation). Also check
+ _venv_python_path for a self_contained engine with no venv
+ (scan returns None → deterministic target with recommended
+ tag "3.10").
+
+ 静态编译通过。运行功能冒烟验证（仅逻辑，不创建 venv）：
+
+
+ $ cd "D:/programing/core_node" &&
+ "D:/.dev_win10/python313/python.exe" - <<'EOF'
+ import sys, os
+ sys.path.insert(0, '.')
+ from pycore.pyutils.common.python_env.runtime_policy import
+ (
+     engine_spec, engine_isolation_mode,
+ resolve_engine_base_python, engine_fingerprint)
+ from pycore.pyutils.common.python_env import
+ isolated_venv_runtime as rt
+
+ for eng in ("cosyvoice", "fishspeech", "voxcpm2",
+ "gptsovits", "melotts", "qwen3tts"):
+     spec = engine_spec(eng)
+     print(f"{eng}: isolated={spec['isolated']}
+ mode={engine_isolation_mode(eng)} "
+           f"rec={spec.get('python_recommended')}
+ upstream={bool(spec.get('upstream'))} "
+           f"limits={len(spec.get('limits', []))}
+ device={spec.get('device_policy')}")
+
+ # Base python resolution: no PYTHON310 registered yet ->
+ must report missing, never host
+ res = resolve_engine_base_python("cosyvoice")
+ print("resolve(no 3.10):", res["found"], res["source"],
+ res.get("reason", "")[:60])
+ assert not res["found"], "must not fall back to host 3.13"
+
+ # With an override pointing at the current host (simulating
+ explicit base)
+ os.environ["COSYVOICE_PYTHON"] = sys.executable
+ res2 = resolve_engine_base_python("cosyvoice")
+ print("resolve(override):", res2["found"], res2["source"])
+ del os.environ["COSYVOICE_PYTHON"]
+
+ # Self-contained resolution: venv not created ->
+ resolve_python None; qwen overlay unchanged
+ print("resolve_python(cosyvoice):",
+ rt.resolve_python("cosyvoice"))
+ print("_self_contained(cosyvoice):",
+ rt._self_contained("cosyvoice"), "| qwen3tts:",
+ rt._self_contained("qwen3tts"))
+ print("venv_dir(cosyvoice, '3.10'):",
+ rt.venv_dir("cosyvoice", "3.10").name)
+ print("_venv_python_path(cosyvoice):",
+ rt._venv_python_path("cosyvoice"))
+ print("clean env strips PYTHONPATH:")
+ os.environ["PYTHONPATH"] = "C:/leak"
+ env = rt._subprocess_env(sys.executable, clean=True)
+ print("  PYTHONPATH in clean env:", "PYTHONPATH" in env, "|
+ PYTHONNOUSERSITE:", env.get("PYTHONNOUSERSITE"))
+ env2 = rt._subprocess_env(sys.executable)
+ print("  PYTHONPATH in default env:", "PYTHONPATH" in env2)
+
+ # fingerprint deterministic & includes new evidence fields
+ f1 = engine_fingerprint("cosyvoice"); f2 =
+ engine_fingerprint("cosyvoice")
+ print("fingerprint stable:", f1 == f2, f1[:12])
+
+ # ensure_venv for cosyvoice without base -> clean report,
+ returns None (no host fallback)
+ from pycore.pyutils.common.python_env.isolated_venv import
+ ensure_venv
+ out = ensure_venv("cosyvoice")
+ print("ensure_venv(cosyvoice, no base):", out)
+ assert out is None
+ print("SMOKE OK")
+ EOF
+
+ ... (26 earlier lines, ctrl+o to expand)
+   PYTHONPATH in clean env: False | PYTHONNOUSERSITE: 1
+   PYTHONPATH in default env: True
+ fingerprint stable: True b2f165b15b77
+ ensure_venv(cosyvoice, no base): None
+ SMOKE OK
+
+ Took 0.2s
+
+
+ All smoke checks pass:
+ - Five engines: isolated=True, self_contained, recommended
+   3.10, upstream+limits recorded
+ - qwen3tts: overlay, unchanged
+ - No host fallback: resolve reports
+   python310_not_registered
+ - Override works
+ - Clean env strips PYTHONPATH
+ - ensure_venv reports and returns None without base
+
+ Also verify the existing Qwen path still works — run the
+ actual qwen3tts ensure_venv? That could modify the real
+ qwen venv (it exists on this machine). ensure_venv is
+ install-time; calling it would run repair if needed — DON'T
+ run it. Instead just verify rt.resolve_python("qwen3tts")
+ still finds the existing venv and engine_spec("qwen3tts")
+ health probe unchanged. resolve_python already tested
+ implicitly? Let me quickly check resolve_python("qwen3tts")
+ without creating anything.
+
+ 验证 Qwen overlay 路径未受影响（只读解析，不触发修复）：
+
+
+ $ cd "D:/programing/core_node" &&
+ "D:/.dev_win10/python313/python.exe" - <<'EOF'
+ import sys
+ sys.path.insert(0, '.')
+ from pycore.pyutils.common.python_env import
+ isolated_venv_runtime as rt
+ p = rt.resolve_python("qwen3tts")
+ print("qwen3tts resolve_python:", p)
+ print("qwen3tts venv_ready (read-only):",
+ rt.venv_ready("qwen3tts"))
+ print("qwen3tts venv dir:",
+ rt._engine_venv_dir("qwen3tts"))
+ # sentence pin still intact
+ from pycore.pyutils.tts.engine_policy import
+ configured_tts_priority
+ print("sentence:", configured_tts_priority("sentence"))
+ EOF
+
+ qwen3tts resolve_python:
+ D:\.dev_win10\py_venv_qwen3tts_3.13\Scripts\python.exe
+ qwen3tts venv_ready (read-only): True
+ qwen3tts venv dir: D:\.dev_win10\py_venv_qwen3tts_3.13
+ sentence: ('qwen3tts',)
+
+ Took 0.3s
+
+
+ Qwen path fully intact (existing venv resolved,
+ ready=True). Now update GlobalVars.ps1 to register
+ PYTHON310 globals (step 02 partial — the contract
+ registration). Then append progress records for steps
+ 02/03/07 to the plan doc.
+
+ Qwen 完全不受影响。注册 PYTHON310 全局变量（步骤 02 合同注
+ 册点）：
+
+
+ edit
+ D:/programing/core_node/scripts/shells/win/win_common/Globa
+ lVars.ps1
+
+ Could not find the exact text in
+ D:/programing/core_node/scripts/shells/win/win_common/Globa
+ lVars.ps1. The old text must match exactly including all
+ whitespace and newlines.
+
+
+
+ read
+ D:/programing/core_node/scripts/shells/win/win_common/Globa
+ lVars.ps1:226-239
+
+
+
+ edit
+ D:/programing/core_node/scripts/shells/win/win_common/Globa
+ lVars.ps1
+
+      ...
+  233 $Global:PYTHON_DIR = Join-Path
+ $Global:LANG_COMPILER_DIR
+ ("python$($Global:PYTHON_VERSION_COMPACT)")
+  234 $Global:PYTHON_SCRIPTS_DIR = Join-Path
+ $Global:PYTHON_DIR "Scripts"
+  235 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR
+ "python.exe"
+  236 $Global:PIP_EXE_PATH = Join-Path
+ $Global:PYTHON_SCRIPTS_DIR "pip.exe"
+ +237
+ +238 # Dedicated Python 3.10 interpreter for the five
+ self-contained TTS engines
+ +239 # (cosyvoice, fishspeech, voxcpm2, gptsovits,
+ melotts). Registered separately
+ +240 # from the default host interpreter; never overrides
+ PYTHON_DIR.
+ +241 $Global:PYTHON310_VERSION = Get-AiRuntimePolicyValue
+ -Name 'AI_PYTHON310_VERSION' -Default '3.10'
+ +242 $Global:PYTHON310_VERSION_COMPACT =
+ ($Global:PYTHON310_VERSION -replace '\.', '')
+ +243 $Global:PYTHON310_WINGET_ID =
+ "Python.Python.$($Global:PYTHON310_VERSION)"
+ +244 $Global:PYTHON310_DIR = Join-Path
+ $Global:LANG_COMPILER_DIR
+ ("python$($Global:PYTHON310_VERSION_COMPACT)")
+ +245 $Global:PYTHON310_SCRIPTS_DIR = Join-Path
+ $Global:PYTHON310_DIR "Scripts"
+ +246 $Global:PYTHON310_EXE_PATH = Join-Path
+ $Global:PYTHON310_DIR "python.exe"
+ +247 $Global:PYTHON310_PIP_EXE_PATH = Join-Path
+ $Global:PYTHON310_SCRIPTS_DIR "pip.exe"
+  237 $Global:UV_EXE_PATH = Join-Path
+ $Global:PYTHON_SCRIPTS_DIR "uv.exe"
+  238 $Global:PIPX_EXE_PATH = Join-Path
+ $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
+  239 $Global:POETRY_EXE_PATH = Join-Path
+ $Global:PYTHON_SCRIPTS_DIR "poetry.exe"
+  240 $Global:PYTHON_FLAG_FILE = Join-Path
+ $Global:USER_CACHE_DIR
+ ("python$($Global:PYTHON_VERSION_COMPACT).install_success.f
+ lag")
+      ...
+
+
+ Check that Get-AiRuntimePolicyValue is defined before this
+ point in GlobalVars.ps1 (it's used just above, so yes).
+ Parse check the PS file, then append progress records for
+ steps 02/03/07 to the plan doc.
+
+
+ $ cd "D:/programing/core_node" && powershell.exe -NoProfile
+ -Command "\$t=\$null; \$tok=\$null; \$err=\$null;
+ \$t=[System.IO.File]::ReadAllText('scripts/shells/win/win_c
+ ommon/GlobalVars.ps1');
+ [void][System.Management.Automation.Language.Parser]::Parse
+ Input(\$t,[ref]\$tok,[ref]\$err); if(\$err.Count){ \$err |
+ ForEach-Object { Write-Output \$_.Message }; exit 1 } else
+ { Write-Output 'GlobalVars.ps1 parse OK' }"
+
+ GlobalVars.ps1 parse OK
+
+ Took 0.3s
+
+
+ 追加步骤 02/03/07 完成记录到计划文档：
+
+
+ $ cd "D:/programing/core_node" && python - <<'EOF'
+ import io
+ p = 'docs_fix/DEBIAN13_PYTHON310_TTS_DEVELOPMENT_PLAN.md'
+ s = io.open(p, encoding='utf-8').read()
+ marker = "## 5. 兼容性参考表"
+ record = """## 4C. 步骤 02/03/07 完成记录（2026-09-17 续第
+ 二轮）
+
+ ### 步骤 02 — Python 3.10 隔离解释器配置合同
+
+ - 政策常量：`scripts/shells/ai_runtime_policy.env` 新增
+ `AI_PYTHON310_VERSION='3.10'`（不改
+ `AI_PYTHON_VERSION`）；`pycore/pyfoundations/runtime_abi.py
+ ` 新增 `PYTHON310_VERSION`（经 `policy_value()` 统一加载）
+ 与隔离模式常量 `ISOLATION_MODE_OVERLAY` /
+ `ISOLATION_MODE_SELF_CONTAINED`。
+ - 全局路径（Windows）：`win_common/GlobalVars.ps1` 在默认
+ Python 变量后注册 `PYTHON310_VERSION /
+ PYTHON310_VERSION_COMPACT /
+ PYTHON310_WINGET_ID(Python.Python.3.10) /
+ PYTHON310_DIR(LANG_COMPILER_DIR\\python310) /
+ PYTHON310_SCRIPTS_DIR / PYTHON310_EXE_PATH /
+ PYTHON310_PIP_EXE_PATH`，镜像现有 PYTHON_DIR 组成模式；不复
+ 用、不覆盖默认 3.13 解释器。
+ - 运行时解析合同
+ （`runtime_policy.py::resolve_engine_base_python(engine)`）
+ ：引擎显式 override `<ENGINE>_PYTHON` → 已注册 Python
+ 3.10（env `PYTHON310_EXE_PATH` → pygvar 文件存储
+ `PYTHON310_EXE_PATH` → PATH 上 `python310` 链接）→ 报告缺失
+ （`python310_not_registered`，含安装指引）。**永不静默回落
+ 宿主机 3.13**；返回值含 `found/path/source/reason`。
+ - override 语义按步骤 15 决议：override 指“创建 venv 的基解
+ 释器”，运行时始终启动 venv 内绝对解释器（见步骤 07 实现）。
+
+ ### 步骤 03 — 五引擎上游官方资料核对写入运行时政策
+
+ - `runtime_policy.py::_ENGINE_SPECS`：cosyvoice /
+ fishspeech / voxcpm2 由 `isolated: False` 改为 `isolated:
+ True` + `isolation_mode: self_contained`；gptsovits /
+ melotts 补 `isolation_mode: self_contained`；五引擎均补
+ `python_recommended: PYTHON310_VERSION`、`device_policy:
+ "auto"`、`upstream{repo, evidence_date: 2026-09-17,
+ revision}`、`limits[]`。
+ - limits 按步骤 03 表格逐条落码
+ （source/parameter/value/unit/hard_limit/note）：
+   - CosyVoice：`token_max_n=80`（token，frontend 文本拆分参
+ 数，非模型字符上限）+ `token_min_n/merge_len=60/20`。
+   - Fish Speech：`chunk_length=200`（token，范围 100-1000，
+ 非全文字符上限）+ `max_new_tokens=1024`（需扣参考音频/历史
+ ；禁止以云端 SDK 范围代替本地 API）。
+   - VoxCPM2：`max_len=4096`（token，非字符/秒；badcase 原生
+ 重试至多 3 次由服务层合并总预算）。
+   - GPT-SoVITS：文本切分入口（api_v2.py +
+ text_segmentation_method.py），无统一硬上限，参考/目标音频
+ 时长另行记录。
+   - MeloTTS：原生 sentence splitting 保留 + 项目层无标点超
+ 长保护；官方测试环境 Ubuntu 20.04/Python 3.9、Windows 推荐
+ docker（与步骤 18 决策一致）。
+ - `engine_spec()` 对 `upstream` 深拷贝、`limits` 逐项 dict
+ 化；`engine_isolation_mode(engine)` 新 API（缺省回落
+ `overlay`，未知引擎不受影响）；新字段进入
+ `engine_fingerprint()` → 政策变化自动令既有 venv stamp 失效
+ 并按幂等修复路径重建（非暴力删除）。
+ - qwen3tts 显式标注 `isolation_mode: overlay`，行为逐行未改
+ （冒烟：`resolve_python("qwen3tts")` 仍解析既有 venv、
+ `venv_ready=True`、sentence 链钉死不受影响）。
+
+ ### 步骤 07 — isolated_venv 自包含模式落地
+
+ - `isolated_venv_runtime.py`：
+   - `venv_dir(engine, version_tag=None)` 支持按基解释器 ABI
+ 标记目录（`py_venv_<engine>_3.10`），缺省保持宿主机
+ tag（overlay 行为不变）。
+   - 新增 `_self_contained()`、
+ `_find_existing_venv_python()`（跨 ABI tag 扫描既有 venv，
+ 宿主机 3.13 可管理 3.10 venv）、
+ `_engine_venv_dir()`（Optional）、
+ `_base_interpreter_identity_for(python_exe)`（探测任意解释
+ 器基身份）。
+   - `resolve_python()`：self_contained 引擎只返回 venv 内解
+ 释器（override 不再被当作运行时解释器直接使用）；overlay 保
+ 持原逻辑。
+   - `_subprocess_env(executable, clean=)`：clean 模式剥离
+ `PYTHONPATH`/`PYTHONHOME` 并置
+ `PYTHONNOUSERSITE=1`（07.6）；`_run()` 通过
+ `_is_self_contained_venv_python()` 按可执行文件路径自动判定
+ （仅 self_contained venv 子进程清理，Qwen overlay 子进程环
+ 境不变）；venv 创建显式 `clean=True`。
+   -
+ `_stamp_path/_health_failure_path/_base_identity_stamp_path
+ ` 改经 `_engine_venv_dir()`（None 安全
+ ）；`_base_identity_matches(engine, expected_identity=)` 与
+ `_venv_fingerprint/_stamp_matches/_write_stamp(engine,
+ identity=)` 支持以解析基身份为准；self_contained 缺省身份取
+ venv 自身已确认基（状态检查）——确保“基解释器变化→报告并阻断
+ 复用”（07.5）。
+   - `_create_venv(engine, base_python=,
+ target=)`：self_contained 用 `<base> -m venv <target>`（**
+ 不带** `--system-site-packages`）；overlay 原逻辑保留。
+ - `isolated_venv.py`：
+   - `ensure_venv(..., base_python=None)` 新增
+ self_contained 分支 `_ensure_venv_self_contained()`：解析基
+ （显式参数或 `resolve_engine_base_python`，失败只报告返回
+ None，绝不回落 3.13）→ `_compatible` 校验基在 3.10–3.12 窗
+ 口 → 按基 tag 建/查 venv → 基身份比对（不一致即报告阻断）→
+ 缺装判定基于 venv 内
+ distribution（`_core_environment_ready` 原逻辑，07.7）→
+ `_install_into(..., self_contained=True)` → 写基身份与政策
+ stamp → 加速器步骤复用。
+   - `_install_into(..., self_contained=)`：self_contained
+ 跳过 `_remove_local_shared_overrides` 与 shared
+ constraints（07.7：不共享宿主机包）；`managed_venv=True` 语
+ 义保持；健康探针、失败计数、修复路径全部复用。
+   - 遗留 override 直装分支（managed_venv=False）现仅对
+ overlay 引擎可达，保护 Qwen 既有行为。
+ - 目录布局（合同 02.2）：Windows
+ `D:\\.dev_win10\\py_venv_<engine>_3.10\\Scripts\\python.exe
+ `；Linux
+ `~/.core_node/lang_compiler/py_venv_<engine>_3.10/bin/pytho
+ n3`；模型资产仍走既有缓存目录，不进 venv。
+ - 验证（2026-09-17，本机静态+逻辑冒烟，未真实安装）：4 文件
+ `py_compile` OK；五引擎
+ `isolated=True/self_contained/rec=3.10`、upstream/limits 齐
+ 全；无 3.10 时 `resolve_engine_base_python` 与
+ `ensure_venv` 均只报告不回落；override 解析正常；clean env
+ 剥离 PYTHONPATH 且默认 env 不受影响
+ ；`venv_dir(cosyvoice,'3.10')=py_venv_cosyvoice_3.10`；指纹
+ 稳定；Qwen overlay 解析与 ready 状态不变；GlobalVars.ps1
+ AST 解析 OK。**未运行真实 venv 创建/安装**（遵循“不执行安装
+ ”约束）。
+
+ ### 衔接状态
+
+ - 步骤 04/05/06（重命名 Step8、Step13_InstallPython310.ps1
+ 、14_install_python310.sh）：未开始——本步已把两安装器需写入
+ 的 pygvar key（`PYTHON310_EXE_PATH`）与
+ `$Global:PYTHON310_*` 变量名冻结。
+ - 步骤 08（10 个安装器接 self_contained）：未开始
+ ——`ensure_venv` 分支已就绪，安装器只需调用并检查返回值。
+
+ """
+ assert marker in s and '步骤 02/03/07 完成记录' not in s
+ s = s.replace(marker, record + marker, 1)
+ io.open(p, 'w', encoding='utf-8', newline='').write(s)
+ print('plan doc updated')
+ EOF
+
+ ... (2 earlier lines, ctrl+o to expand)
+   File "<stdin>", line 48, in <module>
+ AssertionError
+
+
+ Command exited with code 1
+
+ Took 0.1s
