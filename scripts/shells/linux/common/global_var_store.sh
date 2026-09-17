@@ -420,6 +420,24 @@ set_var() {
     set_global_var "$@"
 }
 
+# Check whether a colon-separated PATH-style value contains an exact entry.
+# Centralized here (single source of truth): the Debian install scripts used to
+# carry local copies, and a comma-based variant that never matched real PATH
+# strings -- which made ensure_path_entry prepend duplicates on every run.
+path_has_entry() {
+    local path_value="$1"
+    local entry="$2"
+
+    if [ -z "$path_value" ] || [ -z "$entry" ]; then
+        echo "false"
+        return
+    fi
+    case ":$path_value:" in
+        *:"$entry":*) echo "true" ;;
+        *) echo "false" ;;
+    esac
+}
+
 # Function to set a variable both in global_var and /etc/environment
 set_env_and_var() {
     local key="$1"

@@ -172,6 +172,35 @@ fix_npm_global_permissions_from_common_functions() {
     return 0
 }
 
+# Fix pnpm global installation permissions (from common_functions.sh)
+fix_pnpm_global_permissions_from_common_functions() {
+    local pnpm_global_bin=""
+    local pnpm_binary=""
+
+    print_step_from_common_functions "Fixing pnpm global installation permissions"
+
+    pnpm_global_bin="${PNPM_GLOBAL_BIN_DIR:-}"
+    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
+        pnpm_binary="$(command -v pnpm 2>/dev/null || true)"
+        if [ -n "$pnpm_binary" ]; then
+            pnpm_global_bin="$("$pnpm_binary" config get global-bin-dir 2>/dev/null || true)"
+        fi
+    fi
+
+    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
+        print_warning_from_common_functions "pnpm global bin directory not found"
+        return 1
+    fi
+
+    print_info_from_common_functions "pnpm global bin directory: $pnpm_global_bin"
+
+    fix_installation_permissions_from_common_functions "$pnpm_global_bin" "777" "true"
+    $USE_SUDO find "$pnpm_global_bin" -type f -exec chmod +x {} \; 2>/dev/null || true
+
+    print_success_from_common_functions "pnpm permissions fixed"
+    return 0
+}
+
 # Update wrapper scripts to use new directory paths (from common_functions.sh)
 update_wrapper_script_paths_from_common_functions() {
     local wrapper_dir="${1:-/usr/local/super_scripts}"

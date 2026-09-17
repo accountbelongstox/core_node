@@ -44,8 +44,15 @@ source "$PARENT_DIR_LEVEL_2/common/pycore_package_policy_install.sh"
 PYTHON_VENV_SETUP_COMMON="$PARENT_DIR_LEVEL_2/common/python_venv_setup_common.sh"
 source "$PYTHON_VENV_SETUP_COMMON"
 
-# Get Python version (default to 3 if not installed)
-PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "3.12")
+# Self-heal FIRST: if the dpkg-managed system interpreter was corrupted by a
+# previous run (wrapper written through a symlink chain), every python3 call
+# below would hang in an infinite exec loop. Restore it via dpkg/apt before any
+# python3 invocation; a healthy system is a no-op.
+heal_system_python_interpreter
+
+# Get Python version (default to 3 if not installed; timeout guards the probe
+# against a broken interpreter hanging the script)
+PYTHON_VERSION=$(timeout 15 python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "3.12")
 
 # Set venv directory path from COMPILE_DIR
 VENV_DIR="$COMPILE_DIR/python3_venv"
@@ -77,11 +84,11 @@ fix_apt_gpg_if_needed() {
     fi
 
     # First attempt: ensure ubuntu-keyring is present (real-time output)
-    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get update"
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get update
-    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-keyring"
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-keyring || \
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::AllowInsecureRepositories=true \
+    echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get update"
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get update
+    echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-keyring"
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-keyring || \
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::AllowInsecureRepositories=true \
         -o Acquire::AllowDowngradeToInsecureRepositories=true install -y ubuntu-keyring
 
     # NOTE: We do NOT hand-import the Ubuntu archive signing key into /etc/apt/trusted.gpg.d.
@@ -141,8 +148,8 @@ install_python_essentials() {
 
     # Install Python and essential packages (base packages first, real-time output)
     print_step_from_common_functions "Installing Python3 base packages..."
-    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-pip-whl python3-venv python3-dev python3-setuptools python3-wheel build-essential libssl-dev libffi-dev linux-libc-dev --no-install-recommends"
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-pip-whl python3-venv python3-dev python3-setuptools python3-wheel build-essential libssl-dev libffi-dev linux-libc-dev --no-install-recommends"
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
         python3-pip \
         python3-pip-whl \
@@ -196,8 +203,8 @@ install_python_essentials() {
         fi
     done
 
-    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ${gui_installable[*]} --no-install-recommends"
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y ${gui_installable[*]} --no-install-recommends"
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y \
         "${gui_installable[@]}" \
         --no-install-recommends \
         || print_warning_from_common_functions "Some GUI packages failed to install (non-fatal; core tkinter comes from python3-tk)"
@@ -210,8 +217,8 @@ install_python_essentials() {
     if dpkg -s "$kheaders_pkg" >/dev/null 2>&1; then
         print_info_from_common_functions "Kernel headers already installed: $kheaders_pkg"
     elif apt-cache policy "$kheaders_pkg" 2>/dev/null | grep -qE 'Candidate: [^(]'; then
-        echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y $kheaders_pkg"
-        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y "$kheaders_pkg" \
+        echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y $kheaders_pkg"
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "$kheaders_pkg" \
             || print_warning_from_common_functions "Kernel headers install failed; source builds like evdev may fail"
     else
         print_info_from_common_functions "No packaged headers for kernel $(uname -r); skipping (evdev-style builds may fail)"
@@ -229,8 +236,8 @@ install_python_essentials() {
     fi
     if ! command -v pip3 >/dev/null 2>&1 && ! python3 -m pip --version >/dev/null 2>&1; then
         print_warning_from_common_functions "Installing python3-pip via apt (real-time)..."
-        echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends"
-        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends
+        echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends"
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip --no-install-recommends
     fi
     if command -v pip3 >/dev/null 2>&1 || python3 -m pip --version >/dev/null 2>&1; then
         print_success_from_common_functions "pip3: $(pip3 -V 2>&1 || python3 -m pip --version 2>&1)"

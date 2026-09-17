@@ -42,6 +42,8 @@ NPX_BIN_PATH="$NODE_BIN_DIR/npx"
 COREPACK_BIN_PATH="$NODE_BIN_DIR/corepack"
 PNPM_BIN_PATH="$NODE_BIN_DIR/pnpm"
 YARN_BIN_PATH="$NODE_BIN_DIR/yarn"
+PNPX_BIN_PATH="$NODE_BIN_DIR/pnpx"
+YARNPKG_BIN_PATH="$NODE_BIN_DIR/yarnpkg"
 PNPM_HOME_PATH="$NODE_INSTALLATION_DIR/pnpm-global"
 PNPM_GLOBAL_BIN_DIR="$PNPM_HOME_PATH/bin"
 COREPACK_LINK="/usr/local/bin/corepack"
@@ -50,6 +52,13 @@ NPX_LINK="/usr/local/bin/npx"
 NODE_LINK="/usr/local/bin/node"
 PNPM_LINK="/usr/local/bin/pnpm"
 YARN_LINK="/usr/local/bin/yarn"
+PNPX_LINK="/usr/local/bin/pnpx"
+YARNPKG_LINK="/usr/local/bin/yarnpkg"
+# corepack 0.36 (the latest) maps the pnpm shim to bin/pnpm.cjs, but pnpm >= 12
+# ships only bin/pnpm.mjs -> the shim dies with MODULE_NOT_FOUND. The pnpm 10
+# line keeps the .cjs layout (and matches this project's packageManager pin),
+# so it is the corepack-compatible fallback when pnpm@latest is unusable.
+PNPM_COREPACK_FALLBACK_SPEC="pnpm@10"
 
 BUN_INSTALL_DIR="${BUN_INSTALL_DIR:-$COMPILE_DIR/bun}"
 BUN_BIN_DIR="$BUN_INSTALL_DIR/bin"
@@ -61,6 +70,18 @@ PNPM_REGISTRY="https://registry.npmjs.org/"
 if [ "$SELECTED_REGION" = "China" ]; then
     NPM_REGISTRY="https://registry.npmmirror.com/"
     PNPM_REGISTRY="https://registry.npmmirror.com/"
+fi
+
+# Corepack must never prompt: its "Corepack is about to download ... Do you
+# want to continue? [Y/n]" confirmation hangs unattended runs forever.
+# COREPACK_ENABLE_DOWNLOAD_PROMPT=0 is corepack's official auto-accept switch.
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# Region-aware corepack downloads. NOTE: only override the registry for China;
+# setting COREPACK_NPM_REGISTRY to the default registry explicitly switches
+# corepack's yarn@stable resolution into npm dist-tag mode, where the "stable"
+# tag does not exist -> "Usage Error: Tag not found (stable)".
+if [ "$SELECTED_REGION" = "China" ]; then
+    export COREPACK_NPM_REGISTRY="$NPM_REGISTRY"
 fi
 
 NODE_ARCH_SUFFIX="linux-x64"
@@ -145,20 +166,6 @@ read_environment_path() {
     echo "$env_path"
 }
 
-path_has_entry() {
-    local path_value="$1"
-    local entry="$2"
-
-    if [ -z "$path_value" ] || [ -z "$entry" ]; then
-        echo "false"
-        return
-    fi
-    case ",$path_value," in
-        *,"$entry",*) echo "true" ;;
-        *) echo "false" ;;
-    esac
-}
-
 ensure_path_entry() {
     local entry="$1"
     local env_path=""
@@ -190,7 +197,7 @@ cleanup_environment_entries() {
 
 repair_broken_symlinks() {
     local target=""
-    for target in /usr/local/bin/node /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/yarn /usr/local/bin/bun; do
+    for target in "$NODE_LINK" "$NPM_LINK" "$NPX_LINK" "$COREPACK_LINK" "$PNPM_LINK" "$YARN_LINK" "$PNPX_LINK" "$YARNPKG_LINK" "$BUN_LINK"; do
         if [ -L "$target" ] && [ ! -e "$target" ]; then
             $USE_SUDO rm -f "$target"
         elif [ -f "$target" ] && [ ! -x "$target" ]; then
@@ -212,6 +219,102 @@ cleanup_wrong_install_locations() {
                 fi
             fi
         fi
+    done
+}
+
+# Idempotent /etc/environment PATH repair. The old comma-based path_has_entry
+# never matched real PATH strings, so every run prepended duplicates, and
+# entries for previous Node majors (e.g. v24 when NODE_VERSION=v26) lingered
+# forever. Rebuild PATH as: first occurrence wins (dedupe), drop empty
+# segments, drop any entry under $NODE_INSTALL_DIR belonging to a non-target
+# version. Writes back ONLY when the value actually changes (no churn; the
+# single "Successfully set" line comes from set_env_and_var).
+sanitize_environment_path() {
+    local env_path=""
+    local entry=""
+    local out=""
+    local changed="false"
+    local -a parts=()
+    local -A seen=()
+
+    env_path="$(read_environment_path)"
+    local IFS=":"
+    read -r -a parts <<< "$env_path"
+    for entry in "${parts[@]}"; do
+        if [ -z "$entry" ]; then
+            changed="true"
+            continue
+        fi
+        case "$entry" in
+            "$NODE_INSTALL_DIR"/v[0-9]*|"$NODE_INSTALL_DIR"/node-v[0-9]*)
+                case "$entry" in
+                    "$NODE_INSTALL_DIR/$NODE_VERSION"|"$NODE_INSTALL_DIR/$NODE_VERSION"/*) ;;
+                    *)
+                        changed="true"
+                        echo "[17] Dropping stale Node PATH entry: $entry"
+                        continue
+                        ;;
+                esac
+                ;;
+        esac
+        if [ -n "${seen[$entry]:-}" ]; then
+            changed="true"
+            continue
+        fi
+        seen[$entry]=1
+        out="${out:+$out:}$entry"
+    done
+
+    if [ "$changed" = "true" ] || [ "$out" != "$env_path" ]; then
+        echo "[17] Sanitizing /etc/environment PATH (dedupe + drop stale Node versions)"
+        set_env_and_var "PATH" "$out"
+        export PATH="$out"
+    fi
+}
+
+# Idempotent replacement of old Node majors: once the target version is
+# installed and the /usr/local/bin tool links re-pointed, remove leftover
+# version trees (v24.11.1, node-v24.11.1 extraction artifacts, ...). Never
+# touches the target version; a tree still referenced by a managed tool
+# symlink is kept (with a warning) instead of breaking the link.
+cleanup_stale_node_versions() {
+    [ -d "$NODE_INSTALL_DIR" ] || return 0
+    [ -x "$NODE_BIN_PATH" ] || return 0
+
+    local dir=""
+    local base=""
+    local ver=""
+    local link=""
+    local resolved=""
+    local still_linked="false"
+
+    for dir in "$NODE_INSTALL_DIR"/*; do
+        [ -d "$dir" ] || continue
+        base="$(basename "$dir")"
+        case "$base" in
+            v[0-9]*|node-v[0-9]*) ;;
+            *) continue ;;
+        esac
+        ver="${base#node-}"
+        ver="${ver#v}"
+        [ "$ver" = "${NODE_VERSION#v}" ] && continue
+
+        still_linked="false"
+        for link in "$NODE_LINK" "$NPM_LINK" "$NPX_LINK" "$COREPACK_LINK" "$PNPM_LINK" "$YARN_LINK" "$PNPX_LINK" "$YARNPKG_LINK"; do
+            resolved="$(readlink -f "$link" 2>/dev/null || true)"
+            case "$resolved" in
+                "$dir"/*)
+                    still_linked="true"
+                    break
+                    ;;
+            esac
+        done
+        if [ "$still_linked" = "true" ]; then
+            echo "[17] Keeping stale Node tree (still referenced by a tool symlink): $dir"
+            continue
+        fi
+        echo "[17] $USE_SUDO rm -rf $dir  # stale Node version (target: $NODE_VERSION)"
+        $USE_SUDO rm -rf "$dir"
     done
 }
 
@@ -334,6 +437,8 @@ ensure_node_symlinks() {
     ensure_link "$COREPACK_BIN_PATH" "$COREPACK_LINK"
     ensure_link "$PNPM_BIN_PATH" "$PNPM_LINK"
     ensure_link "$YARN_BIN_PATH" "$YARN_LINK"
+    ensure_link "$PNPX_BIN_PATH" "$PNPX_LINK"
+    ensure_link "$YARNPKG_BIN_PATH" "$YARNPKG_LINK"
     ensure_link "$BUN_BIN_PATH" "$BUN_LINK"
 }
 
@@ -460,10 +565,39 @@ ensure_npm_latest() {
     fi
 }
 
+# Functional check for the corepack pnpm shim, run from a neutral directory
+# (a project package.json packageManager pin would change what corepack
+# resolves). The shim must actually EXECUTE, not merely exist.
+pnpm_shim_works() {
+    [ -x "$PNPM_BIN_PATH" ] || return 1
+    (cd /tmp 2>/dev/null && timeout 60 "$PNPM_BIN_PATH" -v >/dev/null 2>&1)
+}
+
+# Prepare/activate pnpm through corepack, verifying the result functionally.
+# corepack 0.36 cannot run pnpm >= 12 (bin/pnpm.mjs vs the hardcoded
+# bin/pnpm.cjs shim path), so when pnpm@latest produces a broken shim, fall
+# back to $PNPM_COREPACK_FALLBACK_SPEC. Idempotent: a working shim is kept.
+corepack_prepare_pnpm() {
+    [ -x "$COREPACK_BIN_PATH" ] || return 0
+
+    "$COREPACK_BIN_PATH" prepare pnpm@latest --activate || true
+    "$COREPACK_BIN_PATH" enable pnpm || true
+    if pnpm_shim_works; then
+        return 0
+    fi
+
+    echo "[17] corepack pnpm@latest shim is broken (pnpm>=12 uses bin/pnpm.mjs, corepack 0.36 maps bin/pnpm.cjs); activating $PNPM_COREPACK_FALLBACK_SPEC"
+    "$COREPACK_BIN_PATH" prepare "$PNPM_COREPACK_FALLBACK_SPEC" --activate || true
+    "$COREPACK_BIN_PATH" enable pnpm || true
+    if ! pnpm_shim_works; then
+        echo "[17] WARNING: pnpm shim still not runnable after fallback"
+    fi
+}
+
 ensure_corepack() {
     if [ -x "$COREPACK_BIN_PATH" ]; then
         "$COREPACK_BIN_PATH" enable || true
-        "$COREPACK_BIN_PATH" prepare pnpm@latest --activate || true
+        corepack_prepare_pnpm
         "$COREPACK_BIN_PATH" prepare yarn@stable --activate || true
     elif [ -x "$NPM_BIN_PATH" ]; then
         "$NPM_BIN_PATH" install -g corepack@latest --no-audit --no-fund --ignore-scripts || true
@@ -480,16 +614,14 @@ ensure_pnpm() {
         $USE_SUDO mkdir -p "$pnpm_global_bin_dir"
     fi
 
-    if [ -x "$COREPACK_BIN_PATH" ]; then
-        "$COREPACK_BIN_PATH" prepare pnpm@latest --activate || true
-    fi
+    corepack_prepare_pnpm
 
-    if [ -x "$COREPACK_BIN_PATH" ] && [ -x "$PNPM_BIN_PATH" ]; then
-        "$COREPACK_BIN_PATH" enable pnpm || true
+    if [ -x "$COREPACK_BIN_PATH" ] && [ -x "$PNPM_BIN_PATH" ] && pnpm_shim_works; then
+        : # corepack shim is functional; nothing else to do
     elif [ -x "$NPM_BIN_PATH" ]; then
         # No --ignore-scripts: pnpm's postinstall installs its native binary;
         # skipping it leaves pnpm "running through Node.js".
-        "$NPM_BIN_PATH" install -g pnpm@latest --no-audit --no-fund || true
+        "$NPM_BIN_PATH" install -g "$PNPM_COREPACK_FALLBACK_SPEC" --no-audit --no-fund || true
     fi
 
     if [ -x "$PNPM_BIN_PATH" ]; then
@@ -565,6 +697,13 @@ verify_installation() {
     local node_version=""
     local npm_version=""
     local npx_version=""
+    local verify_prev_cwd=""
+
+    # Corepack shims (yarn/pnpm) refuse to run inside a project whose
+    # package.json pins a different packageManager; probe versions from a
+    # neutral directory so verification reflects the INSTALL, not the CWD.
+    verify_prev_cwd="$(pwd)"
+    cd /tmp 2>/dev/null || cd / 2>/dev/null || true
 
     echo "=================================================="
     if [ -x "$NODE_BIN_PATH" ]; then
@@ -614,6 +753,8 @@ verify_installation() {
     echo "npm --version (PATH): $(npm -v 2>/dev/null || echo "missing")"
     echo "PATH includes: $PATH"
     echo "=================================================="
+
+    cd "$verify_prev_cwd" 2>/dev/null || true
 }
 
 print_banner() {
@@ -653,6 +794,8 @@ else
 
     ensure_node_installation
     ensure_node_symlinks
+    cleanup_stale_node_versions
+    sanitize_environment_path
     configure_node_environment_variables
     configure_npmrc
     repair_permissions

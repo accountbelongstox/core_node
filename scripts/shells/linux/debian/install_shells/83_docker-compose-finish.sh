@@ -17,11 +17,6 @@ source "$COMMON_DIR/common_functions.sh"
 # ### AI SPECIAL ATTENTION RULES END ###
 
 CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-DEPLOY_DIR=$(dirname "$(dirname "$(dirname "$(dirname "$CURRENT_DIR")")")")
-TEMPLATE_DIR="$DEPLOY_DIR/template"
-DOCKER_COMPOSE_TEMPLATE_DIR="$TEMPLATE_DIR/docker_compose"
-SERVER_DIR=$(dirname "$CURRENT_DIR")
-DOCKER_AFTER_DIR="$SERVER_DIR/docker_after"
 
 # Source global variables
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,82 +29,33 @@ START_DOCKER=$(get_var "START_DOCKER" "false")
 
 # Check if Docker is installed
 if ! command -v docker >/dev/null 2>&1; then
-    echo "[51] Docker is not installed. Skipping Docker Compose finish."
+    echo "[83] Docker is not installed. Skipping Docker finish."
     exit 0
 fi
 
 # Check if Docker should be running
 if [ "$START_DOCKER" != "true" ]; then
-    echo "[51] Skipping Docker Compose finish (START_DOCKER: $START_DOCKER)"
+    echo "[83] Skipping Docker finish (START_DOCKER: $START_DOCKER)"
     exit 0
 fi
 
-TMP_INFO_DIR="/usr/local/.pcore_local/deploy/"
-
-PARENT_DIR=$(dirname "$(dirname "$($USE_SUDO readlink -f "$0")")")
-PYTHON_MAIN_SCRIPT=$($USE_SUDO cat "$TMP_INFO_DIR/.PYTHON_MAIN_SCRIPT")
-PYTHON_EXECUTABLE=$($USE_SUDO cat "$TMP_INFO_DIR/.PY_VENV_DIR")
-MAIN_DIR=$($USE_SUDO cat "$TMP_INFO_DIR/.MAIN_DIR")
-WEB_DIR=$($USE_SUDO cat "$TMP_INFO_DIR/.WEB_DIR")
-BT_IMAGE=$($USE_SUDO cat "$TMP_INFO_DIR/.BT_IMAGE")
-DOCKER_DATA=$($USE_SUDO cat "$TMP_INFO_DIR/.DOCKER_DATA")
-SERVICE_DIR=$($USE_SUDO cat "$TMP_INFO_DIR/.SERVICE_DIR")
-BT_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.BT_USER")
-BT_PWD=$($USE_SUDO cat "$TMP_INFO_DIR/.BT_PWD")
-BT_ENTRY=$($USE_SUDO cat "$TMP_INFO_DIR/.BT_ENTRY")
-POSTGRES_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.POSTGRES_USER")
-POSTGRES_PASSWORD=$($USE_SUDO cat "$TMP_INFO_DIR/.POSTGRES_PASSWORD")
-SAMBA_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.SAMBA_USER")
-SAMBA_PWD=$($USE_SUDO cat "$TMP_INFO_DIR/.SAMBA_PWD")
-MYSQL_ROOT_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.MYSQL_ROOT_USER")
-MYSQL_ROOT_PASSWORD=$($USE_SUDO cat "$TMP_INFO_DIR/.MYSQL_ROOT_PASSWORD")
-MYSQL_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.MYSQL_USER")
-MYSQL_PASSWORD=$($USE_SUDO cat "$TMP_INFO_DIR/.MYSQL_PASSWORD")
-ZEROTIER_DOMAIN=$($USE_SUDO cat "$TMP_INFO_DIR/.ZEROTIER_DOMIAN")
-ZTNCUI_PASSWD=$($USE_SUDO cat "$TMP_INFO_DIR/.ZTNCUI_PASSWD")
-SAMBA_SHARE_DIR=$($USE_SUDO cat "$TMP_INFO_DIR/.SAMBA_SHARE_DIR")
-UPS_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.UPS_USER")
-UPS_DEVICES=$($USE_SUDO cat "$TMP_INFO_DIR/.UPS_DEVICES")
-UPS_ADMIN_PASSWORD=$($USE_SUDO cat "$TMP_INFO_DIR/.UPS_ADMIN_PASSWORD")
-UPS_PORT=$($USE_SUDO cat "$TMP_INFO_DIR/.UPS_PORT")
-UPS_API_USER=$($USE_SUDO cat "$TMP_INFO_DIR/.UPS_API_USER")
-UPS_API_PASSWORD=$($USE_SUDO cat "$TMP_INFO_DIR/.UPS_API_PASSWORD")
-WEBNUT_PORT=$($USE_SUDO cat "$TMP_INFO_DIR/.WEBNUT_PORT")
-
-RED='\033[0;31m'
-NC='\033[0m'
-
-DOCKER_COMPOSE_SELECT_FILE="$TMP_INFO_DIR/.DOCKER_COMPOSE_SELECT"
-if [ ! -f "$DOCKER_COMPOSE_SELECT_FILE" ]; then
-    echo -e "${RED}Error: .DOCKER_COMPOSE_SELECT file not found. Current docker image not built.${NC}"
-    exit 1
-else
-    DOCKER_COMPOSE=$($USE_SUDO cat "$DOCKER_COMPOSE_SELECT_FILE")
+# This chain only installs Docker; it no longer builds any images, so the old
+# /usr/local/.pcore_local/deploy marker-file contract (.DOCKER_COMPOSE_SELECT
+# and friends) and the docker_after service dispatch were removed. All that
+# remains to "finish" is a healthy daemon: verify it, with one self-heal
+# restart attempt when the unit is enabled but down.
+if ! $USE_SUDO systemctl is-active --quiet docker.service 2>/dev/null; then
+    if $USE_SUDO systemctl is-enabled --quiet docker.service 2>/dev/null; then
+        echo "[83] Docker service is enabled but not active; attempting restart..."
+        $USE_SUDO systemctl reset-failed docker.service 2>/dev/null || true
+        $USE_SUDO systemctl restart docker 2>/dev/null || true
+    fi
 fi
 
-if [ -z "$DOCKER_COMPOSE" ]; then
-    echo -e "${RED}Error: No docker_compose configuration found in $DOCKER_COMPOSE_SELECT_FILE.${NC}"
-    exit 1
-else
-    echo "Generating docker-compose file based on selected services: $DOCKER_COMPOSE"
+if $USE_SUDO systemctl is-active --quiet docker.service 2>/dev/null; then
+    echo "[83] Docker is installed and running: $(docker --version 2>/dev/null)"
+    exit 0
 fi
 
-IFS=' ' read -ra services <<< "$DOCKER_COMPOSE"
-
-for service in "${services[@]}"; do
-    case "$service" in
-        node*)
-            echo "Running: $DOCKER_AFTER_DIR/nodejs.sh $service"
-            $USE_SUDO "$DOCKER_AFTER_DIR/nodejs.sh" "$service"
-            ;;
-        *)
-            SERVICE_SCRIPT="$DOCKER_AFTER_DIR/${service}.sh"
-            if [ -f "$SERVICE_SCRIPT" ]; then
-                echo "Setting: $service"
-                $USE_SUDO "$SERVICE_SCRIPT"
-            fi
-            ;;
-    esac
-done
-
-$USE_SUDO "$DOCKER_AFTER_DIR/public_info_print.sh"
+echo "[83] WARNING: Docker is installed but the daemon is not running. See: journalctl -xeu docker.service"
+exit 1

@@ -69,8 +69,22 @@ result=$?
 
 if [ $result -eq 2 ]; then
     echo -e "\033[33mDocker configuration updated. Docker needs to be restarted.\033[0m"
-    $USE_SUDO systemctl restart docker
-    echo -e "\033[32mDocker restarted.\033[0m"
+    # Validate BEFORE restarting: an invalid daemon.json (e.g. an unknown key
+    # like the legacy uppercase "DNS") makes dockerd fail to start at all.
+    if command -v dockerd >/dev/null 2>&1 && ! timeout 30 $USE_SUDO dockerd --validate >/dev/null 2>&1; then
+        echo -e "\033[31mdockerd --validate rejected /etc/docker/daemon.json; NOT restarting. Fix the config and re-run.\033[0m"
+        timeout 30 $USE_SUDO dockerd --validate 2>&1 || true
+        exit 1
+    fi
+    # reset-failed first: repeated failures put the unit in "start request
+    # repeated too quickly", which makes a plain restart fail immediately.
+    $USE_SUDO systemctl reset-failed docker.service 2>/dev/null || true
+    if $USE_SUDO systemctl restart docker && $USE_SUDO systemctl is-active --quiet docker.service; then
+        echo -e "\033[32mDocker restarted and active.\033[0m"
+    else
+        echo -e "\033[31mDocker restart failed or service is not active. See: journalctl -xeu docker.service\033[0m"
+        exit 1
+    fi
 elif [ $result -eq 0 ]; then
     echo -e "\033[32mNo Docker configuration changes needed.\033[0m"
 else

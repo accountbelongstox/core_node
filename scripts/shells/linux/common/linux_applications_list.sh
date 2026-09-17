@@ -42,6 +42,13 @@ readonly METHOD_UV_TOOL="uv_tool"
 readonly METHOD_CURL="curl"
 readonly METHOD_MICROSOFT_APT="microsoft_apt"
 readonly METHOD_APPIMAGE="appimage"
+# Debian-native methods (official apt repositories / deb downloads / tarballs)
+readonly METHOD_DEB_REPO="deb_repo"
+readonly METHOD_TARBALL="tarball"
+readonly METHOD_GITHUB_DEB="github_deb"
+# "none" = installed by a dedicated installer script; the desktop apps
+# installer only verifies and repairs links for it.
+readonly METHOD_NONE="none"
 
 # Snap confinement modes
 readonly SNAP_CONFINEMENT_STRICT="strict"
@@ -102,6 +109,12 @@ declare -gA DEV_PACKAGES=(
     ["powershell_package_id"]="powershell"
     ["powershell_install_method"]="$METHOD_SNAP"
     ["powershell_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    # Debian: official Microsoft repository (learn.microsoft.com/powershell/scripting/install/install-debian).
+    # The Debian 13 prod repo is signed with the key shipped inside Microsoft's
+    # config .deb (EE4D7792F748182B), not the legacy microsoft.asc key.
+    ["powershell_debian_install_method"]="$METHOD_DEB_REPO"
+    ["powershell_debian_package_id"]="powershell"
+    ["powershell_debian_install_spec"]="https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb|microsoft-prod.gpg|deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/13/prod trixie main|microsoft-prod.list|"
     ["powershell_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["powershell_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["powershell_description"]="PowerShell cross-platform shell and scripting language"
@@ -112,6 +125,10 @@ declare -gA DEV_PACKAGES=(
     ["postman_exec"]="postman"
     ["postman_package_id"]="postman"
     ["postman_install_method"]="$METHOD_SNAP"
+    # Debian: official tarball (learning.postman.com/docs/getting-started/installation/installation-and-updates)
+    ["postman_debian_install_method"]="$METHOD_TARBALL"
+    ["postman_debian_package_id"]="https://dl.pstmn.io/download/latest/linux_64"
+    ["postman_debian_install_spec"]="/opt/Postman|Postman"
     ["postman_category"]="$CATEGORY_API_TOOLS"
     ["postman_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["postman_description"]="API development and testing tool"
@@ -123,6 +140,9 @@ declare -gA DEV_PACKAGES=(
     ["termius_exec"]="termius-app"
     ["termius_package_id"]="termius-app"
     ["termius_install_method"]="$METHOD_SNAP"
+    # Debian: official .deb download (termius.com/download/linux)
+    ["termius_debian_install_method"]="$METHOD_WEB"
+    ["termius_debian_package_id"]="https://termius.com/download/linux/Termius.deb"
     ["termius_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["termius_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["termius_description"]="SSH client and terminal"
@@ -135,6 +155,9 @@ declare -gA DEV_PACKAGES=(
     ["android_studio_package_id"]="android-studio"
     ["android_studio_install_method"]="$METHOD_SNAP"
     ["android_studio_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    # Debian: installed by install_shells/61_install_android_studio.sh from the
+    # official developer.android.com tarball; snap is not needed.
+    ["android_studio_debian_install_method"]="$METHOD_NONE"
     ["android_studio_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["android_studio_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["android_studio_description"]="Android development IDE"
@@ -147,6 +170,10 @@ declare -gA DEV_PACKAGES=(
     ["sublime_package_id"]="sublime-text"
     ["sublime_install_method"]="$METHOD_SNAP"
     ["sublime_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    # Debian: official apt repository (sublimetext.com/docs/linux_repositories.html)
+    ["sublime_debian_install_method"]="$METHOD_DEB_REPO"
+    ["sublime_debian_package_id"]="sublime-text"
+    ["sublime_debian_install_spec"]="https://download.sublimetext.com/sublimehq-pub.gpg|sublimehq-pub.gpg|deb [signed-by=/etc/apt/keyrings/sublimehq-pub.gpg] https://download.sublimetext.com/ apt/stable/|sublime-text.list|"
     ["sublime_category"]="$CATEGORY_TEXT_EDITORS"
     ["sublime_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["sublime_description"]="Sophisticated text editor"
@@ -158,6 +185,10 @@ declare -gA DEV_PACKAGES=(
     ["insomnia_exec"]="insomnia"
     ["insomnia_package_id"]="insomnia"
     ["insomnia_install_method"]="$METHOD_SNAP"
+    # Debian: official .deb from GitHub releases (github.com/Kong/insomnia/releases)
+    ["insomnia_debian_install_method"]="$METHOD_GITHUB_DEB"
+    ["insomnia_debian_package_id"]="insomnia"
+    ["insomnia_debian_install_spec"]="Kong/insomnia|Insomnia.Core-.*\\.deb$"
     ["insomnia_category"]="$CATEGORY_API_TOOLS"
     ["insomnia_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["insomnia_description"]="REST API testing tool"
@@ -169,6 +200,10 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_exec"]="beekeeper-studio"
     ["beekeeper_package_id"]="beekeeper-studio"
     ["beekeeper_install_method"]="$METHOD_SNAP"
+    # Debian: official apt repository (docs.beekeeperstudio.io/installation/linux)
+    ["beekeeper_debian_install_method"]="$METHOD_DEB_REPO"
+    ["beekeeper_debian_package_id"]="beekeeper-studio"
+    ["beekeeper_debian_install_spec"]="https://deb.beekeeperstudio.io/beekeeper.key|beekeeper-studio.gpg|deb [signed-by=/etc/apt/keyrings/beekeeper-studio.gpg] https://deb.beekeeperstudio.io stable main|beekeeper-studio.list|"
     ["beekeeper_category"]="$CATEGORY_DATABASE_TOOLS"
     ["beekeeper_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["beekeeper_description"]="SQL editor and database manager"
@@ -194,6 +229,11 @@ declare -gA APP_PACKAGES=(
     ["firefox_exec"]="firefox"
     ["firefox_package_id"]="firefox"
     ["firefox_install_method"]="$METHOD_SNAP"
+    # Debian: official Mozilla apt repository (support.mozilla.org/kb/install-firefox-linux);
+    # pin origin so the Mozilla build wins over Debian's firefox-esr transitional package.
+    ["firefox_debian_install_method"]="$METHOD_DEB_REPO"
+    ["firefox_debian_package_id"]="firefox"
+    ["firefox_debian_install_spec"]="https://packages.mozilla.org/apt/repo-signing-key.gpg|packages.mozilla.org.gpg|deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.gpg] https://packages.mozilla.org/apt mozilla main|mozilla.list|packages.mozilla.org"
     ["firefox_category"]="$CATEGORY_BROWSERS"
     ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
     ["firefox_description"]="Mozilla Firefox web browser"
@@ -212,34 +252,18 @@ declare -gA APP_PACKAGES=(
     # Opera Browser
     ["opera_name"]="Opera"
     ["opera_exec"]="opera"
-    ["opera_package_id"]="opera-browser-stable"
+    ["opera_package_id"]="opera"
     ["opera_install_method"]="$METHOD_SNAP"
+    # Debian: official Opera apt repository (deb.opera.com, see opera.com download page)
+    ["opera_debian_install_method"]="$METHOD_DEB_REPO"
+    ["opera_debian_package_id"]="opera-stable"
+    ["opera_debian_install_spec"]="https://deb.opera.com/archive.key|opera-archive.gpg|deb [signed-by=/etc/apt/keyrings/opera-archive.gpg] https://deb.opera.com/opera-stable/ stable non-free|opera-stable.list|"
     ["opera_category"]="$CATEGORY_BROWSERS"
     ["opera_groups"]="$GROUP_ALL"
     ["opera_description"]="Opera web browser"
     ["opera_verify_command"]="--version"
     ["opera_itemkey"]="--no-sandbox"
 
-
-    # Hey Mail
-    ["hey_mail_name"]="Hey Mail"
-    ["hey_mail_exec"]="hey"
-    ["hey_mail_package_id"]="https://download.hey.com/Hey-latest-amd64.deb"
-    ["hey_mail_install_method"]="$METHOD_WEB"
-    ["hey_mail_category"]="$CATEGORY_COMMUNICATION"
-    ["hey_mail_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["hey_mail_description"]="Hey email client"
-    ["hey_mail_verify_command"]=""
-
-    # Gemini Desktop
-    ["gemini_desktop_name"]="Gemini Desktop"
-    ["gemini_desktop_exec"]="gemini"
-    ["gemini_desktop_package_id"]="https://gemini.google.com/desktop"
-    ["gemini_desktop_install_method"]="$METHOD_WEB"
-    ["gemini_desktop_category"]="$CATEGORY_AI_TOOLS"
-    ["gemini_desktop_groups"]="$GROUP_ALL"
-    ["gemini_desktop_description"]="Google Gemini AI desktop app"
-    ["gemini_desktop_verify_command"]=""
 
 )
 
@@ -376,7 +400,7 @@ DEV_PACKAGE_LIST=(
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
+    "firefox" "libreoffice" "opera"
 )
 
 # NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
@@ -576,6 +600,53 @@ get_package_id() {
     get_app_property "$app_name" "package_id"
 }
 
+# Detect whether the current host is Debian itself (not a derivative such as
+# Ubuntu or Kali). Derivatives keep their own (snap-based) defaults.
+is_debian_host() {
+    local os_id=""
+    os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+    [ "$os_id" = "debian" ]
+}
+
+# Resolve the install method for the current host. On Debian, apps that default
+# to snap declare a native override via <app>_debian_install_method (official
+# apt repository / deb download / tarball / dedicated installer), so snapd is
+# not required. An override of "none" means a dedicated installer script owns
+# the app and this installer should not install it.
+get_effective_install_method() {
+    local app_name="$1"
+    local method=""
+    if is_debian_host; then
+        method=$(get_app_property "$app_name" "debian_install_method")
+    fi
+    if [ -z "$method" ]; then
+        method=$(get_app_property "$app_name" "install_method")
+    fi
+    echo "$method"
+}
+
+# Resolve the package ID for the current host (Debian override first).
+get_effective_package_id() {
+    local app_name="$1"
+    local package_id=""
+    if is_debian_host; then
+        package_id=$(get_app_property "$app_name" "debian_package_id")
+    fi
+    if [ -z "$package_id" ]; then
+        package_id=$(get_app_property "$app_name" "package_id")
+    fi
+    echo "$package_id"
+}
+
+# Method-specific spec for Debian-native installs:
+#   deb_repo:   key_url|keyring_name|repo_line|list_name|pin_origin(optional)
+#   tarball:    dest_dir|exec_relpath   (package_id is the tarball URL)
+#   github_deb: owner/repo|asset_regex  (latest release .deb)
+get_debian_install_spec() {
+    local app_name="$1"
+    get_app_property "$app_name" "debian_install_spec"
+}
+
 # Function to check if application needs super (sudo) privileges
 get_super() {
     local app_name="$1"
@@ -596,15 +667,15 @@ get_itemkey() {
 # Function to create symlink in /usr/local/bin
 create_launch_script() {
     local app_name="$1"
-    local link_name="$app_name"
-    local link_path="/usr/local/bin/$link_name"
-
-    local install_method=$(get_install_method "$app_name")
+    local install_method=$(get_effective_install_method "$app_name")
     local exec_name=$(get_app_property "$app_name" "exec")
 
     if [ -z "$exec_name" ]; then
         return 0
     fi
+
+    local link_name="$exec_name"
+    local link_path="/usr/local/bin/$link_name"
 
     local target_path=""
 
@@ -628,7 +699,7 @@ create_launch_script() {
                 target_path=$(which "$exec_name" 2>/dev/null)
             fi
             ;;
-        "$METHOD_APT"|"$METHOD_FLATPAK"|"$METHOD_PIPX"|"$METHOD_UV_TOOL"|"$METHOD_CURL"|"$METHOD_WEB"|"$METHOD_APPIMAGE"|"$METHOD_MICROSOFT_APT")
+        "$METHOD_APT"|"$METHOD_FLATPAK"|"$METHOD_PIPX"|"$METHOD_UV_TOOL"|"$METHOD_CURL"|"$METHOD_WEB"|"$METHOD_APPIMAGE"|"$METHOD_MICROSOFT_APT"|"$METHOD_DEB_REPO"|"$METHOD_TARBALL"|"$METHOD_GITHUB_DEB")
             target_path=$(which "$exec_name" 2>/dev/null)
             ;;
         *)
@@ -639,6 +710,21 @@ create_launch_script() {
     if [ -z "$target_path" ] || [ ! -e "$target_path" ]; then
         return 0
     fi
+
+    # Never create a self-referential symlink (which resolves the link itself
+    # to /usr/local/bin/<name> when run as root) and never link into root's
+    # home -- that is unreachable for regular users. Root-home payloads are
+    # handled by relocate_root_home_install in installation_library.sh.
+    local real_target=""
+    real_target=$(readlink -f "$target_path" 2>/dev/null || true)
+    if [ "$target_path" = "$link_path" ] || [ "$real_target" = "$link_path" ]; then
+        return 0
+    fi
+    case "$real_target" in
+        /root/*)
+            return 0
+            ;;
+    esac
 
     # Check if link already points to correct target
     if [ -L "$link_path" ]; then
@@ -699,3 +785,4 @@ export -f app_in_group mcp_in_group get_apps_by_package_group
 export -f get_apps_by_group get_install_method get_package_id
 export -f get_itemkey get_super create_launch_script
 export -f get_snap_confinement is_snap_fallback_enabled get_repo_type has_special_repo
+export -f is_debian_host get_effective_install_method get_effective_package_id get_debian_install_spec
