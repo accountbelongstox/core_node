@@ -117,8 +117,8 @@ echo "Selected options:"
 echo "  Installation mode: $INSTALL_MODE"
 echo
 
-# Note: Services (MySQL, Redis, PostgreSQL, Docker, Nginx) are always installed
-# The START_* variables from selector_common.sh control whether to start them after installation
+# Note: a service switched OFF in the selector is not installed at all
+# (INSTALL_* follows the START_* toggles; the apt repo is skipped/removed too).
 echo "Services will be installed, START_* variables control service startup..."
 
 

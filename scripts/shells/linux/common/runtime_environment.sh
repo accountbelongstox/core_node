@@ -36,6 +36,26 @@ detect_runtime_environment() {
         HAS_DESKTOP_ENVIRONMENT=true
         DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
     fi
+    # Root/sudo runs lose the XDG/DESKTOP_SESSION env vars; identify the desktop
+    # from the running session processes instead (comm is 15-char truncated, so
+    # match with start-anchored substrings, never pgrep -x).
+    if [ -z "$DESKTOP_ENVIRONMENT" ] && command -v pgrep >/dev/null 2>&1; then
+        if pgrep "^gnome-shell" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="GNOME"
+        elif pgrep "^(startplasma|plasmashell)" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="KDE"
+        elif pgrep "^xfce4-session" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="XFCE"
+        elif pgrep "^cinnamon-sess" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="Cinnamon"
+        elif pgrep "^mate-session" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="MATE"
+        elif pgrep "^lxqt-session" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="LXQt"
+        elif pgrep "^lxde-session" >/dev/null 2>&1; then
+            DESKTOP_ENVIRONMENT="LXDE"
+        fi
+    fi
     if command -v pgrep >/dev/null 2>&1 && pgrep "$RUNTIME_DESKTOP_PROCESS_PATTERN" >/dev/null 2>&1; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
