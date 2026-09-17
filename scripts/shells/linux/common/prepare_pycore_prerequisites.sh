@@ -98,7 +98,6 @@ PREREQ_ENTRIES=(
     "cuda_policy|11_cuda_nvidia_prereq.sh|||0"
     "python310|14_install_python310.sh|||0"
     "python_prereqs|15_install_default_python_prereq_packages.sh|||0"
-    "desktop_manager|117_install_desktop_manager.sh|||0"
     "launcher|119_install_launcher.sh|||0"
     "ffmpeg|115_install_ffmpeg.sh|||0"
     "document_parsing|121_install_document_parsing.sh|||0"
