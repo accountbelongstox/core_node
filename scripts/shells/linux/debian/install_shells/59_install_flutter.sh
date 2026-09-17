@@ -58,13 +58,12 @@ should_install_flutter() {
         "false") return 1;;
         "remove") return 2;;
         *)
-            # auto: DESKTOP ONLY. Flutter installs via classic snap (which pulls
-            # core20/core24/snapd) and is a GUI/dev toolchain - skip on a headless
-            # server. Force with INSTALL_FLUTTER=true or ALLOW_SNAP_ON_SERVER=1.
+            # auto: DESKTOP ONLY. Flutter is a GUI/dev toolchain - skip on a
+            # headless server. Force with INSTALL_FLUTTER=true.
             if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] || [ "${ALLOW_SNAP_ON_SERVER:-0}" = "1" ]; then
                 return 0
             fi
-            log_message "No desktop environment: skipping Flutter snap (avoids core20/24/snapd). Set INSTALL_FLUTTER=true or ALLOW_SNAP_ON_SERVER=1 to force."
+            log_message "No desktop environment: skipping Flutter. Set INSTALL_FLUTTER=true to force."
             return 1
             ;;
     esac
@@ -76,61 +75,123 @@ configure_flutter_mirrors() {
         # Common mirrors suitable for China
         set_env_and_var "PUB_HOSTED_URL" "https://pub.flutter-io.cn"
         set_env_and_var "FLUTTER_STORAGE_BASE_URL" "https://storage.flutter-io.cn"
+        # Release tarball mirror
+        FLUTTER_URL="https://storage.flutter-io.cn/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
         log_message "Configured Flutter/Dart mirrors for region: China"
     fi
 }
 
-# Ensure /snap/bin is available and flutter is on PATH
-ensure_path_and_symlink() {
-    $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
-    if [ -x "/snap/bin/flutter" ]; then
-        $USE_SUDO ln -sf "/snap/bin/flutter" "/usr/local/bin/flutter" 2>/dev/null || true
+# Install one prerequisite only when the apt index offers it (idempotent).
+install_flutter_dependency() {
+    local dep="$1"
+    if ! apt-cache policy "$dep" 2>/dev/null | grep -qE 'Candidate: [^(]'; then
+        log_message "Skipping unavailable prerequisite (no apt candidate): $dep"
+        return 0
     fi
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install -y "$dep" 2>&1 | tail -1 | tee -a "$LOG_FILE" || true
 }
 
-# Install Flutter using snap
-install_flutter_snap() {
-    log_message "Installing Flutter via snap..."
+# Official prerequisites from docs.flutter.dev/get-started/install/linux
+install_flutter_dependencies() {
+    local dep=""
+    local flutter_deps=(bash curl file git unzip which xz-utils zip libglu1-mesa)
+    for dep in "${flutter_deps[@]}"; do
+        install_flutter_dependency "$dep"
+    done
+}
 
-    if ! command_exists snap; then
-        log_message "snapd not found. Installing snapd..."
-        if ! timeout 300 $USE_SUDO apt update; then
-            log_message "Warning: apt update failed or timed out"
-        fi
-        if ! timeout 600 $USE_SUDO apt install -y snapd; then
-            log_message "Failed to install snapd"
+# Register the SDK with git so any user (root or regular) can run the
+# git-based flutter tool without "detected dubious ownership" errors.
+ensure_flutter_git_safe_directory() {
+    local flutter_sdk_dir="$1"
+    if ! command_exists git; then
+        return 0
+    fi
+    if git config --system --get-all safe.directory 2>/dev/null | grep -qFx "$flutter_sdk_dir"; then
+        return 0
+    fi
+    $USE_SUDO git config --system --add safe.directory "$flutter_sdk_dir"
+    log_message "Registered git safe.directory: $flutter_sdk_dir"
+}
+
+# Install Flutter from the official release tarball
+# (docs.flutter.dev/get-started/install/linux -- the snap package is NOT the
+# recommended method and its per-user first-run SDK bootstrap breaks when the
+# installer runs as root: the SDK lands in /root/snap and regular users can
+# never use it. The tarball installs one shared SDK linked into /usr/local/bin).
+install_flutter_tarball() {
+    local flutter_sdk_dir="$FLUTTER_INSTALL_DIR/flutter"
+    local flutter_bin="$flutter_sdk_dir/bin/flutter"
+    local dart_bin="$flutter_sdk_dir/bin/dart"
+    local archive_path="/var/tmp/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+    local real_user=""
+
+    log_message "Installing Flutter via official tarball: $FLUTTER_URL"
+
+    install_flutter_dependencies
+
+    if [ -x "$flutter_bin" ]; then
+        log_message "Flutter SDK already present at $flutter_sdk_dir, skipping download"
+    else
+        log_message "Downloading Flutter SDK to: $archive_path"
+        # -c resumes a partial download on the next idempotent run
+        if ! wget -c -O "$archive_path" "$FLUTTER_URL"; then
+            log_message "Failed to download Flutter SDK"
             return 1
         fi
-        $USE_SUDO systemctl enable --now snapd.socket || true
-        $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
+
+        $USE_SUDO mkdir -p "$FLUTTER_INSTALL_DIR"
+        # Idempotency: clear any partial prior extraction
+        $USE_SUDO rm -rf "$flutter_sdk_dir"
+        log_message "Extracting Flutter SDK to: $FLUTTER_INSTALL_DIR"
+        if ! $USE_SUDO tar -xJf "$archive_path" -C "$FLUTTER_INSTALL_DIR"; then
+            log_message "Failed to extract Flutter SDK"
+            return 1
+        fi
+        rm -f "$archive_path"
     fi
 
-    if command_exists snap && snap list 2>/dev/null | grep -q "^flutter\b"; then
-        log_message "Flutter snap already installed; ensuring PATH/symlink only"
-        ensure_path_and_symlink
-        return 0
-    fi
-
-    if $USE_SUDO snap install flutter --classic; then
-        log_message "Flutter installed via snap"
-        ensure_path_and_symlink
-        return 0
-    else
-        log_message "Failed to install Flutter via snap"
+    if [ ! -x "$flutter_bin" ]; then
+        log_message "Flutter binary not found after extraction: $flutter_bin"
         return 1
     fi
+
+    # The flutter tool writes into its own SDK directory (bin/cache, version
+    # stamps), so the SDK must be owned by the real desktop user -- a
+    # root-owned SDK is exactly what makes flutter unusable for normal users.
+    real_user="$(get_real_user_from_common_functions)"
+    log_message "Setting Flutter SDK ownership to $real_user"
+    $USE_SUDO chown -R "$real_user:$real_user" "$FLUTTER_INSTALL_DIR"
+    $USE_SUDO chmod -R u+rwX,go+rX "$FLUTTER_INSTALL_DIR"
+
+    # Link the SDK bin tools into /usr/local/bin (shared PATH entry)
+    $USE_SUDO ln -sf "$flutter_bin" /usr/local/bin/flutter
+    $USE_SUDO ln -sf "$dart_bin" /usr/local/bin/dart
+    log_message "Linked /usr/local/bin/flutter -> $flutter_bin"
+    log_message "Linked /usr/local/bin/dart -> $dart_bin"
+
+    ensure_flutter_git_safe_directory "$flutter_sdk_dir"
+    return 0
 }
 
-# Verify installation
+# Verify installation. Runs flutter as the REAL user when invoked as root:
+# this both proves regular-user usability and makes the first-run Dart SDK
+# cache bootstrap happen with user ownership instead of root.
 verify_flutter() {
-    if command_exists flutter; then
-        flutter --version 2>/dev/null | head -1 | tee -a "$LOG_FILE" || true
-        return 0
+    local real_user=""
+    if ! command_exists flutter; then
+        return 1
     fi
-    return 1
+    real_user="$(get_real_user_from_common_functions)"
+    if [ "$(id -u)" -eq 0 ] && [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
+        su - "$real_user" -c "flutter --version" 2>&1 | grep -E "Flutter [0-9]" | head -1 | tee -a "$LOG_FILE" || true
+    else
+        flutter --version 2>/dev/null | head -1 | tee -a "$LOG_FILE" || true
+    fi
+    return 0
 }
 
-# Remove Flutter installation (snap-based)
+# Remove Flutter installation (tarball and legacy snap)
 remove_flutter() {
     log_message "Removing Flutter installation..."
     if command_exists snap && snap list 2>/dev/null | grep -q "^flutter\b"; then
@@ -140,7 +201,9 @@ remove_flutter() {
             log_message "Failed to remove flutter snap"
         fi
     fi
-    $USE_SUDO rm -f /usr/local/bin/flutter 2>/dev/null || true
+    $USE_SUDO rm -f /usr/local/bin/flutter /usr/local/bin/dart 2>/dev/null || true
+    $USE_SUDO rm -rf "$FLUTTER_INSTALL_DIR/flutter" 2>/dev/null || true
+    log_message "Removed Flutter SDK from $FLUTTER_INSTALL_DIR"
 }
 
 # Main
@@ -168,7 +231,7 @@ main() {
         exit 0
     fi
 
-    if install_flutter_snap; then
+    if install_flutter_tarball; then
         log_message "Flutter installation successful"
         # Optional: basic verification
         if verify_flutter; then

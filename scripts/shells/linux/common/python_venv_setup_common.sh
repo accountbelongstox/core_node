@@ -11,30 +11,128 @@
 # scripts that hardcode #!/usr/bin/python3 keep working). Idempotent. This is the
 # SINGLE source of truth for the python/pip symlinks (it replaces the three
 # previously contradictory symlink behaviors). Returns 1 if the venv is absent.
-# Write a wrapper script that execs the venv interpreter by its REAL path.
+# Self-heal for the dpkg-managed system interpreter. If a previous run (or any
+# external tool) overwrote /usr/bin/python3.x -- e.g. a wrapper script written
+# THROUGH a symlink chain (link -> venv/bin/python3 -> /usr/bin/python3.x) --
+# every python3 call hangs in an infinite exec loop. dpkg keeps the original
+# md5 of every packaged file, so `dpkg -V` is the authoritative integrity
+# signal; a mismatch on the resolved interpreter path triggers a repair.
+#
+# The repair deliberately avoids `apt-get install --reinstall` / `dpkg -i`:
+# apt hooks (apt-listchanges) and some maintainer scripts invoke python3
+# themselves, which would hang on the very interpreter being repaired (a
+# deadlock). Instead the .deb is fetched with `apt-get download` (pure fetcher:
+# no locks, no hooks) or taken from the apt cache, and the packaged binary is
+# extracted straight over the corrupted file with dpkg-deb (C tool, no python).
+# Detection and repair use only dpkg/apt/readlink (no python), so this works
+# even while the interpreter itself is broken. Healthy system: no-op.
+heal_system_python_interpreter() {
+    local sys_py3="/usr/bin/python3"
+    local resolved=""
+    local pkg=""
+    local deb_file=""
+    local tmp_dir=""
+    local rel_path=""
+    local extracted_file=""
+
+    command -v dpkg >/dev/null 2>&1 || return 0
+    command -v dpkg-deb >/dev/null 2>&1 || return 0
+    [ -e "$sys_py3" ] || return 0
+    resolved="$(readlink -f "$sys_py3" 2>/dev/null || echo "")"
+    { [ -n "$resolved" ] && [ -f "$resolved" ]; } || return 0
+
+    pkg="$(dpkg -S "$resolved" 2>/dev/null | head -n 1 | cut -d: -f1)"
+    [ -n "$pkg" ] || return 0
+
+    if ! dpkg -V "$pkg" 2>/dev/null | grep -qF "$resolved"; then
+        return 0
+    fi
+
+    print_warning_from_common_functions "System interpreter $resolved was modified after package install (dpkg md5 mismatch); restoring the packaged binary from $pkg..."
+
+    # Locate the .deb: apt cache first (offline-friendly), else download only.
+    deb_file="$(ls /var/cache/apt/archives/${pkg}_*.deb 2>/dev/null | head -n 1)"
+    if [ -z "$deb_file" ]; then
+        command -v apt-get >/dev/null 2>&1 || return 1
+        tmp_dir="$(mktemp -d)" || return 1
+        # _apt (the apt sandbox user) must be able to write the download target.
+        chmod 755 "$tmp_dir"
+        echo "[13] (cd $tmp_dir) apt-get download $pkg"
+        (cd "$tmp_dir" && apt-get download "$pkg" >/dev/null 2>&1)
+        deb_file="$(ls "$tmp_dir"/${pkg}_*.deb 2>/dev/null | head -n 1)"
+    else
+        tmp_dir="$(mktemp -d)" || return 1
+    fi
+
+    rel_path="${resolved#/}"
+    if [ -n "$deb_file" ]; then
+        echo "[13] dpkg-deb -x $deb_file $tmp_dir/extract"
+        dpkg-deb -x "$deb_file" "$tmp_dir/extract" 2>/dev/null
+        extracted_file="$tmp_dir/extract/$rel_path"
+        if [ -f "$extracted_file" ]; then
+            # install(1) unlinks the destination before writing, so a stale
+            # symlink at $resolved can never redirect the write.
+            echo "[13] $USE_SUDO install -m 755 $extracted_file $resolved"
+            $USE_SUDO install -m 755 "$extracted_file" "$resolved"
+        fi
+    fi
+    [ -n "$tmp_dir" ] && rm -rf "$tmp_dir"
+
+    if dpkg -V "$pkg" 2>/dev/null | grep -qF "$resolved"; then
+        print_error_from_common_functions "Failed to restore system interpreter: $resolved"
+        return 1
+    fi
+    if ! timeout 15 "$sys_py3" -c 'import sys' >/dev/null 2>&1; then
+        print_error_from_common_functions "System interpreter restored on disk but still not runnable: $resolved"
+        return 1
+    fi
+    print_success_from_common_functions "System interpreter restored: $resolved"
+    return 0
+}
+
+# Write a wrapper script that execs the given interpreter by its REAL path.
 # A bare symlink (/usr/local/bin/python3 -> venv/bin/python3) does NOT activate
 # the venv: CPython looks for pyvenv.cfg next to the invoked (symlink) path,
 # misses it, and falls back to the system prefix -> "No module named pip" and
 # packages scattering outside the venv. The wrapper makes the interpreter start
 # under its real venv path, so pyvenv.cfg is always found.
+# The wrapper is written to a temp file and mv'd into place: mv -f replaces the
+# destination PATH itself and never follows a symlink chain. Writing through an
+# old link (e.g. tee without rm -f, or a failed rm) would follow
+# link -> venv/bin/python3 -> /usr/bin/python3.x and overwrite the real
+# dpkg-managed system interpreter with the wrapper, creating an infinite exec
+# loop (venv/bin/python3 -> wrapper -> venv/bin/python3).
 write_venv_python_wrapper() {
     local link="$1"
-    # rm -f FIRST, always: tee FOLLOWS symlinks, and the old link points into the
-    # venv (whose bin/python3 itself links to /usr/bin/python3.x) - writing
-    # through the chain would overwrite the real system interpreter with the
-    # wrapper and create an infinite exec loop.
-    $USE_SUDO rm -f "$link"
-    echo "[13] $USE_SUDO write wrapper $link -> $VENV_PYTHON3"
+    local target="${2:-$VENV_PYTHON3}"
+    local tmp=""
+    tmp="$(mktemp "${TMPDIR:-/tmp}/venv_python_wrapper.XXXXXX")" || return 1
     printf '#!/bin/sh\n# venv activation wrapper (symlinks break pyvenv.cfg detection)\nexec "%s" "$@"\n' \
-        "$VENV_PYTHON3" | $USE_SUDO tee "$link" >/dev/null
-    $USE_SUDO chmod 755 "$link"
+        "$target" > "$tmp"
+    chmod 755 "$tmp"
+    echo "[13] $USE_SUDO write wrapper $link -> $target"
+    $USE_SUDO mv -f "$tmp" "$link"
 }
 
 link_commands_to_venv() {
     [ -x "$VENV_PYTHON3" ] || return 1
     local sys_python3="/usr/bin/python3"
     local venv_pyver link
-    venv_pyver="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
+
+    # Functional guard: a venv interpreter that cannot even start (for example
+    # an exec loop caused by a corrupted system interpreter) must never be
+    # linked onto PATH; heal the dpkg-managed system interpreter first, and
+    # refuse to link if the interpreter is still broken afterwards.
+    if ! timeout 15 "$VENV_PYTHON3" -c 'import sys' >/dev/null 2>&1; then
+        print_warning_from_common_functions "Venv interpreter not runnable: $VENV_PYTHON3 (possible exec loop); healing system interpreter..."
+        heal_system_python_interpreter
+    fi
+    if ! timeout 15 "$VENV_PYTHON3" -c 'import sys' >/dev/null 2>&1; then
+        print_error_from_common_functions "Venv interpreter still not runnable after heal: $VENV_PYTHON3; skipping relink"
+        return 1
+    fi
+
+    venv_pyver="$(timeout 15 "$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
 
     # Preserve the original system interpreter as 'pythonorigin' -- capture ONCE (only when
     # absent) so a later run never overwrites the true original with a drifted target.
@@ -181,24 +279,26 @@ check_venv_needs_rebuild() {
         return 0
     fi
 
-    # Check if venv python can import tkinter and tkinter.ttk (test system packages)
+    # Check if venv python can import tkinter and tkinter.ttk (test system packages).
+    # timeout guards every probe: a broken interpreter must fail the check, not
+    # hang the whole script.
     if [ -f "$venv_dir/bin/python3" ]; then
         # Test basic tkinter
-        if ! "$venv_dir/bin/python3" -c "import tkinter" 2>/dev/null; then
+        if ! timeout 15 "$venv_dir/bin/python3" -c "import tkinter" 2>/dev/null; then
             print_warning_from_common_functions "venv python cannot import tkinter, rebuild needed"
             echo "true"
             return 0
         fi
 
         # Test tkinter.ttk (common issue with incomplete tkinter installation)
-        if ! "$venv_dir/bin/python3" -c "import tkinter.ttk" 2>/dev/null; then
+        if ! timeout 15 "$venv_dir/bin/python3" -c "import tkinter.ttk" 2>/dev/null; then
             print_warning_from_common_functions "venv python cannot import tkinter.ttk, rebuild needed"
             echo "true"
             return 0
         fi
 
         # Test _tkinter (underlying C module)
-        if ! "$venv_dir/bin/python3" -c "import _tkinter" 2>/dev/null; then
+        if ! timeout 15 "$venv_dir/bin/python3" -c "import _tkinter" 2>/dev/null; then
             print_warning_from_common_functions "venv python cannot import _tkinter (C module), rebuild needed"
             echo "true"
             return 0
@@ -304,8 +404,8 @@ create_python_venv_and_replace_system() {
         # Ensure python3-venv is installed (real-time output)
         if ! "$sys_py" -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
-            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl --no-install-recommends"
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl --no-install-recommends
+            echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl --no-install-recommends"
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl --no-install-recommends
         fi
 
         # Create the virtual environment WITH system-site-packages (real-time output)
@@ -371,7 +471,7 @@ create_python_venv_and_replace_system() {
     link_commands_to_venv
 
     local venv_pyver_disp
-    venv_pyver_disp="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
+    venv_pyver_disp="$(timeout 15 "$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
 
     print_success_from_common_functions "Python venv setup and system command replacement complete!"
     print_info_from_common_functions "Virtual environment: $VENV_DIR"
@@ -435,14 +535,14 @@ setup_production_python_venv() {
         print_step_from_common_functions "Ensuring python3-venv and pip are installed..."
         if ! python3 -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
-            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl python3-setuptools python3-wheel --no-install-recommends"
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl python3-setuptools python3-wheel --no-install-recommends
+            echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl python3-setuptools python3-wheel --no-install-recommends"
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl python3-setuptools python3-wheel --no-install-recommends
         fi
 
         if ! python3 -m pip --version >/dev/null 2>&1; then
             print_warning_from_common_functions "pip module not available, installing..."
-            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends"
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends
+            echo "[13] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends"
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip python3-setuptools --no-install-recommends
         fi
 
         print_step_from_common_functions "Creating venv with system Python3: $system_python3_path"
@@ -552,15 +652,10 @@ setup_production_python_venv() {
 
     print_step_from_common_functions "Setting up global wrappers to venv Python..."
 
-    # WRAPPERS, not symlinks: a bare symlink into the venv does not activate it
-    # (CPython misses pyvenv.cfg next to the invoked symlink path), so exec the
-    # interpreter by its real path. rm -f BEFORE writing: tee follows symlinks,
-    # and the old link may chain into the venv/system interpreter.
+    # Shared hardened helper: temp file + mv -f, never writes through a symlink
+    # chain (see write_venv_python_wrapper).
     for link in /usr/local/bin/python3 /usr/local/bin/python; do
-        $USE_SUDO rm -f "$link"
-        printf '#!/bin/sh\n# venv activation wrapper (symlinks break pyvenv.cfg detection)\nexec "%s" "$@"\n' \
-            "$venv_python3" | $USE_SUDO tee "$link" >/dev/null
-        $USE_SUDO chmod 755 "$link"
+        write_venv_python_wrapper "$link" "$venv_python3"
         print_success_from_common_functions "Created wrapper: $link -> $venv_python3"
     done
 

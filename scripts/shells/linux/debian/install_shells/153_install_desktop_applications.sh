@@ -81,6 +81,38 @@ source "$DESKTOP_APPLICATION_INSTALLER"
 source "$DESKTOP_APPLICATION_REPORTING"
 
 
+# Essential packages required by several installers in this script. Some (e.g.
+# software-properties-common) do not exist on newer Debian releases, so the
+# list is filtered by availability before calling apt -- one unavailable name
+# would otherwise fail the whole apt transaction.
+ESSENTIAL_SYSTEM_PACKAGES=(curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release)
+
+install_essential_packages() {
+    local pkg=""
+    local installable=()
+
+    log_message "Installing essential system packages with timeout..."
+    for pkg in "${ESSENTIAL_SYSTEM_PACKAGES[@]}"; do
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
+            installable+=("$pkg")
+        else
+            log_message "Skipping unavailable essential package: $pkg"
+        fi
+    done
+
+    if [ ${#installable[@]} -eq 0 ]; then
+        log_message "No essential packages available to install"
+        return 0
+    fi
+
+    if timeout 600 $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "${installable[@]}"; then
+        log_message "Essential packages installed successfully"
+    else
+        log_message "Warning: Some essential packages failed to install, continuing anyway"
+    fi
+}
+
+
 # Function to install applications by package group
 install_applications_by_package_group() {
     local package_group="$1"
@@ -471,8 +503,7 @@ handle_exact_app() {
     log_message "Updating package lists with timeout..."
     timeout 300 $USE_SUDO apt update 2>/dev/null || true
 
-    log_message "Installing essential system packages with timeout..."
-    timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release 2>/dev/null || true
+    install_essential_packages
 
     if install_application "$app_key" "$app_group"; then
         log_message "Installation completed for: $app_key"
@@ -569,12 +600,7 @@ main() {
         fi
 
         # Install essential packages first
-        log_message "Installing essential system packages with timeout..."
-        if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
-            log_message "Essential packages installed successfully"
-        else
-            log_message "Warning: Some essential packages failed to install, continuing anyway"
-        fi
+        install_essential_packages
 
         log_message ""
         log_message "Installing $target_group package group..."
@@ -603,12 +629,7 @@ main() {
     fi
 
     # Install essential packages first
-    log_message "Installing essential system packages with timeout..."
-    if timeout 600 $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget software-properties-common apt-transport-https ca-certificates gnupg lsb-release; then
-        log_message "Essential packages installed successfully"
-    else
-        log_message "Warning: Some essential packages failed to install, continuing anyway"
-    fi
+    install_essential_packages
 
     # Determine which package groups to install based on environment type
     log_message "=========================================="
