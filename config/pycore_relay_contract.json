@@ -343,6 +343,60 @@
   "route_policies": [
     {
       "match": "exact",
+      "value": "ui/audio_orch/books/list",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/tasks/list",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/get",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/progress",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/files",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/plan",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/system/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/auth/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/book_sentences",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
       "value": "ui/terminal/windows",
       "profile": "terminal_read",
       "methods": ["POST"]

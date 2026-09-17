@@ -249,7 +249,7 @@ def books_list(refresh: bool = False) -> Dict[str, Any]:
     result = orch_books.fetch_books(refresh=bool(refresh))
     result["cached_sentence_books"] = orch_store.cached_book_keys()
     # Per-book sentence sync states so the UI can stop polling on failure too.
-    result["sync_states"] = orch_store.load_sync_state()
+    result["sync_states"] = orch_books.sync_states()
     return result
 
 
@@ -285,7 +285,8 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
     return steps
 
 
-def _task_summary(task: Dict[str, Any], pending_ids=None) -> Dict[str, Any]:
+def _task_summary(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
+    _recover_task_status(task)
     segments = task.get("segments") or []
     return {
         "task_id": task.get("task_id"),
@@ -299,7 +300,7 @@ def _task_summary(task: Dict[str, Any], pending_ids=None) -> Dict[str, Any]:
         "running": orch_generate.is_running(str(task.get("task_id") or "")),
         "segments_done": sum(1 for s in segments if s.get("status") == "done"),
         "segments_total": len(segments),
-        "progress": _task_progress(task, pending_ids),
+        "progress": _task_progress(task, pending_counts),
         "created_at": task.get("created_at"),
         "updated_at": task.get("updated_at"),
     }
@@ -307,10 +308,10 @@ def _task_summary(task: Dict[str, Any], pending_ids=None) -> Dict[str, Any]:
 
 def tasks_list() -> Dict[str, Any]:
     orch_resources.recover_deliveries()
-    pending_ids = orch_resources.pending_delivery_ids()
+    pending_counts = orch_resources.pending_delivery_counts()
     return {
         "success": True,
-        "tasks": [_task_summary(task, pending_ids) for task in orch_store.list_tasks()],
+        "tasks": [_task_summary(task, pending_counts) for task in orch_store.list_tasks()],
     }
 
 
@@ -318,6 +319,7 @@ def task_get(task_id: str) -> Dict[str, Any]:
     task = orch_store.get_task(str(task_id or ""))
     if not task:
         return {"success": False, "error": "task not found"}
+    _recover_task_status(task)
     result = dict(task)
     result["progress"] = _task_progress(task)
     result["running"] = orch_generate.is_running(str(task.get("task_id") or ""))
@@ -325,14 +327,23 @@ def task_get(task_id: str) -> Dict[str, Any]:
     return result
 
 
-def _task_progress(task: Dict[str, Any], pending_ids=None) -> Dict[str, Any]:
+def _recover_task_status(task: Dict[str, Any]) -> None:
+    if task.get("status") == "generating" and not orch_generate.is_running(str(task.get("task_id") or "")):
+        task["status"] = "failed"
+        task["progress"] = {**(task.get("progress") or {}), "message": "generation interrupted; regenerate to resume from cached audio"}
+        orch_store.append_task_event(task, "generation interrupted; local audio caches and pending deliveries retained")
+        orch_store.save_task(task)
+
+
+def _task_progress(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
     progress = dict(task.get("progress") or {})
-    delivery_ids = set(task.get("delivery_ids") or [])
-    if delivery_ids:
-        if pending_ids is None:
-            pending_ids = orch_resources.pending_delivery_ids()
-        progress["synced"] = int(progress.get("synced") or 0) + len(delivery_ids - pending_ids)
-        progress["sync_pending"] = len(delivery_ids & pending_ids)
+    generation_id = str(task.get("generation_id") or "")
+    if generation_id:
+        if pending_counts is None:
+            pending_counts = orch_resources.pending_delivery_counts()
+        pending = pending_counts.get(generation_id, 0)
+        progress["synced"] = int(progress.get("synced") or 0) + max(0, int(progress.get("sync_queued") or 0) - pending)
+        progress["sync_pending"] = pending
     return progress
 
 
@@ -419,7 +430,7 @@ def task_plan(task_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "task not found"}
     source_key = str((task.get("book") or {}).get("source_key") or "")
     cached = orch_store.load_book_sentences(source_key)
-    sync = orch_store.load_sync_state().get(source_key) or {}
+    sync = orch_books.sync_states().get(source_key) or {}
     if sync.get("status") == "running":
         return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
     sentences = cached.get("sentences") if isinstance(cached, dict) else None
@@ -450,6 +461,7 @@ def task_progress(task_id: str) -> Dict[str, Any]:
     task = orch_store.get_task(str(task_id or ""))
     if not task:
         return {"success": False, "error": "task not found"}
+    _recover_task_status(task)
     return {
         "success": True,
         "status": task.get("status"),

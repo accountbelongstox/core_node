@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.background_jobs import BackgroundJobs
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pycore.pyctl.audio_orchestration import orch_store
 
@@ -42,6 +42,18 @@ _SENTENCE_GAP_SECONDS = 1.0
 
 def _job_running(key: str) -> bool:
     return _sync_jobs.running(key)
+
+
+def sync_states() -> Dict[str, Any]:
+    states = orch_store.load_sync_state()
+    for key, state in states.items():
+        if state.get("status") == "running" and not _job_running(key):
+            current = orch_store.load_sync_state().get(key) or {}
+            states[key] = current
+            if current.get("status") == "running":
+                states[key] = {**current, "status": "failed", "error": "book_sync_interrupted"}
+                orch_store.save_sync_state(key, states[key])
+    return states
 
 
 def _start_job(key: str, target) -> None:
@@ -362,6 +374,7 @@ def partition_sentences(
 
 __all__ = [
     "fetch_books",
+    "sync_states",
     "sync_book_sentences",
     "ensure_book_sentences",
     "estimate_sentence_seconds",

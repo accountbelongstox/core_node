@@ -255,6 +255,7 @@ const VocabAudioOrchTab: React.FC = () => {
           book={selectedBook}
           books={books}
           task={editorTask}
+          onSyncStarted={(key) => setPendingSyncs((prev) => new Set(prev).add(key))}
           onSaved={(taskId) => { setSelectedTaskId(taskId); void loadTasks(); }}
           onClose={() => { setEditorOpen(false); setEditorTask(null); void loadTasks(); }}
         />

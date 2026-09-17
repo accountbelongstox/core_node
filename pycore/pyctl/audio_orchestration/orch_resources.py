@@ -195,7 +195,13 @@ def resolve_batch(
             return results
         if activity_callback is not None:
             activity_callback(group[0], {"stage": f"scanning local word audio cache ({language})"})
-        hits = word_audio_cache.find_cached_many([entry["text"] for entry in group], language)
+        hits = word_audio_cache.find_cached_many(
+            [entry["text"] for entry in group], language,
+            cancel_requested=cancel_requested,
+            scan_callback=(lambda count: activity_callback(
+                group[0], {"stage": f"scanning local word audio cache ({language}): {count} files"},
+            )) if activity_callback is not None else None,
+        )
         for resource in group:
             if cancel_requested is not None and cancel_requested():
                 return results
@@ -286,8 +292,9 @@ def synchronize_audio(resource: Dict[str, Any], base_url: Optional[str], progres
     digest = hashlib.sha256(audio_path.read_bytes()).hexdigest()
     endpoint_key = hashlib.sha256(str(base_url or "").encode("utf-8")).hexdigest()[:16]
     record = audio_delivery_outbox.stage_audio({
-        "lane": DELIVERY_LANE, "task_id": f"{endpoint_key}:{resource['resource_id']}:{digest}",
+        "lane": DELIVERY_LANE, "task_id": f"{endpoint_key}:{resource.get('generation_id') or ''}:{resource['resource_id']}:{digest}",
         "attempt": 0, "resource": dict(resource), "base_url": base_url,
+        "generation_id": resource.get("generation_id"),
     }, str(audio_path), get_app_cache_dir())
     recover_deliveries()
     return {"success": True, "queued": True, "delivery_id": record["delivery_id"]}
@@ -304,5 +311,5 @@ def recover_deliveries() -> None:
     _delivery_jobs.start("recovery", _recover_deliveries)
 
 
-def pending_delivery_ids() -> set[str]:
-    return audio_delivery_outbox.pending_ids(DELIVERY_LANE)
+def pending_delivery_counts() -> Dict[str, int]:
+    return audio_delivery_outbox.pending_counts(DELIVERY_LANE, "generation_id")

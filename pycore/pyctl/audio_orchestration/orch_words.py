@@ -25,7 +25,7 @@ from pycore.pyctl.audio_orchestration import orch_store
 _LARAVEL_SENTENCE_WORDS = "/api/app_qy_v1/learning/sentence-words"
 _CLIENT_KEY = "audio_orchestration"
 _REQUEST_TIMEOUT = 60
-_WORD_RE = re.compile(r"[A-Za-z][A-Za-z'\-]*")
+_WORD_RE = re.compile(r"[^\W\d_]+(?:['\u2019][^\W\d_]+)*", re.UNICODE)
 _WORD_STATE_BATCH_SIZE = 300
 
 
@@ -67,7 +67,7 @@ def tokenize(sentence: str) -> List[str]:
     words: List[str] = []
     for match in _WORD_RE.finditer(str(sentence or "")):
         word = match.group(0).strip("'-").lower()
-        if len(word) < 2 or word in seen:
+        if not word or word in seen:
             continue
         seen.add(word)
         words.append(word)
@@ -148,22 +148,23 @@ def select_words(
     """
     word_mode = word_mode or str(task.get("word_mode") or "all")
     max_read_count = int(task.get("new_only_max_read_count") or 0)
-    virtual_read = set(str(w).lower() for w in (task.get("virtual_read") or []))
     # Virtual-read dedup applies to new_only only: "all" repeats words whenever
     # they occur in a sentence and never consumes the virtual set.
     apply_virtual = word_mode == "new_only"
+    virtual_read = (auth_record or {}).get("virtual_read") if apply_virtual else set()
+    if not isinstance(virtual_read, set):
+        virtual_read = set(str(w).lower() for w in (task.get("virtual_read") or []))
+        if auth_record is not None:
+            auth_record["virtual_read"] = virtual_read
 
     prepared = auth_record is not None and "word_states" in auth_record
     states = (auth_record or {}).get("word_states")
-    rows = (
-        [states.get(word, {"word": word, "group_read_count": 0}) for word in tokenize(sentence)]
-        if use_backend and word_mode == "new_only" and prepared and isinstance(states, dict)
-        else None if prepared else (
-        resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record, task.get("word_group_id"))
-        if use_backend and word_mode == "new_only"
-        else None
-        )
-    )
+    rows = None
+    if use_backend and word_mode == "new_only":
+        if prepared and isinstance(states, dict):
+            rows = [states.get(word, {"word": word, "group_read_count": 0}) for word in tokenize(sentence)]
+        elif not prepared:
+            rows = resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record, task.get("word_group_id"))
     if rows is not None:
         words: List[str] = []
         seen = set()
@@ -178,18 +179,18 @@ def select_words(
             words.append(word)
             seen.add(word)
         if consume and apply_virtual and words:
-            existing = list(task.get("virtual_read") or [])
+            existing = task.setdefault("virtual_read", [])
             existing.extend(w for w in words if w not in virtual_read)
-            task["virtual_read"] = existing
+            virtual_read.update(words)
         return {"words": words, "source": "backend"}
 
     # Logged out or backend unreachable: local fallback. new_only degrades to
     # "not yet read inside this task" (the virtual set still applies).
     words = [w for w in tokenize(sentence) if not apply_virtual or w not in virtual_read]
     if consume and apply_virtual and words:
-        existing = list(task.get("virtual_read") or [])
+        existing = task.setdefault("virtual_read", [])
         existing.extend(w for w in words if w not in virtual_read)
-        task["virtual_read"] = existing
+        virtual_read.update(words)
     return {"words": words, "source": "local"}
 
 

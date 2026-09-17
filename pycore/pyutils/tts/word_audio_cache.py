@@ -39,46 +39,53 @@ def find_cached(word: str, language: str) -> Path | None:
     return candidates[0].resolve() if candidates else None
 
 
-def find_cached_many(words, language: str) -> dict:
-    """Batch cache lookup: ONE directory scan per language instead of one glob
-    per word. Returns {word(lower, stripped): Path} for every requested word
-    that has any provider's audio cached (newest file wins)."""
+def find_cached_many(words, language: str, scan_callback=None, cancel_requested=None) -> dict:
     safe_lang = "".join(c if c.isalnum() else "_" for c in language)
     directory = Path(_get_cache_dir()) / safe_lang
     wanted = {}
+    newest = {}
+    scanned = 0
     for word in words:
         key = str(word or "").strip().lower()
-        if key and key not in wanted:
-            wanted[key] = "".join(c if c.isalnum() else "_" for c in key)
+        if key:
+            safe_word = "".join(c if c.isalnum() else "_" for c in key)
+            wanted.setdefault(safe_word, []).append(key)
     if not wanted or not directory.is_dir():
         return {}
-    # Index every cached file under ALL its word-prefixes (a sanitized word may
-    # itself contain "_", so the provider suffix split is ambiguous — match by
-    # prefix instead). Newest file first so the first prefix claim wins.
-    def _mtime(path: Path) -> int:
-        try:
-            return path.stat().st_mtime_ns
-        except OSError:
-            return 0
-
-    files = sorted(
-        (path for path in directory.glob("*.mp3") if path.is_file() and path.stat().st_size > 0),
-        key=_mtime,
-        reverse=True,
-    )
-    prefix_map = {}
-    for path in files:
-        parts = path.stem.split("_")
-        for count in range(1, len(parts)):
-            prefix = "_".join(parts[:count])
-            if prefix not in prefix_map:
-                prefix_map[prefix] = path
-    result = {}
-    for key, safe in wanted.items():
-        path = prefix_map.get(safe)
-        if path is not None:
-            result[key] = path.resolve()
-    return result
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            scanned += 1
+            if scanned % 512 == 0:
+                if cancel_requested is not None and cancel_requested():
+                    break
+                if scan_callback is not None:
+                    scan_callback(scanned)
+            if not entry.name.endswith(".mp3") or not entry.is_file():
+                continue
+            stem = entry.name[:-4]
+            prefixes = []
+            for index, char in enumerate(stem):
+                if char == "_" and stem[:index] in wanted:
+                    prefixes.append(stem[:index])
+            if not prefixes:
+                continue
+            try:
+                metadata = entry.stat()
+            except OSError:
+                continue
+            if metadata.st_size <= 0:
+                continue
+            for prefix in prefixes:
+                previous = newest.get(prefix)
+                if previous is None or metadata.st_mtime_ns > previous[0]:
+                    newest[prefix] = (metadata.st_mtime_ns, Path(entry.path))
+    if scan_callback is not None:
+        scan_callback(scanned)
+    return {
+        key: newest[safe][1]
+        for safe, keys in wanted.items() if safe in newest
+        for key in keys
+    }
 
 
 def store_bytes(word: str, language: str, provider: str, content: bytes) -> Path:
