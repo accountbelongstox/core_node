@@ -291,24 +291,23 @@ else
             echo "[ERROR] node is required to install Chrome MCP."
             exit 1
         fi
-        if { [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; } &&
-            ! command -v pnpm >/dev/null 2>&1; then
-            echo "[ERROR] pnpm is required to install Chrome MCP."
+        if ! command -v bun >/dev/null 2>&1; then
+            echo "[ERROR] bun is required to install Chrome MCP."
             exit 1
         fi
         echo "[INFO] Ensuring Chrome MCP is installed..."
-        if [ ! -d "$mcp_chrome_node_modules_path" ]; then
+        if [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; then
             echo "[INFO] Installing Chrome MCP dependencies..."
             (
                 cd "$mcp_chrome_path"
-                pnpm install
+                bun install
             )
         fi
         if [ "$mcp_chrome_needs_build" -eq 1 ]; then
             echo "[INFO] Building missing Chrome MCP artifacts..."
             (
                 cd "$mcp_chrome_path"
-                pnpm run build:all
+                bun run build:all
             )
         fi
         (

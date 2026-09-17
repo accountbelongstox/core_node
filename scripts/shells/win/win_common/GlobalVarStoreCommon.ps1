@@ -104,7 +104,7 @@ function Get-GlobalVar {
     if (Test-Path $filePath) {
         $value = Get-Content $filePath -Raw
         if (-not [string]::IsNullOrWhiteSpace($value)) {
-            return $value
+            return $value.Trim()
         }
     }
     return $defaultValue

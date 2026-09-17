@@ -387,6 +387,13 @@ scan_and_replace_desktop_entries() {
         # Check current Exec= line to prevent recursion
         local current_exec=$(grep "^Exec=" "$desktop_file" 2>/dev/null | sed 's/^Exec=//')
 
+        # Skip hidden entries (the package URL handler, our Hidden=true shadow
+        # overrides): they render no icon, so rewriting them is pointless.
+        if grep -qE '^(NoDisplay|Hidden)=true' "$desktop_file" 2>/dev/null; then
+            log "  Hidden entry, skipping"
+            continue
+        fi
+
         # Skip if already pointing to the target
         if [[ "$current_exec" == "$target_exec"* ]]; then
             log "  Already correct, skipping"
