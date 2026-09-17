@@ -182,20 +182,15 @@ def _start_command(engine: str) -> Optional[Tuple]:
     if engine == "fishspeech":
         _sync_server_script(staging, "fishspeech_api_server.py")
         _sync_server_script(staging, "tts_text_chunking.py")
-        script = staging / "fishspeech_api_server.py"
-        if not script.is_file():
-            script = staging / "tools" / "api_server.py"
-        if not script.is_file():
-            return None
         venv_python = resolve_isolated_python("fishspeech")
         if not venv_python:
             return None
         adapter = tts_engine_registry.get(engine)
-        port = _parse_port(adapter.base_url() if adapter else "", 8080)
-        extra: Dict[str, str] = {}
+        parsed = urlparse(adapter.base_url() if adapter else "")
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 8080
+        extra: Dict[str, str] = {"FISHSPEECH_HOST": host, "FISHSPEECH_PORT": str(port)}
         for key in (
-            "FISHSPEECH_HOST",
-            "FISHSPEECH_PORT",
             "FISHSPEECH_UPSTREAM",
             "FISHSPEECH_REFERENCE_ID",
             "FISH_API_KEY",
@@ -203,13 +198,28 @@ def _start_command(engine: str) -> Optional[Tuple]:
             value = (os.environ.get(key) or "").strip()
             if value:
                 extra[key] = value
-        if script.name == "fishspeech_api_server.py":
-            return staging, [venv_python, str(script)], _isolated_env(extra)
-        return (
-            staging,
-            [venv_python, str(script), "--listen", f"0.0.0.0:{port}"],
-            _isolated_env(extra),
-        )
+        # Local inference mode: the cloned repo's official api_server plus
+        # downloaded checkpoint weights (fishaudio/openaudio-s1[-mini]).
+        local_server = staging / "tools" / "api_server.py"
+        checkpoint = _fishspeech_checkpoint_dir(staging)
+        if local_server.is_file() and checkpoint is not None:
+            return (
+                staging,
+                [
+                    venv_python,
+                    str(local_server),
+                    "--listen",
+                    f"{host}:{port}",
+                    "--checkpoint-path",
+                    str(checkpoint),
+                ],
+                _isolated_env(extra),
+            )
+        # Bridge mode: our asset proxies to FISHSPEECH_UPSTREAM or the cloud SDK.
+        script = staging / "fishspeech_api_server.py"
+        if not script.is_file():
+            return None
+        return staging, [venv_python, str(script)], _isolated_env(extra)
     if engine == "gptsovits":
         return _gptsovits_start_command(staging)
     if engine == "f5tts":
@@ -225,6 +235,25 @@ def _start_command(engine: str) -> Optional[Tuple]:
     if engine == "voxcpm2":
         return _voxcpm2_start_command(staging)
     return None
+
+
+def _fishspeech_checkpoint_dir(staging: Path) -> Optional[Path]:
+    """Local fish-speech checkpoint directory, when fully downloaded.
+
+    The name comes from FISHSPEECH_CHECKPOINT or the runtime model tier
+    (openaudio-s1 / openaudio-s1-mini); readiness is the official config.json,
+    not directory existence."""
+    name = (os.environ.get("FISHSPEECH_CHECKPOINT") or "").strip()
+    if not name:
+        try:
+            name = str(runtime_engine_model("fishspeech") or "")
+        except Exception:  # noqa: BLE001
+            name = ""
+    name = name.rsplit("/", 1)[-1]
+    if not name:
+        return None
+    candidate = staging / "checkpoints" / name
+    return candidate if (candidate / "config.json").is_file() else None
 
 
 def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:

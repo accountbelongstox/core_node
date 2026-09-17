@@ -68,24 +68,29 @@ def _host_cuda_available() -> bool:
         return False
 
 
-def _torch_stack_target(engine: str) -> Tuple[str, str]:
+def _torch_stack_target(engine: str, spec: Optional[dict] = None) -> Tuple[str, str]:
     """Resolve (device_label, torch wheel index) for one self-contained engine.
 
     Device policy (plan step 08): an explicit <ENGINE>_DEVICE=cpu always wins;
     cuda* selects the configured CUDA wheel tier; auto uses the host CUDA probe
     and falls back to the official CPU index. The CPU index is the official
-    pytorch CPU wheel source, not a stripped dependency set.
+    pytorch CPU wheel source, not a stripped dependency set. An engine may pin
+    its CUDA wheel tag (spec torch_index_tag) when the upstream torch pin has
+    no wheels on the newest configured tier (e.g. fishspeech torch==2.8.0).
     """
+    spec = spec or engine_spec(engine)
+    cuda_tag = str(spec.get("torch_index_tag") or "").strip().lower() or (
+        CUDA_TIERS[0]["tag"] if CUDA_TIERS else "cpu"
+    )
     want = (os.environ.get(f"{engine.upper()}_DEVICE") or "auto").strip().lower() or "auto"
     if want == "cpu":
         return "cpu", TORCH_CPU_INDEX
     if want.startswith("cuda"):
-        tag = CUDA_TIERS[0]["tag"] if CUDA_TIERS else "cpu"
-        if tag == "cpu":
+        if cuda_tag == "cpu":
             return "cpu", TORCH_CPU_INDEX
-        return "cuda", f"{TORCH_INDEX_BASE}/{tag}"
-    if _host_cuda_available() and CUDA_TIERS:
-        return "cuda", f"{TORCH_INDEX_BASE}/{CUDA_TIERS[0]['tag']}"
+        return "cuda", f"{TORCH_INDEX_BASE}/{cuda_tag}"
+    if _host_cuda_available() and cuda_tag != "cpu":
+        return "cuda", f"{TORCH_INDEX_BASE}/{cuda_tag}"
     return "cpu", TORCH_CPU_INDEX
 
 
@@ -105,7 +110,7 @@ def _install_torch_stack(venv_python: str, engine: str, spec: dict) -> bool:
             + ", ".join(packages)
         )
         return True
-    device_label, index_url = _torch_stack_target(engine)
+    device_label, index_url = _torch_stack_target(engine, spec)
     ColorPrint.blue(
         f"[isolated-venv] {engine} torch stack (device={device_label}, "
         f"index={index_url}): " + ", ".join(packages)

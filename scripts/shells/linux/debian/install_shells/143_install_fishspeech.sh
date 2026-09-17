@@ -179,4 +179,21 @@ fi
 echo "[install_fishspeech] [OK] ready ($TARGET_DIR)."
 echo "[install_fishspeech]  Runtime: pycore launches fishspeech_api_server.py (class C) under the isolated venv on demand."
 echo "[install_fishspeech]  SDK: set FISH_API_KEY; local: download $_fish_ckpt checkpoints per https://speech.fish.audio/install/ and set FISHSPEECH_UPSTREAM."
+
+# --- Local inference checkpoints (IDEMPOTENT: sentinel + resumable download) --- #
+# Bridge/SDK mode works without weights; a failed download never fails the step.
+_ckpt_name="$(basename "${FISHSPEECH_CHECKPOINT:-$_fish_ckpt}")"
+CKPT_DIR="$TARGET_DIR/checkpoints/$_ckpt_name"
+CKPT_SENTINEL="$TARGET_DIR/checkpoints/.ckpt_${_ckpt_name}_done"
+if [[ -f "$CKPT_SENTINEL" && -f "$CKPT_DIR/config.json" && "$FORCE" -eq 0 ]]; then
+    echo "[install_fishspeech] [OK] checkpoint $_ckpt_name already present."
+else
+    echo "[install_fishspeech] [..] downloading checkpoint fishaudio/$_ckpt_name (curl, resumable) ..."
+    if install_hf_repo_flat "fishaudio/$_ckpt_name" "$CKPT_DIR" "$CKPT_SENTINEL" "[install_fishspeech] " "*.json,*.pth,*.safetensors,*.txt,*.tiktoken,*.model" "" "$_ckpt_name" \
+        && [[ -f "$CKPT_DIR/config.json" ]]; then
+        echo "[install_fishspeech] [OK] checkpoint ready at $CKPT_DIR (local inference mode enabled)."
+    else
+        echo "[install_fishspeech] [!] checkpoint download incomplete; will RESUME next run (bridge/SDK mode still works)."
+    fi
+fi
 complete_prereq_step "$PYTHON" "[install_fishspeech] "

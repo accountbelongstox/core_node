@@ -829,29 +829,6 @@ class ConfigManager:
                 'MCPSupport': {'Enabled': False},
                 'SmartRecognition': {'Enabled': False}
             },
-            'Moonshot Kimi': {
-                'Common': 'moonshot',
-                'DisplayName': 'Moonshot Kimi',
-                'StorageType': 'encrypted_constant',
-                'Variables': [
-                    {
-                        'Name': 'MOONSHOT_API_KEY',
-                        'DisplayName': 'Moonshot API Key',
-                        'Description': 'Moonshot Kimi API Key',
-                        'InputType': 'Token',
-                        'Required': True
-                    },
-                    {
-                        'Name': 'MOONSHOT_BASE_URL',
-                        'DisplayName': 'Moonshot Base URL',
-                        'Description': 'Moonshot API Base URL (default: https://api.moonshot.cn/v1)',
-                        'InputType': 'Url',
-                        'Required': False
-                    }
-                ],
-                'MCPSupport': {'Enabled': False},
-                'SmartRecognition': {'Enabled': False}
-            },
             'Baidu Qianfan': {
                 'Common': 'qianfan',
                 'DisplayName': 'Baidu Qianfan (ERNIE)',
