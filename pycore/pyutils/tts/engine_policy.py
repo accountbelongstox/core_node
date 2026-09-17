@@ -54,6 +54,12 @@ CLOUD_TTS_ENGINES = frozenset({"edge", "streamelements", "gtts_web", "azure"})
 # engine in the chain (the pre-pin fallback era produced ChattTS-sourced
 # articles with degraded audio).
 _AGENT_HISTORY_PINNED_TTS = ("qwen3tts",)
+
+# Sentence/short-text TTS is also pinned to Qwen3-TTS (single-engine contract): the
+# five word-capable engines (CosyVoice, Fish Speech, VoxCPM2, GPT-SoVITS, MeloTTS)
+# serve WORD generation only, and a sentence fallback chain would silently publish
+# degraded audio instead of surfacing that the Qwen server is unavailable.
+_SENTENCE_PINNED_TTS = ("qwen3tts",)
 _LEGACY_SAVED_ORDERS: Tuple[Tuple[str, ...], ...] = (
     ("edge", "sherpa", "melotts", "gptsovits", "azure"),
     ("edge", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
@@ -235,19 +241,19 @@ def _load_profile(
 
 
 def reload_tts_priority() -> tuple[str, ...]:
+    # The sentence profile is pinned to Qwen3-TTS (see _SENTENCE_PINNED_TTS), so
+    # its persisted chain is intentionally not loaded here.
     default = _load_profile("TTS_ENGINE_PRIORITY", "tts", _DEFAULT_PRIORITY)
-    sentence = _load_profile(
-        "TTS_SENTENCE_PRIORITY", "sentence_tts", _DEFAULT_SENTENCE_PRIORITY
-    )
     word = _load_profile("TTS_WORD_PRIORITY", "word_tts", _DEFAULT_WORD_PRIORITY)
-    _TTS_PRIORITY_STATE.set((default, sentence, word))
+    _TTS_PRIORITY_STATE.set((default, _SENTENCE_PINNED_TTS, word))
     return default
 
 
 def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
     default, sentence, word = _TTS_PRIORITY_STATE.get()
     if profile == "sentence":
-        return sentence
+        # Pinned single-engine contract - see _SENTENCE_PINNED_TTS.
+        return _SENTENCE_PINNED_TTS
     if profile == "word":
         return tuple(engine for engine in word if engine not in _WORD_EXCLUDED)
     if profile == "agent_history":

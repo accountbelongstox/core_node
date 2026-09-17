@@ -13,7 +13,10 @@
 #   * Every write is content-compared first (idempotent per minimal operation):
 #     no file is rewritten when its value already matches.
 #
-# Requires gvar_common.sh (set_var/get_var) sourced by the caller.
+# Self-sufficient state store: source gvar_common.sh when the caller has not.
+if ! declare -F get_var >/dev/null 2>&1; then
+    . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gvar_common.sh"
+fi
 
 _docker_prereq_set_var_if_changed() {
     local key="$1" value="$2" current

@@ -37,6 +37,35 @@ done
 SERVER_URL="${SERVER_URL%/}"
 [[ "${FISHSPEECH_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 
+# --- Install method selection (native/docker), plan steps 16-17 ---
+# Per-engine choice; a saved valid choice is reused verbatim with no countdown.
+if [[ "${FISHSPEECH_SKIP:-0}" != "1" ]]; then
+    . "$SCRIPT_DIR/../../common/install_method_common.sh"
+    INSTALL_METHOD="$(install_method_select fishspeech \
+        --supported "native docker" \
+        --recommended native \
+        --recommendation-source "Fish Speech docs document native install and an official docker option (hub: fishaudio/fish-speech) - https://speech.fish.audio/install/" \
+        --default native --method "${TTS_METHOD:-}" ${TTS_METHOD_RESELECT:+--reselect})" || {
+        _method_rc=$?
+        if [[ $_method_rc -eq 10 ]]; then
+            echo "[fishspeech] install method selection cancelled; nothing changed."
+            exit 0
+        fi
+        exit "$_method_rc"
+    }
+    if [[ "$INSTALL_METHOD" == "docker" ]]; then
+        . "$SCRIPT_DIR/../../common/docker_prereq_common.sh"
+        if ! docker_prereq_ensure_for_engine fishspeech "$SCRIPT_DIR"; then
+            echo "[fishspeech][!] docker platform ensure failed (phase above); docker backend is not ready." >&2
+            exit 1
+        fi
+        install_method_record_backend fishspeech docker
+        echo "[fishspeech][i] docker platform ready; per-engine compose service assets are delivered by the compose generation step (tracked as pending)."
+        exit 0
+    fi
+    install_method_record_backend fishspeech native
+fi
+
 resolve_python() {
     local p
     for p in "$PYTHON" python3 python; do
