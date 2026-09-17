@@ -223,8 +223,9 @@ class BaseLaravelAudioWorker(
         self._outbox_signal = f"laravel_audio_worker.outbox_running.{self.LANE}"
         THREAD_BUS.signal(self._outbox_signal, False)
 
-        # Engine probe cache (60s TTL) — see _planned_engine().
+        # Engine probe cache (60s TTL) — see _engine_plan().
         self._engine_probe_cache: Optional[str] = None
+        self._usable_engines_cache: List[str] = []
         self._engine_probe_ts = 0.0
 
         # Lifetime + live counters (introspection / FE status).
@@ -320,41 +321,52 @@ class BaseLaravelAudioWorker(
     # -------------------- engine probe / concurrency --------------------
 
     @serialized_method
-    def _planned_engine(self) -> Optional[str]:
-        """First usable engine in this lane's priority profile (60s TTL cache).
+    def _engine_plan(self) -> Tuple[Optional[str], List[str]]:
+        """(planned engine, usable engine list) for this lane (60s TTL cache).
 
         ``tts_orchestrator.tts_status()`` probes EVERY engine — per-task calls
         stall synthesis on sequential availability checks, so the result is
-        cached for _ENGINE_PROBE_TTL_S seconds (retired-worker pattern).
+        cached for _ENGINE_PROBE_TTL_S seconds (retired-worker pattern). The
+        usable list drives multi-engine fan-out: with per-task engine rotation,
+        each usable engine can synthesize a different word concurrently.
         """
         if self.REQUIRED_ENGINE:
-            return self.REQUIRED_ENGINE
+            return self.REQUIRED_ENGINE, [self.REQUIRED_ENGINE]
         now = time.monotonic()
         if (
             self._engine_probe_cache is not None
             and now - self._engine_probe_ts < _ENGINE_PROBE_TTL_S
         ):
-            return self._engine_probe_cache or None
+            return self._engine_probe_cache or None, list(self._usable_engines_cache)
         status = tts_orchestrator.tts_status(refresh=True)
         entries = {
             str(row.get("name") or ""): row
             for row in status.get("engines", [])
             if isinstance(row, dict)
         }
-        engine = ""
+        usable: List[str] = []
         for candidate in tts_orchestrator._priority(self.PRIORITY_PROFILE):
             row = entries.get(candidate) or {}
             concurrency_class = self._engine_concurrency_class(candidate)
-            usable = bool(row.get("available")) or (
+            available = bool(row.get("available")) or (
                 concurrency_class == "server" and bool(row.get("installed"))
             )
-            if not usable or float(row.get("cooldown_remaining") or 0) > 0:
+            if not available or float(row.get("cooldown_remaining") or 0) > 0:
                 continue
-            engine = candidate
-            break
+            usable.append(candidate)
+        engine = usable[0] if usable else ""
         self._engine_probe_cache = engine
+        self._usable_engines_cache = list(usable)
         self._engine_probe_ts = now
-        return engine or None
+        return engine or None, usable
+
+    def _planned_engine(self) -> Optional[str]:
+        """First usable engine in this lane's priority profile."""
+        return self._engine_plan()[0]
+
+    def _usable_engines(self) -> List[str]:
+        """Every currently usable engine in this lane's priority order."""
+        return self._engine_plan()[1]
 
     @staticmethod
     def _engine_concurrency_class(engine: Optional[str]) -> str:
@@ -362,28 +374,55 @@ class BaseLaravelAudioWorker(
         return tts_orchestrator.engine_concurrency(engine or "")
 
     def _effective_concurrency(self) -> Tuple[int, str]:
-        """(effective fan-out, planned engine). Serial engines always give 1."""
+        """(effective fan-out, planned engine).
+
+        Single-engine chains keep the engine-class value (serial forced to 1).
+        Multi-engine chains (no REQUIRED_ENGINE pin) scale to the number of
+        usable engines: per-task engine rotation starts each lane on a
+        DIFFERENT engine, and same-engine work still serializes on that
+        engine's managed lease, so several local models synthesize different
+        words at the same time."""
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
         concurrency = effective_concurrency(kind, self.get_concurrency())
+        if self.REQUIRED_ENGINE is None:
+            usable_count = len(self._usable_engines())
+            if usable_count > 1:
+                user_value = self.get_concurrency()
+                multi = min(usable_count, self.CONCURRENCY_LIMIT)
+                if user_value > 0:
+                    concurrency = max(1, min(int(user_value), multi))
+                else:
+                    concurrency = max(concurrency, multi)
         return min(self.CONCURRENCY_LIMIT, concurrency), engine
 
     def concurrency_status(self) -> Dict[str, Any]:
         """Return cached planning data without probing engines on a status RPC."""
         engine = self.REQUIRED_ENGINE or self._engine_probe_cache or ""
         kind = self._engine_concurrency_class(engine)
+        concurrency = min(
+            self.CONCURRENCY_LIMIT,
+            effective_concurrency(kind, self._concurrency),
+        )
+        recommended = min(
+            self.CONCURRENCY_LIMIT,
+            recommended_concurrency(kind),
+        )
+        usable_count = len(self._usable_engines_cache)
+        if self.REQUIRED_ENGINE is None and usable_count > 1:
+            multi = min(usable_count, self.CONCURRENCY_LIMIT)
+            if self._concurrency > 0:
+                concurrency = max(1, min(int(self._concurrency), multi))
+            else:
+                concurrency = max(concurrency, multi)
+            recommended = max(recommended, multi)
         return {
-            "concurrency": min(
-                self.CONCURRENCY_LIMIT,
-                effective_concurrency(kind, self._concurrency),
-            ),
-            "concurrency_recommended": min(
-                self.CONCURRENCY_LIMIT,
-                recommended_concurrency(kind),
-            ),
+            "concurrency": concurrency,
+            "concurrency_recommended": recommended,
             "concurrency_limit": self.CONCURRENCY_LIMIT,
             "concurrency_engine": engine or None,
             "concurrency_class": kind,
+            "usable_engines": list(self._usable_engines_cache),
         }
 
     @serialized_method
@@ -404,6 +443,7 @@ class BaseLaravelAudioWorker(
     def invalidate_engine_plan(self) -> None:
         """Apply a changed engine order on the next worker cycle."""
         self._engine_probe_cache = None
+        self._usable_engines_cache = []
         self._engine_probe_ts = 0.0
 
     # -------------------- events / counters --------------------
@@ -545,7 +585,10 @@ class BaseLaravelAudioWorker(
 
             concurrency, engine = self._effective_concurrency()
             if concurrency > 1 and len(self._queue) > 1:
-                self._log_event("parallel", f"fan-out x{concurrency} (engine={engine or '?'})")
+                self._log_event(
+                    "parallel",
+                    f"fan-out x{concurrency} (planned={engine or '?'}, usable_engines={len(self._usable_engines_cache)})",
+                )
                 payloads = [{"worker": self} for _index in range(concurrency)]
                 results = map_bus_tasks(
                     _run_audio_synth_lane,
@@ -651,6 +694,8 @@ class BaseLaravelAudioWorker(
                 THREAD_BUS.get_signal(self._outbox_signal, False)
             ),
             "delivery_outbox": audio_delivery_outbox.stats(self.LANE),
+            "usable_engines": list(self._usable_engines_cache),
+            "planned_engine": self.REQUIRED_ENGINE or self._engine_probe_cache or None,
         }
         if self.LANE == "word":
             status["backend_progress"] = word_audio_backend_progress.snapshot()

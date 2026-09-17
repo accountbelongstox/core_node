@@ -33,8 +33,9 @@ from pycore.pyutils.tts.audio_delivery_outbox import (
     audio_delivery_outbox,
 )
 from pycore.pyutils.tts.audio_validation import validate_mp3
+from pycore.pyutils.tts.engine_policy import rotated_engine_exclusions
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
-from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
+from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path, save_to_cache
 
 _OUTBOX_BATCH_LIMIT = 32
 _OUTBOX_PARALLEL_LIMIT = 4
@@ -165,11 +166,14 @@ class LaravelAudioWorkerExecutionMixin:
         # word / article: scratch output (the word lane also fills the word cache).
         planned_engine = self._planned_engine() or "edge"
         if kind == "word":
-            cache_path = get_cache_path(info["word"], language, planned_engine)
-            if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
-                ok_cache, _why = validate_mp3(cache_path)
+            # Unified any-provider cache: audio produced by ANY engine — the
+            # audio-orchestration pipeline included — is reused, never
+            # re-synthesized just because the planned engine changed.
+            cached_path = find_cached(info["word"], language)
+            if cached_path is not None and os.path.getsize(str(cached_path)) > 0:
+                ok_cache, _why = validate_mp3(str(cached_path))
                 if ok_cache:
-                    return True, cache_path, planned_engine, "", False
+                    return True, str(cached_path), planned_engine, "", False
 
         os.makedirs(self._tmp_dir, exist_ok=True)
         out_path = os.path.join(
@@ -183,6 +187,16 @@ class LaravelAudioWorkerExecutionMixin:
             accent=accent,
             gender=info.get("gender") or None,
             priority_profile=profile,
+            # Per-task deterministic rotation: parallel lanes begin on different
+            # engines so several local models synthesize different words at the
+            # same time (same-engine work still serializes on its lease).
+            excluded_engines=(
+                rotated_engine_exclusions(
+                    profile, language, f"{info.get('task_id')}:{info.get('md5') or info.get('word')}",
+                )
+                if kind == "word"
+                else ()
+            ),
         )
         provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
         if not result.get("success"):

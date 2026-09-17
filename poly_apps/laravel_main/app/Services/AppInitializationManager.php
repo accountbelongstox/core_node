@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1Initializer;
 use App\Apps\DingDuoDuoV1\Utils\DingDuoDuoV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\PddToolV1\Utils\PddToolV1Initializer;
@@ -23,6 +24,7 @@ class AppInitializationManager
         $manager->register(new McpV1Initializer());
         $manager->register(new PddToolV1Initializer());
         $manager->register(new DingDuoDuoV1Initializer());
+        $manager->register(new CodeMartV1Initializer());
 
         return $manager;
     }

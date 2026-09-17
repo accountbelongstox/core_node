@@ -52,6 +52,14 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::post('/dictionary/words/batch', [AppQyV1DictionaryWordManagementController::class, 'batch']);
     Route::put('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'update']);
     Route::delete('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'destroy']);
+
+    // One-click cleanup (dashboard Words tab): paginated preview of junk rows,
+    // then a confirm-gated purge. Words: row deleted; translations: only the
+    // translations field cleared.
+    Route::get('/dictionary/invalid-words', [AppQyV1DictionaryWordManagementController::class, 'invalidWordsPreview']);
+    Route::post('/dictionary/invalid-words/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidWords']);
+    Route::get('/dictionary/invalid-translations', [AppQyV1DictionaryWordManagementController::class, 'invalidTranslationsPreview']);
+    Route::post('/dictionary/invalid-translations/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidTranslations']);
 });
 
 // Document re-processing endpoints: documents are stored per user at upload

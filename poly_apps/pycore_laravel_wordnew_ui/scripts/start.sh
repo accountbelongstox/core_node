@@ -382,8 +382,8 @@ serve_dashboard() {
         log "Serving production dist with Caddy on ${BIND_HOST}:${DEV_PORT}"
         exec "$FRANKENPHP_BIN" run --config "$STATIC_CADDYFILE" --adapter caddyfile
     else
-        log "Starting dev server (bun x vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
-        "$BUN_BIN" x vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
+        log "Starting dev server (bun x --bun vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
+        "$BUN_BIN" x --bun vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
     fi
 }
 
