@@ -464,12 +464,110 @@ def _run_pip_check(venv_python: str) -> None:
     )
 
 
+def _ensure_venv_self_contained(
+    engine: str,
+    packages: Sequence[str],
+    resolved_pins: Sequence[str],
+    probe: str,
+    shared_packages: Sequence[str],
+    force: bool,
+    base_python: Optional[str],
+) -> Optional[str]:
+    """Build or repair a self-contained engine venv (plan step 07).
+
+    The resolved base interpreter (dedicated Python 3.10 by default) creates
+    the venv without host package sharing; the host 3.13 interpreter is never
+    a silent fallback; the runtime always launches the venv's own absolute
+    interpreter. A resolved-base change blocks reuse and is reported.
+    """
+    if base_python:
+        resolved = {"found": True, "path": base_python, "source": "explicit_parameter"}
+    else:
+        resolved = resolve_engine_base_python(engine)
+    base = str(resolved.get("path") or "")
+    if not resolved.get("found") or not Path(base).is_file():
+        ColorPrint.yellow(
+            f"[isolated-venv] {engine}: "
+            f"{resolved.get('reason', 'base interpreter missing')}"
+        )
+        return None
+    if not _compatible(engine, base):
+        return None
+    base_tag = _interpreter_version(base)
+    base_identity = _base_interpreter_identity_for(base)
+    if not base_identity:
+        ColorPrint.yellow(
+            f"[isolated-venv] {engine}: could not probe base interpreter {base}"
+        )
+        return None
+    target_dir = venv_dir(engine, base_tag)
+    binary = target_dir / (
+        "Scripts" / "python.exe" if sys.platform == "win32" else "bin" / "python3"
+    )
+    python_path = Path(resolve_python(engine) or str(binary))
+    created = False
+    if not python_path.is_file():
+        if not _create_venv(engine, base_python=base, target=target_dir) or not binary.is_file():
+            return None
+        python_path = binary
+        created = True
+        _write_base_identity(engine, identity=base_identity)
+    elif not _base_identity_matches(engine, expected_identity=base_identity):
+        ColorPrint.yellow(
+            f"[isolated-venv] {engine} venv base interpreter no longer matches "
+            f"the resolved base ({base}); automatic removal is disabled"
+        )
+        return None
+    elif not _interpreter_version(str(python_path)):
+        ColorPrint.yellow(
+            f"[isolated-venv] {engine} venv interpreter is unavailable; "
+            "automatic removal is disabled"
+        )
+        return None
+
+    policy_ready = _stamp_matches(engine, identity=base_identity)
+    core_ready = _core_environment_ready(
+        engine,
+        str(python_path),
+        packages,
+        probe,
+        engine_spec(engine),
+    )
+    needs_repair = force or created or not policy_ready or not core_ready
+    if needs_repair:
+        if not _install_into(
+            engine,
+            str(python_path),
+            packages,
+            resolved_pins,
+            probe,
+            shared_packages=shared_packages,
+            managed_venv=True,
+            self_contained=True,
+        ):
+            return None
+        _write_base_identity(engine, identity=base_identity)
+        _write_stamp(engine, identity=base_identity)
+
+    accelerator_ready = _install_accelerators(str(python_path), engine_spec(engine))
+    if not accelerator_ready:
+        ColorPrint.yellow(
+            f"[isolated-venv] core environment ready ({engine}); "
+            "optional accelerator remains pending"
+        )
+
+    result = str(python_path)
+    ColorPrint.green(f"[isolated-venv] ready ({engine}): {result}")
+    return result
+
+
 def ensure_venv(
     engine: str,
     pip_packages: Optional[Sequence[str]] = None,
     pins: Optional[Sequence[str]] = None,
     health_imports: Optional[str] = None,
     force: bool = False,
+    base_python: Optional[str] = None,
 ) -> Optional[str]:
     """Build or repair one engine venv. This function is install-time only."""
     spec = engine_spec(engine)
@@ -478,6 +576,16 @@ def ensure_venv(
     shared_packages = tuple(spec.get("shared_packages", ()))
     probe = health_imports or spec.get("health_imports") or _default_health_imports(packages, resolved_pins)
     probe = _gpu_required_probe(engine, probe)
+    if _self_contained(engine):
+        return _ensure_venv_self_contained(
+            engine,
+            packages,
+            resolved_pins,
+            probe,
+            shared_packages,
+            force,
+            base_python,
+        )
     override = (os.environ.get(_override_env(engine)) or "").strip()
 
     if override and Path(override).is_file() and not _same_interpreter(override, sys.executable):
