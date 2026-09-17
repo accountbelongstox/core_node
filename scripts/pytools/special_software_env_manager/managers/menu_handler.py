@@ -174,7 +174,7 @@ class MenuHandler:
             submenu_action = show_menu(f"{display_name} Menu", menu_items, tips=menu_tips)
 
             if submenu_action is None:
-                continue
+                return
 
             if submenu_action == 'addcommand':
                 handlers['command_handler'].add_global_command(config_name, config)

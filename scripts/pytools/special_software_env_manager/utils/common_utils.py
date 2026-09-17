@@ -8,23 +8,8 @@ Provides common utility functions and classes used across the special software e
 import os
 import sys
 import platform
-import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-
-# Try to import platform-specific modules
-try:
-    import msvcrt
-    HAS_MSVCRT = True
-except ImportError:
-    HAS_MSVCRT = False
-
-try:
-    import termios
-    import tty
-    HAS_TERMIOS = True
-except ImportError:
-    HAS_TERMIOS = False
 
 
 class ColorMessage:
@@ -236,80 +221,8 @@ def get_platform_type() -> str:
         return 'linux'
 
 
-def _get_key_input():
-    """Get a single key input with arrow key support for Windows and Linux"""
-    if HAS_MSVCRT and os.name == 'nt':  # Windows
-        # Wait for a key press
-        while True:
-            if msvcrt.kbhit():
-                key = msvcrt.getch()
-                # Handle special keys (arrows) - Windows uses \xe0 or \x00 prefix
-                if key == b'\xe0' or key == b'\x00':
-                    # Get the second byte for arrow keys
-                    key2 = msvcrt.getch()
-                    arrow_map = {
-                        b'H': 'up',      # Up arrow
-                        b'P': 'down',    # Down arrow
-                        b'K': 'left',    # Left arrow
-                        b'M': 'right'    # Right arrow
-                    }
-                    result = arrow_map.get(key2, '')
-                    if result:
-                        return result
-                elif key == b'\r':  # Enter
-                    return 'enter'
-                elif key == b'\x1b':  # ESC
-                    return 'esc'
-                elif key == b'\x08':  # Backspace
-                    return 'backspace'
-                elif key == b'0':
-                    return '0'
-                elif key == b'q' or key == b'Q':
-                    return 'q'
-                else:
-                    try:
-                        char = key.decode('utf-8', errors='ignore').lower()
-                        if char and (char.isdigit() or char.isalpha()):
-                            return char
-                    except:
-                        pass
-            # Small delay to avoid busy waiting
-            time.sleep(0.01)
-    elif HAS_TERMIOS:  # Linux/Mac
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            key = sys.stdin.read(1)
-            if key == '\x1b':  # ESC sequence
-                key += sys.stdin.read(2)
-                if key == '\x1b[A':  # Up arrow
-                    return 'up'
-                elif key == '\x1b[B':  # Down arrow
-                    return 'down'
-                elif key == '\x1b[C':  # Right arrow
-                    return 'right'
-                elif key == '\x1b[D':  # Left arrow
-                    return 'left'
-                else:
-                    return 'esc'
-            elif key == '\n' or key == '\r':  # Enter
-                return 'enter'
-            elif key == '0':
-                return '0'
-            elif key == 'q' or key == 'Q':
-                return 'q'
-            else:
-                return key.lower()
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    else:
-        # Fallback: use simple input
-        return input().strip().lower()
-
-
 def show_menu(title: str, menu_items: List[Dict[str, Any]], tips: Optional[List[str]] = None) -> Optional[str]:
-    """Display an interactive menu with arrow key navigation
+    """Display a number-input menu (no arrow-key navigation)
     
     Args:
         title: Menu title
@@ -317,16 +230,11 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]], tips: Optional[List[
         tips: Optional tip lines shown under the title (redrawn each frame)
         
     Returns:
-        Selected action string, or None if cancelled
+        Selected action string, or None when the user goes back/cancels
+        (b / q / 0; empty input just redraws)
     """
     if not menu_items:
         return None
-    
-    selected_index = 0
-    number_buffer = ""  # accumulates typed digits for multi-digit direct jump
-
-    # Check if we can use interactive mode (arrow keys)
-    use_arrow_keys = (HAS_MSVCRT and os.name == 'nt') or HAS_TERMIOS
 
     while True:
         # Clear screen and redraw menu
@@ -340,112 +248,45 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]], tips: Optional[List[
             for tip in tips:
                 ColorMessage.write(tip, 'info')
             print()
-        
-        # Display menu items with clear selection indicator
+
+        # Display menu items
         for i, item in enumerate(menu_items):
             text = item.get('Text', '')
-            action = item.get('Action', '')
             has_submenu = item.get('HasSubMenu', False)
-            
             submenu_indicator = " >" if has_submenu else ""
-            
-            if i == selected_index:
-                # Highlight selected item with > indicator
-                ColorMessage.write(f"> [{i+1}] {text}{submenu_indicator}", 'yellow')
-            else:
-                ColorMessage.write(f"  [{i+1}] {text}{submenu_indicator}", 'white')
-        
+            ColorMessage.write(f"  [{i+1}] {text}{submenu_indicator}", 'white')
+
         print()
-        
-        if use_arrow_keys:
-            if number_buffer:
-                ColorMessage.write(
-                    f"Type a number to jump (current: {number_buffer}), ENTER to confirm, "
-                    f"UP/DOWN to move, BACKSPACE to clear, 0 or Q to cancel", 'info')
-            else:
-                ColorMessage.write(
-                    "Use UP/DOWN arrows to navigate, type a number to jump, "
-                    "ENTER to select, 0 or Q to cancel", 'info')
-            # Flush output to ensure menu is displayed before waiting for input
-            sys.stdout.flush()
-        else:
-            ColorMessage.write("Enter your choice (or 0 to cancel): ", 'info', no_newline=True)
-            sys.stdout.flush()
+        ColorMessage.write(
+            "Type a number and press ENTER to select, B to go back, 0 or Q to cancel: ",
+            'info', no_newline=True)
+        sys.stdout.flush()
 
-        if use_arrow_keys:
-            key = _get_key_input()
+        try:
+            choice = input().strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return None
 
-            if key == 'up':
-                number_buffer = ""
-                if selected_index == 0:
-                    selected_index = len(menu_items) - 1  # 从顶部循环到底部
-                else:
-                    selected_index = selected_index - 1
-                continue
-            elif key == 'down':
-                number_buffer = ""
-                if selected_index == len(menu_items) - 1:
-                    selected_index = 0  # 从底部循环到顶部
-                else:
-                    selected_index = selected_index + 1
-                continue
-            elif key == 'enter':
-                # ENTER confirms a typed number if any, else the highlighted item
-                if number_buffer:
-                    choice_num = int(number_buffer)
-                    number_buffer = ""
-                    if 1 <= choice_num <= len(menu_items):
-                        return menu_items[choice_num - 1].get('Action')
-                    continue  # out of range: ignore and redraw
-                return menu_items[selected_index].get('Action')
-            elif key in ('backspace', '\x7f', '\x08'):
-                number_buffer = number_buffer[:-1]
-                continue
-            elif key == 'esc' or key == 'q':
-                return None
-            elif key == '0' and not number_buffer:
-                # bare 0 cancels (only when not building a number like "10")
-                return None
-            elif key and key.isdigit():
-                # Multi-digit direct jump: accumulate digits, auto-jump as soon
-                # as the number can no longer be extended into a valid index.
-                candidate = number_buffer + key
-                if int(candidate) > len(menu_items):
-                    candidate = key  # overflow: restart buffer with this digit
-                choice_num = int(candidate)
-                if choice_num * 10 > len(menu_items):
-                    # no further digit could form a valid index -> jump now
-                    number_buffer = ""
-                    if 1 <= choice_num <= len(menu_items):
-                        return menu_items[choice_num - 1].get('Action')
-                else:
-                    number_buffer = candidate  # wait for a possible next digit
-                continue
-        else:
-            # Fallback to simple input
-            try:
-                choice = input().strip()
-                
-                if choice == '0' or choice.lower() == 'q':
-                    return None
-                
-                choice_num = int(choice)
-                if 1 <= choice_num <= len(menu_items):
-                    selected_item = menu_items[choice_num - 1]
-                    return selected_item.get('Action')
-                else:
-                    ColorMessage.write("Invalid choice. Press Enter to continue...", 'error')
-                    input()
-            except ValueError:
-                ColorMessage.write("Invalid input. Press Enter to continue...", 'error')
-                input()
-            except KeyboardInterrupt:
-                print()
-                return None
-            except Exception as e:
-                ColorMessage.write(f"Error: {e}", 'error')
-                input()
-                return None
+        if not choice:
+            continue
+
+        lowered = choice.lower()
+        if lowered in ('b', 'back', 'q', '0'):
+            return None
+
+        try:
+            choice_num = int(choice)
+        except ValueError:
+            ColorMessage.write("Invalid input. Press Enter to continue...", 'error')
+            input()
+            continue
+
+        if 1 <= choice_num <= len(menu_items):
+            return menu_items[choice_num - 1].get('Action')
+
+        ColorMessage.write("Invalid choice. Press Enter to continue...", 'error')
+        input()
 
 
 __all__ = [

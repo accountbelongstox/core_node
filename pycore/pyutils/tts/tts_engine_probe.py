@@ -16,12 +16,13 @@ those pinned packages are never installed in the main interpreter.
 
 import importlib.util
 import os
-import sys
 from pathlib import Path
 from typing import Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root, get_local_data_dir
-from pycore.pyutils.common.python_env.runtime_policy import engine_compatibility
+from pycore.pyutils.common.python_env.runtime_policy import (
+    base_interpreter_compatibility,
+)
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 
@@ -76,12 +77,16 @@ def engine_installed(name: str) -> bool:
     if name == "chattts":
         return _spec("ChatTTS") or staging_deps_done("chattts")
     if name == "cosyvoice":
-        return staging_deps_done("cosyvoice") or _staging_clone_ready(
-            "cosyvoice", ("runtime/python/fastapi/server.py", "runtime/python"))
+        return (
+            isolated_venv.venv_ready("cosyvoice")
+            or staging_deps_done("cosyvoice")
+            or _staging_clone_ready(
+                "cosyvoice", ("runtime/python/fastapi/server.py", "runtime/python"))
+        )
     if name == "fishspeech":
         return (
-            staging_deps_done("fishspeech")
-            or _spec("fishaudio")
+            isolated_venv.venv_ready("fishspeech")
+            or staging_deps_done("fishspeech")
             or _staging_clone_ready("fishspeech", ("tools/api_server.py",))
         )
     if name == "qwen3tts":
@@ -93,7 +98,9 @@ def engine_installed(name: str) -> bool:
     if name == "parler":
         return _spec("parler_tts") and _spec("soundfile") and _spec("transformers")
     if name == "voxcpm2":
-        return _spec("voxcpm") or staging_deps_done("voxcpm2")
+        # Class C: readiness is the isolated self-contained venv, never a
+        # main-interpreter voxcpm probe (3.13 is outside the official window).
+        return isolated_venv.venv_ready("voxcpm2") or staging_deps_done("voxcpm2")
     if name == "kokoro":
         return _spec("sherpa_onnx")
     if name == "gptsovits":
@@ -124,14 +131,35 @@ def engine_installed(name: str) -> bool:
     return False
 
 
+def _self_contained_reason(name: str) -> Optional[str]:
+    """Status breakdown for the five self-contained class-C engines.
+
+    Distinguishes "dedicated Python 3.10 runtime missing" from "venv not built
+    yet" (plan step 14: the failure phase and the next action must be visible,
+    never a bare unavailable). Compatibility is judged against the resolved
+    BASE interpreter, never the host 3.13.
+    """
+    if isolated_venv.venv_ready(name):
+        return None
+    base = base_interpreter_compatibility(name)
+    if not base.get("base_found"):
+        return str(base.get("reason") or "python310_not_registered")
+    if not base.get("compatible"):
+        return str(base.get("reason") or "base interpreter incompatible")
+    return (
+        f"{name} isolated venv not built — Python 3.10 is ready; run the "
+        f"{name} installer (Step5x_Install*.ps1 / 1xx_install_*.sh)"
+    )
+
+
 def engine_unavailable_reason(name: str) -> Optional[str]:
     """Why an engine cannot synthesize now; None when no hint applies."""
     adapter = tts_engine_registry.get(name)
     if name == "voxcpm2":
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-        compatibility = engine_compatibility(name, python_version)
-        if not compatibility["compatible"]:
-            return str(compatibility["reason"])
+        reason = _self_contained_reason(name)
+        if reason:
+            return reason
+        return adapter.disabled_reason() if adapter else None
 
     if name == "qwen3tts":
         return adapter.disabled_reason() if adapter else _NOT_INSTALLED
@@ -139,10 +167,16 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
     if name == "melotts":
         # Class C: readiness is the per-engine isolated venv (see engine_installed).
         if not isolated_venv.venv_ready("melotts"):
-            return adapter.disabled_reason() if adapter else _NOT_INSTALLED
+            return _self_contained_reason(name) or (
+                adapter.disabled_reason() if adapter else _NOT_INSTALLED
+            )
         return None
 
     if not engine_installed(name):
+        if name in ("cosyvoice", "gptsovits", "fishspeech"):
+            reason = _self_contained_reason(name)
+            if reason and "venv not built" not in reason:
+                return reason
         return _NOT_INSTALLED
 
     if name == "streamelements":
@@ -152,6 +186,10 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
         cfg = adapter.disabled_reason() if adapter else None
         if cfg:
             return cfg
+        if not (os.environ.get("COSYVOICE_URL") or "").strip():
+            reason = _self_contained_reason(name)
+            if reason:
+                return reason
         return f"CosyVoice API server not reachable ({adapter.base_url() if adapter else ''})"
 
     if name == "f5tts":
@@ -172,11 +210,23 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
         ref = (os.environ.get("GPTSOVITS_REF_AUDIO") or "").strip()
         if not ref or not Path(ref).exists():
             return "Set GPTSOVITS_REF_AUDIO to a reference clip"
+        if not (os.environ.get("GPTSOVITS_URL") or "").strip():
+            reason = _self_contained_reason(name)
+            if reason:
+                return reason
         return f"GPT-SoVITS API server not running ({adapter.base_url() if adapter else ''})"
 
     if name == "fishspeech":
-        if (os.environ.get("FISH_API_KEY") or "").strip() and _spec("fishaudio"):
+        if (os.environ.get("FISH_API_KEY") or "").strip() and (
+            _spec("fishaudio") or isolated_venv.venv_ready("fishspeech")
+        ):
             return None
+        if not (os.environ.get("FISHSPEECH_URL") or "").strip() and not (
+            os.environ.get("FISHSPEECH_UPSTREAM") or ""
+        ).strip():
+            reason = _self_contained_reason(name)
+            if reason:
+                return reason
         return (
             f"Start Fish Speech server ({adapter.base_url() if adapter else ''}) "
             "or set FISH_API_KEY with fish-audio-sdk"

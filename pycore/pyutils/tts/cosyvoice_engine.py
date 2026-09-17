@@ -35,12 +35,34 @@ from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.cosyvoice.available'
 _AVAIL_TTL_S = 30.0
-_SAMPLE_RATE = 22050
+def _sample_rate() -> int:
+    """PCM sample rate of the configured model's server output.
+
+    The official fastapi server streams raw PCM without a header, so the rate
+    must come from model metadata: the CosyVoice2 family generates 24 kHz,
+    CosyVoice 1.x (300M/SFT) 22050 Hz. COSYVOICE_SAMPLE_RATE overrides.
+    """
+    explicit = (os.environ.get("COSYVOICE_SAMPLE_RATE") or "").strip()
+    if explicit:
+        try:
+            rate = int(explicit)
+            if rate > 0:
+                return rate
+        except ValueError:
+            pass
+    try:
+        model = str(runtime_engine_model("cosyvoice") or "")
+    except Exception:  # noqa: BLE001
+        model = ""
+    if "cosyvoice2" in model.lower().replace("-", ""):
+        return 24000
+    return 22050
 
 
 def base_url() -> str:
@@ -116,7 +138,7 @@ def _write_pcm_wav(pcm_bytes: bytes, wav_path: Path) -> bool:
     with wave.open(str(wav_path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
-        w.setframerate(_SAMPLE_RATE)
+        w.setframerate(_sample_rate())
         w.writeframes(pcm_bytes)
     return True
 

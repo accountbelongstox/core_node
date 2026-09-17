@@ -166,7 +166,6 @@ New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 #     dedicated venv (self-contained base Python 3.10, no host package sharing). The main
 #     interpreter's shared transformers pin is never touched. Self-repairing:
 #     ensure_venv re-runs the import-health probe and repairs a broken venv. --- #
-Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
 Write-Host "$SCRIPT_INDEX [..] building/verifying isolated melotts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
 Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts' -PipPackages $meloPackages -Pins $meloPins -HealthImports $meloHealth -Force:$Force
 $venvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'

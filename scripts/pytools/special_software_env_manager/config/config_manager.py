@@ -98,12 +98,7 @@ class ConfigManager:
                     },
                     {
                         'Name': 'KIMI_BASE_URL',
-                        'Description': 'Kimi Coding Base URL (ignored: relay URLs are blocked by upstream WAF, always uses official endpoint)',
-                        'Required': False
-                    },
-                    {
-                        'Name': 'KIMI_MODEL',
-                        'Description': 'Kimi model (optional, e.g. k3, kimi-for-coding); empty = k3 (latest)',
+                        'Description': 'Optional Kimi Coding Base URL override (passed as --base-url to kimi provider catalog add; empty = official endpoint)',
                         'Required': False
                     }
                 ],

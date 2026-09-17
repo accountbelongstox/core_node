@@ -230,8 +230,7 @@ if tts_dependency_stamp_matches "$PYTHON" "gptsovits" "$DEPS_SENTINEL" && [[ "$F
         fail_prereq_step "$PYTHON" "[install_gptsovits] "
     fi
 else
-    install_pycore_torch_stack "$ENGINE_PYTHON" "[install_gptsovits] "
-    echo "[install_gptsovits] [..] building isolated GPT-SoVITS venv from requirements.txt (old transformers isolated; system torch reused) ..."
+    echo "[install_gptsovits] [..] building isolated GPT-SoVITS venv from requirements.txt (old transformers isolated; the venv carries its own torch stack) ..."
     provision_gptsovits_venv "$_GPTSOVITS_FORCE_PY"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_write_dependency_stamp "$PYTHON" "gptsovits" "$DEPS_SENTINEL"

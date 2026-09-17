@@ -131,8 +131,7 @@ if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
 fi
 
 mkdir -p "$TARGET_DIR"
-install_pycore_torch_stack "$PYTHON" "$PREFIX"
-echo "${PREFIX}[..] building/verifying isolated MeloTTS venv ..."
+echo "${PREFIX}[..] building/verifying isolated MeloTTS venv (self-contained; the venv carries its own torch stack) ..."
 tts_provision_isolated_venv "$PYTHON" "melotts" "$FORCE"
 if [[ "$TTS_ISOLATED_VENV_READY" -ne 1 ]]; then
     echo "${PREFIX}[!] venv build incomplete; main interpreter was left untouched." >&2

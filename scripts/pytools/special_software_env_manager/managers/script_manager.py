@@ -21,6 +21,7 @@ from generators.command_content_generator_windows import WindowsCommandContentGe
 from generators.command_content_generator_linux import LinuxCommandContentGenerator
 from script_sections.ark_launcher_section import ArkLauncherSectionGenerator
 from script_sections.pi_launcher_section import PiLauncherSectionGenerator
+from script_sections.kimi_launcher_section import KimiLauncherSectionGenerator
 from utils.secret_manager import LOCAL_SECRET_MANAGER
 
 
@@ -64,6 +65,7 @@ class ScriptManager:
         self.linux_generator = linux_generator
         self.ark_generator = ArkLauncherSectionGenerator()
         self.pi_generator = PiLauncherSectionGenerator()
+        self.kimi_generator = KimiLauncherSectionGenerator()
 
     def generate_scripts_for_config(
         self,
@@ -91,14 +93,19 @@ class ScriptManager:
         success_count = 0
 
         is_ssh = (config_name == 'SSH Connection')
+        is_kimi = (command_prefix or '').lower() == 'kimi'
         mcp_support = config.get('MCPSupport', {})
-        mcp_enabled = mcp_support.get('Enabled', False) and not is_ssh
+        mcp_enabled = mcp_support.get('Enabled', False) and not is_ssh and not is_kimi
 
         user_inputs = {}
 
         # Generate Windows script
         ps_command = config.get('WindowsCommand', command_prefix)
-        if is_ssh:
+        if is_kimi:
+            windows_content = self.kimi_generator.generate_ps1(
+                config['DisplayName'], file_number, config['Variables'], command_prefix
+            )
+        elif is_ssh:
             windows_content = self.windows_generator.generate_ssh_command_content(
                 config_name, file_number, user_inputs, f"{file_name}.ps1"
             )
@@ -134,7 +141,11 @@ class ScriptManager:
 
         # Generate Linux script
         bash_command = config.get('LinuxCommand', command_prefix)
-        if is_ssh:
+        if is_kimi:
+            linux_content = self.kimi_generator.generate_sh(
+                config['DisplayName'], file_number, config['Variables'], command_prefix
+            )
+        elif is_ssh:
             linux_content = self.linux_generator.generate_ssh_command_content(
                 config_name, file_number, user_inputs, f"{file_name}.sh"
             )

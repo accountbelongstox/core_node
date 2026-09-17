@@ -173,16 +173,19 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        # Bridge/SDK scope lives in this venv; local inference (fish_speech from
+        # the cloned repo + matching checkpoints) pins torch/torchaudio 2.8.0
+        # per the upstream pyproject (see limits) - cu130 has no 2.8.0 wheels,
+        # so the CUDA wheel tier for this engine is pinned to cu128.
+        "torch_packages": ("torch==2.8.0", "torchaudio==2.8.0"),
+        "torch_index_tag": "cu128",
         "packages": (
             "fish-audio-sdk",
             "fastapi",
             "uvicorn",
             "requests",
         ),
-        # Bridge/SDK scope: the venv serves fishspeech_api_server.py (upstream
-        # proxy or cloud SDK); local fish_speech inference weights hosting is a
-        # separate pending step, so torch is not part of this environment.
-        "health_imports": "import fishaudio, fastapi, uvicorn, requests",
+        "health_imports": "import fishaudio, fastapi, uvicorn, requests, torch",
         "upstream": {
             "repo": "https://github.com/fishaudio/fish-speech",
             "evidence_date": "2026-09-17",

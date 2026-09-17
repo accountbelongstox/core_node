@@ -207,10 +207,9 @@ if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
 if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'isolated venv already provisioned (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
-    # System CUDA torch the venv will REUSE (idempotent), plus the huggingface_hub the
-    # weight downloader falls back to (install only when MISSING -- NEVER --upgrade).
-    # Neither touches the shared transformers pin.
-    Install-PycoreTorchStack -PythonExe $enginePython -Prefix "$SCRIPT_INDEX "
+    # The self-contained venv carries its own torch stack (device-aware index,
+    # installed by ensure_venv); only the huggingface_hub the weight downloader
+    # falls back to is ensured here (install only when MISSING -- NEVER --upgrade).
     if (-not (Test-PycorePythonModulePresent -PythonExe $enginePython -ModuleName 'huggingface_hub')) {
         try { & $enginePython -m pip install huggingface_hub } catch { }
     }
