@@ -119,6 +119,7 @@ app.*.symbols
 **/node_modules/
 **/vendor/
 **/packages/
+!apps/mcp-chrome/packages/
 
 **/dist/
 **/out/

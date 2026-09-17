@@ -45,12 +45,14 @@ _install_method_supported_contains() {
 }
 
 # Write a gvar key only when the value differs (content-equal writes are not
-# idempotent: they bump mtimes and can mask "no change" audits).
+# idempotent: they bump mtimes and can mask "no change" audits). The write is
+# silenced (3rd arg): callers capture this library's stdout as the chosen
+# method, so persistence logs must not pollute it.
 _install_method_set_var_if_changed() {
     local key="$1" value="$2" current
     current="$(get_var "$key" "")"
     [[ "$current" == "$value" ]] && return 0
-    set_var "$key" "$value"
+    set_var "$key" "$value" false
 }
 
 _install_method_persist() {

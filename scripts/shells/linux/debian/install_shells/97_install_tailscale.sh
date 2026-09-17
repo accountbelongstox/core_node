@@ -19,8 +19,9 @@
 #                                          to the tailnet (e.g. 192.168.1.0/24),
 #                                          turning this host into a subnet router
 #
-# This script is idempotent: re-running it upgrades the package and re-applies
-# the desired "tailscale up" state without destroying existing configuration.
+# This script is idempotent: re-running it skips the package install when
+# Tailscale is present and re-applies the desired service / "tailscale up"
+# state without destroying existing configuration.
 #
 
 # ### AI SPECIAL ATTENTION RULES START ###
@@ -36,7 +37,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script identification and path setup
-SCRIPT_INDEX="64"
+SCRIPT_INDEX="97"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -153,10 +154,16 @@ install_tailscale_apt_repo() {
     $USE_SUDO apt-get install -y tailscale
 }
 
-# Install / upgrade the Tailscale package. Prefer the official one-line installer
-# (it picks the right repo for Debian/Ubuntu); fall back to the explicit apt repo
-# with a hosted-codename mapping for Kali and any host the installer can't resolve.
+# Install the Tailscale package when missing. Prefer the official one-line
+# installer (it picks the right repo for Debian/Ubuntu); fall back to the
+# explicit apt repo with a hosted-codename mapping for Kali and any host the
+# installer can't resolve. Idempotent: an existing installation is kept as-is.
 install_tailscale_package() {
+    if is_tailscale_installed; then
+        print_info_from_common_functions "Tailscale package already installed; skipping package install"
+        return 0
+    fi
+
     print_step_from_common_functions "Installing Tailscale via official installer..."
     print_info_from_common_functions "Region: ${SELECTED_REGION:-unknown} (official repo is used for all regions)"
 
@@ -363,7 +370,7 @@ main() {
     print_header_from_common_functions "Tailscale Installation Script"
 
     if is_tailscale_installed; then
-        print_info_from_common_functions "Tailscale is already installed; upgrading and re-applying configuration..."
+        print_info_from_common_functions "Tailscale is already installed; re-applying configuration..."
     fi
 
     install_tailscale
