@@ -111,7 +111,7 @@ tts_docker_apply_engine() {
     echo "[tts-docker] $engine device=$device torch_index=$torch_index port=$port"
 
     fingerprint="$(cat "$docker_dir/Dockerfile" "$docker_dir/compose.yml" "$docker_dir/compose.gpu.yml" 2>/dev/null | sha256sum | cut -d' ' -f1)"
-    fingerprint="$(printf '%s' "$fingerprint" | tr -d ' \r\n"):$device"
+    fingerprint="$(printf '%s' "$fingerprint" | tr -d ' \r\n'):$device"
     fingerprint_file="$docker_dir/.compose_fingerprint"
     container_id="$(docker ps -aq -f "name=^pycore-tts-${engine}$" 2>/dev/null | head -n 1)"
     if [[ -n "$container_id" && -f "$fingerprint_file" ]] \

@@ -60,6 +60,8 @@ kimi_model="k3-256k"
 kimi_model_label="kimi k3 256K"
 entry_index=0
 entry_marker=""
+moonshot_key_path=""
+moonshot_key_name=""
 permission_line='default_permission_mode = "auto"'
 
 script_source_path="${BASH_SOURCE[0]}"
@@ -119,30 +121,6 @@ kimi_read_secret_file() {
         done < "$file_path"
     fi
     echo "$value"
-}
-
-kimi_mask_key() {
-    local value="$1"
-    local len=0
-    local keep=0
-    local middle=0
-    if [ -z "$value" ]; then
-        echo "[empty]"
-        return
-    fi
-    len="${#value}"
-    if [ "$len" -le 8 ]; then
-        keep=1
-    else
-        keep=4
-    fi
-    middle=$((len - 2 * keep))
-    if [ "$middle" -lt 1 ]; then
-        middle=1
-    fi
-    printf '%s' "${value:0:$keep}"
-    printf '%*s' "$middle" '' | tr ' ' '*'
-    printf '%s' "${value: -$keep}"
 }
 
 kimi_secret_dir_path="$core_node_path/.secret_keys/.secret_ignore"
@@ -233,15 +211,10 @@ if ! command -v kimi >/dev/null 2>&1; then
     fi
 fi
 
-echo "[INFO] KIMI_BASE_URL_1: ${kimi_base_url:-[empty]}"
-if [ -n "$kimi_api_key" ] && [ "$kimi_config_api_key" = "$kimi_api_key" ]; then
-    echo "[INFO] KIMI_API_KEY_1 already configured in $kimi_config_toml_path"
-    echo "[INFO] KIMI_API_KEY_1 (masked): $(kimi_mask_key "$kimi_api_key")"
-    echo "[INFO] Get the full key: cat $kimi_secret_dir_path/KIMI_API_KEY_1"
-else
-    echo "[INFO] KIMI_API_KEY_1: ${kimi_api_key:-[empty]}"
-    echo "[INFO] First-time setup: run kimi, open /provider, select Known third-party ->"
-    echo "[INFO]   Kimi code plan, and paste the key above into it."
+echo "[INFO] KIMI_BASE_URL: ${kimi_base_url:-[empty]}"
+echo "[INFO] API key: ${kimi_api_key:-[empty]}"
+if [ -z "$kimi_api_key" ]; then
+    echo "[WARN] No API key found (MOONSHOT_API_KEY_* or KIMI_API_KEY_1); provider setup will be skipped."
 fi
 if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
     current_version_output="$(kimi --version 2>/dev/null || true)"
@@ -285,6 +258,52 @@ elif [ "$version_gap_large" = "1" ]; then
     echo "[INFO] Kimi Code CLI upgrade skipped."
 fi
 
+# Model selection (default Y = kimi k3 256K / k3-256k).
+printf '\033[33mUse default model kimi k3 256K (k3-256k)? [Y/n]: \033[0m'
+read -r model_choice || model_choice=""
+if [ "$model_choice" = "n" ] || [ "$model_choice" = "N" ]; then
+    echo "  [1] kimi k3 256K (k3-256k)"
+    echo "  [2] kimi k3 1M (k3)"
+    echo "  [3] kimi2.8 preview (kimi-for-coding, 1M)"
+    echo "  [4] kimi2.7 code highspeed (kimi-for-coding-highspeed, 256K)"
+    printf '\033[33mSelect model number [1-4]: \033[0m'
+    read -r model_pick || model_pick=""
+    case "$model_pick" in
+        2) kimi_model="k3"; kimi_model_label="kimi k3 1M" ;;
+        3) kimi_model="kimi-for-coding"; kimi_model_label="kimi2.8 preview" ;;
+        4) kimi_model="kimi-for-coding-highspeed"; kimi_model_label="kimi2.7 code highspeed" ;;
+        *) kimi_model="k3-256k"; kimi_model_label="kimi k3 256K" ;;
+    esac
+fi
+echo "[INFO] Model: $kimi_model_label ($kimi_model)"
+
+# Non-interactive provider setup (idempotent: catalog add re-creates the provider).
+if [ -n "$kimi_api_key" ]; then
+    if [ -n "$kimi_base_url" ]; then
+        kimi provider catalog add kimi-for-coding --api-key "$kimi_api_key" --default-model "$kimi_model" --base-url "$kimi_base_url"
+    else
+        kimi provider catalog add kimi-for-coding --api-key "$kimi_api_key" --default-model "$kimi_model"
+    fi
+    if [ $? -ne 0 ]; then
+        echo "[WARN] Automatic provider setup failed."
+        echo "[INFO] Manual setup: run kimi, type /provider, choose Known third-party -> Kimi For Coding,"
+        echo "[INFO]   and paste this key: $kimi_api_key"
+    else
+        echo "[INFO] Provider kimi-for-coding configured (default model: $kimi_model)."
+    fi
+fi
+
+# Permission mode: Never Ask (disables "Approve once" prompts); idempotent.
+if [ -f "$kimi_config_toml_path" ] && grep -qE '^[[:space:]]*default_permission_mode[[:space:]]*=' "$kimi_config_toml_path"; then
+    sed -i -E 's/^[[:space:]]*default_permission_mode[[:space:]]*=.*/default_permission_mode = "auto"/' "$kimi_config_toml_path"
+elif [ -f "$kimi_config_toml_path" ]; then
+    printf 'default_permission_mode = "auto"\n' | cat - "$kimi_config_toml_path" > "$kimi_config_toml_path.tmp"
+    mv "$kimi_config_toml_path.tmp" "$kimi_config_toml_path"
+else
+    printf 'default_permission_mode = "auto"\n' > "$kimi_config_toml_path"
+fi
+echo "[INFO] Permission mode: auto (Never Ask; approve prompts disabled) in $kimi_config_toml_path"
+
 if [ "$mcp_chrome_enabled" -eq 1 ]; then
 if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
     [ ! -f "$mcp_chrome_native_artifact_path" ] ||
@@ -298,4 +317,73 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 if { [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; } &&
     ! command -v pnpm >/dev/null 2>&1; then
-    echo "[ERROR] pnpm is required to install Chrome MCP
+    echo "[ERROR] pnpm is required to install Chrome MCP."
+    exit 1
+fi
+
+echo "[INFO] Ensuring Chrome MCP is installed..."
+if [ ! -d "$mcp_chrome_node_modules_path" ]; then
+    echo "[INFO] Installing Chrome MCP dependencies..."
+    (
+        cd "$mcp_chrome_path"
+        pnpm install
+    )
+fi
+if [ "$mcp_chrome_needs_build" -eq 1 ]; then
+    echo "[INFO] Building missing Chrome MCP artifacts..."
+    (
+        cd "$mcp_chrome_path"
+        pnpm run build:all
+    )
+fi
+(
+    cd "$mcp_chrome_path"
+    node "$mcp_chrome_register_script_path"
+)
+
+mkdir -p "$kimi_code_home_path"
+node - "$kimi_mcp_config_path" "$mcp_chrome_url" <<'NODE'
+const fs = require("node:fs");
+const configPath = process.argv[2];
+const chromeUrl = process.argv[3];
+const config = fs.existsSync(configPath)
+    ? JSON.parse(fs.readFileSync(configPath, "utf8"))
+    : {};
+
+config.mcpServers ??= {};
+config.mcpServers.chrome = { url: chromeUrl };
+fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+NODE
+echo "[INFO] Chrome MCP registered in Kimi Code: $kimi_mcp_config_path"
+
+if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
+    mcp_chrome_port_ready=1
+fi
+echo "[INFO] Ensuring the singleton Chrome MCP supervisor is running..."
+if [ "$mcp_chrome_needs_build" -eq 1 ] || [ "$mcp_chrome_port_ready" -eq 0 ]; then
+    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
+else
+    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
+fi
+while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 60 ]; do
+    sleep 0.5
+    if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
+        mcp_chrome_port_ready=1
+    fi
+    mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
+done
+if [ "$mcp_chrome_port_ready" -eq 1 ]; then
+    echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
+else
+    echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
+fi
+else
+    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
+fi
+
+echo "[INFO] AUTO: ON (Never Ask; approve prompts disabled); built-in web search: configuration preserved"
+echo "[INFO] Provider kimi-for-coding, model $kimi_model; agents and feature settings preserved; extra args: $#"
+echo "============================================================"
+echo ""
+
+exec kimi "${kimi_args[@]}" "$@"

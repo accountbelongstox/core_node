@@ -1,0 +1,41 @@
+注意以下任务，发现问题底层重构，复用冗余代码，不要小修小补而是直接重构，搜索官方文档，按项目规范。
+同时本机是liunx，需要测试。
+1: 扫描本机为什么ssh老是断开，之后修复 下面的脚本，幂等自愈，并运行脚本自愈，禁止直接修改本机的配置，搜索官方文档
+···
+  23_setup_ssh_remote.sh
+···
+
+2：运行并验正本机的 17_install_node_toolchain_26.sh ，幂等将旧的node全负切换为26，并先修改 其中的前端部署无法前面的步骤如何都要提示默认y/N安装服务，并运行   175_laravel_main_start.sh 无感切换为bun
+3:117_install_desktop_manager.sh 是否和 175_laravel_main_start中的前端部署重复，如果重复只保留  175_laravel_main_start
+4：切换任务，开始UI poly apps /pycore ui， laravel main的修改，
+4.1 Orchestration Tasks
+NIV-Bible_20260917_052030.364_4f381de0
+
+NIV-Bible · 10 segments · Word New Only (virtual read)
+
+Failed
+4305/29403 audio items
+
+0/10 segments
+
+0
+generation crashed: Serialized operation timed out: tts.audio_delivery_outbox.b503c368c53c448d9e9a37364baf4b84
+
+Regenerate
+Generate
+ 编排任务为什么多重启或UI刷新后就没有进度了，全面扩展pycore 和UI的缓存，交互能力。
+ 4.2清单的准备需要批量进行，而不单独进行，同时现在pycore扩展了多个本地模型，查看pyservice 2.
+ 4。3，在pyservice中，清单补全时如果是单词，则并行调用多个模型多次生成，同时查看是否有模型有能力一次性生成多个单词再拆分，而不是一个一个的生成，搜索各个模型的官方文档。
+5：WordAudioWorker 应用新的构架，底层重构，并并行使用多单词生成，加快速度，注意这一个是task center远程辅助laravel的，但其中的缓存同样对编排有用。
+5。1确保编排任务，无论如何重启pycoree，如果熏载ui都能接上上一次的进度。
+
+6：Vocabulary
+Dictionary words, libraries, statistics, translation, and TTS queues from Laravel. 
+Words增加按钮功能，一键清除无效单词，比如 含中文的 ···	# 26个英文字母···等，清除前先读取后端并使用分页列出所有要清除的单词，点确认并输入delete后后端数据库清除，laravel后端扩民支持
+增加一键清除无效翻译，该功能只清除翻译field，而不是整个条目，有以上关键词的···Error: Rate limit exceeded: free-models-per-day-high-balance.···是无效翻译，清除为空字段。或者 Translations字段和单词一样的，比如 a½k	
+a½k也是无效翻译，同样要先表分页。
+6.2 Vocabulary Libraries 加入，一键重新生成封面，调用laravel 后端的gemini或者其他免费图片额度生成，
+同时，要先扩展并写好laravel 13的ai类库，并整好图片生成功能，并查询各个AI的免费额度，没有时切换其他AI，所有AI的KEY都是读取 .secret_keys\.secret_ignore 实地扫描代码，搜索官方。
+同时，要先扩展好图片，文字生成图，前面的功能只是接入这些类库，但要保持AI类库的通用性。生成的图要有缓存，而不是一次就不用。注意所有缓存目录都要使用全局常量的站外目录。
+
+6.3 Statistics 修正其中的UI统计的准确性，实际扫描本机，也要确保laravel 提供的数据的准确 ，同时需要缓存数据，防止每次大量扫描系统 导致卡顿。
