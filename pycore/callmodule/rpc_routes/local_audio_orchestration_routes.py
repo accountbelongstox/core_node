@@ -4,6 +4,8 @@
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.audio_orchestration import orch_service
 
+_STARTUP_RESUME_DONE = False
+
 
 def register_local_audio_orchestration_routes(server) -> None:
     """Register thin audio-orchestration controller adapters."""
@@ -58,6 +60,8 @@ def register_local_audio_orchestration_routes(server) -> None:
             params.get("expected_base_url"),
             params.get("use_qy_account"),
             params.get("word_group_id"),
+            resume=params.get("resume"),
+            force_fresh=bool(params.get("force_fresh")),
         )
 
     def task_cancel(params, request_id, context):
@@ -97,3 +101,10 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_OPEN_OUTPUT, open_output),
     )
     server.register_routes(routes, group="audio_orchestration")
+
+    # Startup recovery: tasks left in 'generating' by a previous pycore process
+    # resume from their persisted manifest before the UI polls them.
+    global _STARTUP_RESUME_DONE
+    if not _STARTUP_RESUME_DONE:
+        _STARTUP_RESUME_DONE = True
+        orch_service.resume_interrupted_generations()

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import map_bus_tasks
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.background_jobs import BackgroundJobs
@@ -28,6 +29,12 @@ SENTENCE_AUDIO_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/audio"
 SENTENCE_REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
 DELIVERY_LANE = "orchestration"
 _delivery_jobs = BackgroundJobs("AudioOrchDelivery")
+# Manifest resource misses resolve in parallel chunks: different engines run
+# concurrently (per-engine leases serialize only same-engine work), and each
+# miss rotates its engine fallback order so several local models synthesize
+# different words at the same time instead of one serial chain.
+RESOLVE_PARALLEL_WORKERS = 4
+RESOLVE_CHUNK_SIZE = 40
 
 
 def resource_id(kind: str, language: str, text: str) -> str:
@@ -122,6 +129,7 @@ def resolve_audio(
     resource: Dict[str, Any], staging: Path, base_url: Optional[str] = None,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     cache_checked: bool = False,
+    excluded_engines: Optional[tuple] = None,
 ) -> Dict[str, Any]:
     kind = resource["kind"]
     text = resource["text"]
@@ -147,6 +155,7 @@ def resolve_audio(
     result = synthesize(
         text, language, target, priority_profile=kind,
         client_job_id=f"audio-orch:{resource['resource_id']}", progress_callback=progress_callback,
+        excluded_engines=tuple(excluded_engines or ()),
     )
     if not result.get("success") or not target.is_file() or not validate_mp3(str(target))[0]:
         return {"source": "missing", "status": "failed", "error": str(result.get("error") or "audio_validation_failed")}
@@ -230,21 +239,41 @@ def resolve_batch(
                 })
                 break
 
-    for index, resource in enumerate(items, 1):
-        existing = results.get(resource["resource_id"])
-        if existing is not None:
-            continue
-        if cancel_requested is not None and cancel_requested():
-            break
+    misses = [resource for resource in items if resource["resource_id"] not in results]
+
+    def _engine_exclusions(resource: Dict[str, Any]) -> tuple:
+        # Rotate the per-kind engine fallback order by resource id so parallel
+        # workers start on DIFFERENT engines (several local models synthesize
+        # concurrently); every worker still falls through the full chain.
+        order = [
+            name
+            for name in configured_tts_priority(str(resource["kind"]))
+            if tts_engine_supports_language(name, resource["language"])
+        ]
+        if len(order) < 2:
+            return ()
+        offset = int(resource["resource_id"], 16) % len(order)
+        return tuple(order[:offset])
+
+    def _resolve_miss(resource: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            result = resolve_audio(
+            return resolve_audio(
                 resource, staging, base_url=base_url, cache_checked=True,
-                progress_callback=(lambda event: activity_callback(resource, event)) if activity_callback is not None else None,
+                excluded_engines=_engine_exclusions(resource),
             )
         except Exception as error:
             ColorPrint.red(f"[AudioOrch] resource={resource['resource_id']} failed: {error}")
-            result = {"source": "missing", "status": "failed", "error": str(error)}
-        _completed(resource, result)
+            return {"source": "missing", "status": "failed", "error": str(error)}
+
+    for chunk_start in range(0, len(misses), RESOLVE_CHUNK_SIZE):
+        if cancel_requested is not None and cancel_requested():
+            break
+        chunk = misses[chunk_start:chunk_start + RESOLVE_CHUNK_SIZE]
+        if activity_callback is not None:
+            activity_callback(chunk[0], {"stage": f"resolving audio resources: {chunk_start + 1}-{chunk_start + len(chunk)}/{len(misses)}"})
+        chunk_results = map_bus_tasks(_resolve_miss, chunk, max_workers=RESOLVE_PARALLEL_WORKERS)
+        for resource, result in zip(chunk, chunk_results):
+            _completed(resource, result)
     return results
 
 
