@@ -24,6 +24,8 @@ TIMEOUT_SECONDS=120
 SSH_PUB_PATH=""
 SSH_KEY_PATH=""
 NODE_PATH=""
+REAL_USER_HOME=""
+SSH_KEYS_REMOVED=false
 
 # Source common functions and variables FIRST
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -45,6 +47,17 @@ SSH_LOCATIONS=(
 # Add /root/.ssh only if different from $HOME/.ssh
 if [[ "$HOME/.ssh" != "/root/.ssh" && -d "/root" ]]; then
     SSH_LOCATIONS+=("/root/.ssh")
+fi
+
+# Add the invoking (desktop) user's ~/.ssh: dd.sh runs as root, so $HOME is
+# /root and without this the regular user never receives the keys and their
+# git pushes keep falling back to HTTPS prompts.
+REAL_USER_HOME="$(getent passwd "$(get_real_user_from_common_functions 2>/dev/null || echo '')" 2>/dev/null | cut -d: -f6)"
+if [[ -n "$REAL_USER_HOME" && -d "$REAL_USER_HOME" ]]; then
+    case " ${SSH_LOCATIONS[*]} " in
+        *" $REAL_USER_HOME/.ssh "*) ;;
+        *) SSH_LOCATIONS+=("$REAL_USER_HOME/.ssh") ;;
+    esac
 fi
 
 # SSH key filenames
@@ -312,6 +325,14 @@ decrypt_ssh_keys() {
     fi
 
     if [[ "$has_password" == false ]]; then
+        if [[ "$SSH_KEYS_REMOVED" == true ]]; then
+            # The user chose reinstall (keys already deleted) but declined the
+            # decrypt password - without it the encrypted key files cannot be
+            # restored and NO keys remain anywhere. Fail loudly with the remedy.
+            print_error_from_common_functions "Existing keys were removed but decryption was skipped - no SSH keys remain!"
+            print_error_from_common_functions "Re-run this script and answer 'y' at the password prompt to reinstall them."
+            return 1
+        fi
         print_step_from_common_functions "Skipping password input and decryption."
         return 0
     fi
@@ -360,11 +381,19 @@ decrypt_ssh_keys() {
             continue
         fi
 
-        # Set correct ownership for system directories
+        # Set correct ownership for system directories and user homes (keys
+        # dropped into /home/<user>/.ssh by a root run must be user-owned or ssh
+        # refuses to read them).
         if [[ "$ssh_location" == "/root/.ssh" ]]; then
             safe_chown_R root:root "$ssh_location"
         elif [[ "$ssh_location" == "/etc/ssh/keys" ]]; then
             safe_chown_R root:root "$ssh_location"
+        elif [[ "$ssh_location" == /home/*/.ssh ]]; then
+            local location_owner=""
+            location_owner="$(echo "$ssh_location" | cut -d/ -f3)"
+            if [ -n "$location_owner" ] && id "$location_owner" >/dev/null 2>&1; then
+                safe_chown_R "$location_owner:$location_owner" "$ssh_location"
+            fi
         fi
 
         print_success_from_common_functions "SSH keys installed to: $ssh_location"
@@ -518,6 +547,139 @@ find_alternative_ssh_keys() {
     return 1
 }
 
+# Build the list of users that need git/ssh client setup: the invoking user,
+# the desktop (real) user, and root. Prints one username per line.
+_git_ssh_target_users() {
+    local current_user=""
+    local real_user=""
+    current_user="$(id -un)"
+    real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+
+    echo "$current_user"
+    if [ -n "$real_user" ] && [ "$real_user" != "$current_user" ]; then
+        echo "$real_user"
+    fi
+    if [ "$current_user" != "root" ] && [ "$real_user" != "root" ] && [ -d "/root" ]; then
+        echo "root"
+    fi
+}
+
+# Run `git config --global ...` as the given user (direct when it is us,
+# via sudo -H -u otherwise so the config lands in THAT user's home).
+_git_config_as_user() {
+    local u="$1"
+    shift
+    if [ "$u" = "$(id -un)" ]; then
+        git config --global "$@" 2>/dev/null
+    elif [ "$(id -u)" -eq 0 ]; then
+        sudo -H -u "$u" git config --global "$@" 2>/dev/null
+    else
+        $USE_SUDO -H -u "$u" git config --global "$@" 2>/dev/null
+    fi
+}
+
+# Idempotent git identity + safe.directory per target user. Identity is
+# auto-generated from the hostname when unset (name: "<hostname> dev",
+# email: "<hostname>@dev.com"); existing values are preserved. safe.directory
+# covers this repo so root can operate on a user-owned checkout.
+ensure_git_identity_and_safedir() {
+    local u=""
+    local u_home=""
+    local git_name=""
+    local git_email=""
+    local name_cur=""
+    local email_cur=""
+
+    git_name="$(hostname 2>/dev/null || echo dev) dev"
+    git_email="$(hostname 2>/dev/null || echo dev)@dev.com"
+    git_email="$(echo "$git_email" | tr '[:upper:]' '[:lower:]')"
+
+    while IFS= read -r u; do
+        u_home="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
+        if [ -z "$u_home" ] || [ ! -d "$u_home" ]; then
+            continue
+        fi
+
+        name_cur="$(_git_config_as_user "$u" --get user.name 2>/dev/null)"
+        if [ -z "$name_cur" ]; then
+            _git_config_as_user "$u" user.name "$git_name" || true
+            print_success_from_common_functions "git user.name set for $u: $git_name"
+        fi
+        email_cur="$(_git_config_as_user "$u" --get user.email 2>/dev/null)"
+        if [ -z "$email_cur" ]; then
+            _git_config_as_user "$u" user.email "$git_email" || true
+            print_success_from_common_functions "git user.email set for $u: $git_email"
+        fi
+
+        if ! _git_config_as_user "$u" --get-all safe.directory 2>/dev/null | grep -Fxq "$PROJECT_ROOT"; then
+            _git_config_as_user "$u" --add safe.directory "$PROJECT_ROOT" || true
+            print_success_from_common_functions "git safe.directory added for $u: $PROJECT_ROOT"
+        fi
+    done < <(_git_ssh_target_users)
+
+    return 0
+}
+
+# Idempotently route GitHub HTTPS remotes through SSH. A repo cloned as
+# https://github.com/... never touches the SSH keys, so pushes keep prompting
+# for a username even when the keys are installed. Two layers, both idempotent:
+#   1. per-user global url.insteadOf rewrite (invoking user, desktop user, root)
+#   2. this repo's own origin rewritten to the SSH form (visible, immediate)
+# Plus a global known_hosts entry for github.com so the first SSH connect does
+# not prompt interactively.
+configure_git_ssh_transport() {
+    print_step_from_common_functions "Configuring git SSH transport for GitHub (https -> ssh, idempotent)..."
+
+    local u=""
+    local u_home=""
+    local remote_url=""
+    local ssh_url=""
+
+    # 1. Global url.insteadOf rewrite per user.
+    while IFS= read -r u; do
+        u_home="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
+        if [ -z "$u_home" ] || [ ! -d "$u_home" ]; then
+            continue
+        fi
+        _git_config_as_user "$u" url."git@github.com:".insteadOf "https://github.com/" || true
+        print_success_from_common_functions "git url.insteadOf (https->ssh) configured for user: $u"
+
+        # Per-user ssh config: pin the installed key for github.com.
+        if [ -f "$u_home/.ssh/$SSH_KEY_NAME" ]; then
+            if ! grep -q "^Host github\.com" "$u_home/.ssh/config" 2>/dev/null; then
+                printf 'Host github.com\n    IdentityFile %s\n    IdentitiesOnly yes\n' "$u_home/.ssh/$SSH_KEY_NAME" \
+                    | $USE_SUDO tee -a "$u_home/.ssh/config" >/dev/null 2>&1 || true
+                if [ "$u" != "$(id -un)" ]; then
+                    $USE_SUDO chown "$u:$u" "$u_home/.ssh/config" 2>/dev/null || true
+                fi
+                $USE_SUDO chmod 600 "$u_home/.ssh/config" 2>/dev/null || true
+                print_success_from_common_functions "ssh config Host github.com added for user: $u"
+            fi
+        fi
+    done < <(_git_ssh_target_users)
+
+    # 2. Rewrite this repo's origin when it is a GitHub HTTPS remote.
+    if [ -d "$PROJECT_ROOT/.git" ]; then
+        remote_url="$(git -C "$PROJECT_ROOT" -c safe.directory=* remote get-url origin 2>/dev/null || true)"
+        case "$remote_url" in
+            https://github.com/*)
+                ssh_url="git@github.com:${remote_url#https://github.com/}"
+                if git -C "$PROJECT_ROOT" -c safe.directory=* remote set-url origin "$ssh_url" 2>/dev/null; then
+                    print_success_from_common_functions "origin rewritten to SSH: $ssh_url"
+                fi
+                ;;
+        esac
+    fi
+
+    # 3. Global known_hosts for github.com (covers every user, no first-connect prompt).
+    if ! grep -q "^github\.com " /etc/ssh/ssh_known_hosts 2>/dev/null; then
+        ssh-keyscan -t rsa,ecdsa,ed25519 github.com 2>/dev/null | $USE_SUDO tee -a /etc/ssh/ssh_known_hosts >/dev/null 2>&1 || true
+        print_success_from_common_functions "github.com host keys added to /etc/ssh/ssh_known_hosts"
+    fi
+
+    return 0
+}
+
 # Main function for Step 19: Install Git SSH Keys
 step20_install_git_ssh() {
     print_header_from_common_functions "Step 19: Installing Git SSH Keys"
@@ -556,6 +718,10 @@ step20_install_git_ssh() {
 
         if [[ "$should_reinstall" == false ]]; then
             print_step_from_common_functions "Skipping reinstallation, keeping existing SSH keys."
+            # Keys already exist: still (idempotently) ensure git actually USES
+            # them - https remotes must be routed to ssh for user and root.
+            configure_git_ssh_transport
+            ensure_git_identity_and_safedir
             return 0
         fi
 
@@ -565,6 +731,7 @@ step20_install_git_ssh() {
             print_error_from_common_functions "Failed to remove existing SSH keys"
             return 1
         fi
+        SSH_KEYS_REMOVED=true
 
         print_step_from_common_functions "Proceeding with fresh installation..."
     fi
@@ -595,6 +762,10 @@ step20_install_git_ssh() {
 
     # Update authorized_keys files
     update_authorized_keys
+
+    # Route git through the installed keys (https -> ssh), for user and root.
+    configure_git_ssh_transport
+    ensure_git_identity_and_safedir
 
     print_success_from_common_functions "SSH key installation completed successfully!"
     print_step_from_common_functions "SSH keys are now available at:"

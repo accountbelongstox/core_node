@@ -75,21 +75,23 @@ _devcache_resolve_pip() {
 }
 
 # Echo the size of a directory in whole MB (0 when missing/empty).
+# Bounded by `timeout` so a huge/slow tree cannot wedge the scan indefinitely.
 _devcache_dir_size_mb() {
     local target="$1"
     local mb=0
     if [ -d "$target" ]; then
-        mb=$(du -sm "$target" 2>/dev/null | cut -f1)
+        mb=$(timeout 120 du -sm "$target" 2>/dev/null | cut -f1)
         [ -n "$mb" ] || mb=0
     fi
     echo "$mb"
 }
 
-# Prompt [N/y] (default No); return 0 only when the user explicitly types y.
+# Prompt [N/y] (default No, auto-continues after 60s so unattended/terminal runs
+# never block forever); return 0 only when the user explicitly types y.
 _devcache_confirm() {
     local prompt="$1"
     local answer=""
-    read -r -p "$prompt [N/y]: " answer
+    read -r -t 60 -p "$prompt [N/y, auto-N in 60s]: " answer || true
     if [[ "$answer" =~ ^[Yy]$ ]]; then
         return 0
     fi
@@ -294,9 +296,10 @@ dev_cache_cleanup_prompt() {
     # ----- scan phase: measure everything, print info, collect oversized items -----
 
     # pip
+    echo -e "\033[37m[DEV CACHE] measuring pip cache...\033[0m"
     pip_cmd="$(_devcache_resolve_pip)"
     if [ -n "$pip_cmd" ]; then
-        pip_cache_dir="$($pip_cmd cache dir 2>/dev/null)"
+        pip_cache_dir="$(timeout 30 $pip_cmd cache dir 2>/dev/null)"
         if [ -n "$pip_cache_dir" ] && [ -d "$pip_cache_dir" ]; then
             size="$(_devcache_dir_size_mb "$pip_cache_dir")"
             if [ "$size" -ge "$threshold" ]; then
@@ -313,8 +316,9 @@ dev_cache_cleanup_prompt() {
     fi
 
     # npm
+    echo -e "\033[37m[DEV CACHE] measuring npm cache...\033[0m"
     if command -v npm >/dev/null 2>&1; then
-        npm_cache_dir="$(npm config get cache 2>/dev/null)"
+        npm_cache_dir="$(timeout 30 npm config get cache 2>/dev/null)"
         [ -n "$npm_cache_dir" ] || npm_cache_dir="$HOME/.npm"
         if [ -d "$npm_cache_dir" ]; then
             size="$(_devcache_dir_size_mb "$npm_cache_dir")"
@@ -332,8 +336,9 @@ dev_cache_cleanup_prompt() {
     fi
 
     # go (build cache + module cache)
+    echo -e "\033[37m[DEV CACHE] measuring go caches...\033[0m"
     if command -v go >/dev/null 2>&1; then
-        go_cache="$(go env GOCACHE 2>/dev/null)"
+        go_cache="$(timeout 30 go env GOCACHE 2>/dev/null)"
         if [ -n "$go_cache" ] && [ -d "$go_cache" ]; then
             size="$(_devcache_dir_size_mb "$go_cache")"
             if [ "$size" -ge "$threshold" ]; then
@@ -343,7 +348,7 @@ dev_cache_cleanup_prompt() {
                 echo -e "\033[37m[DEV CACHE] go build cache: ${size} MB (under threshold, skip)\033[0m"
             fi
         fi
-        go_modcache="$(go env GOMODCACHE 2>/dev/null)"
+        go_modcache="$(timeout 30 go env GOMODCACHE 2>/dev/null)"
         if [ -n "$go_modcache" ] && [ -d "$go_modcache" ]; then
             size="$(_devcache_dir_size_mb "$go_modcache")"
             if [ "$size" -ge "$threshold" ]; then
@@ -358,6 +363,7 @@ dev_cache_cleanup_prompt() {
     fi
 
     # rust (rustup + cargo, re-downloadable parts only)
+    echo -e "\033[37m[DEV CACHE] measuring rust caches...\033[0m"
     rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
     cargo_home="${CARGO_HOME:-$HOME/.cargo}"
     if command -v rustup >/dev/null 2>&1 || [ -d "$rustup_home" ] || [ -d "$cargo_home" ]; then
@@ -385,8 +391,9 @@ dev_cache_cleanup_prompt() {
     fi
 
     # /var/log (system logs need root to size/clean; $sudo provided by dd.sh)
+    echo -e "\033[37m[DEV CACHE] measuring ${log_dir}...\033[0m"
     if [ -d "$log_dir" ]; then
-        size=$($sudo du -sm "$log_dir" 2>/dev/null | cut -f1)
+        size=$(timeout 120 $sudo du -sm "$log_dir" 2>/dev/null | cut -f1)
         [ -n "$size" ] || size=0
         if [ "$size" -ge "$log_threshold" ]; then
             echo -e "\033[33m[VAR LOG] ${log_dir}: ${size} MB (over threshold)\033[0m"

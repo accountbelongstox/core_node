@@ -19,6 +19,11 @@
 # under its real venv path, so pyvenv.cfg is always found.
 write_venv_python_wrapper() {
     local link="$1"
+    # rm -f FIRST, always: tee FOLLOWS symlinks, and the old link points into the
+    # venv (whose bin/python3 itself links to /usr/bin/python3.x) - writing
+    # through the chain would overwrite the real system interpreter with the
+    # wrapper and create an infinite exec loop.
+    $USE_SUDO rm -f "$link"
     echo "[13] $USE_SUDO write wrapper $link -> $VENV_PYTHON3"
     printf '#!/bin/sh\n# venv activation wrapper (symlinks break pyvenv.cfg detection)\nexec "%s" "$@"\n' \
         "$VENV_PYTHON3" | $USE_SUDO tee "$link" >/dev/null
@@ -549,8 +554,10 @@ setup_production_python_venv() {
 
     # WRAPPERS, not symlinks: a bare symlink into the venv does not activate it
     # (CPython misses pyvenv.cfg next to the invoked symlink path), so exec the
-    # interpreter by its real path.
+    # interpreter by its real path. rm -f BEFORE writing: tee follows symlinks,
+    # and the old link may chain into the venv/system interpreter.
     for link in /usr/local/bin/python3 /usr/local/bin/python; do
+        $USE_SUDO rm -f "$link"
         printf '#!/bin/sh\n# venv activation wrapper (symlinks break pyvenv.cfg detection)\nexec "%s" "$@"\n' \
             "$venv_python3" | $USE_SUDO tee "$link" >/dev/null
         $USE_SUDO chmod 755 "$link"
