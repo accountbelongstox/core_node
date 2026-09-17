@@ -19,7 +19,7 @@ PROMPT_COMMON_LOADED="true"
 prompt_read_default() {
     local __prd_var="$1" __prd_default="$2" __prd_timeout="${3:-30}" __prd_prompt="${4:-}"
     local __prd_reply="" __prd_tpgid="" __prd_pgid=""
-    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    if [ -r /dev/tty ] && [ -w /dev/tty ] && (exec 3<>/dev/tty) 2>/dev/null; then
         __prd_tpgid="$(ps -o tpgid= -p $$ 2>/dev/null | tr -d ' ')"
         __prd_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
         if [ -z "$__prd_tpgid" ] || [ "$__prd_tpgid" = "$__prd_pgid" ]; then

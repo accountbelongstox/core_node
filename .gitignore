@@ -178,6 +178,12 @@ app.*.symbols
 **/*.old
 **/.bak-*/
 **/*_backup.*
+# Exceptions: these are first-class source files, not editor backup artifacts.
+# apt_repository_backup.sh is sourced by apt_repository_manager.sh -- being
+# ignored meant every fresh clone lacked it and 3_setting_base.sh died at source
+# time (set -e) before the desktop power policy ever ran.
+!scripts/shells/linux/common/apt_repository_backup.sh
+!scripts/shells/linux/dd_helper/management_and_backup.sh
 **/*.orig
 **/*.rej
 
