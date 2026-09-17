@@ -123,6 +123,138 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Resolve the real (non-root) desktop user, or empty when the session is pure root.
+resolve_real_user() {
+    local real_user=""
+    if command -v get_real_user_from_common_functions >/dev/null 2>&1; then
+        real_user="$(get_real_user_from_common_functions 2>/dev/null || true)"
+    fi
+    if [ -z "$real_user" ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        real_user="$SUDO_USER"
+    fi
+    if [ "$real_user" = "root" ]; then
+        real_user=""
+    fi
+    printf '%s' "$real_user"
+}
+
+# Check whether the command is usable by the real desktop user. Installers run
+# as root, so a plain `command -v` cannot see root-only locations such as
+# /root/.local/bin -- the binary then "works" for root but not for users.
+command_usable_by_real_user() {
+    local exec_name="$1"
+    local real_user=""
+    real_user="$(resolve_real_user)"
+    if [ "$(id -u)" -ne 0 ] || [ -z "$real_user" ]; then
+        command_exists "$exec_name"
+        return $?
+    fi
+    su - "$real_user" -c "command -v '$exec_name'" >/dev/null 2>&1
+}
+
+# Move a root-home installation into a shared, world-readable location.
+# Vendor installers (curl scripts, uv, etc.) run as root and drop binaries
+# under /root/.local, /root/.opencode, /root/.kimi-code, ... -- unreachable for
+# regular users. Returns 1 when the path is not a root-home install or cannot
+# be relocated safely (uv/pipx venvs carry absolute shebangs; they must be
+# reinstalled with shared UV_TOOL_DIR/PIPX_HOME instead).
+relocate_root_home_install() {
+    local exec_name="$1"
+    local exec_path="$2"
+    local real_path=""
+    local app_root=""
+    local app_dir_name=""
+    local relative_rest=""
+    local shared_root="/usr/local/lib"
+
+    if [ -z "$(resolve_real_user)" ]; then
+        return 1
+    fi
+
+    real_path="$(readlink -f "$exec_path" 2>/dev/null || true)"
+    [ -n "$real_path" ] || real_path="$exec_path"
+    [ -e "$real_path" ] || return 1
+
+    case "$real_path" in
+        /root/*) ;;
+        *) return 1 ;;
+    esac
+
+    # Python venv tools cannot be copied; they need a shared reinstall.
+    case "$real_path" in
+        */.local/share/uv/tools/*|*/.local/pipx/*) return 1 ;;
+    esac
+
+    # Standalone binary sitting in a root-only bin directory.
+    if [ -f "$exec_path" ] && [ ! -L "$exec_path" ] && [ -f "$real_path" ]; then
+        log_install "Relocating standalone binary to /usr/local/bin/$exec_name"
+        $USE_SUDO rm -f "/usr/local/bin/$exec_name"
+        $USE_SUDO install -m 0755 "$real_path" "/usr/local/bin/$exec_name"
+        return 0
+    fi
+
+    # Versioned installation tree under a root home; copy the app root and
+    # re-link to the resolved binary inside the copy.
+    case "$real_path" in
+        /root/.local/share/*)
+            relative_rest="${real_path#/root/.local/share/}"
+            app_dir_name="${relative_rest%%/*}"
+            app_root="/root/.local/share/$app_dir_name"
+            relative_rest="${real_path#$app_root/}"
+            ;;
+        /root/.local/lib/*)
+            relative_rest="${real_path#/root/.local/lib/}"
+            app_dir_name="${relative_rest%%/*}"
+            app_root="/root/.local/lib/$app_dir_name"
+            relative_rest="${real_path#$app_root/}"
+            ;;
+        /root/.local/bin/*|/root/bin/*)
+            # Standalone binary reached through a symlink (e.g.
+            # /usr/local/bin/x -> /root/.local/bin/x): copy the real file.
+            if [ -f "$real_path" ]; then
+                log_install "Relocating standalone binary to /usr/local/bin/$exec_name"
+                $USE_SUDO rm -f "/usr/local/bin/$exec_name"
+                $USE_SUDO install -m 0755 "$real_path" "/usr/local/bin/$exec_name"
+                return 0
+            fi
+            return 1
+            ;;
+        /root/.[A-Za-z0-9_-]*/*)
+            app_dir_name="${real_path#/root/.}"
+            app_dir_name="${app_dir_name%%/*}"
+            relative_rest="${real_path#/root/.$app_dir_name/}"
+            app_root="/root/.$app_dir_name"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    if [ -z "$app_dir_name" ] || [ ! -d "$app_root" ]; then
+        return 1
+    fi
+
+    log_install "Relocating root-home install $app_root -> $shared_root/$app_dir_name"
+    $USE_SUDO mkdir -p "$shared_root"
+    $USE_SUDO rm -rf "${shared_root:?}/$app_dir_name"
+    if ! $USE_SUDO cp -a "$app_root" "$shared_root/$app_dir_name"; then
+        log_error "Failed to relocate $app_root"
+        return 1
+    fi
+    $USE_SUDO chmod -R a+rX "$shared_root/$app_dir_name"
+
+    local new_real_path="$shared_root/$app_dir_name/$relative_rest"
+    if [ ! -e "$new_real_path" ]; then
+        log_error "Relocated binary missing: $new_real_path"
+        return 1
+    fi
+
+    $USE_SUDO rm -f "/usr/local/bin/$exec_name"
+    $USE_SUDO ln -sf "$new_real_path" "/usr/local/bin/$exec_name"
+    log_success "Relocated $exec_name: /usr/local/bin/$exec_name -> $new_real_path"
+    return 0
+}
+
 # Check if a command is installed via snap
 is_snap_package() {
     local exec_name="$1"
@@ -246,8 +378,34 @@ universal_install() {
     local package_id="$2"
     local app_name="$3"
     local exec_name="$4"  # Optional executable name for cleanup
+    local snap_confinement="$5"  # Optional: snap confinement (e.g. classic)
+    local install_spec="$6"      # Optional: deb_repo/tarball/github_deb spec
 
     log_install "Universal install: $app_name using method $method"
+
+    # Heal root-home installs without reinstalling: when the binary resolves
+    # for root but not for the real desktop user, relocate it to a shared
+    # location. uv/pipx venvs refuse relocation and fall through to a normal
+    # (shared-directory) reinstall. Broken/stale links (e.g. a self-referential
+    # /usr/local/bin symlink) are skipped so the real payload in a root home
+    # is found instead.
+    if [ -n "$exec_name" ] && ! command_usable_by_real_user "$exec_name"; then
+        local existing_exec_path=""
+        local heal_candidate=""
+        existing_exec_path="$(command -v "$exec_name" 2>/dev/null || true)"
+        if [ -z "$existing_exec_path" ]; then
+            for heal_candidate in "$HOME/.local/bin/$exec_name" "$HOME/.opencode/bin/$exec_name" "$HOME/.kimi-code/bin/$exec_name" "/usr/local/bin/$exec_name"; do
+                if [ -e "$heal_candidate" ]; then
+                    existing_exec_path="$heal_candidate"
+                    break
+                fi
+            done
+        fi
+        if [ -n "$existing_exec_path" ] && relocate_root_home_install "$exec_name" "$existing_exec_path"; then
+            log_success "$app_name healed by relocation (root-home install)"
+            return 0
+        fi
+    fi
 
     # Perform cleanup if needed (for web and apt installations)
     if [ -n "$exec_name" ] && needs_cleanup_before_install "$exec_name" "$method"; then
@@ -266,7 +424,7 @@ universal_install() {
             install_result=$?
             ;;
         "snap")
-            install_via_snap "$package_id" "$app_name"
+            install_via_snap "$package_id" "$app_name" "$snap_confinement"
             install_result=$?
             ;;
         "flatpak")
@@ -309,6 +467,18 @@ universal_install() {
             ;;
         "microsoft_apt")
             install_via_microsoft_apt "$package_id" "$app_name"
+            install_result=$?
+            ;;
+        "deb_repo")
+            install_via_deb_repo "$package_id" "$app_name" "$install_spec"
+            install_result=$?
+            ;;
+        "tarball")
+            install_via_tarball "$package_id" "$app_name" "$install_spec" "$exec_name"
+            install_result=$?
+            ;;
+        "github_deb")
+            install_via_github_deb "$package_id" "$app_name" "$install_spec"
             install_result=$?
             ;;
         *)
@@ -355,6 +525,17 @@ universal_install() {
                 [ -d "$npm_prefix_bin" ] && search_paths+=("$npm_prefix_bin/$exec_name")
             fi
 
+            # pnpm-installed global CLIs land in `pnpm config get global-bin-dir`,
+            # which is likewise often not on PATH inside installer shells.
+            local pnpm_global_bin_dir="${PNPM_GLOBAL_BIN_DIR:-}"
+            if [ -z "$pnpm_global_bin_dir" ] && command -v get_var >/dev/null 2>&1; then
+                pnpm_global_bin_dir="$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null || true)"
+            fi
+            if [ -z "$pnpm_global_bin_dir" ] && command -v pnpm >/dev/null 2>&1; then
+                pnpm_global_bin_dir="$(pnpm config get global-bin-dir 2>/dev/null || true)"
+            fi
+            [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ] && search_paths+=("$pnpm_global_bin_dir/$exec_name")
+
             # Also search for lowercase version if exec_name has uppercase
             local exec_lower=$(echo "$exec_name" | tr '[:upper:]' '[:lower:]')
             if [ "$exec_name" != "$exec_lower" ]; then
@@ -375,6 +556,14 @@ universal_install() {
 
         # Process found executable
         if [ -n "$exec_path" ] && [ -f "$exec_path" ]; then
+            # A curl/vendor installer that ran as root may have dropped the
+            # payload under /root/... -- relocate it to a shared location so
+            # regular users can run it too.
+            if relocate_root_home_install "$exec_name" "$exec_path"; then
+                exec_path="/usr/local/bin/$exec_name"
+                needs_symlink=false
+            fi
+
             # Fix permissions for the executable
             log_install "Fixing permissions for: $exec_path"
             fix_installation_permissions_from_common_functions "$exec_path" "777" "true" 2>&1 | while IFS= read -r line; do
@@ -437,5 +626,7 @@ universal_install() {
 export -f install_via_apt install_via_snap install_via_flatpak install_via_web
 export -f install_via_npm install_via_pnpm install_via_pipx install_via_uv install_via_uv_tool
 export -f install_via_uvx install_via_curl install_via_microsoft_apt universal_install
+export -f install_via_deb_repo install_via_tarball install_via_github_deb
 export -f log_install log_success log_error log_warning command_exists validate_package_exists
 export -f is_snap_package is_command_from_snap force_cleanup_package needs_cleanup_before_install
+export -f resolve_real_user command_usable_by_real_user relocate_root_home_install

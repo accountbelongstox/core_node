@@ -85,11 +85,6 @@ function testUrl(url, timeoutMs = 5000) {
   let needRestart = false;
   let daemonExists = fs.existsSync(daemonPath);
 
-  if (envLocal === 'en') {
-    logger.info('envLocal is en, skipping all Docker DNS and registry-mirrors settings. No changes will be made.');
-    process.exit(0);
-  }
-
   if (!daemonExists) {
     if (fs.existsSync(synologyPath)) {
       logger.warn('Detected Synology environment (/var/packages/ContainerManager/etc/dockerd.json exists).');
@@ -108,6 +103,26 @@ function testUrl(url, timeoutMs = 5000) {
     }
   }
 
+  // Self-heal: migrate the legacy uppercase "DNS" key written by older
+  // versions of this script. dockerd only accepts lowercase "dns"; an unknown
+  // key makes the whole daemon fail to start.
+  if (Object.prototype.hasOwnProperty.call(daemon, 'DNS')) {
+    if (!Object.prototype.hasOwnProperty.call(daemon, 'dns')) {
+      daemon.dns = daemon.DNS;
+    }
+    delete daemon.DNS;
+    needWrite = true;
+    needRestart = true;
+    logger.info('Migrating legacy "DNS" key to lowercase "dns" (dockerd rejects the uppercase key).');
+  }
+
+  // NOTE: no early exit for envLocal === 'en' here; the skipDefault logic
+  // below already skips DNS/mirror changes for 'en', and the legacy-key
+  // migration above must still run for every region.
+  if (envLocal === 'en') {
+    logger.info('envLocal is en, skipping Docker DNS and registry-mirrors settings.');
+  }
+
   // --- Begin envLocal logic ---
   let skipDefault = false;
   if (envLocal === 'en') {
@@ -123,9 +138,9 @@ function testUrl(url, timeoutMs = 5000) {
   else if (!skipDefault) targetDNS = dnsMap.default;
 
   if (typeof targetDNS !== 'undefined') {
-    let dnsChanged = !arraysEqual(daemon.DNS, targetDNS);
+    let dnsChanged = !arraysEqual(daemon.dns, targetDNS);
     if (dnsChanged) {
-      daemon.DNS = targetDNS;
+      daemon.dns = targetDNS;
       needWrite = true;
       needRestart = true;
       logger.info('Docker DNS will be set to: ' + JSON.stringify(targetDNS));
@@ -174,9 +189,9 @@ function testUrl(url, timeoutMs = 5000) {
         fs.mkdirSync(dockerDir, { recursive: true, mode: 0o755 });
       }
 
-      // Only keep DNS and registry-mirrors if creating new file
+      // Only keep dns and registry-mirrors if creating new file
       if (!daemonExists) {
-        daemon = { DNS: daemon.DNS };
+        daemon = { dns: daemon.dns };
         if (daemon['registry-mirrors']) daemon['registry-mirrors'] = [mirrorUrl];
       }
 

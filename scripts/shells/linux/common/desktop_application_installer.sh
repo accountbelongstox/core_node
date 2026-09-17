@@ -392,8 +392,8 @@ create_symlink_usr_local_bin() {
 verify_installation() {
     local exec_name="$1"
     local app_name="$2"
-    
-    if command_exists "$exec_name"; then
+
+    if command_exists "$exec_name" && command_usable_by_real_user "$exec_name"; then
         log_message "$app_name is installed and available in PATH"
         return 0
     else
@@ -410,9 +410,9 @@ install_application() {
     local exec_name=""
     local install_method=""
     local package_id=""
-    local launch_command=""
     local super_command=""
     local snap_confinement=""
+    local install_spec=""
 
     # Handle MCP apps (remove mcp_ prefix for property lookup)
     local lookup_app="$app_name"
@@ -420,18 +420,30 @@ install_application() {
         lookup_app="${app_name#mcp_}"
     fi
 
-    # Get application properties using the unified structure
+    # Get application properties using the unified structure. On Debian,
+    # snap-based apps resolve to their native override (official apt repo /
+    # deb download / tarball) so snapd is not required.
     display_name=$(get_app_property "$lookup_app" "name")
     exec_name=$(get_app_property "$lookup_app" "exec")
-    install_method=$(get_install_method "$lookup_app")
+    install_method=$(get_effective_install_method "$lookup_app")
     case "$install_method" in
         npm|pnpm)
             install_method="pnpm"
             ;;
     esac
-    package_id=$(get_package_id "$lookup_app")
+    package_id=$(get_effective_package_id "$lookup_app")
     super_command=$(get_app_property "$lookup_app" "super")
     snap_confinement=$(get_snap_confinement "$lookup_app")
+    install_spec=$(get_debian_install_spec "$lookup_app")
+
+    # "none" means a dedicated installer script owns this app (e.g. Android
+    # Studio is installed by 61_install_android_studio.sh); only verify and
+    # repair links here.
+    if [ "$install_method" = "none" ]; then
+        log_message "$display_name is managed by a dedicated installer, checking availability..."
+        verify_installation "$exec_name" "$display_name" || true
+        return 0
+    fi
 
     # Skip if no package ID or install method
     if [ -z "$package_id" ] || [ -z "$install_method" ]; then
@@ -493,33 +505,21 @@ install_application() {
     # Check if already installed
     if verify_installation "$exec_name" "$display_name"; then
         if [ "$install_method" = "pnpm" ]; then
-            log_message "$display_name is already installed. Running pnpm upgrade."
+            log_message "$display_name is already installed. Refreshing pnpm package links..."
         else
             log_message "$display_name is already installed, repairing links and scripts..."
-
-            # Create or repair launch script if launch command exists (always repair, even if installed)
-            if [ -n "$launch_command" ]; then
-                log_message "Repairing launch script for $display_name"
-                create_launch_script "$lookup_app"
-            fi
-
-            # For pnpm packages, refresh the symlink to point directly to pnpm binary
-            if [ "$install_method" = "pnpm" ]; then
-                log_message "Refreshing pnpm package links for $display_name"
-                refresh_npm_package_links "$exec_name" "$lookup_app"
-            fi
-
-            return 0
         fi
+
+        # For pnpm packages, refresh the symlink to point directly to pnpm binary
+        if [ "$install_method" = "pnpm" ]; then
+            refresh_npm_package_links "$exec_name" "$lookup_app"
+        fi
+
+        return 0
     fi
 
-    # Handle snap packages with special confinement requirements
-    if [ "$install_method" = "snap" ] && [ -n "$snap_confinement" ]; then
-        log_message "  Snap Confinement: $snap_confinement"
-        # Pass snap_confinement to snap installer via direct call
-        install_via_snap "$package_id" "$display_name" "$snap_confinement"
     # Handle AppImage packages with custom installation
-    elif [ "$install_method" = "appimage" ]; then
+    if [ "$install_method" = "appimage" ]; then
         log_message "  Installing AppImage from: $package_id"
         # Get app configuration for desktop entry creation
         local app_id="${lookup_app}"
@@ -527,12 +527,20 @@ install_application() {
         # AppImage creates its own wrapper, skip setup_super_launch
         should_use_super=false
     else
-        # Use universal install function from installation library
-        universal_install "$install_method" "$package_id" "$display_name" "$exec_name" || true
+        # Use universal install function from installation library. It also
+        # locates the installed executable (e.g. /snap/bin) and links it into
+        # /usr/local/bin so verification succeeds even when /snap/bin is not
+        # on PATH. Snap confinement is forwarded as the optional 5th argument.
+        if [ -n "$snap_confinement" ]; then
+            log_message "  Snap Confinement: $snap_confinement"
+        fi
+        universal_install "$install_method" "$package_id" "$display_name" "$exec_name" "$snap_confinement" "$install_spec" || true
     fi
 
-    # Create direct symlink if installation was successful
-    if [ "$(verify_installation "$exec_name" "$display_name")" = "true" ]; then
+    # Create direct symlink if installation was successful. verify_installation
+    # returns an EXIT CODE (0/1) and echoes log text -- comparing its stdout to
+    # the string "true" always failed and misreported successful installs.
+    if verify_installation "$exec_name" "$display_name"; then
         log_message "Creating launch script for $display_name"
         create_launch_script "$lookup_app"
         

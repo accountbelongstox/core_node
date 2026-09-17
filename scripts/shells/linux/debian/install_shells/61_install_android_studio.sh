@@ -102,7 +102,7 @@ check_android_studio_installed() {
 # Install Android Studio via snap (preferred method)
 install_android_studio_snap() {
     log_message "Installing Android Studio via snap..."
-    
+
     if ! command -v snap >/dev/null 2>&1; then
         log_message "Installing snapd first..."
         $USE_SUDO apt update
@@ -115,13 +115,15 @@ install_android_studio_snap() {
             return 1
         fi
     fi
-    
-    # Install Android Studio with classic confinement
-    if $USE_SUDO snap install android-studio --classic; then
+
+    # Install Android Studio with classic confinement. Capture the output so the
+    # failure reason (e.g. another snap change already in progress) is visible.
+    local snap_output=""
+    if snap_output="$($USE_SUDO snap install android-studio --classic 2>&1)"; then
         log_success "Android Studio installed successfully via snap"
         return 0
     else
-        log_error "Failed to install Android Studio via snap"
+        log_error "Failed to install Android Studio via snap: $snap_output"
         return 1
     fi
 }
@@ -133,9 +135,10 @@ install_android_studio_manual() {
     # Create installation directory
     $USE_SUDO mkdir -p "$ANDROID_STUDIO_INSTALL_DIR"
     
-    # Download Android Studio
+    # Download Android Studio (-c resumes a partial download, so an interrupted
+    # multi-GB download is continued on the next idempotent run, not restarted)
     log_message "Downloading Android Studio from $ANDROID_STUDIO_URL..."
-    if wget -O "$SCRIPT_TEMP_DIR/android-studio.tar.gz" "$ANDROID_STUDIO_URL"; then
+    if wget -c -O "$SCRIPT_TEMP_DIR/android-studio.tar.gz" "$ANDROID_STUDIO_URL"; then
         log_success "Android Studio downloaded successfully"
     else
         log_error "Failed to download Android Studio"
@@ -219,14 +222,52 @@ enable_i386_architecture() {
     fi
 }
 
+# Check the apt index for an install candidate (handles multiarch suffixes).
+package_has_candidate() {
+    apt-cache policy "$1" 2>/dev/null | grep -qE 'Candidate: [^(]'
+}
+
+# Pick the first JDK package actually offered by the apt index. Debian 13
+# (trixie) dropped openjdk-17, so a hardcoded name fails with "Unable to
+# locate package". Android Studio bundles its own JetBrains Runtime; the
+# system JDK only serves SDK/Gradle tooling, so any modern LTS line works.
+resolve_available_jdk_package() {
+    local candidate=""
+    for candidate in openjdk-21-jdk openjdk-17-jdk openjdk-25-jdk default-jdk; do
+        if package_has_candidate "$candidate"; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Install one package only when the apt index offers it; an unknown name is
+# logged and skipped instead of erroring with "Unable to locate package".
+# Idempotent: apt no-ops once the package is installed.
+install_dependency_if_available() {
+    local dep="$1"
+    if ! package_has_candidate "$dep"; then
+        log_warning "Skipping unavailable package (no apt candidate): $dep"
+        return 0
+    fi
+    log_message "Installing dependency: $dep"
+    if ! $USE_SUDO apt install -y "$dep"; then
+        log_warning "Failed to install $dep"
+    fi
+}
+
 # Install required dependencies
 install_dependencies() {
     log_message "Installing required dependencies..."
 
     enable_i386_architecture
 
+    local dep=""
+    local jdk_package=""
+    local ncurses_pkg=""
+    local ncurses_installed=false
     local base_dependencies=(
-        "openjdk-17-jdk"
         "unzip"
         "wget"
         "curl"
@@ -245,17 +286,21 @@ install_dependencies() {
         "libncurses5:i386"
     )
 
+    jdk_package="$(resolve_available_jdk_package || true)"
+    if [ -n "$jdk_package" ]; then
+        base_dependencies=("$jdk_package" "${base_dependencies[@]}")
+    else
+        log_warning "No JDK package in apt index; Android Studio will use its bundled JetBrains Runtime"
+    fi
+
     for dep in "${base_dependencies[@]}"; do
-        log_message "Installing dependency: $dep"
-        if ! $USE_SUDO apt install -y "$dep"; then
-            log_warning "Failed to install $dep"
-        fi
+        install_dependency_if_available "$dep"
     done
 
     if dpkg --print-foreign-architectures | grep -q "i386"; then
         # Try to install ncurses with fallback
-        local ncurses_installed=false
         for ncurses_pkg in "${ncurses_i386_packages[@]}"; do
+            package_has_candidate "$ncurses_pkg" || continue
             log_message "Trying to install: $ncurses_pkg"
             if $USE_SUDO apt install -y "$ncurses_pkg" 2>/dev/null; then
                 log_message "Successfully installed $ncurses_pkg"
@@ -271,10 +316,7 @@ install_dependencies() {
 
         # Install other i386 dependencies
         for dep in "${i386_dependencies[@]}"; do
-            log_message "Installing dependency: $dep"
-            if ! $USE_SUDO apt install -y "$dep"; then
-                log_warning "Failed to install $dep"
-            fi
+            install_dependency_if_available "$dep"
         done
     else
         log_warning "i386 architecture not enabled, skipping i386 dependencies"
@@ -286,28 +328,39 @@ install_dependencies() {
 # Main installation function
 install_android_studio() {
     log_message "Starting Android Studio installation..."
-    
+
     # Check if already installed
     if check_android_studio_installed; then
         log_message "Android Studio is already installed, skipping installation"
         return 0
     fi
-    
+
     # Install dependencies
     install_dependencies
-    
-    # Try snap installation first (preferred)
-    if install_android_studio_snap; then
-        return 0
+
+    # On Debian, prefer the official developer.android.com tarball over the
+    # snapcrafters snap (a third-party classic snap that pulls in snapd and
+    # core20/24 runtimes). Other distros keep the snap-first order.
+    local os_id=""
+    os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+    if [ "$os_id" = "debian" ]; then
+        if install_android_studio_manual; then
+            return 0
+        fi
+        log_warning "Manual installation failed, trying snap..."
+        if install_android_studio_snap; then
+            return 0
+        fi
+    else
+        if install_android_studio_snap; then
+            return 0
+        fi
+        log_warning "Snap installation failed, trying manual installation..."
+        if install_android_studio_manual; then
+            return 0
+        fi
     fi
-    
-    log_warning "Snap installation failed, trying manual installation..."
-    
-    # Fallback to manual installation
-    if install_android_studio_manual; then
-        return 0
-    fi
-    
+
     log_error "All installation methods failed"
     return 1
 }

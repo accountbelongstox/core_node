@@ -73,7 +73,25 @@ install_via_snap() {
         # Capture error output for analysis
         local snap_error_output
         snap_error_output=$(eval "$snap_install_cmd" 2>&1 || true)
-        
+
+        # A previous (or concurrent) run may still be installing this snap;
+        # snapd rejects the duplicate with "change in progress". Wait for that
+        # in-flight change to finish instead of failing, then verify the result
+        # from snap list (idempotent self-heal across overlapping runs).
+        if [[ "$snap_error_output" == *"change in progress"* ]]; then
+            local change_id=""
+            change_id="$($USE_SUDO snap changes 2>/dev/null | awk -v pkg="\"$package_id\"" '$2 == "Doing" && index($0, pkg) {print $1; exit}')"
+            if [ -n "$change_id" ]; then
+                log_install "Waiting for in-progress snap change #$change_id ($package_id)..."
+                timeout 1800 $USE_SUDO snap watch "$change_id" >/dev/null 2>&1 || true
+            fi
+            if $USE_SUDO snap list 2>/dev/null | grep -q "^$package_id "; then
+                log_success "Successfully installed $app_name via SNAP (completed by in-progress change)"
+                return 0
+            fi
+            log_warning "In-progress snap change for $package_id ended but the snap is not installed"
+        fi
+
         # Check if error is due to confinement requirement
         if [[ "$snap_error_output" == *"classic"* ]] && [[ "$snap_error_output" == *"confinement"* ]]; then
             log_warning "Snap package requires classic confinement, retrying with --classic flag"
@@ -310,8 +328,11 @@ install_via_npm() {
 
     pnpm_run_path="${NODE_BIN_DIR:-$(dirname "$pnpm_bin")}:${PNPM_GLOBAL_BIN_DIR:-}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-    # Idempotent skip when already present globally or on PATH.
-    if env "PATH=$pnpm_run_path" "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1; then
+    # Idempotent skip when already present globally or on PATH. NOTE: pnpm
+    # exits 0 for `list -g <pkg>` even when the package is NOT installed (the
+    # output is just empty), so the check must match the package name in the
+    # output text, not the exit code.
+    if env "PATH=$pnpm_run_path" "$pnpm_bin" list -g "$package_id" 2>/dev/null | grep -qF "$package_id"; then
         log_success "$app_name already installed globally via pnpm, skipping add -g"
         return 0
     fi
@@ -427,9 +448,15 @@ install_via_uv() {
 install_via_uv_tool() {
     local package_id="$1"
     local app_name="$2"
-    
+
     log_install "Installing $app_name via UV TOOL: $package_id"
-    
+
+    # Install uv tools into shared, world-readable locations. The default
+    # (~/.local/share/uv + ~/.local/bin) is root-only when the installer runs
+    # as root, leaving the tool unusable for regular users.
+    local uv_tool_dir="/usr/local/uv-tools"
+    local uv_tool_bin_dir="/usr/local/bin"
+
     # Check if uv is installed
     if ! command_exists uv; then
         log_install "Installing uv first..."
@@ -441,9 +468,17 @@ install_via_uv_tool() {
             return 1
         fi
     fi
-    
-    # Install uv tool
-    if $USE_SUDO uv tool install "$package_id"; then
+
+    # Heal: drop any copy previously installed under the invoking user's home
+    # (e.g. /root/.local/share/uv/tools) so the reinstall lands in the shared
+    # tool directory instead of shadowing it. uv normalizes tool names, so
+    # uninstall unconditionally (no-op when absent).
+    if [ -d "$HOME/.local/share/uv/tools" ]; then
+        $USE_SUDO uv tool uninstall "$package_id" 2>/dev/null || true
+    fi
+
+    # --force overwrites stale executables/symlinks in the shared bin dir.
+    if $USE_SUDO env UV_TOOL_DIR="$uv_tool_dir" UV_TOOL_BIN_DIR="$uv_tool_bin_dir" uv tool install --force "$package_id"; then
         log_success "Successfully installed $app_name via UV TOOL"
         return 0
     else
@@ -594,3 +629,225 @@ install_via_microsoft_apt() {
     fi
 }
 
+
+# Install via a third-party APT repository (Debian-native, replaces snap).
+# spec format: key_url|keyring_name|repo_line|list_name|pin_origin(optional)
+# The keyring is stored under /etc/apt/keyrings and referenced with signed-by=;
+# apt-key is never used. All steps are idempotent: existing keyrings, list files
+# and pin files are only rewritten when their content differs.
+install_via_deb_repo() {
+    local package_id="$1"
+    local app_name="$2"
+    local spec="$3"
+    local key_url=""
+    local keyring_name=""
+    local repo_line=""
+    local list_name=""
+    local pin_origin=""
+    local keyring_path=""
+    local list_path=""
+    local pin_path=""
+    local needs_update=false
+
+    log_install "Installing $app_name via APT repository: $package_id"
+
+    key_url="$(printf '%s' "$spec" | cut -d'|' -f1)"
+    keyring_name="$(printf '%s' "$spec" | cut -d'|' -f2)"
+    repo_line="$(printf '%s' "$spec" | cut -d'|' -f3)"
+    list_name="$(printf '%s' "$spec" | cut -d'|' -f4)"
+    pin_origin="$(printf '%s' "$spec" | cut -d'|' -f5)"
+
+    if [ -z "$key_url" ] || [ -z "$keyring_name" ] || [ -z "$repo_line" ] || [ -z "$list_name" ]; then
+        log_error "Invalid deb_repo spec for $app_name: $spec"
+        return 1
+    fi
+
+    keyring_path="/etc/apt/keyrings/$keyring_name"
+    list_path="/etc/apt/sources.list.d/$list_name"
+
+    $USE_SUDO mkdir -p /etc/apt/keyrings 2>/dev/null || true
+
+    # Install/refresh the repository signing key.
+    if [ ! -s "$keyring_path" ]; then
+        log_install "Adding repository key: $key_url"
+        local key_tmp=""
+        key_tmp="$(mktemp /tmp/deb_repo_key.XXXXXX)"
+        if ! curl -fsSL "$key_url" -o "$key_tmp"; then
+            log_error "Failed to download repository key for $app_name"
+            rm -f "$key_tmp"
+            return 1
+        fi
+
+        case "$key_url" in
+            *.deb)
+                # Some vendors (e.g. Microsoft) only ship the repo keyring inside
+                # a config .deb -- extract the first keyring from it.
+                local deb_extract_dir=""
+                local extracted_key=""
+                deb_extract_dir="$(mktemp -d /tmp/deb_repo_key_x.XXXXXX)"
+                if dpkg-deb -x "$key_tmp" "$deb_extract_dir" 2>/dev/null; then
+                    extracted_key="$(find "$deb_extract_dir" -name '*.gpg' -type f 2>/dev/null | head -1)"
+                fi
+                if [ -n "$extracted_key" ]; then
+                    $USE_SUDO cp "$extracted_key" "$keyring_path"
+                    log_success "Repository key extracted from config deb: $keyring_path"
+                    needs_update=true
+                else
+                    log_error "No keyring found inside config deb for $app_name"
+                    rm -rf "$key_tmp" "$deb_extract_dir"
+                    return 1
+                fi
+                rm -rf "$key_tmp" "$deb_extract_dir"
+                ;;
+            *)
+                # ASCII-armored keys need dearmoring; binary keyrings are copied as-is.
+                if head -c 40 "$key_tmp" | grep -q "BEGIN PGP"; then
+                    if $USE_SUDO gpg --dearmor --yes -o "$keyring_path" "$key_tmp" 2>/dev/null; then
+                        log_success "Repository key installed: $keyring_path"
+                        needs_update=true
+                    else
+                        log_error "Failed to dearmor repository key for $app_name"
+                        rm -f "$key_tmp"
+                        return 1
+                    fi
+                else
+                    $USE_SUDO cp "$key_tmp" "$keyring_path"
+                    log_success "Repository key installed: $keyring_path"
+                    needs_update=true
+                fi
+                rm -f "$key_tmp"
+                ;;
+        esac
+    fi
+
+    # Write the sources list entry when missing or changed
+    if [ ! -f "$list_path" ] || ! grep -qF "$repo_line" "$list_path" 2>/dev/null; then
+        log_install "Writing repository entry: $list_path"
+        echo "$repo_line" | $USE_SUDO tee "$list_path" > /dev/null || return 1
+        needs_update=true
+    fi
+
+    # Optional apt pin (e.g. Mozilla packages must outrank the firefox-esr transition)
+    if [ -n "$pin_origin" ]; then
+        pin_path="/etc/apt/preferences.d/${list_name%.list}"
+        local pin_content="Package: *
+Pin: origin $pin_origin
+Pin-Priority: 1000"
+        if [ ! -f "$pin_path" ] || ! grep -qF "$pin_origin" "$pin_path" 2>/dev/null; then
+            log_install "Writing apt pin: $pin_path (origin $pin_origin)"
+            printf '%s\n' "$pin_content" | $USE_SUDO tee "$pin_path" > /dev/null || return 1
+            needs_update=true
+        fi
+    fi
+
+    if [ "$needs_update" = true ]; then
+        log_install "Updating package lists..."
+        timeout 300 $USE_SUDO apt update || log_warning "apt update had issues, continuing anyway"
+    fi
+
+    log_install "Installing package: $package_id"
+    if timeout 600 $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install -y "$package_id"; then
+        log_success "$app_name installed successfully via APT repository"
+        return 0
+    else
+        log_error "Failed to install $app_name via APT repository"
+        return 1
+    fi
+}
+
+# Install via an official tarball archive (Debian-native, replaces snap).
+# package_id is the tarball URL; spec format: dest_dir|exec_relpath
+# The archive must contain a single top-level directory, which is stripped.
+# Idempotent: an existing dest_dir/exec_relpath binary skips the download.
+install_via_tarball() {
+    local package_url="$1"
+    local app_name="$2"
+    local spec="$3"
+    local exec_name="$4"
+    local dest_dir=""
+    local exec_relpath=""
+    local archive_path=""
+    local binary_path=""
+
+    log_install "Installing $app_name via TARBALL: $package_url"
+
+    dest_dir="$(printf '%s' "$spec" | cut -d'|' -f1)"
+    exec_relpath="$(printf '%s' "$spec" | cut -d'|' -f2)"
+
+    if [ -z "$dest_dir" ] || [ -z "$exec_relpath" ]; then
+        log_error "Invalid tarball spec for $app_name: $spec"
+        return 1
+    fi
+
+    binary_path="$dest_dir/$exec_relpath"
+
+    if [ ! -x "$binary_path" ]; then
+        archive_path="/var/tmp/$(basename "$package_url").$$.tar.gz"
+        log_install "Downloading tarball to: $archive_path"
+        if ! wget -c -O "$archive_path" "$package_url"; then
+            log_error "Failed to download $app_name tarball"
+            rm -f "$archive_path"
+            return 1
+        fi
+
+        $USE_SUDO rm -rf "$dest_dir"
+        $USE_SUDO mkdir -p "$dest_dir"
+        log_install "Extracting tarball to: $dest_dir"
+        if ! $USE_SUDO tar -xzf "$archive_path" -C "$dest_dir" --strip-components=1; then
+            log_error "Failed to extract $app_name tarball"
+            rm -f "$archive_path"
+            return 1
+        fi
+        rm -f "$archive_path"
+    fi
+
+    if [ ! -x "$binary_path" ]; then
+        log_error "Binary not found after extraction: $binary_path"
+        return 1
+    fi
+
+    if [ -n "$exec_name" ]; then
+        $USE_SUDO ln -sf "$binary_path" "/usr/local/bin/$exec_name"
+        log_success "Linked /usr/local/bin/$exec_name -> $binary_path"
+    fi
+
+    log_success "$app_name installed successfully via TARBALL"
+    return 0
+}
+
+# Install via the official .deb asset of the latest GitHub release.
+# spec format: owner/repo|asset_regex
+install_via_github_deb() {
+    local package_id="$1"
+    local app_name="$2"
+    local spec="$3"
+    local repo=""
+    local asset_regex=""
+    local deb_url=""
+
+    log_install "Installing $app_name via GitHub release .deb: $package_id"
+
+    repo="$(printf '%s' "$spec" | cut -d'|' -f1)"
+    asset_regex="$(printf '%s' "$spec" | cut -d'|' -f2)"
+
+    if [ -z "$repo" ] || [ -z "$asset_regex" ]; then
+        log_error "Invalid github_deb spec for $app_name: $spec"
+        return 1
+    fi
+
+    log_install "Resolving latest release asset from: $repo"
+    deb_url="$(curl -fsSL --connect-timeout 15 --max-time 60 \
+        "https://api.github.com/repos/$repo/releases/latest" \
+        | grep -o '"browser_download_url": *"[^"]*"' \
+        | cut -d'"' -f4 \
+        | grep -E "$asset_regex" \
+        | head -1)"
+
+    if [ -z "$deb_url" ]; then
+        log_error "No .deb asset matching '$asset_regex' in latest $repo release"
+        return 1
+    fi
+
+    log_install "Resolved .deb: $deb_url"
+    install_via_web "$deb_url" "$app_name"
+}
