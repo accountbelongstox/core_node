@@ -1800,21 +1800,45 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return null;
     }
 
-    /** Every scalar text leaf inside a translations payload (any nesting). */
-    private static function flattenTranslationTexts(array $values): array
+    /**
+     * Every translation TEXT inside a translations payload. Only language-keyed
+     * values ('zh', 'en', 'en_US', ...) and the text element of
+     * word_translation [tag, text] pairs count; metadata keys (word,
+     * is_native_voice, plural_form, synonyms, ...) are never translations.
+     */
+    private static function flattenTranslationTexts(array $translations): array
     {
         $texts = [];
-        $stack = array_values($values);
-        while ($stack !== []) {
-            $value = array_pop($stack);
-            if (is_array($value)) {
-                foreach ($value as $nested) {
-                    $stack[] = $nested;
+        foreach ($translations as $key => $value) {
+            if ($key === 'word_translation' && is_array($value)) {
+                foreach ($value as $pair) {
+                    if (is_array($pair)) {
+                        foreach (array_slice($pair, 1) as $text) {
+                            if (is_string($text) && trim($text) !== '') {
+                                $texts[] = $text;
+                            }
+                        }
+                    } elseif (is_string($pair) && trim($pair) !== '') {
+                        $texts[] = $pair;
+                    }
                 }
                 continue;
             }
-            if (is_string($value) && trim($value) !== '') {
-                $texts[] = $value;
+            if (!is_string($key) || preg_match('/^[a-z]{2}([_-][a-zA-Z]{2,4})?$/', $key) !== 1) {
+                continue;
+            }
+            $stack = [$value];
+            while ($stack !== []) {
+                $nested = array_pop($stack);
+                if (is_array($nested)) {
+                    foreach ($nested as $leaf) {
+                        $stack[] = $leaf;
+                    }
+                    continue;
+                }
+                if (is_string($nested) && trim($nested) !== '') {
+                    $texts[] = $nested;
+                }
             }
         }
         return $texts;
@@ -1838,6 +1862,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         $invalid = [];
         $query = self::forLanguage($langCode)
             ->newQuery()
+            ->select(['id', 'content', 'translations'])
             ->withTranslationCoverage()
             ->where('content', '<>', '')
             ->where(function (Builder $builder): void {
@@ -1845,8 +1870,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
                     $builder->orWhere('translations', 'ilike', '%' . $marker . '%');
                 }
                 $builder->orWhereRaw('position(lower(content) in lower(translations)) > 0');
-            })
-            ->orderBy('id');
+            });
 
         $query->chunkById(self::QUERY_CHUNK_SIZE, function ($rows) use (&$invalid): void {
             foreach ($rows as $row) {
@@ -1855,7 +1879,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
                     $invalid[(int) $row->id] = $reason;
                 }
             }
-        });
+        }, column: 'id');
 
         return $invalid;
     }
