@@ -314,7 +314,11 @@ decrypt_ssh_keys() {
     # Wait for a single keypress with NO timeout (an interactive user is never rushed).
     # read only returns non-zero here on EOF (stdin closed / non-interactive run), which
     # still falls through to the safe default 'n' so unattended/CI runs do not hang.
-    if read -n 1 user_input; then
+    # DD_AUTO_CONTINUE (exported by the install chain) skips the wait entirely.
+    if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+        user_input=""
+        print_step_from_common_functions "Auto-continue (DD_AUTO_CONTINUE), defaulting to 'n'"
+    elif read -n 1 user_input; then
         echo  # Add newline after input
         if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
             has_password=true

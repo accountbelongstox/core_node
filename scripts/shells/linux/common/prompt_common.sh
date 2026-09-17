@@ -16,9 +16,20 @@ PROMPT_COMMON_LOADED="true"
 # then the default wins. stdin being a pipe/herestring does NOT suppress the
 # prompt (the question goes to /dev/tty deliberately).
 # Usage: prompt_read_default VAR_NAME default [timeout_sec] [prompt_text]
+#
+# Auto-continue: when DD_AUTO_CONTINUE=1/true (exported by the install chain
+# orchestrator), CI=true, NONINTERACTIVE=1, or DEBIAN_FRONTEND=noninteractive
+# is set, the prompt is skipped entirely and the documented default wins
+# immediately -- no TTY wait at all.
 prompt_read_default() {
     local __prd_var="$1" __prd_default="$2" __prd_timeout="${3:-30}" __prd_prompt="${4:-}"
     local __prd_reply="" __prd_tpgid="" __prd_pgid=""
+    if [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ "${DD_AUTO_CONTINUE:-}" = "true" ] \
+        || [ "${NONINTERACTIVE:-}" = "1" ] || [ "${CI:-}" = "true" ] \
+        || [ "${DEBIAN_FRONTEND:-}" = "noninteractive" ]; then
+        printf -v "$__prd_var" '%s' "$__prd_default"
+        return
+    fi
     if [ -r /dev/tty ] && [ -w /dev/tty ] && (exec 3<>/dev/tty) 2>/dev/null; then
         __prd_tpgid="$(ps -o tpgid= -p $$ 2>/dev/null | tr -d ' ')"
         __prd_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"

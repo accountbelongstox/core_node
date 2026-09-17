@@ -182,7 +182,7 @@ nginx_ensure_official_repo() {
     if [ ! -f "$NGINX_KEYRING_FILE" ]; then
         echo "[nginx] Importing nginx.org signing key..."
         ensure_packages_from_apt_repository_manager curl ca-certificates >/dev/null 2>&1 || true
-        curl -fsSL "$NGINX_SIGNING_KEY_URL" | $USE_SUDO gpg --dearmor -o "$NGINX_KEYRING_FILE" 2>/dev/null
+        curl -fsSL "$NGINX_SIGNING_KEY_URL" | $USE_SUDO gpg --dearmor --yes -o "$NGINX_KEYRING_FILE" 2>/dev/null
         changed=true
     fi
 
@@ -191,7 +191,7 @@ nginx_ensure_official_repo() {
     if [ -n "$stored_fingerprint" ] && [ "$stored_fingerprint" != "$NGINX_SIGNING_KEY_FINGERPRINT" ]; then
         echo "[nginx] Refreshing nginx.org signing key (fingerprint mismatch)..."
         $USE_SUDO rm -f "$NGINX_KEYRING_FILE"
-        curl -fsSL "$NGINX_SIGNING_KEY_URL" | $USE_SUDO gpg --dearmor -o "$NGINX_KEYRING_FILE" 2>/dev/null
+        curl -fsSL "$NGINX_SIGNING_KEY_URL" | $USE_SUDO gpg --dearmor --yes -o "$NGINX_KEYRING_FILE" 2>/dev/null
         changed=true
     fi
 

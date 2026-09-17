@@ -327,8 +327,8 @@ disable_tailscale_service() {
     print_warning_from_common_functions "INSTALL_TAILSCALE is set to false"
     echo -n "Do you want to disconnect and disable Tailscale? (y/N) [N]: "
     # Non-interactive (piped/orchestrated) run: default to N (keep as-is) instead
-    # of blocking or consuming a later step's stdin.
-    if [ -t 0 ] && [ -r /dev/tty ]; then read -r response < /dev/tty || response=""; else response=""; fi
+    # of blocking or consuming a later step's stdin. Timeout-bounded on a TTY.
+    if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then response=""; elif [ -t 0 ] && [ -r /dev/tty ]; then read -r -t 30 response < /dev/tty || response=""; else response=""; fi
 
     case "$response" in
         [yY]|[yY][eE][sS])

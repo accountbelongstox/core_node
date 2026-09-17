@@ -250,7 +250,11 @@ install_natgateway() {
     # Try to load cached configuration
     if load_cache; then
         echo -e "${YELLOW}Use cached configuration? (y/n/r for reconfigure):${NC}"
-        read -n 1 -r response
+        if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ ! -t 0 ]; then
+            response="y"
+        else
+            read -n 1 -r -t 30 response || response="y"
+        fi
         echo
 
         case "$response" in
@@ -453,7 +457,11 @@ main() {
         echo "  Type 'm' to open interactive menu"
         echo "  Type 'r' to reinstall/reconfigure"
         echo "  Press Enter to exit"
-        read -n 1 -r action_choice
+        if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ ! -t 0 ]; then
+            action_choice=""
+        else
+            read -n 1 -r -t 30 action_choice || action_choice=""
+        fi
         echo ""
 
         case "$action_choice" in
