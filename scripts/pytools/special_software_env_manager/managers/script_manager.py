@@ -325,6 +325,42 @@ class ScriptManager:
                 total += 1
         return total
 
+    def regenerate_for_secret_names(self, config_manager, secret_names: List[str]) -> List[Path]:
+        """Regenerate launcher scripts for configs whose variables match the
+        saved secret names (VAR_N -> config with variable VAR, file number N).
+
+        Called after every secret save so saving a value (e.g. KIMI_API_KEY_2)
+        immediately generates/updates the matching launcher (kimi2.ps1/.sh).
+        """
+        generated: List[Path] = []
+        seen = set()
+        for config_name, config in config_manager.get_all_configs().items():
+            command_prefix = (config.get('CommandPrefix') or '').strip()
+            if not command_prefix:
+                continue
+            var_names = {var.get('Name', '') for var in config.get('Variables', [])}
+            for secret_name in secret_names:
+                base, sep, number_text = secret_name.rpartition('_')
+                if not sep or not number_text.isdigit() or base not in var_names:
+                    continue
+                number = int(number_text)
+                dedup_key = (config_name, number)
+                if dedup_key in seen:
+                    continue
+                seen.add(dedup_key)
+                if config.get('UseV4Launcher', False):
+                    paths = self.generate_v4_launcher_for_config(
+                        config_name, config, number
+                    )
+                else:
+                    paths = self.generate_scripts_for_config(
+                        config_name, config, number, show_next_steps=False,
+                        secret_manager_available=True
+                    )
+                if paths:
+                    generated.extend(paths)
+        return generated
+
     def _generate_v4_sh_template(
         self, display_name: str, file_number: int,
         variables: List[Dict[str, Any]], command_prefix: str

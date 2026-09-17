@@ -77,6 +77,24 @@ $kimiBaseUrl = ""
 $kimiConfigTomlPath = $null
 $kimiConfigApiKey = $null
 $kimiConfigTomlLine = $null
+$moonshotKeyFile = $null
+$moonshotKeyEntries = @()
+$selectedKeyIndex = 0
+$switchChoice = $null
+$switchPick = $null
+$switchPickNumber = 0
+$entryIndex = 0
+$entryMarker = ""
+$modelChoice = $null
+$modelPick = $null
+$kimiModel = "k3-256k"
+$kimiModelLabel = "kimi k3 256K"
+$providerArgs = @()
+$providerExitCode = 0
+$permissionLine = 'default_permission_mode = "auto"'
+$permissionFound = $false
+$configLines = @()
+$configLineIndex = 0
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -145,25 +163,86 @@ function Read-KimiyoloSecretFile {
     return $value
 }
 
-function Get-KimiyoloMaskedKey {
-    param([string]$Value)
-    if ([string]::IsNullOrEmpty($Value)) {
-        return "[empty]"
-    }
-    $len = $Value.Length
-    $keep = 4
-    if ($len -le 8) {
-        $keep = 1
-    }
-    $middleLen = $len - (2 * $keep)
-    if ($middleLen -lt 1) {
-        $middleLen = 1
-    }
-    return ($Value.Substring(0, $keep) + ("*" * $middleLen) + $Value.Substring($len - $keep))
-}
-
 $kimiApiKey = Read-KimiyoloSecretFile -FilePath $kimiApiKeySecretPath
 $kimiBaseUrl = Read-KimiyoloSecretFile -FilePath $kimiBaseUrlSecretPath
+
+# KIMI_CODE_HOME resolution (needed early for config.toml key matching).
+$userProfilePath = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+$currentLocationPath = (Get-Location).Path
+if ([string]::IsNullOrWhiteSpace($env:KIMI_CODE_HOME)) {
+    $kimiCodeHomeCandidatePath = Join-Path $userProfilePath ".kimi-code"
+} elseif ([System.IO.Path]::IsPathRooted($env:KIMI_CODE_HOME)) {
+    $kimiCodeHomeCandidatePath = $env:KIMI_CODE_HOME
+} else {
+    $kimiCodeHomeCandidatePath = Join-Path $currentLocationPath $env:KIMI_CODE_HOME
+}
+if (-not (Test-Path -LiteralPath $kimiCodeHomeCandidatePath)) {
+    New-Item -ItemType Directory -Path $kimiCodeHomeCandidatePath -Force | Out-Null
+}
+$kimiCodeHomePath = (Resolve-Path -LiteralPath $kimiCodeHomeCandidatePath).Path
+$kimiMcpConfigPath = Join-Path $kimiCodeHomePath "mcp.json"
+$kimiConfigTomlPath = Join-Path $kimiCodeHomePath "config.toml"
+
+$kimiConfigApiKey = $null
+if (Test-Path -LiteralPath $kimiConfigTomlPath) {
+    foreach ($kimiConfigTomlLine in (Get-Content -LiteralPath $kimiConfigTomlPath)) {
+        if ($kimiConfigTomlLine -match '^\s*api_key\s*=\s*"(.+)"\s*$') {
+            $kimiConfigApiKey = $Matches[1]
+            break
+        }
+    }
+}
+
+# MOONSHOT_API_KEY_${index} pool: default = the key already in config.toml;
+# offer a switch prompt [y/N] when more than one key exists.
+$moonshotKeyEntries = @()
+Get-ChildItem -LiteralPath $kimiSecretDirPath -Filter "MOONSHOT_API_KEY_*" -File -ErrorAction SilentlyContinue | ForEach-Object {
+    if ($_.Name -match '^MOONSHOT_API_KEY_(\d+)$') {
+        $moonshotKeyFile = Read-KimiyoloSecretFile -FilePath $_.FullName
+        if (-not [string]::IsNullOrWhiteSpace($moonshotKeyFile)) {
+            $moonshotKeyEntries += [PSCustomObject]@{
+                Index = [int]$Matches[1]
+                Key = $moonshotKeyFile
+            }
+        }
+    }
+}
+$moonshotKeyEntries = @($moonshotKeyEntries | Sort-Object Index)
+
+if ($moonshotKeyEntries.Count -gt 0) {
+    $selectedKeyIndex = 0
+    if (-not [string]::IsNullOrWhiteSpace($kimiConfigApiKey)) {
+        for ($entryIndex = 0; $entryIndex -lt $moonshotKeyEntries.Count; $entryIndex++) {
+            if ($moonshotKeyEntries[$entryIndex].Key -eq $kimiConfigApiKey) {
+                $selectedKeyIndex = $entryIndex
+                break
+            }
+        }
+    }
+    if ($moonshotKeyEntries.Count -gt 1) {
+        Write-Host "[INFO] Current key: MOONSHOT_API_KEY_$($moonshotKeyEntries[$selectedKeyIndex].Index) (from config.toml)" -ForegroundColor White
+        Write-Host "Switch Moonshot API key? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $switchChoice = Read-Host
+        if (($switchChoice -eq "y") -or ($switchChoice -eq "Y")) {
+            for ($entryIndex = 0; $entryIndex -lt $moonshotKeyEntries.Count; $entryIndex++) {
+                $entryMarker = ""
+                if ($entryIndex -eq $selectedKeyIndex) {
+                    $entryMarker = " (current)"
+                }
+                Write-Host "  [$($entryIndex + 1)] MOONSHOT_API_KEY_$($moonshotKeyEntries[$entryIndex].Index): $($moonshotKeyEntries[$entryIndex].Key)$entryMarker" -ForegroundColor White
+            }
+            Write-Host "Select key number [1-$($moonshotKeyEntries.Count)]: " -ForegroundColor Yellow -NoNewline
+            $switchPick = Read-Host
+            if ([int]::TryParse($switchPick, [ref]$switchPickNumber)) {
+                if (($switchPickNumber -ge 1) -and ($switchPickNumber -le $moonshotKeyEntries.Count)) {
+                    $selectedKeyIndex = $switchPickNumber - 1
+                }
+            }
+        }
+    }
+    $kimiApiKey = $moonshotKeyEntries[$selectedKeyIndex].Key
+    Write-Host "[INFO] Using MOONSHOT_API_KEY_$($moonshotKeyEntries[$selectedKeyIndex].Index): $kimiApiKey" -ForegroundColor White
+}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -217,6 +296,65 @@ if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
     Write-Host "[INFO] Kimi Code CLI upgrade skipped." -ForegroundColor DarkGray
 }
 
+# Model selection (default Y = kimi k3 256K / k3-256k).
+Write-Host "Use default model kimi k3 256K (k3-256k)? [Y/n]: " -ForegroundColor Yellow -NoNewline
+$modelChoice = Read-Host
+if (($modelChoice -eq "n") -or ($modelChoice -eq "N")) {
+    Write-Host "  [1] kimi k3 256K (k3-256k)" -ForegroundColor White
+    Write-Host "  [2] kimi k3 1M (k3)" -ForegroundColor White
+    Write-Host "  [3] kimi2.8 preview (kimi-for-coding, 1M)" -ForegroundColor White
+    Write-Host "  [4] kimi2.7 code highspeed (kimi-for-coding-highspeed, 256K)" -ForegroundColor White
+    Write-Host "Select model number [1-4]: " -ForegroundColor Yellow -NoNewline
+    $modelPick = Read-Host
+    switch ($modelPick) {
+        "2" { $kimiModel = "k3"; $kimiModelLabel = "kimi k3 1M" }
+        "3" { $kimiModel = "kimi-for-coding"; $kimiModelLabel = "kimi2.8 preview" }
+        "4" { $kimiModel = "kimi-for-coding-highspeed"; $kimiModelLabel = "kimi2.7 code highspeed" }
+        default { $kimiModel = "k3-256k"; $kimiModelLabel = "kimi k3 256K" }
+    }
+}
+Write-Host "[INFO] Model: $kimiModelLabel ($kimiModel)" -ForegroundColor White
+
+# Non-interactive provider setup (idempotent: catalog add re-creates the provider).
+if (-not [string]::IsNullOrWhiteSpace($kimiApiKey)) {
+    $providerArgs = @("provider", "catalog", "add", "kimi-for-coding", "--api-key", $kimiApiKey, "--default-model", $kimiModel)
+    if (-not [string]::IsNullOrWhiteSpace($kimiBaseUrl)) {
+        $providerArgs += @("--base-url", $kimiBaseUrl)
+    }
+    & $kimiCommand.Source @providerArgs
+    $providerExitCode = $LASTEXITCODE
+    if ($providerExitCode -ne 0) {
+        Write-Host "[WARN] Automatic provider setup failed (exit $providerExitCode)." -ForegroundColor Yellow
+        Write-Host "[INFO] Manual setup: run kimi, type /provider, choose Known third-party -> Kimi For Coding," -ForegroundColor White
+        Write-Host "[INFO]   and paste this key: $kimiApiKey" -ForegroundColor White
+    } else {
+        Write-Host "[INFO] Provider kimi-for-coding configured (default model: $kimiModel)." -ForegroundColor Green
+    }
+} else {
+    Write-Host "[WARN] No API key found (MOONSHOT_API_KEY_* or KIMI_API_KEY_1); skipping provider setup." -ForegroundColor Yellow
+}
+
+# Permission mode: Never Ask (disables "Approve once" prompts); idempotent.
+$utf8Encoding = New-Object System.Text.UTF8Encoding($false)
+if (Test-Path -LiteralPath $kimiConfigTomlPath) {
+    $configLines = [System.IO.File]::ReadAllLines($kimiConfigTomlPath)
+    $permissionFound = $false
+    for ($configLineIndex = 0; $configLineIndex -lt $configLines.Count; $configLineIndex++) {
+        if ($configLines[$configLineIndex] -match '^\s*default_permission_mode\s*=') {
+            $configLines[$configLineIndex] = $permissionLine
+            $permissionFound = $true
+            break
+        }
+    }
+    if (-not $permissionFound) {
+        $configLines = @($permissionLine) + $configLines
+    }
+    [System.IO.File]::WriteAllLines($kimiConfigTomlPath, [string[]]$configLines, $utf8Encoding)
+} else {
+    [System.IO.File]::WriteAllText($kimiConfigTomlPath, $permissionLine + "`r`n", $utf8Encoding)
+}
+Write-Host "[INFO] Permission mode: auto (Never Ask; approve prompts disabled) in $kimiConfigTomlPath" -ForegroundColor Green
+
 $mcpChromeNeedsDependencies = -not (Test-Path -LiteralPath $mcpChromeNodeModulesPath)
 $mcpChromeNeedsBuild = (-not (Test-Path -LiteralPath $mcpChromeSharedArtifactPath)) -or
     (-not (Test-Path -LiteralPath $mcpChromeNativeArtifactPath)) -or
@@ -250,42 +388,8 @@ try {
     Set-Location -LiteralPath $previousLocation
 }
 
-$userProfilePath = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
-$currentLocationPath = (Get-Location).Path
-if ([string]::IsNullOrWhiteSpace($env:KIMI_CODE_HOME)) {
-    $kimiCodeHomeCandidatePath = Join-Path $userProfilePath ".kimi-code"
-} elseif ([System.IO.Path]::IsPathRooted($env:KIMI_CODE_HOME)) {
-    $kimiCodeHomeCandidatePath = $env:KIMI_CODE_HOME
-} else {
-    $kimiCodeHomeCandidatePath = Join-Path $currentLocationPath $env:KIMI_CODE_HOME
-}
-if (-not (Test-Path -LiteralPath $kimiCodeHomeCandidatePath)) {
-    New-Item -ItemType Directory -Path $kimiCodeHomeCandidatePath -Force | Out-Null
-}
-$kimiCodeHomePath = (Resolve-Path -LiteralPath $kimiCodeHomeCandidatePath).Path
-$kimiMcpConfigPath = Join-Path $kimiCodeHomePath "mcp.json"
-
-$kimiConfigTomlPath = Join-Path $kimiCodeHomePath "config.toml"
-$kimiConfigApiKey = $null
-if (Test-Path -LiteralPath $kimiConfigTomlPath) {
-    foreach ($kimiConfigTomlLine in (Get-Content -LiteralPath $kimiConfigTomlPath)) {
-        if ($kimiConfigTomlLine -match '^\s*api_key\s*=\s*"(.+)"\s*$') {
-            $kimiConfigApiKey = $Matches[1]
-            break
-        }
-    }
-}
-
-Write-Host "[INFO] KIMI_BASE_URL_1: $(if ([string]::IsNullOrWhiteSpace($kimiBaseUrl)) { "[empty]" } else { $kimiBaseUrl })" -ForegroundColor White
-if ((-not [string]::IsNullOrWhiteSpace($kimiApiKey)) -and ($kimiConfigApiKey -eq $kimiApiKey)) {
-    Write-Host "[INFO] KIMI_API_KEY_1 already configured in $kimiConfigTomlPath" -ForegroundColor White
-    Write-Host "[INFO] KIMI_API_KEY_1 (masked): $(Get-KimiyoloMaskedKey -Value $kimiApiKey)" -ForegroundColor White
-    Write-Host "[INFO] Get the full key: Get-Content -Raw $kimiApiKeySecretPath" -ForegroundColor White
-} else {
-    Write-Host "[INFO] KIMI_API_KEY_1: $(if ([string]::IsNullOrWhiteSpace($kimiApiKey)) { "[empty]" } else { $kimiApiKey })" -ForegroundColor White
-    Write-Host "[INFO] First-time setup: run kimi, open /provider, select Known third-party ->" -ForegroundColor White
-    Write-Host "[INFO]   Kimi code plan, and paste the key above into it." -ForegroundColor White
-}
+Write-Host "[INFO] KIMI_BASE_URL: $(if ([string]::IsNullOrWhiteSpace($kimiBaseUrl)) { "[empty]" } else { $kimiBaseUrl })" -ForegroundColor White
+Write-Host "[INFO] API key: $(if ([string]::IsNullOrWhiteSpace($kimiApiKey)) { "[empty]" } else { $kimiApiKey })" -ForegroundColor White
 
 if (Test-Path -LiteralPath $kimiMcpConfigPath) {
     $mcpConfig = Get-Content -Raw -LiteralPath $kimiMcpConfigPath | ConvertFrom-Json
@@ -349,7 +453,7 @@ if ($mcpChromePortReady) {
 }
 
 $kimiArgs = @(
-    "--yolo"
+    "--auto"
 )
 $displayArgs = if ($args.Count -gt 0) {
     [string]::Format("; extra args: {0}", ($args -join " "))
@@ -357,8 +461,8 @@ $displayArgs = if ($args.Count -gt 0) {
     ""
 }
 
-Write-Host "[INFO] YOLO: ON; built-in web search: configuration preserved" -ForegroundColor Green
-Write-Host "[INFO] Kimi provider, model, agents, and feature settings preserved$displayArgs" -ForegroundColor Green
+Write-Host "[INFO] AUTO: ON (Never Ask; approve prompts disabled); built-in web search: configuration preserved" -ForegroundColor Green
+Write-Host "[INFO] Provider kimi-for-coding, model $kimiModel; agents and feature settings preserved$displayArgs" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 

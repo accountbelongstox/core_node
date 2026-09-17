@@ -47,7 +47,22 @@ kimi_api_key=""
 kimi_base_url=""
 kimi_config_toml_path=""
 kimi_config_api_key=""
-kimi_args=()
+kimi_args=(--auto)
+moonshot_key_indices=()
+moonshot_key_values=()
+moonshot_key_file=""
+selected_key_index=0
+switch_choice=""
+switch_pick=""
+model_choice=""
+model_pick=""
+kimi_model="k3-256k"
+kimi_model_label="kimi k3 256K"
+entry_index=0
+entry_marker=""
+moonshot_key_path=""
+moonshot_key_name=""
+permission_line='default_permission_mode = "auto"'
 
 script_source_path="${BASH_SOURCE[0]}"
 if [ -L "$script_source_path" ]; then
@@ -108,43 +123,68 @@ kimi_read_secret_file() {
     echo "$value"
 }
 
-kimi_mask_key() {
-    local value="$1"
-    local len=0
-    local keep=0
-    local middle=0
-    if [ -z "$value" ]; then
-        echo "[empty]"
-        return
-    fi
-    len="${#value}"
-    if [ "$len" -le 8 ]; then
-        keep=1
-    else
-        keep=4
-    fi
-    middle=$((len - 2 * keep))
-    if [ "$middle" -lt 1 ]; then
-        middle=1
-    fi
-    printf '%s' "${value:0:$keep}"
-    printf '%*s' "$middle" '' | tr ' ' '*'
-    printf '%s' "${value: -$keep}"
-}
-
 kimi_secret_dir_path="$core_node_path/.secret_keys/.secret_ignore"
 kimi_api_key="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_API_KEY_1")"
 kimi_base_url="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_BASE_URL_1")"
+
+# KIMI_CODE_HOME resolution (needed early for config.toml key matching).
+kimi_code_home_path="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
+mkdir -p "$kimi_code_home_path"
+kimi_mcp_config_path="$kimi_code_home_path/mcp.json"
 kimi_config_toml_path="$kimi_code_home_path/config.toml"
 kimi_config_api_key=""
 if [ -f "$kimi_config_toml_path" ]; then
     kimi_config_api_key="$(grep -E '^[[:space:]]*api_key[[:space:]]*=' "$kimi_config_toml_path" 2>/dev/null | head -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/^"//; s/"[[:space:]]*$//')"
 fi
-kimi_code_home_path="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
-kimi_mcp_config_path="$kimi_code_home_path/mcp.json"
-kimi_args=(
-    --yolo
-)
+
+# MOONSHOT_API_KEY_${index} pool: default = the key already in config.toml;
+# offer a switch prompt [y/N] when more than one key exists.
+moonshot_key_indices=()
+moonshot_key_values=()
+for moonshot_key_path in "$kimi_secret_dir_path"/MOONSHOT_API_KEY_*; do
+    [ -f "$moonshot_key_path" ] || continue
+    moonshot_key_name="$(basename "$moonshot_key_path")"
+    if [[ "$moonshot_key_name" =~ ^MOONSHOT_API_KEY_([0-9]+)$ ]]; then
+        moonshot_key_file="$(kimi_read_secret_file "$moonshot_key_path")"
+        if [ -n "$moonshot_key_file" ]; then
+            moonshot_key_indices+=("${BASH_REMATCH[1]}")
+            moonshot_key_values+=("$moonshot_key_file")
+        fi
+    fi
+done
+
+if [ "${#moonshot_key_values[@]}" -gt 0 ]; then
+    selected_key_index=0
+    if [ -n "$kimi_config_api_key" ]; then
+        for ((entry_index = 0; entry_index < ${#moonshot_key_values[@]}; entry_index++)); do
+            if [ "${moonshot_key_values[$entry_index]}" = "$kimi_config_api_key" ]; then
+                selected_key_index=$entry_index
+                break
+            fi
+        done
+    fi
+    if [ "${#moonshot_key_values[@]}" -gt 1 ]; then
+        echo "[INFO] Current key: MOONSHOT_API_KEY_${moonshot_key_indices[$selected_key_index]} (from config.toml)"
+        printf '\033[33mSwitch Moonshot API key? [y/N]: \033[0m'
+        read -r switch_choice || switch_choice=""
+        if [ "$switch_choice" = "y" ] || [ "$switch_choice" = "Y" ]; then
+            for ((entry_index = 0; entry_index < ${#moonshot_key_values[@]}; entry_index++)); do
+                entry_marker=""
+                if [ "$entry_index" -eq "$selected_key_index" ]; then
+                    entry_marker=" (current)"
+                fi
+                echo "  [$((entry_index + 1))] MOONSHOT_API_KEY_${moonshot_key_indices[$entry_index]}: ${moonshot_key_values[$entry_index]}${entry_marker}"
+            done
+            printf '\033[33mSelect key number [1-%s]: \033[0m' "${#moonshot_key_values[@]}"
+            read -r switch_pick || switch_pick=""
+            if [[ "$switch_pick" =~ ^[0-9]+$ ]] && [ "$switch_pick" -ge 1 ] && [ "$switch_pick" -le "${#moonshot_key_values[@]}" ]; then
+                selected_key_index=$((switch_pick - 1))
+            fi
+        fi
+    fi
+    kimi_api_key="${moonshot_key_values[$selected_key_index]}"
+    echo "[INFO] Using MOONSHOT_API_KEY_${moonshot_key_indices[$selected_key_index]}: $kimi_api_key"
+fi
 
 echo ""
 echo "============================================================"
@@ -171,15 +211,10 @@ if ! command -v kimi >/dev/null 2>&1; then
     fi
 fi
 
-echo "[INFO] KIMI_BASE_URL_1: ${kimi_base_url:-[empty]}"
-if [ -n "$kimi_api_key" ] && [ "$kimi_config_api_key" = "$kimi_api_key" ]; then
-    echo "[INFO] KIMI_API_KEY_1 already configured in $kimi_config_toml_path"
-    echo "[INFO] KIMI_API_KEY_1 (masked): $(kimi_mask_key "$kimi_api_key")"
-    echo "[INFO] Get the full key: cat $kimi_secret_dir_path/KIMI_API_KEY_1"
-else
-    echo "[INFO] KIMI_API_KEY_1: ${kimi_api_key:-[empty]}"
-    echo "[INFO] First-time setup: run kimi, open /provider, select Known third-party ->"
-    echo "[INFO]   Kimi code plan, and paste the key above into it."
+echo "[INFO] KIMI_BASE_URL: ${kimi_base_url:-[empty]}"
+echo "[INFO] API key: ${kimi_api_key:-[empty]}"
+if [ -z "$kimi_api_key" ]; then
+    echo "[WARN] No API key found (MOONSHOT_API_KEY_* or KIMI_API_KEY_1); provider setup will be skipped."
 fi
 if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
     current_version_output="$(kimi --version 2>/dev/null || true)"
@@ -222,6 +257,52 @@ if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
 elif [ "$version_gap_large" = "1" ]; then
     echo "[INFO] Kimi Code CLI upgrade skipped."
 fi
+
+# Model selection (default Y = kimi k3 256K / k3-256k).
+printf '\033[33mUse default model kimi k3 256K (k3-256k)? [Y/n]: \033[0m'
+read -r model_choice || model_choice=""
+if [ "$model_choice" = "n" ] || [ "$model_choice" = "N" ]; then
+    echo "  [1] kimi k3 256K (k3-256k)"
+    echo "  [2] kimi k3 1M (k3)"
+    echo "  [3] kimi2.8 preview (kimi-for-coding, 1M)"
+    echo "  [4] kimi2.7 code highspeed (kimi-for-coding-highspeed, 256K)"
+    printf '\033[33mSelect model number [1-4]: \033[0m'
+    read -r model_pick || model_pick=""
+    case "$model_pick" in
+        2) kimi_model="k3"; kimi_model_label="kimi k3 1M" ;;
+        3) kimi_model="kimi-for-coding"; kimi_model_label="kimi2.8 preview" ;;
+        4) kimi_model="kimi-for-coding-highspeed"; kimi_model_label="kimi2.7 code highspeed" ;;
+        *) kimi_model="k3-256k"; kimi_model_label="kimi k3 256K" ;;
+    esac
+fi
+echo "[INFO] Model: $kimi_model_label ($kimi_model)"
+
+# Non-interactive provider setup (idempotent: catalog add re-creates the provider).
+if [ -n "$kimi_api_key" ]; then
+    if [ -n "$kimi_base_url" ]; then
+        kimi provider catalog add kimi-for-coding --api-key "$kimi_api_key" --default-model "$kimi_model" --base-url "$kimi_base_url"
+    else
+        kimi provider catalog add kimi-for-coding --api-key "$kimi_api_key" --default-model "$kimi_model"
+    fi
+    if [ $? -ne 0 ]; then
+        echo "[WARN] Automatic provider setup failed."
+        echo "[INFO] Manual setup: run kimi, type /provider, choose Known third-party -> Kimi For Coding,"
+        echo "[INFO]   and paste this key: $kimi_api_key"
+    else
+        echo "[INFO] Provider kimi-for-coding configured (default model: $kimi_model)."
+    fi
+fi
+
+# Permission mode: Never Ask (disables "Approve once" prompts); idempotent.
+if [ -f "$kimi_config_toml_path" ] && grep -qE '^[[:space:]]*default_permission_mode[[:space:]]*=' "$kimi_config_toml_path"; then
+    sed -i -E 's/^[[:space:]]*default_permission_mode[[:space:]]*=.*/default_permission_mode = "auto"/' "$kimi_config_toml_path"
+elif [ -f "$kimi_config_toml_path" ]; then
+    printf 'default_permission_mode = "auto"\n' | cat - "$kimi_config_toml_path" > "$kimi_config_toml_path.tmp"
+    mv "$kimi_config_toml_path.tmp" "$kimi_config_toml_path"
+else
+    printf 'default_permission_mode = "auto"\n' > "$kimi_config_toml_path"
+fi
+echo "[INFO] Permission mode: auto (Never Ask; approve prompts disabled) in $kimi_config_toml_path"
 
 if [ "$mcp_chrome_enabled" -eq 1 ]; then
 if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
@@ -300,8 +381,8 @@ else
     echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
 fi
 
-echo "[INFO] YOLO: ON; built-in web search: configuration preserved"
-echo "[INFO] Kimi provider, model, agents, and feature settings preserved; extra args: $#"
+echo "[INFO] AUTO: ON (Never Ask; approve prompts disabled); built-in web search: configuration preserved"
+echo "[INFO] Provider kimi-for-coding, model $kimi_model; agents and feature settings preserved; extra args: $#"
 echo "============================================================"
 echo ""
 

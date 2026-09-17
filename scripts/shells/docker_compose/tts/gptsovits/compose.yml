@@ -1,0 +1,18 @@
+# Project-managed compose service for the GPT-SoVITS official api_v2 server.
+# restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+services:
+  gptsovits:
+    build:
+      context: .
+      args:
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+    image: pycore-tts-gptsovits:local
+    container_name: pycore-tts-gptsovits
+    restart: "no"
+    ports:
+      - "127.0.0.1:${TTS_PORT:-9880}:9880"
+    volumes:
+      - ${TTS_STAGING}:/data
+    labels:
+      pycore.managed: "true"
+      pycore.engine: "gptsovits"

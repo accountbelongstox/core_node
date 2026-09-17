@@ -1,0 +1,21 @@
+# Project-managed compose service for the MeloTTS class-C server.
+# restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+services:
+  melotts:
+    build:
+      context: .
+      args:
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+    image: pycore-tts-melotts:local
+    container_name: pycore-tts-melotts
+    restart: "no"
+    ports:
+      - "127.0.0.1:${TTS_PORT:-57212}:57212"
+    volumes:
+      - ${TTS_STAGING}:/data
+    environment:
+      MELOTTS_DEVICE: ${TTS_DEVICE:-cpu}
+      MELOTTS_MODEL: ${MELOTTS_MODEL:-en}
+    labels:
+      pycore.managed: "true"
+      pycore.engine: "melotts"
