@@ -17,9 +17,9 @@ class BuildVars:
 
     # === Dependency versions ===
     NODE_VERSION = f"{PREFIX}node_version"           # Node.js version
-    PNPM_VERSION = f"{PREFIX}pnpm_version"           # pnpm version
+    BUN_VERSION = f"{PREFIX}bun_version"             # bun version
     NODE_INSTALLED = f"{PREFIX}node_installed"       # Whether Node.js is installed
-    PNPM_INSTALLED = f"{PREFIX}pnpm_installed"       # Whether pnpm is installed
+    BUN_INSTALLED = f"{PREFIX}bun_installed"         # Whether bun is installed
 
     # === Path variables ===
     BUILD_OUTPUT_DIR = f"{PREFIX}build_output_dir"   # Build output directory (cross-platform)

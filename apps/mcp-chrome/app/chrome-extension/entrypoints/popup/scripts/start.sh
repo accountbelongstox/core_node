@@ -11,7 +11,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Popup dev helper: pnpm install + wxt dev, open browser debug pages, restore cwd.
+# Popup dev helper: bun install + wxt dev, open browser debug pages, restore cwd.
 
 set +e
 set -u
@@ -44,9 +44,9 @@ cd "${EXTENSION_ROOT}" || {
   echo "[!] Failed to change directory to extension root."
 }
 
-echo "[*] pnpm install (live output)"
+echo "[*] bun install (live output)"
 echo "----------------------------------------"
-pnpm install
+bun install
 echo "----------------------------------------"
 echo ""
 
@@ -70,8 +70,8 @@ else
 fi
 
 echo ""
-echo "[*] pnpm run dev (wxt) - press Ctrl+C to stop"
+echo "[*] bun run dev (wxt) - press Ctrl+C to stop"
 echo "----------------------------------------"
-pnpm run dev
+bun run dev
 echo "----------------------------------------"
 echo ""

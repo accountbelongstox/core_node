@@ -126,7 +126,9 @@ apt_install() {
     fi
     ensure_apt_update
     print_step_from_common_functions "Installing: ${pkgs[*]}"
-    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    # sudo treats a leading VAR=value assignment as the command name ("command
+    # not found"); route the env var through env(1) so both root and sudo work.
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \
         "${pkgs[@]}"

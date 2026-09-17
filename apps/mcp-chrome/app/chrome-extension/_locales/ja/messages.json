@@ -1580,11 +1580,11 @@
   "startOneTimeComplete": {
     "message": "  1回限りのビルドが完了しました。開発ウォッチャーは無効です。"
   },
-  "startPnpmMissing": {
-    "message": "  エラー: pnpmが見つかりません"
+  "startBunMissing": {
+    "message": "  エラー: bunが見つかりません"
   },
-  "startPnpmVersion": {
-    "message": "  OK pnpm: v$version$",
+  "startBunVersion": {
+    "message": "  OK bun: v$version$",
     "placeholders": {
       "version": {
         "content": "$1"

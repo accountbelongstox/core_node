@@ -10,8 +10,8 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Idempotent: ensures pnpm .bin shims are Windows-compatible (.cmd files exist).
-# Detects Unix-style .bin dirs (created by bash/WSL pnpm install) and fixes them
+# Idempotent: ensures bun .bin shims are Windows-compatible (.cmd files exist).
+# Detects Unix-style .bin dirs (created by bash/WSL bun install) and fixes them
 # by removing all node_modules and reinstalling from PowerShell so Windows .cmd
 # shims are generated correctly. Safe to run multiple times — exits early when OK.
 
@@ -30,7 +30,7 @@ if (Test-Path $ProbeFile) {
     return
 }
 
-Write-Host "  [FIX] Windows .cmd shims missing — pnpm was previously installed via bash/WSL." -ForegroundColor Yellow
+Write-Host "  [FIX] Windows .cmd shims missing — bun was previously installed via bash/WSL." -ForegroundColor Yellow
 Write-Host "  [FIX] Removing all node_modules and reinstalling from PowerShell..." -ForegroundColor Yellow
 
 $NmRoot = Join-Path $WorkspaceRoot "node_modules"
@@ -46,15 +46,15 @@ foreach ($Dir in $NmDirs) {
     }
 }
 
-Write-Host "  Running pnpm install from PowerShell (generates Windows .cmd shims)..." -ForegroundColor Cyan
+Write-Host "  Running bun install from PowerShell (generates Windows .cmd shims)..." -ForegroundColor Cyan
 $SavedLocation = Get-Location
 Set-Location -LiteralPath $WorkspaceRoot
-& pnpm install --config.confirmModulesPurge=false
+& bun install
 Set-Location -LiteralPath $SavedLocation.Path
 
 if (Test-Path $ProbeFile) {
     Write-Host "  OK Windows .cmd shims now present" -ForegroundColor Green
 } else {
-    Write-Host "  ERROR: .cmd shims still missing after reinstall — pnpm install may have failed." -ForegroundColor Red
-    throw "Windows pnpm command shims are still missing after reinstall."
+    Write-Host "  ERROR: .cmd shims still missing after reinstall — bun install may have failed." -ForegroundColor Red
+    throw "Windows bun command shims are still missing after reinstall."
 }

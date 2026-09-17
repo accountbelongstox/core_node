@@ -67,7 +67,7 @@ def generate_documentation(output_file: Path):
         # Group by category
         categories = {
             "Basic Environment": ["PROJECT_ROOT", "PLATFORM", "VARS_DIR"],
-            "Dependency Versions": ["NODE_VERSION", "PNPM_VERSION", "NODE_INSTALLED", "PNPM_INSTALLED"],
+            "Dependency Versions": ["NODE_VERSION", "BUN_VERSION", "NODE_INSTALLED", "BUN_INSTALLED"],
             "Path Variables": ["BUILD_OUTPUT_DIR", "EXTENSION_PATH", "NATIVE_PATH", "SHARED_PATH", "MANIFEST_PATH", "NODE_MODULES_EXISTS"],
             "Build Commands": ["CMD_CHECK_DEPS", "CMD_INSTALL", "CMD_BUILD_SHARED", "CMD_BUILD_NATIVE", "CMD_BUILD_EXTENSION", "CMD_REGISTER"],
             "Status Flags": ["ERROR", "SHOULD_INSTALL", "BUILD_RETRY_MAX"],

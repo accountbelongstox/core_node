@@ -129,7 +129,7 @@ install_via_flatpak() {
     if ! command_exists flatpak; then
         log_install "Installing flatpak first..."
         $USE_SUDO apt update
-        if ! $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y flatpak gnome-software-plugin-flatpak; then
+        if ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install -y flatpak gnome-software-plugin-flatpak; then
             log_error "Failed to install flatpak"
             return 1
         fi
