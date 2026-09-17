@@ -98,7 +98,9 @@ class SpecialSoftwareEnvManager:
         self.encrypted_constants_manager = EncryptedConstantsManager(
             self.project_root,
             self.file_number_manager,
-            self.variable_input_handler
+            self.variable_input_handler,
+            config_manager=self.config_manager,
+            script_manager=self.script_manager
         )
         self.command_handler = CommandHandler(
             self.file_number_manager,

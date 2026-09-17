@@ -1,0 +1,11 @@
+# GPU variant overlay (plan 19.6): applied only when the engine device policy
+# resolves to CUDA; requires the NVIDIA Container Toolkit on the host.
+services:
+  fishspeech:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

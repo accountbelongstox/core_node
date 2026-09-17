@@ -47,7 +47,20 @@ kimi_api_key=""
 kimi_base_url=""
 kimi_config_toml_path=""
 kimi_config_api_key=""
-kimi_args=()
+kimi_args=(--auto)
+moonshot_key_indices=()
+moonshot_key_values=()
+moonshot_key_file=""
+selected_key_index=0
+switch_choice=""
+switch_pick=""
+model_choice=""
+model_pick=""
+kimi_model="k3-256k"
+kimi_model_label="kimi k3 256K"
+entry_index=0
+entry_marker=""
+permission_line='default_permission_mode = "auto"'
 
 script_source_path="${BASH_SOURCE[0]}"
 if [ -L "$script_source_path" ]; then
@@ -135,16 +148,65 @@ kimi_mask_key() {
 kimi_secret_dir_path="$core_node_path/.secret_keys/.secret_ignore"
 kimi_api_key="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_API_KEY_1")"
 kimi_base_url="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_BASE_URL_1")"
+
+# KIMI_CODE_HOME resolution (needed early for config.toml key matching).
+kimi_code_home_path="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
+mkdir -p "$kimi_code_home_path"
+kimi_mcp_config_path="$kimi_code_home_path/mcp.json"
 kimi_config_toml_path="$kimi_code_home_path/config.toml"
 kimi_config_api_key=""
 if [ -f "$kimi_config_toml_path" ]; then
     kimi_config_api_key="$(grep -E '^[[:space:]]*api_key[[:space:]]*=' "$kimi_config_toml_path" 2>/dev/null | head -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/^"//; s/"[[:space:]]*$//')"
 fi
-kimi_code_home_path="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
-kimi_mcp_config_path="$kimi_code_home_path/mcp.json"
-kimi_args=(
-    --yolo
-)
+
+# MOONSHOT_API_KEY_${index} pool: default = the key already in config.toml;
+# offer a switch prompt [y/N] when more than one key exists.
+moonshot_key_indices=()
+moonshot_key_values=()
+for moonshot_key_path in "$kimi_secret_dir_path"/MOONSHOT_API_KEY_*; do
+    [ -f "$moonshot_key_path" ] || continue
+    moonshot_key_name="$(basename "$moonshot_key_path")"
+    if [[ "$moonshot_key_name" =~ ^MOONSHOT_API_KEY_([0-9]+)$ ]]; then
+        moonshot_key_file="$(kimi_read_secret_file "$moonshot_key_path")"
+        if [ -n "$moonshot_key_file" ]; then
+            moonshot_key_indices+=("${BASH_REMATCH[1]}")
+            moonshot_key_values+=("$moonshot_key_file")
+        fi
+    fi
+done
+
+if [ "${#moonshot_key_values[@]}" -gt 0 ]; then
+    selected_key_index=0
+    if [ -n "$kimi_config_api_key" ]; then
+        for ((entry_index = 0; entry_index < ${#moonshot_key_values[@]}; entry_index++)); do
+            if [ "${moonshot_key_values[$entry_index]}" = "$kimi_config_api_key" ]; then
+                selected_key_index=$entry_index
+                break
+            fi
+        done
+    fi
+    if [ "${#moonshot_key_values[@]}" -gt 1 ]; then
+        echo "[INFO] Current key: MOONSHOT_API_KEY_${moonshot_key_indices[$selected_key_index]} (from config.toml)"
+        printf '\033[33mSwitch Moonshot API key? [y/N]: \033[0m'
+        read -r switch_choice || switch_choice=""
+        if [ "$switch_choice" = "y" ] || [ "$switch_choice" = "Y" ]; then
+            for ((entry_index = 0; entry_index < ${#moonshot_key_values[@]}; entry_index++)); do
+                entry_marker=""
+                if [ "$entry_index" -eq "$selected_key_index" ]; then
+                    entry_marker=" (current)"
+                fi
+                echo "  [$((entry_index + 1))] MOONSHOT_API_KEY_${moonshot_key_indices[$entry_index]}: ${moonshot_key_values[$entry_index]}${entry_marker}"
+            done
+            printf '\033[33mSelect key number [1-%s]: \033[0m' "${#moonshot_key_values[@]}"
+            read -r switch_pick || switch_pick=""
+            if [[ "$switch_pick" =~ ^[0-9]+$ ]] && [ "$switch_pick" -ge 1 ] && [ "$switch_pick" -le "${#moonshot_key_values[@]}" ]; then
+                selected_key_index=$((switch_pick - 1))
+            fi
+        fi
+    fi
+    kimi_api_key="${moonshot_key_values[$selected_key_index]}"
+    echo "[INFO] Using MOONSHOT_API_KEY_${moonshot_key_indices[$selected_key_index]}: $kimi_api_key"
+fi
 
 echo ""
 echo "============================================================"
@@ -236,73 +298,4 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 if { [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; } &&
     ! command -v pnpm >/dev/null 2>&1; then
-    echo "[ERROR] pnpm is required to install Chrome MCP."
-    exit 1
-fi
-
-echo "[INFO] Ensuring Chrome MCP is installed..."
-if [ ! -d "$mcp_chrome_node_modules_path" ]; then
-    echo "[INFO] Installing Chrome MCP dependencies..."
-    (
-        cd "$mcp_chrome_path"
-        pnpm install
-    )
-fi
-if [ "$mcp_chrome_needs_build" -eq 1 ]; then
-    echo "[INFO] Building missing Chrome MCP artifacts..."
-    (
-        cd "$mcp_chrome_path"
-        pnpm run build:all
-    )
-fi
-(
-    cd "$mcp_chrome_path"
-    node "$mcp_chrome_register_script_path"
-)
-
-mkdir -p "$kimi_code_home_path"
-node - "$kimi_mcp_config_path" "$mcp_chrome_url" <<'NODE'
-const fs = require("node:fs");
-const configPath = process.argv[2];
-const chromeUrl = process.argv[3];
-const config = fs.existsSync(configPath)
-    ? JSON.parse(fs.readFileSync(configPath, "utf8"))
-    : {};
-
-config.mcpServers ??= {};
-config.mcpServers.chrome = { url: chromeUrl };
-fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-NODE
-echo "[INFO] Chrome MCP registered in Kimi Code: $kimi_mcp_config_path"
-
-if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-    mcp_chrome_port_ready=1
-fi
-echo "[INFO] Ensuring the singleton Chrome MCP supervisor is running..."
-if [ "$mcp_chrome_needs_build" -eq 1 ] || [ "$mcp_chrome_port_ready" -eq 0 ]; then
-    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
-else
-    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
-fi
-while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 60 ]; do
-    sleep 0.5
-    if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-        mcp_chrome_port_ready=1
-    fi
-    mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
-done
-if [ "$mcp_chrome_port_ready" -eq 1 ]; then
-    echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
-else
-    echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
-fi
-else
-    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
-fi
-
-echo "[INFO] YOLO: ON; built-in web search: configuration preserved"
-echo "[INFO] Kimi provider, model, agents, and feature settings preserved; extra args: $#"
-echo "============================================================"
-echo ""
-
-exec kimi "${kimi_args[@]}" "$@"
+    echo "[ERROR] pnpm is required to install Chrome MCP

@@ -194,16 +194,16 @@ class EnvironmentVariableManager:
                     # Also drop session env if present.
                     if var_name in os.environ:
                         os.environ.pop(var_name, None)
-                    ColorMessage.write(f"[OK] Cleared {var_name} to [Not set]", 'success')
+                    ColorMessage.write(f"[OK] Cleared {secret_key_name} to [Not set] ({secret_file})", 'success')
                     cleared_count += 1
                     continue
 
                 var_value = self._normalize_secret_value(var_name, var_value)
                 safe_write_secret(secret_file, var_value)
-                ColorMessage.write(f"[OK] Saved {var_name} to .secret_ignore", 'success')
+                ColorMessage.write(f"[OK] Saved {secret_key_name} -> {secret_file}", 'success')
                 saved_count += 1
             except Exception as e:
-                ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
+                ColorMessage.write(f"[X] Error saving {secret_key_name}: {e}", 'warning')
 
         if saved_count > 0:
             ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to .secret_ignore", 'success')
@@ -251,7 +251,10 @@ class EnvironmentVariableManager:
         print()
 
         ColorMessage.write(f"Reading from: {self.raw_dir}", 'info')
-        ColorMessage.write(f"File number: {file_number}", 'info')
+        ColorMessage.write("Key files:", 'info')
+        for var in config['Variables']:
+            secret_key_name = f"{var['Name']}_{file_number}"
+            ColorMessage.write(f"  {secret_key_name} -> {self.raw_dir / secret_key_name}", 'info')
         print()
 
         found_count = 0
@@ -259,10 +262,10 @@ class EnvironmentVariableManager:
             display_name = var.get('DisplayName', var['Name'])
             var_name = var['Name']
             secret_key_name = f"{var_name}_{file_number}"
-            
+
             value = resolve_secret_value(secret_key_name)
 
-            ColorMessage.write(f"{display_name}: ", 'info', no_newline=True)
+            ColorMessage.write(f"{display_name} ({secret_key_name}): ", 'info', no_newline=True)
             if value:
                 ColorMessage.write(value, 'success')
                 found_count += 1
