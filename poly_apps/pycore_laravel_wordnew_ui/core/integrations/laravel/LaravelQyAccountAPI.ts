@@ -34,26 +34,6 @@ type AccountEnvelope = {
 export class LaravelQyAccountAPI {
   constructor(private readonly baseURL: string) {}
 
-  async groups(token: string): Promise<QyWordGroup[]> {
-    const http = new BaseAPI(createFixedLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1, this.baseURL, 60_000));
-    const groups: QyWordGroup[] = [];
-    const limit = 1000;
-    let start = 0;
-    while (true) {
-      const path = `/query_all_groups?start=${start}&limit=${limit}&with_words=0`;
-      const response = await http.rawRequest(path, {
-        method: 'GET', credentials: 'omit',
-        headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
-      }, false);
-      const body = await readLaravelResponse<{ data?: { groups?: QyWordGroup[] } }>(response, path);
-      const page = body.data?.groups;
-      if (!Array.isArray(page)) throw new Error('QY_WORD_GROUPS_PAYLOAD_INVALID');
-      groups.push(...page);
-      if (page.length < limit) return groups;
-      start += limit;
-    }
-  }
-
   async login(username: string, password: string): Promise<QyAccountCredentials> {
     const http = new BaseAPI(createFixedLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1, this.baseURL, 60_000));
     const response = await http.rawRequest(LARAVEL_API_ROUTE.auth.login, {

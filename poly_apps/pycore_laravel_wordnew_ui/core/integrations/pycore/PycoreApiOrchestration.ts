@@ -65,6 +65,7 @@ export interface OrchBookSentencesResponse {
 export interface OrchAuthStatus {
   success: boolean;
   logged_in: boolean;
+  error?: string;
   username?: string;
   user?: { id?: number; username?: string; native_language?: string };
   logged_at?: number;
@@ -160,8 +161,12 @@ export const pycoreApiOrchestration = {
   orchAuthLogout: () =>
     orchAccountSession.logout(),
   orchAuthSync: (force = false) => orchAccountSession.sync(force),
-  orchWordGroups: (refresh = false) => orchAccountSession.wordGroups(refresh),
-  orchSelectWordGroup: (groupId: string) => orchAccountSession.selectWordGroup(groupId),
+  // Word groups are served by the pycore side, which owns the qy session
+  // (auth.json) — the browser may hold no account at all.
+  orchWordGroups: (refresh = false) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthGroups, { refresh }, 90_000) as Promise<OrchAuthStatus>,
+  orchSelectWordGroup: (groupId: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchAuthSelectGroup, { group_id: groupId }, 30_000) as Promise<OrchAuthStatus>,
 
   // --- Laravel books (cached on the pycore side) ---------------------------- #
   orchBooksList: (refresh = false) =>

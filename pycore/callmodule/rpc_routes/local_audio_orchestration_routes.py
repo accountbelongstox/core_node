@@ -22,6 +22,12 @@ def register_local_audio_orchestration_routes(server) -> None:
     def auth_logout(params, request_id, context):
         return orch_service.auth_logout(params.get("expected_user_id"))
 
+    def auth_groups(params, request_id, context):
+        return orch_service.auth_groups(refresh=bool(params.get("refresh")))
+
+    def auth_select_group(params, request_id, context):
+        return orch_service.auth_select_group(str(params.get("group_id") or ""))
+
     def book_sentences(params, request_id, context):
         return orch_service.book_sentences(
             str(params.get("source_key") or ""),
@@ -75,6 +81,8 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_AUTH_LOGIN, auth_login),
         (route_names.UI_AUDIO_ORCH_AUTH_STATUS, orch_service.auth_status),
         (route_names.UI_AUDIO_ORCH_AUTH_LOGOUT, auth_logout),
+        (route_names.UI_AUDIO_ORCH_AUTH_GROUPS, auth_groups),
+        (route_names.UI_AUDIO_ORCH_AUTH_SELECT_GROUP, auth_select_group),
         (route_names.UI_AUDIO_ORCH_TASKS_LIST, orch_service.tasks_list),
         (route_names.UI_AUDIO_ORCH_TASK_GET, task_get),
         (route_names.UI_AUDIO_ORCH_TASK_CREATE, task_create),
