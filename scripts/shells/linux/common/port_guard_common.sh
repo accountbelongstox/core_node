@@ -61,10 +61,8 @@ pg_ask_default_no() {
     local msg="$1"
     local reply=""
     case "${PORT_GUARD_AUTO_UNINSTALL:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
-    if [ -r /dev/tty ] && [ -w /dev/tty ]; then
-        printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
-    fi
+    command -v prompt_read_default >/dev/null 2>&1 || source "$PORT_GUARD_COMMON_DIR/prompt_common.sh"
+    prompt_read_default reply "" 30 "$msg [y/N] "
     case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 

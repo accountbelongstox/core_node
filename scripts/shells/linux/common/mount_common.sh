@@ -19,6 +19,11 @@ MOUNT_LOG_PREFIX="${MOUNT_LOG_PREFIX:-[MOUNT]}"
 # Single definition of the standardized mount base (was duplicated in 3_setting_base.sh).
 DEFAULT_MOUNT_BASE="/mnt"
 
+# Prompt helpers (read_default): single definition in prompt_common.sh.
+if ! command -v prompt_read_default >/dev/null 2>&1; then
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
+fi
+
 # Ensure exactly one fstab entry for this UUID: backup, remove all lines with this UUID, append one.
 # Usage: mount_fstab_ensure_single_entry <uuid> <mount_point> <fstype> <options>
 # Options are the comma-separated mount options (e.g. defaults,nofail,...).

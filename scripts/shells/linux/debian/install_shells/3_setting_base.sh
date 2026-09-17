@@ -71,18 +71,8 @@ error() {
     echo -e "${RED}[$SCRIPT_INDEX] ERROR: $1${NC}"
 }
 
-# TTY-guarded prompt read. Echoes the user's reply, or $1 (the prompt's documented
-# default) when there is no interactive terminal -- so a piped/orchestrated re-run
-# proceeds with the intended default instead of letting `read` hit EOF and abort
-# the whole script under `set -e`. Empty interactive input also yields the default,
-# matching the "(Y/n)"/"(y/N)" convention. Usage: confirm="$(read_default y)"
-read_default() {
-    local default="$1" reply=""
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        read -r reply < /dev/tty || reply=""
-    fi
-    printf '%s' "${reply:-$default}"
-}
+# read_default / prompt_read_default come from gvar_common.sh (single definition):
+# TTY-guarded, foreground-checked, 30s timeout, then the documented default.
 
 # =============================================================================
 # Sudo Session Keepalive

@@ -349,7 +349,7 @@ prompt_installation() {
                 echo ""
                 print_step_from_common_functions "New version available!"
                 echo -n "Do you want to upgrade from $installed_version to $RUSTDESK_VERSION? (Y/n): "
-                read -r response
+                prompt_read_default response "y" 30
 
                 case "$response" in
                     [nN]|[nN][oO])
@@ -364,7 +364,7 @@ prompt_installation() {
             else
                 echo ""
                 echo -n "Same version already installed. Reinstall? (y/N): "
-                read -r response
+                prompt_read_default response "n" 30
 
                 case "$response" in
                     [yY]|[yY][eE][sS])
@@ -379,7 +379,7 @@ prompt_installation() {
             fi
         else
             echo -n "Do you want to reinstall? (y/N): "
-            read -r response
+            prompt_read_default response "n" 30
 
             case "$response" in
                 [yY]|[yY][eE][sS])
@@ -402,7 +402,7 @@ prompt_installation() {
         echo "This is a desktop application for remote access."
         echo ""
         echo -n "Install RustDesk Client? (Y/n): "
-        read -r response
+        prompt_read_default response "y" 30
 
         case "$response" in
             [nN]|[nN][oO])

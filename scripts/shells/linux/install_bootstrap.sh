@@ -94,6 +94,7 @@ BOOTSTRAP_REQUIRED_LIBRARIES_READY="no"
 CORE_NODE_DELETION_AUTHORIZED=false
 BOOTSTRAP_GVAR_LIBRARY_RELATIVES=(
     "scripts/shells/linux/common/gvar_common.sh"
+    "scripts/shells/linux/common/prompt_common.sh"
     "scripts/shells/linux/common/runtime_environment.sh"
     "scripts/shells/linux/common/gvar_storage_common.sh"
     "scripts/shells/linux/common/gvar_system_common.sh"
@@ -148,7 +149,7 @@ ensure_repo_base_url() {
     if [ -n "$cached_region" ] && { [ "$cached_region" = "Global" ] || [ "$cached_region" = "China" ]; }; then
         echo ""
         echo -n "Modify region? (N/y) [current: $cached_region]: "
-        read -r modify_region
+        read -r -t 30 modify_region || modify_region=""
         if [ "$modify_region" = "y" ] || [ "$modify_region" = "Y" ]; then
             cached_region=""
         fi
@@ -162,7 +163,7 @@ ensure_repo_base_url() {
         echo "  1) Global (GitHub)"
         echo "  2) China (Gitee)"
         echo -n "Choice (1 or 2) [1]: "
-        read -r choice
+        read -r -t 30 choice || choice=""
         case "${choice:-1}" in
             2) cached_region="China"; REPO_BASE_URL="$GITEE_RAW"; log_ok "Region: Gitee (China)"; ;;
             *) cached_region="Global"; REPO_BASE_URL="$GITHUB_RAW"; log_ok "Region: GitHub (Global)"; ;;
@@ -433,7 +434,7 @@ confirm_core_node_deletion() {
     log_warn "[DELETE-GUARD] This is IRREVERSIBLE and destroys any local changes there."
     for i in 1 2 3; do
         printf '[DELETE-GUARD] Confirmation %d of 3 - permanently delete "%s"? [N/y]: ' "$i" "$target" > /dev/tty
-        read -r ans < /dev/tty || ans=""
+        read -r -t 30 ans < /dev/tty || ans=""
         case "$ans" in
             [Yy]) : ;;
             *) log_info "[DELETE-GUARD] Deletion cancelled at step $i (default No). Nothing was removed."; return ;;

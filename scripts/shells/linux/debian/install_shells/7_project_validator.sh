@@ -220,7 +220,7 @@ restore_project() {
 
         # Ask user for confirmation
         echo -e "${YELLOW}Do you want to restore the project from the repository? (y/n): ${NC}"
-        read -r response
+        prompt_read_default response "n" 30
 
         if [[ "$response" =~ ^[Yy]$ ]]; then
             log "User confirmed project restoration"

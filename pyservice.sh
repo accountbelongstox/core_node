@@ -477,7 +477,7 @@ prompt_default_no() {
     case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
     if [ -t 0 ] && [ -r /dev/tty ]; then
         printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
+        read -r -t 30 reply < /dev/tty || reply=""
     fi
     case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }

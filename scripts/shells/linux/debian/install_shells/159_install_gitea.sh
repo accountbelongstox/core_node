@@ -271,7 +271,7 @@ disable_gitea_service() {
         echo ""
         print_warning_from_common_functions "INSTALL_GITEA is set to false"
         echo -n "Do you want to disable Gitea service? (y/N) [N]: "
-        read -r response
+        prompt_read_default response "n" 30
 
         case "$response" in
             [yY]|[yY][eE][sS])
@@ -300,7 +300,7 @@ disable_gitea_service() {
                 if command -v ufw >/dev/null 2>&1 && $USE_SUDO ufw status 2>/dev/null | grep -q "Status: active"; then
                     print_info_from_common_functions "UFW firewall is active"
                     echo -n "Do you want to close port $GITEA_PORT in firewall? (y/N) [N]: "
-                    read -r fw_response
+                    prompt_read_default fw_response "n" 30
                     case "$fw_response" in
                         [yY]|[yY][eE][sS])
                             if $USE_SUDO ufw delete allow "$GITEA_PORT/tcp" 2>/dev/null; then
@@ -367,7 +367,7 @@ prompt_cleanup_reinstall() {
             2)
                 print_warning_from_common_functions "Full reinstall will DELETE all repositories and data!"
                 echo -n "Are you sure? Type 'yes' to confirm: "
-                read -r confirm
+                prompt_read_default confirm "" 30
                 if [[ "$confirm" == "yes" ]]; then
                     print_info_from_common_functions "Performing full reinstall..."
                     cleanup_gitea

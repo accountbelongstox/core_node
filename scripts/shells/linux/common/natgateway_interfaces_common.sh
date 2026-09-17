@@ -296,15 +296,23 @@ format_bytes() {
 }
 
 # Input keywords for interface matching
+command -v prompt_read_default >/dev/null 2>&1 || source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
 input_keywords() {
     if [[ -z "$WAN_KEYWORD" ]]; then
+        local wan_attempts=0
         while true; do
             echo -e "${CYAN}Enter keyword for WAN interface (external/internet connection):${NC}"
             echo -e "${YELLOW}Examples: usb, wlan, eth0, enp, wlp${NC}"
-            read -p "WAN Keyword: " WAN_KEYWORD
+            prompt_read_default WAN_KEYWORD "" 30 "WAN Keyword: "
 
             if [[ -z "$WAN_KEYWORD" ]]; then
+                wan_attempts=$((wan_attempts + 1))
                 log_error "WAN keyword cannot be empty"
+                # Bounded retries: never loop forever when nobody answers.
+                if [ "$wan_attempts" -ge 3 ]; then
+                    log_error "No WAN keyword after $wan_attempts attempts; aborting interface setup."
+                    return 1
+                fi
                 continue
             fi
 
@@ -339,13 +347,19 @@ input_keywords() {
     fi
 
     if [[ -z "$LAN_KEYWORD" ]]; then
+        local lan_attempts=0
         while true; do
             echo -e "${CYAN}Enter keyword for LAN interface (internal network):${NC}"
             echo -e "${YELLOW}Examples: eth, enp, eno, lan${NC}"
-            read -p "LAN Keyword: " LAN_KEYWORD
+            prompt_read_default LAN_KEYWORD "" 30 "LAN Keyword: "
 
             if [[ -z "$LAN_KEYWORD" ]]; then
+                lan_attempts=$((lan_attempts + 1))
                 log_error "LAN keyword cannot be empty"
+                if [ "$lan_attempts" -ge 3 ]; then
+                    log_error "No LAN keyword after $lan_attempts attempts; aborting interface setup."
+                    return 1
+                fi
                 continue
             fi
 
@@ -400,7 +414,7 @@ input_keywords() {
     # Ask about system sharing
     echo -e "${CYAN}Do you want to enable system-level network sharing for matched interfaces?${NC}"
     echo -e "${YELLOW}If 'no', interfaces will only be used for forwarding without system sharing.${NC}"
-    read -p "Enable system sharing? (y/n) [no]: " sharing_response
+    prompt_read_default sharing_response "no" 30 "Enable system sharing? (y/n) [no]: "
     if [[ "$sharing_response" =~ ^[Yy]([Ee][Ss])?$ ]]; then
         SYSTEM_SHARING="yes"
     else
