@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import CloudClipboardPanel from '../../shared/cloud-clipboard/CloudClipboardPanel';
+import CloudClipboardPage from '../../shared/cloud-clipboard/CloudClipboardPage';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import MediaHub from './components/views/MediaHub';
@@ -28,6 +28,7 @@ import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHe
 import GlobalLogPanel from '@/apps/laravel-manager/components/common/GlobalLogPanel';
 import OfflineBanner from '@/apps/laravel-manager/components/common/OfflineBanner';
 import { dismissAuthLogin, requestAuthLogin } from '@/core/auth/AuthRequestCenter';
+import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from '../../shell/shellChrome';
 
 /**
  * Laravel manager layout and view routing.
@@ -187,7 +188,7 @@ const LmDashboardContent: React.FC = () => {
   const renderView = () => {
     switch (activeView) {
       case ViewType.CLOUD_CLIPBOARD:
-        return <CloudClipboardPanel />;
+        return <CloudClipboardPage />;
       case ViewType.MEDIA_BROWSER:
         return (
           <MediaHub
@@ -225,7 +226,7 @@ const LmDashboardContent: React.FC = () => {
 
   return (
     <div className={`
-      flex w-screen min-h-screen overflow-x-hidden font-sans transition-colors duration-500
+      flex w-screen h-dvh overflow-hidden font-sans transition-colors duration-500
       ${theme === 'dark' 
         ? 'bg-slate-900 text-slate-200 selection:bg-indigo-500/30 selection:text-indigo-200' 
         : 'bg-slate-50 text-slate-800 selection:bg-indigo-500/20 selection:text-indigo-600'}
@@ -271,10 +272,12 @@ const LmDashboardContent: React.FC = () => {
           <GlobalLogPanel />
 
           {/* Scrollable view content */}
-          <div className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden">
-            <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/5 dark:bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
-            <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-cyan-600/5 dark:bg-cyan-600/10 rounded-full blur-[80px] pointer-events-none mix-blend-screen" />
-            {renderView()}
+          <div {...{ [SHELL_CLIPBOARD_HOST_ATTRIBUTE]: '' }} className="flex-1 min-h-0 relative z-0 overflow-hidden">
+            <div className="h-full overflow-y-auto overflow-x-hidden">
+              <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/5 dark:bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
+              <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-cyan-600/5 dark:bg-cyan-600/10 rounded-full blur-[80px] pointer-events-none mix-blend-screen" />
+              {renderView()}
+            </div>
           </div>
 
         </main>

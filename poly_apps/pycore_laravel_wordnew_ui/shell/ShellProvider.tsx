@@ -8,10 +8,22 @@ import { setPycoreActive } from '../core/integrations/pycore/PycoreHttp';
 import { StorageManager } from '../core/persistence';
 import { ShellContext } from './ShellContext';
 import { ShellStorageKeys as StorageKeys } from './ShellStorageKeys';
-import { EndId, END_THEME, END_USES_PYCORE, SHELL_LANGUAGES, ShellContextValue, ThemeId } from './shellTypes';
+import { EndId, END_THEME, END_USES_PYCORE, SHELL_LANGUAGES, ShellContextValue, ShellClipboardState, ThemeId } from './shellTypes';
+import { CLOUD_CLIPBOARD } from '../core/contracts/CloudClipboardContract';
 
 const DEFAULT_LANGUAGE = 'en';
 const SUPPORTED_LANGUAGES = new Set(SHELL_LANGUAGES.map((language) => language.code));
+
+function readClipboardState(): ShellClipboardState {
+  const saved = StorageManager.get<Partial<ShellClipboardState> | null>(StorageKeys.CLOUD_CLIPBOARD, null);
+  const namespace = typeof saved?.namespace === 'string' ? saved.namespace.trim().toLowerCase() : '';
+  return {
+    open: saved?.open === true,
+    collapsed: saved?.collapsed === true,
+    expanded: saved?.expanded === true,
+    namespace: new RegExp(CLOUD_CLIPBOARD.namespace_pattern).test(namespace) ? namespace : '',
+  };
+}
 
 function normalizeLanguage(value: string | null): string | null {
   const code = value?.trim().toLowerCase().split(/[-_]/, 1)[0] || '';
@@ -60,6 +72,7 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [chatOpen, setChatOpen] = useState(false);
   const [activeChatAdapterId, setActiveChatAdapterId] = useState<string>('pycore');
+  const [clipboard, setClipboardState] = useState<ShellClipboardState>(readClipboardState);
   const themeId: ThemeId = themeOverride ? themeOverride : END_THEME[end];
   const setLang = useCallback((code: string) => {
     const normalized = normalizeLanguage(code);
@@ -112,6 +125,17 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setChatOpen(true);
   }, []);
   const closeChat = useCallback(() => setChatOpen(false), []);
+  const setClipboard = useCallback((update: Partial<ShellClipboardState>) => {
+    setClipboardState((previous) => ({ ...previous, ...update }));
+  }, []);
+  const toggleClipboard = useCallback(() => {
+    setClipboardState((previous) => ({ ...previous, open: !previous.open }));
+  }, []);
+
+  useEffect(() => {
+    StorageManager.set(StorageKeys.CLOUD_CLIPBOARD, clipboard);
+  }, [clipboard]);
+
   const value = useMemo<ShellContextValue>(() => ({
     end,
     themeId,
@@ -126,6 +150,9 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     activeChatAdapterId,
     openChat,
     closeChat,
+    clipboard,
+    setClipboard,
+    toggleClipboard,
   }), [
     end,
     themeId,
@@ -140,6 +167,9 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     activeChatAdapterId,
     openChat,
     closeChat,
+    clipboard,
+    setClipboard,
+    toggleClipboard,
   ]);
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;

@@ -1,6 +1,8 @@
 import i18n from '../../core/i18n/UiI18n';
 
 const en = {
+  toggleFloating: 'Toggle floating clipboard', collapse: 'Collapse clipboard', expand: 'Expand clipboard', close: 'Close clipboard',
+  expandContentArea: 'Expand clipboard to content area', restoreFloating: 'Restore floating clipboard',
   addEntry: 'Add clipboard entry', latestEntry: 'Newest', entryContent: 'Clipboard entry content',
   entryList: 'Clipboard entries ({{count}})', loadMore: 'Load older entries', loading: 'Loading clipboard…',
   passwordAutoSave: 'Password changes apply automatically when you leave this field.',
@@ -32,6 +34,8 @@ const en = {
   uploadLimit: 'Up to {{count}} files per upload, {{mb}} MB each.', unsaved: 'Your clipboard draft has not been saved.',
 };
 const zh: typeof en = {
+  toggleFloating: '切换悬浮剪贴板', collapse: '折叠剪贴板', expand: '展开剪贴板', close: '关闭剪贴板',
+  expandContentArea: '二级展开至内容区域', restoreFloating: '恢复悬浮窗口',
   addEntry: '添加剪贴板条目', latestEntry: '最新', entryContent: '剪贴板条目内容',
   entryList: '剪贴板列表（{{count}}）', loadMore: '加载更早的条目', loading: '正在加载剪贴板…',
   passwordAutoSave: '离开此输入框时，密码更改会自动生效。',

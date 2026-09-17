@@ -90,37 +90,60 @@ def _sentence_metadata(resource: Dict[str, Any], base_url: Optional[str]) -> Dic
     return response.json()
 
 
+def _laravel_audio(resource: Dict[str, Any], target: Path, base_url: Optional[str]) -> Optional[Path]:
+    kind = resource["kind"]
+    text = resource["text"]
+    language = resource["language"]
+    try:
+        if kind == "sentence":
+            metadata = _sentence_metadata(resource, base_url)
+            if not metadata.get("exists") or not metadata.get("url"):
+                return None
+            response = laravel_client.get(metadata["url"], base_url=base_url, timeout=60)
+            if response.status_code != 200:
+                return None
+            target.write_bytes(response.content)
+        else:
+            metadata = word_audio_service.word_audio_media(text, language, base_url=base_url)
+            if not metadata.get("success") or not metadata.get("content_base64"):
+                return None
+            target.write_bytes(base64.b64decode(metadata["content_base64"]))
+    except Exception as error:
+        ColorPrint.yellow(f"[AudioOrch] Laravel audio fetch failed resource={resource['resource_id']}: {error}")
+        return None
+    if not validate_mp3(str(target))[0]:
+        return None
+    if kind == "word":
+        return word_audio_cache.store_bytes(text, language, "laravel", target.read_bytes())
+    return _store_sentence_cache(text, language, target.read_bytes()) or target
+
+
 def resolve_audio(
     resource: Dict[str, Any], staging: Path, base_url: Optional[str] = None,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    cache_checked: bool = False,
 ) -> Dict[str, Any]:
     kind = resource["kind"]
     text = resource["text"]
     language = resource["language"]
     target = staging / f"{resource['resource_id']}.mp3"
-    if kind == "word":
+    if progress_callback is not None:
+        progress_callback({"stage": "checking local audio cache"})
+    if not cache_checked and kind == "word":
         cached = word_audio_cache.find_cached(text, language)
         if cached is not None and validate_mp3(str(cached))[0]:
             return {"audio_path": str(cached), "source": "cache", "provider": "cache", "status": "ready"}
-    else:
+    elif not cache_checked:
         hit = sentence_cache_hit(text, language)
         if hit is not None and validate_mp3(str(hit))[0]:
             return {"audio_path": str(hit), "source": "cache", "provider": "cache", "status": "ready"}
-        metadata = _sentence_metadata(resource, base_url)
-        if metadata.get("exists") and metadata.get("url"):
-            response = laravel_client.get(metadata["url"], base_url=base_url, timeout=60)
-            if response.status_code == 200:
-                target.write_bytes(response.content)
-                if validate_mp3(str(target))[0]:
-                    stored = _store_sentence_cache(text, language, target.read_bytes())
-                    return {"audio_path": str(stored or target), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
-    if kind == "word":
-        metadata = word_audio_service.word_audio_media(text, language, base_url=base_url)
-        if metadata.get("success") and metadata.get("content_base64"):
-            target.write_bytes(base64.b64decode(metadata["content_base64"]))
-            if validate_mp3(str(target))[0]:
-                cached = word_audio_cache.store_bytes(text, language, "laravel", target.read_bytes())
-                return {"audio_path": str(cached), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
+    if progress_callback is not None:
+        progress_callback({"stage": "fetching audio from Laravel"})
+    downloaded = _laravel_audio(resource, target, base_url)
+    if downloaded is not None:
+        return {"audio_path": str(downloaded), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
+    if progress_callback is not None:
+        progress_callback({"stage": "generating audio locally"})
     result = synthesize(
         text, language, target, priority_profile=kind,
         client_job_id=f"audio-orch:{resource['resource_id']}", progress_callback=progress_callback,
@@ -142,6 +165,7 @@ def resolve_batch(
     base_url: Optional[str] = None,
     cancel_requested: Optional[Callable[[], bool]] = None,
     progress_callback: Optional[Callable[[int, Dict[str, Any], Dict[str, Any]], None]] = None,
+    activity_callback: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Resolve the whole manifest: local caches first in BATCH (one word-cache
     directory scan per language + content-addressed sentence stats), then
@@ -150,41 +174,77 @@ def resolve_batch(
     when cancel_requested() turns True."""
     items = list(resources)
     results: Dict[str, Dict[str, Any]] = {}
+    completed = 0
+    sentence_directory = sentence_audio_cache.cache_dir() if any(item["kind"] == "sentence" for item in items) else None
+    speaker, instruct, model, speed = sentence_tts_cache_identity(None, None, None)
+    engines_by_lang = {}
+
+    def _completed(resource, result) -> None:
+        nonlocal completed
+        results[resource["resource_id"]] = result
+        completed += 1
+        if progress_callback is not None:
+            progress_callback(completed, resource, result)
 
     words_by_lang: Dict[str, List[Dict[str, Any]]] = {}
     for resource in items:
         if resource["kind"] == "word":
             words_by_lang.setdefault(str(resource["language"]), []).append(resource)
     for language, group in words_by_lang.items():
-        hits = word_audio_cache.find_cached_many([entry["text"] for entry in group], language)
+        if cancel_requested is not None and cancel_requested():
+            return results
+        if activity_callback is not None:
+            activity_callback(group[0], {"stage": f"scanning local word audio cache ({language})"})
+        hits = word_audio_cache.find_cached_many(
+            [entry["text"] for entry in group], language,
+            cancel_requested=cancel_requested,
+            scan_callback=(lambda count: activity_callback(
+                group[0], {"stage": f"scanning local word audio cache ({language}): {count} files"},
+            )) if activity_callback is not None else None,
+        )
         for resource in group:
+            if cancel_requested is not None and cancel_requested():
+                return results
             path = hits.get(str(resource["text"]).strip().lower())
             if path is not None and validate_mp3(str(path))[0]:
-                results[resource["resource_id"]] = {
+                _completed(resource, {
                     "audio_path": str(path), "source": "cache", "provider": "cache", "status": "ready",
-                }
+                })
 
-    for resource in items:
+    for scan_index, resource in enumerate(items, 1):
+        if cancel_requested is not None and cancel_requested():
+            return results
+        if scan_index % 100 == 0 and activity_callback is not None:
+            activity_callback(resource, {"stage": f"scanning local audio caches: {scan_index}/{len(items)}"})
         if resource["kind"] != "sentence" or resource["resource_id"] in results:
             continue
-        hit = sentence_cache_hit(resource["text"], resource["language"])
-        if hit is not None and validate_mp3(str(hit))[0]:
-            results[resource["resource_id"]] = {
-                "audio_path": str(hit), "source": "cache", "provider": "cache", "status": "ready",
-            }
+        language = resource["language"]
+        if language not in engines_by_lang:
+            engines_by_lang[language] = _sentence_engines(language)
+        for engine in engines_by_lang[language]:
+            key = sentence_audio_cache.make_key(resource["text"], language, speaker, instruct, engine, "mp3", model, speed)
+            hit = sentence_directory / f"{key}.mp3"
+            if validate_mp3(str(hit))[0]:
+                _completed(resource, {
+                    "audio_path": str(hit), "source": "cache", "provider": "cache", "status": "ready",
+                })
+                break
 
     for index, resource in enumerate(items, 1):
         existing = results.get(resource["resource_id"])
         if existing is not None:
-            if progress_callback is not None:
-                progress_callback(index, resource, existing)
             continue
         if cancel_requested is not None and cancel_requested():
             break
-        result = resolve_audio(resource, staging, base_url=base_url)
-        results[resource["resource_id"]] = result
-        if progress_callback is not None:
-            progress_callback(index, resource, result)
+        try:
+            result = resolve_audio(
+                resource, staging, base_url=base_url, cache_checked=True,
+                progress_callback=(lambda event: activity_callback(resource, event)) if activity_callback is not None else None,
+            )
+        except Exception as error:
+            ColorPrint.red(f"[AudioOrch] resource={resource['resource_id']} failed: {error}")
+            result = {"source": "missing", "status": "failed", "error": str(error)}
+        _completed(resource, result)
     return results
 
 
@@ -228,24 +288,20 @@ def _deliver(record: Dict[str, Any], progress_callback: Optional[Callable[[Dict[
 
 
 def synchronize_audio(resource: Dict[str, Any], base_url: Optional[str], progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
-    metadata = _sentence_metadata(resource, base_url) if resource["kind"] == "sentence" else word_audio_service.word_audio_media(
-        resource["text"], resource["language"], base_url=base_url, metadata_only=True,
-    )
-    if metadata.get("exists"):
-        return {"success": True, "already_uploaded": True}
     audio_path = Path(resource["audio_path"])
     digest = hashlib.sha256(audio_path.read_bytes()).hexdigest()
     endpoint_key = hashlib.sha256(str(base_url or "").encode("utf-8")).hexdigest()[:16]
     record = audio_delivery_outbox.stage_audio({
-        "lane": DELIVERY_LANE, "task_id": f"{endpoint_key}:{resource['resource_id']}:{digest}",
+        "lane": DELIVERY_LANE, "task_id": f"{endpoint_key}:{resource.get('generation_id') or ''}:{resource['resource_id']}:{digest}",
         "attempt": 0, "resource": dict(resource), "base_url": base_url,
+        "generation_id": resource.get("generation_id"),
     }, str(audio_path), get_app_cache_dir())
-    result = _deliver(record, progress_callback)
-    return {**result, "delivery_id": record["delivery_id"]}
+    recover_deliveries()
+    return {"success": True, "queued": True, "delivery_id": record["delivery_id"]}
 
 
 def _recover_deliveries() -> None:
-    while audio_delivery_outbox.stats(DELIVERY_LANE)["pending"]:
+    while True:
         for record in audio_delivery_outbox.list_ready(DELIVERY_LANE, limit=25):
             _deliver(record)
         THREAD_BUS.wait_signal("audio_orchestration.delivery.wait", timeout=5)
@@ -253,3 +309,7 @@ def _recover_deliveries() -> None:
 
 def recover_deliveries() -> None:
     _delivery_jobs.start("recovery", _recover_deliveries)
+
+
+def pending_delivery_counts() -> Dict[str, int]:
+    return audio_delivery_outbox.pending_counts(DELIVERY_LANE, "generation_id")

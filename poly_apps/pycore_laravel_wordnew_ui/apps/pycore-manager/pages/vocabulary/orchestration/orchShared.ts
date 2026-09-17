@@ -23,6 +23,7 @@ export function orchErrorMessage(error: unknown, fallback: string = ORCH_L.actio
   const message = failure?.message || (typeof error === 'string' ? error : '');
   const accountRequest = failure?.path === '/login' || failure?.path?.startsWith('/api/app_qy_v1/') === true;
   if (message === 'QY_ACCOUNT_AUTH_REQUIRED') return ORCH_L.accountExpired;
+  if (message === 'BOOK_SENTENCES_SYNC_PENDING') return ORCH_L.sentenceSyncPending;
   if (!accountRequest && (failure?.status === 401 || failure?.status === 403)) return ORCH_L.relayConnectionFailed;
   if (message === 'QY_ACCOUNT_MACHINE_SYNC_PENDING') return ORCH_L.machineSyncPending;
   if (message === 'QY_ACCOUNT_LOGOUT_PENDING') return ORCH_L.logoutPending;

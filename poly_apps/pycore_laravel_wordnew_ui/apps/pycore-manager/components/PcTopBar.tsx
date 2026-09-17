@@ -11,9 +11,7 @@
  * / theme / language). See shellDockRightGutterPx() for the formula.
  */
 import React from 'react';
-import { Menu, Cloud } from 'lucide-react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { Menu } from 'lucide-react';
 import PcLaravelEndpointSwitcher from './PcLaravelEndpointSwitcher';
 import PcPycoreTargetSwitcher from './PcPycoreTargetSwitcher';
 import PcVersionChips from './PcVersionChips';
@@ -26,8 +24,6 @@ interface PcTopBarProps {
 
 export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
   const isMobile = useIsMobile();
-  const location = useLocation();
-  const { t } = useTranslation('pc');
 
   return (
     <header
@@ -52,11 +48,6 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
         </button>
       )}
       <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
-        <NavLink to={{ pathname: '/pycore-manager/cloud-clipboard', search: location.search }}
-          title={t('nav.cloudClipboard')} aria-label={t('nav.cloudClipboard')}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-indigo-500 hover:bg-indigo-500/10">
-          <Cloud size={18} />
-        </NavLink>
         <PcVersionChips />
         <PcPycoreTargetSwitcher variant="header" />
         <PcLaravelEndpointSwitcher variant="header" />

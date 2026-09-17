@@ -240,6 +240,16 @@ class AudioDeliveryOutbox:
         return copy.deepcopy(row)
 
     @serialized_method
+    def pending_counts(self, lane: str, field: str) -> Dict[str, int]:
+        records = self._load_records()
+        counts = {}
+        for row in records.values():
+            key = str(row.get(field) or "")
+            if row.get("lane") == lane and key:
+                counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    @serialized_method
     def complete(self, delivery_id: str, owner: str = "") -> bool:
         records = self._load_records()
         row = records.get(str(delivery_id))

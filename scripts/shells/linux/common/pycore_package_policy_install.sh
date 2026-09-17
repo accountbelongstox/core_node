@@ -153,6 +153,32 @@ install_pycore_package_policy() {
             installed["$key"]=1
         done < <(pcpi_metadata_snapshot "$py")
 
+        # Fine-grained recovery: a single unbuildable package (e.g. evdev needing
+        # kernel headers) aborts pip's whole batch transaction, which would fail
+        # every other missing package with it. Retry the still-missing ones one
+        # by one so each failure is isolated. Real-time output per package.
+        local -a retry_specs=()
+        for pip_spec in "${missing_specs[@]}"; do
+            base="$(pcpi_package_base "$pip_spec")"
+            key="$(pcpi_package_key "$base")"
+            if [[ -z "${installed[$key]:-}" ]]; then
+                retry_specs+=("$pip_spec")
+            fi
+        done
+        if [[ "${#retry_specs[@]}" -gt 0 ]]; then
+            echo "$prefix [..] batch incomplete; retrying ${#retry_specs[@]} package(s) individually: ${retry_specs[*]}"
+            for pip_spec in "${retry_specs[@]}"; do
+                echo "$prefix [..] pip install $pip_spec"
+                "$py" -m pip install "${pip_flags[@]}" "$pip_spec" || true
+            done
+            installed=()
+            while IFS= read -r name; do
+                [[ -n "$name" ]] || continue
+                key="$(pcpi_package_key "$name")"
+                installed["$key"]=1
+            done < <(pcpi_metadata_snapshot "$py")
+        fi
+
         ready=0
         failed=0
         for pip_spec in "${pip_specs[@]}"; do

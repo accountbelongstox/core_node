@@ -5,6 +5,7 @@ import { useTranslation } from '../core/i18n/UiI18n';
 import { FloatingAppSwitcher } from './FloatingAppSwitcher';
 import { applyFlavorDocument, FLAVOR_REGISTRY, type FlavorConfig } from './flavor';
 import { ShellRouteFallback, ShellRuntime } from './ShellRuntime';
+import { ShellControls } from './ShellControls';
 
 type AppModule = { default: React.ComponentType<any> };
 
@@ -54,6 +55,7 @@ const StandaloneRoutes: React.FC<{ buildFlavor: FlavorConfig }> = ({ buildFlavor
         <Route path="/" element={rootElement} />
         <Route path="*" element={appElement} />
       </Routes>
+      {activeFlavor.id === 'pycore-manager' && <ShellControls />}
       <FloatingAppSwitcher
         active={activeFlavor}
         apps={SWITCHABLE_APPS}

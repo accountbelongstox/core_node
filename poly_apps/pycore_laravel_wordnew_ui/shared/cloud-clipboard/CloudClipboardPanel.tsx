@@ -1,22 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Cloud, Link, LockKeyhole, Plus } from 'lucide-react';
 import { CLOUD_CLIPBOARD } from '../../core/contracts/CloudClipboardContract';
 import { CloudClipboardModel } from './CloudClipboardModel';
 import CloudClipboardEntryCard from './CloudClipboardEntryCard';
 import { copyTextToSystemClipboard } from '../../core/browser/SystemClipboard';
+import { createCloudClipboardShareUrl } from './CloudClipboardNavigation';
 import './CloudClipboardLocales';
 
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-500/10 disabled:opacity-40';
 const inputClass = 'rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm min-w-0';
 const cardClass = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4 space-y-3';
 
-export default function CloudClipboardPanel() {
-  const location = useLocation();
-  const navigate = useNavigate();
+export interface CloudClipboardPanelProps {
+  namespace?: string;
+  onNamespaceChange?: (namespace: string) => void;
+  shareUrl?: string;
+  embedded?: boolean;
+}
+
+export default function CloudClipboardPanel({ namespace: namespaceValue = '', onNamespaceChange, shareUrl, embedded = false }: CloudClipboardPanelProps) {
   const { t } = useTranslation('cloudClipboard');
-  const namespace = new URLSearchParams(location.search).get(CLOUD_CLIPBOARD.namespace_query)?.trim().toLowerCase() ?? '';
+  const [localNamespace, setLocalNamespace] = useState(namespaceValue);
+  const namespace = (onNamespaceChange ? namespaceValue : localNamespace).trim().toLowerCase();
   const model = useMemo(() => new CloudClipboardModel(namespace), [namespace]);
   const state = useSyncExternalStore(model.subscribe, model.getState);
   const [namespaceInput, setNamespaceInput] = useState(namespace);
@@ -26,6 +32,10 @@ export default function CloudClipboardPanel() {
   const [passwordPending, setPasswordPending] = useState(false);
   const passwordChanged = useRef(false);
   const snapshot = state.snapshot;
+
+  useEffect(() => {
+    setLocalNamespace(namespaceValue);
+  }, [namespaceValue]);
 
   useEffect(() => {
     setNamespaceInput(namespace);
@@ -50,7 +60,6 @@ export default function CloudClipboardPanel() {
 
   const openNamespace = async (value: string): Promise<void> => {
     const normalized = value.trim().toLowerCase();
-    const params = new URLSearchParams(location.search);
     const pending = model.getState().pendingIds;
     let results: boolean[];
     if (normalized && !new RegExp(CLOUD_CLIPBOARD.namespace_pattern).test(normalized)) { setNotice('invalidInput'); return; }
@@ -58,20 +67,20 @@ export default function CloudClipboardPanel() {
       results = await Promise.all(pending.map((id) => model.flush(id)));
       if (results.some((result) => !result) || model.getState().pendingIds.length) return;
     }
-    if (normalized) params.set(CLOUD_CLIPBOARD.namespace_query, normalized);
-    else params.delete(CLOUD_CLIPBOARD.namespace_query);
-    navigate({ pathname: location.pathname, search: params.toString() ? `?${params}` : '', hash: window.location.hash });
+    if (onNamespaceChange) onNamespaceChange(normalized);
+    else setLocalNamespace(normalized);
   };
 
   const generate = async (): Promise<void> => {
+    let generatedNamespace: string;
     try {
-      const result = await model.api.generate();
-      await openNamespace(result.namespace);
+      generatedNamespace = await model.generateNamespace();
+      await openNamespace(generatedNamespace);
     } catch { setNotice('requestFailed'); }
   };
 
   const copyLink = async (): Promise<void> => {
-    const copied = await copyTextToSystemClipboard(window.location.href);
+    const copied = await copyTextToSystemClipboard(shareUrl ?? createCloudClipboardShareUrl(namespace));
     setNotice(copied ? 'copied' : 'copyFailed');
   };
 
@@ -88,7 +97,7 @@ export default function CloudClipboardPanel() {
     } finally { setPasswordPending(false); }
   };
 
-  return <section className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto text-slate-800 dark:text-slate-200">
+  return <section className={`${embedded ? 'p-3 sm:p-4' : 'p-4 md:p-6 max-w-7xl mx-auto'} space-y-5 text-slate-800 dark:text-slate-200`}>
     <div className="flex gap-3 items-start">
       <Cloud className="shrink-0 text-indigo-500 mt-1" size={28} />
       <div className="mr-auto"><h1 className="text-2xl font-semibold">{t('title')}</h1>

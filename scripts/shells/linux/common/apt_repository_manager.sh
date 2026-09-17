@@ -38,6 +38,16 @@ source "${APT_REPO_MANAGER_DIR}/apt_sources_restore.sh"
 APT_BACKUP_TIMESTAMP=""
 APT_BACKUP_DIR=""
 
-source "$APT_REPO_MANAGER_DIR/apt_repository_backup.sh"
-source "$APT_REPO_MANAGER_DIR/apt_repository_catalog.sh"
-source "$APT_REPO_MANAGER_DIR/apt_repository_repair.sh"
+# Component libraries. Each source is guarded: a missing component (e.g. a file
+# not yet committed/pulled, or a partial bootstrap download) must degrade to a
+# warning instead of aborting the caller's `set -e` shell -- an unguarded source
+# here once killed 3_setting_base.sh before the desktop power policy ran.
+_apt_repo_component=""
+for _apt_repo_component in apt_repository_backup.sh apt_repository_catalog.sh apt_repository_repair.sh; do
+    if [ -f "$APT_REPO_MANAGER_DIR/$_apt_repo_component" ]; then
+        source "$APT_REPO_MANAGER_DIR/$_apt_repo_component"
+    else
+        echo "[apt-repository-manager] WARNING: component missing, skipping: $_apt_repo_component" >&2
+    fi
+done
+unset _apt_repo_component

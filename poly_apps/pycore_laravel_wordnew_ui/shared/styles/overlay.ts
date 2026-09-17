@@ -20,6 +20,7 @@ export const OVERLAY_Z = {
   toast: 'z-[1200]',
   /** Debug / error inspector — topmost. */
   error: 'z-[1300]',
+  clipboard: 'z-[1400]',
 } as const;
 
 /**

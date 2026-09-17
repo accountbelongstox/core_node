@@ -30,7 +30,8 @@ const OrchTaskEditor: React.FC<{
   task: OrchTask | null;
   onSaved: (taskId: string) => void;
   onClose: () => void;
-}> = ({ book, books, task, onSaved, onClose }) => {
+  onSyncStarted: (sourceKey: string) => void;
+}> = ({ book, books, task, onSaved, onClose, onSyncStarted }) => {
   const [name, setName] = useState('');
   const [segmentMode, setSegmentMode] = useState<'count' | 'minutes'>('count');
   const [segmentValue, setSegmentValue] = useState(10);
@@ -57,6 +58,19 @@ const OrchTaskEditor: React.FC<{
   const activeBook = books.find((item) => item.source_key === bookKey)
     || (book?.source_key === bookKey ? book : null)
     || (task?.book?.source_key === bookKey ? task.book : null);
+
+  const selectBook = async (sourceKey: string) => {
+    setBookKey(sourceKey);
+    setPlan(null);
+    if (!sourceKey) return;
+    try {
+      const response = await pycoreApi.orchBookSentences(sourceKey, true);
+      if (!response.success) throw new Error(response.error || ORCH_L.loadFailed);
+      if (response.syncing) onSyncStarted(sourceKey);
+    } catch (failure) {
+      setError(orchErrorMessage(failure, ORCH_L.loadFailed));
+    }
+  };
 
   const updateStep = (index: number, patch: Partial<OrchPatternStep>) => {
     setPattern((steps) => steps.map((s, i) => (i === index ? { ...s, ...patch } : s)));
@@ -90,6 +104,10 @@ const OrchTaskEditor: React.FC<{
         segment_mode: segmentMode,
         segment_value: segmentValue,
         pattern,
+        word_mode: pattern.some((step) => step.type === 'words_all') ? 'all' as const
+          : pattern.some((step) => step.type === 'words_new') ? 'new_only' as const
+          : task?.word_mode === 'new_only' ? 'new_only' as const : 'all' as const,
+        new_only_max_read_count: task?.new_only_max_read_count || 0,
       };
       const r = savedTaskId
         ? await pycoreApi.orchTaskUpdate(savedTaskId, payload)
@@ -117,7 +135,7 @@ const OrchTaskEditor: React.FC<{
     try {
       const r = await pycoreApi.orchTaskPlan(taskId);
       if (!r.success) {
-        setError(String(r.error || ORCH_L.planFailed));
+        setError(orchErrorMessage(r.error, ORCH_L.planFailed));
         return;
       }
       setPlan({ segments: r.segments || [], sentence_total: r.sentence_total });
@@ -164,7 +182,7 @@ const OrchTaskEditor: React.FC<{
         </label>
         <label className="text-xs text-slate-400">
           {ORCH_L.book}
-          <select value={bookKey} onChange={(event) => { setBookKey(event.target.value); setPlan(null); }}
+          <select value={bookKey} onChange={(event) => void selectBook(event.target.value)}
             className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200">
             <option value="">{ORCH_L.pickBook}</option>
             {activeBook && !books.some((item) => item.source_key === activeBook.source_key) && (
