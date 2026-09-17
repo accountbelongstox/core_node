@@ -48,6 +48,7 @@ script_path=""
 shared_cache_env=""
 gvar_common=""
 runtime_run_id=""
+python_resolved=""
 args=()
 
 while [[ $# -gt 0 ]]; do
@@ -75,6 +76,16 @@ shared_cache_env="$COMMON_DIR/shared_cache_env.sh"
 source "$shared_cache_env"
 gvar_common="$COMMON_DIR/gvar_common.sh"
 source "$gvar_common"
+
+# Canonicalize the interpreter handed to every child installer: PATH "python3"
+# may be a /usr/local/bin SYMLINK into the project venv, and a venv python
+# invoked through an outside symlink never reads pyvenv.cfg (sys.prefix becomes
+# /usr -> "No module named pip"). Prefer the real venv interpreter.
+python_resolved="$(venv_python_from_common)"
+if [ -n "$python_resolved" ] && [ -x "$python_resolved" ]; then
+    PYTHON="$python_resolved"
+fi
+pycore_export_python_env_from_common "$PYTHON"
 runtime_run_id="$(date +%s)_$$"
 set_var "PYCORE_RUNTIME_STATE_RUN_ID" "$runtime_run_id" false
 set_var "PYCORE_RUNTIME_STATE_PROCESS_ID" "$$" false

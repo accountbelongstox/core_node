@@ -46,7 +46,7 @@ PHP_ENSURE_SCRIPT=""
 PHP_ENSURE_SCRIPT_FRANKENPHP="${INSTALL_SHELLS_DIR}/93_install_frankenphp.sh"
 PHP_ENSURE_SCRIPT_SYSTEM=""
 COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/94_install_composer.sh"
-NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_toolchain_24.sh"
+NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_toolchain_26.sh"
 SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/53_install_swoole.sh"
 P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/69_install_p7zip.sh"
 POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/75_install_postgresql.sh"
@@ -570,7 +570,8 @@ fi
 
 # --- Ensure Node.js BEFORE sys:init (composer dev / UI tooling; on the
 # nginx plane also the Octane --watch chokidar dependency) ---
-NODE_BIN="$(command -v node 2>/dev/null)"
+# Prefer the gvar absolute NODE_BIN (install-time PATH may be minimal); fall back to PATH lookup.
+if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then NODE_BIN="$(command -v node 2>/dev/null)"; fi
 if [ -z "$NODE_BIN" ]; then
     if [ -f "$NODE_INSTALL_SCRIPT" ]; then
         NODE_GLOBAL_VAR_DIR="$GLOBAL_VAR_DIR"
@@ -584,7 +585,8 @@ if [ -z "$NODE_BIN" ]; then
     fi
 fi
 resolve_npx
-NODE_BIN="$(command -v node 2>/dev/null)"
+# Prefer the gvar absolute NODE_BIN (install-time PATH may be minimal); fall back to PATH lookup.
+if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then NODE_BIN="$(command -v node 2>/dev/null)"; fi
 if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
     if [ -n "$NODE_BIN" ]; then
         echo "node present -> composer dev / UI tooling ready (hot-reload is FrankenPHP worker 'watch': no Node/chokidar needed)."

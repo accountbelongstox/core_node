@@ -39,7 +39,7 @@ POLY_APPS_DIR="$(cd "${APP_ROOT}/.." && pwd)"
 REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 SELF="${SCRIPT_DIR}/start.sh"
 LARAVEL_START="${POLY_APPS_DIR}/laravel_main/scripts/start.sh"
-NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_24.sh"
+NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
 SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager.sh"
 FRANKENPHP_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/frankenphp_manager.sh"
 CADDY_STATIC_SITE_COMMON="${REPO_ROOT}/scripts/shells/linux/common/caddy_static_site_common.sh"
@@ -188,7 +188,7 @@ resolve_bun() {
 }
 
 # Ensure node + bun are available (installs both via the canonical .sh if missing;
-# 17_install_node_toolchain_24.sh is idempotent and provisions bun).
+# 17_install_node_toolchain_26.sh is idempotent and provisions bun).
 ensure_node_bun() {
     resolve_bun
     if [ "$BUN_RESOLVE_READY" = "yes" ]; then

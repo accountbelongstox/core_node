@@ -73,6 +73,33 @@ ipp_resolve_pip_flags() {
     fi
 }
 
+# Some policy packages (e.g. evdev) build C extensions at install time and fail
+# with "fatal error: Python.h: No such file or directory" when the interpreter's
+# dev headers are absent. Ensure the version-matched headers + a C toolchain.
+ipp_ensure_build_prereqs() {
+    local py_mm=""
+    local dev_pkg=""
+    if ! command -v apt-get >/dev/null 2>&1; then
+        return 0
+    fi
+    py_mm="$("$TARGET_PY" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null)"
+    if [ -n "$py_mm" ] && [ -f "/usr/include/python${py_mm}/Python.h" ] && command -v gcc >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -n "$py_mm" ]; then
+        dev_pkg="python${py_mm}-dev"
+        if ! apt-cache show "$dev_pkg" >/dev/null 2>&1; then
+            dev_pkg="python3-dev"
+        fi
+    else
+        dev_pkg="python3-dev"
+    fi
+    echo "[$SCRIPT_INDEX] Ensuring Python build prerequisites: build-essential $dev_pkg"
+    $USE_SUDO apt-get update -qq 2>/dev/null || true
+    $USE_SUDO apt-get install -y build-essential "$dev_pkg" || \
+        echo "[$SCRIPT_INDEX] [WARN] could not install $dev_pkg; source-built wheels may fail"
+}
+
 ipp_resolve_target_python() {
     local candidate=""
     local version_marker=""
@@ -285,6 +312,7 @@ fi
 
 if [[ -n "$TARGET_PY" ]] && [ -f "$VENV_PIP" ]; then
     ipp_verify_pip_ready
+    ipp_ensure_build_prereqs
     ipp_report_cuda_state
     echo ""
     ipp_install_torch_yolo_bundle

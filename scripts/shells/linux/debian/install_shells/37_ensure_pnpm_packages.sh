@@ -415,7 +415,9 @@ bootstrap_pnpm() {
     fi
 
     if [ -n "$npm_bin" ] && [ -x "$npm_bin" ]; then
-        "$npm_bin" install -g pnpm@latest --no-audit --no-fund --ignore-scripts || true
+        # No --ignore-scripts: pnpm's postinstall installs its native binary;
+        # skipping it leaves pnpm "running through Node.js".
+        "$npm_bin" install -g pnpm@latest --no-audit --no-fund || true
         echo "[$SCRIPT_INDEX] pnpm installed successfully"
     else
         echo "[$SCRIPT_INDEX] ERROR: npm not found, cannot install pnpm"

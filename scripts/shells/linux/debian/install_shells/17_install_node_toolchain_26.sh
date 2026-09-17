@@ -3,14 +3,14 @@
 # Installs or upgrades: node, npm, corepack, pnpm, yarn, bun.
 
 SCRIPT_INDEX="17"
-SCRIPT_NAME="17_install_node_toolchain_24.sh"
+SCRIPT_NAME="17_install_node_toolchain_26.sh"
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 
-SCRIPT_TEMP_NAME="17_install_node_toolchain_24"
+SCRIPT_TEMP_NAME="17_install_node_toolchain_26"
 SCRIPT_TEMP_DIR=""
 
 source "$COMMON_DIR/gvar_common.sh"
@@ -20,13 +20,13 @@ source "$COMMON_DIR/runtime_helpers_common.sh"
 SELECTED_REGION="${SELECTED_REGION:-$(get_var "SELECTED_REGION" 2>/dev/null || echo "Global")}"
 INSTALL_NODE="${INSTALL_NODE:-$(get_var "INSTALL_NODE" 2>/dev/null || echo "true")}"
 
-NODE_SHORT_VERSION_GUARD="${NODE_SHORT_VERSION:-24}"
+NODE_SHORT_VERSION_GUARD="${NODE_SHORT_VERSION:-26}"
 if [ -z "$NODE_SHORT_VERSION_GUARD" ]; then
-    NODE_SHORT_VERSION_GUARD=24
+    NODE_SHORT_VERSION_GUARD=26
 fi
 NODE_SHORT_VERSION_GUARD="${NODE_SHORT_VERSION_GUARD//[^0-9]/}"
 if [ -z "$NODE_SHORT_VERSION_GUARD" ]; then
-    NODE_SHORT_VERSION_GUARD=24
+    NODE_SHORT_VERSION_GUARD=26
 fi
 
 # NODE_VERSION / NODE_INSTALL_DIR / BUN_INSTALL_DIR come from gvar_common.sh (single
@@ -355,9 +355,16 @@ configure_npmrc() {
     local npmrc_content=""
     npmrc_file="$NODE_HOME_PATH/etc/npmrc"
     npmrc_tmp="$(mktemp)"
+    # pnpm reads the GLOBAL npmrc (<node prefix>/etc/npmrc) for every user, so the
+    # global bin/store dirs resolve for root and regular users alike; without this
+    # `pnpm add -g` fails with ERR_PNPM_NO_GLOBAL_BIN_DIR for anyone but the user
+    # who happened to run `pnpm config set`.
     cat > "$npmrc_tmp" <<EOF
 prefix=$NODE_HOME_PATH
 registry=$NPM_REGISTRY
+global-dir=$PNPM_HOME_PATH
+global-bin-dir=$PNPM_GLOBAL_BIN_DIR
+store-dir=$PNPM_HOME_PATH/store
 EOF
 
     npmrc_content="$(cat "$npmrc_tmp")"
@@ -434,7 +441,21 @@ EOF
 
 ensure_npm_latest() {
     if [ -x "$NPM_BIN_PATH" ]; then
-        "$NPM_BIN_PATH" install -g npm@latest --no-audit --no-fund --ignore-scripts || true
+        # npm@12 engine: ^22.22.2 || ^24.15.0 || >=26.0.0. On pins outside that
+        # range npm@latest fails with EBADENGINE, so fall back to the npm@11 line.
+        local installed_node=""
+        local npm_spec="npm@latest"
+        installed_node="$("$NODE_BIN_PATH" -v 2>/dev/null || true)"
+        if [ -n "$installed_node" ]; then
+            if version_ge "$installed_node" "26.0.0" \
+                || { version_ge "$installed_node" "24.15.0" && ! version_ge "$installed_node" "25.0.0"; } \
+                || { version_ge "$installed_node" "22.22.2" && ! version_ge "$installed_node" "23.0.0"; }; then
+                npm_spec="npm@latest"
+            else
+                npm_spec="npm@11"
+            fi
+        fi
+        "$NPM_BIN_PATH" install -g "$npm_spec" --no-audit --no-fund --ignore-scripts || true
         configure_npmrc
     fi
 }
@@ -466,7 +487,9 @@ ensure_pnpm() {
     if [ -x "$COREPACK_BIN_PATH" ] && [ -x "$PNPM_BIN_PATH" ]; then
         "$COREPACK_BIN_PATH" enable pnpm || true
     elif [ -x "$NPM_BIN_PATH" ]; then
-        "$NPM_BIN_PATH" install -g pnpm@latest --no-audit --no-fund --ignore-scripts || true
+        # No --ignore-scripts: pnpm's postinstall installs its native binary;
+        # skipping it leaves pnpm "running through Node.js".
+        "$NPM_BIN_PATH" install -g pnpm@latest --no-audit --no-fund || true
     fi
 
     if [ -x "$PNPM_BIN_PATH" ]; then

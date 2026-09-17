@@ -10,7 +10,9 @@ WSL_USERS_PATH="/mnt/c/Users"
 # Single definition of the shared core_node data root; every other script sources
 # this file (directly or via gvar_common.sh) and reuses the variable.
 CORE_NODE_DATA_DIR="/var/_core_node"
-RUNTIME_DESKTOP_PROCESS_PATTERN="gnome-session|startplasma|plasma_session|xfce4-session|mate-session|cinnamon-session|lxde-session|lxqt-session|openbox|fluxbox|i3|awesome|dwm"
+# NOTE: process names (comm) are truncated to 15 chars ("gnome-session-b..."), so
+# never match with pgrep -x; use a start-anchored substring pattern instead.
+RUNTIME_DESKTOP_PROCESS_PATTERN="^(gnome-shell|gnome-session|startplasma|plasmashell|plasma_session|xfce4-session|mate-session|cinnamon-session|lxde-session|lxqt-session|openbox|fluxbox|i3|sway|awesome|dwm|gdm|gdm3|sddm|lightdm|Xorg)"
 RUNTIME_SYSTEM_NAME="$(uname -s 2>/dev/null)"
 
 detect_runtime_environment() {
@@ -34,8 +36,22 @@ detect_runtime_environment() {
         HAS_DESKTOP_ENVIRONMENT=true
         DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
     fi
-    if command -v pgrep >/dev/null 2>&1 && pgrep -x "$RUNTIME_DESKTOP_PROCESS_PATTERN" >/dev/null 2>&1; then
+    if command -v pgrep >/dev/null 2>&1 && pgrep "$RUNTIME_DESKTOP_PROCESS_PATTERN" >/dev/null 2>&1; then
         HAS_DESKTOP_ENVIRONMENT=true
+    fi
+    # Root/sudo runs lose DISPLAY/XDG env vars; an active graphical loginctl
+    # session (x11/wayland) still proves a desktop is present.
+    if [ "$HAS_DESKTOP_ENVIRONMENT" != true ] && command -v loginctl >/dev/null 2>&1; then
+        if loginctl list-sessions --no-legend 2>/dev/null | grep -Eq '[[:space:]](x11|wayland)[[:space:]]'; then
+            HAS_DESKTOP_ENVIRONMENT=true
+        fi
+    fi
+    # Last resort: a graphical session is installed on disk (display manager
+    # sessions shipped by gdm3/sddm/lightdm under xsessions/wayland-sessions).
+    if [ "$HAS_DESKTOP_ENVIRONMENT" != true ]; then
+        if ls /usr/share/xsessions/*.desktop /usr/share/wayland-sessions/*.desktop >/dev/null 2>&1; then
+            HAS_DESKTOP_ENVIRONMENT=true
+        fi
     fi
 
     if [ "$RUNTIME_SYSTEM_NAME" = "Linux" ] && [ "$IS_WSL" != true ] && [ "$HAS_DESKTOP_ENVIRONMENT" != true ]; then

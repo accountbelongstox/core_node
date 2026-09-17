@@ -83,7 +83,7 @@ def run_install_script(script_name):
 
 
 def install_node():
-    """Install Node.js 24+ if missing."""
+    """Install Node.js 26+ if missing."""
     if cmd_exists("node"):
         version = subprocess.run(["node", "--version"], capture_output=True, text=True).stdout.strip()
         major = int(version.lstrip("v").split(".")[0]) if version else 0
@@ -93,14 +93,14 @@ def install_node():
         warn(f"Node.js {version} too old, upgrading...")
 
     # Try core_node install script first
-    if run_install_script("17_install_node_toolchain_24.sh"):
+    if run_install_script("17_install_node_toolchain_26.sh"):
         return True
 
     # Fallback: NodeSource
     distro = get_distro()
     if distro in ("debian", "ubuntu"):
         info("Installing Node.js via NodeSource...")
-        run_cmd("curl -fsSL https://deb.nodesource.com/setup_24.x | bash -", timeout=60)
+        run_cmd("curl -fsSL https://deb.nodesource.com/setup_26.x | bash -", timeout=60)
         success, _ = run_cmd("apt-get install -y nodejs", timeout=120)
         if success and cmd_exists("node"):
             ok(f"Node.js installed: {subprocess.run(['node', '--version'], capture_output=True, text=True).stdout.strip()}")

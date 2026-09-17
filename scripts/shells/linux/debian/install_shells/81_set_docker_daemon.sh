@@ -57,7 +57,14 @@ if ! $USE_SUDO systemctl is-active --quiet docker.service 2>/dev/null && ! $USE_
 fi
 
 echo "Calling update_docker_dns_mirror.js with CLOUD_PROVIDER='$CLOUD_PROVIDER' SELECTED_REGION='$SELECTED_REGION'..."
-node "$SHELLS_SCRIPTS_DIR/update_docker_dns_mirror.js" "$CLOUD_PROVIDER" "$SELECTED_REGION"
+# Absolute path first: install-time shells may run with a minimal PATH.
+NODE_CMD="${NODE_BIN:-}"
+{ [ -z "$NODE_CMD" ] || [ ! -x "$NODE_CMD" ]; } && NODE_CMD="$(command -v node 2>/dev/null || true)"
+if [ -z "$NODE_CMD" ]; then
+    echo "node not found. Run 17_install_node_toolchain_26.sh first. Skipping Docker DNS mirror update."
+    exit 0
+fi
+"$NODE_CMD" "$SHELLS_SCRIPTS_DIR/update_docker_dns_mirror.js" "$CLOUD_PROVIDER" "$SELECTED_REGION"
 result=$?
 
 if [ $result -eq 2 ]; then

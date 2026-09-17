@@ -48,16 +48,63 @@ venv_python_from_common() {
         echo "$VENV_PYTHON"
         return 0
     fi
-    command -v python3 2>/dev/null || command -v python 2>/dev/null
+    # PATH fallback: /usr/local/bin/python3 may be a SYMLINK into the project
+    # venv. Invoking the symlink does not activate the venv, but resolving ALL
+    # hops (readlink -f) jumps past it (venv bin/python3 -> base interpreter).
+    # Walk one hop at a time and return the FIRST path that carries pyvenv.cfg.
+    local py_fallback=""
+    local py_dir=""
+    local guard=0
+    py_fallback="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+    if [ -z "$py_fallback" ]; then
+        return 0
+    fi
+    local py_walk="$py_fallback"
+    while [ $guard -lt 10 ] && [ -L "$py_walk" ]; do
+        guard=$((guard + 1))
+        py_dir="$(dirname "$py_walk")"
+        py_walk="$(readlink "$py_walk")"
+        case "$py_walk" in
+            /*) ;;
+            *) py_walk="$py_dir/$py_walk" ;;
+        esac
+        if [ -f "$(dirname "$py_walk")/../pyvenv.cfg" ]; then
+            echo "$py_walk"
+            return 0
+        fi
+    done
+    echo "$py_fallback"
 }
 
 # True when the given interpreter belongs to a venv (has a pyvenv.cfg one level
-# up from its bin/ directory). Used to decide whether PEP 668 escape flags are
-# needed (they are required ONLY for an externally-managed system python).
+# up from its bin/ directory). Symlinks are resolved ONE HOP AT A TIME, stopping
+# at the first location that carries pyvenv.cfg: /usr/local/bin/python3 may link
+# into the project venv (whose bin/python3 itself links to the base interpreter),
+# and full `readlink -f` would jump PAST the venv to the system python. Used to
+# decide whether PEP 668 escape flags are needed (required ONLY for an
+# externally-managed system python).
 venv_is_venv_from_common() {
     local py="$1"
+    local py_dir=""
+    local guard=0
     [ -n "$py" ] || return 1
-    [ -f "$(dirname "$py")/../pyvenv.cfg" ]
+    while [ $guard -lt 10 ]; do
+        guard=$((guard + 1))
+        py_dir="$(dirname "$py")"
+        if [ -f "$py_dir/../pyvenv.cfg" ]; then
+            return 0
+        fi
+        if [ -L "$py" ]; then
+            py="$(readlink "$py")"
+            case "$py" in
+                /*) ;;
+                *) py="$py_dir/$py" ;;
+            esac
+        else
+            break
+        fi
+    done
+    return 1
 }
 
 # Print the exact command-string FIRST (copy-pasteable, for traceability), then
@@ -121,6 +168,10 @@ pycore_export_python_env_from_common() {
     [ -n "$py" ] || py="$(venv_python_from_common)"
     if venv_is_venv_from_common "$py"; then
         export PIP_USER=0
+        # Clear any non-venv leftovers from an earlier classification in the same
+        # process: PYTHONUSERBASE would redirect the venv's user-site, and
+        # PIP_BREAK_SYSTEM_PACKAGES is meaningless (and noisy) inside a venv.
+        unset PYTHONUSERBASE PIP_BREAK_SYSTEM_PACKAGES
         return 0
     fi
     [ "$(uname -s)" = "Linux" ] || return 0

@@ -35,7 +35,7 @@ _resolve_app_install_paths
 # Script-based installs: "script:filename|Display Name"
 # Infra/DB: 46 Redis, 47 PostgreSQL, 48 Docker, 51 MySQL
 # Desktop/App: 36 Chrome, 122 Cursor, 123 VSCode, 127 Antigravity, 128 WeChat, 31 Edge
-# Runtime/Toolchain: 13 Python, 15 faster-whisper, 16 Node 24, 20 UV, 43 Rust, 54 Go, 55 Java, 35 Composer, 39 Flutter, 42 Ruby, 38 .NET
+# Runtime/Toolchain: 13 Python, 15 faster-whisper, 16 Node 26, 20 UV, 43 Rust, 54 Go, 55 Java, 35 Composer, 39 Flutter, 42 Ruby, 38 .NET
 # Server/Service: 26 Nginx, 27 Certbot, 53 Tailscale, 86 Code Server, 124 Gitea, 125 RustDesk Client, 129 RustDesk Server
 # AI: 96 DeepSeek, 97 DeepSeek OCR (Cline/Ark/Kimi/Cursor Agent via linux_applications_list AI group)
 # Setup: 126 GNOME RDP
@@ -50,7 +50,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:167_install_wechat.sh|WeChat"
     "script:51_install_chrome.sh|Chrome (script)"
     "script:41_install_edge.sh|Edge"
-    "script:17_install_node_toolchain_24.sh|Node.js 24"
+    "script:17_install_node_toolchain_26.sh|Node.js 26"
     "script:92_install_java.sh|Java"
     "script:91_install_golang.sh|Go"
     "script:67_install_rust.sh|Rust"
