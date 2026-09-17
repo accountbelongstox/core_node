@@ -3,6 +3,27 @@
 # the PORT env var as the explicit override.
 PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
 
+# nexus-dash dashboard service convergence (merged from the retired
+# 176_laravel_ui_service.sh). File-state driven and safe to re-run at any
+# time: rewrite the unit only when missing or ExecStart drifted, enable only
+# when not enabled, start when inactive, restart only after a rewrite.
+NEXUS_DASH_APP_ROOT="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui"
+NEXUS_DASH_SERVICE_NAME="ncore-nexus-dash"
+NEXUS_DASH_SERVICE_DESC="Nexus Dash frontend (pycore_laravel_wordnew_ui)"
+NEXUS_DASH_SERVICE_CPU="${NEXUS_DASH_SERVICE_CPU:-50%}"
+NEXUS_DASH_SERVICE_MEM="${NEXUS_DASH_SERVICE_MEM:-}"
+NEXUS_DASH_SERVICE_MEM_CAP_MB="${NEXUS_DASH_SERVICE_MEM_CAP_MB:-1024}"
+NEXUS_DASH_UNIT_FILE="/etc/systemd/system/${NEXUS_DASH_SERVICE_NAME}.service"
+NEXUS_DASH_SERVICE_MANAGER="${COMMON_DIR}/debian_service_manager.sh"
+NEXUS_DASH_RUN_MODE="dev"
+NEXUS_DASH_FORCE_CONVERGE="no"
+NEXUS_DASH_UNIT_REWRITTEN="no"
+NEXUS_DASH_DESIRED_EXEC_CMD=""
+NEXUS_DASH_CURRENT_EXEC_CMD=""
+NEXUS_DASH_UNIT_ENABLED="no"
+NEXUS_DASH_UNIT_ACTIVE="no"
+UI_SERVICE_ONLY="no"
+
 cleanup_runtime() {
     local shown_code="$GENERATED_ACCESS_CODE"
     local stored_code=""
@@ -32,6 +53,9 @@ print_usage() {
     echo "  --show-super-code   Show the last generated super code and exit."
     echo "  --service           Register and start the background service."
     echo "  --no-service        Run without registering the background service."
+    echo "  --ui-service        Converge ONLY the nexus-dash dashboard service and exit."
+    echo "  --dev / --dist      Dashboard mode for --ui-service (default: dev)."
+    echo "  --force             Rewrite + restart the dashboard unit even when converged."
     echo "  --with-ui           Include the dashboard background service."
     echo "  --no-ui             Do not include the dashboard background service."
     echo "  --domains-only      Run prerequisites + the plane's domain/web phase, no runtime start."
@@ -65,6 +89,10 @@ for ARG in "$@"; do
         --show-super-code) SHOW_SUPER_CODE="yes" ;;
         --service) AS_SERVICE="yes" ;;
         --no-service) AS_SERVICE="no" ;;
+        --ui-service) UI_SERVICE_ONLY="yes" ;;
+        --dev) NEXUS_DASH_RUN_MODE="dev" ;;
+        --dist) NEXUS_DASH_RUN_MODE="dist" ;;
+        --force) NEXUS_DASH_FORCE_CONVERGE="yes" ;;
         --with-ui) INCLUDE_UI="yes" ;;
         --no-ui) INCLUDE_UI="no" ;;
         --domains-only) RUNTIME_START="no"; DOMAIN_SCOPE="all" ;;
@@ -470,6 +498,114 @@ ask_default_no() {
     case "$reply" in [Yy]*) PROMPT_ANSWER="yes" ;; esac
 }
 
+# Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at
+# 128M. Dashboard policy (quarter RAM); the laravel service uses compute_mem_limit.
+nexus_dash_mem_limit() {
+    local cap_mb="$1"
+    local total_kb=0 total_mb=0 quarter=0
+    total_kb="$(grep -m1 MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')"
+    [ -n "$total_kb" ] || total_kb=0
+    total_mb=$(( total_kb / 1024 ))
+    quarter=$(( total_mb / 4 ))
+    [ "$quarter" -lt 128 ] && quarter=128
+    [ "$quarter" -gt "$cap_mb" ] && quarter="$cap_mb"
+    echo "${quarter}M"
+}
+
+# Extract the current ExecStart command from the on-disk unit file (empty when absent).
+nexus_dash_read_current_exec_start() {
+    if [ -f "$NEXUS_DASH_UNIT_FILE" ]; then
+        grep '^ExecStart=' "$NEXUS_DASH_UNIT_FILE" 2>/dev/null | head -n 1 | cut -d= -f2-
+    fi
+}
+
+# Write (or rewrite) the unit via the shared systemd service manager.
+# restart_existing="no" keeps restart ownership in converge_nexus_dash_service
+# so a drifted unit is restarted exactly once by the converge flow below.
+nexus_dash_write_unit() {
+    if [ "$(id -u)" -eq 0 ]; then
+        (
+            # Isolate the manager's top-level side effects (it sources gvar_common.sh).
+            # shellcheck disable=SC1090
+            source "$NEXUS_DASH_SERVICE_MANAGER"
+            create_systemd_service "$NEXUS_DASH_SERVICE_NAME" "$NEXUS_DASH_SERVICE_DESC" "$NEXUS_DASH_DESIRED_EXEC_CMD" "$NEXUS_DASH_APP_ROOT" "root" "always" "10s" "$NEXUS_DASH_SERVICE_CPU" "$NEXUS_DASH_SERVICE_MEM" "" "" "no"
+        )
+        return
+    fi
+    if [ -n "$USE_SUDO" ]; then
+        $USE_SUDO bash -c '
+            source "$1"
+            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7" "" "" no
+        ' _ "$NEXUS_DASH_SERVICE_MANAGER" "$NEXUS_DASH_SERVICE_NAME" "$NEXUS_DASH_SERVICE_DESC" "$NEXUS_DASH_DESIRED_EXEC_CMD" "$NEXUS_DASH_APP_ROOT" "$NEXUS_DASH_SERVICE_CPU" "$NEXUS_DASH_SERVICE_MEM"
+        return
+    fi
+    echo "[ERROR] Need root (or sudo) to write $NEXUS_DASH_UNIT_FILE"
+    return 1
+}
+
+# Idempotent nexus-dash service convergence (merged from the retired
+# 176_laravel_ui_service.sh). Runtime prerequisites (node/bun/deps) are owned
+# by the unit's ExecStart (start.sh --serve), which self-heals them
+# non-interactively under systemd.
+converge_nexus_dash_service() {
+    local probe=""
+
+    if [ ! -f "$UI_START" ]; then
+        echo "[ERROR] UI start script not found: $UI_START"
+        return 1
+    fi
+    systemd_available
+    if [ "$SYSTEMD_READY" != "yes" ]; then
+        echo "[ERROR] systemd is not the active init (no /run/systemd/system); cannot register $NEXUS_DASH_SERVICE_NAME."
+        return 1
+    fi
+    if [ ! -f "$NEXUS_DASH_SERVICE_MANAGER" ]; then
+        echo "[ERROR] systemd service manager not found: $NEXUS_DASH_SERVICE_MANAGER"
+        return 1
+    fi
+
+    if [ -z "$NEXUS_DASH_SERVICE_MEM" ]; then
+        NEXUS_DASH_SERVICE_MEM="$(nexus_dash_mem_limit "$NEXUS_DASH_SERVICE_MEM_CAP_MB")"
+    fi
+    NEXUS_DASH_DESIRED_EXEC_CMD="bash ${UI_START} --serve --${NEXUS_DASH_RUN_MODE}"
+    echo "[INFO] Service: $NEXUS_DASH_SERVICE_NAME (mode=$NEXUS_DASH_RUN_MODE, CPU=$NEXUS_DASH_SERVICE_CPU, Memory=$NEXUS_DASH_SERVICE_MEM, cap ${NEXUS_DASH_SERVICE_MEM_CAP_MB}M)"
+    echo "[INFO] Desired ExecStart: $NEXUS_DASH_DESIRED_EXEC_CMD"
+
+    NEXUS_DASH_CURRENT_EXEC_CMD="$(nexus_dash_read_current_exec_start)"
+    if [ "$NEXUS_DASH_FORCE_CONVERGE" != "yes" ] && [ -f "$NEXUS_DASH_UNIT_FILE" ] && [ "$NEXUS_DASH_CURRENT_EXEC_CMD" = "$NEXUS_DASH_DESIRED_EXEC_CMD" ]; then
+        echo "[INFO] Unit file already matches (no rewrite)."
+    else
+        echo "[INFO] Writing unit file: $NEXUS_DASH_UNIT_FILE"
+        nexus_dash_write_unit || return 1
+        NEXUS_DASH_UNIT_REWRITTEN="yes"
+    fi
+
+    probe="$($USE_SUDO systemctl is-enabled "$NEXUS_DASH_SERVICE_NAME" 2>/dev/null)"
+    if [ "$probe" = "enabled" ]; then
+        NEXUS_DASH_UNIT_ENABLED="yes"
+    else
+        echo "[INFO] Enabling auto-start for $NEXUS_DASH_SERVICE_NAME"
+        $USE_SUDO systemctl enable "$NEXUS_DASH_SERVICE_NAME" >/dev/null 2>&1 || true
+    fi
+
+    if systemctl is-active --quiet "$NEXUS_DASH_SERVICE_NAME"; then
+        NEXUS_DASH_UNIT_ACTIVE="yes"
+        if [ "$NEXUS_DASH_UNIT_REWRITTEN" = "yes" ]; then
+            echo "[INFO] Unit changed -> restarting $NEXUS_DASH_SERVICE_NAME"
+            $USE_SUDO systemctl restart "$NEXUS_DASH_SERVICE_NAME" || return 1
+        else
+            echo "[INFO] $NEXUS_DASH_SERVICE_NAME already running and converged (no restart)."
+        fi
+    else
+        echo "[INFO] Starting $NEXUS_DASH_SERVICE_NAME"
+        $USE_SUDO systemctl start "$NEXUS_DASH_SERVICE_NAME" || return 1
+    fi
+
+    echo "[INFO] Service $NEXUS_DASH_SERVICE_NAME converged (enabled=$NEXUS_DASH_UNIT_ENABLED active=$NEXUS_DASH_UNIT_ACTIVE rewritten=$NEXUS_DASH_UNIT_REWRITTEN)."
+    systemctl status "$NEXUS_DASH_SERVICE_NAME" --no-pager -l || true
+    return 0
+}
+
 ensure_ui_domain_binding() {
     if [ "$UI_BINDING_CONVERGED" = "yes" ]; then
         return
@@ -480,12 +616,8 @@ ensure_ui_domain_binding() {
     fi
 
     if [ "$INCLUDE_UI" = "yes" ]; then
-        if [ -f "$UI_SERVICE_ENSURE_SCRIPT" ]; then
-            echo "Converging the pycore_laravel_wordnew_ui dashboard background service (idempotent)..."
-            bash "$UI_SERVICE_ENSURE_SCRIPT"
-        else
-            echo "  Warning: UI service ensure script not found: $UI_SERVICE_ENSURE_SCRIPT (domain binding still converges)."
-        fi
+        echo "Converging the pycore_laravel_wordnew_ui dashboard background service (idempotent)..."
+        converge_nexus_dash_service
     else
         echo "Refreshing the persisted dashboard domain binding (idempotent)..."
     fi
