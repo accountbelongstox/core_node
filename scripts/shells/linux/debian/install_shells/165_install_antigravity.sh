@@ -233,10 +233,11 @@ install_antigravity() {
     local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
     source "$repo_manager_script"
     
-    # Use repository manager with automatic backup and restore
+    # Use repository manager with automatic backup and restore. sudo drops a
+    # leading VAR=value prefix (env_reset), so route it through env(1).
     log "Installing $ANTIGRAVITY_PACKAGE with repository manager..."
     add_antigravity_repository_from_apt_repository_manager \
-        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y $ANTIGRAVITY_PACKAGE"
+        "$USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install -y $ANTIGRAVITY_PACKAGE"
     
     if [ $? -eq 0 ]; then
         log "Installation completed successfully"
@@ -255,9 +256,10 @@ update_antigravity() {
     local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
     source "$repo_manager_script"
     
-    # Use repository manager with automatic backup and restore
+    # Use repository manager with automatic backup and restore (env(1) wrapper:
+    # sudo drops a bare VAR=value command prefix under env_reset).
     add_antigravity_repository_from_apt_repository_manager \
-        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install --only-upgrade -y $ANTIGRAVITY_PACKAGE"
+        "$USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install --only-upgrade -y $ANTIGRAVITY_PACKAGE"
     
     if [ $? -eq 0 ]; then
         log "Update completed"
@@ -404,8 +406,11 @@ scan_and_replace_desktop_entries() {
                 # Backup original
                 $USE_SUDO cp "$desktop_file" "$desktop_file.bak" 2>/dev/null || true
 
-                # Update Exec line (only if pointing to original binary)
-                $USE_SUDO sed -i "s|^Exec=/usr/bin/antigravity\(.*\)|Exec=$target_exec\1|g" "$desktop_file"
+                # Update Exec line (only when pointing at a package binary;
+                # the deb's real Exec is /usr/share/antigravity/antigravity).
+                # # delimiter: with | the escaped alternation would parse as a
+                # literal delimiter character and never match.
+                $USE_SUDO sed -i "s#^Exec=\(/usr/bin/antigravity\|/usr/share/antigravity/antigravity\)\(.*\)#Exec=$target_exec\2#g" "$desktop_file"
 
                 # Ensure Icon is correct
                 $USE_SUDO sed -i "s|^Icon=.*|Icon=antigravity|g" "$desktop_file"
@@ -424,8 +429,11 @@ scan_and_replace_desktop_entries() {
             # Backup original
             cp "$desktop_file" "$desktop_file.bak" 2>/dev/null || true
 
-            # Update Exec line (only if pointing to original binary)
-            sed -i "s|^Exec=/usr/bin/antigravity\(.*\)|Exec=$target_exec\1|g" "$desktop_file"
+            # Update Exec line (only when pointing at a package binary;
+            # the deb's real Exec is /usr/share/antigravity/antigravity).
+            # # delimiter: with | the escaped alternation would parse as a
+            # literal delimiter character and never match.
+            sed -i "s#^Exec=\(/usr/bin/antigravity\|/usr/share/antigravity/antigravity\)\(.*\)#Exec=$target_exec\2#g" "$desktop_file"
 
             # Ensure Icon is correct
             sed -i "s|^Icon=.*|Icon=antigravity|g" "$desktop_file"
@@ -442,10 +450,56 @@ scan_and_replace_desktop_entries() {
 
     log "Updated $files_updated desktop file(s)"
 
+    # Collapse the menu to a single Antigravity icon (managed core_node entry).
+    hide_duplicate_desktop_entries
+
     # Refresh desktop database
     refresh_desktop_database
 
     return 0
+}
+
+# Hide package-provided Antigravity menu entries so exactly ONE icon (the
+# managed core_node entry) remains in the menu. XDG-canonical: a same-named
+# user entry containing Hidden=true shadows the system entry for the desktop
+# user without editing package-owned files (a package upgrade restores the
+# system file, but the shadow persists). Idempotent: an existing Hidden=true
+# override is left untouched; already-hidden entries (URL handler) are skipped.
+hide_duplicate_desktop_entries() {
+    local target_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local user_apps_dir="$target_home/.local/share/applications"
+    local entry_owner=""
+    local system_entry=""
+    local override_file=""
+    local hidden_count=0
+
+    entry_owner="$(stat -c '%U:%G' "$target_home" 2>/dev/null)"
+
+    for system_entry in /usr/share/applications/antigravity*.desktop /usr/local/share/applications/antigravity*.desktop; do
+        [[ -f "$system_entry" ]] || continue
+        [[ "$system_entry" == *"core_node_"* ]] && continue
+        # Already-hidden entries show no icon anyway (e.g. the URL handler).
+        if grep -qE '^(NoDisplay|Hidden)=true' "$system_entry" 2>/dev/null; then
+            continue
+        fi
+        override_file="$user_apps_dir/$(basename "$system_entry")"
+        if [ -f "$override_file" ] && grep -q '^Hidden=true' "$override_file" 2>/dev/null; then
+            continue
+        fi
+        if [ ! -d "$user_apps_dir" ]; then
+            mkdir -p "$user_apps_dir" 2>/dev/null || continue
+            [ -n "$entry_owner" ] && chown -R "$entry_owner" "$target_home/.local" 2>/dev/null
+        fi
+        if printf '[Desktop Entry]\nHidden=true\n' > "$override_file" 2>/dev/null; then
+            [ -n "$entry_owner" ] && chown "$entry_owner" "$override_file" 2>/dev/null
+            hidden_count=$((hidden_count + 1))
+            log "Hid duplicate menu entry: $system_entry (user override: $override_file)"
+        fi
+    done
+
+    if [ "$hidden_count" -gt 0 ]; then
+        log "Hid $hidden_count duplicate Antigravity menu entrie(s); only the managed core_node entry stays visible"
+    fi
 }
 
 # Refresh desktop icon cache and database

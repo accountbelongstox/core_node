@@ -180,7 +180,7 @@ function main() {
     console.error(`[ERROR] Error: Dist folder not found at ${NATIVE_SERVER_DIST}`);
     console.error('Please build the native server first:');
     console.error('  cd apps/mcp-chrome');
-    console.error('  pnpm run build:native\n');
+    console.error('  bun run build:native\n');
     process.exit(1);
   }
 

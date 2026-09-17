@@ -1370,16 +1370,16 @@
   "startNodeMissing": {
     "message": "  错误：未找到 Node.js"
   },
-  "startPnpmVersion": {
-    "message": "  正常 pnpm：v$version$",
+  "startBunVersion": {
+    "message": "  正常 bun：v$version$",
     "placeholders": {
       "version": {
         "content": "$1"
       }
     }
   },
-  "startPnpmMissing": {
-    "message": "  错误：未找到 pnpm"
+  "startBunMissing": {
+    "message": "  错误：未找到 bun"
   },
   "startInstallingDependenciesLive": {
     "message": "  正在安装依赖项（实时输出）..."

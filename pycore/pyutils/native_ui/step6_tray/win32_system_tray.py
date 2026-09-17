@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import win32gui
-import win32con
-import win32api
-from PIL import Image
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 """
 Windows Native System Tray (pywin32 / Shell_NotifyIcon)
@@ -44,6 +40,9 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
 try:
+    import win32gui
+    import win32con
+    import win32api
     WIN32_AVAILABLE = True
 except ImportError:
     win32gui = None
@@ -53,6 +52,7 @@ except ImportError:
 
 # Optional third-party (PNG -> ICO conversion only): top-of-file try + flag
 try:
+    from PIL import Image
     PIL_AVAILABLE = True
 except ImportError:
     Image = None

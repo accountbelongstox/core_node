@@ -125,7 +125,11 @@ FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
 FRANKENPHP_PHP_INI_SCAN_PATH=":${FRANKENPHP_PHP_INI_DIR}"
 FRANKENPHP_APT_BINARY_PATH="/usr/bin/frankenphp"
 FRANKENPHP_BIN_CANDIDATES="${FRANKENPHP_COMPILED_BINARY_PATH} ${FRANKENPHP_PREBUILT_BINARY_PATH} ${FRANKENPHP_APT_BINARY_PATH}"
-FRANKENPHP_RUNTIME_REQUIRED_PHP_EXTENSIONS=("pdo" "pdo_pgsql" "phar" "simplexml" "pcntl")
+# Runtime extension floor every variant must satisfy. gd is required by the
+# laravel_main Composer tree (phpoffice/phpword 1.4 ext-gd; laravolt/avatar
+# GD driver): prebuilt/compiled binaries embed it (official default set), the
+# apt variant loads it from the php-zts-gd deb (FRANKENPHP_APT_PACKAGES).
+FRANKENPHP_RUNTIME_REQUIRED_PHP_EXTENSIONS=("pdo" "pdo_pgsql" "phar" "simplexml" "pcntl" "gd")
 FM_RUNTIME_BINARY=""
 FM_MERCURE_STANZA=""
 FM_OCTANE_PHP_SERVER_STANZA=""

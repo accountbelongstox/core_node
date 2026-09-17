@@ -9,8 +9,18 @@ from PIL import ImageEnhance as PIL_ImageEnhance
 from PIL import ImageFilter as PIL_ImageFilter
 from PIL import ImageOps as PIL_ImageOps
 from PIL import ImageStat as PIL_ImageStat
-import pystray
-import pythoncom as _pythoncom
+try:
+    import pystray
+    PYSTRAY_AVAILABLE = True
+except Exception:
+    pystray = None
+    PYSTRAY_AVAILABLE = False
+try:
+    import pythoncom as _pythoncom
+    PYTHONCOM_AVAILABLE = True
+except ImportError:
+    _pythoncom = None
+    PYTHONCOM_AVAILABLE = False
 from googletrans import Translator as googletrans_Translator
 from docx import Document as docx_Document
 from bs4 import BeautifulSoup
@@ -383,6 +393,9 @@ def get_third_package_pystray():
     In this case, returns None instead of raising an exception.
     """
     if 'pystray' not in _PACKAGE_CACHE:
+        if not PYSTRAY_AVAILABLE:
+            _PACKAGE_CACHE['pystray'] = None
+            return None
         try:
             _PACKAGE_CACHE['pystray'] = pystray
             return pystray
@@ -413,13 +426,10 @@ def get_third_package_pythoncom():
     Same style as get_third_package_pystray(); callers must check for None.
     """
     if 'pythoncom' not in _PACKAGE_CACHE:
-        if platform.system() != 'Windows':
+        if platform.system() != 'Windows' or not PYTHONCOM_AVAILABLE:
             _PACKAGE_CACHE['pythoncom'] = None
         else:
-            try:
-                _PACKAGE_CACHE['pythoncom'] = _pythoncom
-            except Exception:
-                _PACKAGE_CACHE['pythoncom'] = None
+            _PACKAGE_CACHE['pythoncom'] = _pythoncom
     return _PACKAGE_CACHE['pythoncom']
 
 

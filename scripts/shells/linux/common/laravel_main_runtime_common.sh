@@ -156,6 +156,21 @@ ensure_php_pdo_pgsql() {
     fi
     if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
         runtime_binary="$(fm_variant_binary)"
+        if [ "$(fm_php_runtime_extensions_ready "$runtime_binary")" != "yes" ] \
+            && [ -n "$PHP_ENSURE_SCRIPT_FRANKENPHP" ] && [ -f "$PHP_ENSURE_SCRIPT_FRANKENPHP" ]; then
+            # Auto-resolve through the canonical variant lifecycle (93): the
+            # recorded variant is pinned so the mode prompt is skipped, and the
+            # missing contract packages install idempotently (e.g. php-zts-gd
+            # on the apt variant; ext-gd is required by the Composer tree).
+            echo "FrankenPHP runtime extension contract incomplete. Invoking init-ensure installer:"
+            echo "  $PHP_ENSURE_SCRIPT_FRANKENPHP --mode=$(fm_variant)"
+            if [ -n "$(fm_variant)" ]; then
+                bash "$PHP_ENSURE_SCRIPT_FRANKENPHP" "--mode=$(fm_variant)"
+            else
+                bash "$PHP_ENSURE_SCRIPT_FRANKENPHP"
+            fi
+            runtime_binary="$(fm_variant_binary)"
+        fi
         if [ "$(fm_php_runtime_extensions_ready "$runtime_binary")" = "yes" ]; then
             PHP_PDO_PGSQL_READY="yes"
             echo "FrankenPHP runtime extension contract ready."

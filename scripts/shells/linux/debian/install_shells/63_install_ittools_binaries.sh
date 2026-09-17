@@ -95,7 +95,7 @@ install_pdf_tools() {
     for pkg in "${pdf_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -150,7 +150,7 @@ install_document_tools() {
     for pkg in "${doc_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -202,7 +202,7 @@ install_image_tools() {
     for pkg in "${image_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -256,7 +256,7 @@ install_ffmpeg() {
     for pkg in "${ffmpeg_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -306,7 +306,7 @@ install_network_tools() {
     for pkg in "${net_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -364,7 +364,7 @@ install_compression_tools() {
     for pkg in "${compress_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -419,7 +419,7 @@ install_barcode_qr_tools() {
     for pkg in "${barcode_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else
@@ -465,7 +465,7 @@ install_ocr_tools() {
     for pkg in "${ocr_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then
             echo "[$SCRIPT_INDEX] Installing $pkg..."
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
                 echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
             }
         else

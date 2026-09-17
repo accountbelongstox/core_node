@@ -1710,11 +1710,11 @@
   "startOneTimeComplete": {
     "message": "  Einmaliger Build abgeschlossen; Entwicklungs-Watcher sind deaktiviert."
   },
-  "startPnpmMissing": {
-    "message": "  FEHLER: pnpm nicht gefunden"
+  "startBunMissing": {
+    "message": "  FEHLER: bun nicht gefunden"
   },
-  "startPnpmVersion": {
-    "message": "  OK pnpm: v$version$",
+  "startBunVersion": {
+    "message": "  OK bun: v$version$",
     "placeholders": {
       "version": {
         "content": "$1"

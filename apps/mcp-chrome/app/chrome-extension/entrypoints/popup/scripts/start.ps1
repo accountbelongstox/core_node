@@ -10,7 +10,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Popup dev helper: pnpm install + wxt dev, open Chrome extensions page, restore cwd.
+# Popup dev helper: bun install + wxt dev, open Chrome extensions page, restore cwd.
 
 $ErrorActionPreference = "Continue"
 
@@ -43,9 +43,9 @@ Write-Host ""
 Set-Location -LiteralPath $ExtensionRoot
 
 try {
-    Write-Host '[*] pnpm install (live output)'
+    Write-Host '[*] bun install (live output)'
     Write-Host "----------------------------------------"
-    & pnpm install
+    & bun install
     Write-Host "----------------------------------------"
     Write-Host ""
 
@@ -73,9 +73,9 @@ try {
     }
 
     Write-Host ""
-    Write-Host '[*] pnpm run dev (wxt) - press Ctrl+C to stop'
+    Write-Host '[*] bun run dev (wxt) - press Ctrl+C to stop'
     Write-Host "----------------------------------------"
-    & pnpm run dev
+    & bun run dev
     Write-Host "----------------------------------------"
     Write-Host ""
 } finally {

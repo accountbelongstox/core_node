@@ -506,31 +506,35 @@ fi
 
 # --- Ensure Swoole (nginx plane ONLY: the Octane swoole driver; the
 # frankenphp plane embeds its app server in the static binary - Swoole is
-# never probed, installed or required there) ---
-PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
-SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
+# never probed, installed or required there). The `php -m` module probe runs
+# only on the nginx plane: the frankenphp shim's embedded php-cli accepts no
+# -m flag (script-file mode), so probing it would print fatal-error noise. ---
 if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
     echo "frankenphp plane -> Swoole not required (octane:frankenphp embeds the app server)."
-elif [ -n "$SWOOLE_MODULE" ]; then
-    OCTANE_AVAILABLE=1
-    echo "Swoole extension present -> Octane runtime available."
 else
-    echo "Swoole extension not loaded. Invoking init-ensure installer:"
-    echo "  $SWOOLE_INSTALL_SCRIPT"
-    if [ -f "$SWOOLE_INSTALL_SCRIPT" ]; then
-        bash "$SWOOLE_INSTALL_SCRIPT"
-        PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
-        SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
-        if [ -n "$SWOOLE_MODULE" ]; then
-            OCTANE_AVAILABLE=1
-            echo "Swoole installed -> Octane runtime available."
-        else
-            OCTANE_AVAILABLE=""
-            echo "  Warning: Swoole still not loaded after installer; using non-Octane fallback."
-        fi
+    PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
+    SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
+    if [ -n "$SWOOLE_MODULE" ]; then
+        OCTANE_AVAILABLE=1
+        echo "Swoole extension present -> Octane runtime available."
     else
-        echo "  Warning: Swoole installer missing: $SWOOLE_INSTALL_SCRIPT"
-        echo "  Manual (Debian/Ubuntu/WSL): bash $SWOOLE_INSTALL_SCRIPT"
+        echo "Swoole extension not loaded. Invoking init-ensure installer:"
+        echo "  $SWOOLE_INSTALL_SCRIPT"
+        if [ -f "$SWOOLE_INSTALL_SCRIPT" ]; then
+            bash "$SWOOLE_INSTALL_SCRIPT"
+            PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
+            SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
+            if [ -n "$SWOOLE_MODULE" ]; then
+                OCTANE_AVAILABLE=1
+                echo "Swoole installed -> Octane runtime available."
+            else
+                OCTANE_AVAILABLE=""
+                echo "  Warning: Swoole still not loaded after installer; using non-Octane fallback."
+            fi
+        else
+            echo "  Warning: Swoole installer missing: $SWOOLE_INSTALL_SCRIPT"
+            echo "  Manual (Debian/Ubuntu/WSL): bash $SWOOLE_INSTALL_SCRIPT"
+        fi
     fi
 fi
 

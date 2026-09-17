@@ -81,7 +81,7 @@ install_via_appimage() {
     if ! dpkg -l | grep -q "^ii.*libfuse2"; then
         log_message "Installing libfuse2 (required for AppImage)..."
         $USE_SUDO apt-get update -qq
-        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" libfuse2 2>&1 | tee -a "$LOG_FILE" || log_message "Warning: Failed to install libfuse2"
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" libfuse2 2>&1 | tee -a "$LOG_FILE" || log_message "Warning: Failed to install libfuse2"
     fi
 
     # Create AppImage directory structure

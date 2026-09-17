@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.ui_thread import PySide6UIThread
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig
+try:
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6.ui_thread import PySide6UIThread
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig
+    PYSIDE6_AVAILABLE = True
+except ImportError:
+    PySide6UIThread = None
+    PySide6UIConfig = None
+    StartupWindowConfig = None
+    PYSIDE6_AVAILABLE = False
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem, PYSTRAY_AVAILABLE
 from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
@@ -208,6 +215,9 @@ def start_ui(config: Dict[str, Any]) -> Any:
     Returns:
         PySide6Framework instance
     """
+    if not PYSIDE6_AVAILABLE:
+        ColorPrint.yellow("[ui] PySide6 is not installed; UI service disabled (headless mode)")
+        return None
 
     ColorPrint.blue("[ui] ========== STARTING PYSIDE6 UI SERVICE ==========")
     ColorPrint.blue(f"[ui] Received config keys: {list(config.keys())}")

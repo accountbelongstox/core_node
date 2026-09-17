@@ -92,8 +92,8 @@ ensure_build_dependencies() {
     print_info_from_common_functions "Missing build dependencies: ${missing_packages[*]}"
     echo "[14] $USE_SUDO apt-get update"
     $USE_SUDO apt-get update || true
-    echo "[14] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ${missing_packages[*]} --no-install-recommends"
-    if ! $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing_packages[@]}" --no-install-recommends; then
+    echo "[14] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y ${missing_packages[*]} --no-install-recommends"
+    if ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing_packages[@]}" --no-install-recommends; then
         print_error_from_common_functions "STAGE=build_deps failed: apt could not install ${missing_packages[*]}"
         return 1
     fi

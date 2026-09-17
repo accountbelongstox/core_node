@@ -1710,11 +1710,11 @@
   "startOneTimeComplete": {
     "message": "  單次建置已完成；開發監看器已停用。"
   },
-  "startPnpmMissing": {
-    "message": "  錯誤：找不到 pnpm"
+  "startBunMissing": {
+    "message": "  錯誤：找不到 bun"
   },
-  "startPnpmVersion": {
-    "message": "  正常 pnpm：v$version$",
+  "startBunVersion": {
+    "message": "  正常 bun：v$version$",
     "placeholders": {
       "version": {
         "content": "$1"

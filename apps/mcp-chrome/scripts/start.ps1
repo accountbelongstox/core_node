@@ -56,7 +56,7 @@ $step4 = $null
 $step5 = $null
 $step6 = $null
 $nodeVersion = $null
-$pnpmVersion = $null
+$bunVersion = $null
 $EnsureWinBinScript = $null
 $RegisterScript = $null
 $extensionPath = $null
@@ -341,12 +341,12 @@ if ($nodeVersion) {
     throw (Get-LocalizedMessage -Key "startNodeMissing")
 }
 
-$pnpmVersion = pnpm --version 2>$null
-if ($pnpmVersion) {
-    Write-Host (Get-LocalizedMessage -Key "startPnpmVersion" -Arguments @($pnpmVersion)) -ForegroundColor Green
+$bunVersion = bun --version 2>$null
+if ($bunVersion) {
+    Write-Host (Get-LocalizedMessage -Key "startBunVersion" -Arguments @($bunVersion)) -ForegroundColor Green
 } else {
-    Write-Host (Get-LocalizedMessage -Key "startPnpmMissing") -ForegroundColor Red
-    throw (Get-LocalizedMessage -Key "startPnpmMissing")
+    Write-Host (Get-LocalizedMessage -Key "startBunMissing") -ForegroundColor Red
+    throw (Get-LocalizedMessage -Key "startBunMissing")
 }
 
 # Step 2: Install dependencies
@@ -355,10 +355,10 @@ $step2 = Get-LocalizedMessage -Key "startInstallingDependencies"
 Write-Host "[2/6] $step2"
 
 Write-Host (Get-LocalizedMessage -Key "startInstallingDependenciesLive") -ForegroundColor Cyan
-& pnpm install
+& bun install
 Write-Host (Get-LocalizedMessage -Key "startDependencyInstallFinished") -ForegroundColor Green
 
-# Ensure Windows .cmd shims exist (pnpm previously run via bash/WSL loses them).
+# Ensure Windows .cmd shims exist (bun previously run via bash/WSL loses them).
 $EnsureWinBinScript = Join-Path $PSScriptRoot "ensure_win_bin.ps1"
 $RegisterScript = Join-Path $PSScriptRoot "register-local-dev.cjs"
 Write-Host (Get-LocalizedMessage -Key "startCheckingCmdShims") -ForegroundColor Cyan
@@ -375,7 +375,7 @@ Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
     Write-Host "[3/6] $step3"
 
     Write-Host (Get-LocalizedMessage -Key "startBuildingSharedLive") -ForegroundColor Cyan
-    & pnpm run build:shared
+    & bun run build:shared
 
     # Verify by artifact, not exit code (a noisy-but-successful build can return
     # nonzero; a real failure leaves the artifact missing).
@@ -392,7 +392,7 @@ Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
     Write-Host "[4/6] $step4"
 
     Write-Host (Get-LocalizedMessage -Key "startBuildingNativeLive") -ForegroundColor Cyan
-    & pnpm run build:native
+    & bun run build:native
 
     # Verify by artifact, not exit code.
     $nativePathProbe = Get-Var -Key ([VarKeys]::NATIVE_PATH) -Default ""
@@ -407,7 +407,7 @@ Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
     $step5 = Get-LocalizedMessage -Key "startBuildingExtension"
     Write-Host "[5/6] $step5"
 
-    & pnpm run build:extension
+    & bun run build:extension
 
 $nativePath = Get-Var -Key ([VarKeys]::NATIVE_PATH)
 if (-not $extensionPath) {
@@ -552,9 +552,9 @@ try {
         while ($true) {
             $ChangedPaths = @(Wait-DevelopmentChangeBatch -SourcePrefix $WatchSourcePrefix -IgnoredRoots $IgnoredWatchRoots -IgnoredFilePatterns $IgnoredWatchFilePatterns -WatchedExtensions $WatchedFileExtensions -DebounceMilliseconds $WatchDebounceMilliseconds)
             Write-Host ([string]::Join(", ", $ChangedPaths)) -ForegroundColor DarkGray
-            & pnpm run build:shared
-            & pnpm run build:native
-            & pnpm run build:extension
+            & bun run build:shared
+            & bun run build:native
+            & bun run build:extension
         }
     } else {
         & $PythonExe $SupervisorScript --wake

@@ -10,7 +10,7 @@ export enum NATIVE_MESSAGE_TYPE {
   ERROR = 'error',
 }
 
-export const NATIVE_SERVER_PORT = serviceContract.ports.mcp_chrome;
+export const NATIVE_SERVER_PORT = serviceContract.port('mcp_chrome');
 
 // Timeout constants (in milliseconds)
 export const TIMEOUTS = {
@@ -21,7 +21,7 @@ export const TIMEOUTS = {
 
 // Server configuration
 export const SERVER_CONFIG = {
-  HOST: serviceContract.hosts.loopback,
+  HOST: serviceContract.host('loopback'),
   CORS_ORIGIN: true,
   LOGGER_ENABLED: false,
 } as const;

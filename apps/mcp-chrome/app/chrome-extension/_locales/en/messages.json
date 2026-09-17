@@ -1373,8 +1373,8 @@
   "startNodeMissing": {
     "message": "  ERROR: Node.js not found"
   },
-  "startPnpmVersion": {
-    "message": "  OK pnpm: v$version$",
+  "startBunVersion": {
+    "message": "  OK bun: v$version$",
     "placeholders": {
       "version": {
         "content": "$1",
@@ -1382,8 +1382,8 @@
       }
     }
   },
-  "startPnpmMissing": {
-    "message": "  ERROR: pnpm not found"
+  "startBunMissing": {
+    "message": "  ERROR: bun not found"
   },
   "startInstallingDependenciesLive": {
     "message": "  Installing dependencies (live output)..."

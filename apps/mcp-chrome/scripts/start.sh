@@ -31,7 +31,7 @@ MCP_DEV_NVM=""
 MCP_PYTHON_SCRIPT=""
 MCP_VARS_DIR=""
 MCP_NODE_VERSION=""
-MCP_PNPM_VERSION=""
+MCP_BUN_VERSION=""
 MCP_BUILD_OUTPUT_DIR=""
 MCP_GLOBAL_LOG_DIR=""
 MCP_NODE_SEARCH_DIRS=()
@@ -79,7 +79,7 @@ fi
 # The system service starts the shell-owned watcher and lets Python only monitor
 # build artifacts and wake the native MCP connection.
 if [ -n "$INVOCATION_ID" ]; then
-    # Under systemd PATH is minimal; source nvm and extend PATH so pnpm resolves.
+    # Under systemd PATH is minimal; source nvm and extend PATH so bun resolves.
     for MCP_DEV_NVM in "$HOME/.nvm" "/usr/local/nvm" "/opt/nvm"; do
         if [ -s "$MCP_DEV_NVM/nvm.sh" ]; then
             # shellcheck disable=SC1090
@@ -87,13 +87,13 @@ if [ -n "$INVOCATION_ID" ]; then
             break
         fi
     done
-    export PATH="$HOME/.local/share/pnpm:$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
-    if ! command -v pnpm >/dev/null 2>&1; then
-        echo "[start.sh] pnpm not found in PATH" >&2
+    export PATH="$HOME/.bun/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
+    if ! command -v bun >/dev/null 2>&1; then
+        echo "[start.sh] bun not found in PATH" >&2
         exit 127
     fi
     echo "[start.sh] starting shell-owned MCP Chrome watcher"
-    pnpm run dev &
+    bun run dev &
     MCP_DEV_PID=$!
     trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
     "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode dev --recover-on-start
@@ -173,7 +173,7 @@ mcp_fix_build_permissions() {
 }
 
 # ======================================
-# Step 0: Ensure PATH and fix node/pnpm symlinks (idempotent, works under sudo)
+# Step 0: Ensure PATH and fix node/bun symlinks (idempotent, works under sudo)
 # ======================================
 
 # Well-known Node.js install locations on Linux
@@ -271,37 +271,37 @@ mcp_ensure_node_deps() {
         exit 1
     fi
 
-    # 5. Ensure pnpm is available
-    if command -v pnpm &>/dev/null; then
-        # pnpm found - repair symlink if in node bin dir
-        if [ -e "$mcp_node_bin_dir/pnpm" ]; then
-            mcp_ensure_symlink "pnpm" "$mcp_node_bin_dir/pnpm"
+    # 5. Ensure bun is available
+    if command -v bun &>/dev/null; then
+        # bun found - repair symlink if in node bin dir
+        if [ -e "$mcp_node_bin_dir/bun" ]; then
+            mcp_ensure_symlink "bun" "$mcp_node_bin_dir/bun"
         fi
         return
     fi
 
-    # pnpm not found - try to install it
-    echo -e "${YELLOW}  pnpm not found, auto-installing...${NC}"
+    # bun not found - try to install it
+    echo -e "${YELLOW}  bun not found, auto-installing...${NC}"
     export npm_config_confirm_modules_purge=false
 
     if [ -x "$mcp_node_bin_dir/npm" ]; then
-        "$mcp_node_bin_dir/npm" install -g pnpm --config.confirm-modules-purge=false 2>&1 | tail -3
+        "$mcp_node_bin_dir/npm" install -g bun --config.confirm-modules-purge=false 2>&1 | tail -3
     else
-        npm install -g pnpm --config.confirm-modules-purge=false 2>&1 | tail -3
+        npm install -g bun --config.confirm-modules-purge=false 2>&1 | tail -3
     fi
 
     # Repair symlink after install
-    if [ -e "$mcp_node_bin_dir/pnpm" ]; then
-        mcp_ensure_symlink "pnpm" "$mcp_node_bin_dir/pnpm"
+    if [ -e "$mcp_node_bin_dir/bun" ]; then
+        mcp_ensure_symlink "bun" "$mcp_node_bin_dir/bun"
     fi
 
     # Final check
-    if ! command -v pnpm &>/dev/null; then
-        echo -e "${RED}  [ERROR] pnpm auto-install failed${NC}"
-        echo -e "${YELLOW}  Run prerequisite: scripts/shells/linux/debian/install_shells/37_ensure_pnpm_packages.sh${NC}"
+    if ! command -v bun &>/dev/null; then
+        echo -e "${RED}  [ERROR] bun auto-install failed${NC}"
+        echo -e "${YELLOW}  Install bun manually: npm install -g bun${NC}"
         exit 1
     fi
-    echo -e "${GREEN}  [OK] pnpm auto-installed successfully${NC}"
+    echo -e "${GREEN}  [OK] bun auto-installed successfully${NC}"
 }
 
 # Run dependency repair early (before Python and build steps)
@@ -352,11 +352,11 @@ else
     exit 1
 fi
 
-if command -v pnpm &> /dev/null; then
-    MCP_PNPM_VERSION=$(pnpm --version)
-    echo -e "${GREEN}  [OK] pnpm: v$MCP_PNPM_VERSION${NC}"
+if command -v bun &> /dev/null; then
+    MCP_BUN_VERSION=$(bun --version)
+    echo -e "${GREEN}  [OK] bun: v$MCP_BUN_VERSION${NC}"
 else
-    echo -e "${RED}  [ERROR] ERROR: pnpm not installed${NC}"
+    echo -e "${RED}  [ERROR] ERROR: bun not installed${NC}"
     exit 1
 fi
 
@@ -369,7 +369,7 @@ fi
 echo -e "${YELLOW}[2/6] $mcp_step2${NC}"
 
 echo -e "${CYAN}  Installing dependencies...${NC}"
-pnpm install
+bun install
 echo -e "${GREEN}  [OK] Dependency state aligned${NC}"
 
 # Step 3: Build Shared package
@@ -381,7 +381,7 @@ fi
 echo -e "${YELLOW}[3/6] $mcp_step3${NC}"
 
 echo -e "${CYAN}  Building chrome-mcp-shared...${NC}"
-pnpm run build:shared
+bun run build:shared
 
 mcp_shared_path=$(mcp_get_var "$VAR_KEY_SHARED_PATH")
 if [ -d "$mcp_shared_path" ]; then
@@ -397,7 +397,7 @@ fi
 echo -e "${YELLOW}[4/6] $mcp_step4${NC}"
 
 echo -e "${CYAN}  Building mcp-chrome-bridge...${NC}"
-pnpm run build:native
+bun run build:native
 
 mcp_native_path=$(mcp_get_var "$VAR_KEY_NATIVE_PATH")
 mcp_run_host_sh="$mcp_native_path/run_host.sh"
@@ -443,7 +443,7 @@ MCP_BUILD_OUTPUT_DIR=$(mcp_get_var "$VAR_KEY_BUILD_OUTPUT_DIR")
 # Create build directory with proper permissions before building
 mcp_create_build_dir_with_permissions "$MCP_BUILD_OUTPUT_DIR"
 
-pnpm run build:extension
+bun run build:extension
 
 mcp_extension_path=$(mcp_get_var "$VAR_KEY_EXTENSION_PATH")
 if [ -z "$mcp_extension_path" ]; then
@@ -531,7 +531,7 @@ if [ "$MCP_WATCH_MODE" = "dev" ]; then
     echo -e "${CYAN}========================================${NC}"
     echo ""
     echo -e "${CYAN}[Watch] Starting shell-owned development compilation...${NC}"
-    pnpm run dev &
+    bun run dev &
     MCP_DEV_PID=$!
     trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
     "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode "$MCP_WATCH_MODE" --recover-on-start --foreground

@@ -47,12 +47,16 @@ FRANKENPHP_INSTALL_PIPELINE_CLEANUP_SYSTEM_SCRIPT_NAME="frankenphp_install_pipel
 # mbstring / curl / dom / xml / simplexml / xmlwriter are compiled INTO the
 # static binary and are NOT shipped as php-zts-* deb packages (the repo
 # offers only the optional extras: xsl, soap, gd, redis, ...).
+# php-zts-gd is required by the laravel_main Composer tree (phpoffice/phpword
+# 1.4 hard-requires ext-gd; laravolt/avatar renders through the GD driver) -
+# the prebuilt/compiled variants already embed gd (official default
+# extension set), the apt variant needs the deb.
 FRANKENPHP_APT_PHP_VERSION="85"
 FRANKENPHP_APT_KEY_URL="https://pkg.henderkes.com/api/packages/${FRANKENPHP_APT_PHP_VERSION}/debian/repository.key"
 FRANKENPHP_APT_KEY_PATH="/etc/apt/keyrings/static-php${FRANKENPHP_APT_PHP_VERSION}.asc"
 FRANKENPHP_APT_REPO_LINE="deb [signed-by=${FRANKENPHP_APT_KEY_PATH}] https://pkg.henderkes.com/api/packages/${FRANKENPHP_APT_PHP_VERSION}/debian php-zts main"
 FRANKENPHP_APT_SOURCES_FILE="/etc/apt/sources.list.d/static-php${FRANKENPHP_APT_PHP_VERSION}.list"
-FRANKENPHP_APT_PACKAGES=("frankenphp" "php-zts-pgsql" "php-zts-pdo-pgsql" "php-zts-zip" "php-zts-bcmath" "php-zts-intl" "php-zts-sqlite3" "libnss3-tools")
+FRANKENPHP_APT_PACKAGES=("frankenphp" "php-zts-pgsql" "php-zts-pdo-pgsql" "php-zts-zip" "php-zts-bcmath" "php-zts-intl" "php-zts-sqlite3" "php-zts-gd" "libnss3-tools")
 
 frankenphp_install_mode_normalize() {
     local raw_mode=""
