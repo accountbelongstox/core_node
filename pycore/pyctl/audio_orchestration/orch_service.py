@@ -298,12 +298,33 @@ def _task_summary(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
         "word_mode": task.get("word_mode"),
         "status": task.get("status"),
         "running": orch_generate.is_running(str(task.get("task_id") or "")),
+        "resumable": orch_generate.has_resumable_state(task),
         "segments_done": sum(1 for s in segments if s.get("status") == "done"),
         "segments_total": len(segments),
         "progress": _task_progress(task, pending_counts),
         "created_at": task.get("created_at"),
         "updated_at": task.get("updated_at"),
     }
+
+
+def resume_interrupted_generations() -> Dict[str, Any]:
+    """Auto-resume every task left in 'generating' by a previous pycore process.
+    Called once when the orchestration routes register (service startup) so a
+    restarted pycore picks the manifest back up before the UI even polls."""
+    resumed: List[str] = []
+    for task in orch_store.list_tasks():
+        task_id = str(task.get("task_id") or "")
+        if str(task.get("status") or "") != "generating":
+            continue
+        if orch_generate.is_running(task_id):
+            continue
+        result = orch_generate.start_generation(task_id, resume=True)
+        if result.get("success"):
+            resumed.append(task_id)
+            ColorPrint.green(f"[AudioOrch] auto-resumed interrupted generation: {task_id}")
+        else:
+            ColorPrint.yellow(f"[AudioOrch] auto-resume skipped for {task_id}: {result.get('error')}")
+    return {"success": True, "resumed": resumed}
 
 
 def tasks_list() -> Dict[str, Any]:
@@ -330,8 +351,8 @@ def task_get(task_id: str) -> Dict[str, Any]:
 def _recover_task_status(task: Dict[str, Any]) -> None:
     if task.get("status") == "generating" and not orch_generate.is_running(str(task.get("task_id") or "")):
         task["status"] = "failed"
-        task["progress"] = {**(task.get("progress") or {}), "message": "generation interrupted; regenerate to resume from cached audio"}
-        orch_store.append_task_event(task, "generation interrupted; local audio caches and pending deliveries retained")
+        task["progress"] = {**(task.get("progress") or {}), "message": "generation interrupted; regenerate resumes from the persisted manifest"}
+        orch_store.append_task_event(task, "generation interrupted; persisted manifest, local audio caches and pending deliveries retained")
         orch_store.save_task(task)
 
 
@@ -447,8 +468,13 @@ def task_generate(
     expected_base_url: Optional[str] = None,
     use_qy_account: Optional[bool] = None,
     word_group_id: Optional[str] = None,
+    resume: Optional[bool] = None,
+    force_fresh: bool = False,
 ) -> Dict[str, Any]:
-    return orch_generate.start_generation(str(task_id or ""), expected_user_id, expected_base_url, use_qy_account, word_group_id)
+    return orch_generate.start_generation(
+        str(task_id or ""), expected_user_id, expected_base_url, use_qy_account,
+        word_group_id, resume=resume, force_fresh=force_fresh,
+    )
 
 
 def task_cancel(task_id: str) -> Dict[str, Any]:
@@ -466,6 +492,7 @@ def task_progress(task_id: str) -> Dict[str, Any]:
         "success": True,
         "status": task.get("status"),
         "running": orch_generate.is_running(str(task_id or "")),
+        "resumable": orch_generate.has_resumable_state(task),
         "progress": _task_progress(task),
         "segments": task.get("segments") or [],
         "events": task.get("events") or [],
@@ -568,6 +595,7 @@ __all__ = [
     "task_generate",
     "task_cancel",
     "task_progress",
+    "resume_interrupted_generations",
     "system_status",
     "task_files",
     "open_output",

@@ -348,3 +348,10 @@ def save_manifest(task_id: str, manifest: Dict[str, Any]) -> bool:
 
 def load_manifest(task_id: str) -> Dict[str, Any]:
     return _read_json(manifest_path(task_id)) or {}
+
+
+def delete_manifest(task_id: str) -> bool:
+    path = manifest_path(task_id)
+    if not path.is_file():
+        return True
+    return _delete_json(path)
