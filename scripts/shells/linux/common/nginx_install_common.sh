@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Prompt helpers: single definition in prompt_common.sh (zero side effects).
+if ! command -v prompt_read_default >/dev/null 2>&1; then
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
+fi
+
 # Compare two dotted versions; returns 0 when v1 >= v2.
 # Usage: nginx_version_ge <v1> <v2>
 nginx_version_ge() {
@@ -268,7 +273,7 @@ nginx_replace_legacy_install() {
     if [ "$auto_confirm" = "true" ]; then
         response="y"
     else
-        read -r -p "[nginx] Replace the existing installation with the official mainline package? Configs will be preserved [y/N]: " response
+        prompt_read_default response "n" 30 "[nginx] Replace the existing installation with the official mainline package? Configs will be preserved [y/N]: "
     fi
 
     case "$response" in
@@ -378,7 +383,7 @@ nginx_offer_source_build() {
     echo "[nginx] HTTP/3 works, but QUIC 0-RTT early data requires a source build against OpenSSL >= $NGINX_OPENSSL_QUIC_VERSION"
 
     if [ "$auto_confirm" != "true" ]; then
-        read -r -p "[nginx] Build nginx $NGINX_MAINLINE_VERSION from source now? [y/N]: " response
+        prompt_read_default response "n" 30 "[nginx] Build nginx $NGINX_MAINLINE_VERSION from source now? [y/N]: "
         case "$response" in
             [Yy]*)
                 ;;

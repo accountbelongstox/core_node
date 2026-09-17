@@ -199,10 +199,12 @@ show_status() {
     fi
 }
 
-# Helper function to wait for user input
+# Helper function to wait for user input (30s auto-continue; never hangs)
+command -v prompt_read_default >/dev/null 2>&1 || source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
 wait_for_continue() {
+    local _nm_wait=""
     echo ""
-    read -p "Press Enter to continue..."
+    prompt_read_default _nm_wait "" 30 "Press Enter to continue..."
 }
 
 # Interactive menu when command is run
@@ -278,7 +280,7 @@ show_interactive_menu() {
                         echo -e "  If enabled, this system can also use WAN for internet"
                     fi
                     echo ""
-                    read -p "Toggle system sharing? (y/n): " -n 1 -r toggle_response
+                    prompt_read_default toggle_response "n" 30 "Toggle system sharing? (y/n): "
                     echo ""
 
                     if [[ "$toggle_response" =~ ^[Yy]$ ]]; then
@@ -346,7 +348,7 @@ show_interactive_menu() {
                 if ! ensure_service_exists; then
                     log_error "Cannot start/restart service - service creation failed"
                     echo ""
-                    read -p "Press Enter to continue..."
+                    wait_for_continue
                 else
                     # Check if service is running
                     if $USE_SUDO systemctl is-active --quiet "$full_service_name" 2>/dev/null; then

@@ -122,9 +122,8 @@ open_rdp_settings_ui() {
 if [ -f "$CACHE_FILE" ]; then
     # Cache exists - default to N (skip)
     echo ""
-    read -r -p "Open GNOME Remote Desktop settings UI? [y/N] " user_input
-    user_input=${user_input:-N}
-    
+    prompt_read_default user_input "N" 30 "Open GNOME Remote Desktop settings UI? [y/N] "
+
     if [[ "$user_input" =~ ^[Yy]$ ]]; then
         open_rdp_settings_ui
     else
@@ -133,8 +132,7 @@ if [ -f "$CACHE_FILE" ]; then
 else
     # No cache - default to Y (open)
     echo ""
-    read -r -p "Open GNOME Remote Desktop settings UI? [Y/n] " user_input
-    user_input=${user_input:-Y}
+    prompt_read_default user_input "Y" 30 "Open GNOME Remote Desktop settings UI? [Y/n] "
     
     if [[ "$user_input" =~ ^[Yy]$ ]]; then
         if open_rdp_settings_ui; then

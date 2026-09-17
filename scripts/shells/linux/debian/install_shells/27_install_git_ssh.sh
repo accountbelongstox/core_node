@@ -321,10 +321,12 @@ decrypt_ssh_keys() {
     local confirm_password=""
 
     printf "Password: "
-    read -r password
+    prompt_read_default password "" 30
+    printf "\n"
 
     printf "Confirm Password: "
-    read -r confirm_password
+    prompt_read_default confirm_password "" 30
+    printf "\n"
     
     if [[ "$password" != "$confirm_password" ]]; then
         print_error_from_common_functions "Passwords do not match. Please try again."

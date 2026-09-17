@@ -394,7 +394,7 @@ remove_postgresql() {
 
     # Remove custom directories (ask for confirmation)
     echo "[$SCRIPT_INDEX] Do you want to remove PostgreSQL data directories? (y/N)"
-    read -r response
+    prompt_read_default response "n" 30
     if [[ "$response" =~ ^[Yy]$ ]]; then
         # Use compile_dir for database directories (auto-selects based on environment)
         local postgresql_parent=$(map_web_path "compile_dir" "postgresql")

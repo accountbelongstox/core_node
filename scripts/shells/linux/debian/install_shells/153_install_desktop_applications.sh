@@ -394,7 +394,7 @@ show_parameter_rules_and_confirm() {
 
     echo ""
     echo "Press 'y' or any key to continue, 'n' to cancel:"
-    read -r -n 1 response
+    prompt_read_default response "y" 30
     echo ""
 
     case "$response" in

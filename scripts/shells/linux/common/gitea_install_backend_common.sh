@@ -64,7 +64,8 @@ check_git_installation() {
         print_info_from_common_functions "Please run script 27_install_git_ssh.sh first, or install Git manually"
 
         echo -n "Do you want to install Git now? (Y/n): "
-        read -r response
+        command -v prompt_read_default >/dev/null 2>&1 || source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
+        prompt_read_default response "y" 30
         case "$response" in
             [nN]|[nN][oO])
                 print_error_from_common_functions "Cannot proceed without Git"

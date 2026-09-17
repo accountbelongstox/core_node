@@ -321,6 +321,10 @@ pg_run_as_postgres() {
 # y/N prompt that DEFAULTS TO NO. Non-interactive (no controlling TTY) -> NO
 # automatically (policy: keep container running). Override with
 # PORT_CONFLICT_AUTO_STOP=yes (pre-confirm) or =no (force No).
+# Prompt helpers: single definition in prompt_common.sh (zero side effects).
+if ! command -v prompt_read_default >/dev/null 2>&1; then
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
+fi
 prompt_default_no() {
     local msg="$1" reply=""
     PROMPT_ANSWER="no"
@@ -328,10 +332,7 @@ prompt_default_no() {
         [Yy]*) PROMPT_ANSWER="yes" ;;
         [Nn]*) PROMPT_ANSWER="no" ;;
         *)
-            if [ -t 0 ] && [ -r /dev/tty ]; then
-                printf '%s [y/N] ' "$msg" > /dev/tty
-                read -r reply < /dev/tty
-            fi
+            prompt_read_default reply "" 30 "$msg [y/N] "
             case "$reply" in [Yy]*) PROMPT_ANSWER="yes" ;; esac
             ;;
     esac
@@ -442,10 +443,7 @@ ensure_schedule_work_stopped() {
 ask_default_yes() {
     local msg="$1" reply=""
     PROMPT_ANSWER="yes"
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [Y/n] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty
-    fi
+    prompt_read_default reply "" 30 "$msg [Y/n] "
     case "$reply" in [Nn]*) PROMPT_ANSWER="no" ;; esac
 }
 
@@ -453,10 +451,7 @@ ask_default_yes() {
 ask_default_no() {
     local msg="$1" reply=""
     PROMPT_ANSWER="no"
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty
-    fi
+    prompt_read_default reply "" 30 "$msg [y/N] "
     case "$reply" in [Yy]*) PROMPT_ANSWER="yes" ;; esac
 }
 

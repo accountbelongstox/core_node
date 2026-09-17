@@ -220,6 +220,10 @@ check_and_install_sudo() {
 # Core Node project root directory
 CORE_NODE_PROJECT_ROOT=""
 
+# Prompt helpers (prompt_read_default / read_default): single definition lives in
+# prompt_common.sh (zero side effects, so prompt-only libraries source it directly).
+source "$GVAR_COMMON_DIR/prompt_common.sh"
+
 # Function to detect actual desktop user when running as root
 # This is useful for services that need to interact with the desktop user's session
 detect_actual_desktop_user() {
@@ -660,7 +664,7 @@ confirm_core_node_deletion() {
     echo -e "\033[33m[DELETE-GUARD] About to DELETE the core_node directory: $target (IRREVERSIBLE)\033[0m" >&2
     for i in 1 2 3; do
         printf '[DELETE-GUARD] Confirmation %d of 3 - permanently delete "%s"? [N/y]: ' "$i" "$target" > /dev/tty
-        read -r ans < /dev/tty || ans=""
+        read -r -t 30 ans < /dev/tty || ans=""
         case "$ans" in
             [Yy]) : ;;
             *) echo -e "\033[36m[DELETE-GUARD] Cancelled at step $i (default No). Nothing removed.\033[0m" >&2; return ;;

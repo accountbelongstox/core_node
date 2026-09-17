@@ -30,6 +30,10 @@
 # have gvar_common.sh loaded) and plain app start scripts (which do not).
 
 DOMAIN_SETUP_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Prompt helpers: single definition in prompt_common.sh (zero side effects).
+if ! command -v prompt_read_default >/dev/null 2>&1; then
+    source "$DOMAIN_SETUP_COMMON_DIR/prompt_common.sh"
+fi
 # Canonical service contract adapter (ports/hosts/paths single source). Must
 # load BEFORE the DOMAIN_SETUP_* path variables below - they call sc_get at
 # source time.
@@ -177,10 +181,7 @@ domain_setup_load_secrets() {
 domain_setup_ask_no() {
     local msg="$1"
     local reply=""
-    if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [y/N] ' "$msg" > /dev/tty
-        read -r reply < /dev/tty || reply=""
-    fi
+    prompt_read_default reply "" 30 "$msg [y/N] "
     case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
@@ -221,10 +222,7 @@ domain_setup_ensure_prefix() {
         3) choice="hk" ;;
         4)
             custom=""
-            if [ -t 0 ] && [ -r /dev/tty ]; then
-                printf '[domain] Custom prefix: ' > /dev/tty
-                read -r custom < /dev/tty || custom=""
-            fi
+            prompt_read_default custom "" 30 "[domain] Custom prefix: "
             custom=$(echo "$custom" | tr -d ' ')
             if domain_setup_prefix_valid "$custom"; then
                 choice="$custom"

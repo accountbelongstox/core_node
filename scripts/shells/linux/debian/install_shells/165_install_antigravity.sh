@@ -78,8 +78,7 @@ prompt_installation_decision() {
         echo "No desktop environment detected (server/WSL)."
     fi
 
-    read -r -p "Install $DESKTOP_ENTRY_NAME now? $prompt " user_input
-    user_input=${user_input:-$default_answer}
+    prompt_read_default user_input "$default_answer" 30 "Install $DESKTOP_ENTRY_NAME now? $prompt "
 
     if [[ "$user_input" =~ ^[Yy]$ ]]; then
         return 0
@@ -109,8 +108,7 @@ prompt_root_mode_selection() {
     echo "  - No password prompt"
     echo ""
     echo -n "Use root privileges (pkexec)? [Y/n]: "
-    read -r user_input
-    user_input=${user_input:-Y}
+    prompt_read_default user_input "Y" 30
 
     if [[ "$user_input" =~ ^[Nn]$ ]]; then
         log "Installing in normal mode (no root)"
@@ -277,8 +275,7 @@ prompt_update_decision() {
 
     echo ""
     log "$DESKTOP_ENTRY_NAME is already installed."
-    read -r -p "Do you want to update it? $prompt " user_input
-    user_input=${user_input:-$default_answer}
+    prompt_read_default user_input "$default_answer" 30 "Do you want to update it? $prompt "
 
     if [[ "$user_input" =~ ^[Yy]$ ]]; then
         return 0
