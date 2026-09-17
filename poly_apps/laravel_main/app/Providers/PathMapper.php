@@ -1466,7 +1466,7 @@ class PathMapper
      */
     public static function getNodeInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/17_install_node_toolchain_24.sh';
+        $basePath = self::getInstallShellsDir() . '/17_install_node_toolchain_26.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1506,7 +1506,7 @@ class PathMapper
 
     /**
      * Get Node binary path
-     * Follows the installation script pattern from 17_install_node_toolchain_24.sh
+     * Follows the installation script pattern from 17_install_node_toolchain_26.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/node (created by installation script)

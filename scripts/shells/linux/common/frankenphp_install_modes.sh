@@ -52,7 +52,7 @@ FRANKENPHP_APT_KEY_URL="https://pkg.henderkes.com/api/packages/${FRANKENPHP_APT_
 FRANKENPHP_APT_KEY_PATH="/etc/apt/keyrings/static-php${FRANKENPHP_APT_PHP_VERSION}.asc"
 FRANKENPHP_APT_REPO_LINE="deb [signed-by=${FRANKENPHP_APT_KEY_PATH}] https://pkg.henderkes.com/api/packages/${FRANKENPHP_APT_PHP_VERSION}/debian php-zts main"
 FRANKENPHP_APT_SOURCES_FILE="/etc/apt/sources.list.d/static-php${FRANKENPHP_APT_PHP_VERSION}.list"
-FRANKENPHP_APT_PACKAGES=("frankenphp" "php-zts-pgsql" "php-zts-pdo-pgsql" "php-zts-zip" "php-zts-bcmath" "php-zts-intl" "php-zts-sqlite3")
+FRANKENPHP_APT_PACKAGES=("frankenphp" "php-zts-pgsql" "php-zts-pdo-pgsql" "php-zts-zip" "php-zts-bcmath" "php-zts-intl" "php-zts-sqlite3" "libnss3-tools")
 
 frankenphp_install_mode_normalize() {
     local raw_mode=""

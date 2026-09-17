@@ -287,7 +287,7 @@ resolve_npx() {
     if command -v npx >/dev/null 2>&1; then
         NPX_BIN="$(command -v npx)"
     fi
-    # 17_install_node_toolchain_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
+    # 17_install_node_toolchain_26.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
     for NPX_CANDIDATE in "/usr/local/bin/npx" "/usr/bin/npx" "$HOME/.local/bin/npx"; do
         if [ -x "$NPX_CANDIDATE" ] && [ -z "$NPX_BIN" ]; then
             NPX_BIN="$NPX_CANDIDATE"

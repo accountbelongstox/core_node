@@ -63,13 +63,20 @@ echo "[$SCRIPT_INDEX] Configuring pnpm environment..."
 # with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY on a re-run after a pnpm version change.
 export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
 
+# Resolve the pnpm binary by ABSOLUTE path: install-time shells may run with a
+# minimal PATH (no /usr/local/bin yet), so prefer the gvar path, then the
+# /usr/local/bin link, then PATH.
+PNPM_CMD="${PNPM_BIN:-}"
+{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && [ -x /usr/local/bin/pnpm ] && PNPM_CMD="/usr/local/bin/pnpm"
+{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && PNPM_CMD="$(command -v pnpm 2>/dev/null || true)"
+
 # Get pnpm global bin directory
 PNPM_GLOBAL_BIN=$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null)
 
 if [ -z "$PNPM_GLOBAL_BIN" ]; then
     # Fallback: try to get from pnpm config
-    if command -v pnpm >/dev/null 2>&1; then
-        PNPM_GLOBAL_BIN=$(pnpm config get global-bin-dir 2>/dev/null)
+    if [ -n "$PNPM_CMD" ]; then
+        PNPM_GLOBAL_BIN=$("$PNPM_CMD" config get global-bin-dir 2>/dev/null)
     fi
 fi
 
@@ -81,26 +88,51 @@ else
     echo "[$SCRIPT_INDEX] Warning: Could not determine pnpm global bin directory"
 fi
 
+# Guarantee `pnpm add -g` can resolve a global bin dir for THIS process regardless
+# of which user/config installed pnpm: export PNPM_HOME (pnpm uses it as the global
+# bin dir) and persist global-bin-dir when it is still unconfigured. Prevents
+# ERR_PNPM_NO_GLOBAL_BIN_DIR when the per-user pnpm config is absent.
+PNPM_GLOBAL_DIR_VAR=$(get_var "PNPM_GLOBAL_DIR" 2>/dev/null)
+if [ -z "$PNPM_GLOBAL_BIN" ] && [ -n "$PNPM_GLOBAL_DIR_VAR" ]; then
+    PNPM_GLOBAL_BIN="$PNPM_GLOBAL_DIR_VAR/bin"
+    export PATH="$PNPM_GLOBAL_BIN:$PATH"
+fi
+if [ -n "$PNPM_GLOBAL_DIR_VAR" ]; then
+    export PNPM_HOME="$PNPM_GLOBAL_DIR_VAR"
+fi
+if [ -n "$PNPM_CMD" ]; then
+    PNPM_CFG_BIN_DIR=$("$PNPM_CMD" config get global-bin-dir 2>/dev/null)
+    if [ -z "$PNPM_CFG_BIN_DIR" ] || [ "$PNPM_CFG_BIN_DIR" = "undefined" ]; then
+        if [ -n "$PNPM_GLOBAL_BIN" ]; then
+            echo "[$SCRIPT_INDEX] pnpm global-bin-dir not configured; setting it to $PNPM_GLOBAL_BIN"
+            "$PNPM_CMD" config set global-bin-dir "$PNPM_GLOBAL_BIN" 2>/dev/null || true
+        fi
+        if [ -z "${PNPM_HOME:-}" ] && [ -n "$PNPM_GLOBAL_BIN" ]; then
+            export PNPM_HOME="$PNPM_GLOBAL_BIN"
+        fi
+    fi
+fi
+
 # Verify pnpm is accessible
-if ! command -v pnpm >/dev/null 2>&1; then
-    echo "[$SCRIPT_INDEX] ERROR: pnpm not found in PATH"
+if [ -z "$PNPM_CMD" ]; then
+    echo "[$SCRIPT_INDEX] ERROR: pnpm not found"
     echo "[$SCRIPT_INDEX] Please run 37_ensure_pnpm_packages.sh first"
 else
-    echo "[$SCRIPT_INDEX] pnpm version: $(pnpm --version)"
-    echo "[$SCRIPT_INDEX] pnpm location: $(which pnpm)"
+    echo "[$SCRIPT_INDEX] pnpm version: $("$PNPM_CMD" --version)"
+    echo "[$SCRIPT_INDEX] pnpm location: $PNPM_CMD"
 
     # Function to install pnpm package
     install_pnpm_package() {
         local package=$1
         # Idempotency: skip if the global package is already installed so re-runs are
         # fast no-ops and never re-resolve the whole global store.
-        if pnpm list -g "$package" >/dev/null 2>&1 && pnpm list -g "$package" 2>/dev/null | grep -q "$package"; then
+        if "$PNPM_CMD" list -g "$package" >/dev/null 2>&1 && "$PNPM_CMD" list -g "$package" 2>/dev/null | grep -q "$package"; then
             echo "[$SCRIPT_INDEX] $package already installed, skipping"
             return
         fi
         echo "[$SCRIPT_INDEX] Installing $package..."
         # npm_config_confirm_modules_purge=false is already exported at script top (no-TTY purge guard).
-        if pnpm add -g "$package"; then
+        if "$PNPM_CMD" add -g "$package"; then
             echo "[$SCRIPT_INDEX] $package installed successfully"
         else
             echo "[$SCRIPT_INDEX] Failed to install $package"
@@ -128,12 +160,12 @@ else
 
     # Apply rebrowser patches to puppeteer-core if installed
     echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
-    if pnpm list -g puppeteer-core >/dev/null 2>&1; then
+    if "$PNPM_CMD" list -g puppeteer-core >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
-        local pnpm_global_root="$(pnpm root -g 2>/dev/null)"
+        local pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
         if [ -n "$pnpm_global_root" ] && [ -d "$pnpm_global_root" ]; then
             local target_dir="$(dirname "$pnpm_global_root")"
-            (cd "$target_dir" && pnpm dlx rebrowser-patches@latest patch --packageName puppeteer-core) || true
+            (cd "$target_dir" && "$PNPM_CMD" dlx rebrowser-patches@latest patch --packageName puppeteer-core) || true
         fi
     fi
 

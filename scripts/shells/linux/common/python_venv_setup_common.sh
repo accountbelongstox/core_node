@@ -11,6 +11,20 @@
 # scripts that hardcode #!/usr/bin/python3 keep working). Idempotent. This is the
 # SINGLE source of truth for the python/pip symlinks (it replaces the three
 # previously contradictory symlink behaviors). Returns 1 if the venv is absent.
+# Write a wrapper script that execs the venv interpreter by its REAL path.
+# A bare symlink (/usr/local/bin/python3 -> venv/bin/python3) does NOT activate
+# the venv: CPython looks for pyvenv.cfg next to the invoked (symlink) path,
+# misses it, and falls back to the system prefix -> "No module named pip" and
+# packages scattering outside the venv. The wrapper makes the interpreter start
+# under its real venv path, so pyvenv.cfg is always found.
+write_venv_python_wrapper() {
+    local link="$1"
+    echo "[13] $USE_SUDO write wrapper $link -> $VENV_PYTHON3"
+    printf '#!/bin/sh\n# venv activation wrapper (symlinks break pyvenv.cfg detection)\nexec "%s" "$@"\n' \
+        "$VENV_PYTHON3" | $USE_SUDO tee "$link" >/dev/null
+    $USE_SUDO chmod 755 "$link"
+}
+
 link_commands_to_venv() {
     [ -x "$VENV_PYTHON3" ] || return 1
     local sys_python3="/usr/bin/python3"
@@ -24,13 +38,14 @@ link_commands_to_venv() {
         $USE_SUDO ln -sf "$sys_python3" /usr/local/bin/pythonorigin
     fi
 
-    # python / python3 / python3.<minor> -> venv interpreter.
+    # python / python3 / python3.<minor> -> venv interpreter (WRAPPERS, not
+    # symlinks: only a real-path exec activates the venv).
     for link in /usr/local/bin/python /usr/local/bin/python3 ${venv_pyver:+/usr/local/bin/python${venv_pyver}}; do
-        echo "[13] $USE_SUDO ln -sf $VENV_PYTHON3 $link"
-        $USE_SUDO ln -sf "$VENV_PYTHON3" "$link"
+        write_venv_python_wrapper "$link"
     done
 
-    # pip / pip3 -> venv pip.
+    # pip / pip3 -> venv pip. Symlinks are fine here: the venv pip scripts carry a
+    # shebang with the REAL venv python path, so the venv activates regardless.
     if [ -f "$VENV_PIP3" ]; then
         [ -e "$VENV_PIP" ] || ln -sf pip3 "$VENV_PIP" 2>/dev/null || true
         for link in /usr/local/bin/pip /usr/local/bin/pip3; do
@@ -38,7 +53,7 @@ link_commands_to_venv() {
             $USE_SUDO ln -sf "$VENV_PIP3" "$link"
         done
     fi
-    print_success_from_common_functions "Linked python/python3${venv_pyver:+/python${venv_pyver}} + pip/pip3 -> venv; system python preserved as 'pythonorigin'"
+    print_success_from_common_functions "Linked python/python3${venv_pyver:+/python${venv_pyver}} (wrappers) + pip/pip3 -> venv; system python preserved as 'pythonorigin'"
     return 0
 }
 
@@ -530,14 +545,19 @@ setup_production_python_venv() {
         $USE_SUDO chmod +x "$venv_pip3" 2>/dev/null || chmod +x "$venv_pip3"
     fi
 
-    print_step_from_common_functions "Setting up global symlinks to venv Python..."
+    print_step_from_common_functions "Setting up global wrappers to venv Python..."
 
-    if [ -L /usr/local/bin/python3 ] || [ -f /usr/local/bin/python3 ]; then
-        $USE_SUDO rm -f /usr/local/bin/python3
-    fi
-    $USE_SUDO ln -sf "$venv_python3" /usr/local/bin/python3
-    print_success_from_common_functions "Created symlink: /usr/local/bin/python3 -> $venv_python3"
+    # WRAPPERS, not symlinks: a bare symlink into the venv does not activate it
+    # (CPython misses pyvenv.cfg next to the invoked symlink path), so exec the
+    # interpreter by its real path.
+    for link in /usr/local/bin/python3 /usr/local/bin/python; do
+        printf '#!/bin/sh\n# venv activation wrapper (symlinks break pyvenv.cfg detection)\nexec "%s" "$@"\n' \
+            "$venv_python3" | $USE_SUDO tee "$link" >/dev/null
+        $USE_SUDO chmod 755 "$link"
+        print_success_from_common_functions "Created wrapper: $link -> $venv_python3"
+    done
 
+    # pip links stay symlinks: the venv pip shebang already carries the real path.
     if [ -n "$pip_binary" ] && [ -f "$pip_binary" ]; then
         if [ -L /usr/local/bin/pip3 ] || [ -f /usr/local/bin/pip3 ]; then
             $USE_SUDO rm -f /usr/local/bin/pip3
@@ -545,12 +565,6 @@ setup_production_python_venv() {
         $USE_SUDO ln -sf "$pip_binary" /usr/local/bin/pip3
         print_success_from_common_functions "Created symlink: /usr/local/bin/pip3 -> $pip_binary"
     fi
-
-    if [ -L /usr/local/bin/python ] || [ -f /usr/local/bin/python ]; then
-        $USE_SUDO rm -f /usr/local/bin/python
-    fi
-    $USE_SUDO ln -sf "$venv_python3" /usr/local/bin/python
-    print_success_from_common_functions "Created symlink: /usr/local/bin/python -> $venv_python3"
 
     if [ -n "$pip_binary" ] && [ -f "$pip_binary" ]; then
         if [ -L /usr/local/bin/pip ] || [ -f /usr/local/bin/pip ]; then
