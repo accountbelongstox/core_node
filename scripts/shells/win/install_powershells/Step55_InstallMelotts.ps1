@@ -9,8 +9,8 @@
     MeloTTS owns transformer dependencies that may conflict with the shared system stack.
     Therefore melo is NEVER installed into the main interpreter. Instead this step builds a
     DEDICATED per-engine venv via pycore/pyutils/common/python_env/isolated_venv.ensure_venv('melotts', ...)
-    (created --system-site-packages so it REUSES the system CUDA torch; only melo + its pinned
-    package-managed transformer dependencies are layered inside, shadowing system copies). Production runs
+    (self-contained: dedicated base Python 3.10, no host package sharing; the venv
+    carries its own torch stack via a device-aware index). Production runs
     melotts as a class-C HTTP server (melotts_api_server.py, port 57212) under that venv; the
     main interpreter only talks to it over HTTP.
 
@@ -163,7 +163,7 @@ if (-not $venvProvisioned -and -not $doFull -and -not $Force) {
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
 # --- Isolated venv (Bucket B): MeloTTS and its transformer dependencies go only into the
-#     dedicated venv (--system-site-packages reuses the system CUDA torch). The main
+#     dedicated venv (self-contained base Python 3.10, no host package sharing). The main
 #     interpreter's shared transformers pin is never touched. Self-repairing:
 #     ensure_venv re-runs the import-health probe and repairs a broken venv. --- #
 Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "

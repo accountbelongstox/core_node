@@ -9,8 +9,9 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from contextlib import contextmanager
 from functools import partial, wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
@@ -46,9 +47,9 @@ def _delivery_available(row: Dict[str, Any], now: float) -> bool:
 
 def _record_transaction(method: Any) -> Any:
     @wraps(method)
-    def transaction(owner: Any, *args: Any, **kwargs: Any) -> Any:
-        with owner._record_store().transaction():
-            return method(owner, *args, **kwargs)
+    def transaction(instance: Any, /, *args: Any, **kwargs: Any) -> Any:
+        with instance._record_store().transaction():
+            return method(instance, *args, **kwargs)
     return transaction
 
 
@@ -63,6 +64,16 @@ class AudioDeliveryOutbox:
             "tts.audio_delivery_outbox",
             "AudioDeliveryOutboxState",
         )
+
+    @contextmanager
+    def delivery_scope(self, delivery_id: str, owner: str) -> Iterator[None]:
+        active_signal = f"{ACTIVE_AUDIO_DELIVERY_PREFIX}.{owner}"
+        THREAD_BUS.signal(active_signal, threading.current_thread())
+        try:
+            with http_progress_client.transfer_scope(partial(self.renew, delivery_id, owner)):
+                yield
+        finally:
+            THREAD_BUS.clear_signal(active_signal)
 
     @staticmethod
     def delivery_id(lane: str, task_id: Any, attempt: int) -> str:
@@ -230,9 +241,11 @@ class AudioDeliveryOutbox:
     ) -> Optional[Dict[str, Any]]:
         row = self._record_store().get(str(delivery_id))
         if not row:
+            if owner:
+                raise RuntimeError("Audio delivery record disappeared during delivery")
             return None
         if owner and str(row.get("lease_owner") or "") != str(owner):
-            return None
+            raise RuntimeError("Audio delivery ownership changed during delivery")
         row.update(copy.deepcopy(patch))
         row["updated_at"] = _now()
         self._save_record(row)
@@ -401,7 +414,10 @@ class AudioDeliveryExecutor:
         return (
             normalized.startswith("server validation rejected")
             or normalized.startswith("unknown task on server")
-            or normalized.startswith("http 4")
+            or (
+                normalized.startswith("http 4")
+                and not normalized.startswith(("http 408", "http 409", "http 425", "http 429"))
+            )
         )
 
     def deliver(
@@ -413,13 +429,19 @@ class AudioDeliveryExecutor:
     ) -> Dict[str, Any]:
         delivery_id = str(record.get("delivery_id") or "")
         owner = f"{AUDIO_DELIVERY_PROCESS_ID}:{delivery_id}:{time.monotonic_ns()}"
-        active_signal = f"{ACTIVE_AUDIO_DELIVERY_PREFIX}.{owner}"
-        THREAD_BUS.signal(active_signal, threading.current_thread())
         try:
-            with http_progress_client.transfer_scope(partial(audio_delivery_outbox.renew, delivery_id, owner)):
+            with audio_delivery_outbox.delivery_scope(delivery_id, owner):
                 return self._deliver(handler, record, owner, initial_retry_seconds, maximum_retry_seconds)
-        finally:
-            THREAD_BUS.clear_signal(active_signal)
+        except Exception as error:
+            retry_delay = audio_delivery_outbox.retry_delay(
+                int(record.get("delivery_attempts") or 0) + 1,
+                initial_retry_seconds,
+                maximum_retry_seconds,
+            )
+            audio_delivery_outbox.release(
+                delivery_id, owner, error=str(error), retry_at=time.time() + retry_delay,
+            )
+            raise
 
     def _deliver(
         self, handler: Any, record: Dict[str, Any], owner: str,
@@ -606,7 +628,8 @@ class AudioDeliveryExecutor:
                 {"history_recorded": True, "last_error": ""},
                 owner=owner,
             )
-        audio_delivery_outbox.complete(delivery_id, owner)
+        if not audio_delivery_outbox.complete(delivery_id, owner):
+            raise RuntimeError("Audio delivery ownership changed before completion")
         local_task_id = str(claimed.get("local_task_id") or "")
         if str(claimed.get("local_process_id") or "") == AUDIO_DELIVERY_PROCESS_ID:
             handler._finish_local_task(

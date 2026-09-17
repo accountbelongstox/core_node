@@ -87,14 +87,18 @@ function Test-TtsEngineCompatible {
     }
     if ($result.compatible) { return $true }
     if ($result.isolated) {
-        $overrideName = "{0}_PYTHON" -f $Engine.ToUpperInvariant()
-        $overrideItem = Get-Item -LiteralPath "Env:$overrideName" -ErrorAction SilentlyContinue
-        $overridePython = if ($overrideItem) { [string]$overrideItem.Value } else { '' }
-        if ($overridePython -and (Test-Path -LiteralPath $overridePython)) {
-            $overrideVersion = Get-TtsPolicyPythonVersion -PythonExe $overridePython
-            $overrideJson = Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('compatibility', $Engine, '--python-version', $overrideVersion)
-            try { $overrideResult = $overrideJson | ConvertFrom-Json } catch { $overrideResult = $null }
-            if ($overrideResult -and $overrideResult.compatible) { return $true }
+        # Isolated engines are gated by their resolved BASE interpreter (engine
+        # override, else the registered dedicated Python 3.10), never by the
+        # host interpreter version.
+        $baseJson = Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('base-compatibility', $Engine)
+        $baseResult = $null
+        if ($baseJson) {
+            try { $baseResult = $baseJson | ConvertFrom-Json } catch { $baseResult = $null }
+        }
+        if ($baseResult -and $baseResult.compatible) { return $true }
+        if ($baseResult -and -not $baseResult.base_found) {
+            Write-Host ("{0}[skip] {1}: {2}" -f $Prefix, $Engine, $baseResult.reason) -ForegroundColor DarkYellow
+            return $false
         }
     }
     $hint = if ($result.isolated) { " Use $($Engine.ToUpperInvariant())_PYTHON with a compatible isolated interpreter." } else { ' No compatible shared-runtime install is attempted.' }

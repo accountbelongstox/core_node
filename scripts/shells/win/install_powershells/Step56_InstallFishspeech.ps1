@@ -64,7 +64,7 @@ Write-Host '============================================================' -Foreg
 
 if ($env:FISHSPEECH_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] FISHSPEECH_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'FISHSPEECH_SKIP=1'
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'FISHSPEECH_SKIP=1'
     return
 }
 
@@ -89,24 +89,24 @@ if ($installMethod -eq 'docker') {
 Save-TtsInstallBackend -Engine fishspeech -Backend native
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'external server reachable'
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'external server reachable'
     return
 }
-if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel) -and (Test-Path $apiServerDst) -and -not $Force -and -not $doFull) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel) -and (Test-Path $apiServerDst) -and (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'fishspeech') -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] Fish Audio already installed -> skipping." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python fishspeech_api_server.py   (serves {1})" -f $targetDir, $serverUrl) -ForegroundColor Cyan
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     return
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'opt-in'
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'opt-in'
     return
 }
 
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallDefaultPython first." -ForegroundColor DarkYellow
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     return
 }
 if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'fishspeech' -Prefix "$SCRIPT_INDEX ")) {
@@ -146,26 +146,35 @@ if (-not (Test-Path (Join-Path $targetDir 'tools\api_server.py'))) {
 if (Test-Path $apiServerSrc) {
     New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
     Copy-Item -Path $apiServerSrc -Destination $apiServerDst -Force
-}
-
-if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel) -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [OK] dependencies already installed (.deps_done) -> skipping pip." -ForegroundColor Green
-} else {
-    Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    Write-Host "$SCRIPT_INDEX [..] installing the central Fish Speech dependency plan ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install @fishPackages } catch { }
-    if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'fishspeech') {
-        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel | Out-Null
-        Write-Host "$SCRIPT_INDEX [OK] dependencies installed (policy stamp written)." -ForegroundColor Green
+    $chunkingSrc = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $PSScriptRoot) 'tts_text_chunking.py'
+    if (Test-Path $chunkingSrc) {
+        Copy-Item -Path $chunkingSrc -Destination (Join-Path $targetDir 'tts_text_chunking.py') -Force
     }
 }
 
-if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'fishspeech') {
-    Write-Host "$SCRIPT_INDEX [OK] Fish Speech ready ($targetDir)." -ForegroundColor Green
-    Write-Host ("$SCRIPT_INDEX  SDK: set FISH_API_KEY; cd `"{0}`"; python fishspeech_api_server.py" -f $targetDir) -ForegroundColor Cyan
-    Write-Host "$SCRIPT_INDEX  Local: download checkpoints per https://speech.fish.audio/install/ then run tools/api_server.py" -ForegroundColor DarkGray
+# --- Isolated venv (Bucket B, self-contained): the Fish Speech bridge runs
+#     under the dedicated Python 3.10 venv; the main interpreter is only an
+#     HTTP client. Local fish_speech inference hosting remains a separate
+#     pending step; this venv carries the bridge/SDK dependency plan. --- #
+if ((Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'fishspeech') -and (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel) -and -not $Force) {
+    Write-Host "$SCRIPT_INDEX [OK] isolated venv already provisioned (.deps_done) -> skipping." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [!] Fish Speech dependencies are incomplete; retrying next run." -ForegroundColor DarkYellow
+    Write-Host "$SCRIPT_INDEX [..] building/verifying isolated fishspeech venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
+    Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'fishspeech' -PipPackages $fishPackages -Force:$Force
+    if (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'fishspeech') {
+        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel | Out-Null
+        Write-Host "$SCRIPT_INDEX [OK] isolated fishspeech venv ready (policy stamp written)." -ForegroundColor Green
+    } else {
+        Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
+    }
+}
+
+if (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'fishspeech') {
+    Write-Host "$SCRIPT_INDEX [OK] Fish Speech ready ($targetDir)." -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX  Runtime: pycore launches fishspeech_api_server.py (class C) under the isolated venv on demand." -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX  SDK: set FISH_API_KEY; local: download checkpoints per https://speech.fish.audio/install/ and set FISHSPEECH_UPSTREAM." -ForegroundColor DarkGray
+} else {
+    Write-Host "$SCRIPT_INDEX [!] Fish Speech isolated venv is not ready; retrying next run." -ForegroundColor DarkYellow
     return
 }
-Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio')
+Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()

@@ -1,8 +1,12 @@
 <#
 .SYNOPSIS
     CosyVoice prerequisite (Alibaba multilingual clone TTS), auto-run by PreparePycorePrerequisites.ps1.
-    Clones FunAudioLLM/CosyVoice into staging idempotently. pycore's cosyvoice engine
-    is an HTTP CLIENT to runtime/python/fastapi/server.py.
+    Clones FunAudioLLM/CosyVoice into staging idempotently and builds a DEDICATED
+    self-contained per-engine venv (base Python 3.10) via
+    pycore/pyutils/common/python_env/isolated_venv.ensure_venv('cosyvoice', ...) —
+    never the main interpreter (3.13 is outside the official 3.10-3.12 window).
+    pycore launches runtime/python/fastapi/server.py under that venv on demand
+    (class C); the main interpreter is only an HTTP client.
 
 .DESCRIPTION
     Official: https://github.com/FunAudioLLM/CosyVoice
@@ -12,7 +16,7 @@
 .PARAMETER Python
     python.exe for deps. Default: 'python' on PATH.
 .PARAMETER Force
-    Re-run pip even when .deps_done is present.
+    Rebuild the venv even when .deps_done is present.
 #>
 [CmdletBinding()]
 param(
@@ -86,9 +90,9 @@ if (Test-ServerUp -Url $serverUrl) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch') -AbsentOk -AbsentNote 'external server reachable'
     return
 }
-if ((Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'cosyvoice' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
+if ((Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'cosyvoice' -Path $depsSentinel) -and (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'cosyvoice') -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] CosyVoice already installed -> skipping." -ForegroundColor Green
-    Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python runtime/python/fastapi/server.py --port 50000" -f $targetDir) -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX  Runtime: pycore launches runtime/python/fastapi/server.py (class C) under the isolated venv on demand." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
     return
 }
@@ -136,21 +140,29 @@ if (Test-Path (Join-Path $targetDir '.git')) {
     } finally { Pop-Location }
 }
 
-if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'cosyvoice' -Path $depsSentinel) -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [OK] dependencies already installed (.deps_done) -> skipping pip." -ForegroundColor Green
+# --- Isolated venv (Bucket B, self-contained): CosyVoice and its pinned
+#     dependencies go only into the dedicated Python 3.10 venv; the main
+#     interpreter is never touched. --- #
+$venvProvisioned = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'cosyvoice'
+if ($venvProvisioned -and (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'cosyvoice' -Path $depsSentinel) -and -not $Force) {
+    Write-Host "$SCRIPT_INDEX [OK] isolated venv already provisioned (.deps_done) -> skipping." -ForegroundColor Green
 } else {
-    Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
     $reqFile = Join-Path $targetDir 'requirements.txt'
+    $venvPackages = @('fastapi', 'uvicorn', 'modelscope', 'huggingface_hub')
     if (Test-Path $reqFile) {
-        Write-Host "$SCRIPT_INDEX [..] pip install -r requirements.txt (one-time) ..." -ForegroundColor Yellow
-        try { & $Global:PIP_EXE_PATH install -r $reqFile } catch { $depsOk = $false; Write-Host "$SCRIPT_INDEX [!] some requirements failed." -ForegroundColor DarkYellow }
+        $venvPackages = @('-r', $reqFile) + $venvPackages
     } else {
         $depsOk = $false
+        Write-Host "$SCRIPT_INDEX [!] requirements.txt missing at $reqFile." -ForegroundColor DarkYellow
     }
-    try { & $Global:PIP_EXE_PATH install fastapi uvicorn modelscope huggingface_hub } catch { $depsOk = $false }
-    if ($depsOk -and (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'cosyvoice')) {
+    if ($depsOk) {
+        Write-Host "$SCRIPT_INDEX [..] building/verifying isolated cosyvoice venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
+        Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'cosyvoice' -PipPackages $venvPackages -Force:$Force
+        $venvProvisioned = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'cosyvoice'
+    }
+    if ($depsOk -and $venvProvisioned) {
         Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'cosyvoice' -Path $depsSentinel | Out-Null
-        Write-Host "$SCRIPT_INDEX [OK] dependencies installed (policy stamp written)." -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX [OK] isolated cosyvoice venv ready (policy stamp written)." -ForegroundColor Green
     }
 }
 
@@ -160,6 +172,6 @@ if (-not (Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -or -no
 }
 
 Write-Host "$SCRIPT_INDEX [OK] CosyVoice ready ($targetDir)." -ForegroundColor Green
-Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python runtime/python/fastapi/server.py --port 50000 --model_dir iic/CosyVoice2-0.5B" -f $targetDir) -ForegroundColor Cyan
+Write-Host "$SCRIPT_INDEX  Runtime: pycore launches runtime/python/fastapi/server.py (class C) under the isolated venv on demand." -ForegroundColor Cyan
 Write-Host "$SCRIPT_INDEX  Then set COSYVOICE_SPK_ID (SFT) or COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)." -ForegroundColor Cyan
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')

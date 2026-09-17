@@ -1,7 +1,9 @@
 #!/bin/bash
 # Fish Speech / Fish Audio prerequisite (Linux).
-# Installs fish-audio-sdk (PyPI, Python 3.13+) and clones fish-speech for optional
-# local tools/api_server.py. GPU hosts get CUDA torch by default.
+# Builds a DEDICATED self-contained per-engine venv (base Python 3.10) via
+# isolated_venv.ensure_venv('fishspeech', ...) carrying the bridge/SDK dependency
+# plan; clones fish-speech for optional local tools/api_server.py. The main
+# interpreter is only an HTTP client to the class-C bridge server.
 #
 # Official SDK: https://docs.fish.audio/developer-guide/sdk-guide/quickstart
 # Local server: https://speech.fish.audio/server/
@@ -96,34 +98,36 @@ echo "============================================================"
 
 if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
     echo "[install_fishspeech] [skip] Server environment without desktop and GPU detected. Skipping Fish Speech installation."
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "server CPU host" fishaudio
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "server CPU host"
     exit 0
 fi
 
-[[ "${FISHSPEECH_SKIP:-0}" == "1" ]] && { echo "[install_fishspeech] [i] FISHSPEECH_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "FISHSPEECH_SKIP=1" fishaudio; }
+[[ "${FISHSPEECH_SKIP:-0}" == "1" ]] && { echo "[install_fishspeech] [i] FISHSPEECH_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "FISHSPEECH_SKIP=1"; }
 if server_up; then
     echo "[install_fishspeech] [OK] server at $SERVER_URL."
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "external server reachable" fishaudio
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "external server reachable"
 fi
 if tts_engine_compatible "$PYTHON" "fishspeech" "[install_fishspeech] " \
     && [[ -f "$API_DST" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
     && tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL"; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Fish Speech already installed"
-    echo "[install_fishspeech]  START: cd \"$TARGET_DIR\" && python fishspeech_api_server.py"
-    echo "[install_fishspeech]  Or fish-speech: python tools/api_server.py --listen 0.0.0.0:8080"
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+    tts_probe_isolated_venv_provisioned "$PYTHON" "fishspeech"
+    if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]]; then
+        tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Fish Speech already installed"
+        echo "[install_fishspeech]  Runtime: pycore launches fishspeech_api_server.py (class C) under the isolated venv on demand."
+        complete_prereq_step "$PYTHON" "[install_fishspeech] "
+    fi
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_fishspeech] [i] opt-in only. Pass --full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "opt-in" fishaudio
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "opt-in"
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_fishspeech] [!] Python 3 not found."
-    fail_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+    fail_prereq_step "$PYTHON" "[install_fishspeech] "
 fi
 if ! tts_engine_compatible "$PYTHON" "fishspeech" "[install_fishspeech] "; then
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "incompatible Python" fishaudio
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "incompatible Python"
 fi
 
 mkdir -p "$TARGET_DIR"
@@ -145,27 +149,34 @@ elif [[ ! -f "$REPO_MARKER" ]]; then
     echo "[install_fishspeech] [i] git not found; installing the Fish Audio SDK without the optional local server repo."
 fi
 [[ -f "$API_SRC" ]] && cp -f "$API_SRC" "$API_DST"
+_chunking_src="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")/tts_text_chunking.py"
+[[ -f "$_chunking_src" ]] && cp -f "$_chunking_src" "$TARGET_DIR/tts_text_chunking.py"
 
-if tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
+# --- Isolated venv (Bucket B, self-contained): the Fish Speech bridge runs
+#     under the dedicated Python 3.10 venv; the main interpreter is only an
+#     HTTP client. --- #
+tts_probe_isolated_venv_provisioned "$PYTHON" "fishspeech"
+if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated venv already provisioned (.deps_done)"
 else
-    install_pycore_torch_stack "$PYTHON" "[install_fishspeech] "
-    echo "[install_fishspeech] [..] pip install fish-audio-sdk fastapi uvicorn requests ..."
-    pip_i fish-audio-sdk fastapi uvicorn requests || true
-    if [[ -f "$TARGET_DIR/pyproject.toml" || -f "$TARGET_DIR/setup.py" ]]; then
-        echo "[install_fishspeech] [..] pip install -e fish-speech (best-effort) ..."
-        (cd "$TARGET_DIR" && pip_i -e .) 2>/dev/null || true
+    echo "[install_fishspeech] [..] building/verifying isolated fishspeech venv (ensure_venv; first build takes minutes) ..."
+    tts_provision_isolated_venv "$PYTHON" "fishspeech" "$FORCE"
+    if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]]; then
+        _venv_py="$(tts_resolve_isolated_python "$PYTHON" "fishspeech")"
+        if [[ -n "$_venv_py" && ( -f "$TARGET_DIR/pyproject.toml" || -f "$TARGET_DIR/setup.py" ) ]]; then
+            echo "[install_fishspeech] [..] pip install -e fish-speech into the venv (best-effort) ..."
+            (cd "$TARGET_DIR" && "$_venv_py" -m pip install -e .) 2>/dev/null || true
+        fi
     fi
-    if tts_engine_health_ok "$PYTHON" "fishspeech" && tts_write_dependency_stamp "$PYTHON" "fishspeech" "$DEPS_SENTINEL"; then
-        echo "[install_fishspeech] [OK] dependencies installed."
+    if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_write_dependency_stamp "$PYTHON" "fishspeech" "$DEPS_SENTINEL"; then
+        echo "[install_fishspeech] [OK] isolated fishspeech venv ready (policy stamp written)."
     else
-        echo "[install_fishspeech] [!] dependencies are incomplete; retrying next run." >&2
-        fail_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+        echo "[install_fishspeech] [!] venv build incomplete; will retry next run (main interpreter untouched)." >&2
+        fail_prereq_step "$PYTHON" "[install_fishspeech] "
     fi
 fi
 
 echo "[install_fishspeech] [OK] ready ($TARGET_DIR)."
-echo "[install_fishspeech]  SDK: set FISH_API_KEY then python fishspeech_api_server.py"
-echo "[install_fishspeech]  Local: download $_fish_ckpt checkpoints per https://speech.fish.audio/install/ then:"
-echo "[install_fishspeech]         python tools/api_server.py --listen 0.0.0.0:8080"
-complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+echo "[install_fishspeech]  Runtime: pycore launches fishspeech_api_server.py (class C) under the isolated venv on demand."
+echo "[install_fishspeech]  SDK: set FISH_API_KEY; local: download $_fish_ckpt checkpoints per https://speech.fish.audio/install/ and set FISHSPEECH_UPSTREAM."
+complete_prereq_step "$PYTHON" "[install_fishspeech] "

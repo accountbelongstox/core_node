@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
@@ -50,6 +50,72 @@ from pycore.pyutils.common.python_env.runtime_policy import (
     resolve_engine_base_python,
 )
 from pycore.pyutils.common.python_env.runtime_policy import engine_spec
+from pycore.pyfoundations.runtime_abi import (
+    CUDA_TIERS,
+    TORCH_CPU_INDEX,
+    TORCH_INDEX_BASE,
+)
+
+
+def _host_cuda_available() -> bool:
+    """Probe CUDA usability through the host interpreter's torch (install-time
+    only; the host carries torch as a shared prerequisite)."""
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _torch_stack_target(engine: str) -> Tuple[str, str]:
+    """Resolve (device_label, torch wheel index) for one self-contained engine.
+
+    Device policy (plan step 08): an explicit <ENGINE>_DEVICE=cpu always wins;
+    cuda* selects the configured CUDA wheel tier; auto uses the host CUDA probe
+    and falls back to the official CPU index. The CPU index is the official
+    pytorch CPU wheel source, not a stripped dependency set.
+    """
+    want = (os.environ.get(f"{engine.upper()}_DEVICE") or "auto").strip().lower() or "auto"
+    if want == "cpu":
+        return "cpu", TORCH_CPU_INDEX
+    if want.startswith("cuda"):
+        tag = CUDA_TIERS[0]["tag"] if CUDA_TIERS else "cpu"
+        if tag == "cpu":
+            return "cpu", TORCH_CPU_INDEX
+        return "cuda", f"{TORCH_INDEX_BASE}/{tag}"
+    if _host_cuda_available() and CUDA_TIERS:
+        return "cuda", f"{TORCH_INDEX_BASE}/{CUDA_TIERS[0]['tag']}"
+    return "cpu", TORCH_CPU_INDEX
+
+
+def _install_torch_stack(venv_python: str, engine: str, spec: dict) -> bool:
+    """Install the engine venv's own torch stack with a device-aware index.
+
+    Self-contained venvs share no host packages, so torch must be installed
+    into the venv itself; installing it before the engine packages lets pip
+    treat the pinned engine requirements as already satisfied.
+    """
+    packages = tuple(spec.get("torch_packages", ()))
+    if not packages:
+        return True
+    if _packages_importable(venv_python, packages):
+        ColorPrint.blue(
+            f"[isolated-venv] {engine} torch stack already importable: "
+            + ", ".join(packages)
+        )
+        return True
+    device_label, index_url = _torch_stack_target(engine)
+    ColorPrint.blue(
+        f"[isolated-venv] {engine} torch stack (device={device_label}, "
+        f"index={index_url}): " + ", ".join(packages)
+    )
+    return _install_package_steps(
+        venv_python,
+        ("--index-url", index_url),
+        packages,
+        f"installing {engine} torch stack",
+    )
 
 
 def _local_shared_overrides(venv_python: str, package_names: Sequence[str]) -> List[str]:
@@ -301,15 +367,28 @@ def _install_package_steps(
     skip_importable: bool = False,
     command_env: Optional[dict] = None,
 ) -> bool:
-    for package in packages:
-        if skip_importable and _packages_importable(venv_python, (package,)):
+    # Group requirement-file options with their path so "-r <file>" is a single
+    # pip invocation, not two broken ones.
+    steps: List[Tuple[str, ...]] = []
+    items = list(packages)
+    index = 0
+    while index < len(items):
+        item = items[index]
+        if item in ("-r", "--requirement") and index + 1 < len(items):
+            steps.append((item, items[index + 1]))
+            index += 2
+        else:
+            steps.append((item,))
+            index += 1
+    for step in steps:
+        if skip_importable and len(step) == 1 and _packages_importable(venv_python, step):
             ColorPrint.blue(
-                f"[isolated-venv] {label} already importable: {package}"
+                f"[isolated-venv] {label} already importable: {step[0]}"
             )
             continue
-        ColorPrint.blue(f"[isolated-venv] {label}: {package}")
+        ColorPrint.blue(f"[isolated-venv] {label}: {' '.join(step)}")
         if not _run(
-            [venv_python, "-m", "pip", "install", *pip_args, package],
+            [venv_python, "-m", "pip", "install", *pip_args, *step],
             extra_env=command_env,
         ):
             return False
@@ -535,6 +614,12 @@ def _ensure_venv_self_contained(
     )
     needs_repair = force or created or not policy_ready or not core_ready
     if needs_repair:
+        if not _install_torch_stack(str(python_path), engine, engine_spec(engine)):
+            ColorPrint.yellow(
+                f"[isolated-venv] {engine} torch stack install failed; "
+                "the engine packages are not attempted this run"
+            )
+            return None
         if not _install_into(
             engine,
             str(python_path),

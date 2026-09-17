@@ -3,7 +3,6 @@
 
 import base64
 import os
-import threading
 import time
 from functools import partial
 from pathlib import Path
@@ -25,6 +24,7 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DIFF_DELIVERY,
     http_transfer_contract,
 )
+from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts.audio_delivery_outbox import (
@@ -61,8 +61,18 @@ _SENTENCE_HISTORY_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
 _LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
 _WORD_MEDIA_PROBE_TIMEOUT = 15
 _WORD_MEDIA_PROBE_CACHE_MAX = 5000
-_word_media_probe_cache: Dict[str, bool] = {}
-_word_media_probe_lock = threading.Lock()
+_WORD_MEDIA_PROBE_CACHE_TTL = float(http_transfer_contract()["dedup_window_seconds"])
+_word_media_probe_cache = VersionedSnapshotCache(max_entries=_WORD_MEDIA_PROBE_CACHE_MAX)
+
+
+def _word_media_url(word: str, language: str, base_url: str) -> str:
+    return laravel_client._build_url(
+        _LARAVEL_WORD_MEDIA.format(
+            lang=quote(str(language or "en").strip().lower(), safe=""),
+            word=quote(str(word or "").strip().lower(), safe=""),
+        ),
+        base_url or None,
+    )
 
 
 def encode_word_report_task_id(dict_row_id: int, language: str) -> int:
@@ -279,17 +289,14 @@ class LaravelAudioWorkerExecutionMixin:
         clean_word = str(word or "").strip().lower()
         if not clean_word:
             return False
-        key = f"{str(language or 'en').strip().lower()}:{clean_word}"
-        with _word_media_probe_lock:
-            cached = _word_media_probe_cache.get(key)
-        if cached is not None:
-            return cached
+        media_url = _word_media_url(clean_word, language, base_url)
+        cached = _word_media_probe_cache.peek(media_url)
+        if cached is not None and time.monotonic() - cached["observed_at"] < _WORD_MEDIA_PROBE_CACHE_TTL:
+            return bool(cached["present"])
         present = False
         try:
-            lang, term = key.split(":", 1)
             resp = laravel_client.get(
-                _LARAVEL_WORD_MEDIA.format(lang=quote(lang, safe=""), word=quote(term, safe="")),
-                base_url=base_url or None,
+                media_url,
                 timeout=_WORD_MEDIA_PROBE_TIMEOUT,
                 log_line=False,
             )
@@ -300,20 +307,14 @@ class LaravelAudioWorkerExecutionMixin:
                 present = bool(audio_url)
         except Exception:  # noqa: BLE001 - probe failure must never block delivery
             return False
-        with _word_media_probe_lock:
-            if len(_word_media_probe_cache) >= _WORD_MEDIA_PROBE_CACHE_MAX:
-                _word_media_probe_cache.clear()
-            _word_media_probe_cache[key] = present
+        _word_media_probe_cache.put(media_url, {"present": present, "observed_at": time.monotonic()})
         return present
 
     @staticmethod
-    def _cache_word_audio_present(word: str, language: str) -> None:
+    def _cache_word_audio_present(word: str, language: str, base_url: str) -> None:
         """Record a just-uploaded word audio as present on the backend."""
-        key = f"{str(language or 'en').strip().lower()}:{str(word or '').strip().lower()}"
-        with _word_media_probe_lock:
-            if len(_word_media_probe_cache) >= _WORD_MEDIA_PROBE_CACHE_MAX:
-                _word_media_probe_cache.clear()
-            _word_media_probe_cache[key] = True
+        media_url = _word_media_url(word, language, base_url)
+        _word_media_probe_cache.put(media_url, {"present": True, "observed_at": time.monotonic()})
 
     def _upload_report(
         self,
@@ -360,6 +361,7 @@ class LaravelAudioWorkerExecutionMixin:
             self._cache_word_audio_present(
                 str(info.get("word") or ""),
                 str(info.get("language") or "en"),
+                report_base_url,
             )
         return uploaded
 

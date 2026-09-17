@@ -1,10 +1,17 @@
 <#
 .SYNOPSIS
-    VoxCPM2 prerequisite (OpenBMB in-process TTS).
+    VoxCPM2 prerequisite (OpenBMB TTS) — ISOLATED self-contained per-engine venv.
 
 .DESCRIPTION
     Official: pip install voxcpm (https://voxcpm.readthedocs.io/en/latest/quickstart.html)
     GPU hosts install CUDA torch by default (~8GB VRAM recommended).
+
+    VoxCPM2's official support window is Python 3.10-3.12; the main interpreter is
+    3.13, so voxcpm is NEVER installed into it. This step builds a dedicated
+    self-contained venv via isolated_venv.ensure_venv('voxcpm2', ...) (base
+    Python 3.10 from Step13_InstallPython310). Production runs VoxCPM2 as a
+    class-C HTTP server (voxcpm2_api_server.py, port 57214) under that venv; the
+    main interpreter only talks to it over HTTP.
 
     Opt-in: -Full or VOXCPM2_INSTALL=1 or NEURAL_TTS_INSTALL=1.
     Skip with VOXCPM2_SKIP=1.
@@ -53,7 +60,7 @@ Write-Host '============================================================' -Foreg
 
 if ($env:VOXCPM2_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] VOXCPM2_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm') -AbsentOk -AbsentNote 'VOXCPM2_SKIP=1'
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'VOXCPM2_SKIP=1'
     return
     return
 }
@@ -72,18 +79,18 @@ Save-TtsInstallBackend -Engine voxcpm2 -Backend $installMethod
 
 if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] VoxCPM2 already installed -> skipping." -ForegroundColor Green
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     return
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, VOXCPM2_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm') -AbsentOk -AbsentNote 'opt-in'
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'opt-in'
     return
 }
 
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallDefaultPython first." -ForegroundColor DarkYellow
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     return
 }
 if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'voxcpm2' -Prefix "$SCRIPT_INDEX ")) {
@@ -103,15 +110,21 @@ Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-P
 
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
-if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [OK] dependencies already installed (.deps_done) -> skipping pip." -ForegroundColor Green
+# --- Isolated venv (Bucket B, self-contained): VoxCPM2 and its pinned
+#     dependencies go only into the dedicated Python 3.10 venv; the main
+#     interpreter (3.13) is outside the official 3.10-3.12 window and is never
+#     touched. The engine runs as a class-C HTTP server (voxcpm2_api_server.py,
+#     port 57214) under that venv. --- #
+if ((Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'voxcpm2') -and (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and -not $Force) {
+    Write-Host "$SCRIPT_INDEX [OK] isolated venv already provisioned (.deps_done) -> skipping." -ForegroundColor Green
 } else {
-    Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    Write-Host "$SCRIPT_INDEX [..] installing the central VoxCPM2 dependency plan ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install @voxcpmPackages } catch { Write-Host "$SCRIPT_INDEX [!] voxcpm pip failed." -ForegroundColor DarkYellow }
-    if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'voxcpm2') {
+    Write-Host "$SCRIPT_INDEX [..] building/verifying isolated voxcpm2 venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
+    Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'voxcpm2' -PipPackages $voxcpmPackages -Force:$Force
+    if (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'voxcpm2') {
         Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel | Out-Null
-        Write-Host "$SCRIPT_INDEX [OK] dependencies installed (policy stamp written)." -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX [OK] isolated voxcpm2 venv ready (policy stamp written)." -ForegroundColor Green
+    } else {
+        Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
     }
 }
 
@@ -150,4 +163,4 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Pat
 if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model -AllowPatterns $weightAllow)) {
     Write-Host ("$SCRIPT_INDEX  local weights auto-detected: {0}" -f $weightsDir) -ForegroundColor Cyan
 }
-Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
+Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
