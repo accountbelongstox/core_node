@@ -177,4 +177,21 @@ if (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Gl
     Write-Host "$SCRIPT_INDEX [!] Fish Speech isolated venv is not ready; retrying next run." -ForegroundColor DarkYellow
     return
 }
+
+# --- Local inference checkpoints (IDEMPOTENT: sentinel + resumable download) ---
+# Bridge/SDK mode works without weights; a failed download never fails the step.
+$ckptName = Split-Path -Leaf $(if ($env:FISHSPEECH_CHECKPOINT) { $env:FISHSPEECH_CHECKPOINT } else { $fishCkpt })
+$ckptDir = Join-Path $targetDir (Join-Path 'checkpoints' $ckptName)
+$ckptSentinel = Join-Path $targetDir (Join-Path 'checkpoints' ".ckpt_$($ckptName)_done")
+if ((Test-Path $ckptSentinel) -and (Test-Path (Join-Path $ckptDir 'config.json')) -and -not $Force) {
+    Write-Host "$SCRIPT_INDEX [OK] checkpoint $ckptName already present." -ForegroundColor Green
+} else {
+    Write-Host "$SCRIPT_INDEX [..] downloading checkpoint fishaudio/$ckptName (curl, resumable) ..." -ForegroundColor Yellow
+    $ckptOk = Install-HfRepoFlat -RepoId "fishaudio/$ckptName" -DestDir $ckptDir -SentinelPath $ckptSentinel -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model') -Prefix "$SCRIPT_INDEX " -SentinelValue $ckptName
+    if ($ckptOk -and (Test-Path (Join-Path $ckptDir 'config.json'))) {
+        Write-Host "$SCRIPT_INDEX [OK] checkpoint ready at $ckptDir (local inference mode enabled)." -ForegroundColor Green
+    } else {
+        Write-Host "$SCRIPT_INDEX [!] checkpoint download incomplete; will RESUME next run (bridge/SDK mode still works)." -ForegroundColor DarkYellow
+    }
+}
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
