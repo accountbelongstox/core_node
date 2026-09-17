@@ -640,6 +640,29 @@ if [ "$RUNTIME_START" != "yes" ]; then
     return
 fi
 
+# --- Optional: nexus-dash UI background service (frontend deployment) ---
+# Unconditional y/N prompt: the frontend deployment must be offered no matter
+# how the previous steps went (domain setup result, re-run convergence, or the
+# laravel service choice). Requires systemd; defaults to N on a TTY and stays
+# N without one (non-interactive safe).
+if [ -z "$INCLUDE_UI" ]; then
+    systemd_available
+    if [ "$SYSTEMD_READY" = "yes" ] && [ -f "$UI_SERVICE_ENSURE_SCRIPT" ]; then
+        ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
+        if [ "$PROMPT_ANSWER" = "yes" ]; then
+            INCLUDE_UI="yes"
+        else
+            INCLUDE_UI="no"
+        fi
+    else
+        INCLUDE_UI="no"
+    fi
+fi
+if [ "$INCLUDE_UI" = "yes" ]; then
+    ensure_ui_bun_runtime
+    ensure_ui_domain_binding
+fi
+
 # --- Idempotent re-run convergence: an ACTIVE plane service owns the
 # runtime ports. Apply the converged files to it (zero-downtime admin
 # reload or a unit restart) and return instead of launching a competing
@@ -803,30 +826,11 @@ if [ "$AS_SERVICE" = "yes" ]; then
         echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
         echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_PLANE_NAME"
         echo "  Logs:    journalctl -u $LARAVEL_SERVICE_PLANE_NAME -f"
-
-            # --- Optional: also bring the nexus-dash UI up as its own background service ---
-            if [ -z "$INCLUDE_UI" ]; then
-                if [ -f "$UI_SERVICE_ENSURE_SCRIPT" ]; then
-                    ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
-                else
-                    PROMPT_ANSWER="no"
-                fi
-                if [ "$PROMPT_ANSWER" = "yes" ]; then
-                    INCLUDE_UI="yes"
-                else
-                    INCLUDE_UI="no"
-                fi
-            fi
-            if [ "$INCLUDE_UI" = "yes" ]; then
-                ensure_ui_bun_runtime
-                ensure_ui_domain_binding
-            fi
-
-            return
-        else
-            echo "Service registration failed; continuing in the foreground."
-        fi
+        return
+    else
+        echo "Service registration failed; continuing in the foreground."
     fi
+fi
 
 # --- Start runtime ---
 # Plane dispatch (shared php_runtime_plane from gvar_common.sh): the

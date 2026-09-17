@@ -42,6 +42,7 @@ if [ "$SSH_SERVER_INSTALLED" = true ] && [ "$SSH_SERVER_CONFIG_READY" = true ]; 
         ssh_server_ensure_enabled
         ssh_server_apply_changed_config
         ssh_server_ensure_running
+        ssh_server_reap_stale_preauth
         detect_firewall false
         firewall_allow_port "$SSH_SERVER_PORT" "tcp" "SSH remote access"
     fi
@@ -54,6 +55,8 @@ SSH_CONNECTION_IPS="$(hostname -I 2>/dev/null | awk '{$1=$1; print}')"
 if [ "$SSH_SERVER_CONFIG_VALID" = true ] && [ "$SSH_SERVER_CONFIG_APPLIED" = true ] && [ "$SSH_SERVER_SERVICE_ACTIVE" = true ] && [ "$SSH_SERVER_SERVICE_ENABLED" = true ] && [ "$SSH_SERVER_RESTART_POLICY_READY" = true ]; then
     print_success_from_common_functions "SSH is configured, enabled, and running."
     print_info_from_common_functions "Idle sessions have no OpenSSH alive-message termination limit."
+    print_info_from_common_functions "Unauthenticated connections expire after ${SSH_SERVER_LOGIN_GRACE_TIME}s (LoginGraceTime) and are limited per source (PerSourceMaxStartups $SSH_SERVER_PER_SOURCE_MAX_STARTUPS, MaxStartups $SSH_SERVER_MAX_STARTUPS)."
+    print_info_from_common_functions "Stale pre-auth connection holders are reaped on every run."
     print_info_from_common_functions "SSH restarts automatically after process termination."
     print_info_from_common_functions "Connect with: ssh -p $SSH_SERVER_PORT $SSH_CONNECTION_USER@${SSH_CONNECTION_IPS%% *}"
 else

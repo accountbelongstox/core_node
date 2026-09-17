@@ -11,6 +11,10 @@ SSH_SERVER_SYSTEMD_ROOT="/etc/systemd/system"
 SSH_SERVER_SYSTEMD_DROPIN=""
 SSH_SERVER_PORT="${SSH_SERVER_PORT:-22}"
 SSH_SERVER_CLIENT_ALIVE_INTERVAL="${SSH_SERVER_CLIENT_ALIVE_INTERVAL:-60}"
+SSH_SERVER_LOGIN_GRACE_TIME="${SSH_SERVER_LOGIN_GRACE_TIME:-30}"
+SSH_SERVER_MAX_STARTUPS="${SSH_SERVER_MAX_STARTUPS:-100:30:200}"
+SSH_SERVER_PER_SOURCE_MAX_STARTUPS="${SSH_SERVER_PER_SOURCE_MAX_STARTUPS:-10}"
+SSH_SERVER_PREAUTH_REAP_SECONDS="${SSH_SERVER_PREAUTH_REAP_SECONDS:-120}"
 SSH_SERVER_RESTART_DELAY="${SSH_SERVER_RESTART_DELAY:-5s}"
 SSH_SERVER_DAEMON_PATH=""
 SSH_SERVER_SERVICE_NAME=""
@@ -41,8 +45,14 @@ SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL=""
 SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX=""
 SSH_SERVER_EFFECTIVE_CHANNEL_TIMEOUT=""
 SSH_SERVER_EFFECTIVE_UNUSED_CONNECTION_TIMEOUT=""
+SSH_SERVER_EFFECTIVE_MAX_STARTUPS=""
+SSH_SERVER_EFFECTIVE_PER_SOURCE_MAX_STARTUPS=""
 SSH_SERVER_CHANNEL_TIMEOUT_READY=false
 SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY=false
+SSH_SERVER_PER_SOURCE_MAX_STARTUPS_SUPPORTED=false
+SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY=false
+SSH_SERVER_STALE_PREAUTH_PIDS=""
+SSH_SERVER_STALE_PREAUTH_REAPED=0
 SSH_SERVER_CONFIG_ERRORS=""
 SSH_SERVER_SYSTEMD_UNITS=""
 SSH_SERVER_SYSTEMD_CANONICAL_NAME=""
@@ -122,15 +132,22 @@ ssh_server_refresh_supported_config() {
 }
 
 ssh_server_render_dropin() {
+    SSH_SERVER_PER_SOURCE_MAX_STARTUPS_SUPPORTED=false
     SSH_SERVER_DROPIN_CONTENT="Port $SSH_SERVER_PORT
 PermitRootLogin yes
 PubkeyAuthentication yes
 PasswordAuthentication yes
-LoginGraceTime 0
+LoginGraceTime $SSH_SERVER_LOGIN_GRACE_TIME
 TCPKeepAlive no
 ClientAliveInterval $SSH_SERVER_CLIENT_ALIVE_INTERVAL
-ClientAliveCountMax 0"
+ClientAliveCountMax 0
+MaxStartups $SSH_SERVER_MAX_STARTUPS"
 
+    if printf '%s\n' "$SSH_SERVER_SUPPORTED_CONFIG" | awk '$1 == "persourcemaxstartups" { found = 1 } END { if (found) print "yes" }' | grep -q '^yes$'; then
+        SSH_SERVER_PER_SOURCE_MAX_STARTUPS_SUPPORTED=true
+        SSH_SERVER_DROPIN_CONTENT="$SSH_SERVER_DROPIN_CONTENT
+PerSourceMaxStartups $SSH_SERVER_PER_SOURCE_MAX_STARTUPS"
+    fi
     if printf '%s\n' "$SSH_SERVER_SUPPORTED_CONFIG" | awk '$1 == "channeltimeout" { found = 1 } END { if (found) print "yes" }' | grep -q '^yes$'; then
         SSH_SERVER_DROPIN_CONTENT="$SSH_SERVER_DROPIN_CONTENT
 ChannelTimeout none"
@@ -195,8 +212,11 @@ ssh_server_validate_config() {
     SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX=""
     SSH_SERVER_EFFECTIVE_CHANNEL_TIMEOUT=""
     SSH_SERVER_EFFECTIVE_UNUSED_CONNECTION_TIMEOUT=""
+    SSH_SERVER_EFFECTIVE_MAX_STARTUPS=""
+    SSH_SERVER_EFFECTIVE_PER_SOURCE_MAX_STARTUPS=""
     SSH_SERVER_CHANNEL_TIMEOUT_READY=false
     SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY=false
+    SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY=false
     if [ -n "$SSH_SERVER_DAEMON_PATH" ]; then
         SSH_SERVER_CONFIG_ERRORS="$($USE_SUDO "$SSH_SERVER_DAEMON_PATH" -t 2>&1)"
     fi
@@ -213,6 +233,8 @@ ssh_server_validate_config() {
         SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX="$(printf '%s\n' "$SSH_SERVER_EFFECTIVE_CONFIG" | awk '$1 == "clientalivecountmax" { print $2; exit }')"
         SSH_SERVER_EFFECTIVE_CHANNEL_TIMEOUT="$(printf '%s\n' "$SSH_SERVER_EFFECTIVE_CONFIG" | awk '$1 == "channeltimeout" { print $2; exit }')"
         SSH_SERVER_EFFECTIVE_UNUSED_CONNECTION_TIMEOUT="$(printf '%s\n' "$SSH_SERVER_EFFECTIVE_CONFIG" | awk '$1 == "unusedconnectiontimeout" { print $2; exit }')"
+        SSH_SERVER_EFFECTIVE_MAX_STARTUPS="$(printf '%s\n' "$SSH_SERVER_EFFECTIVE_CONFIG" | awk '$1 == "maxstartups" { print $2; exit }')"
+        SSH_SERVER_EFFECTIVE_PER_SOURCE_MAX_STARTUPS="$(printf '%s\n' "$SSH_SERVER_EFFECTIVE_CONFIG" | awk '$1 == "persourcemaxstartups" { print $2; exit }')"
     fi
     if [ -z "$SSH_SERVER_EFFECTIVE_CHANNEL_TIMEOUT" ] || [ "$SSH_SERVER_EFFECTIVE_CHANNEL_TIMEOUT" = "none" ]; then
         SSH_SERVER_CHANNEL_TIMEOUT_READY=true
@@ -220,7 +242,12 @@ ssh_server_validate_config() {
     if [ -z "$SSH_SERVER_EFFECTIVE_UNUSED_CONNECTION_TIMEOUT" ] || [ "$SSH_SERVER_EFFECTIVE_UNUSED_CONNECTION_TIMEOUT" = "none" ]; then
         SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY=true
     fi
-    if [ "$SSH_SERVER_EFFECTIVE_PORT" = "$SSH_SERVER_PORT" ] && [ "$SSH_SERVER_EFFECTIVE_ROOT_LOGIN" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PUBKEY_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PASSWORD_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_LOGIN_GRACE_TIME" = "0" ] && [ "$SSH_SERVER_EFFECTIVE_TCP_KEEPALIVE" = "no" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL" = "$SSH_SERVER_CLIENT_ALIVE_INTERVAL" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX" = "0" ] && [ "$SSH_SERVER_CHANNEL_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY" = true ]; then
+    if [ "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS_SUPPORTED" = false ]; then
+        SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY=true
+    elif [ "$SSH_SERVER_EFFECTIVE_PER_SOURCE_MAX_STARTUPS" = "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS" ]; then
+        SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY=true
+    fi
+    if [ "$SSH_SERVER_EFFECTIVE_PORT" = "$SSH_SERVER_PORT" ] && [ "$SSH_SERVER_EFFECTIVE_ROOT_LOGIN" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PUBKEY_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PASSWORD_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_LOGIN_GRACE_TIME" = "$SSH_SERVER_LOGIN_GRACE_TIME" ] && [ "$SSH_SERVER_EFFECTIVE_TCP_KEEPALIVE" = "no" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL" = "$SSH_SERVER_CLIENT_ALIVE_INTERVAL" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX" = "0" ] && [ "$SSH_SERVER_EFFECTIVE_MAX_STARTUPS" = "$SSH_SERVER_MAX_STARTUPS" ] && [ "$SSH_SERVER_CHANNEL_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY" = true ]; then
         SSH_SERVER_CONFIG_APPLIED=true
     fi
 }
@@ -365,5 +392,26 @@ ssh_server_apply_changed_config() {
             $USE_SUDO service "$SSH_SERVER_SERVICE_NAME" reload
         fi
         ssh_server_refresh_service
+    fi
+}
+
+# Reap unauthenticated sshd connection processes that outlived the login
+# grace time. Reloaded sshd only applies LoginGraceTime to new connections,
+# so pre-reload unauthenticated processes can hold MaxStartups slots forever.
+# Pre-auth connections appear as "sshd: [accepted]" / "sshd: [net]" process
+# pairs ("sshd-session:" on OpenSSH 9.8+); authenticated sessions always carry
+# a user name and are never matched. Repeated runs are no-ops once none remain.
+ssh_server_reap_stale_preauth() {
+    SSH_SERVER_STALE_PREAUTH_PIDS=""
+    SSH_SERVER_STALE_PREAUTH_REAPED=0
+
+    SSH_SERVER_STALE_PREAUTH_PIDS="$(ps -eo pid=,etimes=,args= 2>/dev/null | awk -v max_age="$SSH_SERVER_PREAUTH_REAP_SECONDS" '$2 > max_age && /sshd(-session)?: (\[accepted\]|\[net\]|\[preauth\]|.*\[preauth\])/ { print $1 }')"
+
+    if [ -n "$SSH_SERVER_STALE_PREAUTH_PIDS" ]; then
+        SSH_SERVER_STALE_PREAUTH_REAPED="$(printf '%s\n' "$SSH_SERVER_STALE_PREAUTH_PIDS" | grep -c .)"
+        echo "[SSH] Reaping $SSH_SERVER_STALE_PREAUTH_REAPED stale unauthenticated connection(s) older than ${SSH_SERVER_PREAUTH_REAP_SECONDS}s..."
+        printf '%s\n' "$SSH_SERVER_STALE_PREAUTH_PIDS" | xargs -r $USE_SUDO kill 2>/dev/null
+    else
+        echo "[SSH] No stale unauthenticated connections to reap."
     fi
 }
