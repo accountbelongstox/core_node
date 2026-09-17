@@ -15,14 +15,15 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ViewType, Language, Theme } from '../uiTypes';
 import { UnifiedUser, UserPreferences } from '../types';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
 import {
-  readViewFromHash,
-  writeViewToHash,
-  bindHashListener
+  readViewFromLocation,
+  createViewLocation,
+  viewToSlug
 } from '../routing/viewRoute';
 import { userModel } from '../models';
 import { getAuthErrorMessage } from '../utils/authErrors';
@@ -56,13 +57,9 @@ const loadStateFromStorage = (): UnifiedAppState => {
     const savedUser = StorageManager.get<UnifiedUser | null>(StorageKeys.USER, null);
     const savedPreferences = StorageManager.get<UserPreferences>(StorageKeys.SETTINGS, DEFAULT_STATE.preferences);
 
-    // URL hash WINS over storage on first paint so deep-links / bookmarks
-    // such as `…/#/ai-tools` open the right view even when localStorage
-    // remembers something else. Unknown / absent hash falls through to the
-    // saved view, then the default.
-    const fromUrl = readViewFromHash();
+    const fromUrl = typeof window !== 'undefined' ? readViewFromLocation(window.location) : null;
     return {
-      activeView: fromUrl ?? saved.activeView ?? DEFAULT_STATE.activeView,
+      activeView: fromUrl ?? (saved.activeView && viewToSlug(saved.activeView) ? saved.activeView : DEFAULT_STATE.activeView),
       UnifiedUser: savedUser,
       isLoggedIn: !!savedUser,
       preferences: savedPreferences,
@@ -109,6 +106,8 @@ interface UnifiedAppProviderProps {
  * Unified App Provider
  */
 export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { dark, lang: shellLanguage, setDark, setLang: setShellLanguage } = useShell();
   const language: Language = shellLanguage === 'zh' ? 'zh' : 'en';
   const theme: Theme = dark ? 'dark' : 'light';
@@ -118,6 +117,8 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     return loadedState;
   });
 
+  const routeView = readViewFromLocation(location);
+  const activeView = routeView ?? state.activeView;
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -147,28 +148,18 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     saveStateToStorage(state);
   }, [state]);
 
-  // ── Routing: activeView ⇄ URL hash ─────────────────────────────────
-  // Every `setActiveView` call (sidebar click, deep nav, programmatic) flows
-  // through this single context, so wiring the URL here means every route
-  // change reflects in the address bar automatically — no caller has to
-  // know about routing. The hash form (`#/ai-tools`) avoids depending on a
-  // Laravel rewrite for deep links. Both sides early-return on equality so
-  // there's no state↔URL feedback loop.
   useEffect(() => {
-    writeViewToHash(state.activeView);
-  }, [state.activeView]);
+    const target = createViewLocation(activeView, location);
+    if (target.pathname !== location.pathname || target.search !== location.search || target.hash !== location.hash) {
+      navigate(target, { replace: true });
+    }
+    setState(previous => previous.activeView === activeView ? previous : { ...previous, activeView });
+  }, [activeView, location, navigate]);
 
-  useEffect(() => {
-    return bindHashListener((next) => {
-      setState(prev => (prev.activeView === next ? prev : { ...prev, activeView: next }));
-    });
-  }, []);
-
-  // Set active view
   const setActiveView = useCallback((view: ViewType) => {
-    setState(prev => ({ ...prev, activeView: view }));
-    console.log('[UnifiedAppContext] Active view changed to:', view);
-  }, []);
+    if (view === activeView) return;
+    navigate(createViewLocation(view, location));
+  }, [activeView, location, navigate]);
 
   // Set language with optional reload
   const setLang = useCallback((lang: Language, reload = false) => {
@@ -369,13 +360,14 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
   // Reset all
   const resetAll = useCallback(() => {
     setState(DEFAULT_STATE);
+    navigate(createViewLocation(DEFAULT_STATE.activeView, location), { replace: true });
     setShellLanguage('en');
     setDark(true);
     StorageManager.remove(StorageKeys.APP_STATE);
     StorageManager.remove(StorageKeys.USER);
     StorageManager.remove(StorageKeys.SETTINGS);
     console.log('[UnifiedAppContext] All state reset');
-  }, [setDark, setShellLanguage]);
+  }, [setDark, setShellLanguage, navigate, location]);
 
   // Subscribe to storage events for cross-tab sync
   useEffect(() => {
@@ -401,7 +393,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
 
   const value: UnifiedAppContextType = {
     // State
-    activeView: state.activeView,
+    activeView,
     lang: language,
     theme,
     UnifiedUser: state.UnifiedUser,

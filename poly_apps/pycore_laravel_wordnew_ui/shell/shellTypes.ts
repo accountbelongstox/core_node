@@ -16,6 +16,12 @@ export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 
 
 export type ThemeId = 'nexus' | 'pycore' | 'iris';
 
+export interface ShellClipboardState {
+  open: boolean;
+  collapsed: boolean;
+  namespace: string;
+}
+
 /** Default theme applied automatically when an end is active (user can override). */
 export const END_THEME: Record<EndId, ThemeId> = {
   'home': 'nexus',
@@ -78,4 +84,7 @@ export interface ShellContextValue {
   activeChatAdapterId: string;
   openChat: (adapterId?: string) => void;
   closeChat: () => void;
+  clipboard: ShellClipboardState;
+  setClipboard: (update: Partial<ShellClipboardState>) => void;
+  toggleClipboard: () => void;
 }

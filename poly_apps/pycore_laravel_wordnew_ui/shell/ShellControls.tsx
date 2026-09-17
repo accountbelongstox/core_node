@@ -15,7 +15,9 @@
  */
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutGrid, Home, Bot, Sun, Moon, Languages, Palette, X, Sparkles } from 'lucide-react';
+import { LayoutGrid, Home, Bot, Sun, Moon, Languages, Palette, X, Cloud } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import '../shared/cloud-clipboard/CloudClipboardLocales';
 import { useShell } from './ShellContext';
 import { END_META, SHELL_LANGUAGES, ThemeId } from './shellTypes';
 import {
@@ -44,7 +46,8 @@ function clampDockY(y: number): number {
 export const ShellControls: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { end, dark, toggleDark, lang, setLang, themeOverride, setThemeOverride, openChat } = useShell();
+  const { end, dark, toggleDark, lang, setLang, themeOverride, setThemeOverride, openChat, clipboard, toggleClipboard } = useShell();
+  const { t } = useTranslation('cloudClipboard');
   const [open, setOpen] = useState(false);
 
   // Committed vertical position (px from top). Horizontal is always the right edge.
@@ -146,6 +149,18 @@ export const ShellControls: React.FC = () => {
         title="Shell controls (drag to move — snaps to the right edge)"
       >
         {open ? <X className="w-5 h-5" /> : <LayoutGrid className="w-5 h-5" />}
+      </button>
+
+      <button type="button" aria-pressed={clipboard.open} title={t('toggleFloating')}
+        aria-label={t('toggleFloating')} onClick={toggleClipboard}
+        className={`absolute rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center ${clipboard.open ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}
+        style={{
+          top: 0,
+          right: SHELL_DOCK_BUTTON_PX + SHELL_DOCK_PANEL_GAP_PX,
+          width: SHELL_DOCK_BUTTON_PX,
+          height: SHELL_DOCK_BUTTON_PX,
+        }}>
+        <Cloud className="w-5 h-5" />
       </button>
 
       {open && !dragging && (

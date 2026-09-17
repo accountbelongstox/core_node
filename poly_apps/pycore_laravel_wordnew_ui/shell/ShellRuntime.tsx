@@ -4,6 +4,7 @@ import { useTranslation } from '../core/i18n/UiI18n';
 import { AppToaster } from '../shared/notify/notify';
 import { TaskPersistenceProvider } from '../core/tasks/TaskPersistenceProvider';
 import { ShellProvider } from './ShellProvider';
+import { ShellCloudClipboard } from './ShellCloudClipboard';
 
 interface ShellRuntimeProps {
   authHost?: React.ReactNode;
@@ -27,6 +28,7 @@ export const ShellRuntime: React.FC<ShellRuntimeProps> = ({ authHost, children }
         <AppToaster />
         {authHost}
         {children}
+        <ShellCloudClipboard />
       </ShellProvider>
     </BrowserRouter>
   </TaskPersistenceProvider>

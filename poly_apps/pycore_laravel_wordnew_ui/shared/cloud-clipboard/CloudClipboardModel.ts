@@ -288,6 +288,11 @@ export class CloudClipboardModel {
     void this.refresh(true);
   }
 
+  async generateNamespace(): Promise<string> {
+    const result = await this.api.generate();
+    return result.namespace;
+  }
+
   focus(id: string, focused: boolean): void {
     if (focused) this.focused.add(id);
     else this.focused.delete(id);

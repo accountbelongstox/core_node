@@ -19,6 +19,8 @@ import {
   type AppRouteElementDefinition,
 } from '../../shared/routing/AppRouteElements';
 import { PC_PAGES } from './pcPages';
+import { PcCloudClipboardRedirect } from './components/PcCloudClipboardRedirect';
+import { CLOUD_CLIPBOARD_PAGE_SLUG } from '../../shared/cloud-clipboard/CloudClipboardNavigation';
 
 registerPcLocales();
 
@@ -59,6 +61,7 @@ const PcApp: React.FC = () => {
         {/* Page routes are generated from PC_PAGES (above) — add a registry
             entry, get a route. */}
         {pcPageRoutes}
+        <Route path={CLOUD_CLIPBOARD_PAGE_SLUG} element={<PcCloudClipboardRedirect />} />
         <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
           </Route>
         </Routes>
