@@ -1,11 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1PhoneVerificationModel extends CodeMartV1Model
 {
-    protected $table = 'codemart_phone_verifications';
+    protected $table = CodeMartV1TablesMaps::PHONE_VERIFICATIONS_TABLE;
 
     protected $fillable = [
         'user_id',

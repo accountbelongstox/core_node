@@ -1,11 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1KycVerificationModel extends CodeMartV1Model
 {
-    protected $table = 'codemart_kyc_verifications';
+    protected $table = CodeMartV1TablesMaps::KYC_VERIFICATIONS_TABLE;
 
     protected $fillable = [
         'user_id',

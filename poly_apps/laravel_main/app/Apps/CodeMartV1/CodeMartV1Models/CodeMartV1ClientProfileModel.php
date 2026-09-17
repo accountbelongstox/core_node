@@ -1,11 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1ClientProfileModel extends CodeMartV1Model
 {
-    protected $table = 'codemart_client_profiles';
+    protected $table = CodeMartV1TablesMaps::CLIENT_PROFILES_TABLE;
 
     protected $fillable = [
         'user_id',

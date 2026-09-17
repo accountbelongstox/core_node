@@ -1,11 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1UserRoleModel extends CodeMartV1Model
 {
-    protected $table = 'codemart_user_roles';
+    protected $table = CodeMartV1TablesMaps::USER_ROLES_TABLE;
 
     protected $fillable = [
         'user_id',

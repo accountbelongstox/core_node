@@ -4,7 +4,15 @@ namespace App\Apps\CodeMartV1\CodeMartV1TablesMaps;
 
 class CodeMartV1TablesMaps
 {
-    public const EMAIL_VERIFICATIONS_TABLE = 'codemart_email_verifications';
+    public const EMAIL_VERIFICATIONS_TABLE = 'codemart_v1_email_verifications';
+    public const PHONE_VERIFICATIONS_TABLE = 'codemart_v1_phone_verifications';
+    public const KYC_VERIFICATIONS_TABLE = 'codemart_v1_kyc_verifications';
+    public const USER_ROLES_TABLE = 'codemart_v1_user_roles';
+    public const DEVELOPER_PROFILES_TABLE = 'codemart_v1_developer_profiles';
+    public const CLIENT_PROFILES_TABLE = 'codemart_v1_client_profiles';
+    public const NOTIFICATIONS_TABLE = 'codemart_v1_notifications';
+    public const ACTIVITIES_TABLE = 'codemart_v1_activities';
+    public const TESTIMONIALS_TABLE = 'codemart_v1_testimonials';
 
     // Global tables (shared across apps)
     public const USERS_TABLE = 'users';
@@ -178,4 +186,46 @@ class CodeMartV1TablesMaps
     public const CODEMART_REFUNDS_NOTES = 'notes';
     public const CODEMART_REFUNDS_REQUESTED_AT = 'requested_at';
     public const CODEMART_REFUNDS_PROCESSED_AT = 'processed_at';
+
+    // Additive contract-alignment columns (sys:init, never dropped)
+    public const CODEMART_PROJECTS_STATE_REVISION = 'state_revision';
+    public const CODEMART_TASKS_STATE_REVISION = 'state_revision';
+    public const CODEMART_TASKS_REQUIRED_SKILLS = 'required_skills';
+    public const CODEMART_TASKS_ASSIGNED_AT = 'assigned_at';
+    public const CODEMART_AI_ANALYSES_GLOBAL_TASK_ID = 'global_task_id';
+    public const CODEMART_AI_ANALYSES_REVISION = 'revision';
+    public const CODEMART_AI_ANALYSES_IDEMPOTENCY_KEY = 'idempotency_key';
+    public const CODEMART_PAYMENTS_IDEMPOTENCY_KEY = 'idempotency_key';
+    public const CODEMART_PAYMENTS_BUSINESS_REF = 'business_ref';
+    public const CODEMART_DEPOSITS_IDEMPOTENCY_KEY = 'idempotency_key';
+
+    // CodeMart V1 Notifications table
+    public const CODEMART_NOTIFICATIONS_ID = 'id';
+    public const CODEMART_NOTIFICATIONS_USER_ID = 'user_id';
+    public const CODEMART_NOTIFICATIONS_TYPE = 'type';
+    public const CODEMART_NOTIFICATIONS_TITLE_KEY = 'title_key';
+    public const CODEMART_NOTIFICATIONS_BODY_KEY = 'body_key';
+    public const CODEMART_NOTIFICATIONS_PARAMS = 'params';
+    public const CODEMART_NOTIFICATIONS_RESOURCE_TYPE = 'resource_type';
+    public const CODEMART_NOTIFICATIONS_RESOURCE_ID = 'resource_id';
+    public const CODEMART_NOTIFICATIONS_READ_AT = 'read_at';
+
+    // CodeMart V1 Activities table (auditable project/task timeline)
+    public const CODEMART_ACTIVITIES_ID = 'id';
+    public const CODEMART_ACTIVITIES_ACTOR_ID = 'actor_id';
+    public const CODEMART_ACTIVITIES_RESOURCE_TYPE = 'resource_type';
+    public const CODEMART_ACTIVITIES_RESOURCE_ID = 'resource_id';
+    public const CODEMART_ACTIVITIES_ACTION = 'action';
+    public const CODEMART_ACTIVITIES_FROM_STATE = 'from_state';
+    public const CODEMART_ACTIVITIES_TO_STATE = 'to_state';
+    public const CODEMART_ACTIVITIES_METADATA = 'metadata';
+
+    // CodeMart V1 Testimonials table (approved public-home content)
+    public const CODEMART_TESTIMONIALS_ID = 'id';
+    public const CODEMART_TESTIMONIALS_QUOTE_KEY = 'quote_key';
+    public const CODEMART_TESTIMONIALS_AUTHOR_LABEL = 'author_label';
+    public const CODEMART_TESTIMONIALS_ROLE_LABEL = 'role_label';
+    public const CODEMART_TESTIMONIALS_AVATAR_URL = 'avatar_url';
+    public const CODEMART_TESTIMONIALS_APPROVED = 'approved';
+    public const CODEMART_TESTIMONIALS_DISPLAY_ORDER = 'display_order';
 }
