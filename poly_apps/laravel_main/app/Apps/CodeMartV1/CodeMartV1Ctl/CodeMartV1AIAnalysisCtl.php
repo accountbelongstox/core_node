@@ -4,6 +4,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
 use Illuminate\Http\JsonResponse;
@@ -99,8 +100,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         $analysis->project->updateRecord([
             'analysis_status' => 'accepted',
-            'estimated_cost' => $analysis->estimated_cost,
-            'status' => 'awaiting_payment',
+            'status' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
         ]);
 
         CodeMartV1AIAnalysisModel::commitModelTransaction();

@@ -3,10 +3,29 @@ import {
   createLaravelModuleConfig,
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
+import { setAuthToken } from '../../../core/auth/AuthSession';
 import type {
+  CmAdminDeposit,
+  CmAdminKycItem,
+  CmAdminOverview,
+  CmAdminRefund,
+  CmAdminUser,
+  CmBootstrap,
+  CmDepositInfo,
+  CmEstimateInput,
+  CmEstimateResult,
+  CmNotification,
+  CmPage,
+  CmProfileResponse,
+  CmProject,
   CmPublicHomeData,
   CmPublicHomeLoadResult,
   CmPublicTestimonialData,
+  CmRegisterPayload,
+  CmRegisterResult,
+  CmTask,
+  CmWallet,
+  CmWalletTransaction,
 } from './CmApiTypes';
 
 const PUBLIC_HOME_CACHE_TTL_MS = 60_000;

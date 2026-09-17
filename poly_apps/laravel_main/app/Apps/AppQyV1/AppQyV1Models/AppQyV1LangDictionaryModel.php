@@ -1776,7 +1776,8 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     /**
      * One row's invalid-translation reason, or null when the row is clean.
-     * Invalid = any translation value carries an error marker, or a value is
+     * Invalid = any translation value (recursively — nested shapes like
+     * word_translation pairs included) carries an error marker, or a value is
      * identical to the word itself (case-insensitive, trimmed).
      */
     public static function invalidTranslationReason($row): ?string
@@ -1786,11 +1787,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             return null;
         }
         $word = mb_strtolower(trim((string) $row->content));
-        foreach ($translations as $value) {
-            $text = is_string($value) ? $value : (is_scalar($value) ? (string) $value : '');
-            if ($text === '') {
-                continue;
-            }
+        foreach (self::flattenTranslationTexts($translations) as $text) {
             foreach (self::INVALID_TRANSLATION_MARKERS as $marker) {
                 if (mb_stripos($text, $marker) !== false) {
                     return 'error_marker';
@@ -1803,28 +1800,62 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return null;
     }
 
+    /** Every scalar text leaf inside a translations payload (any nesting). */
+    private static function flattenTranslationTexts(array $values): array
+    {
+        $texts = [];
+        $stack = array_values($values);
+        while ($stack !== []) {
+            $value = array_pop($stack);
+            if (is_array($value)) {
+                foreach ($value as $nested) {
+                    $stack[] = $nested;
+                }
+                continue;
+            }
+            if (is_string($value) && trim($value) !== '') {
+                $texts[] = $value;
+            }
+        }
+        return $texts;
+    }
+
     /**
-     * Ids (and reasons) of rows whose translations field is invalid. Chunked
-     * scan over translation-bearing rows only; the equality rule cannot be
-     * expressed in SQL, so evaluation stays in PHP.
+     * Ids (and reasons) of rows whose translations field is invalid.
+     *
+     * SQL prefilter keeps the scan cheap on large tables (the raw ILIKE /
+     * position() pass is one sequential scan, no PHP hydration of clean rows);
+     * PHP then re-evaluates ONLY the candidates with the exact rules
+     * (invalidTranslationReason) so the equality rule stays precise:
+     *   - error markers: straight ILIKE on the serialized translations
+     *   - same-as-word: position(lower(content) in lower(translations)) > 0 is
+     *     the necessary condition; exact equality is confirmed in PHP.
      *
      * @return array<int, string> id => reason
      */
     public static function invalidTranslationIds(string $langCode): array
     {
         $invalid = [];
-        self::forLanguage($langCode)
+        $query = self::forLanguage($langCode)
             ->newQuery()
             ->withTranslationCoverage()
-            ->orderBy('id')
-            ->chunkById(self::QUERY_CHUNK_SIZE, function ($rows) use (&$invalid): void {
-                foreach ($rows as $row) {
-                    $reason = self::invalidTranslationReason($row);
-                    if ($reason !== null) {
-                        $invalid[(int) $row->id] = $reason;
-                    }
+            ->where('content', '<>', '')
+            ->where(function (Builder $builder): void {
+                foreach (self::INVALID_TRANSLATION_MARKERS as $marker) {
+                    $builder->orWhere('translations', 'ilike', '%' . $marker . '%');
                 }
-            });
+                $builder->orWhereRaw('position(lower(content) in lower(translations)) > 0');
+            })
+            ->orderBy('id');
+
+        $query->chunkById(self::QUERY_CHUNK_SIZE, function ($rows) use (&$invalid): void {
+            foreach ($rows as $row) {
+                $reason = self::invalidTranslationReason($row);
+                if ($reason !== null) {
+                    $invalid[(int) $row->id] = $reason;
+                }
+            }
+        });
 
         return $invalid;
     }
