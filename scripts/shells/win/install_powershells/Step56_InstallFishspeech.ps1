@@ -67,6 +67,26 @@ if ($env:FISHSPEECH_SKIP -eq '1') {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'FISHSPEECH_SKIP=1'
     return
 }
+
+# --- Install method selection (native/docker), plan steps 16-17 ---
+. (Join-Path $winCommonDir 'InstallMethodCommon.ps1')
+$installMethod = Select-TtsInstallMethod -Engine fishspeech `
+    -SupportedBackends @('native','docker') `
+    -RecommendedBackend 'native' `
+    -RecommendationSource 'Fish Speech docs document native install and an official docker option (hub: fishaudio/fish-speech) - https://speech.fish.audio/install/' `
+    -DefaultBackend 'native' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
+if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
+if ($installMethod -eq 'docker') {
+    . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
+    if (-not (Invoke-TtsDockerEnsure -Engine fishspeech -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker platform is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))." -ForegroundColor DarkYellow
+        exit 1
+    }
+    Save-TtsInstallBackend -Engine fishspeech -Backend docker
+    Write-Host "$SCRIPT_INDEX [i] docker platform ready; per-engine compose assets are delivered by the compose generation step (tracked as pending)." -ForegroundColor Cyan
+    return
+}
+Save-TtsInstallBackend -Engine fishspeech -Backend native
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'external server reachable'

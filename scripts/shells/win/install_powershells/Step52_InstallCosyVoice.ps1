@@ -60,6 +60,26 @@ if ($env:COSYVOICE_SKIP -eq '1') {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch') -AbsentOk -AbsentNote 'COSYVOICE_SKIP=1'
     return
 }
+
+# --- Install method selection (native/docker), plan steps 16-17 ---
+. (Join-Path $winCommonDir 'InstallMethodCommon.ps1')
+$installMethod = Select-TtsInstallMethod -Engine cosyvoice `
+    -SupportedBackends @('native','docker') `
+    -RecommendedBackend 'native' `
+    -RecommendationSource 'CosyVoice official repo installs natively (conda python=3.10); upstream also ships a docker/ runtime directory - https://github.com/FunAudioLLM/CosyVoice' `
+    -DefaultBackend 'native' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
+if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
+if ($installMethod -eq 'docker') {
+    . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
+    if (-not (Invoke-TtsDockerEnsure -Engine cosyvoice -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker platform is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))." -ForegroundColor DarkYellow
+        exit 1
+    }
+    Save-TtsInstallBackend -Engine cosyvoice -Backend docker
+    Write-Host "$SCRIPT_INDEX [i] docker platform ready; per-engine compose assets are delivered by the compose generation step (tracked as pending)." -ForegroundColor Cyan
+    return
+}
+Save-TtsInstallBackend -Engine cosyvoice -Backend native
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX      Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO to enable synthesis." -ForegroundColor DarkGray

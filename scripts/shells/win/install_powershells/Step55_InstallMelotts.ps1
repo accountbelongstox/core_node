@@ -94,6 +94,27 @@ if ($env:MELOTTS_SKIP -eq '1') {
     return
 }
 
+# --- Install method selection (native/docker), plan steps 16-17 ---
+# MeloTTS official install.md recommends Docker on Windows; it is the default here.
+. (Join-Path $winCommonDir 'InstallMethodCommon.ps1')
+$installMethod = Select-TtsInstallMethod -Engine melotts `
+    -SupportedBackends @('native','docker') `
+    -RecommendedBackend 'docker' `
+    -RecommendationSource 'MeloTTS official install.md: "If you are using Windows, we highly recommend using Docker" - https://github.com/myshell-ai/MeloTTS/blob/main/docs/install.md' `
+    -DefaultBackend 'docker' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
+if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
+if ($installMethod -eq 'docker') {
+    . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
+    if (-not (Invoke-TtsDockerEnsure -Engine melotts -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker platform is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))." -ForegroundColor DarkYellow
+        exit 1
+    }
+    Save-TtsInstallBackend -Engine melotts -Backend docker
+    Write-Host "$SCRIPT_INDEX [i] docker platform ready; per-engine compose assets are delivered by the compose generation step (tracked as pending)." -ForegroundColor Cyan
+    return
+}
+Save-TtsInstallBackend -Engine melotts -Backend native
+
 if (-not ($resolvedPython -and (Test-Path -LiteralPath $resolvedPython))) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found at $Global:PYTHON_EXE_PATH. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @()
