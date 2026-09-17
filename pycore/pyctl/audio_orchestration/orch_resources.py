@@ -1,10 +1,9 @@
 import base64
 import hashlib
-import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
@@ -13,10 +12,14 @@ from pycore.pyutils.common.background_jobs import BackgroundJobs
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
-from pycore.pyutils.tts import word_audio_cache
+from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts.audio_delivery_outbox import AUDIO_DELIVERY_PROCESS_ID, audio_delivery_outbox
 from pycore.pyutils.tts.audio_validation import validate_mp3
-from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
+from pycore.pyutils.tts.engine_policy import (
+    configured_tts_priority,
+    sentence_tts_cache_identity,
+    tts_engine_supports_language,
+)
 from pycore.pyutils.tts.tts_orchestrator import synthesize
 from pycore.pyctl.tts import word_audio_service
 
@@ -32,10 +35,48 @@ def resource_id(kind: str, language: str, text: str) -> str:
     return hashlib.sha256(f"{kind}:{language}:{content}".encode("utf-8")).hexdigest()
 
 
-def _sentence_path(text: str, language: str) -> Path:
-    directory = get_app_cache_dir() / "sentence_audio" / language
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory / f"{media_content_id(text)}.mp3"
+# --------------------------------------------------------------------------- #
+# central cache lookup                                                         #
+# Words: word_audio_cache is the single unified base ({word}_{provider}.mp3 — #
+# any provider's file counts). Sentences: the content-addressed               #
+# tts_sentence_cache shared by every TTS entry point. Nothing is cached       #
+# anywhere else.                                                              #
+# --------------------------------------------------------------------------- #
+def _sentence_engines(language: str) -> List[str]:
+    return [
+        name
+        for name in configured_tts_priority("sentence")
+        if tts_engine_supports_language(name, language)
+    ]
+
+
+def sentence_cache_hit(text: str, language: str) -> Optional[Path]:
+    """Central sentence cache lookup with the SAME identity tuple
+    tts_orchestrator.synthesize uses, iterating the configured sentence engine
+    order (audio produced by ANY of them is acceptable)."""
+    speaker, instruct, model, speed = sentence_tts_cache_identity(None, None, None)
+    for engine in _sentence_engines(language):
+        hit = sentence_audio_cache.lookup_or_none(
+            text=text, lang=language, speaker=speaker, instruct=instruct,
+            engine=engine, fmt="mp3", model_id=model, speed=speed,
+        )
+        if hit is not None:
+            return hit
+    return None
+
+
+def _store_sentence_cache(text: str, language: str, data: bytes) -> Optional[Path]:
+    """Store Laravel-downloaded sentence audio into the central cache under the
+    CURRENT default sentence engine identity so later runs hit it locally."""
+    engines = _sentence_engines(language)
+    if not engines or not data:
+        return None
+    speaker, instruct, model, speed = sentence_tts_cache_identity(None, None, None)
+    return sentence_audio_cache.store_result(
+        text=text, lang=language, speaker=speaker, instruct=instruct,
+        engine=engines[0], fmt="mp3", model_id=model, speed=speed,
+        data_bytes=data,
+    )
 
 
 def _sentence_metadata(resource: Dict[str, Any], base_url: Optional[str]) -> Dict[str, Any]:
@@ -57,25 +98,23 @@ def resolve_audio(
     text = resource["text"]
     language = resource["language"]
     target = staging / f"{resource['resource_id']}.mp3"
-    cached = word_audio_cache.find_cached(text, language) if kind == "word" else _sentence_path(text, language)
-    if kind == "sentence" and not cached.is_file():
-        cached = cached.with_name(f"{cached.stem}_{QWEN3TTS_ENGINE}.mp3")
-    if cached is not None and cached.is_file() and validate_mp3(str(cached))[0]:
-        return {"audio_path": str(cached), "source": "cache", "provider": "cache", "status": "ready"}
-    if kind == "sentence":
-        hit = synthesize(text, language, target, priority_profile="sentence", cache_only=True)
-        if hit.get("success"):
-            return {"audio_path": str(target), "source": "cache", "provider": hit.get("engine") or "cache", "status": "ready"}
+    if kind == "word":
+        cached = word_audio_cache.find_cached(text, language)
+        if cached is not None and validate_mp3(str(cached))[0]:
+            return {"audio_path": str(cached), "source": "cache", "provider": "cache", "status": "ready"}
+    else:
+        hit = sentence_cache_hit(text, language)
+        if hit is not None and validate_mp3(str(hit))[0]:
+            return {"audio_path": str(hit), "source": "cache", "provider": "cache", "status": "ready"}
         metadata = _sentence_metadata(resource, base_url)
         if metadata.get("exists") and metadata.get("url"):
             response = laravel_client.get(metadata["url"], base_url=base_url, timeout=60)
             if response.status_code == 200:
                 target.write_bytes(response.content)
                 if validate_mp3(str(target))[0]:
-                    cached = _sentence_path(text, language)
-                    shutil.copy2(target, cached)
-                    return {"audio_path": str(cached), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
-    else:
+                    stored = _store_sentence_cache(text, language, target.read_bytes())
+                    return {"audio_path": str(stored or target), "source": "laravel", "provider": "laravel", "status": "ready", "synced": True}
+    if kind == "word":
         metadata = word_audio_service.word_audio_media(text, language, base_url=base_url)
         if metadata.get("success") and metadata.get("content_base64"):
             target.write_bytes(base64.b64decode(metadata["content_base64"]))
@@ -89,10 +128,64 @@ def resolve_audio(
     if not result.get("success") or not target.is_file() or not validate_mp3(str(target))[0]:
         return {"source": "missing", "status": "failed", "error": str(result.get("error") or "audio_validation_failed")}
     provider = str(result.get("engine") or "generated")
-    cached = word_audio_cache.store_bytes(text, language, provider, target.read_bytes()) if kind == "word" else _sentence_path(text, language)
-    if kind == "sentence":
-        shutil.copy2(target, cached)
-    return {"audio_path": str(cached), "source": "cache" if result.get("cached") else "generated", "provider": provider, "status": "ready"}
+    if kind == "word":
+        audio_path = str(word_audio_cache.store_bytes(text, language, provider, target.read_bytes()))
+    else:
+        # synthesize() already stored sentence audio into the central cache.
+        audio_path = str(target)
+    return {"audio_path": audio_path, "source": "cache" if result.get("cached") else "generated", "provider": provider, "status": "ready"}
+
+
+def resolve_batch(
+    resources: List[Dict[str, Any]],
+    staging: Path,
+    base_url: Optional[str] = None,
+    cancel_requested: Optional[Callable[[], bool]] = None,
+    progress_callback: Optional[Callable[[int, Dict[str, Any], Dict[str, Any]], None]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Resolve the whole manifest: local caches first in BATCH (one word-cache
+    directory scan per language + content-addressed sentence stats), then
+    Laravel / local generation for the misses only. Returns
+    {resource_id: result}; cancelled before the remaining misses are touched
+    when cancel_requested() turns True."""
+    items = list(resources)
+    results: Dict[str, Dict[str, Any]] = {}
+
+    words_by_lang: Dict[str, List[Dict[str, Any]]] = {}
+    for resource in items:
+        if resource["kind"] == "word":
+            words_by_lang.setdefault(str(resource["language"]), []).append(resource)
+    for language, group in words_by_lang.items():
+        hits = word_audio_cache.find_cached_many([entry["text"] for entry in group], language)
+        for resource in group:
+            path = hits.get(str(resource["text"]).strip().lower())
+            if path is not None and validate_mp3(str(path))[0]:
+                results[resource["resource_id"]] = {
+                    "audio_path": str(path), "source": "cache", "provider": "cache", "status": "ready",
+                }
+
+    for resource in items:
+        if resource["kind"] != "sentence" or resource["resource_id"] in results:
+            continue
+        hit = sentence_cache_hit(resource["text"], resource["language"])
+        if hit is not None and validate_mp3(str(hit))[0]:
+            results[resource["resource_id"]] = {
+                "audio_path": str(hit), "source": "cache", "provider": "cache", "status": "ready",
+            }
+
+    for index, resource in enumerate(items, 1):
+        existing = results.get(resource["resource_id"])
+        if existing is not None:
+            if progress_callback is not None:
+                progress_callback(index, resource, existing)
+            continue
+        if cancel_requested is not None and cancel_requested():
+            break
+        result = resolve_audio(resource, staging, base_url=base_url)
+        results[resource["resource_id"]] = result
+        if progress_callback is not None:
+            progress_callback(index, resource, result)
+    return results
 
 
 def _deliver(record: Dict[str, Any], progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:

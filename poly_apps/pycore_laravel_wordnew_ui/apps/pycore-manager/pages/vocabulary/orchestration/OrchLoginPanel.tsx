@@ -26,7 +26,9 @@ const OrchLoginPanel: React.FC<{
     if (!auth?.logged_in) return;
     setGroupsLoading(true);
     void pycoreApi.orchWordGroups(true).then((status) => {
-      if (!cancelled) setGroupStatus(status);
+      if (cancelled) return;
+      setGroupStatus(status);
+      if (!status.success && status.error) setError(orchErrorMessage(status.error, ORCH_L.groupsLoadFailed));
     }).catch((failure) => {
       if (!cancelled) setError(orchErrorMessage(failure, ORCH_L.groupsLoadFailed));
     }).finally(() => { if (!cancelled) setGroupsLoading(false); });
@@ -34,12 +36,13 @@ const OrchLoginPanel: React.FC<{
   }, [auth?.logged_in, auth?.user?.id, auth?.logged_at]);
 
   const selectGroup = (groupId: string) => {
-    try {
-      setGroupStatus(pycoreApi.orchSelectWordGroup(groupId));
+    setGroupsLoading(true);
+    void pycoreApi.orchSelectWordGroup(groupId).then((status) => {
+      setGroupStatus(status);
       onChanged();
-    } catch (failure) {
+    }).catch((failure) => {
       setError(orchErrorMessage(failure, ORCH_L.groupsLoadFailed));
-    }
+    }).finally(() => setGroupsLoading(false));
   };
 
   const submit = async () => {

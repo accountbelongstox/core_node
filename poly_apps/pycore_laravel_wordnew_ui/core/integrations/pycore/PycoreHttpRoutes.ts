@@ -242,6 +242,8 @@ export const PYCORE_HTTP_ROUTES = {
   audioOrchAuthLogin: 'ui/audio_orch/auth/login',
   audioOrchAuthStatus: 'ui/audio_orch/auth/status',
   audioOrchAuthLogout: 'ui/audio_orch/auth/logout',
+  audioOrchAuthGroups: 'ui/audio_orch/auth/groups',
+  audioOrchAuthSelectGroup: 'ui/audio_orch/auth/select_group',
   audioOrchTasksList: 'ui/audio_orch/tasks/list',
   audioOrchTaskGet: 'ui/audio_orch/task/get',
   audioOrchTaskCreate: 'ui/audio_orch/task/create',

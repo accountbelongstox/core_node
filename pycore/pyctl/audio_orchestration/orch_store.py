@@ -133,6 +133,16 @@ def auth_token() -> str:
     return str(record.get("token") or "") if record else ""
 
 
+def update_auth(patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Merge fields into the stored auth record (word group cache/selection).
+    Returns the updated record, or None when logged out / the write failed."""
+    record = load_auth()
+    if record is None:
+        return None
+    record.update(patch or {})
+    return record if _write_json(base_dir() / _AUTH_FILE, record) else None
+
+
 # --------------------------------------------------------------------------- #
 # books list cache                                                             #
 # --------------------------------------------------------------------------- #
@@ -307,6 +317,7 @@ __all__ = [
     "load_auth",
     "clear_auth",
     "auth_token",
+    "update_auth",
     "save_books_cache",
     "load_books_cache",
     "save_book_sentences",

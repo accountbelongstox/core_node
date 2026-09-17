@@ -280,6 +280,10 @@ def start_generation(
         # regenerations keep using the same Word Group.
         task["word_group_id"] = str(word_group_id)
         orch_store.save_task(task)
+    elif not task.get("word_group_id") and auth_record.get("word_group_id"):
+        # Default to the pycore-side persisted baseline selection.
+        task["word_group_id"] = str(auth_record["word_group_id"])
+        orch_store.save_task(task)
     orch_resources.recover_deliveries()
     thread = threading.Thread(
         target=_run_generation,
@@ -418,16 +422,15 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
         f"manifest ready: {len(resources)} unique resources across {len(task['segments'])} segments",
     )
 
-    # Phase 2: resources — resolve every unique resource in pycore cache ->
-    # Laravel -> local generation order; newly generated clips sync back to
-    # Laravel through the durable delivery outbox.
+    # Phase 2: resources — local caches first in BATCH (orch_resources
+    # .resolve_batch), then Laravel / local generation for the misses only;
+    # newly generated clips sync back to Laravel through the durable delivery
+    # outbox.
     resolved: Dict[str, str] = {}
     resource_list = list(resources.values())
     resource_total = len(resource_list)
-    for resource_index, resource in enumerate(resource_list, 1):
-        if _cancel(task, stats):
-            return
-        result = orch_resources.resolve_audio(resource, staging, base_url=base_url)
+
+    def _resource_done(index: int, resource: Dict[str, Any], result: Dict[str, Any]) -> None:
         source = str(result.get("source") or "missing")
         if result.get("status") == "ready" and result.get("audio_path"):
             resolved[resource["resource_id"]] = str(result["audio_path"])
@@ -454,11 +457,21 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any]) -> None:
             ColorPrint.yellow(f"[AudioOrch] resource failed ({resource['kind']}: {resource['text'][:40]})")
         _progress(
             task, phase="resources",
-            message=f"resources: {resource_index}/{resource_total}",
-            resource_index=resource_index, resource_total=resource_total,
+            message=f"resources: {index}/{resource_total}",
+            resource_index=index, resource_total=resource_total,
             current_item=f"{resource['kind']}: {resource['text'][:60]} [{source}]",
             **stats,
         )
+
+    orch_resources.resolve_batch(
+        resource_list,
+        staging,
+        base_url=base_url,
+        cancel_requested=lambda: task_id in _CANCEL_REQUESTS,
+        progress_callback=_resource_done,
+    )
+    if _cancel(task, stats):
+        return
     orch_store.append_task_event(
         task,
         f"resources ready (cache={stats['cache_hits']} laravel={stats['laravel_hits']} "
