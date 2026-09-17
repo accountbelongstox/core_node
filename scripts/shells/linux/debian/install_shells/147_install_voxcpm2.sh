@@ -31,6 +31,26 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "${VOXCPM2_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 
+# --- Install method selection (native/docker), plan steps 16-17 ---
+# VoxCPM has no official container evidence (checked 2026-09); the supported set
+# is native-only, so the selector persists it directly without a countdown.
+if [[ "${VOXCPM2_SKIP:-0}" != "1" ]]; then
+    . "$SCRIPT_DIR/../../common/install_method_common.sh"
+    INSTALL_METHOD="$(install_method_select voxcpm2 \
+        --supported "native" \
+        --recommended native \
+        --recommendation-source "VoxCPM official repo documents native install only; no official container image - https://github.com/OpenBMB/VoxCPM" \
+        --default native --method "${TTS_METHOD:-}" ${TTS_METHOD_RESELECT:+--reselect})" || {
+        _method_rc=$?
+        if [[ $_method_rc -eq 10 ]]; then
+            echo "[voxcpm2] install method selection cancelled; nothing changed."
+            exit 0
+        fi
+        exit "$_method_rc"
+    }
+    install_method_record_backend voxcpm2 "$INSTALL_METHOD"
+fi
+
 resolve_python() {
     local p
     for p in "$PYTHON" python3 python; do

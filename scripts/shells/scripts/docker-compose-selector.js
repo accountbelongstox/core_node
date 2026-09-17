@@ -78,7 +78,11 @@ function getServices(composeData) {
 // Generate new compose file with selected services
 function generateComposeFile(composeData, selectedServices) {
   const newCompose = { ...composeData };
-  
+
+  // Compose Spec: the legacy top-level 'version' field is obsolete and must
+  // never leak into generated output (the docker compose plugin ignores it).
+  delete newCompose.version;
+
   newCompose.services = Object.fromEntries(
     Object.entries(composeData.services)
       .filter(([name]) => selectedServices.includes(name))

@@ -37,6 +37,35 @@ while [[ $# -gt 0 ]]; do
 done
 SERVER_URL="${SERVER_URL%/}"
 [[ "${COSYVOICE_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
+
+# --- Install method selection (native/docker), plan steps 16-17 ---
+# Per-engine choice; a saved valid choice is reused verbatim with no countdown.
+if [[ "${COSYVOICE_SKIP:-0}" != "1" ]]; then
+    . "$SCRIPT_DIR/../../common/install_method_common.sh"
+    INSTALL_METHOD="$(install_method_select cosyvoice \
+        --supported "native docker" \
+        --recommended native \
+        --recommendation-source "CosyVoice official repo installs natively (conda python=3.10); upstream also ships a docker/ runtime directory - https://github.com/FunAudioLLM/CosyVoice" \
+        --default native --method "${TTS_METHOD:-}" ${TTS_METHOD_RESELECT:+--reselect})" || {
+        _method_rc=$?
+        if [[ $_method_rc -eq 10 ]]; then
+            echo "[cosyvoice] install method selection cancelled; nothing changed."
+            exit 0
+        fi
+        exit "$_method_rc"
+    }
+    if [[ "$INSTALL_METHOD" == "docker" ]]; then
+        . "$SCRIPT_DIR/../../common/docker_prereq_common.sh"
+        if ! docker_prereq_ensure_for_engine cosyvoice "$SCRIPT_DIR"; then
+            echo "[cosyvoice][!] docker platform ensure failed (phase above); docker backend is not ready." >&2
+            exit 1
+        fi
+        install_method_record_backend cosyvoice docker
+        echo "[cosyvoice][i] docker platform ready; per-engine compose service assets are delivered by the compose generation step (tracked as pending)."
+        exit 0
+    fi
+    install_method_record_backend cosyvoice native
+fi
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
 
 resolve_python() {

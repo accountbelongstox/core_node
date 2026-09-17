@@ -1,311 +1,343 @@
 #!/bin/bash
-# Include common functions
+# AI SPECIAL ATTENTION RULES START
+# 1. All information output by scripts must be in English only.
+# 2. Do not modify AI SPECIAL ATTENTION RULES.
+# 3. Variables must be declared at the top of the script file.
+# AI SPECIAL ATTENTION RULES END
+#
+# 79_install_docker.sh - Docker Engine / CLI / Buildx / Compose ensure.
+# Route: the official Docker APT stable repository (deb822 .sources + signed-by
+# keyring), per https://docs.docker.com/engine/install/debian/ and
+# https://docs.docker.com/engine/install/ubuntu/ . Snap is never used.
+#
+# Idempotency is implemented PER MINIMAL OPERATION (plan step 16), not as a
+# single top-level gate:
+#   prereq packages -> keyring dir -> keyring file -> apt source -> apt update
+#   -> each docker package -> daemon enable -> daemon start -> readiness probe
+#   -> compose-plugin probe
+# Each stage converges its own resource and no-ops when already satisfied, so
+# re-runs are cheap and a mid-run failure only repeats the unfinished stages.
+#
+# START_DOCKER=false  -> report a plain skip and do nothing; a user's existing
+#                        Docker is NEVER stopped/disabled/killed by this script.
+# START_DOCKER=true   -> converge every component below.
+# Conflicting user-owned apt sources are reported (owner kept), never deleted.
+# An equivalent legacy docker.list is reused instead of duplicated.
+#
+# Actions:
+#   (default) / --ensure   converge missing components only
+#   --update               explicit user-requested upgrade of installed components
+
+SCRIPT_INDEX="79"
+export DEBIAN_FRONTEND=noninteractive
+export APT_LISTCHANGES_FRONTEND=none
+export DPKG_USE_PAGER=0
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-source "$COMMON_DIR/common_functions.sh"
+. "$SCRIPT_DIR/../../common/common_functions.sh"
+. "$SCRIPT_DIR/../../common/gvar_common.sh"
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
+ACTION="ensure"
+START_DOCKER="$(get_var "START_DOCKER" "false")"
 
-# Declare all variables at the beginning
-SCRIPT_CURRENT_DIR=""
-PARENT_DIR_LEVEL_1=""
-PARENT_DIR_LEVEL_2=""
-SCRIPT_INDEX="48"
-START_DOCKER=""
+# --- Resolved at runtime (declared at top per AI rules) ---
+OS_ID=""
+OS_ID_LIKE=""
+OS_CODENAME=""
+REPO_ID=""
+REPO_BASELINE_NOTE=""
+ARCH=""
+KEYRING_DIR="/etc/apt/keyrings"
+KEYRING_FILE="$KEYRING_DIR/docker.asc"
+SOURCES_FILE="/etc/apt/sources.list.d/docker.sources"
+LEGACY_LIST="/etc/apt/sources.list.d/docker.list"
+SOURCE_CHANGED=0
+APT_UPDATED=0
+PKG_MISSING=()
+PKG_INSTALLED=()
+PKG_UPGRADED=()
+DOCKER_PROVIDER_NOTE=""
+DAEMON_READY="false"
 
-# Source gvar_common.sh from parent directory
-SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
-PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+DOCKER_PACKAGES=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
+PREREQ_PACKAGES=(ca-certificates curl)
 
-# Source global variables
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --update) ACTION="update"; shift ;;
+        --ensure) ACTION="ensure"; shift ;;
+        *) shift ;;
+    esac
+done
 
-# Initialize variables
-SCRIPT_INDEX="48"
-START_DOCKER=$(get_var "START_DOCKER" "false")
-
-echo "[$SCRIPT_INDEX] Docker Management Script"
-echo "[$SCRIPT_INDEX] START_DOCKER: $START_DOCKER"
-
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+print_banner() {
+    echo ""
+    echo "============================================================"
+    echo " [$SCRIPT_INDEX] Docker Engine / CLI / Buildx / Compose ensure"
+    echo "============================================================"
 }
 
-# Function to check if Docker service is running
-is_docker_running() {
-    # Check standard docker service
-    if command_exists systemctl; then
-        if systemctl is-active --quiet docker 2>/dev/null; then
-            return 0
-        fi
-        # Check snap docker service
-        if systemctl is-active --quiet snap.docker.dockerd 2>/dev/null; then
-            return 0
-        fi
-    elif command_exists service; then
-        if service docker status >/dev/null 2>&1; then
-            return 0
-        fi
+resolve_os_repo() {
+    # Map /etc/os-release to the official Docker repo identity. Unknown
+    # distributions/codenames are reported and refused - never silently mapped
+    # to an older suite.
+    local id="" id_like="" codename="" ubuntu_codename=""
+    if [[ -r /etc/os-release ]]; then
+        id="$(. /etc/os-release && echo "${ID:-}")"
+        id_like="$(. /etc/os-release && echo "${ID_LIKE:-}")"
+        codename="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+        ubuntu_codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-}")"
     fi
+    OS_ID="$id"; OS_ID_LIKE="$id_like"
+    case "$id" in
+        debian)
+            REPO_ID="debian"; OS_CODENAME="$codename" ;;
+        ubuntu)
+            REPO_ID="ubuntu"; OS_CODENAME="${ubuntu_codename:-$codename}" ;;
+        kali)
+            # Kali is a Debian-testing derivative with no own Docker repo; the
+            # community-supported baseline is the current stable Debian suite.
+            REPO_ID="debian"; OS_CODENAME="trixie"
+            REPO_BASELINE_NOTE="Kali has no dedicated Docker repo; using the Debian 'trixie' baseline (community support level)."
+            ;;
+        *)
+            echo "[$SCRIPT_INDEX][!] Unsupported distro '$id' (ID_LIKE='$id_like')."
+            echo "[$SCRIPT_INDEX][!] Official Docker repos exist only for debian/ubuntu:"
+            echo "[$SCRIPT_INDEX][!]   https://download.docker.com/linux/<debian|ubuntu>/dists/"
+            return 1
+            ;;
+    esac
+    case "$REPO_ID:$OS_CODENAME" in
+        debian:trixie|debian:bookworm) ;;
+        ubuntu:resolute|ubuntu:questing|ubuntu:plucky|ubuntu:noble|ubuntu:jammy) ;;
+        *)
+            echo "[$SCRIPT_INDEX][!] No official Docker repo suite '$OS_CODENAME' for $REPO_ID."
+            echo "[$SCRIPT_INDEX][!] Verified suites (2026-09): debian trixie bookworm; ubuntu resolute questing plucky noble jammy."
+            echo "[$SCRIPT_INDEX][!] Check https://download.docker.com/linux/$REPO_ID/dists/ - this script will not guess a fallback."
+            return 1
+            ;;
+    esac
+    ARCH="$(dpkg --print-architecture 2>/dev/null || echo "")"
+    case "$ARCH" in
+        amd64|arm64|armhf|ppc64le|s390x) ;;
+        *)
+            echo "[$SCRIPT_INDEX][!] Unsupported architecture '$ARCH' for the official Docker APT repo."
+            return 1
+            ;;
+    esac
+    return 0
+}
 
-    # Check if dockerd process is running
-    if pgrep -x dockerd >/dev/null 2>&1; then
+ensure_prereq_packages() {
+    local pkg missing=()
+    for pkg in "${PREREQ_PACKAGES[@]}"; do
+        dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+    done
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        echo "[$SCRIPT_INDEX] Prereq packages present: ${PREREQ_PACKAGES[*]} (nothing to do)"
         return 0
     fi
+    echo "[$SCRIPT_INDEX] Installing prereq packages: ${missing[*]}"
+    apt-get update -qq
+    apt-get install -y --no-install-recommends "${missing[@]}"
+}
 
+ensure_keyring() {
+    local tmp=""
+    install -m 0755 -d "$KEYRING_DIR"
+    if [[ -s "$KEYRING_FILE" ]] && gpg --show-keys "$KEYRING_FILE" >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Keyring present and parseable: $KEYRING_FILE (nothing to do)"
+        return 0
+    fi
+    [[ -e "$KEYRING_FILE" ]] && echo "[$SCRIPT_INDEX] Keyring corrupt/unparseable; repairing: $KEYRING_FILE"
+    echo "[$SCRIPT_INDEX] Downloading Docker GPG key -> $KEYRING_FILE"
+    tmp="$(mktemp)"
+    curl -fsSL "https://download.docker.com/linux/$REPO_ID/gpg" -o "$tmp"
+    if ! gpg --show-keys "$tmp" >/dev/null 2>&1; then
+        rm -f "$tmp"
+        echo "[$SCRIPT_INDEX][!] Downloaded key failed gpg validation; not installed."
+        return 1
+    fi
+    mv -f "$tmp" "$KEYRING_FILE"
+    chmod a+r "$KEYRING_FILE"
+    SOURCE_CHANGED=1
+}
+
+expected_sources_content() {
+    cat <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/$REPO_ID
+Suites: $OS_CODENAME
+Components: stable
+Architectures: $ARCH
+Signed-By: $KEYRING_FILE
+EOF
+}
+
+ensure_apt_source() {
+    # Legacy docker.list handling: an equivalent user-owned source is reused;
+    # a conflicting one is reported with its owner kept (never auto-deleted).
+    if [[ -f "$LEGACY_LIST" ]]; then
+        if grep -q "download.docker.com/linux/$REPO_ID" "$LEGACY_LIST" && grep -q "$OS_CODENAME" "$LEGACY_LIST"; then
+            echo "[$SCRIPT_INDEX] Legacy $LEGACY_LIST already provides the identical repo; reusing it (no duplicate source written)."
+            return 0
+        fi
+        echo "[$SCRIPT_INDEX][!] $LEGACY_LIST exists but points elsewhere (user-owned; kept as-is):"
+        sed 's/^/    | /' "$LEGACY_LIST" 2>/dev/null || true
+        echo "[$SCRIPT_INDEX][!] Writing the official deb822 source alongside; resolve the duplicate manually if apt warns."
+    fi
+    local expected tmp
+    expected="$(expected_sources_content)"
+    if [[ -f "$SOURCES_FILE" ]] && [[ "$(cat "$SOURCES_FILE")" == "$expected" ]]; then
+        echo "[$SCRIPT_INDEX] APT source already converged: $SOURCES_FILE (nothing to do)"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] Writing official deb822 source: $SOURCES_FILE (repo=$REPO_ID suite=$OS_CODENAME arch=$ARCH)"
+    tmp="$(mktemp)"
+    printf '%s\n' "$expected" > "$tmp"
+    mv -f "$tmp" "$SOURCES_FILE"
+    chmod a+r "$SOURCES_FILE"
+    SOURCE_CHANGED=1
+}
+
+apt_update_if_changed() {
+    if [[ $SOURCE_CHANGED -eq 0 && $APT_UPDATED -eq 0 ]]; then
+        echo "[$SCRIPT_INDEX] Keyring/source unchanged; skipping apt update (idempotent)."
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] Repo metadata changed; running apt update."
+    apt-get update -qq
+    APT_UPDATED=1
+}
+
+ensure_docker_packages() {
+    local pkg
+    PKG_MISSING=(); PKG_INSTALLED=()
+    for pkg in "${DOCKER_PACKAGES[@]}"; do
+        if dpkg -s "$pkg" >/dev/null 2>&1; then
+            PKG_INSTALLED+=("$pkg")
+        else
+            PKG_MISSING+=("$pkg")
+        fi
+    done
+
+    # A docker binary provided by a non-docker-ce package (e.g. distro docker.io)
+    # is the user's choice: report it and do not fight the package manager.
+    if [[ ${#PKG_MISSING[@]} -gt 0 ]] && command -v docker >/dev/null 2>&1 && ! dpkg -s docker-ce >/dev/null 2>&1; then
+        DOCKER_PROVIDER_NOTE="$(dpkg -S "$(command -v docker)" 2>/dev/null | cut -d: -f1 || echo unknown)"
+        echo "[$SCRIPT_INDEX][i] docker binary already provided by package '$DOCKER_PROVIDER_NOTE' (not docker-ce); keeping the user package and skipping docker-ce installation."
+    fi
+
+    if [[ ${#PKG_MISSING[@]} -gt 0 && -z "$DOCKER_PROVIDER_NOTE" ]]; then
+        echo "[$SCRIPT_INDEX] Installing missing docker components: ${PKG_MISSING[*]}"
+        apt-get install -y "${PKG_MISSING[@]}" || {
+            echo "[$SCRIPT_INDEX][!] apt failed to install: ${PKG_MISSING[*]}"
+            return 1
+        }
+        APT_UPDATED=1
+    else
+        echo "[$SCRIPT_INDEX] Docker components already installed: ${PKG_INSTALLED[*]:-none via docker-ce}"
+    fi
+
+    if [[ "$ACTION" == "update" && ${#PKG_INSTALLED[@]} -gt 0 ]]; then
+        # Explicit user action only: --ensure never upgrades existing packages.
+        echo "[$SCRIPT_INDEX] --update requested; upgrading installed components: ${PKG_INSTALLED[*]}"
+        apt-get update -qq
+        apt-get install -y --only-upgrade "${PKG_INSTALLED[@]}"
+        PKG_UPGRADED=("${PKG_INSTALLED[@]}")
+    fi
+
+    echo "[$SCRIPT_INDEX] Component versions:"
+    for pkg in "${DOCKER_PACKAGES[@]}"; do
+        dpkg-query -W -f='    ${Package} ${Version}\n' "$pkg" 2>/dev/null || true
+    done
+    return 0
+}
+
+ensure_daemon_running() {
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]]; then
+        systemctl is-enabled docker >/dev/null 2>&1 || { echo "[$SCRIPT_INDEX] Enabling docker service."; systemctl enable docker; }
+        systemctl is-active  docker >/dev/null 2>&1 || { echo "[$SCRIPT_INDEX] Starting docker service."; systemctl start docker; }
+        # containerd has its own unit; ensure it only when the unit exists.
+        if systemctl list-unit-files containerd.service >/dev/null 2>&1; then
+            systemctl is-active containerd >/dev/null 2>&1 || systemctl start containerd || true
+        fi
+    elif command -v service >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] systemd not running (WSL/container?); trying 'service docker start'."
+        service docker start || true
+    fi
+    if timeout 15 docker info >/dev/null 2>&1; then
+        DAEMON_READY="true"
+        echo "[$SCRIPT_INDEX] Docker daemon is responding (docker info OK)."
+    else
+        DAEMON_READY="false"
+        echo "[$SCRIPT_INDEX][!] Docker daemon is not responding."
+        echo "[$SCRIPT_INDEX][!] On WSL, enable systemd (/etc/wsl.conf: [boot] systemd=true) or start dockerd manually, then re-run."
+        return 1
+    fi
+    return 0
+}
+
+verify_compose_plugin() {
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        set_var "DOCKER_COMPOSE_AVAILABLE" "true"
+        echo "[$SCRIPT_INDEX] Compose plugin available: $(docker compose version --short 2>/dev/null || echo unknown)"
+        return 0
+    fi
+    set_var "DOCKER_COMPOSE_AVAILABLE" "false"
+    echo "[$SCRIPT_INDEX][!] Compose plugin missing; expected package docker-compose-plugin (provides 'docker compose')."
     return 1
 }
 
-# Function to disable Docker services
-disable_docker_services() {
-    echo "[$SCRIPT_INDEX] Disabling Docker services..."
+print_banner
+echo "[$SCRIPT_INDEX] START_DOCKER=$START_DOCKER (toggle: [^] Start Docker After Installation)"
+echo "[$SCRIPT_INDEX] action=$ACTION"
 
-    # Stop Docker service if running
-    if is_docker_running; then
-        echo "[$SCRIPT_INDEX] Stopping Docker service..."
-
-        # Try to stop standard docker service
-        if systemctl is-active --quiet docker 2>/dev/null; then
-            echo "[$SCRIPT_INDEX] Stopping standard docker service..."
-            $USE_SUDO systemctl stop docker 2>/dev/null
-        fi
-
-        # Try to stop snap docker service
-        if systemctl is-active --quiet snap.docker.dockerd 2>/dev/null; then
-            echo "[$SCRIPT_INDEX] Stopping snap docker service..."
-            $USE_SUDO systemctl stop snap.docker.dockerd 2>/dev/null
-            $USE_SUDO snap stop docker 2>/dev/null || true
-        fi
-
-        # Kill any remaining dockerd processes
-        if pgrep -x dockerd >/dev/null 2>&1; then
-            echo "[$SCRIPT_INDEX] Killing remaining dockerd processes..."
-            $USE_SUDO pkill -TERM dockerd 2>/dev/null || true
-            sleep 2
-            # Force kill if still running
-            if pgrep -x dockerd >/dev/null 2>&1; then
-                $USE_SUDO pkill -9 dockerd 2>/dev/null || true
-            fi
-        fi
-
-        # Kill containerd processes
-        if pgrep -x containerd >/dev/null 2>&1; then
-            echo "[$SCRIPT_INDEX] Killing containerd processes..."
-            $USE_SUDO pkill -TERM containerd 2>/dev/null || true
-            sleep 1
-            if pgrep -x containerd >/dev/null 2>&1; then
-                $USE_SUDO pkill -9 containerd 2>/dev/null || true
-            fi
-        fi
-
-        sleep 1
-
-        if is_docker_running; then
-            echo "[$SCRIPT_INDEX] Warning: Failed to stop Docker service"
-        else
-            echo "[$SCRIPT_INDEX] Docker service stopped successfully"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] Docker service is not running"
-    fi
-
-    # Disable Docker service from auto-start
-    echo "[$SCRIPT_INDEX] Disabling Docker service from auto-start..."
-
-    # Disable standard docker
-    $USE_SUDO systemctl disable docker 2>/dev/null || true
-
-    # Disable snap docker
-    if command -v snap >/dev/null 2>&1; then
-        if snap list 2>/dev/null | grep -q "^docker "; then
-            echo "[$SCRIPT_INDEX] Disabling snap docker from auto-start..."
-            $USE_SUDO systemctl disable snap.docker.dockerd 2>/dev/null || true
-        fi
-    fi
-
-    # Disable Docker Compose service if exists
-    if command_exists systemctl; then
-        if systemctl list-unit-files | grep -q docker-compose; then
-            echo "[$SCRIPT_INDEX] Disabling Docker Compose service..."
-            $USE_SUDO systemctl stop docker-compose 2>/dev/null || true
-            $USE_SUDO systemctl disable docker-compose 2>/dev/null || true
-        fi
-    fi
-
-    echo "[$SCRIPT_INDEX] Docker services disabled successfully"
-}
-
-# Function to enable Docker services
-enable_docker_services() {
-    echo "[$SCRIPT_INDEX] Enabling Docker services..."
-    
-    # Enable Docker service for auto-start
-    echo "[$SCRIPT_INDEX] Enabling Docker service for auto-start..."
-    $USE_SUDO systemctl enable docker 2>/dev/null || $USE_SUDO update-rc.d docker enable 2>/dev/null
-    
-    # Start Docker service
-    echo "[$SCRIPT_INDEX] Starting Docker service..."
-    $USE_SUDO systemctl start docker 2>/dev/null || $USE_SUDO service docker start 2>/dev/null
-    
-    # Wait a moment for service to start
-    sleep 2
-    
-    if is_docker_running; then
-        echo "[$SCRIPT_INDEX] Docker service started successfully"
-    else
-        echo "[$SCRIPT_INDEX] Warning: Docker service may not have started properly"
-    fi
-}
-
-# Function: Remove docker.list if exists
-remove_docker_list_file() {
-    local docker_list="/etc/apt/sources.list.d/docker.list"
-    if [ -f "$docker_list" ]; then
-        echo "[$SCRIPT_INDEX] Found $docker_list, removing..."
-        $USE_SUDO rm -f "$docker_list"
-        if [ ! -f "$docker_list" ]; then
-            echo "[$SCRIPT_INDEX] Successfully removed $docker_list"
-        else
-            echo "[$SCRIPT_INDEX] Failed to remove $docker_list"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] $docker_list does not exist, nothing to remove."
-    fi
-}
-
-# Check if snap is installed
-check_snap() {
-    if command -v snap &>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# If docker is not installed, try to install with snap. If already installed, print version.
-install_docker_with_snap_if_needed() {
-    # Snap docker is discouraged on servers (confinement issues) and pulls snap bases.
-    # On a headless host skip the snap fallback; the apt/get-docker path covers servers.
-    # Force with ALLOW_SNAP_ON_SERVER=1.
-    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ] && [ "${ALLOW_SNAP_ON_SERVER:-0}" != "1" ]; then
-        echo "[$SCRIPT_INDEX] No desktop environment: skipping docker snap fallback (use apt/get-docker). Set ALLOW_SNAP_ON_SERVER=1 to force."
-        return 0
-    fi
-    if ! command -v docker &>/dev/null; then
-        echo "[$SCRIPT_INDEX] Docker is not installed, trying to install with snap..."
-        if check_snap; then
-            $USE_SUDO snap install docker
-            if command -v docker &>/dev/null; then
-                echo "[$SCRIPT_INDEX] Docker was successfully installed via snap. Version: $(docker --version)"
-            else
-                echo "[$SCRIPT_INDEX] Failed to install docker with snap."
-            fi
-        else
-            echo "[$SCRIPT_INDEX] Snap is not installed. Please install snapd to use snap for docker installation."
-        fi
-    else
-        echo "[$SCRIPT_INDEX] Docker is already installed. Version: $(docker --version)"
-    fi
-}
-
-# If docker-compose is not installed, try to install with snap. If already installed, print version.
-install_docker_compose_with_snap_if_needed() {
-    # See install_docker_with_snap_if_needed: skip the snap fallback on a headless host.
-    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ] && [ "${ALLOW_SNAP_ON_SERVER:-0}" != "1" ]; then
-        echo "[$SCRIPT_INDEX] No desktop environment: skipping docker-compose snap fallback (use apt/get-docker). Set ALLOW_SNAP_ON_SERVER=1 to force."
-        return 0
-    fi
-    if ! command -v docker-compose &>/dev/null; then
-        echo "[$SCRIPT_INDEX] Docker Compose is not installed, trying to install with snap..."
-        if check_snap; then
-            $USE_SUDO snap install docker
-            # snap's docker-compose may be at /snap/bin/docker-compose
-            if command -v docker-compose &>/dev/null || [ -x "/snap/bin/docker-compose" ]; then
-                if command -v docker-compose &>/dev/null; then
-                    echo "[$SCRIPT_INDEX] Docker Compose was successfully installed via snap. Version: $(docker-compose --version)"
-                else
-                    echo "[$SCRIPT_INDEX] Docker Compose was installed at /snap/bin/docker-compose. Version: $(/snap/bin/docker-compose --version)"
-                fi
-            else
-                echo "[$SCRIPT_INDEX] Failed to install docker-compose with snap."
-            fi
-        else
-            echo "[$SCRIPT_INDEX] Snap is not installed. Please install snapd to use snap for docker-compose installation."
-        fi
-    else
-        echo "[$SCRIPT_INDEX] Docker Compose is already installed. Version: $(docker-compose --version)"
-    fi
-}
-
-# Main execution logic
-echo "[$SCRIPT_INDEX] === Docker Management ==="
-
-# Remove docker.list file regardless of installation status
-remove_docker_list_file
-
-# Configure based on START_DOCKER variable
-if [ "$START_DOCKER" = "true" ]; then
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_DOCKER is true - Installing and starting Docker..."
-    echo "[$SCRIPT_INDEX] ============================================"
-
-    # Install Docker if not present
-    install_docker_with_snap_if_needed
-    install_docker_compose_with_snap_if_needed
-
-    # Enable and start services
-    enable_docker_services
-
-    # Set global variables
-    set_var "DOCKER_AVAILABLE" "true"
-    set_var "DOCKER_ENABLED" "true"
-
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] Docker is installed and running"
-    echo "[$SCRIPT_INDEX] ============================================"
-else
-    echo "[$SCRIPT_INDEX] ============================================"
-    echo "[$SCRIPT_INDEX] START_DOCKER is false - Skipping Docker installation"
-    echo "[$SCRIPT_INDEX] ============================================"
-
-    # If Docker is already installed, stop and disable it
-    if command_exists docker; then
-        echo "[$SCRIPT_INDEX] Docker is already installed, stopping and disabling services..."
-        disable_docker_services
-
-        # Set global variables
+if [[ "$START_DOCKER" != "true" ]]; then
+    echo "[$SCRIPT_INDEX] Docker disabled via START_DOCKER -> skip. An existing Docker installation is left untouched (never stopped/disabled by this script)."
+    if command -v docker >/dev/null 2>&1; then
         set_var "DOCKER_AVAILABLE" "true"
-        set_var "DOCKER_ENABLED" "false"
-
-        echo "[$SCRIPT_INDEX] ============================================"
-        echo "[$SCRIPT_INDEX] Docker is installed but stopped and disabled"
-        echo "[$SCRIPT_INDEX] ============================================"
     else
-        echo "[$SCRIPT_INDEX] Docker is not installed and will not be installed"
-
-        # Set global variables
         set_var "DOCKER_AVAILABLE" "false"
-        set_var "DOCKER_ENABLED" "false"
-
-        echo "[$SCRIPT_INDEX] ============================================"
-        echo "[$SCRIPT_INDEX] Docker skipped"
-        echo "[$SCRIPT_INDEX] ============================================"
     fi
+    set_var "DOCKER_ENABLED" "false"
+    exit 0
 fi
 
-echo "[$SCRIPT_INDEX] Docker configuration completed"
+if [[ $EUID -ne 0 ]]; then
+    echo "[$SCRIPT_INDEX][!] Root privileges required to ensure docker components."
+    exit 1
+fi
 
-echo "[$SCRIPT_INDEX] Docker Management Script completed"
+resolve_os_repo || exit 1
+[[ -n "$REPO_BASELINE_NOTE" ]] && echo "[$SCRIPT_INDEX][i] $REPO_BASELINE_NOTE"
+echo "[$SCRIPT_INDEX] repo=$REPO_ID suite=$OS_CODENAME arch=$ARCH"
 
+ensure_prereq_packages || exit 1
+ensure_keyring         || exit 1
+ensure_apt_source      || exit 1
+apt_update_if_changed  || exit 1
+ensure_docker_packages || exit 1
+ensure_daemon_running  || exit 1
+
+# State is per-component and additive; never written before its phase passed.
+if command -v docker >/dev/null 2>&1; then
+    set_var "DOCKER_AVAILABLE" "true"
+else
+    set_var "DOCKER_AVAILABLE" "false"
+fi
+if [[ "$DAEMON_READY" == "true" ]]; then
+    set_var "DOCKER_ENABLED" "true"
+else
+    set_var "DOCKER_ENABLED" "false"
+fi
+verify_compose_plugin || true
+
+echo ""
+echo "[$SCRIPT_INDEX] Docker ensure complete."
+echo "  - repo        : https://download.docker.com/linux/$REPO_ID (suite $OS_CODENAME)"
+[[ -n "$DOCKER_PROVIDER_NOTE" ]] && echo "  - provider    : user package '$DOCKER_PROVIDER_NOTE' (kept)"
+echo "  - daemon ready: $DAEMON_READY"
+echo "  - compose     : $(get_var "DOCKER_COMPOSE_AVAILABLE" "false")"
+echo "  - update mode : $ACTION"
+exit 0

@@ -25,6 +25,11 @@
 
 INSTALL_METHOD_CONFIG_VERSION="1"
 
+# Self-sufficient state store: source gvar_common.sh when the caller has not.
+if ! declare -F get_var >/dev/null 2>&1; then
+    . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gvar_common.sh"
+fi
+
 _install_method_key() {
     local engine="$1" suffix="$2" upper
     upper="$(printf '%s' "$engine" | tr '[:lower:]' '[:upper:]')"
@@ -190,6 +195,16 @@ install_method_select() {
             return 0
         fi
         echo "[install-method] saved method '$saved' for $engine is no longer supported ($supported); re-selecting." >&2
+    fi
+
+    # 2b) Single-option engines: no meaningful choice exists, so the only
+    # supported backend is persisted directly (no countdown noise).
+    local option_count=0 option_item=""
+    for option_item in $supported; do option_count=$((option_count + 1)); done
+    if [[ $option_count -eq 1 && $reselect -eq 0 ]]; then
+        _install_method_persist "$engine" "$default_backend" "timeout_default" "$supported"
+        printf '%s' "$default_backend"
+        return 0
     fi
 
     # 3) First selection (or reselect): 20s monotonic countdown on /dev/tty.
