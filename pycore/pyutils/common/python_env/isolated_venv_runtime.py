@@ -18,6 +18,8 @@ from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 from pycore.pyutils.common.python_env.runtime_policy import (
     engine_compatibility,
     engine_fingerprint,
+    engine_isolation_mode,
+    resolve_engine_base_python,
     engine_spec,
 )
 
@@ -64,16 +66,65 @@ def _python_version_tag() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
-def venv_dir(engine: str) -> Path:
+def _self_contained(engine: str) -> bool:
+    return engine_isolation_mode(engine) == "self_contained"
+
+
+def venv_dir(engine: str, version_tag: Optional[str] = None) -> Path:
+    tag = str(version_tag or "").strip() or _python_version_tag()
     return get_lang_compiler_dir() / (
-        f"{_VENV_PREFIX}{engine}_{_python_version_tag()}"
+        f"{_VENV_PREFIX}{engine}_{tag}"
     )
 
 
+def _find_existing_venv_python(engine: str) -> Optional[Path]:
+    """Locate an already-created venv for one engine across any ABI tag.
+
+    Self-contained venvs are tagged with their BASE interpreter version (e.g.
+    3.10) while the managing host may be 3.13, so the tag cannot be derived
+    from the host; discovery scans the versioned directories instead.
+    """
+    root = get_lang_compiler_dir()
+    try:
+        candidates = sorted(root.glob(f"{_VENV_PREFIX}{engine}_*"))
+    except OSError:
+        return None
+    for candidate in candidates:
+        python_path = (
+            candidate / "Scripts" / "python.exe"
+            if sys.platform == "win32"
+            else candidate / "bin" / "python3"
+        )
+        if python_path.is_file():
+            return python_path
+    return None
+
+
+def _engine_venv_dir(engine: str) -> Optional[Path]:
+    """Return the venv directory of an existing engine venv, if present."""
+    if _self_contained(engine):
+        python_path = _find_existing_venv_python(engine)
+        if python_path is None:
+            return None
+        return python_path.parent.parent
+    return venv_dir(engine)
+
+
 def _venv_python_path(engine: str) -> Path:
+    if _self_contained(engine):
+        existing = _find_existing_venv_python(engine)
+        if existing is not None:
+            return existing
+        # Not yet created: report the deterministic target path for the
+        # recommended base version (creation computes the real tag from the
+        # resolved base interpreter and passes it explicitly).
+        recommended = str(engine_spec(engine).get("python_recommended") or "")
+        base_dir = venv_dir(engine, recommended or None)
+    else:
+        base_dir = venv_dir(engine)
     if sys.platform == "win32":
-        return venv_dir(engine) / "Scripts" / "python.exe"
-    return venv_dir(engine) / "bin" / "python3"
+        return base_dir / "Scripts" / "python.exe"
+    return base_dir / "bin" / "python3"
 
 
 def _override_env(engine: str) -> str:
@@ -88,10 +139,16 @@ def _same_interpreter(first: str, second: str) -> bool:
 
 
 def resolve_python(engine: str) -> Optional[str]:
-    """Resolve a pre-built isolated interpreter without installing anything."""
-    override = (os.environ.get(_override_env(engine)) or "").strip()
-    if override and Path(override).is_file() and not _same_interpreter(override, sys.executable):
-        return override
+    """Resolve a pre-built isolated interpreter without installing anything.
+
+    For self-contained engines the <ENGINE>_PYTHON override means the BASE
+    interpreter for venv creation (consumed by ensure_venv), never the
+    runtime interpreter itself, so only the venv's own python is returned.
+    """
+    if not _self_contained(engine):
+        override = (os.environ.get(_override_env(engine)) or "").strip()
+        if override and Path(override).is_file() and not _same_interpreter(override, sys.executable):
+            return override
     python_path = _venv_python_path(engine)
     if python_path.is_file():
         return str(python_path)
@@ -102,22 +159,46 @@ def venv_ready(engine: str) -> bool:
     return resolve_python(engine) is not None
 
 
-def _subprocess_env(executable: str) -> dict:
+def _subprocess_env(executable: str, clean: bool = False) -> dict:
     env = os.environ.copy()
     executable_dir = str(Path(executable).resolve().parent)
     current_path = env.get("PATH", "")
     env["PATH"] = os.pathsep.join(
         part for part in (executable_dir, current_path) if part
     )
+    if clean:
+        # Self-contained subprocesses must not inherit host package paths:
+        # PYTHONPATH/PYTHONHOME would leak the 3.13 site-packages into a 3.10
+        # engine venv, and user site-packages shadow pinned engine versions.
+        env.pop("PYTHONPATH", None)
+        env.pop("PYTHONHOME", None)
+        env["PYTHONNOUSERSITE"] = "1"
     return env
+
+
+def _is_self_contained_venv_python(executable: str) -> bool:
+    """Return whether the executable lives in a self-contained engine venv."""
+    try:
+        path = Path(executable).resolve()
+    except OSError:
+        return False
+    marker = path.parent.parent.name or ""
+    if not marker.startswith(_VENV_PREFIX):
+        return False
+    engine = marker[len(_VENV_PREFIX):].rsplit("_", 1)[0]
+    return _self_contained(engine)
 
 
 def _run(
     argv: Sequence[str],
     extra_env: Optional[dict] = None,
+    clean: bool = False,
 ) -> bool:
     try:
-        command_env = _subprocess_env(str(argv[0]))
+        executable = str(argv[0])
+        if not clean:
+            clean = _is_self_contained_venv_python(executable)
+        command_env = _subprocess_env(executable, clean=clean)
         if extra_env:
             command_env.update(extra_env)
         ColorPrint.blue(f"[isolated-venv] {' '.join(str(item) for item in argv)}")
@@ -484,12 +565,14 @@ def _compatible(engine: str, python_exe: str) -> bool:
     return False
 
 
-def _stamp_path(engine: str) -> Path:
-    return venv_dir(engine) / _STAMP_NAME
+def _stamp_path(engine: str) -> Optional[Path]:
+    base = _engine_venv_dir(engine)
+    return base / _STAMP_NAME if base is not None else None
 
 
-def _health_failure_path(engine: str) -> Path:
-    return venv_dir(engine) / _HEALTH_FAILURE_NAME
+def _health_failure_path(engine: str) -> Optional[Path]:
+    base = _engine_venv_dir(engine)
+    return base / _HEALTH_FAILURE_NAME if base is not None else None
 
 
 def _record_health_failure(engine: str) -> None:
@@ -501,6 +584,8 @@ def _record_health_failure(engine: str) -> None:
     # pip and rerun the health probes. If the rebuilt venv still fails, print
     # this plan and the failing probe so an AI operator can apply it safely.
     path = _health_failure_path(engine)
+    if path is None:
+        return
     try:
         count = int(path.read_text(encoding="utf-8-sig").strip() or "0") + 1
     except (OSError, ValueError):
@@ -517,14 +602,42 @@ def _record_health_failure(engine: str) -> None:
 
 
 def _clear_health_failure(engine: str) -> None:
+    path = _health_failure_path(engine)
+    if path is None:
+        return
     try:
-        _health_failure_path(engine).unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
     except OSError:
         pass
 
 
-def _base_identity_stamp_path(engine: str) -> Path:
-    return venv_dir(engine) / _BASE_IDENTITY_STAMP_NAME
+def _base_identity_stamp_path(engine: str) -> Optional[Path]:
+    base = _engine_venv_dir(engine)
+    return base / _BASE_IDENTITY_STAMP_NAME if base is not None else None
+
+
+def _base_interpreter_identity_for(python_exe: str) -> str:
+    """Return the base-interpreter identity probed from an arbitrary binary."""
+    code = (
+        "import pathlib, sys\n"
+        "base = getattr(sys, '_base_executable', None) or sys.executable\n"
+        "print('|'.join((str(pathlib.Path(base).resolve()), "
+        "sys.implementation.name, sys.implementation.cache_tag or '', str(sys.maxsize))))\n"
+    )
+    try:
+        result = subprocess.run(
+            [python_exe, "-c", code],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return ""
+    if result.returncode != 0:
+        return ""
+    return (result.stdout or "").strip()
 
 
 def _venv_interpreter_identity(engine: str) -> str:
@@ -555,12 +668,18 @@ def _venv_interpreter_identity(engine: str) -> str:
     return result.stdout.strip()
 
 
-def _base_identity_matches(engine: str) -> bool:
-    current_identity = _base_interpreter_identity()
+def _base_identity_matches(
+    engine: str,
+    expected_identity: Optional[str] = None,
+) -> bool:
+    current_identity = expected_identity or _base_interpreter_identity()
+    stamp_path = _base_identity_stamp_path(engine)
+    if stamp_path is None:
+        return False
     stored_identity = ""
 
     try:
-        stored_identity = _base_identity_stamp_path(engine).read_text(
+        stored_identity = stamp_path.read_text(
             encoding="utf-8-sig"
         ).strip()
     except OSError:
@@ -572,15 +691,18 @@ def _base_identity_matches(engine: str) -> bool:
     # interpreter. A missing migration stamp is not evidence of a stale venv.
     if _venv_interpreter_identity(engine) != current_identity:
         return False
-    _write_base_identity(engine)
+    _write_base_identity(engine, identity=current_identity)
     ColorPrint.blue(f"[isolated-venv] adopted existing {engine} venv identity in place")
     return True
 
 
-def _write_base_identity(engine: str) -> None:
+def _write_base_identity(engine: str, identity: Optional[str] = None) -> None:
+    stamp_path = _base_identity_stamp_path(engine)
+    if stamp_path is None:
+        return
     try:
-        _base_identity_stamp_path(engine).write_text(
-            _base_interpreter_identity(),
+        stamp_path.write_text(
+            identity or _base_interpreter_identity(),
             encoding="utf-8",
         )
     except OSError as exc:
@@ -590,44 +712,73 @@ def _write_base_identity(engine: str) -> None:
         )
 
 
-def _venv_fingerprint(engine: str) -> str:
+def _venv_fingerprint(engine: str, identity: Optional[str] = None) -> str:
     payload = "|".join(
         (
             engine_fingerprint(engine),
-            _base_interpreter_identity(),
+            identity or _base_interpreter_identity(),
         )
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _stamp_matches(engine: str) -> bool:
+def _stamp_matches(engine: str, identity: Optional[str] = None) -> bool:
+    stamp_path = _stamp_path(engine)
+    if stamp_path is None:
+        return False
     try:
-        stored = _stamp_path(engine).read_text(
+        stored = stamp_path.read_text(
             encoding="utf-8-sig"
         ).strip()
-        return stored == _venv_fingerprint(engine)
+        return stored == _venv_fingerprint(engine, identity=identity)
     except OSError:
         return False
 
 
-def _write_stamp(engine: str) -> None:
+def _write_stamp(engine: str, identity: Optional[str] = None) -> None:
+    stamp_path = _stamp_path(engine)
+    if stamp_path is None:
+        return
     try:
-        _stamp_path(engine).write_text(
-            _venv_fingerprint(engine),
+        stamp_path.write_text(
+            _venv_fingerprint(engine, identity=identity),
             encoding="utf-8",
         )
     except OSError as exc:
         ColorPrint.yellow(f"[isolated-venv] could not write policy stamp: {exc}")
 
 
-def _create_venv(engine: str) -> bool:
-    target = venv_dir(engine)
-    target.parent.mkdir(parents=True, exist_ok=True)
+def _create_venv(
+    engine: str,
+    base_python: Optional[str] = None,
+    target: Optional[Path] = None,
+) -> bool:
+    """Create the engine venv.
+
+    Overlay mode (legacy): host interpreter + --system-site-packages.
+    Self-contained mode: the resolved BASE interpreter builds the venv with no
+    host package sharing, so a 3.13 host can manage a 3.10 engine venv.
+    """
+    if _self_contained(engine):
+        if not base_python or target is None:
+            ColorPrint.yellow(
+                f"[isolated-venv] {engine} self-contained creation requires "
+                "a resolved base interpreter and explicit target directory"
+            )
+            return False
+        target.parent.mkdir(parents=True, exist_ok=True)
+        ColorPrint.blue(
+            f"[isolated-venv] creating self-contained venv (base: {base_python}, "
+            f"no host package sharing) at {target} ..."
+        )
+        return _run([str(base_python), "-m", "venv", str(target)], clean=True)
+    target_dir = target or venv_dir(engine)
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
     ColorPrint.blue(
         "[isolated-venv] creating shared-runtime overlay "
-        f"(--system-site-packages) at {target} ..."
+        f"(--system-site-packages) at {target_dir} ..."
     )
-    return _run([sys.executable, "-m", "venv", "--system-site-packages", str(target)])
+    return _run([sys.executable, "-m", "venv", "--system-site-packages", str(target_dir)])
 
 
 
@@ -635,6 +786,7 @@ def _create_venv(engine: str) -> bool:
 __all__ = [
     "MAIN_INTERPRETER",
     "_base_identity_matches",
+    "_base_interpreter_identity_for",
     "_broken_distribution_specs",
     "_clear_health_failure",
     "_compatible",
@@ -642,6 +794,8 @@ __all__ = [
     "_create_venv",
     "_cuda_probe_required",
     "_default_health_imports",
+    "_engine_venv_dir",
+    "_find_existing_venv_python",
     "_gpu_required_probe",
     "_interpreter_version",
     "_override_env",
@@ -652,6 +806,7 @@ __all__ = [
     "_run_cuda_probe",
     "_run_health_step",
     "_same_interpreter",
+    "_self_contained",
     "_stamp_matches",
     "_subprocess_env",
     "_venv_healthy",

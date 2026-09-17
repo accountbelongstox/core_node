@@ -55,6 +55,16 @@ def policy_csv(name: str) -> Tuple[str, ...]:
 
 POLICY_VERSION = policy_value("AI_POLICY_VERSION", "0")
 PYTHON_VERSION = policy_value("AI_PYTHON_VERSION", "3.13")
+# Dedicated 3.10 interpreter for the five self-contained TTS engines. This is
+# registered independently of the default host interpreter (PYTHON_VERSION).
+PYTHON310_VERSION = policy_value("AI_PYTHON310_VERSION", "3.10")
+
+# Isolation modes for managed engine environments. "overlay" reuses the host
+# site-packages (--system-site-packages, legacy behavior); "self_contained"
+# builds the venv from a dedicated base interpreter without host package
+# sharing (required when host and engine ABIs differ).
+ISOLATION_MODE_OVERLAY = "overlay"
+ISOLATION_MODE_SELF_CONTAINED = "self_contained"
 SHARED_TRANSFORMERS_SPEC = policy_value(
     "AI_SHARED_TRANSFORMERS_SPEC",
     "transformers",
@@ -162,6 +172,9 @@ __all__ = [
     "PADDLE_INDEX_BASE",
     "POLICY_VERSION",
     "PYTHON_VERSION",
+    "PYTHON310_VERSION",
+    "ISOLATION_MODE_OVERLAY",
+    "ISOLATION_MODE_SELF_CONTAINED",
     "SHARED_TRANSFORMERS_SPEC",
     "TORCH_CPU_INDEX",
     "TORCH_INDEX_BASE",

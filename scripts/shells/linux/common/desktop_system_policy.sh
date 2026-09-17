@@ -46,48 +46,55 @@ configure_gnome_desktop() {
     
     info "Configuring GNOME for user: $desktop_user"
     
-    # Disable screen lock (compatible with Ubuntu 24.04, 26.04, and GNOME 50)
+    # Disable screen lock (compatible with Ubuntu 24.04, 26.04, Debian 13 / GNOME 48).
+    # All keys verified against the live GNOME schema; idle-delay is uint32.
+    # Writability check first: power_disable_gnome_blanking() ships SYSTEM-WIDE
+    # dconf locks for the screensaver/session keys (/etc/dconf/db/local.d/locks),
+    # which makes per-user writes fail with "The key is not writable" - those keys
+    # are already enforced for every user, so skip them instead of warning.
+    # gset() runs via runuser/sudo -u with the user's session bus (falls back to a
+    # private dbus-run-session) - the old `$USE_SUDO -u` emitted a bare `-u` when
+    # running as root, which is why every set failed.
     if command -v gsettings >/dev/null 2>&1; then
-        local user_id=$(id -u "$desktop_user" 2>/dev/null)
-        local dbus_address="unix:path=/run/user/$user_id/bus"
-        
-        # Try to get DBUS_SESSION_BUS_ADDRESS from user's environment (works for both X11 and Wayland)
-        if [ -S "/run/user/$user_id/bus" ]; then
-            dbus_address="unix:path=/run/user/$user_id/bus"
-        fi
-        
-        # Method 1: Complete lock screen disable (Ubuntu 24.04+, GNOME 50 compatible)
-        info "Disabling lock screen completely..."
-        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.lockdown disable-lock-screen true 2>/dev/null || \
-        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.lockdown disable-lock-screen true 2>/dev/null || \
-        warning "Failed to disable lock screen via lockdown (may not be available in all GNOME versions)"
-        
-        # Method 2: Disable automatic screen lock (fallback method, works on all GNOME versions)
+        gnome_set_if_writable() {
+            local schema="$1" key="$2" value="$3"
+            if [ "$(gsettings writable "$schema" "$key" 2>/dev/null)" = "true" ]; then
+                gset "$desktop_user" "$schema" "$key" "$value"
+            else
+                info "$schema $key is locked system-wide (dconf) - value already enforced"
+            fi
+        }
+
+        # Disable automatic screen lock
         info "Disabling automatic screen lock..."
-        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || \
-        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.screensaver lock-enabled false 2>/dev/null || \
-        warning "Failed to disable screen lock (may need to run from desktop session)"
-        
-        # Disable idle delay (prevent screen from going idle)
+        gnome_set_if_writable org.gnome.desktop.screensaver lock-enabled false || \
+            warning "Failed to disable screen lock (may need to run from desktop session)"
+
+        # Disable idle delay (prevent screen from going idle); key type is uint32
         info "Disabling idle delay..."
-        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.session idle-delay 0 2>/dev/null || \
-        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.session idle-delay 0 2>/dev/null || \
-        warning "Failed to disable idle delay (may need to run from desktop session)"
-        
+        gnome_set_if_writable org.gnome.desktop.session idle-delay "uint32 0" || \
+            warning "Failed to disable idle delay (may need to run from desktop session)"
+
         # Disable screensaver idle activation
         info "Disabling screensaver idle activation..."
-        $USE_SUDO -u "$desktop_user" env DBUS_SESSION_BUS_ADDRESS="$dbus_address" gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null || \
-        $USE_SUDO -u "$desktop_user" gsettings set org.gnome.desktop.screensaver idle-activation-enabled false 2>/dev/null || \
-        warning "Failed to disable screensaver idle activation"
+        gnome_set_if_writable org.gnome.desktop.screensaver idle-activation-enabled false || \
+            warning "Failed to disable screensaver idle activation"
+
+        # Complete lock screen disable - LAST (GNOME lockdown semantics make the
+        # screensaver lock keys read-only once this is true)
+        info "Disabling lock screen completely..."
+        gnome_set_if_writable org.gnome.desktop.lockdown disable-lock-screen true || \
+            warning "Failed to disable lock screen via lockdown (may not be available in all GNOME versions)"
     else
         warning "gsettings command not found, skipping GNOME configuration"
         return 1
     fi
     
-    # Set high performance power profile
+    # Set high performance power profile. Bounded by timeout: powerprofilesctl is
+    # a Python script and wedges forever if the system interpreter is broken.
     if command -v powerprofilesctl >/dev/null 2>&1; then
         info "Setting power profile to performance mode..."
-        if $USE_SUDO powerprofilesctl set performance 2>/dev/null; then
+        if timeout 20 $USE_SUDO powerprofilesctl set performance 2>/dev/null; then
             log "Power profile set to performance mode"
         else
             warning "Failed to set power profile to performance mode (may require system-level configuration)"
@@ -134,7 +141,7 @@ configure_kde_desktop() {
     fi
     
     info "Disabling screen lock in KDE..."
-    $USE_SUDO -u "$desktop_user" mkdir -p "$kde_config_dir" 2>/dev/null || true
+    run_as_user_plain "$desktop_user" mkdir -p "$kde_config_dir" 2>/dev/null || true
 
     # Prefer KDE's own group-aware writer (kwriteconfig6 for Plasma 6, kwriteconfig5
     # for Plasma 5): it guarantees keys land in the right [group] and is idempotent,
@@ -144,25 +151,25 @@ configure_kde_desktop() {
     local kw=""
     kw="$(command -v kwriteconfig6 2>/dev/null || command -v kwriteconfig5 2>/dev/null || true)"
     if [ -n "$kw" ]; then
-        $USE_SUDO -u "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key Autolock false 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key LockOnResume false 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Enabled false 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Lock false 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key Autolock false 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key LockOnResume false 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Enabled false 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Lock false 2>/dev/null || true
         # PowerDevil on AC: never turn off the display, never suspend the session.
         # Key names per KDE docs/bugs (bugs.kde.org #520940); keys unknown to the
         # installed Plasma version are simply ignored, so Plasma 5 and 6 both work.
-        $USE_SUDO -u "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group Display --key TurnOffDisplayWhenIdle false 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group Display --key TurnOffDisplayIdleTimeoutSec 0 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group SuspendSession --key idleTime 0 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group Display --key TurnOffDisplayWhenIdle false 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group Display --key TurnOffDisplayIdleTimeoutSec 0 2>/dev/null || true
+        run_as_user_plain "$desktop_user" "$kw" --file powermanagementprofilesrc --group AC --group SuspendSession --key idleTime 0 2>/dev/null || true
     elif [ -f "$screensaver_config" ] && grep -q "^\[ScreenSaver\]" "$screensaver_config" 2>/dev/null; then
         # Section exists: update IN PLACE, scoped to [ScreenSaver] (idempotent).
-        $USE_SUDO -u "$desktop_user" sed -i \
+        run_as_user_plain "$desktop_user" sed -i \
             -e '/^\[ScreenSaver\]/,/^\[/{s/^Enabled=.*/Enabled=false/; s/^Lock=.*/Lock=false/}' \
             "$screensaver_config" 2>/dev/null || true
     else
         # No section yet: write a fresh [ScreenSaver] block once.
         printf '[ScreenSaver]\nEnabled=false\nLock=false\n' \
-            | $USE_SUDO -u "$desktop_user" tee -a "$screensaver_config" >/dev/null 2>&1 || true
+            | run_as_user_plain "$desktop_user" tee -a "$screensaver_config" >/dev/null 2>&1 || true
     fi
     $USE_SUDO chown "$desktop_user:$desktop_user" "$kde_config_dir" 2>/dev/null || true
     
@@ -174,13 +181,13 @@ configure_kde_desktop() {
     # Configure Plasma 6.0+ powerdevilrc
     if [ -f "$powerdevil_config" ]; then
         info "Configuring KDE power management (Plasma 6.0+)..."
-        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTime=.*/idleTime=36000000/' "$powerdevil_config" 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTimeDim=.*/idleTimeDim=36000000/' "$powerdevil_config" 2>/dev/null || true
+        run_as_user_plain "$desktop_user" sed -i 's/^idleTime=.*/idleTime=36000000/' "$powerdevil_config" 2>/dev/null || true
+        run_as_user_plain "$desktop_user" sed -i 's/^idleTimeDim=.*/idleTimeDim=36000000/' "$powerdevil_config" 2>/dev/null || true
     # Fallback to legacy config for older Plasma versions
     elif [ -f "$powerdevil_legacy_config" ]; then
         info "Configuring KDE power management (Plasma 5.x)..."
-        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTime=.*/idleTime=36000000/' "$powerdevil_legacy_config" 2>/dev/null || true
-        $USE_SUDO -u "$desktop_user" sed -i 's/^idleTimeDim=.*/idleTimeDim=36000000/' "$powerdevil_legacy_config" 2>/dev/null || true
+        run_as_user_plain "$desktop_user" sed -i 's/^idleTime=.*/idleTime=36000000/' "$powerdevil_legacy_config" 2>/dev/null || true
+        run_as_user_plain "$desktop_user" sed -i 's/^idleTimeDim=.*/idleTimeDim=36000000/' "$powerdevil_legacy_config" 2>/dev/null || true
     fi
     
     log "KDE desktop configuration completed"
@@ -214,6 +221,31 @@ resolve_desktop_user() {
     return 0
 }
 
+# Run a plain command AS the given user (no session bus): file writes, config
+# edits. Uses runuser when root, sudo -u otherwise; never emits a bare `-u`
+# (USE_SUDO is empty when running as root).
+run_as_user_plain() {
+    local user="$1"
+    shift
+    local home=""
+    home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+    if [ "$(id -un)" = "$user" ]; then
+        "$@"
+    elif [ "$(id -u)" -eq 0 ]; then
+        if command -v runuser >/dev/null 2>&1; then
+            runuser -u "$user" -- env HOME="$home" "$@"
+        elif command -v sudo >/dev/null 2>&1; then
+            sudo -u "$user" env HOME="$home" "$@"
+        else
+            env HOME="$home" "$@"
+        fi
+    elif command -v sudo >/dev/null 2>&1; then
+        $USE_SUDO -u "$user" env HOME="$home" "$@"
+    else
+        env HOME="$home" "$@"
+    fi
+}
+
 # Run a command AS the desktop user. Tries the live session bus first (immediate
 # effect on a running session); falls back to a private D-Bus via dbus-run-session
 # so values still persist to the user's config during a headless/root install
@@ -230,7 +262,9 @@ run_user_session() {
     # absent), so `$USE_SUDO -u` could emit a bare `-u`. runuser (util-linux, always
     # present on Debian/Ubuntu/Kali) drops privileges when we are root.
     local -a as_user
-    if [ "$(id -u)" -eq 0 ]; then
+    if [ "$(id -un)" = "$user" ]; then
+        as_user=(env)
+    elif [ "$(id -u)" -eq 0 ]; then
         if command -v runuser >/dev/null 2>&1; then as_user=(runuser -u "$user" --)
         elif command -v sudo >/dev/null 2>&1;     then as_user=(sudo -u "$user")
         else as_user=(env); fi
@@ -241,6 +275,15 @@ run_user_session() {
     fi
 
     if [ -n "$uid" ] && [ -S "$bus" ]; then
+        if "${as_user[@]}" env HOME="$home" XDG_RUNTIME_DIR="/run/user/$uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" DISPLAY="${DISPLAY:-:0}" \
+                "$@" 2>/dev/null; then
+            return 0
+        fi
+        # dconf-service activation race: a write issued while dconf-service is
+        # still starting on the session bus can fail; retry once before falling
+        # back to a private bus.
+        sleep 1
         if "${as_user[@]}" env HOME="$home" XDG_RUNTIME_DIR="/run/user/$uid" \
                 DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" DISPLAY="${DISPLAY:-:0}" \
                 "$@" 2>/dev/null; then
@@ -431,7 +474,7 @@ configure_lxqt_lxde_desktop() {
         home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
         if [ -n "$home" ] && [ -d "$home" ]; then
             conf="$home/.config/lxqt/lxqt-powermanagement.conf"
-            $USE_SUDO -u "$user" mkdir -p "$home/.config/lxqt" 2>/dev/null \
+            run_as_user_plain "$user" mkdir -p "$home/.config/lxqt" 2>/dev/null \
                 || $USE_SUDO mkdir -p "$home/.config/lxqt" 2>/dev/null || true
             printf '[Idleness]\nidlenessWatcher=false\nidlenessBacklightWatcher=false\n' \
                 | $USE_SUDO tee "$conf" >/dev/null 2>&1 || true

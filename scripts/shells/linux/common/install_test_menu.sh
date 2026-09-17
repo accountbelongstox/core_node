@@ -165,12 +165,15 @@ execute_selection() {
             echo "  Installation mode: $install_mode"
             echo
             
-            # Set installation variables for services (always install, START_* controls whether to start)
+            # Set installation variables for services from the user's toggles.
+            # A service the user switched OFF must not be installed at all - the
+            # repo manager (3_setting_base.sh) keys off INSTALL_MYSQL and would
+            # otherwise add the MariaDB repo even when MySQL was deselected.
             echo "Setting up installation variables for services..."
-            set_var "INSTALL_MYSQL" "true"
-            set_var "INSTALL_REDIS" "true"
-            set_var "INSTALL_POSTGRESQL" "true"
-            set_var "INSTALL_DOCKER" "true"
+            set_var "INSTALL_MYSQL" "$(get_var "START_MYSQL" "false")"
+            set_var "INSTALL_REDIS" "$(get_var "START_REDIS" "false")"
+            set_var "INSTALL_POSTGRESQL" "$(get_var "START_POSTGRESQL" "false")"
+            set_var "INSTALL_DOCKER" "$(get_var "START_DOCKER" "false")"
             # Web server enablement is owned by the [W] plane mutex constant
             # (START_WEB_SERVER); the legacy INSTALL_NGINX key is retired.
 

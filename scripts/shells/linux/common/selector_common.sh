@@ -18,8 +18,8 @@ source "$SCRIPT_DIR/arrow_menu.sh"
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
 # Menu configuration table: Menu Name|Menu Key|Available Options|Default(base)|Default(server)|Default(full)|Default(desktop)
-# Note: Services (MySQL, Redis, PostgreSQL, Docker, Nginx) are always installed
-# The menu option controls whether to start them after installation
+# Note: switching a service OFF means it is NOT installed (its apt repo is also
+# skipped/removed); ON installs it and starts it after installation.
 declare -a MENU_CONFIG=(
     "[*] Switch Installation Mode|INSTALL_MODE|base server full desktop|base|server|full|desktop"
     "[@] Select Region|SELECTED_REGION|China Global|Global|Global|Global|Global"

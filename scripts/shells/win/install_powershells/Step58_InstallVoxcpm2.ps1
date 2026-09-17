@@ -58,6 +58,18 @@ if ($env:VOXCPM2_SKIP -eq '1') {
     return
 }
 
+# --- Install method selection (native/docker), plan steps 16-17 ---
+# VoxCPM has no official container evidence (checked 2026-09); the supported set
+# is native-only, so the selector persists it directly without a countdown.
+. (Join-Path $winCommonDir 'InstallMethodCommon.ps1')
+$installMethod = Select-TtsInstallMethod -Engine voxcpm2 `
+    -SupportedBackends @('native') `
+    -RecommendedBackend 'native' `
+    -RecommendationSource 'VoxCPM official repo documents native install only; no official container image - https://github.com/OpenBMB/VoxCPM' `
+    -DefaultBackend 'native' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
+if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
+Save-TtsInstallBackend -Engine voxcpm2 -Backend $installMethod
+
 if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] VoxCPM2 already installed -> skipping." -ForegroundColor Green
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')

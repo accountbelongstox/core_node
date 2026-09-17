@@ -513,3 +513,18 @@
 - [ ] 未擅自运行安装、构建、测试、服务或验证；实际运行证据缺失时写“未运行”。
 
 本轮规划修订记录：新增步骤 16–21，并同步修改旧步骤中的原生专属假设、MeloTTS Docker 描述、业务范围、依赖顺序及交付范围。只更新本计划，未修改安装脚本或业务代码；Docker/Compose/WSL 的官方文档已只读查阅，尚未执行部署或运行验收。
+
+---
+
+## 步骤 16-20 实现记录（2026-09-17）
+
+> 详细进度与逐项演算见 `docs_fix/TTS_DOCKER_INSTALL_METHOD_DEVELOPMENT_PROGRESS.md`。
+> 本轮未运行任何安装流程；验证仅限静态语法/解析与 import 冒烟。
+
+- **步骤 16（逐细节幂等）**：已实现。新增 `linux/common/install_method_common.sh`、`linux/common/docker_prereq_common.sh`、`win/win_common/InstallMethodCommon.ps1`、`win/win_common/DockerWslBridge.ps1`；重写 `79_install_docker.sh` 为官方 deb822 APT 逐组件幂等（keyring/源/apt update/五个包/daemon enable/start/compose 探测各自独立收敛）；删除旧版 snap 路径、pkill、docker.list 无条件删除与 START_DOCKER=false 时停 daemon 行为。
+- **步骤 17（20 秒可选安装方式）**：已实现。五引擎 × 双平台接入统一选择块；MeloTTS Windows 默认 docker（官方 install.md 依据）；voxcpm2 无官方容器证据 → native 单选项快速路径；状态键 `TTS_<ENG>_INSTALL_METHOD{,_SOURCE,_BACKENDS}`、`TTS_<ENG>_BACKEND` 逐键内容比较后写入。
+- **步骤 18（START_DOCKER 联动 + 链式调度）**：已实现。`docker_prereq_ensure_for_engine` 为模型侧唯一接口；`ensure_docker_for_tts.sh` 为无编号统一入口；`docker-compose-selector.js`/`docker-compose-synology.yml` 剔除废弃 version 字段；Docker 官方仓库实测支持 debian trixie/bookworm 与 ubuntu resolute..jammy（compose-plugin 5.5.1）。
+- **步骤 19（逐引擎 compose 服务资产）**：**未实施（诚实 pending）**。docker 分支目前收敛 Docker 平台并写 backend 状态，安装脚本明确打印 compose 资产 pending，不谎报模型就绪；83/99/rebuild 共享 generate/apply 重构随之顺延。
+- **步骤 20（Windows WSL 桥）**：已实现。`DockerWslBridge.ps1` 提供 desktop_wsl2/wsl_engine 双提供者；wsl_engine 经 `wslpath` + `wsl.exe --exec` 参数数组调用同一 Linux 链并强制 START_DOCKER；Step30 缺失发行版时调度，Step29（需重启）有意仅报告不自动触发。
+- **句子 Qwen 独占（业务契约）**：已实现。`engine_policy.py` 新增 `_SENTENCE_PINNED_TTS`，`configured_tts_priority("sentence")` 仅返回 qwen3tts；import 冒烟验证三链正确；词语链既有 `_WORD_EXCLUDED` 未改。
+- **验证**：9 bash `bash -n` OK；7 PS AST 解析 OK；`node --check` OK；`py_compile` OK；安装端到端 **未运行**。

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
@@ -25,6 +26,8 @@ from pycore.pyfoundations.runtime_abi import (
     CTRANSLATE2_CUDA_MAJOR,
     CTRANSLATE2_GPU_PACKAGES,
     ISOLATED_SHARED_PACKAGES,
+    ISOLATION_MODE_OVERLAY,
+    ISOLATION_MODE_SELF_CONTAINED,
     OCR_PACKAGES,
     ONNXRUNTIME_CUDA_MAJOR,
     PADDLE_CPU_INDEX,
@@ -33,6 +36,7 @@ from pycore.pyfoundations.runtime_abi import (
     PADDLE_INDEX_BASE,
     POLICY_VERSION,
     PYTHON_VERSION,
+    PYTHON310_VERSION,
     SHARED_TRANSFORMERS_SPEC,
     TORCH_CPU_INDEX,
     TORCH_INDEX_BASE,
@@ -55,7 +59,10 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "cosyvoice": {
         "python_min": "3.10",
         "python_max": "3.12",
-        "isolated": False,
+        "python_recommended": PYTHON310_VERSION,
+        "isolated": True,
+        "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
+        "device_policy": "auto",
         "packages": (
             "requirements.txt",
             "fastapi",
@@ -65,6 +72,29 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         ),
         "health_imports": (
             "import torch, fastapi, uvicorn, modelscope, onnxruntime"
+        ),
+        "upstream": {
+            "repo": "https://github.com/FunAudioLLM/CosyVoice",
+            "evidence_date": "2026-09-17",
+            "revision": None,
+        },
+        "limits": (
+            {
+                "source": "cosyvoice/cli/frontend.py (upstream main)",
+                "parameter": "token_max_n",
+                "value": 80,
+                "unit": "token",
+                "hard_limit": False,
+                "note": "Frontend text-split parameter, not a model character cap; keep the official frontend and add project-level protection for long unpunctuated spans.",
+            },
+            {
+                "source": "cosyvoice/cli/frontend.py (upstream main)",
+                "parameter": "token_min_n / merge_len",
+                "value": "60 / 20",
+                "unit": "token",
+                "hard_limit": False,
+                "note": "Frontend merge parameters; no unified full-text hard limit published.",
+            },
         ),
     },
     "f5tts": {
@@ -82,24 +112,63 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "gptsovits": {
         "python_min": "3.9",
         "python_max": "3.11",
+        "python_recommended": PYTHON310_VERSION,
         "isolated": True,
+        "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
+        "device_policy": "auto",
         "packages": ("requirements.txt",),
         "health_imports": "import torch, transformers",
+        "upstream": {
+            "repo": "https://github.com/RVC-Boss/GPT-SoVITS",
+            "evidence_date": "2026-09-17",
+            "revision": None,
+        },
+        "limits": (
+            {
+                "source": "api_v2.py + GPT_SoVITS/TTS_infer_pack/text_segmentation_method.py (upstream main)",
+                "parameter": "text segmentation entry",
+                "value": None,
+                "unit": "unknown",
+                "hard_limit": False,
+                "note": "Official cut methods exist; no unified hard cap published. Reference-audio duration and target-audio max duration are recorded separately; arbitrary-length single-shot generation is not promised.",
+            },
+        ),
     },
     "melotts": {
         "python_min": "3.8",
         "python_max": "3.13",
+        "python_recommended": PYTHON310_VERSION,
         "isolated": True,
+        "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
+        "device_policy": "auto",
         "packages": ("melotts", "unidic-lite"),
         "pins": (),
         "health_imports": (
             "import torch, transformers; from melo.api import TTS"
         ),
+        "upstream": {
+            "repo": "https://github.com/myshell-ai/MeloTTS",
+            "evidence_date": "2026-09-17",
+            "revision": None,
+        },
+        "limits": (
+            {
+                "source": "docs/install.md + melo/api.py (upstream main)",
+                "parameter": "native sentence splitting",
+                "value": None,
+                "unit": "unknown",
+                "hard_limit": False,
+                "note": "Official tested env is Ubuntu 20.04/Python 3.9; Windows docker is officially recommended. Native sentence splitting is kept; project protection added for unpunctuated overlong input. No unified full-text hard limit published.",
+            },
+        ),
     },
     "fishspeech": {
         "python_min": "3.10",
         "python_max": "3.12",
-        "isolated": False,
+        "python_recommended": PYTHON310_VERSION,
+        "isolated": True,
+        "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
+        "device_policy": "auto",
         "packages": (
             "fish-audio-sdk",
             "fastapi",
@@ -107,6 +176,29 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
             "requests",
         ),
         "health_imports": "import fishaudio, fastapi, uvicorn, torch",
+        "upstream": {
+            "repo": "https://github.com/fishaudio/fish-speech",
+            "evidence_date": "2026-09-17",
+            "revision": None,
+        },
+        "limits": (
+            {
+                "source": "pyproject.toml + fish_speech/utils/schema.py (upstream main)",
+                "parameter": "chunk_length",
+                "value": 200,
+                "unit": "token",
+                "hard_limit": False,
+                "note": "Request chunking parameter (range 100-1000), not a full-text character cap. pyproject declares Python >=3.10 and torch/torchaudio 2.8.0 with a CPU extra.",
+            },
+            {
+                "source": "fish_speech/utils/schema.py (upstream main)",
+                "parameter": "max_new_tokens",
+                "value": 1024,
+                "unit": "token",
+                "hard_limit": False,
+                "note": "Generation token budget; model context must also subtract reference audio/text and history. Do not substitute cloud SDK ranges for the local API.",
+            },
+        ),
     },
     "kokoro": {
         "python_min": "3.8",
@@ -118,9 +210,27 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "voxcpm2": {
         "python_min": "3.10",
         "python_max": "3.12",
-        "isolated": False,
+        "python_recommended": PYTHON310_VERSION,
+        "isolated": True,
+        "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
+        "device_policy": "auto",
         "packages": ("voxcpm", "soundfile"),
         "health_imports": "import voxcpm, soundfile, torch",
+        "upstream": {
+            "repo": "https://github.com/OpenBMB/VoxCPM",
+            "evidence_date": "2026-09-17",
+            "revision": None,
+        },
+        "limits": (
+            {
+                "source": "src/voxcpm/core.py (upstream main)",
+                "parameter": "max_len",
+                "value": 4096,
+                "unit": "token",
+                "hard_limit": False,
+                "note": "Generation token length, NOT 4096 characters or seconds. Service adds outer text segmentation, a total task deadline, and a budget merged with the native badcase retry (up to 3). core.py accepts an explicit device.",
+            },
+        ),
     },
     "bark": {
         "python_min": "3.10",
@@ -152,6 +262,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_max": "3.13",
         "python_recommended": "3.12",
         "isolated": True,
+        "isolation_mode": ISOLATION_MODE_OVERLAY,
         "packages": policy_csv("AI_QWEN_TTS_PACKAGES"),
         "pins": policy_csv("AI_QWEN_TTS_PINS"),
         "health_imports": policy_value(
@@ -219,7 +330,101 @@ def engine_spec(engine: str) -> Dict[str, Any]:
             else (),
         )
     )
+    if "upstream" in result:
+        result["upstream"] = dict(result["upstream"])
+    result["limits"] = [dict(item) for item in result.get("limits", ())]
     return result
+
+
+def engine_isolation_mode(engine: str) -> str:
+    """Return the isolation mode for one engine (default: legacy overlay)."""
+    spec = engine_spec(engine)
+    mode = str(spec.get("isolation_mode") or "").strip()
+    if mode in (ISOLATION_MODE_OVERLAY, ISOLATION_MODE_SELF_CONTAINED):
+        return mode
+    return ISOLATION_MODE_OVERLAY
+
+
+def _registered_python310_path() -> str:
+    """Read the registered Python 3.10 interpreter path.
+
+    Resolution order (never the host 3.13 interpreter):
+      1. PYTHON310_EXE_PATH environment variable (launcher-provided)
+      2. pygvar file store key PYTHON310_EXE_PATH (written by the platform
+         installers: Step13_InstallPython310.ps1 / 14_install_python310.sh)
+      3. A python310 command visible on PATH (well-known link created by the
+         same installers)
+    """
+    candidate = (os.environ.get("PYTHON310_EXE_PATH") or "").strip()
+    if candidate and Path(candidate).is_file():
+        return candidate
+    try:
+        from pycore.pyfoundations.pygvar import GlobalVarManager
+
+        stored = GlobalVarManager().get("PYTHON310_EXE_PATH", "") or ""
+        stored = stored.strip()
+        if stored and Path(stored).is_file():
+            return stored
+    except Exception:
+        pass
+    try:
+        import shutil
+
+        linked = shutil.which("python310")
+        if linked and Path(linked).is_file():
+            return linked
+    except Exception:
+        pass
+    return ""
+
+
+def resolve_engine_base_python(engine: str) -> Dict[str, Any]:
+    """Resolve the base interpreter used to create one engine's venv.
+
+    Contract (plan step 02): engine explicit override (<ENGINE>_PYTHON) ->
+    registered Python 3.10 -> report missing. The host 3.13 interpreter is
+    NEVER returned as a silent fallback for self-contained engines. The
+    override means "base interpreter for venv creation"; the runtime always
+    launches the venv's own absolute interpreter.
+    """
+    key = str(engine or "").strip().lower().replace("-", "")
+    override = (os.environ.get(f"{key.upper()}_PYTHON") or "").strip()
+    if override:
+        if Path(override).is_file():
+            return {
+                "found": True,
+                "engine": key,
+                "path": override,
+                "source": "engine_override",
+                "env_name": f"{key.upper()}_PYTHON",
+            }
+        return {
+            "found": False,
+            "engine": key,
+            "path": "",
+            "source": "engine_override",
+            "reason": f"override {key.upper()}_PYTHON points to a missing file: {override}",
+        }
+    registered = _registered_python310_path()
+    if registered:
+        return {
+            "found": True,
+            "engine": key,
+            "path": registered,
+            "source": "registered_python310",
+        }
+    return {
+        "found": False,
+        "engine": key,
+        "path": "",
+        "source": "none",
+        "reason": (
+            "python310_not_registered: install the dedicated Python "
+            f"{PYTHON310_VERSION} first (Windows: Step13_InstallPython310.ps1; "
+            "Linux: 14_install_python310.sh) or set "
+            f"{key.upper()}_PYTHON to a compatible base interpreter"
+        ),
+    }
 
 
 def engine_compatibility(
@@ -371,6 +576,9 @@ __all__ = [
     "PADDLE_INDEX_BASE",
     "POLICY_VERSION",
     "PYTHON_VERSION",
+    "PYTHON310_VERSION",
+    "ISOLATION_MODE_OVERLAY",
+    "ISOLATION_MODE_SELF_CONTAINED",
     "SHARED_TRANSFORMERS_SPEC",
     "TORCH_CPU_INDEX",
     "TORCH_INDEX_BASE",
@@ -379,5 +587,7 @@ __all__ = [
     "cuda_tier_for_driver",
     "engine_compatibility",
     "engine_fingerprint",
+    "engine_isolation_mode",
     "engine_spec",
+    "resolve_engine_base_python",
 ]
