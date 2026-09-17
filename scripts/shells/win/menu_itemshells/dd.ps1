@@ -34,6 +34,7 @@ $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
 $script:PYTOOLS_DIR = Join-Path $script:SCRIPTS_DIR "pytools"
 $script:MANAGER_DIR = Join-Path $script:PYTOOLS_DIR "special_software_env_manager"
 $script:MAIN_SCRIPT = Join-Path $script:MANAGER_DIR "special_software_env_manager.py"
+$pythonExitCode = 0
 #endregion
 
 # Load GlobalVars so PYTHON_EXE_PATH is available when script runs standalone (e.g. from shortcut)
@@ -93,6 +94,7 @@ if (-not (Test-Path $script:MAIN_SCRIPT)) {
 try {
     Set-Location $script:PROJECT_ROOT
     & $pythonExe $script:MAIN_SCRIPT
+    $pythonExitCode = $LASTEXITCODE
 } catch {
     Write-Host "ERROR: Failed to run Python script" -ForegroundColor Red
     Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -101,4 +103,10 @@ try {
     $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     return
 }
+
+# Exit the whole launcher chain (dd.cmd -> dd.ps1 -> this script) so the
+# manager's Exit action lands directly back at the user's shell prompt
+# instead of lingering in a parent menu (Ctrl+C there triggers cmd's
+# "Terminate batch job (Y/N)?" prompt).
+exit $pythonExitCode
 #endregion

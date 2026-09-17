@@ -18,12 +18,32 @@ from config.path_config import get_path_config
 class EncryptedConstantsManager:
     """Manages encrypted constants storage and retrieval"""
 
-    def __init__(self, project_root: Path, file_number_manager: FileNumberManager, variable_input_handler: VariableInputHandler):
+    def __init__(self, project_root: Path, file_number_manager: FileNumberManager, variable_input_handler: VariableInputHandler,
+                 config_manager=None, script_manager=None):
         self.path_config = get_path_config(project_root)
         self.project_root = project_root
         self.file_number_manager = file_number_manager
         self.variable_input_handler = variable_input_handler
         self.raw_dir = self.path_config.raw_secret_dir
+        self.config_manager = config_manager
+        self.script_manager = script_manager
+
+    def _regenerate_scripts_for_saved(self, saved_secret_names: List[str]):
+        """Generate/update launcher scripts matching the saved secrets."""
+        if self.script_manager is None or self.config_manager is None:
+            return
+        if not saved_secret_names:
+            return
+        try:
+            generated = self.script_manager.regenerate_for_secret_names(
+                self.config_manager, saved_secret_names
+            )
+            if generated:
+                ColorMessage.write("Launcher scripts generated/updated:", 'success')
+                for script_path in generated:
+                    ColorMessage.write(f"   {script_path}", 'info')
+        except Exception as exc:
+            ColorMessage.write(f"[WARN] Script regeneration failed: {exc}", 'warning')
 
     def _select_file_number(self, config: Dict[str, Any]) -> tuple:
         """Select file number (create new or replace existing)"""
@@ -155,6 +175,7 @@ class EncryptedConstantsManager:
 
         saved_count = 0
         cleared_count = 0
+        saved_secret_names = []
         for var_name, var_value in user_inputs.items():
             secret_key_name = f"{var_name}_{file_number}"
             secret_file = self.raw_dir / secret_key_name
@@ -164,24 +185,27 @@ class EncryptedConstantsManager:
                     if secret_file.exists():
                         secret_file.unlink()
                     ColorMessage.write(
-                        f"[OK] Cleared {var_name} (#{file_number}) to [Not set]",
+                        f"[OK] Cleared {secret_key_name} to [Not set] ({secret_file})",
                         'success'
                     )
                     cleared_count += 1
+                    saved_secret_names.append(secret_key_name)
                     continue
 
                 safe_write_secret(secret_file, var_value)
-                ColorMessage.write(f"[OK] Saved {var_name} (#{file_number}) to .secret_ignore", 'success')
+                ColorMessage.write(f"[OK] Saved {secret_key_name} -> {secret_file}", 'success')
                 saved_count += 1
+                saved_secret_names.append(secret_key_name)
             except Exception as e:
-                ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
+                ColorMessage.write(f"[X] Error saving {secret_key_name}: {e}", 'warning')
 
         if saved_count > 0:
             ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} encrypted constants to .secret_ignore", 'success')
             ColorMessage.write(f"Location: {self.raw_dir}", 'info')
-            ColorMessage.write(f"File number: {file_number}", 'info')
         if cleared_count > 0:
             ColorMessage.write(f"Cleared {cleared_count} constant(s) to [Not set]", 'success')
+
+        self._regenerate_scripts_for_saved(saved_secret_names)
 
     def view_encrypted_constants(self, config_name: str, config: Dict[str, Any]):
         """View encrypted constants from .secret_ignore directory"""
@@ -223,7 +247,10 @@ class EncryptedConstantsManager:
         print()
 
         ColorMessage.write(f"Reading from: {self.raw_dir}", 'info')
-        ColorMessage.write(f"File number: {file_number}", 'info')
+        ColorMessage.write("Key files:", 'info')
+        for var in config['Variables']:
+            secret_key_name = f"{var['Name']}_{file_number}"
+            ColorMessage.write(f"  {secret_key_name} -> {self.raw_dir / secret_key_name}", 'info')
         print()
 
         found_count = 0
@@ -233,7 +260,7 @@ class EncryptedConstantsManager:
             secret_key_name = f"{var_name}_{file_number}"
             secret_file = self.raw_dir / secret_key_name
 
-            ColorMessage.write(f"{display_name}:", 'info', no_newline=True)
+            ColorMessage.write(f"{display_name} ({secret_key_name}):", 'info', no_newline=True)
             if secret_file.exists():
                 try:
                     value = safe_read_secret(secret_file).strip()

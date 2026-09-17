@@ -1,0 +1,18 @@
+# Project-managed compose service for the CosyVoice official fastapi server.
+# restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+services:
+  cosyvoice:
+    build:
+      context: .
+      args:
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+    image: pycore-tts-cosyvoice:local
+    container_name: pycore-tts-cosyvoice
+    restart: "no"
+    ports:
+      - "127.0.0.1:${TTS_PORT:-50000}:50000"
+    volumes:
+      - ${TTS_STAGING}:/data
+    labels:
+      pycore.managed: "true"
+      pycore.engine: "cosyvoice"
