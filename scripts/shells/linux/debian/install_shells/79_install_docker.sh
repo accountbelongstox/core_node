@@ -27,6 +27,11 @@
 # Actions:
 #   (default) / --ensure   converge missing components only
 #   --update               explicit user-requested upgrade of installed components
+#
+# Merged from 81_set_docker_daemon.sh: after the daemon is up, the DNS/registry
+# mirror configuration (update_docker_dns_mirror.js) is applied and Docker is
+# restarted only when the config actually changed (validated first, so a bad
+# daemon.json can never take dockerd down).
 
 SCRIPT_INDEX="79"
 export DEBIAN_FRONTEND=noninteractive
@@ -58,6 +63,10 @@ PKG_INSTALLED=()
 PKG_UPGRADED=()
 DOCKER_PROVIDER_NOTE=""
 DAEMON_READY="false"
+SELECTED_REGION=""
+CLOUD_PROVIDER=""
+NODE_CMD=""
+SHELLS_SCRIPTS_DIR="$(cd "$SCRIPT_DIR/../../../scripts" 2>/dev/null && pwd || echo "")"
 
 DOCKER_PACKAGES=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
 PREREQ_PACKAGES=(ca-certificates curl)
@@ -289,6 +298,62 @@ verify_compose_plugin() {
     return 1
 }
 
+# DNS / registry mirror configuration (merged from 81_set_docker_daemon.sh).
+# Idempotent: the node helper rewrites /etc/docker/daemon.json only when the
+# desired mirror set differs and exits 2 on change, 0 on no-op. Docker is
+# restarted only on a validated change.
+configure_docker_dns_mirror() {
+    # Source /etc/environment for CLOUD_PROVIDER
+    if [ -f /etc/environment ]; then
+        set -a
+        . /etc/environment
+        set +a
+    fi
+    SELECTED_REGION="$(get_var "SELECTED_REGION")"
+    CLOUD_PROVIDER="${CLOUD_PROVIDER:-$(get_var "CLOUD_PROVIDER")}"
+
+    if ! systemctl is-active --quiet docker.service 2>/dev/null && ! systemctl is-enabled --quiet docker.service 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] Docker service is not available. Skipping Docker daemon DNS mirror configuration."
+        return 0
+    fi
+
+    echo "[$SCRIPT_INDEX] Calling update_docker_dns_mirror.js with CLOUD_PROVIDER='$CLOUD_PROVIDER' SELECTED_REGION='$SELECTED_REGION'..."
+    # Absolute path first: install-time shells may run with a minimal PATH.
+    NODE_CMD="${NODE_BIN:-}"
+    { [ -z "$NODE_CMD" ] || [ ! -x "$NODE_CMD" ]; } && NODE_CMD="$(command -v node 2>/dev/null || true)"
+    if [ -z "$NODE_CMD" ]; then
+        echo "[$SCRIPT_INDEX] node not found. Run 17_install_node_toolchain_26.sh first. Skipping Docker DNS mirror update."
+        return 0
+    fi
+    "$NODE_CMD" "$SHELLS_SCRIPTS_DIR/update_docker_dns_mirror.js" "$CLOUD_PROVIDER" "$SELECTED_REGION"
+    local result=$?
+
+    if [ $result -eq 2 ]; then
+        echo -e "\033[33m[$SCRIPT_INDEX] Docker configuration updated. Docker needs to be restarted.\033[0m"
+        # Validate BEFORE restarting: an invalid daemon.json (e.g. an unknown key
+        # like the legacy uppercase "DNS") makes dockerd fail to start at all.
+        if command -v dockerd >/dev/null 2>&1 && ! timeout 30 dockerd --validate >/dev/null 2>&1; then
+            echo -e "\033[31m[$SCRIPT_INDEX] dockerd --validate rejected /etc/docker/daemon.json; NOT restarting. Fix the config and re-run.\033[0m"
+            timeout 30 dockerd --validate 2>&1 || true
+            return 1
+        fi
+        # reset-failed first: repeated failures put the unit in "start request
+        # repeated too quickly", which makes a plain restart fail immediately.
+        systemctl reset-failed docker.service 2>/dev/null || true
+        if systemctl restart docker && systemctl is-active --quiet docker.service; then
+            echo -e "\033[32m[$SCRIPT_INDEX] Docker restarted and active.\033[0m"
+        else
+            echo -e "\033[31m[$SCRIPT_INDEX] Docker restart failed or service is not active. See: journalctl -xeu docker.service\033[0m"
+            return 1
+        fi
+    elif [ $result -eq 0 ]; then
+        echo -e "\033[32m[$SCRIPT_INDEX] No Docker configuration changes needed.\033[0m"
+    else
+        echo -e "\033[31m[$SCRIPT_INDEX] An error occurred while updating Docker configuration.\033[0m"
+    fi
+    return 0
+}
+
 print_banner
 echo "[$SCRIPT_INDEX] START_DOCKER=$START_DOCKER (toggle: [^] Start Docker After Installation)"
 echo "[$SCRIPT_INDEX] action=$ACTION"
@@ -319,6 +384,7 @@ ensure_apt_source      || exit 1
 apt_update_if_changed  || exit 1
 ensure_docker_packages || exit 1
 ensure_daemon_running  || exit 1
+configure_docker_dns_mirror || exit 1
 
 # State is per-component and additive; never written before its phase passed.
 if command -v docker >/dev/null 2>&1; then

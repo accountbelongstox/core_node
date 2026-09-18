@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="163"
 # GNOME Remote Desktop Settings UI Opener
 # Opens GNOME Remote Desktop settings UI (no system changes)
 #

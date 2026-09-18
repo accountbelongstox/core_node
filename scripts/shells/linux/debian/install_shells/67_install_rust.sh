@@ -17,7 +17,7 @@ source "$COMMON_DIR/common_functions.sh"
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script identification and path setup
-SCRIPT_INDEX="43"
+SCRIPT_INDEX="67"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -27,7 +27,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "127_install_rust")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "67_install_rust")
 LOG_FILE="$SCRIPT_TEMP_DIR/rust_install_$(date +%Y%m%d_%H%M%S).log"
 
 # Logging function

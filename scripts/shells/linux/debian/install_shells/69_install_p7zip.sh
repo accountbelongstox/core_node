@@ -10,6 +10,7 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="69"
 
 # Install 7z (p7zip) on Debian/Ubuntu (Ubuntu reuses the debian install_shells).
 # Rationale: the AppQyV1 dictionary initialization (php artisan sys:init -> Step 2)

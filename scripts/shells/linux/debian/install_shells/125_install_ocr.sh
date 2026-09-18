@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_INDEX="125"
 # ---------------------------------------------------------------------------
 # install_ocr.sh - Prerequisite installer for the local OCR engines (Linux/Mac).
 #

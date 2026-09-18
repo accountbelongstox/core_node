@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="133"
 # CosyVoice prerequisite (Linux) - FunAudioLLM FastAPI server on :50000.
 # Auto-run by prepare_pycore_prerequisites.sh (pyservice). Clones FunAudioLLM/CosyVoice idempotently
 # and builds a DEDICATED self-contained per-engine venv (base Python 3.10) via

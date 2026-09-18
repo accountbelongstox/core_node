@@ -17,7 +17,7 @@
 
 set -e
 
-SCRIPT_INDEX="2"
+SCRIPT_INDEX="3"
 
 # Color codes
 RED='\033[31m'

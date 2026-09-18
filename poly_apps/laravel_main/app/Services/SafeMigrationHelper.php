@@ -1272,12 +1272,16 @@ class SafeMigrationHelper
         $tableDefinition = function (Blueprint $table) use ($tableStructure) {
             // Create columns
             $columnIndexMap = [];
+            $columnUniqueMap = [];
             foreach ($tableStructure['columns'] ?? [] as $columnName => $columnDef) {
                 self::applyColumnDefinition($table, $columnName, $columnDef);
 
                 // Record indexes created via column definitions to avoid creating a duplicate single-column index on the same column
                 if (!empty($columnDef['index'])) {
                     $columnIndexMap[$columnName] = true;
+                }
+                if (!empty($columnDef['unique'])) {
+                    $columnUniqueMap[$columnName] = true;
                 }
             }
 
@@ -1290,12 +1294,19 @@ class SafeMigrationHelper
                 // Normalize the column list
                 $columnsList = is_array($columns) ? $columns : [$columns];
 
-                // If it is a single-column regular index and that column already has index=true in its column definition, skip it to prevent duplicate creation
+                // Skip a single-column spec already covered by its column
+                // definition: a column-level unique creates the SAME
+                // auto-generated constraint name as the spec ({table}_{col}_unique
+                // on pgsql), so emitting both aborts the CREATE TABLE with a
+                // duplicate-constraint error. A column-level unique also
+                // satisfies a plain-index spec (it is strictly stronger).
                 if (
-                    !$isUnique
-                    && $name === null
+                    $name === null
                     && count($columnsList) === 1
-                    && isset($columnIndexMap[$columnsList[0]])
+                    && (
+                        (!$isUnique && (isset($columnIndexMap[$columnsList[0]]) || isset($columnUniqueMap[$columnsList[0]])))
+                        || ($isUnique && isset($columnUniqueMap[$columnsList[0]]))
+                    )
                 ) {
                     continue;
                 }

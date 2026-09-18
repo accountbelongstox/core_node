@@ -28,7 +28,7 @@ TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
-SCRIPT_NAME="[99_install_qwen25]"
+SCRIPT_NAME="[109_install_qwen25]"
 MODEL_NAME="Qwen2.5-0.5B-Instruct"
 MODEL_PATH="Qwen/Qwen2.5-0.5B-Instruct"
 REQUIRED_PYTHON_VERSION="3.8"

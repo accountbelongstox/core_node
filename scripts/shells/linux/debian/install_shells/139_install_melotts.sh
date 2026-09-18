@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="139"
 # MeloTTS installer. Its old transformers pin stays inside a dedicated venv.
 
 set -uo pipefail

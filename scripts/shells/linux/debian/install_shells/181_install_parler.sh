@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="181"
 # Parler-TTS prerequisite (Linux) - Hugging Face parler-tts.
 # Category 1: Python 3.13 native with the shared torch distribution.
 #

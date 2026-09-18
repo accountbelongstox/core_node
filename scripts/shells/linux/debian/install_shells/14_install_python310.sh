@@ -10,6 +10,7 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="14"
 
 # Isolated Python 3.10 runtime for CosyVoice / Fish Speech / VoxCPM2 / GPT-SoVITS / MeloTTS.
 # Installs into a dedicated prefix and links python310 / pip310 into /usr/local/bin.

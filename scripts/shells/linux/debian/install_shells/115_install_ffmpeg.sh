@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_INDEX="115"
 # ---------------------------------------------------------------------------
 # install_ffmpeg.sh - Shared prerequisite installer for the ffmpeg/ffprobe binaries.
 #

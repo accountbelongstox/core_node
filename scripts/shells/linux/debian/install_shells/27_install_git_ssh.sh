@@ -10,6 +10,7 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="27"
 
 # Variables declaration
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +33,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Use global temporary directory structure (AFTER sourcing common functions)
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "21_install_git_ssh")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "27_install_git_ssh")
 
 # Local SSH key files (using corrected PROJECT_ROOT)
 LOCAL_SSH_PUB_JS="$PROJECT_ROOT/scripts/git/git.ssh.id.ed.pub.js"

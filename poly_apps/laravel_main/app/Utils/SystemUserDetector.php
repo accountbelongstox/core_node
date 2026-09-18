@@ -62,9 +62,9 @@ class SystemUserDetector
             ];
         }
 
-        \Log::info('[SystemUserDetector] Starting desktop user detection');
+        SafeLogger::info('[SystemUserDetector] Starting desktop user detection');
         $detectedUser = self::detectDesktopUser();
-        \Log::info('[SystemUserDetector] Desktop user detection completed', ['user' => $detectedUser]);
+        SafeLogger::info('[SystemUserDetector] Desktop user detection completed', ['user' => $detectedUser]);
 
         if ($detectedUser) {
             self::$cachedUser = $detectedUser['username'];

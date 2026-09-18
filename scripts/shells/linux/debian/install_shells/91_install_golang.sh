@@ -15,6 +15,7 @@ source "$COMMON_DIR/common_functions.sh"
 # 7. Do not modify these rules
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="91"
 
 # Script: 91_install_golang.sh
 # Description: Idempotent Go toolchain manager that converges $COMPILE_DIR/go

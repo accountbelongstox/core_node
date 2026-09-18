@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_INDEX="149"
 # ---------------------------------------------------------------------------
 # install_device_tools.sh - Optional Android device-control tools for pycore.
 #

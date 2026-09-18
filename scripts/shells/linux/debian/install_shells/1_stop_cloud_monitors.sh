@@ -53,7 +53,7 @@ stop_aliyun_cloudmonitor() {
 
     if systemctl is-active --quiet aliyun.service 2>/dev/null; then
         echo "[$SCRIPT_INDEX] aliyun.service is running, downloading official uninstallers..."
-        ALIYUN_WORK_DIR="$(create_script_temp_dir "3_stop_aliyun_cloudmonitor" 2>/dev/null || echo "/tmp/_core_node_aliyun")"
+        ALIYUN_WORK_DIR="$(create_script_temp_dir "1_stop_aliyun_cloudmonitor" 2>/dev/null || echo "/tmp/_core_node_aliyun")"
         mkdir -p "$ALIYUN_WORK_DIR"
         (
             cd "$ALIYUN_WORK_DIR" || exit 0
@@ -181,7 +181,7 @@ stop_tencent_agents() {
 
     # Best-effort external remove script (only when a footprint remains).
     if [ -d /usr/local/qcloud ]; then
-        TENCENT_TEMP_DIR="$(create_script_temp_dir "3_stop_tencent_cloudmonitor" 2>/dev/null || echo "/tmp/_core_node_tencent")"
+        TENCENT_TEMP_DIR="$(create_script_temp_dir "1_stop_tencent_cloudmonitor" 2>/dev/null || echo "/tmp/_core_node_tencent")"
         mkdir -p "$TENCENT_TEMP_DIR"
         TENCENT_REMOVE_SCRIPT="$TENCENT_TEMP_DIR/remove.sh"
         if [ ! -f "$TENCENT_REMOVE_SCRIPT" ]; then

@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="189"
 # Install the Pycore Module Caller service.
 #
 # CONVERGENCE: this previously created a SECOND systemd unit ("pycore-module-caller",

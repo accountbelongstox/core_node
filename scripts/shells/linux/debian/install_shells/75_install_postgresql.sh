@@ -22,7 +22,7 @@ source "$POSTGRESQL_INSTALL_COMMON"
 SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
-SCRIPT_INDEX="47"
+SCRIPT_INDEX="75"
 START_POSTGRESQL=""
 INSTALL_MODE=""
 POSTGRESQL_VERSION=""
@@ -62,7 +62,6 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Initialize variables
-SCRIPT_INDEX="47"
 START_POSTGRESQL=$(get_var "START_POSTGRESQL" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 # Major version to install on Debian via the official PGDG repo (override with the

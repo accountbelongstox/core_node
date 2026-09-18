@@ -18,8 +18,8 @@
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts --outfile dist/index.mjs --format esm --target node && bun build src/index.ts --outfile dist/index.js --format cjs --target node && tsc --emitDeclarationOnly",
-    "dev": "bun build src/index.ts --outfile dist/index.mjs --format esm --target node --watch & bun build src/index.ts --outfile dist/index.js --format cjs --target node --watch & wait",
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --watch",
     "lint": "eslint 'src/**/*.{js,ts}'",
     "lint:fix": "eslint 'src/**/*.{js,ts}' --fix",
     "format": "prettier --write 'src/**/*.{js,ts,json}'"
@@ -30,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^22.15.3",
     "@typescript-eslint/parser": "^8.32.0",
+    "tsup": "^8.4.0",
     "typescript": "^5.8.3"
   },
   "dependencies": {

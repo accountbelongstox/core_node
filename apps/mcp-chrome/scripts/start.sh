@@ -106,6 +106,10 @@ echo -e "${CYAN}  Chrome MCP Server - Linux/macOS${NC}"
 echo -e "${CYAN}========================================\n${NC}"
 
 if [ "$HAS_DESKTOP_ENVIRONMENT" = "false" ]; then
+    if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+        echo -e "${YELLOW}  Server environment (no desktop); auto-continue skips Chrome MCP compilation.${NC}"
+        exit 0
+    fi
     read -rp "Server environment detected (no desktop). Compile Chrome MCP plugin anyway? [y/N] " MCP_COMPILE_CHOICE || MCP_COMPILE_CHOICE=""
     case "$MCP_COMPILE_CHOICE" in
         y|Y|yes|YES|Yes)
@@ -118,6 +122,11 @@ if [ "$HAS_DESKTOP_ENVIRONMENT" = "false" ]; then
     esac
 fi
 
+# Unattended chains (dd.sh exports DD_AUTO_CONTINUE=true) must not block on the
+# prompt or park in foreground watch mode: take a one-time build instead.
+if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+    MCP_WATCH_CHOICE="once"
+fi
 if [ -z "$MCP_WATCH_CHOICE" ]; then
     read -rp "Enable development watch mode? [Y/n] " MCP_WATCH_CHOICE || MCP_WATCH_CHOICE=""
 fi

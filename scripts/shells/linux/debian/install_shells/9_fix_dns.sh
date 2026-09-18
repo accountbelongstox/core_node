@@ -17,7 +17,7 @@
 set -e
 
 # Script identification
-SCRIPT_INDEX="10"
+SCRIPT_INDEX="9"
 
 # Get script directory and source global variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

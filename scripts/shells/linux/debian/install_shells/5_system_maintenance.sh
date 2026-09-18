@@ -24,7 +24,7 @@ source "$COMMON_DIR/common_functions.sh"
 # skips work that is already done.
 
 # Variable Declarations (declared at top per project rules)
-SCRIPT_INDEX="6"
+SCRIPT_INDEX="5"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
