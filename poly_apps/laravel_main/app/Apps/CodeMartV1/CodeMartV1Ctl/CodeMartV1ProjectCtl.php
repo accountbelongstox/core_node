@@ -89,26 +89,24 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
-        $project = CodeMartV1ProjectModel::createRecord([
-            'client_id' => $user->id,
-            'title' => $request->title,
-            'description' => $request->description,
-            'complexity' => $request->complexity,
-            'budget' => $request->budget,
-            'budget_type' => $request->budget_type,
-            'currency' => $request->currency,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'skills' => $request->skills ?? [],
-            'languages' => $request->languages ?? [],
-            'frameworks' => $request->frameworks ?? [],
-            'databases' => $request->databases ?? [],
-            'status' => 'draft',
-        ]);
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        $project = CodeMartV1ProjectModel::runInTransaction(function () use ($request, $user) {
+            return CodeMartV1ProjectModel::createRecord([
+                'client_id' => $user->id,
+                'title' => $request->title,
+                'description' => $request->description,
+                'complexity' => $request->complexity,
+                'budget' => $request->budget,
+                'budget_type' => $request->budget_type,
+                'currency' => $request->currency,
+                'start_date' => $request->start_date,
+                'end_date' => $request->end_date,
+                'skills' => $request->skills ?? [],
+                'languages' => $request->languages ?? [],
+                'frameworks' => $request->frameworks ?? [],
+                'databases' => $request->databases ?? [],
+                'status' => 'draft',
+            ]);
+        });
 
         return $this->success($project, 'Project created successfully', 201);
     }
@@ -158,17 +156,15 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
-        $project->updateRecord($request->only([
-            'title',
-            'description',
-            'status',
-            'complexity',
-            'budget',
-        ]));
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        CodeMartV1ProjectModel::runInTransaction(function () use ($project, $request) {
+            $project->updateRecord($request->only([
+                'title',
+                'description',
+                'status',
+                'complexity',
+                'budget',
+            ]));
+        });
 
         return $this->success($project, 'Project updated successfully');
     }
@@ -192,14 +188,12 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Only draft projects can be published');
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
-        $project->updateRecord([
-            'status' => 'open',
-            'published_at' => now(),
-        ]);
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        CodeMartV1ProjectModel::runInTransaction(function () use ($project) {
+            $project->updateRecord([
+                'status' => 'open',
+                'published_at' => now(),
+            ]);
+        });
 
         return $this->success($project, 'Project published successfully');
     }
@@ -231,19 +225,17 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
-        $milestone = CodeMartV1MilestoneModel::createRecord([
-            'project_id' => $projectId,
-            'title' => $request->title,
-            'description' => $request->description,
-            'due_date' => $request->due_date,
-            'budget' => $request->budget,
-            'deliverables' => json_encode($request->deliverables ?? []),
-            'status' => 'pending',
-        ]);
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        $milestone = CodeMartV1ProjectModel::runInTransaction(function () use ($request, $projectId) {
+            return CodeMartV1MilestoneModel::createRecord([
+                'project_id' => $projectId,
+                'title' => $request->title,
+                'description' => $request->description,
+                'due_date' => $request->due_date,
+                'budget' => $request->budget,
+                'deliverables' => json_encode($request->deliverables ?? []),
+                'status' => 'pending',
+            ]);
+        });
 
         return $this->success($milestone, 'Milestone created successfully', 201);
     }
@@ -271,20 +263,18 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
         $uploadResult = $this->fileUploadService->uploadFile($request->file('file'), 'projects');
 
-        $attachment = CodeMartV1ProjectAttachmentModel::createRecord([
-            'project_id' => $projectId,
-            'file_name' => $uploadResult['original_name'],
-            'file_path' => $uploadResult['path'],
-            'file_size' => $uploadResult['size'],
-            'file_type' => $uploadResult['mime_type'],
-            'uploaded_by' => $user->id,
-        ]);
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        $attachment = CodeMartV1ProjectModel::runInTransaction(function () use ($uploadResult, $projectId, $user) {
+            return CodeMartV1ProjectAttachmentModel::createRecord([
+                'project_id' => $projectId,
+                'file_name' => $uploadResult['original_name'],
+                'file_path' => $uploadResult['path'],
+                'file_size' => $uploadResult['size'],
+                'file_type' => $uploadResult['mime_type'],
+                'uploaded_by' => $user->id,
+            ]);
+        });
 
         return $this->success($attachment, 'Attachment uploaded successfully', 201);
     }

@@ -21,13 +21,16 @@ source "$COMMON_DIR/common_functions.sh"
 # "Upgrades from Debian 12 (bookworm)":
 #   https://www.debian.org/releases/trixie/release-notes/upgrading.en.html
 #   1. Back up /etc + dpkg state.
-#   2. Preflight package-database checks (dpkg --audit, apt-mark showhold).
+#   2. Preflight package-database checks (dpkg --audit, apt-mark showhold),
+#      plus the base-files /lib64 diversion-mismatch fix.
 #   3. Update bookworm to its latest point release.
-#   4. Repoint APT sources bookworm -> trixie (legacy .list and deb822 .sources).
+#   4. FULL RESET of the official APT sources to the canonical trixie set
+#      (existing mirror reused; third-party files kept/backed up).
 #   5. apt-get update -> minimal upgrade (upgrade --without-new-pkgs)
 #      -> full-upgrade -> autoremove/clean.
 # Idempotent self-heal: every step detects its state, so a re-run resumes an
-# interrupted upgrade instead of starting over.
+# interrupted upgrade instead of starting over. Third-party repositories
+# without a trixie distribution are disabled automatically (reversible).
 
 # Variable Declarations (declared at top per project rules)
 SCRIPT_INDEX="D13"
@@ -75,16 +78,48 @@ backup_system_state() {
     echo "[$SCRIPT_INDEX] Backup written to: $BACKUP_DIR"
 }
 
+# Self-heal for the known trixie base-files failure:
+#   dpkg-divert: error: mismatch on divert-to
+#     when removing 'diversion of /lib64 to /.lib64.usr-is-merged by base-files'
+#     found 'diversion of /lib64 to /lib64.usr-is-merged by base-files'
+# The trixie postinst removes the temporary DEP17 M4 diversion recorded as
+# /.lib64.usr-is-merged, but some bookworm systems recorded the divert-to as
+# /lib64.usr-is-merged. Re-record it with the divert-to the postinst expects.
+# Record-only (--no-rename on both sides): /lib64 stays the usr/lib64 symlink.
+fix_base_files_lib64_diversion() {
+    command -v dpkg-divert >/dev/null 2>&1 || return 0
+    if dpkg-divert --list 2>/dev/null | grep -qF "diversion of /lib64 to /.lib64.usr-is-merged by base-files"; then
+        return 0
+    fi
+    if ! dpkg-divert --list 2>/dev/null | grep -qF "diversion of /lib64 to /lib64.usr-is-merged by base-files"; then
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] Fixing base-files /lib64 diversion record (divert-to mismatch blocks trixie base-files)"
+    $USE_SUDO dpkg-divert --quiet --package base-files --no-rename --divert /lib64.usr-is-merged --remove /lib64 || return 1
+    $USE_SUDO dpkg-divert --quiet --package base-files --no-rename --divert /.lib64.usr-is-merged --add /lib64 || return 1
+    echo "[$SCRIPT_INDEX] Diversion re-recorded: /lib64 -> /.lib64.usr-is-merged"
+}
+
 # Official 4.2.4/4.2.12: the package database must be clean and hold-free.
 preflight_package_checks() {
     echo "[$SCRIPT_INDEX] === Step 2: Preflight package checks ==="
     local audit=""
     local holds=""
+    fix_base_files_lib64_diversion || echo "[$SCRIPT_INDEX] WARNING: /lib64 diversion fix failed"
     audit="$(dpkg --audit 2>/dev/null)"
     if [ -n "$audit" ]; then
         echo "[$SCRIPT_INDEX] WARNING: dpkg --audit reports problems:"
         echo "$audit" | sed "s/^/[$SCRIPT_INDEX]   /"
-        echo "[$SCRIPT_INDEX] Fix these packages first (apt-get -f install / dpkg --configure -a)."
+        echo "[$SCRIPT_INDEX] Attempting repair (dpkg --configure -a / apt-get -f install)..."
+        $USE_SUDO dpkg --configure -a || true
+        $USE_SUDO apt-get $APT_YES $DPKG_KEEP_CONF -f install || true
+        audit="$(dpkg --audit 2>/dev/null)"
+        if [ -n "$audit" ]; then
+            echo "[$SCRIPT_INDEX] ERROR: package database still broken after repair:"
+            echo "$audit" | sed "s/^/[$SCRIPT_INDEX]   /"
+            return 1
+        fi
+        echo "[$SCRIPT_INDEX] Package database repaired"
     else
         echo "[$SCRIPT_INDEX] dpkg --audit: clean"
     fi
@@ -100,20 +135,30 @@ preflight_package_checks() {
 # Official 4.2.2: bring bookworm to its latest point release first.
 # disable_broken_third_party_repos runs first so a RESUMED run (sources already
 # on trixie, a third-party repo without trixie still enabled) cannot abort here.
+# dpkg --configure -a + apt-get -f install repair a half-configured state left
+# by a previously interrupted run (idempotent: no-op when the database is clean).
 update_current_release() {
     echo "[$SCRIPT_INDEX] === Step 3: Update Debian $OS_VERSION_ID to latest point release ==="
     disable_broken_third_party_repos || return 1
+    $USE_SUDO dpkg --configure -a || true
+    $USE_SUDO apt-get $APT_YES $DPKG_KEEP_CONF -f install || return 1
     $USE_SUDO apt-get $APT_YES $DPKG_KEEP_CONF full-upgrade || return 1
 }
 
-# Official 4.3: repoint every APT source from bookworm to trixie. Covers both
-# the legacy one-line format (.list, /etc/apt/sources.list) and the deb822
-# format (.sources). bookworm-security -> trixie-security is handled by the
-# same substitution. Backups go to $BACKUP_DIR/apt-sources (NOT alongside the
-# source: a *.bak-* file in sources.list.d makes apt warn "invalid filename
-# extension"). Files that no longer reference bookworm are skipped (idempotent).
-repoint_apt_sources() {
-    echo "[$SCRIPT_INDEX] === Step 4: Repoint APT sources bookworm -> trixie ==="
+# FULL RESET of the official Debian APT sources to a canonical trixie set
+# (official 4.3). Every current source file is backed up to
+# $BACKUP_DIR/apt-sources first (NOT alongside the source: a *.bak-* file in
+# sources.list.d makes apt warn "invalid filename extension"), then
+# /etc/apt/sources.list is rewritten with the three canonical trixie entries.
+# The mirror already in use is reused (region-aware mirrors survive the
+# reset); components are the full set main/contrib/non-free/non-free-firmware.
+# Third-party files under sources.list.d are KEPT; any still referencing
+# bookworm are sed-repointed, and ones without a trixie distribution are
+# disabled later by disable_broken_third_party_repos (official 4.2.10).
+reset_apt_sources_to_trixie() {
+    echo "[$SCRIPT_INDEX] === Step 4: Reset official APT sources to Debian 13 (trixie) ==="
+    local mirror=""
+    local security=""
     $USE_SUDO mkdir -p "$BACKUP_DIR/apt-sources"
 
     # Self-heal: migrate side-by-side backups created by earlier versions of
@@ -124,24 +169,48 @@ repoint_apt_sources() {
         echo "[$SCRIPT_INDEX] Migrated backup out of sources.list.d: $(basename "$f")"
     done
 
+    # Back up every current source file once (first backup wins, re-runs keep it).
     APT_SOURCE_FILES=""
     for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
         [ -f "$f" ] || continue
         APT_SOURCE_FILES="$APT_SOURCE_FILES $f"
-    done
-    for f in $APT_SOURCE_FILES; do
-        if ! $USE_SUDO grep -q "bookworm" "$f" 2>/dev/null; then
-            echo "[$SCRIPT_INDEX] Already on trixie (or no bookworm refs): $f"
-            continue
-        fi
         if [ ! -f "$BACKUP_DIR/apt-sources/$(basename "$f")" ]; then
             $USE_SUDO cp "$f" "$BACKUP_DIR/apt-sources/$(basename "$f")"
             echo "[$SCRIPT_INDEX] Backed up: $BACKUP_DIR/apt-sources/$(basename "$f")"
         fi
-        $USE_SUDO sed -i 's/bookworm/trixie/g' "$f"
-        echo "[$SCRIPT_INDEX] Repointed: $f"
     done
+
+    # Detect the mirror in use from the first official main line (legacy .list
+    # "deb URI suite ..." and deb822 .sources "URIs: URI"), falling back to the
+    # Debian CDN. Security repo is detected the same way.
+    mirror="$( {
+        $USE_SUDO grep -hE '^[[:space:]]*deb([[:space:]]|\[)' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
+        $USE_SUDO grep -hE '^[[:space:]]*URIs:' /etc/apt/sources.list.d/*.sources 2>/dev/null
+    } | grep -oE 'https?://[^[:space:]]+' | grep '/debian' | grep -v 'debian-security' | head -1 )"
+    [ -z "$mirror" ] && mirror="http://deb.debian.org/debian"
+    security="$( {
+        $USE_SUDO grep -hE '^[[:space:]]*deb([[:space:]]|\[)' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null
+        $USE_SUDO grep -hE '^[[:space:]]*URIs:' /etc/apt/sources.list.d/*.sources 2>/dev/null
+    } | grep -oE 'https?://[^[:space:]]+' | grep 'debian-security' | head -1 )"
+    [ -z "$security" ] && security="http://security.debian.org/debian-security"
+
+    echo "[$SCRIPT_INDEX] Writing canonical trixie sources (mirror: $mirror)"
+    printf '%s\n' \
+        "deb $mirror trixie main contrib non-free non-free-firmware" \
+        "deb $mirror trixie-updates main contrib non-free non-free-firmware" \
+        "deb $security trixie-security main contrib non-free non-free-firmware" \
+        | $USE_SUDO tee /etc/apt/sources.list >/dev/null
+
+    # Any remaining bookworm references in third-party files get repointed too.
     for f in $APT_SOURCE_FILES; do
+        [ "$f" = "/etc/apt/sources.list" ] && continue
+        if $USE_SUDO grep -q "bookworm" "$f" 2>/dev/null; then
+            $USE_SUDO sed -i 's/bookworm/trixie/g' "$f"
+            echo "[$SCRIPT_INDEX] Repointed third-party file: $f"
+        fi
+    done
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        [ -f "$f" ] || continue
         if $USE_SUDO grep -q "bookworm" "$f" 2>/dev/null; then
             echo "[$SCRIPT_INDEX] WARNING: APT file still references bookworm: $f"
         fi
@@ -228,7 +297,26 @@ main() {
         OS_ID="$(. /etc/os-release 2>/dev/null; echo "$ID")"
         OS_VERSION_ID="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID")"
         if [ "$OS_ID" = "debian" ] && [ "$OS_VERSION_ID" -ge 13 ] 2>/dev/null; then
-            echo "[$SCRIPT_INDEX] System is already Debian $OS_VERSION_ID - nothing to do"
+            echo "[$SCRIPT_INDEX] System is already Debian $OS_VERSION_ID"
+            if [ "$ASSUME_YES" = "1" ]; then
+                APT_YES="-y"
+                DPKG_KEEP_CONF="-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
+            fi
+            BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
+            # base-files is among the FIRST packages trixie configures, so an
+            # interrupted upgrade already reports os-release 13 while most
+            # packages are still pending. Detect the partial state and finish
+            # the upgrade instead of stopping at the repo reset.
+            if [ -n "$(dpkg --audit 2>/dev/null)" ] || [ "$(apt-get -s full-upgrade 2>/dev/null | grep -c '^Inst ')" -gt 0 ]; then
+                echo "[$SCRIPT_INDEX] PARTIAL upgrade detected (half-configured or pending packages) -> completing it"
+                preflight_package_checks || { echo "[$SCRIPT_INDEX] ERROR: preflight repair failed"; return 1; }
+                update_current_release || { echo "[$SCRIPT_INDEX] ERROR: completing the upgrade failed; re-run to resume"; return 1; }
+                cleanup_after_upgrade
+            fi
+            reset_apt_sources_to_trixie
+            disable_broken_third_party_repos || true
+            echo "[$SCRIPT_INDEX] Done. Current release: $(cat /etc/debian_version 2>/dev/null)"
+            echo "[$SCRIPT_INDEX] A REBOOT is required to load the trixie kernel."
         else
             echo "[$SCRIPT_INDEX] This helper only runs on Debian below 13 (current: $OS_ID $OS_VERSION_ID)"
         fi
@@ -245,7 +333,7 @@ main() {
     # Guard against concurrent runs: a second instance while another apt/dpkg
     # (e.g. this same script still upgrading in the background) holds the
     # frontend lock would fail midway through Step 3.
-    if command_exists fuser && $USE_SUDO fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+    if command -v fuser >/dev/null 2>&1 && $USE_SUDO fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] ERROR: another apt/dpkg process holds the package lock:"
         $USE_SUDO fuser -v /var/lib/dpkg/lock-frontend 2>&1 | sed "s/^/[$SCRIPT_INDEX]   /"
         echo "[$SCRIPT_INDEX] If an upgrade is already running (background/menu), wait for it"
@@ -272,9 +360,9 @@ main() {
     fi
 
     backup_system_state
-    preflight_package_checks
+    preflight_package_checks || { echo "[$SCRIPT_INDEX] ERROR: preflight repair failed"; return 1; }
     update_current_release || { echo "[$SCRIPT_INDEX] ERROR: point-release update failed"; return 1; }
-    repoint_apt_sources
+    reset_apt_sources_to_trixie
     perform_upgrade || { echo "[$SCRIPT_INDEX] ERROR: upgrade failed; re-run this script to resume"; return 1; }
     cleanup_after_upgrade
 

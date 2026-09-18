@@ -66,19 +66,17 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1TaskModel::beginModelTransaction();
-
-        $task = CodeMartV1TaskModel::createForMilestone((int) $request->milestone_id, [
-            'title' => $request->title,
-            'description' => $request->description,
-            'priority' => $request->priority,
-            'assigned_to' => $request->assigned_to,
-            'due_date' => $request->due_date,
-            'deliverables' => $request->deliverables,
-            'budget_allocation' => $request->budget_allocation,
-        ]);
-
-        CodeMartV1TaskModel::commitModelTransaction();
+        $task = CodeMartV1TaskModel::runInTransaction(function () use ($request) {
+            return CodeMartV1TaskModel::createForMilestone((int) $request->milestone_id, [
+                'title' => $request->title,
+                'description' => $request->description,
+                'priority' => $request->priority,
+                'assigned_to' => $request->assigned_to,
+                'due_date' => $request->due_date,
+                'deliverables' => $request->deliverables,
+                'budget_allocation' => $request->budget_allocation,
+            ]);
+        });
 
         return $this->success($task->loadRecordRelations(['milestone', 'assignee']), 'Task created successfully', 201);
     }
@@ -148,19 +146,19 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1TaskModel::beginModelTransaction();
+        $submission = CodeMartV1TaskModel::runInTransaction(function () use ($request, $taskId, $user, $task) {
+            $submission = CodeMartV1TaskSubmissionModel::createRecord([
+                'task_id' => $taskId,
+                'submitted_by' => $user->id,
+                'submission_note' => $request->submission_note,
+                'files' => $request->files,
+                'status' => 'pending',
+            ]);
 
-        $submission = CodeMartV1TaskSubmissionModel::createRecord([
-            'task_id' => $taskId,
-            'submitted_by' => $user->id,
-            'submission_note' => $request->submission_note,
-            'files' => $request->files,
-            'status' => 'pending',
-        ]);
+            $task->updateRecord(['status' => 'review']);
 
-        $task->updateRecord(['status' => 'review']);
-
-        CodeMartV1TaskModel::commitModelTransaction();
+            return $submission;
+        });
 
         return $this->success($submission->loadRecordRelations(['task', 'submitter']), 'Task submitted successfully', 201);
     }
@@ -217,27 +215,27 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1TaskModel::beginModelTransaction();
+        $review = CodeMartV1TaskModel::runInTransaction(function () use ($request, $submissionId, $user, $submission) {
+            $review = CodeMartV1CodeReviewModel::createRecord([
+                'task_submission_id' => $submissionId,
+                'reviewer_id' => $user->id,
+                'status' => $request->status,
+                'review_notes' => $request->review_notes,
+                'rating' => $request->rating,
+                'line_comments' => $request->line_comments,
+            ]);
 
-        $review = CodeMartV1CodeReviewModel::createRecord([
-            'task_submission_id' => $submissionId,
-            'reviewer_id' => $user->id,
-            'status' => $request->status,
-            'review_notes' => $request->review_notes,
-            'rating' => $request->rating,
-            'line_comments' => $request->line_comments,
-        ]);
+            $submission->updateRecord(['status' => $request->status]);
 
-        $submission->updateRecord(['status' => $request->status]);
+            $task = $submission->task;
+            if ($request->status === 'approved') {
+                $task->updateRecord(['status' => 'completed']);
+            } elseif ($request->status === 'needs_revision') {
+                $task->updateRecord(['status' => 'in_progress']);
+            }
 
-        $task = $submission->task;
-        if ($request->status === 'approved') {
-            $task->updateRecord(['status' => 'completed']);
-        } elseif ($request->status === 'needs_revision') {
-            $task->updateRecord(['status' => 'in_progress']);
-        }
-
-        CodeMartV1TaskModel::commitModelTransaction();
+            return $review;
+        });
 
         return $this->success($review->loadRecordRelations(['submission', 'reviewer']), 'Review submitted successfully', 201);
     }

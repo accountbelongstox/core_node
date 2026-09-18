@@ -87,11 +87,9 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->error('You do not meet the requirements for architect promotion');
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
-        $userRole->updateRecord(['role_status' => 'architect_pending']);
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        CodeMartV1ProjectModel::runInTransaction(function () use ($userRole) {
+            $userRole->updateRecord(['role_status' => 'architect_pending']);
+        });
 
         return $this->success([
             'message' => 'Architect application submitted. Please pay additional deposit to complete.',
@@ -153,11 +151,9 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->error('Insufficient architect deposit. Required: 10000, Current: ' . $architectDeposit);
         }
 
-        CodeMartV1ProjectModel::beginModelTransaction();
-
-        $userRole->updateRecord(['role_status' => 'architect']);
-
-        CodeMartV1ProjectModel::commitModelTransaction();
+        CodeMartV1ProjectModel::runInTransaction(function () use ($userRole) {
+            $userRole->updateRecord(['role_status' => 'architect']);
+        });
 
         return $this->success(['message' => 'Congratulations! You are now an architect.']);
     }
