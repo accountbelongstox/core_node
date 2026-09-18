@@ -119,11 +119,13 @@ class ManagedServiceProcessMixin:
     def _wait_healthy(self, spec: Any, timeout_s: float) -> bool:
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
-            if self._probe_server(spec) is True:
-                return True
+            # A dead child means this spawn failed even when the port still
+            # answers - the responder is a foreign listener, not our process.
             proc = self._processes.get(spec.name)
             if proc is not None and proc.poll() is not None:
                 return False
+            if self._probe_server(spec) is True:
+                return True
             time.sleep(HEALTH_POLL_SECONDS)
         return self._probe_server(spec) is True
 
@@ -165,6 +167,25 @@ class ManagedServiceProcessMixin:
             env = dict(env) if env is not None else dict(os.environ)
             env[SERVER_CODE_ID_ENV] = expected_code_id
         self._adopted_servers.discard(spec.name)
+        # Last-moment occupancy guard: a listener that appeared after
+        # ensure_running's preflight (a racing manager process, or a reclaim
+        # whose target is still holding the port) must not get a duplicate
+        # spawn. Abort and let the next ensure pass adopt or reclaim it.
+        if spec.kind == "server" and spec.foreign_present is not None:
+            try:
+                if spec.foreign_present():
+                    ColorPrint.yellow(
+                        f"[managed] {spec.name}: service port already occupied - "
+                        "aborting duplicate spawn"
+                    )
+                    if logf is not None:
+                        try:
+                            logf.close()
+                        except OSError:
+                            pass
+                    return False
+            except Exception:  # noqa: BLE001
+                pass
         popen_kwargs = self._popen_kwargs(cwd)
         logf = self._open_server_log(spec)
         popen_kwargs["stdout"] = subprocess.PIPE

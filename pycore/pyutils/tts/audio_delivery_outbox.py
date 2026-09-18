@@ -28,6 +28,11 @@ DEFAULT_LEASE_SECONDS = 180.0
 AUDIO_DELIVERY_OUTBOX_FILE = "audio_delivery_outbox.json"
 AUDIO_DELIVERY_OUTBOX_DEFAULTS = APP_CONFIG_DIR / "audio_delivery_outbox_empty_defaults"
 ACTIVE_AUDIO_DELIVERY_PREFIX = "tts.audio_delivery.active"
+# Durable per-identity receipt retained after a task record completes, so any
+# later attempt of the same audio inherits the finished domain upload instead
+# of re-transferring identical bytes.
+DOMAIN_RECEIPT_PREFIX = "__domain_receipt__:"
+SIBLING_IN_FLIGHT_DEFER_SECONDS = 1.0
 
 
 def _now() -> float:
@@ -95,13 +100,16 @@ class AudioDeliveryOutbox:
         task_id = record.get("task_id")
         attempt = max(0, int(record.get("attempt") or 0))
         delivery_id = self.delivery_id(lane, task_id, attempt)
+        # Records sharing one domain identity deliver the same bytes to the
+        # same endpoint; key the retained copy by identity so repeats reuse it.
+        retained_key = str(record.get("delivery_identity") or "").strip() or delivery_id
         source_path = Path(audio_path).resolve()
         source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
         retained_audio_path = (
             Path(cache_root).resolve()
             / "audio_delivery"
             / lane
-            / hashlib.sha1(delivery_id.encode("utf-8")).hexdigest()
+            / hashlib.sha1(retained_key.encode("utf-8")).hexdigest()
             / f"{source_sha256}.mp3"
         )
         retained_audio_path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +151,69 @@ class AudioDeliveryOutbox:
 
     def _save_record(self, row: Dict[str, Any]) -> None:
         self._record_store().put(str(row["delivery_id"]), row)
+
+    def _identity_siblings(self, row: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Other live records (and retained domain receipts) that deliver the
+        same bytes to the same domain endpoint as ``row``."""
+        identity = str(row.get("delivery_identity") or "").strip()
+        if not identity:
+            return []
+        lane = str(row.get("lane") or "")
+        sha256 = str(row.get("audio_sha256") or "")
+        self_id = str(row.get("delivery_id") or "")
+        return [
+            sibling
+            for sibling in self._load_records().values()
+            if str(sibling.get("delivery_id") or "") != self_id
+            and str(sibling.get("lane") or "") == lane
+            and str(sibling.get("delivery_identity") or "").strip() == identity
+            and (not sha256 or str(sibling.get("audio_sha256") or "") == sha256)
+            and str(sibling.get("status") or "pending") != "dead_letter"
+        ]
+
+    @staticmethod
+    def _inherit_domain_state(row: Dict[str, Any], siblings: List[Dict[str, Any]]) -> None:
+        """A sibling (or retained receipt) whose domain delivery already finished
+        makes ``row`` skip its own byte transfer - durable dedup held in the
+        store itself, not in any time-window cache."""
+        if bool(row.get("domain_delivery_finished", row.get("domain_uploaded"))):
+            return
+        for sibling in siblings:
+            if bool(sibling.get("domain_delivery_finished", sibling.get("domain_uploaded"))):
+                row["domain_delivery_finished"] = True
+                row["domain_uploaded"] = bool(sibling.get("domain_uploaded"))
+                row["domain_upload_error"] = str(sibling.get("domain_upload_error") or "")
+                return
+
+    def _retain_domain_receipt(self, row: Dict[str, Any]) -> None:
+        """Keep a durable per-identity receipt after the task record completes
+        so later attempts of the same audio never re-upload the bytes."""
+        identity = str(row.get("delivery_identity") or "").strip()
+        if not identity or not bool(row.get("domain_delivery_finished", row.get("domain_uploaded"))):
+            return
+        receipt_id = (
+            DOMAIN_RECEIPT_PREFIX
+            + str(row.get("lane") or "")
+            + ":"
+            + hashlib.sha1(identity.encode("utf-8")).hexdigest()
+        )
+        self._save_record({
+            "delivery_id": receipt_id,
+            "lane": row.get("lane"),
+            "delivery_identity": identity,
+            "audio_sha256": row.get("audio_sha256"),
+            "status": "completed",
+            "tombstone": True,
+            "domain_uploaded": bool(row.get("domain_uploaded")),
+            "domain_delivery_finished": True,
+            "domain_upload_error": str(row.get("domain_upload_error") or ""),
+            "retry_at": 0.0,
+            "lease_owner": "",
+            "lease_process": "",
+            "lease_until": 0.0,
+            "created_at": float(row.get("created_at") or _now()),
+            "updated_at": _now(),
+        })
 
     @serialized_method
     @_record_transaction
@@ -192,6 +263,7 @@ class AudioDeliveryOutbox:
             for lease_key in ("lease_owner", "lease_process", "lease_until"):
                 if lease_key in current:
                     row[lease_key] = current[lease_key]
+        self._inherit_domain_state(row, self._identity_siblings(row))
         row["updated_at"] = _now()
         self._save_record(row)
         return copy.deepcopy(row)
@@ -211,6 +283,16 @@ class AudioDeliveryOutbox:
             return None
         if not _delivery_available(row, now):
             return None
+        siblings = self._identity_siblings(row)
+        for sibling in siblings:
+            if not _delivery_available(sibling, now):
+                # A sibling is already transferring the same bytes; defer so
+                # only ONE upload per domain identity is ever in flight.
+                row["retry_at"] = now + SIBLING_IN_FLIGHT_DEFER_SECONDS
+                row["updated_at"] = now
+                self._save_record(row)
+                return None
+        self._inherit_domain_state(row, siblings)
         row["lease_owner"] = str(owner)
         row["lease_process"] = str(process_id)
         row["lease_until"] = now + max(1.0, float(lease_seconds))
@@ -247,6 +329,7 @@ class AudioDeliveryOutbox:
         if owner and str(row.get("lease_owner") or "") != str(owner):
             raise RuntimeError("Audio delivery ownership changed during delivery")
         row.update(copy.deepcopy(patch))
+        self._inherit_domain_state(row, self._identity_siblings(row))
         row["updated_at"] = _now()
         self._save_record(row)
         return copy.deepcopy(row)
@@ -281,7 +364,7 @@ class AudioDeliveryOutbox:
         counts = {}
         for row in records.values():
             key = str(row.get(field) or "")
-            if row.get("lane") == lane and key:
+            if row.get("lane") == lane and key and not row.get("tombstone"):
                 counts[key] = counts.get(key, 0) + 1
         return counts
 
@@ -293,6 +376,7 @@ class AudioDeliveryOutbox:
             return False
         if owner and str(row.get("lease_owner") or "") != str(owner):
             return False
+        self._retain_domain_receipt(row)
         self._record_store().delete(str(delivery_id))
         return True
 
@@ -321,6 +405,7 @@ class AudioDeliveryOutbox:
             row
             for row in self._load_records().values()
             if str(row.get("lane") or "") == str(lane)
+            and not row.get("tombstone")
             and str(row.get("status") or "pending") != "dead_letter"
             and float(row.get("retry_at") or 0) <= now
             and _delivery_available(row, now)
@@ -352,6 +437,7 @@ class AudioDeliveryOutbox:
             row
             for row in self._load_records().values()
             if str(row.get("lane") or "") == str(lane)
+            and not row.get("tombstone")
         ]
         pending_rows = [
             row for row in rows if str(row.get("status") or "pending") != "dead_letter"

@@ -303,7 +303,7 @@ class LaravelProgressUploader:
         laravel_http_recorder.notify(record)
         ColorPrint.cyan(
             f"[laravel upload] reason={reason or 'unspecified'} {identity}{path} -> {progress:.2f}% "
-            f"({offset}/{total_bytes} bytes)"
+            f"({offset}/{total_bytes} bytes) phase={record['phase']}"
         )
         if progress_callback is not None:
             progress_callback(dict(record))

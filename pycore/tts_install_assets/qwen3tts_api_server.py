@@ -86,6 +86,7 @@ import asyncio
 import importlib.util
 import io
 import os
+import socket
 import sys
 import threading
 import time
@@ -756,6 +757,30 @@ class _ReadyServer(uvicorn.Server):
         _log(f"[api] QWEN3TTS_READY http://{ready_host}:{port} (Web console: /)")
 
 
+def _bind_port_or_exit(host: str, port: int, backlog: int) -> socket.socket:
+    """Claim the listen socket BEFORE uvicorn starts. Uvicorn runs the FastAPI
+    lifespan (the multi-minute GPU model load) before binding, so a duplicate
+    launch would otherwise load a second model into VRAM and only then fail on
+    the occupied port. Binding up front claims the port at process start and
+    refuses a duplicate instance in milliseconds."""
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        if os.name != "nt":
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((host, port))
+        sock.listen(backlog)
+        sock.set_inheritable(True)
+    except OSError as exc:
+        sock.close()
+        _log(
+            f"[api] {host}:{port} is already bound by another qwen3tts instance; "
+            f"refusing to load a duplicate model ({exc})"
+        )
+        raise SystemExit(1)
+    return sock
+
+
 def main():
     host = (os.environ.get("QWEN3TTS_HOST") or _DEFAULT_HOST).strip() or _DEFAULT_HOST
     raw_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
@@ -768,7 +793,8 @@ def main():
     _log(f"[api] Qwen3-TTS API server starting on {host}:{port} "
          f"(port_source={port_source}, model={_model_id()}, device={_resolve_device()})")
     config = uvicorn.Config(app, host=host, port=port)
-    _ReadyServer(config).run()
+    sock = _bind_port_or_exit(host, port, config.backlog)
+    asyncio.run(_ReadyServer(config).serve(sockets=[sock]))
 
 
 if __name__ == "__main__":

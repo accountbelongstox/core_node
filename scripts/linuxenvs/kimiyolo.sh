@@ -56,7 +56,6 @@ kimi_key_name=""
 selected_key_index=0
 switch_choice=""
 switch_pick=""
-model_choice=""
 model_pick=""
 kimi_model="k3-256k"
 kimi_model_label="kimi k3 256K"
@@ -258,23 +257,24 @@ elif [ "$version_gap_large" = "1" ]; then
     echo "[INFO] Kimi Code CLI upgrade skipped."
 fi
 
-# Model selection (default Y = kimi k3 256K / k3-256k).
-printf '\033[33mUse default model kimi k3 256K (k3-256k)? [Y/n]: \033[0m'
-read -r model_choice || model_choice=""
-if [ "$model_choice" = "n" ] || [ "$model_choice" = "N" ]; then
-    echo "  [1] kimi k3 256K (k3-256k)"
-    echo "  [2] kimi k3 1M (k3)"
-    echo "  [3] kimi2.8 preview (kimi-for-coding, 1M)"
-    echo "  [4] kimi2.7 code highspeed (kimi-for-coding-highspeed, 256K)"
-    printf '\033[33mSelect model number [1-4]: \033[0m'
-    read -r model_pick || model_pick=""
-    case "$model_pick" in
-        2) kimi_model="k3"; kimi_model_label="kimi k3 1M" ;;
-        3) kimi_model="kimi-for-coding"; kimi_model_label="kimi2.8 preview" ;;
-        4) kimi_model="kimi-for-coding-highspeed"; kimi_model_label="kimi2.7 code highspeed" ;;
-        *) kimi_model="k3-256k"; kimi_model_label="kimi k3 256K" ;;
-    esac
+# Model selection (default 1 = kimi k3 256K / k3-256k; auto-selects after 5s).
+echo "Select model (default 1 = kimi k3 256K / k3-256k; auto-select in 5 seconds):"
+echo "  [1] kimi k3 256K (k3-256k)"
+echo "  [2] kimi k3 1M (k3)"
+echo "  [3] kimi2.8 preview (kimi-for-coding, 1M)"
+echo "  [4] kimi2.7 code highspeed (kimi-for-coding-highspeed, 256K)"
+printf '\033[33mModel number [1-4] (Enter or timeout = 1): \033[0m'
+read -r -t 5 model_pick || model_pick=""
+if [ -z "$model_pick" ]; then
+    model_pick="1"
+    echo "1 (auto)"
 fi
+case "$model_pick" in
+    2) kimi_model="k3"; kimi_model_label="kimi k3 1M" ;;
+    3) kimi_model="kimi-for-coding"; kimi_model_label="kimi2.8 preview" ;;
+    4) kimi_model="kimi-for-coding-highspeed"; kimi_model_label="kimi2.7 code highspeed" ;;
+    *) kimi_model="k3-256k"; kimi_model_label="kimi k3 256K" ;;
+esac
 echo "[INFO] Model: $kimi_model_label ($kimi_model)"
 
 # Non-interactive provider setup (idempotent: catalog add re-creates the provider).
