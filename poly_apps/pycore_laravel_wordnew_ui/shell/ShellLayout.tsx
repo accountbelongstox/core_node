@@ -13,7 +13,7 @@ export const ShellLayout: React.FC = () => {
   return (
     <div
       className="shell-root min-h-screen"
-      style={{ [SHELL_DOCK_GUTTER_CSS_VAR]: `${shellDockRightGutterPx()}px` }}
+      style={{ [SHELL_DOCK_GUTTER_CSS_VAR]: `${shellDockRightGutterPx()}px` } as React.CSSProperties}
     >
       <Outlet />
       <ShellControls />

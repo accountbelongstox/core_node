@@ -1,6 +1,6 @@
 import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig, type PluginOption, type PreviewServer, type UserConfig, type ViteDevServer } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
 import {
@@ -65,7 +65,7 @@ const serveWebAccessConfig = (req, res, next) => {
   }
   res.end(body);
 };
-export default defineConfig((): UserConfig => {
+export default defineConfig(() => {
     const capacitorShim = (name: string) =>
       path.resolve(__dirname, 'apps/wordnew/platform/capacitor-web-shims', name + '.ts');
 
@@ -96,20 +96,6 @@ export default defineConfig((): UserConfig => {
       '@capacitor/browser': capacitorShim('browser'),
     };
 
-    const plugins: PluginOption[] = [
-      react() as PluginOption,
-      {
-        name: 'web-access-config-server',
-        configureServer(server: ViteDevServer) {
-          server.middlewares.use(serveWebAccessConfig);
-        },
-        configurePreviewServer(server: PreviewServer) {
-          server.middlewares.use(serveWebAccessConfig);
-        },
-      },
-      tailwindcss() as PluginOption,
-    ];
-
     return {
       define: {
         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
@@ -131,7 +117,19 @@ export default defineConfig((): UserConfig => {
       preview: {
         allowedHosts: readExternalAllowedHosts(),
       },
-      plugins,
+      plugins: [
+        react(),
+        {
+          name: 'web-access-config-server',
+          configureServer(server) {
+            server.middlewares.use(serveWebAccessConfig);
+          },
+          configurePreviewServer(server) {
+            server.middlewares.use(serveWebAccessConfig);
+          },
+        },
+        tailwindcss(),
+      ],
       resolve: {
         dedupe: ['react', 'react-dom'],
         alias: {
