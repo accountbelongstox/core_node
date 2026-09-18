@@ -16,17 +16,17 @@ import {
 } from 'lucide-react';
 
 const CmDashboardPage = lazy(() => import('./pages/CmDashboardPage'));
-const CmMarketplacePage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmMarketplacePage })));
-const CmProjectsPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmProjectsPage })));
-const CmProjectCreatePage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmProjectCreatePage })));
-const CmTasksPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmTasksPage })));
-const CmReviewsPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmReviewsPage })));
-const CmArchitectPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmArchitectPage })));
-const CmWalletPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmWalletPage })));
-const CmVerificationPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmVerificationPage })));
-const CmProfilePage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmProfilePage })));
-const CmNotificationsPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmNotificationsPage })));
-const CmSettingsPage = lazy(() => import('./pages/CmDomainPages').then((module) => ({ default: module.CmSettingsPage })));
+const CmMarketplacePage = lazy(() => import('./pages/CmMarketplacePage'));
+const CmProjectsPage = lazy(() => import('./pages/CmProjectsPage'));
+const CmProjectCreatePage = lazy(() => import('./pages/CmProjectsPage').then((module) => ({ default: module.CmProjectCreatePage })));
+const CmTasksPage = lazy(() => import('./pages/CmTasksPage'));
+const CmReviewsPage = lazy(() => import('./pages/CmReviewsPage'));
+const CmArchitectPage = lazy(() => import('./pages/CmReviewsPage').then((module) => ({ default: module.CmArchitectPage })));
+const CmWalletPage = lazy(() => import('./pages/CmWalletPage'));
+const CmVerificationPage = lazy(() => import('./pages/CmVerificationPage'));
+const CmProfilePage = lazy(() => import('./pages/CmProfilePage'));
+const CmNotificationsPage = lazy(() => import('./pages/CmNotificationsPage'));
+const CmSettingsPage = lazy(() => import('./pages/CmSettingsPage'));
 
 export interface CmPageDef {
   id: string;

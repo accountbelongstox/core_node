@@ -18,11 +18,18 @@ class AppQyV1VocabularyCoverService
     private string $coversDir;
     private string $coversUrlPrefix;
     private string $defaultFilename;
+    private string $aiCacheDir;
 
     public function __construct()
     {
         $this->coversDir = PathMapper::getStaticPath() . '/app_qy_v1/covers';
         PathMapper::ensureDirectoryExists($this->coversDir);
+
+        // AI-generated images are cached by prompt hash so a repeated prompt
+        // never burns another provider call; the cache lives in the SAME
+        // global-constant static root as the covers (never the web root).
+        $this->aiCacheDir = PathMapper::getStaticPath() . '/app_qy_v1/ai_image_cache';
+        PathMapper::ensureDirectoryExists($this->aiCacheDir);
 
         $this->coversUrlPrefix = url('/static/app_qy_v1/covers');
         $this->defaultFilename = $this->buildFilenameFromParts(0, 'appqyv1-default-cover');
@@ -172,6 +179,119 @@ class AppQyV1VocabularyCoverService
             'updated_at' => optional($library->updated_at)->toDateTimeString(),
             'started_at' => optional($library->cover_started_at)->toDateTimeString(),
             'finished_at' => optional($library->cover_finished_at)->toDateTimeString(),
+        ];
+    }
+
+    // ------------------------------------------------------------------ //
+    // Laravel-side AI cover generation (AiGateway text-to-image)           //
+    // ------------------------------------------------------------------ //
+
+    /**
+     * The cover prompt for a library: the stored cover_prompt wins (mcp-chrome
+     * randomizes it on clear); otherwise a deterministic prompt is built from
+     * the library identity.
+     */
+    public function buildAiPrompt(AppQyV1VocabularyLibraryModel $library): string
+    {
+        $stored = trim((string) ($library->cover_prompt ?? ''));
+        if ($stored !== '') {
+            return $stored;
+        }
+        $name = trim((string) ($library->name ?? 'vocabulary'));
+        $language = trim((string) ($library->language ?? 'en'));
+        return "Minimalist flat illustration for a {$language} vocabulary learning library named \"{$name}\", "
+            . 'educational book cover style, soft gradient background, clean geometric shapes, no text, no letters';
+    }
+
+    /** Cache file for one exact prompt+size combination (prompt-hash keyed). */
+    private function aiCachePath(string $prompt, string $size): string
+    {
+        return $this->aiCacheDir . '/' . hash('sha256', $prompt . '|' . $size) . '.png';
+    }
+
+    /**
+     * Regenerate the library cover through Laravel's AI image gateway
+     * (free-quota providers first, multi-key failover, cooldown-aware).
+     *
+     * Caching: an identical prompt+size is served from the on-disk ai_image_cache
+     * (no provider call at all); freshly generated images are written INTO the
+     * cache first and then copied to the cover path, so covers are never
+     * one-shot throwaway output.
+     *
+     * Returns { success, url, provider, model, cached, error }.
+     */
+    public function regenerateWithAi(AppQyV1VocabularyLibraryModel $library, ?string $promptOverride = null): array
+    {
+        set_time_limit(300);
+        $size = 'square';
+        $prompt = trim((string) ($promptOverride ?? '')) !== ''
+            ? trim((string) $promptOverride)
+            : $this->buildAiPrompt($library);
+
+        if ($library->cover_filename === null || $library->cover_filename === '') {
+            $library->cover_filename = $this->buildFilename($library);
+        }
+        $coverPath = $this->getCoverPath($library->cover_filename);
+
+        $library->cover_status = 'processing';
+        $library->cover_started_at = now();
+        $library->cover_prompt = $prompt;
+        $library->cover_attempts = (int) ($library->cover_attempts ?? 0) + 1;
+        $library->saveRecord();
+
+        $cachePath = $this->aiCachePath($prompt, $size);
+        $cached = File::exists($cachePath) && File::size($cachePath) > 0;
+
+        if ($cached) {
+            File::copy($cachePath, $coverPath);
+            $provider = 'cache';
+            $model = 'prompt-cache';
+            $latencyMs = null;
+        } else {
+            $result = \App\Services\AiGateway\AiGateway::generateImage($prompt, $size, null, 'vocabulary_cover');
+            if (empty($result['success']) || empty($result['image_base64'])) {
+                $library->cover_status = 'failed';
+                $library->cover_error_message = mb_substr((string) ($result['error'] ?? 'image generation failed'), 0, 2000);
+                $library->cover_finished_at = now();
+                $library->saveRecord();
+                return [
+                    'success' => false,
+                    'error' => $library->cover_error_message,
+                    'provider' => $result['provider'] ?? '',
+                    'cached' => false,
+                ];
+            }
+            $bytes = base64_decode((string) $result['image_base64'], true);
+            if ($bytes === false || strlen($bytes) < 100) {
+                $library->cover_status = 'failed';
+                $library->cover_error_message = 'AI image payload was empty or corrupt';
+                $library->cover_finished_at = now();
+                $library->saveRecord();
+                return ['success' => false, 'error' => $library->cover_error_message, 'provider' => $result['provider'] ?? '', 'cached' => false];
+            }
+            File::put($cachePath, $bytes);
+            File::put($coverPath, $bytes);
+            $provider = (string) ($result['provider'] ?? '');
+            $model = (string) ($result['model'] ?? '');
+            $latencyMs = isset($result['latency_ms']) ? (int) $result['latency_ms'] : null;
+        }
+
+        $library->cover_status = 'ready';
+        $library->cover_error_message = null;
+        $library->cover_provider = $provider;
+        $library->cover_model = $model;
+        $library->cover_latency_ms = $latencyMs;
+        $library->cover_finished_at = now();
+        $library->cover_last_generated_at = now();
+        $library->saveRecord();
+
+        return [
+            'success' => true,
+            'url' => $this->buildCoverUrl($library->cover_filename) . '?v=' . $library->cover_last_generated_at->getTimestamp(),
+            'provider' => $provider,
+            'model' => $model,
+            'cached' => $cached,
+            'error' => null,
         ];
     }
 }

@@ -16,6 +16,9 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/statistics', [AppQyV1VocabularyLibraryPublicController::class, 'getStatistics']);
         Route::get('/libraries/recommended', [AppQyV1VocabularyLibraryPublicController::class, 'getRecommended']);
         Route::get('/libraries/{libraryId}/words', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraryWords']);
+        // One-click AI cover regeneration (Laravel AiGateway text-to-image,
+        // prompt-hash disk cache). POST so an optional prompt override can ride along.
+        Route::post('/libraries/{libraryId}/cover/ai-regenerate', [AppQyV1VocabularyLibraryPublicController::class, 'regenerateCoverAi']);
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
 
         // Vocabulary page stats drill-down (dashboard, read-only). Powers the

@@ -27,7 +27,7 @@ import {
   Search, Plus, RefreshCw, Volume2, CheckCircle2, XCircle, Pencil, Trash2,
   ChevronLeft, ChevronRight, Pause,
   Image as ImageIcon, Loader2, ListChecks,
-  AudioLines, Languages as LanguagesIcon, BarChart3, Eye,
+  AudioLines, Languages as LanguagesIcon, BarChart3, Eye, Eraser, MessageSquareX,
 } from 'lucide-react';
 import {
   api,
@@ -40,6 +40,7 @@ import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/Laravel
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '@/core/logstore/logStore';
 import WordDetailModal from './WordDetailModal';
+import VocabularyCleanupModal, { type VocabularyCleanupKind } from './VocabularyCleanupModal';
 import VocabularyStorageSummary from './VocabularyStorageSummary';
 import { VocabularyWordsModel } from './words/VocabularyWordsModel';
 import {
@@ -123,6 +124,7 @@ const WordsManagerPanel: React.FC = () => {
   const [editWord, setEditWord] = useState<DictionaryWordRow | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [cleanupKind, setCleanupKind] = useState<VocabularyCleanupKind | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'delete-one' | 'delete-batch'; word?: DictionaryWordRow } | null>(null);
 
   // Reset paging + selection whenever a query dimension (incl. sort) changes, so
@@ -347,6 +349,14 @@ const WordsManagerPanel: React.FC = () => {
           className="px-3 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1.5">
           <Plus className="w-4 h-4" /> {text.add_word}
         </button>
+        <button onClick={() => setCleanupKind('words')}
+          className="px-3 py-2 text-sm rounded-lg border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 font-medium flex items-center gap-1.5">
+          <Eraser className="w-4 h-4" /> {text.cleanup.invalid_words}
+        </button>
+        <button onClick={() => setCleanupKind('translations')}
+          className="px-3 py-2 text-sm rounded-lg border border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 font-medium flex items-center gap-1.5">
+          <MessageSquareX className="w-4 h-4" /> {text.cleanup.invalid_translations}
+        </button>
         <button onClick={refresh} disabled={loading}
           className="p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-50" title={text.refresh}>
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -531,6 +541,17 @@ const WordsManagerPanel: React.FC = () => {
         language={language}
         word={null}
         onSaved={onSaved}
+      />
+
+      {/* one-click cleanup: invalid words / invalid translations */}
+      <VocabularyCleanupModal
+        open={cleanupKind !== null}
+        onClose={() => setCleanupKind(null)}
+        kind={cleanupKind ?? 'words'}
+        language={language}
+        labels={text.cleanup}
+        cancelText={TRANSLATIONS[lang].vocabulary.cancel}
+        onPurged={() => { setSelected(new Set()); refresh(); }}
       />
 
       {/* destructive confirm */}

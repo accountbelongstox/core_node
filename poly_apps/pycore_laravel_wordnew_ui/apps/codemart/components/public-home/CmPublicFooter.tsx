@@ -7,15 +7,17 @@ const FOOTER_GROUPS = [
   {
     titleKey: 'publicHome.footer.platformTitle',
     links: [
-      { key: 'publicHome.footer.about', to: '/codemart' },
-      { key: 'publicHome.footer.delivery', to: '#cm-delivery-process' },
+      { key: 'publicHome.footer.about', to: '/codemart/about' },
+      { key: 'publicHome.footer.delivery', to: '/codemart/delivery-process' },
+      { key: 'publicHome.footer.information', to: '/codemart/information' },
     ],
   },
   {
     titleKey: 'publicHome.footer.serviceTitle',
     links: [
+      { key: 'publicHome.footer.services', to: '/codemart/services' },
       { key: 'publicHome.footer.marketplace', to: '/codemart/marketplace' },
-      { key: 'publicHome.footer.estimate', to: '/codemart/projects/new' },
+      { key: 'publicHome.footer.estimate', to: '/codemart/estimate' },
     ],
   },
   {
@@ -23,13 +25,14 @@ const FOOTER_GROUPS = [
     links: [
       { key: 'publicHome.footer.dashboard', to: '/codemart/dashboard' },
       { key: 'publicHome.footer.verification', to: '/codemart/verification' },
+      { key: 'publicHome.footer.account', to: '/codemart/profile' },
     ],
   },
   {
     titleKey: 'publicHome.footer.legalTitle',
     links: [
-      { key: 'publicHome.footer.privacy', to: '/codemart/settings' },
-      { key: 'publicHome.footer.terms', to: '/codemart/settings' },
+      { key: 'publicHome.footer.privacy', to: '/codemart/privacy' },
+      { key: 'publicHome.footer.terms', to: '/codemart/terms' },
     ],
   },
 ] as const;

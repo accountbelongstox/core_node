@@ -292,6 +292,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
     {
         $library = AppQyV1VocabularyLibraryModel::findPublicById($libraryId, true);
 
+
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min((int) $request->query('per_page', 1000), 2000));
         $offset = ($page - 1) * $perPage;
@@ -341,6 +342,39 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                 'has_more' => $page < $lastPage,
             ],
         ]);
+    }
+
+    /**
+     * POST /api/app_qy_v1/vocabulary/libraries/{libraryId}/cover/ai-regenerate
+     * Body: { prompt? }
+     *
+     * One-click cover regeneration through Laravel's OWN AI image gateway
+     * (App\Services\AiGateway\AiGateway::generateImage — free-quota providers
+     * first: gemini flash image / zhipu cogview / pollinations, then paid,
+     * with multi-key failover + cooldowns). Identical prompts are served from
+     * the on-disk prompt-hash cache; fresh output is written into that cache
+     * before it becomes the cover. Provenance lands on cover_provider /
+     * cover_model / cover_latency_ms.
+     */
+    public function regenerateCoverAi(Request $request, int $libraryId): JsonResponse
+    {
+        $library = AppQyV1VocabularyLibraryModel::findPublicById($libraryId, true);
+
+        $prompt = trim((string) $request->input('prompt', ''));
+        $promptOverride = null;
+        if ($prompt !== '') {
+            $promptOverride = $prompt;
+        }
+
+        $result = $this->coverService->regenerateWithAi($library, $promptOverride);
+        if (empty($result['success'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'] ?? 'AI cover generation failed',
+            ], 502);
+        }
+
+        return $this->success($result, 'Cover regenerated');
     }
 
     /**
