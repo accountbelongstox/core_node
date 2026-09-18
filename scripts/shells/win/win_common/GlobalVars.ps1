@@ -252,6 +252,7 @@ $Global:PYTHON310_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PY
 $Global:PYTHON310_SCRIPTS_DIR = Join-Path $Global:PYTHON310_DIR "Scripts"
 $Global:PYTHON310_EXE_PATH = Join-Path $Global:PYTHON310_DIR "python.exe"
 $Global:PYTHON310_PIP_PATH = Join-Path $Global:PYTHON310_SCRIPTS_DIR "pip.exe"
+$Global:PYTHON310_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PYTHON310_VERSION_COMPACT).install_success.flag")
 $Global:UV_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "uv.exe"
 $Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
 $Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "poetry.exe"
