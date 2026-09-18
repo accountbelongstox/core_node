@@ -178,6 +178,18 @@ def is_app_running(
     exe_path: Optional[str] = None,
 ) -> bool:
     """True when the target *app_name* (or *exe_path* when given) is already running."""
+    if sys.platform != 'win32':
+        # comm-name match first: the resolved launch path is a wrapper/symlink
+        # (google-chrome -> .../google-chrome script) whose resolved target never
+        # equals the real process exe (.../chrome), so exe-path comparison alone
+        # misses every running instance.
+        for proc_name in app_finder._LINUX_PROCESS_NAMES.get(app_name, []):
+            if process_manager.is_process_running(proc_name):
+                return True
+        if exe_path:
+            return _is_exe_path_running(process_manager, exe_path)
+        return False
+
     if exe_path:
         return _is_exe_path_running(process_manager, exe_path)
 

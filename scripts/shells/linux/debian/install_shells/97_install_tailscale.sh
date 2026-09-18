@@ -241,7 +241,7 @@ tailscale_up_with_reset_fallback() {
 #   orchestrated runs cannot hang waiting for a browser.
 bring_tailscale_up() {
     local up_args=("--accept-routes")
-    local backend_state status_text login_url op_session op_user
+    local backend_state status_text login_url current_operator op_session op_user
 
     # The desktop user is made the tailscale operator (rootless control, used
     # by the GNOME extension). It must be part of the declared flag set or
@@ -285,6 +285,15 @@ bring_tailscale_up() {
 
     if [ "$backend_state" = "Running" ]; then
         print_info_from_common_functions "Node already authenticated; re-applying settings..."
+        # Headless fallback: when no graphical session was resolved above, still
+        # mention an operator already stored in prefs -- the --reset fallback
+        # would otherwise silently DROP it and break rootless extension control.
+        if ! printf '%s\n' "${up_args[@]}" | grep -q '^--operator='; then
+            current_operator="$($USE_SUDO tailscale debug prefs 2>/dev/null | sed -n 's/.*"OperatorUser": *"\([^"]*\)".*/\1/p' | head -n1)"
+            if [ -n "$current_operator" ]; then
+                up_args+=("--operator=$current_operator")
+            fi
+        fi
         tailscale_up_with_reset_fallback "${up_args[@]}" || true
         return 0
     fi

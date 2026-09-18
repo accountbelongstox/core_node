@@ -26,12 +26,19 @@ on the session type:
     for a head start. With a geometry emulator but no positioner we fall back to
     the geometry hint alone (best-effort -- the WM may ignore it).
 
-  * Wayland -- a real client-positioned multi-window grid is IMPOSSIBLE by
-    design: the xdg-shell protocol deliberately forbids a client from setting
-    its own window's screen coordinates (the compositor owns placement). So we
-    fall back to a SINGLE window whose internal PANES form the grid, using
-    ``kitty`` (session file) or ``tmux`` (split panes), or, failing those, N
-    plain unpositioned terminals that the compositor tiles on its own.
+  * Wayland -- native Wayland clients cannot position their own windows (the
+    xdg-shell protocol deliberately leaves placement to the compositor), but N
+    separate positioned windows ARE still possible through XWayland: a
+    single-process emulator launched with its X11 backend (GTK ``GDK_BACKEND``
+    / Qt ``QT_QPA_PLATFORM``, per the official GTK/Qt docs) creates X11 windows
+    that ``wmctrl``/``xdotool`` place exactly as on X11. That path is used
+    whenever a positioner and a suitable emulator exist. Only when it does not
+    apply do we fall back to a SINGLE window whose internal PANES form the grid
+    (``kitty`` session file or ``tmux`` split panes), or, failing those, N plain
+    unpositioned terminals that the compositor tiles on its own.
+    gnome-terminal cannot use the XWayland path: it is a D-Bus client of the
+    already-running gnome-terminal-server, so its windows always carry the
+    server's Wayland backend.
 
 Note: ``qterminal`` (Kali's default) has no geometry flag, so it is excluded
 from the geometry-emulator list used by the separate-window X11 path. It IS,
@@ -110,28 +117,40 @@ class LinuxTerminalLauncher:
         geom_emu = self._argv._find_x11_emulator()                # geometry-capable, no qterminal
         any_emu = self._argv._find_fallback_emulator_or_none()    # broad list incl. qterminal
 
-        # Strategy selection. Separate real windows are the DEFAULT on X11 (the
-        # user asked for "12 windows"); the paned grid is the automatic fallback.
+        # Strategy selection. Separate real windows are the DEFAULT (the user
+        # asked for "12 windows"); the paned grid is the automatic fallback.
         #   1. X11 + a positioner (wmctrl/xdotool) + ANY emulator, and the caller
         #      did not force paned -> N separate windows positioned BY TITLE.
         #      Title-matching is the only thing that works with qterminal (no
         #      geometry flag) and sidesteps its shared-server-PID problem. Prefer
         #      a geometry-capable emulator when present (its --geometry hint gets
         #      the window close before we enforce), else use qterminal/any.
-        #   2. X11 + a geometry-capable emulator but no positioner -> geometry
+        #   2. Wayland + a positioner + an X11-backend-capable emulator -> the
+        #      same separate-windows path through XWayland (backend-forcing env).
+        #   3. X11 + a geometry-capable emulator but no positioner -> geometry
         #      hint only (best-effort; the WM may ignore it).
-        #   3. Otherwise (Wayland, no emulator, or prefer_paned) -> paned window.
+        #   4. Otherwise (no emulator/positioner/backend path, or prefer_paned)
+        #      -> paned window.
         if (not is_wayland and positioner and any_emu
                 and not getattr(self, "prefer_paned", False)):
             return self._launch_x11_positioned(
                 configs, geom_emu or any_emu, positioner, delay)
 
+        if is_wayland and not getattr(self, "prefer_paned", False):
+            wayland_emu = self._argv._find_wayland_x11_emulator()
+            if positioner and wayland_emu:
+                ColorPrint.plain("Wayland session detected: launching separate windows on the "
+                      "X11 backend (XWayland) so they can be positioned like on X11.")
+                return self._launch_x11_positioned(
+                    configs, wayland_emu, positioner, delay,
+                    env_extra=self._argv._x11_backend_env(wayland_emu))
+
         if not is_wayland and geom_emu is not None:
             return self._launch_x11_grid(configs, geom_emu, delay)
 
         if is_wayland:
-            ColorPrint.plain("Wayland session detected: clients cannot position their own "
-                  "windows (xdg-shell), falling back to a single paned window.")
+            ColorPrint.plain("Wayland session without a usable X11-backend emulator/positioner: "
+                  "falling back to a single paned window.")
         elif getattr(self, "prefer_paned", False):
             ColorPrint.plain("prefer_paned set: using a single paned window.")
         else:
@@ -143,7 +162,7 @@ class LinuxTerminalLauncher:
     # X11 strategy A: N separate windows positioned BY TITLE (any emulator)
     # ------------------------------------------------------------------ #
 
-    def _launch_x11_positioned(self, configs, emulator, positioner, delay):
+    def _launch_x11_positioned(self, configs, emulator, positioner, delay, env_extra=None):
         """
         Launch N separate windows and position each by its STABLE X window id.
 
@@ -162,11 +181,19 @@ class LinuxTerminalLauncher:
         is also what lets qterminal (no --geometry flag, shared server PID) form
         a real grid of separate windows. Title matching remains a fallback only.
 
+        XWayland note: under GNOME/Wayland the compositor applies its own
+        map-time placement a moment AFTER the window appears in the client list,
+        which can overwrite the launcher's first move. Every captured window is
+        therefore moved once more in a short re-assert pass after the loop.
+
         Args:
             configs: List of 4-tuples (x, y, cols, rows).
             emulator: Emulator to launch (geometry-capable preferred, else any).
             positioner: 'wmctrl' or 'xdotool'.
             delay: Delay between launches in seconds.
+            env_extra: Optional env overrides merged over os.environ for the
+                spawned emulator (e.g. the X11-backend-forcing vars used on
+                Wayland/XWayland).
 
         Returns:
             list: Launched PIDs.
@@ -176,11 +203,16 @@ class LinuxTerminalLauncher:
         col_gap, row_gap = self._placer._grid_gaps(cell_w, cell_h)
         frame = None  # WM frame extents, measured once from the first window
         width = len(str(len(configs)))  # zero-pad index so titles never collide
+        popen_env = None
+        if env_extra:
+            popen_env = dict(os.environ)
+            popen_env.update(env_extra)
         ColorPrint.plain(f"X11 session: launching {len(configs)} separate '{emulator}' "
               f"window(s), positioned by captured window id via {positioner}"
               + (f" (cell {cell_w}x{cell_h}px, gaps {col_gap}/{row_gap}px)" if cell_w else "") + ".")
 
         pids = []
+        placed = []  # (wid, px, py, w, h) captured ids, re-asserted after the loop
         snapshot = self._placer._list_window_ids()  # baseline before we add any window
 
         for i, (x, y, cols, rows) in enumerate(configs, 1):
@@ -197,7 +229,7 @@ class LinuxTerminalLauncher:
             if argv is None:
                 continue
             try:
-                proc = subprocess.Popen(argv, start_new_session=True)
+                proc = subprocess.Popen(argv, start_new_session=True, env=popen_env)
                 pids.append(proc.pid)
             except Exception as e:
                 ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
@@ -210,6 +242,7 @@ class LinuxTerminalLauncher:
                     frame = self._placer._frame_extents(wid)
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
                 self._placer._place_by_id(positioner, wid, px, py, w, h)
+                placed.append((wid, px, py, w, h))
                 ColorPrint.plain(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
                       + (f" ({w}x{h}px)" if cell_w else "")
                       + f" (pid {proc.pid})")
@@ -223,6 +256,14 @@ class LinuxTerminalLauncher:
                 else:
                     self._placer._place_by_title_xdotool(title, px, py, w, h)
             time.sleep(delay)
+
+        # Re-assert pass: on XWayland the compositor can apply its own map-time
+        # placement after our first move; move every captured window once more
+        # now that all of them are fully mapped and decorated.
+        if placed:
+            time.sleep(0.5)
+            for wid, px, py, w, h in placed:
+                self._placer._place_by_id(positioner, wid, px, py, w, h)
 
         return pids
 
