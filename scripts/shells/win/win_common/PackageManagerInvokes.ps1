@@ -372,6 +372,40 @@ function Invoke-NpmCommand {
     - Returns executable path for environment variable setup
     - Configuration stored in .pnpmrc (separate from npm .npmrc)
 #>
+# Checks whether a package is already present in pnpm's global installation
+# Uses pnpm's own package database instead of filesystem keyword scanning
+function Test-PnpmGlobalPackageInstalled {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PnpmExe,
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName
+    )
+
+    try {
+        $listOutput = & $PnpmExe list --global --depth=0 --json 2>$null
+        if (-not $listOutput) {
+            return $false
+        }
+
+        $globalPackages = ($listOutput | Out-String) | ConvertFrom-Json -ErrorAction Stop
+        foreach ($rootEntry in $globalPackages) {
+            foreach ($dependencyGroup in @("dependencies", "devDependencies", "optionalDependencies")) {
+                $groupValue = $rootEntry.$dependencyGroup
+                if ($groupValue -and ($groupValue.PSObject.Properties.Name -contains $PackageName)) {
+                    Write-DebugLog -Message "pnpm global list contains package: $PackageName" -Category "PNPM" -Color "Green"
+                    return $true
+                }
+            }
+        }
+    }
+    catch {
+        Write-DebugLog -Message "pnpm global installed check failed: $($_.Exception.Message)" -Category "PNPM" -Color "Yellow"
+    }
+
+    return $false
+}
+
 function Invoke-PnpmCommand {
     param (
         [Parameter(Mandatory = $true)]
@@ -537,17 +571,35 @@ function Invoke-PnpmCommand {
         $searchKeywords = @($PackageName)
     }
 
-    # Check if already installed
-    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+    # Installed-state detection comes from pnpm itself; keyword scanning only
+    # resolves the executable path and never decides install vs upgrade
+    $packageInstalled = Test-PnpmGlobalPackageInstalled -PnpmExe $pnpmExe -PackageName $PackageName
+    Write-DebugLog -Message "pnpm global installed check for '$PackageName': $packageInstalled" -Category "PNPM" -Color "Cyan"
 
-    if ($executable -and -not $ForceInstall) {
-        Write-DebugLog -Message "Package already installed: $executable" -Category "PNPM" -Color "Green"
-        Write-DebugLog -Message "Skipping installation (ForceInstall = $ForceInstall)" -Category "PNPM" -Color "Cyan"
-        return $executable
-    }
+    $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
 
     if ($OnlyCheckFlag) {
         return $executable
+    }
+
+    if ($packageInstalled -and -not $ForceInstall) {
+        Write-DebugLog -Message "Package already installed via pnpm, upgrading instead of reinstalling: $PackageName" -Category "PNPM" -Color "Yellow"
+        $upgradeArgs = "update --global $PackageName"
+        Write-DebugLog -Message "Command: $pnpmExe $upgradeArgs" -Category "PNPM" -Color "Magenta"
+
+        Invoke-PackageManagerCommand -ExecutablePath $pnpmExe -Arguments $upgradeArgs
+
+        if (-not $executable) {
+            $executable = Find-ExecutableByKeyword -Keywords $searchKeywords -AdditionalScanPaths $searchPaths -ExecutableExtensions $ExecutableExtensions -IncludeSystemPaths $false -Recursive $Recurse
+        }
+
+        if ($executable) {
+            Write-DebugLog -Message "Upgrade completed, executable: $executable" -Category "PNPM" -Color "Green"
+            return $executable
+        }
+
+        Write-DebugLog -Message "Upgrade completed but executable not found" -Category "PNPM" -Color "Yellow"
+        return $null
     }
 
     # Install package using pnpm

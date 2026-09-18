@@ -70,6 +70,14 @@ Write-Host "  [$SCRIPT_INDEX] Do you want to proceed with Qt installation? (y/N)
 Write-Host "  [$SCRIPT_INDEX] Default: N (Skip)" -ForegroundColor Gray
 $proceedChoice = Read-Host "  [$SCRIPT_INDEX]"
 
+# Record the decision so later Qt steps reuse it instead of prompting again
+if ($proceedChoice -eq "Y" -or $proceedChoice -eq "y") {
+    Set-GlobalVar -key "QT_INSTALL_PROCEED" -value "Y"
+}
+else {
+    Set-GlobalVar -key "QT_INSTALL_PROCEED" -value "N"
+}
+
 if ($proceedChoice -ne "Y" -and $proceedChoice -ne "y") {
     Write-Host "  [$SCRIPT_INDEX] Qt installation skipped by user" -ForegroundColor Yellow
     Write-Host ""
