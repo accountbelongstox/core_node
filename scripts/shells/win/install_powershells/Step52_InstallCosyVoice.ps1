@@ -172,6 +172,7 @@ if ($venvProvisioned -and (Test-TtsDependenciesReady -PythonExe $resolvedPython 
 
 if (-not (Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'cosyvoice' -Path $depsSentinel)) {
     Write-Host "$SCRIPT_INDEX [!] CosyVoice is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
+    Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
     return
 }
 

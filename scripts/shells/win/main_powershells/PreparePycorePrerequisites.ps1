@@ -41,6 +41,8 @@ $scriptCommand      = $null
 $scriptParameters   = $null
 $pythonPath         = ''
 $requestedModel     = ''
+$pendingPrerequisites = [System.Collections.Generic.List[string]]::new()
+$stepState = ''
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
@@ -103,11 +105,18 @@ foreach ($entry in $PycorePrerequisiteScripts) {
         $invokeArgs['Full'] = $true
     }
 
+    Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'running' | Out-Null
     if ($invokeArgs.Count -gt 0) {
         & $scriptPath @invokeArgs
     } else {
         & $scriptPath
     }
+    $stepState = Get-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -defaultValue 'running'
+    if ($stepState -eq 'pending') { [void]$pendingPrerequisites.Add($name) }
 }
 
-Write-Host '[OK] All prerequisites complete.' -ForegroundColor Green
+if ($pendingPrerequisites.Count -gt 0) {
+    Write-Host ("[!] Prerequisite installers finished; pending: {0}. Re-run after resolving the reported failures." -f ($pendingPrerequisites -join ', ')) -ForegroundColor DarkYellow
+} else {
+    Write-Host '[OK] Prerequisite installers finished.' -ForegroundColor Green
+}

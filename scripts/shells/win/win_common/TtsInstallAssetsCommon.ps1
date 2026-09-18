@@ -575,7 +575,6 @@ function Test-NeuralTtsLocalWeightsReady {
     if ($catalog.Count -gt 0) {
         foreach ($catalogEntry in $catalog.Keys) {
             $catalogSuffix = [System.IO.Path]::GetExtension($catalogEntry).ToLowerInvariant()
-            if ($catalogSuffix -notin '.safetensors', '.bin', '.pt') { continue }
             if (-not (Test-HfAllowMatch -FileName $catalogEntry -Patterns $AllowPatterns)) { continue }
             $catalogLocalPath = Join-Path $WeightsDir ($catalogEntry -replace '/', '\')
             if (-not (Test-Path -LiteralPath $catalogLocalPath -PathType Leaf)) { return $false }
@@ -588,7 +587,7 @@ function Test-NeuralTtsLocalWeightsReady {
     }
 
     $weightFiles = @(
-        Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue |
+        Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt', '*.pth', '*.ckpt' -File -ErrorAction SilentlyContinue |
             Where-Object {
                 Test-HfAllowMatch -FileName ($_.FullName.Substring($resolvedWeightsDir.Length + 1).Replace('\', '/')) -Patterns $AllowPatterns
             }
@@ -802,11 +801,26 @@ function Invoke-IsolatedTtsVenvEnsure {
     $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
     $prevEap = $ErrorActionPreference
     $actionLine = ''
+    $runtimeVersion = ''
+    $runtimeInstaller = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'install_powershells') 'Step13_InstallPython310_312.ps1'
+    $runtimePolicyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.common.python_env.runtime_policy import engine_spec, engine_isolation_mode, ISOLATION_MODE_SELF_CONTAINED
+spec = engine_spec($engineLit)
+sys.stdout.write(str(spec.get('python_recommended', '')) if engine_isolation_mode($engineLit) == ISOLATION_MODE_SELF_CONTAINED else '')
+"@
+    $runtimeVersion = ((& $PythonExe -c $runtimePolicyCode) | Out-String).Trim()
+    if ($runtimeVersion -eq '3.12' -and -not [Environment]::GetEnvironmentVariable(('{0}_PYTHON' -f $Engine.ToUpperInvariant()), 'Process')) {
+        & $runtimeInstaller -Runtime 312 | Out-Host
+    }
+    Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'pending' | Out-Null
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
 from pycore.pyutils.common.python_env import isolated_venv
-isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
+result = isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
+sys.stdout.write('__PYCORE_VENV_ENSURE_READY__\n' if result else '__PYCORE_VENV_ENSURE_PENDING__\n')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies(); ensure_venv() does its own venv provisioning.
@@ -818,7 +832,11 @@ isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${heal
         # not a provisioning contract.
         & $PythonExe -c $pyCode | ForEach-Object {
             $actionLine = [string]$_
-            Write-Host $actionLine
+            if ($actionLine -eq '__PYCORE_VENV_ENSURE_READY__') {
+                Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'ready' | Out-Null
+            } elseif ($actionLine -ne '__PYCORE_VENV_ENSURE_PENDING__') {
+                Write-Host $actionLine
+            }
         }
     } finally {
         $ErrorActionPreference = $prevEap

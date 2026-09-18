@@ -1,0 +1,1072 @@
+完成并测试对齐codemart的前后端代码和API， 两个端都运行在
+    本机，poly apps / pycore ui , laravel main
+    注意需要底层重构，按规范开发代码，
+    1：UI增加官方推荐的多语言能力，并在右上角可以切换，增加
+    dark/light模式，
+    2：登陆和注册等等扩展codemart，后端也按规范在公共字段上
+    扩展出codemart专用API，注意幂等加入sys:init中初始化，并
+    按规范只能修改表不能drop表重建，
+    3：推导并添加管理民后台，注意175 脚本，其中部署laravel时
+    会生成超级码，在注册时使用超级码同样可以成为管理员。管理
+    后端和用户后端不是一个UI界面。并添加管理的所有功能。
+    4：前端扩展移动端，WEB端的所有适配，并确保支持capacitor
+    的APP编译支持，搜索官方文档更新所有代码。
+    5：添加所有缺少的页面，而不是简单的跳转，比如 ···
+    A local managed software-delivery application built on
+    the unified React shell and Laravel Main.
+
+    Platform
+    About CodeMart
+    Delivery process
+    Services
+    Task marketplace
+    Project estimate
+    Account
+    Workspace
+    Verification
+    Information
+    Privacy
+    Terms···
+
+    6：更新文档
+    docs_fix\DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN
+    .md 只保留功能描述部份，也就是不涉及代码构架的部份，因为
+    代码以当前的代码为准
+    7：根据DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN在
+    当前的代码上完成所有未实现的功能，注意推导并测试所有功能
+    。
+    8：全局搜索关键词  CodeMart  codemark，找到所有文档，并
+    复制到一处，然后修改所有文档，去掉代码构架的内容，只保留
+    功能的设计说明，不涉及代码和构架。
+    9：对所有后面找到的文档完成其中的所有未完成功能，在当前
+    的构架上。
+ … thinking 33 times, call 58 tools, 8 messages
+
+ ✗ Ran a command · $ cd poly_apps/laravel_main/app/Apps/Cod…
+   CodeMartV1KycVerificationModel.php updated
+   CodeMartV1PhoneVerificationModel.php updated
+   CodeMartV1DeveloperProfileModel.php updated
+   … (9 more lines, ctrl+o to expand)
+
+ ● php -l failed because of the php -r flag combination...
+   Actually `php -l` can't follow `&&`? It says "Failed
+   … (6 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_ma… · 6 more lines
+   … #0 {main}
+
+ ● Two issues:
+   1. The table replacement didn't happen in UserRoleModel
+   … (38 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_ma… · 4 more lines
+   … CodeMartV1UserRoleModel.php:9:    protected $table = '…
+
+ ● The str_replace didn't work because the shell probably
+   interpreted `\$` inside double quotes of the bash
+   … (26 more lines, ctrl+o to expand)
+
+ ● Used Edit (…s/CodeMartV1KycVerificationModel.php) · +1 -1
+   +1 -1
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1KycVerificationModel.php
+      1 -     protected $table =
+   'codemart_kyc_verifications';
+      1 +     protected $table =
+   CodeMartV1TablesMaps::KYC_VERIFICATIONS_TABLE;
+
+ ● Used Edit (…CodeMartV1PhoneVerificationModel.php) · +1 -1
+   +1 -1
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1PhoneVerificationModel.php
+      1 -     protected $table =
+   'codemart_phone_verifications';
+      1 +     protected $table =
+   CodeMartV1TablesMaps::PHONE_VERIFICATIONS_TABLE;
+
+ ● Used Edit (…/CodeMartV1DeveloperProfileModel.php) · +1 -1
+   +1 -1
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1DeveloperProfileModel.php
+      1 -     protected $table =
+   'codemart_developer_profiles';
+      1 +     protected $table =
+   CodeMartV1TablesMaps::DEVELOPER_PROFILES_TABLE;
+
+ ● Used Edit (…els/CodeMartV1ClientProfileModel.php) · +1 -1
+   +1 -1
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1ClientProfileModel.php
+      1 -     protected $table =
+   'codemart_client_profiles';
+      1 +     protected $table =
+   CodeMartV1TablesMaps::CLIENT_PROFILES_TABLE;
+
+ ● Used Edit (…V1Models/CodeMartV1UserRoleModel.php) · +1 -1
+   +1 -1
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1UserRoleModel.php
+      1 -     protected $table = 'codemart_user_roles';
+      1 +     protected $table =
+   CodeMartV1TablesMaps::USER_ROLES_TABLE;
+
+ ● Verify the use statements were added correctly in all 5
+   files (the php -r script added them). Check each file's
+   … (1 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_m… · 34 more lines
+   … class CodeMartV1EmailVerificationModel extends CodeMar…
+
+ ● Good. Now fix `CodeMartV1UserModel` to use the global
+   `main` connection for the shared `users` table.
+   … (2 more lines, ctrl+o to expand)
+
+ ● Used Edit (…deMartV1Models/CodeMartV1UserModel.php) · +11
+   +11
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1UserModel.php
+      3       use RunsModelTransactions;
+      4
+      5       protected $table = 'users';
+      6 +
+      7 +     /**
+      8 +      * Global Laravel identity is the only login
+   identity: the shared users
+      9 +      * table lives on the default connection,
+   not the CodeMart database.
+     10 +      */
+     11 +     protected ?string $appKey = null;
+     12 +
+        … 4 more changes hidden (ctrl+o to expand)
+
+ ● Wait — AppModel constructor uses `$this->appKey` for
+   connection; setting `protected ?string $appKey = null;`
+   … (28 more lines, ctrl+o to expand)
+
+ ● Step 3: canonical constants + capabilities + contract
+   version. Append to CodeMartV1Constants:
+
+ ● Used Edit (…/CodeMartV1Gvar/CodeMartV1Constants.php) · +3
+   +3
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gv
+   ar/CodeMartV1Constants.php
+      1       // Task Status
+      2       public const TASK_STATUS_PENDING =
+   'pending';
+      3 +     public const TASK_STATUS_OPEN = 'open';
+      4 +     public const TASK_STATUS_ASSIGNED =
+   'assigned';
+      5       public const TASK_STATUS_IN_PROGRESS =
+   'in_progress';
+      6       public const TASK_STATUS_REVIEW = 'review';
+      7       public const TASK_STATUS_COMPLETED =
+   'completed';
+      8       public const TASK_STATUS_BLOCKED =
+   'blocked';
+      9 +     public const TASK_STATUS_CANCELLED =
+   'cancelled';
+
+ ● Used Edit (…/CodeMartV1Gvar/CodeMartV1Constants.php) · +2
+   +2
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gv
+   ar/CodeMartV1Constants.php
+      1       // Project Status
+      2       public const PROJECT_STATUS_DRAFT = 'draft';
+      3 +     public const PROJECT_STATUS_PROPOSAL_REVIEW
+   = 'proposal_review';
+      4 +     public const PROJECT_STATUS_FUNDING_PENDING
+   = 'funding_pending';
+      5       public const PROJECT_STATUS_OPEN = 'open';
+      6       public const PROJECT_STATUS_IN_PROGRESS =
+   'in_progress';
+      7       public const PROJECT_STATUS_PAUSED =
+   'paused';
+
+ ● Used Edit (…CodeMartV1Gvar/CodeMartV1Constants.php) · +35
+   +35
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gv
+   ar/CodeMartV1Constants.php
+      1       // Submission Status
+      2       public const SUBMISSION_STATUS_PENDING =
+   'pending';
+      3 +     public const
+   SUBMISSION_STATUS_PENDING_REVIEW = 'pending_review';
+      4       public const SUBMISSION_STATUS_APPROVED =
+   'approved';
+      5       public const
+   SUBMISSION_STATUS_NEEDS_REVISION = 'needs_revision';
+      6       public const SUBMISSION_STATUS_REJECTED =
+   'rejected';
+      7
+      8       // Payment Status
+      9       public const PAYMENT_STATUS_PENDING =
+   'pending';
+     10 +     public const PAYMENT_STATUS_PROCESSING =
+   'processing';
+        … 33 more changes hidden (ctrl+o to expand)
+
+ ● Also update getAllTaskStatuses to include
+   open/assigned/cancelled, getAllProjectStatuses to include
+   … (2 more lines, ctrl+o to expand)
+
+ ● Used Edit (…/CodeMartV1Gvar/CodeMartV1Constants.php) · +5
+   +5
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gv
+   ar/CodeMartV1Constants.php
+      2       {
+      3           return [
+      4               self::PROJECT_STATUS_DRAFT,
+      5 +
+   self::PROJECT_STATUS_PROPOSAL_REVIEW,
+      6 +
+   self::PROJECT_STATUS_FUNDING_PENDING,
+      7               self::PROJECT_STATUS_OPEN,
+      8               self::PROJECT_STATUS_IN_PROGRESS,
+      9               self::PROJECT_STATUS_PAUSED,
+        … 7 unchanged lines …
+     17       {
+        … 3 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…CodeMartV1Gvar/CodeMartV1Constants.php) · +86
+   +86
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gv
+   ar/CodeMartV1Constants.php
+      6               self::ROLE_CLIENT =>
+   self::DEPOSIT_CLIENT,
+      7               default => 0,
+      8           };
+      9 +     }
+     10 +
+     11 +     /**
+     12 +      * Server-owned state/policy vocabulary
+   exposed through GET /bootstrap.
+     13 +      * UI source never duplicates these
+   defaults.
+     14 +      */
+     15 +     public static function contractVocabulary():
+   array
+        … 79 more changes hidden (ctrl+o to expand)
+
+ ● **Step 4: New models** for notifications, activities,
+   testimonials. Then the initializer.
+
+ ● Step 4: new models for notifications, activities,
+   testimonials:
+
+ ● Used Write (…/CodeMartV1NotificationModel.php) · 65 lines
+      1  <?php
+      2
+      3  namespace App\Apps\CodeMartV1\CodeMartV1Models;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1Tabl
+   esMaps;
+      6  use
+   Illuminate\Database\Eloquent\Relations\BelongsTo;
+      7  use Illuminate\Support\Collection;
+      8
+      9  class CodeMartV1NotificationModel extends
+   CodeMartV1Model
+     10  {
+   … (56 more lines, 66 total, ctrl+o to expand)
+
+ ● Used Write (…dels/CodeMartV1ActivityModel.php) · 55 lines
+      1  <?php
+      2
+      3  namespace App\Apps\CodeMartV1\CodeMartV1Models;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1Tabl
+   esMaps;
+      6  use Illuminate\Support\Collection;
+      7
+      8  class CodeMartV1ActivityModel extends
+   CodeMartV1Model
+      9  {
+     10      protected $table =
+   CodeMartV1TablesMaps::ACTIVITIES_TABLE;
+   … (46 more lines, 56 total, ctrl+o to expand)
+
+ ● Used Write (…s/CodeMartV1TestimonialModel.php) · 33 lines
+      1  <?php
+      2
+      3  namespace App\Apps\CodeMartV1\CodeMartV1Models;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1Tabl
+   esMaps;
+      6  use Illuminate\Support\Collection;
+      7
+      8  class CodeMartV1TestimonialModel extends
+   CodeMartV1Model
+      9  {
+     10      protected $table =
+   CodeMartV1TablesMaps::TESTIMONIALS_TABLE;
+   … (24 more lines, 34 total, ctrl+o to expand)
+
+ ● **Step 5: CodeMartV1Initializer** — idempotent sys:init
+   initializer that aligns new tables and additive columns
+   … (8 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_… · 149 more lines
+   …     private function loadStatus(): array
+
+ ● Now I'll write the CodeMartV1Initializer. It aligns new
+   tables (notifications, activities, testimonials) and adds
+   … (19 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_m… · 39 more lines
+   … 964:            case 'time':
+
+ ✨ continue
+ … thinking 6 times, call 10 tools, 6 messages
+
+ ● Ran a command · $ cd poly_apps/laravel_m… · 37 more lines
+   … 20:        'role_activated_at' => 'datetime',
+
+ ● Deposit fillable lacks `idempotency_key` — add it. Also
+   deposits use status 'paid' in paidAmountForUser but admin
+   … (4 more lines, ctrl+o to expand)
+
+ ● Used Read (…rtV1Ctl/CodeMartV1DepositCtl.php) · 154 lines
+
+ ● Deposit status uses 'pending' → 'paid' (not 'completed').
+   My admin service used PAYMENT_STATUS_COMPLETED for
+   … (13 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_main/app/Apps/Cod…
+   admin service updated
+   deposit model updated
+
+ ● Now create the controllers. Directory
+   `CodeMartV1Controllers` (per design). Controllers:
+   … (7 more lines, ctrl+o to expand)
+
+ ● Used Write (…llers/CodeMartV1BootstrapCtl.php) · 39 lines
+      1  <?php
+      2
+      3  namespace
+   App\Apps\CodeMartV1\CodeMartV1Controllers;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1Bootst
+   rapService;
+      6  use App\Helpers\AuthHelper;
+      7  use App\Http\Controllers\Controller;
+      8  use App\Traits\ApiResponse;
+      9  use Illuminate\Http\JsonResponse;
+     10  use Illuminate\Http\Request;
+   … (30 more lines, 40 total, ctrl+o to expand)
+
+ ● Used Write (…rs/CodeMartV1NotificationCtl.php) · 89 lines
+      1  <?php
+      2
+      3  namespace
+   App\Apps\CodeMartV1\CodeMartV1Controllers;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+      6  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1Notifica
+   tionModel;
+      7  use App\Helpers\AuthHelper;
+      8  use App\Http\Controllers\Controller;
+      9  use App\Traits\ApiResponse;
+     10  use Illuminate\Http\JsonResponse;
+   … (80 more lines, 90 total, ctrl+o to expand)
+
+ ● Used Write (…ollers/CodeMartV1ProfileCtl.php) · 141 lines
+      1  <?php
+      2
+      3  namespace
+   App\Apps\CodeMartV1\CodeMartV1Controllers;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ClientPr
+   ofileModel;
+      6  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1Develope
+   rProfileModel;
+      7  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserMode
+   l;
+      8  use App\Helpers\AuthHelper;
+      9  use App\Http\Controllers\Controller;
+     10  use App\Traits\ApiResponse;
+   … (132 more lines, 142 total, ctrl+o to expand)
+
+ ● Used Write (…trollers/CodeMartV1AdminCtl.php) · 185 lines
+      1  <?php
+      2
+      3  namespace
+   App\Apps\CodeMartV1\CodeMartV1Controllers;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+      6  use
+   App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1AdminS
+   ervice;
+      7  use App\Helpers\AuthHelper;
+      8  use App\Http\Controllers\Controller;
+      9  use App\Traits\ApiResponse;
+     10  use Illuminate\Http\JsonResponse;
+   … (176 more lines, 186 total, ctrl+o to expand)
+
+ ● Now update `CodeMartV1PublicHomeService` to emit the
+   frontend contract shape (total_amount, currency,
+   … (2 more lines, ctrl+o to expand)
+
+ ● Used Write (…/CodeMartV1PublicHomeService.php) · 60 lines
+      1  <?php
+      2
+      3  namespace App\Apps\CodeMartV1\CodeMartV1Utils;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+      6  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectM
+   odel;
+      7  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1Testimon
+   ialModel;
+      8  use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRole
+   Model;
+      9  use Illuminate\Support\Facades\Cache;
+     10
+   … (51 more lines, 61 total, ctrl+o to expand)
+
+ ● Used Write (…1Ctl/CodeMartV1PublicHomeCtl.php) · 58 lines
+      1  <?php
+      2
+      3  namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
+      4
+      5  use
+   App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+      6  use
+   App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1Estima
+   teService;
+      7  use
+   App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1PublicHom
+   eService;
+      8  use App\Http\Controllers\Controller;
+      9  use App\Traits\ApiResponse;
+     10  use Illuminate\Http\JsonResponse;
+   … (49 more lines, 59 total, ctrl+o to expand)
+
+ ● Now update the registration controller to support the
+   super code (InstallationAccessCode) and issue a bearer
+   … (20 more lines, ctrl+o to expand)
+
+ ✗ Used Edit (…V1Ctl/CodeMartV1RegistrationCtl.php) · +36 -4
+   +36 -4
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1RegistrationCtl.php
+      6               'password' =>
+   'required|string|min:8|confirmed',
+      7               'role_type' =>
+   'required|in:developer,client',
+      8               'real_name' =>
+   'required|string|max:100',
+      9 +             'registration_code' =>
+   'nullable|string|max:255',
+     10           ]);
+     11
+     12           if ($validator->fails()) {
+     13               return $this->error('Validation
+   failed', 422, $validator->errors());
+     14 +         }
+     15 +
+        … 37 more changes hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1RegistrationCtl.php, the file contents may
+   … (2 more lines, ctrl+o to expand)
+
+ ● Used Read (…Ctl/CodeMartV1RegistrationCtl.php) · 10 lines
+
+ ● The file content matches what I read before. Why did Edit
+   fail? Maybe whitespace difference — the original line
+   … (4 more lines, ctrl+o to expand)
+
+ ● Used Edit (…V1Ctl/CodeMartV1RegistrationCtl.php) · +28 -3
+   +28 -3
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1RegistrationCtl.php
+      1               'role_type' =>
+   'required|in:developer,client',
+      2               'real_name' =>
+   'required|string|max:100',
+      3 +             'registration_code' =>
+   'nullable|string|max:255',
+      4           ]);
+      5
+      6           if ($validator->fails()) {
+      7               return $this->error('Validation
+   failed', 422, $validator->errors());
+      8 +         }
+      9 +
+     10 +         // The start script (175) provisions the
+   installation access (super)
+        … 27 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…MartV1Ctl/CodeMartV1RegistrationCtl.php) · +7
+   +7
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1RegistrationCtl.php
+      1
+   CodeMartV1UserModel::commitModelTransaction();
+      2 +
+      3 +         $globalUser = User::find($user->id);
+      4 +         $session = $globalUser ?
+   CommonAuthService::issueLoginToken($globalUser) : null;
+      5
+      6           return $this->success([
+      7               'user_id' => $user->id,
+      8               'username' => $user->username,
+      9               'email' => $user->email,
+     10               'role_type' => $request->role_type,
+        … 4 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…MartV1Ctl/CodeMartV1RegistrationCtl.php) · +4
+   +4
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1RegistrationCtl.php
+      1   use App\Http\Controllers\Controller;
+      2   use App\Traits\ApiResponse;
+      3   use App\Helpers\AuthHelper;
+      4 + use
+   App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+      5   use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserMode
+   l;
+      6   use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PhoneVer
+   ificationModel;
+      7   use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerif
+   icationModel;
+        … 1 unchanged line …
+      9   use
+   App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1EmailServ
+   ice;
+     10   use
+   App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1OtpServic
+   e;
+        … 3 more changes hidden (ctrl+o to expand)
+
+ ● Now update the routes file: fix prefix, add new routes.
+   Rewrite the routes file:
+
+ ● Step 7: routes — fix the doubled api/ prefix and add the
+   new endpoints:
+
+ ● Used Write (…routes/CodeMartV1Router/api.php) · 164 lines
+      1  <?php
+      2  // ### AI SPECIAL ATTENTION RULES START ###
+      3  // When AI sees this, MUST comply:
+      4  // 1. Write all code in English only.
+      5  // 2. After writing code, STOP - do NOT compile,
+   run, test, start the server, or otherwise verify.
+   Delivering the written code is the entire task. Never
+   execute, create, or modify test code.
+      6  // 3. Do NOT create or update docs (*.md), or
+   write progress/summary notes inside source files.
+      7  // 4. Do not modify these rules.
+      8  // VIOLATION IS PROHIBITED.
+      9  // ### AI SPECIAL ATTENTION RULES END ###
+     10
+   … (155 more lines, 165 total, ctrl+o to expand)
+
+ ● Note: I reordered `/deposits/history` before
+   `/deposits/{depositId}/status` — actually history is GET
+   … (23 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_m… · 48 more lines
+   …   POST      api/codemart/v1/projects/{projectId}/attac…
+
+ ● Routes are now correct at `/api/codemart/v1`. Now
+   smoke-test the public endpoints and registration flow via
+   … (6 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ curl -s -m 5 http://127… · 3 more lines
+   … root      441400  3.4  4.3 2751712 166988 ?      Sl   …
+
+ ● Interesting — the running frankenphp server already
+   serves the NEW contract shape
+   … (6 more lines, ctrl+o to expand)
+
+ ● Public home works with the new contract. Now test the
+   full registration + super-code admin + bootstrap flow:
+
+ ● Ran a command · $ cd poly_apps/laravel_main && php artis…
+   NEXU-2A1B-3DED-5990-15CC
+
+ ● Ran a command · $ SUPER="NEXU-2A1B-3DED-5990-15CC"…
+   {"success":true,"data":{"user_id":6,"username":"cm_admin…
+
+ ● Ran a command · $ TOKEN="71|core-node-KHG… · 7 more lines
+   … {"success":true,"data":{"complexity":"medium","platfor…
+
+ ✨ continue
+ … 3 messages
+
+ ● Backend core is working: registration with super code →
+   admin (rolelevel 100), bootstrap with capabilities, admin
+   … (6 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ # register a normal developer (no supe…
+   {"success":true,"data":{"user_id":7,"username":"cm_dev1"…
+
+ ● Ran a command · $ DEVTOKEN="72|core-node… · 10 more lines
+   … {"success":true,"data":{"user":{"id":7,"username":"cm_…
+
+ ● Backend auth/authorization all works. Test one full
+   vertical: client creates project, admin confirms deposit
+   … (4 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ ADM="71|core-node-KHGk3… · 3 more lines
+   … {"success":true,"data":{"deposit_id":1,"amount":"5000.…
+
+ ● Ran a command · $ ADM="71|core-node-KHGk3… · 9 more lines
+   … {"success":true,"data":{"items":[{"id":1,"type":"finan…
+
+ ● Backend vertical flow verified: register → deposit →
+   admin confirm (idempotent) → role active → notification
+   … (14 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_main && grep -rn …
+   app/Apps/CodeMartV1/CodeMartV1Models/CodeMartV1ProjectMo…
+   app/Apps/CodeMartV1/CodeMartV1Models/CodeMartV1ProjectMo…
+   app/Apps/CodeMartV1/CodeMartV1Ctl/CodeMartV1AIAnalysisCt…
+
+ ● Ran a command · $ cd poly_apps/laravel_m… · 36 more lines
+   …         if (!$analysis || $analysis->project->client_i…
+
+ ● Bug: `$analysis->project->updateRecord(['estimated_cost'
+   => ...])` — projects table has no `estimated_cost`
+   … (3 more lines, ctrl+o to expand)
+
+ ● Used Edit (…artV1Ctl/CodeMartV1AIAnalysisCtl.php) · +1 -2
+   +1 -2
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1AIAnalysisCtl.php
+      2
+      3           $analysis->project->updateRecord([
+      4               'analysis_status' => 'accepted',
+      5 -             'estimated_cost' =>
+   $analysis->estimated_cost,
+      6 -             'status' => 'awaiting_payment',
+      5 +             'status' =>
+   CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
+      6           ]);
+
+ ● Ran a command · $ cd poly_apps/laravel_ma… · 8 more lines
+   … 11:use Illuminate\Support\Facades\Validator;
+
+ ● Used Edit (…deMartV1Ctl/CodeMartV1AIAnalysisCtl.php) · +1
+   +1
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ct
+   l/CodeMartV1AIAnalysisCtl.php
+      1   use App\Helpers\AuthHelper;
+      2 + use
+   App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+      3   use
+   App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectM
+   odel;
+
+ ● Also fix `acceptForArchitect`'s 'awaiting_architect' —
+   the architect flow uses it; keep it as a domain status?
+   … (8 more lines, ctrl+o to expand)
+
+ ● Used Edit (…tV1Models/CodeMartV1ProjectModel.php) · +4 -3
+   +4 -3
+   poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Mo
+   dels/CodeMartV1ProjectModel.php
+      3           return self::query()
+      4               ->where(function ($query) use
+   ($architectId) {
+      5                   $query->where('architect_id',
+   $architectId)
+      6 -                     ->orWhere('status',
+   'awaiting_architect');
+      6 +                     ->orWhere(function
+   ($openQuery) {
+      7 +
+   $openQuery->where('status',
+   'open')->whereNull('architect_id');
+      8 +                     });
+      9               })
+     10               ->latest('created_at')
+     11               ->limit($limit)
+        … 3 more changes hidden (ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/laravel_m… · 13 more lines
+   … OK app/Apps/CodeMartV1/CodeMartV1Models/CodeMartV1Test…
+
+ ● Backend Phase 1 complete and verified live. Mark todos
+   and move to frontend.
+   … (57 more lines, ctrl+o to expand)
+
+ ● Used TodoList
+
+ ● Read 2 files · 104 lines
+
+ ● Ran a command · $ cd poly_apps/pycore_la… · 34 more lines
+   … }
+
+ ● Note: `supportedLngs: ['en', 'zh']` but SHELL_LANGUAGES
+   offers 7 languages. For CodeMart I'll ship en/zh
+   … (24 more lines, ctrl+o to expand)
+
+ ● Used Write (…apps/codemart/api/CmApiTypes.ts) · 285 lines
+      1  export interface CmPublicMetricData {
+      2    total_amount: string | null;
+      3    currency: string | null;
+      4    project_count: number | null;
+      5    developer_count: number | null;
+      6  }
+      7
+      8  export interface CmPublicTestimonialData {
+      9    id: string;
+     10    quote: string;
+   … (276 more lines, 286 total, ctrl+o to expand)
+
+ ● Now extend CmApi. I need to know BaseAPI post/get return
+   APIResponse<T> where data is T. Also setAuthToken for
+   … (1 more lines, ctrl+o to expand)
+
+ ● Used Edit (…_wordnew_ui/apps/codemart/api/CmApi.ts) · +19
+   +19
+   poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/C
+   mApi.ts
+      3     createLaravelModuleConfig,
+      4     LARAVEL_API_PREFIX,
+      5   } from
+   '../../../core/integrations/laravel/transport/ApiContra
+   ct';
+      6 + import { setAuthToken } from
+   '../../../core/auth/AuthSession';
+      7   import type {
+      8 +   CmAdminDeposit,
+      9 +   CmAdminKycItem,
+     10 +   CmAdminOverview,
+     11 +   CmAdminRefund,
+     12 +   CmAdminUser,
+        … 13 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…wordnew_ui/apps/codemart/api/CmApi.ts) · +133
+   +133
+   poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/C
+   mApi.ts
+      2         data: normalizePublicHome(response.data),
+      3         errorCode: null,
+      4       };
+      5 +   }
+      6 +
+      7 +   /** Register through the shared identity; on
+   success adopt the bearer session. */
+      8 +   async register(payload: CmRegisterPayload):
+   Promise<APIResponse<CmRegisterResult>> {
+      9 +     const response = await
+   this.post<CmRegisterResult>('auth/register', payload);
+     10 +     if (response.success &&
+   response.data?.token) {
+     11 +       setAuthToken(response.data.token);
+        … 126 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…l_wordnew_ui/apps/codemart/api/CmApi.ts) · +1
+   +1
+   poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/C
+   mApi.ts
+      1 + import type { APIResponse } from
+   '../../../core/integrations/laravel/transport/Transport
+   Types';
+      2   import { setAuthToken } from
+   '../../../core/auth/AuthSession';
+
+ ● Step 2: bootstrap context + top-right chrome controls
+   (language/dark):
+
+ ● Used Write (…/contexts/CmBootstrapContext.tsx) · 71 lines
+      1  import React, { createContext, useCallback,
+   useContext, useEffect, useMemo, useState } from
+   'react';
+      2  import { useAuthSession } from
+   '../../../core/auth/useAuthSession';
+      3  import { subscribeAuthLoginSuccess } from
+   '../../../core/auth/AuthRequestCenter';
+      4  import { cmApi } from '../api/CmApi';
+      5  import type { CmBootstrap } from
+   '../api/CmApiTypes';
+      6
+      7  export interface CmBootstrapState {
+      8    bootstrap: CmBootstrap | null;
+      9    loading: boolean;
+     10    error: string | null;
+   … (62 more lines, 72 total, ctrl+o to expand)
+
+ ● Used Write (…/components/CmChromeControls.tsx) · 43 lines
+      1  import React from 'react';
+      2  import { Languages, Moon, Sun } from
+   'lucide-react';
+      3  import { useShell } from
+   '../../../shell/ShellContext';
+      4  import { SHELL_LANGUAGES } from
+   '../../../shell/shellTypes';
+      5  import { useTranslation } from
+   '../../../core/i18n/UiI18n';
+      6
+      7  /**
+      8   * CodeMart top-right chrome: shared-shell
+   language switcher and dark/light
+      9   * toggle, exposed directly on the CodeMart
+   surfaces (public header, workspace
+     10   * top bar, admin top bar) in addition to the
+   floating shell dock.
+   … (34 more lines, 44 total, ctrl+o to expand)
+
+ ● Check ShellContext exports `useShell`. It was imported in
+   ShellControls from './ShellContext'. Good.
+   … (19 more lines, ctrl+o to expand)
+
+ ● Step 3: missing public pages (About, Delivery process,
+   Services, Estimate, Privacy, Terms, Information):
+
+ ● Used Write (…s/codemart/pages/CmInfoPages.tsx) · 92 lines
+      1  import React from 'react';
+      2  import { Link } from 'react-router-dom';
+      3  import { ArrowLeft } from 'lucide-react';
+      4  import { useTranslation } from
+   '../../../core/i18n/UiI18n';
+      5  import { CmChromeControls } from
+   '../components/CmChromeControls';
+      6  import { CmBrand } from '../components/CmBrand';
+      7
+      8  interface CmInfoSection {
+      9    headingKey: string;
+     10    bodyKey: string;
+   … (83 more lines, 93 total, ctrl+o to expand)
+   Resumed session
+ (session_9288ce37-686c-4095-8265-a2c45b324c50).
+
+ ✨ 继续
+ … thinking 14 times, call 32 tools, 8 messages
+
+ ● Now CSS additions for cm-workspace.css: topbar, chrome
+   controls, record cards, card-list, table, steps list,
+   … (4 more lines, ctrl+o to expand)
+
+ ● Used Read (…codemart/styles/cm-workspace.css) · 645 lines
+
+ ● Used Write (…odemart/styles/cm-workspace.css) · 536 lines
+      1
+      2  /* ===== CodeMart extension styles: chrome
+   controls, top bar, records, tables,
+      3     admin console, info pages, estimate, dark
+   mode, small-screen adaptation. ===== */
+      4
+      5  .cm-chrome-controls {
+      6    display: inline-flex;
+      7    align-items: center;
+      8    gap: 8px;
+      9  }
+     10
+   … (527 more lines, 537 total, ctrl+o to expand)
+
+ ● Now `CmDomainPages.tsx` is no longer referenced by
+   cmPages — but CmApp no longer imports it either. Old file
+   … (9 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/pycore_lar… · 6 more lines
+   task_id: bash-ad6350w4 …
+
+ ● bash task started in background (Bash: cd
+   poly_apps/pycore_laravel_wordnew_ui && rm
+   apps/codemart/p…)
+
+ ● The tsc check went to background. While waiting, continue
+   with other work: the public home page — process steps
+   … (2 more lines, ctrl+o to expand)
+
+ ● While tsc runs, let me check the public home page
+   sections for placeholder links:
+
+ ● Used Read (…demart/pages/CmPublicHomePage.tsx) · 41 lines
+
+ ● Ran a command · $ cd poly_apps/pycore_lar… · 7 more lines
+   … apps/codemart/components/public-home/CmDeliveryFlow.ts…
+
+ ● Public home is fine. Warranty action →
+   '/codemart/delivery-process' would be better than
+   … (2 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/pycore_laravel_wordnew_ui…
+   18:  { id: 'warranty', titleKey: 'publicHome.process.war…
+
+ ● Now Capacitor support (task 4). Check scripts/flavor
+   build script and how flavors build standalone, plus
+   … (4 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cd poly_apps/pycore_la… · 61 more lines
+   … android
+
+ ● Ran a command · $ cd poly_apps/pycore_lar… · 3 more lines
+   … [apk] skipped   vortex: Android is not enabled
+
+ ● Capacitor flavor build already supports codemart
+   (flavor.json with appId, platforms android/ios). Good —
+   … (8 more lines, ctrl+o to expand)
+
+ ● Used TaskOutput (bash-ad6350w4)
+   retrieval_status: not_ready …
+
+ ● tsc is still running (large project). Meanwhile, handle
+   the docs task (task 8/9): search all docs for
+   … (1 more lines, ctrl+o to expand)
+
+ ● While tsc runs, let me find all
+   CodeMart/codemart/codemark documents:
+
+ ● Used Grep (codemart|codemark) · 14 files
+   docs_fix/DESIGN_20260823_CODEMART_PYCORE_UI_LA…, +11 more
+
+ ● Ran a command · $ find poly_apps/flutter… · 42 more lines
+   …  1315 total
+
+ ● Task 8: copy all these docs to one place (e.g.
+   `docs_fix/codemart_docs/`), then modify them to remove
+   … (4 more lines, ctrl+o to expand)
+
+ ● Read 3 files · 93 lines
+
+ ● The Flutter concept docs are template stubs. The
+   substantive ones are IMPLEMENTATION_SUMMARY.md,
+   … (2 more lines, ctrl+o to expand)
+
+ ● Used Read (…demart/IMPLEMENTATION_SUMMARY.md) · 370 lines
+
+ ● These Flutter docs are mostly code/architecture (Dart
+   classes, Provider, etc.). Per task 8: copy all docs to
+   … (28 more lines, ctrl+o to expand)
+
+ ● Used TaskOutput (bash-ad6350w4)
+   retrieval_status: not_ready …
+
+ ● Still running. Continue with other work. Let me quickly
+   scan README_DATA_CENTER.md and UPDATE_LOG.md for
+   … (1 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ grep -n "^#\|^##\|^###… · 79 more lines
+   … poly_apps/flutter_bloom/lib/apps/app_codemart/design_d…
+   Error: [provider.auth_error] 403
+ {"error":{"type":"permission_error","message":"You've
+ reached your 5-hour usage limit. Your quota will reset when
+ the current 5-hour window ends. To continue now, purchase
+ extra usage or upgrade your plan:
+ https://www.kimi.com/membership/subscription?tab=quota"},"t
+ ype":"error"}
+   If this persists, run `/export-debug-zip` and share the
+ file with us for diagnosis. Please don't share it publicly.
+
+ ● bash task completed in background (Bash: cd
+   poly_apps/pycore_laravel_wordnew_ui && rm
+   apps/codemart/p… · exit 0)
+   Error: [provider.auth_error] 403
+ {"error":{"type":"permission_error","message":"You've
+ reached your 5-hour usage limit. Your quota will reset when
+ the current 5-hour window ends. To continue now, purchase
+ extra usage or upgrade your plan:
+ https://www.kimi.com/membership/subscription?tab=quota"},"t
+ ype":"error"}
+   If this persists, run `/export-debug-zip` and share the
+ file with us for diagnosis. Please don't share it publicly.
+   Saved Kimi K3 with thinking high as default.
+
+ ✨ continue
+
+ ● Used Read (…in/tasks/bash-ad6350w4/output.log) · 25 lines
+
+ ● tsc ran out of memory with default heap. Retry with
+   NODE_OPTIONS=--max-old-space-size=6144 in background.
+
+ ● tsc ran out of heap. Retrying with a larger heap in the
+   background while I continue with the docs:
+
+ ● Ran a command · $ cd poly_apps/pycore_lar… · 7 more lines
+   task_id: bash-488ncj16 …
+
+ ● bash task started in background (tsc typecheck with large
+   heap)
+
+ ● While tsc runs, do the docs work. Plan:
+
+   … (34 more lines, ctrl+o to expand)
+
+ ● Now the docs consolidation (task 8). Copy all CodeMart
+   docs into one place:
+
+ ● Ran a command · $ mkdir -p docs_fix/code… · 27 more lines
+   … /www/programing/core_node/docs_fix/codemart_docs/PROGR…
+
+ ● Now rewrite all these copied docs as functional-only.
+   Approach: write functional-only versions. For the 3 big
+   … (25 more lines, ctrl+o to expand)
+
+ ● Now rewrite the DESIGN doc functional-only (task 6) —
+   first the original in place:
+
+ ● Used Write (…EMART_PYCORE_UI_LARAVEL_MAIN.md) · 264 lines
+      1  # CodeMart Functional Design
+      2
+      3  Date: 2026-08-23 (functional-only revision:
+   2026-09-18)
+      4
+      5  This document describes only the product and
+   functional design of CodeMart.
+      6  It intentionally contains no code, file, or
+   architecture descriptions; the
+      7  implementation is the authority for those.
+   Related progress records:
+      8
+      9  - `PROGRESS_20260823_CODEMART_PYCORE_UI.md`
+     10  - `PROGRESS_20260823_CODEMART_LARAVEL_MAIN.md`
+   … (255 more lines, 265 total, ctrl+o to expand)
+
+ ● Ran a command · $ cp docs_fix/DESIGN_20260823_CODEMART_P…
+   copied
+
+ ● Now rewrite the three progress docs functional-only (in
+   docs_fix/codemart_docs/). These are progress records —
+   … (9 more lines, ctrl+o to expand)
+
+ ● Now rewrite the progress docs functional-only (both
+   original and copy):
+
+ ● Using Write
+     16    Privacy, Terms, Information.
+     17  - Public interactive project-estimate page with
+   server-calculated cost,
+     18    duration, effort, and team results.
+     19  - Multi-language UI (English and Chinese) with a
+   top-right language
+     20    switcher on every surface, plus dark/light mode
+   toggle.
+     21  - Authenticated workspace with role-aware
+   navigation driven by server
+     22    capabilities; hidden navigation is backed by
+   route gates.
+     23  - Dashboard with live counters (active projects,
+   open tasks, pending
+     24    reviews, protected funds).
+     25  - Task marketplace with search, open
+
+  🌕 · Tip: ! to run a shell command
+ ───────────────────────────────────────────────────────────
+   Todo
+   ✓ Backend: bootstrap/profile/notifications/admin/publi...
+   ● Frontend: CmApi modules + bootstrap context
+   ○ UI: top-right language switcher + dark/light mode
+   ○ Admin UI (separate layout) with all admin functions
+   ○ Add all missing pages (About, Delivery, Services, Es...
+   … +6 more (2 done · 4 pending) · ctrl+t to expand

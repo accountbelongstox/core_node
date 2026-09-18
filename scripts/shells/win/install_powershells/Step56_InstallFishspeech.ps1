@@ -157,7 +157,7 @@ if (Test-Path $apiServerSrc) {
 }
 
 # --- Isolated venv (Bucket B, self-contained): the Fish Speech bridge runs
-#     under the dedicated Python 3.10 venv; the main interpreter is only an
+#     under the dedicated Python 3.12 venv; the main interpreter is only an
 #     HTTP client. Local fish_speech inference hosting remains a separate
 #     pending step; this venv carries the bridge/SDK dependency plan. --- #
 if ((Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'fishspeech') -and (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel) -and -not $Force) {
@@ -187,15 +187,16 @@ if (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Gl
 $ckptName = Split-Path -Leaf $(if ($env:FISHSPEECH_CHECKPOINT) { $env:FISHSPEECH_CHECKPOINT } else { $fishCkpt })
 $ckptDir = Join-Path $targetDir (Join-Path 'checkpoints' $ckptName)
 $ckptSentinel = Join-Path $targetDir (Join-Path 'checkpoints' ".ckpt_$($ckptName)_done")
-if ((Test-Path $ckptSentinel) -and (Test-Path (Join-Path $ckptDir 'config.json')) -and -not $Force) {
+if ((Test-Path $ckptSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $ckptDir -RepoId "fishaudio/$ckptName" -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model')) -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] checkpoint $ckptName already present." -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [..] downloading checkpoint fishaudio/$ckptName (curl, resumable) ..." -ForegroundColor Yellow
     $ckptOk = Install-HfRepoFlat -RepoId "fishaudio/$ckptName" -DestDir $ckptDir -SentinelPath $ckptSentinel -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model') -Prefix "$SCRIPT_INDEX " -SentinelValue $ckptName
-    if ($ckptOk -and (Test-Path (Join-Path $ckptDir 'config.json'))) {
+    if ($ckptOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $ckptDir -RepoId "fishaudio/$ckptName" -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model'))) {
         Write-Host "$SCRIPT_INDEX [OK] checkpoint ready at $ckptDir (local inference mode enabled)." -ForegroundColor Green
     } else {
         Write-Host "$SCRIPT_INDEX [!] checkpoint download incomplete; will RESUME next run (bridge/SDK mode still works)." -ForegroundColor DarkYellow
+        Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
     }
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()

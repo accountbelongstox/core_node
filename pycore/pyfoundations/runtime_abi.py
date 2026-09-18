@@ -58,6 +58,7 @@ PYTHON_VERSION = policy_value("AI_PYTHON_VERSION", "3.13")
 # Dedicated 3.10 interpreter for the five self-contained TTS engines. This is
 # registered independently of the default host interpreter (PYTHON_VERSION).
 PYTHON310_VERSION = policy_value("AI_PYTHON310_VERSION", "3.10")
+PYTHON312_VERSION = policy_value("AI_PYTHON312_VERSION", "3.12")
 
 # Isolation modes for managed engine environments. "overlay" reuses the host
 # site-packages (--system-site-packages, legacy behavior); "self_contained"
@@ -173,6 +174,7 @@ __all__ = [
     "POLICY_VERSION",
     "PYTHON_VERSION",
     "PYTHON310_VERSION",
+    "PYTHON312_VERSION",
     "ISOLATION_MODE_OVERLAY",
     "ISOLATION_MODE_SELF_CONTAINED",
     "SHARED_TRANSFORMERS_SPEC",

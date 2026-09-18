@@ -22,6 +22,7 @@ if ($Action -eq "Global" -or $Action -eq "China") {
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "DockerWslBridge.ps1")
 
 $script:STEP_NUMBER = 30
 $script:DEBIAN_VERSION = $Global:DEBIAN_VERSION
@@ -32,6 +33,8 @@ $script:DEBIAN_WSL_LOCAL_PATH = $Global:DEBIAN_WSL_LOCAL_PATH
 $script:WSL2_KERNEL_URL = $Global:WSL2_KERNEL_UPDATE_URL
 $script:WSL2_KERNEL_FILENAME = $Global:WSL2_KERNEL_FILENAME
 $script:WSL2_KERNEL_LOCAL_PATH = $Global:WSL2_KERNEL_LOCAL_PATH
+$wslListAfterImport = @()
+$wslListAfterInstall = @()
 #endregion
 
 #region Helper Functions
@@ -232,12 +235,11 @@ function Get-DebianWSLFile {
     # Check if file already exists in temp directory
     if (Test-Path $script:DEBIAN_WSL_LOCAL_PATH) {
         $fileSize = (Get-Item $script:DEBIAN_WSL_LOCAL_PATH).Length
-        if ($fileSize -gt 100MB) {
+        if ($fileSize -gt 0) {
             Write-StepMessage -Message "Debian WSL file already exists in temp directory and appears valid" -Type "Success"
             return $script:DEBIAN_WSL_LOCAL_PATH
         } else {
-            Write-StepMessage -Message "Local Debian WSL file appears corrupted, removing..." -Type "Warning"
-            Remove-Item $script:DEBIAN_WSL_LOCAL_PATH -Force
+            Write-StepMessage -Message "Local Debian WSL file is empty; downloading the missing package..." -Type "Warning"
         }
     }
     
@@ -313,9 +315,10 @@ function Install-DebianWSL {
                 Write-StepMessage -Message "Created WSL Debian disk directory: $Global:WSL_DEBIAN_DISK_DIR" -Type "Info"
             }
             
-            & wsl --import $script:DEBIAN_DISTRO_NAME $Global:WSL_DEBIAN_DISK_DIR $WSLFilePath
-            $wslListAfterImport = & wsl --list --verbose 2>&1
-            if (("$wslListAfterImport" -match [regex]::Escape($script:DEBIAN_DISTRO_NAME)) -and (Test-Path $Global:WSL_DEBIAN_DISK_DIR)) {
+            Write-StepMessage -Message "Command: wsl --import $script:DEBIAN_DISTRO_NAME `"$Global:WSL_DEBIAN_DISK_DIR`" `"$WSLFilePath`" --version 2" -Type "Info"
+            & wsl --import $script:DEBIAN_DISTRO_NAME $Global:WSL_DEBIAN_DISK_DIR $WSLFilePath --version 2 | Out-Host
+            $wslListAfterImport = @(& wsl --list --quiet | ForEach-Object { ("$_" -replace "`0", '').Trim() })
+            if ($wslListAfterImport -contains $script:DEBIAN_DISTRO_NAME) {
                 Write-StepMessage -Message "Debian installed successfully from downloaded file to: $Global:WSL_DEBIAN_DISK_DIR" -Type "Success"
                 return $true
             }
@@ -327,9 +330,10 @@ function Install-DebianWSL {
     # Fallback to native installation
     Write-StepMessage -Message "Using WSL2 native installation method..." -Type "Info"
     try {
-        & wsl --install -d Debian --no-launch
-        $wslListAfterInstall = & wsl --list --verbose 2>&1
-        if (("$wslListAfterInstall").Contains('Debian')) {
+        Write-StepMessage -Message "Command: wsl --install -d $script:DEBIAN_DISTRO_NAME --no-launch" -Type "Info"
+        & wsl --install -d $script:DEBIAN_DISTRO_NAME --no-launch | Out-Host
+        $wslListAfterInstall = @(& wsl --list --quiet | ForEach-Object { ("$_" -replace "`0", '').Trim() })
+        if ($wslListAfterInstall -contains $script:DEBIAN_DISTRO_NAME) {
             Write-StepMessage -Message "Debian installed successfully using native method" -Type "Success"
             return $true
         }
@@ -536,6 +540,7 @@ function Invoke-WSLDebianAction {
 
     switch ($ActionType.ToLower()) {
         "install" {
+            if (-not (Initialize-WslHostCompute -Prefix '[Step 30]')) { return $false }
             # 1. Test WSL2 version
             if (-not (Test-WSL2Version)) {
                 Write-StepMessage -Message "WSL2 not properly installed, installing prerequisites..." -Type "Warning"

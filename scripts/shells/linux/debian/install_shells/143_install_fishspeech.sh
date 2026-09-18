@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPT_INDEX="143"
 # Fish Speech / Fish Audio prerequisite (Linux).
-# Builds a DEDICATED self-contained per-engine venv (base Python 3.10) via
+# Builds a DEDICATED self-contained per-engine venv (base Python 3.12) via
 # isolated_venv.ensure_venv('fishspeech', ...) carrying the bridge/SDK dependency
 # plan; clones fish-speech for optional local tools/api_server.py. The main
 # interpreter is only an HTTP client to the class-C bridge server.
@@ -132,6 +132,7 @@ if ! PYTHON="$(resolve_python)"; then
     echo "[install_fishspeech] [!] Python 3 not found."
     fail_prereq_step "$PYTHON" "[install_fishspeech] "
 fi
+tts_ensure_engine_base_runtime "$PYTHON" "fishspeech"
 if ! tts_engine_compatible "$PYTHON" "fishspeech" "[install_fishspeech] "; then
     complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "incompatible Python"
 fi
@@ -159,7 +160,7 @@ _chunking_src="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")/tts_text_chunking.
 [[ -f "$_chunking_src" ]] && cp -f "$_chunking_src" "$TARGET_DIR/tts_text_chunking.py"
 
 # --- Isolated venv (Bucket B, self-contained): the Fish Speech bridge runs
-#     under the dedicated Python 3.10 venv; the main interpreter is only an
+#     under the dedicated Python 3.12 venv; the main interpreter is only an
 #     HTTP client. --- #
 tts_probe_isolated_venv_provisioned "$PYTHON" "fishspeech"
 if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then

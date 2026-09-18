@@ -56,7 +56,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:67_install_rust.sh|Rust"
     "script:25_install_uv.sh|UV"
     "script:13_install_default_python.sh|Python (ensure)"
-    "script:14_install_python310.sh|Python 3.10 (isolated TTS runtime)"
+    "script:14_install_python310.sh|Python 3.10 / 3.12 (isolated model runtimes)"
     "script:151_install_faster_whisper.sh|faster-whisper (STT)"
     "script:94_install_composer.sh|Composer"
     "script:59_install_flutter.sh|Flutter"

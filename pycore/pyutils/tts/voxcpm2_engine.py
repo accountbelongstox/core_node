@@ -76,8 +76,8 @@ def disabled_reason() -> Optional[str]:
         return None
     return (
         "VoxCPM2 isolated venv not built - run Step58_InstallVoxcpm2.ps1 / "
-        "147_install_voxcpm2.sh (requires the dedicated Python 3.10 from "
-        "Step13_InstallPython310.ps1 / 14_install_python310.sh)"
+        "147_install_voxcpm2.sh (requires the dedicated Python 3.12; "
+        "Windows: Step13_InstallPython310_312.ps1 -Runtime 312)"
     )
 
 

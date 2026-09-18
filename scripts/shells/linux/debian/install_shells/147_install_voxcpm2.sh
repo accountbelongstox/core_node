@@ -1,7 +1,7 @@
 #!/bin/bash
 SCRIPT_INDEX="147"
 # VoxCPM2 prerequisite (Linux) - OpenBMB TTS, ISOLATED self-contained per-engine
-# venv (base Python 3.10; the main 3.13 interpreter is outside the official
+# venv (base Python 3.12; the main 3.13 interpreter is outside the official
 # 3.10-3.12 window and is never touched). Production runs VoxCPM2 as a class-C
 # HTTP server (voxcpm2_api_server.py, port 57214) under that venv; the main
 # interpreter only talks to it over HTTP.
@@ -105,6 +105,7 @@ if ! PYTHON="$(resolve_python)"; then
     echo "[install_voxcpm2] [!] Python 3 not found."
     fail_prereq_step "$PYTHON" "[install_voxcpm2] "
 fi
+tts_ensure_engine_base_runtime "$PYTHON" "voxcpm2"
 if ! tts_engine_compatible "$PYTHON" "voxcpm2" "[install_voxcpm2] "; then
     complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "incompatible Python"
 fi
@@ -121,7 +122,7 @@ echo "[install_voxcpm2]  model   : ${_vox_model}"
 echo "[install_voxcpm2]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 
 # --- Isolated venv (Bucket B, self-contained): VoxCPM2 and its pinned
-#     dependencies go only into the dedicated Python 3.10 venv. --- #
+#     dependencies go only into the dedicated Python 3.12 venv. --- #
 tts_probe_isolated_venv_provisioned "$PYTHON" "voxcpm2"
 if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]] && tts_dependencies_ready "$PYTHON" "voxcpm2" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated venv already provisioned (.deps_done)"

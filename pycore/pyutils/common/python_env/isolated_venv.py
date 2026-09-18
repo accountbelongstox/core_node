@@ -586,7 +586,7 @@ def _ensure_venv_self_contained(
         return None
     target_dir = venv_dir(engine, base_tag)
     binary = target_dir / (
-        "Scripts" / "python.exe" if sys.platform == "win32" else "bin" / "python3"
+        Path("Scripts") / "python.exe" if sys.platform == "win32" else Path("bin") / "python3"
     )
     python_path = Path(resolve_python(engine) or str(binary))
     created = False

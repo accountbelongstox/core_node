@@ -8,10 +8,12 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
+
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -19,6 +21,8 @@ _REPO_ROOT_TEXT = str(_REPO_ROOT)
 if _REPO_ROOT_TEXT not in sys.path:
     sys.path.insert(0, _REPO_ROOT_TEXT)
 
+from pycore.pyfoundations.pygvar import GLOBAL_VAR_DIR
+from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 from pycore.pyfoundations.runtime_abi import (
     BACKEND_COMMON_PACKAGES,
     BACKEND_PACKAGES,
@@ -38,6 +42,7 @@ from pycore.pyfoundations.runtime_abi import (
     POLICY_VERSION,
     PYTHON_VERSION,
     PYTHON310_VERSION,
+    PYTHON312_VERSION,
     SHARED_TRANSFORMERS_SPEC,
     TORCH_CPU_INDEX,
     TORCH_INDEX_BASE,
@@ -169,7 +174,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "fishspeech": {
         "python_min": "3.10",
         "python_max": "3.12",
-        "python_recommended": PYTHON310_VERSION,
+        "python_recommended": PYTHON312_VERSION,
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
@@ -220,7 +225,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "voxcpm2": {
         "python_min": "3.10",
         "python_max": "3.12",
-        "python_recommended": PYTHON310_VERSION,
+        "python_recommended": PYTHON312_VERSION,
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
@@ -357,37 +362,36 @@ def engine_isolation_mode(engine: str) -> str:
     return ISOLATION_MODE_OVERLAY
 
 
-def _registered_python310_path() -> str:
+def _python_binary_path(candidate: str) -> str:
+    path = Path(candidate.strip().lstrip("\ufeff")).expanduser()
+    if not path.is_file() or (sys.platform == "win32" and path.suffix.lower() != ".exe"):
+        return ""
+    return str(path.resolve())
+
+
+def _registered_python_path(version: str) -> str:
     """Read the registered Python 3.10 interpreter path.
 
     Resolution order (never the host 3.13 interpreter):
       1. PYTHON310_EXE_PATH environment variable (launcher-provided)
       2. pygvar file store key PYTHON310_EXE_PATH (written by the platform
-         installers: Step13_InstallPython310.ps1 / 14_install_python310.sh)
-      3. A python310 command visible on PATH (well-known link created by the
-         same installers)
+         installers: Step13_InstallPython310_312.ps1 / 14_install_python310.sh)
     """
-    candidate = (os.environ.get("PYTHON310_EXE_PATH") or "").strip()
-    if candidate and Path(candidate).is_file():
+    runtime_name = f"python{version.replace('.', '')}"
+    runtime_key = f"{runtime_name.upper()}_EXE_PATH"
+    candidate = _python_binary_path(os.environ.get(runtime_key) or "")
+    if candidate:
         return candidate
-    try:
-        from pycore.pyfoundations.pygvar import GlobalVarManager
-
-        stored = GlobalVarManager().get("PYTHON310_EXE_PATH", "") or ""
-        stored = stored.strip()
-        if stored and Path(stored).is_file():
-            return stored
-    except Exception:
-        pass
-    try:
-        import shutil
-
-        linked = shutil.which("python310")
-        if linked and Path(linked).is_file():
-            return linked
-    except Exception:
-        pass
-    return ""
+    stored_path = Path(GLOBAL_VAR_DIR) / runtime_key
+    if stored_path.is_file():
+        candidate = _python_binary_path(stored_path.read_text(encoding="utf-8-sig"))
+        if candidate:
+            return candidate
+    runtime_dir = get_lang_compiler_dir() / runtime_name
+    candidate = _python_binary_path(str(runtime_dir / ("python.exe" if sys.platform == "win32" else f"bin/python{version}")))
+    if candidate or sys.platform == "win32":
+        return candidate
+    return _python_binary_path(shutil.which(runtime_name) or "")
 
 
 def resolve_engine_base_python(engine: str) -> Dict[str, Any]:
@@ -402,11 +406,12 @@ def resolve_engine_base_python(engine: str) -> Dict[str, Any]:
     key = str(engine or "").strip().lower().replace("-", "")
     override = (os.environ.get(f"{key.upper()}_PYTHON") or "").strip()
     if override:
-        if Path(override).is_file():
+        override_binary = _python_binary_path(override)
+        if override_binary:
             return {
                 "found": True,
                 "engine": key,
-                "path": override,
+                "path": override_binary,
                 "source": "engine_override",
                 "env_name": f"{key.upper()}_PYTHON",
             }
@@ -417,13 +422,14 @@ def resolve_engine_base_python(engine: str) -> Dict[str, Any]:
             "source": "engine_override",
             "reason": f"override {key.upper()}_PYTHON points to a missing file: {override}",
         }
-    registered = _registered_python310_path()
+    version = str(engine_spec(key).get("python_recommended") or PYTHON310_VERSION)
+    registered = _registered_python_path(version)
     if registered:
         return {
             "found": True,
             "engine": key,
             "path": registered,
-            "source": "registered_python310",
+            "source": f"registered_python{version.replace('.', '')}",
         }
     return {
         "found": False,
@@ -431,9 +437,8 @@ def resolve_engine_base_python(engine: str) -> Dict[str, Any]:
         "path": "",
         "source": "none",
         "reason": (
-            "python310_not_registered: install the dedicated Python "
-            f"{PYTHON310_VERSION} first (Windows: Step13_InstallPython310.ps1; "
-            "Linux: 14_install_python310.sh) or set "
+            f"python{version.replace('.', '')}_not_registered: install the dedicated Python "
+            f"{version} first or set "
             f"{key.upper()}_PYTHON to a compatible base interpreter"
         ),
     }
