@@ -93,6 +93,36 @@ manage_natgateway() {
     read
 }
 
+# True when the current system is Debian with a major version below 13; used to
+# conditionally show the upgrade menu item.
+debian_13_upgrade_available() {
+    local os_id=""
+    local os_version_id=""
+    [ -f /etc/os-release ] || return 1
+    os_id="$(. /etc/os-release 2>/dev/null; echo "$ID")"
+    os_version_id="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID")"
+    [ "$os_id" = "debian" ] || return 1
+    [ -n "$os_version_id" ] || return 1
+    [ "$os_version_id" -lt 13 ] 2>/dev/null
+}
+
+# Launch the Debian 12 -> 13 upgrade helper (official apt path).
+run_debian_13_upgrade() {
+    printf "\033c"
+    echo "=========================================="
+    echo "Upgrade Debian -> 13 (trixie)"
+    echo "=========================================="
+    echo ""
+    if [ -s "$DEBIAN_13_UPGRADE_SCRIPT" ]; then
+        bash "$DEBIAN_13_UPGRADE_SCRIPT"
+    else
+        echo "Error: Script not found at: $DEBIAN_13_UPGRADE_SCRIPT"
+    fi
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
 # Function to show system information
 show_system_information() {
     echo ""
@@ -565,24 +595,43 @@ show_slim_disk_submenu() {
 # Function to show Linux system tools submenu
 show_linux_system_tools_submenu() {
     local selected_index=0
-    local menu_items=(
-        "Disable Ubuntu Automatic Updates"
-        "Permissions Repair Menu"
-        "NAT Gateway Configuration"
-        "Restart GNOME Remote Desktop (Fix RDP Connection)"
-        "Clear and Re-decrypt Secret Keys"
-        "Show System Information"
-        "RustDesk Server Install Info (Key & Ports)"
-        "APP Install"
-        "Slim & Disk Cleanup (scan + GPU/Snap/Apache/Server slim)"
-        "Management & Backup"
-        "User Management"
-        "Back to Linux Management"
-    )
+    local menu_items=()
+    local upgrade_idx=-1
+    local back_idx=0
 
     while true; do
-        arrow_menu_select "Linux System Tools" menu_items "$selected_index" 11
+        # Rebuilt each iteration: the Debian upgrade item only exists on
+        # Debian < 13 and disappears after the system is upgraded.
+        menu_items=(
+            "Disable Ubuntu Automatic Updates"
+            "Permissions Repair Menu"
+            "NAT Gateway Configuration"
+            "Restart GNOME Remote Desktop (Fix RDP Connection)"
+            "Clear and Re-decrypt Secret Keys"
+            "Show System Information"
+            "RustDesk Server Install Info (Key & Ports)"
+            "APP Install"
+            "Slim & Disk Cleanup (scan + GPU/Snap/Apache/Server slim)"
+            "Management & Backup"
+            "User Management"
+        )
+        upgrade_idx=-1
+        if debian_13_upgrade_available; then
+            upgrade_idx=${#menu_items[@]}
+            menu_items+=("Upgrade Debian -> 13 Trixie (official apt path)")
+        fi
+        back_idx=${#menu_items[@]}
+        menu_items+=("Back to Linux Management")
+
+        arrow_menu_select "Linux System Tools" menu_items "$selected_index" "$back_idx"
         selected_index=$ARROW_MENU_SELECTED_INDEX
+        if [ "$selected_index" = "$back_idx" ]; then
+            return
+        fi
+        if [ "$upgrade_idx" -ge 0 ] && [ "$selected_index" = "$upgrade_idx" ]; then
+            run_debian_13_upgrade
+            continue
+        fi
         case "$selected_index" in
             0) disable_ubuntu_auto_updates ;;
             1) show_permissions_repair_menu ;;
@@ -595,7 +644,6 @@ show_linux_system_tools_submenu() {
             8) show_slim_disk_submenu ;;
             9) show_management_and_backup ;;
             10) show_linux_user_management_menu ;;
-            11) return ;;
         esac
     done
 }
