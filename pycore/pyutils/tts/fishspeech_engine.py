@@ -23,6 +23,7 @@ Config:
   FISHSPEECH_FORMAT        - mp3 | wav (default mp3)
 """
 
+import importlib.util
 import json
 import os
 import time
@@ -34,9 +35,12 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_fishaudio,
+    get_third_package_fishaudio_utils,
+)
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-import importlib.util
 
 
 _AVAIL_SIGNAL = 'pyutils.tts.fishspeech.available'
@@ -77,7 +81,7 @@ def _probe_health_json() -> Tuple[bool, Dict[str, Any]]:
     for path in ("/v1/health", "/health", "/"):
         try:
             resp = requests.get(f"{base_url()}{path}", timeout=2)
-            if resp.status_code >= 500:
+            if not 200 <= resp.status_code < 300:
                 continue
             body: Dict[str, Any] = {}
             try:
@@ -86,7 +90,8 @@ def _probe_health_json() -> Tuple[bool, Dict[str, Any]]:
                     body = parsed
             except ValueError:
                 pass
-            return True, body
+            if body:
+                return True, body
         except Exception:
             pass
     return False, {}
@@ -148,43 +153,26 @@ def last_synth_error() -> Optional[str]:
 
 
 def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
-    try:
-        pass
-    except ImportError:
+    fishaudio = get_third_package_fishaudio()
+    utils = get_third_package_fishaudio_utils()
+    if fishaudio is None or utils is None:
         _LAST_SYNTH_ERROR.set("fish-audio-sdk not installed")
         return False
     try:
-        client = FishAudio(api_key=_fish_api_key())
-        audio = client.tts.convert(text=text)
+        client = fishaudio.FishAudio(api_key=_fish_api_key())
+        audio = client.tts.convert(text=text, format="mp3")
         output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        fmt = (os.environ.get("FISHSPEECH_FORMAT") or "mp3").strip().lower()
-        if fmt == "mp3" and hasattr(audio, "read"):
+        if hasattr(audio, "read"):
             output_mp3.write_bytes(audio.read())
             ok = output_mp3.stat().st_size > 0
             if not ok:
                 _LAST_SYNTH_ERROR.set("Fish Audio SDK returned empty audio")
             return ok
-        tmp = output_mp3.with_suffix(".fish.tmp")
-        try:
-            save(audio, str(tmp.with_suffix(".mp3" if fmt == "mp3" else ".wav")))
-            out = tmp.with_suffix(".mp3" if fmt == "mp3" else ".wav")
-            if out.suffix.lower() == ".mp3":
-                out.replace(output_mp3)
-            else:
-                ok = wav_to_mp3(out, output_mp3)
-                if not ok:
-                    _LAST_SYNTH_ERROR.set("Fish Audio SDK wav->mp3 conversion failed")
-                return ok
-            ok = output_mp3.exists() and output_mp3.stat().st_size > 0
-            if not ok:
-                _LAST_SYNTH_ERROR.set("Fish Audio SDK produced empty mp3")
-            return ok
-        finally:
-            for p in tmp.parent.glob("fish.tmp*"):
-                try:
-                    p.unlink()
-                except OSError:
-                    pass
+        utils.save(audio, str(output_mp3))
+        ok = output_mp3.is_file() and output_mp3.stat().st_size > 0
+        if not ok:
+            _LAST_SYNTH_ERROR.set("Fish Audio SDK produced empty mp3")
+        return ok
     except Exception as e:
         _LAST_SYNTH_ERROR.set(str(e))
         ColorPrint.red(f"[fishspeech] SDK synth failed: {e}")

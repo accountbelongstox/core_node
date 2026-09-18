@@ -29,6 +29,7 @@ _tts_docker_context_assets() {
     case "$1" in
         melotts)  printf '%s\n' "melotts_api_server.py" "tts_text_chunking.py" ;;
         voxcpm2)  printf '%s\n' "voxcpm2_api_server.py" "tts_text_chunking.py" "tts_audio_assembly.py" ;;
+        gptsovits) printf '%s\n' "gptsovits_build_constraints.txt" ;;
         *)        : ;;
     esac
 }
@@ -84,6 +85,7 @@ tts_docker_apply_engine() {
     local engine="${1:-}" staging="${2:-}"
     local repo_root asset_dir docker_dir port device torch_index
     local fingerprint_file fingerprint container_id compose_files
+    local asset fingerprint_assets=()
     [[ -z "$engine" || -z "$staging" ]] && { echo "[tts-docker][!] engine and staging dir are required" >&2; return 1; }
     command -v docker >/dev/null 2>&1 || { echo "[tts-docker][!] docker CLI missing" >&2; return 1; }
     docker compose version >/dev/null 2>&1 || { echo "[tts-docker][!] docker compose plugin missing" >&2; return 1; }
@@ -98,10 +100,10 @@ tts_docker_apply_engine() {
     _tts_docker_sync_file "$asset_dir/Dockerfile" "$docker_dir/Dockerfile" || return 1
     _tts_docker_sync_file "$asset_dir/compose.yml" "$docker_dir/compose.yml" || return 1
     _tts_docker_sync_file "$asset_dir/compose.gpu.yml" "$docker_dir/compose.gpu.yml" || return 1
-    local asset
     while IFS= read -r asset; do
         [[ -z "$asset" ]] && continue
         _tts_docker_sync_file "$repo_root/pycore/tts_install_assets/$asset" "$docker_dir/$asset" || return 1
+        fingerprint_assets+=("$docker_dir/$asset")
     done < <(_tts_docker_context_assets "$engine")
 
     device="$(_tts_docker_device "$engine")"
@@ -110,7 +112,7 @@ tts_docker_apply_engine() {
     [[ "$device" == "cuda" ]] && compose_files+=(-f "$docker_dir/compose.gpu.yml")
     echo "[tts-docker] $engine device=$device torch_index=$torch_index port=$port"
 
-    fingerprint="$(cat "$docker_dir/Dockerfile" "$docker_dir/compose.yml" "$docker_dir/compose.gpu.yml" 2>/dev/null | sha256sum | cut -d' ' -f1)"
+    fingerprint="$(cat "$docker_dir/Dockerfile" "$docker_dir/compose.yml" "$docker_dir/compose.gpu.yml" "${fingerprint_assets[@]}" 2>/dev/null | sha256sum | cut -d' ' -f1)"
     fingerprint="$(printf '%s' "$fingerprint" | tr -d ' \r\n'):$device"
     fingerprint_file="$docker_dir/.compose_fingerprint"
     container_id="$(docker ps -aq -f "name=^pycore-tts-${engine}$" 2>/dev/null | head -n 1)"

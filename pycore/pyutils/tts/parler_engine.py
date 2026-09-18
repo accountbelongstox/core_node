@@ -103,14 +103,16 @@ class ParlerEngine(SerializedModelEngine):
         del lang, speed
         tokenizer, model = resource
         dev = _device()
-        input_ids = tokenizer(
+        description_inputs = tokenizer(
             _description(),
             return_tensors="pt",
-        ).input_ids.to(dev)
-        prompt_input_ids = tokenizer(text, return_tensors="pt").input_ids.to(dev)
+        ).to(dev)
+        prompt_inputs = tokenizer(text, return_tensors="pt").to(dev)
         generation = model.generate(
-            input_ids=input_ids,
-            prompt_input_ids=prompt_input_ids,
+            input_ids=description_inputs.input_ids,
+            attention_mask=description_inputs.attention_mask,
+            prompt_input_ids=prompt_inputs.input_ids,
+            prompt_attention_mask=prompt_inputs.attention_mask,
         )
         arr = generation.cpu().numpy().squeeze()
         rate = int(getattr(model.config, "sampling_rate", 44100))

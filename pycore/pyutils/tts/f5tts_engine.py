@@ -74,9 +74,13 @@ def available() -> bool:
         for path in ("/health", "/"):
             try:
                 resp = requests.get(f"{base_url()}{path}", timeout=2)
-                if resp.status_code < 500:
-                    ok = True
-                    break
+                if not 200 <= resp.status_code < 300:
+                    continue
+                body = resp.json()
+                if isinstance(body, dict) and (body.get("ok") is True or body.get("status") == "ok"):
+                    ok = body.get("synth_ready") is not False
+                    if ok:
+                        break
             except Exception:
                 pass
     THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})

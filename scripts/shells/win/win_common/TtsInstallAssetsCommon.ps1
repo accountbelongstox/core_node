@@ -1,6 +1,9 @@
 # Resolve pycore/tts_install_assets from an install_powershells Step script directory.
 
 $script:LastReportedLocalModelPath = ''
+$script:TtsNativeBuildWingetId = 'Microsoft.VisualStudio.2022.BuildTools'
+$script:TtsNativeBuildInstallArguments = '--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+$script:TtsNativeBuildModifyArguments = 'modify --installPath "{0}" --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
 
 function Get-ShellsLinuxCommonDirFromInstallScript {
     param([string]$InstallScriptRoot)
@@ -251,6 +254,13 @@ function Resolve-HfMirrorBase {
     return 'https://hf-mirror.com'
 }
 
+function Get-HfRequestHeaders {
+    $headers = @{}
+    $token = if ($env:HF_TOKEN) { $env:HF_TOKEN.Trim() } elseif ($env:HUGGING_FACE_HUB_TOKEN) { $env:HUGGING_FACE_HUB_TOKEN.Trim() } else { '' }
+    if ($token) { $headers['Authorization'] = ('Bearer {0}' -f $token) }
+    return $headers
+}
+
 function Test-HfGlobMatch {
     param(
         [Parameter(Mandatory = $true)][string]$FileName,
@@ -281,12 +291,15 @@ function Get-HfRepoTreeCatalog {
         [string]$SubPath = ''
     )
     $catalog = @{}
+    $headers = Get-HfRequestHeaders
+    $sizeProperty = $null
+    $lfsProperty = $null
     $bases = @('https://huggingface.co', (Resolve-HfMirrorBase))
     foreach ($base in $bases) {
         try {
             $pathPart = if ($SubPath) { "/$SubPath" } else { '' }
             $uri = ('{0}/api/models/{1}/tree/main{2}' -f $base.TrimEnd('/'), $RepoId, $pathPart)
-            $entries = Invoke-RestMethod -Uri $uri -TimeoutSec 30 -ErrorAction Stop
+            $entries = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
             if (-not $entries) { continue }
             foreach ($entry in $entries) {
                 $name = [string]$entry.path
@@ -299,15 +312,20 @@ function Get-HfRepoTreeCatalog {
                     continue
                 }
                 $size = 0L
-                if ($null -ne $entry.size) {
-                    $size = [long]$entry.size
-                } elseif ($entry.lfs -and $null -ne $entry.lfs.size) {
-                    $size = [long]$entry.lfs.size
+                $sizeProperty = $entry.PSObject.Properties['size']
+                $lfsProperty = $entry.PSObject.Properties['lfs']
+                if ($null -ne $sizeProperty -and $null -ne $sizeProperty.Value) {
+                    $size = [long]$sizeProperty.Value
+                } elseif ($null -ne $lfsProperty -and $null -ne $lfsProperty.Value) {
+                    $sizeProperty = $lfsProperty.Value.PSObject.Properties['size']
+                    if ($null -ne $sizeProperty) { $size = [long]$sizeProperty.Value }
                 }
                 $catalog[$name] = $size
             }
             if ($catalog.Count -gt 0) { return $catalog }
-        } catch { }
+        } catch {
+            Write-Host ("[hf] Catalog request failed for {0} at {1}: {2}" -f $RepoId, $base, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
     }
     return $catalog
 }
@@ -319,26 +337,34 @@ function Get-HfRepoFileCatalog {
         return $catalog
     }
     $fallback = @{}
+    $headers = Get-HfRequestHeaders
+    $sizeProperty = $null
+    $lfsProperty = $null
     $bases = @('https://huggingface.co', (Resolve-HfMirrorBase))
     foreach ($base in $bases) {
         try {
             $uri = ('{0}/api/models/{1}' -f $base.TrimEnd('/'), $RepoId)
-            $resp = Invoke-RestMethod -Uri $uri -TimeoutSec 30 -ErrorAction Stop
+            $resp = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
             if ($resp.siblings) {
                 foreach ($entry in $resp.siblings) {
                     $name = [string]$entry.rfilename
                     if (-not $name) { continue }
                     $size = 0L
-                    if ($null -ne $entry.size) {
-                        $size = [long]$entry.size
-                    } elseif ($entry.lfs -and $null -ne $entry.lfs.size) {
-                        $size = [long]$entry.lfs.size
+                    $sizeProperty = $entry.PSObject.Properties['size']
+                    $lfsProperty = $entry.PSObject.Properties['lfs']
+                    if ($null -ne $sizeProperty -and $null -ne $sizeProperty.Value) {
+                        $size = [long]$sizeProperty.Value
+                    } elseif ($null -ne $lfsProperty -and $null -ne $lfsProperty.Value) {
+                        $sizeProperty = $lfsProperty.Value.PSObject.Properties['size']
+                        if ($null -ne $sizeProperty) { $size = [long]$sizeProperty.Value }
                     }
                     $fallback[$name] = $size
                 }
                 return $fallback
             }
-        } catch { }
+        } catch {
+            Write-Host ("[hf] Catalog fallback failed for {0} at {1}: {2}" -f $RepoId, $base, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
     }
     return $fallback
 }
@@ -401,6 +427,9 @@ function Invoke-HfFileDownloadResumable {
         [string]$Prefix = '',
         [long]$CatalogBytes = 0
     )
+    $headers = Get-HfRequestHeaders
+    $curlHeaders = @()
+    if ($headers.ContainsKey('Authorization')) { $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization'])) }
     if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
     $parent = Split-Path -Parent $OutPath
     if ($parent -and -not (Test-Path -LiteralPath $parent)) {
@@ -417,7 +446,7 @@ function Invoke-HfFileDownloadResumable {
     $url = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $FileName)
     if ($expected -le 0) {
         try {
-            $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
+            $head = Invoke-WebRequest -Uri $url -Headers $headers -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
             if ($head.Headers['Content-Length']) {
                 $expected = [long]$head.Headers['Content-Length']
             }
@@ -438,7 +467,7 @@ function Invoke-HfFileDownloadResumable {
         Write-Host ("{0} [!] curl.exe missing; cannot download {1}" -f $Prefix, $FileName) -ForegroundColor DarkYellow
         return $false
     }
-    & $curl.Source -L -C - --retry 3 --connect-timeout 30 -o $OutPath $url
+    & $curl.Source -f -L -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
     if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
         return $false
     }
@@ -771,6 +800,56 @@ sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
     return ''
 }
 
+function Get-TtsNativeBuildEnvironment {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $installations = @()
+    $installation = ''
+    $developerCommand = ''
+    $environment = @{}
+    $environmentLines = @()
+    $parts = @()
+    $compilerFound = $false
+    $sdkFound = $false
+    $runtimeHeadersFound = $false
+    $directory = ''
+    $line = $null
+    $previousPreference = $ErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+    if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) { return $null }
+    try {
+        $ErrorActionPreference = 'Continue'
+        $installations = @(& $vswhere -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)
+        foreach ($installation in $installations) {
+            $environment = @{}
+            $compilerFound = $false
+            $sdkFound = $false
+            $runtimeHeadersFound = $false
+            $developerCommand = Join-Path $installation 'Common7\Tools\VsDevCmd.bat'
+            $environmentLines = @(& $env:ComSpec /d /c ('call "{0}" -no_logo -arch=x64 -host_arch=x64 >nul && set' -f $developerCommand) 2>&1)
+            foreach ($line in $environmentLines) {
+                if ($line -is [System.Management.Automation.ErrorRecord]) {
+                    Write-Host $line -ForegroundColor DarkYellow
+                    continue
+                }
+                $parts = ([string]$line).Split([char[]]'=', 2)
+                if ($parts.Count -eq 2 -and $parts[0]) { $environment[$parts[0]] = $parts[1] }
+            }
+            foreach ($directory in ([string]$environment['Path']).Split(';')) {
+                if ($directory -and (Test-Path -LiteralPath (Join-Path $directory 'cl.exe') -PathType Leaf)) { $compilerFound = $true; break }
+            }
+            foreach ($directory in ([string]$environment['INCLUDE']).Split(';')) {
+                if (-not $directory) { continue }
+                if (Test-Path -LiteralPath (Join-Path $directory 'Windows.h') -PathType Leaf) { $sdkFound = $true }
+                if (Test-Path -LiteralPath (Join-Path $directory 'stdio.h') -PathType Leaf) { $runtimeHeadersFound = $true }
+            }
+            if ($compilerFound -and $sdkFound -and $runtimeHeadersFound) { return $environment }
+        }
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    return $null
+}
+
 function Invoke-IsolatedTtsVenvEnsure {
     # Build/verify an engine's isolated venv via isolated_venv.ensure_venv(). Runs the
     # system Python LIVE (pip output streams to console; first build takes minutes) and
@@ -802,6 +881,15 @@ function Invoke-IsolatedTtsVenvEnsure {
     $prevEap = $ErrorActionPreference
     $actionLine = ''
     $runtimeVersion = ''
+    $installPolicy = $null
+    $nativeBuildProperty = $null
+    $nativeBuildEnvironment = $null
+    $previousBuildEnvironment = @{}
+    $buildEnvironmentKey = ''
+    $winget = $null
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $vsInstaller = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\setup.exe'
+    $buildToolsInstallation = ''
     $runtimeInstaller = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'install_powershells') 'Step13_InstallPython310_312.ps1'
     $runtimePolicyCode = @"
 import sys
@@ -815,6 +903,38 @@ sys.stdout.write(str(spec.get('python_recommended', '')) if engine_isolation_mod
         & $runtimeInstaller -Runtime ($runtimeVersion.Replace('.', '')) | Out-Host
     }
     Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'pending' | Out-Null
+    $installPolicy = Get-TtsEngineInstallPolicy -PythonExe $PythonExe -Engine $Engine
+    if ($null -eq $installPolicy) {
+        Write-Host "[isolated-venv] Install policy unavailable for ${Engine}: $script:TtsPolicyLastError" -ForegroundColor DarkYellow
+        return
+    }
+    $nativeBuildProperty = $installPolicy.PSObject.Properties['windows_native_build']
+    if ($null -ne $nativeBuildProperty -and $nativeBuildProperty.Value -eq $true) {
+        $nativeBuildEnvironment = Get-TtsNativeBuildEnvironment
+        if (-not $nativeBuildEnvironment) {
+            $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+            try {
+                $ErrorActionPreference = 'Continue'
+                if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+                    $buildToolsInstallation = (& $vswhere -latest -products Microsoft.VisualStudio.Product.BuildTools -property installationPath | Select-Object -First 1)
+                }
+                if ($buildToolsInstallation) {
+                    Write-Host '[isolated-venv] Windows C++ compiler/SDK missing; adding missing Build Tools components ...' -ForegroundColor Yellow
+                    Start-Process -FilePath $vsInstaller -ArgumentList ($script:TtsNativeBuildModifyArguments -f $buildToolsInstallation) -WindowStyle Hidden -Wait
+                } elseif ($winget) {
+                    Write-Host '[isolated-venv] Windows C++ compiler/SDK missing; installing Visual Studio Build Tools ...' -ForegroundColor Yellow
+                    & $winget.Source install --id $script:TtsNativeBuildWingetId --exact --accept-package-agreements --accept-source-agreements --override $script:TtsNativeBuildInstallArguments | Out-Host
+                }
+            } finally {
+                $ErrorActionPreference = $prevEap
+            }
+            $nativeBuildEnvironment = Get-TtsNativeBuildEnvironment
+        }
+        if (-not $nativeBuildEnvironment) {
+            Write-Host '[isolated-venv] Native build pending: install/repair Visual Studio Desktop development with C++ and a Windows SDK, then rerun. Existing venv and models are retained.' -ForegroundColor DarkYellow
+            return
+        }
+    }
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
@@ -825,6 +945,12 @@ sys.stdout.write('__PYCORE_VENV_ENSURE_READY__\n' if result else '__PYCORE_VENV_
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies(); ensure_venv() does its own venv provisioning.
     try {
+        if ($nativeBuildEnvironment) {
+            foreach ($buildEnvironmentKey in $nativeBuildEnvironment.Keys) {
+                $previousBuildEnvironment[$buildEnvironmentKey] = [Environment]::GetEnvironmentVariable($buildEnvironmentKey, 'Process')
+                [Environment]::SetEnvironmentVariable($buildEnvironmentKey, $nativeBuildEnvironment[$buildEnvironmentKey], 'Process')
+            }
+        }
         $env:PYCORE_SKIP_DEP_CHECK = '1'
         $ErrorActionPreference = 'Continue'
         # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
@@ -839,6 +965,9 @@ sys.stdout.write('__PYCORE_VENV_ENSURE_READY__\n' if result else '__PYCORE_VENV_
             }
         }
     } finally {
+        foreach ($buildEnvironmentKey in $previousBuildEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($buildEnvironmentKey, $previousBuildEnvironment[$buildEnvironmentKey], 'Process')
+        }
         $ErrorActionPreference = $prevEap
         $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
     }

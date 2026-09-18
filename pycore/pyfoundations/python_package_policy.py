@@ -78,6 +78,8 @@ DEPENDENCY_MAP: Dict[str, str] = {
 }
 
 OPTIONAL_PACKAGES: Dict[str, str] = {
+    "fishaudio": "fish-audio-sdk",
+    "fishaudio.utils": "fish-audio-sdk",
     "edge_tts": "edge-tts",
     "parler_tts": "git+https://github.com/huggingface/parler-tts.git",
     "scipy": "scipy",

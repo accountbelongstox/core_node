@@ -466,7 +466,7 @@ async function deliverOperation(
     throw new PycoreRelayError('http', completed.error_code || `RELAY_OPERATION_${completed.state.toUpperCase()}`);
   }
   const responseBody = await responseBytes(completed);
-  return new Response(responseBody, {
+  return new Response(responseBody === null ? null : new Uint8Array(responseBody), {
     status: completed.response_status,
     headers: completed.response_headers || {},
   });

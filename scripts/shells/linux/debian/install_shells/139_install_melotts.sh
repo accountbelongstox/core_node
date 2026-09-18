@@ -106,9 +106,6 @@ if ! PYTHON="$(resolve_python)"; then
     echo "${PREFIX}[!] Python 3 not found." >&2
     fail_prereq_step "$PYTHON" "$PREFIX"
 fi
-if ! tts_engine_compatible "$PYTHON" "melotts" "$PREFIX"; then
-    complete_prereq_step "$PYTHON" "$PREFIX" --absent-ok "incompatible Python"
-fi
 
 if gpu_present; then
     DEVICE="cuda:0"
@@ -137,6 +134,10 @@ if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
 fi
 
 mkdir -p "$TARGET_DIR"
+tts_ensure_engine_base_runtime "$PYTHON" "melotts"
+if ! tts_engine_compatible "$PYTHON" "melotts" "$PREFIX"; then
+    complete_prereq_step "$PYTHON" "$PREFIX" --absent-ok "incompatible Python"
+fi
 echo "${PREFIX}[..] building/verifying isolated MeloTTS venv (self-contained; the venv carries its own torch stack) ..."
 tts_provision_isolated_venv "$PYTHON" "melotts" "$FORCE"
 if [[ "$TTS_ISOLATED_VENV_READY" -ne 1 ]]; then

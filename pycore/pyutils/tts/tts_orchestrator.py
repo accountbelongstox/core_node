@@ -424,7 +424,7 @@ def synthesize(
         detail = _engine_synth_error(name)
         if detail:
             last_error = f"{name}: {detail}"
-        ColorPrint.gray(f"[tts] {name} returned no audio; trying next engine")
+        ColorPrint.gray(f"[tts] {last_error}; trying next engine")
         ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
         if name == "edge":
             _set_edge_cooldown()

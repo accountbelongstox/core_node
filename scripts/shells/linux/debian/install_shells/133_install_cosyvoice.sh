@@ -153,6 +153,7 @@ if ! PYTHON="$(resolve_python)"; then
     echo "[install_cosyvoice] [!] Python 3 not found."
     fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
 fi
+tts_ensure_engine_base_runtime "$PYTHON" "cosyvoice"
 if ! tts_engine_compatible "$PYTHON" "cosyvoice" "[install_cosyvoice] "; then
     complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "incompatible Python" torch
 fi

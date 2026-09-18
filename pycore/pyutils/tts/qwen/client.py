@@ -475,7 +475,30 @@ def _submit_with_recovery(
     wait_revision = 0
     capacity_wait: Optional[BackoffWait] = None
     recovery_wait: Optional[BackoffWait] = None
+    capacity_snapshot: Dict[str, Any] = {}
+    counts: Dict[str, Any] = {}
+    active = 0
+    queue_max = 0
     while True:
+        if capacity_wait is not None:
+            reconciled, capacity_snapshot = inspect_queue_job(
+                "",
+                client_job_id,
+                timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
+                service_base_url=service_base_url,
+            )
+            if reconciled is not None:
+                return True, reconciled, None
+            counts = capacity_snapshot.get("counts") or {}
+            queue_max = int(capacity_snapshot.get("queue_max") or 0)
+            active = int(counts.get("pending") or 0) + int(counts.get("running") or 0)
+            if queue_max > 0 and active >= queue_max:
+                if not capacity_wait.sleep():
+                    return False, None, (
+                        f"qwen3tts queue capacity wait exceeded {capacity_wait.budget_seconds:.0f}s "
+                        f"(last error: {last_error})"
+                    )
+                continue
         ok, job, error = queue_submit(
             payload,
             timeout=30.0,
@@ -508,7 +531,6 @@ def _submit_with_recovery(
             ),
         })
         if capacity_error:
-            recovery_wait = None
             if capacity_wait is None:
                 capacity_wait = BackoffWait(
                     queue_capacity_wait_seconds(),
@@ -517,7 +539,6 @@ def _submit_with_recovery(
                 )
             wait = capacity_wait
         else:
-            capacity_wait = None
             if recovery_wait is None:
                 recovery_wait = BackoffWait(
                     queue_recovery_budget_seconds(),

@@ -257,6 +257,7 @@ def map_bus_tasks(
     max_workers: int,
     thread_prefix: str = "BusMap",
     timeout: float | None = None,
+    timeout_result: Callable[[Any], Any] | None = None,
 ) -> list[Any]:
     """Map items through a bounded set of bus-delivered Thread subclasses."""
     item_iterator = iter(enumerate(items))
@@ -286,10 +287,13 @@ def map_bus_tasks(
             THREAD_BUS.clear_signal(_response_guard_name(response_signal))
             THREAD_BUS.clear_signal(response_signal)
             if not isinstance(response, dict):
-                raise TimeoutError(f"Bus map task timed out: {thread_prefix}-{index + 1}")
-            if not response.get("success"):
+                if timeout_result is None:
+                    raise TimeoutError(f"Bus map task timed out: {thread_prefix}-{index + 1}")
+                results[index] = timeout_result(items[index])
+            elif not response.get("success"):
                 _raise_serialized_error(response, "Bus map task failed")
-            results[index] = response.get("result")
+            else:
+                results[index] = response.get("result")
             try:
                 submit(*next(item_iterator))
             except StopIteration:
