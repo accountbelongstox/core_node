@@ -107,7 +107,11 @@ def _laravel_audio(resource: Dict[str, Any], target: Path, base_url: Optional[st
     endpoint = str(base_url or laravel_endpoint_manager.get_active_base_url()).rstrip("/")
     health = laravel_endpoint_manager.last_probe_result(endpoint)
     checked_ms = int(health.get("last_checked") or 0)
-    if checked_ms and time.time() - checked_ms / 1000.0 <= LARAVEL_AUDIO_HEALTH_TTL_SECONDS and not health.get("healthy"):
+    if (
+        checked_ms
+        and time.time() - checked_ms / 1000.0 <= LARAVEL_AUDIO_HEALTH_TTL_SECONDS
+        and not health.get("healthy")
+    ):
         return None
     try:
         if kind == "sentence":

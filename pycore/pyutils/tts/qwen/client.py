@@ -489,7 +489,7 @@ def _submit_with_recovery(
             )
             if reconciled is not None:
                 return True, reconciled, None
-            counts = capacity_snapshot.get("counts") or {}
+            counts = capacity_snapshot.get("counts") if isinstance(capacity_snapshot.get("counts"), dict) else {}
             queue_max = int(capacity_snapshot.get("queue_max") or 0)
             active = int(counts.get("pending") or 0) + int(counts.get("running") or 0)
             if queue_max > 0 and active >= queue_max:

@@ -134,9 +134,11 @@ class MercureSubscriber:
         reconnect_seconds = self.reconnect_min_seconds
         initial_cursor = self.last_event_id
         connected_at = 0.0
+        offline_detail = ""
         while not should_stop():
             connection = None
             reason = "closed"
+            offline_detail = ""
             connected_at = 0.0
             try:
                 self._notify(MERCURE_STATE_CONNECTING, self.hub_url)
@@ -158,7 +160,7 @@ class MercureSubscriber:
                     hub_url=self.hub_url,
                     error=exc,
                 )
-                self._notify(MERCURE_STATE_OFFLINE, f"hub rejected the token: {exc}")
+                offline_detail = f"hub rejected the token: {exc}"
             except Exception as exc:  # noqa: BLE001 - reconnect owns transport failures
                 reason = "error"
                 mercure_activity_log.error(
@@ -167,11 +169,11 @@ class MercureSubscriber:
                     error_type=type(exc).__name__,
                     error=exc,
                 )
-                self._notify(MERCURE_STATE_OFFLINE, str(exc) or exc.__class__.__name__)
+                offline_detail = str(exc) or exc.__class__.__name__
             finally:
                 self._close(connection)
                 self._connection = None
-                self._notify(MERCURE_STATE_OFFLINE, reason)
+                self._notify(MERCURE_STATE_OFFLINE, offline_detail or reason)
             if reason == "stop":
                 return
             if reason == "renew":
