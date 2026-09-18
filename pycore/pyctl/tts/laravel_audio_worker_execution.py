@@ -6,7 +6,7 @@ import os
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
@@ -437,6 +437,26 @@ class LaravelAudioWorkerExecutionMixin:
             attempt=info.get("attempt"),
         )
 
+    def _delivery_identity(self, info: Dict[str, Any]) -> str:
+        """Stable domain-report identity shared by every attempt of one audio.
+
+        Records carrying the same identity deliver the SAME bytes to the SAME
+        domain endpoint; the outbox dedupes them durably (no time windows).
+        """
+        if self.LANE == "sentence":
+            content_id = str(info.get("content_id") or "").strip()
+            if not content_id:
+                return ""
+            variant = str(info.get("variant_key") or "").strip()
+            language = str(info.get("language") or "en").strip().lower() or "en"
+            return f"{self.REPORT_PATH}:{content_id}:{language}:{variant}"
+        if info.get("kind") != "word" or not info.get("dict_row_id"):
+            return ""
+        return (
+            f"{self.REPORT_PATH}:"
+            f"{encode_word_report_task_id(info['dict_row_id'], info['language'])}"
+        )
+
     def _stage_delivery(
         self,
         info: Dict[str, Any],
@@ -446,6 +466,7 @@ class LaravelAudioWorkerExecutionMixin:
     ) -> Dict[str, Any]:
         return audio_delivery_outbox.stage_audio({
             "lane": self.LANE,
+            "delivery_identity": self._delivery_identity(info),
             "task_id": info.get("task_id"),
             "task_type": info.get("task_type") or self.QUEUE_KEY,
             "attempt": int(info.get("attempt") or 0),
@@ -479,6 +500,19 @@ class LaravelAudioWorkerExecutionMixin:
         self._start_outbox_drain()
         return {"success": True, "retried": retried, "outbox": audio_delivery_outbox.stats(self.LANE)}
 
+    @staticmethod
+    def _unique_ready_deliveries(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """One in-flight delivery per domain identity per batch."""
+        seen = set()
+        unique = []
+        for row in rows:
+            key = str(row.get("delivery_identity") or "") or str(row.get("delivery_id") or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(row)
+        return unique
+
     def _drain_delivery_outbox(self) -> None:
         try:
             while not THREAD_BUS.is_shutdown_requested():
@@ -489,6 +523,7 @@ class LaravelAudioWorkerExecutionMixin:
                 if not ready:
                     time.sleep(_OUTBOX_IDLE_WAIT_SECONDS)
                     continue
+                ready = self._unique_ready_deliveries(ready)
                 lane_count = min(_OUTBOX_PARALLEL_LIMIT, len(ready))
                 map_bus_tasks(
                     _run_audio_delivery,

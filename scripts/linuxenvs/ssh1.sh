@@ -185,20 +185,21 @@ if [ -n "$SSH_PASSWORD" ]; then
     echo ""
     echo "[INFO] SSH will prompt for password. Please paste the password above when prompted."
     echo ""
-    echo "Executing: ssh $SSH_CONNECTION"
+    echo "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $SSH_CONNECTION"
     echo ""
 
     # Execute SSH connection - it will prompt for password
-    ssh "$SSH_CONNECTION" "$@"
+    ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no "$SSH_CONNECTION" "$@"
 else
     # No password configured, use SSH key authentication
     echo "[INFO] No password configured, using SSH key authentication"
-    echo "Executing: ssh $SSH_CONNECTION"
+    echo "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $SSH_CONNECTION"
     echo ""
 
-    ssh "$SSH_CONNECTION" "$@"
+    ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no "$SSH_CONNECTION" "$@"
 fi
 
 echo ""
 echo "SSH session ended"
+echo "[TIP] If the network dropped the session, re-run this script to reconnect; the server-side tmux session persists."
 echo ""
