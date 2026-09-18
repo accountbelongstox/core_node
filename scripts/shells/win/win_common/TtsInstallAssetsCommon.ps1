@@ -811,8 +811,8 @@ spec = engine_spec($engineLit)
 sys.stdout.write(str(spec.get('python_recommended', '')) if engine_isolation_mode($engineLit) == ISOLATION_MODE_SELF_CONTAINED else '')
 "@
     $runtimeVersion = ((& $PythonExe -c $runtimePolicyCode) | Out-String).Trim()
-    if ($runtimeVersion -eq '3.12' -and -not [Environment]::GetEnvironmentVariable(('{0}_PYTHON' -f $Engine.ToUpperInvariant()), 'Process')) {
-        & $runtimeInstaller -Runtime 312 | Out-Host
+    if ($runtimeVersion -in @('3.10', '3.12') -and -not [Environment]::GetEnvironmentVariable(('{0}_PYTHON' -f $Engine.ToUpperInvariant()), 'Process')) {
+        & $runtimeInstaller -Runtime ($runtimeVersion.Replace('.', '')) | Out-Host
     }
     Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'pending' | Out-Null
     $pyCode = @"

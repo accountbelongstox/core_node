@@ -69,6 +69,7 @@ function Register-IsolatedPythonStorage {
 }
 
 function Ensure-IsolatedPythonPip {
+    Ensure-IsolatedPythonDevelopmentFiles
     $runtimePathFile = Join-Path (Split-Path $IsolatedPythonExePath -Parent) "${RuntimeCommand}._pth"
     $sitePackagesDir = Join-Path (Split-Path $IsolatedPythonExePath -Parent) "Lib\site-packages"
     if (Test-Path -LiteralPath $runtimePathFile -PathType Leaf) {
@@ -117,6 +118,59 @@ function Ensure-IsolatedPythonPip {
     $pipCheck = ((& $IsolatedPythonExePath -m pip --version) | Out-String).Trim()
     Write-ColorMessage -Message "$SCRIPT_INDEX   $pipCheck" -Type "Info"
     Ensure-IsolatedPythonVenvCreator
+}
+
+function Ensure-IsolatedPythonDevelopmentFiles {
+    $developmentRoot = Split-Path $IsolatedPythonExePath -Parent
+    $developmentHeader = Join-Path $developmentRoot 'include\Python.h'
+    $developmentLibrary = Join-Path $developmentRoot "libs\${RuntimeCommand}.lib"
+    $developmentIdentity = @()
+    $developmentVersion = ''
+    $developmentPackage = ''
+    $developmentUrl = ''
+    $developmentArchiveFile = ''
+    $developmentArchive = $null
+    $developmentEntry = $null
+    $developmentEntryName = ''
+    $developmentEntryPath = ''
+    $developmentEntryParent = ''
+
+    if ((Test-Path -LiteralPath $developmentHeader -PathType Leaf) -and (Test-Path -LiteralPath $developmentLibrary -PathType Leaf)) { return }
+    $developmentIdentity = (((& $IsolatedPythonExePath -c "import sys; print('.'.join(map(str, sys.version_info[:3])) + '|' + ('python' if sys.maxsize > 2**32 else 'pythonx86'))") | Out-String).Trim()).Split('|')
+    if ($developmentIdentity.Count -ne 2) {
+        throw "$SCRIPT_INDEX Cannot resolve the Python development package for $IsolatedPythonExePath"
+    }
+    $developmentVersion = $developmentIdentity[0]
+    $developmentPackage = $developmentIdentity[1]
+    $developmentUrl = 'https://api.nuget.org/v3-flatcontainer/{0}/{1}/{0}.{1}.nupkg' -f $developmentPackage, $developmentVersion
+    $developmentArchiveFile = Join-Path $Global:DOWNLOADS_DIR ('{0}.{1}.nupkg' -f $developmentPackage, $developmentVersion)
+    if (-not (Test-Path -LiteralPath $Global:DOWNLOADS_DIR -PathType Container)) {
+        New-Item -ItemType Directory -Path $Global:DOWNLOADS_DIR -Force | Out-Null
+    }
+    Write-ColorMessage -Message "$SCRIPT_INDEX Repairing missing Python headers and import libraries from $developmentUrl" -Type 'Info'
+    if (-not (Test-Path -LiteralPath $developmentArchiveFile -PathType Leaf)) {
+        Invoke-WebRequest -Uri $developmentUrl -OutFile $developmentArchiveFile -UseBasicParsing -ErrorAction Stop
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $developmentArchive = [System.IO.Compression.ZipFile]::OpenRead($developmentArchiveFile)
+    try {
+        foreach ($developmentEntry in $developmentArchive.Entries) {
+            $developmentEntryName = $developmentEntry.FullName.Replace('\', '/')
+            if (-not ($developmentEntryName.StartsWith('tools/include/', [System.StringComparison]::OrdinalIgnoreCase) -or $developmentEntryName.StartsWith('tools/libs/', [System.StringComparison]::OrdinalIgnoreCase)) -or [string]::IsNullOrEmpty($developmentEntry.Name)) { continue }
+            $developmentEntryPath = Join-Path $developmentRoot $developmentEntryName.Substring('tools/'.Length)
+            if (Test-Path -LiteralPath $developmentEntryPath -PathType Leaf) { continue }
+            $developmentEntryParent = Split-Path $developmentEntryPath -Parent
+            if (-not (Test-Path -LiteralPath $developmentEntryParent -PathType Container)) {
+                New-Item -ItemType Directory -Path $developmentEntryParent -Force | Out-Null
+            }
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($developmentEntry, $developmentEntryPath, $false)
+        }
+    } finally {
+        $developmentArchive.Dispose()
+    }
+    if (-not (Test-Path -LiteralPath $developmentHeader -PathType Leaf) -or -not (Test-Path -LiteralPath $developmentLibrary -PathType Leaf)) {
+        throw "$SCRIPT_INDEX Python development files are still missing in $developmentRoot"
+    }
 }
 
 function Ensure-IsolatedPythonVenvCreator {
