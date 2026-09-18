@@ -181,6 +181,11 @@ class LinuxTerminalLauncher:
         is also what lets qterminal (no --geometry flag, shared server PID) form
         a real grid of separate windows. Title matching remains a fallback only.
 
+        XWayland note: under GNOME/Wayland the compositor applies its own
+        map-time placement a moment AFTER the window appears in the client list,
+        which can overwrite the launcher's first move. Every captured window is
+        therefore moved once more in a short re-assert pass after the loop.
+
         Args:
             configs: List of 4-tuples (x, y, cols, rows).
             emulator: Emulator to launch (geometry-capable preferred, else any).
@@ -207,6 +212,7 @@ class LinuxTerminalLauncher:
               + (f" (cell {cell_w}x{cell_h}px, gaps {col_gap}/{row_gap}px)" if cell_w else "") + ".")
 
         pids = []
+        placed = []  # (wid, px, py, w, h) captured ids, re-asserted after the loop
         snapshot = self._placer._list_window_ids()  # baseline before we add any window
 
         for i, (x, y, cols, rows) in enumerate(configs, 1):
@@ -236,6 +242,7 @@ class LinuxTerminalLauncher:
                     frame = self._placer._frame_extents(wid)
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
                 self._placer._place_by_id(positioner, wid, px, py, w, h)
+                placed.append((wid, px, py, w, h))
                 ColorPrint.plain(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
                       + (f" ({w}x{h}px)" if cell_w else "")
                       + f" (pid {proc.pid})")
@@ -249,6 +256,14 @@ class LinuxTerminalLauncher:
                 else:
                     self._placer._place_by_title_xdotool(title, px, py, w, h)
             time.sleep(delay)
+
+        # Re-assert pass: on XWayland the compositor can apply its own map-time
+        # placement after our first move; move every captured window once more
+        # now that all of them are fully mapped and decorated.
+        if placed:
+            time.sleep(0.5)
+            for wid, px, py, w, h in placed:
+                self._placer._place_by_id(positioner, wid, px, py, w, h)
 
         return pids
 
