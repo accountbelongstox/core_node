@@ -9,7 +9,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 33_install_swoole.sh
+# Script: 53_install_swoole.sh
 # Description: Install Swoole extension for PHP 8.5 and Laravel Octane support
 # PHP Version: 8.5 (Upgraded from 8.4)
 # Swoole Version: latest stable (installed via PECL)
@@ -23,7 +23,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_INDEX="[36_SWOOLE]"
+SCRIPT_INDEX="[53_SWOOLE]"
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -102,7 +102,7 @@ ensure_php_symlink() {
 
     if [ ! -x "$PHP_BIN" ]; then
         echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} binary not found at $PHP_BIN${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 43_ensure_php85_intelligent.sh first${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 96_configure_php85.sh first${NC}"
         return 1
     fi
 

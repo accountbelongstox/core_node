@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import win32com.client
 """
 Ubuntu Shortcut Finder
 Finds Ubuntu shortcuts in Windows Start Menu
@@ -12,8 +11,10 @@ from typing import List, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 try:
+    import win32com.client
     HAS_WIN32COM = True
 except ImportError:
+    win32com = None
     HAS_WIN32COM = False
 
 

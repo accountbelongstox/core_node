@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_INDEX="119"
 # ---------------------------------------------------------------------------
 # install_launcher.sh - Prerequisite installer for the multi-terminal grid
 #   launcher (pycore/pyutils/launcher: linux_terminal_launcher.py). It arranges

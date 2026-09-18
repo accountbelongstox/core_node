@@ -24,7 +24,7 @@ PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
-SCRIPT_NAME="[100_install_nllb200]"
+SCRIPT_NAME="[111_install_nllb200]"
 MODEL_NAME="NLLB-200"
 MODEL_PATH="facebook/nllb-200-distilled-600M"
 REQUIRED_PYTHON_VERSION="3.8"

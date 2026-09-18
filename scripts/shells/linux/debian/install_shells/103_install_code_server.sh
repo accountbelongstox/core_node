@@ -17,7 +17,7 @@
 set -e
 
 # Script index for logging
-SCRIPT_INDEX="86"
+SCRIPT_INDEX="103"
 
 # Path setup
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

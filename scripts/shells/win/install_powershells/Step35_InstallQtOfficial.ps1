@@ -39,6 +39,7 @@ $windowsPathFuncPath = Join-Path $winCommonPath "WindowsPathFunction.ps1"
 
 # All variable declarations
 $proceedChoice = ""
+$savedQtProceed = ""
 $qtVersionMajorMinor = ""
 $installerUrl = ""
 $installerPath = ""
@@ -61,10 +62,18 @@ Write-Host "  [$SCRIPT_INDEX] Qt Framework Installation - Official Installer" -F
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Ask user if they want to proceed with installation
-Write-Host "  [$SCRIPT_INDEX] Do you want to proceed with Qt installation? (Y/n)" -ForegroundColor Yellow
-Write-Host "  [$SCRIPT_INDEX] Default: Y (Install)" -ForegroundColor Gray
-$proceedChoice = Read-Host "  [$SCRIPT_INDEX]"
+# Reuse the Qt install decision recorded by the earlier Qt step instead of prompting again
+$savedQtProceed = Get-GlobalVar -key "QT_INSTALL_PROCEED"
+if ($savedQtProceed -eq "Y" -or $savedQtProceed -eq "N") {
+    Write-Host "  [$SCRIPT_INDEX] Applying previous Qt installation choice: $savedQtProceed" -ForegroundColor Gray
+    $proceedChoice = $savedQtProceed
+}
+else {
+    # Ask user if they want to proceed with installation
+    Write-Host "  [$SCRIPT_INDEX] Do you want to proceed with Qt installation? (Y/n)" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Default: Y (Install)" -ForegroundColor Gray
+    $proceedChoice = Read-Host "  [$SCRIPT_INDEX]"
+}
 
 if ($proceedChoice -eq "N" -or $proceedChoice -eq "n") {
     Write-Host "  [$SCRIPT_INDEX] Qt installation skipped by user" -ForegroundColor Yellow

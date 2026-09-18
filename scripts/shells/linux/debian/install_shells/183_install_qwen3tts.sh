@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="183"
 # Qwen3-TTS prerequisite (Linux) - Alibaba qwen-tts, class C (isolated venv + HTTP server).
 #
 # Lifecycle rule (see development-guides/cross-docs/

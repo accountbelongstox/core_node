@@ -17,7 +17,7 @@
 
 set -e
 
-SCRIPT_INDEX="2"
+SCRIPT_INDEX="3"
 
 # Color codes
 RED='\033[31m'
@@ -216,6 +216,53 @@ ensure_sudo_installed() {
     return 0
 }
 
+# Converge the primary login user's password to the canonical value stored in
+# the project secret store (key SYSTEM_USER_PASSWORD). When the local shadow
+# drifts from the documented password every sudo/su prompt fails (observed:
+# dd.sh and `sudo tailscale up` rejecting the expected password). Idempotent:
+# the shadow hash is compared first (perl crypt, libcrypt handles yescrypt)
+# and chpasswd only runs on mismatch; when perl is unavailable chpasswd runs
+# unconditionally (setting the same password again is harmless). Skips with an
+# info message when the key is absent or the user cannot be resolved.
+ensure_system_user_password() {
+    local target_user canonical_pw current_hash
+    target_user="${SUDO_USER:-${USER:-$(whoami)}}"
+    if [ "$target_user" = "root" ] || [ -z "$target_user" ]; then
+        target_user="$(getent passwd | awk -F: '$3>=1000 && $3<60000 {print $1; exit}')"
+    fi
+    if [ -z "$target_user" ] || ! getent passwd "$target_user" >/dev/null 2>&1; then
+        info "No non-root login user resolved; skipping password convergence."
+        return 0
+    fi
+
+    canonical_pw="$(get_secret_content "SYSTEM_USER_PASSWORD" 2>/dev/null | head -n1)"
+    if [ -z "$canonical_pw" ]; then
+        info "SYSTEM_USER_PASSWORD not set in secret store; skipping password convergence for $target_user."
+        return 0
+    fi
+
+    if [ "$(id -u)" -ne 0 ] && [ -z "$USE_SUDO" ]; then
+        warning "Password convergence for $target_user needs root/sudo; skipping."
+        return 0
+    fi
+
+    current_hash="$($USE_SUDO getent shadow "$target_user" 2>/dev/null | cut -d: -f2)"
+    if [ -n "$current_hash" ] && command -v perl >/dev/null 2>&1; then
+        if [ "$(perl -e 'print((crypt($ARGV[0],$ARGV[1]) eq $ARGV[1])?"match":"mismatch")' "$canonical_pw" "$current_hash")" = "match" ]; then
+            info "Password for $target_user already matches SYSTEM_USER_PASSWORD."
+            return 0
+        fi
+    fi
+
+    info "Converging password for $target_user to SYSTEM_USER_PASSWORD..."
+    if echo "$target_user:$canonical_pw" | $USE_SUDO chpasswd; then
+        log "Password for $target_user converged."
+    else
+        warning "Failed to set password for $target_user."
+    fi
+    return 0
+}
+
 # Initialize core_node shared directories (was 12).
 initialize_core_node_directories() {
     local CORE_NODE_BASE="${CORE_NODE_DATA_DIR}"
@@ -341,6 +388,9 @@ main() {
 
     # Step 0: ensure sudo is installed (merged from former 11_install_sudo.sh).
     ensure_sudo_installed || warning "sudo setup incomplete (continuing base setup)"
+    # Step 0a: converge the login user's password so sudo/su prompts accept the
+    # documented password (needs sudo installed for non-root runs).
+    ensure_system_user_password
     # gvar_common sets USE_SUDO once at source time (only if the sudo binary then
     # existed). If ensure_sudo_installed just installed it, refresh USE_SUDO now so
     # every later `$USE_SUDO -u <user>` resolves to `sudo -u <user>` instead of a

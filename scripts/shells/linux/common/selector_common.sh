@@ -253,9 +253,26 @@ confirm_configuration() {
     done
     
     echo ""
-    echo "Installation will start in 1 seconds..."
-    sleep 1
-    save_configuration
+    echo "Enter=Start installation, B=Go back to edit, Q=Quit without saving"
+    echo "Installation will start automatically in 10 seconds..."
+    local confirm_key=""
+    read -rsn1 -t 10 confirm_key || confirm_key=""
+    case "$confirm_key" in
+        [bB])
+            echo ""
+            echo "Returning to configuration menu."
+            sleep 1
+            return 0
+            ;;
+        [qQ])
+            echo ""
+            echo "Exiting without saving."
+            exit "$CANCEL_RETURN_EXIT_CODE"
+            ;;
+        *)
+            save_configuration
+            ;;
+    esac
 }
 
 # Main Program Entry Point

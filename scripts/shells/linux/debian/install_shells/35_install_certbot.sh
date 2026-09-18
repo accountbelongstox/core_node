@@ -37,7 +37,7 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-SCRIPT_INDEX="27"
+SCRIPT_INDEX="35"
 CERTBOT_STEP_NAMESPACE="27_install_certbot"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

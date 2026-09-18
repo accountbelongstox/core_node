@@ -8,6 +8,7 @@
 # 6. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="93"
 
 # Stable Debian menu entry for the canonical cross-distribution lifecycle.
 

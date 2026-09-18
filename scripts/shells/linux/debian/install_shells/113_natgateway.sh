@@ -23,7 +23,7 @@ set -e
 trap 'log_error "Script interrupted or failed at line $LINENO"' ERR
 
 # Script identification and path setup
-SCRIPT_INDEX="102"
+SCRIPT_INDEX="113"
 # IMPORTANT: Resolve symlink to get the real script path
 # This ensures relative paths work correctly when script is run via /usr/local/bin/natgateway
 REAL_SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"

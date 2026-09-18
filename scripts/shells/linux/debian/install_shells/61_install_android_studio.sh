@@ -17,7 +17,7 @@ source "$COMMON_DIR/common_functions.sh"
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Variables (declare first)
-SCRIPT_INDEX="40"
+SCRIPT_INDEX="61"
 SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
@@ -44,7 +44,7 @@ source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 # Init globals
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 INSTALL_ANDROID_STUDIO=$(get_var "INSTALL_ANDROID_STUDIO" "auto")
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "41_install_android_studio")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "61_install_android_studio")
 LOG_FILE="$SCRIPT_TEMP_DIR/android_studio_install_$(date +%Y%m%d_%H%M%S).log"
 
 # Android Studio configuration

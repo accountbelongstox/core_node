@@ -10,6 +10,7 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="151"
 
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
 # for the pycore "Video Extraction" feature) on Linux/macOS. Prefix 15 sorts right
@@ -19,8 +20,8 @@
 # (the pyservice prerequisite reference) to keep one copy of the logic.
 #
 # Invocation contracts:
-#   - install.sh flow:  15_install_faster_whisper.sh           (no args; resolves python)
-#   - pyservice flow:   15_install_faster_whisper.sh --python <py> [--model <m>] [--force]
+#   - install.sh flow:  151_install_faster_whisper.sh           (no args; resolves python)
+#   - pyservice flow:   151_install_faster_whisper.sh --python <py> [--model <m>] [--force]
 set -uo pipefail
 
 # Declare all variables at the beginning

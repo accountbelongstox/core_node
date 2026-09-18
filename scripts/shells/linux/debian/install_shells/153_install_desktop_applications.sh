@@ -35,7 +35,7 @@ source "$COMMON_DIR/common_functions.sh"
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script identification and path setup
-SCRIPT_INDEX="121"
+SCRIPT_INDEX="153"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -56,7 +56,7 @@ fi
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "121_install_desktop_applications")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "153_install_desktop_applications")
 LOG_FILE="$SCRIPT_TEMP_DIR/desktop_apps_install_$(date +%Y%m%d_%H%M%S).log"
 
 # Track installation results globally

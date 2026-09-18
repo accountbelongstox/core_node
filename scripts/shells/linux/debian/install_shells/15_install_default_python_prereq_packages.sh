@@ -24,7 +24,7 @@
 # Python: 3.12 or 3.13 - whichever the system / venv provides (13_install_default_python.sh).
 # Idempotent: each bundle skips when imports already succeed.
 
-SCRIPT_INDEX="14"
+SCRIPT_INDEX="15"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"

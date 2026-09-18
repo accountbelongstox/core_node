@@ -14,7 +14,7 @@
 # Zhipu publishes a Python SDK but no first-party CLI binary. This step installs
 # the SDK only when pip metadata is absent and otherwise preserves it.
 
-SCRIPT_INDEX="138"
+SCRIPT_INDEX="179"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"

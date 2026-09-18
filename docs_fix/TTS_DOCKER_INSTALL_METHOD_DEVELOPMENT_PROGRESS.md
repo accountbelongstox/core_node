@@ -1,7 +1,8 @@
 # TTS Docker 安装方式开发进度文档
 
 > 对应计划：`docs_fix/DEBIAN13_PYTHON310_TTS_DEVELOPMENT_PLAN.md` 步骤 16-20
-> 创建时间：2026-09-17 ｜ 状态：本轮实现完成（静态验证通过，未运行安装流程）
+> 创建时间：2026-09-17 ｜ 状态：运行验证通过（pyservice 实跑 + 全链路实测，见第六节）
+> 更新：2026-09-18 运行 pyservice 实测全部功能，修复 6 处缺陷（第六节）
 
 ---
 
@@ -129,7 +130,7 @@ web_search 工具不可用（缺 EXA_API_KEY），改用 web_fetch + curl 直连
 
 ## 四、诚实 Pending（后续步骤，非本轮范围）
 
-1. **逐引擎 compose 服务资产（计划步骤 19）**：docker 分支目前收敛"Docker 平台 + compose 插件"并写 `TTS_<ENG>_BACKEND=docker`；各引擎的镜像/compose 服务定义、端口/卷/健康检查尚未生成 —— 安装脚本已明确打印该 pending，不谎报模型就绪。
+1. **逐引擎 compose 服务资产（计划步骤 19）**：已落地 `scripts/shells/docker_compose/tts/<engine>/`（Dockerfile + compose.yml + compose.gpu.yml，五引擎齐全），由 `linux/common/tts_docker_compose_common.sh:tts_docker_apply_engine` 按内容比较同步并按指纹收敛（相同指纹的运行容器不重碰）；五引擎 `docker compose config -q` 全部通过（2026-09-18 实测）。镜像构建/首跑耗时未在本轮执行。
 2. **83/99/rebuild 重构为共享 generate/apply（19.12）**：legacy `/usr/local/.pcore_local/deploy` 流未动，待 compose 资产落地时一并重构。
 3. **capability_service 展示面**：sentence_tts 状态块仍列回退引擎为"已知"（仅展示，不参与合成）；如需钉住语义进 UI，另起小改。
 4. **Step29 自动触发**：wsl.exe 缺失时有意只报告不自动启用 Windows 功能（需重启），如需全自动需用户显式授权。
@@ -140,3 +141,48 @@ web_search 工具不可用（缺 EXA_API_KEY），改用 web_fetch + curl 直连
 ## 五、变更摘要（一行式）
 
 句子 TTS 钉住 Qwen3-TTS；五引擎逐引擎可选 native/docker（20 秒超时默认、官方推荐标注、逐键幂等持久化）；docker 分支强制 START_DOCKER 并经统一入口调度重写后的 79（官方 deb822 源、逐组件幂等、compose 插件探测）；Windows 经 WSL 桥复用同一 Linux 链；compose 资产剔除废弃 version 字段；全部静态验证通过，安装流程未运行。
+
+---
+
+## 六、2026-09-18 运行验证与修复（pyservice 实跑）
+
+### 运行方式
+
+`bash pyservice.sh run --no-install --no-ui --no-reload`（headless，Debian 13 / Python 3.13 venv），RPC v2 监听 :59000，运行中实测下列全部功能。
+
+### 本轮修复（6 处，均为实测暴露的真实缺陷）
+
+| # | 文件 | 缺陷与修复 |
+|---|---|---|
+| 1 | `pycore/pyfoundations/third_party/_getters_core.py` | 顶层 eager `import pystray` / `import pythoncom` 使 headless worker 启动即崩（pystray import 时连接 X11 失败）；改为 try/except + `PYSTRAY_AVAILABLE` / `PYTHONCOM_AVAILABLE` 标志，getter 先查标志 |
+| 2 | `pycore/pyctl/stt/test_service.py` | **新建**——`local_engine_service.py` 与 `stt/status_service.py` 均 import 该模块但 git 历史中从未存在，worker 启动 ModuleNotFoundError。实现 STT 往返测试：TTS（word profile，edge 优先）合成样句 → 需要时 ffmpeg 转 16k 单声道 WAV → 目标 STT 引擎识别 → 归一化相似度评分（>=0.6 通过） |
+| 3 | `pycore/pythreadpool/starters.py` | 顶层无条件 import PySide6 UI 模块；headless 无 PySide6 即崩。加 `PYSIDE6_AVAILABLE` 守卫，`start_ui` headless 返回 None |
+| 4 | `pycore/pyutils/native_ui/step6_tray/win32_system_tray.py` | `win32gui/win32con/win32api/PIL` import 悬在空 try 块之外（`WIN32_AVAILABLE`/`PIL_AVAILABLE` 原为死代码），Linux 必崩；移入 try 块 |
+| 5 | `scripts/shells/linux/common/install_method_common.sh` | `set_var` 的 "Successfully set..." 走 stdout，污染 `INSTALL_METHOD="$(install_method_select ...)"` 捕获值，导致 133/137/139/143 首次选择后 `== "docker"` 比较失败（真实断链 bug）；静默化（第三参 false） |
+| 6 | `scripts/shells/win/win_common/GlobalVarStoreCommon.ps1` | `Get-GlobalVar` 文件回退路径未 Trim，`Set-Content` 尾部换行使已存选项永远无法匹配 supported 集 → Windows 每次重选；已修（与 secret 路径的 `.Trim()` 对齐） |
+
+### 实测结果
+
+| 项 | 方式 | 结果 |
+|---|---|---|
+| pyservice 启动 | headless run | OK，:59000 LISTEN，laravel/queue-center/agent-history 正常 |
+| sentence 钉住（live） | `POST /api/tts/synthesize` 多词句子 | 仅尝试 qwen3tts，诚实报错（venv 未建），**无静默回退** |
+| word profile（live） | 同上，单词 "hello" | edge 成功，11232 bytes |
+| TTS 引擎测试 | `POST /api/local/tts/test` sherpa | 成功（首次载模 21.6s），speech_history record_id 落库 |
+| STT 往返测试（新模块） | `POST /api/local/stt/test` vosk | 成功：edge 合成 → WAV → vosk 识别，**similarity 1.0**，record_id 落库 |
+| sentence_audio 状态 | `POST /api/ui/sentence_audio/status` | `required_engine=qwen3tts`，钉住语义透出 UI 契约 |
+| engine_policy import 冒烟 | venv python | sentence=(qwen3tts,)、word 排除 qwen、agent_history 钉住、default 链完整 |
+| 79 幂等重跑 | 实际执行 | 全组件 "nothing to do"（keyring/源/apt update/五包/enable/start 全跳过），exit 0；docker-ce 29.8.1 + compose 5.5.1 + daemon active |
+| ensure_docker_for_tts.sh | 实际执行 `cosyvoice` | exit 0，复用同一编号链 |
+| install_method_common.sh | 沙箱 GLOBAL_VAR_DIR 21 项断言 | 全过：显式/复用/幂等不重写/非法拒绝/单选项/无 TTY 默认/backend 只变才写/START_DOCKER 联动去重/失效重选 |
+| 交互 TTY 路径 | `script` 伪终端 | 数字键切换+Enter 确认（explicit）、20s 超时提交显示默认（timeout_default）、Q 取消 rc=10 不写键，均通过 |
+| PS 选择器 | pwsh 沙箱 8 项断言 | 全过（修复 #6 后复用生效） |
+| PS 语法 | AST ParseFile ×7 | 全过 |
+| compose 资产 ×5 引擎 | `docker compose config -q`（cpu） | 全过（cosyvoice/gptsovits/melotts/fishspeech/voxcpm2） |
+| bash 语法 | `bash -n` ×11（含 kimiyolo.sh、ssh_server_common.sh、175、23） | 全过 |
+| docker-compose-selector.js | `node --check` | OK |
+
+### 说明
+
+- 引擎镜像 `docker compose up -d --build`（多 GB 构建）未执行；apply 函数为幂等收敛设计，配置面已验证。
+- 测试期间对真实 gvar 存储的误写已全部还原（`TTS_DOCKER_BACKEND_ENGINES` 恢复为 `cosyvoice`，删除测试写入的 `TTS_MELOTTS_BACKEND`）。

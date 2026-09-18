@@ -70,7 +70,9 @@ class _RECT(ctypes.Structure):
 # EnumWindows callback type: BOOL CALLBACK EnumWindowsProc(HWND, LPARAM).
 # HWND is pointer-sized on 64-bit Windows, so c_void_p (not c_int) avoids the
 # handle-truncation bug the old launch_multiple_terminals.py had.
-_WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+# WINFUNCTYPE exists only on Windows; keep the import of this module Linux-safe.
+_WNDENUMPROC = (ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+                if platform.system() == "Windows" else None)
 
 
 def _is_windows():

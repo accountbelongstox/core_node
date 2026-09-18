@@ -162,7 +162,8 @@ def main():
     ColorPrint.plain("  [M] - Configuration Menu")
     ColorPrint.plain("  [Enter] - Default (Launch Both)")
     ColorPrint.plain("=" * 60)
-    ColorPrint.plain("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")
+    if platform.system() == 'Windows':
+        ColorPrint.plain("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")
     ColorPrint.plain("=" * 60)
 
     launch_windows = True

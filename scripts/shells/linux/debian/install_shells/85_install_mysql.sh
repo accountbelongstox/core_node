@@ -20,7 +20,7 @@ source "$COMMON_DIR/common_functions.sh"
 SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
-SCRIPT_INDEX="51"
+SCRIPT_INDEX="85"
 START_MYSQL=""
 INSTALL_MODE=""
 MYSQL_CONFIG_FILE=""
@@ -42,7 +42,6 @@ repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
 source "$repo_manager_script"
 
 # Initialize variables
-SCRIPT_INDEX="51"
 START_MYSQL=$(get_var "START_MYSQL" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 MYSQL_CONFIG_FILE="/etc/mysql/mysql.conf.d/mysqld.cnf"
