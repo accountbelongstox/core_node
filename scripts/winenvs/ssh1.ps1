@@ -212,23 +212,22 @@ if ($sshPassword) {
     Write-Host ""
     Write-Host "[INFO] SSH will prompt for password. Please paste the password above when prompted." -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
     Write-Host ""
 
     # Execute SSH connection - it will prompt for password
-    & ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection
+    & ssh $sshConnection
 } else {
     # No password configured, use SSH key authentication
     Write-Host "[INFO] No password configured, using SSH key authentication" -ForegroundColor Cyan
-    Write-Host "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
     Write-Host ""
 
-    & ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection
+    & ssh $sshConnection
 }
 
 Write-Host ""
 Write-Host "SSH session ended" -ForegroundColor Cyan
-Write-Host "[TIP] If the network dropped the session, re-run this script to reconnect; the server-side tmux session persists." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Press any key to exit..." -ForegroundColor Yellow
 $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
