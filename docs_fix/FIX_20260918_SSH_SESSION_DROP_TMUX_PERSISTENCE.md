@@ -147,3 +147,28 @@ Since the server has password auth disabled, the password display / paste guidan
 ssh1.ps1 is moot for this server. Consider having the generator emit the key-auth branch
 (no `SSH_PASSWORD_1`) for this connection, or add a hint that login relies on the local
 `id_ed25519` key.
+
+## Follow-up (2026-09-18) — Two simultaneous SSH windows mirrored each other
+
+Symptom: with the hook above, every interactive login ran `tmux new-session -A -s main`,
+so two open SSH windows attached to the SAME tmux session and shared one current window —
+input typed in one window appeared in the other and both screens stayed in sync.
+
+Fix (server side, deployed by the self-heal run):
+
+1. `ssh_server_common.sh` `ssh_server_ensure_session_persistence()` hook now picks the first
+   session name (`main`, `main-2`, `main-3`, ...) that is missing or has no attached clients:
+   - A dropped connection leaves its session unattached, so a reconnect still resumes it
+     (original persistence goal preserved).
+   - A second simultaneous window gets its own session instead of mirroring the first.
+2. Per the user's decision, auto-entry is disabled for root on this server:
+   `touch /root/.ncore-no-auto-tmux` (the hook's per-user opt-out). Root logins now land in
+   a plain shell; delete that file to re-enable the fixed per-window tmux behavior.
+3. Self-heal re-run of `23_setup_ssh_remote.sh` (2026-09-18): all sshd/firewall steps
+   converged `[SKIP]`, `/etc/profile.d/ncore_ssh_tmux_persistence.sh` rewritten with the
+   new selection logic, `sh -n`/`bash -n` pass. Selection logic verified live against the
+   running tmux server: attached `main` -> picks `main-2`; an unattached existing session
+   is resumed.
+
+Manual step for already-open windows (client side): press `Ctrl-b` then `d` in each window
+to detach, then re-login. Do not use `exit`, which would close the shared shell.
