@@ -5,13 +5,14 @@ import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 import { useAuthSession } from '../../../../core/auth/useAuthSession';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { CmBrand } from '../CmBrand';
+import { CmChromeControls } from '../CmChromeControls';
 
 const NAV_ITEMS = [
   { key: 'nav.projects', to: '/codemart/projects' },
-  { key: 'nav.estimate', to: '/codemart/projects/new' },
-  { key: 'nav.membership', to: '/codemart/dashboard' },
+  { key: 'nav.estimate', to: '/codemart/estimate' },
+  { key: 'nav.services', to: '/codemart/services' },
   { key: 'nav.developers', to: '/codemart/marketplace' },
-  { key: 'nav.help', to: '#cm-delivery-process' },
+  { key: 'nav.about', to: '/codemart/about' },
 ] as const;
 
 export const CmPublicHeader: React.FC = () => {
@@ -54,6 +55,7 @@ export const CmPublicHeader: React.FC = () => {
             ))}
           </nav>
           <div className="cm-public-header__account">
+            <CmChromeControls inverse />
             {authenticated ? (
               <button type="button" onClick={openDashboard}>{t('nav.dashboard')}</button>
             ) : (

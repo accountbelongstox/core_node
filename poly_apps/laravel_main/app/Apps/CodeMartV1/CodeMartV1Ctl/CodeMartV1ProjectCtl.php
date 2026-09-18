@@ -30,19 +30,35 @@ class CodeMartV1ProjectCtl extends Controller
 
         $page = $request->get('page', 1);
         $pageSize = $request->get('pageSize', 20);
-        $result = CodeMartV1ProjectModel::filteredPage(
-            $request->only(['status', 'complexity', 'search']),
-            (int) $page,
-            (int) $pageSize
-        );
-        $projects = $result['projects'];
-        $total = $result['total'];
+
+        $query = CodeMartV1ProjectModel::query()
+            ->where(function ($scope) use ($user): void {
+                $scope->where('client_id', $user->id)
+                    ->orWhere('architect_id', $user->id);
+            });
+
+        foreach (['status', 'complexity'] as $field) {
+            $value = $request->get($field);
+            if ($value !== null && $value !== '') {
+                $query->where($field, $value);
+            }
+        }
+        $search = trim((string) $request->get('search', ''));
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('title', 'like', '%' . $search . '%')
+                    ->orWhere('description', 'like', '%' . $search . '%');
+            });
+        }
+
+        $total = (clone $query)->count();
+        $projects = $query->orderByDesc('created_at')->forPage((int) $page, (int) $pageSize)->get();
 
         return $this->success([
             'projects' => $projects,
             'pagination' => [
-                'page' => $page,
-                'pageSize' => $pageSize,
+                'page' => (int) $page,
+                'pageSize' => (int) $pageSize,
                 'total' => $total,
                 'totalPages' => ceil($total / $pageSize),
             ],
@@ -85,10 +101,10 @@ class CodeMartV1ProjectCtl extends Controller
             'currency' => $request->currency,
             'start_date' => $request->start_date,
             'end_date' => $request->end_date,
-            'required_skills' => json_encode($request->skills ?? []),
-            'languages' => json_encode($request->languages ?? []),
-            'frameworks' => json_encode($request->frameworks ?? []),
-            'databases' => json_encode($request->databases ?? []),
+            'skills' => $request->skills ?? [],
+            'languages' => $request->languages ?? [],
+            'frameworks' => $request->frameworks ?? [],
+            'databases' => $request->databases ?? [],
             'status' => 'draft',
         ]);
 

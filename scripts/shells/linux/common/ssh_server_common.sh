@@ -72,6 +72,11 @@ SSH_SERVER_CONFIG_MTIME_EPOCH=0
 SSH_SERVER_NOW_EPOCH=0
 SSH_SERVER_MAX_STARTUPS_BEGIN=""
 SSH_SERVER_MAX_STARTUPS_FULL=""
+SSH_SERVER_TMUX_PERSISTENCE_ENABLED="${SSH_SERVER_TMUX_PERSISTENCE_ENABLED:-true}"
+SSH_SERVER_TMUX_SESSION_NAME="${SSH_SERVER_TMUX_SESSION_NAME:-main}"
+SSH_SERVER_TMUX_PROFILE_HOOK="/etc/profile.d/ncore_ssh_tmux_persistence.sh"
+SSH_SERVER_TMUX_OPTOUT_FILE=".ncore-no-auto-tmux"
+SSH_SERVER_TMUX_PERSISTENCE_READY=false
 
 source "$SSH_SERVER_FILE_OPS_COMMON"
 
@@ -453,6 +458,45 @@ ssh_server_apply_changed_config() {
         else
             echo "[SSH] Running sshd listener already matches the newest configuration."
         fi
+    fi
+}
+
+# Transport-level drops (client NAT rebinding, roaming, middlebox RST) kill
+# the TCP connection regardless of any sshd keepalive setting; the server-side
+# cure is a persistent shell. This deploys an /etc/profile.d hook attaching
+# interactive SSH logins to a stable tmux session, so reconnecting resumes the
+# same shell. Non-interactive ssh/sftp/scp never source /etc/profile.d and the
+# tty guards double-protect them; a tmux failure falls through to a plain
+# login shell, so the hook can never lock users out.
+ssh_server_ensure_session_persistence() {
+    SSH_SERVER_TMUX_PERSISTENCE_READY=false
+    if [ "$SSH_SERVER_TMUX_PERSISTENCE_ENABLED" != true ]; then
+        return
+    fi
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "[SSH] Installing the missing tmux package for persistent sessions..."
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y tmux
+    fi
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "[SSH] tmux is unavailable; session persistence hook skipped."
+        return
+    fi
+    write_file_if_changed "$SSH_SERVER_TMUX_PROFILE_HOOK" "" 644 root root <<EOF
+# Managed by 23_setup_ssh_remote.sh (core_node). Do not edit by hand.
+# Reconnect-resilient SSH: attach interactive logins to a persistent tmux
+# session so a dropped transport no longer kills the running shell.
+# Opt out per user: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE
+if [ -n "\$SSH_CONNECTION" ] && [ -z "\$TMUX" ] && [ -t 0 ] && [ -t 1 ]; then
+    if command -v tmux >/dev/null 2>&1 && [ ! -e "\$HOME/$SSH_SERVER_TMUX_OPTOUT_FILE" ]; then
+        tmux new-session -A -s $SSH_SERVER_TMUX_SESSION_NAME && exit
+    fi
+fi
+EOF
+    if [ "$WRITE_FILE_READY" = true ]; then
+        SSH_SERVER_TMUX_PERSISTENCE_READY=true
+        echo "[SSH] Persistent tmux login hook is in place (session: $SSH_SERVER_TMUX_SESSION_NAME, opt-out: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE)."
+    else
+        echo "[SSH] Failed to deploy the persistent tmux login hook."
     fi
 }
 

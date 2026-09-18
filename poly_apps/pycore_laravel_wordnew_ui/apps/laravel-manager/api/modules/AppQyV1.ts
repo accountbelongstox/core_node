@@ -239,6 +239,30 @@ export class AppQyV1API extends BaseAPI {
   }
 
   /**
+   * POST /vocabulary/libraries/{id}/cover/ai-regenerate — one-click AI cover
+   * regeneration through Laravel's own image gateway (free-quota providers
+   * first: gemini flash image / zhipu cogview / pollinations ...). Prompt-hash
+   * disk cache server-side; an optional prompt override rides along.
+   * On success the cached library list is invalidated so the UI reloads.
+   */
+  async regenerateCoverAi(libraryId: number, prompt?: string): Promise<APIResponse<{
+    url: string;
+    provider: string;
+    model: string;
+    cached: boolean;
+  }>> {
+    const payload: { prompt?: string } = {};
+    if (prompt && prompt.trim() !== '') {
+      payload.prompt = prompt.trim();
+    }
+    const response = await this.post(`/vocabulary/libraries/${libraryId}/cover/ai-regenerate`, payload);
+    if (response.success) {
+      apiCache.clear('/vocabulary/libraries');
+    }
+    return response;
+  }
+
+  /**
    * POST /assist/cover/retry — pull-mode cover retry. Resets the given failed/
    * stuck library covers (or ALL failed covers when `all=true`) back to
    * `pending` so pycore re-claims and regenerates them. Pass the library ids to

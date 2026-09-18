@@ -2,13 +2,7 @@ import React from 'react';
 import { ArrowRight, BriefcaseBusiness, ClipboardCheck, Code2, Store, WalletCards } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-
-const METRIC_CARDS = [
-  { key: 'dashboard.activeProjects', Icon: BriefcaseBusiness, tone: 'blue' },
-  { key: 'dashboard.openTasks', Icon: Code2, tone: 'violet' },
-  { key: 'dashboard.pendingReviews', Icon: ClipboardCheck, tone: 'amber' },
-  { key: 'dashboard.protectedFunds', Icon: WalletCards, tone: 'green' },
-] as const;
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 
 const DELIVERY_LANES = [
   { titleKey: 'dashboard.clientLane', bodyKey: 'dashboard.clientLaneBody', route: '/codemart/projects', Icon: BriefcaseBusiness },
@@ -18,6 +12,15 @@ const DELIVERY_LANES = [
 
 const CmDashboardPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { bootstrap, loading } = useCmBootstrap();
+  const counters = bootstrap?.counters ?? null;
+
+  const metricCards = [
+    { key: 'dashboard.activeProjects', Icon: BriefcaseBusiness, tone: 'blue', value: counters?.active_projects },
+    { key: 'dashboard.openTasks', Icon: Code2, tone: 'violet', value: counters?.open_marketplace_tasks },
+    { key: 'dashboard.pendingReviews', Icon: ClipboardCheck, tone: 'amber', value: counters?.pending_reviews },
+    { key: 'dashboard.protectedFunds', Icon: WalletCards, tone: 'green', value: counters ? `${counters.currency} ${counters.protected_funds}` : undefined },
+  ] as const;
 
   return (
     <main className="cm-workspace-page">
@@ -33,17 +36,17 @@ const CmDashboardPage: React.FC = () => {
         </div>
       </header>
       <section className="cm-metric-grid" aria-label={t('dashboard.title')}>
-        {METRIC_CARDS.map((metric) => {
+        {metricCards.map((metric) => {
           const Icon = metric.Icon;
+          const value = loading || metric.value === undefined ? t('common.loading') : String(metric.value);
           return (
             <article key={metric.key} className="cm-metric-card" data-tone={metric.tone}>
               <span><Icon aria-hidden="true" /></span>
-              <div><strong>{t('common.unavailable')}</strong><small>{t(metric.key)}</small></div>
+              <div><strong>{value}</strong><small>{t(metric.key)}</small></div>
             </article>
           );
         })}
       </section>
-      <p className="cm-contract-note">{t('dashboard.noData')}</p>
       <section className="cm-dashboard-section">
         <h2>{t('dashboard.lanesTitle')}</h2>
         <div className="cm-lane-grid">
