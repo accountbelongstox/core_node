@@ -42,8 +42,6 @@ MODELS_DIR="$TARGET_DIR/GPT_SoVITS/pretrained_models"
 SENTINEL="$MODELS_DIR/.snapshot_done"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REQ_FILE="$TARGET_DIR/requirements.txt"
-# Python bool literal handed to ensure_venv(force=...); set True on --force after parsing.
-_GPTSOVITS_FORCE_PY=False
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -91,7 +89,6 @@ if [[ "${GPTSOVITS_SKIP:-0}" != "1" ]]; then
     fi
     install_method_record_backend gptsovits native
 fi
-[[ "$FORCE" -eq 1 ]] && _GPTSOVITS_FORCE_PY=True
 
 resolve_python() {
     local preferred="${1:-$PYTHON}"
@@ -123,22 +120,6 @@ PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
 server_up() { command -v curl >/dev/null 2>&1 || return 1; local c; c="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 "$SERVER_URL/" 2>/dev/null || echo 000)"; [[ "$c" != "000" ]]; }
 pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null || vpip "$PYTHON" -m pip install "$@"; }
-
-# Provision / verify the ISOLATED gptsovits venv (Bucket B) from the cloned repo's
-# requirements.txt. Delegates to the single source of truth
-# pycore.pyutils.common.python_env.isolated_venv.ensure_venv("gptsovits", ...), run UNDER $PYTHON so the
-# venv is built next to that interpreter and reuses its system CUDA torch via
-# dedicated base Python 3.10; the requirements (old transformers) install INTO the venv only.
-# Cheap when already healthy; repairs a broken venv. $1 is a Python bool literal (True on
-# --force). Readiness is exposed through TTS_ISOLATED_VENV_READY, not a child exit code.
-provision_gptsovits_venv() {
-    local force_py="$1"
-    local probe_output
-    TTS_ISOLATED_VENV_READY=0
-    probe_output="$("$PYTHON" -c "import sys; sys.path.insert(0, r'''$CORE_NODE_ROOT'''); from pycore.pyutils.common.python_env import isolated_venv; ready = isolated_venv.ensure_venv('gptsovits', ['-r', r'''$REQ_FILE'''], health_imports='import torch, transformers, numpy', force=$force_py); print('__VENV_READY__' if ready else '__VENV_NOT_READY__')")"
-    [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
-    :
-}
 
 echo "============================================================"
 echo " [install_gptsovits] GPT-SoVITS TTS (free voice-clone server)"
@@ -174,7 +155,7 @@ fi
 # gated behind an explicit opt-in (--full / GPTSOVITS_INSTALL=1) because the clone + venv
 # build + model download is heavy. An already-built install (.deps_done) is maintained +
 # self-repaired without opt-in.
-if [[ "$DO_FULL" -eq 0 && ! -f "$DEPS_SENTINEL" ]]; then
+if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 && ! -f "$DEPS_SENTINEL" ]]; then
     echo "[install_gptsovits] [i] opt-in only -> NOT installing. Pass --full or GPTSOVITS_INSTALL=1 to clone + build the isolated GPT-SoVITS venv. Skipping."
     complete_prereq_step "$PYTHON" "[install_gptsovits] " --absent-ok "opt-in" torch
 fi
@@ -201,6 +182,7 @@ if [[ -n "$ENGINE_PYTHON" ]]; then
 else
     ENGINE_PYTHON="$PYTHON"
 fi
+tts_ensure_engine_base_runtime "$PYTHON" "gptsovits"
 if ! tts_engine_compatible "$ENGINE_PYTHON" "gptsovits" "[install_gptsovits] "; then
     complete_prereq_step "$PYTHON" "[install_gptsovits] " --absent-ok "incompatible Python" torch
 fi
@@ -226,20 +208,14 @@ if [[ ! -f "$REQ_FILE" ]]; then
     echo "[install_gptsovits] [!] requirements.txt not found in the cloned repo; cannot build the isolated venv."
     fail_prereq_step "$PYTHON" "[install_gptsovits] " torch
 fi
-if tts_dependency_stamp_matches "$PYTHON" "gptsovits" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
+tts_probe_isolated_venv_provisioned "$PYTHON" "gptsovits"
+if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]] && tts_dependency_stamp_matches "$PYTHON" "gptsovits" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated GPT-SoVITS venv provisioned (.deps_done)"
-    tts_probe_isolated_venv_provisioned "$PYTHON" "gptsovits"
-    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
-        echo "[install_gptsovits] [OK] isolated GPT-SoVITS venv verified (self-repair)."
-    else
-        echo "[install_gptsovits] [!] venv verify/repair incomplete; will RESUME next run."
-        fail_prereq_step "$PYTHON" "[install_gptsovits] "
-    fi
+    echo "[install_gptsovits] [OK] isolated GPT-SoVITS venv verified."
 else
     echo "[install_gptsovits] [..] building isolated GPT-SoVITS venv from requirements.txt (old transformers isolated; the venv carries its own torch stack) ..."
-    provision_gptsovits_venv "$_GPTSOVITS_FORCE_PY"
-    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
-        tts_write_dependency_stamp "$PYTHON" "gptsovits" "$DEPS_SENTINEL"
+    tts_provision_isolated_venv "$PYTHON" "gptsovits" "$FORCE" -r "$REQ_FILE"
+    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]] && tts_write_dependency_stamp "$PYTHON" "gptsovits" "$DEPS_SENTINEL"; then
         echo "[install_gptsovits] [OK] isolated GPT-SoVITS venv ready (.deps_done); main interpreter untouched."
     else
         echo "[install_gptsovits] [!] venv provisioning incomplete; will RESUME next run."

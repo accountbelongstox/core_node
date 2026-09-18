@@ -30,17 +30,15 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->error('Project is already being analyzed');
         }
 
-        CodeMartV1AIAnalysisModel::beginModelTransaction();
+        $analysis = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($project, $projectId) {
+            $project->updateRecord(['analysis_status' => 'analyzing']);
 
-        $project->updateRecord(['analysis_status' => 'analyzing']);
-
-        $analysis = CodeMartV1AIAnalysisModel::createRecord([
-            'project_id' => $projectId,
-            'status' => 'processing',
-            'keywords' => $this->extractKeywords($project->title, $project->description),
-        ]);
-
-        CodeMartV1AIAnalysisModel::commitModelTransaction();
+            return CodeMartV1AIAnalysisModel::createRecord([
+                'project_id' => $projectId,
+                'status' => 'processing',
+                'keywords' => $this->extractKeywords($project->title, $project->description),
+            ]);
+        });
 
         // No queue/dispatch: the row is left in status 'processing' and the
         // Octane timer (CodeMartV1AIAnalysisTask) picks it up within ~5s.
@@ -94,16 +92,14 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->error('Analysis not completed yet');
         }
 
-        CodeMartV1AIAnalysisModel::beginModelTransaction();
+        CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis) {
+            $analysis->updateRecord(['accepted_at' => now()]);
 
-        $analysis->updateRecord(['accepted_at' => now()]);
-
-        $analysis->project->updateRecord([
-            'analysis_status' => 'accepted',
-            'status' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
-        ]);
-
-        CodeMartV1AIAnalysisModel::commitModelTransaction();
+            $analysis->project->updateRecord([
+                'analysis_status' => 'accepted',
+                'status' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
+            ]);
+        });
 
         return $this->success([
             'message' => 'Proposal accepted. Please proceed to payment.',
@@ -131,16 +127,14 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->notFound('Analysis not found');
         }
 
-        CodeMartV1AIAnalysisModel::beginModelTransaction();
+        CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis, $request) {
+            $analysis->updateRecord([
+                'status' => 'revising',
+                'revision_notes' => $request->revision_notes,
+            ]);
 
-        $analysis->updateRecord([
-            'status' => 'revising',
-            'revision_notes' => $request->revision_notes,
-        ]);
-
-        $analysis->project->updateRecord(['analysis_status' => 'revising']);
-
-        CodeMartV1AIAnalysisModel::commitModelTransaction();
+            $analysis->project->updateRecord(['analysis_status' => 'revising']);
+        });
 
         // No queue/dispatch: status is 'revising'; the Octane timer
         // (CodeMartV1AIAnalysisTask) re-processes it within ~5s.

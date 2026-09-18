@@ -20,7 +20,7 @@
 # "just start the Laravel Octane worker plane" path for every systemd
 # restart.
 #
-# Default: hot-reload (--watch). Set OCTANE_WATCH=0 to disable.
+# Default: no hot-reload (production). Set OCTANE_WATCH=1 to enable.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_SERVICE_COMMON_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -31,7 +31,7 @@ PHP_BIN="${PHP_BIN:-php}"
 LARAVEL_DIR="${LARAVEL_DIR:-}"
 LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="${LARAVEL_RUNTIME_FRANKENPHP_SCRIPT:-${SCRIPT_CURRENT_DIR}/laravel_runtime_frankenphp.sh}"
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-}"
-OCTANE_WATCH="${OCTANE_WATCH:-1}"
+OCTANE_WATCH="${OCTANE_WATCH:-0}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
 WORKERS="${WORKERS:-4}"
 TASK_WORKERS="${TASK_WORKERS:-2}"

@@ -8,7 +8,7 @@ FROM python:3.10-slim
 ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg git \
+    && apt-get install -y --no-install-recommends ffmpeg git build-essential pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/melotts

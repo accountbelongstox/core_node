@@ -76,28 +76,28 @@ class CodeMartV1RegistrationCtl extends Controller
             ? CodeMartV1Constants::ROLE_STATUS_ACTIVE
             : CodeMartV1Constants::ROLE_STATUS_PENDING;
 
-        CodeMartV1UserModel::beginModelTransaction();
+        $user = CodeMartV1UserModel::runInTransaction(function () use ($request, $roleName, $roleLevel, $initialRoleStatus) {
+            $user = CodeMartV1UserModel::createRecord([
+                'username' => $request->username,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'name' => $request->real_name,
+                'rolename' => $roleName,
+                'rolelevel' => $roleLevel,
+            ]);
 
-        $user = CodeMartV1UserModel::createRecord([
-            'username' => $request->username,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'name' => $request->real_name,
-            'rolename' => $roleName,
-            'rolelevel' => $roleLevel,
-        ]);
+            CodeMartV1UserRoleModel::createRecord([
+                'user_id' => $user->id,
+                'role_type' => $request->role_type,
+                'role_status' => $initialRoleStatus,
+                'role_activated_at' => $initialRoleStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE ? now() : null,
+            ]);
 
-        CodeMartV1UserRoleModel::createRecord([
-            'user_id' => $user->id,
-            'role_type' => $request->role_type,
-            'role_status' => $initialRoleStatus,
-            'role_activated_at' => $initialRoleStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE ? now() : null,
-        ]);
+            $emailToken = $this->emailService->createEmailVerification($request->email);
+            $this->emailService->sendVerificationEmail($request->email, $emailToken);
 
-        $emailToken = $this->emailService->createEmailVerification($request->email);
-        $this->emailService->sendVerificationEmail($request->email, $emailToken);
-
-        CodeMartV1UserModel::commitModelTransaction();
+            return $user;
+        });
 
         $globalUser = User::find($user->id);
         $session = $globalUser ? CommonAuthService::issueLoginToken($globalUser) : null;
@@ -204,8 +204,6 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1UserModel::beginModelTransaction();
-
         $idFrontPath = $this->fileUploadService->uploadKycImage(
             $request->file('id_front_image'),
             'id_front'
@@ -225,23 +223,22 @@ class CodeMartV1RegistrationCtl extends Controller
         );
 
         if (!$idFrontPath || !$selfiePath) {
-            CodeMartV1UserModel::rollBackModelTransaction();
             return $this->error('File upload failed', 500);
         }
 
-        $kycVerification = CodeMartV1KycVerificationModel::createRecord([
-            'user_id' => $user->id,
-            'identity_type' => $request->identity_type,
-            'identity_number' => $request->identity_number,
-            'real_name' => $request->real_name,
-            'date_of_birth' => $request->date_of_birth,
-            'id_front_image_path' => $idFrontPath,
-            'id_back_image_path' => $idBackPath,
-            'selfie_image_path' => $selfiePath,
-            'verification_status' => 'pending',
-        ]);
-
-        CodeMartV1UserModel::commitModelTransaction();
+        $kycVerification = CodeMartV1UserModel::runInTransaction(function () use ($request, $user, $idFrontPath, $idBackPath, $selfiePath) {
+            return CodeMartV1KycVerificationModel::createRecord([
+                'user_id' => $user->id,
+                'identity_type' => $request->identity_type,
+                'identity_number' => $request->identity_number,
+                'real_name' => $request->real_name,
+                'date_of_birth' => $request->date_of_birth,
+                'id_front_image_path' => $idFrontPath,
+                'id_back_image_path' => $idBackPath,
+                'selfie_image_path' => $selfiePath,
+                'verification_status' => 'pending',
+            ]);
+        });
 
         return $this->success([
             'kyc_id' => $kycVerification->id,

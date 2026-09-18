@@ -475,6 +475,10 @@ def _install_into(
     self_contained: bool = False,
 ) -> bool:
     constraint_path: Optional[Path] = None
+    spec = engine_spec(engine)
+    build_packages = tuple(spec.get("build_packages", ()))
+    build_constraints = tuple(spec.get("build_constraints", ()))
+    command_env = {}
     repair_candidates = _repair_candidates(engine, pip_packages)
     if not _repair_broken_distributions(venv_python, repair_candidates):
         return False
@@ -485,17 +489,18 @@ def _install_into(
     # override removal and shared constraints do not apply (07.7).
     if managed_venv and not self_contained and not _remove_local_shared_overrides(venv_python, shared_packages):
         return False
-    install_list = [*pins, *pip_packages]
+    install_list = [*build_packages, *pins, *pip_packages]
     constraints = (
         () if self_contained else _shared_constraints(venv_python, shared_packages)
     )
+    constraints = (*constraints, *build_constraints)
     try:
         pip_args = [venv_python, "-m", "pip", "install"]
         if constraints:
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
-                prefix="pycore-shared-runtime-",
+                prefix="pycore-engine-constraints-",
                 suffix=".txt",
                 delete=False,
                 dir=str(TMP_DIR),
@@ -503,14 +508,22 @@ def _install_into(
                 handle.write("\n".join(constraints) + "\n")
                 constraint_path = Path(handle.name)
             pip_args.extend(["--constraint", str(constraint_path)])
+            if build_constraints:
+                command_env["PIP_CONSTRAINT"] = " ".join(
+                    item for item in (os.environ.get("PIP_CONSTRAINT", ""), constraint_path.resolve().as_uri()) if item
+                )
+                command_env["PIP_BUILD_CONSTRAINT"] = " ".join(
+                    item for item in (os.environ.get("PIP_BUILD_CONSTRAINT", ""), constraint_path.resolve().as_uri()) if item
+                )
             ColorPrint.blue(
-                "[isolated-venv] preserving shared runtime: " + ", ".join(constraints)
+                "[isolated-venv] dependency constraints: " + ", ".join(constraints)
             )
         if install_list and not _install_package_steps(
             venv_python,
             tuple(pip_args[4:]),
             install_list,
             "ensuring engine package",
+            command_env=command_env,
         ):
             return False
     finally:

@@ -35,15 +35,13 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $testCases = $this->generateTestCases();
 
-        CodeMartV1ReviewerApplicationModel::beginModelTransaction();
-
-        $application = CodeMartV1ReviewerApplicationModel::createRecord([
-            'user_id' => $user->id,
-            'status' => 'in_progress',
-            'test_cases' => json_encode($testCases),
-        ]);
-
-        CodeMartV1ReviewerApplicationModel::commitModelTransaction();
+        $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($user, $testCases) {
+            return CodeMartV1ReviewerApplicationModel::createRecord([
+                'user_id' => $user->id,
+                'status' => 'in_progress',
+                'test_cases' => json_encode($testCases),
+            ]);
+        });
 
         return $this->success([
             'application_id' => $application->id,
@@ -84,30 +82,30 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $similarity = $this->calculateReviewSimilarity($testCases, $userReviews);
 
-        CodeMartV1ReviewerApplicationModel::beginModelTransaction();
+        $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($application, $userReviews, $similarity, $user) {
+            $application->updateRecord([
+                'status' => $similarity >= 85 ? 'passed' : 'failed',
+                'user_reviews' => json_encode($userReviews),
+                'similarity_score' => $similarity,
+                'completed_at' => now(),
+            ]);
 
-        $application->updateRecord([
-            'status' => $similarity >= 85 ? 'passed' : 'failed',
-            'user_reviews' => json_encode($userReviews),
-            'similarity_score' => $similarity,
-            'completed_at' => now(),
-        ]);
+            if ($similarity >= 85) {
+                $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
 
-        if ($similarity >= 85) {
-            $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
-
-            if ($existingRole) {
-                $existingRole->updateRecord(['role_status' => 'active']);
-            } else {
-                CodeMartV1UserRoleModel::createRecord([
-                    'user_id' => $user->id,
-                    'role_type' => 'reviewer',
-                    'role_status' => 'active',
-                ]);
+                if ($existingRole) {
+                    $existingRole->updateRecord(['role_status' => 'active']);
+                } else {
+                    CodeMartV1UserRoleModel::createRecord([
+                        'user_id' => $user->id,
+                        'role_type' => 'reviewer',
+                        'role_status' => 'active',
+                    ]);
+                }
             }
-        }
 
-        CodeMartV1ReviewerApplicationModel::commitModelTransaction();
+            return $application;
+        });
 
         return $this->success([
             'status' => $application->status,
@@ -165,18 +163,16 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->error('You have already reviewed this submission');
         }
 
-        CodeMartV1ReviewerApplicationModel::beginModelTransaction();
-
-        $review = CodeMartV1CodeReviewModel::createRecord([
-            'submission_id' => $submissionId,
-            'reviewer_id' => $user->id,
-            'quality_rating' => $request->quality_rating,
-            'readability_rating' => $request->readability_rating,
-            'efficiency_rating' => $request->efficiency_rating,
-            'comments' => $request->comments,
-        ]);
-
-        CodeMartV1ReviewerApplicationModel::commitModelTransaction();
+        $review = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($submissionId, $user, $request) {
+            return CodeMartV1CodeReviewModel::createRecord([
+                'submission_id' => $submissionId,
+                'reviewer_id' => $user->id,
+                'quality_rating' => $request->quality_rating,
+                'readability_rating' => $request->readability_rating,
+                'efficiency_rating' => $request->efficiency_rating,
+                'comments' => $request->comments,
+            ]);
+        });
 
         return $this->success([
             'review_id' => $review->id,

@@ -73,39 +73,42 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        CodeMartV1PaymentModel::beginModelTransaction();
+        try {
+            $payment = CodeMartV1PaymentModel::runInTransaction(function () use ($request, $user) {
+            $payer_wallet = CodeMartV1WalletModel::forUser((int) $user->id);
 
-        $payer_wallet = CodeMartV1WalletModel::forUser((int) $user->id);
+            if ($request->payment_method === 'wallet') {
+                if (!$payer_wallet || $payer_wallet->available_balance < $request->amount) {
+                    throw new \RuntimeException('Insufficient wallet balance');
+                }
 
-        if ($request->payment_method === 'wallet') {
-            if (!$payer_wallet || $payer_wallet->available_balance < $request->amount) {
-                CodeMartV1PaymentModel::rollBackModelTransaction();
-                return $this->error('Insufficient wallet balance', 422);
+                $payer_wallet->holdFunds($request->amount, "Payment hold for " . ($request->description ?? "project payment"));
             }
 
-            $payer_wallet->holdFunds($request->amount, "Payment hold for " . ($request->description ?? "project payment"));
+            $payment = CodeMartV1PaymentModel::createRecord([
+                'payer_id' => $user->id,
+                'payee_id' => $request->payee_id,
+                'project_id' => $request->project_id,
+                'milestone_id' => $request->milestone_id,
+                'amount' => $request->amount,
+                'currency' => 'CNY',
+                'type' => $request->type,
+                'payment_method' => $request->payment_method,
+                'description' => $request->description,
+                'status' => $request->payment_method === 'wallet' ? 'completed' : 'pending',
+            ]);
+
+            if ($request->payment_method === 'wallet' && $payment->status === 'completed') {
+                $payer_wallet->withdrawal($request->amount, "Payment to user {$request->payee_id}");
+                $payee_wallet = CodeMartV1WalletModel::forUser((int) $request->payee_id, true);
+                $payee_wallet->deposit($request->amount, "Payment from user {$user->id}");
+            }
+
+            return $payment;
+            });
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         }
-
-        $payment = CodeMartV1PaymentModel::createRecord([
-            'payer_id' => $user->id,
-            'payee_id' => $request->payee_id,
-            'project_id' => $request->project_id,
-            'milestone_id' => $request->milestone_id,
-            'amount' => $request->amount,
-            'currency' => 'CNY',
-            'type' => $request->type,
-            'payment_method' => $request->payment_method,
-            'description' => $request->description,
-            'status' => $request->payment_method === 'wallet' ? 'completed' : 'pending',
-        ]);
-
-        if ($request->payment_method === 'wallet' && $payment->status === 'completed') {
-            $payer_wallet->withdrawal($request->amount, "Payment to user {$request->payee_id}");
-            $payee_wallet = CodeMartV1WalletModel::forUser((int) $request->payee_id, true);
-            $payee_wallet->deposit($request->amount, "Payment from user {$user->id}");
-        }
-
-        CodeMartV1PaymentModel::commitModelTransaction();
 
         return $this->success($payment->loadRecordRelations(['payer', 'payee']), 'Payment created successfully', 201);
     }
@@ -262,17 +265,20 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->notFound('Refund not found');
         }
 
-        CodeMartV1PaymentModel::beginModelTransaction();
+        try {
+            $refund = CodeMartV1PaymentModel::runInTransaction(function () use ($refund) {
+                if (!$refund->complete()) {
+                    throw new \RuntimeException('Cannot process refund in current status');
+                }
 
-        if (!$refund->complete()) {
-            CodeMartV1PaymentModel::rollBackModelTransaction();
-            return $this->error('Cannot process refund in current status', 422);
+                $payment = $refund->payment;
+                $payment->updateRecord(['status' => 'cancelled']);
+
+                return $refund;
+            });
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
         }
-
-        $payment = $refund->payment;
-        $payment->updateRecord(['status' => 'cancelled']);
-
-        CodeMartV1PaymentModel::commitModelTransaction();
 
         return $this->success($refund, 'Refund processed successfully');
     }

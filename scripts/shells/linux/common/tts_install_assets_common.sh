@@ -2,6 +2,7 @@
 # Resolve pycore/tts_install_assets from install_shells (5 levels below repo root).
 
 TTS_ISOLATED_VENV_READY=0
+TTS_NATIVE_BUILD_READY=0
 TTS_SOX_READY=0
 TTS_HF_REPO_READY=0
 NEURAL_TTS_WEIGHTS_READY=0
@@ -59,7 +60,7 @@ tts_runtime_policy_run() {
     shift
     local repo_root
     repo_root="$(_core_node_repo_root_from_tts_common)"
-    (cd "$repo_root" && "$py" -m pycore.pyutils.common.python_env.runtime_policy "$@")
+    (cd "$repo_root" && PYCORE_SKIP_DEP_CHECK=1 "$py" -m pycore.pyutils.common.python_env.runtime_policy "$@")
 }
 
 tts_ensure_engine_base_runtime() {
@@ -70,12 +71,12 @@ tts_ensure_engine_base_runtime() {
     [[ -n "${!override_name:-}" ]] && return 0
     runtime_version="$(PYCORE_SKIP_DEP_CHECK=1 PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyutils.common.python_env.runtime_policy import engine_spec, engine_isolation_mode, ISOLATION_MODE_SELF_CONTAINED
+from pycore.pyutils.common.python_env.runtime_policy import engine_spec, engine_isolation_mode, resolve_engine_base_python, ISOLATION_MODE_SELF_CONTAINED
 engine = os.environ["PYCORE_ISOLATED_ENGINE"]
-sys.stdout.write(str(engine_spec(engine).get("python_recommended", "")) if engine_isolation_mode(engine) == ISOLATION_MODE_SELF_CONTAINED else "")')"
-    if [[ "$runtime_version" == "3.12" ]]; then
+sys.stdout.write(str(engine_spec(engine).get("python_recommended", "")) if engine_isolation_mode(engine) == ISOLATION_MODE_SELF_CONTAINED and not resolve_engine_base_python(engine).get("found") else "")')"
+    if [[ "$runtime_version" == "3.10" || "$runtime_version" == "3.12" ]]; then
         installer="$repo_root/scripts/shells/linux/debian/install_shells/14_install_python310.sh"
-        bash "$installer" --runtime 312 >&2
+        bash "$installer" --runtime "${runtime_version//./}" >&2
     fi
 }
 
@@ -137,11 +138,78 @@ tts_write_dependency_stamp() {
     printf '%s\n' "$expected" > "$stamp"
 }
 
+tts_ensure_native_build_runtime() {
+    local py="$1" engine="$2"
+    local repo_root policy_output line base_python base_info base_version include_dir binary
+    local missing_packages=()
+    TTS_NATIVE_BUILD_READY=0
+    repo_root="$(_core_node_repo_root_from_tts_common)"
+    base_python=""
+    policy_output="$(PYCORE_SKIP_DEP_CHECK=1 PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
+sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
+from pycore.pyutils.common.python_env.runtime_policy import engine_spec, resolve_engine_base_python
+engine = os.environ["PYCORE_ISOLATED_ENGINE"]
+if engine_spec(engine).get("linux_native_build", False):
+    print("__TTS_BUILD_BASE__" + str(resolve_engine_base_python(engine).get("path") or ""))
+else:
+    print("__TTS_BUILD_SKIP__")')"
+    while IFS= read -r line; do
+        case "$line" in
+            __TTS_BUILD_SKIP__) TTS_NATIVE_BUILD_READY=1; return ;;
+            __TTS_BUILD_BASE__*) base_python="${line#__TTS_BUILD_BASE__}" ;;
+        esac
+    done <<< "$policy_output"
+    if [[ -z "$base_python" || ! -x "$base_python" ]]; then
+        echo "[isolated-venv] Native build pending for $engine: dedicated base interpreter or install policy unavailable." >&2
+        return
+    fi
+    base_info="$("$base_python" -c 'import sys, sysconfig; print("%d.%d|%s" % (sys.version_info.major, sys.version_info.minor, sysconfig.get_path("include")))')"
+    base_version="${base_info%%|*}"
+    include_dir="${base_info#*|}"
+    if [[ "$base_info" != *'|'* || -z "$include_dir" ]]; then
+        echo "[isolated-venv] Native build pending for $engine: could not resolve Python development headers from $base_python." >&2
+        return
+    fi
+    for binary in gcc g++ make; do
+        if [[ ! -x "$(command -v "$binary" || true)" ]]; then
+            missing_packages+=(build-essential)
+            break
+        fi
+    done
+    [[ -x "$(command -v pkg-config || true)" ]] || missing_packages+=(pkg-config)
+    [[ -f "$include_dir/Python.h" ]] || missing_packages+=("python${base_version}-dev")
+    if [[ "${#missing_packages[@]}" -gt 0 ]]; then
+        if [[ ! -x "$(command -v apt-get || true)" ]]; then
+            echo "[isolated-venv] Native build pending for $engine: install ${missing_packages[*]}; apt-get is unavailable." >&2
+            return
+        fi
+        echo "[isolated-venv] Installing missing native build prerequisites: ${missing_packages[*]}"
+        if ! $USE_SUDO apt-get update || ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing_packages[@]}"; then
+            echo "[isolated-venv] Native build prerequisite installation failed for $engine; existing venv and models are retained." >&2
+            return
+        fi
+    fi
+    for binary in gcc g++ make pkg-config; do
+        if [[ ! -x "$(command -v "$binary" || true)" ]]; then
+            echo "[isolated-venv] Native build pending for $engine: $binary is unavailable." >&2
+            return
+        fi
+    done
+    if [[ ! -f "$include_dir/Python.h" ]]; then
+        echo "[isolated-venv] Native build pending for $engine: restore the matching Python.h under $include_dir for $base_python." >&2
+        return
+    fi
+    TTS_NATIVE_BUILD_READY=1
+}
+
 tts_provision_isolated_venv() {
     local py="$1" engine="$2" force="${3:-0}"
     shift 3 2>/dev/null || shift $#
     local repo_root force_value result_file provision_state packages_env
+    TTS_ISOLATED_VENV_READY=0
     tts_ensure_engine_base_runtime "$py" "$engine"
+    tts_ensure_native_build_runtime "$py" "$engine"
+    [[ "$TTS_NATIVE_BUILD_READY" == "1" ]] || return 0
     repo_root="$(_core_node_repo_root_from_tts_common)"
     force_value="0"
     [[ "$force" == "1" ]] && force_value="1"
@@ -149,9 +217,8 @@ tts_provision_isolated_venv() {
     if [[ "$#" -gt 0 ]]; then
         packages_env="$(printf '%s\n' "$@")"
     fi
-    TTS_ISOLATED_VENV_READY=0
     result_file="$(mktemp)"
-    PYCORE_ISOLATED_ROOT="$repo_root" \
+    PYCORE_SKIP_DEP_CHECK=1 PYCORE_ISOLATED_ROOT="$repo_root" \
     PYCORE_ISOLATED_ENGINE="$engine" \
     PYCORE_ISOLATED_FORCE="$force_value" \
     PYCORE_ISOLATED_PACKAGES="$packages_env" \
@@ -181,7 +248,7 @@ tts_resolve_isolated_python() {
     local py="$1" engine="$2"
     local repo_root
     repo_root="$(_core_node_repo_root_from_tts_common)"
-    PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" \
+    PYCORE_SKIP_DEP_CHECK=1 PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" \
     "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyutils.common.python_env import isolated_venv
@@ -190,13 +257,16 @@ print(isolated_venv.resolve_python(os.environ["PYCORE_ISOLATED_ENGINE"]) or "")'
 
 tts_probe_isolated_venv_provisioned() {
     local py="$1" engine="$2"
-    local repo_root probe_output
+    local repo_root probe_output line
     repo_root="$(_core_node_repo_root_from_tts_common)"
     TTS_ISOLATED_VENV_READY=0
-    probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
+    probe_output="$(PYCORE_SKIP_DEP_CHECK=1 PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyutils.common.python_env import isolated_venv
-print("__VENV_READY__" if isolated_venv.venv_provisioned(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
+print("__VENV_READY__" if isolated_venv.venv_provisioned(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")')"
+    while IFS= read -r line; do
+        [[ "$line" == '__VENV_READY__' || "$line" == '__VENV_NOT_READY__' ]] || echo "[isolated-venv] postcondition probe: $line" >&2
+    done <<< "$probe_output"
     [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
     :
 }

@@ -54,6 +54,11 @@ from pycore.pyfoundations.runtime_abi import (
 )
 
 
+_GPTSOVITS_BUILD_CONSTRAINTS = tuple(
+    (Path(__file__).resolve().parents[3] / "tts_install_assets" / "gptsovits_build_constraints.txt")
+    .read_text(encoding="ascii").splitlines()
+)
+
 _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "chattts": {
         "python_min": "3.10",
@@ -69,6 +74,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "linux_native_build": True,
         "torch_packages": ("torch", "torchaudio"),
         "packages": (
             "requirements.txt",
@@ -78,7 +84,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
             "huggingface_hub",
         ),
         "health_imports": (
-            "import torch, fastapi, uvicorn, modelscope, onnxruntime"
+            "import numpy, torch, fastapi, uvicorn, modelscope, onnxruntime"
         ),
         "upstream": {
             "repo": "https://github.com/FunAudioLLM/CosyVoice",
@@ -125,7 +131,11 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "device_policy": "auto",
         "torch_packages": ("torch", "torchaudio"),
         "packages": ("requirements.txt",),
-        "health_imports": "import torch, transformers",
+        "windows_native_build": True,
+        "linux_native_build": True,
+        "build_packages": _GPTSOVITS_BUILD_CONSTRAINTS,
+        "build_constraints": _GPTSOVITS_BUILD_CONSTRAINTS,
+        "health_imports": "import numpy, torch, transformers, pyopenjtalk, jieba_fast, opencc",
         "upstream": {
             "repo": "https://github.com/RVC-Boss/GPT-SoVITS",
             "evidence_date": "2026-09-17",
@@ -149,11 +159,12 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "linux_native_build": True,
         "torch_packages": ("torch",),
         "packages": ("melotts", "unidic-lite"),
         "pins": (),
         "health_imports": (
-            "import torch, transformers; from melo.api import TTS"
+            "import numpy, torch, transformers; from melo.api import TTS"
         ),
         "upstream": {
             "repo": "https://github.com/myshell-ai/MeloTTS",

@@ -24,6 +24,7 @@
 #>
 
 $script:DOCKER_BRIDGE_DEFAULT_DISTRO = 'Debian'
+$script:DockerBridgeWslSucceeded = $false
 $vmComputeService = $null
 $vmComputeConfig = $null
 
@@ -41,12 +42,36 @@ function script:Set-DockerBridgeVarIfChanged {
     Set-GlobalVar -key $Key -value $Value
 }
 
+function script:Invoke-DockerBridgeWsl {
+    param([string[]]$Arguments, [switch]$QuietErrors)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    $script:DockerBridgeWslSucceeded = $false
+    try {
+        if ($QuietErrors) {
+            & wsl.exe @Arguments 2>$null
+        } else {
+            & wsl.exe @Arguments 2>&1 | ForEach-Object {
+                if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                    Write-Host $_ -ForegroundColor DarkYellow
+                } else {
+                    $_
+                }
+            }
+        }
+        $script:DockerBridgeWslSucceeded = ($LASTEXITCODE -eq 0)
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
 function script:Get-WslDistroList {
     $distros = @()
     $wslExe = Get-Command wsl.exe -ErrorAction SilentlyContinue
     if (-not $wslExe) { return $distros }
     # wsl.exe --list emits UTF-16 text with NUL padding on some builds; clean it.
-    $raw = & wsl.exe --list --quiet 2>$null
+    $raw = script:Invoke-DockerBridgeWsl -Arguments @('--list', '--quiet') -QuietErrors
     foreach ($line in @($raw)) {
         $name = ("$line" -replace "`0", '').Trim()
         if ($name) { $distros += $name }
@@ -76,10 +101,12 @@ function Get-TtsDockerProviderStatus {
 
 function script:Resolve-WslRepoPath {
     param([string]$Distro, [string]$WindowsPath)
+    $resolved = $null
+    $wslPath = $null
     if (-not (Test-Path -LiteralPath $WindowsPath)) { return $null }
     $resolved = (Resolve-Path -LiteralPath $WindowsPath).Path
-    $wslPath = & wsl.exe --distribution $Distro -- wslpath -a "$resolved" 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $wslPath) { return $null }
+    $wslPath = script:Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--', 'wslpath', '-a', $resolved) -QuietErrors
+    if (-not $script:DockerBridgeWslSucceeded -or -not $wslPath) { return $null }
     return ("$wslPath" -replace "`0", '').Trim()
 }
 
@@ -185,10 +212,10 @@ function Invoke-TtsDockerEnsure {
     # force-enables START_DOCKER and runs 79_install_docker.sh per component.
     $ensureEntry = "$wslRepo/scripts/shells/linux/debian/install_shells/ensure_docker_for_tts.sh"
     Write-Host "$Prefix dispatching in-WSL docker ensure: bash $ensureEntry $Engine (distro: $distro)"
-    & wsl.exe --distribution $distro --user root --exec bash "$ensureEntry" "$Engine" | Out-Host
-    if ($LASTEXITCODE -ne 0) {
+    script:Invoke-DockerBridgeWsl -Arguments @('--distribution', $distro, '--user', 'root', '--exec', 'bash', $ensureEntry, $Engine) | Out-Host
+    if (-not $script:DockerBridgeWslSucceeded) {
         Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_engine_ensure_failed'
-        Write-Host "$Prefix [!] In-WSL docker ensure failed (exit $LASTEXITCODE); the failing phase reported its reason above. Fix it, then re-run this step." -ForegroundColor DarkYellow
+        Write-Host "$Prefix [!] In-WSL docker ensure failed; the failing phase reported its reason above. Fix it, then re-run this step." -ForegroundColor DarkYellow
         return $false
     }
     Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'ready'
@@ -243,8 +270,8 @@ function Invoke-TtsDockerApply {
         }
         $entry = "$wslRepo/scripts/shells/linux/debian/install_shells/apply_tts_docker_for_engine.sh"
         Write-Host "$Prefix dispatching in-WSL compose apply: bash $entry $Engine $wslStaging (distro: $distro)"
-        & wsl.exe --distribution $distro --user root --exec bash "$entry" "$Engine" "$wslStaging" | Out-Host
-        return ($LASTEXITCODE -eq 0)
+        script:Invoke-DockerBridgeWsl -Arguments @('--distribution', $distro, '--user', 'root', '--exec', 'bash', $entry, $Engine, $wslStaging) | Out-Host
+        return $script:DockerBridgeWslSucceeded
     }
 
     # desktop_wsl2: docker compose from Windows; Docker Desktop translates paths.
@@ -261,6 +288,7 @@ function Invoke-TtsDockerApply {
     $assetNames = @()
     if ($Engine -eq 'melotts') { $assetNames = @('melotts_api_server.py', 'tts_text_chunking.py') }
     if ($Engine -eq 'voxcpm2') { $assetNames = @('voxcpm2_api_server.py', 'tts_text_chunking.py', 'tts_audio_assembly.py') }
+    if ($Engine -eq 'gptsovits') { $assetNames = @('gptsovits_build_constraints.txt') }
     $assetRoot = Join-Path $CoreNodeRoot 'pycore\tts_install_assets'
     foreach ($assetName in $assetNames) {
         script:Copy-TtsDockerAssetIfChanged -Source (Join-Path $assetRoot $assetName) -Destination (Join-Path $dockerDir $assetName)
@@ -276,7 +304,7 @@ function Invoke-TtsDockerApply {
     }
     $port = $script:TTS_DOCKER_PORT_MAP[$Engine]
 
-    $fingerprintSource = @('Dockerfile', 'compose.yml', 'compose.gpu.yml') |
+    $fingerprintSource = (@('Dockerfile', 'compose.yml', 'compose.gpu.yml') + $assetNames) |
         ForEach-Object { (Get-FileHash -LiteralPath (Join-Path $dockerDir $_)).Hash }
     $fingerprint = (($fingerprintSource -join ':') + ":$device")
     $fingerprintFile = Join-Path $dockerDir '.compose_fingerprint'

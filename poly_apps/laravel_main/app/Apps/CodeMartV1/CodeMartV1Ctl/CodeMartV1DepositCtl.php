@@ -59,18 +59,16 @@ class CodeMartV1DepositCtl extends Controller
             return $this->error('User role not found');
         }
 
-        CodeMartV1DepositModel::beginModelTransaction();
-
-        $deposit = CodeMartV1DepositModel::createRecord([
-            'user_id' => $user->id,
-            'role_type' => $userRole->role_type,
-            'amount' => $request->amount,
-            'payment_method' => $request->payment_method,
-            'status' => 'pending',
-            'payment_url' => $this->generatePaymentUrl($request->payment_method, $request->amount),
-        ]);
-
-        CodeMartV1DepositModel::commitModelTransaction();
+        $deposit = CodeMartV1DepositModel::runInTransaction(function () use ($request, $user, $userRole) {
+            return CodeMartV1DepositModel::createRecord([
+                'user_id' => $user->id,
+                'role_type' => $userRole->role_type,
+                'amount' => $request->amount,
+                'payment_method' => $request->payment_method,
+                'status' => 'pending',
+                'payment_url' => $this->generatePaymentUrl($request->payment_method, $request->amount),
+            ]);
+        });
 
         return $this->success([
             'deposit_id' => $deposit->id,
@@ -111,24 +109,26 @@ class CodeMartV1DepositCtl extends Controller
             return $this->notFound('Deposit not found or already processed');
         }
 
-        CodeMartV1DepositModel::beginModelTransaction();
+        $deposit = CodeMartV1DepositModel::runInTransaction(function () use ($deposit, $user) {
+            $deposit->updateRecord([
+                'status' => 'paid',
+                'paid_at' => now(),
+            ]);
 
-        $deposit->updateRecord([
-            'status' => 'paid',
-            'paid_at' => now(),
-        ]);
+            $userRole = CodeMartV1UserRoleModel::forUser((int) $user->id);
+            if ($userRole && $userRole->role_status === 'pending_deposit') {
+                $userRole->updateRecord(['role_status' => 'active']);
+            }
+
+            return $deposit;
+        });
 
         $userRole = CodeMartV1UserRoleModel::forUser((int) $user->id);
-        if ($userRole && $userRole->role_status === 'pending_deposit') {
-            $userRole->updateRecord(['role_status' => 'active']);
-        }
-
-        CodeMartV1DepositModel::commitModelTransaction();
 
         return $this->success([
             'deposit_id' => $deposit->id,
             'status' => $deposit->status,
-            'role_status' => $userRole->role_status,
+            'role_status' => $userRole?->role_status,
         ], 'Deposit confirmed. Your account is now active.');
     }
 

@@ -4,9 +4,11 @@ namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
 use App\Constants\AppKeys;
 use App\Contracts\AppInitializerInterface;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 use App\Services\SafeMigrationHelper;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -22,6 +24,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
 
     private const INITIALIZATION_STEPS = [
         'align_contract_tables' => 'Align additive contract tables and columns',
+        'align_status_constraints' => 'Align check constraints with the contract status sets',
         'verify_tables' => 'Verify all CodeMart tables exist',
     ];
 
@@ -126,6 +129,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
     {
         return match ($step) {
             'align_contract_tables' => $this->alignContractTables(),
+            'align_status_constraints' => $this->alignStatusConstraints(),
             'verify_tables' => $this->verifyTables(),
             default => ['status' => 'error', 'message' => "Unknown step: {$step}"],
         };
@@ -169,6 +173,80 @@ class CodeMartV1Initializer implements AppInitializerInterface
             'message' => 'Aligned ' . count($aligned) . ' contract tables/columns',
             'tables' => $aligned,
         ];
+    }
+
+    /**
+     * Constraint alignment (table modification only, never drop/rebuild):
+     * recreates a check constraint when the live definition no longer covers
+     * every value the contract constants allow. Declared per (table, column);
+     * idempotent — a constraint that already covers all values is untouched.
+     */
+    private function alignStatusConstraints(): array
+    {
+        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::CODEMARTV1);
+        $tasksTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'tasks');
+
+        $constraintSpecs = [
+            ['table' => $tasksTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllTaskStatuses()],
+        ];
+
+        $aligned = [];
+        $errors = [];
+
+        foreach ($constraintSpecs as $spec) {
+            try {
+                $this->alignCheckConstraint($connection, $spec['table'], $spec['column'], $spec['values']);
+                $aligned[] = $spec['table'] . '.' . $spec['column'];
+            } catch (\Throwable $e) {
+                $errors[] = $spec['table'] . '.' . $spec['column'] . ': ' . $e->getMessage();
+            }
+        }
+
+        if ($errors !== []) {
+            return ['status' => 'error', 'message' => implode('; ', $errors)];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Aligned ' . count($aligned) . ' check constraints',
+            'constraints' => $aligned,
+        ];
+    }
+
+    private function alignCheckConstraint(string $connection, string $tableName, string $column, array $values): void
+    {
+        $constraintName = $tableName . '_' . $column . '_check';
+        $quotedValues = implode(', ', array_map(
+            static fn (string $value): string => "'" . str_replace("'", "''", $value) . "'",
+            $values
+        ));
+
+        $current = DB::connection($connection)->selectOne(
+            'SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conname = ? AND conrelid = ?::regclass',
+            [$constraintName, $tableName]
+        );
+
+        $currentDef = $current->def ?? null;
+
+        if (is_string($currentDef)) {
+            $coversAll = true;
+            foreach ($values as $value) {
+                if (strpos($currentDef, "'" . $value . "'") === false) {
+                    $coversAll = false;
+                    break;
+                }
+            }
+            if ($coversAll) {
+                return;
+            }
+        }
+
+        DB::connection($connection)->statement(
+            "ALTER TABLE {$tableName} DROP CONSTRAINT IF EXISTS {$constraintName}"
+        );
+        DB::connection($connection)->statement(
+            "ALTER TABLE {$tableName} ADD CONSTRAINT {$constraintName} CHECK ({$column}::text = ANY (ARRAY[{$quotedValues}]::text[]))"
+        );
     }
 
     /**
