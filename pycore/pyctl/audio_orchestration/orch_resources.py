@@ -18,6 +18,7 @@ from pycore.pyutils.tts.audio_delivery_outbox import AUDIO_DELIVERY_PROCESS_ID, 
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.engine_policy import (
     configured_tts_priority,
+    rotated_engine_exclusions,
     sentence_tts_cache_identity,
     tts_engine_supports_language,
 )
@@ -245,15 +246,9 @@ def resolve_batch(
         # Rotate the per-kind engine fallback order by resource id so parallel
         # workers start on DIFFERENT engines (several local models synthesize
         # concurrently); every worker still falls through the full chain.
-        order = [
-            name
-            for name in configured_tts_priority(str(resource["kind"]))
-            if tts_engine_supports_language(name, resource["language"])
-        ]
-        if len(order) < 2:
-            return ()
-        offset = int(resource["resource_id"], 16) % len(order)
-        return tuple(order[:offset])
+        return rotated_engine_exclusions(
+            str(resource["kind"]), resource["language"], resource["resource_id"],
+        )
 
     def _resolve_miss(resource: Dict[str, Any]) -> Dict[str, Any]:
         try:

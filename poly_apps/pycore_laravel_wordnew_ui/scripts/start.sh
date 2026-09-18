@@ -13,12 +13,17 @@
 # All paths derived dynamically (no hard-coded paths). Idempotent throughout.
 #
 # Default (orchestrate) needs NO parameters and asks exactly ONE question at the end:
-#   1. Add the dashboard to a background systemd service (via debian_service_manager)?
+#   1. Add the dashboard to a background systemd service?
 #        default NO.     flags: --service | --no-service     env: AS_SERVICE=yes|no
 # Run mode defaults to the dev server (no prompt). Optional overrides for headless:
 #        --dist | --dev                                       env: RUN_DIST=yes|no
 # Prerequisites (node/bun, deps, dist build) are installed/built here, invoking the
 # canonical init-ensure installers under scripts/shells/linux.
+#
+# Service registration directly references the canonical merged script
+# scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh
+# (--ui-service); the retired 176_laravel_ui_service.sh was merged into 175.
+# bun is the base runtime for this pycore/laravel UI (deps, build, dev server).
 #
 # Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh
 #   Dev foreground:   ./start.sh --no-service --dev
@@ -40,7 +45,7 @@ REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 SELF="${SCRIPT_DIR}/start.sh"
 LARAVEL_START="${POLY_APPS_DIR}/laravel_main/scripts/start.sh"
 NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
-SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager.sh"
+LARAVEL_MAIN_175="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh"
 FRANKENPHP_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/frankenphp_manager.sh"
 CADDY_STATIC_SITE_COMMON="${REPO_ROOT}/scripts/shells/linux/common/caddy_static_site_common.sh"
 WEB_ACCESS_COMMON="${REPO_ROOT}/scripts/shells/linux/common/web_access_common.sh"
@@ -111,7 +116,6 @@ NEED_INSTALL=""
 NEED_BUILD=""
 SUDO=""
 GVDIR=""
-EXEC_CMD=""
 ARG=""
 LARAVEL_PID=""
 IDX=0
@@ -139,18 +143,6 @@ trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
 log()  { printf '[nexus-dash] %s\n' "$1"; }
 warn() { printf '[nexus-dash] %s\n' "$1"; }
 err()  { printf '[nexus-dash] %s\n' "$1" >&2; }
-
-# Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
-compute_mem_limit() {
-    local cap_mb="$1"
-    local total_kb total_mb quarter
-    total_kb=$(grep -m1 MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
-    [ -n "$total_kb" ] || total_kb=0
-    total_mb=$(( total_kb / 1024 ))
-    quarter=$(( total_mb / 4 ))
-    [ "$quarter" -lt 128 ] && quarter=128
-    if [ "$quarter" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${quarter}M"; fi
-}
 
 # --- Prompt helpers (read from the controlling TTY; honor non-interactive) ---
 # DEFAULT YES: empty / anything but n -> yes. No TTY -> yes.
@@ -382,8 +374,8 @@ serve_dashboard() {
         log "Serving production dist with Caddy on ${BIND_HOST}:${DEV_PORT}"
         exec "$FRANKENPHP_BIN" run --config "$STATIC_CADDYFILE" --adapter caddyfile
     else
-        log "Starting dev server (bun x vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
-        "$BUN_BIN" x vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
+        log "Starting dev server (bun x --bun vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
+        "$BUN_BIN" x --bun vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
     fi
 }
 
@@ -422,37 +414,16 @@ systemd_available() {
     [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
 }
 
-# Register (or update) the dashboard systemd service via debian_service_manager.
-# Writes /etc/systemd/system -> needs root; falls back to sudo. The service file
-# is composed by create_systemd_service (resource limits + auto restart).
+# Register/converge the dashboard systemd unit by delegating to the canonical
+# merged script: 175_laravel_main_start.sh --ui-service owns the fine-grained,
+# file-state-driven unit convergence (the retired 176_laravel_ui_service.sh
+# was merged there). Resource limits pass through as NEXUS_DASH_* overrides.
 register_dashboard_service() {
-    local exec_cmd="$1"
-    if [ ! -f "$SERVICE_MANAGER" ]; then err "debian_service_manager not found: $SERVICE_MANAGER"; return 1; fi
-    if [ "$(id -u)" -eq 0 ]; then
-        # Isolate the manager's top-level side effects (it sources gvar_common.sh)
-        # in a subshell so they cannot leak into this script.
-        (
-            # shellcheck disable=SC1090
-            source "$SERVICE_MANAGER"
-            create_systemd_service "$SERVICE_NAME" "$SERVICE_DESC" "$exec_cmd" "$APP_ROOT" "root" "always" "10s" "$SERVICE_CPU" "$SERVICE_MEM"
-        ) || return 1
-        systemctl enable "$SERVICE_NAME" >/dev/null 2>&1 || true
-        systemctl restart "$SERVICE_NAME" || return 1
-        systemctl status "$SERVICE_NAME" --no-pager -l || true
-        return 0
-    fi
-    if [ -n "$SUDO" ]; then
-        $SUDO bash -c '
-            source "$1"
-            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7"
-            systemctl enable "$2" >/dev/null 2>&1 || true
-            systemctl restart "$2"
-            systemctl status "$2" --no-pager -l || true
-        ' _ "$SERVICE_MANAGER" "$SERVICE_NAME" "$SERVICE_DESC" "$exec_cmd" "$APP_ROOT" "$SERVICE_CPU" "$SERVICE_MEM"
-        return
-    fi
-    err "Need root (or sudo) to register a systemd service. Re-run as root."
-    return 1
+    if [ ! -f "$LARAVEL_MAIN_175" ]; then err "175 laravel main start script not found: $LARAVEL_MAIN_175"; return 1; fi
+    NEXUS_DASH_SERVICE_CPU="$SERVICE_CPU" \
+    NEXUS_DASH_SERVICE_MEM="$SERVICE_MEM" \
+    NEXUS_DASH_SERVICE_MEM_CAP_MB="$SERVICE_MEM_CAP_MB" \
+        bash "$LARAVEL_MAIN_175" --ui-service --"$RUN_MODE"
 }
 
 # --- Parse arguments ---
@@ -573,7 +544,7 @@ if [ -n "$NON_INTERACTIVE" ] && [ -z "$AS_SERVICE" ]; then
     if [ "$SERVICE_EXISTS" = "loaded" ]; then AS_SERVICE="yes"; else AS_SERVICE="no"; fi
 fi
 if [ -z "$AS_SERVICE" ]; then
-    if ask_default_no "Prerequisites ready. Add the dashboard to a background systemd service (via debian_service_manager)?"; then
+    if ask_default_no "Prerequisites ready. Add the dashboard to a background systemd service (via 175_laravel_main_start.sh --ui-service)?"; then
         AS_SERVICE="yes"
     else
         AS_SERVICE="no"
@@ -604,11 +575,8 @@ fi
 # 6) Frontend: register the service (prereqs already done) or serve in the foreground.
 if [ -n "$RUN_FRONTEND" ]; then
     if [ "$AS_SERVICE" = "yes" ]; then
-        [ -n "$SERVICE_MEM" ] || SERVICE_MEM="$(compute_mem_limit "$SERVICE_MEM_CAP_MB")"
-        log "Frontend service limits: CPU=${SERVICE_CPU}, Memory=${SERVICE_MEM} (cap ${SERVICE_MEM_CAP_MB}M)"
-        EXEC_CMD="bash ${SELF} --serve --${RUN_MODE}"
-        log "Registering systemd service ${SERVICE_NAME} (ExecStart: ${EXEC_CMD})..."
-        if register_dashboard_service "$EXEC_CMD"; then
+        log "Registering systemd service ${SERVICE_NAME} (ExecStart: bash ${SELF} --serve --${RUN_MODE})..."
+        if register_dashboard_service; then
             log "Service ${SERVICE_NAME} registered and started."
             log "  Manage: systemctl {status|restart|stop} ${SERVICE_NAME}"
             log "  Boot:   systemctl is-enabled ${SERVICE_NAME}"

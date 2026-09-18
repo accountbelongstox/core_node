@@ -17,6 +17,7 @@ class CodeMartV1DepositModel extends CodeMartV1Model
         'status',
         'payment_url',
         'paid_at',
+        'idempotency_key',
     ];
 
     protected $casts = [

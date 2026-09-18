@@ -12,6 +12,7 @@ SSH_SERVER_SYSTEMD_DROPIN=""
 SSH_SERVER_PORT="${SSH_SERVER_PORT:-22}"
 SSH_SERVER_CLIENT_ALIVE_INTERVAL="${SSH_SERVER_CLIENT_ALIVE_INTERVAL:-60}"
 SSH_SERVER_LOGIN_GRACE_TIME="${SSH_SERVER_LOGIN_GRACE_TIME:-30}"
+SSH_SERVER_PASSWORD_AUTH="${SSH_SERVER_PASSWORD_AUTH:-no}"
 SSH_SERVER_MAX_STARTUPS="${SSH_SERVER_MAX_STARTUPS:-100:30:200}"
 SSH_SERVER_PER_SOURCE_MAX_STARTUPS="${SSH_SERVER_PER_SOURCE_MAX_STARTUPS:-10}"
 SSH_SERVER_PREAUTH_REAP_SECONDS="${SSH_SERVER_PREAUTH_REAP_SECONDS:-120}"
@@ -63,6 +64,19 @@ SSH_SERVER_SYSV_LINKS=""
 SSH_SERVER_PROCESS_IDS=""
 SSH_SERVER_MAIN_CONFIG_TEMP=""
 SSH_SERVER_DROPIN_CONTENT=""
+SSH_SERVER_CONFIG_RELOAD_NEEDED=false
+SSH_SERVER_LISTENER_PID=""
+SSH_SERVER_LISTENER_AGE_SECONDS=0
+SSH_SERVER_LISTENER_TITLE=""
+SSH_SERVER_CONFIG_MTIME_EPOCH=0
+SSH_SERVER_NOW_EPOCH=0
+SSH_SERVER_MAX_STARTUPS_BEGIN=""
+SSH_SERVER_MAX_STARTUPS_FULL=""
+SSH_SERVER_TMUX_PERSISTENCE_ENABLED="${SSH_SERVER_TMUX_PERSISTENCE_ENABLED:-true}"
+SSH_SERVER_TMUX_SESSION_NAME="${SSH_SERVER_TMUX_SESSION_NAME:-main}"
+SSH_SERVER_TMUX_PROFILE_HOOK="/etc/profile.d/ncore_ssh_tmux_persistence.sh"
+SSH_SERVER_TMUX_OPTOUT_FILE=".ncore-no-auto-tmux"
+SSH_SERVER_TMUX_PERSISTENCE_READY=false
 
 source "$SSH_SERVER_FILE_OPS_COMMON"
 
@@ -136,7 +150,7 @@ ssh_server_render_dropin() {
     SSH_SERVER_DROPIN_CONTENT="Port $SSH_SERVER_PORT
 PermitRootLogin yes
 PubkeyAuthentication yes
-PasswordAuthentication yes
+PasswordAuthentication $SSH_SERVER_PASSWORD_AUTH
 LoginGraceTime $SSH_SERVER_LOGIN_GRACE_TIME
 TCPKeepAlive no
 ClientAliveInterval $SSH_SERVER_CLIENT_ALIVE_INTERVAL
@@ -163,7 +177,7 @@ ssh_server_ensure_include_precedence() {
     SSH_SERVER_MAIN_CONFIG_READY=false
     SSH_SERVER_MAIN_CONFIG_TEMP="$(mktemp)"
 
-    awk -v include_line="$SSH_SERVER_INCLUDE_DIRECTIVE" '
+    awk -v include_line="$SSH_SERVER_INCLUDE_DIRECTIVE" -v dropin_name="$(basename "$SSH_SERVER_CONFIG_DROPIN")" '
         BEGIN {
             in_match = 0
             print include_line
@@ -176,6 +190,10 @@ ssh_server_ensure_include_precedence() {
                 in_match = 1
             }
             if (!in_match && normalized ~ /^include[[:space:]]+\/etc\/ssh\/sshd_config\.d\/\*\.conf$/) {
+                next
+            }
+            if (!in_match && normalized ~ /^(logingracetime|maxstartups|persourcemaxstartups|tcpkeepalive|clientaliveinterval|clientalivecountmax|passwordauthentication)[[:space:]]/) {
+                print "# core-node managed by " dropin_name ": " $0
                 next
             }
             print
@@ -247,7 +265,7 @@ ssh_server_validate_config() {
     elif [ "$SSH_SERVER_EFFECTIVE_PER_SOURCE_MAX_STARTUPS" = "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS" ]; then
         SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY=true
     fi
-    if [ "$SSH_SERVER_EFFECTIVE_PORT" = "$SSH_SERVER_PORT" ] && [ "$SSH_SERVER_EFFECTIVE_ROOT_LOGIN" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PUBKEY_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PASSWORD_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_LOGIN_GRACE_TIME" = "$SSH_SERVER_LOGIN_GRACE_TIME" ] && [ "$SSH_SERVER_EFFECTIVE_TCP_KEEPALIVE" = "no" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL" = "$SSH_SERVER_CLIENT_ALIVE_INTERVAL" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX" = "0" ] && [ "$SSH_SERVER_EFFECTIVE_MAX_STARTUPS" = "$SSH_SERVER_MAX_STARTUPS" ] && [ "$SSH_SERVER_CHANNEL_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY" = true ]; then
+    if [ "$SSH_SERVER_EFFECTIVE_PORT" = "$SSH_SERVER_PORT" ] && [ "$SSH_SERVER_EFFECTIVE_ROOT_LOGIN" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PUBKEY_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PASSWORD_AUTH" = "$SSH_SERVER_PASSWORD_AUTH" ] && [ "$SSH_SERVER_EFFECTIVE_LOGIN_GRACE_TIME" = "$SSH_SERVER_LOGIN_GRACE_TIME" ] && [ "$SSH_SERVER_EFFECTIVE_TCP_KEEPALIVE" = "no" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL" = "$SSH_SERVER_CLIENT_ALIVE_INTERVAL" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX" = "0" ] && [ "$SSH_SERVER_EFFECTIVE_MAX_STARTUPS" = "$SSH_SERVER_MAX_STARTUPS" ] && [ "$SSH_SERVER_CHANNEL_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY" = true ]; then
         SSH_SERVER_CONFIG_APPLIED=true
     fi
 }
@@ -382,16 +400,103 @@ ssh_server_ensure_running() {
     fi
 }
 
+# Detect whether the running sshd listener still uses an older config. A
+# SIGHUP reload re-execs sshd in place, so the PID start time and systemd
+# timestamps never change; the listener process title is the only live
+# evidence: sshd renders the running MaxStartups as "N of BEGIN-END startups".
+# When the title cannot be parsed, fall back to comparing the listener age
+# against the config mtimes. This makes convergence self-healing instead of
+# change-triggered: a previous run that wrote the config but never reloaded
+# (crash, manual edit, interrupted run) is caught and reloaded here.
+ssh_server_refresh_reload_needed() {
+    SSH_SERVER_CONFIG_RELOAD_NEEDED=false
+    SSH_SERVER_LISTENER_PID=""
+    SSH_SERVER_LISTENER_AGE_SECONDS=0
+    SSH_SERVER_LISTENER_TITLE=""
+    SSH_SERVER_CONFIG_MTIME_EPOCH=0
+    SSH_SERVER_NOW_EPOCH="$(date +%s)"
+    SSH_SERVER_MAX_STARTUPS_BEGIN="${SSH_SERVER_MAX_STARTUPS%%:*}"
+    SSH_SERVER_MAX_STARTUPS_FULL="${SSH_SERVER_MAX_STARTUPS##*:}"
+
+    if [ "$SSH_SERVER_INIT_SYSTEM" = "systemd" ] && [ -n "$SSH_SERVER_SERVICE_NAME" ]; then
+        SSH_SERVER_LISTENER_PID="$(systemctl show --property=MainPID --value "$SSH_SERVER_SERVICE_NAME.service" 2>/dev/null)"
+    fi
+    if ! [ "$SSH_SERVER_LISTENER_PID" -gt 0 ] 2>/dev/null; then
+        SSH_SERVER_LISTENER_PID="$(pgrep -xo sshd 2>/dev/null)"
+    fi
+    if ! [ "$SSH_SERVER_LISTENER_PID" -gt 0 ] 2>/dev/null; then
+        SSH_SERVER_LISTENER_PID=""
+        return
+    fi
+
+    SSH_SERVER_LISTENER_TITLE="$(ps -o args= -p "$SSH_SERVER_LISTENER_PID" 2>/dev/null)"
+    if printf '%s' "$SSH_SERVER_LISTENER_TITLE" | grep -q "of ${SSH_SERVER_MAX_STARTUPS_BEGIN}-${SSH_SERVER_MAX_STARTUPS_FULL} startups"; then
+        return
+    fi
+
+    SSH_SERVER_LISTENER_AGE_SECONDS="$(ps -o etimes= -p "$SSH_SERVER_LISTENER_PID" 2>/dev/null | tr -d '[:space:]')"
+    SSH_SERVER_CONFIG_MTIME_EPOCH="$(stat -c %Y "$SSH_SERVER_CONFIG_FILE" "$SSH_SERVER_CONFIG_DIR"/*.conf 2>/dev/null | sort -rn | head -1)"
+    if [ -n "$SSH_SERVER_LISTENER_AGE_SECONDS" ] && [ -n "$SSH_SERVER_CONFIG_MTIME_EPOCH" ]; then
+        if [ $((SSH_SERVER_NOW_EPOCH - SSH_SERVER_LISTENER_AGE_SECONDS)) -lt "$SSH_SERVER_CONFIG_MTIME_EPOCH" ]; then
+            SSH_SERVER_CONFIG_RELOAD_NEEDED=true
+        fi
+    fi
+}
+
 ssh_server_apply_changed_config() {
     ssh_server_refresh_service
-    if [ "$SSH_SERVER_CONFIG_CHANGED" = true ] && [ "$SSH_SERVER_SERVICE_ACTIVE" = true ]; then
-        echo "[SSH] Reloading the changed SSH configuration..."
-        if [ "$SSH_SERVER_INIT_SYSTEM" = "systemd" ]; then
-            $USE_SUDO systemctl reload "$SSH_SERVER_SERVICE_NAME.service"
-        elif [ "$SSH_SERVER_INIT_SYSTEM" = "sysv" ]; then
-            $USE_SUDO service "$SSH_SERVER_SERVICE_NAME" reload
+    ssh_server_refresh_reload_needed
+    if [ "$SSH_SERVER_SERVICE_ACTIVE" = true ]; then
+        if [ "$SSH_SERVER_CONFIG_CHANGED" = true ] || [ "$SSH_SERVER_CONFIG_RELOAD_NEEDED" = true ]; then
+            echo "[SSH] Reloading the SSH configuration (files changed: $SSH_SERVER_CONFIG_CHANGED, listener older than config: $SSH_SERVER_CONFIG_RELOAD_NEEDED)..."
+            if [ "$SSH_SERVER_INIT_SYSTEM" = "systemd" ]; then
+                $USE_SUDO systemctl reload "$SSH_SERVER_SERVICE_NAME.service"
+            elif [ "$SSH_SERVER_INIT_SYSTEM" = "sysv" ]; then
+                $USE_SUDO service "$SSH_SERVER_SERVICE_NAME" reload
+            fi
+            ssh_server_refresh_service
+        else
+            echo "[SSH] Running sshd listener already matches the newest configuration."
         fi
-        ssh_server_refresh_service
+    fi
+}
+
+# Transport-level drops (client NAT rebinding, roaming, middlebox RST) kill
+# the TCP connection regardless of any sshd keepalive setting; the server-side
+# cure is a persistent shell. This deploys an /etc/profile.d hook attaching
+# interactive SSH logins to a stable tmux session, so reconnecting resumes the
+# same shell. Non-interactive ssh/sftp/scp never source /etc/profile.d and the
+# tty guards double-protect them; a tmux failure falls through to a plain
+# login shell, so the hook can never lock users out.
+ssh_server_ensure_session_persistence() {
+    SSH_SERVER_TMUX_PERSISTENCE_READY=false
+    if [ "$SSH_SERVER_TMUX_PERSISTENCE_ENABLED" != true ]; then
+        return
+    fi
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "[SSH] Installing the missing tmux package for persistent sessions..."
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y tmux
+    fi
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "[SSH] tmux is unavailable; session persistence hook skipped."
+        return
+    fi
+    write_file_if_changed "$SSH_SERVER_TMUX_PROFILE_HOOK" "" 644 root root <<EOF
+# Managed by 23_setup_ssh_remote.sh (core_node). Do not edit by hand.
+# Reconnect-resilient SSH: attach interactive logins to a persistent tmux
+# session so a dropped transport no longer kills the running shell.
+# Opt out per user: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE
+if [ -n "\$SSH_CONNECTION" ] && [ -z "\$TMUX" ] && [ -t 0 ] && [ -t 1 ]; then
+    if command -v tmux >/dev/null 2>&1 && [ ! -e "\$HOME/$SSH_SERVER_TMUX_OPTOUT_FILE" ]; then
+        tmux new-session -A -s $SSH_SERVER_TMUX_SESSION_NAME && exit
+    fi
+fi
+EOF
+    if [ "$WRITE_FILE_READY" = true ]; then
+        SSH_SERVER_TMUX_PERSISTENCE_READY=true
+        echo "[SSH] Persistent tmux login hook is in place (session: $SSH_SERVER_TMUX_SESSION_NAME, opt-out: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE)."
+    else
+        echo "[SSH] Failed to deploy the persistent tmux login hook."
     fi
 }
 

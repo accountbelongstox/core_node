@@ -220,6 +220,33 @@ export interface DictionaryWordsResponse {
   error?: string;
 }
 
+// ========== One-click cleanup (invalid words / invalid translations) ==========
+
+/** One preview row of the cleanup listing (junk word / invalid translation). */
+export interface DictionaryCleanupRow {
+  id: number;
+  content: string;
+  md5: string;
+  translations: Record<string, unknown> | null;
+  /** Server-side rule that matched: invalid_content | error_marker | same_as_word. */
+  reason: string;
+}
+
+/** Paginated cleanup preview (GET /dictionary/invalid-{words,translations}). */
+export interface DictionaryCleanupPreview {
+  language: string;
+  total: number;
+  start: number;
+  limit: number;
+  rows: DictionaryCleanupRow[];
+}
+
+/** Purge result (POST /dictionary/invalid-{words,translations}/purge). */
+export interface DictionaryCleanupPurgeResult {
+  language: string;
+  affected: number;
+}
+
 /** Validity breakdown for a language (GET /dictionary/validity-summary). */
 export interface ValiditySummaryResponse {
   language: string;
@@ -467,6 +494,42 @@ export class BooksAPI extends BaseAPI {
     action: 'delete' | 'mark_valid' | 'mark_invalid' | 'requeue_tts';
   }): Promise<APIResponse<{ action: string; requested: number; affected: number }>> {
     return this.post<{ action: string; requested: number; affected: number }>('/dictionary/words/batch', payload);
+  }
+
+  // ----- One-click cleanup (invalid words / invalid translations) -----
+
+  /** GET /dictionary/invalid-words — paginated preview of junk word rows. */
+  async getInvalidWords(params: {
+    language: string;
+    start?: number;
+    limit?: number;
+  }): Promise<APIResponse<DictionaryCleanupPreview>> {
+    return this.get<DictionaryCleanupPreview>('/dictionary/invalid-words', params, false);
+  }
+
+  /** GET /dictionary/invalid-translations — paginated preview of invalid translation rows. */
+  async getInvalidTranslations(params: {
+    language: string;
+    start?: number;
+    limit?: number;
+  }): Promise<APIResponse<DictionaryCleanupPreview>> {
+    return this.get<DictionaryCleanupPreview>('/dictionary/invalid-translations', params, false);
+  }
+
+  /** POST /dictionary/invalid-words/purge — delete the junk rows (confirm: "delete"). */
+  async purgeInvalidWords(payload: {
+    language: string;
+    confirm: string;
+  }): Promise<APIResponse<DictionaryCleanupPurgeResult>> {
+    return this.post<DictionaryCleanupPurgeResult>('/dictionary/invalid-words/purge', payload);
+  }
+
+  /** POST /dictionary/invalid-translations/purge — clear ONLY the translations field (confirm: "delete"). */
+  async purgeInvalidTranslations(payload: {
+    language: string;
+    confirm: string;
+  }): Promise<APIResponse<DictionaryCleanupPurgeResult>> {
+    return this.post<DictionaryCleanupPurgeResult>('/dictionary/invalid-translations/purge', payload);
   }
 
   // ----- Processing capability -----

@@ -16,6 +16,9 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/statistics', [AppQyV1VocabularyLibraryPublicController::class, 'getStatistics']);
         Route::get('/libraries/recommended', [AppQyV1VocabularyLibraryPublicController::class, 'getRecommended']);
         Route::get('/libraries/{libraryId}/words', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraryWords']);
+        // One-click AI cover regeneration (Laravel AiGateway text-to-image,
+        // prompt-hash disk cache). POST so an optional prompt override can ride along.
+        Route::post('/libraries/{libraryId}/cover/ai-regenerate', [AppQyV1VocabularyLibraryPublicController::class, 'regenerateCoverAi']);
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
 
         // Vocabulary page stats drill-down (dashboard, read-only). Powers the
@@ -52,6 +55,14 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::post('/dictionary/words/batch', [AppQyV1DictionaryWordManagementController::class, 'batch']);
     Route::put('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'update']);
     Route::delete('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'destroy']);
+
+    // One-click cleanup (dashboard Words tab): paginated preview of junk rows,
+    // then a confirm-gated purge. Words: row deleted; translations: only the
+    // translations field cleared.
+    Route::get('/dictionary/invalid-words', [AppQyV1DictionaryWordManagementController::class, 'invalidWordsPreview']);
+    Route::post('/dictionary/invalid-words/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidWords']);
+    Route::get('/dictionary/invalid-translations', [AppQyV1DictionaryWordManagementController::class, 'invalidTranslationsPreview']);
+    Route::post('/dictionary/invalid-translations/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidTranslations']);
 });
 
 // Document re-processing endpoints: documents are stored per user at upload

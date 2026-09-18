@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sliders, RefreshCw, BookOpen, CircleAlert, Trash2 } from 'lucide-react';
+import { Sliders, RefreshCw, BookOpen, CircleAlert, Trash2, Wand2 } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { LoadingBlock, EmptyState } from '../../common';
@@ -21,6 +21,8 @@ interface LibrariesTabProps {
   loadLibraryWords: (library: any) => void;
   handleRetryCover: (library: any) => void;
   retryingCovers: Set<any>;
+  handleAiRegenerateCover: (library: any) => void;
+  aiCovers: Set<any>;
   setLibraryToDelete: (library: any) => void;
   t: {
     delete_library: string;
@@ -39,6 +41,8 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
   loadLibraryWords,
   handleRetryCover,
   retryingCovers,
+  handleAiRegenerateCover,
+  aiCovers,
   setLibraryToDelete,
   t,
 }) => {
@@ -169,17 +173,33 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
                 )}
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <h4 className="font-semibold text-sm">{library.name}</h4>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLibraryToDelete(library);
-                    }}
-                    className="flex-shrink-0 p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title={t.delete_library}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* One-click AI cover regeneration (Laravel image gateway,
+                        free-quota providers first, prompt-hash cached). */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAiRegenerateCover(library);
+                      }}
+                      disabled={aiCovers.has(library.id)}
+                      className="p-1 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors disabled:opacity-50"
+                      title="Regenerate cover with AI"
+                    >
+                      <Wand2 className={`w-3.5 h-3.5 ${aiCovers.has(library.id) ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLibraryToDelete(library);
+                      }}
+                      className="p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      title={t.delete_library}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 {library.description && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 line-clamp-2">

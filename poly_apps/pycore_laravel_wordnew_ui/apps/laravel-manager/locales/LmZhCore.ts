@@ -509,7 +509,28 @@ vocabulary: {
         unknown_error: "未知错误",
         delete_success: "已删除“{word}”。",
         delete_failed: "删除失败",
-        edit: "编辑"
+        edit: "编辑",
+        cleanup: {
+          invalid_words: "清除无效单词",
+          invalid_translations: "清除无效翻译",
+          title_words: "无效单词",
+          title_translations: "无效翻译",
+          subtitle_words: "内容为垃圾数据的词条（含中文、键盘乱序等）——将删除整个词条。",
+          subtitle_translations: "翻译为错误信息或与单词本身相同的词条——仅清空翻译字段。",
+          preview_failed: "预览加载失败：{error}",
+          confirm_hint_words: "输入 delete 以永久删除 {count} 个词条。",
+          confirm_hint_translations: "输入 delete 以清空 {count} 个词条的翻译。",
+          confirm_placeholder: "delete",
+          purge: "执行清除",
+          purging: "清除中...",
+          purged_words: "已删除 {count} 个无效单词。",
+          purged_translations: "已清空 {count} 个词条的无效翻译。",
+          purge_failed: "清除失败：{error}",
+          nothing_to_clean: "没有需要清除的内容。",
+          reason_invalid_content: "无效内容",
+          reason_error_marker: "供应商错误文本",
+          reason_same_as_word: "与单词相同"
+        }
       }
     },
 mcp: {

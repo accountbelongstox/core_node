@@ -6,7 +6,7 @@ import os
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
@@ -33,8 +33,9 @@ from pycore.pyutils.tts.audio_delivery_outbox import (
     audio_delivery_outbox,
 )
 from pycore.pyutils.tts.audio_validation import validate_mp3
+from pycore.pyutils.tts.engine_policy import rotated_engine_exclusions
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
-from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
+from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path, save_to_cache
 
 _OUTBOX_BATCH_LIMIT = 32
 _OUTBOX_PARALLEL_LIMIT = 4
@@ -165,11 +166,14 @@ class LaravelAudioWorkerExecutionMixin:
         # word / article: scratch output (the word lane also fills the word cache).
         planned_engine = self._planned_engine() or "edge"
         if kind == "word":
-            cache_path = get_cache_path(info["word"], language, planned_engine)
-            if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
-                ok_cache, _why = validate_mp3(cache_path)
+            # Unified any-provider cache: audio produced by ANY engine — the
+            # audio-orchestration pipeline included — is reused, never
+            # re-synthesized just because the planned engine changed.
+            cached_path = find_cached(info["word"], language)
+            if cached_path is not None and os.path.getsize(str(cached_path)) > 0:
+                ok_cache, _why = validate_mp3(str(cached_path))
                 if ok_cache:
-                    return True, cache_path, planned_engine, "", False
+                    return True, str(cached_path), planned_engine, "", False
 
         os.makedirs(self._tmp_dir, exist_ok=True)
         out_path = os.path.join(
@@ -183,6 +187,16 @@ class LaravelAudioWorkerExecutionMixin:
             accent=accent,
             gender=info.get("gender") or None,
             priority_profile=profile,
+            # Per-task deterministic rotation: parallel lanes begin on different
+            # engines so several local models synthesize different words at the
+            # same time (same-engine work still serializes on its lease).
+            excluded_engines=(
+                rotated_engine_exclusions(
+                    profile, language, f"{info.get('task_id')}:{info.get('md5') or info.get('word')}",
+                )
+                if kind == "word"
+                else ()
+            ),
         )
         provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
         if not result.get("success"):
@@ -423,6 +437,26 @@ class LaravelAudioWorkerExecutionMixin:
             attempt=info.get("attempt"),
         )
 
+    def _delivery_identity(self, info: Dict[str, Any]) -> str:
+        """Stable domain-report identity shared by every attempt of one audio.
+
+        Records carrying the same identity deliver the SAME bytes to the SAME
+        domain endpoint; the outbox dedupes them durably (no time windows).
+        """
+        if self.LANE == "sentence":
+            content_id = str(info.get("content_id") or "").strip()
+            if not content_id:
+                return ""
+            variant = str(info.get("variant_key") or "").strip()
+            language = str(info.get("language") or "en").strip().lower() or "en"
+            return f"{self.REPORT_PATH}:{content_id}:{language}:{variant}"
+        if info.get("kind") != "word" or not info.get("dict_row_id"):
+            return ""
+        return (
+            f"{self.REPORT_PATH}:"
+            f"{encode_word_report_task_id(info['dict_row_id'], info['language'])}"
+        )
+
     def _stage_delivery(
         self,
         info: Dict[str, Any],
@@ -432,6 +466,7 @@ class LaravelAudioWorkerExecutionMixin:
     ) -> Dict[str, Any]:
         return audio_delivery_outbox.stage_audio({
             "lane": self.LANE,
+            "delivery_identity": self._delivery_identity(info),
             "task_id": info.get("task_id"),
             "task_type": info.get("task_type") or self.QUEUE_KEY,
             "attempt": int(info.get("attempt") or 0),
@@ -465,6 +500,19 @@ class LaravelAudioWorkerExecutionMixin:
         self._start_outbox_drain()
         return {"success": True, "retried": retried, "outbox": audio_delivery_outbox.stats(self.LANE)}
 
+    @staticmethod
+    def _unique_ready_deliveries(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """One in-flight delivery per domain identity per batch."""
+        seen = set()
+        unique = []
+        for row in rows:
+            key = str(row.get("delivery_identity") or "") or str(row.get("delivery_id") or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(row)
+        return unique
+
     def _drain_delivery_outbox(self) -> None:
         try:
             while not THREAD_BUS.is_shutdown_requested():
@@ -475,6 +523,7 @@ class LaravelAudioWorkerExecutionMixin:
                 if not ready:
                     time.sleep(_OUTBOX_IDLE_WAIT_SECONDS)
                     continue
+                ready = self._unique_ready_deliveries(ready)
                 lane_count = min(_OUTBOX_PARALLEL_LIMIT, len(ready))
                 map_bus_tasks(
                     _run_audio_delivery,

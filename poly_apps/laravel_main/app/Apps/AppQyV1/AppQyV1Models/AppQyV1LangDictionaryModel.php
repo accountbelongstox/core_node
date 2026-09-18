@@ -1732,6 +1732,191 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return (int) $model->getConnection()->table($table)->count();
     }
 
+    /**
+     * Junk-content detection for the dashboard "clean invalid words" action.
+     * Rules: content carries CJK ideographs (never a valid headword in a
+     * non-CJK dictionary) or embeds the full 26-letter alphabet sequence
+     * (keyboard-mash rows). CJK-script dictionaries (zh/ja) skip the CJK rule
+     * — it would match every legitimate row there.
+     */
+    public static function invalidContentQuery(string $langCode): Builder
+    {
+        $query = self::forLanguage($langCode)->newQuery();
+        $cjkScriptLanguages = ['zh', 'ja'];
+        $code = AppQyV1TableMaps::normalizeLangCode($langCode);
+
+        return $query->where(function (Builder $builder) use ($code, $cjkScriptLanguages): void {
+            if (!in_array($code, $cjkScriptLanguages, true)) {
+                // U+4E00 (一) .. U+9FA5 (龥) as a literal range — PostgreSQL ARE.
+                $builder->whereRaw("content ~ '[一-龥]'");
+            }
+            $builder->orWhere('content', 'ilike', '%abcdefghijklmnopqrstuvwxyz%');
+        });
+    }
+
+    /** Ids of every junk-content row (see invalidContentQuery). */
+    public static function invalidWordIds(string $langCode): array
+    {
+        return self::invalidContentQuery($langCode)
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Translation values that are provider error payloads (e.g. the
+     * free-quota "Error: Rate limit exceeded: free-models-per-day-high-balance"
+     * leak) — stored as if they were translations.
+     */
+    public const INVALID_TRANSLATION_MARKERS = [
+        'Error: Rate limit exceeded',
+        'free-models-per-day-high-balance',
+    ];
+
+    /**
+     * One row's invalid-translation reason, or null when the row is clean.
+     * Invalid = any translation value (recursively — nested shapes like
+     * word_translation pairs included) carries an error marker, or a value is
+     * identical to the word itself (case-insensitive, trimmed).
+     */
+    public static function invalidTranslationReason($row): ?string
+    {
+        $translations = is_array($row->translations) ? $row->translations : [];
+        if ($translations === []) {
+            return null;
+        }
+        $word = mb_strtolower(trim((string) $row->content));
+        foreach (self::flattenTranslationTexts($translations) as $text) {
+            foreach (self::INVALID_TRANSLATION_MARKERS as $marker) {
+                if (mb_stripos($text, $marker) !== false) {
+                    return 'error_marker';
+                }
+            }
+            if ($word !== '' && mb_strtolower(trim($text)) === $word) {
+                return 'same_as_word';
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Every translation TEXT inside a translations payload. Only language-keyed
+     * values ('zh', 'en', 'en_US', ...) and the text element of
+     * word_translation [tag, text] pairs count; metadata keys (word,
+     * is_native_voice, plural_form, synonyms, ...) are never translations.
+     */
+    private static function flattenTranslationTexts(array $translations): array
+    {
+        $texts = [];
+        foreach ($translations as $key => $value) {
+            if ($key === 'word_translation' && is_array($value)) {
+                foreach ($value as $pair) {
+                    if (is_array($pair)) {
+                        foreach (array_slice($pair, 1) as $text) {
+                            if (is_string($text) && trim($text) !== '') {
+                                $texts[] = $text;
+                            }
+                        }
+                    } elseif (is_string($pair) && trim($pair) !== '') {
+                        $texts[] = $pair;
+                    }
+                }
+                continue;
+            }
+            if (!is_string($key) || preg_match('/^[a-z]{2}([_-][a-zA-Z]{2,4})?$/', $key) !== 1) {
+                continue;
+            }
+            $stack = [$value];
+            while ($stack !== []) {
+                $nested = array_pop($stack);
+                if (is_array($nested)) {
+                    foreach ($nested as $leaf) {
+                        $stack[] = $leaf;
+                    }
+                    continue;
+                }
+                if (is_string($nested) && trim($nested) !== '') {
+                    $texts[] = $nested;
+                }
+            }
+        }
+        return $texts;
+    }
+
+    /**
+     * Ids (and reasons) of rows whose translations field is invalid.
+     *
+     * SQL prefilter keeps the scan cheap on large tables (the raw ILIKE /
+     * position() pass is one sequential scan, no PHP hydration of clean rows);
+     * PHP then re-evaluates ONLY the candidates with the exact rules
+     * (invalidTranslationReason) so the equality rule stays precise:
+     *   - error markers: straight ILIKE on the serialized translations
+     *   - same-as-word: position(lower(content) in lower(translations)) > 0 is
+     *     the necessary condition; exact equality is confirmed in PHP.
+     *
+     * @return array<int, string> id => reason
+     */
+    public static function invalidTranslationIds(string $langCode): array
+    {
+        $invalid = [];
+        $query = self::forLanguage($langCode)
+            ->newQuery()
+            ->select(['id', 'content', 'translations'])
+            ->withTranslationCoverage()
+            ->where('content', '<>', '')
+            ->where(function (Builder $builder): void {
+                foreach (self::INVALID_TRANSLATION_MARKERS as $marker) {
+                    $builder->orWhere('translations', 'ilike', '%' . $marker . '%');
+                }
+                $builder->orWhereRaw('position(lower(content) in lower(translations)) > 0');
+            });
+
+        $query->chunkById(self::QUERY_CHUNK_SIZE, function ($rows) use (&$invalid): void {
+            foreach ($rows as $row) {
+                $reason = self::invalidTranslationReason($row);
+                if ($reason !== null) {
+                    $invalid[(int) $row->id] = $reason;
+                }
+            }
+        }, column: 'id');
+
+        return $invalid;
+    }
+
+    /** Chunked delete by primary keys. Returns the number of deleted rows. */
+    public static function deleteByIds(string $langCode, array $ids): int
+    {
+        $deleted = 0;
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $ids))), self::QUERY_CHUNK_SIZE) as $chunk) {
+            $deleted += self::forLanguage($langCode)->newQuery()->whereIn('id', $chunk)->delete();
+        }
+        if ($deleted > 0) {
+            self::forgetMetricsCache($langCode);
+        }
+        return $deleted;
+    }
+
+    /**
+     * Clear ONLY the translations field (never the entry itself): the row
+     * falls back to the untranslated state so the translation lane refills it.
+     */
+    public static function clearTranslationsByIds(string $langCode, array $ids): int
+    {
+        $cleared = 0;
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $ids))), self::QUERY_CHUNK_SIZE) as $chunk) {
+            $cleared += self::forLanguage($langCode)->newQuery()->whereIn('id', $chunk)->update([
+                'translations' => null,
+                'has_translation' => false,
+                'updated_at' => now(),
+            ]);
+        }
+        if ($cleared > 0) {
+            self::forgetMetricsCache($langCode);
+        }
+        return $cleared;
+    }
+
     public static function languageTableExists(string $langCode): bool
     {
         $model = self::forLanguage($langCode);

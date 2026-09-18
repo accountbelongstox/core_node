@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Persistent TTS priority, cooldown, and display-command policy (canonical: pyutils.tts)."""
 
+import hashlib
 import os
 import shlex
 import time
@@ -260,6 +261,34 @@ def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
         # Pinned single-engine contract - see _AGENT_HISTORY_PINNED_TTS.
         return _AGENT_HISTORY_PINNED_TTS
     return default
+
+
+def profile_engine_order(profile: str, language: Optional[str]) -> tuple[str, ...]:
+    """Configured engine chain for one profile, filtered to `language`."""
+    return tuple(
+        name
+        for name in configured_tts_priority(profile)
+        if tts_engine_supports_language(name, language)
+    )
+
+
+def rotated_engine_exclusions(
+    profile: str,
+    language: Optional[str],
+    seed: Any,
+) -> tuple[str, ...]:
+    """Deterministic rotation of the engine chain for `seed`.
+
+    Returns the engines BEFORE the rotated start offset as an exclusion tuple,
+    so parallel workers given different seeds begin synthesis on DIFFERENT
+    engines (several local models produce audio concurrently) while every
+    worker still falls through the full chain on failure."""
+    order = profile_engine_order(profile, language)
+    if len(order) < 2:
+        return ()
+    digest = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
+    offset = int(digest, 16) % len(order)
+    return tuple(order[:offset])
 
 
 def is_word_text(text: str) -> bool:

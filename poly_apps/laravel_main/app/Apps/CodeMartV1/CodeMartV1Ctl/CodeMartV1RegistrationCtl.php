@@ -4,6 +4,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PhoneVerificationModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerificationModel;
@@ -11,6 +12,9 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1EmailService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1OtpService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
+use App\Http\Common\CommonAuthService;
+use App\Models\User;
+use App\Support\InstallationAccessCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -42,11 +46,35 @@ class CodeMartV1RegistrationCtl extends Controller
             'password' => 'required|string|min:8|confirmed',
             'role_type' => 'required|in:developer,client',
             'real_name' => 'required|string|max:100',
+            'registration_code' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
             return $this->error('Validation failed', 422, $validator->errors());
         }
+
+        // The start script (175) provisions the installation access (super)
+        // code into the runtime store; registering with it elevates the new
+        // account to platform administrator.
+        $roleLevel = 0;
+        $roleName = $request->role_type;
+        $registrationCode = trim((string) $request->input('registration_code', ''));
+        $isSuperAdmin = false;
+        if ($registrationCode !== '') {
+            $accessCode = trim((string) InstallationAccessCode::value());
+            if ($accessCode !== '' && hash_equals($accessCode, $registrationCode)) {
+                $roleLevel = 100;
+                $roleName = 'Super Administrator';
+                $isSuperAdmin = true;
+            }
+        }
+
+        // A client has no deposit requirement, so the role activates
+        // immediately; developer/architect roles stay pending until the
+        // server-confirmed deposit activates them.
+        $initialRoleStatus = $request->role_type === CodeMartV1Constants::ROLE_CLIENT
+            ? CodeMartV1Constants::ROLE_STATUS_ACTIVE
+            : CodeMartV1Constants::ROLE_STATUS_PENDING;
 
         CodeMartV1UserModel::beginModelTransaction();
 
@@ -55,14 +83,15 @@ class CodeMartV1RegistrationCtl extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'name' => $request->real_name,
-            'rolename' => $request->role_type,
-            'rolelevel' => 0,
+            'rolename' => $roleName,
+            'rolelevel' => $roleLevel,
         ]);
 
         CodeMartV1UserRoleModel::createRecord([
             'user_id' => $user->id,
             'role_type' => $request->role_type,
-            'role_status' => 'pending',
+            'role_status' => $initialRoleStatus,
+            'role_activated_at' => $initialRoleStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE ? now() : null,
         ]);
 
         $emailToken = $this->emailService->createEmailVerification($request->email);
@@ -70,11 +99,18 @@ class CodeMartV1RegistrationCtl extends Controller
 
         CodeMartV1UserModel::commitModelTransaction();
 
+        $globalUser = User::find($user->id);
+        $session = $globalUser ? CommonAuthService::issueLoginToken($globalUser) : null;
+
         return $this->success([
             'user_id' => $user->id,
             'username' => $user->username,
             'email' => $user->email,
             'role_type' => $request->role_type,
+            'role_status' => $initialRoleStatus,
+            'is_admin' => $isSuperAdmin,
+            'token' => $session['token'] ?? null,
+            'token_type' => $session['token_type'] ?? null,
             'next_step' => 'email_verification',
         ], 'Registration successful. Please verify your email.', 201);
     }

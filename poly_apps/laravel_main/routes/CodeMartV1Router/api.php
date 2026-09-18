@@ -9,6 +9,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
+use App\Apps\CodeMartV1\CodeMartV1Controllers\CodeMartV1AdminCtl;
+use App\Apps\CodeMartV1\CodeMartV1Controllers\CodeMartV1BootstrapCtl;
+use App\Apps\CodeMartV1\CodeMartV1Controllers\CodeMartV1NotificationCtl;
+use App\Apps\CodeMartV1\CodeMartV1Controllers\CodeMartV1ProfileCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1RegistrationCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ProjectCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1TaskCtl;
@@ -20,9 +24,15 @@ use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1ReviewerCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1TaskMarketplaceCtl;
 use App\Apps\CodeMartV1\CodeMartV1Ctl\CodeMartV1PublicHomeCtl;
 
-Route::prefix('api/codemart/v1')->name('codemart.')->group(function () {
+// NOTE: this file is required from routes/api.php, which already applies the
+// /api prefix; the group prefix below must stay 'codemart/v1' so the public
+// base is /api/codemart/v1 (not /api/api/...).
+Route::prefix('codemart/v1')->name('codemart.')->group(function () {
 
+    // Public, no bearer token.
     Route::get('/public/home', [CodeMartV1PublicHomeCtl::class, 'getHome'])->name('public.home');
+    Route::post('/public/estimate', [CodeMartV1PublicHomeCtl::class, 'estimate'])->name('public.estimate');
+    Route::get('/public/estimate-options', [CodeMartV1PublicHomeCtl::class, 'estimateOptions'])->name('public.estimate-options');
 
     // Public routes - Registration
     Route::post('/auth/register', [CodeMartV1RegistrationCtl::class, 'register'])->name('register');
@@ -30,10 +40,38 @@ Route::prefix('api/codemart/v1')->name('codemart.')->group(function () {
 
     // Protected routes - Verification and KYC
     Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/bootstrap', [CodeMartV1BootstrapCtl::class, 'bootstrap'])->name('bootstrap');
+
         Route::post('/auth/request-phone-verification', [CodeMartV1RegistrationCtl::class, 'requestPhoneVerification'])->name('request-phone-verification');
         Route::post('/auth/verify-phone-otp', [CodeMartV1RegistrationCtl::class, 'verifyPhoneOtp'])->name('verify-phone-otp');
         Route::post('/auth/upload-kyc-documents', [CodeMartV1RegistrationCtl::class, 'uploadKycDocuments'])->name('upload-kyc-documents');
         Route::get('/auth/registration-status', [CodeMartV1RegistrationCtl::class, 'getRegistrationStatus'])->name('registration-status');
+
+        // Profile
+        Route::get('/profile', [CodeMartV1ProfileCtl::class, 'show'])->name('profile.show');
+        Route::put('/profile', [CodeMartV1ProfileCtl::class, 'update'])->name('profile.update');
+
+        // Notifications
+        Route::prefix('/notifications')->name('notifications.')->group(function () {
+            Route::get('/', [CodeMartV1NotificationCtl::class, 'index'])->name('index');
+            Route::get('/unread-count', [CodeMartV1NotificationCtl::class, 'unreadCount'])->name('unread-count');
+            Route::post('/read-all', [CodeMartV1NotificationCtl::class, 'markAllRead'])->name('read-all');
+            Route::post('/{notificationId}/read', [CodeMartV1NotificationCtl::class, 'markRead'])->name('read');
+        });
+
+        // Platform administration (global Laravel admin authorization).
+        Route::prefix('/admin')->name('admin.')->group(function () {
+            Route::get('/overview', [CodeMartV1AdminCtl::class, 'overview'])->name('overview');
+            Route::get('/users', [CodeMartV1AdminCtl::class, 'users'])->name('users');
+            Route::post('/users/{userId}/roles/{roleType}/status', [CodeMartV1AdminCtl::class, 'setRoleStatus'])->name('set-role-status');
+            Route::get('/kyc', [CodeMartV1AdminCtl::class, 'kycList'])->name('kyc');
+            Route::post('/kyc/{kycId}/approve', [CodeMartV1AdminCtl::class, 'kycApprove'])->name('kyc-approve');
+            Route::post('/kyc/{kycId}/reject', [CodeMartV1AdminCtl::class, 'kycReject'])->name('kyc-reject');
+            Route::get('/refunds', [CodeMartV1AdminCtl::class, 'refunds'])->name('refunds');
+            Route::get('/deposits', [CodeMartV1AdminCtl::class, 'deposits'])->name('deposits');
+            Route::post('/deposits/{depositId}/confirm', [CodeMartV1AdminCtl::class, 'confirmDeposit'])->name('confirm-deposit');
+            Route::get('/projects', [CodeMartV1AdminCtl::class, 'projects'])->name('projects');
+        });
 
         // Project API routes
         Route::prefix('/projects')->name('projects.')->group(function () {
@@ -90,9 +128,9 @@ Route::prefix('api/codemart/v1')->name('codemart.')->group(function () {
         Route::prefix('/deposits')->name('deposits.')->group(function () {
             Route::get('/info', [CodeMartV1DepositCtl::class, 'getDepositInfo'])->name('info');
             Route::post('/', [CodeMartV1DepositCtl::class, 'createDepositPayment'])->name('create');
+            Route::get('/history', [CodeMartV1DepositCtl::class, 'getDepositHistory'])->name('history');
             Route::get('/{depositId}/status', [CodeMartV1DepositCtl::class, 'getDepositStatus'])->name('status');
             Route::post('/{depositId}/confirm', [CodeMartV1DepositCtl::class, 'confirmDepositPayment'])->name('confirm');
-            Route::get('/history', [CodeMartV1DepositCtl::class, 'getDepositHistory'])->name('history');
         });
 
         Route::prefix('/ai-analysis')->name('ai-analysis.')->group(function () {

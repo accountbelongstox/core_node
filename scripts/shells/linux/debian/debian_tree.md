@@ -45,7 +45,6 @@ debian/
 │   ├── 91_install_golang.sh
 │   ├── 92_install_java.sh
 │   ├── 99_generate_docker_compose_yml.sh
-│   ├── 101_core_node_finish.sh
 │   ├── 103_install_code_server.sh
 │   └── 7_project_validator.sh
 ├── run_apps/

@@ -165,10 +165,10 @@ DOMAIN_SCOPE="all"
 SKIP_SSH="no"
 
 # Optional: converge the nexus-dash dev service and domain binding in every setup mode
-# (idempotent; 176 owns the fine-grained systemd registration for the dashboard).
+# (idempotent; converge_nexus_dash_service in laravel_main_runtime_common.sh owns
+# the fine-grained systemd registration for the dashboard).
 INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
-UI_SERVICE_ENSURE_SCRIPT="${SCRIPT_CURRENT_DIR}/176_laravel_ui_service.sh"
 UI_BINDING_CONVERGED="no"
 
 . "$LARAVEL_13_UPGRADE_SCRIPT"
@@ -253,6 +253,14 @@ ensure_ui_bun_runtime() {
 }
 
 laravel_main_run() {
+# --ui-service converges ONLY the nexus-dash dashboard unit and returns (the
+# Service Manager install/reinstall path; merged from the retired
+# 176_laravel_ui_service.sh). Runs before any prerequisite work.
+if [ "$UI_SERVICE_ONLY" = "yes" ]; then
+    converge_nexus_dash_service
+    return
+fi
+
 # --show-super-code runs HERE: it needs resolve_php + runtime_config_get,
 # which are defined in the function section above. Cleanup trap is skipped
 # for this read-only query.
@@ -652,7 +660,7 @@ fi
 # N without one (non-interactive safe).
 if [ -z "$INCLUDE_UI" ]; then
     systemd_available
-    if [ "$SYSTEMD_READY" = "yes" ] && [ -f "$UI_SERVICE_ENSURE_SCRIPT" ]; then
+    if [ "$SYSTEMD_READY" = "yes" ]; then
         ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
         if [ "$PROMPT_ANSWER" = "yes" ]; then
             INCLUDE_UI="yes"

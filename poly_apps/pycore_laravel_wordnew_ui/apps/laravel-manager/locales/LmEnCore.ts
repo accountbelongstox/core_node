@@ -527,7 +527,28 @@ vocabulary: {
         unknown_error: "Unknown error",
         delete_success: "Deleted “{word}”.",
         delete_failed: "Delete failed",
-        edit: "Edit"
+        edit: "Edit",
+        cleanup: {
+          invalid_words: "Clean invalid words",
+          invalid_translations: "Clean invalid translations",
+          title_words: "Invalid words",
+          title_translations: "Invalid translations",
+          subtitle_words: "Rows with junk content (CJK text, keyboard mash, …) — the whole row is deleted.",
+          subtitle_translations: "Rows whose translation is an error payload or echoes the word itself — only the translations field is cleared.",
+          preview_failed: "Failed to load the preview: {error}",
+          confirm_hint_words: "Type delete to permanently remove {count} row(s).",
+          confirm_hint_translations: "Type delete to clear translations on {count} row(s).",
+          confirm_placeholder: "delete",
+          purge: "Purge",
+          purging: "Purging...",
+          purged_words: "Deleted {count} invalid word(s).",
+          purged_translations: "Cleared invalid translations on {count} row(s).",
+          purge_failed: "Purge failed: {error}",
+          nothing_to_clean: "Nothing to clean.",
+          reason_invalid_content: "Invalid content",
+          reason_error_marker: "Provider error text",
+          reason_same_as_word: "Same as word"
+        }
       }
     },
 mcp: {

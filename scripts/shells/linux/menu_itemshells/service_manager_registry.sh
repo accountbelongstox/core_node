@@ -6,7 +6,7 @@
 #   composer     -> 94_install_composer.sh    (Composer phar + wrappers)
 #   php85        -> 96_configure_php85.sh     (PHP 8.5 runtime configuration)
 #   laravel_main -> 175_laravel_main_start.sh (ncore-laravel-* systemd service)
-#   nexus_dash   -> 176_laravel_ui_service.sh (ncore-nexus-dash dashboard service)
+#   nexus_dash   -> 175_laravel_main_start.sh --ui-service (ncore-nexus-dash dashboard service)
 # Retained legacy services:
 #   redis / postgresql / docker / mysql / nginx / ssh / pycore (HTTP :59000)
 #   unified_apps / core_services (aggregates owned by their own managers)
@@ -51,8 +51,8 @@ SERVICE_INSTALL_ARGS["laravel_main"]="--service"
 
 SERVICE_NAME["nexus_dash"]="Nexus Dash UI"
 SERVICE_KIND["nexus_dash"]="systemd"
-SERVICE_INSTALL_SCRIPT["nexus_dash"]="176_laravel_ui_service.sh"
-SERVICE_INSTALL_ARGS["nexus_dash"]=""
+SERVICE_INSTALL_SCRIPT["nexus_dash"]="175_laravel_main_start.sh"
+SERVICE_INSTALL_ARGS["nexus_dash"]="--ui-service"
 
 SERVICE_NAME["redis"]="Redis"
 SERVICE_KIND["redis"]="systemd"
