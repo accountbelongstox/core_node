@@ -107,6 +107,8 @@ const VocabularyLearning: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
   // Per-library cover-retry in flight (keyed by library id).
   const [retryingCovers, setRetryingCovers] = useState<Set<number | string>>(new Set());
+  // Per-library AI cover regeneration in flight (keyed by library id).
+  const [aiCovers, setAiCovers] = useState<Set<number | string>>(new Set());
 
   // Library Words Viewer State — the open flag + active library; all paging,
   // stats and word data now live inside <VocabularyLibraryDetail>.
@@ -376,6 +378,36 @@ const VocabularyLearning: React.FC = () => {
       logError('covers', `Cover retry failed for library #${id}: ${error?.message || error}`);
     } finally {
       setRetryingCovers((prev) => { const n = new Set(prev); n.delete(id); return n; });
+    }
+  };
+
+  /**
+   * One-click AI cover regeneration: Laravel's own image gateway generates the
+   * cover synchronously (free-quota providers first), so the card refreshes
+   * with the new image immediately — no mcp-chrome round-trip.
+   */
+  const handleAiRegenerateCover = async (library: any) => {
+    const id = library?.id;
+    if (id == null) return;
+    setAiCovers((prev) => { const n = new Set(prev); n.add(id); return n; });
+    logInfo('covers', `AI-regenerating cover for library #${id} (${library?.name ?? ''})...`);
+    try {
+      const response = await api.appQyV1.regenerateCoverAi(Number(id));
+      if (response.success) {
+        const payload: any = (response as any).data ?? response;
+        const via = payload?.provider ? ` via ${payload.provider}${payload?.cached ? ' (cache)' : ''}` : '';
+        toast.success(`Cover regenerated${via}.`);
+        logSuccess('covers', `AI cover regenerated for library #${id}${via}`);
+        await loadLibraries();
+      } else {
+        toast.error(response.error || 'AI cover generation failed');
+        logError('covers', `AI cover failed for library #${id}: ${response.error || 'unknown error'}`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'AI cover generation failed');
+      logError('covers', `AI cover failed for library #${id}: ${error?.message || error}`);
+    } finally {
+      setAiCovers((prev) => { const n = new Set(prev); n.delete(id); return n; });
     }
   };
 
@@ -1032,6 +1064,8 @@ const VocabularyLearning: React.FC = () => {
           loadLibraryWords={loadLibraryWords}
           handleRetryCover={handleRetryCover}
           retryingCovers={retryingCovers}
+          handleAiRegenerateCover={handleAiRegenerateCover}
+          aiCovers={aiCovers}
           setLibraryToDelete={setLibraryToDelete}
           t={t}
         />

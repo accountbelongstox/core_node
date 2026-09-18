@@ -15,7 +15,7 @@ const PROCESS_STEPS: Array<{
   { id: 'cooperation', titleKey: 'publicHome.process.cooperationTitle', bodyKey: 'publicHome.process.cooperationBody', actionKey: 'publicHome.process.cooperationAction', route: '/codemart/projects' },
   { id: 'funding', titleKey: 'publicHome.process.fundingTitle', bodyKey: 'publicHome.process.fundingBody', actionKey: 'publicHome.process.fundingAction', route: '/codemart/wallet' },
   { id: 'delivery', titleKey: 'publicHome.process.deliveryTitle', bodyKey: 'publicHome.process.deliveryBody', actionKey: 'publicHome.process.deliveryAction', route: '/codemart/marketplace' },
-  { id: 'warranty', titleKey: 'publicHome.process.warrantyTitle', bodyKey: 'publicHome.process.warrantyBody', actionKey: 'publicHome.process.warrantyAction', route: '/codemart/dashboard' },
+  { id: 'warranty', titleKey: 'publicHome.process.warrantyTitle', bodyKey: 'publicHome.process.warrantyBody', actionKey: 'publicHome.process.warrantyAction', route: '/codemart/delivery-process' },
 ];
 
 export const CmDeliveryFlow: React.FC = () => {
