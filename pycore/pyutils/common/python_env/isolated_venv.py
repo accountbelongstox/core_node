@@ -512,9 +512,12 @@ def _install_into(
                 command_env["PIP_CONSTRAINT"] = " ".join(
                     item for item in (os.environ.get("PIP_CONSTRAINT", ""), constraint_path.resolve().as_uri()) if item
                 )
-                command_env["PIP_BUILD_CONSTRAINT"] = " ".join(
-                    item for item in (os.environ.get("PIP_BUILD_CONSTRAINT", ""), constraint_path.resolve().as_uri()) if item
-                )
+                if "--no-build-isolation" not in spec.get("pip_args", ()):
+                    command_env["PIP_BUILD_CONSTRAINT"] = " ".join(
+                        item for item in (os.environ.get("PIP_BUILD_CONSTRAINT", ""), constraint_path.resolve().as_uri()) if item
+                    )
+                else:
+                    command_env["PIP_BUILD_CONSTRAINT"] = ""
             ColorPrint.blue(
                 "[isolated-venv] dependency constraints: " + ", ".join(constraints)
             )

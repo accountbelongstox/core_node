@@ -160,10 +160,10 @@ def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
         return False
     try:
         client = fishaudio.FishAudio(api_key=_fish_api_key())
-        audio = client.tts.convert(text=text, format="mp3")
+        audio = client.tts.convert(text=text)
         output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        if hasattr(audio, "read"):
-            output_mp3.write_bytes(audio.read())
+        if isinstance(audio, (bytes, bytearray)) or hasattr(audio, "read"):
+            output_mp3.write_bytes(bytes(audio) if isinstance(audio, (bytes, bytearray)) else audio.read())
             ok = output_mp3.stat().st_size > 0
             if not ok:
                 _LAST_SYNTH_ERROR.set("Fish Audio SDK returned empty audio")
