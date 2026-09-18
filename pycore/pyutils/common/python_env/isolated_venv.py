@@ -548,6 +548,44 @@ def _run_pip_check(venv_python: str) -> None:
     )
 
 
+def _ensure_embedded_development_files(base_python: str, venv_python: str) -> bool:
+    base_dir = Path(base_python).parent
+    base_tag = ""
+    binary_dir = Path(venv_python).parent
+    target_roots = (binary_dir.parent, binary_dir)
+    source_dir = None
+    source_file = None
+    target_root = None
+    target_file = None
+    directory = ""
+
+    if sys.platform != "win32":
+        return True
+    base_tag = _interpreter_version(base_python).replace(".", "")
+    if not (base_dir / f"python{base_tag}._pth").is_file():
+        return True
+    if not (base_dir / "include" / "Python.h").is_file() or not (
+        base_dir / "libs" / f"python{base_tag}.lib"
+    ).is_file():
+        ColorPrint.yellow(
+            f"[isolated-venv] Python development files missing in {base_dir}; "
+            "run Step13_InstallPython310_312.ps1 before provisioning"
+        )
+        return False
+    for directory in ("include", "libs"):
+        source_dir = base_dir / directory
+        for source_file in source_dir.rglob("*"):
+            if not source_file.is_file():
+                continue
+            for target_root in target_roots:
+                target_file = target_root / directory / source_file.relative_to(source_dir)
+                if target_file.is_file():
+                    continue
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_file, target_file)
+    return True
+
+
 def _ensure_venv_self_contained(
     engine: str,
     packages: Sequence[str],
@@ -607,6 +645,9 @@ def _ensure_venv_self_contained(
             f"[isolated-venv] {engine} venv interpreter is unavailable; "
             "automatic removal is disabled"
         )
+        return None
+
+    if not _ensure_embedded_development_files(base, str(python_path)):
         return None
 
     policy_ready = _stamp_matches(engine, identity=base_identity)
