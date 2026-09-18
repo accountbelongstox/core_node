@@ -2,6 +2,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -67,7 +68,7 @@ class CodeMartV1TaskModel extends CodeMartV1Model
         $query = self::query()
             ->where('status', 'open')
             ->whereNull('assigned_to')
-            ->whereBetween('budget_allocation', [$minBudget, $maxBudget]);
+            ->whereRaw('COALESCE(budget_allocation, 0) BETWEEN ? AND ?', [$minBudget, $maxBudget]);
 
         if ($skills !== []) {
             $query->where(function ($skillQuery) use ($skills) {
@@ -93,7 +94,7 @@ class CodeMartV1TaskModel extends CodeMartV1Model
             ->whereNull('assigned_to')
             ->update([
                 'assigned_to' => $userId,
-                'status' => 'in_progress',
+                'status' => CodeMartV1Constants::TASK_STATUS_ASSIGNED,
                 'assigned_at' => now(),
                 'updated_at' => now(),
             ]) === 1;
@@ -103,7 +104,12 @@ class CodeMartV1TaskModel extends CodeMartV1Model
     {
         return self::query()
             ->where('assigned_to', $userId)
-            ->whereIn('status', ['in_progress', 'review', 'completed'])
+            ->whereIn('status', [
+                CodeMartV1Constants::TASK_STATUS_ASSIGNED,
+                CodeMartV1Constants::TASK_STATUS_IN_PROGRESS,
+                CodeMartV1Constants::TASK_STATUS_REVIEW,
+                CodeMartV1Constants::TASK_STATUS_COMPLETED,
+            ])
             ->latest('updated_at')
             ->get();
     }
@@ -140,7 +146,9 @@ class CodeMartV1TaskModel extends CodeMartV1Model
         return static::query()->create(array_merge($attributes, [
             'milestone_id' => $milestoneId,
             'order' => $nextOrder,
-            'status' => 'pending',
+            'status' => empty($attributes['assigned_to'])
+                ? CodeMartV1Constants::TASK_STATUS_OPEN
+                : CodeMartV1Constants::TASK_STATUS_ASSIGNED,
         ]));
     }
 

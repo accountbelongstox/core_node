@@ -61,8 +61,8 @@ class CodeMartV1PaymentCtl extends Controller
 
         $validator = Validator::make($request->all(), [
             'payee_id' => 'required|exists:users,id',
-            'project_id' => 'nullable|exists:codemart_projects,id',
-            'milestone_id' => 'nullable|exists:codemart_milestones,id',
+            'project_id' => 'nullable|exists:codemartv1.codemart_v1_projects,id',
+            'milestone_id' => 'nullable|exists:codemartv1.codemart_v1_milestones,id',
             'amount' => 'required|numeric|min:0.01',
             'type' => 'required|in:milestone,hourly,refund,bonus',
             'payment_method' => 'required|in:wallet,credit_card,bank_transfer,alipay,wechat',
@@ -156,7 +156,7 @@ class CodeMartV1PaymentCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'payment_id' => 'required|exists:codemart_payments,id',
+            'payment_id' => 'required|exists:codemartv1.codemart_v1_payments,id',
             'description' => 'nullable|string',
             'line_items' => 'nullable|array',
             'tax' => 'nullable|numeric|min:0',
@@ -198,7 +198,7 @@ class CodeMartV1PaymentCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'payment_id' => 'required|exists:codemart_payments,id',
+            'payment_id' => 'required|exists:codemartv1.codemart_v1_payments,id',
             'reason' => 'required|string',
             'notes' => 'nullable|string',
         ]);

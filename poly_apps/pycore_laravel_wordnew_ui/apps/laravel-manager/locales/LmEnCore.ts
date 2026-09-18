@@ -447,6 +447,8 @@ vocabulary: {
         static_resources: "Static Resources",
         files: "Files",
         storage_details: "Storage Details",
+        refresh: "Refresh",
+        updated_at: "Updated",
         total_storage: "Total",
         file_unit: "files",
         audio: "Audio",

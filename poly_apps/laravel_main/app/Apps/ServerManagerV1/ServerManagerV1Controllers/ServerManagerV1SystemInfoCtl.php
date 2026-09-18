@@ -302,7 +302,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
 
         try {
             $analyzer = new ServerManagerV1StaticResourceAnalyzer();
-            $summary = $analyzer->analyze();
+            $summary = $analyzer->analyze($request->boolean('fresh'));
             $summary['disk_usage'] = $this->getDiskUsageDetailed();
 
             return $this->success($summary, 'Static resources summary retrieved successfully');

@@ -429,6 +429,8 @@ vocabulary: {
         static_resources: "静态资源",
         files: "文件管理",
         storage_details: "存储详情",
+        refresh: "刷新",
+        updated_at: "更新时间",
         total_storage: "总占用",
         file_unit: "文件",
         audio: "音频",

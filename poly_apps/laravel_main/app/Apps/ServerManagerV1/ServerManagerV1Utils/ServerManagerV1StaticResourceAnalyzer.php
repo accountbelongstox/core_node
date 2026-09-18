@@ -10,12 +10,22 @@ use Illuminate\Support\Facades\Cache;
  */
 class ServerManagerV1StaticResourceAnalyzer
 {
-    private const SCAN_FILE_LIMIT = 100000;
+    // PHP-iterator fallback cap only; the shell `find` fast path is untruncated.
+    private const SCAN_FILE_LIMIT = 500000;
 
-    /** The full analyze() scan shells out to `du` per directory - cache the summary. */
     private const SUMMARY_CACHE_KEY = 'servermanager:static_resources_summary';
 
-    private const SUMMARY_CACHE_TTL_SEC = 30;
+    /** Serve cached data for up to one hour. */
+    private const SUMMARY_CACHE_TTL_SEC = 3600;
+
+    /** Data older than this is served stale while a background refresh runs. */
+    private const SUMMARY_STALE_AFTER_SEC = 600;
+
+    private const REFRESH_LOCK_KEY = 'servermanager:static_resources_summary_refresh';
+
+    private const REFRESH_LOCK_TTL_SEC = 600;
+
+    private const FIND_TIMEOUT_SEC = 180;
 
     private const TYPE_EXTENSIONS = [
         'audio' => ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'wma'],
@@ -35,13 +45,70 @@ class ServerManagerV1StaticResourceAnalyzer
         'media' => 'Media clips & AI audio',
     ];
 
-    public function analyze(): array
+    /**
+     * Cached static-resources summary with stale-while-revalidate semantics:
+     * the full scan walks 100k+ files, so it must never run inside a normal
+     * request (it would block an Octane worker for ~90s). Cached data is
+     * served instantly for up to SUMMARY_CACHE_TTL_SEC; once it is older
+     * than SUMMARY_STALE_AFTER_SEC the snapshot is still served, flagged
+     * 'stale', while ServerManagerV1StaticResourcesWarmTask re-scans on the
+     * Octane timer (deferred callbacks do not run reliably inside the
+     * FrankenPHP worker loop, so the warm path is timer-driven). Pass
+     * $forceFresh to scan synchronously on demand.
+     */
+    public function analyze(bool $forceFresh = false): array
     {
-        return Cache::remember(self::SUMMARY_CACHE_KEY, self::SUMMARY_CACHE_TTL_SEC, function () {
-            $summary = $this->analyzeUncached();
-            $summary['generated_at'] = now()->toIso8601String();
-            return $summary;
-        });
+        if ($forceFresh) {
+            return $this->computeAndStore();
+        }
+
+        $cached = Cache::get(self::SUMMARY_CACHE_KEY);
+        if (!is_array($cached)) {
+            // Cold start: first request after deploy/cache flush pays the scan once.
+            return $this->computeAndStore();
+        }
+
+        $generatedAt = strtotime($cached['generated_at'] ?? '') ?: 0;
+        $cached['stale'] = (time() - $generatedAt) >= self::SUMMARY_STALE_AFTER_SEC;
+
+        return $cached;
+    }
+
+    /**
+     * Re-scan and store only when the cached snapshot is missing or stale.
+     * Called by the Octane timer warm task; the cache lock guarantees a
+     * single worker re-scans even with several app instances ticking.
+     */
+    public function refreshIfStale(): bool
+    {
+        $cached = Cache::get(self::SUMMARY_CACHE_KEY);
+        $generatedAt = is_array($cached) ? (strtotime($cached['generated_at'] ?? '') ?: 0) : 0;
+        if ((time() - $generatedAt) < self::SUMMARY_STALE_AFTER_SEC) {
+            return false;
+        }
+
+        $lock = Cache::lock(self::REFRESH_LOCK_KEY, self::REFRESH_LOCK_TTL_SEC);
+        if (!$lock->get()) {
+            return false; // another worker already picked up the refresh
+        }
+
+        try {
+            $this->computeAndStore();
+        } finally {
+            $lock->release();
+        }
+
+        return true;
+    }
+
+    private function computeAndStore(): array
+    {
+        $summary = $this->analyzeUncached();
+        $summary['generated_at'] = now()->toIso8601String();
+        $summary['stale'] = false;
+        Cache::put(self::SUMMARY_CACHE_KEY, $summary, self::SUMMARY_CACHE_TTL_SEC);
+
+        return $summary;
     }
 
     private function analyzeUncached(): array
@@ -350,7 +417,65 @@ class ServerManagerV1StaticResourceAnalyzer
         return $buckets;
     }
 
+    /**
+     * Single-pass file walk. Prefers the shell `find` (C speed, untruncated
+     * counts for 100k+ file trees); falls back to the PHP recursive iterator
+     * where `find` is unavailable, which truncates at SCAN_FILE_LIMIT.
+     */
     private function walkFiles(string $rootPath): array
+    {
+        $byType = $this->emptyTypeBuckets();
+        $totalFiles = 0;
+        $totalDirectories = 0;
+        $truncated = false;
+
+        $find = ServerManagerV1Utils::executeCommand(
+            'find',
+            [$rootPath, '-mindepth', '1', '-printf', '%y\t%s\t%f\n'],
+            self::FIND_TIMEOUT_SEC
+        );
+
+        if ($find['success'] && trim((string) $find['output']) !== '') {
+            foreach (explode("\n", $find['output']) as $line) {
+                if ($line === '') {
+                    continue;
+                }
+                $parts = explode("\t", $line, 3);
+                $type = $parts[0] ?? '';
+                if ($type === 'd') {
+                    $totalDirectories++;
+                    continue;
+                }
+                if ($type !== 'f') {
+                    continue; // symlinks etc. match the PHP iterator behavior (not counted)
+                }
+                $totalFiles++;
+                $size = (int) ($parts[1] ?? 0);
+                $category = $this->resolveCategory(strtolower(pathinfo($parts[2] ?? '', PATHINFO_EXTENSION)));
+                $byType[$category]['count']++;
+                $byType[$category]['size_bytes'] += $size;
+            }
+        } else {
+            $walked = $this->walkFilesWithIterator($rootPath);
+            $byType = $walked['by_type'];
+            $totalFiles = $walked['total_files'];
+            $totalDirectories = $walked['total_directories'];
+            $truncated = $walked['truncated'];
+        }
+
+        foreach ($byType as $key => $bucket) {
+            $byType[$key]['size_human'] = ServerManagerV1Utils::formatFileSize($bucket['size_bytes']);
+        }
+
+        return [
+            'total_files' => $totalFiles,
+            'total_directories' => $totalDirectories,
+            'truncated' => $truncated,
+            'by_type' => $byType,
+        ];
+    }
+
+    private function walkFilesWithIterator(string $rootPath): array
     {
         $byType = $this->emptyTypeBuckets();
         $totalFiles = 0;
@@ -384,10 +509,6 @@ class ServerManagerV1StaticResourceAnalyzer
             }
         } catch (\Throwable $e) {
             // Partial results are still useful for the dashboard.
-        }
-
-        foreach ($byType as $key => $bucket) {
-            $byType[$key]['size_human'] = ServerManagerV1Utils::formatFileSize($bucket['size_bytes']);
         }
 
         return [
@@ -425,6 +546,15 @@ class ServerManagerV1StaticResourceAnalyzer
 
     private function countFilesUnder(string $path): int
     {
+        $result = ServerManagerV1Utils::executeCommand(
+            'sh',
+            ['-c', 'find ' . escapeshellarg($path) . ' -type f -printf . 2>/dev/null | wc -c'],
+            self::FIND_TIMEOUT_SEC
+        );
+        if ($result['success']) {
+            return (int) trim($result['output']);
+        }
+
         $count = 0;
         try {
             $iterator = new \RecursiveIteratorIterator(

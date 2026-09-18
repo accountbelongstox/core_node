@@ -5,6 +5,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskSubmissionModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskCommentModel;
@@ -51,7 +52,7 @@ class CodeMartV1TaskCtl extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'milestone_id' => 'required|exists:codemart_milestones,id',
+            'milestone_id' => 'required|exists:codemartv1.codemart_v1_milestones,id',
             'title' => 'required|string|max:255',
             'description' => 'required|string',
             'priority' => 'required|in:low,medium,high,urgent',
@@ -110,7 +111,7 @@ class CodeMartV1TaskCtl extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
-            'status' => 'sometimes|in:pending,in_progress,review,completed,blocked',
+            'status' => 'sometimes|in:' . implode(',', CodeMartV1Constants::getAllTaskStatuses()),
             'priority' => 'sometimes|in:low,medium,high,urgent',
             'assigned_to' => 'sometimes|nullable|exists:users,id',
             'due_date' => 'sometimes|nullable|date',

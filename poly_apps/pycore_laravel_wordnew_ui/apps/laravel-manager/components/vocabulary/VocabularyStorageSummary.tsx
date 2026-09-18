@@ -1,5 +1,5 @@
 import React, { type ReactNode, useEffect, useState } from 'react';
-import { HardDrive, ExternalLink } from 'lucide-react';
+import { HardDrive, ExternalLink, RefreshCw } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { ViewType, type StaticResourcesSummary } from '@/apps/laravel-manager/uiTypes';
@@ -18,25 +18,36 @@ const VocabularyStorageSummary: React.FC<VocabularyStorageSummaryProps> = ({ chi
   const { lang, setActiveView } = useUnifiedApp();
   const text = TRANSLATIONS[lang].vocabulary.words_manager;
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<StaticResourcesSummary | null>(null);
+
+  const loadSummary = async (fresh = false) => {
+    try {
+      const res = await api.serverManagerV1.getStaticResourcesSummary(fresh);
+      if (res.success && res.data) {
+        setSummary(res.data as StaticResourcesSummary);
+      }
+    } catch {
+      /* dashboard is optional on vocabulary page */
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      try {
-        const res = await api.serverManagerV1.getStaticResourcesSummary();
-        if (!cancelled && res.success && res.data) {
-          setSummary(res.data as StaticResourcesSummary);
-        }
-      } catch {
-        /* dashboard is optional on vocabulary page */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await loadSummary();
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadSummary(true);
+    setRefreshing(false);
+  };
 
   const openServerStorage = () => {
     try { localStorage.setItem(SERVER_TAB_KEY, 'system'); } catch { /* ignore */ }
@@ -67,7 +78,22 @@ const VocabularyStorageSummary: React.FC<VocabularyStorageSummaryProps> = ({ chi
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {summary?.generated_at && (
+            <span className="text-xs text-slate-400 dark:text-slate-500" title={summary.generated_at}>
+              {text.updated_at}: {new Date(summary.generated_at).toLocaleString()}
+              {summary.stale ? ' …' : ''}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {text.refresh}
+          </button>
           <button
             type="button"
             onClick={openMediaFiles}

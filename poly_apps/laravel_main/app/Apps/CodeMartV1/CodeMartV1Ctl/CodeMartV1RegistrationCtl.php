@@ -192,7 +192,7 @@ class CodeMartV1RegistrationCtl extends Controller
 
         $validator = Validator::make($request->all(), [
             'identity_type' => 'required|in:ID_CARD,PASSPORT,DRIVING_LICENSE',
-            'identity_number' => 'required|string|unique:codemart_kyc_verifications',
+            'identity_number' => 'required|string|unique:codemartv1.codemart_v1_kyc_verifications',
             'real_name' => 'required|string|max:100',
             'date_of_birth' => 'required|date|before:today',
             'id_front_image' => 'required|file|image',

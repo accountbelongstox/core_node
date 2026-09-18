@@ -355,6 +355,8 @@ export interface StaticResourcesSummary {
   data_dir_accounted_human?: string;
   data_dir_unaccounted_bytes?: number;
   data_dir_unaccounted_human?: string;
+  generated_at?: string;
+  stale?: boolean;
   disk_usage?: SystemStorage[];
 }
 

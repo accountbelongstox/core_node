@@ -21,7 +21,9 @@ const CmPublicHomePage: React.FC = () => {
     }
     requestAuthLogin({ source: 'codemart', reason: 'project-create' });
   };
-  const openMarketplace = (): void => navigate('/codemart/marketplace');
+  const openMarketplace = (): void => {
+    void navigate('/codemart/marketplace');
+  };
 
   return (
     <div className="cm-public-home" data-end="codemart">

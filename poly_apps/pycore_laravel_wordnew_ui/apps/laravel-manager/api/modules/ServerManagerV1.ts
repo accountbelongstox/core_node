@@ -72,8 +72,8 @@ export class ServerManagerV1API extends BaseAPI {
     return response;
   }
 
-  async getStaticResourcesSummary(): Promise<APIResponse> {
-    return this.get('/system/static-resources');
+  async getStaticResourcesSummary(fresh = false): Promise<APIResponse> {
+    return this.get('/system/static-resources', fresh ? { fresh: 1 } : undefined);
   }
 
   async listStaticResourceFiles(params: {
