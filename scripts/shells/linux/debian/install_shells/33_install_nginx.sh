@@ -26,7 +26,7 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-SCRIPT_INDEX="26"
+SCRIPT_INDEX="33"
 NGINX_STEP_NAMESPACE="26_install_nginx"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

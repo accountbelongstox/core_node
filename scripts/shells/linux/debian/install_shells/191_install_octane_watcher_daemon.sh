@@ -8,6 +8,7 @@
 # 5. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="191"
 
 set -e
 

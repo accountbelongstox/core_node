@@ -10,6 +10,7 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="31"
 
 # Sherpa-ONNX offline TTS (Kokoro zh/en model) - self-contained, no sibling installers.
 # Other TTS/STT engines are separate numbered scripts; the caller (dd.sh sweep or

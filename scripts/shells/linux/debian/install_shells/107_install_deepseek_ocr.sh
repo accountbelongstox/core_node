@@ -25,7 +25,7 @@ PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 # nvidia-* CUDA stack onto a GPU-less desktop. Provides tcg_gpu_present etc.
 source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
 
-SCRIPT_NAME="[98_install_deepseek_ocr]"
+SCRIPT_NAME="[107_install_deepseek_ocr]"
 MODEL_NAME="DeepSeek-OCR"
 REPO_URL="https://github.com/deepseek-ai/DeepSeek-OCR.git"
 MODEL_PATH="deepseek-ai/DeepSeek-OCR"

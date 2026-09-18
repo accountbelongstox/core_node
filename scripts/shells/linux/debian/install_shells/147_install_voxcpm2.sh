@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="147"
 # VoxCPM2 prerequisite (Linux) - OpenBMB TTS, ISOLATED self-contained per-engine
 # venv (base Python 3.10; the main 3.13 interpreter is outside the official
 # 3.10-3.12 window and is never touched). Production runs VoxCPM2 as a class-C

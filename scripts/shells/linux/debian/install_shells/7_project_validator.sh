@@ -18,7 +18,7 @@
 set -e
 
 # Script index for logging
-SCRIPT_INDEX="8"
+SCRIPT_INDEX="7"
 
 # Repository URLs are resolved from gvar_common.sh after it is sourced below.
 

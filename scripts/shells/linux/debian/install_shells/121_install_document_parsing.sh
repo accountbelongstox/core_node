@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+SCRIPT_INDEX="121"
 # ---------------------------------------------------------------------------
 # install_document_parsing.sh - Prerequisite installer for the Books / document
 # ingest pipeline (Linux/Mac/Debian side).

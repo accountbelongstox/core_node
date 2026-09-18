@@ -9,6 +9,7 @@
 # 6. Do not modify these rules
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="175"
 
 # --- All variables and file references (declared at top) ---
 ORIGINAL_DIR=$(pwd)
@@ -58,7 +59,7 @@ COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
 
 # Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
 # $polyConnection(... , pgDatabase) targets). Created idempotently before migrate.
-APP_DB_NAMES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database pdd_tool_v1_database"
+APP_DB_NAMES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database pdd_tool_v1_database ding_duo_duo_v1_database"
 
 # Laravel runtime directories that MUST exist and be writable (git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails).

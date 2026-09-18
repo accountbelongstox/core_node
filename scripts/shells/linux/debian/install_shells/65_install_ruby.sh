@@ -17,7 +17,7 @@ source "$COMMON_DIR/common_functions.sh"
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script identification and path setup
-SCRIPT_INDEX="42"
+SCRIPT_INDEX="65"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -27,7 +27,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "128_install_ruby")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "65_install_ruby")
 LOG_FILE="$SCRIPT_TEMP_DIR/ruby_install_$(date +%Y%m%d_%H%M%S).log"
 
 # Ruby installation directories using map_web_path
@@ -155,7 +155,7 @@ setup_ruby_environment() {
     mkdir -p "$RUBY_GEM_HOME" "$RUBY_GEM_BIN_DIR"
 
     # Set environment for current session
-GEM_HOME="$RUBY_GEM_HOME"
+    export GEM_HOME="$RUBY_GEM_HOME"
     export PATH="$RUBY_GEM_BIN_DIR:$PATH"
 
     # Add gem paths to shell profiles

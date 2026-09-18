@@ -347,6 +347,7 @@ acme_sh_ensure_certificate() {
     local cert_dir=""
     local acme_bin=""
     local issue_log=""
+    local account_conf=""
     local material_ready=""
     local -a san_args=()
     local -a install_args=()
@@ -380,7 +381,24 @@ acme_sh_ensure_certificate() {
         fi
         account_email="$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY" 2>/dev/null)"
         if [ -n "$account_email" ]; then
-            "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --register-account -m "$account_email" >/dev/null 2>&1 || true
+            # Heal the acme.sh account email before any registration: an install
+            # that ran while the email secret was unresolved leaves acme.sh's
+            # example.com placeholder in account.conf, and every IMPLICIT
+            # registration (--issue without -m) then dies with the LE
+            # invalidContact "forbidden domain example.com" error. Rewrite the
+            # persisted ACCOUNT_EMAIL idempotently so implicit and explicit
+            # registrations alike use the real mailbox.
+            account_conf="${ACME_INSTALL_CONFIG_DIR}/account.conf"
+            if [ -f "$account_conf" ]; then
+                if grep -q "^ACCOUNT_EMAIL=" "$account_conf" 2>/dev/null; then
+                    sed -i "s|^ACCOUNT_EMAIL=.*|ACCOUNT_EMAIL='${account_email}'|" "$account_conf"
+                else
+                    printf "ACCOUNT_EMAIL='%s'\n" "$account_email" >> "$account_conf"
+                fi
+            fi
+            "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --register-account --server letsencrypt -m "$account_email" >/dev/null 2>&1 || true
+        else
+            echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] ${FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY} unresolved; ACME account email may be invalid for ${apex_domain}"
         fi
         dp_id="${token_value%%,*}"
         dp_key="${token_value#*,}"
@@ -391,19 +409,22 @@ acme_sh_ensure_certificate() {
         san_args+=(-d "*.${prefix}.${apex_domain}")
     fi
 
-    # DNS propagation can settle after the provider API accepts the record.
-    # Retry only when the issued material postcondition is still absent.
+    # DNS propagation can settle after the provider API accepts the record
+    # (observed: LE verified _acme-challenge.si.<apex> ~40s after the DNSPod
+    # add and found no TXT). --dnssleep waits AFTER the record add before
+    # letting LE verify. Retry only when the issued material postcondition is
+    # still absent.
     if [ "$material_ready" != "yes" ]; then
         DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --issue --dns dns_dp \
             "${san_args[@]}" \
-            --server letsencrypt --keylength ec-256 >"$issue_log" 2>&1 || true
+            --server letsencrypt --keylength ec-256 --dnssleep 120 >"$issue_log" 2>&1 || true
         material_ready="$(acme_sh_domain_material_ready "$apex_domain" "$prefix")"
     fi
     if [ "$material_ready" != "yes" ]; then
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] issued material is not ready for ${apex_domain}; retrying once"
         DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --issue --dns dns_dp \
             "${san_args[@]}" \
-            --server letsencrypt --keylength ec-256 >"$issue_log" 2>&1 || true
+            --server letsencrypt --keylength ec-256 --dnssleep 120 >"$issue_log" 2>&1 || true
         material_ready="$(acme_sh_domain_material_ready "$apex_domain" "$prefix")"
     fi
     if [ "$material_ready" != "yes" ]; then

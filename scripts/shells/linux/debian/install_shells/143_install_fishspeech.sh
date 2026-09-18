@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="143"
 # Fish Speech / Fish Audio prerequisite (Linux).
 # Builds a DEDICATED self-contained per-engine venv (base Python 3.10) via
 # isolated_venv.ensure_venv('fishspeech', ...) carrying the bridge/SDK dependency

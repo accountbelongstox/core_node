@@ -20,7 +20,7 @@ source "$COMMON_DIR/common_functions.sh"
 SCRIPT_CURRENT_DIR=""
 PARENT_DIR_LEVEL_1=""
 PARENT_DIR_LEVEL_2=""
-SCRIPT_INDEX="52"
+SCRIPT_INDEX="87"
 INSTALL_SAMBA=""
 
 # Source global variables
@@ -30,7 +30,6 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Initialize variables
-SCRIPT_INDEX="52"
 INSTALL_SAMBA=$(get_var "INSTALL_SAMBA")
 
 echo "[$SCRIPT_INDEX] Samba Management Script"

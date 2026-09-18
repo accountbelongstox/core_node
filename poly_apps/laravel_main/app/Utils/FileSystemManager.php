@@ -62,7 +62,7 @@ class FileSystemManager
                 try {
                     mkdir($mappedDir, 0755, true);
                 } catch (\Throwable $e) {
-                    \Log::error('[FileSystemManager] Failed to create mapped dir: ' . $mappedDir . ' - ' . $e->getMessage());
+                    SafeLogger::error('[FileSystemManager] Failed to create mapped dir: ' . $mappedDir . ' - ' . $e->getMessage());
                 }
             }
 
@@ -75,7 +75,7 @@ class FileSystemManager
                     try {
                         symlink($symlinkTarget, $symlinkPath);
                     } catch (\Throwable $e) {
-                        \Log::error('[FileSystemManager] Failed to create symlink: ' . $symlinkPath . ' -> ' . $symlinkTarget . ' - ' . $e->getMessage());
+                        SafeLogger::error('[FileSystemManager] Failed to create symlink: ' . $symlinkPath . ' -> ' . $symlinkTarget . ' - ' . $e->getMessage());
                     }
                 }
             }
@@ -785,7 +785,7 @@ class FileSystemManager
             } catch (\Exception $e) {
                 $errorMsg = "Failed to scan directory: {$dir} - " . $e->getMessage();
                 $errors[] = $errorMsg;
-                \Log::warning($errorMsg);
+                SafeLogger::warning($errorMsg);
             }
         }
 

@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="141"
 # Bark TTS prerequisite (Linux) - Suno via Hugging Face transformers.
 # Category 1 / Bucket A: Python 3.x native, in-process local model that SHARES the
 # main interpreter's single pinned transformers with deepseek/qwen25/nllb.

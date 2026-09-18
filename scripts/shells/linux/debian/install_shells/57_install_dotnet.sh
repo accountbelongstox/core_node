@@ -17,7 +17,7 @@ source "$COMMON_DIR/common_functions.sh"
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script identification and path setup
-SCRIPT_INDEX="38"
+SCRIPT_INDEX="57"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
@@ -28,7 +28,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 START_DOTNET=$(get_var "START_DOTNET" "false")
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "129_install_dotnet")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "57_install_dotnet")
 LOG_FILE="$SCRIPT_TEMP_DIR/dotnet_install_$(date +%Y%m%d_%H%M%S).log"
 DOTNET_VERSION="8.0"
 

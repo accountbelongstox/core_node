@@ -29,7 +29,7 @@ command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { prin
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
-SCRIPT_NAME="[97_install_deepseek]"
+SCRIPT_NAME="[105_install_deepseek]"
 MODEL_NAME="DeepSeek-VL"
 REPO_URL="https://github.com/deepseek-ai/DeepSeek-VL.git"
 MODEL_PATH="deepseek-ai/deepseek-vl-7b-chat"

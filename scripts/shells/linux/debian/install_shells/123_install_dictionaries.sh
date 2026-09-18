@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="123"
 # Offline word-dictionary prerequisite (Linux) - auto-run by prepare_pycore_prerequisites.sh
 # (pyservice), which passes the resolved Python path. Provides the FREE, offline
 # word-translation data the pycore translator uses ALONGSIDE Google:

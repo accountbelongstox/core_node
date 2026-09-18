@@ -21,9 +21,13 @@
 #   - Prefer Fcitx5 when fcitx5-chinese-addons is available
 #     (Debian 11+, Kali, Ubuntu 22.04+); its built-in `wbx` already provides
 #     Wubi 86, and fcitx5-table-extra (Debian 13+/Ubuntu 24.04+/Kali) adds the
-#     richer `wubi-large` tables when present.
+#     richer `wubi-large` tables when present. Installed with
+#     --install-recommends per the Debian wiki, plus the GNOME kimpanel
+#     extension / KDE KCM when those desktops are available.
 #   - Fall back to IBus (ibus-table-wubi) which exists on EVERY target,
-#     including Ubuntu 18.04/20.04 where fcitx5 is absent or too old.
+#     including Ubuntu 18.04/20.04 where fcitx5 is absent or too old; the Wubi
+#     engine is also appended to GNOME's input-source list so it shows up in
+#     the keyboard switcher (Super+Space) without manual setup.
 # Every optional package is filtered through apt-cache so the install never
 # requests a package that does not exist on the running release. This is what
 # makes ONE script work across Debian, Ubuntu and Kali without a release matrix.
@@ -81,6 +85,11 @@ FCITX5_OPTIONAL=(
     "fcitx5-frontend-qt5"
     "fcitx5-frontend-qt6"
     "fcitx5-table-extra"
+    # Debian wiki (I18n/Fcitx5): GNOME users should install the kimpanel
+    # extension; KDE users get the KCM config module. Both are
+    # availability-filtered, so non-GNOME/non-KDE releases skip them.
+    "gnome-shell-extension-kimpanel"
+    "kde-config-fcitx5"
 )
 IBUS_OPTIONAL=("ibus-gtk" "ibus-gtk3" "ibus-gtk4" "ibus-clutter")
 
@@ -134,6 +143,21 @@ apt_install() {
         "${pkgs[@]}"
 }
 
+# Variant with --install-recommends. Debian wiki (I18n/Fcitx5) recommends it for
+# the fcitx5 core pair so the module packs most users need come along.
+apt_install_with_recommends() {
+    local pkgs=("$@")
+    if [ ${#pkgs[@]} -eq 0 ]; then
+        return 0
+    fi
+    ensure_apt_update
+    print_step_from_common_functions "Installing (with recommends): ${pkgs[*]}"
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y --install-recommends \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
+        "${pkgs[@]}"
+}
+
 # Echo only the packages from the argument list that exist on this release.
 filter_available() {
     local pkg
@@ -176,7 +200,7 @@ choose_framework() {
 install_fcitx5() {
     local optional
     print_step_from_common_functions "Installing Fcitx5 + Chinese (Wubi) support..."
-    apt_install "${FCITX5_REQUIRED[@]}"
+    apt_install_with_recommends "${FCITX5_REQUIRED[@]}"
     optional=$(filter_available "${FCITX5_OPTIONAL[@]}")
     if [ -n "$optional" ]; then
         # shellcheck disable=SC2086
@@ -325,6 +349,32 @@ enable_fcitx5_wubi() {
     run_as_real_user fcitx5-remote -r >/dev/null 2>&1 || true
 }
 
+# Register the Wubi engine in GNOME's input-source list (the visible keyboard
+# switcher, Super+Space). preload-engines alone only warms the engine cache -
+# without a sources entry the user must add Wubi by hand in Settings. Idempotent:
+# the engine tuple is appended only when absent. Non-GNOME sessions (Kali Xfce,
+# KDE, headless) lack the schema, so every step fails soft.
+add_ibus_engine_to_gnome_sources() {
+    command -v gsettings >/dev/null 2>&1 || return 0
+    local engine_name="${IBUS_ENGINE#table:}"
+    local current updated
+    current="$(run_as_real_user gsettings get org.gnome.desktop.input-sources sources 2>/dev/null)"
+    [ -n "$current" ] || return 0
+    case "$current" in
+        *"ibus', '${engine_name}'"*) return 0 ;;
+    esac
+    if [ "$current" = "@as []" ]; then
+        updated="[('xkb', 'us'), ('ibus', '${engine_name}')]"
+    else
+        updated="${current%]}, ('ibus', '${engine_name}')]"
+    fi
+    if run_as_real_user gsettings set org.gnome.desktop.input-sources sources "$updated" >/dev/null 2>&1; then
+        print_success_from_common_functions "GNOME input sources now include Wubi ($engine_name)"
+    else
+        print_info_from_common_functions "GNOME input sources unchanged (add Wubi in Settings > Keyboard if desired)"
+    fi
+}
+
 enable_ibus_wubi() {
     print_step_from_common_functions "Enabling IBus Wubi engine ($IBUS_ENGINE) for $REAL_USER..."
     # Regenerate the engine registry so the freshly installed table is visible.
@@ -338,6 +388,7 @@ enable_ibus_wubi() {
             print_warning_from_common_functions "Could not preload the engine now (no active session?); add it via ibus-setup"
         fi
     fi
+    add_ibus_engine_to_gnome_sources
 }
 
 # Install Chinese language support: a CJK font + the zh_CN.UTF-8 locale. The IME
@@ -358,8 +409,8 @@ install_language_support() {
         apt_install $fonts
     fi
     # Optional, availability-gated: extra Noto weights + WenQuanYi fallback, and the
-    # Ubuntu-only localized-UI pack (auto-skipped on Debian/Kali where it does not exist).
-    optional=$(filter_available "fonts-noto-cjk-extra" "fonts-wqy-zenhei" "fonts-wqy-microhei" "language-pack-zh-hans")
+    # Ubuntu-only localized-UI packs (auto-skipped on Debian/Kali where they do not exist).
+    optional=$(filter_available "fonts-noto-cjk-extra" "fonts-wqy-zenhei" "fonts-wqy-microhei" "language-pack-zh-hans" "language-pack-gnome-zh-hans")
     if [ -n "$optional" ]; then
         # shellcheck disable=SC2086
         apt_install $optional

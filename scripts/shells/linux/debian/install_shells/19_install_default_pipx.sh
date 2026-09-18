@@ -10,6 +10,7 @@
 # 7. Do not modify these rules.
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="19"
 
 # Declare all variables at the beginning
 SCRIPT_CURRENT_DIR=""

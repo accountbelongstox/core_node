@@ -14,7 +14,7 @@
 #              incl. Ubuntu 24+). Uses official native packages from packages.dragonflydb.io
 #              (the repo serves one static "noble" suite that installs on any Debian-family).
 # Author: System Administrator
-# Design: Same style as 43_ensure_php85_intelligent.sh and 73_install_redis.sh
+# Design: Same style as 96_configure_php85.sh and 73_install_redis.sh
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -23,7 +23,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_INDEX="[46_DRAGONFLY]"
+SCRIPT_INDEX="[71_DRAGONFLY]"
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
