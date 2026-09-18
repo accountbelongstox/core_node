@@ -516,6 +516,7 @@ main() {
 
     if [ "$FRAMEWORK" = "fcitx5" ]; then
         enable_fcitx5_wubi
+        enable_gnome_kimpanel_extension
     else
         enable_ibus_wubi
     fi
@@ -546,6 +547,7 @@ main() {
     if [ "$FRAMEWORK" = "fcitx5" ]; then
         print_info_from_common_functions "Wubi IME  : $WUBI_IM"
         print_info_from_common_functions "Configure : fcitx5-configtool (add/adjust Wubi if needed)"
+        print_info_from_common_functions "GNOME     : kimpanel extension enabled (fcitx5 top-bar icon)"
     else
         print_info_from_common_functions "Wubi engine: $IBUS_ENGINE"
         print_info_from_common_functions "Configure  : ibus-setup (add Wubi under Input Method if needed)"
