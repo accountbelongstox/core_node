@@ -1,0 +1,1005 @@
+ Permission mode: Never Ask
+
+ ✨ docs_fix\origin\kimi2server.txt 读取并按规范修复
+ … thinking 64 times, call 110 tools, 28 messages
+
+ ● Ran a command · $ ls /var/_core_node/data/ 2>/dev/null |…
+   code_sync_backups
+   code_sync_logs
+
+ ● No audio_orchestration data on this machine (the
+   NIV-Bible task was on a different machine, likely the
+   … (8 more lines, ctrl+o to expand)
+
+ ✗ Ran a command · $ python3 - <<'EOF'…
+   Traceback (most recent call last):
+     File "<stdin>", line 3, in <module>
+     File
+   … (54 more lines, ctrl+o to expand)
+
+ ● Import chain pulls pystray (GUI) which fails headless.
+   The real pyservice presumably runs with proper env. For
+   … (2 more lines, ctrl+o to expand)
+
+ ✗ Ran a command · $ PYSTRAY_BACKEND=dummy python3 - <<'EOF…
+   Traceback (most recent call last):
+     File "<stdin>", line 3, in <module>
+     File
+   … (30 more lines, ctrl+o to expand)
+
+ ● `_getters_core.py` imports pythoncom unconditionally?? On
+   Linux that fails. The real pyservice must run with a
+   … (8 more lines, ctrl+o to expand)
+
+ ● Used Read (…ions/third_party/_getters_core.py) · 40 lines
+
+ ● The imports ARE guarded with try/except. The traceback
+   shows `import pythoncom as _pythoncom` raising
+   … (68 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ ls -la pycore/pyfounda… · 10 more lines
+   … /usr/local/bin/python3
+
+ ● Interesting: `_getters_core.py` mtime is Sep 18 02:16 —
+   TODAY, just now?! And it's owned by root. Did something
+   … (11 more lines, ctrl+o to expand)
+
+ ● Used Read (…ions/third_party/_getters_core.py) · 35 lines
+
+ ● File content is as expected (pythoncom at line 19,
+   guarded). The traceback line numbers (12/13) don't
+   … (8 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ PYSTRAY_BACKEND=dummy … · 12 more lines
+   … RESUME_SMOKE_OK
+
+ ● Resume smoke test passed: manifest round-trips, resume
+   detection works, signature change blocks resume.
+   … (61 more lines, ctrl+o to expand)
+
+ ● Used Read (…/pyutils/tts/tts_orchestrator.py) · 240 lines
+
+ ● The synthesize path: serial fallback through engines,
+   with `managed_services.lease(name)` per engine — meaning
+   … (75 more lines, ctrl+o to expand)
+
+ ● Used Read (…/pyutils/tts/tts_orchestrator.py) · 100 lines
+
+ ● qwen3tts has a batch path (synthesize_variants for voice
+   variants of one text — not multiple texts). For
+   … (155 more lines, ctrl+o to expand)
+
+ ● 实施任务 4.3：resolve_batch 的缺失资源改为分块并行、多引
+   擎轮转。先改 resolve_audio 支持引擎排除参数。
+
+ ● Used Edit (…l/audio_orchestration/orch_resources.py) · +1
+   +1 pycore/pyctl/audio_orchestration/orch_resources.py
+      1   from
+   pycore.pyfoundations.pybasecommon.color_print import
+   ColorPrint
+      2 + from pycore.pyfoundations.serialized_worker
+   import map_bus_tasks
+      3   from pycore.pyfoundations.system_paths import
+   get_app_cache_dir
+
+ ● Used Edit (…l/audio_orchestration/orch_resources.py) · +6
+   +6 pycore/pyctl/audio_orchestration/orch_resources.py
+      2   SENTENCE_REPORT_PATH =
+   "/api/app_qy_v1/ai_tools/tts/sentence/report"
+      3   DELIVERY_LANE = "orchestration"
+      4   _delivery_jobs =
+   BackgroundJobs("AudioOrchDelivery")
+      5 + # Manifest resource misses resolve in parallel
+   chunks: different engines run
+      6 + # concurrently (per-engine leases serialize only
+   same-engine work), and each
+      7 + # miss rotates its engine fallback order so
+   several local models synthesize
+      8 + # different words at the same time instead of
+   one serial chain.
+      9 + RESOLVE_PARALLEL_WORKERS = 4
+     10 + RESOLVE_CHUNK_SIZE = 40
+
+ ● Used Edit (…l/audio_orchestration/orch_resources.py) · +1
+   +1 pycore/pyctl/audio_orchestration/orch_resources.py
+      2       resource: Dict[str, Any], staging: Path,
+   base_url: Optional[str] = None,
+      3       progress_callback:
+   Optional[Callable[[Dict[str, Any]], None]] = None,
+      4       cache_checked: bool = False,
+      5 +     excluded_engines: Optional[tuple] = None,
+      6   ) -> Dict[str, Any]:
+
+ ● Used Edit (…l/audio_orchestration/orch_resources.py) · +1
+   +1 pycore/pyctl/audio_orchestration/orch_resources.py
+      1       result = synthesize(
+      2           text, language, target,
+   priority_profile=kind,
+      3
+   client_job_id=f"audio-orch:{resource['resource_id']}",
+   progress_callback=progress_callback,
+      4 +         excluded_engines=tuple(excluded_engines
+   or ()),
+      5       )
+
+ ● Now replace the serial misses loop in resolve_batch with
+   the chunked parallel version.
+
+ ● Used Edit (…io_orchestration/orch_resources.py) · +30 -10
+   +30 -10
+   pycore/pyctl/audio_orchestration/orch_resources.py
+      1 -     for index, resource in enumerate(items, 1):
+      2 -         existing =
+   results.get(resource["resource_id"])
+      3 -         if existing is not None:
+      4 -             continue
+      5 -         if cancel_requested is not None and
+   cancel_requested():
+      6 -             break
+      1 +     misses = [resource for resource in items if
+   resource["resource_id"] not in results]
+      2 +
+      3 +     def _engine_exclusions(resource: Dict[str,
+   Any]) -> tuple:
+      4 +         # Rotate the per-kind engine fallback
+   order by resource id so parallel
+        … 30 more changes hidden (ctrl+o to expand)
+
+ ● Ran a command · $ python3 -m py_compile pycore/pyctl/aud…
+   COMPILE_OK
+
+ ● Task 4.3's parallel multi-engine resolution implemented.
+   Task 4.2 mentions "清单的准备需要批量进行" —
+   … (68 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ python3 -m py_compile pycore/pyctl/aud…
+   ALL_OK
+
+ ● Ran a command · $ systemctl is-active nco… · 4 more lines
+   … 5
+
+ ● Used TodoList
+
+ ● Write the final summary. Be honest about what's done vs
+   not.
+
+ ● 已读取 docs_fix/origin/kimi2server.txt 并逐项处理。任务
+   1–4 已完成并验证，任务 5–6 改动面极大，如实说明现状。
+
+   任务 1：SSH 断连 —— 已修复并自愈运行
+
+   根因（实机诊断）：服务器正被僵尸网络持续爆破。日志显示 in
+   MaxStartups throttling for 4d08h, 11626 connections
+   dropped，22 端口有 82 个未认证连接挂死数天。直接原因是
+   drop-in 配置 LoginGraceTime 0（无限制）——攻击者的 preauth
+   连接永不过期，耗尽 MaxStartups（默认 10:30:100）槽位
+   ，sshd 按概率随机丢新连接，合法用户就"老是断开"。
+
+   修复（未直接改本机配置，全部走脚本，对照 OpenBSD
+   sshd_config(5) 官方文档
+   (https://man.openbsd.org/sshd_config)）：
+   • scripts/shells/linux/common/ssh_server_common.sh：Login
+     GraceTime 0→30s，新增 MaxStartups 100:30:200、
+     PerSourceMaxStartups 10（按 sshd -T 探测支持性，OpenSSH
+     ≥8.5），新增 ssh_server_reap_stale_preauth 幂等自愈函数
+     ——清理超过宽限期的陈旧 sshd: [accepted]/[net]/[preauth]
+      进程（reload 只对新建连接生效，旧挂死连接必须清）。校
+     验函数同步检查新指令。
+   • 23_setup_ssh_remote.sh 接入自愈并运行：清理了 87 个陈旧
+     连接，22 端口连接数 82→2，配置经 sshd -T 验证全部生效，
+     重跑幂等。
+
+   任务 2：Node 26 + 175 —— 已完成
+
+   • 运行 17_install_node_toolchain_26.sh：v24.11.1 →
+     v26.9.0，重跑验证幂等，旧 v24 树和 PATH 残留全部清除。
+   • 修改 175_laravel_main_start.sh：前端（nexus-dash UI）服
+     务安装提示原来嵌在"Laravel 服务注册成功"分支内部，现在
+     无论前面步骤结果如何都会提示 y/N（默认 N，无 TTY 安全
+     ），放在幂等重跑收敛路径之前。
+   • 运行 175：幂等收敛成功，零停机应用 Caddy 配置；重启
+     ncore-nexus-dash 后 node_modules 已为 bun 布局，bun x
+     vite 运行中，dashboard 健康检查通过。
+
+   任务 3：117 重复 —— 已确认并删除
+
+   117_install_desktop_manager.sh 用 pnpm 给同一个
+   pycore_laravel_wordnew_ui 装依赖，与 175/176/start.sh 的
+   bun 链路冲突（start.sh 里专门为它留了 pnpm 布局迁移逻辑）
+   。已删除脚本及 prepare_pycore_prerequisites.sh 中的清单引
+   用，前端部署只保留 175 链路。
+
+   任务 4：编排任务进度恢复 + 并行生成 —— 已完成核心重构
+
+   崩溃原因：单个 outbox 序列化超时异常会沿 _resource_done →
+   resolve_batch → _generate 使整个任务崩溃，且 Regenerate
+   全量清空（29403 项进度全丢）；pycore 重启后任务被标记
+   failed，UI 自然"没有进度"。
+
+   底层重构（pycore/pyctl/audio_orchestration/）：
+   • Manifest 持久化：_plan_signature（书籍/分段/pattern/词
+     策略/句数的指纹）+ 每 1000 资源及阶段边界把
+     segment_items/resolved/stats 落盘（复用已有的
+     save_manifest，新增 delete_manifest）。
+   • 断点续跑：_generate 新增 resume 分支——签名匹配则跳过词
+     态加载和 manifest 展开（最慢的部分），只补未解析资源、
+     只装未完成 segment；签名不符自动全新生成。failed/中断任
+     务默认 resume，force_fresh 强制重建。
+   • 重启自动接进度：路由注册时
+     resume_interrupted_generations() 自动恢复所有滞留
+     "generating" 的任务，UI 刷新前就已续跑；任务摘要/进度接
+     口新增 resumable 标志。
+   • 容错：delivery 同步失败不再中断生成（durable outbox 自
+     行重试）。
+   • 多模型并行（4.3）：resolve_batch 缺失资源改为 40/块、4
+     worker 并行（map_bus_tasks），每个资源按 id 轮转引擎排
+     除列表，让多个本地模型同时合成不同单词；引擎 lease 保证
+     同引擎串行安全。关于"一次生成多个再拆分"：TTS 模型输出
+     连续语音，无对齐能力无法可靠拆分；正确形态是批量推理
+     （list in → list out），qwen3tts 的 batch 路径仅支持同
+     文本多音色变体，不适合多单词，故采用并行多引擎方案。
+   • 冒烟测试通过：manifest 往返、resume 检测、签名变更拒绝
+     恢复。本机无 pyservice 在跑（仅 codesync），改动将在下
+     次 pycore 启动时生效。
+
+   任务 5、6：未开始，需专门一轮
+
+   • 任务 5（WordAudioWorker 底层重构）：该 worker（723 行 +
+     两个 mixin）已在用持久 outbox、lane 扇出、全量同步镜像
+     ，是在运行的生产路径，盲改风险高；多单词并行可复用本次
+     的引擎轮转方案。
+   • 任务 6（Vocabulary 一键清除无效单词/翻译、封面重生成、
+     Laravel 13 AI 类库 + 图片生成缓存、Statistics 缓存）：
+     跨 Laravel 后端 + React UI + .secret_keys 扫描，是一个
+     大子项目。
+
+   这两项每个都需要完整的专门工作轮次才能保质完成并验证，建
+   议分别发起。当前所有改动均通过语法/编译检查，线上三个服务
+   （laravel frankenphp、nexus-dash、ssh）全部 active 健康。
+
+ ✨ 如果完成了，继续逐项对比一下，确保功能完美可用，漂亮的功
+    能。
+ … 2 messages
+
+ ● The user says: "如果完成了，继续逐项对比一下，确保功能完
+   美可用，漂亮的功能。" — If completed, continue
+   … (53 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ bash scripts/shells/li… · 24 more lines
+   … UnusedConnectionTimeout none
+
+ ● SSH verified: idempotent (all SKIP), reap caught 1 new
+   stale attacker connection, effective config correct, port
+   … (3 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ hash -r; node -v; npm … · 23 more lines
+   … 666-    ensure_ui_bun_runtime
+
+ ● Ran a command · $ systemctl is-active nco… · 6 more lines
+   … NO_PNPM_LAYOUT
+
+ ● Node 26 verified, bun layout confirmed, dashboard healthy
+   (HTML + compiled CSS 550KB). 175 prompt block correct.
+   … (2 more lines, ctrl+o to expand)
+
+ ● 验证 3：117 移除
+
+ ● Ran a command · $ ls scripts/shells/linux/debian/install…
+   ls: cannot access 'scripts/shells/linux/debian/install_s…
+   NO_REFERENCES
+   MANIFEST_SYNTAX_OK
+
+ ● 验证 4：编排 resume 端到端（模拟中断任务自动恢复）
+
+ ● Ran a command · $ PYSTRAY_BACKEND=dummy … · 18 more lines
+   … AUTO_RESUME_SMOKE_OK
+
+ ✨ 开始任务 5（WordAudioWorker 底层重构）：该 worker（723
+    行 +
+         两个 mixin）已在用持久 outbox、lane 扇出、全量同步
+    镜像
+         ，是在运行的生产路径，盲改风险高；多单词并行可复用
+    本次
+         的引擎轮转方案。
+       • 任务 6（Vocabulary 一键清除无效单词/翻译、封面重生
+    成、
+         Laravel 13 AI 类库 + 图片生成缓存、Statistics 缓存
+    ）：
+         跨 Laravel 后端 + React UI + .secret_keys 扫描，是
+    一个
+         大子项目。
+
+       这两项每个都需要完整的专门工作轮次才能保质完成并验证
+    ，建
+       议分别发起。当前所有改动均通过语法/编译检查，线上三个
+    服务
+       （laravel frankenphp、nexus-dash、ssh）全部 active 健
+    康。
+ … 1 messages
+
+ ● The user says: start task 5 (WordAudioWorker底层重构）,
+   quoting my own summary. So they want me to proceed with
+   … (29 more lines, ctrl+o to expand)
+
+ ● Used Read (…yctl/tts/laravel_audio_worker.py) · 304 lines
+
+ ● Now read the execution mixin — that's where
+   _process_claimed lives (cache check → synthesize →
+   … (1 more lines, ctrl+o to expand)
+
+ ● Used Read (…aravel_audio_worker_execution.py) · 882 lines
+
+ ● Now I understand the worker architecture deeply:
+
+   … (78 more lines, ctrl+o to expand)
+
+ ● 架构已摸清。查 word_audio_cache.find_cached、
+   engine_policy、tts_concurrency 的接口，确定共享辅助函数的
+   落点。
+
+ ● Used Grep (def find_cached|def ge…) · 5 matches in 1 file
+   pycore/pyutils/tts/word_audio_cache.py:15, pyco…, +2 more
+
+ ● Used Grep (^def |^from|^import) · 44 matches in 1 file
+   pycore/pyutils/tts/engine_policy.py:4, pycore/…, +41 more
+
+ ● Used Read (…re/pyutils/tts/tts_concurrency.py) · 56 lines
+
+ ● Now I have all the pieces. Refactor design for Task 5:
+
+   … (208 more lines, ctrl+o to expand)
+
+ ● 接口齐全。开始重构。1) 在 engine_policy.py 加共享的引擎轮
+   转助手（单一来源，编排与 worker 共用）。
+
+ ● Used Read (…core/pyutils/tts/engine_policy.py) · 45 lines
+
+ ● Used Edit (pycore/pyutils/tts/engine_policy.py) · +28
+   +28 pycore/pyutils/tts/engine_policy.py
+      9           # Pinned single-engine contract - see
+   _AGENT_HISTORY_PINNED_TTS.
+     10           return _AGENT_HISTORY_PINNED_TTS
+     11       return default
+     12 +
+     13 +
+     14 + def profile_engine_order(profile: str, language:
+   Optional[str]) -> tuple[str, ...]:
+     15 +     """Configured engine chain for one profile,
+   filtered to `language`."""
+     16 +     return tuple(
+     17 +         name
+     18 +         for name in
+   configured_tts_priority(profile)
+        … 21 more changes hidden (ctrl+o to expand)
+
+ ✨ continue
+ … thinking 11 times, call 21 tools, 8 messages
+
+ ● Task 6 has four parts:
+
+   … (38 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ ls poly_apps/laravel_m… · 45 more lines
+   … AppQyV1PerLanguageMetricsModel.php
+
+ ● Used Grep (vocabulary|word) · 118 matches
+   poly_apps/laravel_main/routes/CloudClipboardR…, +115 more
+
+ ● The Vocabulary page in the UI is `PcVocabularyPage.tsx`
+   with tabs: Words / Libraries / Statistics / Translation /
+   … (4 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ ls poly_apps/pycore_la… · 29 more lines
+   … WordDetail.tsx
+
+ ● Used Grep (vocab|word|library|statistics) · 193 matches
+   poly_apps/pycore_laravel_wordnew_ui/apps/lara…, +190 more
+
+ ● There's already cover regeneration infrastructure ("stuck
+   library covers back to pending so pycore re-claims and
+   … (17 more lines, ctrl+o to expand)
+
+ ● Used Read (…ary/words/VocabularyWordsModel.ts) · 89 lines
+
+ ● Used Grep (vocabulary) · 5 matches across 4 files
+   poly_apps/laravel_main/routes/api.php:222, poly…, +2 more
+
+ ● Used Read (…pQyV1Router/AppQyV1Vocabulary.php) · 65 lines
+
+ ● There's already
+   `AppQyV1DictionaryWordManagementController` with batch
+   … (22 more lines, ctrl+o to expand)
+
+ ● Used Read (…naryWordManagementController.php) · 256 lines
+
+ ● The word management infrastructure exists. For task 6.1 I
+   need:
+   … (68 more lines, ctrl+o to expand)
+
+ ● Used Read (…/AppQyV1LangDictionaryModel.php) · 1840 lines
+
+ ● Model understood. Now implement task 6.1 backend: extend
+   AppQyV1DictionaryWordManagementController with 4
+   … (174 more lines, ctrl+o to expand)
+
+ ● 模型结构清楚了。实现 6.1 后端：模型加无效内容/翻译的识别
+   与清除方法。
+
+ ● Used Edit (…Models/AppQyV1LangDictionaryModel.php) · +130
+   +130
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/A
+   ppQyV1LangDictionaryModel.php
+      8           }
+      9
+     10           return (int)
+   $model->getConnection()->table($table)->count();
+     11 +     }
+     12 +
+     13 +     /**
+     14 +      * Junk-content detection for the dashboard
+   "clean invalid words" action.
+     15 +      * Rules: content carries CJK ideographs
+   (never a valid headword in a
+     16 +      * non-CJK dictionary) or embeds the full
+   26-letter alphabet sequence
+     17 +      * (keyboard-mash rows). CJK-script
+   dictionaries (zh/ja) skip the CJK rule
+        … 123 more changes hidden (ctrl+o to expand)
+
+ ● Check normalizeLangCode exists in AppQyV1TableMaps (used
+   earlier in the model at metricsCacheKey — yes,
+   … (5 more lines, ctrl+o to expand)
+
+ ● 控制器加 4 个端点（分页预览 + confirm=delete 清除）。
+
+ ● Used Edit (…ictionaryWordManagementController.php) · +144
+   +144
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controll
+   ers/AppQyV1Vocabulary/AppQyV1DictionaryWordManagementCo
+   ntroller.php
+      7               'requested' => count($md5s),
+      8               'affected' => $affected,
+      9           ], 'Batch action applied');
+     10 +     }
+     11 +
+     12 +     //
+   -------------------------------------------------------
+   ----------- //
+     13 +     // One-click cleanup: invalid words /
+   invalid translations              //
+     14 +     // The id set is computed once per language
+   (cached 10 min) so the      //
+     15 +     // paginated preview and the purge share the
+   exact same server-side     //
+     16 +     // rule evaluation — the client never
+   decides WHAT is invalid.          //
+        … 137 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…tes/AppQyV1Router/AppQyV1Vocabulary.php) · +8
+   +8
+   poly_apps/laravel_main/routes/AppQyV1Router/AppQyV1Voca
+   bulary.php
+      4       Route::post('/dictionary/words/batch',
+   [AppQyV1DictionaryWordManagementController::class,
+   'batch']);
+      5       Route::put('/dictionary/words/{md5}',
+   [AppQyV1DictionaryWordManagementController::class,
+   'update']);
+      6       Route::delete('/dictionary/words/{md5}',
+   [AppQyV1DictionaryWordManagementController::class,
+   'destroy']);
+      7 +
+      8 +     // One-click cleanup (dashboard Words tab):
+   paginated preview of junk rows,
+      9 +     // then a confirm-gated purge. Words: row
+   deleted; translations: only the
+     10 +     // translations field cleared.
+     11 +     Route::get('/dictionary/invalid-words',
+   [AppQyV1DictionaryWordManagementController::class,
+   'invalidWordsPreview']);
+     12 +
+   Route::post('/dictionary/invalid-words/purge',
+   [AppQyV1DictionaryWordManagementController::class,
+   'purgeInvalidWords']);
+     13 +
+   Route::get('/dictionary/invalid-translations',
+   [AppQyV1DictionaryWordManagementController::class,
+   'invalidTranslationsPreview']);
+        … 1 more change hidden (ctrl+o to expand)
+
+ ✗ Ran a command · $ cd poly_apps/laravel_main && php -l ap…
+   PHP Warning:  Unknown: Failed to open stream: No such
+   file or directory in Unknown on line 0
+   PHP Fatal error:  Failed opening required '-l'
+   … (4 more lines, ctrl+o to expand)
+
+ ● The `php` on PATH is the frankenphp shim which doesn't
+   handle -l well? "Failed opening required '-l'" — odd.
+   … (1 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ which php; file $(which… · 3 more lines
+   … /usr/local/bin/php-cli
+
+ ✗ Ran a command · $ /usr/local/bin/php-cli -l poly_apps/la…
+   PHP Warning:  Unknown: Failed to open stream: No such
+   file or directory in Unknown on line 0
+   PHP Fatal error:  Failed opening required '-l'
+   … (4 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ head -20 /usr/local/bi… · 22 more lines
+   … /usr/share/bash-completion/completions/frankenphp
+
+ ● The php-cli shim strips -d flags and passes others; `-l`
+   must not be supported by `frankenphp php-cli`?
+   … (13 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ printf '<?php\nforeach (array_slice($a…
+   LINT_FAIL poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV…
+
+ ● Parse passed (it got to runtime class resolution — parse
+   errors would be ParseError thrown at require). The
+   … (9 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ for f in poly_apps/laravel_main/app/Ap…
+   LINT_FAIL poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV…
+   LINT_FAIL poly_apps/laravel_main/routes/AppQyV1Router/Ap…
+
+ ● All three files parse fine (failures are runtime autoload
+   issues, not parse errors). Better verification: boot the
+   … (15 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ curl -fsS --max-time 30 'http://127.0.…
+   {"success":true,"data":{"language":"en","total":5,"start…
+   curl: (28) Operation timed out after 30002 milliseconds …
+
+ ✨ 如果完成出，需要对着文档重新1：1的实测和修复代码。
+
+ ✨ continue
+ … 2 messages
+
+ ● The user says: "如果完成出，需要对着文档重新1：1的实测和
+   修复代码。continue" — when done, re-test 1:1 against the
+   … (138 more lines, ctrl+o to expand)
+
+ ● Used Edit (…els/AppQyV1LangDictionaryModel.php) · +26 -12
+   +26 -12
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/A
+   ppQyV1LangDictionaryModel.php
+      1       /**
+      2 -      * Ids (and reasons) of rows whose
+   translations field is invalid. Chunked
+      3 -      * scan over translation-bearing rows only;
+   the equality rule cannot be
+      4 -      * expressed in SQL, so evaluation stays in
+   PHP.
+      2 +      * Ids (and reasons) of rows whose
+   translations field is invalid.
+      3 +      *
+      4 +      * SQL prefilter keeps the scan cheap on
+   large tables (the raw ILIKE /
+      5 +      * position() pass is one sequential scan,
+   no PHP hydration of clean rows);
+      6 +      * PHP then re-evaluates ONLY the candidates
+   with the exact rules
+      7 +      * (invalidTranslationReason) so the
+   equality rule stays precise:
+        … 29 more changes hidden (ctrl+o to expand)
+
+ ● Also handle nested arrays in invalidTranslationReason —
+   real data shows translations can contain nested arrays:
+   … (6 more lines, ctrl+o to expand)
+
+ ● Used Edit (…dels/AppQyV1LangDictionaryModel.php) · +23 -6
+   +23 -6
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/A
+   ppQyV1LangDictionaryModel.php
+      1       /**
+      2        * One row's invalid-translation reason, or
+   null when the row is clean.
+      3 -      * Invalid = any translation value carries
+   an error marker, or a value is
+      3 +      * Invalid = any translation value
+   (recursively — nested shapes like
+      4 +      * word_translation pairs included) carries
+   an error marker, or a value is
+      5        * identical to the word itself
+   (case-insensitive, trimmed).
+      6        */
+      7       public static function
+   invalidTranslationReason($row): ?string
+        … 3 unchanged lines …
+     11               return null;
+        … 26 more changes hidden (ctrl+o to expand)
+
+ ● Wait — the SQL prefilter `position(lower(content) in
+   lower(translations)) > 0` on a TEXT column: translations
+   … (14 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ time curl -fsS --max-ti… · 3 more lines
+   … sys   0m0.000s
+
+ ● Ran a command · $ tail -30 poly_apps/lara… · 5 more lines
+   … [2026-09-06 06:47:01] laravel.ERROR: Unable to load we…
+
+ ● Ran a command · $ ls -t poly_apps/laravel… · 6 more lines
+   … "}
+
+ ● Logs are old (Sep 6). The Octane/frankenphp service logs
+   elsewhere. Get the actual error: journalctl for
+   … (3 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ curl -sS --max-time 120 'http://127.0.…
+   {"success":false,"message":"Internal server error","code…
+
+ ● Ran a command · $ journalctl -u ncore-laravel-frankenphp…
+   Command executed successfully.
+
+ ● No logs. The error is swallowed. Debug locally via
+   artisan tinker-like script: boot Laravel and call the
+   … (9 more lines, ctrl+o to expand)
+
+ ● 本地直接引导 Laravel 内核调用模型方法，拿到真实异常。
+
+ ● Ran a command · $ cat > /tmp/qa_dict_cleanup.php <<'PHP'…
+   invalid translation rows: 163766
+   {"1":"same_as_word","4":"same_as_word","5":"same_as_word…
+   invalid word rows: 5
+
+ ● Interesting! It works via CLI: 163,766 invalid
+   translation rows. But wait — 163k out of how many? The
+   … (49 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ cat > /tmp/qa_dict_veri… · 5 more lines
+   … total with translation: 233777
+
+ ● Now I see the real data shapes:
+
+   … (177 more lines, ctrl+o to expand)
+
+ ● Used Edit (…els/AppQyV1LangDictionaryModel.php) · +34 -10
+   +34 -10
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/A
+   ppQyV1LangDictionaryModel.php
+      1 -     /** Every scalar text leaf inside a
+   translations payload (any nesting). */
+      2 -     private static function
+   flattenTranslationTexts(array $values): array
+      1 +     /**
+      2 +      * Every translation TEXT inside a
+   translations payload. Only language-keyed
+      3 +      * values ('zh', 'en', 'en_US', ...) and the
+   text element of
+      4 +      * word_translation [tag, text] pairs count;
+   metadata keys (word,
+      5 +      * is_native_voice, plural_form, synonyms,
+   ...) are never translations.
+      6 +      */
+      7 +     private static function
+   flattenTranslationTexts(array $translations): array
+      8       {
+        … 35 more changes hidden (ctrl+o to expand)
+
+ ● Also reduce hydration cost: chunkById with limited
+   columns ['id','content','translations']. And time the
+   … (2 more lines, ctrl+o to expand)
+
+ ● Used Edit (…odels/AppQyV1LangDictionaryModel.php) · +1 -1
+   +1 -1
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/A
+   ppQyV1LangDictionaryModel.php
+      5                       $invalid[(int) $row->id] =
+   $reason;
+      6                   }
+      7               }
+      8 -         });
+      8 +         }, column: 'id');
+
+ ● Wait, I need to also limit selected columns for speed:
+   add `->select(['id', 'content', 'translations'])` before
+   … (10 more lines, ctrl+o to expand)
+
+ ● Used Edit (…odels/AppQyV1LangDictionaryModel.php) · +2 -2
+   +2 -2
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/A
+   ppQyV1LangDictionaryModel.php
+      1           $query = self::forLanguage($langCode)
+      2               ->newQuery()
+      3 +             ->select(['id', 'content',
+   'translations'])
+      4               ->withTranslationCoverage()
+      5               ->where('content', '<>', '')
+      6               ->where(function (Builder $builder):
+   void {
+        … 1 unchanged line …
+      8
+   $builder->orWhere('translations', 'ilike', '%' .
+   $marker . '%');
+      9                   }
+     10
+   $builder->orWhereRaw('position(lower(content) in
+   lower(translations)) > 0');
+        … 3 more changes hidden (ctrl+o to expand)
+
+ ● Ran a command · $ cat > /tmp/qa_dict_ver… · 12 more lines
+   … clean-check 5 (aah): NULL
+
+ ● Now correct: 45,477 invalid translations (43,663
+   error_marker + 1,814 same_as_word), false positives
+   … (155 more lines, ctrl+o to expand)
+
+ ● 逻辑已正确（45,477 条：43,663 错误标记 + 1,814 同词），但
+   36.8s 扫描超 HTTP 预算。给清理端点放宽执行时限并实测 HTTP
+   路径。
+
+ ● Used Edit (…1DictionaryWordManagementController.php) · +4
+   +4
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controll
+   ers/AppQyV1Vocabulary/AppQyV1DictionaryWordManagementCo
+   ntroller.php
+      1       private function cleanupPreview(Request
+   $request, string $kind): JsonResponse
+      2       {
+      3 +         // The first scan of a large language
+   table is a one-pass SQL + PHP
+      4 +         // confirm over the whole dictionary
+   (tens of seconds on 200k+ rows);
+      5 +         // the result is cached for
+   CLEANUP_CACHE_TTL so paging is instant.
+      6 +         set_time_limit(300);
+      7           $validated = $request->validate([
+
+ ● Used Edit (…1DictionaryWordManagementController.php) · +1
+   +1
+   poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controll
+   ers/AppQyV1Vocabulary/AppQyV1DictionaryWordManagementCo
+   ntroller.php
+      1       private function cleanupPurge(Request
+   $request, string $kind): JsonResponse
+      2       {
+      3 +         set_time_limit(300);
+      4           $validated = $request->validate([
+
+ ✗ Ran a command · $ time curl -sS --max-time 240 'http://1…
+   Tool execution was interrupted before its result was
+   recorded. Do not assume the tool completed
+   successfully.
+   Resumed session
+ (session_2a0c8cd7-e0ca-4aba-8c47-4f63c82ddc21).
+
+ ✨ continue
+ … thinking 30 times, call 58 tools, 10 messages
+
+ ● Used Edit (…laravel-manager/api/modules/AppQyV1.ts) · +24
+   +24
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/api/modules/AppQyV1.ts
+      1 +   /**
+      2 +    * POST
+   /vocabulary/libraries/{id}/cover/ai-regenerate —
+   one-click AI cover
+      3 +    * regeneration through Laravel's own image
+   gateway (free-quota providers
+      4 +    * first: gemini flash image / zhipu cogview /
+   pollinations ...). Prompt-hash
+      5 +    * disk cache server-side; an optional prompt
+   override rides along.
+      6 +    * On success the cached library list is
+   invalidated so the UI reloads.
+      7 +    */
+      8 +   async regenerateCoverAi(libraryId: number,
+   prompt?: string): Promise<APIResponse<{
+      9 +     url: string;
+     10 +     provider: string;
+        … 14 more changes hidden (ctrl+o to expand)
+
+ ● Check apiCache import exists in AppQyV1.ts (used by
+   clearCover — yes, apiCache.clear used at line 261). Good.
+   … (5 more lines, ctrl+o to expand)
+
+ ● Used Edit (…omponents/views/VocabularyLearning.tsx) · +30
+   +30
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/components/views/VocabularyLearning.tsx
+      1 +   /**
+      2 +    * One-click AI cover regeneration: Laravel's
+   own image gateway generates the
+      3 +    * cover synchronously (free-quota providers
+   first), so the card refreshes
+      4 +    * with the new image immediately — no
+   mcp-chrome round-trip.
+      5 +    */
+      6 +   const handleAiRegenerateCover = async
+   (library: any) => {
+      7 +     const id = library?.id;
+      8 +     if (id == null) return;
+      9 +     setAiCovers((prev) => { const n = new
+   Set(prev); n.add(id); return n; });
+     10 +     logInfo('covers', `AI-regenerating cover for
+   library #${id} (${library?.name ?? ''})...`);
+        … 20 more changes hidden (ctrl+o to expand)
+
+ ● Read 2 files · 30 lines
+
+ ● Used Edit (…components/views/VocabularyLearning.tsx) · +2
+   +2
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/components/views/VocabularyLearning.tsx
+      1     // Per-library cover-retry in flight (keyed by
+   library id).
+      2     const [retryingCovers, setRetryingCovers] =
+   useState<Set<number | string>>(new Set());
+      3 +   // Per-library AI cover regeneration in flight
+   (keyed by library id).
+      4 +   const [aiCovers, setAiCovers] =
+   useState<Set<number | string>>(new Set());
+
+ ● Used Read (…ents/views/VocabularyLearning.tsx) · 30 lines
+
+ ● Used Edit (…components/views/VocabularyLearning.tsx) · +2
+   +2
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/components/views/VocabularyLearning.tsx
+      1             handleRetryCover={handleRetryCover}
+      2             retryingCovers={retryingCovers}
+      3 +
+   handleAiRegenerateCover={handleAiRegenerateCover}
+      4 +           aiCovers={aiCovers}
+      5
+   setLibraryToDelete={setLibraryToDelete}
+
+ ● Used Edit (…nts/vocabulary/tabs/LibrariesTab.tsx) · +3 -1
+   +3 -1
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/components/vocabulary/tabs/LibrariesTab.tsx
+      1   import React from 'react';
+      2 - import { Sliders, RefreshCw, BookOpen,
+   CircleAlert, Trash2 } from 'lucide-react';
+      2 + import { Sliders, RefreshCw, BookOpen,
+   CircleAlert, Trash2, Wand2 } from 'lucide-react';
+      3   import { commonClasses } from
+   '@/shared/styles/theme';
+      4   import { laravelMediaUrl as mediaUrl } from
+   '@/core/integrations/laravel/LaravelMediaUrl';
+      5   import { LoadingBlock, EmptyState } from
+   '../../common';
+        … 15 unchanged lines …
+     21     loadLibraryWords: (library: any) => void;
+     22     handleRetryCover: (library: any) => void;
+     23     retryingCovers: Set<any>;
+        … 2 more changes hidden (ctrl+o to expand)
+
+ ● Used Edit (…onents/vocabulary/tabs/LibrariesTab.tsx) · +2
+   +2
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/components/vocabulary/tabs/LibrariesTab.tsx
+      2     loadLibraryWords,
+      3     handleRetryCover,
+      4     retryingCovers,
+      5 +   handleAiRegenerateCover,
+      6 +   aiCovers,
+      7     setLibraryToDelete,
+      8     t,
+      9   }) => {
+
+ ● Used Edit (…s/vocabulary/tabs/LibrariesTab.tsx) · +27 -11
+   +27 -11
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manage
+   r/components/vocabulary/tabs/LibrariesTab.tsx
+      1                   <div className="flex items-start
+   justify-between gap-2 mb-1">
+      2                     <h4 className="font-semibold
+   text-sm">{library.name}</h4>
+      3 -                   <button
+      4 -                     type="button"
+      5 -                     onClick={(e) => {
+      6 -                       e.stopPropagation();
+      7 -
+   setLibraryToDelete(library);
+      8 -                     }}
+      9 -                     className="flex-shrink-0 p-1
+   rounded text-slate-400 hover:text-red-600
+   dark:hover:text-red-400 hover:bg-red-50
+   dark:hover:bg-red-900/20 transition-colors"
+     10 -                     title={t.delete_library}
+        … 30 more changes hidden (ctrl+o to expand)
+
+ ● UI 6.2 wired. Now test the AI cover endpoint live. First
+   pick a real library id. Then POST and see if AiGateway
+   … (3 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ curl -sS --max-time 15 'http://127.0.0…
+   {"success":true,"data":{"libraries":[{"id":3,"name":"Eng…
+
+ ● Ran a command · $ time curl -sS --max-tim… · 7 more lines
+   task_id: bash-nu7hg81c …
+
+ ● bash task started in background (Live test AI cover
+   regeneration for library 3)
+
+ ● bash task completed in background (Live test AI cover
+   regeneration for library 3 · exit 0)
+
+ ● While the AI cover generation runs, tackle 6.3
+   Statistics: "修正其中的UI统计的准确性，实际扫描本机，也要
+   … (19 more lines, ctrl+o to expand)
+
+ ● Used Grep (api\.|get\(|post\() · 1 match in 1 file
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager…
+
+ ● Used Read (…ain/tasks/bash-nu7hg81c/output.log) · 4 lines
+
+ ● AI cover generation works end-to-end: library 3's cover
+   regenerated in 6.5s via pollinations/flux (free,
+   … (3 more lines, ctrl+o to expand)
+
+ ● AI 封面生成成功（6.5s，pollinations/flux 免费额度）。验证
+   文件、缓存命中与图片内容。
+
+ ● Ran a command · $ ls -la --time-style=full-iso /www/*/st…
+   /www/wwwroot/laravel_db/static/app_qy_v1/covers/9d5bf04e…
+
+ ● Ran a command · $ ls -la --time-style=full-iso /www/wwwr…
+   -rwxrwxrwx 1 lighthouse lighthouse 30409 2026-09-18 08:0…
+   27b8211e736cd83a895fec32deea113f5827954252c324ca4e08fe75…
+
+ ● Cover file updated (just now, 30KB) and prompt-hash cache
+   file exists. Test cache hit (same prompt → cached:true)
+   … (1 more lines, ctrl+o to expand)
+
+ ● Ran a command · $ time curl -sS --max-tim… · 3 more lines
+   … sys   0m0.013s
+
+ ● Used ReadMediaFile (…a.png) · image (image/jpeg, 29.7 KB)
+
+ ● Verified:
+   - First call: generated via pollinations flux (6.5s),
+   … (27 more lines, ctrl+o to expand)
+
+ ● Used Grep (getStaticResourcesSummary|static-r…) · 7 files
+   poly_apps/laravel_main/bootstrap/app.php, poly_…, +4 more
+
+ ● Used Grep (getStaticResourcesSummary) · 1 match in 1 file
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager…
+
+ ● Used Read (…agerV1StaticResourceAnalyzer.php) · 443 lines
+
+ ● The static resource analyzer already: scans real disk (du
+   + RecursiveIterator), caches summary for 30s. Task 6.3
+   … (22 more lines, ctrl+o to expand)
+
+ ● 实测本机扫描耗时，确定 6.3 的卡顿是否真实存在。
+
+ ● Ran a command · $ cat > /tmp/qa_scan_time.php <<'PHP'…
+   first(cold): 90.38s  second(cached): 0.007s
+   files: 100000 dirs: 39 size: 4.01 GB truncated: true
+   Error: [provider.auth_error] 403
+ {"error":{"type":"permission_error","message":"You've
+ reached your 5-hour usage limit. Your quota will reset when
+ the current 5-hour window ends. To continue now, purchase
+ extra usage or upgrade your plan:
+ https://www.kimi.com/membership/subscription?tab=quota"},"t
+ ype":"error"}
+   If this persists, run `/export-debug-zip` and share the
+ file with us for diagnosis. Please don't share it publicly.
+
+ ✨ 继续
+   Interrupted by user
+
+ ✨ continue
+
+ ● Confirmed the 6.3 problem: cold scan takes 90s (blocks an
+   Octane worker for 90s → UI lag/卡顿), and it truncates at
+   … (112 more lines, ctrl+o to expand)
+
+ ● Used Grep (public static function e…) · 1 match in 1 file
+   poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerMa…
+
+  🌕
+ ───────────────────────────────────────────────────────────
+   Todo
+   ✓ Task2: Node 26 + 175提示 + bun切换（已验证）
+   ✓ Task3: 117删除（已验证无引用）
+   ✓ Task4: 编排resume + 并行多引擎（端到端冒烟通过）
+   ✓ Task5: Worker重构：共享轮转/多引擎并行/any-provider...
+   ● Task6: Vocabulary一键清除/封面重生成/AI类库/Statisti...
+   … +1 more (1 done) · ctrl+t to expand
