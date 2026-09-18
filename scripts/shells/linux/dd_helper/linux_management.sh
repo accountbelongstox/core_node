@@ -23,6 +23,7 @@ source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
 PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
 RUSTDESK_INSTALL_INFO_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/server_manager/rustdesk_install_info.sh"
+DEBIAN_13_UPGRADE_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/upgrade_to_debian_13.sh"
 LINUX_MANAGED_USER_VALID=false
 
 # Function to disable Ubuntu automatic updates

@@ -406,3 +406,88 @@ ensure_pgdg_repository() {
     return 0
 }
 
+# Cap PostgreSQL CPU usage with a systemd drop-in on the cluster INSTANCE units
+# (postgresql@<ver>-<cluster>.service). The meta postgresql.service holds no
+# processes, so a quota there would be inert -- the backends run under the
+# per-cluster instance cgroup. PG_CPU_PCT is a percentage of the WHOLE machine
+# (same convention as app_resource_limit.sh), converted to
+# CPUQuota = pct * nproc (systemd: 100% == one full core).
+# Idempotent self-heal: the drop-in is rewritten only when its content drifts,
+# and a RUNNING unit is updated via set-property --runtime (no DB restart);
+# the drop-in applies the cap on every future start. No systemd (WSL) -> skip.
+apply_postgresql_cpu_limit() {
+    local pct="$1"
+    local nproc_count=""
+    local quota=""
+    local instances=""
+    local inst=""
+    local unit=""
+    local dir=""
+    local file=""
+    local content=""
+    local current=""
+
+    [ -z "$pct" ] && pct="25"
+    case "$pct" in ''|*[!0-9]*) echo "[$SCRIPT_INDEX] WARN: invalid PG_CPU_PCT '$pct' -> using 25"; pct="25" ;; esac
+
+    if ! command_exists systemctl || ! $USE_SUDO systemctl list-unit-files >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] systemd unavailable (WSL?) -> CPU cap skipped (PostgreSQL uncapped)"
+        return 0
+    fi
+
+    nproc_count="$(nproc 2>/dev/null || echo 1)"
+    [ "$nproc_count" -ge 1 ] 2>/dev/null || nproc_count=1
+    quota=$((pct * nproc_count))
+
+    # Resolve cluster instance names (<ver>-<cluster>) from pg_lsclusters;
+    # fall back to the default <ver>-main instance.
+    if command_exists pg_lsclusters; then
+        instances=$(pg_lsclusters -h 2>/dev/null | awk '{print $1"-"$2}')
+    fi
+    [ -z "$instances" ] && instances="$(detect_postgresql_version)-main"
+
+    echo "[$SCRIPT_INDEX] Applying PostgreSQL CPU cap: ${pct}% of machine -> CPUQuota=${quota}% (nproc=$nproc_count)"
+    for inst in $instances; do
+        unit="postgresql@${inst}.service"
+        dir="/etc/systemd/system/${unit}.d"
+        file="$dir/50-cpu-limit.conf"
+        content="[Service]
+CPUQuota=${quota}%"
+        current="$($USE_SUDO cat "$file" 2>/dev/null)"
+        if [ "$current" != "$content" ]; then
+            echo "[$SCRIPT_INDEX] Writing CPU cap drop-in: $file"
+            $USE_SUDO mkdir -p "$dir"
+            printf '%s\n' "$content" | $USE_SUDO tee "$file" >/dev/null
+        fi
+    done
+    $USE_SUDO systemctl daemon-reload || true
+
+    # Apply to already-running units WITHOUT a DB restart (runtime property;
+    # the persistent drop-in above covers future starts).
+    for inst in $instances; do
+        unit="postgresql@${inst}.service"
+        if $USE_SUDO systemctl is-active --quiet "$unit" 2>/dev/null; then
+            $USE_SUDO systemctl set-property --runtime "$unit" "CPUQuota=${quota}%" 2>/dev/null \
+                && echo "[$SCRIPT_INDEX] CPU cap active on running unit: $unit" \
+                || echo "[$SCRIPT_INDEX] WARN: runtime CPU cap failed on $unit (applies on next start)"
+        fi
+    done
+    return 0
+}
+
+# Remove the CPU cap drop-ins written by apply_postgresql_cpu_limit (only the
+# files we own; the drop-in dir is kept when it contains other overrides).
+remove_postgresql_cpu_limit() {
+    local dir=""
+    command_exists systemctl || return 0
+    for dir in /etc/systemd/system/postgresql@*.service.d; do
+        [ -d "$dir" ] || continue
+        [ -f "$dir/50-cpu-limit.conf" ] || continue
+        echo "[$SCRIPT_INDEX] Removing CPU cap drop-in: $dir/50-cpu-limit.conf"
+        $USE_SUDO rm -f "$dir/50-cpu-limit.conf"
+        $USE_SUDO rmdir "$dir" 2>/dev/null || true
+    done
+    $USE_SUDO systemctl daemon-reload 2>/dev/null || true
+    return 0
+}
+

@@ -31,6 +31,10 @@ POSTGRESQL_CONFIG_DIR=""
 POSTGRESQL_LOG_DIR=""
 POSTGRESQL_USER="postgres"
 POSTGRESQL_SERVICE_NAME="postgresql"
+# Max CPU PostgreSQL may use, as a % of the WHOLE machine (converted to
+# CPUQuota = pct * nproc in apply_postgresql_cpu_limit). Override via the
+# global var PG_CPU_PCT.
+PG_CPU_PCT=""
 # WSL persistence: loop-mount point for the D-drive ext4 image (see
 # wsl_mount_pg_image). Resolved from the central mapping (map_web_path "pg_mount")
 # AFTER gvar_common.sh is sourced -- never hardcoded here.
@@ -75,6 +79,7 @@ POSTGRESQL_LOG_DIR=$(map_web_path "compile_dir" "postgresql/logs")
 # Loop-mount target for the WSL D-drive image, from the central mapping (bash
 # gvar_common.sh + Python system_paths.py both define the "pg_mount" key).
 PG_D_MOUNT=$(map_web_path "pg_mount")
+PG_CPU_PCT="$(get_var "PG_CPU_PCT" "25")"
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
 echo "[$SCRIPT_INDEX] START_POSTGRESQL: $START_POSTGRESQL"
@@ -403,6 +408,7 @@ remove_postgresql() {
 
     # Remove any stray systemd override
     $USE_SUDO rm -rf "/etc/systemd/system/postgresql.service.d"
+    remove_postgresql_cpu_limit
     $USE_SUDO systemctl daemon-reload
 
     echo "[$SCRIPT_INDEX] PostgreSQL removal completed"
@@ -586,6 +592,10 @@ main() {
             pg_service enable
             pg_service start
         fi
+
+        # Self-heal the CPU cap on every run (covers install, converge and
+        # cluster-recreate paths; no-op when systemd is absent).
+        apply_postgresql_cpu_limit "$PG_CPU_PCT"
 
         echo "[$SCRIPT_INDEX] ============================================"
         echo "[$SCRIPT_INDEX] PostgreSQL is installed and running"
