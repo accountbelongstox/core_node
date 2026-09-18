@@ -301,6 +301,10 @@ class AppQyV1DictionaryWordManagementController extends Controller
 
     private function cleanupPreview(Request $request, string $kind): JsonResponse
     {
+        // The first scan of a large language table is a one-pass SQL + PHP
+        // confirm over the whole dictionary (tens of seconds on 200k+ rows);
+        // the result is cached for CLEANUP_CACHE_TTL so paging is instant.
+        set_time_limit(300);
         $validated = $request->validate([
             'language' => 'required|string',
             'start' => 'sometimes|integer|min:0',
@@ -363,6 +367,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
 
     private function cleanupPurge(Request $request, string $kind): JsonResponse
     {
+        set_time_limit(300);
         $validated = $request->validate([
             'language' => 'required|string',
             'confirm' => 'required|string',
