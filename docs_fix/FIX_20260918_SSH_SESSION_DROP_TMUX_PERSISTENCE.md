@@ -74,6 +74,11 @@ No sshd setting can prevent an external TCP RST.
   tcpkeepalive no, unusedconnectiontimeout none, persourcemaxstartups 10, maxstartups 100:30:200.
 - `/etc/profile.d/ncore_ssh_tmux_persistence.sh` content and syntax verified after the run.
 - Existing SSH sessions were untouched by the run (reload-only convergence; no sshd restart).
+- Self-heal re-run (2026-09-18, after the Windows client feedback): every step converged
+  with no changes — sshd config/drop-in/systemd restart policy all `[SKIP] already up to date`,
+  listener already matches the newest config, no stale pre-auth connections, tmux hook already
+  in place. `sshd -T` re-verified: clientaliveinterval 60, clientalivecountmax 0,
+  tcpkeepalive no, unusedconnectiontimeout none, passwordauthentication no.
 
 ## Follow-up (2026-09-18) — Client-side keepalive implemented in generated ssh$index scripts
 
