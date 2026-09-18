@@ -465,9 +465,13 @@ ssh_server_apply_changed_config() {
 # the TCP connection regardless of any sshd keepalive setting; the server-side
 # cure is a persistent shell. This deploys an /etc/profile.d hook attaching
 # interactive SSH logins to a stable tmux session, so reconnecting resumes the
-# same shell. Non-interactive ssh/sftp/scp never source /etc/profile.d and the
-# tty guards double-protect them; a tmux failure falls through to a plain
-# login shell, so the hook can never lock users out.
+# same shell. Session selection: a login attaches to the first session that is
+# missing or has no attached clients (a dropped connection leaves its session
+# unattached, so a reconnect resumes it); a second simultaneous window takes
+# the next free name (main, main-2, main-3, ...) instead of mirroring the
+# first window's input and screen. Non-interactive ssh/sftp/scp never source
+# /etc/profile.d and the tty guards double-protect them; a tmux failure falls
+# through to a plain login shell, so the hook can never lock users out.
 ssh_server_ensure_session_persistence() {
     SSH_SERVER_TMUX_PERSISTENCE_READY=false
     if [ "$SSH_SERVER_TMUX_PERSISTENCE_ENABLED" != true ]; then
@@ -485,16 +489,35 @@ ssh_server_ensure_session_persistence() {
 # Managed by 23_setup_ssh_remote.sh (core_node). Do not edit by hand.
 # Reconnect-resilient SSH: attach interactive logins to a persistent tmux
 # session so a dropped transport no longer kills the running shell.
+# A dropped connection leaves its session with no attached clients, so a
+# reconnect resumes it; a second simultaneous window takes the next free
+# session name instead of sharing (mirroring) the first window.
 # Opt out per user: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE
 if [ -n "\$SSH_CONNECTION" ] && [ -z "\$TMUX" ] && [ -t 0 ] && [ -t 1 ]; then
     if command -v tmux >/dev/null 2>&1 && [ ! -e "\$HOME/$SSH_SERVER_TMUX_OPTOUT_FILE" ]; then
-        tmux new-session -A -s $SSH_SERVER_TMUX_SESSION_NAME && exit
+        _ncore_tmux_session=""
+        _ncore_tmux_index=1
+        while [ -z "\$_ncore_tmux_session" ]; do
+            _ncore_tmux_candidate="$SSH_SERVER_TMUX_SESSION_NAME"
+            if [ "\$_ncore_tmux_index" -gt 1 ]; then
+                _ncore_tmux_candidate="$SSH_SERVER_TMUX_SESSION_NAME-\$_ncore_tmux_index"
+            fi
+            if ! tmux has-session -t "\$_ncore_tmux_candidate" 2>/dev/null; then
+                _ncore_tmux_session="\$_ncore_tmux_candidate"
+            elif [ -z "\$(tmux list-clients -t "\$_ncore_tmux_candidate" 2>/dev/null)" ]; then
+                _ncore_tmux_session="\$_ncore_tmux_candidate"
+            else
+                _ncore_tmux_index=\$((\$_ncore_tmux_index + 1))
+            fi
+        done
+        unset _ncore_tmux_index _ncore_tmux_candidate
+        tmux new-session -A -s "\$_ncore_tmux_session" && exit
     fi
 fi
 EOF
     if [ "$WRITE_FILE_READY" = true ]; then
         SSH_SERVER_TMUX_PERSISTENCE_READY=true
-        echo "[SSH] Persistent tmux login hook is in place (session: $SSH_SERVER_TMUX_SESSION_NAME, opt-out: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE)."
+        echo "[SSH] Persistent tmux login hook is in place (base session: $SSH_SERVER_TMUX_SESSION_NAME, extra windows get numbered sessions, opt-out: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE)."
     else
         echo "[SSH] Failed to deploy the persistent tmux login hook."
     fi

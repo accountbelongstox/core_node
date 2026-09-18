@@ -51,6 +51,18 @@ print_header_from_common_functions "Setup persistent SSH remote access"
 # a dropped connection no longer kills the running shell - reconnecting
 # resumes exactly where the session left off. Client-side advice (cannot be
 # deployed from here): set "ServerAliveInterval 30" in the SSH client config.
+#
+# FIX RECORD 2026-09-18 (two simultaneous SSH windows mirror each other):
+# Symptom: with the hook above, every login ran "tmux new-session -A -s main",
+# so two open windows attached to the SAME session and shared one current
+# window - input typed in one window appeared in the other and both screens
+# stayed in sync.
+# Fix: the hook now picks the first session name (main, main-2, main-3, ...)
+# that is missing or has no attached clients. A dropped connection leaves its
+# session unattached, so a reconnect still resumes it, while a second
+# simultaneous window gets its own session and no longer mirrors the first.
+# Immediate manual disable for a user: touch ~/.ncore-no-auto-tmux and detach
+# existing windows with Ctrl-b d (not exit, which would close the shell).
 
 ssh_server_ensure_package
 
@@ -82,7 +94,7 @@ if [ "$SSH_SERVER_CONFIG_VALID" = true ] && [ "$SSH_SERVER_CONFIG_APPLIED" = tru
     print_info_from_common_functions "Stale pre-auth connection holders are reaped on every run."
     print_info_from_common_functions "SSH restarts automatically after process termination."
     if [ "$SSH_SERVER_TMUX_PERSISTENCE_READY" = true ]; then
-        print_info_from_common_functions "Interactive logins resume in persistent tmux session '$SSH_SERVER_TMUX_SESSION_NAME'; transport drops no longer kill the shell (opt out: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE)."
+        print_info_from_common_functions "Interactive logins resume in persistent tmux sessions ('$SSH_SERVER_TMUX_SESSION_NAME', extra windows get numbered sessions); transport drops no longer kill the shell (opt out: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE)."
     fi
     print_info_from_common_functions "On the SSH client, set ServerAliveInterval 30 to detect dead paths faster (client-side only)."
     print_info_from_common_functions "Connect with: ssh -p $SSH_SERVER_PORT $SSH_CONNECTION_USER@${SSH_CONNECTION_IPS%% *}"
