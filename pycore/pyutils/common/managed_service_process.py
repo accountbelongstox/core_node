@@ -178,11 +178,6 @@ class ManagedServiceProcessMixin:
                         f"[managed] {spec.name}: service port already occupied - "
                         "aborting duplicate spawn"
                     )
-                    if logf is not None:
-                        try:
-                            logf.close()
-                        except OSError:
-                            pass
                     return False
             except Exception:  # noqa: BLE001
                 pass

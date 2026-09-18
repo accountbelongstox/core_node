@@ -74,3 +74,71 @@ No sshd setting can prevent an external TCP RST.
   tcpkeepalive no, unusedconnectiontimeout none, persourcemaxstartups 10, maxstartups 100:30:200.
 - `/etc/profile.d/ncore_ssh_tmux_persistence.sh` content and syntax verified after the run.
 - Existing SSH sessions were untouched by the run (reload-only convergence; no sshd restart).
+
+## Follow-up (2026-09-18) — Client-side keepalive implemented in generated ssh$index scripts
+
+The Windows client-side recommendation above ("cannot be deployed from the server") is now
+implemented in the script generator so every generated SSH connection script carries it.
+
+### Changes
+
+1. `scripts/pytools/special_software_env_manager/script_sections/ssh_command_generator.py`
+   - Module docstring gained a FIX RECORD block (symptom, evidence, official doc references).
+   - All generated ssh invocations (Windows PowerShell and Linux bash, password and key-auth
+     branches) now use:
+     `ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no <connection>`
+     - `ServerAliveInterval=30` + `ServerAliveCountMax=3`: the client detects a dead link within
+       ~90s via encrypted SSH-layer keepalives instead of hanging on a silently cut TCP socket
+       (the exact failure mode diagnosed above: external RST/CGNAT rebinding leaves no FIN).
+     - `TCPKeepAlive=no`: per ssh_config(5), TCP keepalive "will cause connections to die if the
+       route is down temporarily" — disabled client-side for the same reason as server-side.
+   - Generated scripts print a post-session TIP: re-run the script to reconnect; the server-side
+     tmux session persists (pairs with `/etc/profile.d/ncore_ssh_tmux_persistence.sh`).
+2. Regenerated in place via the generator itself (diff-verified, only the keepalive lines and
+   the TIP line changed):
+   - `scripts/winenvs/ssh1.ps1`
+   - `scripts/linuxenvs/ssh1.sh`
+   Other ssh$index scripts pick up the fix on their next regeneration by Special Software
+   Environment Manager.
+
+### Verification
+
+- `bash -n scripts/linuxenvs/ssh1.sh` — pass.
+- PowerShell parser (`System.Management.Automation.Language.Parser::ParseInput`) on
+  `scripts/winenvs/ssh1.ps1` — zero errors.
+- Generator output diffed against the pre-change files: only the four `ssh` invocation/echo
+  lines plus the TIP line differ; no unrelated drift.
+
+## Windows Client Test Feedback (2026-09-18 08:12 CST) — ssh1.ps1 live run
+
+Tested from Windows (user mpc, Git Bash / Kimi CLI) against root@43.163.112.77,
+using the exact invocation ssh1.ps1 executes:
+`ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no root@43.163.112.77`
+
+### Results
+
+- **Secret loading**: `secret_read.py` loads `SSH_CONNECTION_1` = `root@43.163.112.77` and
+  `SSH_PASSWORD_1` (present, 13 chars) correctly. PASS.
+- **Authentication**: server reports `passwordauthentication no` / `pubkeyauthentication yes`
+  (`sshd -T`), so the script's password-paste branch cannot authenticate by itself. The
+  connection succeeds via the local key `C:\Users\mpc\.ssh\id_ed25519`
+  (SHA256:gYAnGUMLS4JzBbtW1IXXZkggNhJj0zHWsIWiNfmls2A), which is already in the server's
+  `authorized_keys`. Under PowerShell (USERPROFILE=C:\Users\mpc) default key lookup finds it
+  automatically; under Git Bash with a redirected HOME an explicit `-i` is required. PASS (key auth).
+- **Keepalive options**: `ServerAliveInterval=30 ServerAliveCountMax=3 TCPKeepAlive=no` accepted,
+  session stable, exit code 0. PASS.
+- **Server-side state verified over SSH**: tmux persistence hook present
+  (`/etc/profile.d/ncore_ssh_tmux_persistence.sh`, 644 root:root, dated 2026-09-18 07:49);
+  sshd effective config confirmed: port 22, clientaliveinterval 60, clientalivecountmax 0,
+  tcpkeepalive no. No tmux session currently running — it is created on the next interactive
+  login by the profile.d hook. PASS.
+- **Linux-side record**: this test was appended server-side to
+  `/var/log/ncore/windows_ssh_client_test.log` so the Linux side has the Windows client
+  feedback on file.
+
+### Note for future regeneration
+
+Since the server has password auth disabled, the password display / paste guidance printed by
+ssh1.ps1 is moot for this server. Consider having the generator emit the key-auth branch
+(no `SSH_PASSWORD_1`) for this connection, or add a hint that login relies on the local
+`id_ed25519` key.
