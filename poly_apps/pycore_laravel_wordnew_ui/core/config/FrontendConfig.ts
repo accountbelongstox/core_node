@@ -2,7 +2,8 @@ import { NEXUS_DASH_FRONTEND_PORT } from '../contracts/ServiceContract';
 
 // Single source: config/service_contract.json (via core/contracts/ServiceContract).
 export const DEFAULT_FRONTEND_PORT = NEXUS_DASH_FRONTEND_PORT;
-export const FRONTEND_BUILD_TARGET = 'web';
+export type FrontendBuildTarget = 'web' | 'native';
+export const FRONTEND_BUILD_TARGET: FrontendBuildTarget = 'web';
 export const FRONTEND_APP_FLAVOR = 'shell';
 
 export function getOriginUrl(): string {
