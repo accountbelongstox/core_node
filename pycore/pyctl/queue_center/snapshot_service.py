@@ -142,14 +142,12 @@ class _QueueCenterRealtimeThread(threading.Thread):
             QUEUE_CENTER_STOP_SIGNAL,
             False,
         ):
-            endpoint = self._service.realtime_endpoint()
-            if not endpoint:
-                # Every Laravel candidate is down: idle on the shared health
-                # record instead of burning HTTP timeouts per reconnect.
-                self._note_failure("Laravel endpoint unreachable - realtime paused")
-                self._pause(QUEUE_CENTER_ENDPOINT_IDLE_SECONDS)
-                continue
             try:
+                endpoint = self._service.realtime_endpoint()
+                if not endpoint:
+                    self._note_failure("Laravel endpoint unreachable - realtime paused")
+                    self._pause(QUEUE_CENTER_ENDPOINT_IDLE_SECONDS)
+                    continue
                 connection = self._service.realtime_connection(endpoint)
                 self._subscribed_endpoint = endpoint
                 self._service.replay_realtime_events(endpoint)
@@ -291,10 +289,8 @@ class _QueueCenterSnapshotService:
         if age_s is not None and age_s <= QUEUE_CENTER_ENDPOINT_HEALTH_TTL_SECONDS:
             return stored if last.get("healthy") else ""
         resolved = laravel_endpoint_manager.resolve()
-        if resolved and resolved != stored:
-            return resolved
-        refreshed = laravel_endpoint_manager.last_probe_result(stored)
-        return stored if refreshed.get("healthy") else ""
+        refreshed = laravel_endpoint_manager.last_probe_result(resolved or stored)
+        return (resolved or stored) if refreshed.get("healthy") else ""
 
     def realtime_connection(self, endpoint: Optional[str] = None) -> Dict[str, Any]:
         base = str(endpoint or self.endpoint()).rstrip("/")

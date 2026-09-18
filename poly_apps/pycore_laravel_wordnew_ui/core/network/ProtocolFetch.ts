@@ -181,7 +181,7 @@ async function nativeCronetFetch(input: RequestInfo | URL, init?: RequestInit): 
     });
     const responseBody = method === 'HEAD' || [204, 205, 304].includes(result.status)
       ? null
-      : base64ToBytes(result.bodyBase64);
+      : new Uint8Array(base64ToBytes(result.bodyBase64));
     const response = new Response(responseBody, {
       status: result.status,
       statusText: result.statusText,

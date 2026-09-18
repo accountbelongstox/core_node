@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import azure.cognitiveservices.speech as _speechsdk
 """
 Azure Speech cloud TTS engine — the orchestrator's API fallback.
 
@@ -25,14 +24,9 @@ from xml.sax.saxutils import escape
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
 from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.engine_policy import tts_locale
-
-try:  # optional third-party (already in pycore requirements)
-    _AZURE_SDK_AVAILABLE = True
-except Exception:  # noqa: BLE001 — SDK absent / import error -> engine simply unavailable
-    _speechsdk = None
-    _AZURE_SDK_AVAILABLE = False
 
 def _key() -> str:
     # Single key-reading center (pyutils/common/api_secrets) — same global indexed
@@ -46,7 +40,7 @@ def _region() -> str:
 
 def available() -> bool:
     """SDK importable AND a key+region are configured (no network round-trip)."""
-    return bool(_AZURE_SDK_AVAILABLE and _key() and _region())
+    return bool(_key() and _region() and get_third_package_speechsdk())
 
 
 def _voice(lang: Optional[str]) -> str:
@@ -74,26 +68,30 @@ def synthesize(text: str, lang: str, output_mp3: Path, rate: Optional[str] = Non
     if not available() or not _voice(lang):
         return False
     key, region = _key(), _region()
+    speechsdk = get_third_package_speechsdk()
+    audio_data = b""
     try:
-        speech_config = _speechsdk.SpeechConfig(subscription=key, region=region)
+        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
         speech_config.set_speech_synthesis_output_format(
-            _speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3)
+            speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3)
         speech_config.speech_synthesis_voice_name = _voice(lang)
         output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        audio_config = _speechsdk.audio.AudioOutputConfig(filename=str(output_mp3))
-        synthesizer = _speechsdk.SpeechSynthesizer(
-            speech_config=speech_config, audio_config=audio_config)
+        synthesizer = speechsdk.SpeechSynthesizer(
+            speech_config=speech_config, audio_config=None)
         result = synthesizer.speak_ssml_async(_ssml(text, lang, rate)).get()
+        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            audio_data = bytes(result.audio_data)
+            if audio_data:
+                output_mp3.write_bytes(audio_data)
+            return bool(audio_data)
     except Exception as e:  # noqa: BLE001
         ColorPrint.red(f"[azure-tts] synth error: {e}")
         return False
 
-    if result.reason == _speechsdk.ResultReason.SynthesizingAudioCompleted:
-        return output_mp3.exists() and output_mp3.stat().st_size > 0
     # Surface the real reason (429 quota, auth, region) for the orchestrator log.
     detail = ""
-    if result.reason == _speechsdk.ResultReason.Canceled:
-        cancel = _speechsdk.CancellationDetails(result)
+    if result.reason == speechsdk.ResultReason.Canceled:
+        cancel = speechsdk.SpeechSynthesisCancellationDetails(result)
         detail = f" ({cancel.reason}: {cancel.error_details})"
     ColorPrint.yellow(f"[azure-tts] not completed: {result.reason}{detail}")
     return False

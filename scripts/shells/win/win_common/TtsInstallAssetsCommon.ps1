@@ -254,6 +254,13 @@ function Resolve-HfMirrorBase {
     return 'https://hf-mirror.com'
 }
 
+function Get-HfRequestHeaders {
+    $headers = @{}
+    $token = if ($env:HF_TOKEN) { $env:HF_TOKEN.Trim() } elseif ($env:HUGGING_FACE_HUB_TOKEN) { $env:HUGGING_FACE_HUB_TOKEN.Trim() } else { '' }
+    if ($token) { $headers['Authorization'] = ('Bearer {0}' -f $token) }
+    return $headers
+}
+
 function Test-HfGlobMatch {
     param(
         [Parameter(Mandatory = $true)][string]$FileName,
@@ -284,12 +291,15 @@ function Get-HfRepoTreeCatalog {
         [string]$SubPath = ''
     )
     $catalog = @{}
+    $headers = Get-HfRequestHeaders
+    $sizeProperty = $null
+    $lfsProperty = $null
     $bases = @('https://huggingface.co', (Resolve-HfMirrorBase))
     foreach ($base in $bases) {
         try {
             $pathPart = if ($SubPath) { "/$SubPath" } else { '' }
             $uri = ('{0}/api/models/{1}/tree/main{2}' -f $base.TrimEnd('/'), $RepoId, $pathPart)
-            $entries = Invoke-RestMethod -Uri $uri -TimeoutSec 30 -ErrorAction Stop
+            $entries = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
             if (-not $entries) { continue }
             foreach ($entry in $entries) {
                 $name = [string]$entry.path
@@ -302,15 +312,20 @@ function Get-HfRepoTreeCatalog {
                     continue
                 }
                 $size = 0L
-                if ($null -ne $entry.size) {
-                    $size = [long]$entry.size
-                } elseif ($entry.lfs -and $null -ne $entry.lfs.size) {
-                    $size = [long]$entry.lfs.size
+                $sizeProperty = $entry.PSObject.Properties['size']
+                $lfsProperty = $entry.PSObject.Properties['lfs']
+                if ($null -ne $sizeProperty -and $null -ne $sizeProperty.Value) {
+                    $size = [long]$sizeProperty.Value
+                } elseif ($null -ne $lfsProperty -and $null -ne $lfsProperty.Value) {
+                    $sizeProperty = $lfsProperty.Value.PSObject.Properties['size']
+                    if ($null -ne $sizeProperty) { $size = [long]$sizeProperty.Value }
                 }
                 $catalog[$name] = $size
             }
             if ($catalog.Count -gt 0) { return $catalog }
-        } catch { }
+        } catch {
+            Write-Host ("[hf] Catalog request failed for {0} at {1}: {2}" -f $RepoId, $base, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
     }
     return $catalog
 }
@@ -322,26 +337,34 @@ function Get-HfRepoFileCatalog {
         return $catalog
     }
     $fallback = @{}
+    $headers = Get-HfRequestHeaders
+    $sizeProperty = $null
+    $lfsProperty = $null
     $bases = @('https://huggingface.co', (Resolve-HfMirrorBase))
     foreach ($base in $bases) {
         try {
             $uri = ('{0}/api/models/{1}' -f $base.TrimEnd('/'), $RepoId)
-            $resp = Invoke-RestMethod -Uri $uri -TimeoutSec 30 -ErrorAction Stop
+            $resp = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
             if ($resp.siblings) {
                 foreach ($entry in $resp.siblings) {
                     $name = [string]$entry.rfilename
                     if (-not $name) { continue }
                     $size = 0L
-                    if ($null -ne $entry.size) {
-                        $size = [long]$entry.size
-                    } elseif ($entry.lfs -and $null -ne $entry.lfs.size) {
-                        $size = [long]$entry.lfs.size
+                    $sizeProperty = $entry.PSObject.Properties['size']
+                    $lfsProperty = $entry.PSObject.Properties['lfs']
+                    if ($null -ne $sizeProperty -and $null -ne $sizeProperty.Value) {
+                        $size = [long]$sizeProperty.Value
+                    } elseif ($null -ne $lfsProperty -and $null -ne $lfsProperty.Value) {
+                        $sizeProperty = $lfsProperty.Value.PSObject.Properties['size']
+                        if ($null -ne $sizeProperty) { $size = [long]$sizeProperty.Value }
                     }
                     $fallback[$name] = $size
                 }
                 return $fallback
             }
-        } catch { }
+        } catch {
+            Write-Host ("[hf] Catalog fallback failed for {0} at {1}: {2}" -f $RepoId, $base, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
     }
     return $fallback
 }
@@ -404,6 +427,9 @@ function Invoke-HfFileDownloadResumable {
         [string]$Prefix = '',
         [long]$CatalogBytes = 0
     )
+    $headers = Get-HfRequestHeaders
+    $curlHeaders = @()
+    if ($headers.ContainsKey('Authorization')) { $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization'])) }
     if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
     $parent = Split-Path -Parent $OutPath
     if ($parent -and -not (Test-Path -LiteralPath $parent)) {
@@ -420,7 +446,7 @@ function Invoke-HfFileDownloadResumable {
     $url = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $FileName)
     if ($expected -le 0) {
         try {
-            $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
+            $head = Invoke-WebRequest -Uri $url -Headers $headers -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
             if ($head.Headers['Content-Length']) {
                 $expected = [long]$head.Headers['Content-Length']
             }
@@ -441,7 +467,7 @@ function Invoke-HfFileDownloadResumable {
         Write-Host ("{0} [!] curl.exe missing; cannot download {1}" -f $Prefix, $FileName) -ForegroundColor DarkYellow
         return $false
     }
-    & $curl.Source -L -C - --retry 3 --connect-timeout 30 -o $OutPath $url
+    & $curl.Source -f -L -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
     if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
         return $false
     }

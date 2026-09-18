@@ -58,6 +58,8 @@ _GPTSOVITS_BUILD_CONSTRAINTS = tuple(
     (Path(__file__).resolve().parents[3] / "tts_install_assets" / "gptsovits_build_constraints.txt")
     .read_text(encoding="ascii").splitlines()
 )
+_LEGACY_BUILD_CONSTRAINTS = ("setuptools<81",)
+_LEGACY_BUILD_PACKAGES = (*_LEGACY_BUILD_CONSTRAINTS, "wheel")
 
 _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
     "chattts": {
@@ -75,6 +77,8 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
         "linux_native_build": True,
+        "build_packages": _LEGACY_BUILD_PACKAGES,
+        "build_constraints": _LEGACY_BUILD_CONSTRAINTS,
         "torch_packages": ("torch", "torchaudio"),
         "packages": (
             "requirements.txt",
@@ -133,8 +137,9 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "packages": ("requirements.txt",),
         "windows_native_build": True,
         "linux_native_build": True,
-        "build_packages": _GPTSOVITS_BUILD_CONSTRAINTS,
-        "build_constraints": _GPTSOVITS_BUILD_CONSTRAINTS,
+        "build_packages": (*_LEGACY_BUILD_PACKAGES, "Cython", *_GPTSOVITS_BUILD_CONSTRAINTS),
+        "build_constraints": (*_LEGACY_BUILD_CONSTRAINTS, *_GPTSOVITS_BUILD_CONSTRAINTS),
+        "pip_args": ("--no-build-isolation",),
         "health_imports": "import numpy, torch, transformers, pyopenjtalk, jieba_fast, opencc",
         "upstream": {
             "repo": "https://github.com/RVC-Boss/GPT-SoVITS",
