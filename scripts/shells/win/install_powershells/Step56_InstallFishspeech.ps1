@@ -32,6 +32,11 @@ $hasCuda        = $false
 $doFull         = ($Full -or $env:FISHSPEECH_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
 $fishPolicy     = $null
 $fishPackages   = @()
+$checkpointRepo = ''
+$ckptName = ''
+$ckptDir = ''
+$ckptSentinel = ''
+$ckptOk = $false
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -184,15 +189,22 @@ if (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Gl
 
 # --- Local inference checkpoints (IDEMPOTENT: sentinel + resumable download) ---
 # Bridge/SDK mode works without weights; a failed download never fails the step.
-$ckptName = Split-Path -Leaf $(if ($env:FISHSPEECH_CHECKPOINT) { $env:FISHSPEECH_CHECKPOINT } else { $fishCkpt })
+$checkpointRepo = if ($env:FISHSPEECH_CHECKPOINT) { $env:FISHSPEECH_CHECKPOINT.Trim() } else { "$fishCkpt".Trim() }
+if (-not $checkpointRepo) {
+    Write-Host "$SCRIPT_INDEX [!] Checkpoint model is unresolved; set FISHSPEECH_CHECKPOINT to a Hugging Face repo ID." -ForegroundColor DarkYellow
+    Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
+    return
+}
+if (-not $checkpointRepo.Contains('/')) { $checkpointRepo = ('fishaudio/{0}' -f $checkpointRepo) }
+$ckptName = Split-Path -Leaf $checkpointRepo
 $ckptDir = Join-Path $targetDir (Join-Path 'checkpoints' $ckptName)
 $ckptSentinel = Join-Path $targetDir (Join-Path 'checkpoints' ".ckpt_$($ckptName)_done")
-if ((Test-Path $ckptSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $ckptDir -RepoId "fishaudio/$ckptName" -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model')) -and -not $Force) {
+if ((Test-Path $ckptSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $ckptDir -RepoId $checkpointRepo -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model')) -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] checkpoint $ckptName already present." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [..] downloading checkpoint fishaudio/$ckptName (curl, resumable) ..." -ForegroundColor Yellow
-    $ckptOk = Install-HfRepoFlat -RepoId "fishaudio/$ckptName" -DestDir $ckptDir -SentinelPath $ckptSentinel -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model') -Prefix "$SCRIPT_INDEX " -SentinelValue $ckptName
-    if ($ckptOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $ckptDir -RepoId "fishaudio/$ckptName" -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model'))) {
+    Write-Host "$SCRIPT_INDEX [..] downloading checkpoint $checkpointRepo (curl, resumable) ..." -ForegroundColor Yellow
+    $ckptOk = Install-HfRepoFlat -RepoId $checkpointRepo -DestDir $ckptDir -SentinelPath $ckptSentinel -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model') -Prefix "$SCRIPT_INDEX " -SentinelValue $ckptName
+    if ($ckptOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $ckptDir -RepoId $checkpointRepo -AllowPatterns @('*.json', '*.pth', '*.safetensors', '*.txt', '*.tiktoken', '*.model'))) {
         Write-Host "$SCRIPT_INDEX [OK] checkpoint ready at $ckptDir (local inference mode enabled)." -ForegroundColor Green
     } else {
         Write-Host "$SCRIPT_INDEX [!] checkpoint download incomplete; will RESUME next run (bridge/SDK mode still works)." -ForegroundColor DarkYellow

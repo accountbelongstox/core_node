@@ -489,7 +489,7 @@ def _install_into(
     # override removal and shared constraints do not apply (07.7).
     if managed_venv and not self_contained and not _remove_local_shared_overrides(venv_python, shared_packages):
         return False
-    install_list = [*build_packages, *pins, *pip_packages]
+    install_list = [*pins, *pip_packages]
     constraints = (
         () if self_contained else _shared_constraints(venv_python, shared_packages)
     )
@@ -518,9 +518,17 @@ def _install_into(
             ColorPrint.blue(
                 "[isolated-venv] dependency constraints: " + ", ".join(constraints)
             )
-        if install_list and not _install_package_steps(
+        if build_packages and not _install_package_steps(
             venv_python,
             tuple(pip_args[4:]),
+            build_packages,
+            "ensuring engine build package",
+            command_env=command_env,
+        ):
+            return False
+        if install_list and not _install_package_steps(
+            venv_python,
+            (*pip_args[4:], *spec.get("pip_args", ())),
             install_list,
             "ensuring engine package",
             command_env=command_env,

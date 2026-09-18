@@ -182,6 +182,10 @@ class BaseLaravelWorkerService:
         self._diff_state_by_type: Dict[str, bool] = {}
         self._diff_checks_since_state: Dict[str, int] = {}
         self._diff_sync_log_state: Dict[str, Dict[str, int]] = {}
+        self._diff_recovery_state = SerializedValue(
+            {},
+            name=f"{self.STATE_OWNER_NAME}DiffRecovery",
+        )
         self._pull_guard = SerializedValue(
             False,
             name=f"{self.STATE_OWNER_NAME}PullGuard",
@@ -379,6 +383,40 @@ class BaseLaravelWorkerService:
         return {"ok": True, "changed": changed, "processed": 0}
 
     def _sync_mirror_from_diffs(self, task_types: List[str]) -> Dict[str, Any]:
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        recovery = self._diff_recovery_state.get() or {}
+        outcome = {
+            "ok": False,
+            "changed": False,
+            "synced": False,
+            "scope": self._diff_segment_scope(base_url),
+            "error": str(recovery.get("error") or ""),
+        }
+        error = ""
+        if recovery.get("base_url") == base_url and time.monotonic() < float(
+            recovery.get("retry_after") or 0.0
+        ):
+            return outcome
+        try:
+            outcome = self._fetch_mirror_from_diffs(task_types)
+        except Exception as exc:
+            error = self._short_err(exc)
+            self._diff_recovery_state.set({
+                "base_url": base_url,
+                "retry_after": time.monotonic() + self.RESULT_OFFLINE_BACKOFF_SECONDS,
+                "error": error,
+            })
+            if recovery.get("base_url") != base_url or recovery.get("error") != error:
+                ColorPrint.yellow(
+                    f"{self._log_prefix} diff sync unavailable ({error}); processing the local mirror"
+                )
+            outcome["error"] = error
+            return outcome
+        self._diff_recovery_state.set({})
+        outcome["ok"] = True
+        return outcome
+
+    def _fetch_mirror_from_diffs(self, task_types: List[str]) -> Dict[str, Any]:
         """Run ONE diff round over the lane's task types (no pull follow-up).
 
         Shared by the heartbeat poll and the full-sync pull intake. This is
@@ -978,13 +1016,7 @@ class BaseLaravelWorkerService:
         # Refresh the authoritative ordered mirror on every intake cycle. The
         # first successful response proves sync capability; subsequent cycles
         # must still poll revisions or the local heap will never see new work.
-        try:
-            self._sync_mirror_from_diffs(task_types)
-        except Exception as exc:  # noqa: BLE001 - offline mirror processing
-            ColorPrint.yellow(
-                f"{self._log_prefix} diff sync unreachable ({exc}); "
-                "processing the local mirror"
-            )
+        self._sync_mirror_from_diffs(task_types)
         # Clear stale in-process delivery marks once after startup, then mark
         # rows delivered when this sweep admits them. This prevents a finished
         # task from being re-enqueued every heartbeat while its outbox result

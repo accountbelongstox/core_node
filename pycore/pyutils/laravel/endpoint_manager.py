@@ -140,6 +140,17 @@ def _normalize_candidates(values: Any) -> List[str]:
     return ordered
 
 
+def _probe_timeout_result(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "url": _normalize(payload.get("url")),
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": int(time.time() * 1000),
+        "status": None,
+        "error": "Laravel endpoint probe exceeded its worker wait budget",
+    }
+
+
 def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Probe one endpoint; payload and result cross the thread via THREAD_BUS."""
     url = _normalize(payload.get("url"))
@@ -380,7 +391,8 @@ class LaravelEndpointManager:
             payloads,
             max_workers=len(payloads),
             thread_prefix="LaravelEndpointProbe",
-            timeout=PROBE_TIMEOUT + 2.0,
+            timeout=2.0 * PROBE_TIMEOUT + 2.0,
+            timeout_result=_probe_timeout_result,
         )
         results = {
             result["url"]: result

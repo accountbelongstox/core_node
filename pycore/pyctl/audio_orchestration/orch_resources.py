@@ -12,6 +12,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.background_jobs import BackgroundJobs
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts.audio_delivery_outbox import AUDIO_DELIVERY_PROCESS_ID, audio_delivery_outbox
@@ -36,6 +37,7 @@ _delivery_jobs = BackgroundJobs("AudioOrchDelivery")
 # different words at the same time instead of one serial chain.
 RESOLVE_PARALLEL_WORKERS = 4
 RESOLVE_CHUNK_SIZE = 40
+LARAVEL_AUDIO_HEALTH_TTL_SECONDS = 30.0
 
 
 def resource_id(kind: str, language: str, text: str) -> str:
@@ -102,6 +104,11 @@ def _laravel_audio(resource: Dict[str, Any], target: Path, base_url: Optional[st
     kind = resource["kind"]
     text = resource["text"]
     language = resource["language"]
+    endpoint = str(base_url or laravel_endpoint_manager.get_active_base_url()).rstrip("/")
+    health = laravel_endpoint_manager.last_probe_result(endpoint)
+    checked_ms = int(health.get("last_checked") or 0)
+    if checked_ms and time.time() - checked_ms / 1000.0 <= LARAVEL_AUDIO_HEALTH_TTL_SECONDS and not health.get("healthy"):
+        return None
     try:
         if kind == "sentence":
             metadata = _sentence_metadata(resource, base_url)

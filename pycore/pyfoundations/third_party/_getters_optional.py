@@ -84,6 +84,14 @@ def install_and_reimport_edge_tts():
 
 
 # Optional packages
+def get_third_package_fishaudio():
+    return _lazy_import('fishaudio', 'import fishaudio')
+
+
+def get_third_package_fishaudio_utils():
+    return _lazy_import('fishaudio.utils', 'from fishaudio import utils')
+
+
 def get_third_package_speechsdk():
     """Get Azure Speech SDK (lazy load, optional)"""
     skip_install = os.environ.get('PYCORE_SKIP_SPEECHSDK') == '1'

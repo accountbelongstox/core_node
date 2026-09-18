@@ -103,9 +103,11 @@ function script:Resolve-WslRepoPath {
     param([string]$Distro, [string]$WindowsPath)
     $resolved = $null
     $wslPath = $null
+    $linuxInput = ''
     if (-not (Test-Path -LiteralPath $WindowsPath)) { return $null }
     $resolved = (Resolve-Path -LiteralPath $WindowsPath).Path
-    $wslPath = script:Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--', 'wslpath', '-a', $resolved) -QuietErrors
+    $linuxInput = $resolved.Replace('\', '/')
+    $wslPath = script:Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--exec', 'wslpath', '-a', '-u', $linuxInput)
     if (-not $script:DockerBridgeWslSucceeded -or -not $wslPath) { return $null }
     return ("$wslPath" -replace "`0", '').Trim()
 }
