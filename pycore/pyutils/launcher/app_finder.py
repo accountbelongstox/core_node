@@ -83,6 +83,23 @@ class AppFinder:
 
     # Back-compat view for launch_guard.resolve_process_names: app -> binary names.
     _LINUX_BINARIES = {name: spec['binaries'] for name, spec in _LINUX_APP_DEFINITIONS.items()}
+
+    # Running-process names (psutil comm, exact match) per app. The launch path
+    # resolves to wrapper/symlink names (google-chrome, code) that never match the
+    # real process name (chrome, code's own comm), so already-running detection
+    # must match on these instead of the resolved exe path.
+    _LINUX_PROCESS_NAMES = {
+        'chrome': ['chrome'],
+        'chrome_beta': ['chrome'],
+        'edge': ['msedge', 'chrome'],
+        'vscode': ['code'],
+        'antigravity': ['antigravity'],
+        'cursor': ['cursor'],
+        'wechat': ['wechat', 'weixin'],
+        'qq': ['qq'],
+        'devin': ['windsurf'],
+        'notepad++': [],
+    }
     
     # Chrome-related constants (shared between chrome and chrome_beta)
     CHROME_EXE_NAMES = ['chrome.exe', 'GoogleChrome.exe']

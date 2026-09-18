@@ -51,6 +51,22 @@ class LinuxTerminalArgv:
     FALLBACK_EMULATORS = ("xfce4-terminal", "gnome-terminal", "konsole",
                           "qterminal", "xterm")
 
+    # Emulators usable for SEPARATE POSITIONED windows on a Wayland session via
+    # the X11 backend (XWayland): each must be single-process so its own backend
+    # env applies to its windows. gnome-terminal is EXCLUDED on purpose: it is a
+    # D-Bus client of the already-running gnome-terminal-server, and the windows
+    # are created by the server with the SERVER's (Wayland) backend, so a client
+    # side GDK_BACKEND=x11 has no effect.
+    WAYLAND_X11_EMULATORS = ("xfce4-terminal", "xterm", "konsole", "qterminal")
+
+    # Backend-forcing env per toolkit (official docs: GTK "Running GTK
+    # Applications" GDK_BACKEND; Qt QT_QPA_PLATFORM). xterm is X11-native.
+    _X11_BACKEND_ENV = {
+        "xfce4-terminal": {"GDK_BACKEND": "x11"},
+        "konsole": {"QT_QPA_PLATFORM": "xcb"},
+        "qterminal": {"QT_QPA_PLATFORM": "xcb"},
+    }
+
     # ------------------------------------------------------------------ #
     # Argv construction (per emulator)
     # ------------------------------------------------------------------ #
@@ -207,3 +223,22 @@ class LinuxTerminalArgv:
             if shutil.which(emulator):
                 return emulator
         return None
+
+    def _find_wayland_x11_emulator(self):
+        """
+        Return the first emulator usable for separate X11-backend (XWayland)
+        windows on a Wayland session, or None.
+
+        Returns:
+            str or None: Emulator name from WAYLAND_X11_EMULATORS.
+        """
+        for emulator in self.WAYLAND_X11_EMULATORS:
+            if shutil.which(emulator):
+                return emulator
+        return None
+
+    def _x11_backend_env(self, emulator):
+        """
+        Env dict forcing *emulator* onto its X11 backend (empty when X11-native).
+        """
+        return dict(self._X11_BACKEND_ENV.get(emulator, {}))
