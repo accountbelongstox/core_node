@@ -3,22 +3,6 @@ SSH Command Generator
 
 Generates SSH connection scripts for Windows and Linux.
 
-FIX RECORD (2026-09-18): SSH client-side keepalive for unstable networks
-- Symptom: Interactive SSH sessions die silently; server journalctl shows only
-  "pam_unix: session closed" with no sshd disconnect message, and all sessions
-  from the same client IP drop in the same minute while the client egress IP
-  rotates (CGNAT/NAT rebinding or middlebox RST). The TCP transport is cut
-  externally, so no sshd_config option can prevent it.
-- Server-side fix (deployed separately): ClientAliveInterval 60 /
-  ClientAliveCountMax 0 (disables idle termination per sshd_config(5)),
-  TCPKeepAlive no, plus a tmux session-persistence hook so reconnects resume
-  the previous shell.
-- Client-side fix applied here: every generated ssh$index script connects with
-    -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no
-  ServerAlive* detects a dead link within ~90s instead of hanging forever;
-  TCPKeepAlive=no avoids spurious disconnects on transient route breaks
-  (OpenSSH ssh_config(5) warns TCP keepalive "will cause connections to die
-  if the route is down temporarily").
 """
 
 from typing import Dict
@@ -255,23 +239,22 @@ if ($sshPassword) {{
     Write-Host ""
     Write-Host "[INFO] SSH will prompt for password. Please paste the password above when prompted." -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
     Write-Host ""
 
     # Execute SSH connection - it will prompt for password
-    & ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection
+    & ssh $sshConnection
 }} else {{
     # No password configured, use SSH key authentication
     Write-Host "[INFO] No password configured, using SSH key authentication" -ForegroundColor Cyan
-    Write-Host "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
     Write-Host ""
 
-    & ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $sshConnection
+    & ssh $sshConnection
 }}
 
 Write-Host ""
 Write-Host "SSH session ended" -ForegroundColor Cyan
-Write-Host "[TIP] If the network dropped the session, re-run this script to reconnect; the server-side tmux session persists." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Press any key to exit..." -ForegroundColor Yellow
 $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
@@ -483,23 +466,22 @@ if [ -n "$SSH_PASSWORD" ]; then
     echo ""
     echo "[INFO] SSH will prompt for password. Please paste the password above when prompted."
     echo ""
-    echo "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $SSH_CONNECTION"
+    echo "Executing: ssh $SSH_CONNECTION"
     echo ""
 
     # Execute SSH connection - it will prompt for password
-    ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no "$SSH_CONNECTION" "$@"
+    ssh "$SSH_CONNECTION" "$@"
 else
     # No password configured, use SSH key authentication
     echo "[INFO] No password configured, using SSH key authentication"
-    echo "Executing: ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no $SSH_CONNECTION"
+    echo "Executing: ssh $SSH_CONNECTION"
     echo ""
 
-    ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o TCPKeepAlive=no "$SSH_CONNECTION" "$@"
+    ssh "$SSH_CONNECTION" "$@"
 fi
 
 echo ""
 echo "SSH session ended"
-echo "[TIP] If the network dropped the session, re-run this script to reconnect; the server-side tmux session persists."
 echo ""
 """
 
