@@ -62,6 +62,23 @@ tts_runtime_policy_run() {
     (cd "$repo_root" && "$py" -m pycore.pyutils.common.python_env.runtime_policy "$@")
 }
 
+tts_ensure_engine_base_runtime() {
+    local py="$1" engine="$2"
+    local repo_root runtime_version override_name installer
+    repo_root="$(_core_node_repo_root_from_tts_common)"
+    override_name="${engine^^}_PYTHON"
+    [[ -n "${!override_name:-}" ]] && return 0
+    runtime_version="$(PYCORE_SKIP_DEP_CHECK=1 PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
+sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
+from pycore.pyutils.common.python_env.runtime_policy import engine_spec, engine_isolation_mode, ISOLATION_MODE_SELF_CONTAINED
+engine = os.environ["PYCORE_ISOLATED_ENGINE"]
+sys.stdout.write(str(engine_spec(engine).get("python_recommended", "")) if engine_isolation_mode(engine) == ISOLATION_MODE_SELF_CONTAINED else "")')"
+    if [[ "$runtime_version" == "3.12" ]]; then
+        installer="$repo_root/scripts/shells/linux/debian/install_shells/14_install_python310.sh"
+        bash "$installer" --runtime 312 >&2
+    fi
+}
+
 tts_engine_compatible() {
     local py="$1" engine="$2" prefix="${3:-}"
     local python_version result override_name override_python
@@ -74,7 +91,7 @@ tts_engine_compatible() {
         return 0
     fi
     # Isolated engines are gated by their resolved BASE interpreter (engine
-    # override, else the registered dedicated Python 3.10), never by the host
+    # override, else the registered dedicated Python runtime), never by the host
     # interpreter version.
     if printf '%s' "$result" | grep -q '"isolated": true'; then
         if result="$(tts_runtime_policy_run "$py" base-compatibility "$engine")" \
@@ -82,7 +99,7 @@ tts_engine_compatible() {
             return 0
         fi
     fi
-    echo "${prefix}[SKIP] $engine is incompatible with Python $python_version; install the dedicated Python 3.10 or configure ${engine^^}_PYTHON with a supported interpreter." >&2
+    echo "${prefix}[SKIP] $engine is incompatible with Python $python_version; install its recommended dedicated Python runtime or configure ${engine^^}_PYTHON with a supported interpreter." >&2
     return 1
 }
 
@@ -124,6 +141,7 @@ tts_provision_isolated_venv() {
     local py="$1" engine="$2" force="${3:-0}"
     shift 3 2>/dev/null || shift $#
     local repo_root force_value result_file provision_state packages_env
+    tts_ensure_engine_base_runtime "$py" "$engine"
     repo_root="$(_core_node_repo_root_from_tts_common)"
     force_value="0"
     [[ "$force" == "1" ]] && force_value="1"

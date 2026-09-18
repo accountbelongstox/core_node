@@ -24,6 +24,8 @@
 #>
 
 $script:DOCKER_BRIDGE_DEFAULT_DISTRO = 'Debian'
+$vmComputeService = $null
+$vmComputeConfig = $null
 
 if (-not (Get-Command Set-GlobalVar -ErrorAction SilentlyContinue)) {
     . (Join-Path $PSScriptRoot 'GlobalVarStoreCommon.ps1')
@@ -31,6 +33,9 @@ if (-not (Get-Command Set-GlobalVar -ErrorAction SilentlyContinue)) {
 
 function script:Set-DockerBridgeVarIfChanged {
     param([string]$Key, [string]$Value)
+    if ($Key -eq 'TTS_DOCKER_PROVIDER_STATE') {
+        Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value $(if ($Value -eq 'ready') { 'ready' } else { 'pending' }) | Out-Null
+    }
     $current = Get-GlobalVar -key $Key -defaultValue ''
     if ("$current" -ceq $Value) { return }
     Set-GlobalVar -key $Key -value $Value
@@ -71,10 +76,39 @@ function Get-TtsDockerProviderStatus {
 
 function script:Resolve-WslRepoPath {
     param([string]$Distro, [string]$WindowsPath)
+    if (-not (Test-Path -LiteralPath $WindowsPath)) { return $null }
     $resolved = (Resolve-Path -LiteralPath $WindowsPath).Path
     $wslPath = & wsl.exe --distribution $Distro -- wslpath -a "$resolved" 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $wslPath) { return $null }
     return ("$wslPath" -replace "`0", '').Trim()
+}
+
+function Initialize-WslHostCompute {
+    param([string]$Prefix = '[wsl]')
+
+    $vmComputeService = Get-Service -Name 'vmcompute' -ErrorAction SilentlyContinue
+    if (-not $vmComputeService) {
+        Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_vm_platform_missing'
+        Write-Host "$Prefix [!] WSL2 Host Compute Service is unavailable. Run 'wsl --install --no-distribution' in an administrator terminal, restart Windows, then re-run this step. If it persists, enable firmware virtualization." -ForegroundColor DarkYellow
+        return $false
+    }
+    if ($vmComputeService.Status -eq 'Running') { return $true }
+    try {
+        if ($null -eq $vmComputeService.StartType) {
+            $vmComputeConfig = Get-CimInstance -ClassName Win32_Service -Filter "Name='vmcompute'" -ErrorAction Stop
+        }
+        if ($vmComputeService.StartType -eq 'Disabled' -or $vmComputeConfig.StartMode -eq 'Disabled') {
+            Write-Host "$Prefix Command: Set-Service -Name vmcompute -StartupType Manual -ErrorAction Stop"
+            Set-Service -Name 'vmcompute' -StartupType Manual -ErrorAction Stop
+        }
+        Write-Host "$Prefix Command: Start-Service -Name vmcompute -ErrorAction Stop"
+        Start-Service -Name 'vmcompute' -ErrorAction Stop
+    } catch {
+        Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_host_compute_not_running'
+        Write-Host "$Prefix [!] Host Compute Service could not start: $_. Confirm VirtualMachinePlatform is enabled, restart Windows, then re-run this step." -ForegroundColor DarkYellow
+        return $false
+    }
+    return $true
 }
 
 function Invoke-TtsDockerEnsure {
@@ -126,10 +160,11 @@ function Invoke-TtsDockerEnsure {
     }
     $distro = $status.SavedDistro
     if (-not $distro) { $distro = $script:DOCKER_BRIDGE_DEFAULT_DISTRO }
+    if (-not (Initialize-WslHostCompute -Prefix $Prefix)) { return $false }
     if ($status.Distros -notcontains $distro) {
         Write-Host "$Prefix WSL distro '$distro' is not registered; dispatching Step30_InstallWSLDebian13.ps1 ..." -ForegroundColor Yellow
         $step30 = Join-Path (Join-Path $CoreNodeRoot 'scripts\shells\win\install_powershells') 'Step30_InstallWSLDebian13.ps1'
-        & $step30
+        & $step30 | Where-Object { $_ -isnot [bool] } | Out-Host
         $status = Get-TtsDockerProviderStatus
         if ($status.Distros -notcontains $distro) {
             Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_distro_missing_run_Step30'
@@ -150,7 +185,7 @@ function Invoke-TtsDockerEnsure {
     # force-enables START_DOCKER and runs 79_install_docker.sh per component.
     $ensureEntry = "$wslRepo/scripts/shells/linux/debian/install_shells/ensure_docker_for_tts.sh"
     Write-Host "$Prefix dispatching in-WSL docker ensure: bash $ensureEntry $Engine (distro: $distro)"
-    & wsl.exe --distribution $distro --user root --exec bash "$ensureEntry" "$Engine"
+    & wsl.exe --distribution $distro --user root --exec bash "$ensureEntry" "$Engine" | Out-Host
     if ($LASTEXITCODE -ne 0) {
         Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value 'wsl_engine_ensure_failed'
         Write-Host "$Prefix [!] In-WSL docker ensure failed (exit $LASTEXITCODE); the failing phase reported its reason above. Fix it, then re-run this step." -ForegroundColor DarkYellow
@@ -196,6 +231,7 @@ function Invoke-TtsDockerApply {
         [string]$CoreNodeRoot = $Global:CORE_NODE_DIR,
         [string]$Prefix = '[docker-bridge]'
     )
+    New-Item -ItemType Directory -Force -Path $StagingDir | Out-Null
     $provider = Get-GlobalVar -key 'TTS_DOCKER_PROVIDER' -defaultValue ''
     if ($provider -eq 'wsl_engine') {
         $distro = Get-GlobalVar -key 'TTS_DOCKER_WSL_DISTRO' -defaultValue $script:DOCKER_BRIDGE_DEFAULT_DISTRO
@@ -207,7 +243,7 @@ function Invoke-TtsDockerApply {
         }
         $entry = "$wslRepo/scripts/shells/linux/debian/install_shells/apply_tts_docker_for_engine.sh"
         Write-Host "$Prefix dispatching in-WSL compose apply: bash $entry $Engine $wslStaging (distro: $distro)"
-        & wsl.exe --distribution $distro --user root --exec bash "$entry" "$Engine" "$wslStaging"
+        & wsl.exe --distribution $distro --user root --exec bash "$entry" "$Engine" "$wslStaging" | Out-Host
         return ($LASTEXITCODE -eq 0)
     }
 
@@ -258,7 +294,7 @@ function Invoke-TtsDockerApply {
     $prevStaging = $env:TTS_STAGING; $prevPort = $env:TTS_PORT; $prevDevice = $env:TTS_DEVICE; $prevTorchIndex = $env:TORCH_INDEX
     $env:TTS_STAGING = $StagingDir; $env:TTS_PORT = "$port"; $env:TTS_DEVICE = $device; $env:TORCH_INDEX = $torchIndex
     try {
-        & docker @composeArgs
+        & docker @composeArgs | Out-Host
     } finally {
         $env:TTS_STAGING = $prevStaging; $env:TTS_PORT = $prevPort; $env:TTS_DEVICE = $prevDevice; $env:TORCH_INDEX = $prevTorchIndex
     }

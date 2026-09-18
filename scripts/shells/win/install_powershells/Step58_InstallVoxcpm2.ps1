@@ -9,7 +9,7 @@
     VoxCPM2's official support window is Python 3.10-3.12; the main interpreter is
     3.13, so voxcpm is NEVER installed into it. This step builds a dedicated
     self-contained venv via isolated_venv.ensure_venv('voxcpm2', ...) (base
-    Python 3.10 from Step13_InstallPython310). Production runs VoxCPM2 as a
+    Python 3.12 from Step13_InstallPython310_312). Production runs VoxCPM2 as a
     class-C HTTP server (voxcpm2_api_server.py, port 57214) under that venv; the
     main interpreter only talks to it over HTTP.
 
@@ -111,7 +111,7 @@ Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-P
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
 # --- Isolated venv (Bucket B, self-contained): VoxCPM2 and its pinned
-#     dependencies go only into the dedicated Python 3.10 venv; the main
+#     dependencies go only into the dedicated Python 3.12 venv; the main
 #     interpreter (3.13) is outside the official 3.10-3.12 window and is never
 #     touched. The engine runs as a class-C HTTP server (voxcpm2_api_server.py,
 #     port 57214) under that venv. --- #
@@ -158,6 +158,7 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Pat
     Write-Host "$SCRIPT_INDEX [OK] VoxCPM2 ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [!] VoxCPM2 is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
+    Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
     return
 }
 if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model -AllowPatterns $weightAllow)) {

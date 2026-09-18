@@ -19,7 +19,7 @@ Covers TWO kinds of TTS services under category "tts":
                     never shadowed. Per-engine venv dirs + ports: qwen3tts
                     py_venv_qwen3tts_<ver> :57210, melotts py_venv_melotts_<ver>
                     :57212, gptsovits py_venv_gptsovits_<ver> :9880 (existing
-                    GPTSOVITS_URL bind), voxcpm2 py_venv_voxcpm2_3.10 :57214
+                    GPTSOVITS_URL bind), voxcpm2 py_venv_voxcpm2_3.12 :57214
                     (self-contained, dedicated base Python 3.10).
   - kind="model"  : in-process model engines (bark, kokoro, sherpa).
                     load on first synth; parallel OK; each idle-unloads

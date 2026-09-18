@@ -114,6 +114,7 @@ if (-not (Test-Path -LiteralPath $Global:TEMP_DIR)) {
 }
 $env:TEMP = $Global:TEMP_DIR
 $env:TMP = $Global:TEMP_DIR
+$env:PIP_NO_WARN_SCRIPT_LOCATION = '1'
 $Global:LOG_FILE = Join-Path $LOGS_DIR "devops_setup.log"
 $Global:STEP_COUNT = 1
 
@@ -251,8 +252,21 @@ $Global:PYTHON310_WINGET_ID = "Python.Python.$($Global:PYTHON310_VERSION)"
 $Global:PYTHON310_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON310_VERSION_COMPACT)")
 $Global:PYTHON310_SCRIPTS_DIR = Join-Path $Global:PYTHON310_DIR "Scripts"
 $Global:PYTHON310_EXE_PATH = Join-Path $Global:PYTHON310_DIR "python.exe"
+$env:PYTHON310_EXE_PATH = $Global:PYTHON310_EXE_PATH
 $Global:PYTHON310_PIP_PATH = Join-Path $Global:PYTHON310_SCRIPTS_DIR "pip.exe"
 $Global:PYTHON310_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PYTHON310_VERSION_COMPACT).install_success.flag")
+$Global:PYTHON_GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py'
+$Global:PYTHON310_ARCHIVE_URL = 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip'
+$Global:PYTHON310_ARCHIVE_FILE = Join-Path $Global:DOWNLOADS_DIR 'python-3.10.11-embed-amd64.zip'
+$Global:PYTHON312_VERSION = Get-AiRuntimePolicyValue -Name 'AI_PYTHON312_VERSION' -Default '3.12'
+$Global:PYTHON312_DIR = Join-Path $Global:LANG_COMPILER_DIR 'python312'
+$Global:PYTHON312_SCRIPTS_DIR = Join-Path $Global:PYTHON312_DIR 'Scripts'
+$Global:PYTHON312_EXE_PATH = Join-Path $Global:PYTHON312_DIR 'python.exe'
+$Global:PYTHON312_PIP_PATH = Join-Path $Global:PYTHON312_SCRIPTS_DIR 'pip.exe'
+$Global:PYTHON312_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR 'python312.install_success.flag'
+$Global:PYTHON312_ARCHIVE_URL = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip'
+$Global:PYTHON312_ARCHIVE_FILE = Join-Path $Global:DOWNLOADS_DIR 'python-3.12.10-embed-amd64.zip'
+$env:PYTHON312_EXE_PATH = $Global:PYTHON312_EXE_PATH
 $Global:UV_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "uv.exe"
 $Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
 $Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "poetry.exe"

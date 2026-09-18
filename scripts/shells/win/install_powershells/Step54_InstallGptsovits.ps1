@@ -70,6 +70,9 @@ $hasCuda        = $false
 $reqFile        = $null
 $dlOk           = $false
 $gptsovitsVenvReady = $false
+$modelReady = $false
+$allowPatterns = if ($env:GPTSOVITS_HF_ALLOW) { @($env:GPTSOVITS_HF_ALLOW -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) } else { @('*') }
+$tierAllow = $null
 # EXPLICIT opt-in only (NOT the default NEURAL_TTS_INSTALL batch): a fresh install clones a
 # multi-GB repo and builds the isolated venv (minutes), so run it only when asked. The
 # old-transformers pin now lands in the venv, never the main interpreter. See the header.
@@ -149,7 +152,7 @@ if ($resolvedPython) {
 }
 
 # Fully installed already (repo + models + isolated venv) -> instant idempotent exit.
-if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
+if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and $gptsovitsVenvReady -and (Test-Path $sentinel) -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $modelsDir -RepoId $HF_REPO -AllowPatterns $allowPatterns) -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'GPT-SoVITS repo + models + isolated venv already present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; set GPTSOVITS_REF_AUDIO to a reference clip." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
@@ -234,31 +237,33 @@ if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Pat
 }
 
 # 3) pretrained models from HuggingFace (IDEMPOTENT: sentinel + curl resume) #
-if ((Test-Path $sentinel) -and -not $Force) {
-    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'pretrained models sentinel present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
-} else {
-    if (-not $env:GPTSOVITS_HF_ALLOW) {
-        $tierAllow = Resolve-TtsModelTier -PythonExe $resolvedPython -Key gptsovits_hf_allow -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
-        if ($tierAllow) {
-            $env:GPTSOVITS_HF_ALLOW = $tierAllow
-            Write-Host ("$SCRIPT_INDEX  models: {0} -> GPTSOVITS_HF_ALLOW={1}" -f $(if ($hasCuda) { 'GPU max' } else { 'CPU max' }), $tierAllow) -ForegroundColor Cyan
-        }
+if (-not $env:GPTSOVITS_HF_ALLOW) {
+    $tierAllow = Resolve-TtsModelTier -PythonExe $resolvedPython -Key gptsovits_hf_allow -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
+    if ($tierAllow) {
+        $env:GPTSOVITS_HF_ALLOW = $tierAllow
+        Write-Host ("$SCRIPT_INDEX  models: {0} -> GPTSOVITS_HF_ALLOW={1}" -f $(if ($hasCuda) { 'GPU max' } else { 'CPU max' }), $tierAllow) -ForegroundColor Cyan
     }
+}
+if ($env:GPTSOVITS_HF_ALLOW) {
+    $allowPatterns = @($env:GPTSOVITS_HF_ALLOW -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+$modelReady = (Test-Path -LiteralPath $sentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $modelsDir -RepoId $HF_REPO -AllowPatterns $allowPatterns)
+if ($modelReady -and -not $Force) {
+    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'pretrained model files verified' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+} else {
     Write-Host ("$SCRIPT_INDEX [..] downloading models {0} -> {1} (mirror bytes, resumable, live progress)" -f $HF_REPO, $modelsDir) -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
-    $allowPatterns = @('*')
-    if ($env:GPTSOVITS_HF_ALLOW) {
-        $allowPatterns = @($env:GPTSOVITS_HF_ALLOW -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    }
     $dlOk = Install-HfRepoFlat -RepoId $HF_REPO -DestDir $modelsDir -SentinelPath $sentinel -AllowPatterns $allowPatterns -Prefix "$SCRIPT_INDEX " -SentinelValue 'done'
-    if ($dlOk -or (Test-Path $sentinel)) {
+    $modelReady = $dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $modelsDir -RepoId $HF_REPO -AllowPatterns $allowPatterns)
+    if ($modelReady) {
         Write-Host "$SCRIPT_INDEX [OK] pretrained models downloaded." -ForegroundColor Green
     } else {
         Write-Host "$SCRIPT_INDEX [!] model download not finished; will RESUME next run (finished files are NOT re-downloaded)." -ForegroundColor DarkYellow
     }
 }
 
-if (-not (Test-Path (Join-Path $targetDir 'api_v2.py')) -or -not $gptsovitsVenvReady -or -not (Test-Path -LiteralPath $sentinel)) {
+if (-not (Test-Path (Join-Path $targetDir 'api_v2.py')) -or -not $gptsovitsVenvReady -or -not $modelReady) {
+    Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
     Write-Host "$SCRIPT_INDEX [!] GPT-SoVITS is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
     return
 }

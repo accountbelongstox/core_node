@@ -54,7 +54,7 @@ def _base_interpreter_identity() -> str:
         executable = os.path.abspath(base_executable)
     return "|".join(
         (
-            executable,
+            os.path.normcase(executable),
             sys.implementation.name,
             sys.implementation.cache_tag or "",
             str(sys.maxsize),
@@ -78,17 +78,14 @@ def venv_dir(engine: str, version_tag: Optional[str] = None) -> Path:
 
 
 def _find_existing_venv_python(engine: str) -> Optional[Path]:
-    """Locate an already-created venv for one engine across any ABI tag.
-
-    Self-contained venvs are tagged with their BASE interpreter version (e.g.
-    3.10) while the managing host may be 3.13, so the tag cannot be derived
-    from the host; discovery scans the versioned directories instead.
-    """
+    """Locate the engine venv matching its resolved base interpreter ABI."""
     root = get_lang_compiler_dir()
-    try:
-        candidates = sorted(root.glob(f"{_VENV_PREFIX}{engine}_*"))
-    except OSError:
+    base = resolve_engine_base_python(engine)
+    recommended = str(engine_spec(engine).get("python_recommended") or "")
+    tag = _interpreter_version(str(base["path"])) if base.get("found") else recommended
+    if not tag:
         return None
+    candidates = (venv_dir(engine, tag),)
     for candidate in candidates:
         python_path = (
             candidate / "Scripts" / "python.exe"
@@ -161,6 +158,7 @@ def venv_ready(engine: str) -> bool:
 
 def _subprocess_env(executable: str, clean: bool = False) -> dict:
     env = os.environ.copy()
+    env["PIP_NO_WARN_SCRIPT_LOCATION"] = "1"
     executable_dir = str(Path(executable).resolve().parent)
     current_path = env.get("PATH", "")
     env["PATH"] = os.pathsep.join(
@@ -619,9 +617,15 @@ def _base_identity_stamp_path(engine: str) -> Optional[Path]:
 def _base_interpreter_identity_for(python_exe: str) -> str:
     """Return the base-interpreter identity probed from an arbitrary binary."""
     code = (
-        "import pathlib, sys\n"
+        "import os, pathlib, sys\n"
         "base = getattr(sys, '_base_executable', None) or sys.executable\n"
-        "print('|'.join((str(pathlib.Path(base).resolve()), "
+        "config = pathlib.Path(sys.prefix) / 'pyvenv.cfg'\n"
+        "if config.is_file():\n"
+        "    for line in config.read_text(encoding='utf-8-sig').splitlines():\n"
+        "        key, separator, value = line.partition('=')\n"
+        "        if separator and key.strip() == 'base-executable':\n"
+        "            base = value.strip()\n"
+        "print('|'.join((os.path.normcase(str(pathlib.Path(base).resolve())), "
         "sys.implementation.name, sys.implementation.cache_tag or '', str(sys.maxsize))))\n"
     )
     try:
@@ -641,31 +645,10 @@ def _base_interpreter_identity_for(python_exe: str) -> str:
 
 
 def _venv_interpreter_identity(engine: str) -> str:
-    code = (
-        "import pathlib, sys\n"
-        "base = getattr(sys, '_base_executable', None) or sys.executable\n"
-        "print('|'.join((str(pathlib.Path(base).resolve()), "
-        "sys.implementation.name, sys.implementation.cache_tag or '', str(sys.maxsize))))\n"
-    )
     python_path = _venv_python_path(engine)
-    result: subprocess.CompletedProcess[str]
-
     if not python_path.is_file():
         return ""
-    try:
-        result = subprocess.run(
-            [str(python_path), "-c", code],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except OSError:
-        return ""
-    if result.returncode != 0:
-        return ""
-    return result.stdout.strip()
+    return _base_interpreter_identity_for(str(python_path))
 
 
 def _base_identity_matches(
@@ -784,6 +767,12 @@ def _create_venv(
             f"[isolated-venv] creating self-contained venv (base: {base_python}, "
             f"no host package sharing) at {target} ..."
         )
+        embedded_path = Path(base_python).parent / f"python{_interpreter_version(base_python).replace('.', '')}._pth"
+        if sys.platform == "win32" and embedded_path.is_file():
+            return _run(
+                [str(base_python), "-m", "virtualenv", "--creator", "builtin", "--no-periodic-update", str(target)],
+                clean=True,
+            )
         return _run([str(base_python), "-m", "venv", str(target)], clean=True)
     target_dir = target or venv_dir(engine)
     target_dir.parent.mkdir(parents=True, exist_ok=True)
