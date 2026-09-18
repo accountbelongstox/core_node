@@ -71,7 +71,6 @@ final class SystemArchiveManager
             'a',
             '-t7z',
             '-mx=5',
-            '-spf-',
             '-y',
             $archivePath,
             '@' . $listPath,
@@ -108,7 +107,6 @@ final class SystemArchiveManager
             'x',
             $archivePath,
             '-o' . $destinationPath,
-            '-spf-',
             '-y',
         ]);
         if (!$extractResult->successful()) {

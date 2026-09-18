@@ -23,7 +23,10 @@
 #     Wubi 86, and fcitx5-table-extra (Debian 13+/Ubuntu 24.04+/Kali) adds the
 #     richer `wubi-large` tables when present. Installed with
 #     --install-recommends per the Debian wiki, plus the GNOME kimpanel
-#     extension / KDE KCM when those desktops are available.
+#     extension / KDE KCM when those desktops are available. The kimpanel
+#     extension is also seeded into GNOME's enabled-extensions, because the
+#     package alone never activates it and the fcitx5 top-bar icon stays
+#     invisible until it is.
 #   - Fall back to IBus (ibus-table-wubi) which exists on EVERY target,
 #     including Ubuntu 18.04/20.04 where fcitx5 is absent or too old; the Wubi
 #     engine is also appended to GNOME's input-source list so it shows up in
@@ -66,6 +69,8 @@ ENV_FILE="/etc/environment"
 ENV_MARK_BEGIN="# >>> core_node chinese-wubi (managed) >>>"
 ENV_MARK_END="# <<< core_node chinese-wubi (managed) <<<"
 ENV_PAIRS=()
+KIMPANEL_EXTENSION_UUID="kimpanel@kde.org"
+KIMPANEL_EXTENSION_DIR="/usr/share/gnome-shell/extensions/kimpanel@kde.org"
 
 # Required core packages per framework (must exist on the chosen path).
 FCITX5_REQUIRED=("fcitx5" "fcitx5-chinese-addons" "im-config")
@@ -347,6 +352,62 @@ enable_fcitx5_wubi() {
     print_success_from_common_functions "Fcitx5 Wubi profile written for $REAL_USER"
     # Reload a running fcitx5 so the change applies without a relaunch (best-effort).
     run_as_real_user fcitx5-remote -r >/dev/null 2>&1 || true
+}
+
+# gsettings as the real user with a resolvable session-bus address. sudo strips
+# DBUS_SESSION_BUS_ADDRESS on the hop from root, and a root shell often has no
+# bus at all, so derive unix:path=/run/user/<uid>/bus when unset. Without a bus
+# the call fails soft (returns non-zero) and the caller treats it as a no-op.
+gsettings_for_real_user() {
+    local real_uid=""
+    local bus_addr="${DBUS_SESSION_BUS_ADDRESS:-}"
+    real_uid="$(id -u "$REAL_USER" 2>/dev/null || true)"
+    if [ -z "$bus_addr" ] && [ -n "$real_uid" ] && [ -S "/run/user/$real_uid/bus" ]; then
+        bus_addr="unix:path=/run/user/$real_uid/bus"
+    fi
+    if [ -n "$REAL_USER" ] && [ "$(id -u)" -eq 0 ] && [ "$(id -un 2>/dev/null)" != "$REAL_USER" ] && command -v sudo >/dev/null 2>&1; then
+        sudo -u "$REAL_USER" DBUS_SESSION_BUS_ADDRESS="$bus_addr" gsettings "$@"
+    else
+        DBUS_SESSION_BUS_ADDRESS="$bus_addr" gsettings "$@"
+    fi
+}
+
+# Enable the GNOME kimpanel extension (the fcitx5 tray/input indicator in the
+# GNOME top bar). Installing gnome-shell-extension-kimpanel alone is not enough:
+# GNOME Shell only activates extensions listed in enabled-extensions, so the
+# icon stays invisible until the uuid is seeded here. Idempotent (appended only
+# when absent) and fail-soft on non-GNOME desktops (Kali Xfce, KDE, headless):
+# no extension dir or no org.gnome.shell schema -> skip; unreachable user bus ->
+# warn only. The dconf write takes effect on the next login even when the
+# running shell has not rescanned the newly installed extension yet.
+enable_gnome_kimpanel_extension() {
+    [ -d "$KIMPANEL_EXTENSION_DIR" ] || return 0
+    command -v gsettings >/dev/null 2>&1 || return 0
+    gsettings list-schemas 2>/dev/null | grep -qx "org.gnome.shell" || return 0
+
+    local current=""
+    local updated=""
+    current="$(gsettings_for_real_user get org.gnome.shell enabled-extensions 2>/dev/null)"
+    if [ -z "$current" ]; then
+        print_warning_from_common_functions "Could not read GNOME enabled-extensions for $REAL_USER (no session bus?); enable kimpanel after re-login"
+        return 0
+    fi
+    case "$current" in
+        *"$KIMPANEL_EXTENSION_UUID"*)
+            print_info_from_common_functions "GNOME kimpanel extension already enabled"
+            return 0
+            ;;
+    esac
+    if [ "$current" = "@as []" ]; then
+        updated="['$KIMPANEL_EXTENSION_UUID']"
+    else
+        updated="${current%]}, '$KIMPANEL_EXTENSION_UUID']"
+    fi
+    if gsettings_for_real_user set org.gnome.shell enabled-extensions "$updated" >/dev/null 2>&1; then
+        print_success_from_common_functions "GNOME kimpanel extension enabled (fcitx5 top-bar icon; active after next login)"
+    else
+        print_warning_from_common_functions "Could not enable kimpanel now; enable it in GNOME Extensions or after re-login"
+    fi
 }
 
 # Register the Wubi engine in GNOME's input-source list (the visible keyboard

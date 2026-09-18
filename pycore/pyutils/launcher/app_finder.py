@@ -12,23 +12,77 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.system_paths import get_system_cache_dir, map_web_path
 
 
 class AppFinder:
     """Find application executables"""
 
-    # Linux PATH binaries per app key (Debian/Ubuntu/Kali). The APP_DEFINITIONS
-    # below are all Windows paths/exe names, so on Linux we resolve via PATH.
-    _LINUX_BINARIES = {
-        'antigravity': ['antigravity'],
-        'devin': ['windsurf', 'devin'],
-        'edge': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
-        'vscode': ['code', 'code-insiders'],
-        'wechat': ['wechat', 'weixin'],
-        'qq': ['qq', 'linuxqq'],
-        'notepad++': [],  # no Linux equivalent
+    # Linux app resolution (Debian/Ubuntu/Kali). The APP_DEFINITIONS below are all
+    # Windows paths/exe names, so on Linux each app resolves through this ordered
+    # candidate chain (first executable hit wins):
+    #   1. Shell central constants: the numbered install scripts under
+    #      scripts/shells/linux persist resolved paths into the shared gvar store
+    #      (e.g. 51_install_chrome.sh writes CHROME_BIN / CHROME_INSTALL_DIR);
+    #      gvar_keys are exact binary paths, gvar_dir_keys are install dirs that
+    #      are probed with the app's binary names.
+    #   2. Derived central install dir: <compile_dir>/applications/<app_subdir>
+    #      (map_web_path - the SAME base the sh installers use), probing the
+    #      binary names at its root, under bin/, plus any explicit subdir_binary.
+    #   3. Fixed bin dirs (_LINUX_FIXED_BIN_DIRS) x binary names.
+    #   4. PATH via shutil.which.
+    _LINUX_APP_DEFINITIONS = {
+        'chrome': {
+            'binaries': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
+            'gvar_keys': ['CHROME_BIN'],
+            'gvar_dir_keys': ['CHROME_INSTALL_DIR'],
+            'app_subdir': 'chrome',
+        },
+        'chrome_beta': {
+            'binaries': ['google-chrome-beta', 'google-chrome-unstable'],
+        },
+        # Edge slot: the real Edge when its central constant/binary exists, else
+        # the Chrome-family fallback (the Windows edge slot launches portable Chrome).
+        'edge': {
+            'binaries': ['microsoft-edge', 'microsoft-edge-stable', 'microsoft-edge-beta',
+                         'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
+            'gvar_keys': ['EDGE_BIN'],
+        },
+        'vscode': {
+            'binaries': ['code', 'code-insiders', 'codium'],
+            'app_subdir': 'vscode',
+        },
+        'antigravity': {
+            'binaries': ['antigravity'],
+            'app_subdir': 'antigravity',
+        },
+        'cursor': {
+            'binaries': ['cursor'],
+            'app_subdir': 'cursor',
+            # 155_install_cursor.sh: AppRun under the extracted AppImage tree.
+            'subdir_binary': 'extracted/squashfs-root/AppRun',
+        },
+        'wechat': {
+            'binaries': ['wechat', 'weixin'],
+            'app_subdir': 'wechat',
+        },
+        'qq': {'binaries': ['qq', 'linuxqq']},
+        'devin': {'binaries': ['windsurf', 'devin']},
+        'notepad++': {'binaries': []},  # no Linux equivalent
     }
+
+    # Fixed search dirs tried after the central constants (chain step 3).
+    _LINUX_FIXED_BIN_DIRS = ('/usr/local/bin', '/usr/bin', '/bin', '/snap/bin')
+
+    # Wrapper scripts containing any of these tokens self-elevate; launched as a
+    # non-root desktop user they pop a polkit password dialog (pkexec /
+    # systemd-run --system -> org.freedesktop.policykit.exec / systemd1.manage-units,
+    # both auth_admin by default) that stalls the whole launcher flow, so they are
+    # skipped in favour of the underlying non-elevating binary.
+    _LINUX_ELEVATION_TOKENS = ('pkexec', 'systemd-run --system', 'exec sudo')
+
+    # Back-compat view for launch_guard.resolve_process_names: app -> binary names.
+    _LINUX_BINARIES = {name: spec['binaries'] for name, spec in _LINUX_APP_DEFINITIONS.items()}
     
     # Chrome-related constants (shared between chrome and chrome_beta)
     CHROME_EXE_NAMES = ['chrome.exe', 'GoogleChrome.exe']
@@ -182,6 +236,98 @@ class AppFinder:
     def expand_path(self, path):
         """Expand path with username"""
         return path.format(username=self.username)
+
+    def _linux_shell_gvar_dir(self) -> Path:
+        """Shared shell gvar store (GLOBAL_VAR_DIR in gvar_system_common.sh)."""
+        base = os.environ.get('CORE_NODE_DATA_DIR') or '/var/_core_node'
+        return Path(base) / 'global_var'
+
+    def _read_shell_gvar(self, key: str) -> Optional[str]:
+        """Read one value from the shell gvar store (plain-text file per key)."""
+        try:
+            value_file = self._linux_shell_gvar_dir() / key
+            if value_file.is_file():
+                value = value_file.read_text(encoding='utf-8', errors='ignore').strip()
+                return value or None
+        except OSError:
+            pass
+        return None
+
+    def _linux_binary_usable(self, path: Path) -> bool:
+        """False for self-elevating wrapper scripts when running non-root."""
+        if os.geteuid() == 0:
+            return True
+        try:
+            with open(path, 'rb') as fh:
+                head = fh.read(8192)
+        except OSError:
+            return False
+        if not head.startswith(b'#!'):
+            return True
+        text = head.decode('utf-8', errors='ignore')
+        return not any(token in text for token in self._LINUX_ELEVATION_TOKENS)
+
+    def _linux_candidates(self, app_name: str) -> List[Path]:
+        """Ordered candidate paths for *app_name* (central constants first)."""
+        spec = self._LINUX_APP_DEFINITIONS.get(app_name) or {}
+        binaries = spec.get('binaries', [])
+        candidates = []
+
+        for key in spec.get('gvar_keys', []):
+            value = self._read_shell_gvar(key)
+            if value:
+                candidates.append(Path(value))
+
+        for dir_key in spec.get('gvar_dir_keys', []):
+            dir_value = self._read_shell_gvar(dir_key)
+            if dir_value:
+                for binary in binaries:
+                    candidates.append(Path(dir_value) / binary)
+
+        app_subdir = spec.get('app_subdir')
+        if app_subdir:
+            try:
+                apps_dir = map_web_path('compile_dir') / 'applications' / app_subdir
+            except Exception:
+                apps_dir = None
+            if apps_dir is not None:
+                subdir_binary = spec.get('subdir_binary')
+                if subdir_binary:
+                    candidates.append(apps_dir / subdir_binary)
+                for binary in binaries:
+                    candidates.append(apps_dir / binary)
+                    candidates.append(apps_dir / 'bin' / binary)
+
+        for fixed_dir in self._LINUX_FIXED_BIN_DIRS:
+            for binary in binaries:
+                candidates.append(Path(fixed_dir) / binary)
+
+        local_bin = Path.home() / '.local' / 'bin'
+        for binary in binaries:
+            candidates.append(local_bin / binary)
+
+        return candidates
+
+    def _find_linux_app(self, app_name: str) -> Optional[str]:
+        """Resolve an app's Linux binary: central constants, fixed dirs, PATH."""
+        spec = self._LINUX_APP_DEFINITIONS.get(app_name)
+        if not spec:
+            return None
+
+        for candidate in self._linux_candidates(app_name):
+            try:
+                if candidate.is_file() and os.access(candidate, os.X_OK) \
+                        and self._linux_binary_usable(candidate):
+                    return str(candidate)
+            except OSError:
+                continue
+
+        for binary in spec.get('binaries', []):
+            resolved = shutil.which(binary)
+            if resolved and self._linux_binary_usable(Path(resolved)):
+                return resolved
+
+        return None
     
     def find_app(self, app_name: str, force_refresh: bool = False) -> Optional[str]:
         """
@@ -202,16 +348,15 @@ class AppFinder:
                 return str(cached_path)
 
         # Linux/macOS: APP_DEFINITIONS hold Windows paths/exe names that never
-        # exist here, so resolve the platform binary on PATH instead. Chrome falls
-        # through to find_chrome_by_version() below (also Linux-guarded).
+        # exist here, so resolve the platform binary via the central-constant
+        # chain (gvar store -> compile applications dir -> fixed dirs -> PATH).
+        # Chrome falls through to find_chrome_by_version() below (also Linux-guarded).
         if sys.platform != 'win32' and app_name not in ('chrome', 'chrome_beta'):
-            for binary in self._LINUX_BINARIES.get(app_name, []):
-                resolved = shutil.which(binary)
-                if resolved:
-                    self.cache[cache_key] = resolved
-                    self.save_cache()
-                    return resolved
-            return None
+            resolved = self._find_linux_app(app_name)
+            if resolved:
+                self.cache[cache_key] = resolved
+                self.save_cache()
+            return resolved
 
         # Get app definition
         app_def = self.APP_DEFINITIONS.get(app_name)
@@ -283,21 +428,16 @@ class AppFinder:
         """
         all_versions = {}
 
-        # Linux/macOS: resolve Chrome/Chromium on PATH (the Windows scan paths below
-        # never exist here). Cache per version so find_chrome_by_version() reuses it.
+        # Linux/macOS: resolve Chrome/Chromium through the same central-constant
+        # chain as the other apps (the Windows scan paths below never exist here).
+        # Cache per version so find_chrome_by_version() reuses it.
         if sys.platform != 'win32':
-            chrome_linux = {
-                'stable': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
-                'beta': ['google-chrome-beta', 'google-chrome-unstable'],
-            }
             found = {}
-            for ver, names in chrome_linux.items():
-                for n in names:
-                    resolved = shutil.which(n)
-                    if resolved:
-                        found[ver] = resolved
-                        self.cache[f'chrome_{ver}'] = resolved
-                        break
+            for ver, app_key in (('stable', 'chrome'), ('beta', 'chrome_beta')):
+                resolved = self._find_linux_app(app_key)
+                if resolved:
+                    found[ver] = resolved
+                    self.cache[f'chrome_{ver}'] = resolved
             if found:
                 self.save_cache()
             return found
