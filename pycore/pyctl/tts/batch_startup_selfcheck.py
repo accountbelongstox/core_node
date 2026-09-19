@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.tts.batch import batch_constants as const
+from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchResult
 from pycore.pyutils.tts.batch import chattts_batch
 from pycore.pyutils.tts.batch import gptsovits_batch
@@ -69,21 +70,35 @@ def _probe_engine(name: str) -> Optional[str]:
     return None
 
 
-def _release_engine(name: str) -> None:
-    """Free CPU/GPU held by an in-process model after its check run.
+def _release_engine(name: str, loaded_snap: resource_monitor.ResourceSnapshot) -> Dict[str, Any]:
+    """Free CPU/GPU held by an in-process model after its check run and log the
+    before/after comparison with the actual decrease percentages.
 
     Server engines own a separate process with a managed idle shutdown; this
     check never starts one, so there is nothing of ours to stop here.
     """
     adapter = tts_engine_registry.get(name)
     if adapter is None:
-        return
+        return {}
     try:
-        if adapter.is_model_loaded():
-            adapter.unload_model()
-            ColorPrint.blue(f"[tts-selfcheck] {name}: model unloaded (CPU/GPU released)")
+        if not adapter.is_model_loaded():
+            return {}
+        adapter.unload_model()
+        after_snap = resource_monitor.snapshot()
+        resource_monitor.log_model_released(name, loaded_snap, after_snap)
+        return {
+            "ram": resource_monitor.release_metrics(
+                loaded_snap.free_ram_bytes, after_snap.free_ram_bytes, after_snap.total_ram_bytes
+            ),
+            "vram": resource_monitor.release_metrics(
+                loaded_snap.free_vram_bytes, after_snap.free_vram_bytes, after_snap.total_vram_bytes
+            ),
+            "gpu_util_before_pct": loaded_snap.gpu_util_percent,
+            "gpu_util_after_pct": after_snap.gpu_util_percent,
+        }
     except Exception as exc:  # noqa: BLE001 - release must never break the sweep
         ColorPrint.yellow(f"[tts-selfcheck] {name}: unload failed ({exc})")
+        return {}
 
 
 def _check_engine(name: str, synthesize_words: _Synthesizer) -> Dict[str, Any]:
@@ -96,8 +111,12 @@ def _check_engine(name: str, synthesize_words: _Synthesizer) -> Dict[str, Any]:
         return entry
 
     out_dir = const.selfcheck_dir() / name
+    baseline_snap = resource_monitor.snapshot()
     try:
         result = synthesize_words(list(const.SELFCHECK_WORDS), const.SELFCHECK_LANG, out_dir)
+        loaded_snap = resource_monitor.snapshot()
+        resource_monitor.log_model_loaded(name, loaded_snap)
+        entry["resources_loaded"] = resource_monitor.format_snapshot(loaded_snap)
         words_ok = sum(1 for item in result.items if item.ok)
         entry.update({
             "status": "ok" if words_ok == len(const.SELFCHECK_WORDS) else "failed",
@@ -113,8 +132,11 @@ def _check_engine(name: str, synthesize_words: _Synthesizer) -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 - one engine must never break the sweep
         entry.update({"status": "failed", "error": str(exc)})
         ColorPrint.red(f"[tts-selfcheck] {name}: check failed ({exc})")
+        loaded_snap = baseline_snap
     finally:
-        _release_engine(name)
+        released = _release_engine(name, loaded_snap)
+        if released:
+            entry["resources_released"] = released
     entry["elapsed_ms"] = int((time.time() - began) * 1000)
     return entry
 

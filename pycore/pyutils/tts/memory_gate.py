@@ -13,7 +13,7 @@ Config:
 """
 
 import os
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
@@ -73,7 +73,7 @@ def gate_enabled() -> bool:
     return (os.environ.get("TTS_MEMORY_GATE") or "1").strip() != "0"
 
 
-def _free_ram_bytes() -> Optional[int]:
+def free_ram_bytes() -> Optional[int]:
     try:
         psutil = get_third_package_psutil()
         if psutil is None:
@@ -83,29 +83,55 @@ def _free_ram_bytes() -> Optional[int]:
         return None
 
 
-def _free_vram_bytes() -> Optional[int]:
-    """Free VRAM of the emptiest GPU via an nvidia-smi SUBPROCESS. Never torch
-    here: torch.cuda.mem_get_info() initializes the CUDA driver in THIS process,
-    so a faulting nvcuda64.dll kills the whole service with no traceback."""
+def total_ram_bytes() -> Optional[int]:
+    try:
+        psutil = get_third_package_psutil()
+        if psutil is None:
+            return None
+        return int(psutil.virtual_memory().total)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _gpu_query() -> Optional[List[Tuple[int, int, int]]]:
+    """(utilization %, free VRAM bytes, total VRAM bytes) per GPU via an
+    nvidia-smi SUBPROCESS. Never torch here: torch.cuda.mem_get_info()
+    initializes the CUDA driver in THIS process, so a faulting nvcuda64.dll
+    kills the whole service with no traceback."""
     try:
         smi = CUDADetector._nvidia_smi_cmd()
         result = exec_silent(
-            [smi, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            [smi, "--query-gpu=utilization.gpu,memory.free,memory.total",
+             "--format=csv,noheader,nounits"],
             info=False,
         )
         if result.return_code != 0:
             return None
-        free_mib = [
-            int(line.strip())
-            for line in (result.stdout or "").strip().splitlines()
-            if line.strip().isdigit()
-        ]
-        if not free_mib:
-            return None
-        # A model tier loads onto ONE device; the gate cares about the best case.
-        return max(free_mib) * _MB
+        rows: List[Tuple[int, int, int]] = []
+        for line in (result.stdout or "").strip().splitlines():
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) == 3 and all(part.isdigit() for part in parts):
+                util, free_mib, total_mib = (int(part) for part in parts)
+                rows.append((util, free_mib * _MB, total_mib * _MB))
+        return rows or None
     except Exception:  # noqa: BLE001
         return None
+
+
+def gpu_stats() -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    """(max GPU utilization %, max free VRAM bytes, total VRAM bytes of the
+    emptiest GPU). A model tier loads onto ONE device, so the best case is what
+    matters; every element is None when no GPU/driver reading is available."""
+    rows = _gpu_query()
+    if not rows:
+        return None, None, None
+    emptiest = max(rows, key=lambda row: row[1])
+    max_util = max(row[0] for row in rows)
+    return max_util, int(emptiest[1]), int(emptiest[2])
+
+
+def free_vram_bytes() -> Optional[int]:
+    return gpu_stats()[1]
 
 
 def _fmt(num_bytes: int) -> str:
@@ -124,14 +150,14 @@ def memory_gate_allows(engine: str) -> Tuple[bool, str]:
         need_ram, need_vram = resolver()
     except Exception:  # noqa: BLE001
         return True, ""
-    free_ram = _free_ram_bytes()
+    free_ram = free_ram_bytes()
     if need_ram and free_ram is not None and free_ram < need_ram:
         return False, (
             f"insufficient free RAM to load {name} "
             f"(need ~{_fmt(need_ram)}, free {_fmt(free_ram)})"
         )
     if need_vram:
-        free_vram = _free_vram_bytes()
+        free_vram = free_vram_bytes()
         if free_vram is not None and free_vram < need_vram:
             return False, (
                 f"insufficient free VRAM to load {name} "
@@ -140,4 +166,11 @@ def memory_gate_allows(engine: str) -> Tuple[bool, str]:
     return True, ""
 
 
-__all__ = ["gate_enabled", "memory_gate_allows"]
+__all__ = [
+    "gate_enabled",
+    "memory_gate_allows",
+    "free_ram_bytes",
+    "total_ram_bytes",
+    "gpu_stats",
+    "free_vram_bytes",
+]
