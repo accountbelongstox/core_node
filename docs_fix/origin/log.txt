@@ -1,584 +1,1060 @@
-docs_fix\origin\kimicontinue.txt 完成并测试对齐codemart
-        的前后端代码和API， 两个端都运行在
-            本机，poly apps / pycore ui , laravel main
-            注意需要底层重构，按规范开发代码，
-            1：UI增加官方推荐的多语言能力，并在右上角可以切
-    换，
-        增加
-            dark/light模式，
-            2：登陆和注册等等扩展codemart，后端也按规范在公
-    共字
-        段上
-            扩展出codemart专用API，注意幂等加入sys:init中初
-    始化
-        ，并
-            按规范只能修改表不能drop表重建，
-            3：推导并添加管理民后台，注意175 脚本，其中部署
-        laravel时
-            会生成超级码，在注册时使用超级码同样可以成为管理
-    员。
-        管理
-            后端和用户后端不是一个UI界面。并添加管理的所有功
-    能。
-            4：前端扩展移动端，WEB端的所有适配，并确保支持
-        capacitor
-            的APP编译支持，搜索官方文档更新所有代码。
-            5：添加所有缺少的页面，而不是简单的跳转，比如 ··
-    ·
-            A local managed software-delivery application
-    built
-        on
-            the unified React shell and Laravel Main.
 
-            Platform
-            About CodeMart
-            Delivery process
-            Services
-            Task marketplace
-            Project estimate
-            Account
-            Workspace
-            Verification
-            Information
-            Privacy
-            Terms···
-
-            6：更新文档
-
-
-    docs_fix\DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN
-            .md 只保留功能描述部份，也就是不涉及代码构架的部
-    份，
-        因为
-            代码以当前的代码为准
-            7：根据
-        DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN在
-            当前的代码上完成所有未实现的功能，注意推导并测试
-    所有
-        功能
-            。
-            8：全局搜索关键词  CodeMart  codemark，找到所有
-    文档
-        ，并
-            复制到一处，然后修改所有文档，去掉代码构架的内容
-    ，只
-        保留
-            功能的设计说明，不涉及代码和构架。
-            9：对所有后面找到的文档完成其中的所有未完成功能
-    ，在
-        当前
-            的构架上。
-     … thinking 59 times, call 106 tools, 3 messages
-
-     ● The 175 script is the canonical starter. The user
-       explicitly asked to test, so start the backend:
-
-     ● CodeMart typecheck is clean. Now the integration
-    progress
-       doc:
-
-     ● Backend is up. Now run the end-to-end API tests:
-
-     ● Old logs. Let me hit the endpoint and watch fresh
-    worker
-       output:
-
-     ● Backend is live on :9000. Running the full end-to-end
-       flow:
-
-     ● Task creation throws a 500. Checking the actual
-       exception:
-
-     ● The exists: rule queries the wrong DB connection. Let
-    me
-       find the codemart connection name and all affected
-    rules:
-
-     ● Connection is codemartv1. Fix all runtime validation
-       rules that reference codemart tables:
-
-     ● Octane workers cache code — restart the service, then
-       re-run the task flow:
-
-     ● Right connection now, but the table name is wrong.
-       Checking actual table names:
-
-     ● Tables are codemart_v1_*. Correcting all the rules:
-
-     ● Sweep for any other stale codemart_* (non-v1) table
-       references:
-
-     ● Clean. Restart and re-run the task → marketplace →
-    atomic
-       accept flow:
-
-     ● Task created but not appearing in the marketplace.
-    Check
-       the marketplace filter and task default status:
-
-     ● Everything authenticated now 500s — and logs go to
-       syslog. Hunting the real exception:
-
-     ● Public routes work, authenticated 500. Reproduce the
-    full
-       HTTP pipeline in CLI to capture the exception:
-
-     ● Ran a command · $ cd poly_apps/laravel_main && grep
-    -n "…
-       24:    public function buildForUser(int $userId):
-    ?array
-       5:use
-    App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1B…
-       16:    public function __construct(private readonly
-    Code…
-
-     ● Ran a command · $ cd poly_apps/laravel_main && php
-    artis…
-       bootstrap ok:
-    {"contract_version":"1.0.0","min_supported…
-
-     ● Bootstrap service works in CLI. So the 500 is in the
-       HTTP-only path: likely the auth middleware (token
-       … (4 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ cd poly_apps/laravel_m… · 24 more
-    lines
-       …         }
-
-     ● `$request->user()` — resolved by auth middleware
-    (Sanctum
-       or custom token guard). Under Octane it 500s. What
-    guard?
-       … (21 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ B=http://127.0.0.1:9000… · 3 more
-    lines
-       … HOME:
-    {"success":true,"data":{"total_amount":"20000.00…
-
-     ● Everything works now! The earlier 500s must have been
-       transient during worker warmup after restart (workers
-       … (2 more lines, ctrl+o to expand)
-
-     ● All working now — the 500s were transient worker
-    warmup.
-       Re-run the full task flow:
-
-     ● Ran a command · $ B=http://127.0.0.1:9000… · 4 more
-    lines
-       … MYTASKS: {"success":false,"message":"Internal
-    server e…
-
-     ● Interesting — admin overview, notifications,
-    /api/user,
-       public home all work, but marketplace/tasks and
-    my-tasks
-       … (46 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ curl -s -m 10 -o /dev/null
-    "http://127…
-       Command executed successfully.
-
-     ● Ran a command · $ journalctl --no-pager -… · 4 more
-    lines
-       … Sep 18 11:15:01 VM-0-2-debian CRON[76901]:
-    pam_unix(cr…
-
-     ● No laravel errors in journal at all. The syslog
-    channel
-       might be failing silently, or errors go to frankenphp
-       … (96 more lines, ctrl+o to expand)
-
-     ✗ Ran a command · $ curl -s -m 10 -o /dev/null
-    "http://127…
-       Process exited with code 1
-       Command failed with exit code: 1.
-
-     ● Ran a command · $ curl -s -m 10 -o /dev/null
-    "http://127…
-       EXIT=1
-
-     ● Nothing at all in the unit journal except heartbeats.
-    So
-       the exception is not logged anywhere visible. The 500
-       … (4 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ cd poly_apps/laravel_main && grep
-    -rn …
-
-    app/Apps/DingDuoDuoV1/DingDuoDuoV1Constants/DingDuoDuoV1
-    …
-
-    app/Apps/ServerManagerV1/ServerManagerV1Controllers/Serv
-    …
-       app/Constants/ErrorCodes.php:100:
-    self::INTERNAL_…
-
-     ● Ran a command · $ cd poly_apps/laravel_main && grep
-    -rn …
-       bootstrap/app.php:163:                    ['detail'
-    => $…
-       bootstrap/app.php:260:                    'message'
-    => $…
-
-     ● Used Read (…s/laravel_main/bootstrap/app.php) · 132
-    lines
-
-     ● The generic 500 renderer hides the message in
-    production.
-       I need the exception. Options: temporarily flip
-       … (34 more lines, ctrl+o to expand)
-
-     ● The handler hides 500 details in production. Simulate
-    the
-       exact controller call in CLI:
-
-     ● Ran a command · $ cd poly_apps/laravel_main && php
-    artis…
-       200
-    {"success":true,"data":{"tasks":[],"pagination":{"pa…
-
-     ● Works in CLI simulation. So under Octane it 500s but
-    in
-       CLI it works — the worker process has a problem the
-    CLI
-       … (24 more lines, ctrl+o to expand)
-
-     ● Works in CLI but not under the worker — likely a
-       stale/broken worker state. Clean restart with a
-    longer
-       warmup:
-
-     ● Ran a command · $ systemctl restart
-    ncore-laravel-franke…
-       try1 MKT:
-       try2 MKT:
-       try3 MKT:
-    {"success":true,"data":{"tasks":[],"pagination…
-
-     ● Marketplace works after proper warmup (first requests
-       return empty while worker boots — that explains
-    earlier
-       … (10 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ B=http://127.0.0.1:9000… · 4 more
-    lines
-       … MYTASKS: {"success":false,"message":"Internal
-    server e…
-
-     ● Again 500 right after the warmup succeeded on
-    marketplace
-       a moment ago! Marketplace worked in the previous call
-       … (13 more lines, ctrl+o to expand)
-
-     ● Flaky — worker may be crashing per-request. Check the
-       unit journal right after these failures:
-
-     ● Ran a command · $ journalctl -u ncore-la… · 23 more
-    lines
-       … Sep 18 11:18:10 VM-0-2-debian bash[77073]:
-    [laravel-ru…
-
-     ● Key detail: "Octane worker, watch=1" — watch mode is
-    ON.
-       Watch mode restarts workers when files change. My
-    tinker
-       … (9 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ sleep 20;
-    B=http://127.0.0.1:9000/api/…
-       TASK id=
-       MKT: {"success":false,"message":"Internal server
-    error",…
-
-     ● Task creation STILL 500 and marketplace 500 even
-    after
-       stable warmup (public home worked — the loop broke
-    with
-       … (40 more lines, ctrl+o to expand)
-
-     ● Ran a command · $ curl -s -m 5
-    http://127.0.0.1:2019/con…
-       /apps/frankenphp/workers[0]/watch =
-    ["./**/*.{env,php,tw…
-
-      🌖 · Tip: ! to run a shell command
-
-    ────────────────────────────────────────────────────────
-    ───
-       Todo
-       ✓ Typecheck frontend (tsc) and fix errors
-       ● Start backend + end-to-end API tests
-       ○ Verify i18n + dark/light + chrome controls wired
-       ○ Verify admin UI separate layout complete
-       ○ Verify all missing pages exist and routed
-   Warning: Thinking effort "medium" is not listed for model
- "k3-256k" (known: low, high, max). The configured value
- will be sent unchanged to the Anthropic-compatible backend.
-
- ● Let me get my bearings. The conversation shows a long
-   session working on CodeMart alignment between pycore_ui
-   … (23 more lines, ctrl+o to expand)
-
- ● Used TodoList
-
- ● The todo list is empty (lost in compaction). Let me
-   re-establish state. The work: CodeMart frontend
-   … (29 more lines, ctrl+o to expand)
-
- ● Ran a command · $ hostname; uname -a; curl -s -m 5 -o /d…
-   DESKTOP-1L9K06N
-   MINGW64_NT-10.0-19045 DESKTOP-1L9K06N 3.6.5-22c95533.x86…
-   000 local-9000-unreachable
-
- ● Local is Windows. The server must be remote via ssh. Find
-   the ssh config used earlier. Check shell history isn't
-   … (3 more lines, ctrl+o to expand)
-
- ● Ran a command · $ cat ~/.ssh/config 2>/dev/null | head -…
-   known_hosts
-
- ● Used Grep (ncore-laravel-frankenphp|VM-0-2) · 4 files
-   scripts/shells/linux/common/laravel_main_runtim…, +1 more
-
- ● No ssh config. How did the earlier commands reach the VM?
-   Maybe they used a ssh alias defined elsewhere, or the
-   … (5 more lines, ctrl+o to expand)
-
- ● Ran a command · $ cat ~/.ssh/known_hosts | awk '{print $…
-   43.163.112.77
-
- ● Used Grep (ssh |@1\d\d\.|@43\.|@119\.)
-   No non-sensitive matches found
-
- ● Ran a command · $ ssh -o ConnectTimeout=8 -o BatchMode=y…
-   ssh: connect to host 43.163.112.77 port 22: Connection t…
-
- ● Timeout on port 22. Maybe a different ssh port. Check
-   scripts for ssh port or how deployment connects. Grep for
-   … (1 more lines, ctrl+o to expand)
-
- ● Used Grep (43\.163\.112\.77) · 24 matches across 12 files
-   _prompts/query.txt:249, config/service_contrac…, +21 more
-
- ● There's a doc:
-   docs_fix/FIX_20260918_SSH_SESSION_DROP_TMUX_PERSISTENCE.m
-   … (4 more lines, ctrl+o to expand)
-
- ● Used Read (…_SESSION_DROP_TMUX_PERSISTENCE.md) · 60 lines
-   Error: Cannot switch models while streaming — press Esc
- or Ctrl-C first.
-
- ● Key: server key auth via `C:\Users\mpc\.ssh\id_ed25519
-   Interrupted by user
-   Warning: Thinking effort "medium" is not listed for model
- "kimi-for-coding" (known: low, high, max). The configured
- value will be sent unchanged to the Anthropic-compatible
- backend.
-   Switched to kimi-for-coding with thinking high.
-
- ✨ continue
- … thinking 107 times, call 204 tools, 54 messages
-
- ● No `cap` scripts (capacitor CLI not even in
-   devDependencies?). Check for @capacitor/cli and native
-   … (5 more lines, ctrl+o to expand)
-
- ● Ran a command · $ cd poly_apps/pycore_la… · 20 more lines
-   … 128:  if (-not (Test-Path (Join-Path $root 'capacitor.…
-
- ● Capacitor CLI exists, and `build_app.ps1` supports
-   `-Native -Sync -Apk` workflow. Note: it sets
-   … (7 more lines, ctrl+o to expand)
-
- ● Ran a command · $ cd poly_apps/pycore_lar… · 5 more lines
-   … ./vite.config.ts:72:    const useNativeCapacitor = FRO…
-
- ● Found a real bug: `build_app.ps1` and `build_apk.py` set
-   env var `VITE_BUILD_TARGET=native`, but `vite.config.ts`
-   … (18 more lines, ctrl+o to expand)
-
- ● Used Grep (FRONTEND_BUILD_TA…) · 3 matches across 2 files
-   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts:9, po…
-
- ● Used Edit (…new_ui/core/config/FrontendConfig.ts) · +5 -1
-   +5 -1
-   poly_apps/pycore_laravel_wordnew_ui/core/config/Fronten
-   dConfig.ts
-      1   export type FrontendBuildTarget = 'web' |
-   'native';
-      2 - export const FRONTEND_BUILD_TARGET:
-   FrontendBuildTarget = 'web';
-      2 + // Build-time target: native Capacitor builds
-   set VITE_BUILD_TARGET=native
-      3 + // (build_app.ps1 -Native / build_apk.py) so the
-   real @capacitor plugins are
-      4 + // bundled instead of the browser shims.
-      5 + export const FRONTEND_BUILD_TARGET:
-   FrontendBuildTarget =
-      6 +   (typeof process !== 'undefined' &&
-   process.env?.VITE_BUILD_TARGET === 'native') ? 'native'
-   : 'web';
-
- ● Wait — but vite.config.ts computes `capacitorAliases`
-   (shims) when target is NOT native. The aliases map
-   … (16 more lines, ctrl+o to expand)
-
- ● Ran a command · $ cd poly_apps/pycore_laravel_wordnew_ui…
-   grep_exit=1 (1 = no errors in that file)
-
- ● FrontendConfig compiles clean. Now retry the server — has
-   it recovered?
-
- ✗ Ran a command · $ timeout 60 ssh -i /c/Users/mpc/.ssh/id…
-   Connection timed out during banner exchange
-   Connection to 43.163.112.77 port 22 timed out
-   Command failed with exit code: 255.
-
- ● Still down (banner exchange timeout — sshd not
-   accepting). The sys:init php process likely still
-   … (16 more lines, ctrl+o to expand)
-
- ✗ Ran a command · $ timeout 45 ssh -i /c/Users/mpc/.ssh/id…
-   ssh: connect to host 100.106.85.16 port 22: Connection
-   timed out
-   Command failed with exit code: 255.
-
- ● No tailscale route from this machine (or host down the
-   same way). The Tencent Cloud instance is unresponsive on
-   … (43 more lines, ctrl+o to expand)
-
- ● Ran a command · $ for i in $(seq 1 40); d… · 7 more lines
-   task_id: bash-2p3gf085 …
-
- ● bash task started in background (Probe server SSH
-   recovery every 45s (up to 30 min))
-
- ● While the probe runs, continue with item 7/9: are there
-   any DESIGN-scope features not yet implemented? Compare
-   … (42 more lines, ctrl+o to expand)
-
- ● Ran a command · $ cd poly_apps/pycore_lar… · 5 more lines
-   … 92:export const CmInformationPage: React.FC = () => <C…
-
- ● All six info pages are real content components. Todo 4
-   confirmed done.
-   … (4 more lines, ctrl+o to expand)
-
- ● Wait timed out (bash-2p3gf085) · 10m 00s
-   1 background task still running: Probe server SSH
- recovery every 45s (up…
-
- ● Still no recovery after 10+ minutes of probing. The probe
-   continues for another ~20 min automatically and will
-   … (18 more lines, ctrl+o to expand)
-
- ● Wait timed out (bash-2p3gf085) · 10m 00s
-   1 background task still running: Probe server SSH
- recovery every 45s (up…
-
- ● Still down after ~30+ minutes total. The probe continues
-   in the background and will notify me when the server
-   … (7 more lines, ctrl+o to expand)
-
- ✗ bash task timed out (Probe server SSH recovery every 45s
-   (up to 30 min) · timed out)
-
- ● Probe timed out after 40 retries — server never recovered
-   in 30 min. Try once more directly; if still down, restart
-   … (2 more lines, ctrl+o to expand)
-
- ● Ran a command · $ timeout 40 ssh -i /c/Users/mpc/.ssh/id…
-   Connection timed out during banner exchange
-   Connection to 43.163.112.77 port 22 timed out
-   port9000:000
-
- ● Still down after ~45 minutes. This looks like a hung
-   machine (runaway sys:init likely deadlocked or thrashing
-   … (9 more lines, ctrl+o to expand)
-
- ● Still down after 45 minutes — this looks like a
-   deadlocked or thrashed machine that likely won't recover
-   on its own. Setting a longer-interval probe so I resume
-   automatically once it's back (e.g., after a cloud-console
-   reboot).
-
- ● Ran a command · $ for i in $(seq 1 60); d… · 7 more lines
-   task_id: bash-haj2b7of …
-
- ● bash task started in background (Probe server SSH
-   recovery every 3 min (up to 3 h))
-
- ● Used TodoList
-
- ● The server (43.163.112.77) has been unresponsive for ~45
-   minutes — SSH banner timeout and port 9000 dead. The
-   runaway php artisan sys:init (initializing all apps at
-   once) almost certainly deadlocked or thrashed the box.
-   All code fixes are complete and locally verified; only
-   the server-side re-verification remains.
-
-   What I need from you: please reboot the instance via the
-   Tencent Cloud console (VNC/web shell). The machine is
-   unlikely to come back on its own if sys:init is
-   deadlocked.
-
-   A background probe now checks SSH every 3 minutes for up
-   to 3 hours and will wake me automatically on recovery.
-   The moment it's back I will:
-
-   1. Kill any stuck sys:init, check /tmp/sysinit.log for
-      where it hung
-   2. Restart ncore-laravel-frankenphp (watch mode now off)
-   3. Re-run sys:init so the new idempotent step aligns the
-      codemart_v1_tasks_status_check constraint with the 8
-      contract statuses
-   4. Sync the frontend fixes (FrontendConfig.ts Capacitor
-      target fix, vite/tsconfig changes) to the server
-   5. Re-run the full end-to-end flow: register
-      client/developer/super-code admin → project →
-      milestone → task → marketplace → atomic accept →
-      comment → submit → wallet/notifications → all admin
-      endpoints
-
-   Already completed this session (details in my previous
-   message): backend root-cause fixes (watch-mode default,
-   check-constraint alignment in sys:init, migration +
-   ApiInfo corrections, 22 transaction blocks refactored to
-   runInTransaction), frontend verification (i18n/dark-light
-   fully wired, admin console separate + gated, all pages
-   real components, typecheck clean for all CodeMart code,
-   Capacitor native-build target bug fixed), and docs
-   verification (DESIGN + PROGRESS docs confirmed
-   functional-only, collected set in
-   docs_fix/codemart_docs/).
-   MCP server "chrome" failed: MCP server "chrome" closed
- unexpectedly
-   Maximum reconnection attempts (2) exceeded.
-
- ✨ continue
-   Interrupted by user
-
- ● bash task completed in background (Probe server SSH
-   recovery every 3 min (up to 3 h) · exit 0)
-
- ● Used Read (…ain/tasks/bash-haj2b7of/output.log) · 3 lines
-
- ● Server recovered — uptime 4:32 (so it rebooted or
-   recovered; load average 45/88 dropping to 3.19 — it was
-   … (5 more lines, ctrl+o to expand)
-
- ● The server is back (load settling from 88 to 3.2), but a
-   sys:init process is still running. Taking over:
-
- ● Ran a command · $ timeout 60 ssh -i /c/Us… · 9 more lines
-   … Mem:            3723        1707         228         2…
-   Interrupted by user
-
- ───────────────────────────────────────────────────────────
-   Todo
-   ● Backend e2e re-run after server recovery (blocked: V...
-   ✓ Verify i18n + dark/light + switch controls on frontend
-   ✓ Verify admin UI (separate layout) complete with supe...
-   ✓ Verify all missing pages exist and routed
-   ✓ Docs: strip architecture, collect CodeMart docs; rem..
+PS D:\programing\core_node> ./pyservice --tts-selfcheck
+======================================================
+ Pycore Service - entry point
+======================================================
+[i] pyservice run - run ".\pyservice.ps1 help" for all commands (host=0.0.0.0 port=59000 mode=1 ui=dashboard (pycore-manager) prerequisites=enabled tts-selfcheck=off)
+[pyservice] Ensuring Python 3.13 PATH priority (older installs kept on disk)...
+[OK] Python : Python 3.13.14
+       path : D:\.dev_win10\python313\python.exe
+[i] Installation is idempotent and SELF-REPAIRING: re-running repairs missing artifacts
+    (installed pip distributions are preserved; incomplete model
+    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
+[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...
+------------------------------------------------------
+ Pycore prerequisites (PreparePycorePrerequisites)
+------------------------------------------------------
+[i] Idempotent and SELF-REPAIRING: installed pip distributions are preserved; reruns repair
+    missing package metadata or incomplete model files. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
+[..] Prerequisite: cuda_policy
+[Step 9] ============================================================
+[Step 9] NVIDIA driver + CUDA runtime prerequisite (Windows)
+[Step 9] ============================================================
+[Step 9] NVIDIA GPU detected.
+[Step 9] Driver active: GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-72b5aefd-720d-2046-95cc-d4746c34fa84)
+[Step 9] CUDA Version: 13.3
+[Step 9] Canonical CUDA policy: cu130 (toolkit 13.0.2).
+[Step 9] Unified wheel indexes for Step10:
+[Step 9]   torch  -> https://download.pytorch.org/whl/cu130
+[Step 9]   paddle -> https://www.paddlepaddle.org.cn/packages/stable/cu130/
+[Step 9]   (see https://pytorch.org/get-started/locally/ and PaddlePaddle 3.3 install docs)
+
+[Step 9] NVIDIA/CUDA prerequisite step completed.
+[..] Prerequisite: python310
+[*] [Step 13] Installing isolated Python 3.10 (keeps default Python 3.13 untouched)...
+[OK] [Step 13] Python 3.10 already installed at D:\.dev_win10\python310\python.exe
+[*] [Step 13] Ensuring pip for Python 3.10...
+[*] [Step 13] Command: Test-PycorePythonModulePresent -PythonExe "D:\.dev_win10\python310\python.exe" -ModuleName pip
+[*] [Step 13] Command: & "D:\.dev_win10\python310\python.exe" -m pip --version
+[*] [Step 13]   pip 26.2.1 from D:\.dev_win10\python310\Lib\site-packages\pip (python 3.10)
+[*] [Step 13] Command: Test-PycorePythonModulePresent -PythonExe "D:\.dev_win10\python310\python.exe" -ModuleName virtualenv
+[*] [Step 13] Ensuring python310 / pip310 command entries...
+[*] [Step 13]   [SKIP] python310.cmd already linked to this interpreter
+[*] [Step 13]   [SKIP] pip310.cmd already linked to this interpreter
+[*] [Step 13] Command: & "D:\programing\core_node\scripts\shells\win\win_common\WindowsPathFunction.ps1" add "D:\.dev_win10\.winenvs" -SkipInit
+Path D:\.dev_win10\.winenvs already exists
+[*] [Step 13] Installing isolated Python 3.12 (keeps default Python 3.13 untouched)...
+[OK] [Step 13] Python 3.12 already installed at D:\.dev_win10\python312\python.exe
+[*] [Step 13] Ensuring pip for Python 3.12...
+[*] [Step 13] Command: Test-PycorePythonModulePresent -PythonExe "D:\.dev_win10\python312\python.exe" -ModuleName pip
+[*] [Step 13] Command: & "D:\.dev_win10\python312\python.exe" -m pip --version
+[*] [Step 13]   pip 25.3 from D:\.dev_win10\python312\Lib\site-packages\pip (python 3.12)
+[*] [Step 13] Ensuring python312 / pip312 command entries...
+[*] [Step 13]   [SKIP] python312.cmd already linked to this interpreter
+[*] [Step 13]   [SKIP] pip312.cmd already linked to this interpreter
+[*] [Step 13] Command: & "D:\programing\core_node\scripts\shells\win\win_common\WindowsPathFunction.ps1" add "D:\.dev_win10\.winenvs" -SkipInit
+Path D:\.dev_win10\.winenvs already exists
+[..] Prerequisite: python_prereqs
+[Step 10] ============================================================
+[Step 10] Install python prerequisite packages (captcha/AI backends)
+[Step 10] ============================================================
+[Step 10] Target interpreter: D:\.dev_win10\python313\python.exe (Python 3.13.14)
+pip 26.1.2 from D:\.dev_win10\python313\Lib\site-packages\pip (python 3.13)
+[Step 10] pip ready: D:\.dev_win10\python313\Scripts\pip.exe
+[Step 10] NVIDIA GPU detected (CUDA Version: 13.3) — unified cu130 policy.
+[Step 10]   torch index   -> https://download.pytorch.org/whl/cu130
+[Step 10]   paddle index  -> https://www.paddlepaddle.org.cn/packages/stable/cu130/
+
+[Step 10] Ensuring canonical torch build (CPU/GPU guard)...
+[nvidia-cu-align] target=cu13; Torch/Paddle wheel metadata owns the NVIDIA dependency set.
+[torch-guard] GPU present, installed cu130 torch group is usable; preserving installed versions.
+[Step 10] [SKIP] torch/torchvision/torchaudio/ultralytics already installed
+
+[Step 10] Ensuring canonical paddle build (CPU/GPU guard)...
+[paddle-guard] GPU present, canonical cu130 paddle is usable; no change.
+[Step 10] [SKIP] paddle ecosystem + backend deps already installed
+
+[Step 10] Aligning the single NVIDIA cu130 stack (idempotent)...
+
+[Step 10] Installing central pycore package policy ...
+[Step 10] [SKIP] onnxruntime is importable
+[Step 10] [SKIP] installer: 68 packages ready
+[Step 10] Central pycore package policy complete
+[Step 10] [SKIP] winrt: 6 packages ready
+[Step 10] [SKIP] prepare: 2 packages ready
+
+[Step 10] [shared-transformers] transformers is installed -> skip (idempotent).
+
+[Step 10] [SKIP] OpenCV is provided by opencv-python
+
+[Step 10] Verifying pip package metadata...
+[Step 10] [OK] all prerequisite packages present in D:\.dev_win10\python313\python.exe
+
+[Step 10] Python prerequisite packages step completed.
+[..] Prerequisite: desktop_manager
+============================================================
+ Installing Dashboard UI deps (pnpm) - pycore_laravel_wordnew_ui
+============================================================
+[OK] node_modules present; skipping pnpm install.
+[..] Prerequisite: launcher
+============================================================
+ Installing multi-terminal launcher prerequisites (Windows)
+============================================================
+[OK] Windows Terminal (wt.exe) already present; skipping.
+[..] Prerequisite: document_parsing
+============================================================
+ Installing document-parsing libraries (Books ingest)
+============================================================
+  python : D:\.dev_win10\python313\python.exe
+[document-parsing] [SKIP] document: 7 packages ready
+[OK] document-parsing prerequisites complete.
+[..] Prerequisite: ocr
+============================================================
+ Installing local OCR engines (windows-native, easyocr)
+============================================================
+  python : D:\.dev_win10\python313\python.exe
+[ocr] [SKIP] ocr: 7 packages ready
+[..] Prerequisite: faster_whisper
+============================================================
+ [Step 11] Installing faster-whisper (default STT for Video Extraction)
+============================================================
+[Step 11] python : D:\.dev_win10\python313\python.exe
+[Step 11] ram    : 15.18 GB
+[Step 11] disk   : 354.74 GB free (all fixed drives)
+[Step 11] [i] GPU host uses canonical cu130; CTranslate2 requires CUDA 12, so faster-whisper uses CPU int8 without installing a second CUDA stack.
+[Step 11] [idempotent] skipping: faster-whisper already installed
+[Step 11] [idempotent-probe] running post-install verification ...
+[Step 11] [idempotent-probe] OK  import faster_whisper
+[..] Prerequisite: whisper
+============================================================
+ Installing openai-whisper (speech-to-text)
+============================================================
+  python : D:\.dev_win10\python313\python.exe
+  ram    : 15.18 GB
+  disk   : 354.74 GB free (all fixed drives)
+ [idempotent] skipping: openai-whisper is installed
+[OK] ffmpeg found on PATH.
+ official env (whisper): Python 3.8+; ffmpeg on PATH; torch auto-installed. GPU: CUDA-capable GPU + drivers; model large-v3 (~3GB). CPU: model medium (~1.5GB) — largest practical CPU tier.
+[..] auto model tier (GPU): 'large-v3'
+[..] Ensuring whisper model 'large-v3' is downloaded ...
+[Step42-Whisper] [idempotent] local whisper model found: D:\www\cache\whisper\large-v3.pt (3,087,371,615 bytes); remote lookup skipped
+[OK] model 'large-v3' is ready.
+[Step42-Whisper] [idempotent-probe] running post-install verification ...
+[Step42-Whisper] [idempotent-probe] OK  import whisper
+[..] Prerequisite: vosk
+============================================================
+ [Step43-Vosk] Installing offline Vosk STT (pip + model)
+============================================================
+[Step43-Vosk] python : D:\.dev_win10\python313\python.exe
+[Step43-Vosk] [OK] vosk already installed; skipping pip.
+[Step43-Vosk] CUDA detected -> selecting the LARGE model (vosk-model-en-us-0.42-gigaspeech, ~2.3GB).
+[Step43-Vosk]  model dir : D:\www\cache\stt\vosk\vosk-model-en-us-0.42-gigaspeech
+[Step43-Vosk]  source    : https://alphacephei.com/vosk/models/vosk-model-en-us-0.42-gigaspeech.zip
+[Step43-Vosk]  existing  : D:\www\cache\stt\vosk\vosk-model-en-us-0.42-gigaspeech\conf
+[Step43-Vosk] [idempotent] local Vosk model found: D:\www\cache\stt\vosk\vosk-model-en-us-0.42-gigaspeech (4,030,990,765 bytes); remote lookup skipped
+[Step43-Vosk] [idempotent-probe] running post-install verification ...
+[Step43-Vosk] [idempotent-probe] OK  import vosk
+[..] Prerequisite: edge_tts
+============================================================
+ [Step12-EdgeTts] Installing edge-tts (text-to-speech)
+============================================================
+[Step12-EdgeTts] python : D:\.dev_win10\python313\python.exe
+[Step12-EdgeTts] [SKIP] edge-tts is installed.
+[Step12-EdgeTts] [idempotent-probe] running post-install verification ...
+[Step12-EdgeTts] [idempotent-probe] OK  import edge_tts
+[..] Prerequisite: chattts
+============================================================
+ [Step51-ChatTts] ChatTTS (dialogue TTS api server)
+============================================================
+[model-cache] local model found: D:\www\cache\pycore\chattts\weights (2,364,745,599 bytes)
+[Step51-ChatTts]  staging : D:\www\cache\pycore\chattts
+[Step51-ChatTts]  weights : D:\www\cache\pycore\chattts\weights
+[Step51-ChatTts]  compute : CUDA GPU
+[Step51-ChatTts] [OK] dependencies already installed (.deps_done) -> skipping pip.
+[Step51-ChatTts] [OK] ChatTTS ready (D:\www\cache\pycore\chattts).
+[Step51-ChatTts]  START:  cd "D:\www\cache\pycore\chattts"; python chattts_api_server.py   (serves http://127.0.0.1:8000)
+[Step51-ChatTts] [idempotent-probe] running post-install verification ...
+[Step51-ChatTts] [idempotent-probe] OK  import ChatTTS
+[..] Prerequisite: cosyvoice
+============================================================
+ [Step52-CosyVoice] CosyVoice (multilingual clone TTS api)
+============================================================
+[Step52-CosyVoice]  staging : D:\www\cache\pycore\cosyvoice
+[Step52-CosyVoice] [OK] repo already present -> skipping clone.
+[Step52-CosyVoice] [..] git submodule update --init --recursive (Matcha-TTS) ...
+[Step52-CosyVoice] [OK] isolated venv already provisioned (.deps_done) -> skipping.
+[Step52-CosyVoice] [OK] CosyVoice ready (D:\www\cache\pycore\cosyvoice).
+[Step52-CosyVoice]  Runtime: pycore launches runtime/python/fastapi/server.py (class C) under the isolated venv on demand.
+[Step52-CosyVoice]  Then set COSYVOICE_SPK_ID (SFT) or COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT).
+[Step52-CosyVoice] [idempotent-probe] running post-install verification ...
+[Step52-CosyVoice] [idempotent-probe] OK  import torch
+[..] Prerequisite: fishspeech
+============================================================
+ [Step56-Fishspeech] Fish Speech / Fish Audio
+============================================================
+[Step56-Fishspeech] official env (fishspeech): Python 3.10–3.12; git fishaudio/fish-speech. Default checkpoint: openaudio-s1-mini (public). openaudio-s1 (~12GB VRAM, full quality) is a gated repo: set HF_TOKEN after accepting its license, then FISHSPEECH_CHECKPOINT=openaudio-s1. Cloud: Fish Audio SDK (FISH_API_KEY). Local: tools/api_server.py or fishspeech_api_server.py bridge.
+[Step56-Fishspeech]  staging : D:\www\cache\pycore\fishspeech
+[Step56-Fishspeech]  compute : CUDA GPU
+[Step56-Fishspeech] [OK] isolated venv already provisioned (.deps_done) -> skipping.
+[Step56-Fishspeech] [OK] Fish Speech ready (D:\www\cache\pycore\fishspeech).
+[Step56-Fishspeech]  Runtime: pycore launches fishspeech_api_server.py (class C) under the isolated venv on demand.
+[Step56-Fishspeech]  SDK: set FISH_API_KEY; local: download checkpoints per https://speech.fish.audio/install/ and set FISHSPEECH_UPSTREAM.
+[Step56-Fishspeech] [..] downloading checkpoint fishaudio/openaudio-s1 (curl, resumable) ...
+[hf] HF auth: using env:HF_TOKEN (...johO); whoami OK
+curl: (22) The requested URL returned error: 404
+[hf] Catalog request failed for fishaudio/openaudio-s1 at https://huggingface.co: HTTP request failed (curl exit 22): https://huggingface.co/api/models/fishaudio/openaudio-s1/tree/main
+curl: (22) The requested URL returned error: 404
+[hf] Catalog request failed for fishaudio/openaudio-s1 at https://hf-mirror.com: HTTP request failed (curl exit 22): https://hf-mirror.com/api/models/fishaudio/openaudio-s1/tree/main
+curl: (22) The requested URL returned error: 404
+[hf] Catalog fallback failed for fishaudio/openaudio-s1 at https://huggingface.co: HTTP request failed (curl exit 22): https://huggingface.co/api/models/fishaudio/openaudio-s1
+curl: (22) The requested URL returned error: 404
+[hf] Catalog fallback failed for fishaudio/openaudio-s1 at https://hf-mirror.com: HTTP request failed (curl exit 22): https://hf-mirror.com/api/models/fishaudio/openaudio-s1
+[Step56-Fishspeech]  [!] could not list repo files for fishaudio/openaudio-s1
+[Step56-Fishspeech] [!] checkpoint download incomplete; will RESUME next run (bridge/SDK mode still works).
+[..] Prerequisite: kokoro
+============================================================
+ [Step57-Kokoro] Kokoro-82M (sherpa-onnx)
+============================================================
+[Step57-Kokoro] [idempotent] local model found: D:\www\cache\tts\kokoro (791,470,942 bytes); remote lookup skipped
+[Step57-Kokoro] [idempotent] skipping: Kokoro multi-lang model present at D:\www\cache\tts\kokoro
+[Step57-Kokoro] [idempotent-probe] running post-install verification ...
+[Step57-Kokoro] [idempotent-probe] OK  import sherpa_onnx
+[Step57-Kokoro] [idempotent-probe] OK  import soundfile
+[..] Prerequisite: voxcpm2
+============================================================
+ [Step58-Voxcpm2] VoxCPM2 (OpenBMB)
+============================================================
+[Step58-Voxcpm2]  staging : D:\www\cache\pycore\voxcpm2
+[Step58-Voxcpm2]  weights : D:\www\cache\pycore\voxcpm2\weights
+[Step58-Voxcpm2]  compute : CUDA GPU (default)
+[Step58-Voxcpm2]  model   : openbmb/VoxCPM2
+[Step58-Voxcpm2]  sentinel: D:\www\cache\pycore\voxcpm2\.model_installed (present)
+[Step58-Voxcpm2] [OK] isolated venv already provisioned (.deps_done) -> skipping.
+[hf] HF auth: using env:HF_TOKEN (...johO); whoami OK
+[model-cache] local model found: D:\www\cache\pycore\voxcpm2\weights (4,580,080,592 bytes)
+[Step58-Voxcpm2] [idempotent] skipping: model weights verified (openbmb/VoxCPM2)
+[Step58-Voxcpm2] [OK] VoxCPM2 ready. Weights pre-downloaded (idempotent); engine auto-detects local.
+[Step58-Voxcpm2]  local weights auto-detected: D:\www\cache\pycore\voxcpm2\weights
+[..] Prerequisite: bark
+============================================================
+ [Step59-Bark] Bark (Suno / transformers)
+============================================================
+[Step59-Bark] official env (bark): Python 3.10+; pip install transformers scipy. Do NOT pip install bark (wrong package). GPU: suno/bark; CPU: suno/bark-small. BARK_VOICE_PRESET for speaker style (e.g. v2/en_speaker_6).
+[Step59-Bark]  staging : D:\www\cache\pycore\bark
+[Step59-Bark]  weights : D:\www\cache\pycore\bark\weights
+[Step59-Bark]  compute : CUDA GPU
+[Step59-Bark]  model   : suno/bark
+[Step59-Bark]  sentinel: D:\www\cache\pycore\bark\.model_installed (present)
+[Step59-Bark] [idempotent] skipping: dependencies already installed (.deps_done)
+[hf] HF auth: using env:HF_TOKEN (...johO); whoami OK
+[model-cache] local model found: D:\www\cache\pycore\bark\weights (4,486,643,861 bytes)
+[Step59-Bark] [idempotent] skipping: model weights verified (suno/bark)
+[Step59-Bark] [OK] Bark ready. Weights pre-downloaded (idempotent); engine auto-detects local.
+[Step59-Bark]  local weights auto-detected: D:\www\cache\pycore\bark\weights
+[Step59-Bark]  Set BARK_MODEL / BARK_VOICE_PRESET to override.
+[Step59-Bark] [idempotent-probe] running post-install verification ...
+[Step59-Bark] [idempotent-probe] OK  import transformers
+[..] Prerequisite: parler
+============================================================
+ [Step60-Parler] Parler-TTS (Hugging Face)
+============================================================
+[Step60-Parler] official env (parler): Python 3.10+; pip install git+https://github.com/huggingface/parler-tts.git. GPU: parler-tts/parler-tts-large-v1; CPU: parler-tts/parler-tts-mini-v1. PARLER_DESCRIPTION controls voice/style.
+[Step60-Parler]  staging : D:\www\cache\pycore\parler
+[Step60-Parler]  weights : D:\www\cache\pycore\parler\weights
+[Step60-Parler]  model   : parler-tts/parler-tts-large-v1
+[Step60-Parler]  sentinel: D:\www\cache\pycore\parler\.model_installed (present)
+[Step60-Parler] [idempotent] skipping: dependencies already installed (.deps_done)
+[hf] HF auth: using env:HF_TOKEN (...johO); whoami OK
+[model-cache] local model found: D:\www\cache\pycore\parler\weights (9,332,176,624 bytes)
+[Step60-Parler] [idempotent] skipping: model weights verified (parler-tts/parler-tts-large-v1)
+[Step60-Parler] [OK] Parler ready. Weights pre-downloaded (idempotent); engine auto-detects local.
+[Step60-Parler]  local weights auto-detected: D:\www\cache\pycore\parler\weights
+[Step60-Parler]  Set PARLER_MODEL / PARLER_DESCRIPTION to override.
+[Step60-Parler] [idempotent-probe] running post-install verification ...
+[Step60-Parler] [idempotent-probe] OK  import parler_tts
+[..] Prerequisite: qwen3tts
+============================================================
+ [Step61-Qwen3Tts] Qwen3-TTS (Alibaba qwen-tts)
+============================================================
+[Step61-Qwen3Tts]  base python: D:\.dev_win10\python313\python.exe
+[Step61-Qwen3Tts] [..] ensuring torch (CUDA index: https://download.pytorch.org/whl/cu130 (CUDA Version: 13.3)) ...
+[torch-guard] Reusing pyservice runtime validation (policy=cu130, cuda=13.0, usable=true).
+[Step61-Qwen3Tts]   driver: 610.74; CUDA policy: Enabled=True Tag=cu130 Reason=-
+[Step61-Qwen3Tts]  [!] 1 nvcuda*.dll crash(es) in the last 14 days; latest: 9/19/2026 3:38:13 PM local
+[Step61-Qwen3Tts]  [idempotent] notice already shown for this driver/crash state -> skipping.
+False
+[Step61-Qwen3Tts] official env (qwen3tts): Python 3.10+ (3.13 via pip qwen-tts; avoid legacy ComfyUI conversion scripts). pip install qwen-tts; use the shared CUDA torch build. SoX binary on PATH (pysox; winget ChrisBagwell.SoX / apt sox). GPU: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice; CPU: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice. Install scripts pre-download weights idempotently via curl (sentinel + resume + HF size/safetensors verify). QWEN3TTS_SPEAKER + optional QWEN3TTS_INSTRUCT.
+[Step61-Qwen3Tts]  staging : D:\www\cache\pycore\qwen3tts
+[Step61-Qwen3Tts]  weights : D:\www\cache\pycore\qwen3tts\weights
+[Step61-Qwen3Tts]  model   : Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+[Step61-Qwen3Tts]  sentinel: D:\www\cache\pycore\qwen3tts\.model_installed (present)
+[Step61-Qwen3Tts] [..] converging isolated qwen-tts venv (first build takes minutes) ...
+[isolated-venv +0.00s] PASS: torch.cuda.is_available
+[isolated-venv +0.06s] optional accelerator is not provisioned on win32; using the supported PyTorch attention path
+[isolated-venv +0.00s] ready (qwen3tts): D:\.dev_win10\py_venv_qwen3tts_3.13\Scripts\python.exe
+[Step61-Qwen3Tts] [OK] isolated qwen-tts venv ready; main interpreter packages left untouched.
+[hf] HF auth: using env:HF_TOKEN (...johO); whoami OK
+[model-cache] local model found: D:\www\cache\pycore\qwen3tts\weights (4,515,695,644 bytes)
+[Step61-Qwen3Tts] [idempotent] skipping: model weights verified (Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)
+[Step61-Qwen3Tts] [OK] Qwen3-TTS ready. Set QWEN3TTS_MODEL / QWEN3TTS_SPEAKER.
+[Step61-Qwen3Tts]  local weights auto-detected: D:\www\cache\pycore\qwen3tts\weights
+[Step61-Qwen3Tts]  Runtime: pycore launches the qwen3tts HTTP server (class C) under the isolated venv on demand; no manual start needed.
+[..] Prerequisite: f5tts
+============================================================
+ [Step53-F5Tts] F5-TTS (flow-matching clone api)
+============================================================
+[Step53-F5Tts]  staging : D:\www\cache\pycore\f5tts
+[Step53-F5Tts] [OK] repo already present -> skipping clone.
+[Step53-F5Tts] [OK] api wrapper copied -> D:\www\cache\pycore\f5tts\f5tts_api_server.py
+[Step53-F5Tts] [OK] dependencies already installed (.deps_done) -> skipping pip.
+[Step53-F5Tts] [OK] F5-TTS ready (D:\www\cache\pycore\f5tts).
+[Step53-F5Tts]  START:  cd "D:\www\cache\pycore\f5tts"; python f5tts_api_server.py   (serves http://127.0.0.1:7860)
+[Step53-F5Tts]  Then set F5TTS_REF_AUDIO + F5TTS_REF_TEXT to a reference clip.
+[Step53-F5Tts] [idempotent-probe] running post-install verification ...
+[Step53-F5Tts] [idempotent-probe] OK  import f5_tts
+[..] Prerequisite: gptsovits
+============================================================
+ [Step54-Gptsovits] GPT-SoVITS TTS (free voice-clone server, isolated venv)
+============================================================
+[hf] HF auth: using env:HF_TOKEN (...johO); whoami OK
+[model-cache] local model found: D:\www\cache\pycore\gptsovits\GPT_SoVITS\pretrained_models (4,473,560,180 bytes)
+[Step54-Gptsovits] [idempotent] skipping: GPT-SoVITS repo + models + isolated venv already present
+[Step54-Gptsovits]  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; set GPTSOVITS_REF_AUDIO to a reference clip.
+[..] Prerequisite: melotts
+============================================================
+ [Step55-MeloTts] MeloTTS (free offline zh/en TTS, isolated venv)
+============================================================
+[Step55-MeloTts] docker provider for 'melotts': wsl_engine
+wsl: Hyper-V firewall is not supported
+
+                                      wsl: Mirrored networking mode is not supported: Windows version 19045.6466 does not have the required features.
+
+               Falling back to NAT networking.
+
+                                              wsl: DNS Tunneling is not supported
+
+
+[Step55-MeloTts] dispatching in-WSL docker ensure: bash /mnt/d/programing/core_node/scripts/shells/linux/debian/install_shells/ensure_docker_for_tts.sh melotts (distro: Debian)
+[SECRET_MANAGER] Library loaded successfully
+                                            [docker-prereq] START_DOCKER already true; no write needed.
+[docker-prereq] engine 'melotts' already registered in TTS_DOCKER_BACKEND_ENGINES.
+[docker-prereq] dispatching docker ensure chain: /mnt/d/programing/core_node/scripts/shells/linux/debian/install_shells/79_install_docker.sh
+[SECRET_MANAGER] Library loaded successfully
+
+============================================================
+ [79] Docker Engine / CLI / Buildx / Compose ensure
+============================================================
+[79] START_DOCKER=true (toggle: [^] Start Docker After Installation)
+[79] action=ensure
+[79] repo=debian suite=trixie arch=amd64
+[79] Prereq packages present: ca-certificates curl (nothing to do)
+[79] Downloading Docker GPG key -> /etc/apt/keyrings/docker.asc
+[79][!] Downloaded key failed gpg validation; not installed.
+[docker-prereq][!] docker ensure chain reported a failure (phase above); docker backend is not ready.
+                                  [Step55-MeloTts] [!] In-WSL docker ensure failed; the failing phase reported its reason above. Fix it, then re-run this step.
+[Step55-MeloTts] [!] docker platform is not ready (state: wsl_engine_ensure_failed).
+[!] Prerequisite installers finished; pending: fishspeech, melotts. Re-run after resolving the reported failures.
+[..] Starting dashboard through D:\programing\core_node\poly_apps\pycore_laravel_wordnew_ui\scripts\start.ps1 ...
+[i] Dashboard start dispatched asynchronously: http://localhost:13054/pycore-manager
+
+[>] Launching worker: D:\programing\core_node\pycore\pycore_module_caller.py
+
+[INFO +0.00s] Checking for required Python packages...
+[INFO +0.00s] Optional packages are not auto-installed
+[INFO +0.36s] Found installed packages: Pillow, PyQt5>=5,<6, PySide6, Werkzeug>=3,<4, absl-py>=2,<3, adb-shell, aiohttp, av, azure-cognitiveservices-speech, beautifulsoup4, certifi, chardet>=5,<6, cryptography, eng-to-ipa, fastapi, fastmcp, google-genai, googletrans, grpcio, h5py>=3,<4, httpx, huggingface_hub, idna>=3,<4, keyboard, labelImg, labelme, loguru, matplotlib, msgpack>=1,<2, mss, numpy, openai, opencv-python, openpyxl, pdfplumber, protobuf, psutil, pyaudio, pyaudiowpatch, pyautogui, pydantic, pygame, pygetwindow, pynput, pypdf, pyperclip, pystray, pytesseract, python-docx, python-okx, python-pptx, pywin32, pywinauto, pyyaml, pyzmq, redis, requests>=2,<3, scikit-learn, selenium, six>=1,<2, sqlalchemy, tkhtmlview, tkinterweb, torch, typing_extensions>=4,<5, uiautomation, ultralytics>=8,<9, urllib3>=2,<3, uvicorn[standard], vosk, webdriver-manager, websockets
+[I18nManager +0.03s] Loaded base translations for language: en
+[I18nManager +0.00s] Loaded base translations for language: zh
+[I18nManager +0.00s] Loaded base translations for language: ja
+[I18nManager +0.00s] Registered I18N_SET_LANGUAGE event handler
+[I18nManager +0.00s] Initialized (singleton)
+[SUCCESS +5.26s] Edge TTS is available
+[TableRegistry +0.31s] Initialized
+[DatabaseManager +0.00s] Initialized
+[TaskManager +0.05s] Initialized (max concurrency 4)
+[TranslationWorker +0.04s] Service initialized (worker_id=pycore-translate-desktop-1l9k06n, candidates=['https://api.si.12gm.com', 'http://127.0.0.1:9000', 'http://43.163.112.77:9000'])
+[WordAudioWorker 00:00:05 +0.20s] word_ok=0 word_fail=0 word_avg=0.00m Service initialized (worker_id=pycore-desktop-1l9k06n, enabled=True)
+[SentenceAudioWorker 00:00:06 +0.18s] remote_en=-/- sent_ok=0 sent_fail=0 sent_avg=0.00m Service initialized (worker_id=pycore-sentence-desktop-1l9k06n, enabled=True)
+[Relay +0.25s] action=contract.loaded contract_digest=4f94f5e4f253b71ffdc98b984b87c9917f3193ebe234d23e268dac70fd75d0e5 path=D:\programing\core_node\config\pycore_relay_contract.json protocol_version=2 schema_version=2
+[NativeUIBusManager +0.96s] Initialized (singleton)
+[Relay +0.42s] action=runtime.constructed contract_digest=4f94f5e4f253b71ffdc98b984b87c9917f3193ebe234d23e268dac70fd75d0e5 lease_owner=3e912696fb964967a647663f18ebc080 protocol_version=2
+[+0.02s] ======================================================================
+[+0.00s] Pycore Module Caller - Starting
+[+0.00s] ======================================================================
+[ConfigBuilder +0.00s] Building launcher configuration...
+[ai_hooks +0.20s] AI handlers wired (text=True, image=True)
+[ConfigBuilder +0.01s] Added independent tray service (backend=native)
+[ConfigBuilder +0.00s] Configuration built with 4 services
+[ConfigBuilder +0.00s] Services: heartbeat, rpc_v2, ui, tray
+[+0.00s] === Launching Pycore Module Caller ===
+[Singleton +0.00s] Detecting pycore_module_caller...
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [DEBUG] Initialized for app_id='pycore_module_caller', port range 59100-59199
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [DEBUG] Protocol: PYCORE_SINGLETON_V1, Timeout: 1.0s
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): ============================================================
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Starting singleton detection for 'pycore_module_caller'
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Port range: 59100-59199
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Shutdown existing: True
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): ============================================================
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [1/100] Checking port 59100...
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Trying to connect to port 59100...
+[2026-09-19 22:36:39 +0.01s] [INFO] SingletonDetector(pycore_module_caller): Port 59100: Found valid instance (PID 47036)
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [FOUND] Existing instance detected
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [SHUTDOWN] Attempting to shutdown existing instance...
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Sending SHUTDOWN to existing instance on port 59100
+[2026-09-19 22:36:39 +0.01s] [INFO] SingletonDetector(pycore_module_caller): Shutdown ACCEPTED: Shutdown accepted (newer instance takes over)
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [SHUTDOWN] Shutdown accepted, waiting for old instance to stop...
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [SUCCESS] Bound to port 59100 (PRIMARY instance)
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Listener thread started[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [THREAD_BUS] Registered shutdown handler (priority=95)
+
+[2026-09-19 22:36:39 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [SUCCESS] Became PRIMARY instance (after shutdown)
+[Singleton +0.00s] PRIMARY on port 59100
+[BuiltInHandlers +0.00s] Registering built-in event handlers...
+[BuiltInHandlers +0.00s] Built-in event handlers registered
+[heartbeat +0.00s] Starting Unified Heartbeat System...
+[Scheduler +0.00s] Initialized
+[Scheduler +0.00s] Use system.start() to begin operation
+[Scheduler +0.00s] Starting...
+[Scheduler +0.00s] Registered THREAD_BUS shutdown handler (priority=100)
+[Scheduler +0.00s] Started successfully[Scheduler +0.00s] Started (tick=1.0s)
+
+[heartbeat +0.00s] Unified Heartbeat System started
+[rpc_v2 +0.00s] Starting RPC v2 Server on 0.0.0.0:59000...
+[rpc_v2 +0.04s] Calling initialization callback...
+[AudioOrch +0.15s] auto-resumed interrupted generation: orch_10dbeb70ad15
+[ConfigBuilder +0.00s] Registered 285 HTTP routes
+[PeerConfig +0.01s] Loaded peer config from override (4 peers, v68)
+[PeerMesh +0.02s] Started
+[HttpPush +0.01s] Sender supervisor started
+[CodeSync Server +0.01s] Initialized with root: D:\programing\core_node
+[CodeSync Client +0.17s] Log file: sync_logs_20260919_223640.log
+[CodeSync Client +0.00s] Initialized with target: D:\programing\core_node
+[CodeSync Client +0.00s] Client ID: DESKTOP-1L9K06N_84479723852638_1789821400
+[CodeSync Client +0.00s] Backup enabled: True
+[CodeSync Client +0.00s] Backup dir: D:\programing\Users\mpc\.core_node\data\code_sync_backups
+[CodeSync Client +0.00s] Logs dir: D:\programing\Users\mpc\.core_node\data\code_sync_logs
+[CodeSync SSE +0.01s] CLIENT receiver routes ready
+[CodeSync Manager +0.00s] Client role: receiving via SSE
+[CodeSync Manager +0.02s] Initialized role=client (distributing=False, light=False)
+[ConfigBuilder +0.02s] Registered HTTP controllers and event bridges
+[rpc_v2 +0.00s] Initialization callback completed
+INFO:     Started server process [50584]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[rpc_v2 +0.10s] RPC v2 Server started on 0.0.0.0:59000
+INFO:     Uvicorn running on http://0.0.0.0:59000 (Press CTRL+C to quit)
+[rpc_v2 +0.00s] HTTP controllers: http://0.0.0.0:59000/api/<path>
+[rpc_v2 +0.01s] HTTP events: enabled
+[ui +0.00s] ========== STARTING PYSIDE6 UI SERVICE ==========
+[ui +0.01s] Received config keys: ['app_name', 'app_id', 'window_size', 'webview_url', 'show_on_start', 'frameless', 'enable_title_bar', 'icon_path', 'minimize_to_tray', 'close_to_tray', 'enable_tray', 'tray_icon_path', 'tray_menu_items', 'enable_webview', 'enable_dev_tools', 'debug', 'show_startup', 'auto_close_startup', 'cache_window_state']
+[ui +0.01s] Configuration parsed:
+[ui +0.00s]   - app_name: Py模块UI界面
+[ui +0.01s]   - app_id: voice_subtitle_ui
+[ui +0.01s]   - app_user_model_id: None
+[ui +0.00s]   - window_size: (1788, 1159)
+[ui +0.01s]   - webview_url: http://localhost:13054/pycore-manager
+[ui +0.01s]   - show_on_start: False
+[ui +0.01s]   - frameless: True
+[ui +0.22s]   - enable_title_bar: True
+[ui +0.00s]   - icon_path: D:\programing\core_node\pycore\pyutils\native_ui\step1_config\app_icon.png
+[ui +0.00s]   - logo_path: None
+[ui +0.00s]   - menu_icon_path: None
+[ui +0.00s]   - enable_tray: False
+[ui +0.00s]   - enable_webview: True
+[ui +0.00s]   - enable_dev_tools: False
+[ui +0.00s]   - debug: False
+[ui +0.00s]   - show_startup: True
+[ui +0.00s]   - auto_close_startup: True
+[ui +0.00s] Creating PySide6UIConfig...
+[ui +0.00s] PySide6UIConfig created
+[ui +0.00s] Creating StartupWindowConfig...
+[ui +0.00s] StartupWindowConfig created (show=True, auto_close=True)
+[ui +0.00s] Creating PySide6UIThread...
+[PySide6UIThread +0.00s] Initialized - App: Py模块UI界面
+[ui +0.00s] PySide6UIThread created, starting thread...
+[PySide6UIThread +0.00s] Starting (tk bootstrap first, then PySide6)...[ui +0.00s] PySide6UIThread.start() called (thread is now running)
+
+[PySide6UIThread +0.00s] Step 0: Showing tk bootstrap window (no PySide6 yet)...
+[ui +0.00s] Registered shutdown handler (priority=70)
+[TkinterStartupThread +0.00s] Thread starting
+[ui +0.00s] Registered shutdown handler (priority=-1) for tk debug window close via THREAD_BUS
+[ui +0.10s] ========== PYSIDE6 UI SERVICE STARTED ==========
+[ui +0.00s] App: Py模块UI界面
+[ui +0.00s] WebView URL: http://localhost:13054/pycore-manager
+[ui +0.00s] Window will NOT show automatically (use tray to toggle)
+[tray +0.00s] Starting System Tray...
+[PlatformAdapter +0.00s] Initialized for windows
+[PlatformAdapter +0.00s] GUI: True, X11: False, Tray: True
+[Win32SystemTrayThread +0.00s] Initialized - App: Pycore RPC Server
+[Win32SystemTrayThread +0.00s] Starting tray...[tray +0.00s] System Tray started (native Win32): Pycore RPC Server
+
+[+0.00s] === Launched 4/4 services ===[Win32SystemTrayThread +0.00s] Tray running...
+
+[Win32Tray +0.00s] Starting native system tray: Pycore RPC Server
+[Launcher +0.00s] Third-party packages loaded signal sent
+[Main +0.00s] Services started successfully
+[Main +0.00s] Singleton Port: 59100
+[EventHandlers +0.00s] Registering tray event handlers...
+[TrayCodeSyncCache +0.00s] Background refresher started
+[EventHandlers +0.01s] Tray language handlers registered: ['en', 'zh', 'ja']
+[EventHandlers +0.00s] Tray event handlers registered
+[Win32Tray +0.01s] THREAD_BUS event handlers registered
+[Win32Tray +0.00s] Tray icon ready: Pycore RPC Server
+[Scheduler +0.01s] Registered callback: translation_worker (interval=1s)
+[Scheduler +0.00s] Registered callback: tts_queue_poller (interval=1s)
+[Scheduler +0.00s] Registered callback: tts_sentence_worker (interval=1s)
+[AssistSync +0.00s] translation_worker disabled
+[TranslationWorker +0.00s] lane stop requested (graceful=True)
+[AssistSync +0.00s] tts_queue_poller enabled
+[AssistSync +0.00s] tts_sentence_worker enabled
+[AssistSync +0.01s] runtime applied master=True translation=False word_audio=True sentence_audio=True stt=False
+[Scheduler +0.01s] Registered callback: agent_history_extraction (interval=10s)
+[Scheduler +0.00s] Registered callback: agent_history_pipeline (interval=10s)
+[Scheduler +0.00s] Registered callback: agent_history_video (interval=2s)
+[Scheduler +0.00s] Registered callback: agent_history_upload (interval=10s)
+[Callmodule +0.00s] Registered agent history extract + pipeline + upload + video callbacks
+[+0.00s]   - agent_history_extraction: every 10s (on)
+[+0.00s]   - agent_history_pipeline: every 10s (on)
+[+0.00s]   - agent_history_upload: every 10s (on)
+[+0.00s]   - agent_history_video: every 2s (off)
+[Scheduler +0.00s] Registered callback: ai_rate_reset (interval=30s)
+[streamelements +0.02s] STREAMELEMENTS_API_KEY not in .secret_keys — engine disabled. Set STREAMELEMENTS_API_KEY via Special Software env manager (writes .secret_keys/.secret_ignore/STREAMELEMENTS_API_KEY_1); otherwise the orchestrator skips this engine.
+[EdgeTTS +0.59s] Initialized with binary: python
+[TTS +0.01s] Engine priority: gptsovits -> streamelements -> sherpa -> melotts -> edge -> gtts_web -> azure -> chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> voxcpm2 -> kokoro -> f5tts (active=edge)
+[TTS +0.02s] Sentence chain: qwen3tts | Word chain: edge -> streamelements -> gtts_web -> gptsovits -> sherpa -> melotts -> azure -> chattts -> cosyvoice -> fishspeech -> bark -> parler -> voxcpm2 -> kokoro -> f5tts
+[Main +0.14s] Auto-start launcher refreshed (next boot uses pyservice + UI)
+[Win32Tray +0.02s] Menu updated
+[ConfigBuilder +0.00s] Tray menu update requested via THREAD_BUS
+[+0.00s] ======================================================================
+[Main +0.01s] RPC v2: http://localhost:59000/
+[Main +0.00s] Singleton: 59100
+[+0.01s] ======================================================================
+[PySide6UIThread +0.01s] Tk bootstrap window ready
+[Main +0.00s] Running... (Press Ctrl+C or use tray to exit)
+[PySide6UIThread +0.00s] Checking/installing PySide6...
+[PySide6UIThread +0.01s] PySide6 available
+[PySide6Framework +0.01s] Startup completion signal already set, closing startup window now.
+[PySide6Framework +0.01s] Third-party packages loaded, auto-closing startup window...
+[TkinterStartupThread +0.01s] Received ui.startup.request_close via THREAD_BUS
+[TkinterStartupThread +0.01s] Close request received from external thread
+[PySide6Framework +0.01s] Startup window auto-closed
+[PySide6UIThread +0.01s] Framework starting (main window)...
+[PySide6Framework +0.01s] ========== START SEQUENCE BEGIN ==========
+[PySide6Framework +0.01s] Config: app_name=Py模块UI界面, app_id=voice_subtitle_ui
+[PySide6Framework +0.01s] Window size: (1788, 1159)
+[PySide6Framework +0.00s] show_on_start: False
+[PySide6Framework +0.01s] enable_webview: True
+[PySide6Framework +0.01s] webview_url: http://localhost:13054/pycore-manager
+[PySide6Framework +0.01s] enable_tray: False
+[PySide6Framework +0.02s] trigger_shutdown_on_close: True
+[TkinterStartupThread +0.00s] Close requested, closing window... (root=True, running=True)
+[PySide6Framework +0.01s] Startup window: show=False, auto_close=True
+[TkinterStartupThread +0.01s] Calling _close_window()...
+[PySide6Framework +0.00s] Step 1: Startup window will auto-close after third-party packages loaded
+[TkinterStartupThread +0.01s] _close_window() called
+[PySide6Framework +0.00s] auto_close=True
+[TkinterStartupThread +0.01s] Sent TkinterStartup_closed signal
+[PySide6Framework +0.00s] Step 2: Creating Qt application...
+[TkinterStartupThread +0.01s] Destroying window...
+[PySide6Framework +0.00s] Step 2.1: Configuring QtWebEngine (multi-tier redundant)...
+[+0.02s] ================================================================================
+[WebEngineConfig +0.01s] Applying ALL configuration tiers (multi-redundant)
+[+0.02s] ================================================================================
+[+0.01s]
+[WebEngineConfig] >>> Tier 0: OpenGL context sharing (Qt 6)
+[TkinterStartupThread +0.01s] Window destroyed
+[WebEngineConfig-Tier0 +0.00s] AA_ShareOpenGLContexts enabled (required for QtWebEngine)
+[WebEngineConfig-Tier0 +0.01s] GPU mode: auto (default ANGLE/D3D11 on Windows; nothing forced)
+[WebEngineConfig +0.01s] Auto-generated flags with options:
+[TkinterStartupThread +0.00s] Mainloop ended, checking tray status...
+[+0.00s]   - enable_webcodecs: True
+[+0.00s]   enable_tray=False
+[+0.00s]   - enable_hardware_acceleration: True
+[+0.00s]   stop_requested=True
+[+0.00s]   - disable_gpu_sandbox: True
+[TkinterStartupThread +0.00s] Tray not enabled, skipping tray mode
+[+0.00s]   - enable_remote_debugging: False
+[+0.01s]
+[WebEngineConfig] >>> Tier 1: QTWEBENGINE_CHROMIUM_FLAGS environment variable
+[TkinterStartupThread +0.00s] Stop event set, skipping tray mode
+[WebEngineConfig-Tier1 +0.00s] ✓ Environment variable set successfully
+[TkinterStartupThread +0.00s] Thread stopped
+[WebEngineConfig-Tier1 +0.00s] QTWEBENGINE_CHROMIUM_FLAGS=--enable-features=WebCodecs,D3D11VideoDecoder --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --enable-gpu --enable-gpu-rasterization --enable-accelerated-2d-canvas --enable-webgl --enable-zero-copy
+[+0.01s]
+[WebEngineConfig] >>> Tier 2: Qt qputenv() API
+[WebEngineConfig-Tier2 +0.01s] ✓ Environment variable already set correctly (Tier 1)
+[+0.01s]
+[WebEngineConfig] >>> Tier 3: QWebEngineSettings (will be applied in PySide6WebView)
+[+0.01s]
+================================================================================
+[WebEngineConfig +0.01s] Configuration Summary:
+[+0.00s] ================================================================================
+[WebEngineConfig +0.01s] ✓ All pre-init tiers successful (2/2)
+[WebEngineConfig +0.01s] Tier 1 (env): ✓ OK
+[WebEngineConfig +0.01s] Tier 2 (qputenv): ✓ OK
+[WebEngineConfig +0.01s] Tier 3 (settings): Pending (will be applied in webview)
+[+0.01s] ================================================================================
+[PySide6Framework +0.01s] QtWebEngine configuration completed: {'tier1_env': True, 'tier2_qputenv': True, 'note': 'Tier 3 will be applied automatically when QWebEngineView is created'}
+[PySide6Framework +0.11s] Created new QApplication instance
+[PySide6Framework +0.00s] Set app name: Py模块UI界面
+[PySide6Framework +0.00s] quitOnLastWindowClosed=False (lifecycle owned by THREAD_BUS)
+[PySide6Framework +0.00s] Set Windows AppUserModelID: pycore.voice_subtitle_ui.1.0
+[PySide6Framework +0.01s] Set app icon: D:\programing\core_node\pycore\pyutils\native_ui\step1_config\app_icon.png
+[PySide6Framework +0.00s] Icon loaded successfully, available sizes: [PySide6.QtCore.QSize(200, 200)]
+[PySide6Framework +0.00s] Step 3: Creating components...
+[PySide6Framework +0.00s] Creating main window...
+[MainWindow +0.02s] Maximum size set to screen: 2560x1560
+[MainWindow +0.00s] Position valid (0, 0), keeping original position
+[PySide6Framework +0.01s] Main window created: 1788x1159, frameless=True
+[PySide6Framework +0.00s] Creating title bar...
+[PySide6Framework +0.02s] Title bar created and attached
+[PySide6Framework +0.00s] Creating WebView...
+[WebEngineConfig-Tier3 +0.64s] JavascriptEnabled = True
+[WebEngineConfig-Tier3 +0.01s] WebGLEnabled = True
+[WebEngineConfig-Tier3 +0.00s] Accelerated2dCanvasEnabled = True
+[WebEngineConfig-Tier3 +0.00s] PluginsEnabled = True
+[WebEngineConfig-Tier3 +0.00s] LocalContentCanAccessRemoteUrls = True
+[WebEngineConfig-Tier3 +0.00s] LocalContentCanAccessFileUrls = True
+[WebEngineConfig-Tier3 +0.00s] ✓ QWebEngineSettings configured successfully
+[PySide6Framework +0.02s] WebView created: dev_tools=False
+[PySide6Framework +0.00s] Showing loading page...
+[PySide6Framework +0.15s] Scheduling URL load (100ms delay): http://localhost:13054/pycore-manager
+[PySide6Framework +0.00s] WebView attached to main window
+[PySide6Framework +0.00s] System tray disabled (using external tray)
+[PySide6Framework +0.00s] Creating tick timer (interval=1.0s)...
+[PySide6Framework +0.00s] Tick timer created
+[PySide6Framework +0.00s] Components created
+[PySide6Framework +0.00s] Step 4: Setting up signal connections...
+[PySide6Framework +0.00s] Signal connections established
+[PySide6Framework +0.00s] Step 5: Checking if window should be shown...
+[PySide6Framework +0.00s] show_on_start=False, window will NOT be shown automatically
+[PySide6Framework +0.00s] Use tray menu 'Toggle Voice Subtitle' to show window
+[PySide6Framework +0.00s] Pre-warming hidden main window and WebEngine compositor
+[reload +0.22s] dev hot-reload ON - watching 997 runtime files under D:\programing\core_node\pycore, D:\programing\core_node\config
+[PySide6Framework +0.28s] Hidden window pre-warm complete
+[PySide6Framework +0.01s] Starting tick timer...
+[PySide6Framework +0.01s] Step 6: Emitting ready signal...
+[PySide6Framework +0.01s] ========== START SEQUENCE COMPLETE ==========
+[PySide6Framework +0.01s] Framework is now running
+[PySide6Framework +0.01s] Window visible: False
+[PySide6Framework +0.01s] Starting Qt event loop (blocking)...
+[PySide6Framework +0.00s] Running in worker thread, SIGINT handled by main process
+[PySide6WebView +2.59s] Load failed (attempt 1/5): http://localhost:13054/pycore-manager — retrying in 1s
+[PySide6WebView +3.37s] Load failed (attempt 2/5): http://localhost:13054/pycore-manager — retrying in 1s
+[http upload +1.98s] POST /api/queue-center/queues/word_audio/head/batch bytes=14658/14658 phase=awaiting_receipt
+[laravel +0.00s] POST /api/queue-center/queues/word_audio/head/batch -> ERR (11328ms) The read operation timed out
+[QueueHead +0.13s] pending replay word_audio paused: timed out
+[QueueHead +0.24s] offline promotion replay: promoted=0 remaining=900
+[PySide6WebView +1.02s] Load failed (attempt 3/5): http://localhost:13054/pycore-manager — retrying in 1s
+[AgentHistory +1.35s] updated: 1 sources, 761 sessions, 10213 prompts
+[laravel +0.58s] GET /api/health -> ERR (14061ms) HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=12.0)
+[LaravelEndpoints +0.01s] Stored endpoint https://api.si.12gm.com probe failed (HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=12.0)); retrying once (warm-up)
+[laravel +0.98s] POST /api/worker/tasks/word_audio/result -> ERR (15997ms) _ssl.c:1015: The handshake operation timed out
+[WordAudioWorker 00:00:24 +0.10s] word_ok=0 word_fail=0 word_avg=0.00m Deferred task task_651... for persistent retry
+[PySide6WebView +0.35s] Load failed (attempt 4/5): http://localhost:13054/pycore-manager — retrying in 1s
+[managed +0.60s] qwen3tts: adopted compatible healthy service
+[http upload +0.19s] POST /queue/submit bytes=2237/2237 phase=received
+[http upload +0.35s] POST /queue/events/ack bytes=75/75 phase=received
+[http upload +0.03s] POST /queue/events/ack bytes=76/76 phase=received
+[laravel +0.39s] GET /api/app_qy_v1/ai_tools/tts/queue/stats -> ERR (17078ms) HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=15)
+[WordAudioWorker 00:00:26 +0.00s] word_ok=0 word_fail=0 word_avg=0.00m Backend table progress refresh failed: HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=15)
+[PySide6WebView +1.79s] Load failed (attempt 5/5): http://localhost:13054/pycore-manager — retrying in 1s
+[PySide6WebView +3.45s] Load failed after 5 retries: http://localhost:13054/pycore-manager
+[http upload +0.12s] POST /api/worker/tasks/word_audio/result bytes=305/305 phase=received
+[laravel +0.01s] POST /api/worker/tasks/word_audio/result -> 200 (23887ms) success=True
+[laravel +4.30s] GET /api/health -> ERR (12665ms) HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=12.0)
+[LaravelEndpoints +0.04s] Stored endpoint https://api.si.12gm.com unhealthy (HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=12.0)) — sweeping 3 candidate(s)
+[AgentHistory +0.07s] updated: 1 sources, 761 sessions, 10213 prompts
+[laravel +2.02s] GET /api/health -> ERR (2062ms) HTTPConnectionPool(host='127.0.0.1', port=9000): Max retries exceeded with url: /api/health (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=9000): Failed to establish a new connec
+[WordAudioWorker 00:00:41 +3.58s] word_ok=0 word_fail=0 word_avg=0.00m diff sync unavailable (timed out); processing the local mirror
+[WordAudioWorker 00:00:41 +0.24s] word_ok=0 word_fail=0 word_avg=0.00m diff sync unavailable (timed out); processing the local mirror
+[http upload +0.14s] POST /api/worker/tasks/word_audio/result bytes=302/302 phase=awaiting_receipt
+[laravel +0.00s] POST /api/worker/tasks/word_audio/result -> ERR (32195ms) The read operation timed out
+[laravel +0.19s] GET /api/health -> ERR (6187ms) HTTPConnectionPool(host='43.163.112.77', port=9000): Read timed out. (read timeout=6.0)
+[WordAudioWorker 00:00:42 +0.03s] word_ok=0 word_fail=0 word_avg=0.00m Deferred task task_9ea... for persistent retry
+[SentenceAudioWorker 00:00:42 +0.08s] remote_en=-/- sent_ok=0 sent_fail=0 sent_avg=0.00m diff sync unavailable (timed out); processing the local mirror
+[http upload +0.20s] POST /api/worker/tasks/word_audio/result bytes=300/300 phase=awaiting_receipt
+[laravel +0.01s] POST /api/worker/tasks/word_audio/result -> ERR (30563ms) The read operation timed out
+[laravel +0.09s] GET /api/health -> ERR (6621ms) HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. (read timeout=6.0)
+[WordAudioWorker 00:00:42 +0.06s] word_ok=0 word_fail=0 word_avg=0.00m Deferred task task_4a9... for persistent retry
+[LaravelEndpoints +0.02s] No healthy Laravel endpoint among 3 candidate(s); falling back to https://api.si.12gm.com
+[QueueCenterCache +0.01s] realtime reconnect: Laravel endpoint unreachable - realtime paused
+[SentenceAudioWorker 00:00:45 +2.47s] remote_en=-/- sent_ok=0 sent_fail=0 sent_avg=0.00m diff[200]->true checks_since_change=1 total_checks=1
+[SentenceAudioWorker 00:00:47 +2.28s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m sync[sentence_audio] +1 -0 order=1000 reorder=1
+[http upload +1.89s] POST /api/worker/tasks/sentence_audio/accept bytes=104/104 phase=received
+[laravel +0.00s] POST /api/worker/tasks/sentence_audio/accept -> 200 (930ms) success=True
+[SentenceAudioWorker 00:00:49 +0.01s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m synth_start task=task_cb1... progress=605/2294 text='And Noah built an altar unto the LORD; a': queue_position=1000
+[TaskManager +0.00s] Created task: task_sentence_audio_20260919_223720_05c7579c (sentence_audio)
+[SentenceAudioWorker 00:00:49 +0.01s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m Generating sentence task=task_cb1... queue_position=1000 text=And Noah built an altar unto the LORD; and took of every clean beast, and of every clean fowl, and offered burnt offerings on the altar.
+[tts +0.01s] sentence cache MISS; synthesizing
+[http upload +0.09s] POST /queue/submit bytes=266/266 phase=rejected
+[laravel +3.93s] GET /api/health -> 200 (656ms)
+[SentenceAudioWorker 00:00:54 +1.20s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m diff[200]->false checks_since_change=1 total_checks=2
+[laravel +0.26s] GET /api/queue-center/overview -> 200 (1454ms) success=True
+[laravel +0.20s] GET /api/queue-center/events -> 200 (189ms) success=True
+[SentenceAudioWorker 00:00:55 +0.57s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m full-sync dispatch recovered=1000 processed=1000 local_capacity=0
+[laravel +0.72s] GET /api/queue-center/events -> 200 (1061ms) success=True
+[TrayTiming +4.52s] right_click_received wall=2026-09-19 22:37:32
+[Win32Tray +0.03s] Right click detected. Opening tray context menu.
+[Win32Tray +0.00s] Tray menu anchor point: (2181, 1560)
+[TrayTiming +0.96s] id=56336-1789821453471885300 menu_selected wall=2026-09-19 22:37:33 elapsed=995.242ms
+[Win32Tray +0.00s] Tray menu selected: tray_action_restart
+[Win32Tray +0.00s] Menu item -> signal: tray_action_restart
+[Tray +0.00s] Triggering built-in restart...
+[BuiltInHandlers +0.00s] Restart requested: Tray menu request
+[BuiltInHandlers +0.00s] Initiating shutdown for restart...
+[ThreadBus +0.00s] Shutdown requested: reason='Restart: Tray menu request' thread='Win32SystemTrayThread' (id=56336)
+[ThreadBus +0.00s] Executing shutdown stack: Restart: Tray menu request
+[ThreadBus +0.00s] Shutdown order: ['debug_window_close', 'rpc_v2', 'queue_center_snapshot', 'code_sync_http_push', 'code_sync_peer_mesh', 'ui', 'tray', 'singleton_detector_pycore_module_caller', 'heartbeat']
+[ThreadBus +0.00s] Executing shutdown handler: debug_window_close (priority: -1)
+[ui +0.00s] Shutdown: requesting tk debug window close via THREAD_BUS...
+[ThreadBus +0.00s] Executing shutdown handler: rpc_v2 (priority: 50)
+[rpc_v2 +0.00s] Stopping RPC v2 Server...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [50584]
+[HttpServerRunner +0.24s] Server stopped
+[rpc_v2 +0.00s] RPC v2 Server stopped
+[ThreadBus +0.00s] Executing shutdown handler: queue_center_snapshot (priority: 60)
+[ThreadBus +0.00s] Executing shutdown handler: code_sync_http_push (priority: 68)
+[ThreadBus +0.00s] Executing shutdown handler: code_sync_peer_mesh (priority: 70)
+[Main +0.01s] Shutdown signal received (reason=Restart: Tray menu request)
+[Main +0.00s] Shutting down all services...
+[Launcher +0.00s] Stopping services...
+[2026-09-19 22:37:33 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Listener thread stopped
+[2026-09-19 22:37:33 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Detector stopped
+[Launcher +0.00s] All services stopped
+[Main +0.00s] Shutdown complete
+[+0.00s] ======================================================================
+[Main +0.00s] Restart requested - re-executing process...
+[+0.00s] ======================================================================
+[PeerMesh +0.09s] Stopped
+[ThreadBus +0.00s] Executing shutdown handler: ui (priority: 70)
+[ui +0.00s] Stopping PySide6 UI...
+[PySide6Framework +0.00s] Shutdown requested, cleaning up UI...
+[ui +0.00s] PySide6 UI stop signal sent (voice_subtitle_ui.close)
+[PySide6Framework +0.00s] Closing main window (force_close=True)...
+[MainWindow +0.00s] Force close enabled, closing window...
+[PySide6Framework +0.01s] Quitting Qt application...
+Tcl_AsyncDelete: async handler deleted by the wrong thread
+[Scheduler +0.18s] THREAD_BUS shutdown detected, stopping...
+[Scheduler +0.00s] Stopped
+[ui +10.13s] PySide6 UI thread did not stop within 5s; continuing shutdown[+0.00s]
+[Main] Already shutting down, please wait...
+[ThreadBus +0.00s] Executing shutdown handler: tray (priority: 85)
+
+[tray +0.00s] Stopping System Tray (Win32)...
+[Win32Tray +0.00s] Received stop request via THREAD_BUS
+QDxgiVSyncService not destroyed in time
+PS D:\programing\core_node> [INFO +0.00s] Checking for required Python packages...
+[INFO +0.00s] Optional packages are not auto-installed
+[INFO +0.43s] Found installed packages: Pillow, PyQt5>=5,<6, PySide6, Werkzeug>=3,<4, absl-py>=2,<3, adb-shell, aiohttp, av, azure-cognitiveservices-speech, beautifulsoup4, certifi, chardet>=5,<6, cryptography, eng-to-ipa, fastapi, fastmcp, google-genai, googletrans, grpcio, h5py>=3,<4, httpx, huggingface_hub, idna>=3,<4, keyboard, labelImg, labelme, loguru, matplotlib, msgpack>=1,<2, mss, numpy, openai, opencv-python, openpyxl, pdfplumber, protobuf, psutil, pyaudio, pyaudiowpatch, pyautogui, pydantic, pygame, pygetwindow, pynput, pypdf, pyperclip, pystray, pytesseract, python-docx, python-okx, python-pptx, pywin32, pywinauto, pyyaml, pyzmq, redis, requests>=2,<3, scikit-learn, selenium, six>=1,<2, sqlalchemy, tkhtmlview, tkinterweb, torch, typing_extensions>=4,<5, uiautomation, ultralytics>=8,<9, urllib3>=2,<3, uvicorn[standard], vosk, webdriver-manager, websockets
+[I18nManager +0.04s] Loaded base translations for language: en
+[I18nManager +0.00s] Loaded base translations for language: zh
+[I18nManager +0.00s] Loaded base translations for language: ja
+[I18nManager +0.00s] Registered I18N_SET_LANGUAGE event handler
+[I18nManager +0.00s] Initialized (singleton)
+[SUCCESS +3.05s] Edge TTS is available
+[TableRegistry +0.22s] Initialized
+[DatabaseManager +0.00s] Initialized
+[TaskManager +0.04s] Initialized (max concurrency 4)
+[TranslationWorker +0.03s] Service initialized (worker_id=pycore-translate-desktop-1l9k06n, candidates=['https://api.si.12gm.com', 'http://127.0.0.1:9000', 'http://43.163.112.77:9000'])
+[WordAudioWorker 00:00:03 +0.12s] word_ok=0 word_fail=0 word_avg=0.00m Service initialized (worker_id=pycore-desktop-1l9k06n, enabled=True)
+[SentenceAudioWorker 00:00:03 +0.19s] remote_en=-/- sent_ok=0 sent_fail=0 sent_avg=0.00m Service initialized (worker_id=pycore-sentence-desktop-1l9k06n, enabled=True)
+[Relay +0.46s] action=contract.loaded contract_digest=4f94f5e4f253b71ffdc98b984b87c9917f3193ebe234d23e268dac70fd75d0e5 path=D:\programing\core_node\config\pycore_relay_contract.json protocol_version=2 schema_version=2
+[NativeUIBusManager +0.83s] Initialized (singleton)
+[Relay +0.19s] action=runtime.constructed contract_digest=4f94f5e4f253b71ffdc98b984b87c9917f3193ebe234d23e268dac70fd75d0e5 lease_owner=796dbe6bdb144fe2a0dced47e0cc62ee protocol_version=2
+[+0.02s] ======================================================================
+[+0.00s] Pycore Module Caller - Starting
+[+0.00s] ======================================================================
+[ConfigBuilder +0.00s] Building launcher configuration...
+[ai_hooks +0.11s] AI handlers wired (text=True, image=True)
+[ConfigBuilder +0.00s] Added independent tray service (backend=native)
+[ConfigBuilder +0.00s] Configuration built with 4 services
+[ConfigBuilder +0.00s] Services: heartbeat, rpc_v2, ui, tray
+[+0.00s] === Launching Pycore Module Caller ===
+[Singleton +0.00s] Detecting pycore_module_caller...
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [DEBUG] Initialized for app_id='pycore_module_caller', port range 59100-59199
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [DEBUG] Protocol: PYCORE_SINGLETON_V1, Timeout: 1.0s
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): ============================================================
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Starting singleton detection for 'pycore_module_caller'
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Port range: 59100-59199
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Shutdown existing: True
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): ============================================================
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [1/100] Checking port 59100...
+[2026-09-19 22:37:53 +0.00s] [INFO] SingletonDetector(pycore_module_caller): Trying to connect to port 59100...
+[http upload +0.19s] POST /api/worker/tasks/word_audio/result bytes=305/305 phase=received
+[laravel +0.00s] POST /api/worker/tasks/word_audio/result -> 200 (957ms) success=True
+[http upload +0.41s] POST /api/worker/tasks/word_audio/result bytes=306/306 phase=received
+[laravel +0.00s] POST /api/worker/tasks/word_audio/result -> 200 (1247ms) success=True
+[2026-09-19 22:37:54 +0.41s] [INFO] SingletonDetector(pycore_module_caller): Port 59100: Not in use or no valid response
+[2026-09-19 22:37:54 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [SUCCESS] Bound to port 59100 (PRIMARY instance)
+[2026-09-19 22:37:54 +0.07s] [INFO] SingletonDetector(pycore_module_caller): Listener thread started
+[2026-09-19 22:37:54 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [THREAD_BUS] Registered shutdown handler (priority=95)
+[2026-09-19 22:37:54 +0.00s] [INFO] SingletonDetector(pycore_module_caller): [SUCCESS] Became PRIMARY instance
+[Singleton +0.00s] PRIMARY on port 59100
+[BuiltInHandlers +0.00s] Registering built-in event handlers...
+[BuiltInHandlers +0.00s] Built-in event handlers registered
+[heartbeat +0.00s] Starting Unified Heartbeat System...
+[Scheduler +0.00s] Initialized
+[Scheduler +0.00s] Use system.start() to begin operation
+[Scheduler +0.00s] Starting...
+[Scheduler +0.00s] Registered THREAD_BUS shutdown handler (priority=100)
+[Scheduler +0.00s] Started successfully
+[Scheduler +0.00s] Started (tick=1.0s)
+[heartbeat +0.00s] Unified Heartbeat System started
+[rpc_v2 +0.00s] Starting RPC v2 Server on 0.0.0.0:59000...
+[http upload +0.28s] POST /api/worker/tasks/word_audio/result bytes=300/300 phase=received
+[laravel +0.00s] POST /api/worker/tasks/word_audio/result -> 200 (1898ms) success=True
+[rpc_v2 +0.01s] Calling initialization callback...
+[AudioOrch +0.40s] auto-resumed interrupted generation: orch_10dbeb70ad15
+[ConfigBuilder +0.00s] Registered 285 HTTP routes
+[PeerConfig +0.01s] Loaded peer config from override (4 peers, v68)
+[PeerMesh +0.01s] Started
+[HttpPush +0.01s] Sender supervisor started
+[CodeSync Server +0.00s] Initialized with root: D:\programing\core_node
+[CodeSync Client +0.01s] Log file: sync_logs_20260919_223755.log
+[CodeSync Client +0.04s] Initialized with target: D:\programing\core_node
+[CodeSync Client +0.00s] Client ID: DESKTOP-1L9K06N_84479723852638_1789821474
+[CodeSync Client +0.00s] Backup enabled: True
+[CodeSync Client +0.00s] Backup dir: D:\programing\Users\mpc\.core_node\data\code_sync_backups
+[CodeSync Client +0.00s] Logs dir: D:\programing\Users\mpc\.core_node\data\code_sync_logs
+[CodeSync SSE +0.00s] CLIENT receiver routes ready
+[CodeSync Manager +0.00s] Client role: receiving via SSE
+[CodeSync Manager +0.06s] Initialized role=client (distributing=False, light=False)
+[ConfigBuilder +0.00s] Registered HTTP controllers and event bridges
+[rpc_v2 +0.00s] Initialization callback completed
+INFO:     Started server process [51260]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+[rpc_v2 +0.12s] RPC v2 Server started on 0.0.0.0:59000
+[rpc_v2 +0.00s] HTTP controllers: http://0.0.0.0:59000/api/<path>
+INFO:     Uvicorn running on http://0.0.0.0:59000 (Press CTRL+C to quit)
+[rpc_v2 +0.00s] HTTP events: enabled
+[ui +0.00s] ========== STARTING PYSIDE6 UI SERVICE ==========
+[ui +0.00s] Received config keys: ['app_name', 'app_id', 'window_size', 'webview_url', 'show_on_start', 'frameless', 'enable_title_bar', 'icon_path', 'minimize_to_tray', 'close_to_tray', 'enable_tray', 'tray_icon_path', 'tray_menu_items', 'enable_webview', 'enable_dev_tools', 'debug', 'show_startup', 'auto_close_startup', 'cache_window_state']
+[ui +0.00s] Configuration parsed:
+[ui +0.00s]   - app_name: Py模块UI界面
+[ui +0.00s]   - app_id: voice_subtitle_ui
+[ui +0.00s]   - app_user_model_id: None
+[ui +0.00s]   - window_size: (1788, 1159)
+[ui +0.00s]   - webview_url: http://localhost:13054/pycore-manager
+[ui +0.00s]   - show_on_start: False
+[ui +0.00s]   - frameless: True
+[ui +0.00s]   - enable_title_bar: True
+[ui +0.00s]   - icon_path: D:\programing\core_node\pycore\pyutils\native_ui\step1_config\app_icon.png
+[ui +0.00s]   - logo_path: None
+[ui +0.00s]   - menu_icon_path: None
+[ui +0.00s]   - enable_tray: False
+[ui +0.00s]   - enable_webview: True
+[ui +0.00s]   - enable_dev_tools: False
+[ui +0.00s]   - debug: False
+[ui +0.00s]   - show_startup: True
+[ui +0.08s]   - auto_close_startup: True
+[ui +0.00s] Creating PySide6UIConfig...
+[ui +0.00s] PySide6UIConfig created
+[ui +0.00s] Creating StartupWindowConfig...
+[ui +0.00s] StartupWindowConfig created (show=True, auto_close=True)
+[ui +0.00s] Creating PySide6UIThread...
+[PySide6UIThread +0.00s] Initialized - App: Py模块UI界面
+[ui +0.00s] PySide6UIThread created, starting thread...
+[PySide6UIThread +0.00s] Starting (tk bootstrap first, then PySide6)...
+[ui +0.00s] PySide6UIThread.start() called (thread is now running)
+[PySide6UIThread +0.00s] Step 0: Showing tk bootstrap window (no PySide6 yet)...
+[ui +0.00s] Registered shutdown handler (priority=70)
+[ui +0.00s] Registered shutdown handler (priority=-1) for tk debug window close via THREAD_BUS
+[ui +0.00s] ========== PYSIDE6 UI SERVICE STARTED ==========
+[ui +0.00s] App: Py模块UI界面
+[TkinterStartupThread +0.00s] Thread starting
+[ui +0.00s] WebView URL: http://localhost:13054/pycore-manager
+[ui +0.05s] Window will NOT show automatically (use tray to toggle)
+[tray +0.00s] Starting System Tray...
+[PlatformAdapter +0.00s] Initialized for windows
+[PlatformAdapter +0.00s] GUI: True, X11: False, Tray: True
+[Win32SystemTrayThread +0.00s] Initialized - App: Pycore RPC Server
+[Win32SystemTrayThread +0.00s] Starting tray...
+[tray +0.00s] System Tray started (native Win32): Pycore RPC Server
+[Win32SystemTrayThread +0.00s] Tray running...
+[Win32Tray +0.00s] Starting native system tray: Pycore RPC Server
+[+0.00s] === Launched 4/4 services ===
+[Launcher +0.00s] Third-party packages loaded signal sent
+[Main +0.00s] Services started successfully
+[Main +0.00s] Singleton Port: 59100
+[EventHandlers +0.00s] Registering tray event handlers...
+[TrayCodeSyncCache +0.00s] Background refresher started
+[EventHandlers +0.00s] Tray language handlers registered: ['en', 'zh', 'ja']
+[EventHandlers +0.00s] Tray event handlers registered
+[Win32Tray +0.01s] THREAD_BUS event handlers registered
+[Win32Tray +0.00s] Tray icon ready: Pycore RPC Server
+[Scheduler +0.01s] Registered callback: translation_worker (interval=1s)
+[Scheduler +0.00s] Registered callback: tts_queue_poller (interval=1s)
+[Scheduler +0.00s] Registered callback: tts_sentence_worker (interval=1s)
+[AssistSync +0.00s] translation_worker disabled
+[TranslationWorker +0.00s] lane stop requested (graceful=True)
+[AssistSync +0.00s] tts_queue_poller enabled
+[AssistSync +0.00s] tts_sentence_worker enabled
+[AssistSync +0.00s] runtime applied master=True translation=False word_audio=True sentence_audio=True stt=False
+[Scheduler +0.01s] Registered callback: agent_history_extraction (interval=10s)
+[Scheduler +0.00s] Registered callback: agent_history_pipeline (interval=10s)
+[Scheduler +0.00s] Registered callback: agent_history_video (interval=2s)
+[Scheduler +0.00s] Registered callback: agent_history_upload (interval=10s)
+[Callmodule +0.00s] Registered agent history extract + pipeline + upload + video callbacks
+[+0.00s]   - agent_history_extraction: every 10s (on)
+[+0.00s]   - agent_history_pipeline: every 10s (on)
+[+0.00s]   - agent_history_upload: every 10s (on)
+[+0.00s]   - agent_history_video: every 2s (off)
+[Scheduler +0.00s] Registered callback: ai_rate_reset (interval=30s)
+[streamelements +0.01s] STREAMELEMENTS_API_KEY not in .secret_keys — engine disabled. Set STREAMELEMENTS_API_KEY via Special Software env manager (writes .secret_keys/.secret_ignore/STREAMELEMENTS_API_KEY_1); otherwise the orchestrator skips this engine.
+[EdgeTTS +0.14s] Initialized with binary: python
+[TTS +0.00s] Engine priority: gptsovits -> streamelements -> sherpa -> melotts -> edge -> gtts_web -> azure -> chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> voxcpm2 -> kokoro -> f5tts (active=edge)
+[TTS +0.00s] Sentence chain: qwen3tts | Word chain: edge -> streamelements -> gtts_web -> gptsovits -> sherpa -> melotts -> azure -> chattts -> cosyvoice -> fishspeech -> bark -> parler -> voxcpm2 -> kokoro -> f5tts
+[PySide6UIThread +0.15s] Tk bootstrap window ready
+[PySide6UIThread +0.01s] Checking/installing PySide6...
+[PySide6UIThread +0.02s] PySide6 available
+[PySide6Framework +0.02s] Startup completion signal already set, closing startup window now.
+[PySide6Framework +0.01s] Third-party packages loaded, auto-closing startup window...
+[TkinterStartupThread +0.02s] Received ui.startup.request_close via THREAD_BUS
+[TkinterStartupThread +0.02s] Close request received from external thread
+[PySide6Framework +0.01s] Startup window auto-closed
+[PySide6UIThread +0.01s] Framework starting (main window)...
+[TkinterStartupThread +0.00s] Close requested, closing window... (root=True, running=True)
+[TkinterStartupThread +0.00s] Calling _close_window()...
+[PySide6Framework +0.00s] ========== START SEQUENCE BEGIN ==========
+[TkinterStartupThread +0.00s] _close_window() called
+[PySide6Framework +0.01s] Config: app_name=Py模块UI界面, app_id=voice_subtitle_ui
+[TkinterStartupThread +0.00s] Sent TkinterStartup_closed signal
+[PySide6Framework +0.00s] Window size: (1788, 1159)
+[TkinterStartupThread +0.00s] Destroying window...
+[PySide6Framework +0.01s] show_on_start: False
+[PySide6Framework +0.01s] enable_webview: True
+[PySide6Framework +0.01s] webview_url: http://localhost:13054/pycore-manager
+[PySide6Framework +0.01s] enable_tray: False
+[TkinterStartupThread +0.01s] Window destroyed
+[PySide6Framework +0.01s] trigger_shutdown_on_close: True
+[PySide6Framework +0.01s] Startup window: show=False, auto_close=True
+[TkinterStartupThread +0.00s] Mainloop ended, checking tray status...
+[PySide6Framework +0.01s] Step 1: Startup window will auto-close after third-party packages loaded
+[+0.00s]   enable_tray=False
+[PySide6Framework +0.02s] auto_close=True
+[+0.00s]   stop_requested=True
+[PySide6Framework +0.01s] Step 2: Creating Qt application...
+[TkinterStartupThread +0.00s] Tray not enabled, skipping tray mode
+[PySide6Framework +0.01s] Step 2.1: Configuring QtWebEngine (multi-tier redundant)...
+[TkinterStartupThread +0.01s] Stop event set, skipping tray mode
+[TkinterStartupThread +0.01s] Thread stopped
+[+0.00s] ================================================================================
+[WebEngineConfig +0.02s] Applying ALL configuration tiers (multi-redundant)
+[+0.01s] ================================================================================
+[+0.01s]
+[WebEngineConfig] >>> Tier 0: OpenGL context sharing (Qt 6)
+[WebEngineConfig-Tier0 +0.01s] AA_ShareOpenGLContexts enabled (required for QtWebEngine)
+[WebEngineConfig-Tier0 +0.01s] GPU mode: auto (default ANGLE/D3D11 on Windows; nothing forced)
+[WebEngineConfig +0.01s] Auto-generated flags with options:
+[+0.00s]   - enable_webcodecs: True
+[+0.00s]   - enable_hardware_acceleration: True
+[+0.07s]   - disable_gpu_sandbox: True
+[+0.00s]   - enable_remote_debugging: False
+[+0.00s]
+[WebEngineConfig] >>> Tier 1: QTWEBENGINE_CHROMIUM_FLAGS environment variable
+[WebEngineConfig-Tier1 +0.00s] QTWEBENGINE_CHROMIUM_FLAGS already set: --enable-features=WebCodecs,D3D11VideoDecoder --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --enable-gpu --enable-gpu-rasterization --enable-accelerated-2d-canvas --enable-webgl --enable-zero-copy
+[WebEngineConfig-Tier1 +0.00s] ✓ Environment variable set successfully
+[WebEngineConfig-Tier1 +0.00s] QTWEBENGINE_CHROMIUM_FLAGS=--enable-features=WebCodecs,D3D11VideoDecoder --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --enable-gpu --enable-gpu-rasterization --enable-accelerated-2d-canvas --enable-webgl --enable-zero-copy
+[+0.00s]
+[WebEngineConfig] >>> Tier 2: Qt qputenv() API
+[WebEngineConfig-Tier2 +0.00s] ✓ Environment variable already set correctly (Tier 1)
+[+0.00s]
+[WebEngineConfig] >>> Tier 3: QWebEngineSettings (will be applied in PySide6WebView)
+[+0.00s]
+================================================================================
+[WebEngineConfig +0.00s] Configuration Summary:
+[+0.00s] ================================================================================
+[WebEngineConfig +0.00s] ✓ All pre-init tiers successful (2/2)
+[WebEngineConfig +0.00s] Tier 1 (env): ✓ OK
+[WebEngineConfig +0.00s] Tier 2 (qputenv): ✓ OK
+[WebEngineConfig +0.00s] Tier 3 (settings): Pending (will be applied in webview)
+[+0.00s] ================================================================================
+[PySide6Framework +0.00s] QtWebEngine configuration completed: {'tier1_env': True, 'tier2_qputenv': True, 'note': 'Tier 3 will be applied automatically when QWebEngineView is created'}
+[PySide6Framework +0.02s] Created new QApplication instance
+[PySide6Framework +0.00s] Set app name: Py模块UI界面
+[PySide6Framework +0.00s] quitOnLastWindowClosed=False (lifecycle owned by THREAD_BUS)
+[PySide6Framework +0.00s] Set Windows AppUserModelID: pycore.voice_subtitle_ui.1.0
+[PySide6Framework +0.01s] Set app icon: D:\programing\core_node\pycore\pyutils\native_ui\step1_config\app_icon.png
+[PySide6Framework +0.00s] Icon loaded successfully, available sizes: [PySide6.QtCore.QSize(200, 200)]
+[PySide6Framework +0.00s] Step 3: Creating components...
+[PySide6Framework +0.00s] Creating main window...
+[MainWindow +0.00s] Maximum size set to screen: 2560x1560
+[MainWindow +0.00s] Position valid (0, 0), keeping original position
+[PySide6Framework +0.00s] Main window created: 1788x1159, frameless=True
+[PySide6Framework +0.00s] Creating title bar...
+[PySide6Framework +0.01s] Title bar created and attached
+[PySide6Framework +0.00s] Creating WebView...
+[WebEngineConfig-Tier3 +0.30s] JavascriptEnabled = True
+[WebEngineConfig-Tier3 +0.00s] WebGLEnabled = True
+[WebEngineConfig-Tier3 +0.00s] Accelerated2dCanvasEnabled = True
+[WebEngineConfig-Tier3 +0.00s] PluginsEnabled = True
+[WebEngineConfig-Tier3 +0.00s] LocalContentCanAccessRemoteUrls = True
+[Main +0.00s] Auto-start launcher refreshed (next boot uses pyservice + UI)
+[WebEngineConfig-Tier3 +0.00s] LocalContentCanAccessFileUrls = True
+[WebEngineConfig-Tier3 +0.00s] ✓ QWebEngineSettings configured successfully
+[Win32Tray +0.00s] Menu updated
+[PySide6Framework +0.00s] WebView created: dev_tools=False
+[PySide6Framework +0.00s] Showing loading page...
+[ConfigBuilder +0.00s] Tray menu update requested via THREAD_BUS
+[PySide6Framework +0.01s] Scheduling URL load (100ms delay): http://localhost:13054/pycore-manager
+[+0.00s] ======================================================================
+[Main +0.00s] RPC v2: http://localhost:59000/
+[PySide6Framework +0.00s] WebView attached to main window
+[PySide6Framework +0.00s] System tray disabled (using external tray)
+[Main +0.00s] Singleton: 59100
+[PySide6Framework +0.01s] Creating tick timer (interval=1.0s)...
+[+0.00s] ======================================================================
+[PySide6Framework +0.00s] Tick timer created
+[PySide6Framework +0.00s] Components created
+[Main +0.00s] Running... (Press Ctrl+C or use tray to exit)
+[PySide6Framework +0.00s] Step 4: Setting up signal connections...
+[PySide6Framework +0.00s] Signal connections established
+[PySide6Framework +0.00s] Step 5: Checking if window should be shown...
+[PySide6Framework +0.00s] show_on_start=False, window will NOT be shown automatically
+[PySide6Framework +0.00s] Use tray menu 'Toggle Voice Subtitle' to show window
+[PySide6Framework +0.00s] Pre-warming hidden main window and WebEngine compositor
+[PySide6Framework +0.29s] Hidden window pre-warm complete
+[PySide6Framework +0.00s] Starting tick timer...
+[PySide6Framework +0.01s] Step 6: Emitting ready signal...
+[PySide6Framework +0.00s] ========== START SEQUENCE COMPLETE ==========
+[PySide6Framework +0.00s] Framework is now running
+[PySide6Framework +0.00s] Window visible: False
+[PySide6Framework +0.01s] Starting Qt event loop (blocking)...
+[PySide6Framework +0.00s] Running in worker thread, SIGINT handled by main process
+[reload +0.10s] dev hot-reload ON - watching 997 runtime files under D:\programing\core_node\pycore, D:\programing\core_node\config
+[http upload +0.85s] POST /api/worker/tasks/word_audio/result bytes=300/300 phase=received
+[laravel +0.00s] POST /api/worker/tasks/word_audio/result -> 200 (5167ms) success=True
+[PySide6WebView +1.48s] Load failed (attempt 1/5): http://localhost:13054/pycore-manager — retrying in 1s
+[laravel +0.98s] GET /api/app_qy_v1/ai_tools/tts/queue/stats -> 200 (4927ms) success=True total=316037
+[laravel +0.42s] GET /api/health -> 200 (5327ms)
+[laravel +0.58s] GET /api/queue-center/overview -> 200 (574ms) success=True
+[laravel +0.19s] GET /api/queue-center/events -> 200 (176ms) success=True
+[laravel +0.81s] GET /api/queue-center/events -> 200 (589ms) success=True
+[PySide6WebView +0.36s] Load failed (attempt 2/5): http://localhost:13054/pycore-manager — retrying in 1s
+[http upload +2.95s] POST /api/queue-center/queues/word_audio/head/batch bytes=14658/14658 phase=awaiting_receipt
+[laravel +0.00s] POST /api/queue-center/queues/word_audio/head/batch -> ERR (10564ms) The read operation timed out
+[QueueHead +0.09s] pending replay word_audio paused: timed out
+[QueueHead +0.20s] offline promotion replay: promoted=0 remaining=900
+[PySide6WebView +0.11s] Load failed (attempt 3/5): http://localhost:13054/pycore-manager — retrying in 1s
+[SentenceAudioWorker 00:00:20 +2.14s] remote_en=-/- sent_ok=0 sent_fail=0 sent_avg=0.00m diff[200]->true checks_since_change=1 total_checks=1
+[SentenceAudioWorker 00:00:20 +0.37s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m sync[sentence_audio] +0 -1 order=999 reorder=0
+[PySide6WebView +0.82s] Load failed (attempt 4/5): http://localhost:13054/pycore-manager — retrying in 1s
+[managed +0.14s] qwen3tts: adopted compatible healthy service
+[http upload +0.21s] POST /queue/events/ack bytes=76/76 phase=received
+[SentenceAudioWorker 00:00:23 +1.55s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m sync[sentence_audio] +0 -0 order=999 reorder=0
+[PySide6WebView +1.43s] Load failed (attempt 5/5): http://localhost:13054/pycore-manager — retrying in 1s
+[WordAudioWorker 00:00:25 +0.50s] word_ok=0 word_fail=0 word_avg=0.00m diff[200]->true checks_since_change=1 total_checks=1
+[PySide6WebView +2.84s] Load failed after 5 retries: http://localhost:13054/pycore-manager
+[SentenceAudioWorker 00:00:28 +0.37s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m full-sync dispatch recovered=999 processed=999 local_capacity=0
+[http upload +0.86s] POST /queue/events/ack bytes=76/76 phase=received
+[http upload +3.86s] POST /api/worker/tasks/sentence_audio/accept bytes=104/104 phase=received
+[laravel +0.00s] POST /api/worker/tasks/sentence_audio/accept -> 200 (12250ms) success=True
+[SentenceAudioWorker 00:00:33 +0.01s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m synth_start task=task_249... progress=605/2294 text='And I will remember my covenant, which i': queue_position=999
+[TaskManager +0.00s] Created task: task_sentence_audio_20260919_223821_61cc2e10 (sentence_audio)
+[SentenceAudioWorker 00:00:33 +0.01s] remote_en=605/2294 queued sent_ok=0 sent_fail=0 sent_avg=0.00m Generating sentence task=task_249... queue_position=999 text=And I will remember my covenant, which is between me and you and every living creature of all flesh; and the waters shall no more become a flood to destroy all flesh.
+[tts +0.01s] sentence cache MISS; synthesizing
+[http upload +0.02s] POST /queue/submit bytes=296/296 phase=rejected
+[WordAudioWorker 00:00:36 +2.86s] word_ok=0 word_

@@ -385,10 +385,14 @@ case "$CMD" in
         ;;
 esac
 
-# From here on CMD == run. Parse the run flags.
-# Parse args; everything after a bare `--` is forwarded to prepare.sh.
+# From here on CMD == run. Walk the FULL argument list and match every token
+# against the whole parameter library; recognized tokens STACK in any order
+# (mode digit, the literal `run`, options, help). A bare `--` still ends
+# parsing and forwards the rest to prepare.sh.
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        run)          shift ;;
+        [0-9]*)       SERVICE_MODE="$1"; shift ;;
         --host)       BIND_HOST="$2"; shift 2 ;;
         --port)       PORT="$2";      shift 2 ;;
         --debug)      DEBUG=1;        shift   ;;
