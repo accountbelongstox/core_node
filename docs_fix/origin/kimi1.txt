@@ -1,363 +1,65 @@
- Kimi: RELAY_DEVICE_ENROLLMENT_REQUIRED
-      Pi: RELAY_DEVICE_ENROLLMENT_REQUIRED ， 首先pyservice
-    是
-      pycore的客户端，是pycore组，注 意这是一组，同时ui在
-    poly
-      apps / pycore ui中，这是ui组，注意这是一组，都通过poly
-      apps / laravel main中转。
-      laralve main 100%利用franken PHP的能力，使用长连接替代
-    ws作
-      为中转方案，显然当前系统 上并不具备这个能力，需要重构
-    ，先
-      检测175_laravel_main_start.sh 脚本，目前前端UI部署在
-      https://12gm.com也就是poly apps / pycore ui中，而
-    laralvel
-      通过frankenPHP部署在api.si.12gm.com ，以上均是由
-      175_laravel_main_start /  93_install_frankenphp.sh脚本
-    部署
 
-      注意，如果发现问题就要底层重构，而不是小修小补，不要弹
-    出选
-      择或询问窗口，而是全部按我要求自主决策。
-      注意，需要查询官方文档，同时找到原因就先写到文档 ./
-      docs_fix/A7A 规范命名中，并边找问题边追加，禁止全面分
-    析完
-      再写文档，需要找到一点追加一点，同时确保找出所有问题了
-    再根
-      据文档开始修改代码。注意要按项目规范。
-      Relay 同时查看之前的文档， docs_fix\A7A*,但要注意需要
-    以代码为准，而不是以文档，之后，确保pycore在windows或任
-    何系统 启动时能过过本机的poly apps / laravel main部署的
-    https://api.si.12gm.com中转并在UI上使用。注意pycore不运
-    行在本机。
- … thinking 25 times, call 43 tools, 12 messages
+   任务 4 — 编排任务进度 ✅
 
- ● There's already `fm_module_in_bin "$binary"
-   "$FRANKENPHP_DNSPOD_MODULE"` — a module probe helper! Let
-   … (7 more lines, ctrl+o to expand)
+   • 4.1/5.1 重启丢进度：manifest（项目展开+已解析资源+统计
+     ）按指纹签名落盘，每 1000 资源增量保存；failed/中断任务
+     默认断点续跑（跳过已完成 segment，只补未解析资源）；路
+     由注册时 resume_interrupted_generations() 自动恢复滞留
+     任务。冒烟：manifest 往返、签名变更拒绝恢复、自动恢复线
+     程真实跑通。
+   • 崩溃根因修复：delivery 同步异常不再中断整个生成（outbox
+     可重试）。
+   • 4.2/4.3 批量+多模型并行：缺失资源改为 40/块 × 4 worker
+     并行，按资源 id 确定性轮转引擎起始点（实测 20 个种子覆
+     盖 10 个不同首引擎），同引擎串行仍由 lease 保证。关于“
+     一次生成多词再拆分”：官方文档确认 TTS 模型输出连续语音
+     、无对齐能力无法可靠拆分；正确形态是并行多引擎+批量推理
+     （qwen3tts 变体路径已存在于句子侧）。
 
- ● Used Grep (fm_module_in_bin|…) · 6 matches across 2 files
-   scripts/shells/linux/common/frankenphp_manager.…, +3 more
+   任务 5 — WordAudioWorker 底层重构 ✅
 
- ● Read 2 files · 130 lines
-
- ● The probe infrastructure exists: `fm_module_in_bin` uses
-   `list-modules` with exact line match. The Mercure Caddy
-   … (24 more lines, ctrl+o to expand)
-
- ● Used Read (…om/laravel_runtime_frankenphp.sh) · 261 lines
-
- ● The right fail-closed spot for ALL variants: after
-   `FM_BINARY="$(fm_variant_binary)"` (line 168) and before
-   … (11 more lines, ctrl+o to expand)
-
- ● Used Read (…inux/common/frankenphp_manager.sh) · 40 lines
-
- ● The user pasted the deployed (stale) remote pycore code —
-   `pycore/pyctl/relay/laravel_relay_agent_service.py` from
-   … (42 more lines, ctrl+o to expand)
-
- ✗ Used Edit (…A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md) · +15
-   +15 docs_fix/A7A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md
-      3
-   `pycore/pyctl/relay/laravel_relay_agent_service.py`.
-   Both stale builds
-      4      still describe the same trigger: the owned
-   roster is empty because no
-      5      enrollment is ever claimed.
-      6 +
-      7 + 1a. Runtime evidence (user-supplied,
-   2026-09-15): the deployed remote agent
-      8 +     source confirms the stale build. Its
-   `_enrollment_flow` creates an
-      9 +     enrollment, polls `get_enrollment_status`
-   every 5s up to
-     10 +     `self._enrollment_poll_timeout` (600s), then
-   restarts the flow — the
-     11 +     exact production loop. Two properties matter
-   for the fix:
-     12 +     - The stale agent's status poll consumes
-   `state=claimed` + `credential`
-        … 8 more changes hidden (ctrl+o to expand)
-   old_string not found in
-   docs_fix/A7A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md, the
-   file contents may be out of date. Please use the Read
-   … (1 more lines, ctrl+o to expand)
-
- ● Used Read (…LAY_GROUP_MEMBERSHIP_AUTOCLAIM.md) · 18 lines
-
- ● Used Edit (…A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md) · +15
-   +15 docs_fix/A7A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md
-      3
-   `pycore/pyctl/relay/laravel_relay_agent_service.py`.
-   Both stale builds
-      4      still describe the same trigger: the owned
-   roster is empty because no
-      5      enrollment is ever claimed.
-      6 +
-      7 + 1a. Runtime evidence (user-supplied,
-   2026-09-15): the deployed remote agent
-      8 +     source confirms the stale build. Its
-   `_enrollment_flow` creates an
-      9 +     enrollment, polls `get_enrollment_status`
-   every 5s up to
-     10 +     `self._enrollment_poll_timeout` (600s), then
-   restarts the flow — the
-     11 +     exact production loop. Two properties matter
-   for the fix:
-     12 +     - The stale agent's status poll consumes
-   `state=claimed` + `credential`
-        … 8 more changes hidden (ctrl+o to expand)
-
- ● Now the shell probe. Edits:
-
-   … (17 more lines, ctrl+o to expand)
-
- ● Used Edit (…ells/linux/common/frankenphp_manager.sh) · +4
-   +4 scripts/shells/linux/common/frankenphp_manager.sh
-      1   FRANKENPHP_DNSPOD_MODULE="dns.providers.dnspod"
-      2 + # Embedded Mercure hub handler (caddy
-   list-modules id). The relay plane fails
-      3 + # closed when the live binary lacks it: the
-   Caddyfile mercure directive would
-      4 + # otherwise only surface as a Caddy config-load
-   error at boot.
-      5 +
-   FRANKENPHP_MERCURE_MODULE="http.handlers.mercure"
-
- ● Used Edit (…/common/frankenphp_runtime_common.sh) · +4 -2
-   +4 -2
-   scripts/shells/linux/common/frankenphp_runtime_common.s
-   h
-      1   # Embedded-runtime completeness floor for a
-   compile-variant binary (string
-      2 - # contract: yes/no): the dnspod DNS-01 module
-   plus the shared runtime
-      3 - # extension floor. A binary missing any of them
-   is a rebuild trigger.
-      2 + # contract: yes/no): the dnspod DNS-01 module,
-   the embedded Mercure hub
-      3 + # module plus the shared runtime extension
-   floor. A binary missing any of
-      4 + # them is a rebuild trigger.
-      5   fm_binary_compile_complete() {
-      6       local binary="$1"
-      7
-      8       if [ "$(fm_module_in_bin "$binary"
-   "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
-        … 1 more change hidden (ctrl+o to expand)
-
- ● Now the all-variant fail-closed probe in
-   laravel_runtime_frankenphp.sh. Place after the variant
-   … (4 more lines, ctrl+o to expand)
-
- ● Used Edit (…ebian_com/laravel_runtime_frankenphp.sh) · +1
-   +1
-   scripts/shells/linux/debian/debian_com/laravel_runtime_
-   frankenphp.sh
-      1   FM_VARIANT=""
-      2   FM_DNS01_MODE=""
-      3   FM_BINARY=""
-      4 + FM_MERCURE_MODULE_READY=""
-
- ● Used Edit (…bian_com/laravel_runtime_frankenphp.sh) · +11
-   +11
-   scripts/shells/linux/debian/debian_com/laravel_runtime_
-   frankenphp.sh
-      6           echo "[laravel-runtime-frankenphp]
-   variant: ${FM_VARIANT:-unrecorded} (acme.sh DNS-01
-   first; dnspod module fallback)"
-      7           ;;
-      8   esac
-      9 +
-     10 + # Mercure hub module readiness (all variants,
-   fail closed): the canonical
-     11 + # Caddyfile always renders the mercure
-   directive, so a binary without the
-     12 + # embedded hub module must be stopped HERE with
-   a clear error instead of
-     13 + # surfacing as a Caddy config-load failure after
-   the supervisor starts.
-     14 + FM_MERCURE_MODULE_READY="$(fm_module_in_bin
-   "$FM_BINARY" "$FRANKENPHP_MERCURE_MODULE")"
-     15 + if [ "$FM_MERCURE_MODULE_READY" != "yes" ]; then
-        … 4 more changes hidden (ctrl+o to expand)
-
- ● Now the pycore comment drift fix
-   (mercure_client.py:111-112 "default 40s" → 20s). Read
-   … (1 more lines, ctrl+o to expand)
-
- ● Used Read (…/pyutils/common/mercure_client.py) · 30 lines
-
- ● Used Edit (…ore/pyutils/common/mercure_client.py) · +1 -1
-   +1 -1 pycore/pyutils/common/mercure_client.py
-      1 -         # Must exceed the hub heartbeat interval
-   (default 40s) so healthy
-      1 +         # Must exceed the hub heartbeat interval
-   (deployed 20s) so healthy
-      2           # streams always yield heartbeat comment
-   lines before this fires.
-
- ● Now static validation of the changes (allowed: not
-   builds/tests/services — just syntax checks; the A7A5 doc
-   … (52 more lines, ctrl+o to expand)
-
- ● Ran a command · $ php -l poly_apps/larave… · 5 more lines
-   … PY_OK
-
- ● The `php` here is the frankenphp php-cli shim which
-   doesn't accept `-l` the same way? Actually the error
-   … (5 more lines, ctrl+o to expand)
-
- ✗ Ran a command · $ frankenphp php-cli -l poly_apps/larave…
-   PHP Warning:  Unknown: Failed to open stream: No such
-   file or directory in Unknown on line 0
-   PHP Fatal error:  Failed opening required '-l'
-   … (10 more lines, ctrl+o to expand)
-
- ● The frankenphp php-cli shim seems broken for `-l` — it
-   treats `-l` as a file to include. Maybe the shim passes
-   … (12 more lines, ctrl+o to expand)
-
- ● Ran a command · $ frankenphp php-cli -r 'echo PHP_VERSIO…
-   8.5.9
-   ---
-   PHP_PARSE_OK
-
- ● PHP 8.5.9 via frankenphp shim; `-r` works;
-   `token_get_all(..., TOKEN_PARSE)` confirms
-   … (11 more lines, ctrl+o to expand)
-
- ● 全部静态校验通过。回填 A7A6 文档的 "Implemented changes"
-   章节。
-
- ● Used Edit (…RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md) · +42 -1
-   +42 -1
-   docs_fix/A7A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md
-      1   ## Implemented changes
-      2
-      3 - (pending)
-      3 + - `RelayOwnerCtl::roster`
-      4 +
-   (`poly_apps/laravel_main/app/Apps/Relay/RelayController
-   s/RelayOwnerCtl.php`)
-      5 +   now reconciles group membership at the group
-   boundary: for admin users
-      6 +   (`User::isAdmin()`, rolelevel >= 10) it
-   invokes the previously dead
-      7 +   `RelayEnrollmentService::autoClaimPending`
-   before the roster snapshot.
-      8 +   Auto-claim reuses the complete `claim()` path
-   — ownership conflict guards,
-      9 +   credential rotation, and post-commit
-   `relay.device.presence` publication —
-        … 35 more changes hidden (ctrl+o to expand)
-
- ● Used TodoList
-
- ● Done. Final summary in Chinese (user speaks Chinese).
-   Cover:
-   … (15 more lines, ctrl+o to expand)
-
- ● 全部完成。文档在
-   docs_fix/A7A6_RELAY_GROUP_MEMBERSHIP_AUTOCLAIM.md，代码已
-   按文档实施并通过静态校验。
-
-   调查结论（以代码为准）
-
-   1. 你看到的 RELAY_DEVICE_ENROLLMENT_REQUIRED 来自陈旧部署
-   。 该字符串已从源码移除（今天 commit 91fc0af64)，当前代码
-   报 RELAY_GROUP_EMPTY 翻译消息。线上 12gm.com 跑的是旧
-   bundle；你贴的远端 pycore 代码也证实了设备跑的是旧版
-   agent(_enrollment_poll_timeout=600 重启循环在当前源码中不
-   存在）。
-
-   2. 真正的底层缺陷是 enrollment 认领链断裂。 设备创建
-   enrollment 后，唯一认领路径是人在 600s 内从设备控制台抄认
-   领码到 UI。headless 的 Kimi/Pi 无人抄码 → 过期 → 无限重启
-   。而服务端
-   RelayEnrollmentService::autoClaimPending()(RelayEnrollmen
-   tService.php:250）是写好的死代码，零调用点——认领码创建时
-   就加密存了服务端副本，本就是为此准备的。
-
-   3. "系统不具备 FrankenPHP 长连接能力"这一前提不成立。 全
-   链路已是 Mercure SSE：93 安装器三种变体都内嵌 Mercure 模
-   块（钉版 v1.12.7/v0.24.2);Caddyfile 渲染 mercure 指令
-   （JWT/CORS/heartbeat 20s/write_timeout 0s);hub 经域名代理
-   可达 api.si.12gm.com/.well-known/mercure；发布走 worker
-   内 mercure_publish();pycore 和 UI 两侧都是带
-   Last-Event-ID 恢复的 SSE 订阅。relay 路径中没有任何
-   WebSocket。[FrankenPHP 官方文档
-   ](https://frankenphp.dev/docs/mercure/）明确内嵌 Mercure
-   hub 就是其 WebSocket 替代方案，与现有实现一致。
-
-   已实施的修改
-
-   • Laravel(RelayOwnerCtl.php:42):roster 读取（组边界）先对
-     管理员（isAdmin())执行 autoClaimPending 再返回快照——复
-     用完整 claim() 路径（所有权冲突守卫、凭证轮换、提交后
-     presence 发布）。效果：管理员 UI 打开时，待认领设备≤30s
-     自动入组，设备下次轮询（≤5s）拿到凭证开始心跳；UI 经
-     Mercure 实时收到新设备。非管理员不会静默收编设备，手动
-     认领码路径保留。失败只记日志不影响 roster。
-   • UI 文案(PcEnCore.ts / PcZhCore.ts)：空 roster 提示改为
-     说明自动入组路径。
-   • FrankenPHP 探针：新增
-     FRANKENPHP_MERCURE_MODULE=http.handlers.mercure;fm_bina
-     ry_compile_complete 将其纳入重建触发条件
-     ；laravel_runtime_frankenphp.sh 在启动前对所有变体
-     fail-closed 检查该模块，缺失则明确报错并指向 93 安装器
-     （此前只会在 Caddy 加载配置时才暴雷）。
-   • pycore 注释:mercure_client.py 心跳注释与部署值 20s 对齐
+   • 引擎探测缓存扩展为（计划引擎 + 可用引擎列表）；无
+     REQUIRED_ENGINE 钉死的链路上，并发度 = 可用引擎数（上限
+     8），用户手动值优先（实测 3 可用→3，用户设 2→2，单串行
+     →1）。
+   • 每任务按 task_id 确定性轮转引擎排除列表——并行 lane 起始
+     于不同引擎，多个本地模型同时合成不同单词。
+   • 词缓存从“仅计划引擎路径”改为 any-provider 统一查找（编
+     排写入的缓存直接复用，反向亦然）。状态接口新增
+     usable_engines/planned_engine 供 UI 展示。全部冒烟通过
      。
 
-   校验：PHP token parse、bash -n ×3、Python AST 全部通过。
-   未跑构建/服务（项目规则）。
+   任务 6 — Vocabulary ✅
 
-   收敛项（需正常部署流程生效）
+   • 6.1 一键清除无效单词：后端识别（非 CJK 语言表含中文字符
+     / 含 26 字母串）+ 分页预览 + 输入 delete 确认 + 分块删
+     除。实测：真实库命中文档同款垃圾词（# 26个英文字母 等 5
+     条）；临时行端到端验证检测→删除→清理。
+   • 6.1 一键清除无效翻译：识别规则=翻译含供应商错误标记
+     （Error: Rate limit
+     exceeded/free-models-per-day-high-balance，递归扫描含
+     word_translation 嵌套）或翻译与单词相同（排除 word 等元
+     数据键，避免误杀）。实测：en 库 45,477 条（43,663 错误
+     标记 + 1,814 同词），临时行验证“仅清翻译字段、词条保留”
+     。
+   • 6.2 一键重生成封面：接入已有的 Laravel AI 网关（免费额
+     度优先：gemini flash image/zhipu cogview/pollinations →
+     付费兜底，多 key 轮换+cooldown），提示词哈希磁盘缓存（
+     同静态根下的全局常量站外目录）。实测：库 3 首次生成
+     6.5s（pollinations/flux），同提示词二次调用 cached:true
+      0.27s，图片真实落盘（768×768 封面图）。UI 每卡片新增魔
+     杖按钮。溯源落
+     截断），实测 206,865 文件准确统计（旧版截断为
+     100,000）；stale-while-revalidate + Octane 定时预热 +
+     缓存锁 + ?fresh=1 真实生效。实测冷扫 21.7s（不再阻塞请
+     求路径）、命中 0.001s。
 
-   1. UI 重新构建部署到 12gm.com（旧 bundle 才显示旧错误码
-      ）;
-   2. 远端 pycore 代码同步（旧 agent 的 401/403 乱轮换密钥等
-      问题在 A7A4/A7A5 已修，但不阻塞入组——服务端 auto-claim
-      对旧 agent 同样生效）;
-   3. 磁盘上的 Caddyfile 渲染滞后，下次跑 175 自愈。
-
-   端到端验收（管理员 UI 在线时新 pycore 自动入组）需要上述
-   部署完成后实测。
-
-新任务：
- ✨ 1:已经运行175脚本，实地扫描一下是否自愈,2:UI Relay -
-    machines (0 online)
-    ,在windows端启动最新代码的pyservice 2，依然没有加入，3：
-    在pyservice设计默认参数，即什么参数都不传的时候使用本地
-    模型，如果传2则使用2，但是该参数进入python后需要使用现在
-    类库缓存到用户数据中，下次重启pycore时如果不通过shell脚
-    本直接使用缓存中的数据来复用shell的启动效果，但如果用
-    shell不传参数则会默认传1来修改，4：Claude: The
-    coordinator returned no available devices for this
-    Pycore group. The device list will refresh
-    automatically.
-    Codex: The coordinator returned no available devices for
-    this Pycore group. The device list will refresh
-    automatically.
-    Cursor: The coordinator returned no available devices
-    for this Pycore group. The device list will refresh
-    automatically.
-    Gemini: The coordinator returned no available devices
-    for this Pycore group. The device list will refresh
-    automatically.
-    Kimi: The coordinator returned no available devices for
-    this Pycore group. The device list will refresh
-    automatically.
-    Pi: The coordinator returned no available devices for
-    this Pycore group. The device list will refresh
-    automatically. 其他功能对齐，目前功能仍然不可用。
-    新的BUG ： [laravel +0.01s] POST /api/worker/tasks/word_audio/accept -> ERR (19272ms) ('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))
-[WordAudioWorker 00:05:51 +0.00s] word_ok=102 word_fail=0 word_avg=0.05m Claim check for task task_029... unreachable (('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))); processing from the local snapshot
-[WordAudioWorker 00:05:51 +0.12s] word_ok=102 word_fail=0 word_avg=0.05m diff sync unreachable (('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))); processing the local mirror
-新的BUG2 :[Mercure +1.45s] action=subscription.stream.interrupted error=HTTPSConnectionPool(host='api.si.12gm.com', port=443): Read timed out. error_type=ConnectionError hub_url=https://api.si.12gm.com/.well-known/mercure
-[laravel +1.38s] POST /api/worker/tasks/sentence_audio/accept -> ERR (19296ms) ('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))
-[Relay +0.08s] action=subscriber.state.changed coordinator=https://api.si.12gm.com device_id=dfa8d11d-b9b7-483e-92eb-cf9c2620d03e state=offline
-[SentenceAudioWorker 00:07:00 +1.39s] remote_en=347/1677 sent_ok=7 sent_fail=0 sent_avg=0.94m full-sync mirror ready but no dispatchable tasks (scope=pycore-sentence-audio-pycore-sentence-desktop-1l9k06n:pycore-sentence-desktop-1l9k06n:https://api.si.12gm.com)
-[SentenceAudioWorker 00:07:01 +0.70s] remote_en=347/1677 sent_ok=7 sent_fail=0 sent_avg=0.94m Claim check for task task_244... unreachable (('Connection aborted.', ConnectionResetError(10054, 'An existing connection was forcibly closed by the remote host', None, 10054, None))); processing from the local snapshot
+  ⠼ working…
+ ───────────────────────────────────────────────────────────
+   Todo
+   ✓ Task5: Worker重构：共享轮转/多引擎并行/any-provider...
+   ✓ Task6.1: 一键清除无效单词/翻译（前后端实测通过）
+   ✓ Task6.2: AI封面重生成（已实测：生成6.5s/缓存0.27s）
+   ✓ Task6.3: Statistics准确扫描+缓存（实测21.7s→0.001s无...
+   ✓ 最终：模块编译验证 + 1:1清单验收完成
+   … +4 more (4 done) · ctrl+t to expand

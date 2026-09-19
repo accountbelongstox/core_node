@@ -68,6 +68,21 @@ def _description() -> str:
     return (os.environ.get("PARLER_DESCRIPTION") or _DEFAULT_DESCRIPTION).strip() or _DEFAULT_DESCRIPTION
 
 
+def _dtype() -> Any:
+    torch = get_third_package_torch()
+    if not _device().startswith("cuda"):
+        return torch.float32
+    return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+
+
+def _load_kwargs(dev: str) -> dict:
+    if importlib.util.find_spec("accelerate") is None:
+        return {}
+    if dev.startswith("cuda"):
+        return {"device_map": dev}
+    return {"low_cpu_mem_usage": True}
+
+
 class ParlerEngine(SerializedModelEngine):
     def available(self) -> bool:
         return (
@@ -77,7 +92,6 @@ class ParlerEngine(SerializedModelEngine):
         )
 
     def load_resource(self) -> Any:
-        get_third_package_torch()
         model_id = _model_id()
         dev = _device()
         transformers = get_third_package_transformers()
@@ -88,7 +102,7 @@ class ParlerEngine(SerializedModelEngine):
             ColorPrint.red("[parler] model classes are unavailable")
             return None
         tokenizer = tokenizer_class.from_pretrained(model_id)
-        model = model_class.from_pretrained(model_id).to(dev)
+        model = model_class.from_pretrained(model_id, torch_dtype=_dtype(), **_load_kwargs(dev))
         ColorPrint.green(f"[parler] loaded {model_id} (device={dev})")
         return tokenizer, model
 
