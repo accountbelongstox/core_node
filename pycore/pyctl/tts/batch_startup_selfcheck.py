@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 """Pyservice startup self-check for the batch-capable local TTS models.
 
-Opt-in (env ``TTS_STARTUP_SELFCHECK=1`` or ``--tts-selfcheck``). Runs AFTER all
-service registration / model init scripts: for each batch-capable engine in a
-fixed order it (1) probes install state, config gates and the memory/VRAM gate
-WITHOUT touching weights, (2) actually synthesizes one small word batch through
-the engine's batch library into the shared cache dir, (3) verifies the outputs,
-then (4) releases CPU/GPU — in-process models (kokoro, parler) are unloaded
-explicitly; HTTP server engines (chattts, gptsovits) are never started by this
-check, so a server that was already running keeps its own managed idle-shutdown
-lifecycle.
+Opt-in (env ``TTS_STARTUP_SELFCHECK=1`` or ``--tts-selfcheck``). From the
+``pycore_module_caller`` CLI entry the sweep runs SYNCHRONOUSLY BEFORE any
+service starts (RPC / singleton / launcher threads): for each batch-capable
+engine in a fixed order it (1) probes install state, config gates and the
+memory/VRAM gate WITHOUT touching weights, (2) actually synthesizes one small
+word batch through the engine's batch library into the shared cache dir,
+(3) verifies the outputs, then (4) releases CPU/GPU — in-process models
+(kokoro, parler) are unloaded explicitly; HTTP server engines (chattts,
+gptsovits) are never started by this check, so a server that was already
+running keeps its own managed idle-shutdown lifecycle. Only after the sweep
+finishes does startup continue to the RPC server and the remaining services.
 
 The report is persisted to ``<batch cache>/selfcheck/report.json`` and published
 on the THREAD_BUS signal ``pyutils.tts.batch.selfcheck`` for RPC/UI consumers.

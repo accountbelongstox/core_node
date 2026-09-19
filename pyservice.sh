@@ -229,10 +229,10 @@ Options (apply to 'run'):
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
-  --tts-selfcheck  Run the TTS batch self-check after engine init: probe each
-                   engine (kokoro, parler, chattts, gptsovits) with RAM/GPU
-                   memory gates, generate a real batch sample, log resource
-                   before/after, then release memory/GPU before serving.
+  --tts-selfcheck  Run the TTS batch self-check BEFORE any service starts:
+                   probe each engine (kokoro, parler, chattts, gptsovits) with
+                   RAM/GPU memory gates, generate a real batch sample, log
+                   resource before/after, then release memory/GPU before serving.
                    Same as exporting TTS_STARTUP_SELFCHECK=1.
   -h, --help       Show this help (also works as: run --help)
   --               Everything after a bare -- is forwarded to prepare.sh

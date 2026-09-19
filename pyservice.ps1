@@ -55,7 +55,7 @@
     Skip all PowerShell prerequisite installers and launch the service directly.
 
 .PARAMETER TtsSelfcheck
-    Run the TTS batch self-check after engine init: probe each engine
+    Run the TTS batch self-check BEFORE any service starts: probe each engine
     (kokoro, parler, chattts, gptsovits) with RAM/GPU memory gates, generate a
     real batch sample, log resource before/after, then release memory/GPU
     before serving. Same as setting $env:TTS_STARTUP_SELFCHECK = '1'.
@@ -169,21 +169,70 @@ $powerShellPath = $null
 $uiStartPath = $null
 $uiStartArguments = @()
 $prepareArgs = @{}
+$helpRequested = $false
 
 if ($Command -in @('1', '2')) {
     $ServiceMode = $Command
     $Command = 'run'
 }
 
-# Run-mode parameter stacking: walk the trailing positional args ($Rest) against
-# the parameter library so a mode digit or `help` is honored in ANY position
-# (e.g. `.\pyservice.ps1 run 2 -NoUi`), not only as the first positional token.
+# GNU-style stacking: if the leading positional token is a dashed option (e.g.
+# `.\pyservice.ps1 --tts-selfcheck` - PowerShell binds it to $Command, NOT to
+# the switch parameter), push it back into $Rest so the parameter-library walk
+# below applies it like any other stacked token.
+if ($Command -match '^-') {
+    $Rest = @($Command) + @($Rest)
+    $Command = 'run'
+}
+
+# Run-mode parameter stacking: walk every leftover token against the WHOLE
+# parameter library. Recognized tokens apply in ANY position and STACK (mode
+# digit, help, GNU double-dash aliases like --no-ui / --port 8000, dashless
+# forms like -TtsSelfcheck), instead of requiring a fixed position. Tokens are
+# normalized (lowercased, leading dashes and inner -/_ stripped) before
+# matching, so --tts-selfcheck / -tts-selfcheck / -TtsSelfcheck are equivalent.
 if ($Command -ieq 'run' -and $Rest.Count -gt 0) {
     $stackedRest = @()
-    foreach ($tok in $Rest) {
-        if ($tok -in @('1', '2')) { $ServiceMode = $tok }
-        elseif ($tok -in @('help', '-h', '--help')) { Show-Usage; return }
-        else { $stackedRest += $tok }
+    $i = 0
+    while ($i -lt $Rest.Count) {
+        $tok = "$($Rest[$i])"
+        $opt = ($tok.ToLowerInvariant() -replace '^-+', '') -replace '[-_]', ''
+        switch ($opt) {
+            { $_ -in @('1', '2') }     { $ServiceMode = $_ }
+            { $_ -in @('help', 'h') }  { $helpRequested = $true }
+            'ttsselfcheck'             { $TtsSelfcheck = $true }
+            { $_ -in @('debug', 'debugmode') } { $DebugMode = $true }
+            'noreload'                 { $NoReload = $true }
+            'only'                     { $Only = $true }
+            'noui'                     { $NoUi = $true }
+            'uibuild'                  { $UiBuild = $true }
+            'noinstall'                { $NoInstall = $true }
+            'installfull'              { $InstallFull = $true }
+            'installforce'             { $InstallForce = $true }
+            { $_ -in @('host', 'bindhost') } {
+                if ($i + 1 -lt $Rest.Count) { $i++; $BindHost = "$($Rest[$i])" }
+            }
+            'port' {
+                if ($i + 1 -lt $Rest.Count) { $i++; $v = "$($Rest[$i])" -as [int]; if ($null -ne $v) { $Port = $v } }
+            }
+            'uiport' {
+                if ($i + 1 -lt $Rest.Count) { $i++; $v = "$($Rest[$i])" -as [int]; if ($null -ne $v) { $UiPort = $v } }
+            }
+            'installinclude' {
+                if ($i + 1 -lt $Rest.Count) { $i++; $InstallInclude = @("$($Rest[$i])") }
+            }
+            'installwhispermodel' {
+                if ($i + 1 -lt $Rest.Count) { $i++; $InstallWhisperModel = "$($Rest[$i])" }
+            }
+            'installfasterwhispermodel' {
+                if ($i + 1 -lt $Rest.Count) { $i++; $InstallFasterWhisperModel = "$($Rest[$i])" }
+            }
+            'installvoskmodel' {
+                if ($i + 1 -lt $Rest.Count) { $i++; $InstallVoskModel = "$($Rest[$i])" }
+            }
+            default { $stackedRest += $tok }
+        }
+        $i++
     }
     $Rest = $stackedRest
 }
@@ -224,6 +273,8 @@ function Show-Usage {
     Write-Host ''
     Write-Host 'Usage:'
     Write-Host '  .\pyservice.ps1 [1|2] [-Param value ...]'
+    Write-Host '  GNU-style aliases are accepted and STACK in any position, e.g.'
+    Write-Host '  .\pyservice.ps1 --tts-selfcheck --no-ui --port 8000 2'
     Write-Host ''
     Write-Host 'Subcommands:'
     Write-Host '  1            Launch the local dashboard mode (default)'
@@ -267,6 +318,13 @@ function Show-Usage {
     Write-Host '  .\pyservice.ps1 -NoInstall'
     Write-Host '  .\pyservice.ps1 -TtsSelfcheck'
     Write-Host '  .\pyservice.ps1 config -show'
+}
+
+# Honor a help token collected by the parameter-library walk above (Show-Usage
+# only becomes callable now, after its function definition).
+if ($helpRequested) {
+    Show-Usage
+    return
 }
 
 # --------------------------------------------------------------------------- #

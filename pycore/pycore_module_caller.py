@@ -73,7 +73,7 @@ from pycore.callmodule.config import build_launcher_config, build_tray_service_c
 from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
 from pycore.pyctl.runtime.event_handlers import register_event_handlers
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
-from pycore.pyctl.tts.batch_startup_selfcheck import start_selfcheck_thread
+from pycore.pyctl.tts.batch_startup_selfcheck import run_selfcheck, selfcheck_enabled
 from pycore.pyutils.tts.batch.batch_constants import TTS_STARTUP_SELFCHECK_ENV
 
 # Set when a NEWER instance supersedes this (running PRIMARY) one via the
@@ -149,11 +149,9 @@ def main(
         tray_config_builder=build_tray_service_config,
     )
 
-    # 3c. TTS batch-model startup self-check: runs AFTER service registration /
-    #     model init scripts; a no-op unless TTS_STARTUP_SELFCHECK / --tts-selfcheck
-    #     is set. Sequentially probes each batch-capable engine, synthesizes one
-    #     small batch, then releases CPU/GPU (in-process models unloaded).
-    start_selfcheck_thread()
+    # 3c. The TTS batch self-check (--tts-selfcheck / TTS_STARTUP_SELFCHECK=1)
+    #     already ran synchronously in __main__ BEFORE main(), so by this point
+    #     the env flag is cleared and services own the machine alone.
 
     # 3a. Remember if a newer instance takes us over, so the exit code below tells
     #     pyservice to leave the shared UI dev server up (see _SUPERSEDED note).
@@ -230,11 +228,18 @@ if __name__ == '__main__':
         help='Explicit mode reconfigures and persists; omitted reuses the env/persisted/default resolution',
     )
     parser.add_argument('--tts-selfcheck', action='store_true',
-                        help='Run the TTS batch-model startup self-check (same as TTS_STARTUP_SELFCHECK=1)')
+                        help='Run the TTS batch-model self-check synchronously BEFORE services start (same as TTS_STARTUP_SELFCHECK=1)')
 
     args = parser.parse_args()
     if args.tts_selfcheck:
         os.environ[TTS_STARTUP_SELFCHECK_ENV] = '1'
+    if selfcheck_enabled():
+        # Gate: sweep synchronously BEFORE any service starts (RPC :59000,
+        # singleton, launcher threads), so the single-module test owns the
+        # machine's RAM/VRAM; full startup continues only once it finishes.
+        ColorPrint.blue("[Main] TTS self-check gate: running sweep before services start")
+        run_selfcheck()
+        os.environ.pop(TTS_STARTUP_SELFCHECK_ENV, None)
     reload_enabled = True
     if args.no_reload or os.environ.get('PYCORE_NO_RELOAD', '') in ('1', 'true', 'True'):
         reload_enabled = False

@@ -84,9 +84,8 @@ OFFICIAL_ENV: dict[str, str] = {
     ),
     "fishspeech": (
         "Python 3.10–3.12; git fishaudio/fish-speech. "
-        "Default checkpoint: openaudio-s1-mini (public). "
-        "openaudio-s1 (~12GB VRAM, full quality) is a gated repo: set HF_TOKEN "
-        "after accepting its license, then FISHSPEECH_CHECKPOINT=openaudio-s1. "
+        "Default checkpoint: fishaudio/s1-mini (public; the old "
+        "openaudio-s1-mini name redirects here, openaudio-s1 does not exist). "
         "Cloud: Fish Audio SDK (FISH_API_KEY). "
         "Local: tools/api_server.py or fishspeech_api_server.py bridge."
     ),
@@ -185,8 +184,8 @@ TIER_TABLE: dict[str, dict[str, str]] = {
         "env": "VOXCPM2_MODEL",
     },
     "fishspeech": {
-        "gpu": "openaudio-s1-mini",
-        "cpu": "openaudio-s1-mini",
+        "gpu": "fishaudio/s1-mini",
+        "cpu": "fishaudio/s1-mini",
         "env": "FISHSPEECH_CHECKPOINT",
     },
     "bark": {
@@ -239,12 +238,13 @@ def voxcpm2_model(gpu: bool) -> str:
 
 
 def fishspeech_checkpoint(gpu: bool) -> str:
-    # fishaudio/openaudio-s1 is a GATED repo (401 without an HF_TOKEN whose
-    # account accepted the license), so the public openaudio-s1-mini is the
-    # default on both tiers; openaudio-s1 stays available via an explicit
-    # FISHSPEECH_CHECKPOINT=openaudio-s1 override.
+    # fishaudio/s1-mini is the canonical public checkpoint; the legacy
+    # fishaudio/openaudio-s1-mini name now redirects (307) to it, and
+    # fishaudio/openaudio-s1 does not exist on the Hub at all (404 even with
+    # a valid token). FISHSPEECH_CHECKPOINT can still override with any
+    # explicit repo id (e.g. fishaudio/s2-pro).
     del gpu
-    return "openaudio-s1-mini"
+    return "fishaudio/s1-mini"
 
 
 def bark_model(gpu: bool) -> str:
