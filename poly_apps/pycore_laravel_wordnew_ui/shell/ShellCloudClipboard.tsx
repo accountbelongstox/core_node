@@ -1,13 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Cloud, Maximize2, Minimize2, X } from 'lucide-react';
+import { Bot, ChevronDown, ChevronUp, Cloud, Maximize2, Minimize2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CloudClipboardPanel from '../shared/cloud-clipboard/CloudClipboardPanel';
+import PromptDerivedPanel from '../shared/prompt-derived/PromptDerivedPanel';
 import Portal from '../shared/ui/Portal';
 import { OVERLAY_Z } from '../shared/styles/overlay';
 import { useShell } from './ShellContext';
 import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from './shellChrome';
+import type { ShellClipboardTab } from './shellTypes';
 
 const controlClass = 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-500/10';
+
+const tabClass = (active: boolean) =>
+  `inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition ${
+    active ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300' : 'text-slate-500 hover:bg-slate-500/10'
+  }`;
 
 export const ShellCloudClipboard: React.FC = () => {
   const { clipboard, setClipboard } = useShell();
@@ -15,6 +22,7 @@ export const ShellCloudClipboard: React.FC = () => {
   const [mounted, setMounted] = useState(clipboard.open);
   const [contentHost, setContentHost] = useState<HTMLElement | null>(null);
   const expanded = clipboard.expanded && !clipboard.collapsed && contentHost !== null;
+  const tab: ShellClipboardTab = clipboard.tab === 'prompts' ? 'prompts' : 'clipboard';
 
   useEffect(() => {
     const findContentHost = (): void => {
@@ -42,6 +50,22 @@ export const ShellCloudClipboard: React.FC = () => {
           aria-expanded={!clipboard.collapsed} aria-controls="shell-cloud-clipboard-content"
           onClick={() => setClipboard({ collapsed: !clipboard.collapsed })}>{t('title')}</button>
         <span className="max-w-32 truncate text-xs text-slate-500">{clipboard.namespace || t('public')}</span>
+        {/* Two embedded tabs: the cloud clipboard itself and the AI-derived
+            prompt feed (opened on the prompts tab by the corner toast). */}
+        {!clipboard.collapsed && (
+          <div role="tablist" className="flex items-center gap-1">
+            <button type="button" role="tab" aria-selected={tab === 'clipboard'}
+              className={tabClass(tab === 'clipboard')}
+              onClick={() => setClipboard({ tab: 'clipboard' })}>
+              <Cloud size={12} />{t('tabClipboard')}
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'prompts'}
+              className={tabClass(tab === 'prompts')}
+              onClick={() => setClipboard({ tab: 'prompts' })}>
+              <Bot size={12} />{t('tabPrompts')}
+            </button>
+          </div>
+        )}
         {!clipboard.collapsed && contentHost && <button type="button" className={controlClass}
           title={t(clipboard.expanded ? 'restoreFloating' : 'expandContentArea')}
           aria-label={t(clipboard.expanded ? 'restoreFloating' : 'expandContentArea')}
@@ -58,8 +82,12 @@ export const ShellCloudClipboard: React.FC = () => {
       </div>
       <div id="shell-cloud-clipboard-content" hidden={clipboard.collapsed}
         className={`min-h-0 ${expanded ? 'flex-1' : ''} overflow-y-auto overscroll-contain ${clipboard.collapsed ? 'hidden' : ''}`}>
-        <CloudClipboardPanel embedded namespace={clipboard.namespace}
-          onNamespaceChange={(namespace) => setClipboard({ namespace })} />
+        {tab === 'prompts' ? (
+          <PromptDerivedPanel />
+        ) : (
+          <CloudClipboardPanel embedded namespace={clipboard.namespace}
+            onNamespaceChange={(namespace) => setClipboard({ namespace })} />
+        )}
       </div>
     </aside>
   </Portal>;

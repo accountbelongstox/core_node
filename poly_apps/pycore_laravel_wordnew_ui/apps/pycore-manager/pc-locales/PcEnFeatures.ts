@@ -390,8 +390,11 @@ agentHistory: {
     promptsTitle: 'Pipeline prompts',
     promptArticleCn: 'Chinese article prompt',
     promptTranslateEn: 'English translation prompt',
-    promptOverrideHint: 'Saved to the user data directory; clearing a field restores the built-in default. Tokens: {ref} {title_max} {raw} (CN) · {title_max} {title_cn} {article_cn} (EN).',
+    promptDeriveEn: 'Prompt EN-derivation preset',
+    promptOverrideHint: 'Saved to the user data directory; clearing a field restores the built-in default. Tokens: {ref} {title_max} {raw} (CN) · {title_max} {title_cn} {article_cn} (EN) · {prompt} (derive).',
     promptReset: 'Reset to default',
+    promptsMovedToAi: 'Pipeline prompts moved to the AI → Capability → OpenRouter card.',
+    openAiPage: 'Open AI page',
     videoMovedToOrch: 'Learning video generation moved to Vocabulary → Audio Orchestration.',
     openAudioOrch: 'Open audio orchestration',
   }

@@ -2,22 +2,23 @@
 from typing import Any, Dict, Tuple
 
 from pycore.pyctl.agent_history.agent_history_fragments import sanitize_fragment_text, count_words
-from pycore.pyctl.ai.ai_chat import chat_once
-from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
+from pycore.pyctl.ai.ai_free_text import (
+    ensure_free_text_available,
+    free_text_chat,
+    resolve_free_text_model,
+)
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyctl.agent_history.pipeline.prompt_templates import (
     render_article_cn_prompt,
     render_translate_en_prompt,
 )
-from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
+from pycore.pyutils.common.ai_request_failures import AiRequestError
 from pycore.pyutils.common.llm_content import parse_json_object
 from pycore.pyutils.laravel.article_contract import (
     TITLE_MAX,
     clip_on_boundary,
     compose_title,
 )
-
-_QUOTA_ERROR = "openrouter daily request limit reached"
 
 def _parse_json_obj(text: str) -> Dict[str, Any]:
     """Parse the FIRST complete JSON object from model output.
@@ -31,20 +32,8 @@ def _parse_json_obj(text: str) -> Dict[str, Any]:
     return parse_json_object(text)
 
 def ensure_openrouter_available() -> None:
-    rate = check_rate_limit("openrouter")
-    if rate.allowed:
-        return
-    msg = rate.message or "openrouter rate limit"
-    failure = classify_ai_failure(msg)
-    if "requests/day" in msg.lower() or "day exceeded" in msg.lower():
-        msg = _QUOTA_ERROR
-    raise AiRequestError(
-        msg,
-        code=str(failure["code"]),
-        retriable=bool(failure["retriable"]),
-        provider_reached=False,
-        retry_after_s=rate.retry_after_s,
-    )
+    """Pre-dispatch free-quota guard (shared implementation in ai_free_text)."""
+    ensure_free_text_available()
 
 def generate_chinese_article(
     raw_text: str,
@@ -52,20 +41,17 @@ def generate_chinese_article(
 ) -> Dict[str, Any]:
     """Generate a Chinese article from raw fragments."""
     cfg = get_config()
-    model = str(cfg.get("openrouter_model") or "openrouter/free")
+    model = resolve_free_text_model(cfg.get("openrouter_model"))
     ref = str(cfg.get("reference_lang") or "CN").upper()
 
     prompt = render_article_cn_prompt(cfg, ref, raw_text)
-    
-    ensure_openrouter_available()
-    
-    res = chat_once(
-        "openrouter",
+
+    res = free_text_chat(
         [{"role": "user", "content": prompt}],
-        model,
+        model=model,
         source="agent_history_article",
         context=request_context,
-    ) or {}
+    )
     
     if not res.get("success"):
         err = str(res.get("error") or "article generation failed")
@@ -99,23 +85,20 @@ def translate_to_english(
 ) -> Tuple[Dict[str, Any], str]:
     """Translate the Chinese article to English."""
     cfg = get_config()
-    model = str(cfg.get("openrouter_model") or "openrouter/free")
+    model = resolve_free_text_model(cfg.get("openrouter_model"))
 
     prompt = render_translate_en_prompt(
         cfg,
         str(article_cn.get('title_cn') or ''),
         str(article_cn.get('reference_cn') or ''),
     )
-    
-    ensure_openrouter_available()
-    
-    res = chat_once(
-        "openrouter",
+
+    res = free_text_chat(
         [{"role": "user", "content": prompt}],
-        model,
+        model=model,
         source="agent_history_translate",
         context=request_context,
-    ) or {}
+    )
     
     if not res.get("success"):
         err = str(res.get("error") or "translation failed")

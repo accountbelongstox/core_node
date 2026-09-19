@@ -557,6 +557,8 @@ final class RelayContract
             'credential_revoked',
             'device_presence',
             'terminal_changed',
+            'agent_history_prompt_new',
+            'agent_history_prompt_derived',
         ];
         $requiredTopics = ['device_wake', 'owner_roster', 'pairing_operation'];
         $requiredPublicUrls = ['laravel_api_origin', 'mercure_hub'];

@@ -5,6 +5,7 @@ import { AppToaster } from '../shared/notify/notify';
 import { TaskPersistenceProvider } from '../core/tasks/TaskPersistenceProvider';
 import { ShellProvider } from './ShellProvider';
 import { ShellCloudClipboard } from './ShellCloudClipboard';
+import PromptDerivedHost from '../shared/prompt-derived/PromptDerivedHost';
 
 interface ShellRuntimeProps {
   authHost?: React.ReactNode;
@@ -29,6 +30,7 @@ export const ShellRuntime: React.FC<ShellRuntimeProps> = ({ authHost, children }
         {authHost}
         {children}
         <ShellCloudClipboard />
+        <PromptDerivedHost />
       </ShellProvider>
     </BrowserRouter>
   </TaskPersistenceProvider>

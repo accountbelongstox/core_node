@@ -390,8 +390,11 @@ agentHistory: {
     promptsTitle: '流水线提示词',
     promptArticleCn: '中文文章提示词',
     promptTranslateEn: '英文翻译提示词',
-    promptOverrideHint: '保存在用户数据目录；清空字段即恢复内置默认提示词。占位符：{ref} {title_max} {raw}（中文）· {title_max} {title_cn} {article_cn}（英文）。',
+    promptDeriveEn: '提示词英文推导预置词',
+    promptOverrideHint: '保存在用户数据目录；清空字段即恢复内置默认提示词。占位符：{ref} {title_max} {raw}（中文）· {title_max} {title_cn} {article_cn}（英文）· {prompt}（推导）。',
     promptReset: '恢复默认',
+    promptsMovedToAi: '流水线提示词已迁移到「AI → 能力 → OpenRouter」卡片。',
+    openAiPage: '打开 AI 页',
     videoMovedToOrch: '生成学习视频已迁移到「词汇 → 音频编排」。',
     openAudioOrch: '打开音频编排',
   }

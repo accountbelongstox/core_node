@@ -106,7 +106,8 @@
     "credential_revoked": "relay.credential.revoked",
     "device_presence": "relay.device.presence",
     "terminal_changed": "terminal.changed",
-    "agent_history_prompt_new": "agent_history.prompt.new"
+    "agent_history_prompt_new": "agent_history.prompt.new",
+    "agent_history_prompt_derived": "agent_history.prompt.derived"
   },
   "event_payload_profiles": {
     "operation_available": ["operation_id", "revision", "state"],
@@ -115,7 +116,8 @@
     "credential_revoked": ["device_id", "credential_id", "credential_version"],
     "device_presence": ["device_id", "online", "device", "recommended_device_id", "selection_reason"],
     "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"],
-    "agent_history_prompt_new": ["pairing_id", "device_id", "revision", "metadata"]
+    "agent_history_prompt_new": ["pairing_id", "device_id", "revision", "metadata"],
+    "agent_history_prompt_derived": ["pairing_id", "device_id", "revision", "metadata"]
   },
   "claim_generation_profile": {
     "fields": ["operation_revision", "claim_epoch", "lease_owner"],
@@ -610,6 +612,12 @@
     {
       "match": "exact",
       "value": "ui/agent_history/prompt_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_derived",
       "profile": "general_read",
       "methods": ["POST"]
     },

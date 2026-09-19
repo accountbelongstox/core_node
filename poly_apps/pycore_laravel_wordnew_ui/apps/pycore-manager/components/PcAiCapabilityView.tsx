@@ -9,6 +9,10 @@
  *     per-key rotation slots (with per-key "Reset cooldown" on a cooled chip).
  *   - each image-capable provider gets a "Test image" button that forces ONE
  *     generation on it (ignoring cooldown) and shows the result in a lightbox.
+ *   - provider availability is mirrored through the shared route-recovery
+ *     store: the backend probes once per pycore boot (process-lifetime cache),
+ *     the UI hydrates from its frontend cache, refreshes against the backend
+ *     cache, and re-reads on httpEventServerRestarted.
  *
  * Everything else (live meters, sort, per-provider availability test, OCR/TTS,
  * free libraries, constants & static dirs) is preserved from the original page.
@@ -23,6 +27,12 @@ import {
 } from 'lucide-react';
 import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import {
+  pycoreEventBus,
+  pycoreRouteRecoveryStore,
+  PYCORE_BROWSER_EVENTS,
+  PYCORE_HTTP_ROUTES,
+} from '../../../core/integrations/pycore';
 import type {
   AiGatewayStatus, AiProvider, AiRateLimitsResponse,
   SystemResourcesResponse, SystemInfo,
@@ -32,6 +42,7 @@ import { PcPipelineStatusPanels } from './PcPipelineStatusPanels';
 import { PcRecordsPanel } from './PcRecordsPanel';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcCollapse, PcImageLightbox } from './PcAiShared';
+import PcAiProviderPromptsEditor from './PcAiProviderPromptsEditor';
 import { usePcTestPopup } from './PcTestPopupContext';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 import {
@@ -157,6 +168,42 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
     });
   }, []);
 
+  // Frontend cache of the AI availability probe. The backend only re-tests
+  // providers on pycore restart (process-lifetime cache); here we mirror the
+  // last probe through the shared route-recovery store so the grid renders
+  // instantly, then refresh from the backend cache (instant on warm pycore)
+  // and re-read it whenever pycore restarts (boot_id changes server-side).
+  const cacheProbeResult = useCallback((r: any) => {
+    if (!Array.isArray(r?.providers) || r.providers.length === 0) return;
+    pycoreRouteRecoveryStore.write(PYCORE_HTTP_ROUTES.aiProbeProbe, { refresh: 0 }, {
+      providers: r.providers,
+      boot_id: r.boot_id ?? null,
+    });
+  }, []);
+
+  const probeCached = useCallback(async () => {
+    try {
+      const r = await pycoreApi.probeAi(false);
+      if (Array.isArray(r?.providers)) {
+        mergeProviders(r.providers);
+        cacheProbeResult(r);
+      }
+    } catch { /* keep last */ }
+  }, [mergeProviders, cacheProbeResult]);
+
+  useEffect(() => {
+    const cached = pycoreRouteRecoveryStore.read<{ providers?: AiProvider[] }>(
+      PYCORE_HTTP_ROUTES.aiProbeProbe, { refresh: 0 });
+    if (Array.isArray(cached?.data?.providers) && cached.data.providers.length > 0) {
+      mergeProviders(cached.data.providers);
+    }
+    void probeCached();
+    return pycoreEventBus.subscribe(
+      PYCORE_BROWSER_EVENTS.httpEventServerRestarted,
+      () => { void probeCached(); },
+    );
+  }, [mergeProviders, probeCached]);
+
   const testAll = useCallback(async () => {
     setTestingAll(true);
     try {
@@ -164,6 +211,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
       if (Array.isArray(r?.providers)) {
         mergeProviders(r.providers);
         appendProviderTestLogs(r.providers);
+        cacheProbeResult(r);
       }
       setError(r?.error ?? null);
       setUnreachable(false);
@@ -172,7 +220,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
     } finally {
       setTestingAll(false);
     }
-  }, [mergeProviders]);
+  }, [mergeProviders, cacheProbeResult]);
 
   // Force one image generation on a single provider (ignores cooldown), then
   // pop the result into the lightbox. New backend endpoint /ai/image/test.
@@ -560,6 +608,10 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
                           <span className="break-words">{p.error}</span>
                         </p>
                       )}
+                      {/* Pipeline prompt templates live under the AI that runs
+                          them: the OpenRouter free tier (article CN/EN + the
+                          Linux new-prompt EN derivation preset). */}
+                      {p.name === 'openrouter' && <PcAiProviderPromptsEditor />}
                     </div>
                   </PcCollapse>
 
