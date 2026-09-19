@@ -261,6 +261,28 @@ function Get-HfRequestHeaders {
     return $headers
 }
 
+function Invoke-HfRestGet {
+    # JSON GET with redirect following. Invoke-RestMethod on Windows PowerShell
+    # 5.1 does not follow 308 Permanent Redirect, and hf-mirror.com 308s the
+    # repo APIs to huggingface.co; curl.exe (already a hard dependency of the
+    # download path) follows them with -L.
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][hashtable]$Headers
+    )
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($curl) {
+        $curlHeaders = @()
+        if ($Headers.ContainsKey('Authorization')) { $curlHeaders = @('--header', ('Authorization: {0}' -f $Headers['Authorization'])) }
+        $json = & $curl.Source -fsSL --connect-timeout 30 @curlHeaders $Uri
+        if ($LASTEXITCODE -eq 0 -and $json) {
+            return ($json | Out-String | ConvertFrom-Json)
+        }
+        throw "HTTP request failed (curl exit $LASTEXITCODE): $Uri"
+    }
+    return Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 30 -ErrorAction Stop
+}
+
 function Test-HfGlobMatch {
     param(
         [Parameter(Mandatory = $true)][string]$FileName,
@@ -299,7 +321,7 @@ function Get-HfRepoTreeCatalog {
         try {
             $pathPart = if ($SubPath) { "/$SubPath" } else { '' }
             $uri = ('{0}/api/models/{1}/tree/main{2}' -f $base.TrimEnd('/'), $RepoId, $pathPart)
-            $entries = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
+            $entries = Invoke-HfRestGet -Uri $uri -Headers $headers
             if (-not $entries) { continue }
             foreach ($entry in $entries) {
                 $name = [string]$entry.path
@@ -344,7 +366,7 @@ function Get-HfRepoFileCatalog {
     foreach ($base in $bases) {
         try {
             $uri = ('{0}/api/models/{1}' -f $base.TrimEnd('/'), $RepoId)
-            $resp = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30 -ErrorAction Stop
+            $resp = Invoke-HfRestGet -Uri $uri -Headers $headers
             if ($resp.siblings) {
                 foreach ($entry in $resp.siblings) {
                     $name = [string]$entry.rfilename
