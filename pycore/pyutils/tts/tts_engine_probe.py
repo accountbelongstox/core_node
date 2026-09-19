@@ -25,6 +25,7 @@ from pycore.pyutils.common.python_env.runtime_policy import (
 )
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
+from pycore.pyutils.tts.memory_gate import memory_gate_allows
 
 
 _STAGING_ENV: Dict[str, str] = {
@@ -251,6 +252,12 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
 
     if name == "edge":
         return "edge-tts client failed to initialize (check package / network)"
+
+    allowed, gate_reason = memory_gate_allows(name)
+    if not allowed:
+        return f"Masked by memory gate: {gate_reason}"
+
+    return None
 
     return None
 

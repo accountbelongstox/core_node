@@ -55,6 +55,7 @@ from pycore.pyutils.tts.engine_registry import (
     TTSSynthesisRequest,
     tts_engine_registry,
 )
+from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts.tts_service_manager import (
     get_server_settings,
     is_server_engine,
@@ -329,6 +330,10 @@ def synthesize(
             )
             continue
         managed_engine = is_server_engine(name)
+        allowed, gate_reason = memory_gate_allows(name)
+        if not allowed:
+            ColorPrint.yellow(f"[tts] {name} masked by memory gate: {gate_reason}")
+            continue
         if not managed_engine and not engine_available(name):
             continue
         adapter = tts_engine_registry.get(name)
