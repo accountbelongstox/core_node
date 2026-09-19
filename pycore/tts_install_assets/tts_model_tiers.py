@@ -84,8 +84,10 @@ OFFICIAL_ENV: dict[str, str] = {
     ),
     "fishspeech": (
         "Python 3.10–3.12; git fishaudio/fish-speech. "
-        "GPU: openaudio-s1 checkpoint (~12GB VRAM for full quality). "
-        "CPU: openaudio-s1-mini or Fish Audio cloud SDK (FISH_API_KEY). "
+        "Default checkpoint: openaudio-s1-mini (public). "
+        "openaudio-s1 (~12GB VRAM, full quality) is a gated repo: set HF_TOKEN "
+        "after accepting its license, then FISHSPEECH_CHECKPOINT=openaudio-s1. "
+        "Cloud: Fish Audio SDK (FISH_API_KEY). "
         "Local: tools/api_server.py or fishspeech_api_server.py bridge."
     ),
     "voxcpm2": (
@@ -183,7 +185,7 @@ TIER_TABLE: dict[str, dict[str, str]] = {
         "env": "VOXCPM2_MODEL",
     },
     "fishspeech": {
-        "gpu": "openaudio-s1",
+        "gpu": "openaudio-s1-mini",
         "cpu": "openaudio-s1-mini",
         "env": "FISHSPEECH_CHECKPOINT",
     },
@@ -237,7 +239,12 @@ def voxcpm2_model(gpu: bool) -> str:
 
 
 def fishspeech_checkpoint(gpu: bool) -> str:
-    return "openaudio-s1" if gpu else "openaudio-s1-mini"
+    # fishaudio/openaudio-s1 is a GATED repo (401 without an HF_TOKEN whose
+    # account accepted the license), so the public openaudio-s1-mini is the
+    # default on both tiers; openaudio-s1 stays available via an explicit
+    # FISHSPEECH_CHECKPOINT=openaudio-s1 override.
+    del gpu
+    return "openaudio-s1-mini"
 
 
 def bark_model(gpu: bool) -> str:

@@ -90,7 +90,7 @@ _API_TTS_LIBS = (
      "note": "CosyVoice multilingual clone (COSYVOICE_URL; iic/CosyVoice2-0.5B)"},
     {"name": "fishspeech", "category": "tts", "tier_engine": "fishspeech",
      "probe_engine": "fishspeech",
-     "note": "Fish Speech clone (openaudio-s1 GPU / openaudio-s1-mini CPU)"},
+     "note": "Fish Speech clone (openaudio-s1-mini default; openaudio-s1 gated)"},
     {"name": "qwen3tts", "category": "tts", "tier_engine": "qwen3tts",
      "probe_engine": "qwen3tts",
      "note": "Qwen3-TTS multilingual (isolated-venv HTTP server; 1.7B GPU / 0.6B CPU)"},
