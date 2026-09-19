@@ -153,6 +153,33 @@ export interface OrchTaskFile {
   modified_at: number;
 }
 
+export type OrchManifestCategory = 'all' | 'cache' | 'laravel' | 'generated' | 'synced' | 'missing' | 'pending';
+
+export interface OrchManifestItem {
+  resource_id: string;
+  kind: string;
+  language: string;
+  text: string;
+  status: 'ready' | 'missing' | 'pending';
+  source: string;
+  provider: string;
+  synced: boolean;
+  sync_queued: boolean;
+  has_audio: boolean;
+}
+
+export interface OrchManifestPageResponse {
+  success: boolean;
+  error?: string;
+  items: OrchManifestItem[];
+  total: number;
+  page: number;
+  page_count: number;
+  category: OrchManifestCategory;
+  running?: boolean;
+  progress?: Record<string, unknown>;
+}
+
 export const pycoreApiOrchestration = {
   // --- qy-app login (persisted on the pycore side, loaded at startup) ------ #
   orchAuthLogin: (username: string, password: string) =>
@@ -208,6 +235,10 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskFiles, { task_id: taskId }) as Promise<{
       success: boolean; error?: string; output_dir?: string; files: OrchTaskFile[];
     }>,
+  orchTaskManifestPage: (taskId: string, category: OrchManifestCategory = 'all', page = 1, pageSize = 50) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskManifestPage, {
+      task_id: taskId, category, page, page_size: pageSize,
+    }) as Promise<OrchManifestPageResponse>,
   orchOpenOutput: (taskId?: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchOpenOutput, taskId ? { task_id: taskId } : {}) as Promise<{ success: boolean; path?: string }>,
 };

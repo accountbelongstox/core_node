@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Film } from 'lucide-react';
 import {
   persistAgentHistoryArticleConfig,
   useAgentHistoryRuntime,
 } from '@/apps/pycore-manager/api';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
-import PcAgentHistoryVideoLogPanel from './PcAgentHistoryVideoLogPanel';
 import PcAgentHistoryAiPanel from './PcAgentHistoryAiPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
 import { AGENT_HISTORY_TOOLS } from './presentation';
@@ -47,27 +48,32 @@ const PcAgentHistoryConfigPanel: React.FC<{
     operationSnapshot,
     configError,
     configStoragePath,
+    articlePromptDefaults,
     authoritative,
   } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [minRawWords, setMinRawWords] = useState(200);
-  const [videoEnabled, setVideoEnabled] = useState(false);
-  const [videoUsername, setVideoUsername] = useState('');
-  const [videoBatchName, setVideoBatchName] = useState('default');
-  const [videoConcurrency, setVideoConcurrency] = useState(2);
   const [enabledTools, setEnabledTools] = useState<string[]>(restoredEnabledTools);
+  const [promptsOpen, setPromptsOpen] = useState(false);
+  const [promptArticleCn, setPromptArticleCn] = useState('');
+  const [promptTranslateEn, setPromptTranslateEn] = useState('');
   const toolsHydrated = useRef(false);
+  const promptsDirty = useRef(false);
 
   useEffect(() => {
     if (!articleCfg) return;
     setEnabled(!!articleCfg.enabled);
     setMinRawWords(Number(articleCfg.min_raw_words || 200));
-    setVideoEnabled(Boolean(articleCfg.video_enabled));
-    setVideoUsername(String(articleCfg.video_username || ''));
-    setVideoBatchName(String(articleCfg.video_batch_name || 'default'));
-    setVideoConcurrency(Math.max(1, Math.min(4, Number(articleCfg.video_concurrency || 2))));
+    if (!promptsDirty.current) {
+      setPromptArticleCn(String(
+        articleCfg.prompt_article_cn || articlePromptDefaults?.prompt_article_cn || '',
+      ));
+      setPromptTranslateEn(String(
+        articleCfg.prompt_translate_en || articlePromptDefaults?.prompt_translate_en || '',
+      ));
+    }
     if (!authoritative) return;
     const tools = Array.isArray(articleCfg.enabled_tools)
       ? (articleCfg.enabled_tools as unknown[])
@@ -78,7 +84,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
     const initialHydration = !toolsHydrated.current;
     toolsHydrated.current = true;
     onEnabledToolsChange?.(tools, initialHydration);
-  }, [articleCfg, authoritative, onEnabledToolsChange]);
+  }, [articleCfg, articlePromptDefaults, authoritative, onEnabledToolsChange]);
 
   useEffect(() => {
     if (!authoritative) setEnabledTools(restoredEnabledTools);
@@ -123,6 +129,12 @@ const PcAgentHistoryConfigPanel: React.FC<{
   };
 
   const saveConfig = async () => {
+    const defaultCn = String(articlePromptDefaults?.prompt_article_cn || '').trim();
+    const defaultEn = String(articlePromptDefaults?.prompt_translate_en || '').trim();
+    const cnValue = promptArticleCn.trim();
+    const enValue = promptTranslateEn.trim();
+    // Storing a copy identical to the built-in default is pointless:
+    // an empty override falls back to the code default automatically.
     await persistConfig({
         extract_as_article: enabled,
         enabled,
@@ -131,11 +143,17 @@ const PcAgentHistoryConfigPanel: React.FC<{
         min_raw_words: minRawWords,
         live_listen: true,
         enabled_tools: enabledTools,
-        video_enabled: videoEnabled,
-        video_username: videoUsername.trim(),
-        video_batch_name: videoBatchName.trim() || 'default',
-        video_concurrency: videoConcurrency,
+        prompt_article_cn: cnValue === defaultCn ? '' : promptArticleCn,
+        prompt_translate_en: enValue === defaultEn ? '' : promptTranslateEn,
     });
+    promptsDirty.current = false;
+  };
+
+  const resetPrompts = async () => {
+    promptsDirty.current = false;
+    setPromptArticleCn(String(articlePromptDefaults?.prompt_article_cn || ''));
+    setPromptTranslateEn(String(articlePromptDefaults?.prompt_translate_en || ''));
+    await persistConfig({ prompt_article_cn: '', prompt_translate_en: '' });
   };
 
   const handleToolToggle = (tool: string, checked: boolean) => {
@@ -237,39 +255,75 @@ const PcAgentHistoryConfigPanel: React.FC<{
             </button>
           </div>
         </div>
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={videoEnabled}
-              disabled={busy}
-              onClick={() => {
-                const next = !videoEnabled;
-                setVideoEnabled(next);
-                void persistConfig({ video_enabled: next });
-              }}
-              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${videoEnabled ? 'bg-sky-600' : 'bg-slate-300 dark:bg-white/15'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${videoEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
-            </button>
-            <span className="text-sm text-slate-700 dark:text-slate-200">{tk('videoGeneration')}</span>
-            <span className="text-[11px] text-slate-500">{tk('videoGenerationHint')}</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="text-xs text-slate-500">
-              {tk('videoUsername')}
-              <input value={videoUsername} onChange={(event) => setVideoUsername(event.target.value)} onBlur={(event) => void persistConfig({ video_username: event.currentTarget.value.trim() })} className={inputCls} />
-            </label>
-            <label className="text-xs text-slate-500">
-              {tk('videoBatchName')}
-              <input value={videoBatchName} onChange={(event) => setVideoBatchName(event.target.value)} onBlur={(event) => void persistConfig({ video_batch_name: event.currentTarget.value.trim() || 'default' })} className={inputCls} />
-            </label>
-            <label className="text-xs text-slate-500">
-              {tk('videoConcurrency')}
-              <input type="number" min={1} max={4} value={videoConcurrency} onChange={(event) => setVideoConcurrency(Math.max(1, Math.min(4, Number(event.target.value) || 2)))} onBlur={(event) => void persistConfig({ video_concurrency: Math.max(1, Math.min(4, Number(event.currentTarget.value) || 2)) })} className={inputCls} />
-            </label>
-          </div>
+        {/* Learning video generation lives in Vocabulary → Audio Orchestration
+            (OrchLearningVideoPanel) — same backend config, single editor. */}
+        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
+          <Link
+            to="/pycore-manager/vocabulary?tab=audio-orch"
+            className="flex items-center gap-2 text-xs text-sky-600 dark:text-sky-300 hover:underline"
+          >
+            <Film className="w-3.5 h-3.5" />
+            {tk('videoMovedToOrch')} → {tk('openAudioOrch')}
+          </Link>
+        </div>
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3 space-y-2">
+          <button
+            type="button"
+            onClick={() => setPromptsOpen((v) => !v)}
+            className="flex w-full items-center justify-between text-left"
+          >
+            <span className="text-sm text-slate-700 dark:text-slate-200">{tk('promptsTitle')}</span>
+            <span className="text-[11px] text-slate-400">{promptsOpen ? '−' : '+'}</span>
+          </button>
+          {promptsOpen && (
+            <>
+              <p className="text-[11px] text-slate-500">{tk('promptOverrideHint')}</p>
+              <label className="block text-xs text-slate-500">
+                {tk('promptArticleCn')}
+                <textarea
+                  value={promptArticleCn}
+                  onChange={(event) => {
+                    promptsDirty.current = true;
+                    setPromptArticleCn(event.target.value);
+                  }}
+                  rows={8}
+                  spellCheck={false}
+                  className={`${inputCls} font-mono text-[11px] leading-relaxed`}
+                />
+              </label>
+              <label className="block text-xs text-slate-500">
+                {tk('promptTranslateEn')}
+                <textarea
+                  value={promptTranslateEn}
+                  onChange={(event) => {
+                    promptsDirty.current = true;
+                    setPromptTranslateEn(event.target.value);
+                  }}
+                  rows={8}
+                  spellCheck={false}
+                  className={`${inputCls} font-mono text-[11px] leading-relaxed`}
+                />
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void saveConfig()}
+                  disabled={busy}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-60"
+                >
+                  {tk('saveSettings')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void resetPrompts()}
+                  disabled={busy}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 dark:border-white/10"
+                >
+                  {tk('promptReset')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
         {configStoragePath && (
           <div className="truncate text-[10px] font-mono text-slate-400" title={configStoragePath}>
@@ -302,11 +356,8 @@ const PcAgentHistoryConfigPanel: React.FC<{
         )}
       </section>
 
-      {(enabled || videoEnabled) && (
-        <div className="grid grid-cols-1 gap-0 lg:grid-cols-2">
-          <PcAgentHistoryLogPanel tk={tk} className="rounded-b-none lg:rounded-bl-2xl lg:rounded-r-none" />
-          <PcAgentHistoryVideoLogPanel tk={tk} className="rounded-t-none border-t-0 lg:rounded-l-none lg:rounded-tr-2xl lg:border-l-0 lg:border-t" />
-        </div>
+      {enabled && (
+        <PcAgentHistoryLogPanel tk={tk} />
       )}
     </>
   );

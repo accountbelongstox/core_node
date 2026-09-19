@@ -9,11 +9,13 @@ import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, FolderOpen, Loader2, Pencil, Play, Trash2, XCircle } from 'lucide-react';
 import {
   pycoreApi,
+  type OrchManifestCategory,
   type OrchTask,
   type OrchTaskFile,
   type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
 import { humanBytes, humanInt, VocabBanner } from '../vocabShared';
+import OrchManifestPanel from './OrchManifestPanel';
 import { ORCH_L, orchErrorMessage } from './orchShared';
 
 function statusBadgeClass(status: string | undefined, running: boolean | undefined): string {
@@ -110,6 +112,12 @@ const OrchTaskList: React.FC<{
   onChanged: () => void;
 }> = ({ tasks, selectedTaskId, onSelect, onEdit, onGenerate, onChanged }) => {
   const [error, setError] = useState<string | null>(null);
+  const [manifestView, setManifestView] = useState<{
+    taskId: string;
+    name: string;
+    category: OrchManifestCategory;
+    running: boolean;
+  } | null>(null);
   const remove = async (taskId: string) => {
     if (!window.confirm(ORCH_L.confirmDelete)) return;
     setError(null);
@@ -188,9 +196,16 @@ const OrchTaskList: React.FC<{
                     </div>
                   )}
                   {progress.phase === 'resources' && (progress.resource_total || 0) > 0 && (
-                    <p className="text-[10px] font-mono text-slate-500">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setManifestView({ taskId: task.task_id, name: task.name, category: 'all', running: Boolean(task.running) });
+                      }}
+                      className="text-[10px] font-mono text-slate-500 hover:text-sky-400 hover:underline underline-offset-2"
+                    >
                       {progress.resource_index || 0}/{progress.resource_total || 0} {ORCH_L.items}
-                    </p>
+                    </button>
                   )}
                   <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
                     <div className="h-full rounded-full bg-sky-500" style={{ width: `${pct}%` }} />
@@ -201,12 +216,36 @@ const OrchTaskList: React.FC<{
                   </p>
                   {(task.running || progress.phase === 'done' || progress.missing || progress.sync_pending) && (
                     <p className="text-[10px] font-mono text-slate-500">
-                      {ORCH_L.manifestCache} {humanInt(progress.cache_hits)}
-                      {' · '}{ORCH_L.manifestLaravel} {humanInt(progress.laravel_hits)}
-                      {' · '}{ORCH_L.manifestGenerated} {humanInt(progress.generated)}
-                      {' · '}{ORCH_L.manifestSynced} {humanInt(progress.synced)}
+                      {([
+                        ['cache', ORCH_L.manifestCache, progress.cache_hits],
+                        ['laravel', ORCH_L.manifestLaravel, progress.laravel_hits],
+                        ['generated', ORCH_L.manifestGenerated, progress.generated],
+                        ['synced', ORCH_L.manifestSynced, progress.synced],
+                      ] as Array<[OrchManifestCategory, string, number | undefined]>).map(([cat, label, value]) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setManifestView({ taskId: task.task_id, name: task.name, category: cat, running: Boolean(task.running) });
+                          }}
+                          className="hover:text-sky-400 hover:underline underline-offset-2"
+                        >
+                          {label} {humanInt(value)}
+                        </button>
+                      )).reduce<React.ReactNode[]>((acc, node) => (acc.length ? [...acc, ' · ', node] : [node]), [])}
                       {progress.sync_pending ? ` · ${ORCH_L.syncingNow} ${humanInt(progress.sync_pending)}` : ''}
-                      {' · '}<span className={progress.missing ? 'text-amber-400' : ''}>{ORCH_L.manifestMissing} {humanInt(progress.missing)}</span>
+                      {' · '}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setManifestView({ taskId: task.task_id, name: task.name, category: 'missing', running: Boolean(task.running) });
+                        }}
+                        className={`hover:text-sky-400 hover:underline underline-offset-2 ${progress.missing ? 'text-amber-400' : ''}`}
+                      >
+                        {ORCH_L.manifestMissing} {humanInt(progress.missing)}
+                      </button>
                     </p>
                   )}
                   {task.running && progress.current_item && (
@@ -267,6 +306,16 @@ const OrchTaskList: React.FC<{
           );
         })}
       </div>
+      {manifestView && (
+        <OrchManifestPanel
+          open
+          taskId={manifestView.taskId}
+          taskName={manifestView.name}
+          initialCategory={manifestView.category}
+          running={manifestView.running}
+          onClose={() => setManifestView(null)}
+        />
+      )}
     </section>
   );
 };

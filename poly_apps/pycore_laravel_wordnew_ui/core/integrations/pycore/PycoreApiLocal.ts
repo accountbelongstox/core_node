@@ -286,6 +286,7 @@ export const pycoreApiLocal = {
       data?: {
         article_config?: Record<string, unknown>;
         article_config_storage_path?: string;
+        article_prompt_defaults?: Record<string, string>;
         article_summary?: Record<string, unknown>;
         operation_snapshot?: Record<string, unknown> | null;
         ai_dashboard?: Record<string, unknown> | null;

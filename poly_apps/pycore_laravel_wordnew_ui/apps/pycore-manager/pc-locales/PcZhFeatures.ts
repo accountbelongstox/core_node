@@ -384,5 +384,12 @@ agentHistory: {
     recordsPanelResponse: '返回内容',
     recordsPanelEmpty: '当前筛选条件下没有记录。',
     recordsPanelTotal: '条记录',
+    promptsTitle: '流水线提示词',
+    promptArticleCn: '中文文章提示词',
+    promptTranslateEn: '英文翻译提示词',
+    promptOverrideHint: '保存在用户数据目录；清空字段即恢复内置默认提示词。占位符：{ref} {title_max} {raw}（中文）· {title_max} {title_cn} {article_cn}（英文）。',
+    promptReset: '恢复默认',
+    videoMovedToOrch: '生成学习视频已迁移到「词汇 → 音频编排」。',
+    openAudioOrch: '打开音频编排',
   }
 } as const;

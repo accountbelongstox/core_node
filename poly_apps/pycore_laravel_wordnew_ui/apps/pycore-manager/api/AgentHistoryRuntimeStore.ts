@@ -18,6 +18,7 @@ const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 export interface AgentHistoryRuntimeState {
   articleConfig: Record<string, any> | null;
   configStoragePath: string;
+  articlePromptDefaults: Record<string, string> | null;
   articleSummary: Record<string, any> | null;
   operationSnapshot: Record<string, any> | null;
   aiDashboard: Record<string, any> | null;
@@ -32,6 +33,7 @@ export interface AgentHistoryRuntimeState {
 let state: AgentHistoryRuntimeState = {
   articleConfig: null,
   configStoragePath: '',
+  articlePromptDefaults: null,
   articleSummary: null,
   operationSnapshot: null,
   aiDashboard: null,
@@ -155,6 +157,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
       patch({
         articleConfig: response.data.article_config || null,
         configStoragePath: String(response.data.article_config_storage_path || ''),
+        articlePromptDefaults: (response.data.article_prompt_defaults as Record<string, string>) || null,
         articleSummary: response.data.article_summary || null,
         operationSnapshot: response.data.operation_snapshot || null,
         aiDashboard: response.data.ai_dashboard || null,

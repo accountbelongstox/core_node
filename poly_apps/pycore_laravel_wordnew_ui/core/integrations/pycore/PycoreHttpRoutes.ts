@@ -258,6 +258,7 @@ export const PYCORE_HTTP_ROUTES = {
   audioOrchTaskProgress: 'ui/audio_orch/task/progress',
   audioOrchSystemStatus: 'ui/audio_orch/system/status',
   audioOrchTaskFiles: 'ui/audio_orch/task/files',
+  audioOrchTaskManifestPage: 'ui/audio_orch/task/manifest_page',
   audioOrchOpenOutput: 'ui/audio_orch/open_output',
   configUpdateConfig: 'ui/config/update_config',
   controlGetAutostart: 'ui/control/get_autostart',
