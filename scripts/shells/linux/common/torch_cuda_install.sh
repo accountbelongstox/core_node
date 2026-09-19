@@ -13,6 +13,10 @@ fi
 if ! command -v tcg_ensure_torch_build >/dev/null 2>&1; then
     . "$_torch_cuda_install_dir/torch_cpu_guard.sh"
 fi
+if ! command -v nvidia_driver_upgrade_notice >/dev/null 2>&1; then
+    # shellcheck source=nvidia_driver_upgrade_notice_common.sh
+    . "$_torch_cuda_install_dir/nvidia_driver_upgrade_notice_common.sh"
+fi
 
 PYCORE_TORCH_STACK_READY=0
 
@@ -26,6 +30,9 @@ install_pycore_torch_stack() {
     echo "${prefix}[..] ensuring canonical torch build (index: ${idx}) ..."
     TCG_PYTHON="$py" tcg_ensure_torch_build
     tcg_load_runtime_state "$py"
+    # Idempotent evidence-driven NVIDIA driver crash notice; silently skips when
+    # the driver/crash state is unchanged or no NVIDIA GPU is present.
+    nvidia_driver_upgrade_notice "$prefix" || true
     if [[ "$TCG_CACHE_HIT" -eq 1 ]]; then
         echo "${prefix}[idempotent] reusing pyservice torch/CUDA validation."
         if gpu_present; then

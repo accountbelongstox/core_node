@@ -7,6 +7,11 @@ TTS_SOX_READY=0
 TTS_HF_REPO_READY=0
 NEURAL_TTS_WEIGHTS_READY=0
 NEURAL_TTS_LAST_REPORTED_MODEL_PATH=""
+HF_AUTH_TOKEN_RESOLVED=0
+HF_AUTH_TOKEN_CACHE=""
+HF_AUTH_TOKEN_SOURCE=""
+HF_CURL_REDIRECT_FLAG="-L"
+HF_CURL_AUTH_ARGS=()
 
 _core_node_repo_root_from_tts_common() {
     (cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
@@ -367,6 +372,157 @@ _hf_mirror_base() {
     printf '%s' "https://hf-mirror.com"
 }
 
+_hf_trim() {
+    local s="$1"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+
+_hf_secret_raw_dir() {
+    # Raw secret store under the core_node root; same convention as
+    # pyfoundations.secret_manager and scripts/pytools/aitools/hf_secret.py.
+    local root raw_dir
+    root="$(_core_node_repo_root_from_tts_common)"
+    raw_dir="$root/.secret_keys/.secret_ignore"
+    [[ -d "$raw_dir" ]] && printf '%s' "$raw_dir"
+}
+
+_hf_read_secret_first_line() {
+    # First non-empty stripped line of a raw secret file (BOM-aware); fails on error.
+    local path="$1" content="" line=""
+    [[ -f "$path" ]] || return 1
+    content="$(cat "$path" 2>/dev/null)" || return 1
+    content="${content#$'\xef\xbb\xbf'}"
+    while IFS= read -r line; do
+        line="${line%$'\r'}"
+        line="$(_hf_trim "$line")"
+        if [[ -n "$line" ]]; then
+            printf '%s' "$line"
+            return 0
+        fi
+    done <<< "$content"
+    return 1
+}
+
+_hf_token_candidates() {
+    # Ordered "source<TAB>token" list: env first (explicit operator choice), then
+    # EVERY .secret_keys/.secret_ignore/HF_TOKEN_<index> (auto-discovered in
+    # numeric order, not capped at 5), then the bare HF_TOKEN file. Duplicates
+    # are removed, order preserved.
+    local token="" raw_dir="" f="" name=""
+    local -A seen=()
+    local -a indexed=()
+    token="$(_hf_trim "${HF_TOKEN:-}")"
+    if [[ -n "$token" ]]; then
+        seen[$token]=1
+        printf 'env:HF_TOKEN\t%s\n' "$token"
+    fi
+    token="$(_hf_trim "${HUGGING_FACE_HUB_TOKEN:-}")"
+    if [[ -n "$token" && -z "${seen[$token]:-}" ]]; then
+        seen[$token]=1
+        printf 'env:HUGGING_FACE_HUB_TOKEN\t%s\n' "$token"
+    fi
+    raw_dir="$(_hf_secret_raw_dir)"
+    if [[ -n "$raw_dir" ]]; then
+        for f in "$raw_dir"/HF_TOKEN_*; do
+            [[ -f "$f" ]] || continue
+            name="$(basename "$f")"
+            [[ "$name" =~ ^HF_TOKEN_[0-9]+$ ]] || continue
+            indexed+=("$f")
+        done
+        if [[ "${#indexed[@]}" -gt 0 ]]; then
+            while IFS= read -r name; do
+                f="$raw_dir/$name"
+                token="$(_hf_trim "$(_hf_read_secret_first_line "$f" 2>/dev/null || true)")"
+                if [[ -n "$token" && -z "${seen[$token]:-}" ]]; then
+                    seen[$token]=1
+                    printf '%s\t%s\n' "$name" "$token"
+                fi
+            done < <(printf '%s\n' "${indexed[@]##*/}" | sort -t_ -k2,2n)
+        fi
+        if [[ -f "$raw_dir/HF_TOKEN" ]]; then
+            token="$(_hf_trim "$(_hf_read_secret_first_line "$raw_dir/HF_TOKEN" 2>/dev/null || true)")"
+            if [[ -n "$token" && -z "${seen[$token]:-}" ]]; then
+                seen[$token]=1
+                printf 'HF_TOKEN\t%s\n' "$token"
+            fi
+        fi
+    fi
+}
+
+_hf_token_whoami() {
+    # 'ok' = valid (HTTP 200); 'rejected' = 401/403; 'unverifiable' = network/tooling.
+    local token="$1" code=""
+    if ! command -v curl >/dev/null 2>&1; then
+        printf 'unverifiable'
+        return 0
+    fi
+    code="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 15 --header "Authorization: Bearer $token" 'https://huggingface.co/api/whoami-v2' 2>/dev/null)" || code=""
+    case "$code" in
+        200) printf 'ok' ;;
+        401|403) printf 'rejected' ;;
+        *) printf 'unverifiable' ;;
+    esac
+}
+
+resolve_hf_auth_token() {
+    # First usable hf_* token wins; rejected ones fall through to the next
+    # candidate. Result is cached per process and the pick is printed (masked)
+    # once. A resolved token is exported to HF_TOKEN so child processes (pip,
+    # huggingface_hub, fish-speech, the urllib catalog walker) inherit the auth.
+    # The token is returned on stdout; diagnostics go to stderr.
+    local line="" source="" token="" suffix="" probe=""
+    if [[ "$HF_AUTH_TOKEN_RESOLVED" == "1" ]]; then
+        printf '%s' "$HF_AUTH_TOKEN_CACHE"
+        return 0
+    fi
+    HF_AUTH_TOKEN_RESOLVED=1
+    HF_AUTH_TOKEN_CACHE=""
+    while IFS=$'\t' read -r source token; do
+        [[ -n "$token" ]] || continue
+        suffix="${token: -4}"
+        if [[ "$token" != hf_* ]]; then
+            echo "[hf] $source (...$suffix) is not an hf_* token; skipped" >&2
+            continue
+        fi
+        probe="$(_hf_token_whoami "$token")"
+        if [[ "$probe" == "ok" ]]; then
+            HF_AUTH_TOKEN_CACHE="$token"
+            HF_AUTH_TOKEN_SOURCE="$source"
+            echo "[hf] HF auth: using $source (...$suffix); whoami OK" >&2
+            break
+        fi
+        if [[ "$probe" == "rejected" ]]; then
+            echo "[hf] $source (...$suffix) rejected by Hugging Face (401/403); trying next candidate" >&2
+            continue
+        fi
+        HF_AUTH_TOKEN_CACHE="$token"
+        HF_AUTH_TOKEN_SOURCE="$source"
+        echo "[hf] whoami unverifiable (network); using $source (...$suffix) unvalidated" >&2
+        break
+    done < <(_hf_token_candidates)
+    if [[ -z "$HF_AUTH_TOKEN_CACHE" ]]; then
+        echo "[hf] no usable HF token (env + .secret_keys HF_TOKEN_*); Hub downloads stay anonymous" >&2
+    else
+        export HF_TOKEN="$HF_AUTH_TOKEN_CACHE"
+    fi
+    printf '%s' "$HF_AUTH_TOKEN_CACHE"
+}
+
+_hf_curl_auth_setup() {
+    # Populates HF_CURL_AUTH_ARGS / HF_CURL_REDIRECT_FLAG from the resolved token.
+    # Plain -L drops Authorization on the cross-host 308 to huggingface.co
+    # (hf-mirror repo APIs), producing 401 on gated repos; --location-trusted
+    # implies -L and forwards the header to the redirect target.
+    HF_CURL_AUTH_ARGS=()
+    HF_CURL_REDIRECT_FLAG="-L"
+    if [[ -n "$HF_AUTH_TOKEN_CACHE" ]]; then
+        HF_CURL_AUTH_ARGS=(--header "Authorization: Bearer $HF_AUTH_TOKEN_CACHE")
+        HF_CURL_REDIRECT_FLAG="--location-trusted"
+    fi
+}
+
 _hf_glob_match() {
     local name="$1" pat="$2"
     [[ "$pat" == "*" ]] && return 0
@@ -390,17 +546,31 @@ _hf_allow_match() {
 _hf_repo_catalog() {
     local repo="$1" mirror
     mirror="$(_hf_mirror_base)"
-    python3 -c 'import json,sys,urllib.request
+    python3 -c 'import json,os,sys,urllib.request
 
 repo=sys.argv[1]
 bases=[sys.argv[2], sys.argv[3]]
+token=os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN") or ""
+
+class HfRedirectHandler(urllib.request.HTTPRedirectHandler):
+    # urllib follows 301/302/303/307 natively; hf-mirror.com answers the tree
+    # API with 308 Permanent Redirect, which older Pythons (e.g. the dedicated
+    # 3.10 runtime) do not follow. redirect_request carries request headers to
+    # the target, so the Authorization header survives the mirror 308.
+    def http_error_308(self, req, fp, code, msg, headers):
+        return self.http_error_307(req, fp, code, msg, headers)
+
+opener=urllib.request.build_opener(HfRedirectHandler())
 
 def fetch_tree(base, subpath=""):
     path=f"/api/models/{repo}/tree/main"
     if subpath:
         path += f"/{subpath}"
     url=base.rstrip("/") + path
-    with urllib.request.urlopen(url, timeout=30) as resp:
+    req=urllib.request.Request(url)
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with opener.open(req, timeout=30) as resp:
         return json.load(resp)
 
 def walk(base):
@@ -493,6 +663,7 @@ _hf_download_file() {
     local repo="$1" name="$2" out="$3" mirror="$4" prefix="$5" catalog_bytes="${6:-0}"
     local url parent expected have py="${7:-python3}"
     mirror="${mirror:-$(_hf_mirror_base)}"
+    _hf_curl_auth_setup
     parent="$(dirname "$out")"
     mkdir -p "$parent"
     url="${mirror%/}/${repo}/resolve/main/${name}"
@@ -503,7 +674,7 @@ _hf_download_file() {
         return 0
     fi
     if [[ "${expected:-0}" -le 0 ]]; then
-        expected="$(curl -fsI --connect-timeout 30 "$url" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
+        expected="$(curl -fsI "$HF_CURL_REDIRECT_FLAG" --connect-timeout 30 "${HF_CURL_AUTH_ARGS[@]}" "$url" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
     fi
     if [[ -f "$out" && "${expected:-0}" -gt 0 ]]; then
         have="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
@@ -519,7 +690,7 @@ _hf_download_file() {
         echo "${prefix}[!] curl missing; cannot download ${name}" >&2
         return 1
     fi
-    curl -fsSL -C - --retry 3 --connect-timeout 30 -o "$out" "$url" || return 1
+    curl -fsS "$HF_CURL_REDIRECT_FLAG" -C - --retry 3 --connect-timeout 30 "${HF_CURL_AUTH_ARGS[@]}" -o "$out" "$url" || return 1
     if ! _hf_file_complete "$out" "${expected:-0}"; then
         return 1
     fi
@@ -542,12 +713,14 @@ install_hf_repo_flat() {
         TTS_HF_REPO_READY=1
         return 0
     fi
+    resolve_hf_auth_token >/dev/null
     mapfile -t names < <(_hf_list_repo_files "$repo" || true)
     total="${#names[@]}"
     if [[ "$total" -eq 0 ]]; then
         echo "${prefix}[!] could not list repo files for ${repo}" >&2
         return 1
     fi
+    local -a wanted=()
     for name in "${names[@]}"; do
         [[ -z "$name" ]] && continue
         local matched=0 pat
@@ -557,12 +730,34 @@ install_hf_repo_flat() {
         done
         [[ "$matched" -eq 1 ]] || continue
         count=$((count + 1))
+        wanted+=("$name")
+    done
+    echo "${prefix}[..] ${count} of ${total} files matched allow-list (mirror ${mirror})"
+
+    # Gated-repo preflight: e.g. fishaudio checkpoints are gated ("gated":"auto"),
+    # so anonymous downloads 401 on EVERY file. Detect once with a HEAD probe and
+    # say exactly what to do instead of failing each file with a bare curl error.
+    _hf_curl_auth_setup
+    if [[ "${#wanted[@]}" -gt 0 ]] && command -v curl >/dev/null 2>&1; then
+        local probe_url probe_code
+        probe_url="${mirror%/}/${repo}/resolve/main/${wanted[0]}"
+        probe_code="$(curl -s -o /dev/null -w '%{http_code}' -I "$HF_CURL_REDIRECT_FLAG" --connect-timeout 15 "${HF_CURL_AUTH_ARGS[@]}" "$probe_url" 2>/dev/null || true)"
+        if [[ "$probe_code" == "401" || "$probe_code" == "403" ]]; then
+            if [[ -n "$HF_AUTH_TOKEN_CACHE" ]]; then
+                echo "${prefix}[!] ${repo} is gated and the configured HF token (${HF_AUTH_TOKEN_SOURCE}) has no access (HTTP ${probe_code}); accept the license at https://huggingface.co/${repo} with that account." >&2
+            else
+                echo "${prefix}[!] ${repo} is a gated repo (HTTP ${probe_code}); accept the license at https://huggingface.co/${repo}, then add an hf_* token as .secret_keys/.secret_ignore/HF_TOKEN_<index> and re-run." >&2
+            fi
+            return 1
+        fi
+    fi
+
+    for name in "${wanted[@]}"; do
         catalog_bytes="$(_hf_catalog_size "$repo" "$name")"
         if ! _hf_download_file "$repo" "$name" "${dest%/}/${name}" "$mirror" "$prefix" "$catalog_bytes" "$py"; then
             all_ok=0
         fi
     done
-    echo "${prefix}[..] ${count} of ${total} files matched allow-list (mirror ${mirror})"
     if [[ "$all_ok" -eq 1 && "$count" -gt 0 ]]; then
         printf '%s\n' "$sentinel_value" > "$sentinel"
         TTS_HF_REPO_READY=1
@@ -586,6 +781,7 @@ neural_tts_local_weights_ready() {
     [[ -d "$dir" ]] || return 1
     find "$dir" -type f -name 'config.json' 2>/dev/null | grep -q . || return 1
     if [[ -n "$repo" ]]; then
+        resolve_hf_auth_token >/dev/null
         catalog="$(_hf_repo_catalog "$repo" 2>/dev/null | tr -d '\r' || true)"
     fi
     if [[ -n "$required_manifest" ]]; then

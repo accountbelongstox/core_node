@@ -162,3 +162,45 @@ openaudio-s1-mini (3,606,222,702 bytes); local inference mode enabled`.
   get_all_secret_keys_indexed("HF_TOKEN")` + the `huggingface` provider entry
   in `pycore/pyctl/ai/ai_keys.py` (rotation pool), and
   `scripts/pytools/aitools/hf_secret.py` (first-non-empty). No change needed.
+
+## Follow-up 2026-09-19 — Linux port (Debian 13 trixie / Ubuntu 26.04)
+
+The same three changes are now mirrored into the Linux shell stack; all HF
+downloads funnel through the single choke point
+`scripts/shells/linux/common/tts_install_assets_common.sh`
+(`install_hf_repo_flat`, used by fishspeech/qwen3tts/voxcpm2/bark/parler/
+chattts/gptsovits/qwen25/nllb200/deepseek installers), so one fix covers every
+engine.
+
+- HF token auto-discovery: `resolve_hf_auth_token()` walks env
+  `HF_TOKEN`/`HUGGING_FACE_HUB_TOKEN` -> EVERY
+  `.secret_keys/.secret_ignore/HF_TOKEN_<index>` (numeric order, uncapped) ->
+  bare `HF_TOKEN` file, validates each `hf_*` candidate against whoami-v2
+  (401/403 falls through), prints the masked pick once
+  (`[hf] HF auth: using HF_TOKEN_1 (...xxxx); whoami OK`), and exports
+  `HF_TOKEN` for child processes. Per-process cache, same as Windows.
+- Mirror auth fix: `_hf_curl_auth_setup()` switches the authenticated curls
+  (size HEAD probe, gated preflight HEAD, resumable download) from `-L` to
+  `--location-trusted` so the hf-mirror 308 to huggingface.co keeps the
+  `Authorization` header. The urllib catalog walker (`_hf_repo_catalog`) sends
+  the token itself and gained an `http_error_308` handler (urllib forwards
+  request headers across redirects; stock urllib does not follow 308 on the
+  older dedicated 3.10 runtime — Debian 13's 3.13 / Ubuntu 26.04's 3.13+ are
+  covered either way).
+- Gated-repo preflight in `install_hf_repo_flat()`: one HEAD probe on the
+  first allow-listed file; on 401/403 it prints the accept-license guidance
+  (naming the token source when a configured token lacks access) and returns
+  instead of spamming one curl error per file.
+- NVIDIA driver upgrade notice: new
+  `scripts/shells/linux/common/nvidia_driver_upgrade_notice_common.sh` ->
+  `nvidia_driver_upgrade_notice()`, the Linux counterpart of
+  `NvidiaDriverUpgradeNoticeCommon.ps1`. Crash evidence comes from the kernel
+  log (`journalctl -k --since "14 days ago"`, dmesg fallback) matching
+  `NVRM: Xid` / nvidia+libcuda segfault lines; idempotency marker
+  (`driver=...;crash=...`) lives in the shared global-var store
+  (`NVIDIA_DRIVER_UPGRADE_NOTICE`). Wired into `install_pycore_torch_stack()`
+  in `torch_cuda_install.sh` so every torch/CUDA install runs it; skip switch
+  `NVIDIA_DRIVER_NOTICE_SKIP=1`. It never installs anything.
+- Verified: `bash -n` clean on all three touched/new scripts. Runtime
+  verification belongs to the next Linux installer run (Step143 fishspeech
+  checkpoint download exercises the whole chain).
