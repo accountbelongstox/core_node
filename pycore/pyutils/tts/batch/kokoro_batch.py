@@ -26,6 +26,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
 from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
+from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
 
 _ENGINE = "kokoro"
@@ -140,12 +141,14 @@ def synthesize_words(
 ) -> BatchResult:
     """Batch-synthesize words to per-word mp3 files in out_dir."""
     began = time.time()
+    snap_start = resource_monitor.snapshot()
     target_dir = Path(out_dir) if out_dir else const.engine_output_dir(_ENGINE)
     target_dir.mkdir(parents=True, exist_ok=True)
     result = BatchResult(engine=_ENGINE)
     if not kokoro_engine.available():
         ColorPrint.yellow("[kokoro-batch] engine unavailable")
         result.elapsed_ms = int((time.time() - began) * 1000)
+        resource_monitor.log_run(_ENGINE, snap_start, resource_monitor.snapshot())
         return result
 
     index = 0
@@ -155,6 +158,7 @@ def synthesize_words(
         )
         index += len(group)
     result.elapsed_ms = int((time.time() - began) * 1000)
+    resource_monitor.log_run(_ENGINE, snap_start, resource_monitor.snapshot())
     ColorPrint.green(
         f"[kokoro-batch] {sum(1 for i in result.items if i.ok)}/{len(result.items)} "
         f"words ok in {result.elapsed_ms}ms (merged={result.merged_used}, "
