@@ -251,23 +251,20 @@ EOF
 }
 
 # --- subcommand peek ----------------------------------------------------- #
-# Peek at the FIRST argument: if it is a known subcommand, consume it as CMD;
-# otherwise default to 'run' (so existing flag-first invocations keep working).
+# Only NON-run subcommands are consumed positionally here, because they own
+# and forward the remaining args (config/codesync) or hand off to helpers
+# (install/start/...). Everything else defaults to CMD=run and is parsed by
+# the run loop below, which walks the FULL argument list and matches each
+# token against the whole parameter library - so mode (1/2), the literal
+# `run` token, help, and every option can be STACKED in any order instead of
+# having to sit at a fixed position.
 CMD="run"
 case "${1:-}" in
-    1|2)
-        SERVICE_MODE="$1"; shift ;;
-    [0-9]*)
-        SERVICE_MODE="$1"; shift ;;
-    run|config|codesync|install|start|stop|restart|status|uninstall)
+    config|codesync|install|start|stop|restart|status|uninstall)
         CMD="$1"; shift ;;
     help|-h|--help)
         print_usage; exit 0 ;;
 esac
-if [[ "$CMD" == "run" && "${1:-}" =~ ^[0-9]+$ ]]; then
-    SERVICE_MODE="$1"
-    shift
-fi
 
 # --- self-elevation (Linux) --------------------------------------------- #
 # Service subcommands (install/start/stop/...) need root to write systemd
