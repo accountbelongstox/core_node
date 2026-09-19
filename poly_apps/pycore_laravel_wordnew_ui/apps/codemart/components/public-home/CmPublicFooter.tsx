@@ -1,7 +1,15 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
+import { useAuthSession } from '../../../../core/auth/useAuthSession';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { CmBrand } from '../CmBrand';
+
+const PROTECTED_PREFIXES = [
+  '/codemart/dashboard',
+  '/codemart/verification',
+  '/codemart/profile',
+];
 
 const FOOTER_GROUPS = [
   {
@@ -9,6 +17,7 @@ const FOOTER_GROUPS = [
     links: [
       { key: 'publicHome.footer.about', to: '/codemart/about' },
       { key: 'publicHome.footer.delivery', to: '/codemart/delivery-process' },
+      { key: 'publicHome.footer.download', to: '/codemart/download' },
       { key: 'publicHome.footer.information', to: '/codemart/information' },
     ],
   },
@@ -39,7 +48,18 @@ const FOOTER_GROUPS = [
 
 export const CmPublicFooter: React.FC = () => {
   const { t } = useTranslation('cm');
+  const navigate = useNavigate();
+  const authenticated = useAuthSession();
   const year = new Date().getFullYear();
+
+  const openLink = (to: string): void => {
+    const requiresSession = PROTECTED_PREFIXES.some((prefix) => to.startsWith(prefix));
+    if (requiresSession && !authenticated) {
+      requestAuthLogin({ source: 'codemart', reason: 'workspace-entry' });
+      return;
+    }
+    navigate(to);
+  };
 
   return (
     <footer className="cm-public-footer">
@@ -54,7 +74,16 @@ export const CmPublicFooter: React.FC = () => {
             {group.links.map((link) => link.to.startsWith('#') ? (
               <a key={link.key} href={link.to}>{t(link.key)}</a>
             ) : (
-              <Link key={link.key} to={link.to}>{t(link.key)}</Link>
+              <a
+                key={link.key}
+                href={link.to}
+                onClick={(event) => {
+                  event.preventDefault();
+                  openLink(link.to);
+                }}
+              >
+                {t(link.key)}
+              </a>
             ))}
           </nav>
         ))}

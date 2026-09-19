@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { key: 'nav.estimate', to: '/codemart/estimate' },
   { key: 'nav.services', to: '/codemart/services' },
   { key: 'nav.developers', to: '/codemart/marketplace' },
+  { key: 'nav.download', to: '/codemart/download' },
   { key: 'nav.about', to: '/codemart/about' },
 ] as const;
 
@@ -63,6 +64,13 @@ export const CmPublicHeader: React.FC = () => {
                 <button type="button" onClick={() => openAuthentication('sign-in')}>{t('nav.login')}</button>
                 <button type="button" className="cm-public-header__register" onClick={() => openAuthentication('register')}>
                   {t('nav.register')}
+                </button>
+                <button
+                  type="button"
+                  className="cm-public-header__register"
+                  onClick={() => openAuthentication('workspace-entry')}
+                >
+                  {t('nav.enterWorkspace')}
                 </button>
               </>
             )}
