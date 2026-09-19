@@ -21,6 +21,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
     save_config,
 )
 from pycore.pyctl.agent_history.pipeline import audio_rebuild
+from pycore.pyctl.agent_history.pipeline.prompt_templates import prompt_defaults
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
@@ -364,6 +365,7 @@ def _build_runtime() -> Dict[str, Any]:
         "data": {
             "article_config": config,
             "article_config_storage_path": str(user_data_store.path),
+            "article_prompt_defaults": prompt_defaults(),
             "article_summary": summary,
             "operation_snapshot": operation,
             "ai_dashboard": _agent_history_ai_dashboard(config),

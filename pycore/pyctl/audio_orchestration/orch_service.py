@@ -500,6 +500,88 @@ def task_progress(task_id: str) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
+# manifest drill-down (paged per-resource detail for the stats counters)       #
+# --------------------------------------------------------------------------- #
+_MANIFEST_PAGE_MAX = 200
+_MANIFEST_CATEGORIES = ("all", "cache", "laravel", "generated", "synced", "missing", "pending")
+
+
+def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+    """Page the persisted manifest's unique resources joined with their
+    resolution outcome (source cache/Laravel/generated, provider, sync state).
+    Pure read of orch_store data — the same counters the task progress shows,
+    expanded to per-item rows."""
+    task = orch_store.get_task(str(task_id or ""))
+    if not task:
+        return {"success": False, "error": "task not found"}
+    category = str(category or "all")
+    if category not in _MANIFEST_CATEGORIES:
+        category = "all"
+    manifest = orch_store.load_manifest(str(task.get("task_id") or ""))
+    progress = _task_progress(task)
+    base: Dict[str, Any] = {
+        "success": True,
+        "category": category,
+        "progress": progress,
+        "running": orch_generate.is_running(str(task.get("task_id") or "")),
+    }
+    segment_items = manifest.get("segment_items") if isinstance(manifest, dict) else None
+    if not isinstance(segment_items, list):
+        return {**base, "items": [], "total": 0, "page": 1, "page_count": 1}
+    resolved = manifest.get("resolved") if isinstance(manifest.get("resolved"), dict) else {}
+    meta = manifest.get("resource_meta") if isinstance(manifest.get("resource_meta"), dict) else {}
+    # Unique resources in manifest order (first occurrence wins).
+    rows: List[Dict[str, Any]] = []
+    seen: set = set()
+    for items in segment_items:
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            resource_id = str(item.get("resource_id") or "")
+            if not resource_id or resource_id in seen:
+                continue
+            seen.add(resource_id)
+            entry = meta.get(resource_id) if isinstance(meta.get(resource_id), dict) else {}
+            audio_path = str(resolved.get(resource_id) or "")
+            source = str(entry.get("source") or "")
+            if audio_path:
+                status = "ready"
+            elif source == "missing":
+                status = "missing"
+            else:
+                status = "pending"
+            synced = bool(entry.get("synced")) or bool(entry.get("sync_queued"))
+            if category == "pending" and status != "pending":
+                continue
+            if category == "missing" and status != "missing":
+                continue
+            if category in ("cache", "laravel", "generated") and source != category:
+                continue
+            if category == "synced" and not synced:
+                continue
+            rows.append({
+                "resource_id": resource_id,
+                "kind": str(item.get("kind") or ""),
+                "language": str(item.get("language") or ""),
+                "text": str(item.get("text") or ""),
+                "status": status,
+                "source": source,
+                "provider": str(entry.get("provider") or ""),
+                "synced": bool(entry.get("synced")),
+                "sync_queued": bool(entry.get("sync_queued")),
+                "has_audio": bool(audio_path),
+            })
+    page_size = max(1, min(_MANIFEST_PAGE_MAX, int(page_size or 50)))
+    total = len(rows)
+    page_count = max(1, (total + page_size - 1) // page_size)
+    page = max(1, min(page_count, int(page or 1)))
+    start = (page - 1) * page_size
+    return {**base, "items": rows[start:start + page_size], "total": total, "page": page, "page_count": page_count}
+
+
+# --------------------------------------------------------------------------- #
 # system status + generated files                                              #
 # --------------------------------------------------------------------------- #
 def _probe_ffmpeg() -> Dict[str, Any]:
@@ -595,6 +677,7 @@ __all__ = [
     "task_generate",
     "task_cancel",
     "task_progress",
+    "task_manifest_page",
     "resume_interrupted_generations",
     "system_status",
     "task_files",

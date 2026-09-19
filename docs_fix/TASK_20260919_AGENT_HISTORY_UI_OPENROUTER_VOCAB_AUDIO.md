@@ -24,13 +24,51 @@
 
 ## §2 Work breakdown
 
-- [ ] T1 UI first-paint ordering: page must render shell immediately; network/device/laravel probes must not block panel components (PcFloatingPanel, LaravelMediaUrl, PcAgentHistoryLogPanel, PcAgentHistoryVideoLogPanel, PcAgentHistoryAiPanel, PcAgentHistoryToolCheckboxes, TurnView).
-- [ ] T2 OpenRouter records panel: reuse/extend existing panel infra (PcFloatingPanel + PcPager + tool_fragment-style paging), paginated records (success, prompt, response, latency), in-flight progress, time/day filtering; generic enough for other AI providers. Backend record source in pycore.
-- [ ] T3 Prompt override: pycore preset prompts editable in panel; edits saved to user data dir; load order user-dir > code fallback.
-- [ ] T4 Move "生成学习视频" (learning video generation) out of agent-history into vocabulary audio orchestration tab; leave a shortcut link in agent-history. Reuse existing orchestration code; no duplicate libs.
-- [ ] T4b ffmpeg detection: cache result in frontend central cache library (extend it to generic), re-check every 3h or when pycore relay reports a new client.
-- [ ] T4c Orchestration task detail panels: per-statistic paged panels (progress, cache hits, from Laravel, local generation linked to pycore qwentts sentence/word generation base, synced, missing); centralize shared libs/data between UI and pycore.
+- [x] T1 UI first-paint ordering: page must render shell immediately; network/device/laravel probes must not block panel components (PcFloatingPanel, LaravelMediaUrl, PcAgentHistoryLogPanel, PcAgentHistoryVideoLogPanel, PcAgentHistoryAiPanel, PcAgentHistoryToolCheckboxes, TurnView).
+- [x] T2 OpenRouter records panel: reuse/extend existing panel infra (PcFloatingPanel + PcPager + tool_fragment-style paging), paginated records (success, prompt, response, latency), in-flight progress, time/day filtering; generic enough for other AI providers. Backend record source in pycore.
+- [x] T3 Prompt override: pycore preset prompts editable in panel; edits saved to user data dir; load order user-dir > code fallback.
+- [x] T4 Move "生成学习视频" (learning video generation) out of agent-history into vocabulary audio orchestration tab; leave a shortcut link in agent-history. Reuse existing orchestration code; no duplicate libs.
+- [x] T4b ffmpeg detection: cache result in frontend central cache library (extend it to generic), re-check every 3h or when pycore relay reports a new client.
+- [x] T4c Orchestration task detail panels: per-statistic paged panels (progress, cache hits, from Laravel, local generation linked to pycore qwentts sentence/word generation base, synced, missing); centralize shared libs/data between UI and pycore.
 
 ## §3 Implementation log
 
-(filled during development)
+### T1 UI first-paint ordering
+- Root cause: `PcUiStateBackupGate` blocked the whole app until `pycoreManagerUiStateSync.initialize()` finished; the backend state read went through MasterApiClient with a 30-minute default timeout, so the lazily-loaded page chunks (PcFloatingPanel, LaravelMediaUrl, the agent-history panels, TurnView) painted last behind a black screen.
+- `apps/pycore-manager/persistence/PcUiStateBackupGate.tsx`: 1200ms grace race — children render after the grace window even if the state read is still in flight; listeners register immediately; if a late reconcile actually changed state, the app reloads once to apply it.
+- `persistence/PycoreManagerUiStateSync.ts`: `initialize()` returns `Promise<boolean>` (reconcile changed state); state read capped by `STATE_READ_CEILING_MS = 10_000`.
+- `PcApp.tsx`: module-level `void import('./pages/PcAgentHistoryPage')` pre-warms the home-page chunk.
+
+### T2 OpenRouter records panel
+- `pycore/pyctl/ai/ai_usage_log.py`: `_DETAIL_CAP = 12000`; per-record `prompt`/`response` fields; in-memory in-flight registry (`begin_call`/`end_call`/`in_flight_calls`); `usage_log` gains `page`/`page_size`/`day` (iso-prefix match) returning `total`/`page`/`page_count`/`in_flight`.
+- `pycore/pyctl/ai/ai_chat.py`: `chat_once` wraps calls in begin/end_call and records prompt + response.
+- `pycore/callmodule/rpc_routes/local_ai_probe_routes.py`: usage route passes the new paging params through.
+- UI: `core/integrations/pycore/PycoreAiTypes.ts` + `PycoreApiAi.ts` (`getAiUsage(number | AiUsagePageOptions)`, backwards compatible).
+- New generic panel `apps/pycore-manager/components/PcAiUsageRecordsPanel.tsx` (PcFloatingPanel + PcPager, 20/page, day filter, 4s in-flight polling, expandable prompt/response rows, `provider`/`sources`/`defaultDay` props) — reusable by any AI provider surface.
+- `PcAgentHistoryAiPanel.tsx` refactored onto it (`provider="openrouter"`, sources article+translate, `defaultDay` follows the dashboard period).
+
+### T3 Prompt override (user data dir)
+- New `pycore/pyctl/agent_history/pipeline/prompt_templates.py`: `DEFAULT_ARTICLE_CN_PROMPT` / `DEFAULT_TRANSLATE_EN_PROMPT` (moved verbatim out of article_stages), token replace render, `resolve_prompt` (user config non-empty wins, code is the fallback), `prompt_defaults()`.
+- `pipeline/config.py`: whitelist adds `prompt_article_cn` / `prompt_translate_en`; `config/agent_history.settings.json` defaults add both as `""`.
+- `ui_service.py`: runtime payload adds `article_prompt_defaults`.
+- UI: `AgentHistoryRuntimeStore.ts` (`articlePromptDefaults`), `PcAgentHistoryConfigPanel.tsx` collapsible prompt editors (dirty-ref guard against refresh clobbering, saving identical-to-default stores `""`, "reset to default" clears the override).
+
+### T4 Learning video moved to vocabulary orchestration
+- `PcVocabularyPage.tsx`: honors `?tab=` URL param (beats localStorage).
+- New `pages/vocabulary/orchestration/OrchLearningVideoPanel.tsx`: same backend `video_*` config via `useAgentHistoryRuntime` / `persistAgentHistoryArticleConfig`, same `PcAgentHistoryVideoLogPanel` — no duplicated logic.
+- `PcAgentHistoryConfigPanel.tsx`: video section removed, replaced by a shortcut link to `/pycore-manager/vocabulary?tab=audio-orch` (new locale keys `videoMovedToOrch` / `openAudioOrch`).
+
+### T4b ffmpeg detection frontend cache
+- `apps/pycore-manager/api/PycoreCache.ts`: generic TTL cache `saveTtlCache` / `loadTtlCache` / `loadTtlCacheStale` (prefix `pycore_ttl_cache:`).
+- `VocabAudioOrchTab.tsx`: `orch.system_status` cached 3h; stale value paints instantly; expiry forces `orchSystemStatus(true)`; a pycore relay device change triggers a fresh probe.
+
+### T4c Orchestration manifest drill-down panels
+- `orch_generate.py`: manifest persists a new `resource_meta` map (`{resource_id: {source, provider, synced, sync_queued}}`) written in `_resource_done`; `_load_resume_state` reads it back (old manifests without it still resume).
+- `orch_service.py`: new `task_manifest_page(task_id, category, page, page_size)` — pages the manifest's unique resources joined with `resolved` + `resource_meta`; categories all/cache/laravel/generated/synced/missing/pending.
+- Routes: `UI_AUDIO_ORCH_TASK_MANIFEST_PAGE = "ui/audio_orch/task/manifest_page"` in `route_names.py`, registered in `local_audio_orchestration_routes.py`.
+- UI: `PycoreHttpRoutes.ts` + `PycoreApiOrchestration.ts` (`orchTaskManifestPage`, `OrchManifestItem`/`OrchManifestPageResponse` types); new `pages/vocabulary/orchestration/OrchManifestPanel.tsx` (PcFloatingPanel + PcPager + category tabs, 5s live refresh while the task runs; generated rows show the provider, i.e. the qwen TTS base); `OrchTaskList.tsx` stats counters (cache / from Laravel / generated / synced / missing, plus the "x/y audio items" progress) are now buttons opening the panel at the matching category.
+
+### Verification
+- `npx tsc --noEmit`: zero errors in all touched files; repo total unchanged at 97 pre-existing errors unrelated to this task.
+- `ast.parse` passes for every touched Python file.
+- Not verified at runtime (pre-existing environment gaps, not introduced here): no php cli on this machine, default python lacks aiohttp so a live pycore smoke run was not possible.

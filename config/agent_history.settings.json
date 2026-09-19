@@ -6,6 +6,8 @@
     "target_lang": "EN",
     "min_raw_words": 200,
     "openrouter_model": "openrouter/free",
+    "prompt_article_cn": "",
+    "prompt_translate_en": "",
     "video_enabled": false,
     "video_username": "",
     "video_batch_name": "default",

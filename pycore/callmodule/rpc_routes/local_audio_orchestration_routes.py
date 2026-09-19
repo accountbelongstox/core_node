@@ -76,6 +76,19 @@ def register_local_audio_orchestration_routes(server) -> None:
     def task_files(params, request_id, context):
         return orch_service.task_files(str(params.get("task_id") or ""))
 
+    def task_manifest_page(params, request_id, context):
+        try:
+            page = int(params.get("page") or 1)
+            page_size = int(params.get("page_size") or 50)
+        except (TypeError, ValueError):
+            page, page_size = 1, 50
+        return orch_service.task_manifest_page(
+            str(params.get("task_id") or ""),
+            str(params.get("category") or "all"),
+            page,
+            page_size,
+        )
+
     def open_output(params, request_id, context):
         return orch_service.open_output(params.get("task_id") or None)
 
@@ -98,6 +111,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_TASK_PROGRESS, task_progress),
         (route_names.UI_AUDIO_ORCH_SYSTEM_STATUS, system_status),
         (route_names.UI_AUDIO_ORCH_TASK_FILES, task_files),
+        (route_names.UI_AUDIO_ORCH_TASK_MANIFEST_PAGE, task_manifest_page),
         (route_names.UI_AUDIO_ORCH_OPEN_OUTPUT, open_output),
     )
     server.register_routes(routes, group="audio_orchestration")

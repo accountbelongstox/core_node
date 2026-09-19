@@ -5,11 +5,14 @@ from pycore.pyctl.agent_history.agent_history_fragments import sanitize_fragment
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.agent_history.pipeline.config import get_config
+from pycore.pyctl.agent_history.pipeline.prompt_templates import (
+    render_article_cn_prompt,
+    render_translate_en_prompt,
+)
 from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
 from pycore.pyutils.common.llm_content import parse_json_object
 from pycore.pyutils.laravel.article_contract import (
     TITLE_MAX,
-    TITLE_PROMPT_MAX,
     clip_on_boundary,
     compose_title,
 )
@@ -51,18 +54,8 @@ def generate_chinese_article(
     cfg = get_config()
     model = str(cfg.get("openrouter_model") or "openrouter/free")
     ref = str(cfg.get("reference_lang") or "CN").upper()
-    
-    prompt = (
-        f"You are a language-learning editor. Reference language: {ref}.\n"
-        "Using ONLY the RAW material below, write one coherent short article in fluent Chinese.\n"
-        "Rules:\n"
-        "1. Preserve factual meaning from the raw fragments; do not invent unrelated topics.\n"
-        "2. The Chinese article body goes in reference_cn (at least 150 characters).\n"
-        f"3. title_cn is a concise title of at most {TITLE_PROMPT_MAX} characters.\n"
-        "Return ONLY JSON (no markdown) shaped exactly:\n"
-        '{"title_cn": string, "reference_cn": string}\n\n'
-        f"RAW:\n{raw_text}"
-    )
+
+    prompt = render_article_cn_prompt(cfg, ref, raw_text)
     
     ensure_openrouter_available()
     
@@ -107,17 +100,11 @@ def translate_to_english(
     """Translate the Chinese article to English."""
     cfg = get_config()
     model = str(cfg.get("openrouter_model") or "openrouter/free")
-    
-    prompt = (
-        "Translate the following Chinese article into fluent English.\n"
-        "Rules:\n"
-        "1. The English article in article_en must be at least 180 words.\n"
-        "2. Preserve the factual meaning; do not add unrelated content.\n"
-        f"3. title_en is a concise English title of at most {TITLE_PROMPT_MAX} characters.\n"
-        "Return ONLY JSON (no markdown) shaped exactly:\n"
-        '{"title_en": string, "article_en": string}\n\n'
-        f"TITLE_CN: {article_cn.get('title_cn') or ''}\n"
-        f"ARTICLE_CN:\n{article_cn.get('reference_cn') or ''}"
+
+    prompt = render_translate_en_prompt(
+        cfg,
+        str(article_cn.get('title_cn') or ''),
+        str(article_cn.get('reference_cn') or ''),
     )
     
     ensure_openrouter_available()

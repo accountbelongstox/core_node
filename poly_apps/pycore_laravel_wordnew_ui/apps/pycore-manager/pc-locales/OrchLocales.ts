@@ -111,7 +111,20 @@ export const orchEn = {
   "wordGroupHint": "Words Only NEW steps use this group's read-word records, pulled after login.",
   "noWordGroups": "No word groups",
   "groupsLoadFailed": "Unable to load word groups.",
-  "defaultGroup": "Default Vocabulary Group"
+  "defaultGroup": "Default Vocabulary Group",
+  "videoTitle": "Learning Videos",
+  "videoOff": "Learning video generation is off.",
+  "manifestPanelTitle": "Resource manifest",
+  "manifestEmpty": "No resources in this category.",
+  "catAll": "All",
+  "catPending": "pending",
+  "close": "Close",
+  "prev": "Prev",
+  "next": "Next",
+  "go": "Go",
+  "jumpPage": "Page",
+  "expandPages": "Show all pages",
+  "collapsePages": "Collapse pages"
 } as const;
 
 export const orchZh = {
@@ -227,5 +240,18 @@ export const orchZh = {
   "wordGroupHint": "“仅新词”步骤使用该组的已读记录，登录后从后端拉取。",
   "noWordGroups": "暂无单词组",
   "groupsLoadFailed": "无法加载单词组。",
-  "defaultGroup": "默认单词组"
+  "defaultGroup": "默认单词组",
+  "videoTitle": "学习视频",
+  "videoOff": "学习视频生成已关闭。",
+  "manifestPanelTitle": "资源清单",
+  "manifestEmpty": "该分类下暂无资源。",
+  "catAll": "全部",
+  "catPending": "待处理",
+  "close": "关闭",
+  "prev": "上一页",
+  "next": "下一页",
+  "go": "跳转",
+  "jumpPage": "页码",
+  "expandPages": "展开全部页码",
+  "collapsePages": "收起页码"
 } as const;

@@ -11,6 +11,9 @@ import {
   pycoreApi,
   onHttpStatus,
   subscribeLaravelRelayDevice,
+  loadTtlCache,
+  loadTtlCacheStale,
+  saveTtlCache,
   type OrchAuthStatus,
   type OrchBookItem,
   type OrchSystemStatus,
@@ -25,8 +28,14 @@ import OrchSystemPanel from './OrchSystemPanel';
 import OrchBookPicker from './OrchBookPicker';
 import OrchTaskList from './OrchTaskList';
 import OrchTaskEditor from './OrchTaskEditor';
+import OrchLearningVideoPanel from './OrchLearningVideoPanel';
 
 const POLL_MS = 3000;
+// Frontend central TTL cache for the system probe (ffmpeg etc.): instant paint
+// with the last good value, a forced re-probe every 3h or when the pycore
+// relay device changes.
+const SYSTEM_CACHE_NAME = 'orch.system_status';
+const SYSTEM_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
 
 const VocabAudioOrchTab: React.FC = () => {
   const [auth, setAuth] = useState<OrchAuthStatus | null>(null);
@@ -61,9 +70,12 @@ const VocabAudioOrchTab: React.FC = () => {
     requestsRef.current.system = true;
     setSystemLoading(true);
     try {
-      const response = await pycoreApi.orchSystemStatus(refresh);
+      // Force a backend re-probe when the frontend TTL cache has expired.
+      const forceProbe = refresh || !loadTtlCache(SYSTEM_CACHE_NAME, SYSTEM_CACHE_TTL_MS);
+      const response = await pycoreApi.orchSystemStatus(forceProbe);
       if (!response.success) throw new Error(response.error || ORCH_L.loadFailed);
       setSystemStatus(response);
+      saveTtlCache(SYSTEM_CACHE_NAME, response);
       setSystemError(null);
     } catch (e) {
       setSystemError(orchErrorMessage(e, ORCH_L.loadFailed));
@@ -140,6 +152,10 @@ const VocabAudioOrchTab: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Paint the cached system status (ffmpeg probe result) instantly; the
+    // load below revalidates in the background.
+    const cached = loadTtlCacheStale<OrchSystemStatus>(SYSTEM_CACHE_NAME);
+    if (cached) setSystemStatus(cached.value);
     void loadAuth();
     void syncAuth();
     void loadSystem(false);
@@ -155,7 +171,11 @@ const VocabAudioOrchTab: React.FC = () => {
       void loadTasks();
     };
     const unsubscribe = [
-      subscribeLaravelRelayDevice(() => void syncAuth()),
+      // A new relay device may mean a different pycore machine: re-probe.
+      subscribeLaravelRelayDevice(() => {
+        void syncAuth();
+        void loadSystem(true);
+      }),
       onHttpStatus((connected) => {
         if (!connected) return;
         refresh();
@@ -270,6 +290,10 @@ const VocabAudioOrchTab: React.FC = () => {
         onGenerate={(taskId) => void generate(taskId)}
         onChanged={() => void loadTasks()}
       />
+
+      {/* Learning video generation (moved from agent-history; reuses the
+          shared agent_history_article video_* config + video jobs log). */}
+      <OrchLearningVideoPanel />
     </div>
   );
 };

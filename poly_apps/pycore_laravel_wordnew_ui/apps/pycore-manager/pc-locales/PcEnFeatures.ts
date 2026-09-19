@@ -384,5 +384,12 @@ agentHistory: {
     recordsPanelResponse: 'Response content',
     recordsPanelEmpty: 'No records match the current filters.',
     recordsPanelTotal: 'records',
+    promptsTitle: 'Pipeline prompts',
+    promptArticleCn: 'Chinese article prompt',
+    promptTranslateEn: 'English translation prompt',
+    promptOverrideHint: 'Saved to the user data directory; clearing a field restores the built-in default. Tokens: {ref} {title_max} {raw} (CN) · {title_max} {title_cn} {article_cn} (EN).',
+    promptReset: 'Reset to default',
+    videoMovedToOrch: 'Learning video generation moved to Vocabulary → Audio Orchestration.',
+    openAudioOrch: 'Open audio orchestration',
   }
 } as const;

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   CalendarDays,
   ChevronRight,
@@ -8,8 +8,11 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
-import PcFloatingPanel from '../../components/PcFloatingPanel';
+import PcAiUsageRecordsPanel from '../../components/PcAiUsageRecordsPanel';
 import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
+
+// Usage sources the article pipeline records through chat_once (CN + EN).
+const ARTICLE_USAGE_SOURCES = ['agent_history_article', 'agent_history_translate'];
 
 function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? value as Record<string, any> : {};
@@ -24,18 +27,6 @@ function formatLatency(value: unknown, tk: (key: string) => string): string {
 function formatTimestamp(value: unknown): string {
   const date = typeof value === 'number' ? new Date(value) : new Date(String(value || ''));
   return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(value || '');
-}
-
-function statusClass(status: string): string {
-  if (status === 'completed') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300';
-  if (status === 'failed') return 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300';
-  if (status === 'running') return 'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300';
-  return 'border-slate-300 dark:border-white/10 text-slate-500';
-}
-
-function taskKey(task: Record<string, any>): string {
-  if (task.id) return String(task.id);
-  return [task.ts, task.source, task.model, task.runtime].map((value) => String(value || '')).join(':');
 }
 
 function failureLabel(code: unknown, tk: (key: string) => string): string {
@@ -74,27 +65,12 @@ const PcAgentHistoryAiPanel: React.FC<{
   const quotaPercent = dayLimit > 0 ? Math.min(100, Math.round((dayUsed / dayLimit) * 100)) : 0;
   const quotaPaused = dayLimit > 0 && dayUsed >= dayLimit;
   const cooldown = asRecord(rate.cooldown);
-  const tasks = Array.isArray(dashboard.tasks) ? dashboard.tasks : [];
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedTaskKey, setSelectedTaskKey] = useState('');
 
-  const visibleTasks = useMemo(() => {
-    if (taskPeriod === 'history') return tasks;
-    const day = String(dashboard.day || '');
-    return tasks.filter((task) => String(task.iso || '').startsWith(day));
-  }, [dashboard.day, taskPeriod, tasks]);
-  const periodTotal = taskPeriod === 'today'
-    ? Number(dashboard.today_task_total || 0)
-    : Number(dashboard.task_total || 0);
   const periodUsage = taskPeriod === 'today' ? todayUsage : historyUsage;
-  const periodFailures = Array.isArray(periodUsage.failure_breakdown)
-    ? periodUsage.failure_breakdown
-    : [];
-  const selectedTask = visibleTasks.find((task) => taskKey(task) === selectedTaskKey) || null;
 
   const openTasks = (period: AgentHistoryTaskPeriod) => {
     onTaskPeriodChange(period);
-    setSelectedTaskKey('');
     setModalOpen(true);
   };
 
@@ -189,86 +165,18 @@ const PcAgentHistoryAiPanel: React.FC<{
         </div>
       </section>
 
-      <PcFloatingPanel
+      {/* Paged request records (prompt/response detail, in-flight progress,
+          day filter) — the generic panel scoped to the article pipeline's
+          OpenRouter sources. */}
+      <PcAiUsageRecordsPanel
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        closeLabel={tk('close')}
-        widthClass="max-w-6xl"
+        tk={tk}
         title={tk('requestAttemptList')}
-        subtitle={`${taskPeriod === 'today' ? tk('todayLoad') : tk('historyLoad')} · ${tk('shown')}: ${visibleTasks.length}/${periodTotal}`}
-      >
-        <div className="grid min-h-[420px] grid-cols-1 md:grid-cols-[340px_minmax(0,1fr)] -m-4">
-          <aside className="overflow-y-auto border-b md:border-b-0 md:border-r border-slate-200 dark:border-white/10 p-3 space-y-2 max-h-[calc(88vh-62px)]">
-                {visibleTasks.length === 0 && <p className="p-3 text-xs text-slate-500">{tk('tasksEmpty')}</p>}
-                {visibleTasks.map((task) => {
-                  const key = taskKey(task);
-                  const status = task.success ? 'completed' : 'failed';
-                  return (
-                    <button
-                      type="button"
-                      key={key}
-                      onClick={() => setSelectedTaskKey(key)}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-colors ${selectedTaskKey === key ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/10 hover:border-indigo-500/40'}`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-xs font-medium text-slate-800 dark:text-slate-100">{String(task.source || '') === 'agent_history_translate' ? tk('englishTask') : tk('chineseTask')}</span>
-                        <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] ${statusClass(status)}`}>{task.success ? tk('succeeded') : tk('failed')}</span>
-                      </div>
-                      <p className="mt-1 text-[10px] font-mono text-slate-500">{formatTimestamp(task.iso)}</p>
-                      <p className="mt-1 truncate text-[10px] text-slate-400">{String(task.model || dashboard.model || '')} · {formatLatency(task.latency_ms, tk)}</p>
-                    </button>
-                  );
-                })}
-              </aside>
-
-              <main className="overflow-y-auto p-4 max-h-[calc(88vh-62px)]">
-                {periodFailures.length > 0 && (
-                  <section className="mb-4 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
-                    <h4 className="text-xs font-semibold text-rose-600 dark:text-rose-300">{tk('failureBreakdown')}</h4>
-                    <div className="mt-2 space-y-1.5 text-[11px]">
-                      {periodFailures.map((failure: Record<string, any>) => (
-                        <div key={String(failure.code)} className="flex flex-wrap justify-between gap-2">
-                          <span>{failureLabel(failure.code, tk)}</span>
-                          <span className="font-mono">{Number(failure.count || 0)} · {tk('providerReached')}: {Number(failure.provider_reached || 0)} · {tk('quotaCounted')}: {Number(failure.quota_counted || 0)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-                {!selectedTask && <div className="flex h-full items-center justify-center text-xs text-slate-500">{tk('pickTask')}</div>}
-                {selectedTask && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-                      <div className="rounded-lg bg-slate-100 dark:bg-white/5 p-2"><span className="block text-[10px] text-slate-500">{tk('requestType')}</span>{String(selectedTask.source || '') === 'agent_history_translate' ? tk('englishTask') : tk('chineseTask')}</div>
-                      <div className="rounded-lg bg-slate-100 dark:bg-white/5 p-2"><span className="block text-[10px] text-slate-500">{tk('taskStatus')}</span>{selectedTask.success ? tk('succeeded') : tk('failed')}</div>
-                      <div className="rounded-lg bg-slate-100 dark:bg-white/5 p-2"><span className="block text-[10px] text-slate-500">{tk('latency')}</span>{formatLatency(selectedTask.latency_ms, tk)}</div>
-                      <div className="rounded-lg bg-slate-100 dark:bg-white/5 p-2"><span className="block text-[10px] text-slate-500">{tk('updated')}</span>{formatTimestamp(selectedTask.iso)}</div>
-                    </div>
-
-                    <section>
-                      <h4 className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">{tk('taskDetail')}</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('provider')}</span>{String(selectedTask.provider || 'openrouter')}</div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('model')}</span><span className="break-all font-mono">{String(selectedTask.model || dashboard.model || '')}</span></div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('runtime')}</span>{String(selectedTask.runtime || '')}</div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('requestSource')}</span><span className="break-all font-mono">{String(selectedTask.source || '')}</span></div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('failureCode')}</span><span className="break-all font-mono">{String(selectedTask.error_code || tk('noData'))}</span></div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('providerReached')}</span>{selectedTask.provider_reached ? tk('yes') : tk('no')}</div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('quotaCounted')}</span>{selectedTask.quota_counted ? tk('yes') : tk('no')}</div>
-                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('attemptContext')}</span><span className="break-all font-mono">{Object.keys(asRecord(selectedTask.context)).length > 0 ? JSON.stringify(selectedTask.context) : tk('noData')}</span></div>
-                      </div>
-                    </section>
-                    {selectedTask.error && (
-                      <section>
-                        <h4 className="mb-2 text-xs font-semibold text-rose-600 dark:text-rose-300">{tk('taskError')}</h4>
-                        <pre className="whitespace-pre-wrap break-all rounded-lg bg-rose-500/10 p-3 text-[11px] text-rose-600 dark:text-rose-300">{String(selectedTask.error)}</pre>
-                      </section>
-                    )}
-                  </div>
-                )}
-              </main>
-        </div>
-      </PcFloatingPanel>
+        provider="openrouter"
+        sources={ARTICLE_USAGE_SOURCES}
+        defaultDay={taskPeriod === 'today' ? String(dashboard.day || '') : ''}
+      />
     </>
   );
 };

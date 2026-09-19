@@ -25,6 +25,12 @@ import VocabAudioOrchTab from './vocabulary/orchestration/VocabAudioOrchTab';
 export default function PcVocabularyPage() {
   const { t } = useTranslation('pc');
   const [activeTab, setActiveTab] = useState<VocabTabKey>(() => {
+    // A ?tab= deep link (e.g. the agent-history shortcut) wins over the
+    // persisted tab selection.
+    const fromUrl = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('tab')
+      : null;
+    if (fromUrl && VOCAB_TABS.some((tab) => tab.key === fromUrl)) return fromUrl as VocabTabKey;
     const saved = StorageManager.getRaw(VOCAB_TAB_KEY) as VocabTabKey | null;
     if (saved && VOCAB_TABS.some((t) => t.key === saved)) return saved;
     return 'words';

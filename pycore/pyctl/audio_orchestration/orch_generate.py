@@ -66,6 +66,7 @@ def _save_manifest_state(
     segment_items: List[List[Dict[str, Any]]],
     resolved: Dict[str, str],
     stats: Dict[str, Any],
+    resource_meta: Optional[Dict[str, Any]] = None,
 ) -> None:
     orch_store.save_manifest(str(task["task_id"]), {
         "signature": str(task.get("plan_signature") or ""),
@@ -73,6 +74,7 @@ def _save_manifest_state(
         "segment_items": segment_items,
         "resolved": resolved,
         "stats": stats,
+        "resource_meta": resource_meta or {},
         "updated_at": int(time.time()),
     })
 
@@ -81,7 +83,8 @@ def _load_resume_state(
     task: Dict[str, Any],
 ) -> Optional[Dict[str, Any]]:
     """Reload the persisted manifest when it matches the CURRENT plan. Returns
-    {segment_items, resolved, stats, generation_id} or None (fresh run)."""
+    {segment_items, resolved, stats, resource_meta, generation_id} or None
+    (fresh run)."""
     manifest = orch_store.load_manifest(str(task["task_id"]))
     if not isinstance(manifest, dict) or not manifest:
         return None
@@ -98,10 +101,12 @@ def _load_resume_state(
         if audio_path and Path(str(audio_path)).is_file()
     }
     stats_raw = manifest.get("stats")
+    meta_raw = manifest.get("resource_meta")
     return {
         "segment_items": segment_items,
         "resolved": resolved,
         "stats": stats_raw if isinstance(stats_raw, dict) else {},
+        "resource_meta": meta_raw if isinstance(meta_raw, dict) else {},
         "generation_id": str(manifest.get("generation_id") or ""),
     }
 
@@ -393,6 +398,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     resolved: Dict[str, str] = {}
     segment_items: List[List[Dict[str, Any]]] = []
     stats = dict(default_stats)
+    # Per-resource drill-down detail (source/provider/sync) persisted with the
+    # manifest so the UI manifest panel can page every resource by category.
+    resource_meta: Dict[str, Any] = {}
 
     if resume_state is None:
         # Fresh run: any stale durable state from a previous plan is dropped.
@@ -490,6 +498,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         segment_items = resume_state["segment_items"]
         resolved = resume_state["resolved"]
         stats = {**default_stats, **resume_state["stats"]}
+        resource_meta = dict(resume_state["resource_meta"])
         resources = {}
         for items in segment_items:
             for item in items:
@@ -536,6 +545,13 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     def _resource_done(index: int, resource: Dict[str, Any], result: Dict[str, Any]) -> None:
         nonlocal last_resource_write, manifest_dirty
         source = str(result.get("source") or "missing")
+        meta: Dict[str, Any] = {
+            "source": source,
+            "provider": str(result.get("provider") or ""),
+            "synced": False,
+            "sync_queued": False,
+        }
+        resource_meta[resource["resource_id"]] = meta
         if result.get("status") == "ready" and result.get("audio_path"):
             resolved[resource["resource_id"]] = str(result["audio_path"])
             if source == "cache":
@@ -554,8 +570,10 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                     )
                     if sync.get("queued"):
                         stats["sync_queued"] += 1
+                        meta["sync_queued"] = True
                     if sync.get("already_uploaded"):
                         stats["synced"] += 1
+                        meta["synced"] = True
                     elif not sync.get("queued"):
                         orch_store.append_task_event(
                             task,
@@ -573,7 +591,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         manifest_dirty += 1
         if manifest_dirty >= _MANIFEST_SAVE_EVERY_RESOURCES:
             manifest_dirty = 0
-            _save_manifest_state(task, segment_items, resolved, stats)
+            _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
         absolute_index = resource_done_base + index
         persist = time.monotonic() - last_resource_write >= 0.5 or absolute_index == resource_total
         if persist:
@@ -595,7 +613,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         progress_callback=_resource_done,
         activity_callback=_resource_activity,
     )
-    _save_manifest_state(task, segment_items, resolved, stats)
+    _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
     if _cancel(task, stats):
         return
     orch_store.append_task_event(
