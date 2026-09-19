@@ -229,6 +229,37 @@ class QueueCenterController extends Controller
     }
 
     /**
+     * POST /api/queue-center/queues/{queue}/head/batch
+     * Body: { items: [{ dedup_key, payload? }, ...] } -> one enqueue-or-move
+     * per item, one head notification per queue. Concurrent batches from
+     * Laravel gateways and pycore clients race safely on the live-dedup
+     * unique index plus locked monotonic head tickets.
+     */
+    public function moveToHeadBatch(Request $request, string $queue): JsonResponse
+    {
+        if (!QueueCenterService::isSupportedQueue($queue)) {
+            return $this->notFound(
+                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
+            );
+        }
+
+        $batchLimit = max(1, (int) (
+            QueueCenterContract::diffDelivery()['producer_batch_limits'][$queue]
+            ?? QueueCenterContract::diffDelivery()['data_segment_limit']
+            ?? 128
+        ));
+        $validated = $request->validate([
+            'items' => 'required|array|min:1|max:' . $batchLimit,
+            'items.*.dedup_key' => 'required|string|max:200',
+            'items.*.payload' => 'nullable|array',
+        ]);
+
+        $result = $this->queueCenter->moveToHeadBatch($queue, $validated['items']);
+
+        return $this->success($result, 'Batch moved to queue head');
+    }
+
+    /**
      * POST /api/queue-center/tasks/{taskId}/cancel
      */
     public function cancel(string $taskId): JsonResponse

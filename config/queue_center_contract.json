@@ -83,6 +83,7 @@
     "queue_center_queue_id_pages": "/api/queue-center/queues/{queue}/id-pages",
     "queue_center_queue_page_data": "/api/queue-center/queues/{queue}/page-data",
     "queue_center_queue_head": "/api/queue-center/queues/{queue}/head",
+    "queue_center_queue_head_batch": "/api/queue-center/queues/{queue}/head/batch",
     "queue_center_task_cancel": "/api/queue-center/tasks/{task_id}/cancel",
     "queue_center_task_retry": "/api/queue-center/tasks/{task_id}/retry",
     "worker_register": "/api/worker/register",

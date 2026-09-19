@@ -185,6 +185,79 @@ class QueueCenterService
         ];
     }
 
+    /**
+     * Batch variant of moveToHead: one enqueue-or-move per item, a single
+     * head notification for the queue at the end. Monotonic head tickets
+     * preserve submission order; the live-dedup contract keeps one live row
+     * per dedup key even when Laravel and pycore race the same batch.
+     *
+     * @param array<int,array{dedup_key:string,payload?:array}> $items
+     * @return array{ok:bool,queue:string,results:array<int,array>,moved:int,created:int}
+     */
+    public function moveToHeadBatch(string $taskType, array $items): array
+    {
+        $this->assertSupportedQueue($taskType);
+
+        $results = [];
+        $moved = 0;
+        $created = 0;
+        foreach ($items as $item) {
+            $dedupKey = trim((string) ($item['dedup_key'] ?? ''));
+            if ($dedupKey === '') {
+                $results[] = [
+                    'dedup_key' => '',
+                    'ok' => false,
+                    'task_id' => null,
+                    'created' => false,
+                    'head_action' => 'invalid',
+                    'queue_position' => 0,
+                ];
+                continue;
+            }
+
+            try {
+                $result = $this->moveToHead(
+                    $taskType,
+                    $dedupKey,
+                    is_array($item['payload'] ?? null) ? $item['payload'] : [],
+                    false
+                );
+            } catch (\Throwable $exception) {
+                $results[] = [
+                    'dedup_key' => $dedupKey,
+                    'ok' => false,
+                    'task_id' => null,
+                    'created' => false,
+                    'head_action' => 'error',
+                    'error' => $exception->getMessage(),
+                    'queue_position' => 0,
+                ];
+                continue;
+            }
+
+            $result['dedup_key'] = $dedupKey;
+            $results[] = $result;
+            if (($result['head_action'] ?? null) === 'moved_to_head') {
+                $moved++;
+            }
+            if ($result['created'] ?? false) {
+                $created++;
+            }
+        }
+
+        if ($moved > 0) {
+            $this->headNotifications->record($taskType);
+        }
+
+        return [
+            'ok' => true,
+            'queue' => $taskType,
+            'results' => $results,
+            'moved' => $moved,
+            'created' => $created,
+        ];
+    }
+
     /** Move an existing queue-position task to the physical head. */
     public function moveExistingTaskToHead(string $taskId, bool $emitEvent = true): array
     {

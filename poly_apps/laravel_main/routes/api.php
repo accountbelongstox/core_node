@@ -407,6 +407,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('qu
     Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);
     Route::get('queues/{queue}/page-data', [QueueCenterController::class, 'pageData']);
     Route::post('queues/{queue}/head', [QueueCenterController::class, 'moveToHead']);
+    Route::post('queues/{queue}/head/batch', [QueueCenterController::class, 'moveToHeadBatch']);
     Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
     Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);
 });
