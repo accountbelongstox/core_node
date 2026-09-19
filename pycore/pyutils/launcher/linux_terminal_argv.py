@@ -67,6 +67,21 @@ class LinuxTerminalArgv:
         "qterminal": {"QT_QPA_PLATFORM": "xcb"},
     }
 
+    # X resources that give xterm the clipboard mouse behavior its defaults
+    # lack: select-to-copy straight into CLIPBOARD (not just PRIMARY) and a
+    # right-click paste (the stock Btn3 binding extends the selection instead).
+    # Passed as -xrm args on every xterm spawn so the grid, the tmux-attach and
+    # the unpositioned fallbacks all behave the same; the other emulators
+    # provide these via their own preferences. The "\n" inside the translations
+    # value must stay a literal backslash-n pair (xrm parses it as the line
+    # separator between translation entries).
+    XTERM_XRM_ARGS = (
+        "-xrm", "XTerm*selectToClipboard: true",
+        "-xrm", "XTerm*VT100.translations: #override "
+                "~Shift <Btn3Down>: ignore()\\n"
+                "~Shift <Btn3Up>: insert-selection(CLIPBOARD, PRIMARY)",
+    )
+
     # ------------------------------------------------------------------ #
     # Argv construction (per emulator)
     # ------------------------------------------------------------------ #
@@ -103,6 +118,8 @@ class LinuxTerminalArgv:
         # konsole, qterminal, xterm and any other emulator: shared -e convention.
         # (qterminal: `qterminal -e bash -lc '<inner>'`.)
         argv = [emulator]
+        if emulator == "xterm":
+            argv += list(self.XTERM_XRM_ARGS)
         if geometry and emulator == "xterm":
             argv += ["-geometry", geometry]
         elif geometry and emulator == "konsole":

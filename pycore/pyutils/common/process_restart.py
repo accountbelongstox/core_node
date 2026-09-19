@@ -76,7 +76,14 @@ def restart_current_process(
     launcher / autostart) keeps the fully detached handoff so the successor
     survives terminal closure and never allocates a window.
     """
-    executable = str(Path(sys.executable).resolve())
+    # Use sys.executable VERBATIM: a venv's bin/python3 is a symlink to the base
+    # interpreter, and resolving it jumps PAST the venv - the re-exec'd process
+    # then runs the bare system python without pyvenv.cfg (no venv site-packages:
+    # "No module named 'aiohttp'"). Only fall back to resolve() when the value
+    # is not already an absolute path.
+    executable = sys.executable
+    if not executable or not os.path.isabs(executable):
+        executable = str(Path(executable or "python3").resolve())
     command = [executable, *[str(item) for item in script_argv]]
     restart_cwd = str((cwd or Path.cwd()).resolve())
     restart_env = os.environ.copy()
