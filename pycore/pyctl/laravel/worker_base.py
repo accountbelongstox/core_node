@@ -47,6 +47,7 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 from pycore.pyutils.laravel.endpoint_manager import (
+    LARAVEL_ONLINE_SIGNAL,
     laravel_endpoint_manager,
 )
 from pycore.pyutils.laravel.client import laravel_client
@@ -413,6 +414,10 @@ class BaseLaravelWorkerService:
             outcome["error"] = error
             return outcome
         self._diff_recovery_state.set({})
+        if recovery:
+            # Offline -> online edge: durable-backlog consumers (audio delivery
+            # outbox, queue-head promotion replay) flush on this signal.
+            THREAD_BUS.signal(LARAVEL_ONLINE_SIGNAL, {"at": time.time(), "base_url": base_url})
         outcome["ok"] = True
         return outcome
 

@@ -105,6 +105,11 @@ _RESOLVING_SIGNAL = "laravel_endpoint_manager.resolving"
 # THREAD_BUS single-flight guard for background health sweeps kicked by
 # list_endpoints/probe_route (never run on the state-owner thread).
 _SWEEPING_SIGNAL = "laravel_endpoint_manager.sweeping"
+# THREAD_BUS signal published by Laravel workers when a diff poll succeeds
+# right after a recorded outage (offline -> online edge). Payload:
+# {"at": epoch_seconds, "base_url": str}. Durable-backlog consumers (audio
+# delivery outbox, queue-head promotion replay) flush on this edge.
+LARAVEL_ONLINE_SIGNAL = "laravel.endpoint.online"
 
 endpoint_cache_store = UserDataStore(
     base_dir=APP_DATA_DIR,

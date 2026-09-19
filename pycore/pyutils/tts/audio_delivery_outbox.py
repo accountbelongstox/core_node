@@ -432,6 +432,27 @@ class AudioDeliveryOutbox:
         return changed
 
     @serialized_method
+    @_record_transaction
+    def hurry_pending(self, lane: str) -> int:
+        """Reset the retry backoff of every waiting row of the lane so a
+        reconnect flush delivers offline-generated audio immediately instead
+        of waiting out the exponential delay."""
+        now = _now()
+        changed = 0
+        for row in self._load_records().values():
+            if str(row.get("lane") or "") != str(lane) or row.get("tombstone"):
+                continue
+            if str(row.get("status") or "pending") == "dead_letter":
+                continue
+            if float(row.get("retry_at") or 0) <= now:
+                continue
+            row["retry_at"] = 0.0
+            row["updated_at"] = now
+            self._save_record(row)
+            changed += 1
+        return changed
+
+    @serialized_method
     def stats(self, lane: str) -> Dict[str, Any]:
         rows = [
             row

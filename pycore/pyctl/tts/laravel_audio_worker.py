@@ -195,6 +195,7 @@ class BaseLaravelAudioWorker(
 
     def _on_laravel_online(self, base_url: str) -> None:
         """Flush generated local audio before admitting more remote work."""
+        audio_delivery_outbox.hurry_pending(self.LANE)
         self._start_outbox_drain()
 
     def __init__(self, laravel_api_url: str = ""):
@@ -246,6 +247,9 @@ class BaseLaravelAudioWorker(
         self._cache_dir = str(get_app_cache_dir() / "sentence_audio")
 
         self._initialized = True
+        # Startup flush: rows still waiting out a backoff from a previous
+        # process become ready immediately.
+        audio_delivery_outbox.hurry_pending(self.LANE)
         self._start_outbox_drain()
         ColorPrint.green(
             f"{self._log_prefix} Service initialized (worker_id={self.worker_id}, "
