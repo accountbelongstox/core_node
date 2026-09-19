@@ -47,8 +47,12 @@
       "language": "言語",
       "code_sync": "コード同期",
       "code_sync_distribute": "配信を開始",
-      "code_sync_skip_update": "更新をスキップ"
+      "code_sync_skip_update": "更新をスキップ",
+      "prompt_derive_sound": "プロンプト派生サウンド"
     }
+  },
+  "toast": {
+    "prompt_derived_title": "Linux（Debian）の新しいプロンプト"
   },
   "loading": {
     "text": "読み込み中...",

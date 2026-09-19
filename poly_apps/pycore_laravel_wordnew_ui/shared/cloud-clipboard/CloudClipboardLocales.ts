@@ -37,6 +37,8 @@ const en = {
   openPromptPanel: 'Open panel', promptAgent: 'Agent', promptOriginal: 'Original', promptDerived: 'Derived (EN)',
   promptDerivedHint: 'New prompts detected on the Linux host, derived into standard English by AI (OpenRouter free tier).',
   promptDerivedEmpty: 'No derived prompts yet. New prompts detected on the Linux host appear here after AI derivation.',
+  promptSoundOn: 'Notification sound: on',
+  promptSoundOff: 'Notification sound: off',
 };
 const zh: typeof en = {
   toggleFloating: '切换悬浮剪贴板', collapse: '折叠剪贴板', expand: '展开剪贴板', close: '关闭剪贴板',
@@ -70,6 +72,8 @@ const zh: typeof en = {
   openPromptPanel: '打开面板', promptAgent: 'AGENT', promptOriginal: '原词', promptDerived: '推导英文',
   promptDerivedHint: 'Linux 主机检测到的新提示词，经 AI（OpenRouter 免费额度）推导为标准英文。',
   promptDerivedEmpty: '暂无推导记录。Linux 主机检测到新提示词并经 AI 推导后会显示在这里。',
+  promptSoundOn: '提示音：开',
+  promptSoundOff: '提示音：关',
 };
 
 i18n.addResourceBundle('en', 'cloudClipboard', en, true, true);

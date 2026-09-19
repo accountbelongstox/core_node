@@ -223,6 +223,37 @@ else
     fi
 fi
 
+# 2b) torchcodec: api_v2 loads the reference clip via load_with_torchcodec; the
+# cloned requirements.txt predates that dependency, so repair missing-only
+# (never --upgrade; pip resolves the compatible build for the venv's torch).
+if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
+    gptsovits_venv_py="$(tts_resolve_isolated_python "$PYTHON" "gptsovits")"
+    if [[ -n "$gptsovits_venv_py" ]] && ! "$gptsovits_venv_py" -c 'import torchcodec' >/dev/null 2>&1; then
+        echo "[install_gptsovits] [..] installing missing torchcodec into the isolated venv (api_v2 audio loader) ..."
+        "$gptsovits_venv_py" -m pip install torchcodec || echo "[install_gptsovits] [!] torchcodec install failed; will retry next run."
+    fi
+fi
+
+# 2c) NLTK data: the English G2P path (pos_tag / g2p_en) fails every /tts call
+# without these resources; download missing-only into the venv's own nltk_data
+# (NLTK searches <sys.prefix>/nltk_data).
+if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
+    gptsovits_venv_py="$(tts_resolve_isolated_python "$PYTHON" "gptsovits")"
+    if [[ -n "$gptsovits_venv_py" ]]; then
+        gptsovits_venv_root="$(dirname "$(dirname "$gptsovits_venv_py")")"
+        nltk_missing=0
+        for res in "taggers/averaged_perceptron_tagger_eng" "corpora/cmudict"; do
+            if [[ ! -e "$gptsovits_venv_root/nltk_data/$res" && ! -e "$gptsovits_venv_root/nltk_data/$res.zip" ]]; then
+                nltk_missing=1
+            fi
+        done
+        if [[ "$nltk_missing" -eq 1 ]]; then
+            echo "[install_gptsovits] [..] downloading missing NLTK data (averaged_perceptron_tagger_eng, cmudict) into the isolated venv ..."
+            "$gptsovits_venv_py" -m nltk.downloader -d "$gptsovits_venv_root/nltk_data" averaged_perceptron_tagger_eng cmudict || echo "[install_gptsovits] [!] NLTK data download failed; will retry next run."
+        fi
+    fi
+fi
+
 # 3) pretrained models from HuggingFace (IDEMPOTENT: sentinel + curl resume) #
 if [[ -f "$SENTINEL" && "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "pretrained models sentinel present"

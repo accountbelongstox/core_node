@@ -7,13 +7,17 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
+import { Bell, BellOff, Bot, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
 import {
   pycoreEventBus,
   PYCORE_EVENT_TOPICS,
   PYCORE_HTTP_ROUTES,
   requestPycoreHttp,
 } from '../../core/integrations/pycore';
+import {
+  persistAgentHistoryArticleConfig,
+  useAgentHistoryRuntime,
+} from '@/apps/pycore-manager/api';
 import type {
   AgentHistoryPromptDerivedItem,
   AgentHistoryPromptDerivedResponse,
@@ -27,9 +31,24 @@ const buttonClass = 'inline-flex items-center justify-center gap-1 rounded-lg bo
 
 const PromptDerivedPanel: React.FC = () => {
   const { t } = useTranslation('cloudClipboard');
+  const { articleConfig } = useAgentHistoryRuntime();
   const [page, setPage] = useState(1);
   const [data, setData] = useState<AgentHistoryPromptDerivedResponse['data'] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [soundBusy, setSoundBusy] = useState(false);
+
+  // pycore owns sound playback; this toggle persists the shared config flag
+  // (prompt_derive_sound) that the derive worker checks before every playback.
+  const soundEnabled = articleConfig ? articleConfig.prompt_derive_sound !== false : true;
+
+  const toggleSound = useCallback(async () => {
+    setSoundBusy(true);
+    try {
+      await persistAgentHistoryArticleConfig({ prompt_derive_sound: !soundEnabled });
+    } finally {
+      setSoundBusy(false);
+    }
+  }, [soundEnabled]);
 
   const load = useCallback(async (target: number) => {
     setLoading(true);
@@ -63,6 +82,12 @@ const PromptDerivedPanel: React.FC = () => {
       <div className="flex items-center gap-2">
         <Bot size={16} className="shrink-0 text-indigo-500" />
         <p className="flex-1 text-xs text-slate-500">{t('promptDerivedHint')}</p>
+        <button type="button" className={buttonClass} disabled={soundBusy}
+          title={soundEnabled ? t('promptSoundOn') : t('promptSoundOff')}
+          aria-label={soundEnabled ? t('promptSoundOn') : t('promptSoundOff')}
+          onClick={() => void toggleSound()}>
+          {soundEnabled ? <Bell size={12} /> : <BellOff size={12} />}
+        </button>
         <button type="button" className={buttonClass} disabled={loading}
           title={t('retry')} aria-label={t('retry')} onClick={() => void load(page)}>
           <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} />

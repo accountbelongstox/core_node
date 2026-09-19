@@ -236,6 +236,35 @@ if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Pat
     }
 }
 
+# 2b) torchcodec: api_v2 loads the reference clip via load_with_torchcodec; the
+# cloned requirements.txt predates that dependency, so repair missing-only
+# (never --upgrade; pip resolves the compatible build for the venv's torch).
+$gptsovitsVenvPython = Resolve-IsolatedTtsVenvPython -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
+if ($gptsovitsVenvPython) {
+    if (-not (Test-PycorePythonModulePresent -PythonExe $gptsovitsVenvPython -ModuleName 'torchcodec')) {
+        Write-Host "$SCRIPT_INDEX [..] installing missing torchcodec into the isolated gptsovits venv (api_v2 audio loader) ..." -ForegroundColor Yellow
+        try { & $gptsovitsVenvPython -m pip install torchcodec } catch { }
+    }
+}
+
+# 2c) NLTK data: the English G2P path (pos_tag / g2p_en) fails every /tts call
+# without these resources; download missing-only into the venv's own nltk_data
+# (NLTK searches <sys.prefix>/nltk_data).
+if ($gptsovitsVenvPython) {
+    $gptsovitsVenvRoot = Split-Path (Split-Path $gptsovitsVenvPython -Parent) -Parent
+    $gptsovitsNltkData = Join-Path $gptsovitsVenvRoot 'nltk_data'
+    $nltkMissing = $false
+    foreach ($res in @('taggers\averaged_perceptron_tagger_eng', 'corpora\cmudict')) {
+        if (-not (Test-Path (Join-Path $gptsovitsNltkData $res)) -and -not (Test-Path (Join-Path $gptsovitsNltkData "$res.zip"))) {
+            $nltkMissing = $true
+        }
+    }
+    if ($nltkMissing) {
+        Write-Host "$SCRIPT_INDEX [..] downloading missing NLTK data (averaged_perceptron_tagger_eng, cmudict) into the isolated gptsovits venv ..." -ForegroundColor Yellow
+        try { & $gptsovitsVenvPython -m nltk.downloader -d $gptsovitsNltkData averaged_perceptron_tagger_eng cmudict } catch { }
+    }
+}
+
 # 3) pretrained models from HuggingFace (IDEMPOTENT: sentinel + curl resume) #
 if (-not $env:GPTSOVITS_HF_ALLOW) {
     $tierAllow = Resolve-TtsModelTier -PythonExe $resolvedPython -Key gptsovits_hf_allow -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)

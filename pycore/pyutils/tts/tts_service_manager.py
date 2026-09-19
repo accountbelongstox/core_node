@@ -37,7 +37,9 @@ server_idle_shutdown_s / server_enabled (per-service map, servers + models).
 """
 
 import os
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -273,6 +275,64 @@ def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
     return env
 
 
+def _ensure_torchcodec_ffmpeg_dlls(venv_python: str) -> None:
+    """Windows-only self-heal: torchcodec's libtorchcodec_core*.dll links against
+    UNHASHED FFmpeg DLL names (avcodec-62.dll ...), while PyAV's av.libs ships the
+    same FFmpeg build with delvewheel-hashed names (avcodec-62-<hash>.dll) and the
+    FFmpeg DLLs reference each other by hashed name. Copy both namings (missing
+    only) next to libtorchcodec so its own directory satisfies both lookups."""
+    if os.name != "nt":
+        return
+    site_packages = Path(venv_python).resolve().parents[1] / "Lib" / "site-packages"
+    torchcodec_dir = site_packages / "torchcodec"
+    av_libs = site_packages / "av.libs"
+    if not torchcodec_dir.is_dir() or not av_libs.is_dir():
+        return
+    if not list(torchcodec_dir.glob("libtorchcodec_core*.dll")):
+        return
+    copied = 0
+    for dll in av_libs.glob("*.dll"):
+        unhashed = re.sub(r"-[0-9a-f]{16,}\.dll$", ".dll", dll.name)
+        for target_name in {dll.name, unhashed}:
+            target = torchcodec_dir / target_name
+            if not target.exists():
+                shutil.copy2(dll, target)
+                copied += 1
+    if copied:
+        ColorPrint.blue(f"[tts-service] torchcodec FFmpeg DLL self-heal: copied {copied} into {torchcodec_dir}")
+
+
+GPTSOVITS_NLTK_RESOURCES = (
+    ("taggers", "averaged_perceptron_tagger_eng"),
+    ("corpora", "cmudict"),
+)
+
+
+def _ensure_gptsovits_nltk_data(venv_python: str) -> None:
+    """Missing-only self-heal: GPT-SoVITS's English G2P needs NLTK data
+    (pos_tag -> averaged_perceptron_tagger_eng, g2p_en -> cmudict) or every /tts
+    call fails with a 400. NLTK searches <sys.prefix>/nltk_data, so download into
+    the isolated venv's own nltk_data."""
+    venv_root = Path(venv_python).resolve().parents[1]
+    nltk_data = venv_root / "nltk_data"
+    missing = [
+        name
+        for category, name in GPTSOVITS_NLTK_RESOURCES
+        if not (nltk_data / category / name).exists() and not (nltk_data / category / f"{name}.zip").exists()
+    ]
+    if not missing:
+        return
+    ColorPrint.blue(f"[tts-service] gptsovits NLTK self-heal: downloading {', '.join(missing)} into {nltk_data}")
+    try:
+        subprocess.run(
+            [venv_python, "-m", "nltk.downloader", "-d", str(nltk_data), *missing],
+            check=False,
+            timeout=300,
+        )
+    except Exception as exc:
+        ColorPrint.yellow(f"[tts-service] gptsovits NLTK self-heal failed: {exc}")
+
+
 def _gptsovits_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
     """Class-C start command for gptsovits: launch its api_v2.py under the ISOLATED
     per-engine venv (never the main interpreter, whose transformers pin conflicts
@@ -284,6 +344,8 @@ def _gptsovits_start_command(staging: Path) -> Optional[Tuple[Path, List[str], D
     venv_python = resolve_isolated_python("gptsovits")
     if not venv_python:
         return None
+    _ensure_torchcodec_ffmpeg_dlls(venv_python)
+    _ensure_gptsovits_nltk_data(venv_python)
     return staging, [venv_python, str(script)], _isolated_env({})
 
 

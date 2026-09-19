@@ -53,6 +53,7 @@ from pycore.pylauncher.tray_menu import (
     TRAY_SET_LANGUAGE_SIGNAL,
     TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL,
     TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
+    TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL,
 )
 from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
 from pycore.pylauncher.tray_codesync_cache import (
@@ -299,6 +300,22 @@ def register_event_handlers(
         except Exception as e:
             ColorPrint.red(f"[Tray] Code sync skip-update toggle failed: {e}")
 
+    def handle_tray_toggle_prompt_derive_sound(event_data):
+        """Flip the prompt-derive notification sound flag.
+
+        Same agent-history config key (prompt_derive_sound) the WEB UI toggle
+        persists, so the tray menu and the web settings operate one switch;
+        the derive worker reads it before every playback.
+        """
+        try:
+            from pycore.pyctl.agent_history.pipeline.config import get_config, save_config
+            enabled = not bool(get_config().get("prompt_derive_sound", True))
+            save_config({"prompt_derive_sound": enabled})
+            ColorPrint.green(f"[Tray] Prompt derive sound: {'ON' if enabled else 'OFF'}")
+            update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Prompt derive sound toggle failed: {e}")
+
     def handle_language_changed(event_data):
         """
         React to any language change (tray submenu, web UI settings, bus):
@@ -346,6 +363,8 @@ def register_event_handlers(
         TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL, handle_tray_toggle_code_sync_distribute)
     THREAD_BUS.register_event_handler(
         TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL, handle_tray_toggle_code_sync_skip_update)
+    THREAD_BUS.register_event_handler(
+        TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL, handle_tray_toggle_prompt_derive_sound)
     # Fallback: only fires when the PySide6 backend is selected but no system tray exists
     THREAD_BUS.register_event_handler('tray.native_unavailable', handle_native_tray_unavailable)
     # Language switch (UI settings / bus): persist + rebuild tray texts
