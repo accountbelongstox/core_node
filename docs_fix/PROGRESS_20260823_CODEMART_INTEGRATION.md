@@ -49,6 +49,19 @@ architecture descriptions; the implementation is the authority for those.
 - Authenticated bootstrap with capabilities for both standard and
   administrator accounts. Status: verified.
 - Server-calculated project estimate. Status: verified.
+- AI requirement analysis cycle: analyze, proposal delivery, accept (project
+  moves to funding pending), and revision request with regeneration.
+  Status: verified.
+- Delivery chain: project creation, milestone, task, publication,
+  marketplace browsing, atomic task acceptance, deliverable submission,
+  task comments, and client review decision. Status: verified.
+- Reviewer qualification: application, sample-code test, activation, review
+  queue, dimensional review submission, and duplicate-review guard.
+  Status: verified.
+- Architect lane: eligibility evaluation, application, deposit-funded
+  activation, assignment listing, and project acceptance. Status: verified.
+- Deposit top-up creation with payment link and deposit history.
+  Status: verified.
 
 ## Deferred (by design, not shown as completed)
 

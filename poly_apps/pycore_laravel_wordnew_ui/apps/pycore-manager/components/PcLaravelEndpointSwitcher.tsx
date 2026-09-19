@@ -15,6 +15,7 @@ import type { LaravelApiEndpoint } from '@/apps/pycore-manager/api';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const dotCls = (ep?: LaravelApiEndpoint | null): string => {
+  if (ep?.blocked) return 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]';
   if (!ep || ep.healthy == null) return 'bg-slate-400';
   return ep.healthy
     ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
@@ -22,9 +23,17 @@ const dotCls = (ep?: LaravelApiEndpoint | null): string => {
 };
 
 function latencyText(ep: LaravelApiEndpoint, t: (key: string) => string): string {
+  if (ep.blocked) return t('endpoint.blocked');
   if (ep.healthy == null) return t('endpoint.never');
   if (!ep.healthy) return t('endpoint.unhealthy');
   return typeof ep.latency_ms === 'number' ? `${Math.round(ep.latency_ms)}ms` : t('endpoint.healthy');
+}
+
+function lastCheckedText(ep: LaravelApiEndpoint, t: (key: string) => string): string {
+  if (!ep.last_checked) return '';
+  const at = new Date(ep.last_checked);
+  const when = Number.isNaN(at.getTime()) ? String(ep.last_checked) : at.toLocaleTimeString();
+  return ` · ${t('endpoint.checked')} ${when}`;
 }
 
 export type PcLaravelEndpointSwitcherVariant = 'embedded' | 'header';
@@ -169,7 +178,7 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
                       </span>
                       <span className="block text-[10px] text-slate-400">
                         {inFlight ? t('endpoint.switching') : latencyText(ep, t)}
-                        {ep.last_checked ? ` · ${t('endpoint.checked')} ${ep.last_checked}` : ''}
+                        {lastCheckedText(ep, t)}
                       </span>
                     </span>
                     {isCurrent && <Check className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
@@ -197,7 +206,11 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
                 <Plus className="w-3 h-3" /> {t('endpoint.add')}
               </button>
             </div>
-            {actionError && <p className="text-[11px] text-amber-500 break-words">{actionError}</p>}
+            {actionError && (
+              <p className="text-[11px] text-amber-500 break-words">
+                {actionError === 'MIXED_CONTENT_BLOCKED' ? t('endpoint.blockedSwitch') : actionError}
+              </p>
+            )}
             <p className="text-[10px] text-slate-400">{t('endpoint.hint')}</p>
           </div>
         </div>

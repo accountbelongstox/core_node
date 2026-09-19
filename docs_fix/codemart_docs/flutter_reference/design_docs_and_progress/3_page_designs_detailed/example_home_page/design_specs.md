@@ -1,26 +1,26 @@
-# 设计规格 - {page_name}
+# Home Page Visual Intent (Functional)
 
-**创建时间**: 2025-11-19
+Functional-only revision: 2026-09-19. Visual intent expressed as
+functional requirements, not as code-level design tokens.
 
-## 颜色规范
+## Readability and emphasis
 
-- 主色调: #FFFFFF
-- 强调色: #000000
-- 背景色: #F5F5F5
-- 文字色: #333333
+- The hero message is the most prominent element on the page.
+- Counters and testimonials are visually secondary but clearly legible.
+- Body text remains comfortable to read in long informational sections.
 
-## 字体规范
+## Appearance modes
 
-- 标题: 18sp, Bold
-- 正文: 14sp, Regular
-- 辅助文字: 12sp, Regular
+- The page supports light and dark appearances, switchable from the
+  top-right corner, with comfortable contrast in both.
 
-## 间距规范
+## Responsiveness
 
-- 页面边距: 16dp
-- 元素间距: 8dp / 16dp / 24dp
-- 圆角: 4dp / 8dp
+- The page adapts from wide desktop layouts down to small mobile screens:
+  navigation collapses, sections stack vertically, and all actions remain
+  reachable.
 
-## 更新记录
+## Updates
 
-- 2025-11-19: 初始化设计规格
+- 2025-11-19: Initial design specification.
+- 2026-09-19: Rewritten functional-only.

@@ -52,14 +52,14 @@ class CodeMartV1TaskSubmissionModel extends CodeMartV1Model
         $model = new self();
 
         return $model->getConnection()
-            ->table('codemart_v1_code_submissions')
-            ->whereNotExists(function ($query) use ($reviewerId) {
+            ->table($model->getTable())
+            ->whereNotExists(function ($query) use ($reviewerId, $model) {
                 $query->select('id')
                     ->from('codemart_v1_code_reviews')
-                    ->whereColumn('codemart_v1_code_reviews.submission_id', 'codemart_v1_code_submissions.id')
+                    ->whereColumn('codemart_v1_code_reviews.task_submission_id', $model->getTable() . '.id')
                     ->where('codemart_v1_code_reviews.reviewer_id', $reviewerId);
             })
-            ->where('status', 'completed')
+            ->whereIn('status', ['pending', 'pending_review'])
             ->limit($limit)
             ->get();
     }

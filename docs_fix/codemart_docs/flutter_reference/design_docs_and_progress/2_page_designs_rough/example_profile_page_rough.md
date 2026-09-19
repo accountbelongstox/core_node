@@ -1,29 +1,28 @@
-# 个人中心设计
+# Profile Page Functional Sketch
 
-**对应英文页面**: profile_page
-**创建时间**: 2025-11-19
+Functional-only revision: 2026-09-19.
 
-## 页面功能
+## Page function
 
-- 显示用户信息
-- 设置入口
-- 功能菜单
+- Show the signed-in account: identity, contact details, and their
+  verification state.
+- Show the account's CodeMart roles and each role's activation state.
+- Let the user view and update the professional profile for each role.
 
-## 布局结构
+## Main regions
 
-- 顶部用户卡片
-- 功能菜单列表
-- 退出登录按钮
+- Account summary area with verification badges.
+- Roles area with activation status per role.
+- Editable professional profile area.
+- Entry points to settings, verification, wallet, and logout.
 
-## 主要交互
+## Main interactions
 
-- 点击头像编辑资料
-- 点击菜单进入对应功能
-- 退出登录确认
+- Edit and save profile details.
+- Navigate to verification to complete pending checks.
+- Sign out with confirmation.
 
-## 更新记录
+## Updates
 
-- 2025-11-19: 初始化页面设计
-
----
-**注意**: 这是示例文件，实际开发时可删除
+- 2025-11-19: Initial page sketch.
+- 2026-09-19: Rewritten functional-only.

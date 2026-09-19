@@ -1,25 +1,21 @@
-# Rough Page Designs - app_codemart
+# Rough Page Designs (Functional Sketches)
 
-**Layer**: Layer 2 - Rough Page Designs
-**Purpose**: Page-level layouts and wireframes
+Functional-only revision: 2026-09-19. Page-level functional sketches for
+the CodeMart experience; layout and interaction intent only, no code or
+architecture.
 
-## Page List
+## Pages
 
-(Add page design files here)
+- `example_home_page_rough.md`: home / landing experience.
+- `example_profile_page_rough.md`: account and profile experience.
 
-Examples:
-- `example_home_page_rough.md` - App home page
-- `example_profile_page_rough.md` - User profile
-- `example_settings_page_rough.md` - App settings
+## What a page sketch covers
 
-## Design Template
-
-Each page design file should include:
-1. Page function description
-2. Layout structure
-3. Main interactions
-4. Corresponding detailed page name (for Layer 3)
+1. The page's function for the user.
+2. The main regions of the page and what each shows.
+3. The main interactions available.
 
 ## Updates
 
-- 2025-11-19: Initialized rough page design layer
+- 2025-11-19: Initialized rough page design layer.
+- 2026-09-19: Reduced to functional-only descriptions.

@@ -166,6 +166,24 @@ export interface CmTask {
   created_at: string | null;
 }
 
+export interface CmMilestone {
+  id: number;
+  project_id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  order: number | null;
+  due_date: string | null;
+  budget: string | null;
+  completed_at?: string | null;
+  tasks?: CmTask[];
+}
+
+export interface CmProjectDetail extends CmProject {
+  architect_id?: number | null;
+  milestones?: CmMilestone[];
+}
+
 export interface CmPage<T> {
   items: T[];
   total: number;
@@ -280,6 +298,86 @@ export interface CmAdminDeposit {
   amount: string;
   payment_method: string;
   status: string;
+  paid_at: string | null;
+  created_at: string | null;
+}
+
+export interface CmAiAnalysis {
+  analysis_id: number;
+  project_id: number;
+  status: string;
+  keywords: string[] | null;
+  recommended_languages: string[] | null;
+  recommended_frameworks: string[] | null;
+  recommended_databases: string[] | null;
+  team_composition: unknown;
+  estimated_hours: number | null;
+  estimated_cost: string | number | null;
+  complexity_score: number | null;
+  proposal: string | null;
+  completed_at: string | null;
+}
+
+export interface CmReviewerTestCase {
+  code_snippet_id: number;
+  code: string;
+}
+
+export interface CmReviewerApplicationStart {
+  application_id: number;
+  test_cases: CmReviewerTestCase[];
+  instructions: string;
+}
+
+export interface CmReviewerTestResult {
+  status: string;
+  similarity_score: number;
+  message: string;
+}
+
+export interface CmReviewSubmission {
+  id: number;
+  task_id?: number;
+  submission_note?: string | null;
+  status?: string;
+  created_at?: string | null;
+}
+
+export interface CmArchitectEligibility {
+  is_eligible: boolean;
+  requirements: Record<string, number>;
+  current_stats: Record<string, number>;
+  shortfall: Record<string, number>;
+}
+
+export interface CmArchitectProject {
+  id: number;
+  title: string;
+  status: string;
+}
+
+export interface CmArchitectTasks {
+  assigned_projects: CmArchitectProject[];
+  available_projects: CmArchitectProject[];
+}
+
+export interface CmPayment {
+  id: number;
+  amount: string;
+  currency?: string | null;
+  status: string;
+  payer_id?: number;
+  payee_id?: number;
+  created_at?: string | null;
+}
+
+export interface CmDepositRecord {
+  id: number;
+  role_type: string;
+  amount: string;
+  payment_method: string;
+  status: string;
+  payment_url?: string | null;
   paid_at: string | null;
   created_at: string | null;
 }

@@ -1,27 +1,50 @@
-# 用户流程概念 - app_codemart
+# CodeMart User Flows (Flutter Reference)
 
-**创建时间**: 2025-11-19
+Functional-only revision: 2026-09-19. The main user journeys, expressed
+without code or architecture.
 
-## 主要流程
+## Startup flow
 
-### 1. 启动流程
+App starts → check login state → logged in: enter the home workspace /
+not logged in: show the public surface with login and registration.
 
-```
-应用启动 → 检查登录状态 → 已登录: 进入首页 / 未登录: 显示登录页
-```
+## Login flow
 
-### 2. 登录流程
+Enter credentials → validate → success: establish the session and enter
+the workspace / failure: show an error and stay on the login screen.
 
-```
-输入账号密码 → 验证 → 成功: 保存token → 进入首页
-                   ↓
-                 失败: 显示错误提示
-```
+## Registration flow
 
-### 3. 核心业务流程
+Choose a role (client or developer) → provide account details and,
+optionally, the installation super code → submit → success: the session
+starts immediately; a super-code registration becomes an administrator.
 
-（在此添加应用核心业务流程）
+## Client delivery flow
 
-## 更新记录
+Complete verification → fund the deposit → create a project → review the
+AI proposal → accept (project waits for funding) or request revision →
+fund the project → tasks open in the marketplace → review delivered work
+→ approve (funds released) or request revision.
 
-- 2025-11-19: 初始化用户流程设计
+## Developer flow
+
+Complete verification and profile → fund the required deposit → browse
+the marketplace → claim an open task (only one developer can claim it) →
+deliver work as a submission → receive the review decision → approved
+work pays out; revision requests reopen the work.
+
+## Review flow
+
+Reviewer opens the review queue → examines a submission → approves,
+rejects, or requests revision → the decision notifies both sides.
+
+## Administration flow
+
+Administrator signs in → opens the separate admin console → reviews
+platform totals, manages user role states, decides identity submissions,
+confirms deposits (activating roles), and monitors refunds and projects.
+
+## Changelog
+
+- 2025-11-19: Initial user flow design.
+- 2026-09-19: Rewritten functional-only.

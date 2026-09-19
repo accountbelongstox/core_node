@@ -17,6 +17,7 @@ import {
   buildApiUrl,
   getAllEndpoints,
   isCustomEndpoint,
+  isEndpointMixedContentBlocked,
   removeCustomEndpoint,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { API_HEALTH_EVENT, apiManager } from './ApiManager';
@@ -65,6 +66,8 @@ export interface LaravelApiEndpoint {
   status?: number | null;
   error?: string | null;
   custom?: boolean;
+  /** True when the browser blocks this endpoint from the current (HTTPS) page. */
+  blocked?: boolean;
 }
 
 export interface LaravelEndpointActionResult {
@@ -86,6 +89,7 @@ function toEndpointRow(endpoint: BackendApiEndpoint): LaravelApiEndpoint {
     last_checked: health?.timestamp ?? null,
     error: health?.error ?? null,
     custom: isCustomEndpoint(endpoint.id),
+    blocked: isEndpointMixedContentBlocked(endpoint),
   };
 }
 

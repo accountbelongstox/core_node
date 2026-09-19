@@ -105,6 +105,35 @@ function createCurrentOriginEndpoint(
 }
 
 /**
+ * Health-probe error code recorded when the browser's mixed-content policy
+ * makes an endpoint unreachable from the current page (no request is sent).
+ */
+export const MIXED_CONTENT_BLOCKED_ERROR = 'MIXED_CONTENT_BLOCKED';
+
+/** Loopback hosts stay fetchable from secure pages (potentially trustworthy). */
+function isLoopbackHostname(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  return host === 'localhost'
+    || host.endsWith('.localhost')
+    || host === '::1'
+    || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+/**
+ * True when this endpoint can NEVER be fetched from the current page: the
+ * page is HTTPS and the endpoint is plain HTTP on a non-loopback host, so the
+ * browser blocks every request as mixed content before it hits the network.
+ */
+export function isEndpointMixedContentBlocked(
+  endpoint: Pick<BackendApiEndpoint, 'protocol' | 'url'>,
+): boolean {
+  if (endpoint.protocol !== 'http') return false;
+  if (typeof window === 'undefined' || !window.location) return false;
+  if (window.location.protocol !== 'https:') return false;
+  return !isLoopbackHostname(endpoint.url);
+}
+
+/**
  * Build the current-page-origin endpoint: host + protocol from `window.location`,
  * port pinned to FIXED_API_PORT (:9000). Null off-web or on non-http(s) origins.
  */

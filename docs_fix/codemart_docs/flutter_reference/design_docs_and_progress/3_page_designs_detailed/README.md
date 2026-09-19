@@ -1,31 +1,20 @@
-# Detailed Page Designs - app_codemart
+# Detailed Page Designs (Functional Specifications)
 
-**Layer**: Layer 3 - Detailed Page Designs
-**Purpose**: Detailed specifications with code mapping
+Functional-only revision: 2026-09-19. Detailed functional specifications
+per page; no code mapping or architecture content is kept here.
 
-## Page Directories
+## Page directories
 
-(Add detailed page design directories here)
+- `example_home_page/`: the home / landing page functional specification.
 
-Examples:
-- `home_page/` - Home page
-- `profile_page/` - User profile
-- `settings_page/` - Settings page
+## What a detailed specification covers
 
-## Directory Structure
-
-Each page directory contains:
-```
-page_name/
-├── README.md              # Page documentation
-├── pageview_map.json      # UI element mapping (connects to code)
-└── design_specs.md        # Detailed design specifications
-```
-
-## pageview_map.json
-
-Maps design elements to Flutter Widgets. See `example_home_page/pageview_map.json` for format.
+- The page's purpose and audience.
+- The content the page must present.
+- The visual intent (readability, emphasis, light and dark appearance)
+  expressed as functional requirements.
 
 ## Updates
 
-- 2025-11-19: Initialized detailed design layer
+- 2025-11-19: Initialized detailed design layer.
+- 2026-09-19: Reduced to functional-only descriptions.

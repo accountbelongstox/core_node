@@ -1,27 +1,38 @@
-# 数据模型概念 - app_codemart
+# CodeMart Business Data Concepts (Flutter Reference)
 
-**创建时间**: 2025-11-19
+Functional-only revision: 2026-09-19. Business data concepts and their
+relationships, expressed without code or schema detail.
 
-## 核心数据模型
+## Core concepts
 
-### User（用户）
+- Account: the shared identity used to log in. One account may hold
+  several CodeMart roles.
+- Role: a capacity of an account — client, developer, reviewer, architect,
+  or administrator — each with its own activation state.
+- Profile: the professional details of an account for a given role
+  (developer profile, client profile).
+- Verification: contact (email, phone) and identity (KYC) checks attached
+  to the account, with reviewer decisions.
+- Project: a client-owned body of work, moving through states from draft
+  to completion or cancellation.
+- Milestone and task: units of work within a project; tasks can be
+  published to the marketplace.
+- Submission: developer-delivered work for a task, subject to review.
+- Wallet, deposit, escrow, transaction: the money side — balances,
+  refundable deposits that unlock roles, protected project funds, and an
+  immutable transaction history.
+- Notification: domain events delivered to the account with read state.
 
-```dart
-class User {
-  final String id;
-  final String username;
-  final String email;
-  final String? avatar;
-  final DateTime createdAt;
-}
-```
+## Relationships (functional)
 
-### （添加其他数据模型）
+- An account holds roles; roles unlock capabilities.
+- A client owns projects; projects contain milestones and tasks.
+- A developer claims tasks and produces submissions; reviewers decide on
+  submissions.
+- Deposits activate roles; project funds are held protected until work is
+  accepted.
 
-## 数据关系
+## Changelog
 
-（描述数据模型之间的关系）
-
-## 更新记录
-
-- 2025-11-19: 初始化数据模型设计
+- 2025-11-19: Initial data model design.
+- 2026-09-19: Rewritten functional-only.

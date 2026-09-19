@@ -1,8 +1,9 @@
 /**
- * PcSettingsPage — pycore BACKEND settings only.
+ * PcSettingsPage — global shell preferences + pycore BACKEND settings.
  *
- * The shell owns global theme, dark mode and language, so this page drops the
- * appearance/accent/glass/language UI and keeps only backend-persisted settings:
+ * The "Global" section exposes the shell-owned appearance controls (dark mode,
+ * language) inline so they are reachable without the floating dock; the rest
+ * of the page keeps only backend-persisted settings:
  * system-settings (pycoreApi.getSystemSettings/setSystemSettings —
  * monitorClipboard, scheduledScreenshot, screenshotInterval, notebooklmAutoConvert),
  * the Laravel endpoint selection (PcLaravelEndpointSwitcher — pycore-owned
@@ -13,9 +14,10 @@
  * Tailwind / `.pc-glass` only.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Settings2, Power, RefreshCw, Clipboard, Image as ImageIcon, FileText,
-  AlertTriangle, Info, Wifi, Volume2, Save, Loader2,
+  AlertTriangle, Wifi, Volume2, Save, Loader2, Sun, Moon, Languages,
 } from 'lucide-react';
 import {
   pycoreApi,
@@ -26,6 +28,8 @@ import type {
   AutostartStatus, AutostartTarget, PycoreHealthState, TtsSettings,
 } from '@/apps/pycore-manager/api';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
+import { useShell } from '../../../shell/ShellContext';
+import { SHELL_LANGUAGES } from '../../../shell/shellTypes';
 
 interface SystemSettings {
   monitorClipboard: boolean;
@@ -55,6 +59,8 @@ const TTS_TUNING_DEFAULTS: TtsTuningForm = {
 };
 
 const PcSettingsPage: React.FC = () => {
+  const { t } = useTranslation('pc');
+  const { dark, toggleDark, lang, setLang } = useShell();
   const [settings, setSettings] = useState<SystemSettings>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [unreachable, setUnreachable] = useState(false);
@@ -295,11 +301,32 @@ const PcSettingsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* appearance/language note (those live in the shell controls) */}
-      <div className="flex items-start gap-2 text-[11px] rounded-2xl p-3 border bg-sky-500/10 border-sky-500/20 text-sky-600 dark:text-sky-400">
-        <Info className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>Appearance, dark mode and language are managed by the shell controls.</span>
-      </div>
+      {/* Global shell preferences — same shared state as the top bar widgets
+          and the floating ShellControls dock. */}
+      <section className="pc-glass p-6 space-y-3">
+        <h2 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-1">{t('appearance.title')}</h2>
+
+        {row(
+          dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />, t('appearance.darkMode'),
+          t('appearance.darkModeDesc'),
+          toggle(dark, false, toggleDark),
+          'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+        )}
+
+        {row(
+          <Languages className="w-5 h-5" />, t('appearance.language'),
+          t('appearance.languageDesc'),
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            aria-label={t('appearance.language')}
+            className="px-2 py-1.5 text-xs rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200"
+          >
+            {SHELL_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>,
+          'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+        )}
+      </section>
 
       {unreachable && (
         <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
