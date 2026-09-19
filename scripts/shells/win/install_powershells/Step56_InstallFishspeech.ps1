@@ -196,6 +196,19 @@ if (-not $checkpointRepo) {
     return
 }
 if (-not $checkpointRepo.Contains('/')) { $checkpointRepo = ('fishaudio/{0}' -f $checkpointRepo) }
+# Self-heal stale operator overrides: a FISHSPEECH_CHECKPOINT value that does
+# not exist on the Hub (e.g. openaudio-s1, recommended by older docs) would
+# 404 on every run. Only a definitive 404 resets it to the tier default;
+# network failures keep the operator's choice untouched.
+if ($env:FISHSPEECH_CHECKPOINT -and $fishCkpt -and ((Test-HfRepoExistence -RepoId $checkpointRepo) -eq 'missing')) {
+    $fallbackRepo = "$fishCkpt".Trim()
+    if (-not $fallbackRepo.Contains('/')) { $fallbackRepo = ('fishaudio/{0}' -f $fallbackRepo) }
+    if ($fallbackRepo -ne $checkpointRepo) {
+        Write-Host ("$SCRIPT_INDEX [!] FISHSPEECH_CHECKPOINT={0} does not exist on Hugging Face (404); resetting to tier default {1}." -f $checkpointRepo, $fallbackRepo) -ForegroundColor DarkYellow
+        $env:FISHSPEECH_CHECKPOINT = $fallbackRepo
+        $checkpointRepo = $fallbackRepo
+    }
+}
 $ckptName = Split-Path -Leaf $checkpointRepo
 $ckptDir = Join-Path $targetDir (Join-Path 'checkpoints' $ckptName)
 $ckptSentinel = Join-Path $targetDir (Join-Path 'checkpoints' ".ckpt_$($ckptName)_done")

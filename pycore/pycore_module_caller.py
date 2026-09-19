@@ -228,7 +228,9 @@ if __name__ == '__main__':
         help='Explicit mode reconfigures and persists; omitted reuses the env/persisted/default resolution',
     )
     parser.add_argument('--tts-selfcheck', action='store_true',
-                        help='Run the TTS batch-model self-check synchronously BEFORE services start (same as TTS_STARTUP_SELFCHECK=1)')
+                        help='Run the TTS batch-model self-check synchronously BEFORE services start '
+                             '(pyservice.ps1/.sh instead run pycore.pyctl.tts.batch_selfcheck_main as a '
+                             'separate standalone step; this flag is the direct-invocation fallback)')
 
     args = parser.parse_args()
     if args.tts_selfcheck:

@@ -55,9 +55,10 @@
     Skip all PowerShell prerequisite installers and launch the service directly.
 
 .PARAMETER TtsSelfcheck
-    Run the TTS batch self-check BEFORE any service starts: probe each engine
-    (kokoro, parler, chattts, gptsovits) with RAM/GPU memory gates, generate a
-    real batch sample, log resource before/after, then release memory/GPU
+    Run the TTS batch self-check as a STANDALONE step before the worker starts:
+    probe each engine (kokoro, parler, chattts, gptsovits) with RAM/GPU memory
+    gates, generate a real batch sample, log resource before/after, then release
+    memory/GPU; the worker (RPC + services) starts only after it exits.
     before serving. Same as setting $env:TTS_STARTUP_SELFCHECK = '1'.
 
 .EXAMPLE
@@ -472,7 +473,19 @@ try {
     $pyArgs = @('-u', $workerPath, '--host', $BindHost, '--port', $Port, '--service-mode', $ServiceMode)
     if ($DebugMode)    { $pyArgs += '--debug' }
     if ($NoReload)     { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
-    if ($TtsSelfcheck) { $pyArgs += '--tts-selfcheck' }
+
+    # TTS batch self-check: run the STANDALONE entry as its own process and wait
+    # for it to exit BEFORE the worker starts, so the sweep owns the console (no
+    # interleaved service logs) and the machine's RAM/VRAM. Failures never block startup.
+    if ($TtsSelfcheck -or $env:TTS_STARTUP_SELFCHECK -eq '1') {
+        $selfcheckPath = Join-Path $PSScriptRoot 'pycore\pyctl\tts\batch_selfcheck_main.py'
+        Write-Host '[>] Running TTS batch self-check (standalone) before the worker...' -ForegroundColor Cyan
+        & $py.Path '-u' $selfcheckPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host '[!] TTS self-check reported failures; continuing startup' -ForegroundColor Yellow
+        }
+        Remove-Item Env:TTS_STARTUP_SELFCHECK -ErrorAction SilentlyContinue   # consumed by the standalone run; the worker must not re-run it
+    }
 
     Write-Host ''
     Write-Host ("[>] Launching worker: {0}" -f $workerPath) -ForegroundColor Cyan
