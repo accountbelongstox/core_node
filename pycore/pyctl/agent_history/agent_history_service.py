@@ -38,6 +38,7 @@ from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtra
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
 from pycore.pyctl.agent_history.pi_extractor import PiExtractor
 from pycore.pyfoundations.agent_home_scanner import scan_user_homes
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import (
     AGENT_HISTORY_LIVE_SCAN_TOOLS,
     AGENT_HISTORY_OFFICIAL_HOME_MARKERS,
@@ -65,10 +66,6 @@ SESSION_ID_FIELDS = (
     "ended_ts",
     "prompt_count",
     "has_subagent",
-)
-TOOL_MARKERS = (
-    ".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi",
-    ".agent", ".openclaw", ".cline", ".antigravity", ".pi",
 )
 _EXTRACT_QUEUE = 'pyctl.agent_history.extract'
 _SUMMARY_SIGNAL = 'pyctl.agent_history.summary'
@@ -111,17 +108,9 @@ class AgentHistoryService:
         # mutated only inside the serialized extract queue.
         self._live_scan_descriptors: Dict[str, Dict[str, str]] = {}
 
-    def is_dev_machine(self) -> bool:
-        for home in user_homes():
-            for marker in TOOL_MARKERS:
-                if os.path.exists(os.path.join(home, marker)):
-                    return True
-            cursor_roaming = os.path.join(home, "AppData", "Roaming", "Cursor")
-            if os.path.isdir(cursor_roaming):
-                return True
-            cursor_cfg = os.path.join(home, ".config", "Cursor")
-            if os.path.isdir(cursor_cfg):
-                return True
+    @staticmethod
+    def is_dev_machine() -> bool:
+        """Agent-history extraction only runs in the pycore dev-machine context."""
         return True
 
     def _discover_all(self) -> Dict[str, Dict[str, Any]]:
@@ -167,22 +156,29 @@ class AgentHistoryService:
         )
 
     @staticmethod
-    def _emit_prompt_new(append_prompts: List[Dict[str, Any]], generated_at: str) -> None:
-        """Broadcast freshly extracted prompts (newest first, capped)."""
-        if not append_prompts:
+    def _emit_prompt_new(new_prompts: List[Dict[str, Any]], generated_at: str) -> None:
+        """Broadcast genuinely new prompts (id never seen in the store), newest first, capped."""
+        if not new_prompts:
             return
         newest = sorted(
-            append_prompts,
+            new_prompts,
             key=lambda p: int(p.get("ts") or 0),
             reverse=True,
         )[:PROMPT_NEW_EVENT_CAP]
-        tools = sorted({str(p.get("tool") or "") for p in append_prompts if p.get("tool")})
+        for p in newest:
+            text = re.sub(r"\s+", " ", str(p.get("text") or "")).strip()
+            snippet = f"{text[:10]}...{text[-10:]}" if len(text) > 20 else text
+            ColorPrint.green(
+                f"[AgentHistory] New prompt detected agent={p.get('tool') or '?'} "
+                f"user={p.get('os_user') or '?'} prompt=\"{snippet}\""
+            )
+        tools = sorted({str(p.get("tool") or "") for p in new_prompts if p.get("tool")})
         THREAD_BUS.trigger_event(
             BusSignals.AGENT_HISTORY_PROMPT_NEW,
             {
                 "generated_at": generated_at,
                 "tools": tools,
-                "prompt_count": len(append_prompts),
+                "prompt_count": len(new_prompts),
                 "prompts": [
                     {
                         "id": p.get("id"),
@@ -221,6 +217,25 @@ class AgentHistoryService:
                     homes[parent] = os.path.basename(parent)
         return homes
 
+    @staticmethod
+    def _state_tool_descriptors(tool: str) -> Dict[str, str]:
+        """Rebuild one tool's source descriptors from the persisted extract state."""
+        state = txt.read_state()
+        sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
+        return {
+            str(path): f"{int(info.get('mtime') or 0)}:{int(info.get('bytes') or 0)}"
+            for path, info in sources.items()
+            if isinstance(info, dict) and str(info.get("tool") or "") == tool
+        }
+
+    def _live_scan_baseline(self, tool: str) -> Dict[str, str]:
+        """Skip-cache baseline for one tool, seeded from persisted state on first use."""
+        baseline = self._live_scan_descriptors.get(tool)
+        if baseline is None:
+            baseline = self._state_tool_descriptors(tool)
+            self._live_scan_descriptors[tool] = baseline
+        return baseline
+
     def _live_scan_inner(self, tools: Optional[List[str]]) -> Dict[str, Any]:
         requested = [
             str(tool).strip().lower()
@@ -247,7 +262,7 @@ class AgentHistoryService:
                     descriptors[str(d.get("path") or "")] = (
                         f"{int(d.get('mtime') or 0)}:{int(d.get('bytes') or 0)}"
                     )
-            if descriptors == self._live_scan_descriptors.get(tool):
+            if descriptors == self._live_scan_baseline(tool):
                 skipped_tools.append(tool)
                 continue
             pending_descriptors[tool] = descriptors
@@ -258,14 +273,18 @@ class AgentHistoryService:
             summary = self._extract_inner(force=False)
             if isinstance(summary, dict) and not summary.get("error"):
                 self._live_scan_descriptors.update(pending_descriptors)
-        return {
+        extract_error = str(summary.get("error") or "") if isinstance(summary, dict) else ""
+        result: Dict[str, Any] = {
             "tools": requested,
             "unsupported_tools": unsupported,
             "changed_tools": changed_tools,
             "skipped_tools": skipped_tools,
-            "changed": bool(changed_tools) and not summary.get("unchanged"),
+            "changed": bool(changed_tools) and not summary.get("unchanged") and not extract_error,
             "scanned_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+        if extract_error:
+            result["error"] = extract_error
+        return result
 
     def _extract_inner(self, force: bool = False) -> Dict[str, Any]:
         generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -324,6 +343,11 @@ class AgentHistoryService:
             removed_ids: List[str] = []
             append_prompts: List[Dict[str, Any]] = []
             new_sources = dict(prev_sources)
+            prompts = txt.read_prompts()
+            known_prompt_ids = {
+                str(p.get("id") or "") for p in prompts if p.get("id")
+            }
+            new_prompts: List[Dict[str, Any]] = []
 
             for path in removed_paths:
                 for sid in prev_sources.get(path, {}).get("session_ids") or []:
@@ -355,7 +379,7 @@ class AgentHistoryService:
                     summaries[sid] = summary
 
                     for p in detail.get("prompts") or []:
-                        append_prompts.append({
+                        entry = {
                             "id": p["id"],
                             "tool": sess["tool"],
                             "os_user": sess["os_user"],
@@ -366,7 +390,11 @@ class AgentHistoryService:
                             "text": p.get("text") or "",
                             "lang": _detect_lang(p.get("text") or ""),
                             "edited": bool(p.get("edited")),
-                        })
+                        }
+                        append_prompts.append(entry)
+                        if entry["id"] not in known_prompt_ids:
+                            known_prompt_ids.add(entry["id"])
+                            new_prompts.append(entry)
                     ids.append(sid)
                     changed_ids.append(sid)
 
@@ -389,7 +417,6 @@ class AgentHistoryService:
                 }
 
             drop = set(changed_ids + removed_ids)
-            prompts = txt.read_prompts()
             prompts = [p for p in prompts if p.get("session_id") not in drop]
             prompts.extend(append_prompts)
             prompts.sort(key=lambda p: p.get("ts") or 0, reverse=True)
@@ -432,7 +459,7 @@ class AgentHistoryService:
                 {"generated_at": generated_at, **summary},
                 async_mode=True,
             )
-            self._emit_prompt_new(append_prompts, generated_at)
+            self._emit_prompt_new(new_prompts, generated_at)
             return summary
         except Exception as e:
             summary = {"error": str(e)}
