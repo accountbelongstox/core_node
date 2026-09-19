@@ -18,9 +18,10 @@ Config:
 import importlib.util
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import call_serialized
 from pycore.pyfoundations.third_party.api import (
     get_third_package_parler_tts,
     get_third_package_soundfile,
@@ -31,6 +32,7 @@ from pycore.pyfoundations.third_party.api import (
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
+from pycore.pyutils.tts.batch import batch_constants as batch_const
 
 _MODEL_QUEUE = 'pyutils.tts.parler.model'
 _MODEL_THREAD = 'ParlerModelThread'
@@ -137,6 +139,106 @@ class ParlerEngine(SerializedModelEngine):
         soundfile.write(str(output_wav), arr, rate)
         return True
 
+    def render_wav_batch(
+        self,
+        resource: Any,
+        texts: List[str],
+        lang: str,
+        output_wavs: List[Path],
+        speed: float,
+    ) -> bool:
+        """Official Parler-TTS batch generation (left-padding + audios_length).
+
+        See the "Batch generation" section of the official INFERENCE.md:
+        https://github.com/huggingface/parler-tts/blob/main/INFERENCE.md
+        """
+        del lang, speed
+        tokenizer, model = resource
+        dev = _device()
+        soundfile = get_third_package_soundfile()
+        if soundfile is None:
+            ColorPrint.red("[parler] soundfile is unavailable")
+            return False
+        description = _description()
+        previous_padding_side = getattr(tokenizer, "padding_side", "right")
+        try:
+            tokenizer.padding_side = "left"
+            description_inputs = tokenizer(
+                [description] * len(texts),
+                return_tensors="pt",
+                padding=True,
+            ).to(dev)
+            prompt_inputs = tokenizer(
+                list(texts),
+                return_tensors="pt",
+                padding=True,
+            ).to(dev)
+            generation = model.generate(
+                input_ids=description_inputs.input_ids,
+                attention_mask=description_inputs.attention_mask,
+                prompt_input_ids=prompt_inputs.input_ids,
+                prompt_attention_mask=prompt_inputs.attention_mask,
+                do_sample=True,
+                return_dict_in_generate=True,
+            )
+            rate = int(getattr(model.config, "sampling_rate", 44100))
+            audios_length = getattr(generation, "audios_length", None)
+            for index, output_wav in enumerate(output_wavs):
+                if audios_length is not None:
+                    audio = generation.sequences[index, : audios_length[index]]
+                else:
+                    audio = generation.sequences[index]
+                arr = audio.cpu().numpy().squeeze()
+                output_wav.parent.mkdir(parents=True, exist_ok=True)
+                soundfile.write(str(output_wav), arr, rate)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.red(f"[parler] batch render failed: {exc}")
+            return False
+        finally:
+            tokenizer.padding_side = previous_padding_side
+
+    def _render_batch_on_owner(
+        self,
+        texts: List[str],
+        lang: str,
+        output_wavs: List[Path],
+        speed: float,
+    ) -> bool:
+        resource = self._load_on_owner()
+        if resource is None:
+            return False
+        ok_all = True
+        size = batch_const.parler_batch_size()
+        for offset in range(0, len(texts), size):
+            chunk_texts = texts[offset:offset + size]
+            chunk_out = output_wavs[offset:offset + size]
+            if not self.render_wav_batch(resource, chunk_texts, lang, chunk_out, speed):
+                ok_all = False
+        return ok_all
+
+    def synthesize_batch(
+        self,
+        texts: List[str],
+        lang: str,
+        output_wavs: List[Path],
+        speed: float = 1.0,
+    ) -> bool:
+        """Batched wav synthesis on the serialized worker; True when every wav
+        was written. Callers pair the returned wavs with their texts by index."""
+        cleaned = [(t or "").strip() for t in texts]
+        if not cleaned or len(cleaned) != len(output_wavs) or not self.available():
+            return False
+        return bool(call_serialized(
+            self._queue_name,
+            self._render_batch_on_owner,
+            cleaned,
+            lang,
+            list(output_wavs),
+            speed,
+            timeout=self._timeout,
+        ))
+
 
 parler_engine = ParlerEngine(_MODEL_QUEUE, _MODEL_THREAD, _WAV_SUFFIX)
 
@@ -153,8 +255,12 @@ def is_model_loaded() -> bool:
     return parler_engine.is_loaded()
 
 
+def synthesize_batch(texts: List[str], lang: str, output_wavs: List[Path], speed: float = 1.0) -> bool:
+    return parler_engine.synthesize_batch(texts, lang, output_wavs, speed)
+
+
 def unload_model() -> None:
     parler_engine.unload()
 
 
-__all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]
+__all__ = ["available", "synthesize", "synthesize_batch", "is_model_loaded", "unload_model"]
