@@ -16,11 +16,6 @@ from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.runtime_abi import CTRANSLATE2_CUDA_MAJOR
 from pycore.pyutils.common.user_data_store import user_data_store
 
-try:
-    import ctranslate2
-except ImportError:
-    ctranslate2 = None
-
 _TIERS_PATH = Path(__file__).resolve().parents[2] / "tts_install_assets" / "tts_model_tiers.py"
 _spec = importlib.util.spec_from_file_location("pycore_tts_model_tiers", _TIERS_PATH)
 _tiers = importlib.util.module_from_spec(_spec)
@@ -67,7 +62,11 @@ def _faster_whisper_gpu_usable() -> bool:
     if not gpu_present() or _runtime_torch_cuda_major() != CTRANSLATE2_CUDA_MAJOR:
         return False
     try:
-        return bool(ctranslate2 is not None and ctranslate2.get_cuda_device_count() > 0)
+        # Lazy: a top-level ctranslate2 import drags transformers + torch (and
+        # their native DLLs) into the host process, where a native crash kills
+        # the whole service with no traceback.
+        import ctranslate2
+        return bool(ctranslate2.get_cuda_device_count() > 0)
     except Exception:
         return False
 

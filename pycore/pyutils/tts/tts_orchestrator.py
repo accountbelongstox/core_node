@@ -339,6 +339,11 @@ def synthesize(
         adapter = tts_engine_registry.get(name)
         if adapter is None:
             continue
+        if managed_engine and adapter.has_config_gate() and not adapter.config_ready():
+            reason = adapter.disabled_reason() or "engine configuration incomplete"
+            last_error = f"{name}: {reason}"
+            ColorPrint.gray(f"[tts] {name} skipped: {reason}")
+            continue
         request = _synthesis_request(
             cleaned,
             language,

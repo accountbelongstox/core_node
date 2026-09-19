@@ -141,6 +141,11 @@ class TTSEngineAdapter(EngineAdapter):
             return bool(self._config_ready())
         return self.disabled_reason() is None
 
+    def has_config_gate(self) -> bool:
+        """True when the adapter declares an explicit configuration gate
+        (a missing config a managed lease can never fix by starting the server)."""
+        return self._config_ready is not None
+
     def healthy(self) -> bool:
         return bool(self.health_probe and self.health_probe())
 
@@ -324,6 +329,7 @@ _ENGINE_ADAPTERS = (
         managed_kind="server",
         health_paths=("/health", "/"),
         availability_signal="pyutils.tts.f5tts.available",
+        config_ready=lambda: f5tts_engine.disabled_reason() is None,
         note="F5-TTS local api (fast flow-matching clone; F5TTS_URL)",
     ),
     EdgeTTSEngineAdapter(

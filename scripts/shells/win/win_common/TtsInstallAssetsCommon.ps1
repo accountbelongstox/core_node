@@ -2,6 +2,8 @@
 
 $script:LastReportedLocalModelPath = ''
 $script:TtsNativeBuildWingetId = 'Microsoft.VisualStudio.2022.BuildTools'
+$script:HfAuthTokenCache = $null
+$script:HfAuthTokenSource = ''
 $script:TtsNativeBuildInstallArguments = '--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
 $script:TtsNativeBuildModifyArguments = 'modify --installPath "{0}" --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
 
@@ -254,9 +256,129 @@ function Resolve-HfMirrorBase {
     return 'https://hf-mirror.com'
 }
 
+function Get-HfSecretRawDir {
+    # Raw secret store under the core_node root; same convention as
+    # pyfoundations.secret_manager and scripts/pytools/aitools/hf_secret.py.
+    $root = Get-CoreNodeRepoRootFromWinCommon
+    $rawDir = Join-Path (Join-Path $root '.secret_keys') '.secret_ignore'
+    if (Test-Path -LiteralPath $rawDir) { return $rawDir }
+    return $null
+}
+
+function Read-HfSecretFirstLine {
+    # First non-empty stripped line of a raw secret file (BOM-aware); '' on failure.
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $content = ''
+    try {
+        $content = [System.IO.File]::ReadAllText($Path)
+    } catch {
+        return ''
+    }
+    $content = $content.TrimStart([char]0xFEFF)
+    foreach ($line in ($content -split "`r?`n")) {
+        $trimmed = $line.Trim()
+        if ($trimmed) { return $trimmed }
+    }
+    return ''
+}
+
+function Get-HfTokenCandidates {
+    # Ordered @{Token; Source} list: env first (explicit operator choice), then
+    # EVERY .secret_keys/.secret_ignore/HF_TOKEN_<index> (auto-discovered in
+    # numeric order, not capped at 5), then the bare HF_TOKEN file. Duplicates
+    # are removed, order preserved.
+    $candidates = @()
+    $seen = @{}
+    $envToken = ''
+    if ($env:HF_TOKEN) { $envToken = $env:HF_TOKEN.Trim() }
+    if ($envToken) {
+        $candidates += @{ Token = $envToken; Source = 'env:HF_TOKEN' }
+        $seen[$envToken] = $true
+    }
+    $envHubToken = ''
+    if ($env:HUGGING_FACE_HUB_TOKEN) { $envHubToken = $env:HUGGING_FACE_HUB_TOKEN.Trim() }
+    if ($envHubToken -and -not $seen.ContainsKey($envHubToken)) {
+        $candidates += @{ Token = $envHubToken; Source = 'env:HUGGING_FACE_HUB_TOKEN' }
+        $seen[$envHubToken] = $true
+    }
+    $rawDir = Get-HfSecretRawDir
+    if ($rawDir) {
+        $indexedFiles = @(Get-ChildItem -Path $rawDir -File -Filter 'HF_TOKEN_*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^HF_TOKEN_\d+$' } |
+            Sort-Object { [int]($_.Name -replace '^HF_TOKEN_', '') })
+        foreach ($file in $indexedFiles) {
+            $token = Read-HfSecretFirstLine -Path $file.FullName
+            if ($token -and -not $seen.ContainsKey($token)) {
+                $candidates += @{ Token = $token; Source = $file.Name }
+                $seen[$token] = $true
+            }
+        }
+        $barePath = Join-Path $rawDir 'HF_TOKEN'
+        if (Test-Path -LiteralPath $barePath) {
+            $bareToken = Read-HfSecretFirstLine -Path $barePath
+            if ($bareToken -and -not $seen.ContainsKey($bareToken)) {
+                $candidates += @{ Token = $bareToken; Source = 'HF_TOKEN' }
+                $seen[$bareToken] = $true
+            }
+        }
+    }
+    return $candidates
+}
+
+function Test-HfTokenWhoami {
+    # 'ok' = valid (HTTP 200); 'rejected' = 401/403; 'unverifiable' = network/tooling.
+    param([Parameter(Mandatory = $true)][string]$Token)
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) { return 'unverifiable' }
+    $probeCode = & $curl.Source -s -o NUL -w '%{http_code}' --connect-timeout 15 --header ('Authorization: Bearer {0}' -f $Token) 'https://huggingface.co/api/whoami-v2'
+    if ($LASTEXITCODE -ne 0) { return 'unverifiable' }
+    if ($probeCode -eq '200') { return 'ok' }
+    if ($probeCode -eq '401' -or $probeCode -eq '403') { return 'rejected' }
+    return 'unverifiable'
+}
+
+function Resolve-HfAuthToken {
+    # First usable hf_* token wins; rejected ones fall through to the next
+    # candidate. Result is cached per process and the pick is printed (masked)
+    # once. A resolved token is exported to $env:HF_TOKEN so child processes
+    # (pip, huggingface_hub, fish-speech) inherit the auth.
+    if ($null -ne $script:HfAuthTokenCache) { return $script:HfAuthTokenCache }
+    $script:HfAuthTokenCache = ''
+    foreach ($candidate in (Get-HfTokenCandidates)) {
+        $token = [string]$candidate.Token
+        $source = [string]$candidate.Source
+        $suffix = $token.Substring([Math]::Max(0, $token.Length - 4))
+        if ($token -notmatch '^hf_') {
+            Write-Host ("[hf] {0} (...{1}) is not an hf_* token; skipped" -f $source, $suffix) -ForegroundColor DarkGray
+            continue
+        }
+        $probe = Test-HfTokenWhoami -Token $token
+        if ($probe -eq 'ok') {
+            $script:HfAuthTokenCache = $token
+            $script:HfAuthTokenSource = $source
+            Write-Host ("[hf] HF auth: using {0} (...{1}); whoami OK" -f $source, $suffix) -ForegroundColor Green
+            break
+        }
+        if ($probe -eq 'rejected') {
+            Write-Host ("[hf] {0} (...{1}) rejected by Hugging Face (401/403); trying next candidate" -f $source, $suffix) -ForegroundColor DarkYellow
+            continue
+        }
+        $script:HfAuthTokenCache = $token
+        $script:HfAuthTokenSource = $source
+        Write-Host ("[hf] whoami unverifiable (network); using {0} (...{1}) unvalidated" -f $source, $suffix) -ForegroundColor DarkYellow
+        break
+    }
+    if (-not $script:HfAuthTokenCache) {
+        Write-Host "[hf] no usable HF token (env + .secret_keys HF_TOKEN_*); Hub downloads stay anonymous" -ForegroundColor DarkYellow
+    } else {
+        $env:HF_TOKEN = $script:HfAuthTokenCache
+    }
+    return $script:HfAuthTokenCache
+}
+
 function Get-HfRequestHeaders {
     $headers = @{}
-    $token = if ($env:HF_TOKEN) { $env:HF_TOKEN.Trim() } elseif ($env:HUGGING_FACE_HUB_TOKEN) { $env:HUGGING_FACE_HUB_TOKEN.Trim() } else { '' }
+    $token = Resolve-HfAuthToken
     if ($token) { $headers['Authorization'] = ('Bearer {0}' -f $token) }
     return $headers
 }
@@ -273,8 +395,15 @@ function Invoke-HfRestGet {
     $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
     if ($curl) {
         $curlHeaders = @()
-        if ($Headers.ContainsKey('Authorization')) { $curlHeaders = @('--header', ('Authorization: {0}' -f $Headers['Authorization'])) }
-        $json = & $curl.Source -fsSL --connect-timeout 30 @curlHeaders $Uri
+        # Plain -L drops Authorization on the cross-host 308 to huggingface.co
+        # (hf-mirror repo APIs), producing 401 on gated repos; --location-trusted
+        # implies -L and forwards the header to the redirect target.
+        $redirectFlag = '-L'
+        if ($Headers.ContainsKey('Authorization')) {
+            $curlHeaders = @('--header', ('Authorization: {0}' -f $Headers['Authorization']))
+            $redirectFlag = '--location-trusted'
+        }
+        $json = & $curl.Source -fsS $redirectFlag --connect-timeout 30 @curlHeaders $Uri
         if ($LASTEXITCODE -eq 0 -and $json) {
             return ($json | Out-String | ConvertFrom-Json)
         }
@@ -451,7 +580,11 @@ function Invoke-HfFileDownloadResumable {
     )
     $headers = Get-HfRequestHeaders
     $curlHeaders = @()
-    if ($headers.ContainsKey('Authorization')) { $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization'])) }
+    $curlRedirect = '-L'
+    if ($headers.ContainsKey('Authorization')) {
+        $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization']))
+        $curlRedirect = '--location-trusted'
+    }
     if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
     $parent = Split-Path -Parent $OutPath
     if ($parent -and -not (Test-Path -LiteralPath $parent)) {
@@ -489,7 +622,7 @@ function Invoke-HfFileDownloadResumable {
         Write-Host ("{0} [!] curl.exe missing; cannot download {1}" -f $Prefix, $FileName) -ForegroundColor DarkYellow
         return $false
     }
-    & $curl.Source -f -L -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
+    & $curl.Source -f $curlRedirect -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
     if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
         return $false
     }
@@ -546,6 +679,32 @@ function Install-HfRepoFlat {
         }
     }
     Write-Host ("{0} [..] {1} of {2} files match allow-list (mirror {3})" -f $Prefix, $wanted.Count, $catalog.Count, $MirrorBase) -ForegroundColor DarkGray
+
+    # Gated-repo preflight: e.g. fishaudio checkpoints are gated ("gated":"auto"),
+    # so anonymous downloads 401 on EVERY file. Detect once with a HEAD probe and
+    # say exactly what to do instead of failing each file with a bare curl error.
+    if ($wanted.Count -gt 0) {
+        $curlProbe = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if ($curlProbe) {
+            $probeHeaders = Get-HfRequestHeaders
+            $probeCurlHeaders = @()
+            $probeRedirect = '-L'
+            if ($probeHeaders.ContainsKey('Authorization')) {
+                $probeCurlHeaders = @('--header', ('Authorization: {0}' -f $probeHeaders['Authorization']))
+                $probeRedirect = '--location-trusted'
+            }
+            $probeUrl = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $wanted[0])
+            $probeCode = & $curlProbe.Source -s -o NUL -w '%{http_code}' -I $probeRedirect --connect-timeout 15 @probeCurlHeaders $probeUrl
+            if ($probeCode -eq '401' -or $probeCode -eq '403') {
+                if ($probeHeaders.ContainsKey('Authorization')) {
+                    Write-Host ("{0} [!] {1} is gated and the configured HF token ({2}) has no access (HTTP {3}); accept the license at https://huggingface.co/{1} with that account." -f $Prefix, $RepoId, $script:HfAuthTokenSource, $probeCode) -ForegroundColor DarkYellow
+                } else {
+                    Write-Host ("{0} [!] {1} is a gated repo (HTTP {2}); accept the license at https://huggingface.co/{1}, then add an hf_* token as .secret_keys/.secret_ignore/HF_TOKEN_<index> and re-run." -f $Prefix, $RepoId, $probeCode) -ForegroundColor DarkYellow
+                }
+                return $false
+            }
+        }
+    }
 
     $allOk = $true
     foreach ($name in $wanted) {
