@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar } from 'lucide-react';
+import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
@@ -31,6 +31,7 @@ import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel
 import PcAgentHistoryRecords from './agent-history/PcAgentHistoryRecords';
 import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
 import PcAgentHistoryToolPanel, { type AgentHistoryToolPanelKind } from './agent-history/PcAgentHistoryToolPanel';
+import PcAgentHistoryCachePanel from './agent-history/PcAgentHistoryCachePanel';
 import PcPager from './agent-history/PcPager';
 import {
   agentHistoryUiStateStore,
@@ -88,7 +89,7 @@ function normalizeGeneratedAt(value: unknown): string {
 function readUiState(): AgentHistoryUiState {
   const stored = agentHistoryUiStateStore.getSnapshot();
   return {
-    tab: stored.tab === 'prompts' ? 'prompts' : 'sessions',
+    tab: stored.tab === 'prompts' || stored.tab === 'cache' ? stored.tab : 'sessions',
     filterTool: String(stored.filterTool || ''),
     filterUser: String(stored.filterUser || ''),
     search: String(stored.search || ''),
@@ -341,7 +342,7 @@ const PcAgentHistoryPage: React.FC = () => {
         manualRefreshPending.current = false;
         setStatsBump((value) => value + 1);
         if (tab === 'prompts') void loadPromptPage();
-        else void loadSessionPage();
+        else if (tab === 'sessions') void loadSessionPage();
       }, 250);
     };
     const offSessions = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, scheduleReload);
@@ -435,7 +436,7 @@ const PcAgentHistoryPage: React.FC = () => {
       }
       setStatsBump((value) => value + 1);
       if (tab === 'prompts') await loadPromptPage(true);
-      else await loadSessionPage(true);
+      else if (tab === 'sessions') await loadSessionPage(true);
       manualRefreshPending.current = false;
     } catch (e) {
       manualRefreshPending.current = false;
@@ -607,7 +608,7 @@ const PcAgentHistoryPage: React.FC = () => {
       </div>
 
       <div className="flex gap-2 border-b border-slate-200 dark:border-white/10 pb-2">
-        {(['sessions', 'prompts'] as TabId[]).map((id) => (
+        {(['sessions', 'prompts', 'cache'] as TabId[]).map((id) => (
           <button
             key={id}
             type="button"
@@ -618,14 +619,16 @@ const PcAgentHistoryPage: React.FC = () => {
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5'
             }`}
           >
-            {id === 'sessions' ? <ListTree className="w-4 h-4" /> : <MessageSquareText className="w-4 h-4" />}
+            {id === 'sessions' ? <ListTree className="w-4 h-4" /> : id === 'prompts' ? <MessageSquareText className="w-4 h-4" /> : <Database className="w-4 h-4" />}
             {tk(id)}
           </button>
         ))}
       </div>
 
-      {error && sessionRows.length === 0 && prompts.length === 0 ? (
+      {error && sessionRows.length === 0 && prompts.length === 0 && tab !== 'cache' ? (
         <div className="text-sm text-red-500 py-8 text-center">{error}</div>
+      ) : tab === 'cache' ? (
+        <PcAgentHistoryCachePanel tk={tk} bump={statsBump} />
       ) : tab === 'sessions' ? (
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
           <div className="flex flex-col min-h-0">

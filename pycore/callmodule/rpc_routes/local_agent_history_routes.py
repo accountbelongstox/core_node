@@ -31,6 +31,7 @@ def register_local_agent_history_routes(server) -> None:
         (route_names.UI_AGENT_HISTORY_ARTICLE_VIDEO_LOGS, agent_history_ui_service.article_video_logs),
         (route_names.UI_AGENT_HISTORY_TEST_EXTRACT, agent_history_ui_service.test_extract),
         (route_names.UI_AGENT_HISTORY_LIVE_SCAN, agent_history_ui_service.live_scan),
+        (route_names.UI_AGENT_HISTORY_PROMPT_CACHE, agent_history_ui_service.prompt_cache),
         (route_names.UI_AGENT_HISTORY_TOOL_FRAGMENT_ID_PAGES, agent_history_ui_service.tool_fragment_id_pages),
         (route_names.UI_AGENT_HISTORY_TOOL_FRAGMENT_PAGE, agent_history_ui_service.tool_fragment_page),
     )

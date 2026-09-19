@@ -2,11 +2,13 @@
 """Kokoro batch word synthesis (strategy 1: merge text + silence split).
 
 Kokoro-82M (sherpa-onnx) has no official batch API, but it is near-instant per
-word on CPU. This library merges a group of words into ONE synthesis (so the
-per-call overhead is paid once), then splits the merged audio back into
-per-word mp3 files with the shared silence splitter. When the split does not
-recover exactly one segment per word, it falls back to serial per-word
-synthesis — the result set is identical either way.
+word on CPU. Primary path merges a group of words into ONE synthesis (per-call
+overhead paid once), then splits the merged audio back into per-word mp3 files
+with the shared adaptive silence splitter; a duration-plausibility check guards
+against mid-word cuts (merged list readings have irregular short pauses).
+Fallback: batched serial generation — all words of the group are generated in
+ONE call on the kokoro serialized worker and encoded to mp3 in parallel
+(ffmpeg startup dominates short clips), then plain per-word serial last.
 
 Standalone:
   python -m pycore.pyutils.tts.batch.kokoro_batch words.txt --lang en
@@ -28,6 +30,7 @@ from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
 
 _ENGINE = "kokoro"
 _SYNTH_TIMEOUT_S = 900.0
+_ENCODE_WORKERS = 4
 
 
 def _speaker_id() -> int:
@@ -37,15 +40,10 @@ def _speaker_id() -> int:
         return 0
 
 
-def _generate_merged_on_owner(merged_text: str, speed: float) -> Optional[Tuple[Any, int]]:
-    """Run inside the kokoro serialized worker thread; returns raw samples."""
-    tts = kokoro_engine._get_tts()
-    if tts is None:
-        return None
-    sid = _speaker_id()
+def _generate_on_owner(tts: Any, text: str, sid: int, speed: float) -> Optional[Tuple[Any, int]]:
     try:
         try:
-            audio = tts.generate(merged_text, sid, speed=float(speed))
+            audio = tts.generate(text, sid, speed=float(speed))
         except TypeError:
             sherpa = get_third_package_sherpa_onnx()
             if sherpa is None:
@@ -53,15 +51,40 @@ def _generate_merged_on_owner(merged_text: str, speed: float) -> Optional[Tuple[
             gen = sherpa.GenerationConfig()
             gen.sid = sid
             gen.speed = float(speed)
-            audio = tts.generate(merged_text, gen)
+            audio = tts.generate(text, gen)
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.red(f"[kokoro-batch] merged generate failed: {exc}")
+        ColorPrint.red(f"[kokoro-batch] generate failed ({text[:40]}...): {exc}")
         return None
     samples = getattr(audio, "samples", None)
     sample_rate = int(getattr(audio, "sample_rate", 22050) or 22050)
     if samples is None:
         return None
     return samples, sample_rate
+
+
+def _generate_merged_on_owner(merged_text: str, speed: float) -> Optional[Tuple[Any, int]]:
+    """Run inside the kokoro serialized worker thread; returns raw samples."""
+    tts = kokoro_engine._get_tts()
+    if tts is None:
+        return None
+    return _generate_on_owner(tts, merged_text, _speaker_id(), speed)
+
+
+def _generate_group_on_owner(texts: Sequence[str], speed: float) -> Optional[Tuple[List[Any], int]]:
+    """Serial per-word generation in ONE serialized-queue call (batched serial)."""
+    tts = kokoro_engine._get_tts()
+    if tts is None:
+        return None
+    sid = _speaker_id()
+    samples_list: List[Any] = []
+    sample_rate = 0
+    for text in texts:
+        generated = _generate_on_owner(tts, text, sid, speed)
+        if generated is None:
+            return None
+        samples, sample_rate = generated
+        samples_list.append(samples)
+    return samples_list, sample_rate
 
 
 def _synthesize_group(
@@ -82,12 +105,27 @@ def _synthesize_group(
     )
     if generated is not None:
         samples, sample_rate = generated
-        ranges = batch_common.split_samples_by_silence(samples, sample_rate, len(group))
-        if ranges is not None:
+        ranges = batch_common.split_merged_samples(samples, sample_rate, len(group))
+        if ranges is not None and batch_common.plausible_ranges(ranges, sample_rate):
             result.merged_used = True
             return batch_common.write_segments_mp3(
                 samples, sample_rate, ranges, group, out_dir, start_index
             )
+        ColorPrint.yellow("[kokoro-batch] merged split rejected; batched serial fallback")
+
+    batched = call_serialized(
+        kokoro_engine._MODEL_QUEUE,
+        _generate_group_on_owner,
+        list(group),
+        speed,
+        timeout=_SYNTH_TIMEOUT_S,
+    )
+    if batched is not None:
+        samples_list, sample_rate = batched
+        return batch_common.write_word_samples_mp3(
+            samples_list, sample_rate, group, out_dir, start_index, _ENCODE_WORKERS
+        )
+
     result.fallback_used = True
     return batch_common.serial_fallback(
         kokoro_engine.synthesize, group, lang, out_dir, start_index, speed
