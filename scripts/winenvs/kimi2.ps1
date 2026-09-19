@@ -61,6 +61,7 @@ $mcpChromeNeedsDependencies = $false
 $mcpChromeNeedsBuild = $false
 $mcpChromeInstalled = $false
 $mcpChromeSetup = $false
+$mcpChromeJustInstalled = $false
 $mcpChromeHost = $null
 $mcpChromeUrl = $null
 $mcpChromePort = 0
@@ -376,6 +377,7 @@ if ($mcpChromeInstalled) {
             Set-Location -LiteralPath $previousLocation
         }
         $mcpChromeSetup = $true
+        $mcpChromeJustInstalled = $true
     } else {
         Write-Host "[INFO] Chrome MCP install skipped." -ForegroundColor DarkGray
     }
@@ -413,32 +415,36 @@ if ($mcpChromeSetup) {
     [System.IO.File]::WriteAllText($kimiMcpConfigPath, $mcpJson, $utf8Encoding)
     Write-Host "[INFO] Chrome MCP registered in Kimi Code: $kimiMcpConfigPath" -ForegroundColor Green
 
-    $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
-    if ($mcpChromeNeedsBuild -or -not $mcpChromePortReady) {
-        $mcpChromeSupervisorArgs = @(
-            $mcpChromeSupervisorScriptPath,
-            "--project-root", $mcpChromePath,
-            "--watch-mode", "dev",
-            "--recover-on-start"
-        )
-    } else {
-        $mcpChromeSupervisorArgs = @(
-            $mcpChromeSupervisorScriptPath,
-            "--project-root", $mcpChromePath,
-            "--watch-mode", "dev"
-        )
-    }
-    Write-Host "[INFO] Starting Chrome MCP development service..." -ForegroundColor Cyan
-    Start-Process -FilePath $mcpChromePython -ArgumentList $mcpChromeSupervisorArgs -WindowStyle Hidden
-    while (-not $mcpChromePortReady -and $mcpChromePortWaitCount -lt 60) {
-        Start-Sleep -Milliseconds 500
+    if ($mcpChromeJustInstalled) {
         $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
-        $mcpChromePortWaitCount = $mcpChromePortWaitCount + 1
-    }
-    if ($mcpChromePortReady) {
-        Write-Host ("[INFO] Chrome MCP is listening on {0}:{1}." -f $mcpChromeHost, $mcpChromePort) -ForegroundColor Green
+        if ($mcpChromeNeedsBuild -or -not $mcpChromePortReady) {
+            $mcpChromeSupervisorArgs = @(
+                $mcpChromeSupervisorScriptPath,
+                "--project-root", $mcpChromePath,
+                "--watch-mode", "dev",
+                "--recover-on-start"
+            )
+        } else {
+            $mcpChromeSupervisorArgs = @(
+                $mcpChromeSupervisorScriptPath,
+                "--project-root", $mcpChromePath,
+                "--watch-mode", "dev"
+            )
+        }
+        Write-Host "[INFO] Starting Chrome MCP development service..." -ForegroundColor Cyan
+        Start-Process -FilePath $mcpChromePython -ArgumentList $mcpChromeSupervisorArgs -WindowStyle Hidden
+        while (-not $mcpChromePortReady -and $mcpChromePortWaitCount -lt 60) {
+            Start-Sleep -Milliseconds 500
+            $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
+            $mcpChromePortWaitCount = $mcpChromePortWaitCount + 1
+        }
+        if ($mcpChromePortReady) {
+            Write-Host ("[INFO] Chrome MCP is listening on {0}:{1}." -f $mcpChromeHost, $mcpChromePort) -ForegroundColor Green
+        } else {
+            Write-Host "[WARN] Chrome MCP did not become ready; reload the unpacked extension once." -ForegroundColor Yellow
+        }
     } else {
-        Write-Host "[WARN] Chrome MCP did not become ready; reload the unpacked extension once." -ForegroundColor Yellow
+        Write-Host "[INFO] Chrome MCP already installed; skipping supervisor start." -ForegroundColor DarkGray
     }
 }
 
