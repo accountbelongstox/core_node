@@ -7,6 +7,17 @@ AppIndicator3 System Tray - Native Ubuntu/GNOME System Tray
 Native implementation using GTK3 + AppIndicator3 for Ubuntu/GNOME Shell.
 This provides the best system tray experience on Ubuntu 22.04+.
 
+Platform notes (official package archives, 2026):
+- Debian 13 (trixie, GNOME 48, Wayland default): only the Ayatana binding
+  exists (gir1.2-ayatanaappindicator3-0.1; legacy gir1.2-appindicator3-0.1 was
+  dropped from Debian). GNOME Shell shows NO tray icons without the
+  gnome-shell-extension-appindicator package (install + re-login required).
+- Ubuntu 26.04 (resolute, GNOME 50, Wayland-only): both GI packages exist;
+  prefer Ayatana. The appindicator extension ships enabled by default via
+  gnome-shell-ubuntu-extensions, so tray works out of the box.
+- The AppIndicator protocol is D-Bus (StatusNotifierItem), so it works
+  natively under Wayland without XWayland.
+
 Features:
 - Native GNOME Shell integration (no extensions required for basic functionality)
 - Better AppIndicator extension compatibility than Qt QSystemTrayIcon
@@ -16,11 +27,13 @@ Features:
 
 Requirements:
     System packages (recommended):
-        sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+        sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1
+        # Debian 13 GNOME additionally needs the shell extension:
+        sudo apt-get install gnome-shell-extension-appindicator
 
     OR pip packages (requires compilation):
         pip install PyGObject
-        sudo apt-get install gir1.2-appindicator3-0.1
+        sudo apt-get install gir1.2-ayatanaappindicator3-0.1
 
 Usage:
     from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import AppIndicatorSystemTray
@@ -125,8 +138,9 @@ class AppIndicatorSystemTray:
         if not APPINDICATOR_AVAILABLE:
             raise RuntimeError(
                 f"AppIndicator not available: {IMPORT_ERROR}\n"
-                f"Install (modern Ubuntu): sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
-                f"Install (legacy):        sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
+                f"Install (Debian 13 / Ubuntu 24.04+): sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
+                f"Debian 13 GNOME also needs:           sudo apt-get install gnome-shell-extension-appindicator\n"
+                f"Install (legacy Ubuntu only):         sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
             )
 
         self.app_id = app_id
@@ -439,10 +453,12 @@ def print_appindicator_status():
         ColorPrint.red("✗ AppIndicator is NOT available")
         ColorPrint.yellow(f"  Error: {IMPORT_ERROR}")
         ColorPrint.yellow("")
-        ColorPrint.yellow("  Installation (modern Ubuntu 22.04+/24.04 - Ayatana):")
+        ColorPrint.yellow("  Installation (Debian 13 / Ubuntu 24.04+ - Ayatana):")
         ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1")
+        ColorPrint.yellow("  Debian 13 GNOME additionally needs the shell extension (re-login after):")
+        ColorPrint.yellow("    sudo apt-get install gnome-shell-extension-appindicator")
         ColorPrint.yellow("")
-        ColorPrint.yellow("  Installation (legacy AppIndicator):")
+        ColorPrint.yellow("  Installation (legacy AppIndicator, older Ubuntu only):")
         ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
 
     ColorPrint.blue("=" * 70)

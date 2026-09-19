@@ -7,7 +7,8 @@ Provides centralized platform detection and adaptation logic for Native UI.
 
 Features:
 - Platform detection (Windows/Linux/macOS)
-- X11 display detection (Linux)
+- Display server detection (X11 or Wayland, Linux — Debian 13 / Ubuntu 26.04
+  default to Wayland sessions)
 - Tray backend auto-selection
 - Windows-specific configuration (AppUserModelID)
 - QtWebEngine sandbox handling (root user)
@@ -77,7 +78,7 @@ class TrayBackend(Enum):
 class PlatformCapabilities:
     """Platform-specific capabilities"""
     has_gui: bool = True                # GUI support available
-    has_x11: bool = False               # X11 display available (Linux)
+    has_x11: bool = False               # Display server available (X11 or Wayland, Linux)
     can_use_tray: bool = True           # System tray available
     can_use_notifications: bool = True  # System notifications available
     needs_sandbox_disable: bool = False # QtWebEngine needs --no-sandbox
@@ -98,7 +99,7 @@ class PlatformAdapter:
 
         ColorPrint.blue(f"[PlatformAdapter] Initialized for {self._platform.value}")
         ColorPrint.blue(f"[PlatformAdapter] GUI: {self._capabilities.has_gui}, "
-                       f"X11: {self._capabilities.has_x11}, "
+                       f"Display: {self._capabilities.has_x11}, "
                        f"Tray: {self._capabilities.can_use_tray}")
 
     # ========================================
@@ -118,20 +119,30 @@ class PlatformAdapter:
             return Platform.UNKNOWN
 
     @staticmethod
-    def _detect_x11_display() -> bool:
+    def _detect_display() -> bool:
         """
-        Detect if X11 display is available (Linux only)
+        Detect a usable display server (Linux only).
+
+        Debian 13 / Ubuntu 26.04 default to Wayland sessions: WAYLAND_DISPLAY
+        (or XDG_SESSION_TYPE=wayland) is set while DISPLAY may be absent when
+        Xwayland is disabled. AppIndicator/StatusNotifierItem is D-Bus based
+        and works natively under Wayland, so either server enables tray/GUI.
 
         Returns:
-            True if DISPLAY environment variable is set
+            True if an X11 or Wayland display is available
         """
         display = os.environ.get('DISPLAY')
         if display:
             ColorPrint.blue(f"[PlatformAdapter] X11 display detected: {display}")
             return True
-        else:
-            ColorPrint.yellow("[PlatformAdapter] No X11 display detected (headless mode)")
-            return False
+        wayland = os.environ.get('WAYLAND_DISPLAY')
+        session_type = os.environ.get('XDG_SESSION_TYPE', '').lower()
+        if wayland or session_type == 'wayland':
+            ColorPrint.blue(
+                f"[PlatformAdapter] Wayland session detected: {wayland or session_type}")
+            return True
+        ColorPrint.yellow("[PlatformAdapter] No display server detected (headless mode)")
+        return False
 
     @staticmethod
     def _is_running_as_root() -> bool:
@@ -151,12 +162,14 @@ class PlatformAdapter:
         caps = PlatformCapabilities()
 
         if self._platform == Platform.LINUX:
-            # Linux: check X11 for GUI/tray support
-            caps.has_x11 = self._detect_x11_display()
+            # Linux: a display server (X11 or Wayland) enables GUI/tray support
+            caps.has_x11 = self._detect_display()
             caps.has_gui = caps.has_x11
             caps.can_use_tray = caps.has_x11
             if caps.has_x11:
                 # Prefer AppIndicator on Ubuntu/GNOME desktop for native tray
+                # (Ubuntu 26.04 ships the appindicator extension by default;
+                # Debian 13 GNOME needs gnome-shell-extension-appindicator).
                 desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
                 if 'ubuntu' in desktop or 'gnome' in desktop:
                     caps.recommended_tray_backend = TrayBackend.APPINDICATOR
@@ -217,7 +230,7 @@ class PlatformAdapter:
 
     @property
     def has_x11(self) -> bool:
-        """Check if X11 display is available (Linux)"""
+        """Check if a display server is available (Linux: X11 or Wayland)"""
         return self._capabilities.has_x11
 
     def can_use_tray(self) -> bool:

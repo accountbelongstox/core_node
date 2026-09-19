@@ -8,6 +8,8 @@
     "openrouter_model": "openrouter/free",
     "prompt_article_cn": "",
     "prompt_translate_en": "",
+    "prompt_derive_en": "",
+    "prompt_derive_sound": true,
     "video_enabled": false,
     "video_username": "",
     "video_batch_name": "default",

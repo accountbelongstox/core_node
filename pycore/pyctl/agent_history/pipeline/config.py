@@ -148,6 +148,7 @@ def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
         "live_listen", "phase", "video_enabled", "video_username",
         "video_batch_name", "video_concurrency",
         "prompt_article_cn", "prompt_translate_en", "prompt_derive_en",
+        "prompt_derive_sound",
     ):
         if key in patch:
             cfg[key] = patch[key]
