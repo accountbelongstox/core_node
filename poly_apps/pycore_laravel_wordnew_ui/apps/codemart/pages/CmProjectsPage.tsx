@@ -251,6 +251,9 @@ export const CmProjectsPage: React.FC = () => {
                   <span className="cm-status" data-status={project.status}>{t(`states.project.${project.status}`)}</span>
                 </div>
               </div>
+              <Link to={`/codemart/projects/${project.id}`} className="cm-workspace-button">
+                {t('projects.openDetail')}
+              </Link>
               {project.status === 'draft' && canCreate && (
                 <button
                   type="button"

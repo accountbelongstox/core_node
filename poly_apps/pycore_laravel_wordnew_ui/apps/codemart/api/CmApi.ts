@@ -23,6 +23,7 @@ import type {
   CmPayment,
   CmProfileResponse,
   CmProject,
+  CmProjectDetail,
   CmPublicHomeData,
   CmPublicHomeLoadResult,
   CmPublicTestimonialData,
@@ -134,8 +135,8 @@ export class CmApi extends BaseAPI {
     return this.post<CmProject>('projects', payload);
   }
 
-  async getProject(projectId: number): Promise<APIResponse<unknown>> {
-    return this.get<unknown>(`projects/${projectId}`);
+  async getProject(projectId: number): Promise<APIResponse<CmProjectDetail>> {
+    return this.get<CmProjectDetail>(`projects/${projectId}`);
   }
 
   async publishProject(projectId: number): Promise<APIResponse<unknown>> {

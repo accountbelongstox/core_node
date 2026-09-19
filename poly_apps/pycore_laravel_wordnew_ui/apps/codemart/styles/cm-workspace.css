@@ -904,6 +904,29 @@
 .cm-steps-list li[data-completed="true"] { border-color: #bfe5d4; color: #2f9b70; }
 .cm-steps-list li[data-blocked="true"] { border-color: #f0c9c9; color: #c35454; }
 
+.cm-task-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cm-task-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #dfe7f0;
+  border-radius: 10px;
+  background: #f7fafd;
+  color: #43536a;
+  font-weight: 540;
+}
+
+.cm-task-list li .cm-status { margin-left: auto; }
+
 .cm-settings-row select,
 .cm-page-heading select {
   min-width: 220px;
@@ -1126,6 +1149,7 @@
 .dark .cm-project-form,
 .dark .cm-marketplace-toolbar,
 .dark .cm-steps-list li { border-color: #2a3543; background: #1c242f; box-shadow: none; }
+.dark .cm-task-list li { border-color: #2a3543; background: #222c38; color: #c3d3e6; }
 .dark .cm-metric-card strong { color: #e6edf5; }
 .dark .cm-record-card__main h2 { color: #d4dde8; }
 .dark .cm-record-card__main p { color: #93a3b5; }

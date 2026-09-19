@@ -26,6 +26,7 @@ const CmAdminKycPage = lazy(() => import('./admin/CmAdminPages').then((module) =
 const CmAdminDepositsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminDepositsPage })));
 const CmAdminRefundsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminRefundsPage })));
 const CmAdminProjectsPage = lazy(() => import('./admin/CmAdminFinancePages').then((module) => ({ default: module.CmAdminProjectsPage })));
+const CmProjectDetailPage = lazy(() => import('./pages/CmProjectDetailPage'));
 
 registerCmLocales();
 
@@ -70,6 +71,7 @@ const CmApp: React.FC = () => (
       {/* Authenticated user workspace */}
       <Route element={<CmAccessGate><CmLayout /></CmAccessGate>}>
         {cmPageRoutes}
+        <Route path="projects/:projectId" element={wrapPage(<CmProjectDetailPage />)} />
       </Route>
       <Route path="*" element={<Navigate to="/codemart" replace />} />
     </Routes>

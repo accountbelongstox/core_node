@@ -171,6 +171,10 @@ INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 UI_BINDING_CONVERGED="no"
 
+# Optional: seed CodeMart demo accounts/projects via `php artisan sys:codemartinit`
+# after sys:init. CODEMART_INIT=yes|no skips the interactive prompt (default N).
+CODEMART_INIT="${CODEMART_INIT:-}"
+
 . "$LARAVEL_13_UPGRADE_SCRIPT"
 # Shared global var helpers (file-backed selectors: START_WEB_SERVER/WEB_SERVER_PLANE,
 # USE_SUDO and CORE_NODE_DATA_DIR defaults).
@@ -625,6 +629,24 @@ fi
 
 echo "Initializing system (php artisan sys:init)..."
 "$PHP_BIN" artisan sys:init
+
+# --- Optional: CodeMart demo data (sys:codemartinit) ---
+# Idempotent seed of demo accounts, projects, milestones, tasks, deposits,
+# wallets and testimonials so a fresh install can exercise the full CodeMart
+# marketplace immediately. Unconditional y/N prompt (defaults to N; safe
+# non-interactively); CODEMART_INIT=yes|no skips the prompt.
+if [ -z "$CODEMART_INIT" ]; then
+    ask_default_no "Initialize CodeMart demo data (php artisan sys:codemartinit)?"
+    if [ "$PROMPT_ANSWER" = "yes" ]; then
+        CODEMART_INIT="yes"
+    else
+        CODEMART_INIT="no"
+    fi
+fi
+if [ "$CODEMART_INIT" = "yes" ]; then
+    echo "Seeding CodeMart demo data (php artisan sys:codemartinit)..."
+    "$PHP_BIN" artisan sys:codemartinit
+fi
 
 # --- Plane-specific web/domain phases (merged 132_prepare_domain_setup +
 # 133_setup_domain_ssl behaviour): dispatched per plane, idempotent and

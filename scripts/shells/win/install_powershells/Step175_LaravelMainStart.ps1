@@ -29,6 +29,8 @@ $vendorAutoloadPath = $null
 $workerPath = $null
 $serviceReady = $false
 $service = $null
+$codemartInit = $env:CODEMART_INIT
+$codemartInitAnswer = $null
 . $managerPath
 . $certificateManagerPath
 
@@ -81,6 +83,29 @@ if ((Test-Path -LiteralPath $phpPath -PathType Leaf) -and
 }
 if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
     Write-FrankenPhpLog -Message "Octane worker postcondition failed: $workerPath" -Type 'Error'
+}
+
+# Optional: seed CodeMart demo accounts/projects via `php artisan sys:codemartinit`
+# (idempotent). Defaults to N; the CODEMART_INIT environment variable (yes|no)
+# skips the interactive prompt.
+if ([string]::IsNullOrEmpty($codemartInit)) {
+    $codemartInitAnswer = Read-Host 'Initialize CodeMart demo data (php artisan sys:codemartinit)? [y/N]'
+    if ($codemartInitAnswer -match '^(?i:y|yes)$') {
+        $codemartInit = 'yes'
+    }
+    else {
+        $codemartInit = 'no'
+    }
+}
+if ($codemartInit -eq 'yes' -and (Test-Path -LiteralPath $artisanPath -PathType Leaf)) {
+    Write-FrankenPhpLog -Message 'Seeding CodeMart demo data (php artisan sys:codemartinit).'
+    Push-Location $laravelDirectory
+    try {
+        & $phpPath $artisanPath sys:codemartinit
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 Ensure-FrankenPhpCertificates | Out-Null
