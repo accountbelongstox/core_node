@@ -66,7 +66,9 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_min": "3.10",
         "python_max": "3.13",
         "isolated": False,
-        "packages": ("ChatTTS", "fastapi", "uvicorn", "pydub"),
+        "cpu_supported": True,
+        # audioop-lts: pydub's audioop shim on Python 3.13+ (stdlib removed it).
+        "packages": ("ChatTTS", "fastapi", "uvicorn", "pydub", "audioop-lts"),
         "health_imports": "import ChatTTS, fastapi, uvicorn, pydub, torch",
     },
     "cosyvoice": {
@@ -76,6 +78,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "cpu_supported": True,
         "linux_native_build": True,
         "build_packages": _LEGACY_BUILD_PACKAGES,
         "build_constraints": _LEGACY_BUILD_CONSTRAINTS,
@@ -118,6 +121,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_min": "3.10",
         "python_max": "3.13",
         "isolated": False,
+        "cpu_supported": True,
         "packages": (
             "F5-TTS",
             "fastapi",
@@ -133,6 +137,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "cpu_supported": True,
         "torch_packages": ("torch", "torchaudio"),
         "packages": ("requirements.txt",),
         "windows_native_build": True,
@@ -164,9 +169,16 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
+        "cpu_supported": True,
         "linux_native_build": True,
-        "torch_packages": ("torch",),
-        "packages": ("melotts", "unidic-lite"),
+        "torch_packages": ("torch", "torchaudio"),
+        # The melotts PyPI sdist (0.1.1) is broken - its setup.py reads a
+        # requirements.txt that is not shipped; upstream's documented install
+        # is the git repo.
+        "packages": ("git+https://github.com/myshell-ai/MeloTTS.git", "unidic-lite"),
+        # melo.text.japanese initializes MeCab at import time and needs the
+        # full unidic dictionary (upstream README: python -m unidic download).
+        "post_install_commands": (("-m", "unidic", "download"),),
         "pins": (),
         "health_imports": (
             "import numpy, torch, transformers; from melo.api import TTS"
@@ -200,6 +212,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         # so the CUDA wheel tier for this engine is pinned to cu128.
         "torch_packages": ("torch==2.8.0", "torchaudio==2.8.0"),
         "torch_index_tag": "cu128",
+        "cpu_supported": True,
         "packages": (
             "fish-audio-sdk",
             "fastapi",
@@ -235,6 +248,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_min": "3.8",
         "python_max": "3.13",
         "isolated": False,
+        "cpu_supported": True,
         "packages": ("sherpa-onnx", "soundfile"),
         "health_imports": "import sherpa_onnx, soundfile",
     },
@@ -245,7 +259,8 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_SELF_CONTAINED,
         "device_policy": "auto",
-        "torch_packages": ("torch",),
+        "cpu_supported": True,
+        "torch_packages": ("torch", "torchaudio"),
         "packages": ("voxcpm", "soundfile"),
         "health_imports": "import voxcpm, soundfile, torch",
         "upstream": {
@@ -268,6 +283,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_min": "3.10",
         "python_max": "3.13",
         "isolated": False,
+        "cpu_supported": True,
         "packages": (
             SHARED_TRANSFORMERS_SPEC,
             "scipy",
@@ -281,6 +297,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_min": "3.10",
         "python_max": "3.13",
         "isolated": False,
+        "cpu_supported": True,
         "packages": (
             "git+https://github.com/huggingface/parler-tts.git",
             "soundfile",
@@ -295,6 +312,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_recommended": "3.12",
         "isolated": True,
         "isolation_mode": ISOLATION_MODE_OVERLAY,
+        "cpu_supported": True,
         "packages": policy_csv("AI_QWEN_TTS_PACKAGES"),
         "pins": policy_csv("AI_QWEN_TTS_PINS"),
         "health_imports": policy_value(
@@ -355,6 +373,10 @@ def engine_spec(engine: str) -> Dict[str, Any]:
     ):
         if sequence_key in result:
             result[sequence_key] = list(result[sequence_key])
+    if "post_install_commands" in result:
+        result["post_install_commands"] = [
+            list(command) for command in result["post_install_commands"]
+        ]
     result["shared_packages"] = list(
         result.get(
             "shared_packages",
@@ -376,6 +398,15 @@ def engine_isolation_mode(engine: str) -> str:
     if mode in (ISOLATION_MODE_OVERLAY, ISOLATION_MODE_SELF_CONTAINED):
         return mode
     return ISOLATION_MODE_OVERLAY
+
+
+def engine_cpu_supported(engine: str) -> bool:
+    """Return whether the engine officially supports CPU-only inference.
+
+    Unknown engines default to False (conservative: they keep skipping on
+    headless GPU-less hosts).
+    """
+    return bool(engine_spec(engine).get("cpu_supported", False))
 
 
 def _python_binary_path(candidate: str) -> str:
@@ -610,6 +641,8 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
     health_parser.add_argument("engine")
     cuda_parser = subparsers.add_parser("cuda-tier")
     cuda_parser.add_argument("--driver-cv", type=int, required=True)
+    cpu_parser = subparsers.add_parser("cpu-supported")
+    cpu_parser.add_argument("engine")
     args = parser.parse_args(argv)
 
     if args.command == "engine-spec":
@@ -656,6 +689,9 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
             )
         )
         return 0
+    if args.command == "cpu-supported":
+        print("true" if engine_cpu_supported(args.engine) else "false")
+        return 0
     return 2
 
 
@@ -690,6 +726,7 @@ __all__ = [
     "cuda_tier_for_driver",
     "base_interpreter_compatibility",
     "engine_compatibility",
+    "engine_cpu_supported",
     "engine_fingerprint",
     "engine_isolation_mode",
     "engine_spec",

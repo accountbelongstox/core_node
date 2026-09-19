@@ -94,6 +94,48 @@ def _torch_stack_target(engine: str, spec: Optional[dict] = None) -> Tuple[str, 
     return "cpu", TORCH_CPU_INDEX
 
 
+def _torch_flavor_mismatch(
+    venv_python: str,
+    packages: Sequence[str],
+    device_label: str,
+) -> bool:
+    """True when an installed torch-family wheel's build flavor contradicts the
+    resolved device. PyPI's default torch/torchaudio wheels are CUDA-linked but
+    carry no local version tag, while the official device-index builds are
+    tagged (+cpu / +cuXXX); a CUDA-linked wheel on a CPU-only host fails at
+    import time with missing libcudart."""
+    names = [package.split("==", 1)[0].strip() for package in packages]
+    if not names:
+        return False
+    want_cpu = device_label == "cpu"
+    code = (
+        "import importlib.metadata as m\n"
+        f"names = {names!r}\n"
+        "bad = []\n"
+        "for name in names:\n"
+        "    try:\n"
+        "        version = m.version(name)\n"
+        "    except m.PackageNotFoundError:\n"
+        "        continue\n"
+        "    local = version.partition('+')[2]\n"
+        f"    if ({want_cpu!r} and local != 'cpu') or (not {want_cpu!r} and local == 'cpu'):\n"
+        "        bad.append(name)\n"
+        "print(' '.join(bad))\n"
+    )
+    try:
+        result = subprocess.run(
+            [venv_python, "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError:
+        return False
+    return bool(result.stdout.strip())
+
+
 def _install_torch_stack(venv_python: str, engine: str, spec: dict) -> bool:
     """Install the engine venv's own torch stack with a device-aware index.
 
@@ -104,20 +146,34 @@ def _install_torch_stack(venv_python: str, engine: str, spec: dict) -> bool:
     packages = tuple(spec.get("torch_packages", ()))
     if not packages:
         return True
-    if _packages_importable(venv_python, packages):
+    device_label, index_url = _torch_stack_target(engine, spec)
+    if _packages_importable(venv_python, packages) and not _torch_flavor_mismatch(
+        venv_python, packages, device_label
+    ):
         ColorPrint.blue(
             f"[isolated-venv] {engine} torch stack already importable: "
             + ", ".join(packages)
         )
         return True
-    device_label, index_url = _torch_stack_target(engine, spec)
+    # --upgrade lets pip replace a wrong-flavor wheel (e.g. a CUDA-linked
+    # torchaudio pulled from PyPI) with the device-index build: the +cpu/+cuXXX
+    # local tag always sorts above its untagged twin, so the upgrade converges.
+    # PyPI is offered as an extra index because the torch index carries a
+    # typing-extensions wheel with broken metadata; without a fallback index
+    # pip falls back to the sdist and fails on the missing flit_core backend.
     ColorPrint.blue(
         f"[isolated-venv] {engine} torch stack (device={device_label}, "
         f"index={index_url}): " + ", ".join(packages)
     )
     return _install_package_steps(
         venv_python,
-        ("--index-url", index_url),
+        (
+            "--index-url",
+            index_url,
+            "--extra-index-url",
+            "https://pypi.org/simple/",
+            "--upgrade",
+        ),
         packages,
         f"installing {engine} torch stack",
     )
@@ -494,6 +550,16 @@ def _install_into(
         () if self_contained else _shared_constraints(venv_python, shared_packages)
     )
     constraints = (*constraints, *build_constraints)
+    # Self-contained venvs preinstall their torch stack from the device-aware
+    # torch index, but engine packages resolved from PyPI alone can still pull
+    # CUDA-linked torch/torchaudio wheels (e.g. voxcpm -> torchaudio, whose
+    # default PyPI build needs libcudart). Offering the same torch index as an
+    # extra index lets pip prefer the matching +cpu/+cuXXX local builds.
+    engine_extra_index: Tuple[str, ...] = ()
+    if self_contained and spec.get("torch_packages"):
+        _, torch_index_url = _torch_stack_target(engine, spec)
+        if torch_index_url:
+            engine_extra_index = ("--extra-index-url", torch_index_url)
     try:
         pip_args = [venv_python, "-m", "pip", "install"]
         if constraints:
@@ -531,7 +597,7 @@ def _install_into(
             return False
         if install_list and not _install_package_steps(
             venv_python,
-            (*pip_args[4:], *spec.get("pip_args", ())),
+            (*pip_args[4:], *engine_extra_index, *spec.get("pip_args", ())),
             install_list,
             "ensuring engine package",
             command_env=command_env,
@@ -543,6 +609,15 @@ def _install_into(
                 constraint_path.unlink(missing_ok=True)
             except OSError:
                 pass
+    # Engine-specific post-install steps that pip cannot express (e.g. MeloTTS
+    # needs the unidic dictionary downloaded before `from melo.api import TTS`
+    # can initialize MeCab at import time).
+    for command in tuple(spec.get("post_install_commands", ())):
+        command = tuple(command)
+        ColorPrint.blue("[isolated-venv] post-install: " + " ".join(command))
+        if not _run([venv_python, *command]):
+            ColorPrint.yellow("[isolated-venv] post-install step failed: " + " ".join(command))
+            return False
     if not _venv_healthy(engine, venv_python, health_imports):
         ColorPrint.yellow("[isolated-venv] import-health probe still fails after install")
         _run_pip_check(venv_python)

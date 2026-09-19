@@ -64,7 +64,7 @@ echo "============================================================"
 echo " [install_bark] Bark (Suno / transformers)"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "bark"; then
     echo "[install_bark] [skip] Server environment without desktop and GPU detected. Skipping Bark installation."
     complete_prereq_step "$PYTHON" "[install_bark] " --absent-ok "server CPU host" transformers
     exit 0

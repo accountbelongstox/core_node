@@ -12,7 +12,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/melotts
-RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" torch \
+RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" --extra-index-url https://pypi.org/simple/ torch \
     && pip install --no-cache-dir melotts unidic-lite fastapi "uvicorn[standard]" soundfile pydub \
     && python -c "import nltk; nltk.download('averaged_perceptron_tagger_eng', quiet=True)"
 

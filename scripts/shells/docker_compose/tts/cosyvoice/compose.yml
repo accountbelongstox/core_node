@@ -6,6 +6,7 @@ services:
       context: .
       args:
         TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+        TTS_DEVICE: ${TTS_DEVICE:-cpu}
     image: pycore-tts-cosyvoice:local
     container_name: pycore-tts-cosyvoice
     restart: "no"

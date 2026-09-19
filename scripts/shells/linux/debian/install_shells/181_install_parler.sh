@@ -56,7 +56,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "parler"; then
     echo "[install_parler] [skip] Server environment without desktop and GPU detected. Skipping Parler-TTS installation."
     complete_prereq_step "$PYTHON" "[install_parler] " --absent-ok "server CPU host" parler_tts
     exit 0

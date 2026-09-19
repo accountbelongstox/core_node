@@ -12,10 +12,12 @@ RUN apt-get update \
 WORKDIR /opt/gpt-sovits
 RUN git clone --depth 1 https://github.com/RVC-Boss/GPT-SoVITS.git .
 COPY gptsovits_build_constraints.txt ./
-RUN export PIP_CONSTRAINT=/opt/gpt-sovits/gptsovits_build_constraints.txt \
+# pip upgrade first: PIP_BUILD_CONSTRAINT requires pip >= 25.1.
+RUN pip install --no-cache-dir --upgrade pip \
+    && export PIP_CONSTRAINT=/opt/gpt-sovits/gptsovits_build_constraints.txt \
         PIP_BUILD_CONSTRAINT=/opt/gpt-sovits/gptsovits_build_constraints.txt \
     && pip install --no-cache-dir -r gptsovits_build_constraints.txt \
-    && pip install --no-cache-dir --index-url "$TORCH_INDEX" torch torchaudio \
+    && pip install --no-cache-dir --index-url "$TORCH_INDEX" --extra-index-url https://pypi.org/simple/ torch torchaudio \
     && pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 9880

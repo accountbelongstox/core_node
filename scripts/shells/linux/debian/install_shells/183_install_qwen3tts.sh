@@ -87,7 +87,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "qwen3tts"; then
     echo "[install_qwen3tts] [skip] Server environment without desktop and GPU detected. Skipping Qwen3-TTS installation."
     complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
     exit 0
