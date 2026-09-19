@@ -357,6 +357,35 @@ export interface AiUsageRecord {
   success: boolean;
   latency_ms: number | null;
   error: string | null;
+  /** Bounded prompt/response detail when the caller captured it (chat_once). */
+  prompt?: string | null;
+  response?: string | null;
+}
+
+/** One currently-running AI call (in-memory on the backend, never persisted). */
+export interface AiUsageInFlight {
+  id: string;
+  kind: string;
+  provider: string;
+  model: string;
+  source: string;
+  runtime: string;
+  started_ts: number;
+  iso: string;
+  elapsed_ms: number;
+}
+
+/** Paged/filtered query options for the shared usage log. */
+export interface AiUsagePageOptions {
+  limit?: number;
+  kind?: string;
+  provider?: string;
+  sources?: string[];
+  /** page > 0 switches the backend to paged mode. */
+  page?: number;
+  pageSize?: number;
+  /** YYYY-MM-DD day filter (matches the record ISO timestamp prefix). */
+  day?: string;
 }
 
 /** GET /api/local/ai/usage — shared usage log + per-provider/kind rollup. */
@@ -366,6 +395,11 @@ export interface AiUsageResponse {
   stats: Record<string, AiUsageProviderStat>;
   source_stats?: Record<string, Record<string, unknown>>;
   entries: AiUsageRecord[];
+  total?: number;
+  page?: number;
+  page_count?: number;
+  page_size?: number;
+  in_flight?: AiUsageInFlight[];
   error?: string;
 }
 

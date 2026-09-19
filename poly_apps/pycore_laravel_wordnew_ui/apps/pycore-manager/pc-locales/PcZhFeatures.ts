@@ -374,5 +374,15 @@ agentHistory: {
     noData: '无数据',
     dataStale: '数据陈旧/连接中',
     stale: '陈旧',
+    recordsPanelTitle: 'AI 请求记录',
+    recordsPanelAllProviders: '全部服务商',
+    recordsPanelDay: '日期',
+    recordsPanelAllDays: '全部日期',
+    recordsPanelInFlight: '正在请求',
+    recordsPanelElapsed: '已耗时',
+    recordsPanelPrompt: '发送的提示词',
+    recordsPanelResponse: '返回内容',
+    recordsPanelEmpty: '当前筛选条件下没有记录。',
+    recordsPanelTotal: '条记录',
   }
 } as const;

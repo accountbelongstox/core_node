@@ -62,6 +62,44 @@ _KINDS = ("text", "vision", "probe", "image", "tts", "stt")
 
 _WORK_QUEUE = 'pyctl.ai.usage_log.operations'
 
+# Prompt/response detail capture: bounded so the ring file stays small.
+_DETAIL_CAP = 12000
+
+# In-flight calls (in-memory only; never persisted). Keyed by call id.
+_IN_FLIGHT: Dict[str, Dict[str, Any]] = {}
+
+
+def _cap_detail(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return str(value)[:_DETAIL_CAP]
+
+
+def begin_call(info: Dict[str, Any]) -> str:
+    """Register one in-flight AI call; returns its id. In-memory only."""
+    call_id = uuid.uuid4().hex
+    entry = dict(info or {})
+    entry["id"] = call_id
+    entry["started_ts"] = time.time()
+    entry["iso"] = datetime.fromtimestamp(entry["started_ts"], timezone.utc).isoformat(timespec="seconds")
+    _IN_FLIGHT[call_id] = entry
+    return call_id
+
+
+def end_call(call_id: str) -> None:
+    _IN_FLIGHT.pop(str(call_id or ""), None)
+
+
+def in_flight_calls() -> List[Dict[str, Any]]:
+    now = time.time()
+    rows = []
+    for entry in list(_IN_FLIGHT.values()):
+        row = dict(entry)
+        row["elapsed_ms"] = round((now - float(row.get("started_ts") or now)) * 1000, 1)
+        rows.append(row)
+    rows.sort(key=lambda item: float(item.get("started_ts") or 0.0))
+    return rows
+
 
 def _migrate_old_state():
     """Move files from the prior shared dir (<core_node>/.ai_state) into the new
@@ -152,6 +190,8 @@ def _record_usage(
     provider_reached: Optional[bool] = None,
     quota_counted: Optional[bool] = None,
     context: Optional[Dict[str, Any]] = None,
+    prompt: Optional[str] = None,
+    response: Optional[str] = None,
 ) -> None:
     """Append one usage record (text / vision / probe) to the shared store.
 
@@ -181,6 +221,12 @@ def _record_usage(
         "quota_counted": quota_counted,
         "context": dict(context or {}),
     }
+    capped_prompt = _cap_detail(prompt)
+    capped_response = _cap_detail(response)
+    if capped_prompt is not None:
+        entry["prompt"] = capped_prompt
+    if capped_response is not None:
+        entry["response"] = capped_response
     doc = _load()
     entries = doc.get("entries") or []
     entries.append(entry)
@@ -217,12 +263,17 @@ def _usage_log(
     kind: Optional[str] = None,
     provider: Optional[str] = None,
     sources: Optional[List[str]] = None,
+    page: int = 0,
+    page_size: int = 0,
+    day: str = "",
 ) -> Dict[str, Any]:
     """Newest-first records (+ per-provider/kind rollup) for the UI.
 
-    ``kind``, ``provider``, and ``sources`` optionally filter returned records;
-    aggregate stats always cover the full store. The Laravel usage endpoint
-    returns the same base shape.
+    ``kind``, ``provider``, ``sources``, and ``day`` (YYYY-MM-DD prefix of the
+    record's ISO timestamp) optionally filter returned records; aggregate stats
+    always cover the full store. ``page`` > 0 switches to paged mode: entries
+    are sliced to ``page_size`` and total/page/page_count describe the filtered
+    inventory. The Laravel usage endpoint returns the same base shape.
     """
     try:
         limit = max(1, min(_MAX_ENTRIES, int(limit)))
@@ -230,6 +281,7 @@ def _usage_log(
         limit = 100
     kind = (kind or "").strip().lower() or None
     provider = (provider or "").strip().lower() or None
+    day = str(day or "").strip()
     source_set = {str(source) for source in (sources or []) if str(source)}
     doc = _load()
     entries = list(doc.get("entries") or [])
@@ -242,13 +294,32 @@ def _usage_log(
         records = [r for r in records if str(r.get("provider") or "").lower() == provider]
     if source_set:
         records = [r for r in records if str(r.get("source") or "") in source_set]
-    return {
+    if day:
+        records = [r for r in records if str(r.get("iso") or "").startswith(day)]
+    result: Dict[str, Any] = {
         "success": True,
         "storage_path": str(_usage_file()),
         "stats": stats,
         "source_stats": source_stats,
-        "entries": records[:limit],
+        "in_flight": in_flight_calls(),
     }
+    if int(page or 0) > 0:
+        page_size = max(1, min(200, int(page_size or 50)))
+        total = len(records)
+        page_count = max(1, -(-total // page_size))
+        normalized_page = max(1, min(int(page), page_count))
+        start = (normalized_page - 1) * page_size
+        result.update({
+            "entries": records[start:start + page_size],
+            "total": total,
+            "page": normalized_page,
+            "page_count": page_count,
+            "page_size": page_size,
+        })
+        return result
+    result["entries"] = records[:limit]
+    result["total"] = len(records)
+    return result
 
 
 def _clear_usage() -> int:
@@ -279,6 +350,8 @@ def record_usage(
     provider_reached: Optional[bool] = None,
     quota_counted: Optional[bool] = None,
     context: Optional[Dict[str, Any]] = None,
+    prompt: Optional[str] = None,
+    response: Optional[str] = None,
 ) -> None:
     call_serialized(
         _WORK_QUEUE,
@@ -295,6 +368,8 @@ def record_usage(
         provider_reached,
         quota_counted,
         context,
+        prompt,
+        response,
     )
 
 
@@ -303,8 +378,13 @@ def usage_log(
     kind: Optional[str] = None,
     provider: Optional[str] = None,
     sources: Optional[List[str]] = None,
+    page: int = 0,
+    page_size: int = 0,
+    day: str = "",
 ) -> Dict[str, Any]:
-    return call_serialized(_WORK_QUEUE, _usage_log, limit, kind, provider, sources)
+    return call_serialized(
+        _WORK_QUEUE, _usage_log, limit, kind, provider, sources, page, page_size, day,
+    )
 
 
 def _usage_revision() -> str:
@@ -325,7 +405,10 @@ def clear_usage() -> int:
 
 __all__ = [
     "RUNTIME",
+    "begin_call",
     "clear_usage",
+    "end_call",
+    "in_flight_calls",
     "record_usage",
     "usage_log",
     "usage_revision",

@@ -37,7 +37,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret, default_model, OPENAI_COMPAT_PROVIDERS, is_configured
 from pycore.pyctl.ai.ai_rate_limits import acquire_rate_limit, chat_nickname, finalize_rate_limit
 from pycore.pyctl.ai.ai_compat_helpers import chat_openai_compat, chat_cloudflare, chat_spark
-from pycore.pyctl.ai.ai_usage_log import record_usage
+from pycore.pyctl.ai.ai_usage_log import begin_call, end_call, record_usage
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
@@ -410,11 +410,21 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
 
     start = time.time()
     out["attempted"] = True
+    prompt_text = "\n\n".join(f"{m['role']}: {m['content']}" for m in msgs)
+    call_id = begin_call({
+        "kind": "text",
+        "provider": provider,
+        "model": use_model,
+        "source": source,
+        "runtime": "pycore",
+    })
     try:
         handler(msgs, requested_model, key, out)
     except Exception as e:  # noqa: BLE001 — surface any SDK failure to the UI
         out["error"] = str(e)
         ColorPrint.yellow(f"[ai_chat] {provider} chat failed: {e}")
+    finally:
+        end_call(call_id)
     if not out["model"]:
         out["model"] = default_model(provider)
     out["nickname"] = chat_nickname(provider, out["model"])
@@ -454,6 +464,8 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         provider_reached=out["provider_reached"],
         quota_counted=out["quota_counted"],
         context=context,
+        prompt=prompt_text,
+        response=str(out.get("text") or "") or None,
     )
     return out
 

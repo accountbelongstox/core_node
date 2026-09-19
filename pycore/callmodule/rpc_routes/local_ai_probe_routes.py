@@ -35,7 +35,17 @@ def register_local_ai_probe_routes(server):
 
     def usage_handler(params, request_id, context):
         request = params
-        return usage_log(int(request.get("limit") or 100), request.get("kind"))
+        raw_sources = request.get("sources") or []
+        sources = [str(item) for item in raw_sources] if isinstance(raw_sources, list) else []
+        return usage_log(
+            int(request.get("limit") or 100),
+            request.get("kind"),
+            request.get("provider"),
+            sources or None,
+            int(request.get("page") or 0),
+            int(request.get("page_size") or request.get("pageSize") or 0),
+            str(request.get("day") or ""),
+        )
 
     server.post(path=UI_AI_PROBE_RATE_LIMITS, handler=rate_limits_handler)
     server.post(path=UI_AI_PROBE_USAGE, handler=usage_handler)

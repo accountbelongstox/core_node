@@ -29,6 +29,11 @@ const wrap = (node: React.ReactNode) => <Suspense fallback={<Fallback />}>{node}
 
 // One route per registry entry (plus an index route for the page flagged
 // `index`), generated from PC_PAGES so the route table can't drift.
+// Warm the index page chunk at module scope: route elements only trigger their
+// lazy import at render time, which would otherwise serialize the first page
+// behind everything else instead of loading in parallel.
+void import('./pages/PcAgentHistoryPage');
+
 const pcPageRoutes = createAppRouteElements(PC_PAGES.flatMap((p) => {
   const element = wrap(<p.Component />);
   const routes: AppRouteElementDefinition[] = [{ key: p.id, path: p.id, element }];
