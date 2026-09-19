@@ -175,6 +175,19 @@ if ($Command -in @('1', '2')) {
     $Command = 'run'
 }
 
+# Run-mode parameter stacking: walk the trailing positional args ($Rest) against
+# the parameter library so a mode digit or `help` is honored in ANY position
+# (e.g. `.\pyservice.ps1 run 2 -NoUi`), not only as the first positional token.
+if ($Command -ieq 'run' -and $Rest.Count -gt 0) {
+    $stackedRest = @()
+    foreach ($tok in $Rest) {
+        if ($tok -in @('1', '2')) { $ServiceMode = $tok }
+        elseif ($tok -in @('help', '-h', '--help')) { Show-Usage; return }
+        else { $stackedRest += $tok }
+    }
+    $Rest = $stackedRest
+}
+
 # --------------------------------------------------------------------------- #
 # Single system Python 3.13 (D:\.dev_win10\python313); no venv, no py launcher #
 # fallbacks to other minors.                                                   #
