@@ -22,6 +22,9 @@ import {
 } from './PycoreManagerStorageKeys';
 
 const PUSH_DEBOUNCE_MS = 500;
+// Bound the remote state read: the default client ceiling (30 min) is a
+// dead-socket guard for writes, not for a read that gates first paint.
+const STATE_READ_CEILING_MS = 10_000;
 const SYNCED_KEY_SET = new Set<string>(PYCORE_MANAGER_SYNCED_STORAGE_KEYS);
 
 class PycoreManagerUiStateSync {
@@ -38,15 +41,18 @@ class PycoreManagerUiStateSync {
   private terminalScheduleChangeSerial = 0;
   private terminalScheduleSyncSerial = 0;
 
-  async initialize(): Promise<void> {
+  /** Returns true when the reconcile applied remote changes. */
+  async initialize(): Promise<boolean> {
     try {
-      await this.replica.reconcile();
+      const changed = await this.replica.reconcile();
       const result = await this.syncTerminalScheduleRuntime();
       if (result?.success) {
         this.terminalScheduleSyncSerial = this.terminalScheduleChangeSerial;
       }
+      return changed;
     } catch {
       // Offline startup keeps the browser copy until a later authoritative reconnect.
+      return false;
     }
   }
 
@@ -158,7 +164,11 @@ class PycoreManagerUiStateSync {
   }
 
   private async readBackend(): Promise<RevisionedStorageDocument> {
-    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.pycoreManagerStateGet, {});
+    const response = await requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.pycoreManagerStateGet,
+      {},
+      STATE_READ_CEILING_MS,
+    );
     if (!response?.success || !response.data) {
       throw new Error(response?.error || 'PYCORE_MANAGER_UI_STATE_UNAVAILABLE');
     }

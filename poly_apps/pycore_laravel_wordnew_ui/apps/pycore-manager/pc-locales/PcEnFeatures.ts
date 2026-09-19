@@ -374,5 +374,15 @@ agentHistory: {
     noData: 'no data',
     dataStale: 'stale / reconnecting',
     stale: 'stale',
+    recordsPanelTitle: 'AI request records',
+    recordsPanelAllProviders: 'All providers',
+    recordsPanelDay: 'Day',
+    recordsPanelAllDays: 'All days',
+    recordsPanelInFlight: 'In flight',
+    recordsPanelElapsed: 'elapsed',
+    recordsPanelPrompt: 'Prompt sent',
+    recordsPanelResponse: 'Response content',
+    recordsPanelEmpty: 'No records match the current filters.',
+    recordsPanelTotal: 'records',
   }
 } as const;

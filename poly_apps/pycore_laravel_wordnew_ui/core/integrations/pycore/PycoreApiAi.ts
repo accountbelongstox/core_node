@@ -3,6 +3,7 @@
  */
 import type {
   AiChatMessage,
+  AiUsagePageOptions,
   AiUsageResponse,
   AiKeySetRequest,
 } from './PycoreAiTypes';
@@ -77,9 +78,22 @@ export const pycoreApiAi = {
   // (see each record's `runtime`). Image generations are NOT here — they live in
   // the image history. Wrapped into the dashboard APIResponse envelope so the
   // shared AiUsagePanel can read `res.success && res.data` uniformly.
-  getAiUsage: async (limit = 150): Promise<{ success: boolean; data: AiUsageResponse | null; error: string | null }> => {
+  getAiUsage: async (
+    limitOrOptions: number | AiUsagePageOptions = 150,
+  ): Promise<{ success: boolean; data: AiUsageResponse | null; error: string | null }> => {
+    const params: Record<string, unknown> = typeof limitOrOptions === 'number'
+      ? { limit: limitOrOptions }
+      : {
+        limit: limitOrOptions.limit ?? 150,
+        kind: limitOrOptions.kind || undefined,
+        provider: limitOrOptions.provider || undefined,
+        sources: limitOrOptions.sources?.length ? limitOrOptions.sources : undefined,
+        page: limitOrOptions.page || undefined,
+        page_size: limitOrOptions.pageSize || undefined,
+        day: limitOrOptions.day || undefined,
+      };
     try {
-      const r = await requestPycoreHttp(PYCORE_HTTP_ROUTES.aiProbeUsage, { limit });
+      const r = await requestPycoreHttp(PYCORE_HTTP_ROUTES.aiProbeUsage, params);
       if (r && r.success !== false) {
         return { success: true, data: r, error: null };
       }
