@@ -111,6 +111,48 @@ trait GlobalTaskQueueQueries
             ->exists();
     }
 
+    /**
+     * Language-scoped backlog probe: true when the live rows of one payload
+     * language already reach the target. Lets a tiered scan keep feeding an
+     * unsaturated language while a saturated sibling is paused.
+     */
+    public static function hasBacklogAtLeastForLanguage(
+        string $taskType,
+        array $statuses,
+        int $target,
+        string $language
+    ): bool {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->whereIn('status', $statuses)
+            ->whereRaw("lower(trim(payload->>'language')) = ?", [strtolower(trim($language))])
+            ->orderBy('id')
+            ->offset(max(0, $target - 1))
+            ->limit(1)
+            ->exists();
+    }
+
+    /**
+     * Bounded page of failed rows of one payload language for the failed-task
+     * resurfacing sweep (QueueCenterAudioScanTask). Columns only; the caller
+     * re-validates the source row before re-enqueueing.
+     */
+    public static function failedLanguagePage(
+        string $taskType,
+        string $language,
+        int $limit,
+        int $afterId = 0
+    ): EloquentCollection {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->where('status', self::status('failed'))
+            ->where('id', '>', $afterId)
+            ->whereRaw("lower(trim(payload->>'language')) = ?", [strtolower(trim($language))])
+            ->orderBy('id')
+            ->limit(max(1, $limit))
+            ->get(['id', 'group_key', 'payload']);
+    }
+
     public static function claimedCountsByWorker(array $statuses): Collection
     {
         return self::query()
