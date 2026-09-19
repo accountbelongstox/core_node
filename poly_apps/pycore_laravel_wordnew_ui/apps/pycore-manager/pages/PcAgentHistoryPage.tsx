@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio } from 'lucide-react';
+import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
@@ -18,6 +18,8 @@ import type {
   AgentHistorySessionIdItem,
   AgentHistorySessionSummary,
 } from '@/apps/pycore-manager/api';
+import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
+import { laravelRelayOperationEvents } from '../../../core/integrations/laravel/LaravelRelayOperationEvents';
 import {
   agentHistoryPageTableStore,
   type AgentHistoryPageTable,
@@ -28,6 +30,7 @@ import SessionDetailView from './agent-history/SessionDetailView';
 import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel';
 import PcAgentHistoryRecords from './agent-history/PcAgentHistoryRecords';
 import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
+import PcAgentHistoryToolPanel, { type AgentHistoryToolPanelKind } from './agent-history/PcAgentHistoryToolPanel';
 import PcPager from './agent-history/PcPager';
 import {
   agentHistoryUiStateStore,
@@ -45,6 +48,11 @@ type HeaderState = {
 
 const STORE_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
 const MONITORED_AGENT_TOOLS = new Set<string>(AGENT_HISTORY_TOOLS);
+const LIVE_SCAN_POLL_MS = 5000;
+const LIVE_SCAN_TOOLS = new Set<string>(['kimi', 'codex', 'pi', 'claude']);
+const RELAY_PROMPT_NEW_EVENT = String(
+  (RELAY_CONTRACT.events as Record<string, string>).agent_history_prompt_new || '',
+);
 
 function validCachedPage<T extends { id: string }>(
   table: AgentHistoryPageTable<T> | null,
@@ -94,6 +102,7 @@ function readUiState(): AgentHistoryUiState {
       ? stored.enabledTools.map(String).filter((tool) => MONITORED_AGENT_TOOLS.has(tool))
       : [],
     live: stored.live !== false,
+    livePromptMonitor: stored.livePromptMonitor !== false,
     taskPeriod: stored.taskPeriod === 'history' ? 'history' : 'today',
   };
 }
@@ -115,6 +124,9 @@ const PcAgentHistoryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [live, setLive] = useState(initialUiState.live);
+  const [livePromptMonitor, setLivePromptMonitor] = useState(initialUiState.livePromptMonitor);
+  const [statsBump, setStatsBump] = useState(0);
+  const [toolPanel, setToolPanel] = useState<{ tool: string; kind: AgentHistoryToolPanelKind } | null>(null);
 
   const [tab, setTab] = useState<TabId>(initialUiState.tab);
   const [filterTool, setFilterTool] = useState(initialUiState.filterTool);
@@ -134,7 +146,6 @@ const PcAgentHistoryPage: React.FC = () => {
   const filterResetReady = useRef(false);
   const skipNextFilterReset = useRef(false);
   const manualRefreshPending = useRef(false);
-  const listAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
     agentHistoryUiStateStore.save({
@@ -148,16 +159,17 @@ const PcAgentHistoryPage: React.FC = () => {
       selectedTool,
       enabledTools,
       live,
+      livePromptMonitor,
       taskPeriod,
     });
-  }, [enabledTools, filterTool, filterUser, live, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
+  }, [enabledTools, filterTool, filterUser, live, livePromptMonitor, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
 
-  const loadSessionPage = useCallback(async () => {
+  const loadSessionPage = useCallback(async (force = false) => {
     setSessionLoading(true);
     setError(null);
     const scope = `sessions|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|page=${sessionPage}`;
     try {
-      const cachedPage = agentHistoryPageTableStore.read<AgentHistorySessionIdItem>(scope);
+      const cachedPage = force ? null : agentHistoryPageTableStore.read<AgentHistorySessionIdItem>(scope);
       const cached = validCachedPage(cachedPage) ? cachedPage : null;
       const cachedGeneratedAt = normalizeGeneratedAt(cached?.meta?.generatedAt);
       const res = await pycoreApi.getAgentHistorySessionIdPages({
@@ -229,13 +241,13 @@ const PcAgentHistoryPage: React.FC = () => {
     }
   }, [debouncedSearch, filterTool, filterUser, sessionPage, t]);
 
-  const loadPromptPage = useCallback(async () => {
+  const loadPromptPage = useCallback(async (force = false) => {
     setPromptLoading(true);
     setError(null);
     const tools = filterTool ? undefined : enabledTools;
     const scope = `prompts|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|tools=${(tools || []).join(',')}|page=${promptPage}`;
     try {
-      const cachedPage = agentHistoryPageTableStore.read<AgentHistoryPromptIdItem>(scope);
+      const cachedPage = force ? null : agentHistoryPageTableStore.read<AgentHistoryPromptIdItem>(scope);
       const cached = validCachedPage(cachedPage) ? cachedPage : null;
       const cachedGeneratedAt = normalizeGeneratedAt(cached?.meta?.generatedAt);
       const res = await pycoreApi.getAgentHistoryPromptIdPages({
@@ -321,21 +333,66 @@ const PcAgentHistoryPage: React.FC = () => {
 
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const off = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, () => {
-      if (!live && !manualRefreshPending.current) return;
+    const scheduleReload = () => {
+      if (!live && !livePromptMonitor && !manualRefreshPending.current) return;
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         refreshTimer = null;
         manualRefreshPending.current = false;
+        setStatsBump((value) => value + 1);
         if (tab === 'prompts') void loadPromptPage();
         else void loadSessionPage();
       }, 250);
-    });
+    };
+    const offSessions = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, scheduleReload);
+    const offPromptNew = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistoryPromptNew, scheduleReload);
+    // Relay mode: pycore forwards prompt.new through the Laravel relay outbox
+    // to the FrankenPHP Mercure hub; bridge it onto the same local topic.
+    const offRelay = RELAY_PROMPT_NEW_EVENT
+      ? laravelRelayOperationEvents.onEvent((event, data) => {
+          if (event !== RELAY_PROMPT_NEW_EVENT) return;
+          const frame = data as { metadata?: unknown } | null;
+          pycoreEventBus.dispatch(
+            PYCORE_EVENT_TOPICS.agentHistoryPromptNew,
+            (frame && typeof frame === 'object' ? frame.metadata : data) ?? {},
+          );
+        })
+      : () => {};
     return () => {
       if (refreshTimer !== null) clearTimeout(refreshTimer);
-      off();
+      offSessions();
+      offPromptNew();
+      offRelay();
     };
-  }, [live, tab, loadSessionPage, loadPromptPage]);
+  }, [live, livePromptMonitor, tab, loadSessionPage, loadPromptPage]);
+
+  // Realtime prompt monitor (default ON): while checked, poll the pycore
+  // live-scan route every 5s for the checked local agents (kimi/codex/pi/
+  // claude supported server-side); unchanged agents are skipped server-side
+  // and new prompts arrive via the agent_history.prompt.new push.
+  useEffect(() => {
+    if (!livePromptMonitor) return;
+    const tools = enabledTools.filter((tool) => LIVE_SCAN_TOOLS.has(tool));
+    if (tools.length === 0) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const tick = async () => {
+      try {
+        const res = await pycoreApi.liveScanAgentHistory(tools);
+        if (!cancelled && res.success && res.data?.last?.changed) {
+          setStatsBump((value) => value + 1);
+        }
+      } catch {
+        // Scan failures surface via the page error state on explicit refresh.
+      }
+      if (!cancelled) timer = setTimeout(() => void tick(), LIVE_SCAN_POLL_MS);
+    };
+    timer = setTimeout(() => void tick(), LIVE_SCAN_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [enabledTools, livePromptMonitor]);
 
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -364,6 +421,8 @@ const PcAgentHistoryPage: React.FC = () => {
   }, []);
 
   const handleRefresh = async () => {
+    // 立即刷新: force a full rescan of every agent + drop pycore caches
+    // server-side, then reload the visible pages bypassing local revisions.
     setRefreshing(true);
     setError(null);
     manualRefreshPending.current = true;
@@ -372,7 +431,12 @@ const PcAgentHistoryPage: React.FC = () => {
       if (!res.success) {
         manualRefreshPending.current = false;
         setError(res.error || t('agentHistory.loadError'));
+        return;
       }
+      setStatsBump((value) => value + 1);
+      if (tab === 'prompts') await loadPromptPage(true);
+      else await loadSessionPage(true);
+      manualRefreshPending.current = false;
     } catch (e) {
       manualRefreshPending.current = false;
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
@@ -417,17 +481,9 @@ const PcAgentHistoryPage: React.FC = () => {
   const sessionTotalPages = Math.max(1, Math.ceil(sessionTotal / PAGE_SIZE));
   const promptTotalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
 
-  const handleOpenToolHistory = useCallback((tool: string, tab: 'sessions' | 'prompts') => {
+  const handleOpenToolPanel = useCallback((tool: string, kind: AgentHistoryToolPanelKind) => {
     setSelectedTool(tool);
-    setFilterTool(tool);
-    setTab(tab);
-    setSessionPage(1);
-    setPromptPage(1);
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
+    setToolPanel({ tool, kind });
   }, []);
 
   const promptLabels = {
@@ -451,6 +507,24 @@ const PcAgentHistoryPage: React.FC = () => {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{tk('subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
+          <label
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-colors ${
+              livePromptMonitor
+                ? 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                : 'border-slate-300 dark:border-white/10 text-slate-500'
+            }`}
+            title={tk('livePromptMonitorHint')}
+          >
+            <input
+              type="checkbox"
+              className="accent-sky-600"
+              checked={livePromptMonitor}
+              onChange={(event) => setLivePromptMonitor(event.target.checked)}
+              aria-label={tk('livePromptMonitor')}
+            />
+            <Radar className={`w-3.5 h-3.5 ${livePromptMonitor ? 'animate-pulse' : ''}`} />
+            {tk('livePromptMonitor')}
+          </label>
           <button
             type="button"
             onClick={() => setLive((v) => !v)}
@@ -490,17 +564,17 @@ const PcAgentHistoryPage: React.FC = () => {
         tk={tk}
         selectedTool={selectedTool}
         restoredEnabledTools={enabledTools}
-        storeRevision={header.generatedAt}
+        storeRevision={`${header.generatedAt}|${statsBump}`}
         onEnabledToolsChange={handleEnabledToolsChange}
         onSelectedToolChange={setSelectedTool}
-        onOpenToolHistory={handleOpenToolHistory}
+        onOpenToolHistory={handleOpenToolPanel}
         taskPeriod={taskPeriod}
         onTaskPeriodChange={setTaskPeriod}
       />
 
       <PcAgentHistoryRecords tk={tk} />
 
-      <div ref={listAnchorRef} className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -604,6 +678,15 @@ const PcAgentHistoryPage: React.FC = () => {
           </div>
           {promptTotalPages > 1 && renderPager(promptPage, promptTotalPages, setPromptPage)}
         </div>
+      )}
+
+      {toolPanel && (
+        <PcAgentHistoryToolPanel
+          tk={tk}
+          tool={toolPanel.tool}
+          kind={toolPanel.kind}
+          onClose={() => setToolPanel(null)}
+        />
       )}
     </div>
   );

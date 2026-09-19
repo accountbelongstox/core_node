@@ -345,6 +345,10 @@ export interface CmReviewSubmission {
 
 export interface CmArchitectEligibility {
   is_eligible: boolean;
+  is_architect: boolean;
+  architect_status: string | null;
+  reason: string | null;
+  required_deposit: number;
   requirements: Record<string, number>;
   current_stats: Record<string, number>;
   shortfall: Record<string, number>;
@@ -357,6 +361,7 @@ export interface CmArchitectProject {
 }
 
 export interface CmArchitectTasks {
+  is_architect: boolean;
   assigned_projects: CmArchitectProject[];
   available_projects: CmArchitectProject[];
 }

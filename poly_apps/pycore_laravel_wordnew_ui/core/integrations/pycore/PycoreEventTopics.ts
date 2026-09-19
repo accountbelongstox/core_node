@@ -3,6 +3,7 @@ export { PYCORE_BROWSER_EVENTS, PYCORE_SSE_EVENTS } from './PycoreNetwork';
 
 export const PYCORE_EVENT_TOPICS = {
   agentHistorySessionsChanged: 'agent_history.sessions.changed',
+  agentHistoryPromptNew: 'agent_history.prompt.new',
   agentHistoryVideoChanged: 'agent_history.video.changed',
   articlePublished: 'article.published',
   codeSyncLog: 'code_sync_log',

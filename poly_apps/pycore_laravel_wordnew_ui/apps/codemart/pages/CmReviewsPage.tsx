@@ -253,11 +253,8 @@ export const CmReviewsPage: React.FC = () => {
 
 export const CmArchitectPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const { hasCapability } = useCmBootstrap();
-  const canArchitect = hasCapability('architect.read');
   const [eligibility, setEligibility] = useState<CmArchitectEligibility | null>(null);
   const [assignments, setAssignments] = useState<CmArchitectTasks | null>(null);
-  const [pendingActivation, setPendingActivation] = useState(false);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -281,11 +278,13 @@ export const CmArchitectPage: React.FC = () => {
     void load();
   }, [load]);
 
+  const pendingActivation = eligibility?.architect_status === 'pending';
+  const isArchitect = eligibility?.is_architect === true || assignments?.is_architect === true;
+
   const apply = async (): Promise<void> => {
     const response = await cmApi.applyArchitect();
     if (response.success) {
       setNotice(t('architect.applied'));
-      setPendingActivation(true);
     } else {
       setNotice(response.error ?? t('architect.applyFailed'));
     }
@@ -296,7 +295,6 @@ export const CmArchitectPage: React.FC = () => {
     const response = await cmApi.completeArchitectDeposit();
     if (response.success) {
       setNotice(t('architect.activated'));
-      setPendingActivation(false);
     } else {
       setNotice(response.error ?? t('architect.activationFailed'));
     }
@@ -329,7 +327,9 @@ export const CmArchitectPage: React.FC = () => {
             {eligibility ? (
               <>
                 <p className="cm-contract-note">
-                  {eligibility.is_eligible ? t('architect.eligible') : t('architect.notEligible')}
+                  {eligibility.is_eligible
+                    ? t('architect.eligible')
+                    : t(`architect.reasons.${eligibility.reason ?? 'requirements_unmet'}`)}
                 </p>
                 <table className="cm-table">
                   <thead>
@@ -360,14 +360,16 @@ export const CmArchitectPage: React.FC = () => {
             )}
             {pendingActivation && (
               <div className="cm-task-work">
-                <p className="cm-contract-note">{t('architect.activationHint')}</p>
+                <p className="cm-contract-note">
+                  {t('architect.activationHint', { amount: eligibility?.required_deposit ?? 0 })}
+                </p>
                 <button type="button" className="cm-workspace-button is-primary" onClick={() => void completeActivation()}>
                   {t('architect.completeActivation')}
                 </button>
               </div>
             )}
           </section>
-          {canArchitect && assignments && (
+          {isArchitect && assignments && (
             <>
               <section className="cm-dashboard-section">
                 <h2>{t('architect.assignmentsTitle')}</h2>

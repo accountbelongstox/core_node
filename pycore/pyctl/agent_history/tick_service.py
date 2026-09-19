@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -19,6 +20,7 @@ DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
 PIPELINE_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_PIPELINE_INTERVAL", str(DEFAULT_INTERVAL)))
 UPLOAD_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_UPLOAD_INTERVAL", str(DEFAULT_INTERVAL)))
+LIVE_SCAN_MIN_INTERVAL = float(os.environ.get("PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL", "5"))
 
 CALLBACK_EXTRACT = "agent_history_extraction"
 CALLBACK_PIPELINE = "agent_history_pipeline"
@@ -41,6 +43,10 @@ class _ExtractGate:
     def run(self, force: bool = False) -> None:
         self._owner._run_extract(force)
 
+    @serialized_method
+    def run_live(self, tools: Any = None) -> Dict[str, Any]:
+        return self._owner._run_live_scan(tools)
+
 
 class AgentHistoryTickService:
     """Independent heartbeats with a lock-free status snapshot."""
@@ -52,6 +58,9 @@ class AgentHistoryTickService:
         self._last_summary: Dict[str, Any] = {}
         # Coordinates heartbeat extraction with UI-requested extraction.
         self._extract_busy = threading.Event()
+        # UI-driven realtime scan: throttle + last result (lock-free reads).
+        self._live_scan_last_at = 0.0
+        self._last_live_scan: Dict[str, Any] = {}
         # Snapshot for UI polls — plain attribute reads never wait on a lane.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
@@ -73,10 +82,12 @@ class AgentHistoryTickService:
             "pipeline_count": int(self._pipeline_count),
             "upload_count": int(self._upload_count),
             "last": dict(self._last_summary) if isinstance(self._last_summary, dict) else {},
+            "last_live_scan": dict(self._last_live_scan) if isinstance(self._last_live_scan, dict) else {},
             "interval": DEFAULT_INTERVAL,
             "extract_interval": EXTRACT_INTERVAL,
             "pipeline_interval": PIPELINE_INTERVAL,
             "upload_interval": UPLOAD_INTERVAL,
+            "live_scan_interval": LIVE_SCAN_MIN_INTERVAL,
         }
 
     def get_status_snapshot(self) -> Dict[str, Any]:
@@ -88,10 +99,12 @@ class AgentHistoryTickService:
             "pipeline_count": 0,
             "upload_count": 0,
             "last": {},
+            "last_live_scan": {},
             "interval": DEFAULT_INTERVAL,
             "extract_interval": EXTRACT_INTERVAL,
             "pipeline_interval": PIPELINE_INTERVAL,
             "upload_interval": UPLOAD_INTERVAL,
+            "live_scan_interval": LIVE_SCAN_MIN_INTERVAL,
         }
 
     def tick_extract(self) -> None:
@@ -121,6 +134,49 @@ class AgentHistoryTickService:
             self._extract_gate.run(force)
         finally:
             self._extract_busy.clear()
+
+    def request_live_scan(self, tools: Any = None) -> Dict[str, Any]:
+        """Queue a UI-driven realtime scan (throttled, shares the extract gate)."""
+        now = time.monotonic()
+        if self._extract_busy.is_set():
+            return {"queued": False, "busy": True, "last": dict(self._last_live_scan)}
+        elapsed = now - float(self._live_scan_last_at)
+        if self._last_live_scan and elapsed < LIVE_SCAN_MIN_INTERVAL:
+            return {
+                "queued": False,
+                "busy": False,
+                "throttled": True,
+                "retry_after": round(LIVE_SCAN_MIN_INTERVAL - elapsed, 3),
+                "last": dict(self._last_live_scan),
+            }
+        self._extract_busy.set()
+        self._live_scan_last_at = now
+        start_bus_task(
+            self._run_requested_live_scan,
+            tools,
+            thread_name="AgentHistoryLiveScanThread",
+        )
+        return {"queued": True, "busy": False}
+
+    def _run_requested_live_scan(self, tools: Any) -> None:
+        try:
+            self._extract_gate.run_live(tools)
+        finally:
+            self._extract_busy.clear()
+
+    def _run_live_scan(self, tools: Any = None) -> Dict[str, Any]:
+        try:
+            result = agent_history_service.live_scan(tools)
+            self._last_live_scan = result if isinstance(result, dict) else {}
+            if result.get("changed"):
+                ColorPrint.gray(
+                    f"[AgentHistory] live scan: changed={result.get('changed_tools')} "
+                    f"skipped={result.get('skipped_tools')}"
+                )
+            return result if isinstance(result, dict) else {}
+        except Exception as e:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistory] live scan error: {e}")
+            return {"error": str(e)}
 
     def tick_pipeline(self) -> None:
         """Heartbeat: run one article stage on the callback's single-flight thread."""

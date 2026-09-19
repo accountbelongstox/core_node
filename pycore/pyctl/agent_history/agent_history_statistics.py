@@ -6,10 +6,13 @@ from __future__ import annotations
 import calendar
 import hashlib
 import re
+from datetime import datetime
 from typing import Any, Dict, List
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
 from pycore.pyctl.agent_history.agent_history_fragments import (
+    collect_fragments,
+    is_fragment_pending,
     summarize_tool_fragments_many,
 )
 from pycore.pyctl.agent_history.snapshot_cache import (
@@ -21,6 +24,9 @@ from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
 TOOL_SOURCE_REVISIONS_CACHE_KEY = "agent_history.tool_source_revisions"
 TOOL_STATISTICS_CACHE_PREFIX = "agent_history.tool_statistics."
+TOOL_FRAGMENTS_CACHE_PREFIX = "agent_history.tool_fragments."
+TOOL_FRAGMENT_KINDS = ("prompts", "replies", "processed", "pending")
+TOOL_FRAGMENT_PAGE_SIZE_CAP = 500
 STORE_TIMESTAMP_RE = re.compile(
     r"^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$"
 )
@@ -158,6 +164,134 @@ class AgentHistoryStatistics:
             for tool in keys
             if cache_keys[tool] in cached_by_key
         ]
+
+    def read_fragment_id_pages(
+        self,
+        tool: str,
+        kind: str,
+        cursor: Dict[str, Any],
+        page: int = 1,
+        page_size: int = 50,
+        since_revision: str = "",
+    ) -> Dict[str, Any]:
+        """DIFF ID page table for one tool's fragments (newest first)."""
+        snapshot = self._fragment_catalog(tool, kind, cursor)
+        revision = str(snapshot.get("revision") or "missing")
+        if since_revision and since_revision == revision:
+            return {"revision": revision, "unchanged": True}
+        items = snapshot.get("items") or []
+        total = len(items)
+        page_size = max(1, min(int(page_size or 50), TOOL_FRAGMENT_PAGE_SIZE_CAP))
+        page_count = max(1, -(-total // page_size))
+        page = max(1, min(int(page or 1), page_count))
+        start = (page - 1) * page_size
+        return {
+            "revision": revision,
+            "unchanged": False,
+            "tool": str(tool or "").strip().lower(),
+            "kind": kind,
+            "total": total,
+            "page": page,
+            "page_count": page_count,
+            "items": [
+                {key: value for key, value in item.items() if key != "text"}
+                for item in items[start:start + page_size]
+            ],
+        }
+
+    def read_fragment_page(
+        self,
+        tool: str,
+        kind: str,
+        cursor: Dict[str, Any],
+        ids: List[str],
+    ) -> Dict[str, Any]:
+        """Materialize fragment text for the requested IDs of one tool+kind."""
+        wanted = [str(value) for value in (ids or []) if str(value or "")][:500]
+        snapshot = self._fragment_catalog(tool, kind, cursor)
+        by_id = {
+            str(item.get("id")): item
+            for item in (snapshot.get("items") or [])
+            if item.get("id")
+        }
+        items = [by_id[fid] for fid in wanted if fid in by_id]
+        return {"items": items, "total": len(items)}
+
+    def _fragment_catalog(
+        self,
+        tool: str,
+        kind: str,
+        cursor: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        key = str(tool or "").strip().lower()
+        normalized_kind = str(kind or "").strip().lower()
+        if normalized_kind not in TOOL_FRAGMENT_KINDS:
+            normalized_kind = "prompts"
+        normalized_cursor = {
+            "after_ts": int((cursor or {}).get("after_ts") or 0),
+            "after_fragment_id": str((cursor or {}).get("after_fragment_id") or ""),
+            "backfill_target_ts": int((cursor or {}).get("backfill_target_ts") or 0),
+            "backfill_target_fragment_id": str(
+                (cursor or {}).get("backfill_target_fragment_id") or ""
+            ),
+            "live_after_ts": int((cursor or {}).get("live_after_ts") or 0),
+            "live_after_fragment_id": str(
+                (cursor or {}).get("live_after_fragment_id") or ""
+            ),
+            "lane_aware": bool((cursor or {}).get("lane_aware")),
+        }
+        source_revision = self.source_revisions().get(key) or {}
+        version_source = (
+            f"{key}|{normalized_kind}|{source_revision.get('revision') or 'empty'}|"
+            f"{normalized_cursor['after_ts']}|{normalized_cursor['after_fragment_id']}|"
+            f"{normalized_cursor['backfill_target_ts']}|"
+            f"{normalized_cursor['backfill_target_fragment_id']}|"
+            f"{normalized_cursor['live_after_ts']}|"
+            f"{normalized_cursor['live_after_fragment_id']}|"
+            f"{int(normalized_cursor['lane_aware'])}"
+        )
+        version = hashlib.md5(version_source.encode()).hexdigest()
+        return status_snapshot_cache.get(
+            TOOL_FRAGMENTS_CACHE_PREFIX + key + "." + normalized_kind,
+            lambda: self._build_fragment_catalog(key, normalized_kind, normalized_cursor, version),
+            ttl_seconds=float("inf"),
+            version=version,
+            stale_while_refresh=False,
+        )
+
+    @staticmethod
+    def _build_fragment_catalog(
+        tool: str,
+        kind: str,
+        cursor: Dict[str, Any],
+        version: str,
+    ) -> Dict[str, Any]:
+        items: List[Dict[str, Any]] = []
+        for fragment in collect_fragments(tool=tool):
+            fragment_kind = str(fragment.get("kind") or "")
+            pending = is_fragment_pending(fragment, cursor)
+            if kind == "prompts" and fragment_kind != "prompt":
+                continue
+            if kind == "replies" and fragment_kind != "response":
+                continue
+            if kind == "processed" and pending:
+                continue
+            if kind == "pending" and not pending:
+                continue
+            ts = int(fragment.get("ts") or 0)
+            items.append({
+                "id": str(fragment.get("fragment_id") or ""),
+                "tool": tool,
+                "kind": fragment_kind,
+                "session_id": str(fragment.get("session_id") or ""),
+                "ts": ts,
+                "time": datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "",
+                "pending": pending,
+                "text": str(fragment.get("text") or ""),
+            })
+        items = [item for item in items if item["id"]]
+        items.sort(key=lambda item: (int(item.get("ts") or 0), str(item.get("id") or "")), reverse=True)
+        return {"items": items, "revision": version}
 
     def source_revisions(self) -> Dict[str, Dict[str, Any]]:
         state_path = txt.store_dir() / "state.txt"

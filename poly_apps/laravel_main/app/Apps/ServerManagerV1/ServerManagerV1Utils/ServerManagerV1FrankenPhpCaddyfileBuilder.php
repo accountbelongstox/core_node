@@ -158,7 +158,10 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\t\tprotocols h1\n"
             . "\t}\n"
             . "\tservers {$bindHost}:{$https} {\n"
-            . "\t\tprotocols h1 h2 h3\n"
+            // h3 stays disabled until the edge opens UDP/443; advertising h3
+            // while QUIC is blocked makes browsers fail with
+            // ERR_QUIC_PROTOCOL_ERROR before falling back to h2.
+            . "\t\tprotocols h1 h2\n"
             . "\t}\n"
             . "\n"
             . "\tfrankenphp {\n"

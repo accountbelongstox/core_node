@@ -6,9 +6,9 @@ import {
   Gauge,
   History,
   TriangleAlert,
-  X,
 } from 'lucide-react';
 import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
+import PcFloatingPanel from '../../components/PcFloatingPanel';
 import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
 
 function asRecord(value: unknown): Record<string, any> {
@@ -189,21 +189,16 @@ const PcAgentHistoryAiPanel: React.FC<{
         </div>
       </section>
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-5" onMouseDown={() => setModalOpen(false)}>
-          <div className="w-full max-w-6xl max-h-[88vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <header className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 px-4 py-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{tk('requestAttemptList')}</h3>
-                <p className="text-[11px] text-slate-500">{taskPeriod === 'today' ? tk('todayLoad') : tk('historyLoad')} · {tk('shown')}: {visibleTasks.length}/{periodTotal}</p>
-              </div>
-              <button type="button" onClick={() => setModalOpen(false)} aria-label={tk('close')} className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-white/10">
-                <X className="w-4 h-4" />
-              </button>
-            </header>
-
-            <div className="grid min-h-[420px] max-h-[calc(88vh-62px)] grid-cols-1 md:grid-cols-[340px_minmax(0,1fr)]">
-              <aside className="overflow-y-auto border-b md:border-b-0 md:border-r border-slate-200 dark:border-white/10 p-3 space-y-2">
+      <PcFloatingPanel
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        closeLabel={tk('close')}
+        widthClass="max-w-6xl"
+        title={tk('requestAttemptList')}
+        subtitle={`${taskPeriod === 'today' ? tk('todayLoad') : tk('historyLoad')} · ${tk('shown')}: ${visibleTasks.length}/${periodTotal}`}
+      >
+        <div className="grid min-h-[420px] grid-cols-1 md:grid-cols-[340px_minmax(0,1fr)] -m-4">
+          <aside className="overflow-y-auto border-b md:border-b-0 md:border-r border-slate-200 dark:border-white/10 p-3 space-y-2 max-h-[calc(88vh-62px)]">
                 {visibleTasks.length === 0 && <p className="p-3 text-xs text-slate-500">{tk('tasksEmpty')}</p>}
                 {visibleTasks.map((task) => {
                   const key = taskKey(task);
@@ -226,7 +221,7 @@ const PcAgentHistoryAiPanel: React.FC<{
                 })}
               </aside>
 
-              <main className="overflow-y-auto p-4">
+              <main className="overflow-y-auto p-4 max-h-[calc(88vh-62px)]">
                 {periodFailures.length > 0 && (
                   <section className="mb-4 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
                     <h4 className="text-xs font-semibold text-rose-600 dark:text-rose-300">{tk('failureBreakdown')}</h4>
@@ -272,10 +267,8 @@ const PcAgentHistoryAiPanel: React.FC<{
                   </div>
                 )}
               </main>
-            </div>
-          </div>
         </div>
-      )}
+      </PcFloatingPanel>
     </>
   );
 };

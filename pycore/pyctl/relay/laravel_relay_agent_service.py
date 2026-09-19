@@ -20,6 +20,7 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
@@ -98,6 +99,10 @@ class LaravelRelayAgentService:
             TERMINAL_CHANGED_EVENT,
             self._publish_device_event,
         )
+        THREAD_BUS.register_event_handler(
+            BusSignals.AGENT_HISTORY_PROMPT_NEW,
+            self._publish_prompt_new_device_event,
+        )
         threads = list(alive.values())
         if RELAY_CONTROL_THREAD not in alive:
             threads.append(
@@ -156,6 +161,10 @@ class LaravelRelayAgentService:
         THREAD_BUS.unregister_event_handler(
             TERMINAL_CHANGED_EVENT,
             self._publish_device_event,
+        )
+        THREAD_BUS.unregister_event_handler(
+            BusSignals.AGENT_HISTORY_PROMPT_NEW,
+            self._publish_prompt_new_device_event,
         )
         relay_activity_log.success(
             "runtime.event_handler.removed",
@@ -577,11 +586,30 @@ class LaravelRelayAgentService:
 
     def _publish_device_event(self, payload: Any) -> None:
         event_payload = dict(payload) if isinstance(payload, dict) else {}
-        revision = int(event_payload.get("revision") or 0)
+        self._post_device_event(
+            "terminal_changed",
+            event_payload,
+            int(event_payload.get("revision") or 0),
+        )
+
+    def _publish_prompt_new_device_event(self, payload: Any) -> None:
+        """Forward agent-history prompt.new to paired UI owners via the hub."""
+        event_payload = dict(payload) if isinstance(payload, dict) else {}
+        revision = int(time.time())
+        prompts = event_payload.get("prompts")
+        if isinstance(prompts, list) and prompts:
+            first = prompts[0]
+            if isinstance(first, dict) and int(first.get("ts") or 0) > 0:
+                revision = int(first.get("ts"))
+        self._post_device_event("agent_history_prompt_new", event_payload, revision)
+
+    def _post_device_event(self, event_name: str, event_payload: Dict[str, Any], revision: int) -> None:
+        revision = max(1, int(revision or 0))
+        event_type = relay_contract.event(event_name)
         if not relay_device_identity.has_credential():
             relay_activity_log.warning(
                 "device.event.skipped",
-                event_type=TERMINAL_CHANGED_EVENT,
+                event_type=event_type,
                 revision=revision,
                 reason="credential_unavailable",
             )
@@ -592,7 +620,7 @@ class LaravelRelayAgentService:
                 relay_contract.endpoint("device_event"),
                 {
                     "device_id": relay_device_identity.device_id(),
-                    "event_type": relay_contract.event("terminal_changed"),
+                    "event_type": event_type,
                     "revision": revision,
                     "payload": event_payload,
                 },
@@ -601,7 +629,7 @@ class LaravelRelayAgentService:
         except Exception as error:
             relay_activity_log.error(
                 "device.event.publish.failed",
-                event_type=TERMINAL_CHANGED_EVENT,
+                event_type=event_type,
                 revision=revision,
                 error_type=type(error).__name__,
                 error=error,
@@ -609,7 +637,7 @@ class LaravelRelayAgentService:
             return
         relay_activity_log.success(
             "device.event.publish.completed",
-            event_type=TERMINAL_CHANGED_EVENT,
+            event_type=event_type,
             revision=revision,
         )
 

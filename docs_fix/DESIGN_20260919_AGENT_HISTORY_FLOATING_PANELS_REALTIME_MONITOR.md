@@ -237,14 +237,15 @@ Resolution order per tool per home: official env var (`KIMI_CODE_HOME` / `CODEX_
 
 ### 5.3 Realtime monitor lane (pycore)
 
-- New heartbeat callback `agent_history_live_scan` in `heartbeat.py`, interval env `PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL` default 5s, enabled only while at least one UI has 实时监控提示词 ON (see 5.4) — when no UI monitors, the lane idles and the 30s incremental lane (`agent_history_extraction`) remains the only scanner.
-- Scan body: `agent_history_service.live_scan(tools)` where `tools` = the UI-checked local agents (initially intersected with `{kimi, codex, pi, claude}`). It runs the same `_discover_all` per-tool descriptor walk but scoped to the requested tools, compares per-tool source `mtime/bytes` against `state.txt` sources, and only reparses changed sources through the existing `_extract_inner` path (force=False).
-- Skip cache: per-tool fast-fail map `{tool: {path: (mtime, bytes)}}` held in `VersionedSnapshotCache` (`agent_history.live_scan.` prefix, version = per-tool source revision from `agent_history_statistics.source_revisions()`). A tool whose discovered descriptors exactly match the cached map returns `{"tool": ..., "skipped": true}` without opening any file — "一个agent没有最新修改，可以直接跳过".
+> Implementation deviation (2026-09-19): the design originally proposed a new heartbeat callback `agent_history_live_scan` gated on "at least one UI has the monitor ON". The shipped implementation is a **UI-driven on-demand route** instead — `ui/agent_history/live_scan` (`tick_service.request_live_scan`), polled by the UI every 5s while 实时监控提示词 is checked, with **server-side throttle** `LIVE_SCAN_MIN_INTERVAL` (env `PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL`, default 5s) so duplicate/early polls return `{throttled: true, retry_after}` without rescanning. Rationale: the requirement is "勾选后每5秒扫描" — when no UI has the toggle ON there is nothing to scan for, so no background lane is needed; the heartbeat keeps only the ~30s incremental extract lane (`agent_history_extraction`). This removes the need for a server-side "who is monitoring" registry entirely.
+
+- Scan body: `agent_history_service.live_scan(tools)` where `tools` = the UI-checked local agents (intersected with `{kimi, codex, pi, claude}`). It runs the same `_discover_all` per-tool descriptor walk scoped to the requested tools, compares per-tool source `mtime:bytes` descriptors against the last scan, and only reparses changed tools through the existing `_extract_inner` path (force=False). All scans serialize through `_ExtractGate.run_live` on the same `_EXTRACT_QUEUE` worker, so a 30s incremental run and a 5s live scan never parse concurrently.
+- Skip cache: per-tool fast-fail map `{path: "mtime:bytes"}` held in-memory on the service (`self._live_scan_descriptors`). A tool whose discovered descriptors exactly match the cached map returns skipped without opening any file — "一个agent没有最新修改，可以直接跳过". Descriptors are committed only after a successful extract, so a failed scan retries on the next poll.
 
 ### 5.4 UI toggle
 
 - New checkbox 实时监控提示词 in `PcAgentHistoryPage.tsx` header (next to 实时/立即刷新), default checked, persisted in `AgentHistoryUiStateStore` (`livePromptMonitor !== false`).
-- While ON, the page sends the checked tool list with a new route `agent_history.live_scan` (debounced, ≥5s client-side cadence, single-flight) and relies on R3 push for instant updates; the scan response itself only carries `{changed_tools, skipped_tools}` — no payload lists cross the wire per poll.
+- While ON, the page polls `ui/agent_history/live_scan` every 5s (single-flight; server-side throttled to the same interval) with the checked tool list intersected with `{kimi, codex, pi, claude}`, and relies on R3 push for instant updates; the scan response only carries per-tool changed/skipped status — no payload lists cross the wire per poll.
 
 ---
 
@@ -270,10 +271,10 @@ Reuse the existing forwarding model; add one topic, no new transports.
 
 | Route (pycore HTTP) | Handler | Purpose |
 |---|---|---|
-| `agent_history.live_scan` | `ui_service.live_scan` | 5s monitored scan for checked tools; returns changed/skipped only |
-| `agent_history.tool_fragment_id_pages` | `ui_service.tool_fragment_id_pages` | R1 DIFF pages for replies/processed/pending |
-| `agent_history.tool_fragment_page` | `ui_service.tool_fragment_page` | R1 lazy materialization for one panel page |
-| `agent_history.refresh` (extended) | `ui_service.refresh` | R4 full rescan + cache invalidation |
+| `ui/agent_history/live_scan` | `tick_service.request_live_scan` → `agent_history_service.live_scan` | 5s monitored scan for checked tools; server-side throttled; returns changed/skipped only |
+| `ui/agent_history/tool_fragment_id_pages` | `ui_service.tool_fragment_id_pages` | R1 DIFF pages for prompts/replies/processed/pending/sessions |
+| `ui/agent_history/tool_fragment_page` | `ui_service.tool_fragment_page` | R1 lazy materialization for one panel page |
+| `ui/agent_history/refresh` (extended) | `ui_service.refresh` → `invalidate_agent_history_caches()` + `request_extract(force=True)` | R4 full rescan + cache invalidation |
 
 Registration follows the existing pattern in `pycore/callmodule/rpc_routes/local_agent_history_routes.py`; UI route names added to `core/integrations/pycore/PycoreHttpRoutes.ts`; typed wrappers in `pycoreApi`.
 

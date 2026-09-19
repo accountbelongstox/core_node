@@ -73,9 +73,13 @@ def scan_user_homes() -> Dict[str, str]:
             children = sorted(root.iterdir())
         except OSError:
             continue
-        # A root that itself carries agent markers (e.g. /root) is a home too.
-        if any((root / marker).exists() for marker in _all_marker_dirs()):
+        # A root that itself carries agent markers (or is /root) is a home,
+        # not a container of slot profiles -- never descend into it.
+        if str(root) == "/root" or any(
+            (root / marker).exists() for marker in _all_marker_dirs()
+        ):
             add(root, root.name)
+            continue
         for child in children:
             if child.name.startswith("."):
                 continue

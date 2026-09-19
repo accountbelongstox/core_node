@@ -96,6 +96,7 @@ class BusSignals:
 
     # HTTP event topics bridged from THREAD_BUS or the durable RPC outbox
     AGENT_HISTORY_SESSIONS_CHANGED = "agent_history.sessions.changed"
+    AGENT_HISTORY_PROMPT_NEW = "agent_history.prompt.new"
     AGENT_HISTORY_VIDEO_CHANGED = "agent_history.video.changed"
     ARTICLE_PUBLISHED = "article.published"
     CODE_SYNC_UPDATE = "code_sync_update"

@@ -4,6 +4,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperStatsModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
@@ -15,50 +16,119 @@ class CodeMartV1ArchitectCtl extends Controller
 {
     use ApiResponse;
 
+    // Architect state lives on a dedicated role row (role_type = architect)
+    // with the standard status vocabulary (pending/active/...), matching the
+    // bootstrap capability derivation (getActiveRoles -> architect.read).
+    // Legacy installs overloaded the developer row's role_status with
+    // 'architect'/'architect_pending'; those markers are recognized here and
+    // repaired into dedicated rows by the mutation endpoints.
+    private const LEGACY_STATUS_ACTIVE = 'architect';
+    private const LEGACY_STATUS_PENDING = 'architect_pending';
+
+    private function architectRole(int $userId): ?CodeMartV1UserRoleModel
+    {
+        return CodeMartV1UserRoleModel::forUserAndType($userId, CodeMartV1Constants::ROLE_ARCHITECT);
+    }
+
+    private function developerRole(int $userId): ?CodeMartV1UserRoleModel
+    {
+        return CodeMartV1UserRoleModel::forUserAndType($userId, CodeMartV1Constants::ROLE_DEVELOPER);
+    }
+
+    private function legacyArchitectStatus(?CodeMartV1UserRoleModel $developerRole): ?string
+    {
+        if (!$developerRole) return null;
+        return match ($developerRole->role_status) {
+            self::LEGACY_STATUS_ACTIVE => CodeMartV1Constants::ROLE_STATUS_ACTIVE,
+            self::LEGACY_STATUS_PENDING => CodeMartV1Constants::ROLE_STATUS_PENDING,
+            default => null,
+        };
+    }
+
+    /** Effective architect status (null|pending|active|suspended|rejected). */
+    private function architectStatus(int $userId): ?string
+    {
+        $architectRole = $this->architectRole($userId);
+        if ($architectRole) return $architectRole->role_status;
+        return $this->legacyArchitectStatus($this->developerRole($userId));
+    }
+
+    /** Repair a legacy developer-row marker into a dedicated architect row. */
+    private function normalizeLegacyArchitect(int $userId): ?CodeMartV1UserRoleModel
+    {
+        $developerRole = $this->developerRole($userId);
+        $legacyStatus = $this->legacyArchitectStatus($developerRole);
+        if ($legacyStatus === null || !$developerRole) {
+            return $this->architectRole($userId);
+        }
+
+        $architectRole = $this->architectRole($userId);
+        if (!$architectRole) {
+            $architectRole = CodeMartV1UserRoleModel::query()->create([
+                'user_id' => $userId,
+                'role_type' => CodeMartV1Constants::ROLE_ARCHITECT,
+                'role_status' => $legacyStatus,
+                'deposit_amount' => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT),
+                'role_activated_at' => $legacyStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE ? now() : null,
+            ]);
+        }
+        $developerRole->updateRecord(['role_status' => CodeMartV1Constants::ROLE_STATUS_ACTIVE]);
+
+        return $architectRole;
+    }
+
+    private function promotionRequirements(): array
+    {
+        return [
+            'min_completed_projects' => CodeMartV1Constants::ARCHITECT_MIN_PROJECTS,
+            'min_avg_code_score' => CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE,
+            'min_client_satisfaction' => CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION,
+        ];
+    }
+
     public function checkPromotionEligibility(Request $request): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'developer');
+        $userId = (int) $user->id;
+        $developerRole = $this->developerRole($userId);
+        $architectStatus = $this->architectStatus($userId);
+        $stats = CodeMartV1DeveloperStatsModel::forUser($userId);
+        $requirements = $this->promotionRequirements();
 
-        if (!$userRole) {
-            return $this->error('Only developers can apply for architect role');
-        }
-
-        if ($userRole->role_status === 'architect') {
-            return $this->error('You are already an architect');
-        }
-
-        $stats = CodeMartV1DeveloperStatsModel::forUser((int) $user->id);
-
-        if (!$stats) {
-            return $this->error('No developer statistics found');
-        }
-
-        $requirements = [
-            'min_completed_projects' => 10,
-            'min_avg_code_score' => 85,
-            'min_client_satisfaction' => 4.5,
+        $currentStats = [
+            'completed_projects' => (int) ($stats->completed_projects ?? 0),
+            'avg_code_score' => (float) ($stats->avg_code_score ?? 0),
+            'avg_client_satisfaction' => (float) ($stats->avg_client_satisfaction ?? 0),
         ];
 
-        $isEligible =
-            $stats->completed_projects >= $requirements['min_completed_projects'] &&
-            $stats->avg_code_score >= $requirements['min_avg_code_score'] &&
-            $stats->avg_client_satisfaction >= $requirements['min_client_satisfaction'];
+        $isEligible = $architectStatus === null
+            && $developerRole
+            && $developerRole->role_status === CodeMartV1Constants::ROLE_STATUS_ACTIVE
+            && $stats
+            && $currentStats['completed_projects'] >= $requirements['min_completed_projects']
+            && $currentStats['avg_code_score'] >= $requirements['min_avg_code_score']
+            && $currentStats['avg_client_satisfaction'] >= $requirements['min_client_satisfaction'];
+
+        $reason = null;
+        if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE) $reason = 'already_architect';
+        elseif ($architectStatus !== null) $reason = 'application_' . $architectStatus;
+        elseif (!$developerRole || $developerRole->role_status !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) $reason = 'not_developer';
+        elseif (!$isEligible) $reason = 'requirements_unmet';
 
         return $this->success([
             'is_eligible' => $isEligible,
+            'is_architect' => $architectStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE,
+            'architect_status' => $architectStatus,
+            'reason' => $reason,
+            'required_deposit' => CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT),
             'requirements' => $requirements,
-            'current_stats' => [
-                'completed_projects' => $stats->completed_projects,
-                'avg_code_score' => $stats->avg_code_score,
-                'avg_client_satisfaction' => $stats->avg_client_satisfaction,
-            ],
+            'current_stats' => $currentStats,
             'shortfall' => [
-                'completed_projects' => max(0, $requirements['min_completed_projects'] - $stats->completed_projects),
-                'avg_code_score' => max(0, $requirements['min_avg_code_score'] - $stats->avg_code_score),
-                'avg_client_satisfaction' => max(0, $requirements['min_client_satisfaction'] - $stats->avg_client_satisfaction),
+                'completed_projects' => max(0, $requirements['min_completed_projects'] - $currentStats['completed_projects']),
+                'avg_code_score' => max(0, $requirements['min_avg_code_score'] - $currentStats['avg_code_score']),
+                'avg_client_satisfaction' => max(0, $requirements['min_client_satisfaction'] - $currentStats['avg_client_satisfaction']),
             ],
         ]);
     }
@@ -68,32 +138,43 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'developer');
+        $userId = (int) $user->id;
+        $architectStatus = $this->architectStatus($userId);
 
-        if (!$userRole) {
-            return $this->error('Only developers can apply for architect role');
-        }
-
-        if ($userRole->role_status === 'architect') {
+        if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
             return $this->error('You are already an architect');
         }
+        if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_PENDING) {
+            return $this->error('An architect application is already pending');
+        }
 
-        $stats = CodeMartV1DeveloperStatsModel::forUser((int) $user->id);
+        $developerRole = $this->developerRole($userId);
+        if (!$developerRole || $developerRole->role_status !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
+            return $this->error('Only active developers can apply for architect role');
+        }
 
+        $stats = CodeMartV1DeveloperStatsModel::forUser($userId);
         if (!$stats ||
-            $stats->completed_projects < 10 ||
-            $stats->avg_code_score < 85 ||
-            $stats->avg_client_satisfaction < 4.5) {
+            $stats->completed_projects < CodeMartV1Constants::ARCHITECT_MIN_PROJECTS ||
+            $stats->avg_code_score < CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE ||
+            $stats->avg_client_satisfaction < CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION) {
             return $this->error('You do not meet the requirements for architect promotion');
         }
 
-        CodeMartV1ProjectModel::runInTransaction(function () use ($userRole) {
-            $userRole->updateRecord(['role_status' => 'architect_pending']);
+        $requiredDeposit = CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT);
+        CodeMartV1ProjectModel::runInTransaction(function () use ($userId, $requiredDeposit) {
+            CodeMartV1UserRoleModel::query()->create([
+                'user_id' => $userId,
+                'role_type' => CodeMartV1Constants::ROLE_ARCHITECT,
+                'role_status' => CodeMartV1Constants::ROLE_STATUS_PENDING,
+                'deposit_amount' => $requiredDeposit,
+                'role_activated_at' => null,
+            ]);
         });
 
         return $this->success([
             'message' => 'Architect application submitted. Please pay additional deposit to complete.',
-            'required_deposit' => 10000,
+            'required_deposit' => $requiredDeposit,
         ]);
     }
 
@@ -102,15 +183,19 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::forUserAndStatus((int) $user->id, 'architect');
-
-        if (!$userRole) {
-            return $this->forbidden('Only architects can access this endpoint');
+        $isArchitect = $this->architectStatus((int) $user->id) === CodeMartV1Constants::ROLE_STATUS_ACTIVE;
+        if (!$isArchitect) {
+            return $this->success([
+                'is_architect' => false,
+                'assigned_projects' => [],
+                'available_projects' => [],
+            ]);
         }
 
         $projects = CodeMartV1ProjectModel::architectProjects($user->id);
 
         return $this->success([
+            'is_architect' => true,
             'assigned_projects' => $projects->where('architect_id', $user->id)->values(),
             'available_projects' => $projects->where('architect_id', null)->values(),
         ]);
@@ -121,9 +206,7 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::forUserAndStatus((int) $user->id, 'architect');
-
-        if (!$userRole) {
+        if ($this->architectStatus((int) $user->id) !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
             return $this->forbidden('Only architects can accept projects');
         }
 
@@ -139,20 +222,25 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::forUserAndStatus((int) $user->id, 'architect_pending');
+        $userId = (int) $user->id;
+        $architectRole = $this->normalizeLegacyArchitect($userId);
 
-        if (!$userRole) {
+        if (!$architectRole || $architectRole->role_status !== CodeMartV1Constants::ROLE_STATUS_PENDING) {
             return $this->error('No pending architect application found');
         }
 
-        $architectDeposit = CodeMartV1DepositModel::paidAmountForUser((int) $user->id, 'architect');
+        $requiredDeposit = CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT);
+        $architectDeposit = CodeMartV1DepositModel::paidAmountForUser($userId, CodeMartV1Constants::ROLE_ARCHITECT);
 
-        if ($architectDeposit < 10000) {
-            return $this->error('Insufficient architect deposit. Required: 10000, Current: ' . $architectDeposit);
+        if ($architectDeposit < $requiredDeposit) {
+            return $this->error('Insufficient architect deposit. Required: ' . $requiredDeposit . ', Current: ' . $architectDeposit);
         }
 
-        CodeMartV1ProjectModel::runInTransaction(function () use ($userRole) {
-            $userRole->updateRecord(['role_status' => 'architect']);
+        CodeMartV1ProjectModel::runInTransaction(function () use ($architectRole) {
+            $architectRole->updateRecord([
+                'role_status' => CodeMartV1Constants::ROLE_STATUS_ACTIVE,
+                'role_activated_at' => now(),
+            ]);
         });
 
         return $this->success(['message' => 'Congratulations! You are now an architect.']);

@@ -647,7 +647,7 @@ import ${routes_dir}/*.caddy"
 		protocols h1
 	}
 	servers ${bind_host}:${https_port} {
-		protocols h1 h2 h3
+		protocols h1 h2
 	}
 
 	frankenphp {

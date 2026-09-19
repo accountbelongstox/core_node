@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import platform
 import re
 from datetime import datetime
 from pathlib import Path
@@ -38,6 +37,11 @@ from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
 from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
 from pycore.pyctl.agent_history.pi_extractor import PiExtractor
+from pycore.pyfoundations.agent_home_scanner import scan_user_homes
+from pycore.pyfoundations.system_paths import (
+    AGENT_HISTORY_LIVE_SCAN_TOOLS,
+    AGENT_HISTORY_OFFICIAL_HOME_MARKERS,
+)
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
@@ -51,6 +55,8 @@ ID_PAGE_SIZE_CAP = 1000
 EXTRACT_PROBE_SOURCE_CAP = 25
 EXTRACTOR_SCHEMA_REVISION = "2026-08-21.2"
 TOOL_EXTRACT_PROBE_CACHE_PREFIX = "agent_history.extract_probe."
+PROMPT_NEW_EVENT_CAP = 20
+PROMPT_NEW_TEXT_SNIPPET = 200
 SESSION_ID_FIELDS = (
     "id",
     "tool",
@@ -82,23 +88,8 @@ def _detect_lang(text: str) -> str:
 
 
 def user_homes() -> Dict[str, str]:
-    homes: Dict[str, str] = {}
-    home = Path.home()
-    user = os.environ.get("USERNAME") or os.environ.get("USER") or home.name
-    homes[str(home)] = user
-    if platform.system() == "Windows":
-        users_root = Path("C:/Users")
-        if users_root.is_dir():
-            for p in users_root.iterdir():
-                if p.is_dir() and not p.name.startswith("."):
-                    homes[str(p)] = p.name
-    else:
-        if Path("/root").is_dir():
-            homes["/root"] = "root"
-        for p in Path("/home").glob("*"):
-            if p.is_dir():
-                homes[str(p)] = p.name
-    return homes
+    """Delegate to the base-library scan center (covers per-slot profiles)."""
+    return scan_user_homes()
 
 
 class AgentHistoryService:
@@ -116,6 +107,9 @@ class AgentHistoryService:
             ClineExtractor(),
             GenericAgentExtractor(),
         ]
+        # Per-tool source descriptor maps for the live-scan skip cache;
+        # mutated only inside the serialized extract queue.
+        self._live_scan_descriptors: Dict[str, Dict[str, str]] = {}
 
     def is_dev_machine(self) -> bool:
         for home in user_homes():
@@ -171,6 +165,107 @@ class AgentHistoryService:
             force,
             timeout=3600.0,
         )
+
+    @staticmethod
+    def _emit_prompt_new(append_prompts: List[Dict[str, Any]], generated_at: str) -> None:
+        """Broadcast freshly extracted prompts (newest first, capped)."""
+        if not append_prompts:
+            return
+        newest = sorted(
+            append_prompts,
+            key=lambda p: int(p.get("ts") or 0),
+            reverse=True,
+        )[:PROMPT_NEW_EVENT_CAP]
+        tools = sorted({str(p.get("tool") or "") for p in append_prompts if p.get("tool")})
+        THREAD_BUS.trigger_event(
+            BusSignals.AGENT_HISTORY_PROMPT_NEW,
+            {
+                "generated_at": generated_at,
+                "tools": tools,
+                "prompt_count": len(append_prompts),
+                "prompts": [
+                    {
+                        "id": p.get("id"),
+                        "tool": p.get("tool"),
+                        "os_user": p.get("os_user"),
+                        "session_id": p.get("session_id"),
+                        "ts": int(p.get("ts") or 0),
+                        "time": p.get("time") or "",
+                        "text": str(p.get("text") or "")[:PROMPT_NEW_TEXT_SNIPPET],
+                    }
+                    for p in newest
+                ],
+            },
+            async_mode=True,
+        )
+
+    def live_scan(self, tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """UI-driven realtime scan (shares the extract serialization queue)."""
+        return call_serialized(
+            _EXTRACT_QUEUE,
+            self._live_scan_inner,
+            tools,
+            timeout=600.0,
+        )
+
+    def _live_scan_homes(self, tools: List[str]) -> Dict[str, str]:
+        """Scan-center homes plus official env-override roots per tool."""
+        homes = scan_user_homes()
+        for tool in tools:
+            spec = AGENT_HISTORY_OFFICIAL_HOME_MARKERS.get(tool) or {}
+            env_key = str(spec.get("env") or "")
+            env_value = os.environ.get(env_key, "").strip() if env_key else ""
+            if env_value and os.path.isabs(env_value):
+                parent = os.path.dirname(env_value.rstrip("/\\"))
+                if parent and os.path.isdir(parent) and parent not in homes:
+                    homes[parent] = os.path.basename(parent)
+        return homes
+
+    def _live_scan_inner(self, tools: Optional[List[str]]) -> Dict[str, Any]:
+        requested = [
+            str(tool).strip().lower()
+            for tool in (tools or AGENT_HISTORY_LIVE_SCAN_TOOLS)
+            if str(tool).strip()
+        ]
+        supported = [tool for tool in requested if tool in AGENT_HISTORY_LIVE_SCAN_TOOLS]
+        unsupported = [tool for tool in requested if tool not in AGENT_HISTORY_LIVE_SCAN_TOOLS]
+        extractor_by_tool = {
+            extractor.tool(): extractor for extractor in self._extractors
+        }
+        homes = self._live_scan_homes(supported)
+        changed_tools: List[str] = []
+        skipped_tools: List[str] = []
+        pending_descriptors: Dict[str, Dict[str, str]] = {}
+        for tool in supported:
+            extractor = extractor_by_tool.get(tool)
+            if extractor is None:
+                skipped_tools.append(tool)
+                continue
+            descriptors: Dict[str, str] = {}
+            for home, user in homes.items():
+                for d in extractor.discover(home, user):
+                    descriptors[str(d.get("path") or "")] = (
+                        f"{int(d.get('mtime') or 0)}:{int(d.get('bytes') or 0)}"
+                    )
+            if descriptors == self._live_scan_descriptors.get(tool):
+                skipped_tools.append(tool)
+                continue
+            pending_descriptors[tool] = descriptors
+            changed_tools.append(tool)
+
+        summary: Dict[str, Any] = {}
+        if changed_tools:
+            summary = self._extract_inner(force=False)
+            if isinstance(summary, dict) and not summary.get("error"):
+                self._live_scan_descriptors.update(pending_descriptors)
+        return {
+            "tools": requested,
+            "unsupported_tools": unsupported,
+            "changed_tools": changed_tools,
+            "skipped_tools": skipped_tools,
+            "changed": bool(changed_tools) and not summary.get("unchanged"),
+            "scanned_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
 
     def _extract_inner(self, force: bool = False) -> Dict[str, Any]:
         generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -337,6 +432,7 @@ class AgentHistoryService:
                 {"generated_at": generated_at, **summary},
                 async_mode=True,
             )
+            self._emit_prompt_new(append_prompts, generated_at)
             return summary
         except Exception as e:
             summary = {"error": str(e)}
@@ -653,6 +749,28 @@ class AgentHistoryService:
         cursors: Dict[str, Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         return agent_history_statistics.read_many(cursors)
+
+    def read_tool_fragment_id_pages(
+        self,
+        tool: str,
+        kind: str,
+        cursor: Dict[str, Any],
+        page: int = 1,
+        page_size: int = 50,
+        since_revision: str = "",
+    ) -> Dict[str, Any]:
+        return agent_history_statistics.read_fragment_id_pages(
+            tool, kind, cursor, page, page_size, since_revision,
+        )
+
+    def read_tool_fragment_page(
+        self,
+        tool: str,
+        kind: str,
+        cursor: Dict[str, Any],
+        ids: List[str],
+    ) -> Dict[str, Any]:
+        return agent_history_statistics.read_fragment_page(tool, kind, cursor, ids)
 
     def test_extract(self, tool: str) -> Dict[str, Any]:
         """Parse the newest source of one tool and return its latest prompt.

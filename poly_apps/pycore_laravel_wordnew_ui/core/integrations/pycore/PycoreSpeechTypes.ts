@@ -551,6 +551,60 @@ export interface AgentHistoryTestExtractResponse {
   error?: string | null;
 }
 
+// --- Tool fragment panels (prompts / replies / processed / pending) ------- #
+export type AgentHistoryFragmentKind = 'prompts' | 'replies' | 'processed' | 'pending';
+
+export interface AgentHistoryToolFragment {
+  id: string;
+  tool: string;
+  kind: 'prompt' | 'response';
+  session_id: string;
+  ts: number;
+  time: string;
+  pending: boolean;
+  text?: string;
+}
+
+export type AgentHistoryToolFragmentIdItem = Omit<AgentHistoryToolFragment, 'text'>;
+
+export interface AgentHistoryToolFragmentIdPagesResponse {
+  success: boolean;
+  data: (AgentHistoryIdPage<AgentHistoryToolFragmentIdItem> & {
+    tool?: string;
+    kind?: string;
+  }) | null;
+  error: string | null;
+}
+
+export interface AgentHistoryToolFragmentPageResponse {
+  success: boolean;
+  data: { items: AgentHistoryToolFragment[]; total: number } | null;
+  error: string | null;
+}
+
+// --- UI-driven realtime prompt scan (live monitor) ------------------------ #
+export interface AgentHistoryLiveScanResult {
+  tools?: string[];
+  unsupported_tools?: string[];
+  changed_tools?: string[];
+  skipped_tools?: string[];
+  changed?: boolean;
+  scanned_at?: string;
+  error?: string;
+}
+
+export interface AgentHistoryLiveScanResponse {
+  success: boolean;
+  data?: {
+    queued?: boolean;
+    busy?: boolean;
+    throttled?: boolean;
+    retry_after?: number;
+    last?: AgentHistoryLiveScanResult;
+  };
+  error?: string | null;
+}
+
 export interface AgentHistoryToolStatistics {
   tool: string;
   sessions: number;

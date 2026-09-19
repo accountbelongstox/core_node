@@ -69,14 +69,13 @@ class CodeMartV1SeedDemoData extends Command
         );
 
         if ($roleType === CodeMartV1Constants::ROLE_ARCHITECT) {
-            // The architect contract mirrors the real promotion flow: the
-            // developer role row carries the architect state while the
-            // architect role row exposes the active role to the bootstrap
-            // capability map.
+            // An architect keeps the developer role active; the dedicated
+            // architect role row above carries the architect state that the
+            // bootstrap capability map and CodeMartV1ArchitectCtl read.
             CodeMartV1UserRoleModel::query()->updateOrCreate(
                 ['user_id' => $user->id, 'role_type' => CodeMartV1Constants::ROLE_DEVELOPER],
                 [
-                    'role_status' => 'architect',
+                    'role_status' => CodeMartV1Constants::ROLE_STATUS_ACTIVE,
                     'deposit_amount' => CodeMartV1Constants::DEPOSIT_DEVELOPER,
                     'role_activated_at' => now(),
                 ]

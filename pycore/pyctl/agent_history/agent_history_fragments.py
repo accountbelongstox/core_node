@@ -187,6 +187,27 @@ def summarize_tool_fragments(
     }
 
 
+def is_fragment_pending(fragment: Dict[str, Any], cursor: Dict[str, Any]) -> bool:
+    """Classify one fragment against a tool cursor (shared by counts + pages)."""
+    timestamp = int(fragment.get("ts") or 0)
+    fragment_id = str(fragment.get("fragment_id") or "")
+    after_ts = int(cursor.get("after_ts") or 0)
+    after_fragment_id = str(cursor.get("after_fragment_id") or "")
+    position = (timestamp, fragment_id)
+    backfill_position = (after_ts, after_fragment_id)
+    if bool(cursor.get("lane_aware")):
+        target_position = (
+            int(cursor.get("backfill_target_ts") or 0),
+            str(cursor.get("backfill_target_fragment_id") or ""),
+        )
+        live_position = (
+            int(cursor.get("live_after_ts") or 0),
+            str(cursor.get("live_after_fragment_id") or ""),
+        )
+        return backfill_position < position <= target_position or position > live_position
+    return position > backfill_position
+
+
 def summarize_tool_fragments_many(
     cursors: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Dict[str, int]]:
@@ -222,24 +243,7 @@ def summarize_tool_fragments_many(
             summary["prompts"] += 1
         elif kind == "response":
             summary["replies"] += 1
-        timestamp = int(fragment.get("ts") or 0)
-        fragment_id = str(fragment.get("fragment_id") or "")
-        after_ts = int(cursor["after_ts"])
-        after_fragment_id = str(cursor["after_fragment_id"])
-        position = (timestamp, fragment_id)
-        backfill_position = (after_ts, after_fragment_id)
-        if cursor["lane_aware"]:
-            target_position = (
-                int(cursor["backfill_target_ts"]),
-                str(cursor["backfill_target_fragment_id"]),
-            )
-            live_position = (
-                int(cursor["live_after_ts"]),
-                str(cursor["live_after_fragment_id"]),
-            )
-            if backfill_position < position <= target_position or position > live_position:
-                summary["pending"] += 1
-        elif position > backfill_position:
+        if is_fragment_pending(fragment, cursor):
             summary["pending"] += 1
     for summary in summaries.values():
         summary["processed"] = max(0, summary["total"] - summary["pending"])

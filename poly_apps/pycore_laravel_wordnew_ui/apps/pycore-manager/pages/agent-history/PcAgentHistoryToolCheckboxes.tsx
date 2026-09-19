@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AgentHistoryToolStatistics } from '@/apps/pycore-manager/api';
 import { AGENT_HISTORY_TOOLS, TOOL_LABELS } from './presentation';
+import type { AgentHistoryToolPanelKind } from './PcAgentHistoryToolPanel';
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'empty' | 'fail';
 
@@ -9,6 +10,7 @@ type TestStatus = 'idle' | 'testing' | 'ok' | 'empty' | 'fail';
  * Per-tool monitor checkboxes. Checked tools are the ones "Auto process
  * history" works on (saved as config.enabled_tools). Checking a tool also
  * probes its newest history source once — green dot when a prompt extracts.
+ * Every stat number opens a floating paginated panel for that tool+kind.
  */
 const PcAgentHistoryToolCheckboxes: React.FC<{
   tk: (k: string) => string;
@@ -17,7 +19,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
   refreshRevision?: string;
   onToggle: (tool: string, checked: boolean) => void;
   onSelect: (tool: string) => void;
-  onOpenToolHistory?: (tool: string, tab: 'sessions' | 'prompts') => void;
+  onOpenToolHistory?: (tool: string, kind: AgentHistoryToolPanelKind) => void;
 }> = ({ tk, enabledTools, selectedTool, refreshRevision, onToggle, onSelect, onOpenToolHistory }) => {
   const [status, setStatus] = useState<Record<string, TestStatus>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -111,10 +113,10 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
     onSelect(tool);
   };
 
-  // Every stat number drills into that tool's filtered prompt/output history.
-  const openHistory = (tool: string, tab: 'sessions' | 'prompts') => {
+  // Every stat number opens that tool+kind floating panel (no page scroll).
+  const openHistory = (tool: string, kind: AgentHistoryToolPanelKind) => {
     onSelect(tool);
-    onOpenToolHistory?.(tool, tab);
+    onOpenToolHistory?.(tool, kind);
   };
 
   const dotCls = (tool: string): string => {
@@ -205,7 +207,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                       </button>
                       <button
                         type="button"
-                        onClick={() => openHistory(tool, 'prompts')}
+                        onClick={() => openHistory(tool, 'replies')}
                         title={`${tk('replyCount')} · ${TOOL_LABELS[tool] || tool}`}
                         className={`${statBtnCls} bg-cyan-500/10`}
                       >
@@ -214,7 +216,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                       </button>
                       <button
                         type="button"
-                        onClick={() => openHistory(tool, 'prompts')}
+                        onClick={() => openHistory(tool, 'processed')}
                         title={`${tk('processedRecords')} · ${TOOL_LABELS[tool] || tool}`}
                         className={`${statBtnCls} bg-emerald-500/10`}
                       >
@@ -223,7 +225,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                       </button>
                       <button
                         type="button"
-                        onClick={() => openHistory(tool, 'prompts')}
+                        onClick={() => openHistory(tool, 'pending')}
                         title={`${tk('pendingRecords')} · ${TOOL_LABELS[tool] || tool}`}
                         className={`${statBtnCls} bg-amber-500/10`}
                       >
@@ -232,7 +234,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                       </button>
                     </div>
                     <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1">
-                      <button type="button" onClick={() => openHistory(tool, 'prompts')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
+                      <button type="button" onClick={() => openHistory(tool, 'sessions')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
                         {item.sessions} {tk('sessionCount')}
                       </button>
                     </div>

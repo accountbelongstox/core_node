@@ -207,6 +207,8 @@ agentHistory: {
     subtitle: 'Local Agent / Claude / Codex / Cursor / Gemini / Kimi / Antigravity / Cline prompts and AI replies — continuously extracted into pycore txt files.',
     refresh: 'Refresh now',
     liveOn: 'Live',
+    livePromptMonitor: 'Realtime prompt monitor',
+    livePromptMonitorHint: 'While checked, scans the checked local agents (kimi/codex/pi/claude) every 5s for new prompts; unchanged agents are skipped and new prompts are pushed to this page instantly.',
     liveOff: 'Paused',
     updated: 'Store updated',
     sessionCount: 'sessions',

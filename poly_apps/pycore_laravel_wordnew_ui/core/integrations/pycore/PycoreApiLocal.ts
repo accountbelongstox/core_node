@@ -51,6 +51,10 @@ import type {
   AgentHistoryArticleRecordPageResponse,
   AgentHistoryArticleVideoMediaResponse,
   AgentHistoryVideoLogsResponse,
+  AgentHistoryFragmentKind,
+  AgentHistoryToolFragmentIdPagesResponse,
+  AgentHistoryToolFragmentPageResponse,
+  AgentHistoryLiveScanResponse,
 } from './PycoreSpeechTypes';
 import type {
   AutostartStatus,
@@ -305,6 +309,23 @@ export const pycoreApiLocal = {
   /** Probe one tool: parse its newest history source and return the latest prompt. */
   testAgentHistoryToolExtract: (tool: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
+  /** UI-driven realtime scan of checked tools (server throttles to its cadence). */
+  liveScanAgentHistory: (tools: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryLiveScan, { tools }) as Promise<AgentHistoryLiveScanResponse>,
+  // --- Tool fragment panels (DIFF ID pages + lazy materialization) -------- #
+  getAgentHistoryToolFragmentIdPages: (params: {
+    tool: string; kind: AgentHistoryFragmentKind;
+    page?: number; pageSize?: number; sinceRevision?: string;
+  }) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryToolFragmentIdPages, {
+      tool: params.tool,
+      kind: params.kind,
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+      since_revision: params.sinceRevision ?? '',
+    }) as Promise<AgentHistoryToolFragmentIdPagesResponse>,
+  getAgentHistoryToolFragmentPage: (tool: string, kind: AgentHistoryFragmentKind, ids: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryToolFragmentPage, { tool, kind, ids }) as Promise<AgentHistoryToolFragmentPageResponse>,
   // --- Sentence-audio auto-start (Queue Center strip) --------------------- #
   getSentenceAudioAutoStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioStatus, {}),

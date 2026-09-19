@@ -2,7 +2,7 @@
 
 Date: 2026-09-19
 Design doc: `docs_fix/DESIGN_20260919_AGENT_HISTORY_FLOATING_PANELS_REALTIME_MONITOR.md`
-Status: Design complete — implementation pending
+Status: **Implementation complete (2026-09-19)** — static checks pass; runtime smoke pending (see Verification)
 
 ## Original Requirement (verbatim, preserved)
 
@@ -13,56 +13,65 @@ Status: Design complete — implementation pending
 | Phase | Scope (design ref) | Status |
 |---|---|---|
 | 0 | Design doc + progress doc in docs_fix | Done (2026-09-19) |
-| A | Scan center + constants (design §5.1, §5.2) | Pending |
-| B | Live scan lane + skip cache + UI toggle (design §5.3, §5.4) | Pending |
-| C | Push notification topic end-to-end (design §6) | Pending |
-| D | Floating panel + fragment endpoints + card wiring (design §4) | Pending |
-| E | 立即刷新 semantics + final sweep (design §7, §9) | Pending |
+| A | Scan center + constants (design §5.1, §5.2) | Done (2026-09-19) |
+| B | Live scan route + skip cache + UI toggle (design §5.3, §5.4) | Done (2026-09-19, with deviation — see Phase B) |
+| C | Push notification topic end-to-end (design §6) | Done (2026-09-19) |
+| D | Floating panel + fragment endpoints + card wiring (design §4) | Done (2026-09-19) |
+| E | 立即刷新 semantics + i18n + final sweep (design §7, §9) | Done (2026-09-19) |
 
 ## Phase 0 — Done
 
 - Explored current implementation and grounded the design:
-  - UI: `apps/pycore-manager/pages/PcAgentHistoryPage.tsx` (`handleOpenToolHistory` scroll at line 420, `handleRefresh` at line 366), `pages/agent-history/PcAgentHistoryToolCheckboxes.tsx` (stat buttons), `PcAgentHistoryConfigPanel.tsx`, `api/AgentHistoryRuntimeStore.ts`, `core/integrations/pycore/PycoreEventTopics.ts`, `PycoreHttp.ts` (SSE), `core/integrations/laravel/LaravelRealtime.ts` / `LaravelMercureConnection.ts`.
-  - pycore: `pycore/pyctl/agent_history/agent_history_service.py` (`user_homes` at line 84, incremental `_extract_inner`), `tick_service.py` (env-driven intervals), `heartbeat.py`, `snapshot_cache.py`, `agent_history_statistics.py`, `ui_service.py`, extractors for kimi/codex/pi/claude.
+  - UI: `apps/pycore-manager/pages/PcAgentHistoryPage.tsx` (`handleOpenToolHistory` scroll, `handleRefresh`), `pages/agent-history/PcAgentHistoryToolCheckboxes.tsx` (stat buttons), `PcAgentHistoryConfigPanel.tsx`, `api/AgentHistoryRuntimeStore.ts`, `core/integrations/pycore/PycoreEventTopics.ts`, `PycoreHttp.ts` (SSE), `core/integrations/laravel/LaravelRealtime.ts` / `LaravelMercureConnection.ts`.
+  - pycore: `pycore/pyctl/agent_history/agent_history_service.py` (`user_homes`, incremental `_extract_inner`), `tick_service.py` (env-driven intervals), `heartbeat.py`, `snapshot_cache.py`, `agent_history_statistics.py`, `ui_service.py`, extractors for kimi/codex/pi/claude.
   - Slot directory conventions: `scripts/winenvs/kimi1.ps1` / `kimi2.ps1` (`D:\.tmp\Users\Kimi1|Kimi2`, `KIMI_CODE_HOME=<profile>\.kimi-code`), `codex1.ps1` (`D:\programing\Users\Codex1`), `codex2.ps1` (`D:\.tmp\Users\MyBest*`), pi launchers + `scripts/shells/win/win_common/GlobalVars.ps1` (`PROGRAMING_USERS_DIR=D:\programing\Users`, `PI_*_USER_DIR`), `claude1.ps1` (real profile `.claude`).
   - Constants home: `pycore/pyfoundations/system_paths.py`.
   - Relay/realtime: `config/pycore_relay_contract.json`, `poly_apps/laravel_main/app/Services/Realtime/RealtimeOutboxPublisher.php`, `MercurePublisher.php`, `app/Apps/Relay/RelayServices/RelayHubService.php`.
 - Wrote the design doc preserving the original prompt text verbatim (design §1).
 
-## Phase A — Scan Center + Constants (pending)
+## Phase A — Scan Center + Constants (done)
 
-- [ ] Add `AGENT_HISTORY_USERS_ROOTS_WINDOWS` / `AGENT_HISTORY_USERS_ROOTS_LINUX` / `AGENT_HISTORY_OFFICIAL_HOME_MARKERS` to `pycore/pyfoundations/system_paths.py`, env override `PYCORE_AGENT_HISTORY_USERS_ROOTS`.
-- [ ] Add `pycore/pyfoundations/agent_home_scanner.py` (`scan_user_homes()`), one-level glob under each users-root.
-- [ ] Rewire `agent_history_service.user_homes()` to delegate to the scan center.
+- [x] `pycore/pyfoundations/system_paths.py`: added `AGENT_HISTORY_USERS_ROOTS_ENV` (`PYCORE_AGENT_HISTORY_USERS_ROOTS`), `AGENT_HISTORY_USERS_ROOTS_WINDOWS` (`D:/programing/Users`, `D:/.tmp/Users`, `C:/Users`), `AGENT_HISTORY_USERS_ROOTS_LINUX` (`/home`, `/root`), `AGENT_HISTORY_OFFICIAL_HOME_MARKERS` (kimi: `KIMI_CODE_HOME` + `.kimi-code`/`.kimi`; codex: `CODEX_HOME` + `.codex`; pi: `.pi`; claude: `CLAUDE_CONFIG_DIR` + `.claude`), `AGENT_HISTORY_LIVE_SCAN_TOOLS = ('kimi','codex','pi','claude')` — all exported in `__all__`.
+- [x] `pycore/pyfoundations/agent_home_scanner.py` (new): `scan_user_homes()` — process home + one-level slot directories under each users-root, deduped by realpath; `/root` (or any users-root that itself carries an agent marker) is treated as a home and not drilled into. `official_tool_homes(tool, home)` resolves env var → official default dir name. Verified on Linux with a smoke run (correctly excludes `/root/Desktop`-style non-home children).
+- [x] `agent_history_service.user_homes()` now delegates to `scan_user_homes()`; unused `import platform` removed.
 
-## Phase B — Live Scan Lane + UI Toggle (pending)
+## Phase B — Live Scan Route + UI Toggle (done, with deviation)
 
-- [ ] `agent_history_service.live_scan(tools)` scoped discovery, tools ∩ {kimi, codex, pi, claude}.
-- [ ] Per-tool skip cache in `VersionedSnapshotCache` (`agent_history.live_scan.` prefix).
-- [ ] Heartbeat callback `agent_history_live_scan` (`PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL`, default 5s), idle unless monitored.
-- [ ] Route `agent_history.live_scan` in `ui_service.py` + `local_agent_history_routes.py` + `PycoreHttpRoutes.ts` + `pycoreApi` wrapper.
-- [ ] 实时监控提示词 checkbox (default ON) in `PcAgentHistoryPage.tsx`, persisted in `AgentHistoryUiStateStore`.
+**Deviation from design §5.3 (documented there):** no heartbeat callback was added. The live scan is a UI-driven on-demand route `ui/agent_history/live_scan` → `tick_service.request_live_scan(tools)` with server-side throttle `LIVE_SCAN_MIN_INTERVAL` (env `PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL`, default 5s; early polls return `{throttled, retry_after, last}`). Reason: with no UI monitoring there is nothing to scan for, so no background lane or "who is monitoring" registry is needed; the heartbeat keeps only the ~30s incremental extract lane.
 
-## Phase C — Push Notification (pending)
+- [x] `agent_history_service.live_scan(tools)` / `_live_scan_inner(tools)`: scoped discovery per tool (intersected with `AGENT_HISTORY_LIVE_SCAN_TOOLS` by the route layer), serialized through the shared `_EXTRACT_QUEUE` worker.
+- [x] Skip cache: in-memory per-tool descriptor map `{path: "mtime:bytes"}` (`self._live_scan_descriptors`); unchanged tools return skipped without opening files; descriptors committed only after a successful extract.
+- [x] `tick_service.py`: `_ExtractGate.run_live`, `request_live_scan(tools)`, `_run_live_scan`, snapshot extended with `last_live_scan` / `live_scan_interval`.
+- [x] Routes: `UI_AGENT_HISTORY_LIVE_SCAN` in `route_names.py`, registered in `local_agent_history_routes.py`; TS route in `PycoreHttpRoutes.ts`; typed wrappers `liveScanAgentHistory` in `PycoreApiLocal.ts`; types `AgentHistoryLiveScanResult/Response` in `PycoreSpeechTypes.ts`.
+- [x] 实时监控提示词 checkbox (default ON, Radar icon) in `PcAgentHistoryPage.tsx` header; persisted as `livePromptMonitor` (default true) in `persistence/AgentHistoryUiStateStore.ts`; 5s poll (`LIVE_SCAN_POLL_MS = 5000`) over `LIVE_SCAN_TOOLS = {kimi, codex, pi, claude}`.
 
-- [ ] `BusSignals.AGENT_HISTORY_PROMPT_NEW` in `thread_bus_constants.py`; emit on new prompts from extract/live scan.
-- [ ] Topic `agentHistoryPromptNew: 'agent_history.prompt.new'` in `PycoreEventTopics.ts`; page/store subscriptions (debounced, revision-gated).
-- [ ] Laravel forwarding: relay intake → `RealtimeOutboxPublisher` / `MercurePublisher` → FrankenPHP Mercure hub → `LaravelMercureConnection`; contract entries in `QueueCenterContract` (PHP + TS).
+## Phase C — Push Notification (done)
 
-## Phase D — Floating Panels (pending)
+- [x] `BusSignals.AGENT_HISTORY_PROMPT_NEW = "agent_history.prompt.new"` in `pycore/pyfoundations/thread_bus_constants.py`; `agent_history_service._emit_prompt_new()` fires it at the end of `_extract_inner` (after `SESSIONS_CHANGED`) with the latest 20 prompts (text truncated to 200 chars).
+- [x] Direct UI: `thread_bus_routes.py` SSE listener tuple extended with `AGENT_HISTORY_PROMPT_NEW`; `PycoreEventTopics.ts` gains `agentHistoryPromptNew`.
+- [x] Laravel path: `config/pycore_relay_contract.json` gains event `agent_history_prompt_new` (signal `agent_history.prompt.new`, payload profile `[pairing_id, device_id, revision, metadata]` — both sides read the same contract file, digest stays aligned; PHP only asserts required events exist, so the addition is safe). `laravel_relay_agent_service.py` subscribes the bus signal and republishes via the refactored generic `_post_device_event(event_name, payload, revision)`; `RelayDeviceService.php::event()` now allows `agent_history_prompt_new` through the existing outbox → `RealtimeOutboxPublisher.drainRelay` → FrankenPHP Mercure hub chain.
+- [x] UI bridge: `PcAgentHistoryPage.tsx` subscribes `agentHistoryPromptNew` plus the relay bridge (`laravelRelayOperationEvents.onEvent` matching `RELAY_CONTRACT.events.agent_history_prompt_new`, forwarding `data.metadata` into the local topic — passive subscription, connection lifecycle owned by `LaravelRelayRoster.start()`, same pattern as `pairing_changed`).
 
-- [ ] `components/PcFloatingPanel.tsx` global reusable modal; refactor `PcAgentHistoryAiPanel` modal onto it.
-- [ ] Backend `read_tool_fragment_pages` on `AgentHistoryStatistics` + routes `agent_history.tool_fragment_id_pages` / `agent_history.tool_fragment_page`.
-- [ ] Rewire `PcAgentHistoryToolCheckboxes` stat buttons to open the floating panel (prompts / replies / processed / pending / sessions kinds); remove the scroll-to-bottom jump for stats.
+## Phase D — Floating Panels (done)
 
-## Phase E — Refresh Semantics + Sweep (pending)
+- [x] `apps/pycore-manager/components/PcFloatingPanel.tsx` (new global reusable modal: overlay/Esc close, footer slot). `PcAgentHistoryAiPanel.tsx` refactored onto it (grid `-m-4`, aside/main `max-h-[calc(88vh-62px)]`).
+- [x] Backend: `agent_history_statistics.py` gains `read_fragment_id_pages` (DIFF ID pages, text stripped, revision = md5 of source revisions + cursor digest, `since_revision` short-circuit) and `read_fragment_page` (materialize by ids), backed by `_fragment_catalog` / `_build_fragment_catalog` (kinds: prompts / replies / processed / pending, newest first; `TOOL_FRAGMENT_PAGE_SIZE_CAP = 500`); `is_fragment_pending` extracted into `agent_history_fragments.py` and reused by `summarize_tool_fragments_many` (logic preserved verbatim, including lane-aware tuple comparison). Service delegates `read_tool_fragment_id_pages` / `read_tool_fragment_page`; `ui_service.py` exposes both routes (tool validated against `SUPPORTED_TOOLS`).
+- [x] `pages/agent-history/PcAgentHistoryToolPanel.tsx` (new): kind ∈ prompts/replies/processed/pending/sessions, DIFF pagination + `PcPager`; exported `AgentHistoryToolPanelKind`.
+- [x] `PcAgentHistoryToolCheckboxes.tsx`: stat buttons now call `onOpenToolHistory(tool, kind)` — 提示词→prompts, 吐字历史→replies, 已处理内容→processed, 待处理内容→pending, 会话→sessions; `PcAgentHistoryConfigPanel.tsx` prop types synced; `PcAgentHistoryPage.tsx` `handleOpenToolPanel` opens the floating panel (scroll-to-bottom jump and `listAnchorRef` removed for stats).
 
-- [ ] Extend `ui_service.refresh`: force full extract + invalidate `agent_history.*` snapshot caches; UI bypasses `sinceRevision` on manual refresh.
-- [ ] i18n keys (zh + en), sweep stale comments/docstrings describing the old scroll/refresh behavior.
+## Phase E — Refresh Semantics + i18n + Sweep (done)
 
-## Verification Plan (when implementation lands)
+- [x] `ui_service.refresh` extended to `invalidate_agent_history_caches()` (`agent_history_snapshot_cache` + `status_snapshot_cache`, `invalidate_prefix("agent_history.")`) + `request_extract(force=True)`, response includes `cache_invalidated`. UI `handleRefresh` force-reloads session/prompt pages bypassing `sinceRevision` (`loadSessionPage(true)` / `loadPromptPage(true)`) and bumps `statsBump` (folded into the statistics `storeRevision`) so tool cards reload fresh — no device refresh anywhere in the path.
+- [x] i18n: `PcZhFeatures.ts` / `PcEnFeatures.ts` agentHistory section gains `livePromptMonitor`, `livePromptMonitorHint`; existing `close` / `promptCount` / `replyCount` / `processedRecords` / `pendingRecords` / `sessionCount` keys reused by the panel. No hardcoded language strings in new components.
+- [x] Docs updated to match implementation (design §5.3 deviation note, §5.4, §8 route names; this progress doc).
 
-1. Check kimi/codex/pi/claude cards → live scan picks up a new prompt within ~5s and the card/panel updates without a page reload (both direct-SSE and Laravel-Mercure transports).
-2. Stat buttons open floating panels with working pagination; page bottom never auto-scrolls.
-3. 立即刷新 forces a rescan and fresh statistics; unchanged agents are reported as skipped in the live-scan response.
-4. Linux run: roots from `AGENT_HISTORY_USERS_ROOTS_LINUX` (+ env override) are scanned; Windows run covers `D:\programing\Users` and `D:\.tmp\Users` slots.
+## Verification Status
+
+- [x] TypeScript: `tsc --noEmit` — zero errors across all touched UI files (the ~97 remaining repo errors are pre-existing and unrelated).
+- [x] Python: `ast.parse` clean on all touched pycore files; `agent_home_scanner.scan_user_homes()` smoke-tested on Linux.
+- [ ] PHP: `RelayDeviceService.php` change not linted (no php cli on this machine).
+- [ ] Runtime smoke (requires the real pycore runtime, e.g. `PYTHON312_EXE_PATH` from `/var/_core_node/global_var`; the default `/usr/local/bin/python` lacks aiohttp so a full import chain cannot run here — pre-existing environment limitation, not introduced by this change):
+  1. Check kimi/codex/pi/claude cards → live scan picks up a new prompt within ~5s and the card/panel updates without a page reload (both direct-SSE and Laravel-Mercure transports).
+  2. Stat buttons open floating panels with working pagination; page bottom never auto-scrolls.
+  3. 立即刷新 forces a rescan and fresh statistics; unchanged agents are reported as skipped in the live-scan response.
+  4. Windows run covers `D:\programing\Users` and `D:\.tmp\Users` slots (Linux roots verified by smoke test).

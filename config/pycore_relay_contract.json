@@ -105,7 +105,8 @@
     "pairing_changed": "relay.pairing.changed",
     "credential_revoked": "relay.credential.revoked",
     "device_presence": "relay.device.presence",
-    "terminal_changed": "terminal.changed"
+    "terminal_changed": "terminal.changed",
+    "agent_history_prompt_new": "agent_history.prompt.new"
   },
   "event_payload_profiles": {
     "operation_available": ["operation_id", "revision", "state"],
@@ -113,7 +114,8 @@
     "pairing_changed": ["pairing_id", "revision", "state"],
     "credential_revoked": ["device_id", "credential_id", "credential_version"],
     "device_presence": ["device_id", "online", "device", "recommended_device_id", "selection_reason"],
-    "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"]
+    "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"],
+    "agent_history_prompt_new": ["pairing_id", "device_id", "revision", "metadata"]
   },
   "claim_generation_profile": {
     "fields": ["operation_revision", "claim_epoch", "lease_owner"],

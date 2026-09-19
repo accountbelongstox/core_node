@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 import pycore.pyutils.agent_history.article_records as article_record_store
 import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
+from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache
 from pycore.pyctl.agent_history.heartbeat import set_agent_history_callbacks_enabled
 from pycore.pyctl.agent_history.pipeline.config import (
     SUPPORTED_TOOLS,
@@ -213,7 +214,68 @@ def prompt_page(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.read_prompt_page(_id_list(request))}
 
 def refresh(_params: Any, _request_id: str) -> Dict[str, Any]:
-    return {"success": True, "data": agent_history_tick_service.request_extract(force=True)}
+    """Manual rescan: force-extract all agents + drop every cached snapshot."""
+    invalidated = invalidate_agent_history_caches()
+    result = agent_history_tick_service.request_extract(force=True)
+    return {"success": True, "data": {**result, "cache_invalidated": invalidated}}
+
+
+def invalidate_agent_history_caches() -> bool:
+    """Drop pycore-side read caches so the next reads reparse from disk."""
+    agent_history_snapshot_cache.invalidate_prefix("agent_history.")
+    status_snapshot_cache.invalidate_prefix("agent_history.")
+    return True
+
+
+def live_scan(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    raw_tools = request.get("tools") or []
+    tools = [str(item) for item in raw_tools] if isinstance(raw_tools, list) else []
+    return {"success": True, "data": agent_history_tick_service.request_live_scan(tools)}
+
+
+def _fragment_cursor(config: Dict[str, Any], tool: str) -> Dict[str, Any]:
+    cursor = get_tool_cursor(config, tool)
+    target = get_tool_backfill_target(config, tool)
+    live_cursor = get_tool_live_cursor(config, tool)
+    return {
+        "after_ts": int(cursor.get("after_ts") or 0),
+        "after_fragment_id": str(cursor.get("after_fragment_id") or ""),
+        "backfill_target_ts": int(target.get("after_ts") or 0),
+        "backfill_target_fragment_id": str(target.get("after_fragment_id") or ""),
+        "live_after_ts": int(live_cursor.get("after_ts") or 0),
+        "live_after_fragment_id": str(live_cursor.get("after_fragment_id") or ""),
+        "lane_aware": bool(target) and bool(live_cursor),
+    }
+
+
+def tool_fragment_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    tool = str(request.get("tool") or "").strip().lower()
+    if tool not in SUPPORTED_TOOLS:
+        return {"success": False, "error": "unknown tool"}
+    kind = str(request.get("kind") or "prompts").strip().lower()
+    cursor = _fragment_cursor(get_config(), tool)
+    data = agent_history_service.read_tool_fragment_id_pages(
+        tool,
+        kind,
+        cursor,
+        int(request.get("page") or 1),
+        int(request.get("page_size") or request.get("pageSize") or 50),
+        str(request.get("since_revision") or request.get("sinceRevision") or ""),
+    )
+    return {"success": True, "data": data}
+
+
+def tool_fragment_page(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    tool = str(request.get("tool") or "").strip().lower()
+    if tool not in SUPPORTED_TOOLS:
+        return {"success": False, "error": "unknown tool"}
+    kind = str(request.get("kind") or "prompts").strip().lower()
+    cursor = _fragment_cursor(get_config(), tool)
+    data = agent_history_service.read_tool_fragment_page(tool, kind, cursor, _id_list(request))
+    return {"success": True, "data": data}
 
 def update_prompt(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
@@ -430,4 +492,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]

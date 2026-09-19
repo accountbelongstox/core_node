@@ -8,6 +8,7 @@ import PcAgentHistoryVideoLogPanel from './PcAgentHistoryVideoLogPanel';
 import PcAgentHistoryAiPanel from './PcAgentHistoryAiPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
 import { AGENT_HISTORY_TOOLS } from './presentation';
+import type { AgentHistoryToolPanelKind } from './PcAgentHistoryToolPanel';
 import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
 
 const REFERENCE_LANGUAGE = 'CN';
@@ -26,7 +27,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
   storeRevision?: string;
   onEnabledToolsChange?: (tools: string[], initialHydration?: boolean) => void;
   onSelectedToolChange: (tool: string) => void;
-  onOpenToolHistory?: (tool: string, tab: 'sessions' | 'prompts') => void;
+  onOpenToolHistory?: (tool: string, kind: AgentHistoryToolPanelKind) => void;
   taskPeriod: AgentHistoryTaskPeriod;
   onTaskPeriodChange: (period: AgentHistoryTaskPeriod) => void;
 }> = ({

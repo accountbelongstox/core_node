@@ -633,7 +633,7 @@ function Ensure-FrankenPhpCaddyfile {
 		protocols h1
 	}
 	servers $anyHost`:$httpsPort {
-		protocols h1 h2 h3
+		protocols h1 h2
 	}
 
 	frankenphp {

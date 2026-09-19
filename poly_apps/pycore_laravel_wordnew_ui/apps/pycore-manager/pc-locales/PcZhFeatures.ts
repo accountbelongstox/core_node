@@ -208,6 +208,8 @@ agentHistory: {
     refresh: '立即刷新',
     liveOn: '实时',
     liveOff: '已暂停',
+    livePromptMonitor: '实时监控提示词',
+    livePromptMonitorHint: '勾选后每 5 秒扫描一次勾选的本地 Agent（kimi/codex/pi/claude）是否有新提示词；无修改的 Agent 自动跳过，新提示词即时推送到本页。',
     updated: '存储更新时间',
     sessionCount: '会话',
     promptCount: '提示词',
