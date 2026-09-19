@@ -199,3 +199,58 @@ client call promotes a whole word/sentence set:
    items (R4) — check worker log order.
 5. Vocabulary UI shows scoped labels; no raw window total presented as the
    backlog size (R5).
+
+## 5. Implementation record (2026-09-19)
+
+R1 — `GlobalTaskQueueQueries::hasBacklogAtLeastForLanguage()` added;
+`QueueCenterAudioScanTask::scanWords()/scanSentences()` now gate per language
+(`hasLanguageBacklog`, target 400) under the queue-wide hard cap
+(`BACKLOG_HARD_CAP = 2000`).
+
+R2 — `GlobalTask::failedLanguagePage()` + `resurfaceFailedSentences()` /
+`resurfaceFailedWords()` in `QueueCenterAudioScanTask`: per language per tick
+up to `RESURFACE_PER_TICK = 50` failed rows are re-validated against the
+source table (sentence `has_audio=false` + agent-history exclusion; word
+`has_audio=false` + `is_valid=true`) and re-created as fresh pending tasks.
+A wrapped id cursor lives in `QueueCenterCacheStore`
+(`queue_center:resurface_cursor:v1:*`). Failed rows are never mutated.
+
+R3 — Contract `queue_center_queue_head_batch`
+(`POST /api/queue-center/queues/{queue}/head/batch`) added to
+`config/queue_center_contract.json`; route registered next to the single-head
+route; `QueueCenterController::moveToHeadBatch` bounds the batch by
+`diff_delivery.producer_batch_limits[queue]` (fallback `data_segment_limit`);
+`QueueCenterService::moveToHeadBatch` runs one enqueue-or-move per item
+(emitEvent=false) and records ONE head notification per queue at the end.
+Race safety = live-dedup unique index + advisory-locked monotonic head
+tickets, same as the single-item path.
+
+R4 — pycore: `pycore/pyutils/laravel/queue_head_client.py`
+(`queue_head_client.promote/promote_batch`, chunked at 100, offline-tolerant)
+and `pycore/pyctl/audio_orchestration/orch_promote.py`
+(`promote_missing_to_queue_head`). `orch_resources.resolve_batch` promotes
+the local-cache miss set to the Laravel head before generation and mirrors
+the returned head tickets into the local lane workers via
+`lane_worker(queue).set_cached_task_head` + `request_pull(prefer_remote=True)`
+— the same move the realtime `{queue}_head` event performs. Dedup keys mirror
+`QueueCenterService::dedupKeyFor` (`{lang}:{md5}` words,
+`{lang}:{content_id}` sentences). Laravel outage degrades to local-only
+ordering; generation is never blocked.
+
+R5 — Scope labels: worker log tier fragment is now
+`remote_{tier}={completed}/{total} queued` (enqueued window, not backlog);
+the vocabulary orchestration UI marks the resource counter and the
+cache/Laravel/generated/synced/missing stats row with a "manifest scope /
+清单口径" label (`OrchLocales.manifestScope`, used in `OrchTaskList` and
+`OrchManifestPanel`). Queue live counts (pending/assigned/processing) remain
+available from `QueueCenterMetricsService::liveQueue` via the overview
+endpoint; the queue window is currently not co-located with the manifest
+counter, so no raw window total is presented as the backlog.
+
+Verification performed: PHP token-parse of all four changed Laravel files and
+`routes/api.php`; contract JSON parse; `py_compile` of the three pycore
+files; `tsc --noEmit` shows no errors in the changed UI files (pre-existing
+errors elsewhere unchanged). Runtime DB acceptance checks (items 1-4 above)
+require the running deploy and are pending the next scan tick / generation
+run. The local python env lacks `aiohttp`, so pycore module import smoke
+fails identically for pre-existing modules — not caused by this change.
