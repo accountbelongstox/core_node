@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
+import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_statistics import (
     agent_history_statistics,
     valid_generated_at,
@@ -160,6 +161,13 @@ class AgentHistoryService:
         """Broadcast genuinely new prompts (id never seen in the store), newest first, capped."""
         if not new_prompts:
             return
+        # Read-only side mirror: cache one copy of every new prompt for the UI
+        # paginated cache view. Guarded so a cache failure can never break
+        # extraction, logging, or event broadcast.
+        try:
+            prompt_new_cache.append_new_prompts(new_prompts)
+        except Exception:
+            pass
         newest = sorted(
             new_prompts,
             key=lambda p: int(p.get("ts") or 0),

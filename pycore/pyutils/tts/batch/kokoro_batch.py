@@ -82,7 +82,7 @@ def _synthesize_group(
     )
     if generated is not None:
         samples, sample_rate = generated
-        ranges = batch_common.split_samples_by_silence(samples, sample_rate, len(group))
+        ranges = batch_common.split_merged_samples(samples, sample_rate, len(group))
         if ranges is not None:
             result.merged_used = True
             return batch_common.write_segments_mp3(

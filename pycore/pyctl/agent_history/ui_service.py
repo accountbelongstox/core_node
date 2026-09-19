@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_record_store
 import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
+import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache
 from pycore.pyctl.agent_history.heartbeat import set_agent_history_callbacks_enabled
@@ -233,6 +234,22 @@ def live_scan(params: Any, _request_id: str) -> Dict[str, Any]:
     raw_tools = request.get("tools") or []
     tools = [str(item) for item in raw_tools] if isinstance(raw_tools, list) else []
     return {"success": True, "data": agent_history_tick_service.request_live_scan(tools)}
+
+
+def prompt_cache(params: Any, _request_id: str) -> Dict[str, Any]:
+    """Paginated read over the pycore-side new-prompt side cache.
+
+    Pure read surface: the cache is written only during extraction (see
+    prompt_new_cache module contract) and never feeds back into it.
+    """
+    request = params if isinstance(params, dict) else {}
+    tool = str(request.get("tool") or "").strip().lower() or None
+    data = prompt_new_cache.read_page(
+        tool,
+        int(request.get("page") or 1),
+        int(request.get("page_size") or request.get("pageSize") or 50),
+    )
+    return {"success": True, "data": data}
 
 
 def _fragment_cursor(config: Dict[str, Any], tool: str) -> Dict[str, Any]:
