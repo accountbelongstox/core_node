@@ -1,0 +1,18 @@
+ 现在先注意几个问题，1：pycore向lravel端请求的句子生成辅助，[SentenceAudioWorker       
+    00:15:55 +0.03s] remote_en=678/1879 sent_ok=4 sent_fail=0 sent_avg=1.99m full-sync    
+    mirror ready but no dispatchable tasks                                                
+    (scope=pycore-sentence-audio-pycore-sentence-desktop-1l9k06n:pycore-sentence-deskto   
+    p-1l9k06n:https://api.si.12gm.com)，比如这个为什么只有 1879句剩余，先实测本机并搞清   
+    楚，laravel main在poly apps / laravel main ,2:在UI中relay中得到的信息                 
+    （https://12gm.com/pycore-manager/vocabulary 中的 音频编排补齐资源                    
+                                                                                          
+    5570/29177 音频项），为什么两者数据差这么大，先全面推导并对齐代码，注意需要实测本机   
+    的数据库，pycore不运行在本机只需要推导逻辑代码，2：是否找到pycore中的队首提升功能，   
+    注意不是提示优先级，查看其是否工作正常，确保是后端通知以后pycore能将一批单词和句子    
+    提升到队首，而pycore保持队首的栈运作方式，一直从队首提取数据，这样就达到了优先级的    
+    效果，之后确保laravel的通知是正常的，laravel的通知是由ui wordnew发起，wordnew正在访   
+    问一个资源的时候不存在就由laravel的资源网关通知pycore提升队首，当然如果pycore不在线   
+    laravel则提升自身维护的队首，此时，需要增加一个协作功能，也就是pycore的音频生成编排   
+   同样能通过接口自身提升自身的队首，并和laravel可以竞态，注意提升队首的时候是在队里的   
+    其他队列提到队首，没有添加有则修改到队首，而不是插入重复，之后在音频编排时能让        
+    pycore优先生成不存在的资源。以上先写到docs fix中作为开发要求，再进行开发。    
