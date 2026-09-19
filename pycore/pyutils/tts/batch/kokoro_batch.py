@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Kokoro batch word synthesis (strategy 1: merge text + silence split).
+"""Kokoro batch word synthesis (primary: batched serial; merged split opt-in).
 
-Kokoro-82M (sherpa-onnx) has no official batch API, but it is near-instant per
-word on CPU. Primary path merges a group of words into ONE synthesis (per-call
-overhead paid once), then splits the merged audio back into per-word mp3 files
-with the shared adaptive silence splitter; a duration-plausibility check guards
-against mid-word cuts (merged list readings have irregular short pauses).
-Fallback: batched serial generation — all words of the group are generated in
-ONE call on the kokoro serialized worker and encoded to mp3 in parallel
-(ffmpeg startup dominates short clips), then plain per-word serial last.
+Kokoro-82M (sherpa-onnx) has no official batch API and NO pause/break control
+token — pauses come from punctuation alone (official: hexgrad/kokoro). Measured
+on word lists ("apple, banana, orange, grape"): the merged reading is ~2x
+faster than solo readings with irregular 30-160ms pauses, the same range as
+MID-WORD stop closures ("banana" carries an ~80ms internal silence even solo),
+so silence-ranked splitting can cut inside a word and the plausibility guard
+then rejects the split ("merged split rejected; batched serial fallback").
+
+Primary path is therefore batched serial: all words of the group are generated
+in ONE call on the kokoro serialized worker and encoded to mp3 in parallel
+(ffmpeg startup dominates short clips) — deterministic per-word boundaries by
+construction. The merge-then-split experiment remains available via
+KOKORO_BATCH_MERGED=1; plain per-word serial is the last fallback.
 
 Standalone:
   python -m pycore.pyutils.tts.batch.kokoro_batch words.txt --lang en
@@ -24,6 +29,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import call_serialized
 from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
+from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
@@ -32,6 +38,11 @@ from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
 _ENGINE = "kokoro"
 _SYNTH_TIMEOUT_S = 900.0
 _ENCODE_WORKERS = 4
+_MERGED_ENV = "KOKORO_BATCH_MERGED"
+
+
+def _merged_enabled() -> bool:
+    return (os.environ.get(_MERGED_ENV) or "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _speaker_id() -> int:
@@ -96,23 +107,24 @@ def _synthesize_group(
     speed: float,
     result: BatchResult,
 ) -> List[BatchItem]:
-    merged = batch_common.merge_words(group, lang)
-    generated = call_serialized(
-        kokoro_engine._MODEL_QUEUE,
-        _generate_merged_on_owner,
-        merged,
-        speed,
-        timeout=_SYNTH_TIMEOUT_S,
-    )
-    if generated is not None:
-        samples, sample_rate = generated
-        ranges = batch_common.split_merged_samples(samples, sample_rate, len(group))
-        if ranges is not None and batch_common.plausible_ranges(ranges, sample_rate):
-            result.merged_used = True
-            return batch_common.write_segments_mp3(
-                samples, sample_rate, ranges, group, out_dir, start_index
-            )
-        ColorPrint.yellow("[kokoro-batch] merged split rejected; batched serial fallback")
+    if _merged_enabled():
+        merged = batch_common.merge_words(group, lang)
+        generated = call_serialized(
+            kokoro_engine._MODEL_QUEUE,
+            _generate_merged_on_owner,
+            merged,
+            speed,
+            timeout=_SYNTH_TIMEOUT_S,
+        )
+        if generated is not None:
+            samples, sample_rate = generated
+            ranges = batch_common.split_merged_samples(samples, sample_rate, len(group))
+            if ranges is not None and batch_common.plausible_ranges(ranges, sample_rate):
+                result.merged_used = True
+                return batch_common.write_segments_mp3(
+                    samples, sample_rate, ranges, group, out_dir, start_index
+                )
+            ColorPrint.yellow("[kokoro-batch] merged split rejected; batched serial fallback")
 
     batched = call_serialized(
         kokoro_engine._MODEL_QUEUE,
@@ -151,12 +163,17 @@ def synthesize_words(
         resource_monitor.log_run(_ENGINE, snap_start, resource_monitor.snapshot())
         return result
 
+    # Busy-protect the run: without a lease the managed-service watchdog can
+    # idle-unload kokoro MID-BATCH (the batch path bypasses the orchestrator's
+    # activity tracking), forcing an expensive unload+reload between groups.
+    # No-op when kokoro is not registered (plain CLI use).
     index = 0
-    for group in batch_common.group_words(words):
-        result.items.extend(
-            _synthesize_group(group, lang, target_dir, index, speed, result)
-        )
-        index += len(group)
+    with managed_services.lease(_ENGINE):
+        for group in batch_common.group_words(words):
+            result.items.extend(
+                _synthesize_group(group, lang, target_dir, index, speed, result)
+            )
+            index += len(group)
     result.elapsed_ms = int((time.time() - began) * 1000)
     resource_monitor.log_run(_ENGINE, snap_start, resource_monitor.snapshot())
     ColorPrint.green(

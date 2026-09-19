@@ -229,10 +229,11 @@ Options (apply to 'run'):
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
-  --tts-selfcheck  Run the TTS batch self-check BEFORE any service starts:
-                   probe each engine (kokoro, parler, chattts, gptsovits) with
-                   RAM/GPU memory gates, generate a real batch sample, log
-                   resource before/after, then release memory/GPU before serving.
+  --tts-selfcheck  Run the TTS batch self-check as a STANDALONE step before the
+                   worker starts: probe each engine (kokoro, parler, chattts,
+                   gptsovits) with RAM/GPU memory gates, generate a real batch
+                   sample, log resource before/after, then release memory/GPU;
+                   the worker (RPC + services) starts only after it exits.
                    Same as exporting TTS_STARTUP_SELFCHECK=1.
   -h, --help       Show this help (also works as: run --help)
   --               Everything after a bare -- is forwarded to prepare.sh
@@ -598,7 +599,16 @@ fi
 PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT" --service-mode "$SERVICE_MODE")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
-if [[ "$TTS_SELFCHECK" -eq 1 ]]; then PY_ARGS+=(--tts-selfcheck); fi
+
+# TTS batch self-check: run the STANDALONE entry as its own process and wait for
+# it to exit BEFORE the worker starts, so the sweep owns the console (no
+# interleaved service logs) and the machine's RAM/VRAM. Failures never block startup.
+if [[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]]; then
+    echo "[>] Running TTS batch self-check (standalone) before the worker..."
+    "$PY" "$SCRIPT_DIR/pycore/pyctl/tts/batch_selfcheck_main.py" \
+        || echo "[!] TTS self-check reported failures; continuing startup"
+    unset TTS_STARTUP_SELFCHECK   # consumed by the standalone run; the worker must not re-run it
+fi
 
 # Free the RPC port from a foreign Docker publisher before binding it.
 stop_docker_publisher "$PORT" || true
