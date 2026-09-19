@@ -2,8 +2,9 @@
  * Global notification (toast) system for the unified shell.
  *
  * Self-contained, desktop-grade implementation (no third-party toast lib):
- * frosted-glass cards stacked top-right, severity icon chip, optional bold
- * title + action buttons, auto-dismiss with pause-on-hover, slide+fade
+ * frosted-glass cards stacked bottom-right (newest at the bottom pushes older
+ * cards up), severity icon chip, optional bold title + action buttons,
+ * optional click-to-copy payload, auto-dismiss with pause-on-hover, slide+fade
  * animations. Rendered through the dashboard's shared <Portal/> and the
  * OVERLAY_Z stacking scale so toasts always sit above feature modals and
  * auth dialogs, regardless of where they were raised from.
@@ -28,9 +29,10 @@
  * Mount <AppToaster/> exactly ONCE at the shell root (done in ShellApp).
  */
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, X } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, X, Copy, Check } from 'lucide-react';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_Z } from '@/shared/styles/overlay';
+import { copyTextToSystemClipboard } from '@/core/browser/SystemClipboard';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +55,8 @@ export interface NotifyOptions {
   actions?: NotifyAction[];
   /** Auto-dismiss in ms. Default 4000 (errors 6000). Infinity = sticky. */
   duration?: number;
+  /** Copyable payload: shows a copy chip and makes the message click-to-copy. */
+  copyText?: string;
 }
 
 /** Either a plain message string or an object form carrying title/actions. */
@@ -66,6 +70,7 @@ interface ToastItem {
   title?: string;
   message: string;
   actions?: NotifyAction[];
+  copyText?: string;
   duration: number;
   leaving: boolean;
 }
@@ -110,6 +115,7 @@ function push(severity: NotifySeverity, input: NotifyInput, opts?: NotifyOptions
     title: o.title,
     message: o.message,
     actions: o.actions,
+    copyText: o.copyText,
     duration: o.duration ?? defaultDuration(severity),
     leaving: false,
   };
@@ -227,6 +233,16 @@ const SEVERITY_STYLE: Record<
 
 const ToastCard: React.FC<{ item: ToastItem; paused: boolean }> = ({ item, paused }) => {
   const { Icon, chip, action, spin } = SEVERITY_STYLE[item.severity];
+  const [copied, setCopied] = useState(false);
+
+  const copyPayload = () => {
+    if (!item.copyText) return;
+    void copyTextToSystemClipboard(item.copyText).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   // Enter animation: mount off-screen, flip to in-place on the next frame.
   const [entered, setEntered] = useState(false);
@@ -278,19 +294,42 @@ const ToastCard: React.FC<{ item: ToastItem; paused: boolean }> = ({ item, pause
           {item.title ? (
             <>
               <div className="text-sm font-semibold leading-5 text-slate-900 dark:text-slate-50">{item.title}</div>
-              <div className="mt-0.5 break-words text-[13px] leading-5 text-slate-600 dark:text-slate-300">
+              <div
+                className={`mt-0.5 break-words text-[13px] leading-5 text-slate-600 dark:text-slate-300 ${
+                  item.copyText ? 'cursor-pointer hover:text-slate-900 dark:hover:text-slate-100' : ''
+                }`}
+                title={item.copyText ? 'Click to copy' : undefined}
+                onClick={item.copyText ? copyPayload : undefined}
+              >
                 {item.message}
               </div>
             </>
           ) : (
             // Message-only card — matches the legacy string-only API.
-            <div className="break-words text-sm font-medium leading-5 text-slate-800 dark:text-slate-100">
+            <div
+              className={`break-words text-sm font-medium leading-5 text-slate-800 dark:text-slate-100 ${
+                item.copyText ? 'cursor-pointer' : ''
+              }`}
+              title={item.copyText ? 'Click to copy' : undefined}
+              onClick={item.copyText ? copyPayload : undefined}
+            >
               {item.message}
             </div>
           )}
-          {item.actions && item.actions.length > 0 && (
+          {(item.copyText || (item.actions && item.actions.length > 0)) && (
             <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              {item.actions.map((a, i) => (
+              {item.copyText && (
+                <button
+                  type="button"
+                  aria-label="Copy notification content"
+                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${action}`}
+                  onClick={copyPayload}
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              )}
+              {item.actions?.map((a, i) => (
                 <button
                   key={i}
                   type="button"
@@ -323,8 +362,9 @@ const ToastCard: React.FC<{ item: ToastItem; paused: boolean }> = ({ item, pause
 };
 
 /**
- * The single, globally-mounted toast viewport: a fixed top-right stack,
- * newest on top, at most MAX_VISIBLE cards (older ones queue behind).
+ * The single, globally-mounted toast viewport: a fixed bottom-right stack,
+ * newest at the bottom so each new card pushes the older ones up, at most
+ * MAX_VISIBLE cards (older ones queue behind).
  * Portaled to <body> via the shared Portal so no ancestor transform/overflow
  * can clip it; OVERLAY_Z.toast keeps it above modals and login dialogs.
  */
@@ -338,11 +378,13 @@ export const AppToaster: React.FC = () => {
         role="region"
         aria-label="Notifications"
         aria-live="polite"
-        className={`pointer-events-none fixed right-4 top-4 flex flex-col items-end gap-2.5 ${OVERLAY_Z.toast}`}
+        className={`pointer-events-none fixed bottom-4 right-4 flex flex-col items-end gap-2.5 ${OVERLAY_Z.toast}`}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        {items.slice(0, MAX_VISIBLE).map((t) => (
+        {/* Store order is newest-first; render reversed so the newest card sits
+            at the bottom of the stack and pushes older cards up. */}
+        {[...items.slice(0, MAX_VISIBLE)].reverse().map((t) => (
           <ToastCard key={t.id} item={t} paused={paused} />
         ))}
       </div>
