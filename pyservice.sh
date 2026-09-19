@@ -125,6 +125,7 @@ RELOAD=1
 NO_INSTALL=0
 ONLY=0
 NO_UI=0
+TTS_SELFCHECK=0
 SERVICE_MODE="1"
 UI_MODE="dashboard (pycore-manager)"
 UI_BUILD=0
@@ -228,6 +229,12 @@ Options (apply to 'run'):
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
+  --tts-selfcheck  Run the TTS batch self-check after engine init: probe each
+                   engine (kokoro, parler, chattts, gptsovits) with RAM/GPU
+                   memory gates, generate a real batch sample, log resource
+                   before/after, then release memory/GPU before serving.
+                   Same as exporting TTS_STARTUP_SELFCHECK=1.
+  -h, --help       Show this help (also works as: run --help)
   --               Everything after a bare -- is forwarded to prepare.sh
 
 Examples:
@@ -236,6 +243,7 @@ Examples:
   ./pyservice.sh 1 --no-ui --port 8000        # run on port 8000, legacy UI
   ./pyservice.sh 1 --port 8000                # run mode 1 on a custom port
   ./pyservice.sh 1 --no-install               # run without prerequisite installers
+  ./pyservice.sh 1 --tts-selfcheck            # probe/batch-test each TTS engine, then serve
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
@@ -288,7 +296,7 @@ _pyservice_maybe_elevate() {
     local env_args=() v
     for v in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS \
              HOME PYTHONUSERBASE PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
-             LARAVEL_WORKER_API_URL PORT; do
+             LARAVEL_WORKER_API_URL PORT TTS_STARTUP_SELFCHECK; do
         [ -n "${!v:-}" ] && env_args+=("$v=${!v}")
     done
     env_args+=("SUDO_USER=${SUDO_USER:-$(whoami)}")
@@ -394,6 +402,8 @@ while [[ $# -gt 0 ]]; do
         --no-ui)      NO_UI=1;        shift   ;;
         --ui-build)   UI_BUILD=1;     shift   ;;
         --ui-port)    UI_PORT="$2";   shift 2 ;;
+        --tts-selfcheck) TTS_SELFCHECK=1; shift ;;
+        -h|--help|help) print_usage; exit 0 ;;
         --)           shift; PREPARE_ARGS+=("$@"); break ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
@@ -420,7 +430,7 @@ elif [[ "$NO_UI" -eq 1 ]]; then
 else
     UI_MODE="dashboard (pycore-manager)"
 fi
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled))"
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled) tts-selfcheck=$([[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]] && echo on || echo off))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -587,6 +597,7 @@ fi
 PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT" --service-mode "$SERVICE_MODE")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
+if [[ "$TTS_SELFCHECK" -eq 1 ]]; then PY_ARGS+=(--tts-selfcheck); fi
 
 # Free the RPC port from a foreign Docker publisher before binding it.
 stop_docker_publisher "$PORT" || true
