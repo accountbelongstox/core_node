@@ -1,25 +1,29 @@
-# {page_name} - Page Design
+# Home Page Functional Specification
 
-**Page Name**: {page_name}
-**Created**: 2025-11-19
+Functional-only revision: 2026-09-19.
 
 ## Overview
 
-(Fill in page function description)
+The landing page for visitors. It explains the managed delivery offering,
+shows live platform counters and testimonials, and routes visitors to
+registration, the estimate, and the informational pages.
 
-## Files
+## Content requirements
 
-- `README.md`: This file
-- `pageview_map.json`: UI element mapping (connects to Flutter code)
-- `design_specs.md`: Detailed design specs (colors, fonts, spacing, etc.)
+- Brand and primary navigation, with the language switcher and the
+  dark/light toggle in the top-right corner.
+- Hero statement with the primary call to action.
+- Live counters: protected funds, project count, developer count.
+- Delivery-process summary linking to the full delivery-process page.
+- Approved testimonials.
+- Footer with platform, account, and information links.
 
-## Development Status
+## Status
 
-- [ ] Design complete
-- [ ] UI implementation
-- [ ] Feature implementation
-- [ ] Testing complete
+- Design: complete.
+- Implementation: delivered in the current application.
 
 ## Updates
 
-- 2025-11-19: Initialized page design
+- 2025-11-19: Initial page design.
+- 2026-09-19: Rewritten functional-only.

@@ -109,6 +109,16 @@ endpoint: {
     offlineHint: 'pycore (:59000) is offline — these are the prepared endpoints. Start pycore to switch or manage them.',
     empty: 'No endpoints known to pycore yet.',
     checked: 'checked',
+    blocked: 'blocked',
+    blockedSwitch: 'This endpoint uses plain HTTP and cannot be reached from an HTTPS page (browser mixed-content policy). Pick an https:// endpoint.',
+  },
+appearance: {
+    title: 'Global',
+    darkMode: 'Dark mode',
+    darkModeDesc: 'Switch between dark and light mode. Applies to every app and is remembered by this browser.',
+    lightMode: 'Light mode',
+    language: 'Language',
+    languageDesc: 'Interface language shared by all apps; also synced to the pycore backend.',
   },
 ai: {
     title: 'AI & Pycore Capabilities',

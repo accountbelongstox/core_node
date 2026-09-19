@@ -165,8 +165,9 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $review = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($submissionId, $user, $request) {
             return CodeMartV1CodeReviewModel::createRecord([
-                'submission_id' => $submissionId,
+                'task_submission_id' => $submissionId,
                 'reviewer_id' => $user->id,
+                'review_notes' => $request->comments,
                 'quality_rating' => $request->quality_rating,
                 'readability_rating' => $request->readability_rating,
                 'efficiency_rating' => $request->efficiency_rating,

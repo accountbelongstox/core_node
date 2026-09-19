@@ -1,20 +1,24 @@
-# Concept Design Layer — app_codemart
+# CodeMart Flutter Reference: Functional Concepts
 
-**Layer**: Level 1 — concept diagrams (rough design)
-**Purpose**: High-level concept design; no page-level detail
+Functional-only revision: 2026-09-19. High-level functional concepts of
+the CodeMart application; no page-level detail, no architecture.
 
 ## Files
 
-- `architecture.md`: Overall architecture (MVVM, data flow, etc.)
-- `user_flows.md`: User flow diagrams
-- `data_model.md`: Data model design
+- `functional_overview.md`: what the application does for each audience.
+- `user_flows.md`: the main user journeys.
+- `data_model.md`: the business data concepts and their relationships.
 
-## Design Principles
+## Design principles
 
-1. **Clear architecture**: Distinct layers, single responsibility
-2. **Extensibility**: Room for future growth
-3. **Performance first**: Plan for optimization
+1. Role clarity: client, developer, reviewer, architect, and administrator
+   experiences are distinct and explicit.
+2. Trust first: deposits, escrow, and review steps are visible parts of
+   every flow.
+3. Server is the source of truth: the interface displays server-owned
+   state and policy.
 
 ## Changelog
 
-- 2025-11-19: Initial concept design layer
+- 2025-11-19: Initial concept design layer.
+- 2026-09-19: Reduced to functional-only descriptions.

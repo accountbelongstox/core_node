@@ -11,12 +11,16 @@ import type {
   CmAdminOverview,
   CmAdminRefund,
   CmAdminUser,
+  CmAiAnalysis,
+  CmArchitectEligibility,
+  CmArchitectTasks,
   CmBootstrap,
   CmDepositInfo,
   CmEstimateInput,
   CmEstimateResult,
   CmNotification,
   CmPage,
+  CmPayment,
   CmProfileResponse,
   CmProject,
   CmPublicHomeData,
@@ -24,6 +28,9 @@ import type {
   CmPublicTestimonialData,
   CmRegisterPayload,
   CmRegisterResult,
+  CmReviewerApplicationStart,
+  CmReviewerTestResult,
+  CmReviewSubmission,
   CmTask,
   CmWallet,
   CmWalletTransaction,
@@ -229,6 +236,118 @@ export class CmApi extends BaseAPI {
 
   async adminProjects(status = '', page = 1): Promise<APIResponse<{ total: number; items: CmProject[] }>> {
     return this.get('admin/projects', { status, page });
+  }
+
+  async getTask(taskId: number): Promise<APIResponse<unknown>> {
+    return this.get<unknown>(`tasks/${taskId}`);
+  }
+
+  async submitTask(taskId: number, submissionNote: string): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`tasks/${taskId}/submit`, { submission_note: submissionNote });
+  }
+
+  async addTaskComment(taskId: number, comment: string): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`tasks/${taskId}/comments`, { comment });
+  }
+
+  async reviewSubmission(submissionId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`submissions/${submissionId}/review`, payload);
+  }
+
+  async analyzeProject(projectId: number): Promise<APIResponse<{ analysis_id: number; status: string }>> {
+    return this.post(`ai-analysis/projects/${projectId}/analyze`, {});
+  }
+
+  async getAnalysis(analysisId: number): Promise<APIResponse<CmAiAnalysis>> {
+    return this.get<CmAiAnalysis>(`ai-analysis/${analysisId}`);
+  }
+
+  async acceptAnalysis(analysisId: number): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`ai-analysis/${analysisId}/accept`, {});
+  }
+
+  async requestAnalysisRevision(analysisId: number, revisionNotes: string): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`ai-analysis/${analysisId}/revision`, { revision_notes: revisionNotes });
+  }
+
+  async applyReviewer(): Promise<APIResponse<CmReviewerApplicationStart>> {
+    return this.post<CmReviewerApplicationStart>('reviewer/apply', {});
+  }
+
+  async submitReviewerTest(applicationId: number, reviews: Record<string, unknown>[]): Promise<APIResponse<CmReviewerTestResult>> {
+    return this.post<CmReviewerTestResult>(`reviewer/application/${applicationId}/submit`, { reviews });
+  }
+
+  async getReviewTasks(): Promise<APIResponse<{ pending_reviews: CmReviewSubmission[] }>> {
+    return this.get<{ pending_reviews: CmReviewSubmission[] }>('reviewer/tasks');
+  }
+
+  async submitCodeReview(submissionId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`reviewer/reviews/${submissionId}`, payload);
+  }
+
+  async getArchitectEligibility(): Promise<APIResponse<CmArchitectEligibility>> {
+    return this.get<CmArchitectEligibility>('architect/eligibility');
+  }
+
+  async applyArchitect(): Promise<APIResponse<unknown>> {
+    return this.post<unknown>('architect/apply', {});
+  }
+
+  async getArchitectTasks(): Promise<APIResponse<CmArchitectTasks>> {
+    return this.get<CmArchitectTasks>('architect/tasks');
+  }
+
+  async acceptArchitectTask(projectId: number): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`architect/tasks/${projectId}/accept`, {});
+  }
+
+  async completeArchitectDeposit(): Promise<APIResponse<unknown>> {
+    return this.post<unknown>('architect/deposit/complete', {});
+  }
+
+  async getPayments(params?: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.get<unknown>('payments', params as Record<string, any>);
+  }
+
+  async createInvoice(payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.post<unknown>('invoices', payload);
+  }
+
+  async requestRefund(payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.post<unknown>('refunds/request', payload);
+  }
+
+  async approveRefund(refundId: number): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`refunds/${refundId}/approve`, {});
+  }
+
+  async processRefund(refundId: number): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`refunds/${refundId}/process`, {});
+  }
+
+  async requestPhoneVerification(phone: string): Promise<APIResponse<Record<string, unknown>>> {
+    return this.post<Record<string, unknown>>('auth/request-phone-verification', { phone });
+  }
+
+  async verifyPhoneOtp(otpCode: string): Promise<APIResponse<unknown>> {
+    return this.post<unknown>('auth/verify-phone-otp', { otp_code: otpCode });
+  }
+
+  async uploadKycDocuments(formData: FormData, onProgress: (percentage: number) => void = () => {}): Promise<APIResponse<unknown>> {
+    return this.uploadWithProgress<unknown>('auth/upload-kyc-documents', formData, onProgress);
+  }
+
+  async updateProject(projectId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.put<unknown>(`projects/${projectId}`, payload);
+  }
+
+  async createMilestone(projectId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`projects/${projectId}/milestones`, payload);
+  }
+
+  async createTask(payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
+    return this.post<unknown>('tasks', payload);
   }
 }
 

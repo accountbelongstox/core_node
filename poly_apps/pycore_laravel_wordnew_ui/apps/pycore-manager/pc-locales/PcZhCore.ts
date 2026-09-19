@@ -109,6 +109,16 @@ endpoint: {
     offlineHint: 'pycore（:59000）已离线 —— 以下为预设端点。启动 pycore 后即可切换或管理。',
     empty: 'pycore 尚未记录任何端点。',
     checked: '已检测',
+    blocked: '被拦截',
+    blockedSwitch: '该端点使用 HTTP 明文协议，无法从 HTTPS 页面访问（浏览器混合内容策略）。请选择 https:// 端点。',
+  },
+appearance: {
+    title: '全局',
+    darkMode: '深色模式',
+    darkModeDesc: '在深色与浅色模式之间切换，对所有应用生效并由本浏览器记住。',
+    lightMode: '浅色模式',
+    language: '语言',
+    languageDesc: '所有应用共用的界面语言，并同步到 pycore 后端。',
   },
 ai: {
     title: 'AI 及 Pycore 能力',

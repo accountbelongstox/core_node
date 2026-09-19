@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Inbox, ListTodo, RefreshCw } from 'lucide-react';
+import { Inbox, ListTodo, MessageSquare, RefreshCw, Send } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
 import type { CmTask } from '../api/CmApiTypes';
@@ -9,6 +9,89 @@ function parseMyTasks(data: unknown): CmTask[] {
   const source = data as { my_tasks?: unknown };
   return Array.isArray(source.my_tasks) ? (source.my_tasks as CmTask[]) : [];
 }
+
+const SUBMITTABLE_STATUSES = new Set(['assigned', 'in_progress', 'blocked']);
+
+const CmTaskWorkPanel: React.FC<{ task: CmTask; onChanged: () => Promise<void> }> = ({ task, onChanged }) => {
+  const { t } = useTranslation('cm');
+  const [submissionNote, setSubmissionNote] = useState('');
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const submitDeliverable = async (): Promise<void> => {
+    if (!submissionNote.trim() || busy) return;
+    setBusy(true);
+    setNotice(null);
+    const response = await cmApi.submitTask(task.id, submissionNote.trim());
+    if (response.success) {
+      setNotice(t('tasks.submitted'));
+      setSubmissionNote('');
+      await onChanged();
+    } else {
+      setNotice(response.error ?? t('tasks.submitFailed'));
+    }
+    setBusy(false);
+  };
+
+  const postComment = async (): Promise<void> => {
+    if (!comment.trim() || busy) return;
+    setBusy(true);
+    setNotice(null);
+    const response = await cmApi.addTaskComment(task.id, comment.trim());
+    setNotice(response.success ? t('tasks.commentPosted') : (response.error ?? t('tasks.commentFailed')));
+    if (response.success) {
+      setComment('');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="cm-task-work">
+      {SUBMITTABLE_STATUSES.has(task.status) && (
+        <div className="cm-task-work__section">
+          <h3><Send aria-hidden="true" /> {t('tasks.submitTitle')}</h3>
+          <textarea
+            rows={3}
+            value={submissionNote}
+            onChange={(event) => setSubmissionNote(event.target.value)}
+            placeholder={t('tasks.submissionPlaceholder')}
+          />
+          <button
+            type="button"
+            className="cm-workspace-button is-primary"
+            disabled={busy || !submissionNote.trim()}
+            onClick={() => void submitDeliverable()}
+          >
+            {busy ? t('common.loading') : t('tasks.submit')}
+          </button>
+        </div>
+      )}
+      {task.status === 'review' && (
+        <p className="cm-contract-note">{t('tasks.inReview')}</p>
+      )}
+      <div className="cm-task-work__section">
+        <h3><MessageSquare aria-hidden="true" /> {t('tasks.commentTitle')}</h3>
+        <div className="cm-task-comment-row">
+          <input
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+            placeholder={t('tasks.commentPlaceholder')}
+          />
+          <button
+            type="button"
+            className="cm-workspace-button"
+            disabled={busy || !comment.trim()}
+            onClick={() => void postComment()}
+          >
+            {t('tasks.commentPost')}
+          </button>
+        </div>
+      </div>
+      {notice && <p className="cm-contract-note">{notice}</p>}
+    </div>
+  );
+};
 
 export const CmTasksPage: React.FC = () => {
   const { t } = useTranslation('cm');
@@ -58,6 +141,7 @@ export const CmTasksPage: React.FC = () => {
                   {task.due_date && <span>{t('tasks.due', { date: task.due_date.slice(0, 10) })}</span>}
                 </div>
               </div>
+              <CmTaskWorkPanel task={task} onChanged={load} />
             </article>
           ))}
         </section>

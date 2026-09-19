@@ -15,6 +15,10 @@ class CodeMartV1CodeReviewModel extends CodeMartV1Model
         'status',
         'rating',
         'line_comments',
+        'quality_rating',
+        'readability_rating',
+        'efficiency_rating',
+        'comments',
     ];
 
     protected $casts = [
@@ -49,7 +53,7 @@ class CodeMartV1CodeReviewModel extends CodeMartV1Model
     public static function findForSubmissionReviewer(int $submissionId, int $reviewerId): ?self
     {
         return static::query()
-            ->where('submission_id', $submissionId)
+            ->where('task_submission_id', $submissionId)
             ->where('reviewer_id', $reviewerId)
             ->first();
     }

@@ -143,7 +143,7 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
 
     public static function findDetailed(int $projectId): ?self
     {
-        return static::query()->with(['milestones', 'attachments'])->find($projectId);
+        return static::query()->with(['milestones.tasks', 'attachments'])->find($projectId);
     }
 
     public static function findOwnedByClient(int $projectId, int $clientId): ?self

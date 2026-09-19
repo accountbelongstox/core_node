@@ -1,29 +1,32 @@
-# 首页设计
+# Home Page Functional Sketch
 
-**对应英文页面**: home_page
-**创建时间**: 2025-11-19
+Functional-only revision: 2026-09-19.
 
-## 页面功能
+## Page function
 
-- 展示推荐内容
-- 快速导航入口
-- 用户状态显示
+- Introduce the platform and its managed delivery promise.
+- Show live aggregate counters (protected funds, projects, developers)
+  and approved client testimonials.
+- Offer quick entry to registration, login, the project estimate, and the
+  informational pages (about, delivery process, services, privacy, terms,
+  information).
 
-## 布局结构
+## Main regions
 
-- 顶部导航栏
-- 内容列表（滚动）
-- 底部Tab栏
+- Header with brand, navigation, language switcher, and dark/light
+  toggle.
+- Hero section with the main call to action.
+- Live counters and delivery-process section.
+- Testimonials and final call to action.
+- Footer with platform, account, and information links.
 
-## 主要交互
+## Main interactions
 
-- 下拉刷新
-- 上拉加载更多
-- 点击卡片进入详情
+- Navigate to any public page; start registration or login.
+- Switch language and color mode at any time.
+- Open the interactive estimate.
 
-## 更新记录
+## Updates
 
-- 2025-11-19: 初始化页面设计
-
----
-**注意**: 这是示例文件，实际开发时可删除
+- 2025-11-19: Initial page sketch.
+- 2026-09-19: Rewritten functional-only.

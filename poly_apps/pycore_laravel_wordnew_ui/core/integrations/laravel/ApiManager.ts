@@ -9,6 +9,8 @@ import {
   buildApiUrl,
   getEndpointById,
   getAllEndpoints,
+  isEndpointMixedContentBlocked,
+  MIXED_CONTENT_BLOCKED_ERROR,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { clampRecheckInterval } from '../../health/OfflineRecheckScheduler';
 import { loadWebAccessConfig } from '../../contracts/DomainConfig';
@@ -115,17 +117,23 @@ class ApiManager {
 
     if (candidateId) {
       const stored = getEndpointById(candidateId);
-      if (stored) {
+      // A plain-HTTP stored endpoint is unusable on an HTTPS page (mixed
+      // content); skip it in the synchronous guess — the background pass
+      // resolves the reachable endpoint.
+      if (stored && !isEndpointMixedContentBlocked(stored)) {
         this.migrateResolvedEndpointId(candidateId, stored.id);
         this.setStoredCurrentEndpoint(stored.id);
         return this.activateEndpoint(stored);
       }
     }
 
-    // Default to the highest-priority static endpoint (config order). No store
-    // write-back here — this is only a synchronous guess; the background pass
-    // is the source of truth for persisting a known-good endpoint.
-    this.currentEndpoint = endpoints.length > 0 ? endpoints[0] : null;
+    // Default to the highest-priority reachable endpoint (config order). No
+    // store write-back here — this is only a synchronous guess; the background
+    // pass is the source of truth for persisting a known-good endpoint.
+    this.currentEndpoint =
+      endpoints.find((endpoint) => !isEndpointMixedContentBlocked(endpoint))
+      ?? endpoints[0]
+      ?? null;
     if (this.currentEndpoint) setSharedBaseURL(buildApiUrl(this.currentEndpoint));
     return this.currentEndpoint;
   }
@@ -252,8 +260,22 @@ class ApiManager {
           }
           this.setStoredCurrentEndpoint(persistedEndpoint.id);
           const result = await this.checkEndpoint(persistedEndpoint, { timeout });
+          if (result.error !== MIXED_CONTENT_BLOCKED_ERROR) {
+            this.activateEndpoint(persistedEndpoint);
+            return result.isHealthy;
+          }
+          // The persisted pin is plain HTTP and this page is HTTPS: the pin
+          // stays stored (HTTP/LAN views still honor it), but it can never
+          // serve this page. Sweep all endpoints and TRANSIENTLY activate a
+          // reachable one for this secure context without rewriting storage.
+          const sweep = await this.checkAllEndpoints(timeout);
+          const reachable = sweep.find((r) => r.isHealthy);
+          if (reachable) {
+            this.activateEndpoint(reachable.endpoint);
+            return true;
+          }
           this.activateEndpoint(persistedEndpoint);
-          return result.isHealthy;
+          return false;
         }
 
         // First run only: there is no localStorage selection yet.
@@ -314,6 +336,23 @@ class ApiManager {
     const timeout = options.timeout ?? GLOBAL_API_ENDPOINTS.timeout;
     const startTime = performance.now();
     const baseURL = buildApiUrl(endpoint);
+
+    // HTTPS pages can never reach plain-HTTP endpoints (browser mixed-content
+    // policy). Record the definitive block WITHOUT issuing a request — a real
+    // fetch would only produce a console Mixed Content error and a misleading
+    // "Network unreachable" result.
+    if (isEndpointMixedContentBlocked(endpoint)) {
+      const blocked: HealthCheckResult = {
+        endpoint,
+        isHealthy: false,
+        responseTime: 0,
+        error: MIXED_CONTENT_BLOCKED_ERROR,
+        timestamp: Date.now()
+      };
+      this.healthResults.set(endpoint.id, blocked);
+      return blocked;
+    }
+
     let result: HealthCheckResult;
 
     try {

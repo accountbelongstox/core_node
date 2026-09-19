@@ -185,9 +185,29 @@ class CodeMartV1Initializer implements AppInitializerInterface
     {
         $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::CODEMARTV1);
         $tasksTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'tasks');
+        $projectsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'projects');
+        $submissionsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'task_submissions');
+        $paymentsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'payments');
 
         $constraintSpecs = [
+            ['table' => $projectsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllProjectStatuses()],
             ['table' => $tasksTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllTaskStatuses()],
+            ['table' => $submissionsTable, 'column' => 'status', 'values' => [
+                CodeMartV1Constants::SUBMISSION_STATUS_PENDING,
+                CodeMartV1Constants::SUBMISSION_STATUS_PENDING_REVIEW,
+                CodeMartV1Constants::SUBMISSION_STATUS_APPROVED,
+                CodeMartV1Constants::SUBMISSION_STATUS_NEEDS_REVISION,
+                CodeMartV1Constants::SUBMISSION_STATUS_REJECTED,
+            ]],
+            ['table' => $paymentsTable, 'column' => 'status', 'values' => [
+                CodeMartV1Constants::PAYMENT_STATUS_PENDING,
+                CodeMartV1Constants::PAYMENT_STATUS_PROCESSING,
+                CodeMartV1Constants::PAYMENT_STATUS_COMPLETED,
+                CodeMartV1Constants::PAYMENT_STATUS_FAILED,
+                CodeMartV1Constants::PAYMENT_STATUS_CANCELLED,
+                CodeMartV1Constants::PAYMENT_STATUS_DISPUTED,
+                CodeMartV1Constants::PAYMENT_STATUS_REFUNDED,
+            ]],
         ];
 
         $aligned = [];
@@ -358,6 +378,17 @@ class CodeMartV1Initializer implements AppInitializerInterface
                 ],
                 'indexes' => [
                     ['columns' => ['idempotency_key']],
+                ],
+            ],
+            'codemart_v1_code_reviews' => [
+                'columns' => [
+                    'quality_rating' => ['type' => 'integer', 'nullable' => true],
+                    'readability_rating' => ['type' => 'integer', 'nullable' => true],
+                    'efficiency_rating' => ['type' => 'integer', 'nullable' => true],
+                    'comments' => ['type' => 'text', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['reviewer_id']],
                 ],
             ],
         ];

@@ -1,6 +1,7 @@
 /**
  * PcTopBar - top strip in the main column (in-flow, not viewport-fixed).
- * Hosts the global Laravel endpoint switcher; page content scrolls below it.
+ * Hosts the global Laravel endpoint switcher plus the appearance widgets
+ * (dark/light, language); page content scrolls below it.
  *
  * Mobile (< md): a menu button on the left opens the collapsed sidebar drawer
  * (see PcLayout); the cross-end ShellControls gutter is not reserved so the
@@ -15,6 +16,7 @@ import { Menu } from 'lucide-react';
 import PcLaravelEndpointSwitcher from './PcLaravelEndpointSwitcher';
 import PcPycoreTargetSwitcher from './PcPycoreTargetSwitcher';
 import PcVersionChips from './PcVersionChips';
+import PcAppearanceControls from './PcAppearanceControls';
 import { shellDockRightGutterPx } from '../../../shell/shellChrome';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -51,6 +53,7 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
         <PcVersionChips />
         <PcPycoreTargetSwitcher variant="header" />
         <PcLaravelEndpointSwitcher variant="header" />
+        <PcAppearanceControls />
       </div>
     </header>
   );

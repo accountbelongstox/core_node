@@ -1179,3 +1179,178 @@
   .cm-info-page__body h1 { font-size: 26px; }
   .cm-card-list { gap: 10px; }
 }
+
+/* ===== Work panels: task delivery, reviews, AI analysis, finance actions ===== */
+
+.cm-task-work {
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  width: 100%;
+}
+
+.cm-task-work__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cm-task-work__section h3 {
+  align-items: center;
+  color: #33475f;
+  display: flex;
+  font-size: 14px;
+  gap: 8px;
+  margin: 0;
+}
+
+.cm-task-work__section h3 svg { height: 16px; width: 16px; }
+
+.cm-task-work textarea,
+.cm-analysis-revision textarea,
+.cm-reviewer-test textarea {
+  background: #ffffff;
+  border: 1px solid #d3dce6;
+  border-radius: 8px;
+  color: #1f2d3d;
+  font: inherit;
+  padding: 10px 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.cm-task-comment-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cm-task-comment-row input,
+.cm-task-comment-row select {
+  background: #ffffff;
+  border: 1px solid #d3dce6;
+  border-radius: 8px;
+  color: #1f2d3d;
+  flex: 1;
+  font: inherit;
+  min-width: 140px;
+  padding: 8px 12px;
+}
+
+.cm-rating-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cm-rating-field {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.cm-rating-field select {
+  background: #ffffff;
+  border: 1px solid #d3dce6;
+  border-radius: 6px;
+  color: #1f2d3d;
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.cm-code-snippet {
+  background: #0f1722;
+  border-radius: 8px;
+  color: #d7e3f2;
+  font-size: 12.5px;
+  overflow-x: auto;
+  padding: 12px 14px;
+  white-space: pre;
+}
+
+.cm-reviewer-test {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cm-analysis-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.cm-analysis-result {
+  border-top: 1px dashed #d3dce6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.cm-analysis-proposal {
+  background: #f2f7fd;
+  border-left: 3px solid #2f6fed;
+  border-radius: 0 8px 8px 0;
+  color: #2c3e55;
+  margin: 0;
+  padding: 10px 14px;
+  white-space: pre-wrap;
+}
+
+.cm-analysis-revision {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cm-table-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cm-table-actions__refund {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cm-table-actions__refund input {
+  background: #ffffff;
+  border: 1px solid #d3dce6;
+  border-radius: 6px;
+  color: #1f2d3d;
+  font: inherit;
+  padding: 6px 10px;
+}
+
+.cm-workspace-link { color: #2f6fed; font-weight: 600; text-decoration: none; }
+.cm-workspace-link:hover { text-decoration: underline; }
+
+.dark .cm-task-work { border-color: #28323e; }
+.dark .cm-task-work__section h3 { color: #c3d0df; }
+.dark .cm-task-work textarea,
+.dark .cm-analysis-revision textarea,
+.dark .cm-reviewer-test textarea,
+.dark .cm-task-comment-row input,
+.dark .cm-task-comment-row select,
+.dark .cm-rating-field select,
+.dark .cm-table-actions__refund input { background: #1c242f; border-color: #334052; color: #dbe6f2; }
+.dark .cm-analysis-result { border-color: #334052; }
+.dark .cm-analysis-proposal { background: #1a2634; border-left-color: #4d86f7; color: #c3d0df; }
+.dark .cm-workspace-link { color: #7aa5f8; }
+
+@media (max-width: 600px) {
+  .cm-task-comment-row { flex-direction: column; align-items: stretch; }
+  .cm-rating-row { gap: 8px; }
+}
