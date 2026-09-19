@@ -18,6 +18,7 @@ const CmServicesPage = lazy(() => import('./pages/CmInfoPages').then((module) =>
 const CmPrivacyPage = lazy(() => import('./pages/CmInfoPages').then((module) => ({ default: module.CmPrivacyPage })));
 const CmTermsPage = lazy(() => import('./pages/CmInfoPages').then((module) => ({ default: module.CmTermsPage })));
 const CmInformationPage = lazy(() => import('./pages/CmInfoPages').then((module) => ({ default: module.CmInformationPage })));
+const CmDownloadPage = lazy(() => import('./pages/CmDownloadPage'));
 
 const CmAdminLayout = lazy(() => import('./admin/CmAdminLayout'));
 const CmAdminOverviewPage = lazy(() => import('./admin/CmAdminPages').then((module) => ({ default: module.CmAdminOverviewPage })));
@@ -54,6 +55,7 @@ const CmApp: React.FC = () => (
       <Route path="delivery-process" element={wrapPage(<CmDeliveryProcessPage />)} />
       <Route path="services" element={wrapPage(<CmServicesPage />)} />
       <Route path="estimate" element={wrapPage(<CmEstimatePage />)} />
+      <Route path="download" element={wrapPage(<CmDownloadPage />)} />
       <Route path="privacy" element={wrapPage(<CmPrivacyPage />)} />
       <Route path="terms" element={wrapPage(<CmTermsPage />)} />
       <Route path="information" element={wrapPage(<CmInformationPage />)} />

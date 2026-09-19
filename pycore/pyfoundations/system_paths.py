@@ -38,6 +38,38 @@ from pycore.pyfoundations.system_info import (
 )
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
+
+# --------------------------------------------------------------------------- #
+# Agent-history scan constants (directory scan center, see
+# pycore/pyfoundations/agent_home_scanner.py). Roots below may host per-slot
+# isolated agent profiles: scripts/winenvs launchers point USERPROFILE/HOME at
+# D:\programing\Users\<Slot> or D:\.tmp\Users\<Slot> (kimi1/kimi2, codex1,
+# pi*), and GlobalVars.ps1 defines PROGRAMING_USERS_DIR = D:\programing\Users.
+# Linux roots are defined explicitly so the same scan covers Linux hosts.
+# Override/extend via PYCORE_AGENT_HISTORY_USERS_ROOTS (os.pathsep-separated).
+# --------------------------------------------------------------------------- #
+AGENT_HISTORY_USERS_ROOTS_ENV = 'PYCORE_AGENT_HISTORY_USERS_ROOTS'
+AGENT_HISTORY_USERS_ROOTS_WINDOWS = (
+    'D:/programing/Users',
+    'D:/.tmp/Users',
+    'C:/Users',
+)
+AGENT_HISTORY_USERS_ROOTS_LINUX = (
+    '/home',
+    '/root',
+)
+
+# Official per-tool config/home locations, checked inside every scanned home
+# before falling back to a machine-wide marker scan. `env` is the official
+# override variable (rooted paths only); `dirs` are the official default
+# directory names relative to the user's home.
+AGENT_HISTORY_OFFICIAL_HOME_MARKERS = {
+    'kimi': {'env': 'KIMI_CODE_HOME', 'dirs': ('.kimi-code', '.kimi')},
+    'codex': {'env': 'CODEX_HOME', 'dirs': ('.codex',)},
+    'pi': {'env': '', 'dirs': ('.pi',)},
+    'claude': {'env': 'CLAUDE_CONFIG_DIR', 'dirs': ('.claude',)},
+}
+AGENT_HISTORY_LIVE_SCAN_TOOLS = ('kimi', 'codex', 'pi', 'claude')
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
     """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
     etc. is installed). Mirrors gvar_common.sh get_dev_compile_base() and PHP
