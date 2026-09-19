@@ -412,6 +412,35 @@ function Invoke-HfRestGet {
     return Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 30 -ErrorAction Stop
 }
 
+function Test-HfRepoExistence {
+    # 'exists' | 'missing' | 'unknown'. A 404 from the repo API is the only
+    # 'missing' verdict; network errors and auth failures return 'unknown' so
+    # a transient outage never clears an operator's explicit override.
+    param([Parameter(Mandatory = $true)][string]$RepoId)
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) { return 'unknown' }
+    $headers = Get-HfRequestHeaders
+    $curlHeaders = @()
+    $redirectFlag = '-L'
+    if ($headers.ContainsKey('Authorization')) {
+        $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization']))
+        $redirectFlag = '--location-trusted'
+    }
+    $bases = @('https://huggingface.co')
+    $mirror = Resolve-HfMirrorBase
+    if ($mirror -and $mirror -ne $bases[0]) { $bases += $mirror }
+    $sawMissing = $false
+    foreach ($base in $bases) {
+        $url = ('{0}/api/models/{1}' -f $base.TrimEnd('/'), $RepoId)
+        $code = & $curl.Source -s -o NUL -w '%{http_code}' $redirectFlag --connect-timeout 15 @curlHeaders $url
+        if ($LASTEXITCODE -ne 0) { continue }
+        if ($code -eq '200') { return 'exists' }
+        if ($code -eq '404') { $sawMissing = $true }
+    }
+    if ($sawMissing) { return 'missing' }
+    return 'unknown'
+}
+
 function Test-HfGlobMatch {
     param(
         [Parameter(Mandatory = $true)][string]$FileName,

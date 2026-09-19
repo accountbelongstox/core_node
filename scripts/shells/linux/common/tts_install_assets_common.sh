@@ -510,6 +510,28 @@ resolve_hf_auth_token() {
     printf '%s' "$HF_AUTH_TOKEN_CACHE"
 }
 
+_hf_repo_existence() {
+    # exists | missing | unknown. A 404 from the repo API is the only
+    # 'missing' verdict; network errors and auth failures return 'unknown' so
+    # a transient outage never clears an operator's explicit override.
+    local repo="$1" base code mirror saw_missing=0
+    command -v curl >/dev/null 2>&1 || { printf 'unknown'; return 0; }
+    resolve_hf_auth_token >/dev/null
+    _hf_curl_auth_setup
+    local bases=("https://huggingface.co")
+    mirror="$(_hf_mirror_base)"
+    [[ -n "$mirror" && "$mirror" != "${bases[0]}" ]] && bases+=("$mirror")
+    for base in "${bases[@]}"; do
+        code="$(curl -s -o /dev/null -w '%{http_code}' "$HF_CURL_REDIRECT_FLAG" --connect-timeout 15 "${HF_CURL_AUTH_ARGS[@]}" "${base%/}/api/models/${repo}" 2>/dev/null)" || continue
+        case "$code" in
+            200) printf 'exists'; return 0 ;;
+            404) saw_missing=1 ;;
+        esac
+    done
+    [[ "$saw_missing" -eq 1 ]] && { printf 'missing'; return 0; }
+    printf 'unknown'
+}
+
 _hf_curl_auth_setup() {
     # Populates HF_CURL_AUTH_ARGS / HF_CURL_REDIRECT_FLAG from the resolved token.
     # Plain -L drops Authorization on the cross-host 308 to huggingface.co

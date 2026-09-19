@@ -189,14 +189,29 @@ echo "[install_fishspeech]  SDK: set FISH_API_KEY; local: download $_fish_ckpt c
 
 # --- Local inference checkpoints (IDEMPOTENT: sentinel + resumable download) --- #
 # Bridge/SDK mode works without weights; a failed download never fails the step.
-_ckpt_name="$(basename "${FISHSPEECH_CHECKPOINT:-$_fish_ckpt}")"
+# Self-heal stale operator overrides: a FISHSPEECH_CHECKPOINT value that does
+# not exist on the Hub (e.g. openaudio-s1, recommended by older docs) would
+# 404 on every run. Only a definitive 404 resets it to the tier default;
+# network failures keep the operator's choice untouched.
+_ckpt_repo="${FISHSPEECH_CHECKPOINT:-$_fish_ckpt}"
+[[ "$_ckpt_repo" == */* ]] || _ckpt_repo="fishaudio/$_ckpt_repo"
+if [[ -n "${FISHSPEECH_CHECKPOINT:-}" && -n "$_fish_ckpt" && "$(_hf_repo_existence "$_ckpt_repo")" == "missing" ]]; then
+    _fallback_repo="$_fish_ckpt"
+    [[ "$_fallback_repo" == */* ]] || _fallback_repo="fishaudio/$_fallback_repo"
+    if [[ "$_fallback_repo" != "$_ckpt_repo" ]]; then
+        echo "[install_fishspeech] [!] FISHSPEECH_CHECKPOINT=$_ckpt_repo does not exist on Hugging Face (404); resetting to tier default $_fallback_repo." >&2
+        export FISHSPEECH_CHECKPOINT="$_fallback_repo"
+        _ckpt_repo="$_fallback_repo"
+    fi
+fi
+_ckpt_name="$(basename "$_ckpt_repo")"
 CKPT_DIR="$TARGET_DIR/checkpoints/$_ckpt_name"
 CKPT_SENTINEL="$TARGET_DIR/checkpoints/.ckpt_${_ckpt_name}_done"
 if [[ -f "$CKPT_SENTINEL" && -f "$CKPT_DIR/config.json" && "$FORCE" -eq 0 ]]; then
     echo "[install_fishspeech] [OK] checkpoint $_ckpt_name already present."
 else
-    echo "[install_fishspeech] [..] downloading checkpoint fishaudio/$_ckpt_name (curl, resumable) ..."
-    if install_hf_repo_flat "fishaudio/$_ckpt_name" "$CKPT_DIR" "$CKPT_SENTINEL" "[install_fishspeech] " "*.json,*.pth,*.safetensors,*.txt,*.tiktoken,*.model" "" "$_ckpt_name" \
+    echo "[install_fishspeech] [..] downloading checkpoint $_ckpt_repo (curl, resumable) ..."
+    if install_hf_repo_flat "$_ckpt_repo" "$CKPT_DIR" "$CKPT_SENTINEL" "[install_fishspeech] " "*.json,*.pth,*.safetensors,*.txt,*.tiktoken,*.model" "" "$_ckpt_name" \
         && [[ -f "$CKPT_DIR/config.json" ]]; then
         echo "[install_fishspeech] [OK] checkpoint ready at $CKPT_DIR (local inference mode enabled)."
     else
