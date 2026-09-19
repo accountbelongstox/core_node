@@ -204,7 +204,7 @@ const OrchTaskList: React.FC<{
                       }}
                       className="text-[10px] font-mono text-slate-500 hover:text-sky-400 hover:underline underline-offset-2"
                     >
-                      {progress.resource_index || 0}/{progress.resource_total || 0} {ORCH_L.items}
+                      {progress.resource_index || 0}/{progress.resource_total || 0} {ORCH_L.items} · {ORCH_L.manifestScope}
                     </button>
                   )}
                   <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -216,6 +216,7 @@ const OrchTaskList: React.FC<{
                   </p>
                   {(task.running || progress.phase === 'done' || progress.missing || progress.sync_pending) && (
                     <p className="text-[10px] font-mono text-slate-500">
+                      <span className="text-slate-600">{ORCH_L.manifestScope}: </span>
                       {([
                         ['cache', ORCH_L.manifestCache, progress.cache_hits],
                         ['laravel', ORCH_L.manifestLaravel, progress.laravel_hits],

@@ -149,7 +149,9 @@ class LaravelAudioWorkerStateMixin:
             if completed is None or total is None:
                 fragments.append(f"remote_{tier}=-/-")
             else:
-                fragments.append(f"remote_{tier}={int(completed)}/{int(total)}")
+                # Scope label: this is the ENQUEUED queue-center window
+                # (all statuses ever scanned), not the source-table backlog.
+                fragments.append(f"remote_{tier}={int(completed)}/{int(total)} queued")
         return " ".join(fragments)
 
     @serialized_method

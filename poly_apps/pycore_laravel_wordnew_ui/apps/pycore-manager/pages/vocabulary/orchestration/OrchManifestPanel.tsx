@@ -112,7 +112,7 @@ const OrchManifestPanel: React.FC<{
     <PcFloatingPanel
       open={open}
       title={`${ORCH_L.manifestPanelTitle} — ${taskName}`}
-      subtitle={`${humanInt(total)} ${ORCH_L.items}`}
+      subtitle={`${humanInt(total)} ${ORCH_L.items} · ${ORCH_L.manifestScope}`}
       onClose={onClose}
       closeLabel={ORCH_L.close}
       widthClass="max-w-5xl"
