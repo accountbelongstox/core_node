@@ -54,6 +54,12 @@
 .PARAMETER NoInstall
     Skip all PowerShell prerequisite installers and launch the service directly.
 
+.PARAMETER TtsSelfcheck
+    Run the TTS batch self-check after engine init: probe each engine
+    (kokoro, parler, chattts, gptsovits) with RAM/GPU memory gates, generate a
+    real batch sample, log resource before/after, then release memory/GPU
+    before serving. Same as setting $env:TTS_STARTUP_SELFCHECK = '1'.
+
 .EXAMPLE
     .\pyservice.ps1 install
     Provision prerequisites only (Step installers via PreparePycorePrerequisites).
@@ -131,6 +137,7 @@ param(
     [switch]$UiBuild,
     [int]$UiPort = 13054,
     [switch]$NoInstall,
+    [switch]$TtsSelfcheck,
     [string[]]$InstallInclude = @(),
     [string]$InstallWhisperModel = '',
     [string]$InstallFasterWhisperModel = '',
@@ -230,6 +237,8 @@ function Show-Usage {
     Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
     Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
     Write-Host '  -NoInstall        Skip all PowerShell prerequisite installers'
+    Write-Host '  -TtsSelfcheck     Probe + batch-test each TTS engine, log RAM/GPU before/after,'
+    Write-Host '                    release resources, then serve (same as $env:TTS_STARTUP_SELFCHECK=1)'
     Write-Host '  -InstallInclude   Run only named prerequisite entries'
     Write-Host '  -InstallWhisperModel       Select the openai-whisper model'
     Write-Host '  -InstallFasterWhisperModel Select the faster-whisper model'
@@ -243,6 +252,7 @@ function Show-Usage {
     Write-Host '  .\pyservice.ps1 install'
     Write-Host '  .\pyservice.ps1 run -NoUi -Port 8000'
     Write-Host '  .\pyservice.ps1 -NoInstall'
+    Write-Host '  .\pyservice.ps1 -TtsSelfcheck'
     Write-Host '  .\pyservice.ps1 config -show'
 }
 
@@ -319,7 +329,8 @@ Write-Host ' Pycore Service - entry point' -ForegroundColor Cyan
 Write-Host '======================================================' -ForegroundColor Cyan
 $uiMode = if ($ServiceMode -eq '2') { 'relay' } elseif ($NoUi) { 'legacy' } else { 'dashboard (pycore-manager)' }
 $prerequisiteMode = if ($NoInstall) { 'skipped' } else { 'enabled' }
-Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} mode={2} ui={3} prerequisites={4})" -f $BindHost, $Port, $ServiceMode, $uiMode, $prerequisiteMode) -ForegroundColor DarkGray
+$ttsSelfcheckMode = if ($TtsSelfcheck -or $env:TTS_STARTUP_SELFCHECK -eq '1') { 'on' } else { 'off' }
+Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} mode={2} ui={3} prerequisites={4} tts-selfcheck={5})" -f $BindHost, $Port, $ServiceMode, $uiMode, $prerequisiteMode, $ttsSelfcheckMode) -ForegroundColor DarkGray
 
 $py = Resolve-Python
 if (-not $py) {
@@ -388,8 +399,9 @@ try {
 
     # --- 3) launch the worker -------------------------------------------- #
     $pyArgs = @('-u', $workerPath, '--host', $BindHost, '--port', $Port, '--service-mode', $ServiceMode)
-    if ($DebugMode) { $pyArgs += '--debug' }
-    if ($NoReload)  { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
+    if ($DebugMode)    { $pyArgs += '--debug' }
+    if ($NoReload)     { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
+    if ($TtsSelfcheck) { $pyArgs += '--tts-selfcheck' }
 
     Write-Host ''
     Write-Host ("[>] Launching worker: {0}" -f $workerPath) -ForegroundColor Cyan
