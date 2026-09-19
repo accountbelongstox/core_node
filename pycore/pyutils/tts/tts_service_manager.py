@@ -199,7 +199,7 @@ def _start_command(engine: str) -> Optional[Tuple]:
             if value:
                 extra[key] = value
         # Local inference mode: the cloned repo's official api_server plus
-        # downloaded checkpoint weights (fishaudio/openaudio-s1[-mini]).
+        # downloaded checkpoint weights (fishaudio/s1-mini).
         local_server = staging / "tools" / "api_server.py"
         checkpoint = _fishspeech_checkpoint_dir(staging)
         if local_server.is_file() and checkpoint is not None:
@@ -241,7 +241,7 @@ def _fishspeech_checkpoint_dir(staging: Path) -> Optional[Path]:
     """Local fish-speech checkpoint directory, when fully downloaded.
 
     The name comes from FISHSPEECH_CHECKPOINT or the runtime model tier
-    (openaudio-s1 / openaudio-s1-mini); readiness is the official config.json,
+    (fishaudio/s1-mini); readiness is the official config.json,
     not directory existence."""
     name = (os.environ.get("FISHSPEECH_CHECKPOINT") or "").strip()
     if not name:
