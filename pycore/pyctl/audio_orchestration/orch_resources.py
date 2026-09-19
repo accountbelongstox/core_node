@@ -24,6 +24,7 @@ from pycore.pyutils.tts.engine_policy import (
     tts_engine_supports_language,
 )
 from pycore.pyutils.tts.tts_orchestrator import synthesize
+from pycore.pyctl.audio_orchestration import orch_promote
 from pycore.pyctl.tts import word_audio_service
 
 
@@ -252,6 +253,17 @@ def resolve_batch(
                 break
 
     misses = [resource for resource in items if resource["resource_id"] not in results]
+
+    # Queue-head self-promotion (collaboration with Laravel): the cache misses
+    # are exactly what this machine still needs, so enqueue-or-move them to
+    # the Laravel queue head — any online worker (this machine's lanes or a
+    # peer's) drains them next — and mirror the head order into the local lane
+    # queues. Never blocks resolution on a Laravel outage.
+    if misses:
+        try:
+            orch_promote.promote_missing_to_queue_head(misses, base_url)
+        except Exception as error:  # noqa: BLE001
+            ColorPrint.yellow(f"[AudioOrch] queue-head promotion skipped: {error}")
 
     def _engine_exclusions(resource: Dict[str, Any]) -> tuple:
         # Rotate the per-kind engine fallback order by resource id so parallel
