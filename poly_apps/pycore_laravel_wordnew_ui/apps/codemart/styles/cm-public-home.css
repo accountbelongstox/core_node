@@ -783,6 +783,63 @@
   font-size: 12px;
 }
 
+/* Dark mode (shell toggles .dark on the root element). The hero and CTA bands
+   keep their brand gradients; the light content sections flip to the shared
+   workspace dark palette (#141a22 / #1c242f / #2a3543). */
+.dark .cm-public-home {
+  --cm-heading: #e6edf5;
+  --cm-copy: #b0bdcc;
+  --cm-muted: #8493a5;
+  --cm-soft: #12181f;
+  --cm-page: #0f141a;
+  --cm-dark: #10161d;
+  background: var(--cm-page);
+  color: #ccd6e2;
+}
+
+.dark .cm-platform-stats,
+.dark .cm-delivery-flow,
+.dark .cm-public-footer { background: #151c24; }
+
+.dark .cm-platform-stats__item + .cm-platform-stats__item { border-color: #232c37; }
+
+.dark .cm-process-illustration__window {
+  border-color: #2a3543;
+  background: #1c242f;
+  box-shadow: 0 25px 55px rgb(0 0 0 / 45%);
+}
+
+.dark .cm-process-illustration__window-bar {
+  border-color: #28323e;
+  background: #202934;
+}
+
+.dark .cm-process-illustration__window-bar span { background: #3a4655; }
+.dark .cm-process-illustration__sidebar { background: #182b42; }
+.dark .cm-process-illustration__sidebar span { background: #2d4767; }
+.dark .cm-process-illustration__title-line { background: #2f5583; }
+
+.dark .cm-process-illustration__row {
+  border-color: #2a3543;
+  color: #6ea3e2;
+}
+
+.dark .cm-process-illustration__row span { background: #323e4d; }
+.dark .cm-process-illustration__footer-line { background: #2a333f; }
+.dark .cm-process-illustration__badge { border-color: #151c24; }
+
+.dark .cm-testimonials__carousel > button {
+  border-color: rgb(255 255 255 / 12%);
+  background: rgb(255 255 255 / 7%);
+  color: #d4dde8;
+}
+
+.dark .cm-public-footer__copyright { border-color: #232c37; }
+
+@media (max-width: 700px) {
+  .dark .cm-platform-stats__item + .cm-platform-stats__item { border-color: #232c37; }
+}
+
 @keyframes cm-hero-copy-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

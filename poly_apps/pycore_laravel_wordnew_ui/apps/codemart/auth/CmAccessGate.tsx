@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ArrowLeft, LockKeyhole } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
@@ -8,6 +8,13 @@ import { useTranslation } from '../../../core/i18n/UiI18n';
 export const CmAccessGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useTranslation('cm');
   const authenticated = useAuthSession();
+
+  useEffect(() => {
+    if (!authenticated) {
+      requestAuthLogin({ source: 'codemart', reason: 'protected-view' });
+    }
+  }, [authenticated]);
+
   if (authenticated) return <>{children}</>;
 
   return (

@@ -1165,7 +1165,7 @@
 .dark .cm-page-heading select,
 .dark .cm-admin-role select,
 .dark .cm-estimate-form select,
-.dark .cm-estimate-form input { border-color: #334052; background: #141a22; color: #d4dde8; }
+.dark .cm-estimate-form input { border-color: #334052; background-color: #141a22; color: #d4dde8; }
 .dark .cm-chrome-controls__button,
 .dark .cm-chrome-controls__language { border-color: #334052; background: #222c38; color: #b9c8d9; }
 .dark .cm-chrome-controls__language select option { color: #263445; }
@@ -1369,7 +1369,7 @@
 .dark .cm-task-comment-row input,
 .dark .cm-task-comment-row select,
 .dark .cm-rating-field select,
-.dark .cm-table-actions__refund input { background: #1c242f; border-color: #334052; color: #dbe6f2; }
+.dark .cm-table-actions__refund input { background-color: #1c242f; border-color: #334052; color: #dbe6f2; }
 .dark .cm-analysis-result { border-color: #334052; }
 .dark .cm-analysis-proposal { background: #1a2634; border-left-color: #4d86f7; color: #c3d0df; }
 .dark .cm-workspace-link { color: #7aa5f8; }

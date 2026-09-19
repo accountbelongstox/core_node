@@ -27,8 +27,24 @@ file, or architecture descriptions.
 - Wallet actions: deposit top-up with payment method selection, payment
   link, and deposit history; payments list with invoice creation and
   refund requests. Status: done, verified live.
+- Phone verification in the interface: the user requests a one-time code,
+  enters the six-digit code, and the onboarding state updates; already
+  verified numbers reject further attempts. Status: done, verified live.
+- Identity (KYC) submission in the interface: document type, number, legal
+  name, birth date, and front/back/selfie images with upload progress;
+  duplicate document numbers are rejected, and the pending-review state is
+  shown until an administrator decides. Status: done, verified live.
+- Project detail page: overview, milestone and task listing, project
+  editing for the owner, milestone creation, and task creation per
+  milestone. Status: done, verified live.
 - Payment and submission state vocabulary surfaced in the interface in
   both English and Chinese. Status: done.
+- Demo dataset for local evaluation: four demo accounts (client,
+  developer, architect, reviewer) with profiles, wallets, paid deposits,
+  five projects across the delivery states, milestones, marketplace
+  tasks, and approved testimonials. Seeding is idempotent and runs only
+  through the 175 deployment script, which asks whether to initialize the
+  CodeMart demo data (default: no). Status: done, verified live.
 
 ## Server corrections applied in this continuation
 
@@ -46,6 +62,14 @@ file, or architecture descriptions.
 - Reviewer qualification, queue, dimensional review, duplicate guard.
 - Architect eligibility, application, deposit activation, acceptance.
 - Deposit top-up creation and history.
+- Onboarding: phone code request and verification, identity document
+  upload with duplicate rejection, onboarding truth refresh.
+- Project detail: owner edit, milestone creation, task creation, and
+  detail view with nested milestones and tasks.
+- Demo dataset: every demo account signs in and exercises its role
+  surface (client projects, developer marketplace and wallet, architect
+  project acceptance, reviewer queue), and the deployment-script seed is
+  idempotent across repeated runs.
 
 ## Documentation
 

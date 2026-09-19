@@ -94,8 +94,15 @@ select:not([multiple]):not([size]) {
   background-size: 0.95em;
   padding-right: 2.25rem !important;
 }
+/* Re-declare ALL background longhands: app-level dark rules that use the
+   `background:` shorthand (e.g. `.dark .cm-marketplace-toolbar select`) reset
+   image/repeat/position/size to initial, and without these the re-applied
+   chevron would tile across the control (the "multiple arrows" bug). */
 html.dark select:not([multiple]):not([size]) {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.95em;
 }
 
 /* Custom Scrollbar */
