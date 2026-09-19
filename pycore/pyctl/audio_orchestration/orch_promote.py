@@ -13,6 +13,11 @@ After the backend accepts the batch, the returned head tickets are applied to
 the LOCAL lane queues too (same path as the realtime head event), so this
 pycore's own workers pop the missing resources first even before the next
 diff sync.
+
+Offline-first: a promotion attempted while Laravel is unreachable is persisted
+by the queue-head client (deferred) and replayed on the reconnect edge, so the
+missed set still reaches the shared queue head once the backend returns; local
+generation of the misses proceeds regardless.
 """
 
 from __future__ import annotations
@@ -84,8 +89,9 @@ def promote_missing_to_queue_head(
 ) -> Dict[str, Any]:
     """Enqueue-or-move every missing manifest resource to its Laravel queue
     head, then apply the same head order to the local lane queues. Never
-    raises and never blocks generation on a Laravel outage — failures degrade
-    to local-only ordering (the resolver still generates the misses itself).
+    raises and never blocks generation on a Laravel outage — failed chunks
+    are durably deferred by the queue-head client and replayed on reconnect,
+    while the resolver still generates the misses itself.
     """
     items_by_queue: Dict[str, List[Dict[str, Any]]] = {}
     for resource in misses:
@@ -94,7 +100,7 @@ def promote_missing_to_queue_head(
             continue
         items_by_queue.setdefault(item["queue"], []).append(item)
 
-    summary: Dict[str, Any] = {"success": True, "queues": {}, "promoted": 0}
+    summary: Dict[str, Any] = {"success": True, "queues": {}, "promoted": 0, "deferred": 0}
     for queue, items in items_by_queue.items():
         result = queue_head_client.promote_batch(
             queue,
@@ -102,21 +108,26 @@ def promote_missing_to_queue_head(
             base_url=base_url,
         )
         applied = _apply_local_head_order(queue, result.get("results") or [])
+        flushed = result.get("flushed") if isinstance(result.get("flushed"), dict) else {}
         summary["queues"][queue] = {
             "requested": len(items),
             "promoted": int(result.get("promoted") or 0),
             "created": int(result.get("created") or 0),
             "moved": int(result.get("moved") or 0),
+            "deferred": int(result.get("deferred") or 0),
+            "replayed": int(flushed.get("promoted") or 0),
             "local_head_applied": applied,
             "success": bool(result.get("success")),
         }
         summary["promoted"] += int(result.get("promoted") or 0)
+        summary["deferred"] += int(result.get("deferred") or 0)
         if not result.get("success"):
             summary["success"] = False
         ColorPrint.green(
             f"[AudioOrch] promoted {queue} head: requested={len(items)} "
             f"promoted={summary['queues'][queue]['promoted']} "
             f"created={summary['queues'][queue]['created']} "
+            f"deferred={summary['queues'][queue]['deferred']} "
             f"local_applied={applied}"
         )
     return summary
