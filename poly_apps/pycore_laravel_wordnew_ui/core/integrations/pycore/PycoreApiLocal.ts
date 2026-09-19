@@ -55,6 +55,7 @@ import type {
   AgentHistoryToolFragmentIdPagesResponse,
   AgentHistoryToolFragmentPageResponse,
   AgentHistoryLiveScanResponse,
+  AgentHistoryPromptCacheResponse,
 } from './PycoreSpeechTypes';
 import type {
   AutostartStatus,
@@ -313,6 +314,13 @@ export const pycoreApiLocal = {
   /** UI-driven realtime scan of checked tools (server throttles to its cadence). */
   liveScanAgentHistory: (tools: string[]) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryLiveScan, { tools }) as Promise<AgentHistoryLiveScanResponse>,
+  /** Paginated read over the pycore-side new-prompt cache (read-only mirror). */
+  getAgentHistoryPromptCache: (params: { tool?: string; page?: number; pageSize?: number } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptCache, {
+      tool: params.tool || undefined,
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+    }) as Promise<AgentHistoryPromptCacheResponse>,
   // --- Tool fragment panels (DIFF ID pages + lazy materialization) -------- #
   getAgentHistoryToolFragmentIdPages: (params: {
     tool: string; kind: AgentHistoryFragmentKind;

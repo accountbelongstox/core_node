@@ -12,6 +12,7 @@ import re
 import sys
 import time
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
@@ -284,6 +285,23 @@ def split_samples_by_silence(
     return ranges
 
 
+def plausible_ranges(
+    ranges: Sequence[Tuple[int, int]],
+    sample_rate: int,
+) -> bool:
+    """Sanity-check split segments: spoken word durations in a merged reading
+    are roughly uniform, so any segment far shorter than the longest one means
+    the cut points landed mid-word (truncated audio). False -> serial fallback."""
+    if not ranges or sample_rate <= 0:
+        return False
+    durations = [(hi - lo) / sample_rate for lo, hi in ranges]
+    longest = max(durations)
+    if longest <= 0:
+        return False
+    floor = max(const.MIN_SEGMENT_MS / 1000.0, longest * 0.45)
+    return all(duration >= floor for duration in durations)
+
+
 def write_segments_mp3(
     samples: Any,
     sample_rate: int,
@@ -309,6 +327,40 @@ def write_segments_mp3(
         item.duration_ms = int((time.time() - began) * 1000)
         items.append(item)
     return items
+
+
+def write_word_samples_mp3(
+    samples_list: Sequence[Any],
+    sample_rate: int,
+    words: Sequence[str],
+    out_dir: Path,
+    start_index: int = 0,
+    workers: int = 4,
+) -> List[BatchItem]:
+    """Encode one ready-made sample array per word, in parallel.
+
+    ffmpeg startup dominates per-word encode time on short clips; the encodes
+    are independent processes, so a small thread pool overlaps them."""
+    def encode_one(offset: int, word: str, segment: Any) -> BatchItem:
+        index = start_index + offset
+        mp3_path = out_dir / f"{safe_name(index, word)}.mp3"
+        item = BatchItem(index=index, text=word, output_path=str(mp3_path))
+        began = time.time()
+        try:
+            item.ok = bool(samples_to_mp3(segment, sample_rate, mp3_path))
+            if not item.ok:
+                item.error = "mp3 encode failed"
+        except Exception as exc:  # noqa: BLE001
+            item.error = str(exc)
+        item.duration_ms = int((time.time() - began) * 1000)
+        return item
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        futures = [
+            pool.submit(encode_one, offset, word, segment)
+            for offset, (word, segment) in enumerate(zip(words, samples_list))
+        ]
+        return [future.result() for future in futures]
 
 
 def convert_wav_items_mp3(
@@ -416,7 +468,9 @@ __all__ = [
     "split_samples_by_silence",
     "split_samples_top_silence",
     "split_merged_samples",
+    "plausible_ranges",
     "write_segments_mp3",
+    "write_word_samples_mp3",
     "convert_wav_items_mp3",
     "serial_fallback",
     "run_batch_cli",

@@ -605,6 +605,34 @@ export interface AgentHistoryLiveScanResponse {
   error?: string | null;
 }
 
+// --- Pycore-side new-prompt side cache (read-only mirror view) ------------ #
+// Mirrors prompt_new_cache.py: one namespace per agent tool, written only
+// during extraction with the deduped new-prompt diff; this view never feeds
+// back into extraction.
+export interface AgentHistoryPromptCacheItem {
+  id: string;
+  tool: string;
+  os_user: string;
+  session_id: string;
+  ts: number;
+  time: string;
+  text: string;
+  lang?: string;
+}
+
+export interface AgentHistoryPromptCacheResponse {
+  success: boolean;
+  data?: {
+    namespaces: Record<string, number>;
+    total: number;
+    page: number;
+    page_count: number;
+    page_size: number;
+    items: AgentHistoryPromptCacheItem[];
+  };
+  error?: string | null;
+}
+
 export interface AgentHistoryToolStatistics {
   tool: string;
   sessions: number;

@@ -511,4 +511,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "prompt_cache", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]

@@ -1,7 +1,7 @@
 import { PersistedStore } from '../../../core/persistence';
 import { PycoreManagerStorageKeys } from './PycoreManagerStorageKeys';
 
-export type AgentHistoryTabId = 'sessions' | 'prompts';
+export type AgentHistoryTabId = 'sessions' | 'prompts' | 'cache';
 export type AgentHistoryTaskPeriod = 'today' | 'history';
 
 export interface AgentHistoryUiState {
@@ -41,7 +41,7 @@ function normalizePage(value: unknown): number {
 
 function normalizeState(value: AgentHistoryUiState): AgentHistoryUiState {
   return {
-    tab: value.tab === 'prompts' ? 'prompts' : 'sessions',
+    tab: value.tab === 'prompts' || value.tab === 'cache' ? value.tab : 'sessions',
     filterTool: String(value.filterTool || ''),
     filterUser: String(value.filterUser || ''),
     search: String(value.search || ''),

@@ -94,7 +94,7 @@ def _synthesize_group(
             samples, sample_rate = batch_common.read_wav_samples(tmp_wav)
             if samples is not None:
                 ranges = batch_common.split_merged_samples(samples, sample_rate, len(group))
-                if ranges is not None:
+                if ranges is not None and batch_common.plausible_ranges(ranges, sample_rate):
                     result.merged_used = True
                     return batch_common.write_segments_mp3(
                         samples, sample_rate, ranges, group, out_dir, start_index
