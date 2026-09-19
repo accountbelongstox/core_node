@@ -104,6 +104,8 @@ RELAY_REQUIRED_EVENTS = {
     "pairing_changed",
     "device_presence",
     "terminal_changed",
+    "agent_history_prompt_new",
+    "agent_history_prompt_derived",
 }
 
 

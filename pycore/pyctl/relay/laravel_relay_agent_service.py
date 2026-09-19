@@ -103,6 +103,10 @@ class LaravelRelayAgentService:
             BusSignals.AGENT_HISTORY_PROMPT_NEW,
             self._publish_prompt_new_device_event,
         )
+        THREAD_BUS.register_event_handler(
+            BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
+            self._publish_prompt_derived_device_event,
+        )
         threads = list(alive.values())
         if RELAY_CONTROL_THREAD not in alive:
             threads.append(
@@ -165,6 +169,10 @@ class LaravelRelayAgentService:
         THREAD_BUS.unregister_event_handler(
             BusSignals.AGENT_HISTORY_PROMPT_NEW,
             self._publish_prompt_new_device_event,
+        )
+        THREAD_BUS.unregister_event_handler(
+            BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
+            self._publish_prompt_derived_device_event,
         )
         relay_activity_log.success(
             "runtime.event_handler.removed",
@@ -593,15 +601,25 @@ class LaravelRelayAgentService:
         )
 
     def _publish_prompt_new_device_event(self, payload: Any) -> None:
-        """Forward agent-history prompt.new to paired UI owners via the hub."""
+        self._publish_agent_history_event("agent_history_prompt_new", payload, "prompts")
+
+    def _publish_prompt_derived_device_event(self, payload: Any) -> None:
+        self._publish_agent_history_event("agent_history_prompt_derived", payload, "item")
+
+    def _publish_agent_history_event(self, event_name: str, payload: Any, container_key: str) -> None:
+        """Forward an agent-history bus event to paired UI owners via the hub.
+
+        ``container_key`` selects the payload member carrying the timestamp used
+        as the outbox revision: a list ("prompts" for prompt.new) or a single
+        item dict ("item" for prompt.derived).
+        """
         event_payload = dict(payload) if isinstance(payload, dict) else {}
         revision = int(time.time())
-        prompts = event_payload.get("prompts")
-        if isinstance(prompts, list) and prompts:
-            first = prompts[0]
-            if isinstance(first, dict) and int(first.get("ts") or 0) > 0:
-                revision = int(first.get("ts"))
-        self._post_device_event("agent_history_prompt_new", event_payload, revision)
+        container = event_payload.get(container_key)
+        first = container[0] if isinstance(container, list) and container else container
+        if isinstance(first, dict) and int(first.get("ts") or 0) > 0:
+            revision = int(first.get("ts"))
+        self._post_device_event(event_name, event_payload, revision)
 
     def _post_device_event(self, event_name: str, event_payload: Dict[str, Any], revision: int) -> None:
         revision = max(1, int(revision or 0))

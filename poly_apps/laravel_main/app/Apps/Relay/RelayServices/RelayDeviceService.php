@@ -60,6 +60,7 @@ final class RelayDeviceService
         $allowedEvents = [
             RelayContract::event('terminal_changed'),
             RelayContract::event('agent_history_prompt_new'),
+            RelayContract::event('agent_history_prompt_derived'),
         ];
         if (!in_array($eventType, $allowedEvents, true)) {
             throw new RelayDomainException('device_event_invalid', 422);
