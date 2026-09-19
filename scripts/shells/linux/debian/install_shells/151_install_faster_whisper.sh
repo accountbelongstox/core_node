@@ -138,14 +138,6 @@ get_free_disk_gb() {
         NR>1 && $1 !~ /^(tmpfs|devtmpfs|overlay|squashfs|none|udev|devfs|map.*)$/ { sum += $4 }
         END { if (sum > 0) printf "%d", sum/1024/1024 }'
 }
-is_server() {
-    [[ "$(uname -s)" == "Darwin" ]] && return 1
-    if command -v systemctl >/dev/null 2>&1; then
-        case "$(systemctl get-default 2>/dev/null)" in graphical.target) return 1 ;; esac
-    fi
-    if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" || -n "${XDG_CURRENT_DESKTOP:-}" ]]; then return 1; fi
-    return 0
-}
 # GPU detection from the canonical shared helper.
 has_cuda() {
     gpu_present
@@ -168,12 +160,6 @@ echo "============================================================"
 echo " Installing faster-whisper (default STT for Video Extraction)"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
-    echo "[install_faster_whisper] [skip] Server environment without desktop and GPU detected. Skipping faster-whisper installation."
-    complete_prereq_step "$PYTHON" "[install_faster_whisper] " --absent-ok "server CPU host" faster_whisper
-    exit 0
-fi
-
 # --- 0) resolve python (13_install_default_python.sh has already run in install flow) --- #
 # Prefer the shared venv built by 13_install_default_python.sh so packages install INTO the
 # venv (not the externally-managed system python). An explicit --python still wins.
@@ -183,6 +169,8 @@ fi
 echo "  python : $PYTHON"
 
 # --- 1) capacity / environment guard ------------------------------------- #
+# CPU-only headless hosts are supported: faster-whisper is built on
+# CTranslate2 and officially runs CPU int8 inference.
 RAM_GB="$(get_ram_gb)"; DISK_GB="$(get_free_disk_gb)"
 echo "  ram    : ${RAM_GB:-?} GB"
 echo "  disk   : ${DISK_GB:-?} GB free (all filesystems)"
@@ -192,10 +180,6 @@ if [[ "$FORCE" -eq 0 ]]; then
     if [[ ${#reasons[@]} -gt 0 ]]; then
         echo "[skip] System too small for faster-whisper (${reasons[*]}); skipping. Use --force to override."
         complete_prereq_step "$PYTHON" "[faster_whisper] " --absent-ok "resource policy" faster_whisper
-    fi
-    if is_server && ! has_cuda; then
-        echo "[skip] Headless server (non-desktop) with no CUDA GPU; skipping. Use --force to override."
-        complete_prereq_step "$PYTHON" "[faster_whisper] " --absent-ok "headless CPU host" faster_whisper
     fi
 fi
 

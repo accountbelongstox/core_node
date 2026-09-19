@@ -91,7 +91,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "melotts"; then
     echo "${PREFIX}[skip] Server environment without desktop and GPU detected. Skipping MeloTTS installation."
     complete_prereq_step "$PYTHON" "$PREFIX" --absent-ok "server CPU host"
     exit 0

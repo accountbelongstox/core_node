@@ -56,6 +56,15 @@ done
 chmod 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" 2>/dev/null \
     || { command -v sudo >/dev/null 2>&1 && sudo -n chmod 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" 2>/dev/null; } || true
 
+# pip disables its cache (with a warning) when the cache dir is owned by a
+# different uid than the caller (pyservice sweeps run as root via sudo while
+# the tree may have been created by a regular user). Align ownership with the
+# current euid so the shared pip cache stays enabled; best-effort, idempotent.
+if [ -d "$SHARED_CACHE_DIR/pip" ] && [ "$(stat -c %u "$SHARED_CACHE_DIR/pip" 2>/dev/null)" != "$(id -u)" ]; then
+    chown -R "$(id -u):$(id -g)" "$SHARED_CACHE_DIR/pip" 2>/dev/null \
+        || { command -v sudo >/dev/null 2>&1 && sudo -n chown -R "$(id -u):$(id -g)" "$SHARED_CACHE_DIR/pip" 2>/dev/null; } || true
+fi
+
 # Only wire the shared cache when the tree is writable; otherwise keep per-user defaults.
 if [ -w "$SHARED_CACHE_DIR" ]; then
     export CORE_NODE_CACHE_DIR="$SHARED_CACHE_DIR"

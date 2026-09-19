@@ -76,10 +76,11 @@ echo "  python : $PYTHON"
 
 # --- 0) system-capacity / environment guard ------------------------------ #
 # Skip the heavy whisper install when it is not worth it:
-#   * (both)  total RAM < MIN_RAM_GB GB, OR total FREE disk < MIN_DISK_GB GB
-#   * (Linux) headless server (non-desktop) AND no CUDA GPU
+#   * total RAM < MIN_RAM_GB GB, OR total FREE disk < MIN_DISK_GB GB
 # Metrics that cannot be read are "unknown" and do NOT trigger a skip.
 # --force bypasses the whole guard.
+# CPU-only headless hosts are supported: openai-whisper runs on CPU
+# (official), and the model tier below already selects the CPU-sized model.
 RAM_GB="$(get_ram_gb)"
 DISK_GB="$(get_free_disk_gb)"
 echo "  ram    : ${RAM_GB:-?} GB"
@@ -92,11 +93,6 @@ if [[ "$FORCE" -eq 0 ]]; then
     if [[ ${#reasons[@]} -gt 0 ]]; then
         echo "[skip] System too small for whisper (${reasons[*]}); skipping install. Use --force to override."
         complete_prereq_step "$PYTHON" "[install_whisper] " --absent-ok "resource policy" whisper
-    fi
-    if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
-        echo "[skip] Headless server (non-desktop) with no CUDA GPU; skipping whisper install. Use --force to override."
-        complete_prereq_step "$PYTHON" "[install_whisper] " --absent-ok "headless CPU host" whisper
-        exit 0
     fi
 fi
 
@@ -141,7 +137,7 @@ fi
 if [[ "$WHISPER_READY" -eq 1 && -n "$MODEL" ]]; then
     echo "[..] Ensuring whisper model '$MODEL' is downloaded ..."
     _wh_cache="${WHISPER_CACHE_DIR:-${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/whisper}"
-    if install_whisper_model_weights "$MODEL" "$_wh_cache" "[install_whisper] "; then
+    if install_whisper_model_weights "$MODEL" "$_wh_cache" "[install_whisper] " "$PYTHON"; then
         echo "[OK] model '$MODEL' is ready."
         repo_root="$(pycore_repo_root_from_install_shells "$SCRIPT_DIR")"
         PYTHONPATH="$repo_root" "$PYTHON" -c "from pycore.pyutils.common.model_tiers import persist_stt_models; persist_stt_models(whisper='$MODEL')" 2>/dev/null || true

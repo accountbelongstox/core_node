@@ -24,7 +24,7 @@ TARGET_DIR="${VOXCPM2_DIR:-$CACHE_ROOT/pycore/voxcpm2}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
-WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.json,*.txt,*.model,*.vocab"
+WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.pth,*.json,*.txt,*.model,*.vocab,tokenization_voxcpm2.py"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -80,7 +80,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "voxcpm2"; then
     echo "[install_voxcpm2] [skip] Server environment without desktop and GPU detected. Skipping VoxCPM2 installation."
     complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "server CPU host"
     exit 0

@@ -122,7 +122,7 @@ echo "============================================================"
 echo " [install_cosyvoice] CosyVoice (multilingual clone TTS)"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "cosyvoice"; then
     echo "[install_cosyvoice] [skip] Server environment without desktop and GPU detected. Skipping CosyVoice installation."
     complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "server CPU host" torch
     exit 0

@@ -13,7 +13,7 @@ RUN apt-get update \
 
 WORKDIR /opt/fish-speech
 RUN git clone --depth 1 https://github.com/fishaudio/fish-speech.git .
-RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" torch==2.8.0 torchaudio==2.8.0 \
+RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" --extra-index-url https://pypi.org/simple/ torch==2.8.0 torchaudio==2.8.0 \
     && pip install --no-cache-dir -e .
 
 ENV FISHSPEECH_CHECKPOINT=/data/checkpoints/openaudio-s1-mini

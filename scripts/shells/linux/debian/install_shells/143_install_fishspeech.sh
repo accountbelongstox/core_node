@@ -102,7 +102,7 @@ echo "============================================================"
 echo " [install_fishspeech] Fish Speech / Fish Audio"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "fishspeech"; then
     echo "[install_fishspeech] [skip] Server environment without desktop and GPU detected. Skipping Fish Speech installation."
     complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "server CPU host"
     exit 0

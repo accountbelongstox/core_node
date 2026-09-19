@@ -121,7 +121,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "kokoro"; then
     echo "[install_kokoro] [skip] Server environment without desktop and GPU detected. Skipping Kokoro installation."
     complete_prereq_step "$PYTHON" "[install_kokoro] " --absent-ok "server CPU host" sherpa_onnx soundfile
     exit 0
