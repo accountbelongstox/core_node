@@ -3,7 +3,9 @@ Fish Speech / Fish Audio engine (local HTTP server or Fish Audio Python SDK).
 
 Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
   Python 3.10–3.12; git fishaudio/fish-speech or fish-audio-sdk (FISH_API_KEY).
-  GPU: openaudio-s1 checkpoint; CPU: openaudio-s1-mini or cloud SDK.
+  Default checkpoint: openaudio-s1-mini (public); openaudio-s1 is gated and
+  needs FISHSPEECH_CHECKPOINT=openaudio-s1 plus a license-accepted HF_TOKEN.
+  Cloud: fish-audio-sdk (FISH_API_KEY).
   Local: tools/api_server.py or fishspeech_api_server.py bridge.
 
 Local server (fish-speech tools/api_server.py):

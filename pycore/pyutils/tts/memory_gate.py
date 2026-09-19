@@ -15,9 +15,10 @@ Config:
 import os
 from typing import Optional, Tuple
 
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.third_party.api import (
     get_third_package_psutil,
-    get_third_package_torch,
 )
 from pycore.pyutils.common.model_tiers import gpu_present, runtime_engine_model
 
@@ -83,12 +84,26 @@ def _free_ram_bytes() -> Optional[int]:
 
 
 def _free_vram_bytes() -> Optional[int]:
+    """Free VRAM of the emptiest GPU via an nvidia-smi SUBPROCESS. Never torch
+    here: torch.cuda.mem_get_info() initializes the CUDA driver in THIS process,
+    so a faulting nvcuda64.dll kills the whole service with no traceback."""
     try:
-        torch = get_third_package_torch()
-        if torch is None or not torch.cuda.is_available():
+        smi = CUDADetector._nvidia_smi_cmd()
+        result = exec_silent(
+            [smi, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            info=False,
+        )
+        if result.return_code != 0:
             return None
-        free, _total = torch.cuda.mem_get_info()
-        return int(free)
+        free_mib = [
+            int(line.strip())
+            for line in (result.stdout or "").strip().splitlines()
+            if line.strip().isdigit()
+        ]
+        if not free_mib:
+            return None
+        # A model tier loads onto ONE device; the gate cares about the best case.
+        return max(free_mib) * _MB
     except Exception:  # noqa: BLE001
         return None
 
