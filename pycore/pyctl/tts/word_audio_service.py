@@ -290,7 +290,22 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
             return {"success": False, "error": "laravel endpoint not configured"}
         resp = laravel_client.post(_LARAVEL_UPLOAD, base_url=base, json=payload, timeout=_BATCH_TIMEOUT)
         if resp.status_code != 200:
-            return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict):
+                detail = dict(body)
+                detail.setdefault("success", False)
+                detail["http_status"] = resp.status_code
+                if not detail.get("error"):
+                    detail["error"] = detail.get("message") or f"HTTP {resp.status_code}"
+                return detail
+            return {
+                "success": False,
+                "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
+                "http_status": resp.status_code,
+            }
         try:
             return resp.json()
         except ValueError:

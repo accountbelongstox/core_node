@@ -3,6 +3,7 @@
 . (Join-Path $PSScriptRoot 'CudaIndex.ps1')
 . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
 . (Join-Path $PSScriptRoot 'TorchCpuGuard.ps1')
+. (Join-Path $PSScriptRoot 'NvidiaDriverUpgradeNoticeCommon.ps1')
 
 function Install-PycoreTorchStack {
     param(
@@ -29,4 +30,7 @@ function Install-PycoreTorchStack {
         }
     }
     Ensure-TorchBuild -PythonCmd $PythonExe -PipExe $pipExe
+    # Idempotent evidence-driven nvcuda crash notice; silently skips when the
+    # driver/crash state is unchanged or no NVIDIA GPU is present.
+    Invoke-NvidiaDriverUpgradeNotice -Prefix $Prefix
 }

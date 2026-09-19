@@ -265,6 +265,10 @@ def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
     env["PYTHONUNBUFFERED"] = "1"
+    # hf_xet (the Rust xet downloader used by huggingface_hub) has been seen
+    # hard-crashing its host process (BEX64) on Windows; plain HTTP chunk
+    # downloads are the stable path. setdefault so an explicit opt-out wins.
+    env.setdefault("HF_HUB_DISABLE_XET", "1")
     env.update(extra)
     return env
 

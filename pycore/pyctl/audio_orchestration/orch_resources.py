@@ -317,7 +317,15 @@ def _deliver_owned(record: Dict[str, Any], owner: str, progress_callback: Option
                 "cleaned_word": resource["text"],
                 "audio_base64": base64.b64encode(Path(claimed["audio_path"]).read_bytes()).decode("ascii"),
             }, base_url=record.get("base_url"))
-            if not receipt.get("success") or (receipt.get("data") or {}).get("status") not in ("stored", "exists"):
+            receipt_status = (receipt.get("data") or {}).get("status")
+            if receipt_status == "not_found":
+                # No dictionary row for this (lang, md5): fill-missing does not apply
+                # to arbitrary book tokens; terminal state, so the outbox does not
+                # retry-poison on a permanent 404.
+                ColorPrint.gray(
+                    f"[AudioOrch] delivery={delivery_id} word not in dictionary; no fill needed"
+                )
+            elif not receipt.get("success") or receipt_status not in ("stored", "exists"):
                 raise RuntimeError(str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete"))
     except Exception as error:
         audio_delivery_outbox.release(delivery_id, owner, error=str(error), retry_at=time.time() + audio_delivery_outbox.retry_delay(attempts, 5, 300))

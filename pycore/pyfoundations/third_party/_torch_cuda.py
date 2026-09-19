@@ -35,10 +35,16 @@ from pycore.pyfoundations.third_party._pip_runner import (
     run_pip_install_with_realtime_output,
 )
 
-try:
-    import torch
-except Exception:  # The installed binary may fail to load; startup must not reinstall it.
-    torch = None
+def _torch_module():
+    """Lazy torch import. Top-level imports of this module must NOT load torch:
+    api.py pulls this module into every pycore process, and torch's native DLLs
+    (torch_cpu.dll / nvcuda64.dll) crashing would kill the whole service with no
+    traceback. The install-time guards below are the only consumers."""
+    try:
+        import torch
+        return torch
+    except Exception:  # The installed binary may fail to load; startup must not reinstall it.
+        return None
 
 
 def _print_cuda_support_prompt():
@@ -77,6 +83,7 @@ def _ensure_torch_cpu_build_when_no_gpu():
     """Preserve an installed torch distribution; install-time guards own ABI changes."""
     if os.environ.get("TORCH_FORCE_CUDA") == "1":
         return
+    torch = _torch_module()
     if torch is None:
         return
     if getattr(torch.version, "cuda", None) is None:
@@ -163,6 +170,7 @@ def _ensure_torch_cuda_build_first():
     """Install torch only when absent; never mutate an installed runtime at startup."""
     _print_cuda_support_prompt()
     cuda_available = CUDADetector.is_cuda_available()
+    torch = _torch_module()
     if torch is not None:
         if cuda_available and not torch.cuda.is_available():
             ColorPrint.yellow(
