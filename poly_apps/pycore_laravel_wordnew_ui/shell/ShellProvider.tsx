@@ -22,6 +22,7 @@ function readClipboardState(): ShellClipboardState {
     collapsed: saved?.collapsed === true,
     expanded: saved?.expanded === true,
     namespace: new RegExp(CLOUD_CLIPBOARD.namespace_pattern).test(namespace) ? namespace : '',
+    tab: saved?.tab === 'prompts' ? 'prompts' : 'clipboard',
   };
 }
 

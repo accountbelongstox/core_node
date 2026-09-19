@@ -147,7 +147,7 @@ def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
         "min_raw_words", "openrouter_model",
         "live_listen", "phase", "video_enabled", "video_username",
         "video_batch_name", "video_concurrency",
-        "prompt_article_cn", "prompt_translate_en",
+        "prompt_article_cn", "prompt_translate_en", "prompt_derive_en",
     ):
         if key in patch:
             cfg[key] = patch[key]

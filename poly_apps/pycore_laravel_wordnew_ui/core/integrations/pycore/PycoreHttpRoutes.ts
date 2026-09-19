@@ -130,6 +130,7 @@ export const PYCORE_HTTP_ROUTES = {
   agentHistoryTestExtract: 'ui/agent_history/test_extract',
   agentHistoryLiveScan: 'ui/agent_history/live_scan',
   agentHistoryPromptCache: 'ui/agent_history/prompt_cache',
+  agentHistoryPromptDerived: 'ui/agent_history/prompt_derived',
   agentHistoryToolFragmentIdPages: 'ui/agent_history/tool_fragment_id_pages',
   agentHistoryToolFragmentPage: 'ui/agent_history/tool_fragment_page',
   translateStatus: 'ui/translate/status',

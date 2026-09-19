@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_record_store
 import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
+import pycore.pyctl.agent_history.prompt_derived_cache as prompt_derived_cache
 import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache
@@ -26,6 +27,10 @@ from pycore.pyctl.agent_history.pipeline.prompt_templates import prompt_defaults
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
+from pycore.pyctl.ai.prompt_derive import (
+    CONFIG_KEY_PROMPT_DERIVE_EN,
+    DEFAULT_PROMPT_DERIVE_EN_PROMPT,
+)
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 from pycore.pyutils.common.user_data_store import user_data_store
@@ -252,6 +257,20 @@ def prompt_cache(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": data}
 
 
+def prompt_derived(params: Any, _request_id: str) -> Dict[str, Any]:
+    """Paginated read over the AI-derived English prompt feed.
+
+    Pure read surface: the cache is written only by the Linux prompt-derive
+    watcher (see prompt_derived_cache module contract).
+    """
+    request = params if isinstance(params, dict) else {}
+    data = prompt_derived_cache.read_page(
+        int(request.get("page") or 1),
+        int(request.get("page_size") or request.get("pageSize") or 50),
+    )
+    return {"success": True, "data": data}
+
+
 def _fragment_cursor(config: Dict[str, Any], tool: str) -> Dict[str, Any]:
     cursor = get_tool_cursor(config, tool)
     target = get_tool_backfill_target(config, tool)
@@ -382,7 +401,10 @@ def _build_runtime() -> Dict[str, Any]:
         "data": {
             "article_config": config,
             "article_config_storage_path": str(user_data_store.path),
-            "article_prompt_defaults": prompt_defaults(),
+            "article_prompt_defaults": {
+                **prompt_defaults(),
+                CONFIG_KEY_PROMPT_DERIVE_EN: DEFAULT_PROMPT_DERIVE_EN_PROMPT,
+            },
             "article_summary": summary,
             "operation_snapshot": operation,
             "ai_dashboard": _agent_history_ai_dashboard(config),
@@ -511,4 +533,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "prompt_cache", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "prompt_cache", "prompt_derived", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]

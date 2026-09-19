@@ -32,6 +32,11 @@ const en = {
   invalidInput: 'Check the namespace, password, text size, or upload limits.', requestFailed: 'Cloud request failed. Your draft is kept; synchronization will retry.',
   fileFailed: 'Attachment could not be loaded.', fileLoading: 'Loading attachment…', retry: 'Retry',
   uploadLimit: 'Up to {{count}} files per upload, {{mb}} MB each.', unsaved: 'Your clipboard draft has not been saved.',
+  tabClipboard: 'Clipboard', tabPrompts: 'AI Prompts',
+  promptDerivedToastTitle: 'New prompt on Linux (Debian)',
+  openPromptPanel: 'Open panel', promptAgent: 'Agent', promptOriginal: 'Original', promptDerived: 'Derived (EN)',
+  promptDerivedHint: 'New prompts detected on the Linux host, derived into standard English by AI (OpenRouter free tier).',
+  promptDerivedEmpty: 'No derived prompts yet. New prompts detected on the Linux host appear here after AI derivation.',
 };
 const zh: typeof en = {
   toggleFloating: '切换悬浮剪贴板', collapse: '折叠剪贴板', expand: '展开剪贴板', close: '关闭剪贴板',
@@ -60,6 +65,11 @@ const zh: typeof en = {
   passwordRequired: '请输入剪贴板密码，其他浏览器可能已修改密码。', invalidInput: '请检查命名空间、密码、文本大小或上传限制。',
   requestFailed: '云端请求失败，草稿已保留，同步将重试。', fileFailed: '无法加载附件。', fileLoading: '正在加载附件…',
   retry: '重试', uploadLimit: '每次最多 {{count}} 个文件，每个不超过 {{mb}} MB。', unsaved: '剪贴板草稿尚未保存。',
+  tabClipboard: '剪贴板', tabPrompts: '提示词推导',
+  promptDerivedToastTitle: '当前 Linux（Debian）系统新提示词',
+  openPromptPanel: '打开面板', promptAgent: 'AGENT', promptOriginal: '原词', promptDerived: '推导英文',
+  promptDerivedHint: 'Linux 主机检测到的新提示词，经 AI（OpenRouter 免费额度）推导为标准英文。',
+  promptDerivedEmpty: '暂无推导记录。Linux 主机检测到新提示词并经 AI 推导后会显示在这里。',
 };
 
 i18n.addResourceBundle('en', 'cloudClipboard', en, true, true);

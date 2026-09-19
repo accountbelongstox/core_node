@@ -633,6 +633,37 @@ export interface AgentHistoryPromptCacheResponse {
   error?: string | null;
 }
 
+// --- AI-derived English prompt feed (Linux prompt-derive watcher) ---------- #
+// Mirrors prompt_derived_cache.py: one unified newest-first feed, written only
+// by the pycore prompt-derive service after a free-tier OpenRouter derivation;
+// pushed live via the agent_history.prompt.derived bus event (item payload).
+export interface AgentHistoryPromptDerivedItem {
+  id: string;
+  tool: string;
+  os_user: string;
+  session_id: string;
+  ts: number;
+  time: string;
+  source_text: string;
+  derived_text: string;
+  model?: string;
+  provider?: string;
+  derived_at?: string;
+}
+
+export interface AgentHistoryPromptDerivedResponse {
+  success: boolean;
+  data?: {
+    namespace: string;
+    total: number;
+    page: number;
+    page_count: number;
+    page_size: number;
+    items: AgentHistoryPromptDerivedItem[];
+  };
+  error?: string | null;
+}
+
 export interface AgentHistoryToolStatistics {
   tool: string;
   sessions: number;

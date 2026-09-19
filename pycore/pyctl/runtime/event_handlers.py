@@ -24,9 +24,11 @@ from pycore.pyutils.codesync.manager import get_code_sync_manager
 from pycore.pyctl.runtime.callmodule_config import Config
 import pycore.pylauncher.platform.system_service_manager as ssm
 from pycore.pyctl.ai.rate_reset_service import ai_rate_reset_service
+from pycore.pyctl.ai.probe_service import warm_startup_probe
 from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
+from pycore.pyctl.agent_history.prompt_derive_service import start_prompt_derive_service
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.relay import laravel_relay_agent_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
@@ -409,6 +411,7 @@ def register_runtime_workers() -> None:
     service_steps = (
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("agent_history", register_agent_history_extraction),
+        ("prompt_derive_service", start_prompt_derive_service),
     )
     if pyservice_mode_service.relay_enabled():
         service_steps = (
@@ -423,6 +426,16 @@ def register_runtime_workers() -> None:
             _RUNTIME_STEPS_COMPLETED.add(step_name)
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
+
+    # Startup AI availability probe: network-bound, so it runs on a background
+    # bus task; the result is cached for the whole process lifetime (task: the
+    # UI reads this cache and only re-probes after a pycore restart).
+    if "ai_probe_startup" not in _RUNTIME_STEPS_COMPLETED:
+        try:
+            start_bus_task(warm_startup_probe, thread_name="AiProbeStartupThread")
+            _RUNTIME_STEPS_COMPLETED.add("ai_probe_startup")
+        except Exception as exc:
+            ColorPrint.red(f"[EventHandlers] Runtime step ai_probe_startup failed: {exc}")
 
     # Agent-history extraction worker (backfill -> live article pipeline):
     # previously registered ONLY on the native_ui path (callmodule_main), so

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Film } from 'lucide-react';
+import { Film, Wand2 } from 'lucide-react';
 import {
   persistAgentHistoryArticleConfig,
   useAgentHistoryRuntime,
@@ -48,7 +48,6 @@ const PcAgentHistoryConfigPanel: React.FC<{
     operationSnapshot,
     configError,
     configStoragePath,
-    articlePromptDefaults,
     authoritative,
   } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
@@ -56,24 +55,12 @@ const PcAgentHistoryConfigPanel: React.FC<{
   const [enabled, setEnabled] = useState(false);
   const [minRawWords, setMinRawWords] = useState(200);
   const [enabledTools, setEnabledTools] = useState<string[]>(restoredEnabledTools);
-  const [promptsOpen, setPromptsOpen] = useState(false);
-  const [promptArticleCn, setPromptArticleCn] = useState('');
-  const [promptTranslateEn, setPromptTranslateEn] = useState('');
   const toolsHydrated = useRef(false);
-  const promptsDirty = useRef(false);
 
   useEffect(() => {
     if (!articleCfg) return;
     setEnabled(!!articleCfg.enabled);
     setMinRawWords(Number(articleCfg.min_raw_words || 200));
-    if (!promptsDirty.current) {
-      setPromptArticleCn(String(
-        articleCfg.prompt_article_cn || articlePromptDefaults?.prompt_article_cn || '',
-      ));
-      setPromptTranslateEn(String(
-        articleCfg.prompt_translate_en || articlePromptDefaults?.prompt_translate_en || '',
-      ));
-    }
     if (!authoritative) return;
     const tools = Array.isArray(articleCfg.enabled_tools)
       ? (articleCfg.enabled_tools as unknown[])
@@ -84,7 +71,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
     const initialHydration = !toolsHydrated.current;
     toolsHydrated.current = true;
     onEnabledToolsChange?.(tools, initialHydration);
-  }, [articleCfg, articlePromptDefaults, authoritative, onEnabledToolsChange]);
+  }, [articleCfg, authoritative, onEnabledToolsChange]);
 
   useEffect(() => {
     if (!authoritative) setEnabledTools(restoredEnabledTools);
@@ -129,12 +116,6 @@ const PcAgentHistoryConfigPanel: React.FC<{
   };
 
   const saveConfig = async () => {
-    const defaultCn = String(articlePromptDefaults?.prompt_article_cn || '').trim();
-    const defaultEn = String(articlePromptDefaults?.prompt_translate_en || '').trim();
-    const cnValue = promptArticleCn.trim();
-    const enValue = promptTranslateEn.trim();
-    // Storing a copy identical to the built-in default is pointless:
-    // an empty override falls back to the code default automatically.
     await persistConfig({
         extract_as_article: enabled,
         enabled,
@@ -143,17 +124,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
         min_raw_words: minRawWords,
         live_listen: true,
         enabled_tools: enabledTools,
-        prompt_article_cn: cnValue === defaultCn ? '' : promptArticleCn,
-        prompt_translate_en: enValue === defaultEn ? '' : promptTranslateEn,
     });
-    promptsDirty.current = false;
-  };
-
-  const resetPrompts = async () => {
-    promptsDirty.current = false;
-    setPromptArticleCn(String(articlePromptDefaults?.prompt_article_cn || ''));
-    setPromptTranslateEn(String(articlePromptDefaults?.prompt_translate_en || ''));
-    await persistConfig({ prompt_article_cn: '', prompt_translate_en: '' });
   };
 
   const handleToolToggle = (tool: string, checked: boolean) => {
@@ -266,64 +237,16 @@ const PcAgentHistoryConfigPanel: React.FC<{
             {tk('videoMovedToOrch')} → {tk('openAudioOrch')}
           </Link>
         </div>
-        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3 space-y-2">
-          <button
-            type="button"
-            onClick={() => setPromptsOpen((v) => !v)}
-            className="flex w-full items-center justify-between text-left"
+        {/* Pipeline prompt editing moved to AI → Capability → OpenRouter card
+            (PcAiProviderPromptsEditor) — single editor, same backend config. */}
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
+          <Link
+            to="/pycore-manager/ai?tab=capability"
+            className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-300 hover:underline"
           >
-            <span className="text-sm text-slate-700 dark:text-slate-200">{tk('promptsTitle')}</span>
-            <span className="text-[11px] text-slate-400">{promptsOpen ? '−' : '+'}</span>
-          </button>
-          {promptsOpen && (
-            <>
-              <p className="text-[11px] text-slate-500">{tk('promptOverrideHint')}</p>
-              <label className="block text-xs text-slate-500">
-                {tk('promptArticleCn')}
-                <textarea
-                  value={promptArticleCn}
-                  onChange={(event) => {
-                    promptsDirty.current = true;
-                    setPromptArticleCn(event.target.value);
-                  }}
-                  rows={8}
-                  spellCheck={false}
-                  className={`${inputCls} font-mono text-[11px] leading-relaxed`}
-                />
-              </label>
-              <label className="block text-xs text-slate-500">
-                {tk('promptTranslateEn')}
-                <textarea
-                  value={promptTranslateEn}
-                  onChange={(event) => {
-                    promptsDirty.current = true;
-                    setPromptTranslateEn(event.target.value);
-                  }}
-                  rows={8}
-                  spellCheck={false}
-                  className={`${inputCls} font-mono text-[11px] leading-relaxed`}
-                />
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void saveConfig()}
-                  disabled={busy}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-60"
-                >
-                  {tk('saveSettings')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void resetPrompts()}
-                  disabled={busy}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 dark:border-white/10"
-                >
-                  {tk('promptReset')}
-                </button>
-              </div>
-            </>
-          )}
+            <Wand2 className="w-3.5 h-3.5" />
+            {tk('promptsMovedToAi')} → {tk('openAiPage')}
+          </Link>
         </div>
         {configStoragePath && (
           <div className="truncate text-[10px] font-mono text-slate-400" title={configStoragePath}>

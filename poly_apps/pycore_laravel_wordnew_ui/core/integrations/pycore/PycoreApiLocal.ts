@@ -56,6 +56,7 @@ import type {
   AgentHistoryToolFragmentPageResponse,
   AgentHistoryLiveScanResponse,
   AgentHistoryPromptCacheResponse,
+  AgentHistoryPromptDerivedResponse,
 } from './PycoreSpeechTypes';
 import type {
   AutostartStatus,
@@ -321,6 +322,12 @@ export const pycoreApiLocal = {
       page: params.page ?? 1,
       page_size: params.pageSize ?? 50,
     }) as Promise<AgentHistoryPromptCacheResponse>,
+  /** Paginated read over the AI-derived English prompt feed (Linux watcher). */
+  getAgentHistoryPromptDerived: (params: { page?: number; pageSize?: number } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptDerived, {
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+    }) as Promise<AgentHistoryPromptDerivedResponse>,
   // --- Tool fragment panels (DIFF ID pages + lazy materialization) -------- #
   getAgentHistoryToolFragmentIdPages: (params: {
     tool: string; kind: AgentHistoryFragmentKind;

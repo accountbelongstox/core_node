@@ -16,11 +16,15 @@ export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 
 
 export type ThemeId = 'nexus' | 'pycore' | 'iris';
 
+export type ShellClipboardTab = 'clipboard' | 'prompts';
+
 export interface ShellClipboardState {
   open: boolean;
   collapsed: boolean;
   expanded: boolean;
   namespace: string;
+  /** Active panel tab: the cloud clipboard itself or the AI-derived prompt feed. */
+  tab: ShellClipboardTab;
 }
 
 /** Default theme applied automatically when an end is active (user can override). */

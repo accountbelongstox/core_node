@@ -7,23 +7,49 @@ Endpoints (prefix /api/local/ai):
   GET /balance[?provider=] -> balance_all()/balance_one(): account credit/balance
 
 Probing makes live network calls (list-models per provider) and can be slow.
-The result is cached for ~30s; ``?refresh=1`` forces a fresh probe. Unconfigured
-providers and providers on cooldown / over the local rate budget are skipped
-(no network) unless the UI explicitly tests one provider. The returned JSON
-matches the exact contract in pycore.pyctl.ai.ai_probe (UI depends on it).
+The all-provider result is probed ONCE at pycore startup and cached for the
+whole process lifetime (re-probed only after a restart); ``?refresh=1`` forces
+a fresh probe on demand. Every response carries ``boot_id`` (process start
+timestamp) so the UI can detect a pycore restart and drop its own frontend
+cache. Unconfigured providers and providers on cooldown / over the local rate
+budget are skipped (no network) unless the UI explicitly tests one provider.
+The returned JSON matches the exact contract in pycore.pyctl.ai.ai_probe
+(UI depends on it).
 """
 
 import time
+from datetime import datetime
 from typing import Optional
 
 from pycore.pyctl.ai.ai_probe import probe_all, probe_one
 from pycore.pyctl.ai.ai_balance import balance_all, balance_one
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_AI_PROBE_KEY,
     status_snapshot_cache,
 )
 
-_CACHE_TTL_SECONDS = 30.0
+# Process boot marker: the availability cache lives exactly one pycore
+# lifetime, so the boot timestamp doubles as the cache generation the UI
+# compares against its own frontend cache.
+BOOT_ID = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+_PROBE_CACHE_TTL_SECONDS = float("inf")
+
+
+def warm_startup_probe() -> None:
+    """Probe all providers once at startup and fill the process-lifetime cache.
+
+    Runs on a background bus task (network-bound); subsequent /probe reads are
+    served from the cache until the process restarts.
+    """
+    ColorPrint.blue("[AiProbe] startup availability probe started")
+    result = probe(refresh=1)
+    providers = result.get("providers") or []
+    available = sum(1 for item in providers if item.get("available"))
+    ColorPrint.green(
+        f"[AiProbe] startup availability cached boot_id={BOOT_ID} "
+        f"providers={len(providers)} available={available}"
+    )
 
 
 def probe(refresh: int = 0, provider: Optional[str] = None):
@@ -33,8 +59,9 @@ def probe(refresh: int = 0, provider: Optional[str] = None):
 
     - ``?provider=NAME`` tests ONE provider and returns that single record
       (used by the per-card "Test" button) — never cached.
-    - No ``provider`` tests them all (the "Test all" button); cached ~30s,
-      ``?refresh=1`` forces a fresh run. Carries 'cached' + 'age_ms' flags.
+    - No ``provider`` returns the process-lifetime startup cache (probed once
+      at boot); ``?refresh=1`` forces a fresh run. Carries 'cached' + 'age_ms'
+      + 'boot_id' flags.
     """
     if provider:
         # Single-provider test: always live, never cached.
@@ -53,7 +80,7 @@ def probe(refresh: int = 0, provider: Optional[str] = None):
     snapshot = status_snapshot_cache.get(
         STATUS_SNAPSHOT_AI_PROBE_KEY,
         load_probe,
-        ttl_seconds=_CACHE_TTL_SECONDS,
+        ttl_seconds=_PROBE_CACHE_TTL_SECONDS,
         stale_while_refresh=False,
     )
     result = snapshot.get("result") or {}
@@ -61,6 +88,7 @@ def probe(refresh: int = 0, provider: Optional[str] = None):
     out = dict(result) if isinstance(result, dict) else {}
     out["cached"] = not loaded_here
     out["age_ms"] = round(max(0.0, time.time() - completed_at) * 1000, 1)
+    out["boot_id"] = BOOT_ID
     return out
 
 
