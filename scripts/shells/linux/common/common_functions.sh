@@ -234,15 +234,17 @@ install_via_npm_from_common_functions() {
 
     print_step_from_common_functions "Installing $service_name via npm: $package"
 
-    if command -v npm >/dev/null 2>&1; then
+    local npm_cmd=""
+    npm_cmd="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
+    if [ -n "$npm_cmd" ]; then
         # Check if package is already installed globally
         print_step_from_common_functions "Checking if $package is already installed..."
-        if npm list -g "$package" >/dev/null 2>&1; then
+        if "$npm_cmd" list -g "$package" >/dev/null 2>&1; then
             print_success_from_common_functions "$package is already installed globally, skipping installation"
             return 0
         else
             print_step_from_common_functions "$package not found, installing..."
-            npm install -g "$package"
+            "$npm_cmd" install -g "$package"
             return $?
         fi
     else

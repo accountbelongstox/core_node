@@ -64,9 +64,9 @@ get_free_disk_gb() {
         END { if (sum > 0) printf "%d", sum/1024/1024 }'
 }
 
-# NVIDIA CUDA GPU usable through the shared policy helper.
+# NVIDIA GPU hardware present per the shared policy helper (driver-independent).
 has_cuda() {
-    gpu_present
+    gpu_hardware_present
 }
 
 echo "============================================================"

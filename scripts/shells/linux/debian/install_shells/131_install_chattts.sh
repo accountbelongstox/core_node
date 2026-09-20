@@ -104,7 +104,7 @@ cp -f "$API_SRC" "$API_DST"
 
 echo "[install_chattts]  staging : $TARGET_DIR"
 echo "[install_chattts]  weights : $WEIGHTS_DIR"
-echo "[install_chattts]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU only')"
+echo "[install_chattts]  compute : $(gpu_hardware_present && echo 'CUDA GPU' || echo 'CPU only')"
 
 if tts_dependencies_ready "$PYTHON" "chattts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     echo "[install_chattts] [OK] .deps_done present."

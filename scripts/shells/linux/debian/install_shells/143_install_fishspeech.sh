@@ -140,12 +140,12 @@ fi
 mkdir -p "$TARGET_DIR"
 
 echo "[install_fishspeech]  staging : $TARGET_DIR"
-echo "[install_fishspeech]  compute : $(gpu_present && echo 'CUDA GPU (torch CUDA wheel)' || echo 'CPU only')"
+echo "[install_fishspeech]  compute : $(gpu_hardware_present && echo 'CUDA GPU (torch CUDA wheel)' || echo 'CPU only')"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" fishspeech | while read -r _line; do
     echo "[install_fishspeech]  official env (fishspeech): $_line"
 done
 _ckpt_flag="--cpu"
-if gpu_present; then _ckpt_flag="--gpu"; fi
+if gpu_hardware_present; then _ckpt_flag="--gpu"; fi
 _fish_ckpt="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" fishspeech_checkpoint "$_ckpt_flag")"
 echo "[install_fishspeech]  checkpoint tier ($(echo "$_ckpt_flag" | tr -d '-')): $_fish_ckpt (download per https://speech.fish.audio/install/)"
 

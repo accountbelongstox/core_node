@@ -24,15 +24,12 @@ ocg_resolve_python() {
 }
 
 ocg_gpu_present_value() {
-    local nvidia_smi output present
-    nvidia_smi="$(command -v nvidia-smi 2>/dev/null)"
-    output=""
+    local present
     present=0
     if [[ "${TORCH_FORCE_CUDA:-0}" == "1" || "${OCG_FORCE_GPU:-0}" == "1" ]]; then
         present=1
-    elif [[ -n "$nvidia_smi" ]]; then
-        output="$("$nvidia_smi" -L 2>&1)"
-        [[ "$output" == GPU\ * ]] && present=1
+    elif gpu_hardware_present; then
+        present=1
     fi
     printf '%s' "$present"
 }

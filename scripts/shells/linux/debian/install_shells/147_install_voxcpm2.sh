@@ -113,7 +113,7 @@ fi
 mkdir -p "$TARGET_DIR"
 echo "[install_voxcpm2]  staging : $TARGET_DIR"
 echo "[install_voxcpm2]  weights : $WEIGHTS_DIR"
-echo "[install_voxcpm2]  compute : $(gpu_present && echo 'CUDA GPU (default)' || echo 'CPU only')"
+echo "[install_voxcpm2]  compute : $(gpu_hardware_present && echo 'CUDA GPU (default)' || echo 'CPU only')"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" voxcpm2 | while read -r _line; do
     echo "[install_voxcpm2]  official env (voxcpm2): $_line"
 done

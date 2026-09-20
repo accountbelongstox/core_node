@@ -35,16 +35,10 @@ QWEN_EXEC="qwen"
 QWEN_NPM_PACKAGE="@qwen-code/qwen-code"
 NPM_BIN_RESOLVED=""
 
-# Resolve npm: prefer the shared Node npm (lands in shared NODE_BIN_DIR for all users),
-# fall back to PATH. Returns the npm binary path or empty.
+# Resolve npm via the shared resolver: /usr/local/bin link first, then PATH,
+# the gvar constant, and the var-center NPM_BIN. Returns the path or empty.
 resolve_npm_bin() {
-    if [ -n "$NPM_BIN" ] && [ -x "$NPM_BIN" ]; then
-        echo "$NPM_BIN"
-    elif command -v npm >/dev/null 2>&1; then
-        command -v npm
-    else
-        echo ""
-    fi
+    resolve_tool_bin npm 2>/dev/null || true
 }
 
 echo "[$SCRIPT_INDEX] ============================================================"

@@ -155,34 +155,9 @@ version_ge() {
     return 0
 }
 
-read_environment_path() {
-    local env_path=""
-    if [ -f /etc/environment ]; then
-        env_path="$(awk -F= '/^PATH=/{gsub(/^"|"$/,"",$2); print $2; exit}' /etc/environment 2>/dev/null)"
-    fi
-    if [ -z "$env_path" ]; then
-        env_path="/usr/local/bin:/usr/bin:/bin"
-    fi
-    echo "$env_path"
-}
-
-ensure_path_entry() {
-    local entry="$1"
-    local env_path=""
-
-    if [ -z "$entry" ] || [ ! -d "$entry" ]; then
-        return
-    fi
-
-    env_path="$(read_environment_path)"
-    if [ "$(path_has_entry "$env_path" "$entry")" != "true" ]; then
-        set_env_and_var "PATH" "$entry:$env_path"
-    fi
-
-    if [ "$(path_has_entry "$PATH" "$entry")" != "true" ]; then
-        export PATH="$entry:$PATH"
-    fi
-}
+# read_environment_path / ensure_path_entry: single definition lives in
+# global_var_store.sh (sourced via gvar_common.sh) so every step script can
+# repair PATH idempotently.
 
 cleanup_environment_entries() {
     if [ ! -f /etc/environment ]; then
@@ -403,6 +378,28 @@ ensure_node_installation() {
     download_node_archive
     extract_node_archive
     install_node_tree
+
+    # Never fail silently: a missing binary here means the download or the
+    # extraction failed, and every later consumer (27/37/55/...) would break.
+    if [ ! -x "$NODE_BIN_PATH" ]; then
+        echo "[17] ERROR: Node.js $NODE_VERSION was NOT installed ($NODE_BIN_PATH missing)."
+        echo "[17] ERROR: Archive: $NODE_ARCHIVE_PATH"
+        echo "[17] ERROR: Download URLs tried: ${NODE_DOWNLOAD_URLS[*]}"
+        echo "[17] ERROR: Re-run this script to retry; downstream steps need node."
+    fi
+}
+
+# Share every installed tool's absolute path in the var center (<TOOL>_BIN) so
+# consumers running before env reload (first install, minimal PATH) resolve
+# binaries via resolve_tool_bin instead of a bare PATH lookup.
+register_toolchain_bins() {
+    register_tool_bin node "$NODE_BIN_PATH" || true
+    register_tool_bin npm "$NPM_BIN_PATH" || true
+    register_tool_bin npx "$NPX_BIN_PATH" || true
+    register_tool_bin corepack "$COREPACK_BIN_PATH" || true
+    register_tool_bin pnpm "$PNPM_BIN_PATH" || true
+    register_tool_bin yarn "$YARN_BIN_PATH" || true
+    register_tool_bin bun "$BUN_BIN_PATH" || true
 }
 
 ensure_link() {
@@ -809,6 +806,7 @@ else
     ensure_path_entry "$BUN_BIN_DIR"
     ensure_path_entry "/usr/local/bin"
     repair_permissions
+    register_toolchain_bins
     verify_installation
     print_exit_summary
 fi

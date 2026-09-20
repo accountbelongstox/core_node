@@ -35,22 +35,9 @@ INSTALLED_PNPM=""
 FALLBACK_REGISTRY="https://registry.npmmirror.com/"
 
 resolve_pnpm_binary_path() {
-    if [ -n "${PNPM_LINK:-}" ] && [ -x "$PNPM_LINK" ]; then
-        echo "$PNPM_LINK"
-        return
-    fi
-
-    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
-        echo "$PNPM_BIN"
-        return
-    fi
-
-    if [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
-        echo "$NODE_BIN_DIR/pnpm"
-        return
-    fi
-
-    command -v pnpm 2>/dev/null || true
+    # /usr/local/bin/pnpm first (17 links all tools there idempotently), then
+    # PATH, gvar constant, var center, toolchain tree.
+    resolve_tool_bin pnpm 2>/dev/null || true
 }
 
 resolve_pnpm_global_bin_dir() {
@@ -76,7 +63,7 @@ resolve_pnpm_global_bin_dir() {
     fi
 
     local fallback_pnpm_bin=""
-    fallback_pnpm_bin="$(command -v pnpm 2>/dev/null || true)"
+    fallback_pnpm_bin="$(resolve_tool_bin pnpm 2>/dev/null || true)"
     if [ -n "$fallback_pnpm_bin" ] && [ -x "$fallback_pnpm_bin" ]; then
         pnpm_global_bin_dir="$("$fallback_pnpm_bin" config get global-bin-dir 2>/dev/null || true)"
         if [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ]; then
@@ -327,6 +314,10 @@ EOF
         pnpm_global_dir_final="$(run_pnpm_with_absolute_path config get global-dir 2>/dev/null || true)"
         pnpm_global_bin_final="$(run_pnpm_with_absolute_path config get global-bin-dir 2>/dev/null || true)"
     fi
+    # Never let tool stderr ("Error: pnpm not found") land in the var center:
+    # only absolute paths that actually exist are persisted/exported.
+    case "$pnpm_global_dir_final" in /*) [ -d "$pnpm_global_dir_final" ] || pnpm_global_dir_final="" ;; *) pnpm_global_dir_final="" ;; esac
+    case "$pnpm_global_bin_final" in /*) [ -d "$pnpm_global_bin_final" ] || pnpm_global_bin_final="" ;; *) pnpm_global_bin_final="" ;; esac
     if [ -z "$pnpm_global_dir_final" ]; then
         pnpm_global_dir_final="$pnpm_global_dir_target"
     fi
@@ -408,11 +399,7 @@ bootstrap_pnpm() {
     fi
 
     echo "[$SCRIPT_INDEX] pnpm not found, installing via npm..."
-    if [ -n "${NPM_BIN:-}" ] && [ -x "$NPM_BIN" ]; then
-        npm_bin="$NPM_BIN"
-    elif command -v npm >/dev/null 2>&1; then
-        npm_bin="$(command -v npm 2>/dev/null || true)"
-    fi
+    npm_bin="$(resolve_tool_bin npm 2>/dev/null || true)"
 
     if [ -n "$npm_bin" ] && [ -x "$npm_bin" ]; then
         # No --ignore-scripts: pnpm's postinstall installs its native binary;
@@ -490,7 +477,13 @@ echo "[$SCRIPT_INDEX] Package mapping: $PACKAGES_JSON"
 # Always run: try to install/repair every listed package; ensure_package skips only when that package is already installed and linked.
 if [ -f "$CHECK_PACKAGES_SCRIPT" ]; then
     echo "[$SCRIPT_INDEX] Using Node.js script for package detection..."
-    MISSING_PACKAGES=$(node "$CHECK_PACKAGES_SCRIPT" check "$PACKAGES_JSON")
+    CHECK_NODE_BIN="$(resolve_tool_bin node 2>/dev/null || true)"
+    if [ -n "$CHECK_NODE_BIN" ]; then
+        MISSING_PACKAGES=$("$CHECK_NODE_BIN" "$CHECK_PACKAGES_SCRIPT" check "$PACKAGES_JSON")
+    else
+        echo "[$SCRIPT_INDEX] WARNING: node not found (PATH + var center); skipping script-based detection"
+        MISSING_PACKAGES=""
+    fi
     
     if [ -n "$MISSING_PACKAGES" ] && [ "$MISSING_PACKAGES" != "[]" ]; then
         echo "[$SCRIPT_INDEX] Missing packages detected: $MISSING_PACKAGES"

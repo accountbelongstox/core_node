@@ -105,7 +105,7 @@ if ! tts_engine_compatible "$PYTHON" "qwen3tts" "[install_qwen3tts] "; then
 fi
 
 mkdir -p "$TARGET_DIR"
-if gpu_present; then _gpu_flag="--gpu"; fi
+if gpu_hardware_present; then _gpu_flag="--gpu"; fi
 _qwen_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" qwen3tts_model "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" qwen3tts | while read -r _line; do
     echo "[install_qwen3tts]  official env (qwen3tts): $_line"

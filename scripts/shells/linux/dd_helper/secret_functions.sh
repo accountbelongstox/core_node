@@ -149,16 +149,12 @@ ensure_secret_keys_ready() {
     local bundle_needs_decrypt=false
     if [ "$has_batch_bundle" = true ]; then
         if ! "$node_cmd" "$bundle_file" show 2>/dev/null | grep -q "Password hint:"; then
-            if command -v node >/dev/null 2>&1; then
-                node_cmd="node"
-            elif command -v nodejs >/dev/null 2>&1; then
-                node_cmd="nodejs"
-            fi
+            node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
         fi
 
         local bundle_file_count=0
         if [ -n "$node_cmd" ]; then
-            bundle_file_count=$(node -e "
+            bundle_file_count=$("$node_cmd" -e "
                 const fs = require('fs');
                 const content = fs.readFileSync('$bundle_file', 'utf8');
                 const match = content.match(/const TOTAL_COUNT = (\d+);/);
@@ -234,13 +230,10 @@ ensure_secret_keys_ready() {
         node_cmd="$NODE_BIN"
         echo -e "\033[36m[SECRETS] Using Node.js from: $node_cmd\033[0m"
     else
-        # Try to find node in PATH
-        if command -v node >/dev/null 2>&1; then
-            node_cmd="node"
-            echo -e "\033[36m[SECRETS] Using Node.js from PATH: $(command -v node)\033[0m"
-        elif command -v nodejs >/dev/null 2>&1; then
-            node_cmd="nodejs"
-            echo -e "\033[36m[SECRETS] Using Node.js from PATH: $(command -v nodejs)\033[0m"
+        # /usr/local/bin link first, then PATH, gvar constant, var center
+        node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
+        if [ -n "$node_cmd" ]; then
+            echo -e "\033[36m[SECRETS] Using Node.js: $node_cmd\033[0m"
         else
             # Node.js not found - provide installation instructions
             echo -e "\033[31m[SECRETS] Node.js not found!\033[0m"
@@ -453,11 +446,8 @@ ensure_secret_keys_ready() {
         return 0
     fi
 
-    if command -v node >/dev/null 2>&1; then
-        node_cmd="node"
-    elif command -v nodejs >/dev/null 2>&1; then
-        node_cmd="nodejs"
-    else
+    node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
+    if [ -z "$node_cmd" ]; then
         echo -e "\033[31m[RE-ENCRYPT] Node.js not found!\033[0m"
         return 1
     fi

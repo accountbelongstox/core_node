@@ -457,6 +457,39 @@ set_env_and_var() {
     fi
 }
 
+# Read the persisted system PATH from /etc/environment (default when absent).
+read_environment_path() {
+    local env_path=""
+    if [ -f /etc/environment ]; then
+        env_path="$(awk -F= '/^PATH=/{gsub(/^"|"$/,"",$2); print $2; exit}' /etc/environment 2>/dev/null)"
+    fi
+    if [ -z "$env_path" ]; then
+        env_path="/usr/local/bin:/usr/bin:/bin"
+    fi
+    echo "$env_path"
+}
+
+# Idempotently add an entry to the /etc/environment PATH and the current
+# shell's PATH. Single definition (was local to 17_install_node_toolchain_26.sh;
+# other step scripts calling it got "ensure_path_entry: command not found").
+ensure_path_entry() {
+    local entry="$1"
+    local env_path=""
+
+    if [ -z "$entry" ] || [ ! -d "$entry" ]; then
+        return
+    fi
+
+    env_path="$(read_environment_path)"
+    if [ "$(path_has_entry "$env_path" "$entry")" != "true" ]; then
+        set_env_and_var "PATH" "$entry:$env_path"
+    fi
+
+    if [ "$(path_has_entry "$PATH" "$entry")" != "true" ]; then
+        export PATH="$entry:$PATH"
+    fi
+}
+
 # Set Puppeteer skip download globally by default.
 # gvar_common.sh is re-sourced many times across the script chain (every script, often
 # several times each via common_functions.sh / apt_repository_manager.sh), which used to

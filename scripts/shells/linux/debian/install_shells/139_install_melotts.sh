@@ -107,7 +107,7 @@ if ! PYTHON="$(resolve_python)"; then
     fail_prereq_step "$PYTHON" "$PREFIX"
 fi
 
-if gpu_present; then
+if gpu_hardware_present; then
     DEVICE="cuda:0"
     LANGUAGES="EN,ZH,JP,KR,ES,FR"
 fi

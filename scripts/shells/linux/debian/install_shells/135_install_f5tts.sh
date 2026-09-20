@@ -106,7 +106,7 @@ fi
 ensure_linux_audio_deps
 
 echo "[install_f5tts]  staging : $TARGET_DIR"
-echo "[install_f5tts]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU only')"
+echo "[install_f5tts]  compute : $(gpu_hardware_present && echo 'CUDA GPU' || echo 'CPU only')"
 
 if [[ -f "$REPO_MARKER" ]]; then
     echo "[install_f5tts] [OK] repo already present."

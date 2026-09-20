@@ -87,7 +87,7 @@ fi
 
 mkdir -p "$TARGET_DIR"
 _gpu_flag="--cpu"
-if gpu_present; then _gpu_flag="--gpu"; fi
+if gpu_hardware_present; then _gpu_flag="--gpu"; fi
 _bark_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" bark_model "$_gpu_flag")"
 # Download/readiness contract (single source: tts_model_tiers.HF_ALLOW['bark']).
 WEIGHT_ALLOW="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" bark_hf_allow "$_gpu_flag")"
@@ -100,7 +100,7 @@ tts_official_env_line "$PYTHON" "$SCRIPT_DIR" bark | while read -r _line; do
 done
 echo "[install_bark]  staging : $TARGET_DIR"
 echo "[install_bark]  weights : $WEIGHTS_DIR"
-echo "[install_bark]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU only')"
+echo "[install_bark]  compute : $(gpu_hardware_present && echo 'CUDA GPU' || echo 'CPU only')"
 echo "[install_bark]  model   : $_bark_model"
 echo "[install_bark]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 

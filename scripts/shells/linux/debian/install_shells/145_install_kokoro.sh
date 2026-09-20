@@ -150,12 +150,12 @@ fi
 
 echo "[install_kokoro]  model dir : $MODEL_DIR"
 _gpu_flag="--cpu"
-if command -v gpu_present >/dev/null 2>&1 && gpu_present; then _gpu_flag="--gpu"; fi
+if command -v gpu_hardware_present >/dev/null 2>&1 && gpu_hardware_present; then _gpu_flag="--gpu"; fi
 MODEL_URL="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" kokoro_url "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" kokoro | while read -r _line; do
     echo "[install_kokoro]  official env (kokoro): $_line"
 done
-echo "[install_kokoro]  compute   : $(command -v gpu_present >/dev/null 2>&1 && gpu_present && echo 'CUDA -> full Kokoro model' || echo 'CPU -> int8 Kokoro model')"
+echo "[install_kokoro]  compute   : $(command -v gpu_hardware_present >/dev/null 2>&1 && gpu_hardware_present && echo 'CUDA -> full Kokoro model' || echo 'CPU -> int8 Kokoro model')"
 echo "[install_kokoro]  model url : $MODEL_URL"
 
 if ! "$PYTHON" -m pip show sherpa-onnx soundfile 2>/dev/null | grep -qi '^Name: soundfile$'; then

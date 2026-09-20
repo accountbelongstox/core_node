@@ -65,18 +65,21 @@ fi
 SSH_KEY_NAME="id_ed25519"
 SSH_PUB_NAME="id_ed25519.pub"
 
-# Function to find Node.js executable
+# Function to find Node.js executable. PATH lookup first, then the var-center
+# fullpath (<TOOL>_BIN) registered by 17_install_node_toolchain_26.sh, then the
+# gvar constant / newest toolchain tree -- a first-install shell has no env yet.
 find_node_executable() {
-    if command -v node >/dev/null 2>&1; then
-        NODE_PATH=$(command -v node)
-        return 0
-    elif command -v nodejs >/dev/null 2>&1; then
-        NODE_PATH=$(command -v nodejs)
-        return 0
-    else
-        print_error_from_common_functions "Node.js not found. Please install Node.js first."
-        return 1
+    local resolved=""
+    resolved="$(resolve_tool_bin node 2>/dev/null || true)"
+    if [ -z "$resolved" ] && command -v nodejs >/dev/null 2>&1; then
+        resolved="$(command -v nodejs)"
     fi
+    if [ -n "$resolved" ]; then
+        NODE_PATH="$resolved"
+        return 0
+    fi
+    print_error_from_common_functions "Node.js not found. Please install Node.js first."
+    return 1
 }
 
 # Function to setup git environment - simplified version without dangerous path modifications

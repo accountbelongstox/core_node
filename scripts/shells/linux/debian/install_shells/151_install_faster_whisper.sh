@@ -138,9 +138,9 @@ get_free_disk_gb() {
         NR>1 && $1 !~ /^(tmpfs|devtmpfs|overlay|squashfs|none|udev|devfs|map.*)$/ { sum += $4 }
         END { if (sum > 0) printf "%d", sum/1024/1024 }'
 }
-# GPU detection from the canonical shared helper.
+# GPU hardware detection from the canonical shared helper (driver-independent).
 has_cuda() {
-    gpu_present
+    gpu_hardware_present
 }
 
 ctranslate_cuda_usable() {

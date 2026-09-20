@@ -137,13 +137,8 @@ install_via_npm() {
 
     echo -e "${BLUE}$SCRIPT_INDEX Installing $app_name via PNPM: $package_id${NC}"
 
-    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
-        pnpm_bin="$PNPM_BIN"
-    elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
-        pnpm_bin="$NODE_BIN_DIR/pnpm"
-    elif command -v pnpm >/dev/null 2>&1; then
-        pnpm_bin="$(command -v pnpm)"
-    else
+    pnpm_bin="$(resolve_tool_bin pnpm 2>/dev/null || true)"
+    if [ -z "$pnpm_bin" ]; then
         echo -e "${RED}$SCRIPT_INDEX pnpm not found. Run Node install script first.${NC}"
         return 1
     fi

@@ -75,11 +75,7 @@ validate_package_exists() {
             # Registry check via npm info when available; skip hard-fail if offline.
             log_install "Validating registry package: $package_id"
             local npm_info_bin=""
-            if [ -n "${NPM_BIN:-}" ] && [ -x "$NPM_BIN" ]; then
-                npm_info_bin="$NPM_BIN"
-            elif command -v npm >/dev/null 2>&1; then
-                npm_info_bin="$(command -v npm)"
-            fi
+            npm_info_bin="$(resolve_tool_bin npm 2>/dev/null || true)"
             if [ -n "$npm_info_bin" ] && "$npm_info_bin" info "$package_id" >/dev/null 2>&1; then
                 log_success "Package $package_id exists in registry"
                 return 0
@@ -519,9 +515,11 @@ universal_install() {
             # npm-installed global CLIs land in `npm prefix`/bin, which is often NOT
             # on PATH (e.g. /opt/_<os>/node/<ver>/bin), so a tool like auggie would be
             # "not found" even after a successful install. Add that dir to the search.
-            if command -v npm >/dev/null 2>&1; then
+            local npm_resolved_bin
+            npm_resolved_bin="$(resolve_tool_bin npm 2>/dev/null || true)"
+            if [ -n "$npm_resolved_bin" ]; then
                 local npm_prefix_bin
-                npm_prefix_bin="$(npm config get prefix 2>/dev/null)/bin"
+                npm_prefix_bin="$("$npm_resolved_bin" config get prefix 2>/dev/null)/bin"
                 [ -d "$npm_prefix_bin" ] && search_paths+=("$npm_prefix_bin/$exec_name")
             fi
 
@@ -531,8 +529,13 @@ universal_install() {
             if [ -z "$pnpm_global_bin_dir" ] && command -v get_var >/dev/null 2>&1; then
                 pnpm_global_bin_dir="$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null || true)"
             fi
-            if [ -z "$pnpm_global_bin_dir" ] && command -v pnpm >/dev/null 2>&1; then
-                pnpm_global_bin_dir="$(pnpm config get global-bin-dir 2>/dev/null || true)"
+            case "$pnpm_global_bin_dir" in /*) ;; *) pnpm_global_bin_dir="" ;; esac
+            if [ -z "$pnpm_global_bin_dir" ]; then
+                local pnpm_resolved_bin
+                pnpm_resolved_bin="$(resolve_tool_bin pnpm 2>/dev/null || true)"
+                if [ -n "$pnpm_resolved_bin" ]; then
+                    pnpm_global_bin_dir="$("$pnpm_resolved_bin" config get global-bin-dir 2>/dev/null || true)"
+                fi
             fi
             [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ] && search_paths+=("$pnpm_global_bin_dir/$exec_name")
 

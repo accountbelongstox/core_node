@@ -22,6 +22,17 @@ if [ "${GVAR_COMMON_LOADED:-false}" = "true" ]; then
 fi
 GVAR_COMMON_LOADED="true"
 
+# PATH normalization for every consumer of this hub: privileged helpers
+# (usermod, groupadd, chpasswd, visudo) and dpkg's own helpers (ldconfig,
+# start-stop-daemon) live in */sbin, but install-time shells frequently run
+# with a minimal PATH (cron, su without -, orchestrators). Without this, apt
+# emits "dpkg: warning: 'ldconfig' not found in PATH" and user tools fail with
+# "command not found". Idempotent.
+case ":$PATH:" in
+    *:/usr/sbin:*) ;;
+    *) PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"; export PATH ;;
+esac
+
 # Detect environment type
 CURRENT_USER=""
 DESKTOP_WINDOWS_MOUNT_PATH=""
@@ -260,16 +271,20 @@ map_web_path() {
     # Get optimal base directory
     data_base=$(get_base_data_directory)
 
-    # Determine the web base. The selected disk (a large/Windows-NTFS DATA disk, or
-    # root) is honored AS-IS so web data lives ON that disk: a Windows NTFS DATA disk
-    # is SHARED with Windows (Linux /mnt/<ntfs>/www == Windows D:\www). data_base of
-    # "/" or "/www" collapses to /www; anything else gets "<data_base>/www". There is
-    # NO production short-circuit and NO POSIX coercion: NTFS DATA disks are mounted
-    # uid=/gid= (3_setting_base.sh) so the login user owns the tree, and any residual
-    # chmod/chown failure on NTFS is tolerated. PostgreSQL is unaffected -- its data
-    # dir stays on native ext4 (pg_mount -> /var/lib/postgresql/d), not under www.
+    # Determine the web base. Cross-platform WWW alignment (single rule for the
+    # WWW_PATH var-center value): Windows uses D:\www, so the SAME logical tree
+    # on Linux is /www/www when a shared NTFS/data disk is present -- e.g. the
+    # cache dir is D:\www\cache on Windows and /www/www/cache on Linux.
+    # 3_setting_base.sh (ensure_www_base_mount) bind-mounts the selected disk
+    # root onto /www, so /www/www IS the disk's www dir and stays valid across
+    # device-node renames (/mnt/dev_* paths are unstable). A Linux-only machine
+    # (no disk selected, data_base collapses to root) uses /www directly.
+    # PostgreSQL is unaffected -- its data dir stays on native ext4
+    # (pg_mount -> /var/lib/postgresql/d), not under www.
     if [ "$IS_WSL" = true ]; then
         base_path="$data_base/www"
+    elif [ "$data_base" != "/" ] && [ "$data_base" != "/www" ] && [ -d /www/www ]; then
+        base_path="/www/www"
     else
         case "$data_base" in
             /|/www) base_path="/www" ;;
@@ -575,6 +590,85 @@ BUN_INSTALL_DIR="$COMPILE_DIR/bun"
 BUN_BIN_DIR="$BUN_INSTALL_DIR/bin"
 BUN_BIN="$BUN_BIN_DIR/bun"
 YARN_BIN="$NODE_BIN_DIR/yarn"
+
+# =============================================================================
+# Tool binary fullpath share (var center)
+# =============================================================================
+
+# Installers register the absolute path of every tool they install under
+# <TOOL>_BIN (node -> NODE_BIN, pnpm -> PNPM_BIN, ...). Consumers resolve
+# through resolve_tool_bin instead of a bare PATH lookup, so a script running
+# right after a first install -- before /etc/environment is reloaded, with a
+# minimal PATH -- still finds the real binary.
+
+# register_tool_bin <tool> <fullpath>: persist the fullpath in the var center.
+# Only executable paths are stored (an error string like "Error: pnpm not
+# found" must never land in the store); a repeated identical write is a no-op.
+register_tool_bin() {
+    local tool="$1"
+    local path="$2"
+    local var_name=""
+    local stored=""
+
+    [ -n "$tool" ] && [ -n "$path" ] && [ -x "$path" ] || return 1
+    var_name="$(echo "$tool" | tr 'a-z.-' 'A-Z__')_BIN"
+    stored="$(get_var "$var_name" "" 2>/dev/null)"
+    [ "$stored" = "$path" ] && return 0
+    set_var "$var_name" "$path" >/dev/null 2>&1 || true
+    return 0
+}
+
+# resolve_tool_bin <tool>: echo the absolute path of an executable tool.
+# Order: /usr/local/bin/<tool> (17_install_node_toolchain_26.sh links every
+# tool there idempotently, so it is the stable all-users entry) -> PATH ->
+# <TOOL>_BIN constant from this hub -> var-center persisted <TOOL>_BIN ->
+# newest versioned tree under $COMPILE_DIR (node) or the per-tool dir
+# ($COMPILE_DIR/<tool>/bin/<tool>: bun, go, ...).
+resolve_tool_bin() {
+    local tool="$1"
+    local var_name=""
+    local candidate=""
+    local versioned_dir=""
+
+    [ -n "$tool" ] || return 1
+
+    if [ -x "/usr/local/bin/$tool" ]; then
+        echo "/usr/local/bin/$tool"
+        return 0
+    fi
+
+    candidate="$(command -v "$tool" 2>/dev/null || true)"
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    var_name="$(echo "$tool" | tr 'a-z.-' 'A-Z__')_BIN"
+    candidate="${!var_name:-}"
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    candidate="$(get_var "$var_name" "" 2>/dev/null)"
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    if [ -n "${COMPILE_DIR:-}" ]; then
+        versioned_dir="$(ls -d "$COMPILE_DIR"/node/v*/bin 2>/dev/null | sort -V | tail -n1)"
+        if [ -n "$versioned_dir" ] && [ -x "$versioned_dir/$tool" ]; then
+            echo "$versioned_dir/$tool"
+            return 0
+        fi
+        if [ -x "$COMPILE_DIR/$tool/bin/$tool" ]; then
+            echo "$COMPILE_DIR/$tool/bin/$tool"
+            return 0
+        fi
+    fi
+    return 1
+}
 
 GO_DIR="$COMPILE_DIR/go"
 GO_BIN="$GO_DIR/bin/go"

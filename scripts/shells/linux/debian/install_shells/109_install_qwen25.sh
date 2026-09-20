@@ -93,11 +93,11 @@ install_dependencies() {
     print_info "Using Python command: $python_cmd"
     print_info "Note: Qwen2.5 requires transformers >= 4.37.0"
 
-    # GPU detection -- same logic as the canonical lib_gpu.sh / *_cpu_guard.sh helpers
-    # (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
+    # GPU detection -- hardware presence via the canonical lib_gpu.sh helper
+    # (driver-independent; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
     print_info "Checking for GPU availability..."
     local has_gpu=false
-    if gpu_present; then
+    if gpu_hardware_present; then
         has_gpu=true
     fi
     if [ "$has_gpu" = true ]; then

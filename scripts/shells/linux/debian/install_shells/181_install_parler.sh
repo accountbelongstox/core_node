@@ -79,7 +79,7 @@ fi
 
 mkdir -p "$TARGET_DIR"
 _gpu_flag="--cpu"
-if gpu_present; then _gpu_flag="--gpu"; fi
+if gpu_hardware_present; then _gpu_flag="--gpu"; fi
 _parler_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" parler_model "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" parler | while read -r _line; do
     echo "[install_parler]  official env (parler): $_line"

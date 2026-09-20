@@ -69,10 +69,17 @@ class CUDADetector:
     CUDA availability detector using only Python standard library.
 
     Does NOT require torch or any third-party packages.
+
+    Two presence levels (mirrors scripts/shells/linux/common/base_libs/lib_gpu.sh):
+    - is_cuda_available()        -> GPU usable NOW (driver loaded; runtime decisions)
+    - is_gpu_hardware_present()  -> NVIDIA GPU physically present (driver NOT
+      required; install-time wheel/model selection so a pre-driver or pre-reboot
+      host still gets the CUDA build)
     """
 
     _cached_result: Optional[bool] = None
     _cached_info: Optional[Dict[str, Any]] = None
+    _cached_hardware: Optional[bool] = None
 
     @classmethod
     def is_cuda_available(cls) -> bool:
@@ -138,6 +145,54 @@ class CUDADetector:
             return True
 
         return False
+
+    @classmethod
+    def is_gpu_hardware_present(cls) -> bool:
+        """True when an NVIDIA GPU is PHYSICALLY present (driver not required).
+
+        A freshly installed driver only works after reboot, so nvidia-smi alone
+        false-negatives on real GPU hosts and would lock wheel selection to CPU
+        builds forever. Linux: sysfs PCI scan (vendor 0x10de + display class
+        0x03xxxx), lspci fallback, /proc/driver/nvidia. Honors TORCH_FORCE_CUDA=1.
+        """
+        if cls._cached_hardware is not None:
+            return cls._cached_hardware
+        present = cls._detect_gpu_hardware()
+        cls._cached_hardware = present
+        return present
+
+    @classmethod
+    def _detect_gpu_hardware(cls) -> bool:
+        if os.environ.get("TORCH_FORCE_CUDA") == "1":
+            return True
+        if cls.is_cuda_available():
+            return True
+        if platform.system() != "Linux":
+            return False
+        try:
+            for dev in os.listdir("/sys/bus/pci/devices"):
+                try:
+                    with open(os.path.join("/sys/bus/pci/devices", dev, "vendor")) as fh:
+                        vendor = fh.read().strip()
+                    with open(os.path.join("/sys/bus/pci/devices", dev, "class")) as fh:
+                        dev_class = fh.read().strip()
+                except OSError:
+                    continue
+                if vendor == "0x10de" and dev_class.startswith("0x03"):
+                    return True
+        except OSError:
+            pass
+        lspci = shutil.which("lspci")
+        if lspci:
+            try:
+                result = exec_silent([lspci], info=False)
+                lines = (result.stdout or "").lower().splitlines()
+                display_lines = [l for l in lines if ("vga" in l or "3d" in l or "display" in l)]
+                if any("nvidia" in l for l in display_lines):
+                    return True
+            except Exception:
+                pass
+        return os.path.isdir("/proc/driver/nvidia")
 
     @classmethod
     def _nvidia_smi_cmd(cls) -> str:
@@ -246,6 +301,7 @@ class CUDADetector:
         """Reset cached detection results (use if CUDA state might have changed)."""
         cls._cached_result = None
         cls._cached_info = None
+        cls._cached_hardware = None
 
     @classmethod
     def print_cuda_info(cls):
@@ -282,6 +338,11 @@ class CUDADetector:
 def is_cuda_available() -> bool:
     """Check if CUDA is available."""
     return CUDADetector.is_cuda_available()
+
+
+def is_gpu_hardware_present() -> bool:
+    """Check if an NVIDIA GPU is physically present (driver not required)."""
+    return CUDADetector.is_gpu_hardware_present()
 
 
 def get_cuda_info() -> Dict[str, Any]:

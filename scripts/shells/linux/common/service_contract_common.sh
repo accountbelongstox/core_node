@@ -26,13 +26,17 @@
 SERVICE_CONTRACT_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_CONTRACT_FILE="$(cd "$SERVICE_CONTRACT_COMMON_DIR/../../../.." && pwd)/config/service_contract.json"
 
+# Absolute node path: /usr/local/bin link first, then PATH, gvar constant, var
+# center (install-time shells may run with a minimal PATH).
+SERVICE_CONTRACT_NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+
 # Print one value from the service contract. Usage: sc_get <dot.path>
 # (e.g. sc_get ports.laravel_api_backend). Empty output when the key or the
 # extractors are unavailable - callers treat empty as "contract unreadable".
 sc_get() {
     local key="$1"
-    if command -v node >/dev/null 2>&1; then
-        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(v==null?"":String(v));' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
+    if [ -n "$SERVICE_CONTRACT_NODE_BIN" ]; then
+        "$SERVICE_CONTRACT_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(v==null?"":String(v));' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
         return
     fi
     if command -v php >/dev/null 2>&1; then
@@ -44,8 +48,8 @@ sc_get() {
 
 sc_list() {
     local key="$1"
-    if command -v node >/dev/null 2>&1; then
-        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(Array.isArray(v)&&v.every(x=>typeof x==="string"&&x!=="")?v.join(" "):"");' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
+    if [ -n "$SERVICE_CONTRACT_NODE_BIN" ]; then
+        "$SERVICE_CONTRACT_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(Array.isArray(v)&&v.every(x=>typeof x==="string"&&x!=="")?v.join(" "):"");' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
     elif command -v php >/dev/null 2>&1; then
         SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php_script_run '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}echo is_array($c)&&count($c)>0&&count(array_filter($c,fn($v)=>!is_string($v)||$v===""))===0?implode(" ",$c):"";' 2>/dev/null
     fi

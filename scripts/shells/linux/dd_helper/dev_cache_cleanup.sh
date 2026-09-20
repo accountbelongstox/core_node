@@ -317,8 +317,10 @@ dev_cache_cleanup_prompt() {
 
     # npm
     echo -e "\033[37m[DEV CACHE] measuring npm cache...\033[0m"
-    if command -v npm >/dev/null 2>&1; then
-        npm_cache_dir="$(timeout 30 npm config get cache 2>/dev/null)"
+    local npm_cmd=""
+    npm_cmd="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
+    if [ -n "$npm_cmd" ]; then
+        npm_cache_dir="$(timeout 30 "$npm_cmd" config get cache 2>/dev/null)"
         [ -n "$npm_cache_dir" ] || npm_cache_dir="$HOME/.npm"
         if [ -d "$npm_cache_dir" ]; then
             size="$(_devcache_dir_size_mb "$npm_cache_dir")"

@@ -35,15 +35,11 @@ echo "[31] Selected Region: $SELECTED_REGION"
 SHELLS_SCRIPTS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")/scripts"
 CHECK_NPMRC_SCRIPT="$SHELLS_SCRIPTS_DIR/check_npmrc.js"
 
-# Resolve absolute tool paths: install-time shells may run with a minimal PATH,
-# so never rely on a bare pnpm/node/npm lookup. Prefer the gvar_common.sh
-# absolute paths, fall back to PATH.
-PNPM_CMD="${PNPM_BIN:-}"
-{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && PNPM_CMD="$(command -v pnpm 2>/dev/null || true)"
-NODE_CMD="${NODE_BIN:-}"
-{ [ -z "$NODE_CMD" ] || [ ! -x "$NODE_CMD" ]; } && NODE_CMD="$(command -v node 2>/dev/null || true)"
-NPM_CMD="${NPM_BIN:-}"
-{ [ -z "$NPM_CMD" ] || [ ! -x "$NPM_CMD" ]; } && NPM_CMD="$(command -v npm 2>/dev/null || true)"
+# Resolve absolute tool paths: /usr/local/bin links first, then PATH, gvar
+# constants, and the var-center <TOOL>_BIN (first install has no env yet).
+PNPM_CMD="$(resolve_tool_bin pnpm 2>/dev/null || true)"
+NODE_CMD="$(resolve_tool_bin node 2>/dev/null || true)"
+NPM_CMD="$(resolve_tool_bin npm 2>/dev/null || true)"
 
 configure_pnpm_global_dirs() {
     if [ -z "$PNPM_CMD" ]; then

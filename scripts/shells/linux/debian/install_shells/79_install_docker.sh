@@ -319,8 +319,7 @@ configure_docker_dns_mirror() {
 
     echo "[$SCRIPT_INDEX] Calling update_docker_dns_mirror.js with CLOUD_PROVIDER='$CLOUD_PROVIDER' SELECTED_REGION='$SELECTED_REGION'..."
     # Absolute path first: install-time shells may run with a minimal PATH.
-    NODE_CMD="${NODE_BIN:-}"
-    { [ -z "$NODE_CMD" ] || [ ! -x "$NODE_CMD" ]; } && NODE_CMD="$(command -v node 2>/dev/null || true)"
+    NODE_CMD="$(resolve_tool_bin node 2>/dev/null || true)"
     if [ -z "$NODE_CMD" ]; then
         echo "[$SCRIPT_INDEX] node not found. Run 17_install_node_toolchain_26.sh first. Skipping Docker DNS mirror update."
         return 0

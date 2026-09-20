@@ -58,17 +58,21 @@ test_admin_privileges() {
 }
 
 get_node_absolute_path() {
-    if [ -n "${NODE_BIN:-}" ] && [ -f "$NODE_BIN" ]; then
-        echo "$NODE_BIN"
+    # /usr/local/bin link first, then PATH, gvar constant, var center; the
+    # NODE_INSTALL_DIR find survives a version bump the constants miss.
+    local resolved=""
+    resolved="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+    if [ -n "$resolved" ]; then
+        echo "$resolved"
     elif [ -n "${NODE_INSTALL_DIR:-}" ] && [ -d "$NODE_INSTALL_DIR" ]; then
         local found_node=$(find "$NODE_INSTALL_DIR" -name "node" -type f -executable 2>/dev/null | head -n 1)
         if [ -n "$found_node" ]; then
             echo "$found_node"
         else
-            command -v node 2>/dev/null || echo "node"
+            echo "node"
         fi
     else
-        command -v node 2>/dev/null || echo "node"
+        echo "node"
     fi
 }
 

@@ -9,8 +9,8 @@
 # reappear after ANY of them runs - hence this guard is reused at key points.
 #
 # THE GUARD - ONE idempotent routine, safe to call on every boot / install step:
-#   GPU present  -> ensure torch installed (default/CUDA build); leave as-is.
-#   NO GPU       -> ensure torch is the CPU build; a CUDA build is reinstalled
+#   GPU hardware present -> ensure torch installed (policy-matched CUDA build).
+#   NO GPU hardware      -> ensure torch is the CPU build; a CUDA build is reinstalled
 #                   from the CPU index and every orphaned nvidia-* / triton wheel
 #                   is uninstalled to reclaim disk.
 #   Already correct -> no-op.
@@ -113,8 +113,15 @@ tcg_resolve_python() {
     return 1
 }
 
-# 0 if an NVIDIA GPU is usable (or forced via TORCH_FORCE_CUDA), 1 otherwise.
+# 0 if an NVIDIA GPU is physically present (or forced via TORCH_FORCE_CUDA), 1 otherwise.
+# Hardware-based (not nvidia-smi-only): a pre-driver / pre-reboot GPU host must still
+# receive the CUDA wheel build; the driver install (11_cuda_nvidia_prereq.sh) + reboot
+# make it usable. The "is it usable NOW" probe stays in tcg_probe_torch_cuda_usable.
 tcg_gpu_present() {
+    if type gpu_hardware_present >/dev/null 2>&1; then
+        gpu_hardware_present
+        return
+    fi
     [[ "${TORCH_FORCE_CUDA:-0}" == "1" ]] && return 0
     command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
 }

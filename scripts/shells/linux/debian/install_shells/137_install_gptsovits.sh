@@ -162,7 +162,7 @@ fi
 
 echo "[install_gptsovits]  staging : $TARGET_DIR"
 echo "[install_gptsovits]  models  : $MODELS_DIR"
-echo "[install_gptsovits]  compute : $(gpu_present && echo 'CUDA GPU -> GPU build + models' || echo 'CPU only -> CPU build')"
+echo "[install_gptsovits]  compute : $(gpu_hardware_present && echo 'CUDA GPU -> GPU build + models' || echo 'CPU only -> CPU build')"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" gptsovits | while read -r _line; do
     echo "[install_gptsovits]  official env (gptsovits): $_line"
 done
@@ -259,7 +259,7 @@ if [[ -f "$SENTINEL" && "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "pretrained models sentinel present"
 else
     if [[ -z "${GPTSOVITS_HF_ALLOW:-}" ]]; then
-        if gpu_present; then
+        if gpu_hardware_present; then
             export GPTSOVITS_HF_ALLOW="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" gptsovits_hf_allow --gpu)"
             echo "[install_gptsovits]  models: GPU max -> GPTSOVITS_HF_ALLOW=$GPTSOVITS_HF_ALLOW"
         else

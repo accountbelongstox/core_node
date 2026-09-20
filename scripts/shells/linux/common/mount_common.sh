@@ -716,3 +716,97 @@ mount_remount_to_target() {
     $MOUNT_USE_SUDO chmod 755 "$target_mount" 2>/dev/null || true
     return 0
 }
+
+# =============================================================================
+# /www canonical base convergence
+# =============================================================================
+
+# Converge the canonical /www path onto the storage selected by
+# get_base_data_directory() (gvar_storage_common.sh), idempotently:
+#   A) root filesystem only           -> /www is a plain directory on /
+#   B) root fs + one NTFS/data disk   -> /www bind-mounts the disk root when the
+#      disk has strictly more free space than / (get_base_data_directory decides)
+#   C) root fs + multiple disks       -> same as B; the largest-free disk wins
+# /www/programing/core_node (the project DefineVar center) is therefore valid on
+# every machine. fstab carries exactly one bind entry for /www so the mount
+# survives reboot; the bind is applied in real time. Identity is checked by
+# device:inode (not mount-table parsing), so re-runs are cheap no-ops.
+ensure_www_base_mount() {
+    local base_dir ntfs_count disk_note desired_id current_id entry
+    base_dir="$(get_base_data_directory 2>/dev/null)"
+    [ -n "$base_dir" ] || base_dir="/www"
+
+    ntfs_count="$($MOUNT_USE_SUDO blkid 2>/dev/null | grep -ci 'TYPE="ntfs"')"
+    [ -n "$ntfs_count" ] || ntfs_count=0
+    case "$ntfs_count" in
+        0) disk_note="A: root filesystem only" ;;
+        1) disk_note="B: root filesystem + one NTFS disk" ;;
+        *) disk_note="C: root filesystem + $ntfs_count NTFS disks (largest free wins)" ;;
+    esac
+    echo "$MOUNT_LOG_PREFIX Machine scan: $disk_note"
+    echo "$MOUNT_LOG_PREFIX Selected base data directory: $base_dir"
+
+    if [ "$base_dir" = "/www" ] || [ "$base_dir" = "/" ]; then
+        # Root filesystem wins: /www is a plain directory. Detach any stale bind
+        # left from a run where a disk used to win.
+        if mountpoint -q /www 2>/dev/null; then
+            echo "$MOUNT_LOG_PREFIX Root fs now wins; removing stale /www bind from fstab."
+            $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak 2>/dev/null || true
+            $MOUNT_USE_SUDO sed -i '\|[[:space:]]/www[[:space:]]|d' /etc/fstab 2>/dev/null || true
+            $MOUNT_USE_SUDO umount /www 2>/dev/null \
+                || echo "$MOUNT_LOG_PREFIX WARNING: /www busy; stale bind detaches on reboot."
+        fi
+        if [ ! -d /www ]; then
+            $MOUNT_USE_SUDO mkdir -p /www
+            echo "$MOUNT_LOG_PREFIX Created /www on root filesystem"
+        fi
+    else
+        # A disk base wins: bind the disk mount root onto /www so
+        # /www/programing/core_node resolves to the real checkout.
+        [ -d /www ] || $MOUNT_USE_SUDO mkdir -p /www
+        desired_id="$(stat -c '%d:%i' "$base_dir" 2>/dev/null)"
+        current_id="$(stat -c '%d:%i' /www 2>/dev/null)"
+        if [ -n "$desired_id" ] && [ "$current_id" = "$desired_id" ]; then
+            echo "$MOUNT_LOG_PREFIX /www already bound to $base_dir; skipping mount."
+        else
+            if mountpoint -q /www 2>/dev/null; then
+                echo "$MOUNT_LOG_PREFIX /www bound to a different source; rebinding to $base_dir"
+                if ! $MOUNT_USE_SUDO umount /www 2>/dev/null; then
+                    echo "$MOUNT_LOG_PREFIX WARNING: /www busy; keeping current bind until reboot."
+                    return 0
+                fi
+            elif [ -n "$(ls -A /www 2>/dev/null)" ]; then
+                echo "$MOUNT_LOG_PREFIX NOTE: /www has content on the root fs; it stays on disk at $base_dir and is hidden under the new bind."
+            fi
+            if $MOUNT_USE_SUDO mount --bind "$base_dir" /www 2>/dev/null; then
+                echo "$MOUNT_LOG_PREFIX Bound /www -> $base_dir"
+            else
+                echo "$MOUNT_LOG_PREFIX ERROR: Failed to bind /www to $base_dir"
+                return 1
+            fi
+        fi
+        # fstab: exactly one bind entry for /www (survives reboot). The sed
+        # pattern requires whitespace after /www, so /wwwroot lines never match.
+        entry="$base_dir /www none bind,nofail 0 0"
+        if ! grep -Fxq "$entry" /etc/fstab 2>/dev/null; then
+            $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak 2>/dev/null || true
+            $MOUNT_USE_SUDO sed -i '\|[[:space:]]/www[[:space:]]|d' /etc/fstab 2>/dev/null || true
+            echo "$entry" | $MOUNT_USE_SUDO tee -a /etc/fstab >/dev/null
+            echo "$MOUNT_LOG_PREFIX Added fstab entry: $entry"
+        fi
+        # The cross-platform WWW root (Windows D:\www == Linux /www/www) lives
+        # on the shared disk; create it so map_web_path can prefer the stable
+        # /www/www spelling over the device-bound "$base_dir/www".
+        if [ ! -d /www/www ]; then
+            $MOUNT_USE_SUDO mkdir -p /www/www 2>/dev/null || mkdir -p /www/www
+            echo "$MOUNT_LOG_PREFIX Created /www/www (shared web root on $base_dir)"
+        fi
+    fi
+
+    # Ensure the canonical project root exists through /www.
+    if [ ! -d /www/programing ]; then
+        $MOUNT_USE_SUDO mkdir -p /www/programing 2>/dev/null || mkdir -p /www/programing
+        echo "$MOUNT_LOG_PREFIX Created /www/programing"
+    fi
+    return 0
+}

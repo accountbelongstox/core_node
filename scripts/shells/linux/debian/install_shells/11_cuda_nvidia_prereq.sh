@@ -47,11 +47,44 @@ source "$CUDA_POLICY_LIB"
 cnp_have() { command -v "$1" >/dev/null 2>&1; }
 
 # 0 if an NVIDIA GPU is physically present (driver not required for detection).
+# Delegates to the ONE shared detector (base_libs/lib_gpu.sh via gvar_common.sh).
 cnp_gpu_present() {
-    if cnp_have nvidia-smi && nvidia-smi -L >/dev/null 2>&1; then return 0; fi
-    if cnp_have lspci && lspci 2>/dev/null | grep -iqE 'vga|3d|display' && lspci 2>/dev/null | grep -iq nvidia; then return 0; fi
-    [ -d /proc/driver/nvidia ] && return 0
-    return 1
+    gpu_hardware_present
+}
+
+# nvidia-driver lives in the non-free apt component (Debian/Kali). Enable
+# contrib/non-free/non-free-firmware idempotently (classic one-line sources.list
+# AND deb822 .sources, the Debian 13 default) when no candidate is visible.
+cnp_ensure_nonfree_components() {
+    local comp src changed=0
+    # apt-cache show can succeed on a pure referral entry with NO candidate; the
+    # policy Candidate line is the authoritative "is it installable" check.
+    if apt-cache policy nvidia-driver 2>/dev/null | grep -qE 'Candidate: [0-9]'; then return 0; fi
+    echo "[$SCRIPT_INDEX] nvidia-driver not visible; enabling contrib/non-free/non-free-firmware components..."
+    if cnp_have add-apt-repository; then
+        for comp in contrib non-free non-free-firmware; do
+            $USE_SUDO add-apt-repository -y "$comp" >/dev/null 2>&1 && changed=1 || true
+        done
+    fi
+    for src in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
+        [ -f "$src" ] || continue
+        $USE_SUDO sed -i -E '/^[[:space:]]*deb[[:space:]]/ {
+            /(^|[[:space:]])contrib([[:space:]]|$)/! s/$/ contrib/
+            /(^|[[:space:]])non-free-firmware([[:space:]]|$)/! s/$/ non-free-firmware/
+            /(^|[[:space:]])non-free([[:space:]]|$)/! s/$/ non-free/
+        }' "$src" && changed=1
+    done
+    for src in /etc/apt/sources.list.d/*.sources; do
+        [ -f "$src" ] || continue
+        $USE_SUDO sed -i -E '/^Components:/ {
+            /(^|[[:space:]])contrib([[:space:]]|$)/! s/$/ contrib/
+            /(^|[[:space:]])non-free-firmware([[:space:]]|$)/! s/$/ non-free-firmware/
+            /(^|[[:space:]])non-free([[:space:]]|$)/! s/$/ non-free/
+        }' "$src" && changed=1
+    done
+    if [ "$changed" -eq 1 ]; then
+        $USE_SUDO apt-get update || echo "[$SCRIPT_INDEX] WARN: apt-get update failed after component change."
+    fi
 }
 
 cnp_os_id() { [ -r /etc/os-release ] && (. /etc/os-release 2>/dev/null; echo "${ID:-}") || echo ""; }
@@ -83,6 +116,7 @@ else
         kali|debian)
             echo "[$SCRIPT_INDEX] Installing NVIDIA driver from the distro repo (nvidia-detect, nvidia-driver)..."
             echo "[$SCRIPT_INDEX] NOTE: requires the 'non-free'/'non-free-firmware' apt components; a REBOOT may be needed for the driver to load."
+            cnp_ensure_nonfree_components
             $USE_SUDO apt-get install -y nvidia-detect nvidia-driver \
                 || echo "[$SCRIPT_INDEX] WARN: nvidia-driver install failed (enable non-free repos, then re-run). Continuing to toolkit."
             ;;

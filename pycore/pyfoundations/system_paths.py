@@ -660,8 +660,18 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         distro_suffix = f'{distro_name}_{distro_version}' if distro_version else distro_name
         dev_base = _get_dev_compile_base(base_path, distro_suffix)
 
-        # Dedup: "/" or "/www" collapse to /www; any selected disk gets "<base>/www".
-        if str(base_path) in ('/', '/www'):
+        # Cross-platform WWW alignment (mirrors gvar_common.sh::map_web_path):
+        # Windows uses D:\www, so the SAME logical tree on Linux is /www/www when a
+        # shared NTFS/data disk is present -- 3_setting_base.sh bind-mounts the
+        # selected disk root onto /www, so /www/www IS the disk's www dir == D:\www
+        # (e.g. cache is D:\www\cache on Windows, /www/www/cache on Linux). A
+        # Linux-only machine (no disk selected, base collapses to root) uses /www.
+        # PostgreSQL is unaffected (pg_mount stays on native ext4).
+        if is_wsl():
+            www_base = base_path / 'www'
+        elif str(base_path) not in ('/', '/www') and Path('/www/www').is_dir():
+            www_base = Path('/www/www')
+        elif str(base_path) in ('/', '/www'):
             www_base = Path('/www')
         else:
             www_base = base_path / 'www'

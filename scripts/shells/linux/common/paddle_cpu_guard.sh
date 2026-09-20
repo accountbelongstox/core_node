@@ -7,8 +7,8 @@
 # install paths pull paddle transitively (paddleocr, paddlex), so this guard is
 # reused at key points - same policy as torch_cpu_guard.sh.
 #
-#   GPU present + driver usable -> paddlepaddle-gpu from driver-matched index.
-#   NO GPU                      -> paddlepaddle from the CPU index; uninstall GPU pkg.
+#   GPU hardware present -> paddlepaddle-gpu from the policy-matched index.
+#   NO GPU hardware      -> paddlepaddle from the CPU index; uninstall GPU pkg.
 #   Already correct             -> no-op.
 #
 # Safe to SOURCE (pcg_* functions) or RUN directly. Python 3.12/3.13 on
@@ -58,11 +58,13 @@ pcg_pip_sysflags() {
     printf '%s\n' "${flags[@]}"
 }
 
+# 0 if an NVIDIA GPU is physically present (driver not required), 1 otherwise.
+# Hardware-based so a pre-driver / pre-reboot GPU host still gets the GPU build.
 pcg_gpu_present() {
     if [[ "${PADDLE_FORCE_CUDA:-0}" == "1" ]]; then
-        TORCH_FORCE_CUDA=1 gpu_present
+        TORCH_FORCE_CUDA=1 gpu_hardware_present
     else
-        gpu_present
+        gpu_hardware_present
     fi
 }
 
