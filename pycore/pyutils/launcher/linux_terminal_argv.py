@@ -163,7 +163,9 @@ class LinuxTerminalArgv:
             return argv
 
         if emulator == "xterm":
-            argv = [emulator, "-title", title, "-geometry", geometry]
+            argv = [emulator] + list(self.XTERM_XRM_ARGS) + [
+                "-title", title, "-geometry", geometry,
+            ]
             if cmd:
                 argv += ["-e", "bash", "-lc", cmd]
             return argv
@@ -187,6 +189,8 @@ class LinuxTerminalArgv:
             return [emulator, "--"] + attach_cmd
         # konsole, qterminal, xterm and any fallback share the -e convention.
         # (qterminal: `qterminal -e <cmd...>`.)
+        if emulator == "xterm":
+            return [emulator] + list(self.XTERM_XRM_ARGS) + ["-e"] + attach_cmd
         return [emulator, "-e"] + attach_cmd
 
     # ------------------------------------------------------------------ #

@@ -697,3 +697,36 @@ add_to_global_path_from_common_functions() {
 # nginx/certbot/domain installers and every start-script context.
 # shellcheck source=/dev/null
 . "$COMMON_FUNCS_DIR/file_ops_common.sh"
+
+
+# ---------------------------------------------------------------------------
+# Terminal emulator candidates shared by the launcher prerequisite installer
+# (119_install_launcher.sh) and the "Window Launcher" shortcut installer
+# (193_install_terminal_grid_shortcut.sh), in preference order. Mirrors
+# pycore/pyutils/launcher/linux_terminal_argv.py FALLBACK_EMULATORS; kitty is
+# intentionally absent (its CLI has no -e convention; the launcher uses it only
+# for the paned-grid path).
+TERMINAL_EMULATOR_CANDIDATES=("xfce4-terminal" "gnome-terminal" "konsole" "qterminal" "xterm")
+
+# X resources that give xterm the clipboard mouse behavior its defaults lack:
+# select-to-copy straight into CLIPBOARD (not just PRIMARY) and right-click
+# paste (the stock Btn3 binding extends the selection instead). Mirrors
+# LinuxTerminalArgv.XTERM_XRM_ARGS; the \n inside the translations value must
+# stay a literal backslash-n pair (xrm parses it as the entry separator).
+XTERM_MOUSE_XRM_ARGS=(
+    -xrm "XTerm*selectToClipboard: true"
+    -xrm "XTerm*VT100.translations: #override ~Shift <Btn3Down>: ignore()\n~Shift <Btn3Up>: insert-selection(CLIPBOARD, PRIMARY)"
+)
+
+# Echo the first terminal emulator from TERMINAL_EMULATOR_CANDIDATES on PATH;
+# return 1 when none is present.
+find_terminal_emulator_from_common_functions() {
+    local emu
+    for emu in "${TERMINAL_EMULATOR_CANDIDATES[@]}"; do
+        if command -v "$emu" >/dev/null 2>&1; then
+            echo "$emu"
+            return 0
+        fi
+    done
+    return 1
+}

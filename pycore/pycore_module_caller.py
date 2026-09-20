@@ -67,6 +67,7 @@ apply_shared_cache_env()
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, build_tray_service_config
@@ -107,6 +108,11 @@ def main(
     """
     if service_mode is not None:
         pyservice_mode_service.configure(service_mode)
+    # Capture ALL logs from process start: before the RPC v2 server binds, the
+    # delivery service buffers them (bounded) and flushes into the SSE journal
+    # on first bind, so the UI log panel replays the full startup output in
+    # every run mode (foreground, --no-ui, systemd service-run via pyservice).
+    ColorPrint.register_callback(http_event_delivery_service.publish_log)
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Starting")
     ColorPrint.blue("=" * 70)

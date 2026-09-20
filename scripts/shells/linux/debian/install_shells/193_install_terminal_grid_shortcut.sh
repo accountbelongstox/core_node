@@ -11,8 +11,15 @@
 # Specification defines Terminal only as "the program runs in a terminal window"
 # and deliberately leaves emulator choice to the DE (GNOME/KDE/Xfce all differ);
 # the helper spawns a KNOWN emulator itself (xfce4-terminal > gnome-terminal >
-# konsole > qterminal > xterm, mirroring LinuxTerminalArgv.FALLBACK_EMULATORS),
+# konsole > qterminal > xterm, the central TERMINAL_EMULATOR_CANDIDATES list in
+# common_functions.sh, mirroring LinuxTerminalArgv.FALLBACK_EMULATORS),
 # so the menu renders identically on Debian / Ubuntu / Kali, X11 or Wayland.
+#
+# Clipboard mouse functions: xfce4-terminal gets copy-on-select +
+# right-click-paste via the real user's terminalrc (configure_terminal_mouse_functions);
+# xterm gets the same via X resources baked into the helper and into every
+# launcher-spawned xterm (LinuxTerminalArgv.XTERM_XRM_ARGS); gnome-terminal /
+# konsole / qterminal expose copy/paste through their own context menus.
 #
 # Apps are launched by the launcher itself from its config.json, resolved through
 # AppFinder's central-constant chain (shell gvar store -> compile_dir/applications
@@ -52,6 +59,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
 
 # Initialize global variables (sets USE_SUDO, etc.)
 init_global_vars
@@ -68,11 +76,19 @@ SHORTCUT_ID="window-launcher"
 SHORTCUT_NAME="Window Launcher"
 OLD_SHORTCUT_IDS=("pylauncher" "core-node-terminal-grid")
 OLD_HELPER_PATHS=("/usr/local/bin/core-node-terminal-grid")
-EMULATOR_CANDIDATES=("xfce4-terminal" "gnome-terminal" "konsole" "qterminal" "xterm")
+# Central emulator preference list (common_functions.sh), baked into the
+# generated helper at install time.
+EMULATOR_CANDIDATES=("${TERMINAL_EMULATOR_CANDIDATES[@]}")
 PYTHON_BIN=""
 SUDO=""
 OLD_ID=""
 EMULATOR=""
+REAL_USER_NAME=""
+REAL_USER_HOME=""
+XFCE_CFG_DIR=""
+XFCE_CFG=""
+XFCE_KV=""
+XFCE_KEY=""
 
 # Privilege prefix: prefer the gvar_common-provided USE_SUDO; else derive it.
 if [ -n "${USE_SUDO+x}" ]; then
@@ -118,6 +134,11 @@ write_launch_helper() {
 CORE_NODE_ROOT="${CORE_NODE_ROOT}"
 PYTHON_BIN="${PYTHON_BIN}"
 HELPER_PATH="${HELPER_PATH}"
+# Baked from common_functions.sh: central emulator preference list, plus the
+# xterm X resources that give it select-to-copy (CLIPBOARD) and right-click
+# paste (its stock defaults do neither).
+EMULATOR_CANDIDATES=(${EMULATOR_CANDIDATES[*]@Q})
+XTERM_MOUSE_XRM_ARGS=(${XTERM_MOUSE_XRM_ARGS[*]@Q})
 EOF
     # Body: literal logic (appended verbatim; references the vars baked above).
     $SUDO tee -a "$HELPER_PATH" >/dev/null <<'EOF'
@@ -129,7 +150,6 @@ EOF
 #   - --mode/--no-pause or no display: headless passthrough (autostart path;
 #     launcher.py auto-selects "both" when stdin is not a TTY).
 set -o pipefail
-EMULATOR_CANDIDATES=("xfce4-terminal" "gnome-terminal" "konsole" "qterminal" "xterm")
 HEADLESS=0
 EMULATOR=""
 
@@ -162,6 +182,7 @@ for EMULATOR in "${EMULATOR_CANDIDATES[@]}"; do
     case "$EMULATOR" in
         xfce4-terminal) exec "$EMULATOR" --command="bash -lc '$INNER_CMD'" ;;
         gnome-terminal) exec "$EMULATOR" -- bash -lc "$INNER_CMD" ;;
+        xterm)          exec "$EMULATOR" "${XTERM_MOUSE_XRM_ARGS[@]}" -e bash -lc "$INNER_CMD" ;;
         *)              exec "$EMULATOR" -e bash -lc "$INNER_CMD" ;;
     esac
 done
@@ -186,6 +207,39 @@ remove_old_artifacts() {
     for OLD_ID in "${OLD_HELPER_PATHS[@]}"; do
         [ -e "$OLD_ID" ] && { $SUDO rm -f "$OLD_ID" 2>/dev/null || true; }
     done
+}
+
+# Enable the clipboard mouse functions for xfce4-terminal (the first-choice
+# emulator) in the real user's terminalrc: copy-on-select (select-to-copy into
+# CLIPBOARD) and right-click paste. xterm gets the same behavior through the
+# baked X resources in the helper; gnome-terminal/konsole/qterminal provide
+# copy/paste through their own context menus. Unknown keys are ignored by older
+# xfce4-terminal. NON-FATAL.
+configure_terminal_mouse_functions() {
+    command -v xfce4-terminal >/dev/null 2>&1 || return 0
+    REAL_USER_HOME="$(get_real_user_home 2>/dev/null || true)"
+    [ -n "$REAL_USER_HOME" ] || return 0
+    XFCE_CFG_DIR="$REAL_USER_HOME/.config/xfce4/terminal"
+    XFCE_CFG="$XFCE_CFG_DIR/terminalrc"
+    mkdir -p "$XFCE_CFG_DIR" 2>/dev/null || return 0
+    if [ ! -f "$XFCE_CFG" ]; then
+        printf '[Configuration]\nMiscCopyOnSelect=TRUE\nMiscRightClickAction=paste\n' > "$XFCE_CFG" 2>/dev/null || return 0
+    else
+        grep -q '^\[Configuration\]' "$XFCE_CFG" || printf '\n[Configuration]\n' >> "$XFCE_CFG"
+        for XFCE_KV in "MiscCopyOnSelect=TRUE" "MiscRightClickAction=paste"; do
+            XFCE_KEY="${XFCE_KV%%=*}"
+            if grep -q "^${XFCE_KEY}=" "$XFCE_CFG"; then
+                sed -i "s|^${XFCE_KEY}=.*|${XFCE_KV}|" "$XFCE_CFG" 2>/dev/null || true
+            else
+                printf '%s\n' "$XFCE_KV" >> "$XFCE_CFG"
+            fi
+        done
+    fi
+    REAL_USER_NAME="$(get_real_user 2>/dev/null || true)"
+    if [ -n "$REAL_USER_NAME" ] && [ "$(id -u)" -eq 0 ] && [ "$REAL_USER_NAME" != "root" ]; then
+        chown -R "$REAL_USER_NAME:$REAL_USER_NAME" "$XFCE_CFG_DIR" 2>/dev/null || true
+    fi
+    echo "[grid] xfce4-terminal mouse functions enabled (copy-on-select, right-click paste): $XFCE_CFG"
 }
 
 # Create (or idempotently update) the cross-DE shortcut: app menu + every user's
@@ -229,6 +283,7 @@ main() {
     ensure_launcher_prerequisites
     remove_old_artifacts
     write_launch_helper
+    configure_terminal_mouse_functions
     create_grid_shortcut
 
     echo "[grid] Done. Launch from the application menu or the desktop icon: \"$SHORTCUT_NAME\"."
