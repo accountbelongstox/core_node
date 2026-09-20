@@ -723,9 +723,27 @@ _hf_download_file() {
     fi
     # --retry-all-errors covers connection drops (curl 56) that plain --retry
     # skips; --speed-limit aborts stalled transfers so the retry kicks in.
+    # curl -s is silent, so a multi-GB transfer looks frozen in no-TTY installer
+    # logs; run curl in the background and poll the output size for live progress.
     curl -fsS "$HF_CURL_REDIRECT_FLAG" -C - --retry 5 --retry-delay 2 --retry-all-errors \
         --connect-timeout 30 --speed-time 30 --speed-limit 1024 \
-        "${HF_CURL_AUTH_ARGS[@]}" -o "$out" "$url" || return 1
+        "${HF_CURL_AUTH_ARGS[@]}" -o "$out" "$url" &
+    local curl_pid=$!
+    local last_reported=-1
+    while kill -0 "$curl_pid" 2>/dev/null; do
+        sleep 10
+        have=0
+        [[ -f "$out" ]] && have="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
+        have="${have:-0}"
+        [[ "$have" == "$last_reported" ]] && continue
+        last_reported="$have"
+        if [[ "${expected:-0}" -gt 0 ]]; then
+            echo "${prefix}[download] ${name}: $((have / 1048576)) / $((expected / 1048576)) MB"
+        else
+            echo "${prefix}[download] ${name}: $((have / 1048576)) MB"
+        fi
+    done
+    wait "$curl_pid" || return 1
     if ! _hf_file_complete "$out" "${expected:-0}"; then
         return 1
     fi
