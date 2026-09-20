@@ -586,10 +586,13 @@ _git_config_as_user() {
     fi
 }
 
-# Idempotent git identity + safe.directory per target user. Identity is
-# auto-generated from the hostname when unset (name: "<hostname> dev",
-# email: "<hostname>@dev.com"); existing values are preserved. safe.directory
-# covers this repo so root can operate on a user-owned checkout.
+# Idempotent git identity, pull strategy + safe.directory per target user.
+# Identity is auto-generated from the OS name (SYSTEM_NAME, exported by
+# gvar_system_common.sh via gvar_common.sh) when unset: name "<system> dev",
+# email "<system>@dev.com"; existing values are preserved. pull.rebase is
+# pinned to false (merge). safe.directory covers the core_node project dir
+# (CORE_NODE_DIR from gvar_common.sh) so root can operate on a user-owned
+# checkout.
 ensure_git_identity_and_safedir() {
     local u=""
     local u_home=""
@@ -597,10 +600,12 @@ ensure_git_identity_and_safedir() {
     local git_email=""
     local name_cur=""
     local email_cur=""
+    local safe_dir=""
 
-    git_name="$(hostname 2>/dev/null || echo dev) dev"
-    git_email="$(hostname 2>/dev/null || echo dev)@dev.com"
+    git_name="${SYSTEM_NAME:-$(hostname 2>/dev/null || echo dev)} dev"
+    git_email="${SYSTEM_NAME:-$(hostname 2>/dev/null || echo dev)}@dev.com"
     git_email="$(echo "$git_email" | tr '[:upper:]' '[:lower:]')"
+    safe_dir="${CORE_NODE_DIR:-$PROJECT_ROOT}"
 
     while IFS= read -r u; do
         u_home="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
@@ -619,9 +624,14 @@ ensure_git_identity_and_safedir() {
             print_success_from_common_functions "git user.email set for $u: $git_email"
         fi
 
-        if ! _git_config_as_user "$u" --get-all safe.directory 2>/dev/null | grep -Fxq "$PROJECT_ROOT"; then
-            _git_config_as_user "$u" --add safe.directory "$PROJECT_ROOT" || true
-            print_success_from_common_functions "git safe.directory added for $u: $PROJECT_ROOT"
+        if [ "$(_git_config_as_user "$u" --get pull.rebase 2>/dev/null)" != "false" ]; then
+            _git_config_as_user "$u" pull.rebase false || true
+            print_success_from_common_functions "git pull.rebase=false (merge) set for $u"
+        fi
+
+        if ! _git_config_as_user "$u" --get-all safe.directory 2>/dev/null | grep -Fxq "$safe_dir"; then
+            _git_config_as_user "$u" --add safe.directory "$safe_dir" || true
+            print_success_from_common_functions "git safe.directory added for $u: $safe_dir"
         fi
     done < <(_git_ssh_target_users)
 

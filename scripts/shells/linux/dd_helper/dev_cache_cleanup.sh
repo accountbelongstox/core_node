@@ -86,12 +86,13 @@ _devcache_dir_size_mb() {
     echo "$mb"
 }
 
-# Prompt [N/y] (default No, auto-continues after 60s so unattended/terminal runs
-# never block forever); return 0 only when the user explicitly types y.
+# Prompt [N/y] (default No, auto-continues after DD_STARTUP_PROMPT_TIMEOUT seconds
+# via the shared prompt_read_default helper, so unattended/terminal runs never
+# block); return 0 only when the user explicitly types y.
 _devcache_confirm() {
     local prompt="$1"
     local answer=""
-    read -r -t 60 -p "$prompt [N/y, auto-N in 60s]: " answer || true
+    prompt_read_default answer "n" "${DD_STARTUP_PROMPT_TIMEOUT:-5}" "$prompt [N/y, auto-N in ${DD_STARTUP_PROMPT_TIMEOUT:-5}s]: "
     if [[ "$answer" =~ ^[Yy]$ ]]; then
         return 0
     fi

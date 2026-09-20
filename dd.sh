@@ -425,8 +425,7 @@ main() {
             echo -e "\033[32m[CACHE INFO] All directories ($total_dirs) have been processed recently (cache valid for 24h)\033[0m"
             echo -e "\033[33m[SMART CACHE] Cache will auto-check file modification times (only reprocess modified files)\033[0m"
             echo -e "\033[33m[SCAN OPTION] Skip directory scan? (recommended for faster startup)\033[0m"
-            read -p "Skip scan? [Y/n]: " -n 1 -r scan_choice
-            echo
+            prompt_read_default scan_choice "y" "${DD_STARTUP_PROMPT_TIMEOUT:-5}" "Skip scan? [Y/n, auto-Y in ${DD_STARTUP_PROMPT_TIMEOUT:-5}s]: "
             if [[ ! $scan_choice =~ ^[Nn]$ ]]; then
                 echo -e "\033[32m[SKIPPED] Directory scanning skipped (using smart cache)\033[0m"
                 skip_scan=true
