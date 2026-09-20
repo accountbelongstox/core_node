@@ -157,15 +157,18 @@ else
     install_pnpm_package "puppeteer-extra-plugin-recaptcha"
     install_pnpm_package "puppeteer-extra-plugin-block-resources"
 
-    # Apply rebrowser patches to puppeteer-core if installed
+    # Apply rebrowser patches only to a vanilla puppeteer-core install.
+    # rebrowser-puppeteer / rebrowser-puppeteer-core ship with the patches already
+    # applied (official drop-in replacements), so they must not be patched again.
+    # `pnpm list -g <pkg>` exits 0 even when the package is absent, so verify the
+    # package.json on disk instead of trusting the exit code.
     echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
-    if "$PNPM_CMD" list -g puppeteer-core >/dev/null 2>&1; then
+    pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
+    if [ -n "$pnpm_global_root" ] && [ -f "$pnpm_global_root/puppeteer-core/package.json" ]; then
         echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
-        pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
-        if [ -n "$pnpm_global_root" ] && [ -d "$pnpm_global_root" ]; then
-            target_dir="$(dirname "$pnpm_global_root")"
-            (cd "$target_dir" && "$PNPM_CMD" dlx rebrowser-patches@latest patch --packageName puppeteer-core) || true
-        fi
+        "$PNPM_CMD" dlx rebrowser-patches@latest patch --packagePath "$pnpm_global_root/puppeteer-core" || true
+    else
+        echo "[$SCRIPT_INDEX] No vanilla puppeteer-core found; rebrowser packages are pre-patched, skipping"
     fi
 
     echo "[$SCRIPT_INDEX] Puppeteer anti-detection plugins installation completed"
