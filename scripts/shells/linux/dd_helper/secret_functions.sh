@@ -437,7 +437,7 @@ ensure_secret_keys_ready() {
         use_batch_mode="no"
     fi
 
-    prompt_read_default encrypt_choice "no" "${DD_STARTUP_PROMPT_TIMEOUT:-5}" "Would you like to re-encrypt these files now? (yes/no) [auto-no in ${DD_STARTUP_PROMPT_TIMEOUT:-5}s]: "
+    prompt_read_default encrypt_choice "no" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "Would you like to re-encrypt these files now? (yes/no) [auto-no in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s]: "
 
     if [[ ! "$encrypt_choice" =~ ^[Yy](es)?$ ]]; then
         echo -e "\033[33mSkipping re-encryption. Files remain out of sync.\033[0m"

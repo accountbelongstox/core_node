@@ -72,4 +72,4 @@ source "$_DD_HELPER_COMMON_DIR/prompt_common.sh"
 
 # Startup prompt timeout (seconds): every dd.sh startup prompt auto-continues
 # with its documented default after this delay (auto-skip).
-DD_STARTUP_PROMPT_TIMEOUT="${DD_STARTUP_PROMPT_TIMEOUT:-5}"
+DD_STARTUP_PROMPT_TIMEOUT="${DD_STARTUP_PROMPT_TIMEOUT:-3}"

@@ -31,7 +31,7 @@ SCRIPT_INDEX="119"
 # Path setup and shared helpers (sourced before `set -u` so the shared files
 # do not have to be unset-variable safe). common_functions.sh provides the
 # central TERMINAL_EMULATOR_CANDIDATES list shared with
-# 193_install_terminal_grid_shortcut.sh.
+# 193_install_window_launcher_shortcut.sh.
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"

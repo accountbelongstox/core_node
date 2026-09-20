@@ -704,7 +704,7 @@ add_to_global_path_from_common_functions() {
 # ---------------------------------------------------------------------------
 # Terminal emulator candidates shared by the launcher prerequisite installer
 # (119_install_launcher.sh) and the "Window Launcher" shortcut installer
-# (193_install_terminal_grid_shortcut.sh), in preference order. Mirrors
+# (193_install_window_launcher_shortcut.sh), in preference order. Mirrors
 # pycore/pyutils/launcher/linux_terminal_argv.py FALLBACK_EMULATORS; kitty is
 # intentionally absent (its CLI has no -e convention; the launcher uses it only
 # for the paned-grid path).

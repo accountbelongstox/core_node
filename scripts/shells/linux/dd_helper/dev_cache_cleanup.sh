@@ -92,7 +92,7 @@ _devcache_dir_size_mb() {
 _devcache_confirm() {
     local prompt="$1"
     local answer=""
-    prompt_read_default answer "n" "${DD_STARTUP_PROMPT_TIMEOUT:-5}" "$prompt [N/y, auto-N in ${DD_STARTUP_PROMPT_TIMEOUT:-5}s]: "
+    prompt_read_default answer "n" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "$prompt [N/y, auto-N in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s]: "
     if [[ "$answer" =~ ^[Yy]$ ]]; then
         return 0
     fi
