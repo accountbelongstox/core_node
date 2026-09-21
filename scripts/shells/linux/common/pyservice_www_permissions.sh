@@ -16,8 +16,11 @@
 # the mapped tree to the real login user.
 #
 # Idempotency tiers:
-#   1. Every run: repair the bounded hot tree <www>/core_node (the pycore data
-#      root where the EACCES class occurs); skips instantly when already clean.
+#   1. Every run: ownership probe of the bounded hot tree <www>/core_node (the
+#      pycore data root where the EACCES class occurs); the full owner/mode-777
+#      policy repair runs only when a foreign-owned entry is found. Ownership
+#      alone is the probe criterion because the live worker rewrites its files
+#      with the process umask, so a strict mode-777 probe would never settle.
 #   2. Full tree: only when the per-user stamp is missing or the real user
 #      changed (force with PYSERVICE_WWW_PERM_FULL=1); runs in the background
 #      so a drifted 100GB+ NTFS tree never blocks service startup.
