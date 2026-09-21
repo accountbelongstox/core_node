@@ -662,6 +662,21 @@ if [ "$CODEMART_INIT" = "yes" ]; then
     "$PHP_BIN" artisan sys:codemartinit
 fi
 
+# --- Public-reachability probe before domain convergence (idempotent): the
+# interface-based classifier reads a 1:1-NAT VPS as "LAN"; 9_fix_dns.sh
+# --detect-public-ip proves inbound-80 reachability ONCE and caches
+# HAS_PUBLIC_IP/PUBLIC_IP in the global-var store. A cached/confirmed public
+# server forces the domain plane into server mode (public certificates via
+# DNS-01) instead of the LAN mkcert fallback. The probe only ever runs (and
+# only briefly interrupts port 80) while the constant is absent. ---
+if [ "$DOMAIN_SCOPE" != "none" ] && [ -f "$PUBLIC_IP_PROBE_SCRIPT" ]; then
+    bash "$PUBLIC_IP_PROBE_SCRIPT" --detect-public-ip || true
+    if [ "$(get_var HAS_PUBLIC_IP "")" = "yes" ]; then
+        export DOMAIN_SETUP_NET_MODE="server"
+        echo "Public reachability confirmed (HAS_PUBLIC_IP=yes, PUBLIC_IP=$(get_var PUBLIC_IP "")); domain plane forced to server mode."
+    fi
+fi
+
 # --- Plane-specific web/domain phases (merged 132_prepare_domain_setup +
 # 133_setup_domain_ssl behaviour): dispatched per plane, idempotent and
 # prompt-driven repair/upgrade on the nginx plane; DNS-01 readiness (no
