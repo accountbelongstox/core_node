@@ -332,17 +332,26 @@ class PathMapper
         return '';
     }
 
-    /** True when /www is the ROOT of a mounted NTFS/data disk (the Windows D:\
-     * root on a dual-boot machine, bound there by 3_setting_base.sh). Then the
-     * SAME logical tree gains ONE EXTRA LEVEL on Linux:
+    /** True when /www is the ROOT of a mounted NTFS dual-boot disk (the Windows
+     * D:\ root on a dual-boot machine, bound there by 3_setting_base.sh). Then
+     * the SAME logical tree gains ONE EXTRA LEVEL on Linux:
      *   Windows D:\www == Linux /www/www  (NOT /www).
-     * On a Linux-only machine /www is a plain native dir (same device as /) and
-     * there is NO extra level. SINGLE Laravel definition; the shell twin lives
-     * ONCE in runtime_environment.sh (CORE_NODE_WWW_BASE) and the pycore twin
+     * On a Linux-only machine /www is a plain native dir (same device as /) or
+     * a native ext4/xfs data-disk mount and there is NO extra level -- the
+     * extra level exists ONLY for the NTFS dual-boot share, so the /www
+     * mount's fstype MUST be NTFS-family (ntfs/ntfs3/fuseblk/ntfs-3g;
+     * bind-mounts of an NTFS root report the source fstype). A distinct
+     * non-NTFS /www device never triggers it.
+     * SINGLE Laravel definition; the shell twin lives ONCE in
+     * runtime_environment.sh (CORE_NODE_WWW_BASE) and the pycore twin
      * in core_node_dirs.www_data_root_mounted (system_paths.py delegates). */
     private static function wwwNtfsRootMounted(): bool
     {
         if (!is_dir('/www/www')) {
+            return false;
+        }
+        $fsWww = (string) strtok(self::shellTrim('findmnt -n -o FSTYPE --target /www'), "\r\n");
+        if (!in_array($fsWww, ['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'], true)) {
             return false;
         }
         $srcWww = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target /www'), "\r\n");

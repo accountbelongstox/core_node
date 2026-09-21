@@ -39,6 +39,7 @@ from pycore.pyfoundations.system_info import (
 )
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.core_node_dirs import (
+    NTFS_FSTYPES as _NTFS_FSTYPES,
     get_core_node_data_dir as _get_core_node_data_dir,
     read_global_var as _read_global_var_center,
     www_data_root_mounted as _www_data_root_mounted,
@@ -439,13 +440,15 @@ def _read_persisted_var(key: str) -> str:
 
 
 def _www_ntfs_root_mounted() -> bool:
-    r"""True when /www is the ROOT of a mounted NTFS/data disk (the Windows D:\
-    root on a dual-boot machine, bound there by 3_setting_base.sh). Then the
-    SAME logical tree gains ONE EXTRA LEVEL on Linux:
+    r"""True when /www is the ROOT of a mounted NTFS dual-boot disk (the
+    Windows D:\ root on a dual-boot machine, bound there by 3_setting_base.sh).
+    Then the SAME logical tree gains ONE EXTRA LEVEL on Linux:
         Windows D:\www  ==  Linux /www/www      (NOT /www)
         Windows D:\www\cache  ==  Linux /www/www/cache
-    On a Linux-only machine /www is a plain native dir (same device as /) and
-    there is NO extra level -- native paths are used directly.
+    On a Linux-only machine /www is a plain native dir (same device as /) or a
+    native ext4/xfs data-disk mount and there is NO extra level -- the extra
+    level exists ONLY for the NTFS share, so the detection requires an
+    NTFS-family fstype at /www (a distinct non-NTFS /www device never counts).
     The detection itself lives ONCE in core_node_dirs.www_data_root_mounted
     (single pycore definition; mirrors runtime_environment.sh
     CORE_NODE_WWW_BASE and PathMapper.php::wwwNtfsRootMounted).
@@ -488,16 +491,17 @@ def _run_cmd(args: List[str]) -> str:
 
 
 def _iter_ntfs_mount_points() -> List[str]:
-    """Mount points of every mounted NTFS volume (ntfs3 kernel driver or
-    ntfs-3g FUSE, which reports fstype fuseblk). Bind-mounts of an NTFS root
-    (e.g. 3_setting_base.sh binding the Windows D:\\ root at /www) appear here
-    with the source filesystem type, so they are covered too."""
+    """Mount points of every mounted NTFS volume (fstypes in
+    core_node_dirs.NTFS_FSTYPES: ntfs3 kernel driver or ntfs-3g FUSE, which
+    reports fuseblk). Bind-mounts of an NTFS root (e.g. 3_setting_base.sh
+    binding the Windows D:\\ root at /www) appear here with the source
+    filesystem type, so they are covered too."""
     points: List[str] = []
     try:
         with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
             for line in handle:
                 parts = line.split()
-                if len(parts) >= 3 and parts[2] in ('ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'):
+                if len(parts) >= 3 and parts[2] in _NTFS_FSTYPES:
                     points.append(parts[1].replace('\\040', ' '))
     except OSError:
         pass
@@ -781,12 +785,14 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         dev_base = _get_dev_compile_base(base_path, distro_suffix)
 
         # Cross-platform WWW alignment (mirrors gvar_common.sh::map_web_path):
-        # Windows uses D:\www, so the SAME logical tree on Linux is /www/www when a
-        # shared NTFS/data disk is present -- 3_setting_base.sh bind-mounts the
-        # selected disk root onto /www, so /www/www IS the disk's www dir == D:\www
-        # (e.g. cache is D:\www\cache on Windows, /www/www/cache on Linux; ONE
-        # EXTRA LEVEL because /www == D:\ root). A Linux-only machine (/www a
-        # plain native dir) uses /www directly -- no extra level.
+        # Windows uses D:\www, so the SAME logical tree on Linux is /www/www
+        # when /www is the mounted NTFS dual-boot disk root -- 3_setting_base.sh
+        # bind-mounts that disk root onto /www, so /www/www IS the disk's www
+        # dir == D:\www (e.g. cache is D:\www\cache on Windows, /www/www/cache
+        # on Linux; ONE EXTRA LEVEL because /www == D:\ root). The extra level
+        # exists ONLY for the NTFS share: _www_ntfs_root_mounted() requires an
+        # NTFS-family fstype, so a Linux-only machine -- /www a plain native
+        # dir OR a native ext4/xfs data-disk mount -- uses /www directly.
         # Priority: the persisted WWW_PATH central variable (single source of
         # truth) -> live NTFS-root-mount detection -> legacy base_path rule.
         # PostgreSQL is unaffected (pg_mount stays on native ext4).
@@ -797,8 +803,6 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             if www_path_var and Path(www_path_var).is_dir():
                 www_base = Path(www_path_var)
             elif _www_ntfs_root_mounted():
-                www_base = Path('/www/www')
-            elif str(base_path) not in ('/', '/www') and Path('/www/www').is_dir():
                 www_base = Path('/www/www')
             elif str(base_path) in ('/', '/www'):
                 www_base = Path('/www')

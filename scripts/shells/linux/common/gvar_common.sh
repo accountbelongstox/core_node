@@ -257,15 +257,17 @@ source "$GVAR_SYSTEM_COMMON_SCRIPT"
 
 source "$GVAR_STORAGE_COMMON_SCRIPT"
 
-# True when /www is the ROOT of a mounted NTFS/data disk (the Windows D:\ root
-# on a dual-boot machine, bound there by mount_common.sh/3_setting_base.sh). In
-# that case the SAME logical tree gains ONE EXTRA LEVEL on Linux:
+# True when /www is the ROOT of a mounted NTFS dual-boot disk (the Windows D:\
+# root on a dual-boot machine, bound there by mount_common.sh/3_setting_base.sh).
+# In that case the SAME logical tree gains ONE EXTRA LEVEL on Linux:
 #   Windows D:\www  ==  Linux /www/www      (NOT /www)
 #   Windows D:\www\cache  ==  Linux /www/www/cache
-# When /www is a plain directory on the native Linux filesystem (Linux-only
-# machine), there is NO extra level: /www itself is the D:\www equivalent and
-# native paths are used directly. The detection itself lives ONCE in
-# runtime_environment.sh (which computes CORE_NODE_WWW_BASE); this function is
+# When /www is a plain directory on the native Linux filesystem OR a native
+# ext4/xfs data-disk mount (Linux-only machine), there is NO extra level: /www
+# itself is the D:\www equivalent and native paths are used directly -- the
+# extra level exists ONLY for the NTFS share, so runtime_environment.sh gates
+# CORE_NODE_WWW_BASE on an NTFS-family fstype (ntfs/ntfs3/fuseblk/ntfs-3g).
+# The detection itself lives ONCE in runtime_environment.sh; this function is
 # a thin reader of that single source of truth.
 # SYNC WARNING: consumers also exist in system_paths.py (delegates to
 # core_node_dirs.www_data_root_mounted) and PathMapper.php::mapWebPath.
@@ -289,14 +291,16 @@ map_web_path() {
 
     # Determine the web base. Cross-platform WWW alignment (single rule for the
     # WWW_PATH var-center value): Windows uses D:\www, so the SAME logical tree
-    # on Linux is /www/www when a shared NTFS/data disk is present -- e.g. the
-    # cache dir is D:\www\cache on Windows and /www/www/cache on Linux (ONE
+    # on Linux is /www/www when a shared NTFS dual-boot disk is present -- e.g.
+    # the cache dir is D:\www\cache on Windows and /www/www/cache on Linux (ONE
     # EXTRA LEVEL: the disk ROOT is mounted at /www, so /www == D:\ and
     # /www/www == D:\www). 3_setting_base.sh (ensure_www_base_mount) bind-mounts
     # the selected disk root onto /www, so /www/www IS the disk's www dir and
     # stays valid across device-node renames (/mnt/dev_* paths are unstable).
-    # A Linux-only machine (/www a plain native dir, no disk root mounted)
-    # uses /www directly -- no extra level.
+    # The extra level exists ONLY for the NTFS dual-boot share
+    # (www_ntfs_root_mounted requires an NTFS-family fstype at /www): a
+    # Linux-only machine -- /www a plain native dir OR a native ext4/xfs data
+    # disk -- uses /www directly, no extra level.
     # Priority: the persisted WWW_PATH central variable (single source of truth,
     # written once by 3_setting_base.sh and read identically by sh/py/PHP) ->
     # live NTFS-root-mount detection -> legacy data_base rule.
@@ -309,8 +313,6 @@ map_web_path() {
     elif [ -n "$www_path_var" ] && [ -d "$www_path_var" ]; then
         base_path="$www_path_var"
     elif www_ntfs_root_mounted; then
-        base_path="/www/www"
-    elif [ "$data_base" != "/" ] && [ "$data_base" != "/www" ] && [ -d /www/www ]; then
         base_path="/www/www"
     else
         case "$data_base" in

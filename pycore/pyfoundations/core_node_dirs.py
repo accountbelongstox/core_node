@@ -48,9 +48,16 @@ LEGACY_LINUX_DATA_DIR = '/var/_core_node'
 LEGACY_LINUX_GLOBAL_VAR_DIR = LEGACY_LINUX_DATA_DIR + '/' + GLOBAL_VAR_DIR_NAME
 
 
-def _mount_source(target: str) -> Optional[Tuple[str, str]]:
-    """Longest-matching (mountpoint, source) for target from /proc/mounts."""
-    best: Optional[Tuple[str, str]] = None
+# fstype values an NTFS volume reports under /proc/mounts: the ntfs3 kernel
+# driver, the legacy ntfs driver, and ntfs-3g (FUSE, which reports fuseblk).
+# Bind-mounts of an NTFS root (e.g. 3_setting_base.sh binding the Windows D:\
+# root at /www) report the SOURCE filesystem type, so they are covered too.
+NTFS_FSTYPES = frozenset({'ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'})
+
+
+def _mount_source(target: str) -> Optional[Tuple[str, str, str]]:
+    """Longest-matching (mountpoint, source, fstype) for target from /proc/mounts."""
+    best: Optional[Tuple[str, str, str]] = None
     try:
         with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
             for line in handle:
@@ -60,19 +67,22 @@ def _mount_source(target: str) -> Optional[Tuple[str, str]]:
                 mount_point = parts[1].replace('\\040', ' ')
                 if target == mount_point or target.startswith(mount_point.rstrip('/') + '/'):
                     if best is None or len(mount_point) > len(best[0]):
-                        best = (mount_point, parts[0])
+                        best = (mount_point, parts[0], parts[2])
     except OSError:
         return None
     return best
 
 
 def www_data_root_mounted() -> bool:
-    r"""True when /www is the ROOT of a mounted data disk (the Windows D:\ root
-    on a dual-boot machine, bound there by 3_setting_base.sh). Then the SAME
-    logical tree gains ONE EXTRA LEVEL on Linux:
+    r"""True when /www is the ROOT of a mounted NTFS data disk (the Windows D:\
+    root on a dual-boot machine, bound there by 3_setting_base.sh). Then the
+    SAME logical tree gains ONE EXTRA LEVEL on Linux:
         Windows D:\www  ==  Linux /www/www      (NOT /www)
-    On a Linux-only machine /www is a plain native dir (same device as /) and
-    there is NO extra level.
+    On a Linux-only machine /www is a plain native dir (same device as /) or a
+    native data-disk mount (ext4/xfs/...) and there is NO extra level -- the
+    extra level exists ONLY for the NTFS dual-boot sharing, so the mount's
+    fstype MUST be NTFS-family (ntfs/ntfs3/fuseblk/ntfs-3g); a distinct non-NTFS
+    /www device never triggers it.
     SINGLE pycore definition: system_paths.py delegates here; the shell twin
     lives ONCE in runtime_environment.sh (CORE_NODE_WWW_BASE, read by
     gvar_common.sh::www_ntfs_root_mounted); Laravel mirrors it in
@@ -82,7 +92,11 @@ def www_data_root_mounted() -> bool:
         return False
     www = _mount_source('/www')
     root = _mount_source('/')
-    return bool(www and root and www[1] != root[1])
+    return bool(
+        www and root
+        and www[1] != root[1]
+        and www[2] in NTFS_FSTYPES
+    )
 
 
 def get_linux_www_base() -> str:
@@ -282,6 +296,7 @@ __all__ = [
     'WINDOWS_CORE_NODE_DATA_DIR',
     'LEGACY_LINUX_DATA_DIR',
     'LEGACY_LINUX_GLOBAL_VAR_DIR',
+    'NTFS_FSTYPES',
     'www_data_root_mounted',
     'get_linux_www_base',
     'get_core_node_data_dir',

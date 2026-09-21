@@ -209,6 +209,13 @@ if [ "$FM_CADDYFILE_READY" != "yes" ]; then
     exit 1
 fi
 
+# Managed route files pin absolute cert paths that a data-root migration can
+# invalidate AFTER the render; one dangling `tls` path fails the whole Caddy
+# config load and crash-loops the plane. Drop broken managed routes before
+# every supervised boot (the next 175 init re-renders them with re-verified
+# paths).
+fm_routes_pinned_cert_converge "$FRANKENPHP_ROUTES_DIR"
+
 # DNSPod DNS-01 token (only when stored AND a module-capable variant; the
 # Caddyfile gate renders the tls stanza only when module + token both
 # exist). Stays env-based by design: the token itself never enters the
