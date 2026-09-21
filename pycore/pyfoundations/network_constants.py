@@ -36,6 +36,34 @@ QWEN3TTS_JOB_TEXT_MAX_CHARS = 100000
 # Single source shared by pycore (qwen.config.default_speed) and the isolated
 # api server (loaded from source); overridable via the QWEN3TTS_SPEED env.
 QWEN3TTS_DEFAULT_SPEED = 0.75
+# Playback-speed bounds accepted from QWEN3TTS_SPEED / request overrides.
+# Single source shared by pycore (qwen.config) and the isolated api server.
+QWEN3TTS_SPEED_MIN = 0.25
+QWEN3TTS_SPEED_MAX = 3.0
+# qwen3tts VRAM launch policy (MiB). qwen3tts is the ONLY engine that uses the
+# GPU by design, so when free VRAM is below the recommended floor the launcher
+# and the startup profile forcibly stop OTHER GPU-holding processes
+# (memory_gate.reclaim_vram); after reclaim, a GPU with at least the minimum
+# free VRAM takes the model, below it the server starts on CPU. Single source
+# shared by pycore (memory_gate, tts_service_manager) and the isolated api
+# server (loaded from source). Env overrides: QWEN3TTS_MIN_FREE_VRAM_MB /
+# QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=0.
+QWEN3TTS_MIN_FREE_VRAM_MB = 800
+QWEN3TTS_RECOMMENDED_FREE_VRAM_MB = 6144
+QWEN3TTS_MIN_FREE_VRAM_MB_ENV = "QWEN3TTS_MIN_FREE_VRAM_MB"
+QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV = "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB"
+QWEN3TTS_VRAM_RECLAIM_ENV = "QWEN3TTS_VRAM_RECLAIM"
+
+# ChatTTS class-C HTTP server (staging copy under the main interpreter).
+CHATTTS_HTTP_PORT = 8000
+# Free-VRAM floor (MiB) for auto->cuda (ChatTTS official FAQ: at least 4 GB of
+# GPU memory for a 30-second clip). Single source shared by pycore
+# (tts_service_manager) and the staging api server (loaded from source via
+# PYCORE_PROJECT_ROOT). Env override: CHATTTS_MIN_FREE_VRAM_MB.
+CHATTTS_MIN_FREE_VRAM_MB = 4096
+
+# MeloTTS class-C HTTP server (isolated per-engine venv; managed lifecycle).
+MELOTTS_HTTP_PORT = 57212
 
 # VoxCPM2 class-C HTTP server (isolated Python 3.10 venv; managed lifecycle).
 VOXCPM2_HTTP_PORT = 57214
@@ -66,6 +94,8 @@ SSE_EVENT_MAX_WAIT_SECONDS = 30.0
 
 
 __all__ = [
+    "CHATTTS_HTTP_PORT",
+    "CHATTTS_MIN_FREE_VRAM_MB",
     "HTTP_API_PREFIX",
     "HTTP_BIND_HOST",
     "HTTP_CLIENT_ID_PATH",
@@ -80,11 +110,19 @@ __all__ = [
     "HTTP_PROTOCOL_VERSION",
     "HTTP_ROUTES_PATH",
     "HTTP_STATUS_PATH",
+    "MELOTTS_HTTP_PORT",
     "PYCORE_HTTP_PORT",
     "QWEN3TTS_DEFAULT_SPEED",
     "QWEN3TTS_HTTP_PORT",
     "QWEN3TTS_HTTP_TIMEOUT_SECONDS",
     "QWEN3TTS_JOB_TEXT_MAX_CHARS",
+    "QWEN3TTS_MIN_FREE_VRAM_MB",
+    "QWEN3TTS_MIN_FREE_VRAM_MB_ENV",
+    "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB",
+    "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV",
+    "QWEN3TTS_SPEED_MAX",
+    "QWEN3TTS_SPEED_MIN",
+    "QWEN3TTS_VRAM_RECLAIM_ENV",
     "SSE_CONTENT_TYPE",
     "VOXCPM2_HTTP_PORT",
     "VOXCPM2_HTTP_TIMEOUT_SECONDS",

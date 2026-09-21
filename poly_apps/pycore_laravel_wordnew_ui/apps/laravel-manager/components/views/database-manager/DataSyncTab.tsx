@@ -24,6 +24,17 @@ const WRITER_ROLES = ['receiver', 'fetcher'];
 
 type Translate = TFunction;
 
+/** Counterpart role for a sync pair: source↔receiver (push), fetcher↔exporter (pull). */
+function counterpartRoleOf(session: ManagedDataSyncSession): string {
+  if (session.counterpart?.session?.role) return session.counterpart.session.role;
+  switch (session.role) {
+    case 'source': return 'receiver';
+    case 'fetcher': return 'exporter';
+    case 'receiver': return 'source';
+    default: return 'fetcher';
+  }
+}
+
 interface EndpointStatusPanelProps {
   title: string;
   endpoint: string;
@@ -92,10 +103,10 @@ const EndpointStatusPanel: React.FC<EndpointStatusPanelProps> = ({
 );
 
 export const DataSyncTab: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [endpoints, setEndpoints] = useState<DataSyncManagedEndpoint[]>(() => dataSyncModel.endpoints());
-  const [sourceEndpointId, setSourceEndpointId] = useState(() => dataSyncModel.endpoints().find((endpoint) => endpoint.current)?.id ?? '');
-  const [target, setTarget] = useState('');
+  const [oldEndpointId, setOldEndpointId] = useState(() => dataSyncModel.endpoints().find((endpoint) => endpoint.current)?.id ?? '');
+  const [newServerInput, setNewServerInput] = useState('');
   const [databases, setDatabases] = useState(true);
   const [resources, setResources] = useState(true);
   const [compression, setCompression] = useState(false);
@@ -104,31 +115,53 @@ export const DataSyncTab: React.FC = () => {
   const [pendingTarget, setPendingTarget] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [probe, setProbe] = useState<DataSyncDirectionProbe | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
+  const [authEndpoint, setAuthEndpoint] = useState<DataSyncManagedEndpoint | null>(null);
+  const [dismissedAuthIds, setDismissedAuthIds] = useState<string[]>([]);
+  const [peerAuthVersion, setPeerAuthVersion] = useState(0);
 
   const managedEndpoints = useMemo(() => endpoints.filter((endpoint) => endpoint.managed), [endpoints]);
+  const managedCount = managedEndpoints.length;
+  const oldEndpoint = useMemo(
+    () => endpoints.find((endpoint) => endpoint.id === oldEndpointId) ?? null,
+    [endpoints, oldEndpointId],
+  );
+  const newServerNode = useMemo(
+    () => (newServerInput.trim() === '' ? null : dataSyncModel.resolveNewServer(newServerInput)),
+    [newServerInput, peerAuthVersion],
+  );
   const selected = useMemo(
     () => sessions.find((session) => session.manager_key === selectedKey) ?? sessions[0] ?? null,
     [sessions, selectedKey],
   );
-  const receiverActive = useMemo(
-    () => sessions.find((session) => session.manager_endpoint.id === sourceEndpointId && session.role === 'receiver' && ACTIVE_STATUSES.includes(session.status)) ?? null,
-    [sessions, sourceEndpointId],
+  const writerActiveOn = useCallback(
+    (endpointId: string) => sessions.find((session) => session.manager_endpoint.id === endpointId
+      && WRITER_ROLES.includes(session.role)
+      && ACTIVE_STATUSES.includes(session.status)) ?? null,
+    [sessions],
+  );
+  const receiverActive = useMemo(() => writerActiveOn(oldEndpointId), [writerActiveOn, oldEndpointId]);
+  const newServerWriterActive = useMemo(
+    () => (newServerNode ? writerActiveOn(newServerNode.id) : null),
+    [writerActiveOn, newServerNode],
   );
   const manifestDraftActive = useMemo(
-    () => sessions.find((session) => session.manager_endpoint.id === sourceEndpointId && session.role === 'source' && !session.target && !session.target_input && ACTIVE_STATUSES.includes(session.status)) ?? null,
-    [sessions, sourceEndpointId],
+    () => sessions.find((session) => session.manager_endpoint.id === oldEndpointId && session.role === 'source' && !session.target && !session.target_input && ACTIVE_STATUSES.includes(session.status)) ?? null,
+    [sessions, oldEndpointId],
   );
-  const selectedSource = useMemo(
-    () => selected?.role === 'source' && ACTIVE_STATUSES.includes(selected.status) ? selected : null,
+  const selectedDriver = useMemo(
+    () => selected && DRIVER_ROLES.includes(selected.role) && ACTIVE_STATUSES.includes(selected.status) ? selected : null,
     [selected],
   );
   const displayedSessions = useMemo(() => {
-    const linkedReceivers = new Set(sessions
-      .filter((session) => session.role === 'source' && session.counterpart?.session_id)
+    const linkedPassive = new Set(sessions
+      .filter((session) => DRIVER_ROLES.includes(session.role) && session.counterpart?.session_id)
       .map((session) => `${session.counterpart?.endpoint}:${session.counterpart?.session_id}`));
 
-    return sessions.filter((session) => session.role === 'source'
-      || !linkedReceivers.has(`${session.manager_endpoint.syncTarget}:${session.id}`));
+    return sessions.filter((session) => DRIVER_ROLES.includes(session.role)
+      || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`));
   }, [sessions]);
 
   useEffect(() => {
@@ -136,9 +169,15 @@ export const DataSyncTab: React.FC = () => {
   }, [selected?.id, selected?.context?.awaiting_target, selected?.target_input]);
 
   useEffect(() => {
-    if (managedEndpoints.some((endpoint) => endpoint.id === sourceEndpointId)) return;
-    setSourceEndpointId(managedEndpoints[0]?.id ?? '');
-  }, [managedEndpoints, sourceEndpointId]);
+    if (managedEndpoints.some((endpoint) => endpoint.id === oldEndpointId)) return;
+    setOldEndpointId(managedEndpoints[0]?.id ?? '');
+  }, [managedEndpoints, oldEndpointId]);
+
+  // A changed pair invalidates the negotiated direction.
+  useEffect(() => {
+    setProbe(null);
+    setProbeError(null);
+  }, [newServerInput, oldEndpointId]);
 
   const loadWorkspace = useCallback(async () => {
     const workspace = await dataSyncModel.workspace();
@@ -157,7 +196,17 @@ export const DataSyncTab: React.FC = () => {
         return `${item.endpointId} (${reason})`;
       }).join(', ')}`
       : null);
-  }, [t]);
+
+    // A remote node answering 401 owns a separate login state: offer the
+    // endpoint-scoped peer login instead of the shared login modal.
+    const unauthorized = workspace.errors.find((item) => item.status === 401
+      && item.endpointId !== workspace.endpoints.find((endpoint) => endpoint.current)?.id);
+    if (unauthorized && !dismissedAuthIds.includes(unauthorized.endpointId)) {
+      const node = workspace.endpoints.find((endpoint) => endpoint.id === unauthorized.endpointId)
+        ?? dataSyncModel.resolveNewServer(unauthorized.endpointId);
+      if (node) setAuthEndpoint((current) => current ?? node);
+    }
+  }, [t, dismissedAuthIds]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -177,15 +226,57 @@ export const DataSyncTab: React.FC = () => {
     void loadWorkspace();
   };
 
+  const runProbe = useCallback(async () => {
+    if (!oldEndpointId || newServerInput.trim() === '') return;
+    setProbing(true);
+    setProbeError(null);
+    try {
+      setProbe(await dataSyncModel.probeDirection(oldEndpointId, newServerInput));
+    } catch (probeFailure) {
+      setProbe(null);
+      if (probeFailure instanceof DataSyncApiError && probeFailure.status === 401 && newServerNode) {
+        setAuthEndpoint((current) => current ?? newServerNode);
+      }
+      setProbeError(
+        probeFailure instanceof Error && probeFailure.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
+          ? t('dbSync.directionNone')
+          : (probeFailure instanceof Error && probeFailure.message ? probeFailure.message : t('dbSync.errors.probe')),
+      );
+    } finally {
+      setProbing(false);
+    }
+  }, [oldEndpointId, newServerInput, newServerNode, t]);
+
+  const afterPeerLogin = useCallback(async () => {
+    setPeerAuthVersion((version) => version + 1);
+    await loadWorkspace();
+    // Authorization is fresh: retry immediately and negotiate which node is
+    // the externally reachable server.
+    if (newServerInput.trim() !== '') {
+      void runProbe();
+    }
+  }, [loadWorkspace, newServerInput, runProbe]);
+
   const start = async () => {
-    if (!sourceEndpointId) return;
+    if (!oldEndpointId) return;
     setBusy(true);
     setError(null);
     try {
-      const session = await dataSyncModel.start(sourceEndpointId, { target, databases, resources, compression });
-      setSessions((current) => [session, ...current]);
-      setSelectedKey(session.manager_key);
-      setTarget('');
+      if (probe?.direction === 'pull') {
+        const session = await dataSyncModel.startFetch(probe.newServer.id, {
+          target: probe.oldServer.syncTarget,
+          databases,
+          resources,
+          compression,
+        });
+        setSessions((current) => [session, ...current]);
+        setSelectedKey(session.manager_key);
+      } else {
+        const session = await dataSyncModel.start(oldEndpointId, { target: newServerInput, databases, resources, compression });
+        setSessions((current) => [session, ...current]);
+        setSelectedKey(session.manager_key);
+        setNewServerInput('');
+      }
     } catch (startError) {
       setError(startError instanceof Error && startError.message ? startError.message : t('dbSync.errors.start'));
     } finally {
@@ -194,13 +285,13 @@ export const DataSyncTab: React.FC = () => {
   };
 
   const togglePause = async () => {
-    if (!selectedSource) return;
+    if (!selectedDriver) return;
     setBusy(true);
     setError(null);
     try {
-      const session = selectedSource.status === 'paused'
-        ? await dataSyncModel.resume(selectedSource)
-        : await dataSyncModel.pause(selectedSource);
+      const session = selectedDriver.status === 'paused'
+        ? await dataSyncModel.resume(selectedDriver)
+        : await dataSyncModel.pause(selectedDriver);
       replaceSession(session);
     } catch (toggleError) {
       setError(toggleError instanceof Error && toggleError.message ? toggleError.message : t('dbSync.errors.control'));
@@ -210,11 +301,11 @@ export const DataSyncTab: React.FC = () => {
   };
 
   const bindTarget = async () => {
-    if (!selectedSource || pendingTarget.trim() === '') return;
+    if (!selectedDriver || pendingTarget.trim() === '') return;
     setBusy(true);
     setError(null);
     try {
-      replaceSession(await dataSyncModel.setTarget(selectedSource, pendingTarget));
+      replaceSession(await dataSyncModel.setTarget(selectedDriver, pendingTarget));
     } catch (targetError) {
       setError(targetError instanceof Error && targetError.message ? targetError.message : t('dbSync.errors.target'));
     } finally {
@@ -238,7 +329,7 @@ export const DataSyncTab: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={endpoint.managed}
-                  disabled={endpoint.current}
+                  disabled={endpoint.current || (!endpoint.managed && managedCount >= DATA_SYNC_MAX_MANAGED_ENDPOINTS)}
                   onChange={() => toggleManagedEndpoint(endpoint.id)}
                 />
                 <span className={`w-2 h-2 rounded-full ${endpoint.healthy === true ? 'bg-emerald-500' : endpoint.healthy === false ? 'bg-red-500' : 'bg-slate-400'}`} />
@@ -249,25 +340,59 @@ export const DataSyncTab: React.FC = () => {
               </label>
             ))}
           </div>
+          <div className="mt-1 text-[10px] text-slate-500">{t('dbSync.maxTwoEndpoints')}</div>
+          {managedEndpoints.filter((endpoint) => !endpoint.current).map((endpoint) => {
+            const auth = peerAuthVersion >= 0 ? dataSyncModel.peerAuth(endpoint.id) : null;
+            return (
+              <div key={`auth-${endpoint.id}`} className="mt-1 flex items-center gap-2 text-xs">
+                {auth ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-slate-600 dark:text-slate-400 truncate">
+                      {endpoint.description} — {t('dbSync.peerLoggedInAs', { name: auth.username })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { dataSyncModel.logoutPeer(endpoint.id); setPeerAuthVersion((version) => version + 1); void loadWorkspace(); }}
+                      className="flex items-center gap-1 text-slate-500 hover:text-red-500"
+                    >
+                      <LogOut className="w-3 h-3" />{t('dbSync.peerLogout')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-amber-600 dark:text-amber-400 truncate">{endpoint.description} — {t('dbSync.peerAuthRequired')}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setDismissedAuthIds((ids) => ids.filter((id) => id !== endpoint.id)); setAuthEndpoint(endpoint); }}
+                      className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                    >
+                      <LogIn className="w-3 h-3" />{t('dbSync.peerLogin')}
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </Field>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label={t('dbSync.sourceNode')}>
-            <select value={sourceEndpointId} onChange={(event) => setSourceEndpointId(event.target.value)} className={`${commonClasses.select} w-full`}>
+          <Field label={t('dbSync.oldServer')}>
+            <select value={oldEndpointId} onChange={(event) => setOldEndpointId(event.target.value)} className={`${commonClasses.select} w-full`}>
               {managedEndpoints.map((endpoint) => <option key={endpoint.id} value={endpoint.id}>{endpoint.description} · {endpoint.baseUrl}</option>)}
             </select>
           </Field>
-          <Field label={t('dbSync.target')}>
+          <Field label={t('dbSync.newServer')}>
             <input
               list="data-sync-targets"
-              value={target}
-              onChange={(event) => setTarget(event.target.value)}
+              value={newServerInput}
+              onChange={(event) => setNewServerInput(event.target.value)}
               placeholder={t('dbSync.targetPlaceholder')}
               disabled={Boolean(receiverActive)}
               className={`${commonClasses.input} w-full`}
             />
             <datalist id="data-sync-targets">
-              {endpoints.filter((endpoint) => endpoint.id !== sourceEndpointId).map((endpoint) => (
+              {endpoints.filter((endpoint) => endpoint.id !== oldEndpointId).map((endpoint) => (
                 <option key={endpoint.id} value={endpoint.syncTarget}>{endpoint.description}</option>
               ))}
             </datalist>
@@ -290,22 +415,40 @@ export const DataSyncTab: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={start} disabled={busy || !sourceEndpointId || Boolean(receiverActive) || (!databases && !resources) || (target.trim() === '' && Boolean(manifestDraftActive))} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
+          <button type="button" onClick={start} disabled={busy || !oldEndpointId || Boolean(receiverActive) || (!databases && !resources) || (probe?.direction === 'pull' ? Boolean(newServerWriterActive) : (newServerInput.trim() === '' && Boolean(manifestDraftActive)))} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
             <Play className="w-4 h-4" />
-            {target.trim() === '' ? t('dbSync.collectManifest') : t('dbSync.start')}
+            {probe?.direction === 'pull' ? t('dbSync.startFetch') : newServerInput.trim() === '' ? t('dbSync.collectManifest') : t('dbSync.start')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runProbe()}
+            disabled={probing || !oldEndpointId || newServerInput.trim() === ''}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}
+          >
+            <Radar className="w-4 h-4" />{probing ? t('dbSync.probing') : t('dbSync.probeDirection')}
           </button>
           <button type="button" onClick={() => void loadWorkspace()} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
             <RefreshCw className="w-4 h-4" />{t('dbSync.refresh')}
           </button>
-          {selectedSource && (
+          {selectedDriver && (
             <button type="button" onClick={togglePause} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
-              {selectedSource.status === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-              {selectedSource.status === 'paused' ? t('dbSync.resume') : t('dbSync.pause')}
+              {selectedDriver.status === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              {selectedDriver.status === 'paused' ? t('dbSync.resume') : t('dbSync.pause')}
             </button>
           )}
         </div>
+        {probe && (
+          <AlertBox variant="info" icon={false}>
+            {t(probe.direction === 'push' ? 'dbSync.directionPush' : 'dbSync.directionPull', {
+              old: probe.oldServer.description,
+              new: probe.newServer.description,
+            })}
+          </AlertBox>
+        )}
+        {probeError && <AlertBox variant="warning">{probeError}</AlertBox>}
         {receiverActive && <AlertBox variant="warning">{t('dbSync.receiverBlocked')}</AlertBox>}
-        {!receiverActive && target.trim() === '' && manifestDraftActive && <AlertBox variant="warning">{t('dbSync.manifestDraftBlocked')}</AlertBox>}
+        {!receiverActive && probe?.direction === 'pull' && newServerWriterActive && <AlertBox variant="warning">{t('dbSync.fetcherBlocked')}</AlertBox>}
+        {!receiverActive && newServerInput.trim() === '' && manifestDraftActive && <AlertBox variant="warning">{t('dbSync.manifestDraftBlocked')}</AlertBox>}
         {error && <AlertBox variant="error">{error}</AlertBox>}
       </div>
 
@@ -317,14 +460,14 @@ export const DataSyncTab: React.FC = () => {
               <button key={session.manager_key} type="button" onClick={() => setSelectedKey(session.manager_key)} className={`rounded-lg border p-3 text-left transition ${selected?.manager_key === session.manager_key ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-xs font-medium truncate">{session.manager_endpoint.description} → {session.counterpart?.endpoint ?? t('dbSync.targetPending')}</div>
+                    <div className="text-xs font-medium truncate">{t(`dbSync.roles.${session.role}`)} · {session.manager_endpoint.description} → {session.counterpart?.endpoint ?? t('dbSync.targetPending')}</div>
                     <div className="text-[10px] font-mono text-slate-500 truncate">{session.id}</div>
                   </div>
                   <StatusBadge status={t(`dbSync.status.${session.status}`)} tone={session.status === 'completed' ? 'success' : session.status === 'failed' ? 'error' : session.status === 'paused' ? 'warning' : 'info'} />
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] text-slate-500">
-                  <div>{t('dbSync.source')}: {session.progress}%</div>
-                  <div>{t('dbSync.receiver')}: {session.counterpart?.session?.progress ?? 0}%</div>
+                  <div>{t(`dbSync.roles.${session.role}`)}: {session.progress}%</div>
+                  <div>{t(`dbSync.roles.${counterpartRoleOf(session)}`)}: {session.counterpart?.session?.progress ?? 0}%</div>
                 </div>
               </button>
             ))}
@@ -336,10 +479,10 @@ export const DataSyncTab: React.FC = () => {
         <div className={commonClasses.card}><EmptyState icon={Server} message={t('dbSync.empty')} /></div>
       ) : (
         <div className={`${commonClasses.card} p-4 space-y-4`}>
-          {selectedSource && selected.context?.awaiting_target && (
+          {selectedDriver && selected.context?.awaiting_target && (
             <div className="rounded border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/20 p-3 space-y-3">
               <AlertBox variant="info" icon={false}>{t('dbSync.targetRequired')}</AlertBox>
-              <Field label={t('dbSync.target')}>
+              <Field label={t('dbSync.newServer')}>
                 <input list="data-sync-targets" value={pendingTarget} onChange={(event) => setPendingTarget(event.target.value)} placeholder={t('dbSync.targetPlaceholder')} className={`${commonClasses.input} w-full`} />
               </Field>
               <button type="button" onClick={bindTarget} disabled={busy || pendingTarget.trim() === ''} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
@@ -371,13 +514,13 @@ export const DataSyncTab: React.FC = () => {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             <EndpointStatusPanel
-              title={t(selected.role === 'source' ? 'dbSync.sourceEndpoint' : 'dbSync.receiverEndpoint')}
+              title={t(`dbSync.roles.${selected.role}`)}
               endpoint={selected.manager_endpoint.baseUrl}
               session={selected}
               t={t}
             />
             <EndpointStatusPanel
-              title={t(selected.role === 'source' ? 'dbSync.receiverEndpoint' : 'dbSync.sourceEndpoint')}
+              title={t(`dbSync.roles.${counterpartRoleOf(selected)}`)}
               endpoint={selected.counterpart?.endpoint ?? t('dbSync.targetPending')}
               session={selected.counterpart?.session ?? null}
               reachable={selected.counterpart?.reachable}
@@ -387,6 +530,27 @@ export const DataSyncTab: React.FC = () => {
           </div>
         </div>
       )}
+
+      <LoginModal
+        isOpen={authEndpoint !== null}
+        onClose={() => {
+          if (authEndpoint) {
+            setDismissedAuthIds((ids) => (ids.includes(authEndpoint.id) ? ids : [...ids, authEndpoint.id]));
+          }
+          setAuthEndpoint(null);
+        }}
+        onSuccess={() => {
+          setAuthEndpoint(null);
+          void afterPeerLogin();
+        }}
+        lang={i18n.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'}
+        titleOverride={t('dbSync.peerLoginTitle')}
+        subtitleOverride={t('dbSync.peerLoginSubtitle', { endpoint: authEndpoint?.baseUrl ?? '' })}
+        authenticate={async (username, password) => {
+          if (!authEndpoint) return;
+          await dataSyncModel.loginPeer(authEndpoint.id, username, password);
+        }}
+      />
     </div>
   );
 };

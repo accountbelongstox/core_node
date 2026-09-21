@@ -1,0 +1,547 @@
+poly apps / laravel main , pycore ui :Database      
+    Manager                                             
+    Status, tables, import/export and backups across    
+    connections                                         
+                                                        
+                                                        
+    Core (main) (main) · pgsql                          
+    Status & Tables                                     
+    Import / Export                                     
+    Backup / Restore                                    
+    Machine Sync                                        
+    Credentials                                         
+    Machine Data Synchronization                        
+    Manage multiple Laravel Main nodes from one         
+    workspace. Every source session mirrors source and  
+    receiver progress together, and each receiver backs 
+    up selected databases before accepting differences. 
+    Managed Laravel nodes                               
+                                                        
+    12gm.com                                            
+    https://api.si.12gm.com                             
+                                                        
+    Current URL — this site (http://127.0.0.1:9000)     
+    http://127.0.0.1:9000                               
+                                                        
+    gm15.com                                            
+    https://api.si.gm15.com                             
+                                                        
+    localhost                                           
+    http://localhost:9000                               
+                                                        
+    lan_50_2                                            
+    http://192.168.50.2:9000                            
+                                                        
+    lan_50_3                                            
+    http://192.168.50.3:9000                            
+                                                        
+    cloud                                               
+    http://43.163.112.77:9000                           
+                                                        
+    tailnet_nuul                                        
+    http://100.101.149.39:9000                          
+                                                        
+    tailnet_api                                         
+    http://100.106.85.16:9000                           
+                                                        
+    Debian Dev Machine 1                                
+    https://debian-gpu.thresher-python.ts.net           
+    Source Laravel node                                 
+                                                        
+    Current URL — this site (http://127.0.0.1:9000) ·   
+    http://127.0.0.1:9000                               
+    Receiver IP or host                                 
+    192.168.1.20 or 192.168.1.20:9001                   
+                                                        
+    Databases                                           
+    Idempotent row differences across every configured  
+    database.                                           
+                                                        
+    Resources                                           
+    Audio, images, covers, avatars, uploads, and static 
+    files.                                              
+                                                        
+    Use system 7-Zip                                    
+    Optional. Disabled uses resumable uncompressed file 
+    batches.                                            
+    Collect local manifest                              
+    Refresh                                             
+    Some managed Laravel nodes could not be loaded:     
+    primary-remote (Unauthenticated) 根据以上UI，poly   
+    apps / pycore ui 中的数据复制规范，有两个后端都要登 
+    陆，先给UI前端设计 两套用户状态，其他一套是增加的用 
+    来登陆现在的另一个后端的，当在选择另一个后端时提示未
+    登陆401未验证时，弹出一个新的登陆组件，复用现在的登 
+    陆组件但要在弹窗标题说修改表明是另一个LARAVEL，同时 
+    只能最多选择两人个端点，之后，在权限认证后，立即重试
+    确认外网服务 器，对两个机器互相访问对方探测，第一个 
+    可以被另一个LARAVEL访问的定为外网服务 器。这样其如果
+    是旧服务 器则打印需要同步的数据供新服务 器下载，如果
+    是新服务 器，则开通POST让旧服务 器打包数据上传，也就
+    是要扩展出上面的两个冗余功能和代码，并在laralvel中扩
+    展在API中。同时查看其他逻辑是否有对齐中的未对齐的， 
+    底层重构。同一laravel能扮演多个角色。               
+ … thinking 66 times, call 120 tools, 23 messages
+ 
+ ● Used Edit (…el-manager/auth/LmLoginModal.tsx) · +3 -1
+   +3 -1                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/auth/LmLoginModal.tsx                          
+      1       setLoading(true);                         
+      2       try {                                     
+      3 -       if (isRegisterMode) {                   
+      3 +       if (authenticate) {                     
+      4 +         await                                 
+   authenticate(formData.username, formData.password);  
+      5 +       } else if (isRegisterMode) {            
+ 
+ ● Used Edit (…el-manager/auth/LmLoginModal.tsx) · +2 -2
+   +2 -2                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/auth/LmLoginModal.tsx                          
+      1 -   const title = isRegisterMode ?              
+   t('login.register_title') : t('login.title');        
+      2 -   const subtitle = isRegisterMode ?           
+   t('login.register_subtitle') : t('login.subtitle');  
+      1 +   const title = titleOverride ??              
+   (isRegisterMode ? t('login.register_title') :        
+   t('login.title'));                                   
+      2 +   const subtitle = subtitleOverride ??        
+   (isRegisterMode ? t('login.register_subtitle') :     
+   t('login.subtitle'));                                
+ 
+ ● Used Edit (…el-manager/auth/LmLoginModal.tsx) · +8 -6
+   +8 -6                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/auth/LmLoginModal.tsx                          
+      1             {/* Mode Toggle */}                 
+      2             <div className="mt-6 text-center    
+   space-y-2">                                          
+      3 -             <button                           
+      4 -               onClick={toggleMode}            
+      5 -               className="text-sm              
+   text-indigo-600 dark:text-indigo-400                 
+   hover:text-indigo-500 dark:hover:text-indigo-300     
+   transition-colors font-medium"                       
+      6 -             >                                 
+      7 -               {isRegisterMode ?               
+   t('login.switch_to_login') :                         
+   t('login.switch_to_register')}                       
+      8 -             </button>                         
+      3 +             {!authenticate && (               
+      4 +               <button                         
+        … 6 more changes hidden (ctrl+o to expand)      
+ 
+ ● LmLoginModal done. Now the DataSyncTab rewrite — the 
+   biggest UI piece. Per the user's latest adjustment:  
+   … (390 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…database-manager/DataSyncTab.tsx) · +8 -2
+   +8 -2                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1   import React, { useCallback, useEffect,       
+   useMemo, useState } from 'react';                    
+      2   import type { TFunction } from 'i18next';     
+      3 - import { ArrowRightLeft, Pause, Play,         
+   RefreshCw, Server, ShieldCheck } from                
+   'lucide-react';                                      
+      3 + import { ArrowRightLeft, LogIn, LogOut,       
+   Pause, Play, Radar, RefreshCw, Server, ShieldCheck   
+   } from 'lucide-react';                               
+      4   import { useTranslation } from                
+   '@/apps/laravel-manager/i18n';                       
+      5   import { dataSyncModel } from                 
+   '@/apps/laravel-manager/models';                     
+      6   import {                                      
+      7 +   DATA_SYNC_MAX_MANAGED_ENDPOINTS,            
+      8 +   DATA_SYNC_PEER_UNREACHABLE_ERROR,           
+      9     DATA_SYNC_PROTOCOL_MISMATCH_ERROR,          
+        … 6 more changes hidden (ctrl+o to expand)      
+ 
+ ● Check: does `@/apps/laravel-manager/api` export      
+   DataSyncApiError? The api/index.ts exports from      
+   … (5 more lines, ctrl+o to expand)
+ 
+ ● Ran a command · $ grep -n "DataSyncSessionSnapshot\|…
+   14:export * from './modules/DatabaseManagerAPI';
+ 
+ ● `export *` re-exports everything including           
+   DataSyncApiError. Good.                              
+   … (3 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…tabase-manager/DataSyncTab.tsx) · +36 -14
+   +36 -14                                              
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1   export const DataSyncTab: React.FC = () => {  
+      2 -   const { t } = useTranslation();             
+      2 +   const { t, i18n } = useTranslation();       
+      3     const [endpoints, setEndpoints] =           
+   useState<DataSyncManagedEndpoint[]>(() =>            
+   dataSyncModel.endpoints());                          
+      4 -   const [sourceEndpointId,                    
+   setSourceEndpointId] = useState(() =>                
+   dataSyncModel.endpoints().find((endpoint) =>         
+   endpoint.current)?.id ?? '');                        
+      5 -   const [target, setTarget] = useState('');   
+      4 +   const [oldEndpointId, setOldEndpointId] =   
+   useState(() =>                                       
+   dataSyncModel.endpoints().find((endpoint) =>         
+   endpoint.current)?.id ?? '');                        
+      5 +   const [newServerInput, setNewServerInput]   
+   = useState('');                                      
+      6     const [databases, setDatabases] =           
+   useState(true);                                      
+      7     const [resources, setResources] =           
+   useState(true);                                      
+        … 44 more changes hidden (ctrl+o to expand)     
+ 
+ ● Used Edit (…tabase-manager/DataSyncTab.tsx) · +73 -15
+   +73 -15                                              
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      3     }, [selected?.id,                           
+   selected?.context?.awaiting_target,                  
+   selected?.target_input]);                            
+      4                                                 
+      5     useEffect(() => {                           
+      6 -     if (managedEndpoints.some((endpoint) =>   
+   endpoint.id === sourceEndpointId)) return;           
+      7 -                                               
+   setSourceEndpointId(managedEndpoints[0]?.id ?? '');  
+      8 -   }, [managedEndpoints, sourceEndpointId]);   
+      6 +     if (managedEndpoints.some((endpoint) =>   
+   endpoint.id === oldEndpointId)) return;              
+      7 +     setOldEndpointId(managedEndpoints[0]?.id  
+   ?? '');                                              
+      8 +   }, [managedEndpoints, oldEndpointId]);      
+      9 +                                               
+        … 81 more changes hidden (ctrl+o to expand)     
+ 
+ ● Now the JSX. Replace the whole return block. The     
+   current JSX references sourceEndpointId, target,     
+   … (14 more lines, ctrl+o to expand)
+ 
+ ● 现在更新 JSX。先改 Managed nodes 区域（上限 2 个 + 登
+   录态行）：                                           
+ 
+ ● Used Edit (…atabase-manager/DataSyncTab.tsx) · +41 -7
+   +41 -7                                               
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      5                   <input                        
+      6                     type="checkbox"             
+      7                     checked={endpoint.managed}  
+      8 -                                               
+   disabled={endpoint.current}                          
+      8 +                   disabled={endpoint.current  
+   || (!endpoint.managed && managedCount >=             
+   DATA_SYNC_MAX_MANAGED_ENDPOINTS)}                    
+      9                     onChange={() =>             
+   toggleManagedEndpoint(endpoint.id)}                  
+     10                   />                            
+     11                   <span className={`w-2 h-2     
+   rounded-full ${endpoint.healthy === true ?           
+   'bg-emerald-500' : endpoint.healthy === false ?      
+   'bg-red-500' : 'bg-slate-400'}`} />                  
+        … 4 unchanged lines …                           
+     16                 </label>                        
+        … 46 more changes hidden (ctrl+o to expand)     
+ 
+ ● Now the buttons row + direction display + pull-start 
+   blocking. Replace the buttons block and alerts:      
+ 
+ ● Used Edit (…atabase-manager/DataSyncTab.tsx) · +24 -6
+   +24 -6                                               
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1           <div className="flex flex-wrap        
+   gap-2">                                              
+      2 -           <button type="button"               
+   onClick={start} disabled={busy || !sourceEndpointId  
+   || Boolean(receiverActive) || (!databases &&         
+   !resources) || (target.trim() === '' &&              
+   Boolean(manifestDraftActive))}                       
+   className={`${commonClasses.button}                  
+   ${commonClasses.buttonPrimary} flex items-center     
+   gap-2 disabled:opacity-50`}>                         
+      2 +           <button type="button"               
+   onClick={start} disabled={busy || !oldEndpointId ||  
+   Boolean(receiverActive) || (!databases &&            
+   !resources) || (probe?.direction === 'pull' ?        
+   Boolean(newServerWriterActive) :                     
+   (newServerInput.trim() === '' &&                     
+   Boolean(manifestDraftActive)))}                      
+   className={`${commonClasses.button}                  
+   ${commonClasses.buttonPrimary} flex items-center     
+   gap-2 disabled:opacity-50`}>                         
+      3               <Play className="w-4 h-4" />      
+      4 -             {target.trim() === '' ?           
+   t('dbSync.collectManifest') : t('dbSync.start')}     
+      4 +             {probe?.direction === 'pull' ?    
+   t('dbSync.startFetch') : newServerInput.trim() ===   
+   '' ? t('dbSync.collectManifest') :                   
+   t('dbSync.start')}                                   
+      5 +           </button>                           
+      6 +           <button                             
+      7 +             type="button"                     
+      8 +             onClick={() => void runProbe()}   
+        … 22 more changes hidden (ctrl+o to expand)     
+ 
+ ● Now the remaining JSX: session cards (role label),   
+   selected session panels (titles by role),            
+   … (3 more lines, ctrl+o to expand)
+ 
+ ● Used Read (…abase-manager/DataSyncTab.tsx) · 55 lines
+ 
+ ● Used TodoList
+ 
+ ● Used Edit (…database-manager/DataSyncTab.tsx) · +2 -2
+   +2 -2                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1           <div                                  
+   className={`${commonClasses.card} p-4 space-y-4`}>   
+      2 -           {selectedSource &&                  
+   selected.context?.awaiting_target && (               
+      2 +           {selectedDriver &&                  
+   selected.context?.awaiting_target && (               
+      3               <div className="rounded border    
+   border-indigo-200 dark:border-indigo-900/50          
+   bg-indigo-50 dark:bg-indigo-950/20 p-3 space-y-3">   
+      4                 <AlertBox variant="info"        
+   icon={false}>{t('dbSync.targetRequired')}</AlertBox  
+   >                                                    
+      5 -               <Field                          
+   label={t('dbSync.target')}>                          
+      5 +               <Field                          
+   label={t('dbSync.newServer')}>                       
+      6                   <input                        
+   list="data-sync-targets" value={pendingTarget}       
+   onChange={(event) =>                                 
+   setPendingTarget(event.target.value)}                
+   placeholder={t('dbSync.targetPlaceholder')}          
+   className={`${commonClasses.input} w-full`} />       
+      7                 </Field>                        
+      8                 <button type="button"           
+   onClick={bindTarget} disabled={busy ||               
+   pendingTarget.trim() === ''}                         
+   className={`${commonClasses.button}                  
+   ${commonClasses.buttonPrimary} flex items-center     
+   gap-2 disabled:opacity-50`}>                         
+ 
+ ● Used Edit (…atabase-manager/DataSyncTab.tsx) · +23 -2
+   +23 -2                                               
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1             <div className="grid grid-cols-1    
+   xl:grid-cols-2 gap-3">                               
+      2               <EndpointStatusPanel              
+      3 -               title={t(selected.role ===      
+   'source' ? 'dbSync.sourceEndpoint' :                 
+   'dbSync.receiverEndpoint')}                          
+      3 +                                               
+   title={t(`dbSync.roles.${selected.role}`)}           
+      4                                                 
+   endpoint={selected.manager_endpoint.baseUrl}         
+      5                 session={selected}              
+      6                 t={t}                           
+      7               />                                
+      8               <EndpointStatusPanel              
+      9 -               title={t(selected.role ===      
+   'source' ? 'dbSync.receiverEndpoint' :               
+   'dbSync.sourceEndpoint')}                            
+        … 22 more changes hidden (ctrl+o to expand)     
+ 
+ ● Also the session card header should show role label. 
+   Current card: `{session.manager_endpoint.description}
+   … (4 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…database-manager/DataSyncTab.tsx) · +1 -1
+   +1 -1                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1 -                     <div className="text-xs   
+   font-medium                                          
+   truncate">{session.manager_endpoint.description} →   
+   {session.counterpart?.endpoint ??                    
+   t('dbSync.targetPending')}</div>                     
+      1 +                     <div className="text-xs   
+   font-medium                                          
+   truncate">{t(`dbSync.roles.${session.role}`)} ·      
+   {session.manager_endpoint.description} →             
+   {session.counterpart?.endpoint ??                    
+   t('dbSync.targetPending')}</div>                     
+ 
+ ● Also session card progress grid shows "Source /      
+   Receiver" labels — generalize: keep as is?           
+   … (37 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…s/database-manager/DataSyncTab.tsx) · +11
+   +11                                                  
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1   type Translate = TFunction;                   
+      2 +                                               
+      3 + /** Counterpart role for a sync pair:         
+   source↔receiver (push), fetcher↔exporter (pull). */  
+      4 + function counterpartRoleOf(session:           
+   ManagedDataSyncSession): string {                    
+      5 +   if (session.counterpart?.session?.role)     
+   return session.counterpart.session.role;             
+      6 +   switch (session.role) {                     
+      7 +     case 'source': return 'receiver';         
+      8 +     case 'fetcher': return 'exporter';        
+      9 +     case 'receiver': return 'source';         
+     10 +     default: return 'fetcher';                
+        … 2 more changes hidden (ctrl+o to expand)      
+ 
+ ● Used Edit (…database-manager/DataSyncTab.tsx) · +2 -2
+   +2 -2                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1                   <div className="grid          
+   grid-cols-2 gap-2 mt-2 text-[10px] text-slate-500">  
+      2 -                   <div>{t('dbSync.source')}:  
+   {session.progress}%</div>                            
+      3 -                                               
+   <div>{t('dbSync.receiver')}:                         
+   {session.counterpart?.session?.progress ??           
+   0}%</div>                                            
+      2 +                                               
+   <div>{t(`dbSync.roles.${session.role}`)}:            
+   {session.progress}%</div>                            
+      3 +                                               
+   <div>{t(`dbSync.roles.${counterpartRoleOf(session)}  
+   `)}: {session.counterpart?.session?.progress ??      
+   0}%</div>                                            
+      4                   </div>                        
+ 
+ ● Used Edit (…database-manager/DataSyncTab.tsx) · +1 -1
+   +1 -1                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/components/views/database-manager/DataSyncTab  
+   .tsx                                                 
+      1               <EndpointStatusPanel              
+      2 -                                               
+   title={t(`dbSync.roles.${selected.counterpart?.sess  
+   ion?.role ?? (selected.role === 'source' ?           
+   'receiver' : selected.role === 'fetcher' ?           
+   'exporter' : selected.role === 'receiver' ?          
+   'source' : 'fetcher')}`)}                            
+      2 +                                               
+   title={t(`dbSync.roles.${counterpartRoleOf(selected  
+   )}`)}                                                
+ 
+ ● Tab done. Now i18n. Update LmEnCore.ts and           
+   LmZhCore.ts dbSync sections:                         
+   … (81 more lines, ctrl+o to expand)
+ 
+ ● Tab 接线完成。现在补 i18n（en/zh）：                 
+ 
+ ● Used Edit (…vel-manager/locales/LmEnCore.ts) · +16 -3
+   +16 -3                                               
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/locales/LmEnCore.ts                            
+      2         title: "Machine Data Synchronization",  
+      3         description: "Manage multiple Laravel   
+   Main nodes from one workspace. Every source session  
+   mirrors source and receiver progress together, and   
+   each receiver backs up selected databases before     
+   accepting differences.",                             
+      4         managedNodes: "Managed Laravel nodes",  
+      5 -       sourceNode: "Source Laravel node",      
+      6 -       sourceEndpoint: "Source endpoint",      
+      7 -       receiverEndpoint: "Receiver endpoint",  
+      5 +       oldServer: "Old server",                
+      6 +       newServer: "New server",                
+      7 +       maxTwoEndpoints: "A sync pair uses at   
+   most two endpoints: this node and one peer.",        
+      8 +       peerAuthRequired: "This node needs its  
+   own Laravel sign-in.",                               
+        … 12 more changes hidden (ctrl+o to expand)     
+ 
+ ● Used Edit (…avel-manager/locales/LmEnCore.ts) · +3 -1
+   +3 -1                                                
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/locales/LmEnCore.ts                            
+      1         roles: {                                
+      2           source: "Source",                     
+      3 -         receiver: "Receiver"                  
+      3 +         receiver: "Receiver",                 
+      4 +         fetcher: "Fetcher",                   
+      5 +         exporter: "Exporter"                  
+      6         },                                      
+ 
+ ● Used Edit (…laravel-manager/locales/LmEnCore.ts) · +2
+   +2                                                   
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/locales/LmEnCore.ts                            
+      3           protocol: "The current machine        
+   synchronization protocol is required",               
+      4           load: "Synchronization sessions       
+   could not be loaded.",                               
+      5           start: "Synchronization could not be  
+   started.",                                           
+      6 +         fetch: "Pull synchronization could    
+   not be started.",                                    
+      7 +         probe: "The direction probe           
+   failed.",                                            
+      8           target: "The receiver address could   
+   not be bound.",                                      
+      9           control: "Synchronization state       
+   could not be changed."                               
+     10         },                                      
+ 
+ ● Used Edit (…vel-manager/locales/LmEnCore.ts) · +13 -1
+   +13 -1                                               
+   poly_apps/pycore_laravel_wordnew_ui/apps/laravel-ma  
+   nager/locales/LmEnCore.ts                            
+      1           publish_final_progress: "Publish      
+   final progress",                                     
+      2 -         complete: "Complete synchronization"  
+      2 +         complete: "Complete                   
+   synchronization",                                    
+      3 +         create_exporter_session: "Create      
+   exporter session",                                   
+      4 +         wait_exporter_ready: "Wait for        
+   exporter manifest",                                  
+      5 +         discover_fetcher_databases:           
+   "Discover fetcher databases",                        
+      6 +         backup_fetcher_databases: "Back up    
+   fetcher databases",                                  
+      7 +         fetch_exporter_database_inventory:    
+   "Fetch exporter database inventory",                 
+      8 +         build_fetcher_resource_manifests:     
+   "Build fetcher resource manifests",                  
+      9 +         fetch_exporter_resource_manifests:    
+   "Fetch exporter resource manifests",                 
+        … 5 more changes hidden (ctrl+o to expand)      
+   Error: [provider.auth_error] 403 You've reached your 
+ 5-hour usage limit. Your quota will reset when the     
+ current 5-hour window ends. To continue now, purchase  
+ extra usage or upgrade your plan:                      
+ https://www.kimi.com/membership/subscription?tab=quota 
+   If this persists, run `/export-debug-zip` and share  
+ the file with us for diagnosis. Please don't share it  
+ publicly.                                              
+ 
+ ───────────────────────────────────────────────────────
+   Todo
+   ✓ UI: DataSyncModel dual auth state, max-2 endpoin...
+   ✓ UI: LmLoginModal peer-login props
+   ● UI: DataSyncTab wiring (old/new server pickers, ...
+   ○ i18n en/zh for new UI + steps
+   ○ Verify: php -l + tsc build
+   … +5 more (5 done) · ctrl+t to expand
