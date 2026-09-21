@@ -240,7 +240,7 @@ from pycore.pyfoundations.third_party._ocr_models import (
     CNOCR_SUBDIR,
     CNSTD_COLLECTION_SLUG,
     CNOCR_COLLECTION_SLUG,
-    _appdata_root,
+    _legacy_ocr_root,
     cnstd_root,
     cnocr_root,
     _model_name_from_ppocr_repo,

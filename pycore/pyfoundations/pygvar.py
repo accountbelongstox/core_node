@@ -82,9 +82,47 @@ tempfile.tempdir = DEFAULT_TEMP_DIR
 
 BACKUP_DIR_NAME = "CoreNodeBackup"
 LOCAL_CORE_NODE_DIR = os.path.join(USER_HOME_DIR, ".core_node")
-GLOBAL_VAR_DIR = os.path.join(LOCAL_CORE_NODE_DIR, ".global_vars")
 CACHE_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "cache")
 INSTALLER_SCRIPTS_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "installer_scripts")
+
+
+def _default_global_var_dir() -> Path:
+    """Canonical cross-language var center (one plain-text file per key).
+
+    Mirrors gvar_system_common.sh GLOBAL_VAR_DIR (= $CORE_NODE_DATA_DIR/global_var)
+    on Linux and GlobalVars.ps1 $Global:GLOBAL_VAR_DIR
+    (= D:\\programing\\Users\\<USERNAME>\\.core_node\\.global_vars) on Windows --
+    the cross-language var center that 3_setting_base.sh, GlobalVars.ps1 and
+    system_paths.py read/write:
+        Windows: D:\\programing\\Users\\<USERNAME>\\.core_node\\.global_vars
+        Linux:   /var/_core_node/global_var
+    CORE_NODE_DATA_DIR, when already exported, wins on both platforms. Falls
+    back to the per-user ~/.core_node/global_var only when the shared dir
+    cannot be created or written (e.g. non-root first run).
+    """
+    env_base = os.environ.get("CORE_NODE_DATA_DIR", "").strip()
+    if env_base:
+        shared = Path(env_base) / "global_var"
+    elif IS_WINDOWS:
+        # Mirrors GlobalVars.ps1 $Global:GLOBAL_VAR_DIR
+        # (= D:\programing\Users\<USERNAME>\.core_node\.global_vars), the Windows
+        # shell var center. system_paths.get_system_cache_dir() uses the same base.
+        username = os.environ.get("USERNAME", os.environ.get("USER", "default"))
+        shared = Path("D:/programing/Users") / username / ".core_node" / ".global_vars"
+    else:
+        shared = Path("/var/_core_node/global_var")
+    try:
+        shared.mkdir(parents=True, exist_ok=True)
+        if os.access(shared, os.W_OK):
+            return shared
+    except OSError:
+        pass
+    fallback = Path(USER_HOME_DIR) / ".core_node" / "global_var"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+GLOBAL_VAR_DIR = str(_default_global_var_dir())
 
 CPU_COUNT = os.cpu_count() or 4
 MAX_CONCURRENT_ZIP_TASKS = max(2, min(CPU_COUNT // 2, 6))
@@ -114,13 +152,7 @@ WIN11_IDENTIFIER = "10.0.22000"
 
 _SYSTEM_KEY = SYSTEM_NAME.lower()
 _HOME_PATH = Path(USER_HOME_DIR)
-_FALLBACK_CORE_NODE_PATH = TMP_DIR / ".core_node"
-_GLOBAL_STORAGE_ROOT = (
-    _HOME_PATH / ".core_node"
-    if os.access(_HOME_PATH, os.W_OK)
-    else _FALLBACK_CORE_NODE_PATH
-)
-GLOBAL_VARS_DIR = _GLOBAL_STORAGE_ROOT / ".global_vars"
+GLOBAL_VARS_DIR = Path(GLOBAL_VAR_DIR)
 PYTOOLS_TMP_DIR = TMP_DIR / "pytools"
 GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
 PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -179,21 +211,10 @@ class GlobalVarManager:
         self._namespace = self._sanitize(namespace) if namespace else None
 
     def _discover_base_dir(self) -> Path:
-        if _SYSTEM_KEY == "windows":
-            return GLOBAL_VARS_DIR
-
-        wsl_users = Path("/mnt/c/Users")
-        if wsl_users.exists():
-            for user_dir in sorted(wsl_users.iterdir()):
-                candidate = user_dir / ".core_node" / "global_var"
-                if candidate.exists():
-                    return self._ensure_directory(candidate)
-
-        default_dir = Path("/usr/.core_node/global_var")
-        if default_dir.parent.exists() and default_dir.parent.stat().st_mode & 0o200:
-            return self._ensure_directory(default_dir)
-
-        return self._ensure_directory(_HOME_PATH / ".core_node" / "global_var")
+        # The canonical var center (resolved with shared-dir fallback in
+        # GLOBAL_VARS_DIR) is the single source of truth on every platform,
+        # matching gvar_system_common.sh GLOBAL_VAR_DIR.
+        return self._ensure_directory(GLOBAL_VARS_DIR)
 
     @staticmethod
     def _ensure_directory(path: Path) -> Path:

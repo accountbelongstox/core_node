@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
 use App\Utils\FileSystemManager;
 use App\Services\UserConfig\UserConfigService;
+use App\Providers\PathMapper;
 
 /**
  * @deprecated Laravel must not autonomously synthesize TTS for queue/task-center
@@ -47,7 +48,7 @@ class PycoreEdgeTTSUtil
             ];
         }
 
-        $tempFile = $outputPath ?: tempnam(sys_get_temp_dir(), 'edge_tts_') . '.mp3';
+        $tempFile = $outputPath ?: tempnam(PathMapper::getTempPath(), 'edge_tts_') . '.mp3';
 
         // Create parent directory if needed (using FileSystemManager)
         if ($outputPath) {

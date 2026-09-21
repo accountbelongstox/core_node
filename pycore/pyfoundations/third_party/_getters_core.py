@@ -1,38 +1,13 @@
 # -*- coding: utf-8 -*-
-from aiohttp import web as aiohttp_web
-from PIL import Image as PIL_Image
-from PIL import ImageDraw as PIL_ImageDraw
-from PIL import ImageFont as PIL_ImageFont
-from PIL import ImageTk as PIL_ImageTk
-from PIL import ImageGrab as PIL_ImageGrab
-from PIL import ImageEnhance as PIL_ImageEnhance
-from PIL import ImageFilter as PIL_ImageFilter
-from PIL import ImageOps as PIL_ImageOps
-from PIL import ImageStat as PIL_ImageStat
-try:
-    import pystray
-    PYSTRAY_AVAILABLE = True
-except Exception:
-    pystray = None
-    PYSTRAY_AVAILABLE = False
-try:
-    import pythoncom as _pythoncom
-    PYTHONCOM_AVAILABLE = True
-except ImportError:
-    _pythoncom = None
-    PYTHONCOM_AVAILABLE = False
-from googletrans import Translator as googletrans_Translator
-from docx import Document as docx_Document
-from bs4 import BeautifulSoup
-from striprtf.striprtf import rtf_to_text as striprtf_rtf_to_text
-from fastmcp import FastMCP
-from fastmcp import Context
-from google import genai as google_genai
 """
 Core required-package getters (lazy load with auto-install).
 
 Packages are loaded only when first accessed via getter functions. This
-significantly reduces initial import time (from ~12s to <1s). All packages are
+significantly reduces initial import time (from ~12s to <1s) and keeps every
+optional dependency optional: importing this module (or third_party.api) must
+never require aiohttp/PIL/googletrans/docx/bs4/striprtf/fastmcp/google-genai to
+be installed -- otherwise one missing package on a minimal Linux host kills
+unrelated consumers (e.g. the agent-history extractor chain). All packages are
 cached after first load to avoid repeated imports.
 
 Latent-bug fix (split): the former third_party.py had DUPLICATE definitions of
@@ -65,7 +40,8 @@ def get_third_package_aiohttp():
 def get_third_package_aiohttp_web():
     """Get aiohttp.web (lazy load)"""
     if 'aiohttp_web' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['aiohttp_web'] = aiohttp_web
+        _lazy_import('aiohttp', 'import aiohttp')
+        _PACKAGE_CACHE['aiohttp_web'] = importlib.import_module('aiohttp.web')
     return _PACKAGE_CACHE['aiohttp_web']
 
 
@@ -95,6 +71,14 @@ def get_third_package_cryptography_serialization():
     )
 
 
+def _pil_submodule(cache_key: str, submodule: str):
+    """Load a PIL submodule lazily (auto-installs Pillow on first use)."""
+    if cache_key not in _PACKAGE_CACHE:
+        _lazy_import('PIL', 'import PIL')
+        _PACKAGE_CACHE[cache_key] = importlib.import_module(f'PIL.{submodule}')
+    return _PACKAGE_CACHE[cache_key]
+
+
 # PIL/Pillow packages
 def get_third_package_PIL():
     """Get PIL (Pillow) package (lazy load)"""
@@ -103,65 +87,47 @@ def get_third_package_PIL():
 
 def get_third_package_PIL_Image():
     """Get PIL.Image module (lazy load)"""
-    if 'PIL_Image' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_Image'] = PIL_Image
-    return _PACKAGE_CACHE['PIL_Image']
+    return _pil_submodule('PIL_Image', 'Image')
 
 
 def get_third_package_PIL_ImageDraw():
     """Get PIL.ImageDraw module (lazy load)"""
-    if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
-    return _PACKAGE_CACHE['PIL_ImageDraw']
+    return _pil_submodule('PIL_ImageDraw', 'ImageDraw')
 
 
 def get_third_package_PIL_ImageFont():
     """Get PIL.ImageFont module (lazy load)"""
-    if 'PIL_ImageFont' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
-    return _PACKAGE_CACHE['PIL_ImageFont']
+    return _pil_submodule('PIL_ImageFont', 'ImageFont')
 
 
 def get_third_package_PIL_ImageTk():
     """Get PIL.ImageTk module (lazy load) - requires tkinter"""
-    if 'PIL_ImageTk' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
-    return _PACKAGE_CACHE['PIL_ImageTk']
+    return _pil_submodule('PIL_ImageTk', 'ImageTk')
 
 
 def get_third_package_PIL_ImageGrab():
     """Get PIL.ImageGrab module (lazy load)"""
-    if 'PIL_ImageGrab' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageGrab'] = PIL_ImageGrab
-    return _PACKAGE_CACHE['PIL_ImageGrab']
+    return _pil_submodule('PIL_ImageGrab', 'ImageGrab')
 
 
 def get_third_package_PIL_ImageEnhance():
     """Get PIL.ImageEnhance module (lazy load)"""
-    if 'PIL_ImageEnhance' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageEnhance'] = PIL_ImageEnhance
-    return _PACKAGE_CACHE['PIL_ImageEnhance']
+    return _pil_submodule('PIL_ImageEnhance', 'ImageEnhance')
 
 
 def get_third_package_PIL_ImageFilter():
     """Get PIL.ImageFilter module (lazy load)"""
-    if 'PIL_ImageFilter' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageFilter'] = PIL_ImageFilter
-    return _PACKAGE_CACHE['PIL_ImageFilter']
+    return _pil_submodule('PIL_ImageFilter', 'ImageFilter')
 
 
 def get_third_package_PIL_ImageOps():
     """Get PIL.ImageOps module (lazy load)"""
-    if 'PIL_ImageOps' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageOps'] = PIL_ImageOps
-    return _PACKAGE_CACHE['PIL_ImageOps']
+    return _pil_submodule('PIL_ImageOps', 'ImageOps')
 
 
 def get_third_package_PIL_ImageStat():
     """Get PIL.ImageStat module (lazy load)"""
-    if 'PIL_ImageStat' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['PIL_ImageStat'] = PIL_ImageStat
-    return _PACKAGE_CACHE['PIL_ImageStat']
+    return _pil_submodule('PIL_ImageStat', 'ImageStat')
 
 
 # Computer vision and automation packages
@@ -393,29 +359,20 @@ def get_third_package_pystray():
     In this case, returns None instead of raising an exception.
     """
     if 'pystray' not in _PACKAGE_CACHE:
-        if not PYSTRAY_AVAILABLE:
-            _PACKAGE_CACHE['pystray'] = None
-            return None
         try:
-            _PACKAGE_CACHE['pystray'] = pystray
-            return pystray
+            _PACKAGE_CACHE['pystray'] = _lazy_import('pystray', 'import pystray')
         except Exception as e:
-            # Check if this is a display-related error (common on Linux when running as service or headless)
+            # Display-related errors are common on Linux when running as a
+            # service or headless; any other import failure is treated the
+            # same -- tray features are optional.
             error_msg = str(e)
             if 'Display' in error_msg or 'DISPLAY' in error_msg or 'X11' in error_msg or 'Xlib' in str(type(e)):
                 ColorPrint.yellow(f"[WARN] pystray unavailable due to display error: {type(e).__name__}")
                 ColorPrint.blue("[INFO] This is normal when running without X11 display access (e.g., systemd service)")
                 ColorPrint.blue("[INFO] System tray features will be disabled")
-                _PACKAGE_CACHE['pystray'] = None
-                return None
             else:
-                # Some other error, try lazy import (might trigger auto-install)
-                try:
-                    return _lazy_import('pystray', 'import pystray')
-                except Exception as e2:
-                    ColorPrint.yellow(f"[WARN] pystray import failed: {e2}")
-                    _PACKAGE_CACHE['pystray'] = None
-                    return None
+                ColorPrint.yellow(f"[WARN] pystray import failed: {e}")
+            _PACKAGE_CACHE['pystray'] = None
 
     return _PACKAGE_CACHE['pystray']
 
@@ -426,10 +383,13 @@ def get_third_package_pythoncom():
     Same style as get_third_package_pystray(); callers must check for None.
     """
     if 'pythoncom' not in _PACKAGE_CACHE:
-        if platform.system() != 'Windows' or not PYTHONCOM_AVAILABLE:
+        if platform.system() != 'Windows':
             _PACKAGE_CACHE['pythoncom'] = None
         else:
-            _PACKAGE_CACHE['pythoncom'] = _pythoncom
+            try:
+                _PACKAGE_CACHE['pythoncom'] = importlib.import_module('pythoncom')
+            except Exception:
+                _PACKAGE_CACHE['pythoncom'] = None
     return _PACKAGE_CACHE['pythoncom']
 
 
@@ -450,7 +410,7 @@ def get_third_package_PIL_Image_optional():
     """Get PIL.Image module or None on failure. For optional use (e.g. tray icon); callers must check for None."""
     if 'PIL_Image_optional' not in _PACKAGE_CACHE:
         try:
-            _PACKAGE_CACHE['PIL_Image_optional'] = PIL_Image
+            _PACKAGE_CACHE['PIL_Image_optional'] = get_third_package_PIL_Image()
         except Exception:
             _PACKAGE_CACHE['PIL_Image_optional'] = None
     return _PACKAGE_CACHE['PIL_Image_optional']
@@ -460,7 +420,7 @@ def get_third_package_PIL_ImageDraw_optional():
     """Get PIL.ImageDraw module or None on failure. For optional use; callers must check for None."""
     if 'PIL_ImageDraw_optional' not in _PACKAGE_CACHE:
         try:
-            _PACKAGE_CACHE['PIL_ImageDraw_optional'] = PIL_ImageDraw
+            _PACKAGE_CACHE['PIL_ImageDraw_optional'] = get_third_package_PIL_ImageDraw()
         except Exception:
             _PACKAGE_CACHE['PIL_ImageDraw_optional'] = None
     return _PACKAGE_CACHE['PIL_ImageDraw_optional']
@@ -490,7 +450,7 @@ def get_third_package_googletrans():
 def get_third_package_googletrans_Translator():
     """Get googletrans.Translator class (lazy load)"""
     if 'googletrans_Translator' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['googletrans_Translator'] = googletrans_Translator
+        _PACKAGE_CACHE['googletrans_Translator'] = _lazy_import('googletrans', 'import googletrans').Translator
     return _PACKAGE_CACHE['googletrans_Translator']
 
 
@@ -531,7 +491,7 @@ def get_third_package_Document():
     instead. Use this getter when you need the Document class directly.
     """
     if 'docx_Document' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['docx_Document'] = docx_Document
+        _PACKAGE_CACHE['docx_Document'] = _lazy_import('docx', 'import docx').Document
     return _PACKAGE_CACHE['docx_Document']
 
 
@@ -570,7 +530,7 @@ def get_third_package_bs4():
 def get_third_package_BeautifulSoup():
     """Get BeautifulSoup class from bs4 (lazy load)"""
     if 'BeautifulSoup' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['BeautifulSoup'] = BeautifulSoup
+        _PACKAGE_CACHE['BeautifulSoup'] = _lazy_import('bs4', 'import bs4').BeautifulSoup
     return _PACKAGE_CACHE['BeautifulSoup']
 
 
@@ -585,7 +545,8 @@ def get_third_package_ebooklib():
 def get_third_package_striprtf():
     """Get striprtf's rtf_to_text function (lazy load) for .rtf (optional)."""
     if 'striprtf_rtf_to_text' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['striprtf_rtf_to_text'] = striprtf_rtf_to_text
+        _lazy_import('striprtf', 'import striprtf')
+        _PACKAGE_CACHE['striprtf_rtf_to_text'] = importlib.import_module('striprtf.striprtf').rtf_to_text
     return _PACKAGE_CACHE['striprtf_rtf_to_text']
 
 
@@ -610,14 +571,14 @@ def get_third_package_fastmcp():
 def get_third_package_FastMCP():
     """Get FastMCP class (lazy load)"""
     if 'FastMCP' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['FastMCP'] = FastMCP
+        _PACKAGE_CACHE['FastMCP'] = _lazy_import('fastmcp', 'import fastmcp').FastMCP
     return _PACKAGE_CACHE['FastMCP']
 
 
 def get_third_package_Context():
     """Get MCP Context class (lazy load)"""
     if 'Context' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['Context'] = Context
+        _PACKAGE_CACHE['Context'] = _lazy_import('fastmcp', 'import fastmcp').Context
     return _PACKAGE_CACHE['Context']
 
 
@@ -637,7 +598,7 @@ def get_third_package_redis():
 def get_third_package_google_genai():
     """Get google.genai package (lazy load)"""
     if 'google_genai' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['google_genai'] = google_genai
+        _PACKAGE_CACHE['google_genai'] = _lazy_import('google.genai', 'from google import genai')
     return _PACKAGE_CACHE['google_genai']
 
 

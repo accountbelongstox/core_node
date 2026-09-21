@@ -651,9 +651,9 @@ class PathMapper
 
         self::ensureDirectory($logPath);
         
-        // If still doesn't exist, fallback (Windows: temp dir, Linux: /var/log)
+        // If still doesn't exist, fallback (Windows: shared D:\.tmp, Linux: /var/log)
         if (!is_dir($logPath)) {
-            return self::isWindows() ? sys_get_temp_dir() : '/var/log';
+            return self::isWindows() ? self::getBaseTempDir() : '/var/log';
         }
         
         return $logPath;
@@ -669,6 +669,23 @@ class PathMapper
     public static function getWwwRoot(?string $subPath = ""): string
     {
         return self::mapWebPath('wwwroot', $subPath);
+    }
+
+    /**
+     * Base temp directory (no external-storage config overlay).
+     *
+     * Windows: D:\.tmp (mirrors pycore pygvar TMP_DIR / GlobalVars.ps1) so temp
+     * media and scratch files never land on the C: %TEMP% dir; falls back to
+     * sys_get_temp_dir() only when D: is unavailable. Linux: sys_get_temp_dir().
+     */
+    private static function getBaseTempDir(): string
+    {
+        if (self::isWindows() && is_dir('D:\\')) {
+            $base = 'D:\\.tmp';
+            self::ensureDirectory($base);
+            return $base;
+        }
+        return sys_get_temp_dir();
     }
 
     /**
@@ -1079,7 +1096,7 @@ class PathMapper
                 'cache' => self::mapWebPath('wwwroot', 'laravel_main/cache'),
                 'updates' => self::mapWebPath('wwwroot', 'laravel_main/updates'),
                 'logs' => self::mapWebPath('logs'),
-                'temp' => sys_get_temp_dir(),
+                'temp' => self::getBaseTempDir(),
                 default => throw new \InvalidArgumentException("External storage path not configured for type '{$type}' on OS '{$os}'")
             };
         } else {
