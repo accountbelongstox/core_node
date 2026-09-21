@@ -1,23 +1,3 @@
-#!/usr/bin/env python3
-"""Reusable blocking synthesis operations for the standalone Qwen3-TTS API."""
-from __future__ import annotations
-
-import base64
-import io
-import os
-import re
-import threading
-import time
-from typing import Any, Callable, Dict, List
-
-import numpy as np
-import soundfile as sf
-import librosa
-from pydub import AudioSegment
-
-# Sentence-level chunked synthesis: long inputs are split into
-# sentence-sized chunks, synthesized, and concatenated with a pause
-# (single-shot long-text generation degrades into noise in the second half,
 # QwenLM/Qwen3-TTS#258). This is the ONLY pipeline - there is no version
 # split: every synthesis result is multi-sentence audio by construction, and
 # /status reports "chunked": true so clients can tag it as such.

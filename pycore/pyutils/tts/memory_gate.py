@@ -22,6 +22,13 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.network_constants import (
+    QWEN3TTS_MIN_FREE_VRAM_MB,
+    QWEN3TTS_MIN_FREE_VRAM_MB_ENV,
+    QWEN3TTS_RECOMMENDED_FREE_VRAM_MB,
+    QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV,
+    QWEN3TTS_VRAM_RECLAIM_ENV,
+)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
@@ -75,18 +82,9 @@ def _qwen3tts_requirement() -> Tuple[int, int]:
     return 1 * _GB, 0
 
 
-# qwen3tts VRAM launch policy (MiB). The ONLY engine that uses the GPU by
-# design, so when free VRAM is below the recommended floor the launcher and
-# the startup profile forcibly stop OTHER GPU-holding processes (see
-# reclaim_vram). After reclaim, a GPU with at least the minimum free VRAM
-# takes the model; below it the server starts on CPU.
+# qwen3tts VRAM launch policy (MiB) imported from network_constants (single source of truth).
 # Env overrides: QWEN3TTS_MIN_FREE_VRAM_MB / QWEN3TTS_RECOMMENDED_FREE_VRAM_MB /
 # QWEN3TTS_VRAM_RECLAIM=0 (disable the forcible reclaim).
-QWEN3TTS_MIN_FREE_VRAM_MB = 800
-QWEN3TTS_RECOMMENDED_FREE_VRAM_MB = 6144
-QWEN3TTS_MIN_FREE_VRAM_MB_ENV = "QWEN3TTS_MIN_FREE_VRAM_MB"
-QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV = "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB"
-QWEN3TTS_VRAM_RECLAIM_ENV = "QWEN3TTS_VRAM_RECLAIM"
 
 
 # engine -> callable returning (free RAM bytes, free VRAM bytes) required to
