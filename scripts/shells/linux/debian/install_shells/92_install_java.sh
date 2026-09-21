@@ -128,6 +128,16 @@ detect_and_fix_previous_issues() {
             echo "Found duplicate JAVA_HOME entries, removing duplicates..."
             sudo sed -i '/^JAVA_HOME=/d' /etc/environment
         fi
+
+        # Remove JAVA_HOME entries pointing at directories without bin/java
+        # (the legacy broken JAVA_HOME="/usr" produced by resolving the
+        # /usr/bin/java alternatives symlink without readlink)
+        local env_java_home=""
+        env_java_home=$(grep "^JAVA_HOME=" /etc/environment 2>/dev/null | tail -1 | cut -d'=' -f2 | tr -d '"')
+        if [ -n "$env_java_home" ] && [ ! -f "$env_java_home/bin/java" ]; then
+            echo "Found invalid JAVA_HOME=$env_java_home (no bin/java), removing..."
+            sudo sed -i '/^JAVA_HOME=/d' /etc/environment
+        fi
     fi
     
     # 2. Fix broken symlinks
@@ -395,13 +405,29 @@ setup_environment() {
         # Try to find system installation
         local system_java=$(which java 2>/dev/null)
         if [ -n "$system_java" ]; then
-            # Get the actual installation directory from the binary path
-            actual_java_home=$(dirname $(dirname "$system_java"))
+            # Resolve the full symlink chain first: update-alternatives lands on
+            # /usr/bin/java, and dirname(dirname("/usr/bin/java")) would produce
+            # the bogus JAVA_HOME="/usr". The JDK home comes from the REAL binary.
+            local resolved_java=""
+            resolved_java=$(readlink -f "$system_java" 2>/dev/null || echo "$system_java")
+            actual_java_home=$(dirname $(dirname "$resolved_java"))
             echo "Using system Java installation at: $actual_java_home"
         else
             echo "Warning: No Java installation found, using target directory"
             actual_java_home="$JAVA_INSTALL_DIR/jdk-${JAVA_VERSION}"
         fi
+    fi
+
+    # Self-heal: a JAVA_HOME whose directory has no bin/java is invalid
+    # (e.g. the legacy broken "/usr"); locate a real JDK home under /usr/lib/jvm.
+    if [ ! -f "$actual_java_home/bin/java" ]; then
+        local jvm_candidate=""
+        for jvm_candidate in /usr/lib/jvm/*/bin/java; do
+            [ -f "$jvm_candidate" ] || continue
+            actual_java_home=$(dirname $(dirname $(readlink -f "$jvm_candidate" 2>/dev/null || echo "$jvm_candidate")))
+            echo "Repaired JAVA_HOME via /usr/lib/jvm scan: $actual_java_home"
+            break
+        done
     fi
     
     # Set environment variables using the proper function from gvar_common.sh
