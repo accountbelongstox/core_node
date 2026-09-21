@@ -312,6 +312,12 @@ def main():
             ColorPrint.plain(f"\nSkipping {app_name} (not launched by this flow).")
             continue
 
+        # Platform gate: wechat/notepad++ launch on Windows only; texteditor is
+        # the Linux default-editor slot (replaces notepad++ there).
+        if not app_finder.is_supported_on_platform(app_name):
+            ColorPrint.plain(f"\nSkipping {app_name} (not launched on this platform).")
+            continue
+
         launch_as_admin = app_name == 'aiassistant'
 
         # Resolve path before the running check so chrome stable is not skipped

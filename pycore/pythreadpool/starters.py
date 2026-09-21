@@ -17,6 +17,9 @@ from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
     AppIndicatorSystemTrayThread,
     APPINDICATOR_AVAILABLE,
 )
+from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
+    check_session_bus_available as check_appindicator_session_bus,
+)
 from pycore.pyutils.native_ui.step6_tray._types import build_appindicator_menu_items
 """
 Service Starter Functions
@@ -432,20 +435,29 @@ def start_tray(config: Dict[str, Any]) -> Any:
     if backend != 'pystray' and adapter.is_linux and adapter.can_use_tray():
         try:
             if APPINDICATOR_AVAILABLE:
-                appindicator_items = build_appindicator_menu_items(menu_items)
-                app_id = config.get('app_id') or (app_name.lower().replace(' ', '_') + "-tray")
-                tray_thread = AppIndicatorSystemTrayThread(
-                    app_id=app_id,
-                    app_name=app_name,
-                    icon_path=icon_path,
-                    menu_items=appindicator_items,
-                    trigger_shutdown_on_exit=trigger_shutdown,
-                    daemon=True
-                )
-                tray_thread.start()
-                _register_stop_handler("AppIndicator")
-                ColorPrint.green(f"[tray] System Tray started (native AppIndicator): {app_name}")
-                return tray_thread
+                # The SNI registers on the desktop user's D-Bus session bus; a
+                # root process cannot connect to it (icon dead / no menu), so
+                # verify reachability before committing to this backend.
+                if not check_appindicator_session_bus():
+                    ColorPrint.yellow(
+                        "[tray] D-Bus session bus unreachable from this process "
+                        "(running as root outside the desktop session?); "
+                        "falling back to pystray")
+                else:
+                    appindicator_items = build_appindicator_menu_items(menu_items)
+                    app_id = config.get('app_id') or (app_name.lower().replace(' ', '_') + "-tray")
+                    tray_thread = AppIndicatorSystemTrayThread(
+                        app_id=app_id,
+                        app_name=app_name,
+                        icon_path=icon_path,
+                        menu_items=appindicator_items,
+                        trigger_shutdown_on_exit=trigger_shutdown,
+                        daemon=True
+                    )
+                    tray_thread.start()
+                    _register_stop_handler("AppIndicator")
+                    ColorPrint.green(f"[tray] System Tray started (native AppIndicator): {app_name}")
+                    return tray_thread
         except Exception as e:
             ColorPrint.yellow(f"[tray] AppIndicator unavailable ({e}), falling back to pystray")
 

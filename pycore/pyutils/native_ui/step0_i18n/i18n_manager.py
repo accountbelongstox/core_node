@@ -471,6 +471,21 @@ class I18nManager:
             "language": language
         })
 
+        # Fire the matching EVENTS too: subscribers register via
+        # register_event_handler(), which signal() alone never invokes (the
+        # tray menu re-translation handler in pyctl/runtime/event_handlers.py
+        # and the on_ui_redraw tray rebuilds depend on this). Async so handlers
+        # re-entering serialized i18n methods cannot deadlock this call.
+        THREAD_BUS.trigger_event(BusSignals.I18N_LANGUAGE_CHANGED, {
+            "language": language,
+            "previous_language": previous_language,
+            "supported_languages": self._supported_languages.copy()
+        }, async_mode=True)
+        THREAD_BUS.trigger_event(BusSignals.UI_REDRAW, {
+            "reason": "language_changed",
+            "language": language
+        }, async_mode=True)
+
         # Notify listeners
         self._notify_listeners(language)
 

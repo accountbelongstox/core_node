@@ -87,8 +87,12 @@
 # app pycore/pyctl/desktop/desktop-manager (dev server :15654) was superseded by the
 # unified shell (poly_apps/pycore_laravel_wordnew_ui) and has been removed.
 # Headless Linux (no Node / no display): only the legacy in-process /web/subtitle
-# page is served and no Qt window/tray is created (those are Windows-only), so the
-# worker is effectively an RPC server - configure it with `pyservice config ...`.
+# page is served and no Qt window is created, so the worker is effectively an
+# RPC server - configure it with `pyservice config ...`. On a desktop session
+# (X11 or Wayland) the worker also registers a system tray
+# (AppIndicator/StatusNotifierItem on GNOME, pystray fallback); it must run as
+# the desktop session user - the drop-privileges handoff below guarantees that
+# even when this entry was started from a root shell.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 export PYCORE_HTTP_EVENTS_ENABLED=1
@@ -309,6 +313,7 @@ _pyservice_maybe_elevate() {
     esac
     local env_args=() v
     for v in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS \
+             XDG_SESSION_TYPE XDG_CURRENT_DESKTOP DESKTOP_SESSION XAUTHORITY \
              HOME PYTHONUSERBASE PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
              LARAVEL_WORKER_API_URL PORT TTS_STARTUP_SELFCHECK; do
         [ -n "${!v:-}" ] && env_args+=("$v=${!v}")
@@ -432,6 +437,11 @@ case "$SERVICE_MODE" in
     2) NO_UI=1 ;;
     *) echo "[!] Invalid service mode: $SERVICE_MODE" >&2; exit 2 ;;
 esac
+
+# Keep RPC_PORT in sync with the parsed --port. It is only re-assigned inside
+# the dashboard-UI branch below, so without this line `run --no-ui --port N`
+# silently reverted the worker to the default 59000.
+RPC_PORT="$PORT"
 
 if [[ "$IS_HEADLESS_SERVER" == true ]]; then
     echo "[i] Headless server detected; Pycore runtime is disabled by server policy."
@@ -632,18 +642,59 @@ stop_docker_publisher "$PORT" || true
 # --- drop privileges for the worker on desktop sessions -------------------- #
 # The worker's system tray (AppIndicator/StatusNotifierItem) registers on the
 # DESKTOP USER's D-Bus session bus, which rejects connections from any other
-# uid - root included (cross-uid is denied even with the socket borrowed).
+# uid - root included (verified on Debian 13: a root process gets ENOTCONN on
+# /run/user/<uid>/bus even with DBUS_SESSION_BUS_ADDRESS forwarded; GTK then
+# half-initializes and menu popups die with Gdk-CRITICAL
+# 'gdk_window_thaw_toplevel_updates', i.e. "icon but dead menu").
 # The prerequisite installers need root, but the worker does not: when this
-# entry self-elevated via sudo and a desktop session exists, hand the worker
-# back to the original user with their session env so the tray can register
-# (same user context the systemd unit gets via User=). Headless runs keep the
+# entry runs as root and a desktop session exists, hand the worker back to the
+# session user with their session env so the tray can register. The target user
+# is $SUDO_USER after self-elevation, else the owner of the active graphical
+# session (direct root shell, e.g. SSH/console). Headless runs keep the
 # current (possibly root) context unchanged.
+
+# Find the user that owns an active graphical (Wayland/X11) login session.
+detect_graphical_session_user() {
+    command -v loginctl >/dev/null 2>&1 || return 1
+    local sid stype sstate sname any_user=""
+    while read -r sid _; do
+        [ -n "$sid" ] || continue
+        stype="$(loginctl show-session "$sid" -p Type --value 2>/dev/null)"
+        case "$stype" in wayland|x11|x11-*|mir) ;; *) continue ;; esac
+        sname="$(loginctl show-session "$sid" -p Name --value 2>/dev/null)"
+        [ -n "$sname" ] && [ "$sname" != "root" ] || continue
+        sstate="$(loginctl show-session "$sid" -p State --value 2>/dev/null)"
+        if [[ "$sstate" == "active" ]]; then
+            echo "$sname"
+            return 0
+        fi
+        [ -z "$any_user" ] && any_user="$sname"
+    done < <(loginctl list-sessions --no-legend 2>/dev/null)
+    [ -n "$any_user" ] && { echo "$any_user"; return 0; }
+    return 1
+}
+
+# Fill unset display/session variables from the session user's own process
+# environment (the root shell may lack DISPLAY/XAUTHORITY/XDG_CURRENT_DESKTOP).
+harvest_session_env() {
+    local user="$1" pid v val
+    pid="$(pgrep -u "$user" -f 'gnome-session|plasmashell|xfce4-session|cinnamon-session|mate-session|lxqt-session|startplasma' 2>/dev/null | head -1)"
+    [ -n "$pid" ] && [ -r "/proc/$pid/environ" ] || return 0
+    for v in DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_SESSION_TYPE \
+             XDG_CURRENT_DESKTOP DESKTOP_SESSION; do
+        [ -n "${!v:-}" ] && continue
+        val="$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n "s/^${v}=//p" | head -1)"
+        [ -n "$val" ] && export "$v=$val"
+    done
+}
+
 build_worker_env_args() {
     local target_user="$1" target_uid="$2" target_home="$3" v
     WORKER_ENV_ARGS=("HOME=$target_home" "USER=$target_user" "LOGNAME=$target_user"
         "XDG_RUNTIME_DIR=/run/user/${target_uid}"
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${target_uid}/bus")
     for v in PATH LANG LC_ALL LC_CTYPE DISPLAY WAYLAND_DISPLAY XAUTHORITY \
+             XDG_SESSION_TYPE XDG_CURRENT_DESKTOP DESKTOP_SESSION \
              PORT PYCORE_RPC_PORT PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
              PYCORE_HTTP_EVENTS_ENABLED LARAVEL_WORKER_API_URL NEURAL_TTS_INSTALL \
              PYTHONUSERBASE PIP_USER PIP_BREAK_SYSTEM_PACKAGES PIP_CACHE_DIR \
@@ -656,14 +707,26 @@ echo ""
 echo "[>] Launching worker: $WORKER_REL"
 echo ""
 WORKER_ENV_ARGS=()
-if [[ "$(id -u)" == "0" && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-    desktop_uid=$(id -u "$SUDO_USER" 2>/dev/null || true)
-    desktop_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
-    if [[ -n "$desktop_uid" && -n "$desktop_home" && -S "/run/user/${desktop_uid}/bus" ]]; then
-        echo "[i] Desktop session of '$SUDO_USER' detected; running the worker as that"
-        echo "    user so the system tray can register on the D-Bus session bus."
-        build_worker_env_args "$SUDO_USER" "$desktop_uid" "$desktop_home"
-        exec sudo -u "$SUDO_USER" env "${WORKER_ENV_ARGS[@]}" "$PY" "${PY_ARGS[@]}"
+DESKTOP_USER=""
+if [[ "$(id -u)" == "0" ]]; then
+    if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+        DESKTOP_USER="$SUDO_USER"
+    else
+        # Direct root shell: fall back to the active graphical session owner.
+        DESKTOP_USER="$(detect_graphical_session_user || true)"
     fi
+fi
+if [[ -n "$DESKTOP_USER" ]]; then
+    desktop_uid=$(id -u "$DESKTOP_USER" 2>/dev/null || true)
+    desktop_home=$(getent passwd "$DESKTOP_USER" 2>/dev/null | cut -d: -f6)
+    if [[ -n "$desktop_uid" && -n "$desktop_home" && -S "/run/user/${desktop_uid}/bus" ]]; then
+        harvest_session_env "$DESKTOP_USER"
+        echo "[i] Desktop session of '$DESKTOP_USER' detected; running the worker as that"
+        echo "    user so the system tray can register on the D-Bus session bus."
+        build_worker_env_args "$DESKTOP_USER" "$desktop_uid" "$desktop_home"
+        exec sudo -u "$DESKTOP_USER" env "${WORKER_ENV_ARGS[@]}" "$PY" "${PY_ARGS[@]}"
+    fi
+elif [[ "$(id -u)" == "0" ]]; then
+    echo "[i] No graphical desktop session found; running the worker as root (no system tray)."
 fi
 exec "$PY" "${PY_ARGS[@]}"

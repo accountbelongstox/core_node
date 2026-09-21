@@ -251,7 +251,12 @@ class WindowLauncher:
             for col in range(columns):
                 x = screen_x + (col * cell_step_x)
                 y = screen_y + (row * cell_step_y)
-                windows.append((x, y, term_columns, term_rows, actual_width, actual_height))
+                # 8-tuple: (x, y, cols, rows, content_w_px, content_h_px,
+                # cell_step_x, cell_step_y). The cell steps let the Linux
+                # backend size deficit top-up windows (a single-row subset has
+                # no spacing to derive the cell height from).
+                windows.append((x, y, term_columns, term_rows, actual_width, actual_height,
+                                cell_step_x, cell_step_y))
 
         return windows
 
@@ -318,8 +323,15 @@ class WindowLauncher:
         # Calculate window layout (all cells, including Ubuntu positions)
         windows = self.calculate_window_layout(screen_x, screen_y, screen_width, screen_height)
 
-        # Prepare windows config for launcher
-        windows_config = [(x, y, term_cols, term_rows) for x, y, term_cols, term_rows, _, _ in windows]
+        # Prepare windows config for launcher. The Linux backend also consumes
+        # the cell-step hints (fields 6-7) to size deficit top-up windows (a
+        # single-row subset has no spacing to derive the cell height from); the
+        # Windows backend unpacks exactly 4 fields, so it gets a 4-tuple view.
+        if platform.system() == "Linux":
+            windows_config = list(windows)
+        else:
+            windows_config = [(x, y, term_cols, term_rows)
+                              for x, y, term_cols, term_rows, _, _, _, _ in windows]
 
         # Top-up cap: launch only the first `limit` cells (the deficit), so a grid
         # that already has some terminals open is completed rather than duplicated.
@@ -334,8 +346,9 @@ class WindowLauncher:
         bat_files = self.wt_launcher.launch_windows(windows_config, delay, ubuntu_count)
 
         wt_count = total_windows - ubuntu_count
+        terminal_label = "native terminal" if platform.system() == "Linux" else "Windows Terminal"
         ColorPrint.plain(f"\nAll {total_windows} terminal windows launched:")
-        ColorPrint.plain(f"  - {wt_count} Windows Terminal windows")
+        ColorPrint.plain(f"  - {wt_count} {terminal_label} windows")
         if ubuntu_count > 0:
             ColorPrint.plain(f"  - {ubuntu_count} Ubuntu terminals")
 
