@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import type { DictionaryEntry, DictionaryStatus } from '@/apps/pycore-manager/api';
+import type { DictionaryEntry, DictionaryMatchResponse, DictionaryStatus } from '@/apps/pycore-manager/api';
 import EcdictLookupPanel from '@/shared/vocabulary/EcdictLookupPanel';
 import type { EcdictLookupAdapter } from '@/shared/vocabulary/ecdictLookupTypes';
 
@@ -47,6 +47,11 @@ const adapter: EcdictLookupAdapter = {
       busy: !!e?.busy,
       error: e?.error,
     };
+  },
+  fetchMatch: async (prefix) => {
+    const r = await pycoreApi.getDictionaryMatch(prefix, 20) as DictionaryMatchResponse;
+    if (!Array.isArray(r?.items)) return [];
+    return r.items.map((i) => ({ word: i.word, translation: i.translation }));
   },
 };
 

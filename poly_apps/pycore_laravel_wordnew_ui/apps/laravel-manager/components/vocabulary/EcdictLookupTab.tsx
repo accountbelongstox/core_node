@@ -77,6 +77,16 @@ const adapter: EcdictLookupAdapter = {
       error: e.error,
     };
   },
+  fetchMatch: async (prefix) => {
+    const r = await api.appQyV1.matchEcdict(prefix, 20);
+    if (!r.success) return [];
+    const items = (r.data as any)?.items;
+    if (!Array.isArray(items)) return [];
+    return items.map((i: any) => ({
+      word: String(i?.word || ''),
+      translation: String(i?.translation || ''),
+    }));
+  },
 };
 
 const EcdictLookupTab: React.FC = () => (
