@@ -31,6 +31,10 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 source "$COMMON_DIR/common_functions.sh"
 
+# Public-IP echo-service probe (api.ipify.org -> ifconfig.me -> icanhazip.com),
+# reused by the reachability detection below.
+source "$COMMON_DIR/network_detect_common.sh"
+
 # Get region from global variable
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 if [ -z "$SELECTED_REGION" ]; then
@@ -55,6 +59,30 @@ log_warning() {
 log_error() {
     echo -e "${RED}[$SCRIPT_INDEX][ERROR]${NC} $1"
 }
+
+# --- Public-IP reachability probe (one-shot, cached in the global-var store) ---
+# A cloud VPS behind 1:1 NAT has NO public IP bound to a local interface, so
+# the interface-based classification reports "LAN" even when the machine IS
+# publicly reachable. The authoritative test is behavioral: stop every port-80
+# listener, bind a throwaway Python reflection server on 0.0.0.0:80, then
+# request the echo-service public IP -- the token can only round-trip when
+# inbound 80 is truly mapped. A confirmed result is persisted (HAS_PUBLIC_IP /
+# PUBLIC_IP) and every later run short-circuits on the constant; nothing is
+# cached on failure so the next run re-probes.
+PUBLIC_IP_PROBE_PORT="80"
+PUBLIC_IP_PROBE_TOKEN=""
+PUBLIC_IP_PROBE_SERVER_PID=""
+PUBLIC_IP_PROBE_STOPPED_UNITS=""
+PUBLIC_IP_PROBE_IP=""
+PUBLIC_IP_PROBE_TMP_PY=""
+PUBLIC_IP_CACHED=""
+PUBLIC_IP_CACHED_IP=""
+PROBE_PID=""
+PROBE_UNIT=""
+PROBE_WAIT=""
+PROBE_ATTEMPT=""
+PROBE_BODY=""
+PROBE_RESTORE_ORDER=""
 
 # Function to test DNS resolution
 test_dns() {
@@ -466,6 +494,191 @@ fix_network_config() {
     fi
 }
 
+# Collect the PIDs currently listening on TCP port 80 (one per line).
+public_ip_probe_port80_pids() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltnpH 2>/dev/null | grep -E "[:.]${PUBLIC_IP_PROBE_PORT}[[:space:]]" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u
+    elif command -v lsof >/dev/null 2>&1; then
+        lsof -ti "tcp:${PUBLIC_IP_PROBE_PORT}" -sTCP:LISTEN 2>/dev/null | sort -u
+    fi
+}
+
+# Echo the systemd unit owning a PID (from its cgroup), empty when the process
+# is not service-managed.
+public_ip_probe_unit_for_pid() {
+    local pid="$1"
+    grep -oE '[a-zA-Z0-9_.@:-]+\.service' "/proc/$pid/cgroup" 2>/dev/null | head -1
+}
+
+# Stop every port-80 listener: service-managed processes via systemctl (the
+# units are remembered for restoration), unmanaged PIDs via kill (logged as
+# non-restorable).
+public_ip_probe_stop_port80() {
+    PUBLIC_IP_PROBE_STOPPED_UNITS=""
+    for PROBE_PID in $(public_ip_probe_port80_pids); do
+        PROBE_UNIT="$(public_ip_probe_unit_for_pid "$PROBE_PID")"
+        if [ -n "$PROBE_UNIT" ]; then
+            case " $PUBLIC_IP_PROBE_STOPPED_UNITS " in
+                *" $PROBE_UNIT "*) continue ;;
+            esac
+            log_info "Stopping service holding port ${PUBLIC_IP_PROBE_PORT}: $PROBE_UNIT"
+            if $USE_SUDO systemctl stop "$PROBE_UNIT" 2>/dev/null; then
+                PUBLIC_IP_PROBE_STOPPED_UNITS="$PUBLIC_IP_PROBE_STOPPED_UNITS $PROBE_UNIT"
+            else
+                log_warning "Failed to stop $PROBE_UNIT"
+            fi
+        else
+            log_warning "Port ${PUBLIC_IP_PROBE_PORT} held by unmanaged PID $PROBE_PID ($(ps -p "$PROBE_PID" -o args= 2>/dev/null)); killing (cannot auto-restore)"
+            $USE_SUDO kill "$PROBE_PID" 2>/dev/null || true
+        fi
+    done
+    for PROBE_WAIT in 1 2 3 4 5 6 7 8 9 10; do
+        [ -z "$(public_ip_probe_port80_pids)" ] && return 0
+        sleep 1
+    done
+    if [ -n "$(public_ip_probe_port80_pids)" ]; then
+        log_warning "Port ${PUBLIC_IP_PROBE_PORT} is still in use after stopping listeners"
+        return 1
+    fi
+    return 0
+}
+
+# Start the throwaway reflection server: any GET returns the probe token, so a
+# round-trip through the public IP proves inbound reachability.
+public_ip_probe_start_server() {
+    PUBLIC_IP_PROBE_TOKEN="ncore-public-ip-probe-$(date +%s)-$RANDOM"
+    PUBLIC_IP_PROBE_TMP_PY="$(mktemp /tmp/ncore_probe80_XXXXXX.py)"
+    cat > "$PUBLIC_IP_PROBE_TMP_PY" << 'PYEOF'
+import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+token = sys.argv[1].encode()
+port = int(sys.argv[2])
+
+class ProbeHandler(BaseHTTPRequestHandler):
+    def _answer(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(token)))
+        self.end_headers()
+        self.wfile.write(token)
+
+    do_GET = _answer
+    do_HEAD = _answer
+
+    def log_message(self, *args):
+        pass
+
+HTTPServer(("0.0.0.0", port), ProbeHandler).serve_forever()
+PYEOF
+    $USE_SUDO python3 "$PUBLIC_IP_PROBE_TMP_PY" "$PUBLIC_IP_PROBE_TOKEN" "$PUBLIC_IP_PROBE_PORT" >/dev/null 2>&1 &
+    PUBLIC_IP_PROBE_SERVER_PID=$!
+    for PROBE_WAIT in 1 2 3 4 5 6 7 8 9 10; do
+        if curl -s --max-time 2 "http://127.0.0.1:${PUBLIC_IP_PROBE_PORT}/" 2>/dev/null | grep -q "$PUBLIC_IP_PROBE_TOKEN"; then
+            log_info "Temporary reflection server is up on 0.0.0.0:${PUBLIC_IP_PROBE_PORT} (PID $PUBLIC_IP_PROBE_SERVER_PID)"
+            return 0
+        fi
+        sleep 1
+    done
+    log_error "Temporary reflection server failed to bind port ${PUBLIC_IP_PROBE_PORT}"
+    return 1
+}
+
+# Cleanup is idempotent and trap-safe: kill the reflection server, restart the
+# units stopped for the probe (in reverse order).
+public_ip_probe_cleanup() {
+    if [ -n "$PUBLIC_IP_PROBE_SERVER_PID" ]; then
+        $USE_SUDO kill "$PUBLIC_IP_PROBE_SERVER_PID" 2>/dev/null || true
+        wait "$PUBLIC_IP_PROBE_SERVER_PID" 2>/dev/null || true
+        PUBLIC_IP_PROBE_SERVER_PID=""
+    fi
+    if [ -n "$PUBLIC_IP_PROBE_TMP_PY" ]; then
+        rm -f "$PUBLIC_IP_PROBE_TMP_PY" 2>/dev/null || true
+        PUBLIC_IP_PROBE_TMP_PY=""
+    fi
+    if [ -n "$PUBLIC_IP_PROBE_STOPPED_UNITS" ]; then
+        for PROBE_UNIT in $PUBLIC_IP_PROBE_STOPPED_UNITS; do
+            PROBE_RESTORE_ORDER="$PROBE_UNIT $PROBE_RESTORE_ORDER"
+        done
+        for PROBE_UNIT in $PROBE_RESTORE_ORDER; do
+            log_info "Restarting service: $PROBE_UNIT"
+            $USE_SUDO systemctl start "$PROBE_UNIT" 2>/dev/null || log_warning "Failed to restart $PROBE_UNIT"
+        done
+        PUBLIC_IP_PROBE_STOPPED_UNITS=""
+    fi
+}
+
+# One-shot public-reachability detection. Idempotent: a persisted HAS_PUBLIC_IP
+# constant short-circuits; the probe (and its port-80 interruption) only runs
+# when the constant is absent, and only a confirmed success is persisted.
+detect_public_ip_reachability() {
+    print_header_from_common_functions "Public IP Reachability Detection"
+
+    PUBLIC_IP_CACHED="$(get_var HAS_PUBLIC_IP "")"
+    if [ "$PUBLIC_IP_CACHED" = "yes" ]; then
+        PUBLIC_IP_CACHED_IP="$(get_var PUBLIC_IP "")"
+        log_info "Public reachability already confirmed (cached constant HAS_PUBLIC_IP=yes, PUBLIC_IP=${PUBLIC_IP_CACHED_IP:-unknown}); skipping probe."
+        return 0
+    fi
+
+    if ! command -v curl >/dev/null 2>&1; then
+        log_error "curl not found; cannot query the external echo services"
+        return 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_error "python3 not found; cannot start the temporary reflection server"
+        return 1
+    fi
+    if [ "$(id -u)" -ne 0 ] && [ -z "$USE_SUDO" ]; then
+        log_error "Root (or sudo) is required to stop/restart port-${PUBLIC_IP_PROBE_PORT} services and bind port ${PUBLIC_IP_PROBE_PORT}"
+        return 1
+    fi
+
+    log_info "No HAS_PUBLIC_IP constant found; probing public reachability..."
+    PUBLIC_IP_PROBE_IP="$(net_detect_public_ip 2>/dev/null || true)"
+    if [ -z "$PUBLIC_IP_PROBE_IP" ]; then
+        log_warning "No public IP from the external echo services (ifconfig.me / icanhazip.com / api.ipify.org); outbound connectivity may be blocked. Nothing cached; the next run re-probes."
+        return 1
+    fi
+    log_info "Public IP from echo services: $PUBLIC_IP_PROBE_IP"
+
+    trap public_ip_probe_cleanup EXIT
+
+    log_info "Stopping all port-${PUBLIC_IP_PROBE_PORT} listeners for the probe..."
+    if ! public_ip_probe_stop_port80; then
+        log_warning "Could not free port ${PUBLIC_IP_PROBE_PORT}; probe aborted (services restored). Nothing cached."
+        return 1
+    fi
+    if ! public_ip_probe_start_server; then
+        return 1
+    fi
+
+    log_info "Requesting http://$PUBLIC_IP_PROBE_IP/ (the token can only round-trip when inbound ${PUBLIC_IP_PROBE_PORT} is publicly mapped)..."
+    for PROBE_ATTEMPT in 1 2 3; do
+        PROBE_BODY="$(curl -s --max-time 8 "http://$PUBLIC_IP_PROBE_IP/" 2>/dev/null || true)"
+        if [ "$PROBE_BODY" = "$PUBLIC_IP_PROBE_TOKEN" ]; then
+            break
+        fi
+        PROBE_BODY=""
+        sleep 2
+    done
+
+    if [ "$PROBE_BODY" = "$PUBLIC_IP_PROBE_TOKEN" ]; then
+        set_var HAS_PUBLIC_IP "yes"
+        set_var PUBLIC_IP "$PUBLIC_IP_PROBE_IP"
+        log_info "====================================================="
+        log_info "Public reachability CONFIRMED: http://$PUBLIC_IP_PROBE_IP/ reached the temporary port-${PUBLIC_IP_PROBE_PORT} server."
+        log_info "Cached to the constant store: HAS_PUBLIC_IP=yes, PUBLIC_IP=$PUBLIC_IP_PROBE_IP"
+        log_info "Every later run reads the constant directly (no re-probe, no port-${PUBLIC_IP_PROBE_PORT} interruption)."
+        log_info "====================================================="
+        return 0
+    fi
+
+    log_warning "http://$PUBLIC_IP_PROBE_IP/ did NOT reach the temporary server: inbound port ${PUBLIC_IP_PROBE_PORT} is not publicly mapped (NAT without forwarding / security group / firewall)."
+    log_warning "Nothing cached; the next run re-probes."
+    return 1
+}
+
 # Main execution
 main() {
     print_header_from_common_functions "DNS Resolution Fix"
@@ -599,6 +812,13 @@ main() {
         return 1
     fi
 }
+
+# Mode dispatch: --detect-public-ip runs ONLY the one-shot public-reachability
+# probe (no DNS changes); anything else runs the DNS fixer.
+if [ "${1:-}" = "--detect-public-ip" ]; then
+    detect_public_ip_reachability
+    exit $?
+fi
 
 # Run main function
 main "$@"
