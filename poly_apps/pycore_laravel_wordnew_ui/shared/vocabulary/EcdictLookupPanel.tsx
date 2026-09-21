@@ -66,6 +66,12 @@ export default function EcdictLookupPanel({ adapter, className }: EcdictLookupPa
   const [busy, setBusy] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Prefix suggestions (dropdown): debounced re-fetch on every input change,
+  // stale-response guard via a sequence number.
+  const [suggestions, setSuggestions] = useState<EcdictMatchItem[]>([]);
+  const [showSugg, setShowSugg] = useState(false);
+  const suggTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggSeq = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,9 +81,35 @@ export default function EcdictLookupPanel({ adapter, className }: EcdictLookupPa
     return () => { cancelled = true; };
   }, [adapter]);
 
-  const lookup = useCallback(async () => {
-    const w = word.trim();
+  useEffect(() => () => {
+    if (suggTimer.current) clearTimeout(suggTimer.current);
+  }, []);
+
+  const requestSuggestions = useCallback((value: string) => {
+    if (suggTimer.current) clearTimeout(suggTimer.current);
+    const prefix = value.trim();
+    if (!prefix || !adapter.fetchMatch) {
+      setSuggestions([]);
+      setShowSugg(false);
+      return;
+    }
+    suggTimer.current = setTimeout(() => {
+      const seq = ++suggSeq.current;
+      adapter.fetchMatch!(prefix)
+        .then((items) => {
+          if (seq !== suggSeq.current) return; // a newer keystroke owns the dropdown
+          const list = Array.isArray(items) ? items.slice(0, 20) : [];
+          setSuggestions(list);
+          setShowSugg(list.length > 0);
+        })
+        .catch(() => { /* suggestions are best-effort */ });
+    }, 200);
+  }, [adapter]);
+
+  const lookup = useCallback(async (override?: string) => {
+    const w = (override ?? word).trim();
     if (!w || busy) return;
+    setShowSugg(false);
     setBusy(true);
     setErr(null);
     setEntry(null);
@@ -108,6 +140,13 @@ export default function EcdictLookupPanel({ adapter, className }: EcdictLookupPa
     }
   }, [word, busy, adapter]);
 
+  const pickSuggestion = useCallback((item: EcdictMatchItem) => {
+    setWord(item.word);
+    setSuggestions([]);
+    setShowSugg(false);
+    void lookup(item.word);
+  }, [lookup]);
+
   const ecdictOn = !!status?.available;
   const entryCount = status?.entries ?? 0;
 
@@ -131,15 +170,38 @@ export default function EcdictLookupPanel({ adapter, className }: EcdictLookupPa
         )}
       </div>
 
-      {/* search row */}
+      {/* search row + prefix-suggestion dropdown */}
       <div className="flex items-center gap-2">
-        <input
-          value={word}
-          onChange={(e) => setWord(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void lookup(); }}
-          placeholder={D.placeholder}
-          className="flex-1 px-3 py-2 text-sm rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200"
-        />
+        <div className="relative flex-1">
+          <input
+            value={word}
+            onChange={(e) => { setWord(e.target.value); requestSuggestions(e.target.value); }}
+            onFocus={() => { if (suggestions.length > 0) setShowSugg(true); }}
+            onBlur={() => { setTimeout(() => setShowSugg(false), 150); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { setShowSugg(false); void lookup(); }
+              if (e.key === 'Escape') setShowSugg(false);
+            }}
+            placeholder={D.placeholder}
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200"
+          />
+          {showSugg && suggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-72 overflow-auto rounded-xl border border-slate-300/50 dark:border-white/10 bg-white dark:bg-slate-800 shadow-xl">
+              {suggestions.map((item) => (
+                <button
+                  key={item.word}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); pickSuggestion(item); }}
+                  className="w-full flex items-baseline gap-2 px-3 py-1.5 text-left hover:bg-indigo-500/10 transition-colors">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 shrink-0">{item.word}</span>
+                  {item.translation && (
+                    <span className="text-[11px] text-slate-400 truncate">{item.translation}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => void lookup()}
           disabled={busy || !word.trim()}
