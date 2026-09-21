@@ -353,39 +353,51 @@ ensure_fcitx5_autostart() {
 enable_fcitx5_wubi() {
     local fcitx5_dir="$REAL_USER_HOME/.config/fcitx5"
     local profile_path="$fcitx5_dir/profile"
+    local root_profile="/root/.config/fcitx5/profile"
 
     if [ -z "$REAL_USER_HOME" ] || [ ! -d "$REAL_USER_HOME" ]; then
         print_warning_from_common_functions "Real user home not found; skipping per-user Fcitx5 profile"
         return 0
     fi
-    # Do not clobber an existing profile the user may have customized.
-    if [ -f "$profile_path" ]; then
-        print_info_from_common_functions "Fcitx5 profile already exists; leaving it untouched"
-        print_info_from_common_functions "Add Wubi via fcitx5-configtool if it is not enabled yet"
-        return 0
+    # Check if existing profile needs Wubi enabled
+    local need_write=0
+    if [ ! -f "$profile_path" ]; then
+        need_write=1
+    elif ! grep -q "$WUBI_IM" "$profile_path" 2>/dev/null; then
+        print_step_from_common_functions "Adding $WUBI_IM to existing Fcitx5 profile..."
+        need_write=1
     fi
 
-    print_step_from_common_functions "Writing default Fcitx5 profile enabling Wubi ($WUBI_IM)..."
-    $USE_SUDO mkdir -p "$fcitx5_dir"
-    {
-        echo "[Groups/0]"
-        echo "Name=Default"
-        echo "Default Layout=us"
-        echo "DefaultIM=$WUBI_IM"
-        echo ""
-        echo "[Groups/0/Items/0]"
-        echo "Name=keyboard-us"
-        echo "Layout="
-        echo ""
-        echo "[Groups/0/Items/1]"
-        echo "Name=$WUBI_IM"
-        echo "Layout="
-        echo ""
-        echo "[GroupOrder]"
-        echo "0=Default"
-    } | $USE_SUDO tee "$profile_path" >/dev/null
-    safe_chown_R "$REAL_USER:$REAL_USER_GROUP" "$fcitx5_dir"
-    print_success_from_common_functions "Fcitx5 Wubi profile written for $REAL_USER"
+    if [ "$need_write" -eq 1 ]; then
+        print_step_from_common_functions "Writing default Fcitx5 profile enabling Wubi ($WUBI_IM)..."
+        $USE_SUDO mkdir -p "$fcitx5_dir"
+        {
+            echo "[Groups/0]"
+            echo "Name=Default"
+            echo "Default Layout=us"
+            echo "DefaultIM=$WUBI_IM"
+            echo ""
+            echo "[Groups/0/Items/0]"
+            echo "Name=keyboard-us"
+            echo "Layout="
+            echo ""
+            echo "[Groups/0/Items/1]"
+            echo "Name=$WUBI_IM"
+            echo "Layout="
+            echo ""
+            echo "[GroupOrder]"
+            echo "0=Default"
+        } | $USE_SUDO tee "$profile_path" >/dev/null
+        safe_chown_R "$REAL_USER:$REAL_USER_GROUP" "$fcitx5_dir"
+        print_success_from_common_functions "Fcitx5 Wubi profile written for $REAL_USER"
+    else
+        print_info_from_common_functions "Fcitx5 profile already includes $WUBI_IM"
+    fi
+
+    # Sync profile to /root/.config/fcitx5 for root-elevated IDEs
+    $USE_SUDO mkdir -p "/root/.config/fcitx5"
+    $USE_SUDO cp -f "$profile_path" "$root_profile" 2>/dev/null || true
+
     # Reload a running fcitx5 so the change applies without a relaunch (best-effort).
     run_as_real_user fcitx5-remote -r >/dev/null 2>&1 || true
 }

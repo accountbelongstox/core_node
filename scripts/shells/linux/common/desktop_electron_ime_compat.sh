@@ -21,6 +21,7 @@
 
 DEIC_MARK_BEGIN="# >>> core_node electron-ime (managed) >>>"
 DEIC_MARK_END="# <<< core_node electron-ime (managed) <<<"
+DEIC_DBUS_ALLOW_ROOT_CONF="/etc/dbus-1/session.d/99-corenode-allow-root.conf"
 DEIC_CURSOR_FLAGS=(
     "--ozone-platform-hint=auto"
     "--enable-wayland-ime"
@@ -80,6 +81,7 @@ deic_launcher_env_exports() {
         printf 'export SDL_IM_MODULE=%s\n' "$gtk_mod"
         printf 'export CLUTTER_IM_MODULE=xim\n'
     fi
+    printf 'export ELECTRON_OZONE_PLATFORM_HINT=auto\n'
 }
 
 deic_pkexec_env_string() {
@@ -87,11 +89,63 @@ deic_pkexec_env_string() {
     local gtk_mod
     gtk_mod="$(deic_gtk_module_for_framework "$fw")"
     if [ "$fw" = "ibus" ]; then
-        printf 'GTK_IM_MODULE=%s QT_IM_MODULE=%s XMODIFIERS=@im=%s CLUTTER_IM_MODULE=%s' \
+        printf 'GTK_IM_MODULE=%s QT_IM_MODULE=%s XMODIFIERS=@im=%s CLUTTER_IM_MODULE=%s ELECTRON_OZONE_PLATFORM_HINT=auto' \
             "$gtk_mod" "$gtk_mod" "$gtk_mod" "$gtk_mod"
     else
-        printf 'GTK_IM_MODULE=%s QT_IM_MODULE=%s XMODIFIERS=@im=%s SDL_IM_MODULE=%s CLUTTER_IM_MODULE=xim' \
+        printf 'GTK_IM_MODULE=%s QT_IM_MODULE=%s XMODIFIERS=@im=%s SDL_IM_MODULE=%s CLUTTER_IM_MODULE=xim ELECTRON_OZONE_PLATFORM_HINT=auto' \
             "$gtk_mod" "$gtk_mod" "$gtk_mod" "$gtk_mod"
+    fi
+}
+
+deic_ensure_dbus_root_access() {
+    local dbus_dir="/etc/dbus-1/session.d"
+    local conf_file="$DEIC_DBUS_ALLOW_ROOT_CONF"
+    local sudo_cmd=""
+    [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && sudo_cmd="sudo"
+
+    $sudo_cmd mkdir -p "$dbus_dir" 2>/dev/null || true
+    if [ ! -f "$conf_file" ] || ! grep -q '<allow user="root"/>' "$conf_file" 2>/dev/null; then
+        $sudo_cmd tee "$conf_file" >/dev/null <<'EOF'
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <policy context="mandatory">
+    <allow user="root"/>
+  </policy>
+</busconfig>
+EOF
+        $sudo_cmd pkill -HUP -f 'dbus-daemon.*--session' 2>/dev/null || true
+    fi
+    return 0
+}
+
+deic_ensure_fcitx5_root_profile() {
+    local source_profile="${1:-}"
+    local root_fcitx5_dir="/root/.config/fcitx5"
+    local root_profile="$root_fcitx5_dir/profile"
+    local wubi_im="${2:-wubi-large}"
+
+    mkdir -p "$root_fcitx5_dir" 2>/dev/null || true
+    if [ -n "$source_profile" ] && [ -f "$source_profile" ]; then
+        cp -f "$source_profile" "$root_profile" 2>/dev/null || true
+    elif [ ! -f "$root_profile" ]; then
+        cat > "$root_profile" <<EOF
+[Groups/0]
+Name=Default
+Default Layout=us
+DefaultIM=$wubi_im
+
+[Groups/0/Items/0]
+Name=keyboard-us
+Layout=
+
+[Groups/0/Items/1]
+Name=$wubi_im
+Layout=
+
+[GroupOrder]
+0=Default
+EOF
     fi
 }
 
@@ -183,24 +237,38 @@ deic_ensure_electron_ime_compat() {
     local fw="${3:-}"
     local gtk_mod=""
     local config_dir=""
+    local root_config_dir="/root/.config"
 
     [ -z "$fw" ] && fw="$(deic_detect_im_framework)"
     gtk_mod="$(deic_gtk_module_for_framework "$fw")"
 
-    if [ -z "$home" ] || [ ! -d "$home" ]; then
-        return 0
+    # Always ensure root D-Bus session bus authorization for client IME connection
+    deic_ensure_dbus_root_access
+
+    if [ -n "$home" ] && [ -d "$home" ]; then
+        deic_ensure_gtk_user_config "$user" "$home" "$gtk_mod"
+
+        config_dir="$home/.config"
+        mkdir -p "$config_dir" 2>/dev/null || true
+        deic_write_flags_file "$config_dir/cursor-flags.conf" "${DEIC_CURSOR_FLAGS[@]}"
+        deic_write_flags_file "$config_dir/code-flags.conf" "${DEIC_CODE_FLAGS[@]}"
+
+        if [ "$(id -u)" -eq 0 ] && [ -n "$user" ]; then
+            chown -R "$user:$(id -gn "$user" 2>/dev/null || echo "$user")" \
+                "$config_dir/cursor-flags.conf" "$config_dir/code-flags.conf" 2>/dev/null || true
+        fi
     fi
 
-    deic_ensure_gtk_user_config "$user" "$home" "$gtk_mod"
-
-    config_dir="$home/.config"
-    mkdir -p "$config_dir" 2>/dev/null || true
-    deic_write_flags_file "$config_dir/cursor-flags.conf" "${DEIC_CURSOR_FLAGS[@]}"
-    deic_write_flags_file "$config_dir/code-flags.conf" "${DEIC_CODE_FLAGS[@]}"
-
-    if [ "$(id -u)" -eq 0 ] && [ -n "$user" ]; then
-        chown -R "$user:$(id -gn "$user" 2>/dev/null || echo "$user")" \
-            "$config_dir/cursor-flags.conf" "$config_dir/code-flags.conf" 2>/dev/null || true
+    # Also configure /root when running as root so root-elevated IDEs have identical IME configuration
+    if [ "$(id -u)" -eq 0 ] && [ -d "/root" ]; then
+        deic_ensure_gtk_user_config "root" "/root" "$gtk_mod"
+        mkdir -p "$root_config_dir" 2>/dev/null || true
+        deic_write_flags_file "$root_config_dir/cursor-flags.conf" "${DEIC_CURSOR_FLAGS[@]}"
+        deic_write_flags_file "$root_config_dir/code-flags.conf" "${DEIC_CODE_FLAGS[@]}"
+        if [ "$fw" = "fcitx5" ]; then
+            deic_ensure_fcitx5_root_profile "$home/.config/fcitx5/profile"
+        fi
     fi
+
     return 0
 }

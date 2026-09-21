@@ -569,8 +569,13 @@ create_desktop_entry() {
 CURSOR_REAL_BINARY="$cursor_real_binary"
 if [ "\$(id -u)" -ne 0 ]; then
     if command -v pkexec >/dev/null 2>&1; then
-        exec pkexec env DISPLAY="\${DISPLAY:-:0}" XAUTHORITY="\${XAUTHORITY:-\$HOME/.Xauthority}" \
-            XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR}" DBUS_SESSION_BUS_ADDRESS="\${DBUS_SESSION_BUS_ADDRESS}" \
+        exec pkexec env DISPLAY="\${DISPLAY:-:0}" \
+            XAUTHORITY="\${XAUTHORITY:-\$HOME/.Xauthority}" \
+            XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR:-/run/user/\$(id -u)}" \
+            WAYLAND_DISPLAY="\${WAYLAND_DISPLAY:-}" \
+            XDG_SESSION_TYPE="\${XDG_SESSION_TYPE:-}" \
+            DBUS_SESSION_BUS_ADDRESS="\${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/\$(id -u)/bus}" \
+            IBUS_ADDRESS="\${IBUS_ADDRESS:-}" \
             PATH="/usr/local/lib/core_node/browser-bridge:\${PATH}" \
             $cursor_im_pkexec_env "\$0" "\$@"
     else
@@ -581,19 +586,40 @@ fi
 # (Chrome refuses root), which silently kills the "Sign in" button. The bridge
 # re-dispatches xdg-open to the desktop user's session.
 export PATH="/usr/local/lib/core_node/browser-bridge:\${PATH}"
+# Discover desktop user's session bus and Wayland display if running as root without them
+if [ -z "\${DBUS_SESSION_BUS_ADDRESS:-}" ] || [ "\${DBUS_SESSION_BUS_ADDRESS:-}" = "unix:path=/run/user/0/bus" ]; then
+    for _bus in /run/user/[1-9]*/bus; do
+        if [ -S "\$_bus" ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=\$_bus"
+            break
+        fi
+    done
+fi
+if [ -z "\${WAYLAND_DISPLAY:-}" ]; then
+    for _wl in /run/user/[1-9]*/wayland-*; do
+        if [ -S "\$_wl" ]; then
+            export WAYLAND_DISPLAY="\$(basename "\$_wl")"
+            export XDG_RUNTIME_DIR="\$(dirname "\$_wl")"
+            break
+        fi
+    done
+fi
 # IME bridge (Electron/Chromium; idempotent with 173_install_chinese_wubi.sh)
 $(deic_launcher_env_exports)
-# Chromium/Electron flags for Wayland IME (desktop user's cursor-flags.conf).
+# Chromium/Electron flags for Wayland IME (desktop user's or root cursor-flags.conf).
 CURSOR_FLAGS_FILE="$cursor_flags_file"
 CURSOR_EXTRA_FLAGS=()
-if [ -f "\$CURSOR_FLAGS_FILE" ]; then
-    while IFS= read -r _deic_line || [ -n "\$_deic_line" ]; do
-        case "\$_deic_line" in
-            ''|'#'*) continue ;;
-            *) CURSOR_EXTRA_FLAGS+=("\$_deic_line") ;;
-        esac
-    done < "\$CURSOR_FLAGS_FILE"
-fi
+for _cfg in "\$CURSOR_FLAGS_FILE" /root/.config/cursor-flags.conf; do
+    if [ -f "\$_cfg" ]; then
+        while IFS= read -r _deic_line || [ -n "\$_deic_line" ]; do
+            case "\$_deic_line" in
+                ''|'#'*) continue ;;
+                *) CURSOR_EXTRA_FLAGS+=("\$_deic_line") ;;
+            esac
+        done < "\$_cfg"
+        break
+    fi
+done
 # Prefer the resource-limited launcher (cgroup-v2 --system scope; we are root here
 # post-elevation). Falls back to a direct launch if the wrapper is missing.
 if [ -x /usr/local/bin/cursor-rlimit ]; then

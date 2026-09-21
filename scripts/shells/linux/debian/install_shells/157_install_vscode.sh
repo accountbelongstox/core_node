@@ -51,6 +51,7 @@ if [[ -z "$DESKTOP_MANAGER_HOME" ]] || [[ ! -d "$DESKTOP_MANAGER_HOME" ]]; then
 fi
 DESKTOP_MANAGER_APPS_DIR="$DESKTOP_MANAGER_HOME/.local/share/applications"
 SYSTEM_DESKTOP_FILE="/usr/share/applications/code.desktop"
+SYSTEM_URL_HANDLER_DESKTOP_FILE="/usr/share/applications/code-url-handler.desktop"
 LAUNCH_DIR="$CORE_NODE_DATA_DIR/scripts_launch_dir"
 
 # Ensure sudo is available and set USE_SUDO
@@ -316,16 +317,78 @@ install_deb_package() {
     return 0
 }
 
-# Remove system desktop entries to avoid duplicates
-remove_system_desktop_entries() {
-    print_step_from_common_functions "Removing system desktop entries to avoid duplicates..."
+# Hide package-provided VS Code menu entries so exactly ONE icon (the
+# managed root-elevated core_node entry) remains in the menu.
+# XDG-canonical: a same-named user entry containing Hidden=true shadows the
+# system entry for the desktop user without editing package-owned files.
+# Idempotent: an existing Hidden=true override is left untouched.
+hide_duplicate_desktop_entries() {
+    print_step_from_common_functions "Deduplicating VS Code desktop entries (keeping only root-authenticated launcher)..."
+    local target_home="${DESKTOP_MANAGER_HOME:-$HOME}"
+    local user_home=""
+    local u_apps=""
+    local u_owner=""
+    local entry_name=""
+    local override_file=""
+    local system_desktop=""
 
-    if [[ -f "$SYSTEM_DESKTOP_FILE" ]]; then
-        $USE_SUDO mv "$SYSTEM_DESKTOP_FILE" "${SYSTEM_DESKTOP_FILE}.disabled" 2>/dev/null || true
-        print_success_from_common_functions "System desktop entry disabled"
+    # 1. User-level shadow overrides for all desktop users under /home/* and target_home
+    for user_home in "$target_home" /home/*; do
+        [[ -d "$user_home" ]] || continue
+        u_apps="$user_home/.local/share/applications"
+        u_owner="$(stat -c '%U:%G' "$user_home" 2>/dev/null)"
+        mkdir -p "$u_apps" 2>/dev/null || true
+        [ -n "$u_owner" ] && chown -R "$u_owner" "$user_home/.local" 2>/dev/null || true
+
+        for entry_name in "code.desktop" "code-url-handler.desktop"; do
+            override_file="$u_apps/$entry_name"
+            if [ ! -f "$override_file" ] || ! grep -q '^Hidden=true' "$override_file" 2>/dev/null; then
+                cat > "$override_file" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=Visual Studio Code (System Shadow)
+Hidden=true
+NoDisplay=true
+EOF
+                [ -n "$u_owner" ] && chown "$u_owner" "$override_file" 2>/dev/null || true
+                chmod 644 "$override_file" 2>/dev/null || true
+            fi
+        done
+    done
+
+    # 2. System-wide entries: disable and mark NoDisplay=true
+    for system_desktop in /usr/share/applications/code.desktop /usr/local/share/applications/code.desktop /usr/share/applications/code-url-handler.desktop /usr/local/share/applications/code-url-handler.desktop; do
+        if [[ -f "$system_desktop" ]]; then
+            # Back up to .disabled if not already backed up
+            if [[ ! -f "${system_desktop}.disabled" ]]; then
+                $USE_SUDO cp -f "$system_desktop" "${system_desktop}.disabled" 2>/dev/null || true
+            fi
+            # Add NoDisplay=true to system entry
+            if ! grep -q "^NoDisplay=true" "$system_desktop" 2>/dev/null; then
+                if grep -q "^\[Desktop Entry\]" "$system_desktop" 2>/dev/null; then
+                    $USE_SUDO sed -i '/^\[Desktop Entry\]/a NoDisplay=true' "$system_desktop" 2>/dev/null || true
+                else
+                    echo "NoDisplay=true" | $USE_SUDO tee -a "$system_desktop" >/dev/null
+                fi
+            fi
+            # Also rename so system ignores it completely
+            $USE_SUDO mv -f "$system_desktop" "${system_desktop}.disabled" 2>/dev/null || true
+        fi
+    done
+
+    # 3. Refresh desktop databases
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$DESKTOP_MANAGER_APPS_DIR" 2>/dev/null || true
+        $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
+        $USE_SUDO update-desktop-database /usr/local/share/applications 2>/dev/null || true
     fi
 
+    print_success_from_common_functions "Deduplicated VS Code menu entries; only the managed root launcher stays visible."
     return 0
+}
+
+remove_system_desktop_entries() {
+    hide_duplicate_desktop_entries
 }
 
 
@@ -391,6 +454,9 @@ create_vscode_desktop_shortcut() {
     else
         print_warning_from_common_functions "desktop_entry_manager.sh --create-app encountered an error"
     fi
+
+    # Deduplicate desktop entries so only the root-elevated core_node launcher remains
+    hide_duplicate_desktop_entries || true
 
     return 0
 }
@@ -740,6 +806,7 @@ main() {
             grep -q '^ARL_SCOPE_MODE="user"'   /usr/local/bin/vscode-rlimit && USE_ROOT_MODE=false
         fi
         create_vscode_desktop_shortcut || true
+        hide_duplicate_desktop_entries || true
     fi
 
     # Interactive cleanup prompt
