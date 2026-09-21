@@ -10,7 +10,7 @@ synthesis on engines that actually fit instead of dying inside
 
 Config:
   TTS_MEMORY_GATE   - set to 0 to disable the gate (default: on)
-  QWEN3TTS_MIN_FREE_VRAM_MB        - launch floor for auto->cuda (default 1024)
+  QWEN3TTS_MIN_FREE_VRAM_MB        - launch floor for auto->cuda (default 800)
   QWEN3TTS_RECOMMENDED_FREE_VRAM_MB - below this, foreign GPU processes are
                                       forcibly stopped at startup/launch
                                       (default 6144; qwen3tts is the only GPU
@@ -67,11 +67,11 @@ def _sherpa_kokoro_requirement(engine: str) -> Tuple[int, int]:
 
 
 def _qwen3tts_requirement() -> Tuple[int, int]:
-    # Minimum host memory floor: 1 GB. VRAM is deliberately 0 here — the card
-    # decision belongs to the launch path (tts_service_manager), which first
-    # RECLAIMS VRAM from foreign processes (qwen3tts is the only engine that
-    # needs the GPU by design) and then applies the 1 GB minimum free-VRAM
-    # floor with CPU fallback.
+    # Minimum host memory floor: 1 GB RAM. VRAM is deliberately 0 here — the
+    # card decision belongs to the launch path (tts_service_manager), which
+    # first RECLAIMS VRAM from foreign processes (qwen3tts is the only engine
+    # that needs the GPU by design) and then applies the 800 MB minimum
+    # free-VRAM floor with CPU fallback.
     return 1 * _GB, 0
 
 
@@ -82,7 +82,7 @@ def _qwen3tts_requirement() -> Tuple[int, int]:
 # takes the model; below it the server starts on CPU.
 # Env overrides: QWEN3TTS_MIN_FREE_VRAM_MB / QWEN3TTS_RECOMMENDED_FREE_VRAM_MB /
 # QWEN3TTS_VRAM_RECLAIM=0 (disable the forcible reclaim).
-QWEN3TTS_MIN_FREE_VRAM_MB = 1024
+QWEN3TTS_MIN_FREE_VRAM_MB = 800
 QWEN3TTS_RECOMMENDED_FREE_VRAM_MB = 6144
 QWEN3TTS_MIN_FREE_VRAM_MB_ENV = "QWEN3TTS_MIN_FREE_VRAM_MB"
 QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV = "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB"

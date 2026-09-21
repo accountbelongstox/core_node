@@ -20,9 +20,9 @@ Env:
   QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto); auto picks
                                    cuda:0 only when the GPU has enough FREE VRAM
                                    for the model variant (see below)
-  QWEN3TTS_MIN_FREE_VRAM_MB      - free-VRAM floor for auto->cuda (default 1024;
+  QWEN3TTS_MIN_FREE_VRAM_MB      - free-VRAM floor for auto->cuda (default 800;
                                    the launcher reclaims foreign GPU processes
-                                   first, so this is only the 1 GB minimum)
+                                   first, so this is only the 800 MB minimum)
   QWEN3TTS_MODEL_VARIANT         - installed model size (0.6B | 1.7B), supplied
                                    by the managed launcher for local paths
   QWEN3TTS_PHYSICAL_GPU_INDEX    - physical NVIDIA index selected at launch
@@ -260,8 +260,8 @@ async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
 # gate in pycore/pyutils/tts/memory_gate.py (standalone script - no pycore
 # imports, so the value is duplicated by contract). The launcher already
 # reclaimed foreign GPU processes before this auto path runs, so the floor is
-# the 1 GB minimum. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
-_QWEN3TTS_MIN_FREE_VRAM_MB = 1024
+# the 800 MB minimum. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
+_QWEN3TTS_MIN_FREE_VRAM_MB = 800
 
 
 def _min_free_vram_mb() -> int:

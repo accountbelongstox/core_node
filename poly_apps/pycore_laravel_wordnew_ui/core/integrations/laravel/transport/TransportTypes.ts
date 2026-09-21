@@ -42,6 +42,17 @@ export interface APIModuleConfig {
   prefix?: string;
   headers?: Record<string, string>;
   timeout?: number;
+  /**
+   * Per-module bearer resolver. When present it replaces the shared session
+   * token for this module, so fixed-endpoint modules can authenticate against
+   * a second Laravel backend with its own login state.
+   */
+  authToken?: () => string | null;
+  /**
+   * 401 handler replacing the global login request for this module. Peer
+   * modules open their own endpoint-scoped login instead of the shared one.
+   */
+  onUnauthorized?: () => void;
   retry?: {
     count: number;
     delay: number;

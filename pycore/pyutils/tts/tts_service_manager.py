@@ -84,8 +84,8 @@ _ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
 # ("at least 4GB of GPU memory"). qwen3tts is the ONLY engine that needs the
 # GPU by design: before its device decision the launcher RECLAIMS VRAM from
 # foreign processes when free VRAM is below the recommended floor
-# (memory_gate.QWEN3TTS_RECOMMENDED_FREE_VRAM_MB, 6 GB), then applies the 1 GB
-# minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB).
+# (memory_gate.QWEN3TTS_RECOMMENDED_FREE_VRAM_MB, 6 GB), then applies the
+# 800 MB minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB).
 # Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB /
 # QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=0.
 _CHATTTS_MIN_FREE_VRAM_MB = 4096
@@ -520,7 +520,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
     if not device:
         # qwen3tts is the only GPU consumer by design: first RECLAIM the card
         # from foreign processes when free VRAM is below the recommended
-        # floor (6 GB), then apply the 1 GB minimum free-VRAM floor — an
+        # floor (6 GB), then apply the 800 MB minimum free-VRAM floor — an
         # under-provisioned GPU start still degrades to cpu instead of dying
         # inside from_pretrained with a CUDA OOM. An explicit QWEN3TTS_DEVICE
         # pin skips both (it always wins).

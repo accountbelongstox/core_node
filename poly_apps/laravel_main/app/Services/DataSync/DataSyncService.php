@@ -108,6 +108,12 @@ final class DataSyncService
                 ],
                 'context' => [
                     'prepare_token' => bin2hex(random_bytes(32)),
+                    'backups' => [],
+                    'received' => [
+                        'database_rows' => 0,
+                        'resource_bytes' => 0,
+                        'resource_files' => 0,
+                    ],
                 ],
             ]);
 
@@ -1295,12 +1301,67 @@ final class DataSyncService
             : $this->completed($job, 'All database chunks transferred.');
     }
 
+    /**
+     * Pull-mode database transfer: download the next row chunk from the peer
+     * exporter and apply it idempotently to the local database.
+     */
+    private function fetchDatabaseChunk(array $job): array
+    {
+        $checkpoints = $job['context']['database_checkpoints'] ?? [];
+        $index = (int) ($job['context']['database_checkpoint_index'] ?? 0);
+
+        if (empty($job['options']['databases']) || !isset($checkpoints[$index])) {
+            return $this->completed($job, 'All database chunks fetched.');
+        }
+
+        $checkpoint = $checkpoints[$index];
+        $chunk = $this->peer->call($job, 'GET', '/database-chunks', [
+            'connection' => $checkpoint['connection'],
+            'table' => $checkpoint['table'],
+            'offset' => (int) $checkpoint['offset'],
+        ]);
+        if (isset($chunk['__waiting'])) {
+            return $this->waiting($job, $chunk['__waiting']);
+        }
+
+        $rows = (array) ($chunk['rows'] ?? []);
+        $result = $this->databases->applyDiff(
+            (string) $checkpoint['connection'],
+            (string) $checkpoint['table'],
+            $rows
+        );
+        foreach (['inserted', 'updated', 'unchanged', 'verified'] as $counter) {
+            $job['context']['database_results'][$counter] += (int) ($result[$counter] ?? 0);
+        }
+        $job['context']['received']['database_rows'] =
+            (int) ($job['context']['received']['database_rows'] ?? 0) + count($rows);
+        $job['context']['database_checkpoints'][$index]['offset'] = (int) ($chunk['next_offset'] ?? 0);
+        if (!empty($chunk['done'])) {
+            $this->databases->advanceSequence(
+                (string) $checkpoint['connection'],
+                (string) $checkpoint['table']
+            );
+            $job['context']['database_checkpoints'][$index]['completed'] = true;
+            $job['context']['database_checkpoint_index'] = $index + 1;
+        }
+        $job = $this->store->save($job);
+
+        return isset($checkpoints[$index + 1]) || empty($chunk['done'])
+            ? $this->waiting(
+                $job,
+                "{$checkpoint['connection']}.{$checkpoint['table']} @ {$job['context']['database_checkpoints'][$index]['offset']}"
+            )
+            : $this->completed($job, 'All database chunks fetched.');
+    }
+
     private function verifyDatabaseCounts(array $job): array
     {
         if (empty($job['options']['databases'])) {
             return $this->completed($job, 'Database synchronization disabled.');
         }
-        $response = $this->peer->call($job, 'GET', '/database-inventory');
+        $response = ($job['role'] ?? null) === 'fetcher'
+            ? ['databases' => $this->databases->inventory()]
+            : $this->peer->call($job, 'GET', '/database-inventory');
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
@@ -1395,6 +1456,72 @@ final class DataSyncService
         return $this->completed($this->store->save($job));
     }
 
+    /**
+     * Pull mode: the fetcher's own manifests take the receiver slot; the peer
+     * exporter's manifests take the source slot, so difference calculation and
+     * verification stay identical to push mode.
+     */
+    private function buildFetcherResourceManifests(array $job): array
+    {
+        if (!isset($job['context']['resource_roots'])) {
+            $job['context']['resource_roots'] = !empty($job['options']['resources'])
+                ? array_keys($this->resources->roots())
+                : [];
+            $job['context']['local_manifest'] = array_merge(
+                $job['context']['local_manifest'] ?? [],
+                [
+                    'resource_roots' => count($job['context']['resource_roots']),
+                    'resource_files' => 0,
+                    'resource_bytes' => 0,
+                ]
+            );
+        }
+        $manifests = [];
+        foreach ($job['context']['resource_roots'] ?? [] as $key) {
+            $manifests[$key] = $this->resources->manifest($key)['files'];
+        }
+        $job['context']['receiver_resource_manifests'] = $manifests;
+        return $this->completed($this->store->save($job));
+    }
+
+    private function fetchExporterResourceManifests(array $job): array
+    {
+        if (empty($job['context']['resource_manifest_snapshot_ready'])) {
+            $snapshotManifests = [];
+            foreach ($job['context']['resource_roots'] ?? [] as $key) {
+                $snapshotManifests[$key] = $this->resources->manifest($key)['files'];
+            }
+            $job['context']['receiver_resource_manifests'] = $snapshotManifests;
+            $job['context']['resource_manifest_snapshot_ready'] = true;
+            $job = $this->store->save($job);
+        }
+        $manifests = [];
+        $fileCount = 0;
+        $byteCount = 0;
+
+        foreach ($job['context']['resource_roots'] ?? [] as $key) {
+            $response = $this->peer->call($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
+            if (isset($response['__waiting'])) {
+                return $this->waiting($job, $response['__waiting']);
+            }
+            $manifests[$key] = (array) ($response['files'] ?? []);
+            $fileCount += count($manifests[$key]);
+            foreach ($manifests[$key] as $metadata) {
+                $byteCount += max(0, (int) ($metadata['size'] ?? 0));
+            }
+        }
+        $job['context']['source_resource_manifests'] = $manifests;
+        $job['context']['local_manifest'] = array_merge(
+            $job['context']['local_manifest'] ?? [],
+            [
+                'resource_roots' => count($manifests),
+                'resource_files' => $fileCount,
+                'resource_bytes' => $byteCount,
+            ]
+        );
+        return $this->completed($this->store->save($job));
+    }
+
     private function calculateResourceDifferences(array $job): array
     {
         $differences = [];
@@ -1410,6 +1537,10 @@ final class DataSyncService
 
     private function prepareResourceBatches(array $job): array
     {
+        if (($job['role'] ?? null) === 'fetcher') {
+            return $this->prepareFetcherResourceBatches($job);
+        }
+
         $archives = [];
 
         if (!empty($job['options']['compression'])) {
@@ -1426,8 +1557,35 @@ final class DataSyncService
         );
     }
 
+    /**
+     * Pull mode: archives are packed on the exporter, so this step only
+     * records the per-root difference lists that initialize_resource_checkpoints
+     * will request from the peer.
+     */
+    private function prepareFetcherResourceBatches(array $job): array
+    {
+        $requests = [];
+
+        if (!empty($job['options']['compression'])) {
+            foreach ($job['context']['resource_differences'] ?? [] as $key => $paths) {
+                if ($paths !== []) {
+                    $requests[$key] = array_values($paths);
+                }
+            }
+        }
+        $job['context']['resource_archive_requests'] = $requests;
+        return $this->completed(
+            $this->store->save($job),
+            !empty($job['options']['compression']) ? 'Exporter 7-Zip batches requested.' : 'Uncompressed file batches prepared.'
+        );
+    }
+
     private function initializeResourceCheckpoints(array $job): array
     {
+        if (($job['role'] ?? null) === 'fetcher') {
+            return $this->initializeFetcherResourceCheckpoints($job);
+        }
+
         $items = [];
 
         if (!empty($job['options']['compression'])) {
@@ -1471,8 +1629,69 @@ final class DataSyncService
         return $this->completed($this->store->save($job));
     }
 
+    /**
+     * Pull mode checkpoints: file entries point at exporter chunks instead of
+     * local paths; 7-Zip entries request the on-demand archive from the peer.
+     */
+    private function initializeFetcherResourceCheckpoints(array $job): array
+    {
+        $items = [];
+
+        if (!empty($job['options']['compression'])) {
+            foreach ($job['context']['resource_archive_requests'] ?? [] as $key => $paths) {
+                $response = $this->peer->call($job, 'POST', '/resource-archives', [
+                    'key' => $key,
+                    'paths' => array_values($paths),
+                ]);
+                if (isset($response['__waiting'])) {
+                    return $this->waiting($job, $response['__waiting']);
+                }
+                $manifest = [];
+                foreach ($paths as $relativePath) {
+                    $manifest[$relativePath] = $job['context']['source_resource_manifests'][$key][$relativePath];
+                }
+                $items[] = [
+                    'key' => $key,
+                    'mode' => '7z',
+                    'size' => (int) ($response['size'] ?? 0),
+                    'sha256' => (string) ($response['sha256'] ?? ''),
+                    'manifest' => $manifest,
+                ];
+            }
+        } else {
+            foreach ($job['context']['resource_differences'] ?? [] as $key => $paths) {
+                foreach ($paths as $relativePath) {
+                    $metadata = $job['context']['source_resource_manifests'][$key][$relativePath];
+                    $items[] = [
+                        'key' => $key,
+                        'relative_path' => $relativePath,
+                        'size' => $metadata['size'],
+                        'sha256' => $metadata['sha256'],
+                        'mode' => 'file',
+                    ];
+                }
+            }
+        }
+
+        $this->plans->saveResourceItems((string) $job['id'], $items);
+        $job['context']['resource_checkpoint_index'] = 0;
+        $job['context']['resource_checkpoint_count'] = count($items);
+        $job['context']['resource_checkpoint_offset'] = 0;
+        unset(
+            $job['context']['source_resource_manifests'],
+            $job['context']['receiver_resource_manifests'],
+            $job['context']['resource_differences'],
+            $job['context']['resource_archive_requests']
+        );
+        return $this->completed($this->store->save($job));
+    }
+
     private function transferResourceChunk(array $job): array
     {
+        if (($job['role'] ?? null) === 'fetcher') {
+            return $this->fetchResourceChunk($job);
+        }
+
         $index = (int) ($job['context']['resource_checkpoint_index'] ?? 0);
         $count = (int) ($job['context']['resource_checkpoint_count'] ?? 0);
         $offset = (int) ($job['context']['resource_checkpoint_offset'] ?? 0);
@@ -1524,7 +1743,113 @@ final class DataSyncService
             : $this->waiting($job, $item['key'] . ' @ ' . $nextOffset);
     }
 
+    /**
+     * Pull-mode resource transfer: download the next chunk from the peer
+     * exporter and commit it locally through the same verified receive path
+     * the receiver role uses for pushed chunks.
+     */
+    private function fetchResourceChunk(array $job): array
+    {
+        $index = (int) ($job['context']['resource_checkpoint_index'] ?? 0);
+        $count = (int) ($job['context']['resource_checkpoint_count'] ?? 0);
+        $offset = (int) ($job['context']['resource_checkpoint_offset'] ?? 0);
+        $item = $index < $count ? $this->plans->resourceItem((string) $job['id'], $index) : null;
+
+        if ($item === null) {
+            return $this->completed($job, 'All resource batches fetched.');
+        }
+
+        $params = ['key' => $item['key'], 'offset' => $offset];
+        if (($item['mode'] ?? null) === 'file') {
+            $params['path'] = $item['relative_path'];
+        }
+        $response = $this->peer->call(
+            $job,
+            'GET',
+            ($item['mode'] ?? null) === '7z' ? '/resource-archive-chunks' : '/resource-file-chunks',
+            $params
+        );
+        if (isset($response['__waiting'])) {
+            return $this->waiting($job, $response['__waiting']);
+        }
+        $content = base64_decode((string) ($response['content'] ?? ''), true);
+        if ($content === false) {
+            throw new \RuntimeException('The exported resource chunk is not valid base64.');
+        }
+        $nextOffset = $offset + strlen($content);
+        $final = $nextOffset >= (int) $item['size'];
+        $result = ($item['mode'] ?? null) === '7z'
+            ? $this->resources->receiveChunk(
+                (string) $job['id'],
+                (string) $item['key'],
+                $offset,
+                $content,
+                (string) $item['sha256'],
+                $final
+            )
+            : $this->resources->receiveFileChunk(
+                (string) $job['id'],
+                (string) $item['key'],
+                (string) $item['relative_path'],
+                $offset,
+                $content,
+                (string) $item['sha256'],
+                $final
+            );
+
+        if (!(bool) ($result['success'] ?? false)) {
+            $job['context']['resource_checkpoint_offset'] = (int) ($result['offset'] ?? 0);
+            return $this->waiting($this->store->save($job), 'Local resource checkpoint realignment required.');
+        }
+
+        if (empty($result['already_present'])) {
+            $job['context']['received']['resource_bytes'] =
+                (int) ($job['context']['received']['resource_bytes'] ?? 0) + strlen($content);
+        }
+        if ($final || !empty($result['already_present'])) {
+            $completionKey = ($item['mode'] ?? null) === '7z'
+                ? 'archive:' . $item['key'] . ':' . $item['sha256']
+                : 'file:' . $item['key'] . ':' . ($item['relative_path'] ?? '') . ':' . $item['sha256'];
+            if ($this->receipts->recordResource((string) $job['id'], $completionKey)) {
+                $job['context']['received']['resource_files'] =
+                    (int) ($job['context']['received']['resource_files'] ?? 0)
+                    + (($item['mode'] ?? null) === '7z' ? (int) ($result['files'] ?? 0) : 1);
+            }
+            $job['context']['resource_checkpoint_index'] = $index + 1;
+            $job['context']['resource_checkpoint_offset'] = 0;
+        } else {
+            $job['context']['resource_checkpoint_offset'] = $nextOffset;
+        }
+        $job = $this->store->save($job);
+
+        return $job['context']['resource_checkpoint_index'] >= $count
+            ? $this->completed($job, 'All resource batches fetched.')
+            : $this->waiting($job, $item['key'] . ' @ ' . $nextOffset);
+    }
+
     private function verifyResourceManifests(array $job): array
+    {
+        $isFetcher = ($job['role'] ?? null) === 'fetcher';
+
+        foreach ($this->expectedResourceItems($job) as $key => $expectedFiles) {
+            $response = $isFetcher
+                ? $this->resources->manifest($key)
+                : $this->peer->call($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
+            if (isset($response['__waiting'])) {
+                return $this->waiting($job, $response['__waiting']);
+            }
+            foreach ($expectedFiles as $relativePath => $expected) {
+                if (($response['files'][$relativePath] ?? null) !== $expected) {
+                    $side = $isFetcher ? 'Local' : 'Receiver';
+                    throw new \RuntimeException("{$side} resource verification failed: {$key}/{$relativePath}");
+                }
+            }
+        }
+        $this->plans->forgetResourceItems((string) $job['id']);
+        return $this->completed($job);
+    }
+
+    private function expectedResourceItems(array $job): array
     {
         $expectedByRoot = [];
         foreach ($this->plans->resourceItems((string) $job['id']) as $item) {
@@ -1540,19 +1865,7 @@ final class DataSyncService
             }
         }
 
-        foreach ($expectedByRoot as $key => $expectedFiles) {
-            $response = $this->peer->call($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
-            if (isset($response['__waiting'])) {
-                return $this->waiting($job, $response['__waiting']);
-            }
-            foreach ($expectedFiles as $relativePath => $expected) {
-                if (($response['files'][$relativePath] ?? null) !== $expected) {
-                    throw new \RuntimeException("Receiver resource verification failed: {$key}/{$relativePath}");
-                }
-            }
-        }
-        $this->plans->forgetResourceItems((string) $job['id']);
-        return $this->completed($job);
+        return $expectedByRoot;
     }
 
     private function finalizePeer(array $job): array
@@ -1620,6 +1933,61 @@ final class DataSyncService
         return $job;
     }
 
+    private function requireDriverJob(string $id): array
+    {
+        $job = $this->store->get($id);
+        if ($job === null || !in_array($job['role'] ?? null, ['source', 'fetcher'], true)) {
+            throw new \InvalidArgumentException('Data synchronization session was not found.');
+        }
+        return $job;
+    }
+
+    private function requireExporter(string $id, string $token): array
+    {
+        $job = $this->requireJob($id, 'exporter');
+        if (!hash_equals((string) ($job['context']['token'] ?? ''), $token)) {
+            throw new \RuntimeException('Invalid data synchronization peer token.');
+        }
+        return $job;
+    }
+
+    private function requireReadyExporter(string $id, string $token): array
+    {
+        $job = $this->requireExporter($id, $token);
+        if ($job['status'] === 'failed') {
+            throw new \RuntimeException((string) ($job['error'] ?? 'Exporter synchronization failed.'));
+        }
+        if ($job['status'] === 'completed') {
+            throw new \RuntimeException('Exporter synchronization is already complete.');
+        }
+        if (empty($job['context']['ready'])) {
+            throw new \RuntimeException('Exporter manifest preparation is not complete.');
+        }
+        return $job;
+    }
+
+    /**
+     * Writers (receiver, fetcher) mutate local databases and resource roots,
+     * so they are exclusive with every other session role.
+     */
+    private function assertNoActiveWriter(string $message): void
+    {
+        if ($this->store->active('receiver') !== null || $this->store->active('fetcher') !== null) {
+            throw new \RuntimeException($message);
+        }
+    }
+
+    /**
+     * Readers (source, exporter) stream local data; a new writer must not
+     * start while any of them is active.
+     */
+    private function assertNoActiveReader(): void
+    {
+        if ($this->store->activeAll('source') !== [] || $this->store->active('exporter') !== null) {
+            throw new \RuntimeException('This node already has an active outgoing synchronization session.');
+        }
+    }
+
     private function withSessionLock(string $id, callable $callback, ?string $receiverToken = null): mixed
     {
         $result = $this->sessionLock->run($id, function () use ($id, $callback, $receiverToken): mixed {
@@ -1630,7 +1998,7 @@ final class DataSyncService
                 if (
                     $receiverToken !== null
                     && $job !== null
-                    && ($job['role'] ?? null) === 'receiver'
+                    && in_array($job['role'] ?? null, ['receiver', 'exporter'], true)
                     && in_array($job['status'] ?? null, ['queued', 'running'], true)
                     && hash_equals((string) ($job['context']['token'] ?? ''), $receiverToken)
                 ) {
@@ -1681,6 +2049,16 @@ final class DataSyncService
             'token' => $job['context']['token'],
             'status' => $job['status'],
             'backup_directory' => $job['backup_directory'],
+        ];
+    }
+
+    private function exporterHandshake(array $job): array
+    {
+        return [
+            'id' => $job['id'],
+            'protocol_version' => (int) ($job['protocol_version'] ?? 0),
+            'token' => $job['context']['token'],
+            'status' => $job['status'],
         ];
     }
 
