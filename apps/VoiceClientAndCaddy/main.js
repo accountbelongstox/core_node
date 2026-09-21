@@ -10,7 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const { appname,isServer,isService } = require('#@global_vars');
+const { appname, isServer, isService } = require('#@global_vars');
 const config = require('./config/index.js');
 const http = require('./http/index.js');
 const logger = require('#@logger');
@@ -31,7 +31,7 @@ class Main {
         logger.info(`Is server: ${isServer}`);
         logger.info(`Is service: ${isService}`);
         const pythonStatus = await pythonSetup.ensurePythonEnvironment(debug)
-        if(!pythonStatus.success){
+        if (!pythonStatus.success) {
             logger.error(pythonStatus.error)
             logger.error('Python environment setup failed!');
             logger.error('Please check the following:');
@@ -47,11 +47,11 @@ class Main {
             logger.error('   - python3 --version');
             logger.error('   - pip3 --version');
             logger.error('Error details:', pythonStatus.error);
-        }else{
+        } else {
             await pythonVenv.configurePython(debug)
         }
         const edgeTTSPath = await edgeTTSFinder.findEdgeTTSBinary()
-        if(!edgeTTSPath){
+        if (!edgeTTSPath) {
             logger.error('EdgeTTS binary not found!');
             logger.error('Please check the following:');
             logger.error('1. EdgeTTS is installed and accessible from command line');

@@ -71,6 +71,7 @@ ENV_MARK_END="# <<< core_node chinese-wubi (managed) <<<"
 ENV_PAIRS=()
 KIMPANEL_EXTENSION_UUID="kimpanel@kde.org"
 KIMPANEL_EXTENSION_DIR="/usr/share/gnome-shell/extensions/kimpanel@kde.org"
+FCITX5_AUTOSTART_FILE="/etc/xdg/autostart/org.fcitx.Fcitx5.desktop"
 
 # Required core packages per framework (must exist on the chosen path).
 FCITX5_REQUIRED=("fcitx5" "fcitx5-chinese-addons" "im-config")
@@ -313,6 +314,41 @@ write_env_vars() {
     print_success_from_common_functions "Environment variables set (effective after re-login)"
 }
 
+# Debian's fcitx5 package intentionally ships NO XDG autostart entry (it relies
+# on im-config), but im-config's `run_im` xinputrc is only executed by the X11
+# session scripts under /etc/X11/Xsession.d. GNOME/KDE on Wayland never run
+# those scripts, so after a reboot into a Wayland session fcitx5 simply never
+# starts and the IME is dead until launched by hand. XDG autostart is honored
+# by every desktop on BOTH session types, so install the entry when the package
+# did not provide one. Idempotent: an existing (package-provided) file wins.
+# On X11 both im-config and this entry may fire; the second fcitx5 instance
+# detects the running one and exits, which is harmless.
+ensure_fcitx5_autostart() {
+    if [ -f "$FCITX5_AUTOSTART_FILE" ]; then
+        print_info_from_common_functions "Fcitx5 XDG autostart entry already present"
+        return 0
+    fi
+    print_step_from_common_functions "Installing Fcitx5 XDG autostart entry (Wayland-safe auto-launch)..."
+    $USE_SUDO mkdir -p "$(dirname "$FCITX5_AUTOSTART_FILE")"
+    {
+        echo "[Desktop Entry]"
+        echo "Type=Application"
+        echo "Name=Fcitx 5"
+        echo "GenericName=Input Method"
+        echo "Comment=Start the Fcitx 5 input method framework"
+        echo "Exec=fcitx5"
+        echo "Icon=fcitx"
+        echo "Terminal=false"
+        echo "NoDisplay=true"
+        echo "Categories=System;Utility;"
+        echo "StartupNotify=false"
+        echo "X-GNOME-Autostart-enabled=true"
+        echo "X-GNOME-Autostart-Phase=Applications"
+        echo "X-KDE-autostart-after=panel"
+    } | $USE_SUDO tee "$FCITX5_AUTOSTART_FILE" >/dev/null
+    print_success_from_common_functions "Fcitx5 will now autostart in every desktop session (X11 and Wayland)"
+}
+
 # Best-effort enable Wubi for the real user (per-user config; non-fatal).
 enable_fcitx5_wubi() {
     local fcitx5_dir="$REAL_USER_HOME/.config/fcitx5"
@@ -515,6 +551,7 @@ main() {
     write_env_vars
 
     if [ "$FRAMEWORK" = "fcitx5" ]; then
+        ensure_fcitx5_autostart
         enable_fcitx5_wubi
         enable_gnome_kimpanel_extension
     else

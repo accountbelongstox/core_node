@@ -29,10 +29,14 @@
 #
 # The unit it creates:
 #   [Service]
-#   ExecStart=/bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install --no-reload
+#   ExecStart=[session env] /bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install --no-reload
 #   WorkingDirectory=<REPO_ROOT>
 #   User=<real desktop user>
 #   Restart=always
+# When the resolved user has an active desktop session, ExecStart is prefixed
+# with XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS/DISPLAY/WAYLAND_DISPLAY (turned
+# into Environment= lines) so the worker can start its system tray; headless
+# installs get the bare command.
 #
 # Service name (systemd unit): pycore
 # ============================================================================
@@ -99,9 +103,41 @@ pycore_resolve_user() {
     echo "$resolved"
 }
 
+# --- Build ExecStart with desktop session env ---------------------------- #
+# The worker's system tray (AppIndicator/StatusNotifierItem) registers on the
+# desktop user's D-Bus session bus. A systemd unit gets NO session env, so
+# when the resolved user has an active session, bake DISPLAY/WAYLAND_DISPLAY/
+# XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS into the unit. create_systemd_service
+# turns leading KEY=VALUE pairs of the exec command into Environment= lines.
+pycore_build_exec_start() {
+    local uid="" runtime_dir="" prefix=""
+    uid="$(id -u "$PYCORE_SVC_USER" 2>/dev/null || true)"
+    runtime_dir="/run/user/${uid}"
+    if [ -n "$uid" ] && [ -S "${runtime_dir}/bus" ]; then
+        prefix="XDG_RUNTIME_DIR=${runtime_dir} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime_dir}/bus"
+        if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+            prefix="$prefix WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
+        elif [ -S "${runtime_dir}/wayland-0" ]; then
+            prefix="$prefix WAYLAND_DISPLAY=wayland-0"
+        fi
+        if [ -n "${DISPLAY:-}" ]; then
+            prefix="$prefix DISPLAY=${DISPLAY}"
+        elif [ -e /tmp/.X11-unix/X0 ]; then
+            prefix="$prefix DISPLAY=:0"
+        fi
+        echo "[pycore-service] Desktop session detected for '$PYCORE_SVC_USER'; unit gets session env (tray enabled)."
+    fi
+    if [ -n "$prefix" ]; then
+        PYCORE_SVC_EXEC_START="$prefix /bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
+    else
+        PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
+    fi
+}
+
 # --- Print the unit we would create (verifiable on non-systemd boxes) ----- #
 pycore_print_unit() {
     pycore_resolve_user >/dev/null
+    pycore_build_exec_start
     echo "------------------------------------------------------------"
     echo "[pycore-service] systemd unit to be created: ${PYCORE_SERVICE_NAME}.service"
     echo "------------------------------------------------------------"
@@ -121,6 +157,7 @@ pycore_print_unit() {
 # --- install: create + enable + start ------------------------------------ #
 pycore_service_install() {
     pycore_resolve_user >/dev/null
+    pycore_build_exec_start
     if [ "$IS_HEADLESS_SERVER" = true ]; then
         echo "[pycore-service] Headless server detected; pycore must remain stopped."
         runtime_service_policy_converge_pycore

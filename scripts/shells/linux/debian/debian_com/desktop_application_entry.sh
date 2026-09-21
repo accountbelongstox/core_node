@@ -229,10 +229,13 @@ SAVED_XAUTHORITY="${XAUTHORITY:-$SAVED_HOME/.Xauthority}"
 SAVED_XDG_RUNTIME_DIR="/run/user/$(id -u $SAVED_USER)"
 
 # Launch with pkexec (root privileges) and preserve necessary environment
+# PATH prepend: core_node browser bridge so URL opens (Sign in buttons) are
+# re-dispatched to the desktop user's browser instead of failing as root.
 exec pkexec env \
     DISPLAY="$SAVED_DISPLAY" \
     XAUTHORITY="$SAVED_XAUTHORITY" \
     XDG_RUNTIME_DIR="$SAVED_XDG_RUNTIME_DIR" \
+    PATH="/usr/local/lib/core_node/browser-bridge:$PATH" \
 EOF
 
         # Append the actual command

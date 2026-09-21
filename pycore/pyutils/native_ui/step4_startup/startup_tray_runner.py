@@ -73,7 +73,7 @@ def run_tray_mode(thread):
     if use_appindicator:
         try:
             if APPINDICATOR_AVAILABLE:
-                run_appindicator_tray(thread, tray_config, bus_mgr)
+                run_appindicator_tray(thread, tray_config, bus_manager)
                 return
         except Exception as e:
             ColorPrint.print_warn(f"[TkinterStartupThread] AppIndicator failed ({e}), using pystray")
@@ -85,7 +85,7 @@ def run_tray_mode(thread):
         icon_path=tray_config.icon_path,
         menu_items=menu_items
     )
-    register_tray_handlers_and_run(thread, bus_mgr)
+    register_tray_handlers_and_run(thread, bus_manager)
 
 
 def run_appindicator_tray(thread, tray_config, bus_mgr):

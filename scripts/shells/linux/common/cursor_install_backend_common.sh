@@ -557,6 +557,8 @@ create_desktop_entry() {
     local cursor_im_pkexec_env
     local cursor_flags_file="$desktop_manager_home/.config/cursor-flags.conf"
     cursor_im_pkexec_env="$(deic_pkexec_env_string)"
+    # Browser bridge shim must exist before the launcher prepends it to PATH.
+    ensure_desktop_browser_bridge
     $USE_SUDO mkdir -p "$CURSOR_BIN_DIR"
     $USE_SUDO tee "$cursor_wrapper" >/dev/null <<EOF
 #!/bin/bash
@@ -569,11 +571,16 @@ if [ "\$(id -u)" -ne 0 ]; then
     if command -v pkexec >/dev/null 2>&1; then
         exec pkexec env DISPLAY="\${DISPLAY:-:0}" XAUTHORITY="\${XAUTHORITY:-\$HOME/.Xauthority}" \
             XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR}" DBUS_SESSION_BUS_ADDRESS="\${DBUS_SESSION_BUS_ADDRESS}" \
+            PATH="/usr/local/lib/core_node/browser-bridge:\${PATH}" \
             $cursor_im_pkexec_env "\$0" "\$@"
     else
         exec sudo -E "\$0" "\$@"
     fi
 fi
+# Browser bridge FIRST on PATH: running as root, a root-spawned browser aborts
+# (Chrome refuses root), which silently kills the "Sign in" button. The bridge
+# re-dispatches xdg-open to the desktop user's session.
+export PATH="/usr/local/lib/core_node/browser-bridge:\${PATH}"
 # IME bridge (Electron/Chromium; idempotent with 173_install_chinese_wubi.sh)
 $(deic_launcher_env_exports)
 # Chromium/Electron flags for Wayland IME (desktop user's cursor-flags.conf).
@@ -603,7 +610,10 @@ EOF
     # cgroup-v2 --system scope. Cursor self-elevates to root, so --user would not
     # govern it; --root makes the wrapper use a --system scope. The launcher above
     # execs /usr/local/bin/cursor-rlimit (created here). Idempotent; never double-wraps.
-    apply_app_resource_limit --id cursor --exec "$cursor_real_binary" --root
+    # Raised caps for an IDE + agent runtime: the uniform 1G/10%-CPU default
+    # OOM-kills or starves the agent process.
+    APP_MEM_PCT=40 APP_MEM_CAP_MB=8192 APP_CPU_PCT=50 \
+        apply_app_resource_limit --id cursor --exec "$cursor_real_binary" --root
 
     # Build user data directory path for Cursor
     CURSOR_USERDATA_DIR="$desktop_manager_home/.config/Cursor"
@@ -646,6 +656,43 @@ EOF
         --startup-wmclass "Cursor" \
         --extra "StartupNotify=true"
     print_success_from_common_functions "System-wide desktop entry created: $DSM_APPLICATIONS_DIR/cursor.desktop"
+
+    # --- cursor:// URL scheme handler (login callback) ------------------------------
+    # Sign-in ends with a browser redirect to cursor://...; without a registered
+    # scheme handler the callback is dropped and the IDE stays logged out. The
+    # handler entry is NoDisplay (no menu icon); the browser runs as the desktop
+    # user (browser bridge above), so the callback re-elevates through the normal
+    # pkexec wrapper and forwards to the already-running instance.
+    local url_handler_entry="$DSM_APPLICATIONS_DIR/cursor-url-handler.desktop"
+    $USE_SUDO tee "$url_handler_entry" >/dev/null <<EOF
+[Desktop Entry]
+Type=Application
+Name=Cursor - URL Handler
+Comment=Handle cursor:// authentication callbacks
+Exec=/usr/local/bin/cursor --open-url %U
+Icon=$desktop_icon
+NoDisplay=true
+Terminal=false
+Categories=Development;IDE;TextEditor;
+MimeType=x-scheme-handler/cursor;
+StartupNotify=false
+EOF
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        $USE_SUDO update-desktop-database "$DSM_APPLICATIONS_DIR" 2>/dev/null || true
+    fi
+    # Register as the default handler inside the desktop user's session config.
+    if command -v xdg-settings >/dev/null 2>&1 && [[ -n "$desktop_manager_user" ]] && [[ "$desktop_manager_user" != "root" ]]; then
+        local desktop_manager_uid
+        desktop_manager_uid="$(id -u "$desktop_manager_user" 2>/dev/null)"
+        if [[ -n "$desktop_manager_uid" ]]; then
+            sudo -u "#$desktop_manager_uid" env \
+                HOME="$desktop_manager_home" \
+                XDG_RUNTIME_DIR="/run/user/$desktop_manager_uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$desktop_manager_uid/bus" \
+                xdg-settings set default-url-scheme-handler cursor cursor-url-handler.desktop >/dev/null 2>&1 || true
+        fi
+    fi
+    print_success_from_common_functions "cursor:// URL handler registered: $url_handler_entry"
 
     # GTK + Wayland IME bridge for Wubi/CJK input (idempotent with 131).
     print_step_from_common_functions "Ensuring Cursor IME compatibility (Wubi/CJK input)..."

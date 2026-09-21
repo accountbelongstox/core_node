@@ -180,7 +180,9 @@ install_python_essentials() {
     # have a real candidate, so one missing name cannot abort the whole batch
     # (a single apt-get invocation aborts entirely on an uninstallable package).
     print_step_from_common_functions "Installing GUI and system packages..."
-    local gui_pkgs=(python3-tk "${version_specific_tk}" tk-dev tcl-dev python3-gi python3-gi-cairo python3-pil python3-pil.imagetk gir1.2-gtk-3.0)
+    # dbus-x11 provides dbus-launch: the libdbus autolaunch fallback when a tray
+    # client runs without DBUS_SESSION_BUS_ADDRESS (e.g. a bare terminal).
+    local gui_pkgs=(python3-tk "${version_specific_tk}" tk-dev tcl-dev python3-gi python3-gi-cairo python3-pil python3-pil.imagetk gir1.2-gtk-3.0 dbus-x11)
     local appind_cand=""
     local cand
     for cand in gir1.2-ayatanaappindicator3-0.1 gir1.2-appindicator3-0.1; do
@@ -191,6 +193,22 @@ install_python_essentials() {
         fi
     done
     [ -z "$appind_cand" ] && print_warning_from_common_functions "No AppIndicator GIR package in apt index (system-tray icon optional); continuing"
+
+    # GNOME Shell tray host extension: without it the AppIndicator/StatusNotifierItem
+    # protocol has NO host and tray icons are invisible even when the GIR library
+    # works. Debian 13 (trixie, GNOME) requires installing it explicitly (it is a
+    # real package in trixie main); on Ubuntu 26.04 it is a VIRTUAL package already
+    # provided by the default gnome-shell-ubuntu-extensions, so apt resolves it to
+    # the already-installed provider and this is a no-op there. Detect GNOME by the
+    # installed gnome-shell package (env vars are unreliable under sudo), and only
+    # add the extension when apt offers it.
+    if dpkg -s gnome-shell >/dev/null 2>&1; then
+        if apt-cache policy gnome-shell-extension-appindicator 2>/dev/null | grep -qE 'Candidate: [^(]'; then
+            gui_pkgs+=(gnome-shell-extension-appindicator)
+        else
+            print_info_from_common_functions "gnome-shell-extension-appindicator not in apt index (tray icon needs a shell extension on GNOME); continuing"
+        fi
+    fi
 
     # Keep only packages that actually have an install candidate, so one missing
     # name (e.g. a version-specific tk that does not exist) cannot abort the batch.
