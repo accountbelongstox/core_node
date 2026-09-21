@@ -125,6 +125,34 @@ class LinuxTerminalLauncher:
         except Exception:
             return "printf '\\033]0;%s\\007'; exec ${SHELL:-bash}" % title
 
+    def _spawn_env(self, env_extra=None):
+        """
+        Environment for spawned terminal emulators. When the launcher runs as
+        ROOT (pkexec grid), scrub the variables that point into the DESKTOP
+        USER's session: a foreign DBUS_SESSION_BUS_ADDRESS is rejected at D-Bus
+        auth (root terminals print "Failed to initialize Xfconf: The connection
+        is closed" and lose all xfconf preferences -- the argv builder wraps
+        xfce4-terminal in dbus-run-session instead), and a foreign
+        XDG_RUNTIME_DIR makes gvfs/dbus emit permission errors for paths the
+        root child cannot write. env_extra (e.g. the Wayland X11-backend vars)
+        is merged last so it always wins.
+        """
+        env = dict(os.environ)
+        try:
+            is_root = os.geteuid() == 0
+        except AttributeError:
+            is_root = False
+        if is_root:
+            address = env.get("DBUS_SESSION_BUS_ADDRESS", "")
+            if address and "/run/user/0/" not in address:
+                env.pop("DBUS_SESSION_BUS_ADDRESS", None)
+            runtime_dir = env.get("XDG_RUNTIME_DIR", "")
+            if runtime_dir and runtime_dir.rstrip("/") != "/run/user/0":
+                env.pop("XDG_RUNTIME_DIR", None)
+        if env_extra:
+            env.update(env_extra)
+        return env
+
     # ------------------------------------------------------------------ #
     # Public surface (mirrors WindowsTerminalLauncher.launch_windows)
     # ------------------------------------------------------------------ #
@@ -186,7 +214,8 @@ class LinuxTerminalLauncher:
                       "X11 backend (XWayland) so they can be positioned like on X11.")
                 return self._launch_x11_positioned(
                     configs, wayland_emu, positioner, delay,
-                    env_extra=self._argv._x11_backend_env(wayland_emu))
+                    env_extra=self._argv._x11_backend_env(wayland_emu),
+                    session_label="Wayland session (X11 backend via XWayland)")
 
         if not is_wayland and geom_emu is not None:
             return self._launch_x11_grid(configs, geom_emu, delay)
@@ -205,7 +234,8 @@ class LinuxTerminalLauncher:
     # X11 strategy A: N separate windows positioned BY TITLE (any emulator)
     # ------------------------------------------------------------------ #
 
-    def _launch_x11_positioned(self, configs, emulator, positioner, delay, env_extra=None):
+    def _launch_x11_positioned(self, configs, emulator, positioner, delay, env_extra=None,
+                               session_label="X11 session"):
         """
         Launch N separate windows and position each by its STABLE X window id.
 
@@ -246,11 +276,8 @@ class LinuxTerminalLauncher:
         col_gap, row_gap = self._placer._grid_gaps(cell_w, cell_h)
         frame = None  # WM frame extents, measured once from the first window
         width = len(str(len(configs)))  # zero-pad index so titles never collide
-        popen_env = None
-        if env_extra:
-            popen_env = dict(os.environ)
-            popen_env.update(env_extra)
-        ColorPrint.plain(f"X11 session: launching {len(configs)} separate '{emulator}' "
+        popen_env = self._spawn_env(env_extra)
+        ColorPrint.plain(f"{session_label}: launching {len(configs)} separate '{emulator}' "
               f"window(s), positioned by captured window id via {positioner}"
               + (f" (cell {cell_w}x{cell_h}px, gaps {col_gap}/{row_gap}px)" if cell_w else "") + ".")
 
@@ -275,7 +302,10 @@ class LinuxTerminalLauncher:
             if argv is None:
                 continue
             try:
-                proc = subprocess.Popen(argv, start_new_session=True, env=popen_env)
+                # GUI emulator stderr is GTK/dbus noise (session-manager and
+                # portal warnings), never actionable on the launcher console.
+                proc = subprocess.Popen(argv, start_new_session=True, env=popen_env,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 pids.append(proc.pid)
             except Exception as e:
                 ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
@@ -359,7 +389,9 @@ class LinuxTerminalLauncher:
             if argv is None:
                 continue
             try:
-                proc = subprocess.Popen(argv, start_new_session=True)
+                proc = subprocess.Popen(argv, start_new_session=True,
+                                        env=self._spawn_env(),
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 pids.append(proc.pid)
             except Exception as e:
                 ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
@@ -444,6 +476,8 @@ class LinuxTerminalLauncher:
         try:
             proc = subprocess.Popen(
                 ["kitty", "--session", path], start_new_session=True,
+                env=self._spawn_env(),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
             ColorPrint.plain(f"  kitty: single window, {count} panes (grid layout) "
                   f"(pid {proc.pid})")
@@ -502,7 +536,9 @@ class LinuxTerminalLauncher:
         argv = self._argv._build_attach_argv(emulator, attach)
 
         try:
-            proc = subprocess.Popen(argv, start_new_session=True)
+            proc = subprocess.Popen(argv, start_new_session=True,
+                                    env=self._spawn_env(),
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             ColorPrint.plain(f"  tmux: single window, {count} tiled panes "
                   f"(~{columns} cols) via {emulator} (pid {proc.pid})")
             return [proc.pid]
@@ -536,7 +572,9 @@ class LinuxTerminalLauncher:
             else:
                 argv = [emulator]
             try:
-                proc = subprocess.Popen(argv, start_new_session=True)
+                proc = subprocess.Popen(argv, start_new_session=True,
+                                        env=self._spawn_env(),
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 pids.append(proc.pid)
                 ColorPrint.plain(f"  Plain terminal {i}: {emulator} (pid {proc.pid})")
             except Exception as e:

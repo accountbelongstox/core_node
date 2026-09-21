@@ -69,7 +69,7 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "cpu_supported": True,
         # audioop-lts: pydub's audioop shim on Python 3.13+ (stdlib removed it).
         "packages": ("ChatTTS", "fastapi", "uvicorn", "pydub", "audioop-lts"),
-        "health_imports": "import ChatTTS, fastapi, uvicorn, pydub, torch",
+        "health_imports": "import ChatTTS, fastapi, uvicorn, torch; from pydub import AudioSegment",
     },
     "cosyvoice": {
         "python_min": "3.10",

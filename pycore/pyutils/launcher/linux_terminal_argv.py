@@ -24,6 +24,7 @@ Linux concern, a standalone class, never raises. Unknown emulators yield
 ``None`` argv (the caller skips them) rather than raising.
 """
 
+import os
 import shlex
 import shutil
 
@@ -86,6 +87,31 @@ class LinuxTerminalArgv:
     # Argv construction (per emulator)
     # ------------------------------------------------------------------ #
 
+    def _needs_private_session_bus(self):
+        """
+        True when an emulator spawned as ROOT cannot use the inherited D-Bus
+        session bus. xfce4-terminal reads its preferences (including the
+        unsafe-paste-dialog switch) through xfconf on the session bus, but the
+        desktop user's bus rejects non-owner uids at D-Bus auth (EXTERNAL),
+        which produced "Failed to initialize Xfconf: The connection is closed"
+        and silently reverted every preference to the compiled defaults. With
+        dbus-run-session(1) the terminal gets a private bus where root's own
+        xfconfd activates and reads root's xfce-perchannel-xml.
+        """
+        geteuid = getattr(os, "geteuid", None)
+        if geteuid is None or geteuid() != 0:
+            return False
+        address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
+        if address and "/run/user/0/" in address:
+            return False  # already on root's own session bus
+        return shutil.which("dbus-run-session") is not None
+
+    def _wrap_root_session_bus(self, emulator, argv):
+        """Prefix argv with dbus-run-session for root xfce4-terminal spawns."""
+        if emulator == "xfce4-terminal" and self._needs_private_session_bus():
+            return ["dbus-run-session", "--"] + argv
+        return argv
+
     def _build_titled_argv(self, emulator, inner, geometry=None):
         """
         Build argv that runs ``inner`` (a bash -lc snippet that self-titles the
@@ -106,7 +132,7 @@ class LinuxTerminalArgv:
             # xfce4-terminal takes a single command string; shlex.quote keeps the
             # inner snippet intact through that extra shell-word parse.
             argv.append("--command=bash -lc {}".format(shlex.quote(inner)))
-            return argv
+            return self._wrap_root_session_bus(emulator, argv)
 
         if emulator == "gnome-terminal":
             argv = [emulator]
@@ -148,7 +174,7 @@ class LinuxTerminalArgv:
             argv = [emulator, f"--title={title}", f"--geometry={geometry}"]
             if cmd:
                 argv.append(f"--command={cmd}")
-            return argv
+            return self._wrap_root_session_bus(emulator, argv)
 
         if emulator == "gnome-terminal":
             argv = [emulator, f"--title={title}", f"--geometry={geometry}"]
@@ -184,7 +210,8 @@ class LinuxTerminalArgv:
             list: argv for subprocess.Popen.
         """
         if emulator == "xfce4-terminal":
-            return [emulator, "--command=" + " ".join(attach_cmd)]
+            return self._wrap_root_session_bus(
+                emulator, [emulator, "--command=" + " ".join(attach_cmd)])
         if emulator == "gnome-terminal":
             return [emulator, "--"] + attach_cmd
         # konsole, qterminal, xterm and any fallback share the -e convention.

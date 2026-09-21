@@ -17,13 +17,17 @@
 #
 # Clipboard mouse functions: xfce4-terminal gets copy-on-select +
 # right-click-paste via terminalrc for both the real user and root (the pkexec
-# menu terminal runs as root and only reads root's config), plus
-# MiscShowUnsafePasteDialog=FALSE (official terminalrc key, default TRUE, see
-# terminal-preferences.c PROP_MISC_SHOW_UNSAFE_PASTE_DIALOG) so pasting never pops
-# the "Warning: Potentially Unsafe Paste" dialog; xterm gets the same via X resources
+# menu terminal runs as root and only reads root's config), plus the OFFICIAL
+# xfconf property /misc-show-unsafe-paste-dialog=false (channel xfce4-terminal,
+# see terminal-preferences.c PROP_MISC_SHOW_UNSAFE_PASTE_DIALOG) set per user via
+# xfconf-query on that user's session bus (terminalrc key
+# MiscShowUnsafePasteDialog=FALSE is kept as fallback) so pasting never pops the
+# "Warning: Potentially Unsafe Paste" dialog; xterm gets the same via X resources
 # baked into the helper and into every launcher-spawned xterm
 # (LinuxTerminalArgv.XTERM_XRM_ARGS); gnome-terminal / konsole / qterminal expose
-# copy/paste through their own context menus.
+# copy/paste through their own context menus. Elevated xfce4-terminals are
+# wrapped in dbus-run-session so root gets a private session bus and xfconf
+# actually works there (the desktop user's bus rejects non-owner uids).
 #
 # Input method (fcitx5 wubi etc.): a desktop-icon click - and especially the pkexec
 # re-spawn, which sanitizes the environment - can miss the session IM variables, so
@@ -87,6 +91,10 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
+# xfce_run_xfconf/run_user_session helpers (xfconf-query as the desktop user on
+# their own session bus, with a dbus-run-session fallback). Optional: the inline
+# fallback in configure_terminal_xfconf covers systems where this is absent.
+source "$PARENT_DIR_LEVEL_2/common/desktop_system_policy.sh" 2>/dev/null || true
 
 # Initialize global variables (sets USE_SUDO, etc.)
 init_global_vars
@@ -116,6 +124,13 @@ XFCE_CFG_DIR=""
 XFCE_CFG=""
 XFCE_KV=""
 XFCE_KEY=""
+XFCONF_USER=""
+# Official xfconf settings for xfce4-terminal (channel "xfce4-terminal", see
+# terminal-preferences.c PROP_MISC_SHOW_UNSAFE_PASTE_DIALOG and the xfce4-terminal
+# docs): the unsafe-paste warning dialog defaults to TRUE and is read through
+# xfconf ONLY - the legacy terminalrc file is not consulted once xfconfd works,
+# which is why editing terminalrc alone never removed the dialog.
+XFCONF_PASTE_ARGS=(-c xfce4-terminal -p /misc-show-unsafe-paste-dialog -n -t bool -s false)
 
 # Privilege prefix: prefer the gvar_common-provided USE_SUDO; else derive it.
 if [ -n "${USE_SUDO+x}" ]; then
@@ -273,15 +288,28 @@ for EMULATOR in "${EMULATOR_CANDIDATES[@]}"; do
         xterm)          EMU_ARGV=("$EMULATOR" "${XTERM_MOUSE_XRM_ARGS[@]}" "-e" "bash" "-lc" "$INNER_CMD") ;;
         *)              EMU_ARGV=("$EMULATOR" "-e" "bash" "-lc" "$INNER_CMD") ;;
     esac
+    # xfce4-terminal reads its preferences (incl. MiscShowUnsafePasteDialog)
+    # through xfconf on the D-Bus session bus. A root terminal cannot use the
+    # desktop user's bus (D-Bus EXTERNAL auth rejects non-owner uids -> "Failed
+    # to initialize Xfconf: The connection is closed", and every preference
+    # falls back to the compiled defaults), so an elevated xfce4-terminal gets a
+    # PRIVATE session bus via dbus-run-session(1): root's own xfconfd activates
+    # on it and reads /root/.config/xfce4/xfconf/xfce-perchannel-xml.
+    BUS_WRAP=()
+    if [ "$EMULATOR" = "xfce4-terminal" ] \
+            && { [ "$(id -u)" -eq 0 ] || [ "$USE_PKEXEC" = "1" ]; } \
+            && command -v dbus-run-session >/dev/null 2>&1; then
+        BUS_WRAP=(dbus-run-session --)
+    fi
     if [ "$USE_PKEXEC" = "1" ]; then
-        pkexec env "${PKEXEC_ENV[@]}" "${EMU_ARGV[@]}"
+        pkexec env "${PKEXEC_ENV[@]}" "${BUS_WRAP[@]}" "${EMU_ARGV[@]}"
         _ec=$?
         if [ "$_ec" -ne 126 ] && [ "$_ec" -ne 127 ]; then
             exit "$_ec"
         fi
         echo "[window-launcher] pkexec declined/unavailable ($_ec); starting as $(id -un) instead." >&2
     fi
-    exec "${EMU_ARGV[@]}"
+    exec "${BUS_WRAP[@]}" "${EMU_ARGV[@]}"
 done
 
 echo "[window-launcher] no terminal emulator found (looked for: ${EMULATOR_CANDIDATES[*]})." >&2
@@ -346,11 +374,50 @@ configure_terminal_mouse_functions() {
         write_terminalrc_for_home "$REAL_USER_HOME"
         REAL_USER_NAME="$(get_real_user 2>/dev/null || true)"
         if [ -n "$REAL_USER_NAME" ] && [ "$(id -u)" -eq 0 ] && [ "$REAL_USER_NAME" != "root" ]; then
-            chown -R "$REAL_USER_NAME:$REAL_USER_NAME" "$REAL_USER_HOME/.config/xfce4/terminal" 2>/dev/null || true
+            # Repair the WHOLE .config/xfce4 tree, not just the terminal subdir:
+            # `mkdir -p` above creates a root-owned .config/xfce4 parent, which
+            # makes the user's xfconfd fail with 'Unable to create configuration
+            # directory "(null)"' - xfconf then stays dead for the desktop user,
+            # xfce4-terminal falls back to compiled defaults and the unsafe-paste
+            # dialog can never be turned off.
+            chown -R "$REAL_USER_NAME:$REAL_USER_NAME" "$REAL_USER_HOME/.config/xfce4" 2>/dev/null || true
         fi
     fi
     # The pkexec-elevated menu terminal runs as root and reads root's terminalrc.
     [ "$(id -u)" -eq 0 ] && write_terminalrc_for_home "/root"
+}
+
+# Disable the unsafe-paste warning dialog through the OFFICIAL xfconf channel
+# (terminal-preferences.c: channel "xfce4-terminal", property
+# /misc-show-unsafe-paste-dialog, default TRUE). xfce4-terminal reads preferences
+# via xfconf only, so the terminalrc edit alone never removed the dialog while
+# xfconfd was running (or trying to run). The property is written per user on
+# that user's own session bus (xfce_run_xfconf from desktop_system_policy.sh,
+# which retries and falls back to a private dbus-run-session), once for the
+# desktop user and once for root (the pkexec grid runs root terminals).
+# NON-FATAL: systems without xfconf keep the terminalrc fallback above.
+configure_terminal_xfconf() {
+    command -v xfce4-terminal >/dev/null 2>&1 || return 0
+    command -v xfconf-query >/dev/null 2>&1 || return 0
+    command -v xfce_run_xfconf >/dev/null 2>&1 || return 0
+
+    REAL_USER_NAME="$(get_real_user 2>/dev/null || true)"
+    if [ -n "$REAL_USER_NAME" ] && [ "$REAL_USER_NAME" != "root" ]; then
+        if xfce_run_xfconf "$REAL_USER_NAME" "${XFCONF_PASTE_ARGS[@]}"; then
+            echo "[grid] xfconf: unsafe-paste dialog disabled for user $REAL_USER_NAME"
+        else
+            echo "[grid] [i] xfconf set failed for $REAL_USER_NAME (terminalrc fallback still applies)"
+        fi
+    fi
+    # The invoking user (root when pkexec/sudo elevated, else the desktop user).
+    XFCONF_USER="$(id -un)"
+    if [ -n "$XFCONF_USER" ] && [ "$XFCONF_USER" != "$REAL_USER_NAME" ]; then
+        if xfce_run_xfconf "$XFCONF_USER" "${XFCONF_PASTE_ARGS[@]}"; then
+            echo "[grid] xfconf: unsafe-paste dialog disabled for user $XFCONF_USER"
+        else
+            echo "[grid] [i] xfconf set failed for $XFCONF_USER (terminalrc fallback still applies)"
+        fi
+    fi
 }
 
 # Create (or idempotently update) the cross-DE shortcut: app menu + every user's
@@ -395,6 +462,7 @@ main() {
     remove_old_artifacts
     write_launch_helper
     configure_terminal_mouse_functions
+    configure_terminal_xfconf
     create_grid_shortcut
 
     echo "[grid] Done. Launch from the application menu or the desktop icon: \"$SHORTCUT_NAME\"."
