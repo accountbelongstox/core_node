@@ -41,6 +41,7 @@ PWP_STAMP_FILE=""
 PWP_REAL_USER=""
 PWP_REAL_GROUP=""
 PWP_STAMP_USER=""
+PWP_HOT_MISMATCH=""
 
 [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || exit 0
 [[ "${PYSERVICE_WWW_PERM_REPAIR:-1}" != "0" ]] || exit 0
@@ -74,9 +75,16 @@ if [[ "$(id -u)" != "0" ]]; then
 fi
 
 # Tier 1: bounded hot tree (pycore writes here; the tray privilege drop makes
-# any root-owned remnant fail with EACCES). Synchronous and cheap.
+# any root-owned remnant fail with EACCES). Synchronous and cheap: probe
+# ownership only, then apply the shared owner/mode-777 policy on a hit.
+PWP_HOT_MISMATCH=""
 if [[ -d "$PWP_HOT_TREE" ]]; then
-    repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
+    PWP_HOT_MISMATCH="$(find "$PWP_HOT_TREE" \( -type d -o -type f \) ! -user "$PWP_REAL_USER" -print -quit 2>/dev/null)"
+    if [[ -n "$PWP_HOT_MISMATCH" ]]; then
+        repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
+    else
+        echo "$PWP_LOG_TAG Ready: $PWP_HOT_TREE owned by $PWP_REAL_USER"
+    fi
 fi
 
 # Tier 2: full mapped tree, guarded by a per-user stamp; backgrounded so a

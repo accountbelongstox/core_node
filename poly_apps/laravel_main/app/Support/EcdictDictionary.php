@@ -297,11 +297,12 @@ class EcdictDictionary
     }
 
     /**
-     * Shared read-only connection. query_only=ON guarantees this process can
-     * never write the shared database; ATTR_TIMEOUT applies SQLite's own
+     * Shared read-only connection. PDO: query_only=ON guarantees this process
+     * can never write the shared database; ATTR_TIMEOUT applies SQLite's own
      * busy-timeout before SQLITE_BUSY is raised (sqlite.org/c3ref/busy_timeout).
+     * sqlite3-ext fallback: OPEN_READONLY + busyTimeout(2000).
      */
-    private static function connection(): ?PDO
+    private static function connection(): PDO|SQLite3|null
     {
         if (self::$conn !== null) {
             return self::$conn;
@@ -313,14 +314,20 @@ class EcdictDictionary
         if (!self::available()) {
             return null;
         }
-        $conn = new PDO('sqlite:' . self::dbPath(), null, null, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_TIMEOUT => 2,
-        ]);
-        $conn->exec('PRAGMA query_only = ON');
-        self::$columns = $conn
-            ->query('PRAGMA table_info(stardict)')
-            ->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (self::pdoSqliteAvailable()) {
+            $conn = new PDO('sqlite:' . self::dbPath(), null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_TIMEOUT => 2,
+            ]);
+            $conn->exec('PRAGMA query_only = ON');
+        } else {
+            $conn = new SQLite3(self::dbPath(), SQLITE3_OPEN_READONLY);
+            $conn->busyTimeout(2000);
+        }
+        self::$columns = array_map(
+            fn ($row) => (string) $row['name'],
+            self::selectAll($conn, 'PRAGMA table_info(stardict)')
+        );
         if (!in_array('word', self::$columns, true)) {
             self::$conn = null;
             return null;
@@ -330,10 +337,47 @@ class EcdictDictionary
     }
 
     /**
+     * Fetch all rows as assoc arrays across both drivers. Named params use
+     * ':key' placeholders on either side.
+     *
+     * @param array<string,mixed> $params
+     * @return array<int,array<string,mixed>>
+     */
+    private static function selectAll(PDO|SQLite3 $conn, string $sql, array $params = []): array
+    {
+        if ($conn instanceof PDO) {
+            $stmt = $conn->prepare($sql);
+            if ($stmt === false) {
+                return [];
+            }
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return is_array($rows) ? $rows : [];
+        }
+        $stmt = $conn->prepare($sql);
+        if ($stmt === false) {
+            return [];
+        }
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $rs = $stmt->execute();
+        if ($rs === false) {
+            return [];
+        }
+        $rows = [];
+        while (($row = $rs->fetchArray(SQLITE3_ASSOC)) !== false) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
      * Run $fn, retrying IMMEDIATELY when SQLite reports a lock race
      * (SQLITE_BUSY "database is locked" / SQLITE_LOCKED). Returns
      * ['busy' => true] when the lock outlives every attempt; try-catch is
-     * required here because PDO signals the busy state only via PDOException.
+     * required here because both drivers signal the busy state only via
+     * an exception (PDOException / Exception from SQLite3).
      *
      * @return mixed|array{busy:true}
      */
@@ -346,11 +390,11 @@ class EcdictDictionary
             }
             try {
                 return $fn();
-            } catch (PDOException $e) {
-                if (!self::isBusyError($e) || $attempt === self::BUSY_MAX_ATTEMPTS - 1) {
-                    if (!self::isBusyError($e)) {
-                        throw $e;
-                    }
+            } catch (Throwable $e) {
+                if (!self::isBusyError($e)) {
+                    throw $e;
+                }
+                if ($attempt === self::BUSY_MAX_ATTEMPTS - 1) {
                     return ['busy' => true];
                 }
             }
@@ -358,12 +402,14 @@ class EcdictDictionary
         return ['busy' => true];
     }
 
-    /** SQLITE_BUSY (5) / SQLITE_LOCKED (6) detection from the PDO error info. */
-    private static function isBusyError(PDOException $e): bool
+    /** SQLITE_BUSY (5) / SQLITE_LOCKED (6) detection across both drivers. */
+    private static function isBusyError(Throwable $e): bool
     {
-        $info = $e->errorInfo;
-        if (is_array($info) && isset($info[1]) && in_array((int) $info[1], [5, 6], true)) {
-            return true;
+        if ($e instanceof PDOException) {
+            $info = $e->errorInfo;
+            if (is_array($info) && isset($info[1]) && in_array((int) $info[1], [5, 6], true)) {
+                return true;
+            }
         }
         return stripos($e->getMessage(), 'locked') !== false;
     }
