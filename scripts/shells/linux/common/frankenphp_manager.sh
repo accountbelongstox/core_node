@@ -130,6 +130,11 @@ FRANKENPHP_BIN_CANDIDATES="${FRANKENPHP_COMPILED_BINARY_PATH} ${FRANKENPHP_PREBU
 # GD driver): prebuilt/compiled binaries embed it (official default set), the
 # apt variant loads it from the php-zts-gd deb (FRANKENPHP_APT_PACKAGES).
 FRANKENPHP_RUNTIME_REQUIRED_PHP_EXTENSIONS=("pdo" "pdo_pgsql" "phar" "simplexml" "pcntl" "gd")
+# Managed route-file marker (first-line comment written by
+# frankenphp_domain_common.sh FM_DOMAIN_MARKER). The pre-flight below only
+# ever DELETES files carrying this marker; user-owned routes are reported,
+# never touched.
+FRANKENPHP_MANAGED_ROUTE_MARKER="managed-by: frankenphp_domain_common"
 FM_RUNTIME_BINARY=""
 FM_MERCURE_STANZA=""
 FM_OCTANE_PHP_SERVER_STANZA=""
@@ -260,6 +265,51 @@ fm_cert_status() {
     if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
         echo "  - renewal timer: $(systemctl is-active ncore-acme-cert.timer 2>/dev/null || echo inactive) / enabled: $(systemctl is-enabled ncore-acme-cert.timer 2>/dev/null || echo no)"
     fi
+}
+
+# Route-file pinned-certificate pre-flight (service-start convergence).
+# Managed route files (frankenphp_domain_common) pin absolute `tls <cert>
+# <key>` paths that were verified at render time; a later data-root migration
+# or cert cleanup can delete the material and leave the pinned paths
+# dangling, which fails the WHOLE Caddy config load and crash-loops the
+# plane. Drop every broken MANAGED route file here (the next 175 init
+# re-renders it with re-verified paths); un-managed files are reported but
+# never deleted. Arg: 1 routes_dir
+fm_routes_pinned_cert_converge() {
+    local routes_dir="$1"
+    local route_file=""
+    local tls_line=""
+    local cert_path=""
+    local key_path=""
+    local missing=""
+
+    [ -d "$routes_dir" ] || return 0
+    for route_file in "$routes_dir"/*.caddy; do
+        [ -f "$route_file" ] || continue
+        missing=""
+        while IFS= read -r tls_line; do
+            [ -z "$tls_line" ] && continue
+            cert_path="$(printf '%s\n' "$tls_line" | awk '{print $2}')"
+            key_path="$(printf '%s\n' "$tls_line" | awk '{print $3}')"
+            case "$cert_path" in
+                /*) [ -f "$cert_path" ] || missing="${missing} ${cert_path}" ;;
+            esac
+            case "$key_path" in
+                /*) [ -f "$key_path" ] || missing="${missing} ${key_path}" ;;
+            esac
+        done <<< "$(grep -E '^[[:space:]]*tls[[:space:]]+/[^[:space:]]+[[:space:]]+/[^[:space:]]+' "$route_file" 2>/dev/null)"
+        [ -z "$missing" ] && continue
+        if grep -q "$FRANKENPHP_MANAGED_ROUTE_MARKER" "$route_file" 2>/dev/null; then
+            if rm -f "$route_file"; then
+                echo "[$SCRIPT_INDEX] [WARN] dropped managed route with missing pinned cert material:${missing} ($route_file); the next 175 init re-renders it"
+            else
+                echo "[$SCRIPT_INDEX] [ERROR] could not drop broken managed route $route_file (missing:${missing})"
+            fi
+        else
+            echo "[$SCRIPT_INDEX] [WARN] un-managed route references missing cert material:${missing} ($route_file); left in place"
+        fi
+    done
+    return 0
 }
 
 # Idempotent DNS-01 certificate readiness (compile variant): converge the

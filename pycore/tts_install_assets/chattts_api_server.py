@@ -10,7 +10,11 @@ Run from the staging dir after install_chattts:
 
 Env:
   CHATTTS_HOST / CHATTTS_PORT      - bind (default 0.0.0.0:8000)
-  CHATTTS_DEVICE                   - cuda | cpu | auto (default auto)
+  CHATTTS_DEVICE                   - cuda | cpu | auto (default auto); auto picks
+                                     cuda only when enough VRAM is FREE (see below)
+  CHATTTS_MIN_FREE_VRAM_MB         - free-VRAM floor for auto->cuda (default 4096;
+                                     ChatTTS official FAQ: at least 4 GB of GPU
+                                     memory is required for a 30-second clip)
   CHATTTS_MODEL_DIR                - installer-managed model directory
   CHATTTS_VOICE                    - default voice label (cosmetic)
   CHATTTS_PROMPT                   - oral tags prefix (e.g. [oral_2][laugh_0][break_6])
@@ -18,6 +22,13 @@ Env:
 
 import io
 import os
+
+# PyTorch official recommendation (docs.pytorch.org docs/stable/notes/cuda.html)
+# against allocation fragmentation; must be set before torch initializes.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+import shutil
+import subprocess
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -37,6 +48,7 @@ _chat_lock = threading.Lock()
 _inference_lock = threading.Lock()
 _device = None
 _load_error: Optional[str] = None
+_CHATTS_MIN_FREE_VRAM_MB = 4096  # ChatTTS official FAQ: >= 4 GB GPU memory
 _MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
 
 
@@ -49,11 +61,56 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=_lifespan)
 
 
+def _min_free_vram_mb() -> int:
+    raw = (os.environ.get("CHATTTS_MIN_FREE_VRAM_MB") or "").strip()
+    return int(raw) if raw.isdigit() else _CHATTS_MIN_FREE_VRAM_MB
+
+
+def _free_vram_mb() -> Optional[int]:
+    """Free VRAM in MiB via an nvidia-smi SUBPROCESS - never torch.cuda here:
+    a cpu-fallback decision must not initialize a CUDA context in this process
+    (the context alone would claim several hundred MiB of the contested GPU)."""
+    executable = shutil.which("nvidia-smi")
+    if not executable:
+        for candidate in ("/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"):
+            if os.path.isfile(candidate):
+                executable = candidate
+                break
+    if not executable:
+        return None
+    try:
+        output = subprocess.run(
+            [executable, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    if output.returncode != 0:
+        return None
+    values = [int(line.strip()) for line in (output.stdout or "").splitlines() if line.strip().isdigit()]
+    return max(values) if values else None
+
+
 def _resolve_device() -> str:
     want = (os.environ.get("CHATTTS_DEVICE") or "auto").strip().lower() or "auto"
     if want in ("cpu", "cuda"):
         return want
-    return "cuda" if torch.cuda.is_available() else "cpu"
+    if not torch.cuda.is_available():
+        return "cpu"
+    free_mb = _free_vram_mb()
+    required_mb = _min_free_vram_mb()
+    if free_mb is not None and free_mb < required_mb:
+        print(
+            f"[chattts] auto device: {free_mb} MiB VRAM free < {required_mb} MiB "
+            "(ChatTTS official minimum is ~4 GB); falling back to cpu",
+            flush=True,
+        )
+        return "cpu"
+    return "cuda"
 
 
 def _model_dir() -> Path:

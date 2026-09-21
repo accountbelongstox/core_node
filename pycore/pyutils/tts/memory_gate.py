@@ -130,8 +130,20 @@ def gpu_stats() -> Tuple[Optional[int], Optional[int], Optional[int]]:
     return max_util, int(emptiest[1]), int(emptiest[2])
 
 
-def free_vram_bytes() -> Optional[int]:
-    return gpu_stats()[1]
+def free_vram_bytes(device_index: Optional[int] = None) -> Optional[int]:
+    """Free VRAM bytes of one GPU. None -> the emptiest GPU (a model tier loads
+    onto ONE device, so the best case is what matters); an explicit index reads
+    exactly that GPU (launchers that pin CUDA_VISIBLE_DEVICES need their own
+    target's free memory, not the fleet's best)."""
+    rows = _gpu_query()
+    if not rows:
+        return None
+    if device_index is None:
+        return int(max(rows, key=lambda row: row[1])[1])
+    index = int(device_index)
+    if 0 <= index < len(rows):
+        return int(rows[index][1])
+    return None
 
 
 def _fmt(num_bytes: int) -> str:

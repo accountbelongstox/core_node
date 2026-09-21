@@ -62,15 +62,6 @@ SLEEP_WATCH_PID=""
 SCHEDULER_RESTART_DELAY_SECONDS="5"
 SUPERVISED_EXIT_STATUS="0"
 ROUTE_STATE_READY="no"
-FRANKENPHP_ROUTE_BACKUPS_DIR="$(dirname "$FRANKENPHP_CADDYFILE")/route-backups"
-ROUTE_FILE=""
-ROUTE_LINE=""
-ROUTE_LINE_TRIMMED=""
-ROUTE_TLS_MISSING=""
-ROUTE_TLS_CERT=""
-ROUTE_TLS_KEY=""
-ROUTE_QUARANTINE_TARGET=""
-FM_DOMAIN_ROUTE_MARKER="managed-by: frankenphp_domain_common"
 
 converge_laravel_route_state() {
     ROUTE_STATE_READY="no"
@@ -85,58 +76,6 @@ converge_laravel_route_state() {
         echo "[laravel-runtime-frankenphp] [ERROR] Laravel route cache clear failed; refusing to boot with unknown route state"
         return 1
     fi
-}
-
-# Pre-boot stale-route guard: the service path is init-free, so a managed
-# route file rendered by an earlier init (e.g. the LAN site pinning a
-# mkcert/tailscale cert under a data dir that has since moved) is never
-# re-rendered here. A route whose tls cert/key files no longer exist makes
-# the Caddy config load fail and crash-loops the supervisor; quarantine such
-# managed route files into route-backups (the next full 175 init re-renders
-# every still-valid route). Hand-written route files (no managed marker) are
-# never touched.
-validate_managed_route_tls_files() {
-    if [ ! -d "$FRANKENPHP_ROUTES_DIR" ]; then
-        return 0
-    fi
-    for ROUTE_FILE in "$FRANKENPHP_ROUTES_DIR"/*.caddy; do
-        [ -f "$ROUTE_FILE" ] || continue
-        case "$(head -n 1 "$ROUTE_FILE" 2>/dev/null)" in
-            *"$FM_DOMAIN_ROUTE_MARKER"*) ;;
-            *) continue ;;
-        esac
-        ROUTE_TLS_MISSING=""
-        while IFS= read -r ROUTE_LINE; do
-            ROUTE_LINE_TRIMMED="$(printf '%s' "$ROUTE_LINE" | sed 's/^[[:space:]]*//')"
-            case "$ROUTE_LINE_TRIMMED" in
-                tls\ *|tls) ;;
-                *) continue ;;
-            esac
-            set -- $ROUTE_LINE_TRIMMED
-            if [ "$#" -lt 3 ]; then
-                continue
-            fi
-            ROUTE_TLS_CERT="$2"
-            ROUTE_TLS_KEY="$3"
-            case "$ROUTE_TLS_CERT" in
-                \{*|internal) continue ;;
-            esac
-            if [ ! -f "$ROUTE_TLS_CERT" ]; then
-                ROUTE_TLS_MISSING="$ROUTE_TLS_CERT"
-            elif [ ! -f "$ROUTE_TLS_KEY" ]; then
-                ROUTE_TLS_MISSING="$ROUTE_TLS_KEY"
-            fi
-            if [ -n "$ROUTE_TLS_MISSING" ]; then
-                break
-            fi
-        done < "$ROUTE_FILE"
-        if [ -n "$ROUTE_TLS_MISSING" ]; then
-            mkdir -p "$FRANKENPHP_ROUTE_BACKUPS_DIR"
-            ROUTE_QUARANTINE_TARGET="${FRANKENPHP_ROUTE_BACKUPS_DIR}/$(basename "$ROUTE_FILE" .caddy).stale-$(date +%Y%m%d%H%M%S).caddy"
-            mv "$ROUTE_FILE" "$ROUTE_QUARANTINE_TARGET"
-            echo "[laravel-runtime-frankenphp] [WARN] Quarantined stale managed route (missing tls file: $ROUTE_TLS_MISSING): $ROUTE_FILE -> $ROUTE_QUARANTINE_TARGET"
-        fi
-    done
 }
 
 stop_runtime_processes() {
@@ -270,9 +209,12 @@ if [ "$FM_CADDYFILE_READY" != "yes" ]; then
     exit 1
 fi
 
-# Drop managed route files whose pinned certificate material no longer exists
-# BEFORE the supervisor loads the config (see the function header).
-validate_managed_route_tls_files
+# Managed route files pin absolute cert paths that a data-root migration can
+# invalidate AFTER the render; one dangling `tls` path fails the whole Caddy
+# config load and crash-loops the plane. Drop broken managed routes before
+# every supervised boot (the next 175 init re-renders them with re-verified
+# paths).
+fm_routes_pinned_cert_converge "$FRANKENPHP_ROUTES_DIR"
 
 # DNSPod DNS-01 token (only when stored AND a module-capable variant; the
 # Caddyfile gate renders the tls stanza only when module + token both

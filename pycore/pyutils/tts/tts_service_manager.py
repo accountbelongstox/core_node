@@ -55,6 +55,7 @@ from pycore.pyutils.common.managed_service_facade import ManagedServiceFacade
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.common.port_utils import is_port_in_use
+from pycore.pyutils.tts import memory_gate
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 import pycore.pyutils.tts.qwen.engine as qwen_engine
@@ -74,6 +75,44 @@ from pycore.pyutils.tts.qwen.config import (
 _MELOTTS_API_SERVER = "melotts_api_server.py"
 _TTS_SERVICE_FACADE = ManagedServiceFacade("tts", "server_")
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
+
+# Free-VRAM floors (MiB) for launching a class-C server onto the GPU. When a
+# busy peer legitimately holds the card (single-active never interrupts an
+# in-flight service), the newcomer starts on CPU instead of dying inside
+# model load with a CUDA OOM. ChatTTS floor follows its official FAQ
+# ("at least 4GB of GPU memory"); Qwen3-TTS floors follow the measured
+# residency of each variant (1.7B rests at ~6.2 GiB, 0.6B at ~2.5 GiB).
+# Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB.
+_CHATTTS_MIN_FREE_VRAM_MB = 4096
+_QWEN3TTS_MIN_FREE_VRAM_MB = {"1.7B": 6656, "0.6B": 3072}
+_MIB = 1024 ** 2
+
+
+def _env_int(name: str) -> Optional[int]:
+    raw = (os.environ.get(name) or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def _gpu_device_or_fallback(
+    engine: str,
+    required_mb: int,
+    device_index: Optional[int] = None,
+) -> str:
+    """"cuda" when the target GPU has >= required_mb free, else "cpu".
+    Unknown readings (no GPU / no driver) keep the engine's own auto logic,
+    so the fallback is "cuda" - the server re-checks free VRAM itself."""
+    free_bytes = memory_gate.free_vram_bytes(device_index)
+    if free_bytes is None:
+        return "cuda"
+    free_mb = int(free_bytes) // _MIB
+    if free_mb >= required_mb:
+        return "cuda"
+    ColorPrint.yellow(
+        f"[tts-service] {engine}: {free_mb} MiB VRAM free on GPU "
+        f"{device_index if device_index is not None else 0} < {required_mb} MiB "
+        "required; starting on cpu (a busy peer is holding the card)"
+    )
+    return "cpu"
 
 
 # --------------------------------------------------------------------------- #
@@ -169,6 +208,16 @@ def _start_command(engine: str) -> Optional[Tuple]:
         env["CHATTTS_MODEL_DIR"] = str(model_path)
         env["HF_HUB_OFFLINE"] = "1"
         env["TRANSFORMERS_OFFLINE"] = "1"
+        # PyTorch official anti-fragmentation setting (docs.pytorch.org
+        # docs/stable/notes/cuda.html); explicit opt-out wins.
+        env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+        # Device decided HERE from live free VRAM: single-active never stops a
+        # busy peer, so an occupied card must degrade chattts to cpu instead of
+        # letting it crash with a CUDA OOM inside model load. An explicit
+        # CHATTTS_DEVICE in the environment wins over the probe.
+        if not (os.environ.get("CHATTTS_DEVICE") or "").strip():
+            required_mb = _env_int("CHATTTS_MIN_FREE_VRAM_MB") or _CHATTTS_MIN_FREE_VRAM_MB
+            env["CHATTTS_DEVICE"] = _gpu_device_or_fallback("chattts", required_mb)
         return staging, [py, str(script)], env
     if engine == "cosyvoice":
         script = staging / "runtime" / "python" / "fastapi" / "server.py"
@@ -275,6 +324,9 @@ def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
     # hard-crashing its host process (BEX64) on Windows; plain HTTP chunk
     # downloads are the stable path. setdefault so an explicit opt-out wins.
     env.setdefault("HF_HUB_DISABLE_XET", "1")
+    # PyTorch official anti-fragmentation setting (docs.pytorch.org
+    # docs/stable/notes/cuda.html); setdefault so an explicit opt-out wins.
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     env.update(extra)
     return env
 
@@ -461,6 +513,26 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
         "0.6B" if "0.6b" in installed_model.lower() else "1.7B"
     )
     gpu_tier = "1.7b" in runtime_model.lower()
+    if not device:
+        # Same VRAM gate as chattts (auto / gpu_tier-implied cuda only - an
+        # explicit QWEN3TTS_DEVICE pin always wins): a busy single-active peer
+        # legitimately keeps the card, so an under-provisioned GPU start must
+        # degrade to cpu instead of crashing inside from_pretrained with a
+        # CUDA OOM.
+        variant = extra["QWEN3TTS_MODEL_VARIANT"]
+        required_mb = (
+            _env_int("QWEN3TTS_MIN_FREE_VRAM_MB")
+            or _QWEN3TTS_MIN_FREE_VRAM_MB[variant]
+        )
+        index_raw = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
+        device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
+        probe_index = (
+            int(index_raw) if index_raw.isdigit()
+            else int(device_suffix) if device_suffix.isdigit()
+            else 0
+        )
+        if _gpu_device_or_fallback(QWEN_ENGINE_NAME, required_mb, probe_index) == "cpu":
+            device = "cpu"
     if device == "cpu":
         extra["QWEN3TTS_DEVICE"] = "cpu"
     elif device.startswith("cuda") or gpu_tier:

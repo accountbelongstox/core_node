@@ -17,7 +17,11 @@ Env:
                                    always supplies the verified persistent
                                    staging/weights path when available; the HF
                                    id fallback is for standalone use only.
-  QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto)
+  QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto); auto picks
+                                   cuda:0 only when the GPU has enough FREE VRAM
+                                   for the model variant (see below)
+  QWEN3TTS_MIN_FREE_VRAM_MB      - free-VRAM floor for auto->cuda (default per
+                                   variant: 6656 for 1.7B, 3072 for 0.6B)
   QWEN3TTS_MODEL_VARIANT         - installed model size (0.6B | 1.7B), supplied
                                    by the managed launcher for local paths
   QWEN3TTS_PHYSICAL_GPU_INDEX    - physical NVIDIA index selected at launch
@@ -251,14 +255,47 @@ async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
     return JSONResponse({"error": f"unhandled: {exc}"}, status_code=500)
 
 
+# Free-VRAM floors (MiB) for auto device selection; mirrors the launcher-side
+# gate in pycore/pyutils/tts/tts_service_manager.py (standalone script - no
+# pycore imports, so the table is duplicated by contract). 1.7B rests at ~6.2
+# GiB on the card, 0.6B at ~2.5 GiB. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
+_QWEN3TTS_MIN_FREE_VRAM_MB = {"1.7B": 6656, "0.6B": 3072}
+
+
+def _min_free_vram_mb() -> int:
+    raw = (os.environ.get("QWEN3TTS_MIN_FREE_VRAM_MB") or "").strip()
+    if raw.isdigit():
+        return int(raw)
+    return _QWEN3TTS_MIN_FREE_VRAM_MB[_model_variant()]
+
+
 def _resolve_device() -> str:
     want = (os.environ.get("QWEN3TTS_DEVICE") or "auto").strip().lower() or "auto"
     if want != "auto":
         return want
     try:
-        return "cuda:0" if torch.cuda.is_available() else "cpu"
+        if not torch.cuda.is_available():
+            return "cpu"
     except ImportError:
         return "cpu"
+    # auto must not claim a card that cannot fit the model: a busy peer
+    # (single-active never interrupts an in-flight TTS service) leaves too
+    # little VRAM and the load dies inside from_pretrained with a CUDA OOM.
+    index_raw = (os.environ.get("QWEN3TTS_PHYSICAL_GPU_INDEX") or "").strip()
+    physical_index = int(index_raw) if index_raw.isdigit() else 0
+    snapshot = query_gpu_snapshot(physical_index)
+    if snapshot.get("available"):
+        total_mb = int(snapshot.get("mem_total_mb") or 0)
+        used_mb = int(snapshot.get("mem_used_mb") or 0)
+        free_mb = max(0, total_mb - used_mb)
+        required_mb = _min_free_vram_mb()
+        if free_mb < required_mb:
+            _log(
+                f"[api] auto device: {free_mb} MiB VRAM free on GPU {physical_index} "
+                f"< {required_mb} MiB required by {_model_variant()}; falling back to cpu"
+            )
+            return "cpu"
+    return "cuda:0"
 
 
 def _model_id() -> str:

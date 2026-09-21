@@ -104,6 +104,13 @@ class BaseLaravelWorkerService:
     PULL_LIMIT = GLOBAL_TASK_LIMITS["worker_pull_default"]
     STATE_OWNER_NAME = "LaravelWorkerState"
     WORKER_ID_PREFIX = "pycore-worker"
+    # Worker identity cadence: the register route doubles as the server-side
+    # heartbeat (it marks the row online and stamps last_heartbeat_at), so the
+    # refresh stays below the server HEARTBEAT_TIMEOUT (120s) and the row never
+    # ages offline. The FORCED re-register on an accept-404 self-heal is
+    # rate-limited so a draining mirror cannot flood the register route.
+    WORKER_REGISTER_REFRESH_SECONDS = 45.0
+    WORKER_REGISTER_RETRY_SECONDS = 10.0
     LOG_ACCEPTED_RESULTS = True
     # Full-sync lanes mirror the entire pending claim order from one diff
     # (sync=1 -> ordered_task_ids), keep the backlog in the persistent
@@ -135,6 +142,9 @@ class BaseLaravelWorkerService:
         self.platform = platform.platform()
 
         self._registered = False
+        # Monotonic ts of the last worker_register POST (success or attempt);
+        # throttles both the periodic refresh and the accept-404 self-heal.
+        self._worker_register_at = 0.0
         self._pull_task_type_cursor = 0
         # Explicit lane lifecycle state (request_start / request_stop). A stop
         # is graceful when the claimed-but-unstarted heap may finish; an
@@ -218,6 +228,7 @@ class BaseLaravelWorkerService:
         prev = self.api_url
         self.api_url = new_url.rstrip("/")
         self._registered = False
+        self._worker_register_at = 0.0
         ColorPrint.blue(
             f"{self._log_prefix} Endpoint changed {prev!r} -> {new_url!r}"
         )
@@ -316,29 +327,78 @@ class BaseLaravelWorkerService:
         """Claim capacity including the slot reserved for a changed queue head."""
         return max(0, int(self.PULL_LIMIT) - len(self._inflight))
 
-    def _pull_params(self, limit: int) -> Dict[str, Any]:
-        capabilities = self._effective_capabilities()
-        processor_types = self._effective_processor_types()
-        params: Dict[str, Any] = {
+    def _identity_params(self) -> Dict[str, Any]:
+        """Worker identity payload shared by the register and pull routes.
+
+        Real JSON arrays: the body is sent as application/json, where PHP only
+        expands bracket keys for form-encoded transport. Flat keys made
+        `processor_types`/`capabilities` vanish server-side, so the pull's
+        inline worker register never fired and the claim path failed with
+        "Worker not found" (HTTP 500).
+        """
+        return {
             "worker_id": self.worker_id,
             "worker_name": self.worker_name,
-            "capabilities_present": 1,
+            "processor_types": list(self._effective_processor_types()),
+            "capabilities": list(self._effective_capabilities()),
             "hostname": self.hostname,
             "platform": self.platform,
-            "limit": max(1, min(int(limit), GLOBAL_TASK_LIMITS["worker_pull"])),
             "lease_capacity": max(
                 1,
                 min(int(self._lease_capacity()), GLOBAL_TASK_LIMITS["worker_pull"]),
             ),
         }
-        # Real JSON arrays: the body is sent as application/json, where PHP only
-        # expands bracket keys for form-encoded transport. Flat keys made
-        # `processor_types`/`capabilities` vanish server-side, so the pull's
-        # inline worker register never fired and the claim path failed with
-        # "Worker not found" (HTTP 500).
-        params["processor_types"] = list(processor_types)
-        params["capabilities"] = list(capabilities)
+
+    def _pull_params(self, limit: int) -> Dict[str, Any]:
+        params = self._identity_params()
+        params["capabilities_present"] = 1
+        params["limit"] = max(1, min(int(limit), GLOBAL_TASK_LIMITS["worker_pull"]))
         return params
+
+    def _ensure_worker_registered(self, base_url: str, force: bool = False) -> bool:
+        """Establish/refresh the server-side worker row (register = heartbeat).
+
+        Full-sync lanes never run the bounded claim-pull, whose inline register
+        is the only other identity refresh: without this call their worker row
+        is never created (or ages out through the offline reaper/purge) and
+        EVERY just-in-time accept fails 404 "Task or worker not found" -- the
+        server message conflates a missing task with a missing worker. The
+        refresh cadence stays below the server HEARTBEAT_TIMEOUT (120s); a
+        forced call (accept-404 self-heal) is still rate-limited so a draining
+        mirror cannot flood the register route.
+        """
+        elapsed = time.monotonic() - self._worker_register_at
+        if (
+            not force
+            and self._registered
+            and elapsed < self.WORKER_REGISTER_REFRESH_SECONDS
+        ):
+            return True
+        if force and elapsed < self.WORKER_REGISTER_RETRY_SECONDS:
+            return self._registered
+        try:
+            response = laravel_client.post(
+                queue_center_endpoint("worker_register"),
+                base_url=base_url,
+                json=self._identity_params(),
+                activity_timeout=http_transfer_contract(),
+            )
+        except Exception:
+            return self._registered
+        self._worker_register_at = time.monotonic()
+        if response.status_code in (200, 201):
+            if not self._registered:
+                ColorPrint.green(
+                    f"{self._log_prefix} Worker identity registered with Laravel "
+                    f"({self.worker_id})"
+                )
+            self._registered = True
+            return True
+        self._registered = False
+        ColorPrint.yellow(
+            f"{self._log_prefix} Worker register failed: HTTP {response.status_code}"
+        )
+        return False
 
     def _lease_capacity(self) -> int:
         """Maximum live Laravel leases owned by this worker instance."""
@@ -385,6 +445,10 @@ class BaseLaravelWorkerService:
 
     def _sync_mirror_from_diffs(self, task_types: List[str]) -> Dict[str, Any]:
         base_url = self._sync_laravel_endpoint(self.api_url)
+        # Identity first: diff/accept/result all need the worker row, and
+        # full-sync lanes have no other registration path (see
+        # _ensure_worker_registered).
+        self._ensure_worker_registered(base_url)
         recovery = self._diff_recovery_state.get() or {}
         outcome = {
             "ok": False,
@@ -673,20 +737,38 @@ class BaseLaravelWorkerService:
         )
         return False
 
+    def _post_task_accept(
+        self,
+        task_type: str,
+        task_id: str,
+        base_url: str,
+    ) -> Any:
+        return laravel_client.post(
+            queue_center_endpoint("worker_task_accept", task_type=task_type),
+            base_url=base_url,
+            json={"task_id": task_id, "worker_id": self.worker_id},
+            activity_timeout=http_transfer_contract(),
+        )
+
     def _validate_recovered_claim(
         self,
         task_type: str,
         task_id: str,
         base_url: str,
     ) -> bool:
-        response = laravel_client.post(
-            queue_center_endpoint("worker_task_accept", task_type=task_type),
-            base_url=base_url,
-            json={"task_id": task_id, "worker_id": self.worker_id},
-            activity_timeout=http_transfer_contract(),
-        )
+        response = self._post_task_accept(task_type, task_id, base_url)
         if response.status_code in (200, 201):
             return True
+        if response.status_code == 404 and self._ensure_worker_registered(
+            base_url, force=True
+        ):
+            # "Task or worker not found" conflates a missing task with a
+            # missing WORKER row (first contact / offline reaper / purge): a
+            # fresh registration can make the very same claim succeed, so
+            # retry once before dropping the task from the local mirror.
+            response = self._post_task_accept(task_type, task_id, base_url)
+            if response.status_code in (200, 201):
+                return True
         if response.status_code in (404, 409):
             return False
         raise RuntimeError(

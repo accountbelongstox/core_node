@@ -19,16 +19,25 @@ LEGACY_CORE_NODE_DATA_DIR="/var/_core_node"
 # Single definition of the Linux WWW base (the extra-level rule for dual-boot
 # NTFS mounts: D:\ == /www, so D:\www == /www/www). EVERY script that needs the
 # www base reads this variable -- never re-implement the findmnt detection
-# inline. Mirrors pycore core_node_dirs.get_linux_www_base and the base
+# inline. The extra level exists ONLY for the NTFS dual-boot share: the /www
+# mount's fstype MUST be NTFS-family (ntfs/ntfs3/fuseblk/ntfs-3g; bind-mounts
+# of an NTFS root report the source fstype). A native Linux data disk (ext4,
+# xfs, ...) mounted at /www never triggers the extra level.
+# Mirrors pycore core_node_dirs.get_linux_www_base (NTFS_FSTYPES) and the base
 # resolution inside gvar_common.sh::map_web_path / PathMapper::mapWebPath.
 CORE_NODE_WWW_BASE="/www"
 if [ -d /www/www ] && command -v findmnt >/dev/null 2>&1; then
     __re_src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
     __re_src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
-    if [ -n "$__re_src_www" ] && [ -n "$__re_src_root" ] && [ "$__re_src_root" != "$__re_src_www" ]; then
+    __re_fstype_www="$(findmnt -n -o FSTYPE --target /www 2>/dev/null | head -n1)"
+    case "$__re_fstype_www" in
+        ntfs|ntfs3|fuseblk|ntfs-3g) __re_www_is_ntfs=yes ;;
+        *) __re_www_is_ntfs=no ;;
+    esac
+    if [ "$__re_www_is_ntfs" = "yes" ] && [ -n "$__re_src_www" ] && [ -n "$__re_src_root" ] && [ "$__re_src_root" != "$__re_src_www" ]; then
         CORE_NODE_WWW_BASE="/www/www"
     fi
-    unset __re_src_www __re_src_root
+    unset __re_src_www __re_src_root __re_fstype_www __re_www_is_ntfs
 fi
 if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
     CORE_NODE_DATA_DIR="$CORE_NODE_WWW_BASE/core_node"
