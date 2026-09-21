@@ -9,6 +9,8 @@ from pycore.pyfoundations.network_constants import (
     QWEN3TTS_HTTP_PORT,
     QWEN3TTS_HTTP_TIMEOUT_SECONDS,
     QWEN3TTS_JOB_TEXT_MAX_CHARS,
+    QWEN3TTS_SPEED_MAX,
+    QWEN3TTS_SPEED_MIN,
 )
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.http_client import build_http_base_url
@@ -27,8 +29,8 @@ DEFAULT_PORT = QWEN3TTS_HTTP_PORT
 INSTALL_HINT = "Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh"
 QUEUE_EVENT_NAME = BusSignals.QWEN_QUEUE_EVENT
 # Speed factor bounds accepted from QWEN3TTS_SPEED / request overrides.
-_SPEED_MIN = 0.25
-_SPEED_MAX = 3.0
+_SPEED_MIN = QWEN3TTS_SPEED_MIN
+_SPEED_MAX = QWEN3TTS_SPEED_MAX
 # Bounded wait budgets (seconds) for the single-active-job service queue: the
 # server deliberately 429s concurrent submits ("callers retain and retry"),
 # but a pycore caller must give up inside a budget so one busy queue fails

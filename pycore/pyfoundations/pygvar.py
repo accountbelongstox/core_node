@@ -20,6 +20,11 @@ from pycore.pyfoundations.core_node_dirs import (
 )
 from pycore.pyfoundations.machine_id import get_machine_id
 from pycore.pyfoundations.network_constants import (
+    CHATTTS_HTTP_PORT,
+    COSYVOICE_HTTP_PORT,
+    F5TTS_HTTP_PORT,
+    FISHSPEECH_HTTP_PORT,
+    GPTSOVITS_HTTP_PORT,
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,
     HTTP_DEFAULT_TIMEOUT_SECONDS,
@@ -30,9 +35,11 @@ from pycore.pyfoundations.network_constants import (
     HTTP_PROTOCOL_VERSION,
     HTTP_ROUTES_PATH,
     HTTP_STATUS_PATH,
+    MELOTTS_HTTP_PORT,
     PYCORE_HTTP_PORT,
     QWEN3TTS_HTTP_PORT,
     QWEN3TTS_HTTP_TIMEOUT_SECONDS,
+    VOXCPM2_HTTP_PORT,
 )
 from pycore.pyfoundations.system_info import (
     DISK_INFO,
@@ -86,6 +93,7 @@ os.environ["TEMP"] = DEFAULT_TEMP_DIR
 os.environ["TMP"] = DEFAULT_TEMP_DIR
 os.environ["TMPDIR"] = DEFAULT_TEMP_DIR
 tempfile.tempdir = DEFAULT_TEMP_DIR
+os.environ["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
 
 BACKUP_DIR_NAME = "CoreNodeBackup"
 LOCAL_CORE_NODE_DIR = str(get_core_node_data_dir())
@@ -302,11 +310,16 @@ __all__ = [
     "DEFAULT_COMPRESSION_LEVEL",
     "DEFAULT_TEMP_DIR",
     "DEFAULT_ZIP_THREADS",
+    "CHATTTS_HTTP_PORT",
+    "COSYVOICE_HTTP_PORT",
+    "F5TTS_HTTP_PORT",
+    "FISHSPEECH_HTTP_PORT",
     "GENERAL_SINGLETON_PORT_RANGE",
     "GENERAL_SINGLETON_PORT_START",
     "GLOBAL_VAR_DIR",
     "GLOBAL_VARS_DIR",
     "GlobalVarManager",
+    "GPTSOVITS_HTTP_PORT",
     "HTTP_BIND_HOST",
     "HTTP_DEFAULT_TIMEOUT_SECONDS",
     "HTTP_JSON_CONTENT_TYPE",
@@ -324,6 +337,7 @@ __all__ = [
     "MCP_BACKEND_SINGLETON_PORT_START",
     "MCP_PROXY_SINGLETON_PORT_RANGE",
     "MCP_PROXY_SINGLETON_PORT_START",
+    "MELOTTS_HTTP_PORT",
     "PLATFORM_NAME",
     "PROJECT_ROOT",
     "PYCORE_HTTP_PORT",
@@ -350,6 +364,7 @@ __all__ = [
     "TMP_DIR",
     "USER_HOME_DIR",
     "USER_PROFILE",
+    "VOXCPM2_HTTP_PORT",
     "WIN10_IDENTIFIER",
     "WIN11_IDENTIFIER",
     "ensure_directory",
