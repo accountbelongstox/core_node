@@ -365,9 +365,9 @@ else
     exit 1
 fi
 
-SECRET_MANAGER_SCRIPT="$projectRootPath/pycore/pyfoundations/secret_manager.py"
+SECRET_READER_SCRIPT="$projectRootPath/scripts/pytools/special_software_env_manager/secret_read.py"
 echo "[DEBUG] Python executable: $PYTHON_EXECUTABLE"
-echo "[DEBUG] Secret manager script: $SECRET_MANAGER_SCRIPT"
+echo "[DEBUG] Secret reader script: $SECRET_READER_SCRIPT"
 echo ""
 
 # Function to get secret value
@@ -375,11 +375,9 @@ get_secret_value() {{
     local key_name="$1"
     echo "[DEBUG] Loading secret key: $key_name" >&2
 
-    # Switch to project root for Python execution
-    cd "$projectRootPath"
-
+    # secret_read.py is standalone (no pycore imports); no cd/PYTHONPATH needed
     local value
-    value=$("$PYTHON_EXECUTABLE" "$SECRET_MANAGER_SCRIPT" get_secret_key "$key_name" 2>/dev/null)
+    value=$("$PYTHON_EXECUTABLE" "$SECRET_READER_SCRIPT" "$key_name")
     local exit_code=$?
 
     if [ $exit_code -eq 0 ] && [ -n "$value" ]; then
@@ -423,7 +421,46 @@ if [ -z "$SSH_CONNECTION" ]; then
     exit 1
 fi
 
-if [ -n "$SSH_PASSWORD" ]; then
+# =============================================================================
+# SSH Key Authentication (keys installed by 27_install_git_ssh.sh)
+# =============================================================================
+# Git SSH and this server's login use the same key pair, so try key-based
+# auth first and only fall back to the password flow when no key works.
+SSH_KEY_AUTH_OK=false
+SSH_IDENTITY_ARGS=()
+SSH_KEY_CANDIDATES=(
+    "$HOME/.ssh/id_ed25519"
+    "/etc/ssh/keys/id_ed25519"
+    "/root/.ssh/id_ed25519"
+)
+
+probe_ssh_key_auth() {{
+    ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "$@" "$SSH_CONNECTION" true 2>/dev/null
+}}
+
+# 1) Default identity (ssh-agent or default key files)
+if probe_ssh_key_auth; then
+    SSH_KEY_AUTH_OK=true
+else
+    # 2) Explicit key files installed by 27_install_git_ssh.sh
+    for key_file in "${{SSH_KEY_CANDIDATES[@]}}"; do
+        if [ -f "$key_file" ] && [ -r "$key_file" ]; then
+            if probe_ssh_key_auth -i "$key_file"; then
+                SSH_KEY_AUTH_OK=true
+                SSH_IDENTITY_ARGS=(-i "$key_file")
+                break
+            fi
+        fi
+    done
+fi
+
+if [ "$SSH_KEY_AUTH_OK" = true ]; then
+    echo "[INFO] SSH key authentication succeeded (git SSH key and server login share the same key)"
+    echo "Executing: ssh ${{SSH_IDENTITY_ARGS[*]}} $SSH_CONNECTION"
+    echo ""
+
+    ssh "${{SSH_IDENTITY_ARGS[@]}}" "$SSH_CONNECTION" "$@"
+elif [ -n "$SSH_PASSWORD" ]; then
     # SSH Key setup guide
     LOCAL_KEY="$HOME/.ssh/id_ed25519"
     LOCAL_PUB="$LOCAL_KEY.pub"

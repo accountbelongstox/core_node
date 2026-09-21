@@ -225,6 +225,11 @@ fm_cert_status() {
     if [ -n "$routes_dir" ] && [ -d "$routes_dir" ]; then
         for route_file in "$routes_dir"/*.caddy; do
             [ -f "$route_file" ] || continue
+            # The managed LAN route pins mkcert/tailscale files, not acme.sh
+            # prebuilt material - exclude it from the prebuilt-cert status.
+            if head -n 1 "$route_file" 2>/dev/null | grep -q 'lan=local_lan'; then
+                continue
+            fi
             apex="$(basename "$route_file" .caddy)"
             case "$apex_list" in *" $apex "*) continue ;; esac
             apex_list="${apex_list}${apex} "

@@ -105,17 +105,21 @@ DOMAIN_UI_BINDING_READY="no"
 DOMAIN_ENV_LAN_MODE="no"
 DOMAIN_ENV_PUBLIC_IP=""
 DOMAIN_ENV_TAILSCALE_IPV4=""
-DOMAIN_LAN_CERT_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/certs/local"
 DOMAIN_TS_DNSNAME=""
 DOMAIN_LAN_OUTPUT=""
 # TAILSCALE_DOMAIN_1 secret constant: the tailnet base domain (e.g.
 # thresher-python.ts.net) the machine ts.net DNS name must live under.
 DOMAIN_TAILSCALE_DOMAIN=""
+# LAN certificate directory: resolved lazily by
+# domain_setup_resolve_lan_cert_dir (the NTFS shared-disk mapping runs at
+# call time, after mounts are up). Never inside the repo.
+DOMAIN_LAN_CERT_DIR=""
 # Resolved LAN certificate material (consumed by the frankenphp LAN site).
 DOMAIN_LAN_TS_CERT=""
 DOMAIN_LAN_TS_KEY=""
 DOMAIN_LAN_MKCERT_PEM=""
 DOMAIN_LAN_MKCERT_KEY=""
+DOMAIN_MKCERT_VERSION="v1.4.4"
 
 # Persist one key in the file-backed global-var store (the user data
 # directory). Reuses set_global_var when gvar_common.sh is loaded; otherwise
@@ -292,6 +296,41 @@ except Exception:
     printf '%s' "$dns"
 }
 
+# Resolve the LAN certificate directory into DOMAIN_LAN_CERT_DIR. The certs
+# live in the USER DATA tree (never in the repo, never committed). Cross-OS
+# rule (one machine dual-booting Windows/Debian off the shared NTFS data
+# disk must see the SAME files): Windows pins CORE_NODE_DATA_DIR to
+# <data-drive>:\var\_core_node (paths.core_node_data_dir_windows_subpath);
+# when Debian bind-mounts that NTFS disk root at /www (ensure_www_base_mount),
+# the SAME directory is /www/var/_core_node. Detection mirrors
+# gvar_common.sh::www_ntfs_root_mounted (reused when loaded; inline findmnt
+# fallback otherwise). Linux-only machines keep the native
+# CORE_NODE_DATA_DIR (/var/_core_node).
+domain_setup_resolve_lan_cert_dir() {
+    local ntfs_mounted="no"
+    local src_www=""
+    local src_root=""
+
+    if declare -F www_ntfs_root_mounted >/dev/null 2>&1; then
+        if www_ntfs_root_mounted; then
+            ntfs_mounted="yes"
+        fi
+    elif command -v findmnt >/dev/null 2>&1 && [ -d /www/www ]; then
+        src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
+        src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
+        if [ -n "$src_www" ] && [ -n "$src_root" ] && [ "$src_www" != "$src_root" ]; then
+            ntfs_mounted="yes"
+        fi
+    fi
+
+    if [ "$ntfs_mounted" = "yes" ]; then
+        DOMAIN_LAN_CERT_DIR="/www/var/_core_node/certs/local"
+    else
+        DOMAIN_LAN_CERT_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/certs/local"
+    fi
+    return 0
+}
+
 # Re-resolve the LAN certificate paths from disk (certs may predate this
 # run). Populates DOMAIN_LAN_TS_CERT/KEY and DOMAIN_LAN_MKCERT_PEM/KEY.
 domain_setup_lan_cert_paths_refresh() {
@@ -299,6 +338,10 @@ domain_setup_lan_cert_paths_refresh() {
     DOMAIN_LAN_TS_KEY=""
     DOMAIN_LAN_MKCERT_PEM=""
     DOMAIN_LAN_MKCERT_KEY=""
+    domain_setup_resolve_lan_cert_dir
+    if [ -z "$DOMAIN_TAILSCALE_DOMAIN" ]; then
+        domain_setup_load_tailscale_domain
+    fi
     if [ -z "$DOMAIN_TS_DNSNAME" ] && command -v tailscale >/dev/null 2>&1; then
         DOMAIN_TS_DNSNAME="$(domain_setup_tailscale_dnsname)"
     fi
@@ -313,28 +356,112 @@ domain_setup_lan_cert_paths_refresh() {
 }
 
 # 127.0.0.1 / localhost certificate through mkcert. Direct when mkcert is
-# installed; otherwise prints the manual steps (public CAs cannot validate
-# the loopback address, so a local CA is the canonical path).
+# installed; otherwise a best-effort automatic install runs first (apt
+# package, then the official GitHub release binary, then a source clone +
+# go build), with all downloads under the constant-centre shared download
+# directory. Manual steps print only when every automatic path fails
+# (public CAs cannot validate the loopback address, so a local CA is the
+# canonical path).
+domain_setup_mkcert_install() {
+    local sudo_cmd
+    local arch=""
+    local mkcert_url=""
+    local dl_dir=""
+    local dl_bin=""
+    local src_dir=""
+    sudo_cmd=$(lazy_sudo)
+    dl_dir="${CORE_NODE_SHARED_DOWNLOADS:-${CORE_NODE_DATA_DIR:-/var/_core_node}/shared_downloads}/mkcert"
+    dl_bin="$dl_dir/mkcert"
+    src_dir="$dl_dir/src"
+
+    echo "[domain] mkcert not found; attempting automatic installation..."
+    if command -v apt-get >/dev/null 2>&1; then
+        $sudo_cmd apt-get install -y mkcert libnss3-tools >/dev/null 2>&1 || {
+            $sudo_cmd apt-get update -y >/dev/null 2>&1
+            $sudo_cmd apt-get install -y mkcert libnss3-tools >/dev/null 2>&1
+        }
+        if command -v mkcert >/dev/null 2>&1; then
+            echo "[domain] [OK] mkcert installed via apt"
+            return 0
+        fi
+    fi
+
+    case "$(uname -m 2>/dev/null)" in
+        x86_64|amd64) arch="amd64" ;;
+        aarch64|arm64) arch="arm64" ;;
+    esac
+    if [ -n "$arch" ] && command -v curl >/dev/null 2>&1; then
+        mkdir -p "$dl_dir" 2>/dev/null || true
+        mkcert_url="https://github.com/FiloSottile/mkcert/releases/latest/download/mkcert-${DOMAIN_MKCERT_VERSION}-linux-${arch}"
+        if [ ! -x "$dl_bin" ] || ! "$dl_bin" -version >/dev/null 2>&1; then
+            echo "[domain] Downloading mkcert: $mkcert_url"
+            curl -fsSL "$mkcert_url" -o "$dl_bin" 2>/dev/null && chmod +x "$dl_bin" 2>/dev/null
+        fi
+        if [ -x "$dl_bin" ] && "$dl_bin" -version >/dev/null 2>&1; then
+            $sudo_cmd cp "$dl_bin" /usr/local/bin/mkcert 2>/dev/null \
+                && $sudo_cmd chmod +x /usr/local/bin/mkcert 2>/dev/null
+            hash -r 2>/dev/null
+            if command -v mkcert >/dev/null 2>&1; then
+                echo "[domain] [OK] mkcert installed to /usr/local/bin/mkcert (download cache: $dl_bin)"
+                return 0
+            fi
+        fi
+    fi
+
+    # Last automatic path: clone the project and build from source (needs git
+    # + a Go toolchain; the clone is cached in the shared download dir).
+    if command -v git >/dev/null 2>&1 && command -v go >/dev/null 2>&1; then
+        mkdir -p "$dl_dir" 2>/dev/null || true
+        if [ ! -d "$src_dir/.git" ]; then
+            echo "[domain] Cloning mkcert: https://github.com/FiloSottile/mkcert -> $src_dir"
+            git clone --depth 1 https://github.com/FiloSottile/mkcert "$src_dir" >/dev/null 2>&1
+        fi
+        if [ -d "$src_dir" ]; then
+            echo "[domain] Building mkcert from source (go build)..."
+            (cd "$src_dir" && go build -o "$dl_bin" . >/dev/null 2>&1)
+            if [ -x "$dl_bin" ] && "$dl_bin" -version >/dev/null 2>&1; then
+                $sudo_cmd cp "$dl_bin" /usr/local/bin/mkcert 2>/dev/null \
+                    && $sudo_cmd chmod +x /usr/local/bin/mkcert 2>/dev/null
+                hash -r 2>/dev/null
+                if command -v mkcert >/dev/null 2>&1; then
+                    echo "[domain] [OK] mkcert built from source and installed to /usr/local/bin/mkcert"
+                    return 0
+                fi
+            fi
+        fi
+    fi
+    echo "[domain] [WARN] Automatic mkcert installation failed"
+    return 1
+}
+
 domain_setup_lan_cert_mkcert() {
     local mkcert_bin
     mkcert_bin="$(command -v mkcert 2>/dev/null || true)"
+    domain_setup_resolve_lan_cert_dir
     mkdir -p "$DOMAIN_LAN_CERT_DIR" 2>/dev/null || true
 
     if [ -z "$mkcert_bin" ]; then
+        domain_setup_mkcert_install || true
+        hash -r 2>/dev/null
+        mkcert_bin="$(command -v mkcert 2>/dev/null || true)"
+    fi
+    if [ -z "$mkcert_bin" ]; then
         echo "[domain] [MANUAL] mkcert not installed; create the trusted 127.0.0.1 certificate with:"
-        echo "[domain]   1) sudo apt install -y libnss3-tools"
-        echo "[domain]   2) Download mkcert from https://github.com/FiloSottile/mkcert/releases and install it to /usr/local/bin/mkcert (chmod +x)"
-        echo "[domain]   3) mkcert -install    (installs the local CA into the system/browser trust store)"
-        echo "[domain]   4) cd \"$DOMAIN_LAN_CERT_DIR\" && mkcert 127.0.0.1 localhost ::1"
+        echo "[domain]   1) sudo apt update && sudo apt install -y mkcert libnss3-tools"
+        echo "[domain]      (if the apt package is unavailable: download mkcert from https://github.com/FiloSottile/mkcert/releases and install it to /usr/local/bin/mkcert, chmod +x, plus sudo apt install -y libnss3-tools)"
+        echo "[domain]   2) mkcert -install    (installs the local CA into the system/browser trust store)"
+        echo "[domain]   3) cd \"$DOMAIN_LAN_CERT_DIR\" && mkcert 127.0.0.1 localhost ::1"
         echo "[domain]      -> creates 127.0.0.1+2.pem (certificate) and 127.0.0.1+2-key.pem (private key)"
+        echo "[domain]   4) Re-run this setup: the https://127.0.0.1:${FM_DOMAIN_HTTPS_PORT:-443} site is added to the FrankenPHP LAN route automatically"
         return 1
     fi
 
     echo "[domain] mkcert present; ensuring the local CA and the 127.0.0.1 certificate in $DOMAIN_LAN_CERT_DIR ..."
     (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" -install 2>&1) | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
     (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" 127.0.0.1 localhost ::1 2>&1) | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
-    if ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+2.pem "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+2-key.pem >/dev/null 2>&1; then
-        echo "[domain] [OK] 127.0.0.1 certificate ready: $DOMAIN_LAN_CERT_DIR/127.0.0.1+2.pem (+ key)"
+    domain_setup_lan_cert_paths_refresh
+    if [ -n "$DOMAIN_LAN_MKCERT_PEM" ] && [ -n "$DOMAIN_LAN_MKCERT_KEY" ]; then
+        echo "[domain] [OK] 127.0.0.1 certificate ready: $DOMAIN_LAN_MKCERT_PEM (+ key)"
         return 0
     fi
     echo "[domain] [WARN] mkcert ran but the 127.0.0.1 certificate files were not found in $DOMAIN_LAN_CERT_DIR"
@@ -348,28 +475,34 @@ domain_setup_lan_cert_tailscale() {
     local ts_bin
     local ts_output=""
     ts_bin="$(command -v tailscale 2>/dev/null || true)"
+    domain_setup_resolve_lan_cert_dir
     mkdir -p "$DOMAIN_LAN_CERT_DIR" 2>/dev/null || true
+    domain_setup_load_tailscale_domain
 
     if [ -z "$ts_bin" ]; then
         echo "[domain] [MANUAL] tailscale not installed; to get a trusted certificate for the Tailscale LAN IP:"
         echo "[domain]   1) curl -fsSL https://tailscale.com/install.sh | sh"
         echo "[domain]   2) sudo tailscale up"
-        echo "[domain]   3) Admin console -> Settings -> HTTPS -> Enable HTTPS (requires MagicDNS)"
-        echo "[domain]   4) cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.<tailnet>.ts.net"
+        echo "[domain]   3) Web admin console (https://login.tailscale.com/admin) -> DNS -> enable MagicDNS, then Settings -> HTTPS -> Enable HTTPS"
+        echo "[domain]   4) cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.${DOMAIN_TAILSCALE_DOMAIN:-<tailnet>.ts.net}"
         return 1
     fi
     if ! "$ts_bin" status >/dev/null 2>&1; then
         echo "[domain] [MANUAL] tailscale is installed but not connected; run: sudo tailscale up"
-        echo "[domain]   Then enable HTTPS (Admin console -> Settings -> HTTPS) and run:"
-        echo "[domain]   cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.<tailnet>.ts.net"
+        echo "[domain]   Then enable HTTPS in the web admin console (https://login.tailscale.com/admin -> Settings -> HTTPS) and run:"
+        echo "[domain]   cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.${DOMAIN_TAILSCALE_DOMAIN:-<tailnet>.ts.net}"
         return 1
     fi
+
+    # tailscaled is running on a LAN-only host: the ts.net certificate is the
+    # canonical trusted cert path, gated on the WEB admin console switches.
+    echo "[domain] tailscaled is up (LAN-only host). Prerequisite in the WEB admin console: MagicDNS + HTTPS enabled (https://login.tailscale.com/admin -> Settings -> HTTPS)."
 
     DOMAIN_TS_DNSNAME="$(domain_setup_tailscale_dnsname)"
     if [ -z "$DOMAIN_TS_DNSNAME" ]; then
         echo "[domain] [MANUAL] Could not resolve this machine's ts.net DNS name; find it with 'tailscale status', then:"
-        echo "[domain]   cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.<tailnet>.ts.net"
-        echo "[domain]   (requires MagicDNS + HTTPS enabled in the admin console: Settings -> HTTPS)"
+        echo "[domain]   cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.${DOMAIN_TAILSCALE_DOMAIN:-<tailnet>.ts.net}"
+        echo "[domain]   (requires MagicDNS + HTTPS enabled in the web admin console: Settings -> HTTPS)"
         return 1
     fi
 
@@ -377,11 +510,12 @@ domain_setup_lan_cert_tailscale() {
     ts_output="$(cd "$DOMAIN_LAN_CERT_DIR" && "$ts_bin" cert "$DOMAIN_TS_DNSNAME" 2>&1)"
     if [ $? -eq 0 ]; then
         echo "$ts_output" | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
-        echo "[domain] [OK] Tailscale certificate ready for $DOMAIN_TS_DNSNAME (globally trusted, Let's Encrypt)"
+        domain_setup_lan_cert_paths_refresh
+        echo "[domain] [OK] Tailscale certificate ready for $DOMAIN_TS_DNSNAME (globally trusted, Let's Encrypt): ${DOMAIN_LAN_TS_CERT:-$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt}"
         return 0
     fi
     echo "[domain] [MANUAL] tailscale cert failed for $DOMAIN_TS_DNSNAME; enable HTTPS certificates first:"
-    echo "[domain]   1) Tailscale admin console -> Settings -> HTTPS -> Enable HTTPS (requires MagicDNS)"
+    echo "[domain]   1) Web admin console (https://login.tailscale.com/admin) -> Settings -> HTTPS -> Enable HTTPS (requires MagicDNS)"
     echo "[domain]   2) Re-run: cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert $DOMAIN_TS_DNSNAME"
     echo "$ts_output" | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
     return 1
@@ -393,6 +527,7 @@ domain_setup_lan_certificates() {
     echo "[domain] Provisioning local certificates (LAN mode):"
     domain_setup_lan_cert_mkcert || true
     domain_setup_lan_cert_tailscale || true
+    domain_setup_lan_cert_paths_refresh
     return 0
 }
 

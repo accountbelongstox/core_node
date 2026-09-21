@@ -67,6 +67,12 @@ if ($driverActive) {
     if ($driverCudaLine) {
         Write-Host "$SCRIPT_INDEX $driverCudaLine" -ForegroundColor Green
     }
+    if (Test-CudaDriverBelowTiers) {
+        # Mirrors linux 11_cuda_nvidia_prereq.sh: a working but too-old driver
+        # sits below every policy tier; on Windows the upgrade is manual.
+        Write-Host "$SCRIPT_INDEX [WARN] The active driver is below every unified CUDA tier (too old)." -ForegroundColor Yellow
+        Write-Host "$SCRIPT_INDEX        Upgrade the NVIDIA driver manually, reboot, then re-run: https://www.nvidia.com/Download/index.aspx" -ForegroundColor Yellow
+    }
 } else {
     Write-Host "$SCRIPT_INDEX [WARN] NVIDIA GPU present but nvidia-smi did not return both a GPU and CUDA runtime version." -ForegroundColor Yellow
     Write-Host "$SCRIPT_INDEX        Install/update the NVIDIA driver, reboot if needed, then re-run the installer." -ForegroundColor Yellow

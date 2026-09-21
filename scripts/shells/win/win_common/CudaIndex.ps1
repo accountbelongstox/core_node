@@ -107,6 +107,15 @@ function Get-CudaTagFromIndexUrl {
     return ''
 }
 
+function Test-CudaDriverBelowTiers {
+    # True when the active driver reports a CUDA cv but it is below EVERY
+    # configured tier (driver too old for the unified policy; needs an upgrade,
+    # not CPU wheels). Mirrors linux cuda_policy_driver_below_tiers.
+    $cv = Get-CudaDriverCv
+    if ($null -eq $cv) { return $false }
+    return ($null -eq (Get-AiCudaTierForDriver -DriverCv $cv))
+}
+
 function Get-CudaRuntimePolicy {
     $driverCv = Get-CudaDriverCv
     $gpuPresent = Test-NvidiaGpuPresent
@@ -132,7 +141,19 @@ function Get-CudaRuntimePolicy {
     if (-not $gpuPresent) {
         $reason = 'No NVIDIA GPU detected.'
     } elseif ($null -eq $driverCv) {
-        $reason = 'NVIDIA GPU detected but the driver CUDA version is unavailable.'
+        # No driver report (driver absent or not yet loaded, e.g. pre-reboot):
+        # with the hardware physically present, preload the requested or newest
+        # policy tier so install steps still fetch CUDA wheels/toolkit. Mirrors
+        # the no-cv fallback of linux cuda_policy_tag.
+        if ($requestedTag) {
+            $tier = Get-AiCudaTierByTag -Tag $requestedTag
+        }
+        if (-not $tier) {
+            $tier = Get-AiCudaNewestTier
+        }
+        if ($tier) {
+            $reason = "Driver CUDA version unavailable; preloading policy tier '$($tier.Tag)' for the detected NVIDIA hardware."
+        }
     } elseif ($requestedTag) {
         $requestedTier = Get-AiCudaTierByTag -Tag $requestedTag
         if ($requestedTier -and $driverCv -ge $requestedTier.MinimumDriverCv) {
@@ -148,7 +169,7 @@ function Get-CudaRuntimePolicy {
         $reason = 'No common PyTorch/Paddle CUDA tier supports this driver; CPU builds are required.'
     }
 
-    $enabled = [bool]($gpuPresent -and $null -ne $driverCv -and $tier)
+    $enabled = [bool]($gpuPresent -and $tier)
     $torchBase = Get-AiRuntimePolicyValue -Name 'AI_TORCH_INDEX_BASE' -Default 'https://download.pytorch.org/whl'
     $paddleBase = Get-AiRuntimePolicyValue -Name 'AI_PADDLE_INDEX_BASE' -Default 'https://www.paddlepaddle.org.cn/packages/stable'
     $torchCpu = Get-AiRuntimePolicyValue -Name 'AI_TORCH_CPU_INDEX' -Default 'https://download.pytorch.org/whl/cpu'
