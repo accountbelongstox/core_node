@@ -324,6 +324,19 @@ _pyservice_maybe_elevate() {
 }
 _pyservice_maybe_elevate "${ORIGINAL_ARGS[@]}"
 
+# Idempotent permission repair of the mapped web data root (CORE_NODE_WWW_BASE:
+# /www/www on dual-boot NTFS, /www on native Linux). The worker below is DROPPED
+# to the desktop user so the tray can register on the D-Bus session bus, so any
+# root-owned remnant under the data root (left by a previous privileged run)
+# fails with EACCES - e.g. audio_orchestration task writes. Runs only in root
+# context (post-elevation); the helper self-skips otherwise and never blocks
+# startup (full-tree repair is stamp-guarded and backgrounded).
+case "$CMD" in
+    run|install|start|restart)
+        bash "$SCRIPT_DIR/scripts/shells/linux/common/pyservice_www_permissions.sh" || true
+        ;;
+esac
+
 # AI SAFETY: Do not modify the `./pyservice.sh codesync` dispatch chain unless
 # the user explicitly requests that specific change. This is a compatibility
 # entry point for Debian/Ubuntu and Windows CodeSync service management.
