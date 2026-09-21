@@ -108,6 +108,14 @@ DOMAIN_ENV_TAILSCALE_IPV4=""
 DOMAIN_LAN_CERT_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/certs/local"
 DOMAIN_TS_DNSNAME=""
 DOMAIN_LAN_OUTPUT=""
+# TAILSCALE_DOMAIN_1 secret constant: the tailnet base domain (e.g.
+# thresher-python.ts.net) the machine ts.net DNS name must live under.
+DOMAIN_TAILSCALE_DOMAIN=""
+# Resolved LAN certificate material (consumed by the frankenphp LAN site).
+DOMAIN_LAN_TS_CERT=""
+DOMAIN_LAN_TS_KEY=""
+DOMAIN_LAN_MKCERT_PEM=""
+DOMAIN_LAN_MKCERT_KEY=""
 
 # Persist one key in the file-backed global-var store (the user data
 # directory). Reuses set_global_var when gvar_common.sh is loaded; otherwise
@@ -234,8 +242,31 @@ domain_setup_detect_environment() {
     return 0
 }
 
+# Read the TAILSCALE_DOMAIN_1 secret constant (the tailnet base domain, e.g.
+# thresher-python.ts.net). Prefers the shared constant-centre reader when
+# common_functions.sh is loaded; otherwise reads the same file directly.
+# Populates DOMAIN_TAILSCALE_DOMAIN; missing constant is NOT an error (the
+# machine DNS name is still resolved from tailscaled itself).
+domain_setup_load_tailscale_domain() {
+    DOMAIN_TAILSCALE_DOMAIN=""
+    if declare -F get_secret_key_from_common_functions >/dev/null 2>&1; then
+        DOMAIN_TAILSCALE_DOMAIN="$(get_secret_key_from_common_functions "TAILSCALE_DOMAIN_1" 2>/dev/null | tr -d '\0\r ')"
+    elif [ -f "$DOMAIN_SETUP_SECRETS_DIR/TAILSCALE_DOMAIN_1" ]; then
+        DOMAIN_TAILSCALE_DOMAIN="$(tr -d '\0' < "$DOMAIN_SETUP_SECRETS_DIR/TAILSCALE_DOMAIN_1" | sed '/^\s*$/d' | head -1 | tr -d '\r ')"
+    fi
+    if [ -n "$DOMAIN_TAILSCALE_DOMAIN" ]; then
+        echo "[domain] [OK] Tailscale tailnet constant loaded: $DOMAIN_TAILSCALE_DOMAIN (TAILSCALE_DOMAIN_1)"
+    else
+        echo "[domain] [WARN] TAILSCALE_DOMAIN_1 secret constant not found; the tailnet suffix check is skipped"
+    fi
+    return 0
+}
+
 # Echo this machine's ts.net DNS name (without the trailing dot); empty when
-# tailscaled cannot report it.
+# tailscaled cannot report it. Self.DNSName is authoritative (the machine
+# HostName can differ from the cert-valid name, e.g. hostname "debian" vs
+# cert name "debian-gpu.<tailnet>"); the TAILSCALE_DOMAIN_1 constant gates
+# the result so a foreign-tailnet name is never certified.
 domain_setup_tailscale_dnsname() {
     local dns=""
     if command -v python3 >/dev/null 2>&1; then
@@ -249,7 +280,36 @@ except Exception:
         dns=$(tailscale status --json 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -1)
         dns="${dns%.}"
     fi
+    if [ -n "$dns" ] && [ -n "$DOMAIN_TAILSCALE_DOMAIN" ]; then
+        case "$dns" in
+            *."$DOMAIN_TAILSCALE_DOMAIN"|"$DOMAIN_TAILSCALE_DOMAIN") ;;
+            *)
+                echo "[domain] [WARN] Machine DNS name '$dns' is outside the configured tailnet '$DOMAIN_TAILSCALE_DOMAIN'; refusing it"
+                dns=""
+                ;;
+        esac
+    fi
     printf '%s' "$dns"
+}
+
+# Re-resolve the LAN certificate paths from disk (certs may predate this
+# run). Populates DOMAIN_LAN_TS_CERT/KEY and DOMAIN_LAN_MKCERT_PEM/KEY.
+domain_setup_lan_cert_paths_refresh() {
+    DOMAIN_LAN_TS_CERT=""
+    DOMAIN_LAN_TS_KEY=""
+    DOMAIN_LAN_MKCERT_PEM=""
+    DOMAIN_LAN_MKCERT_KEY=""
+    if [ -z "$DOMAIN_TS_DNSNAME" ] && command -v tailscale >/dev/null 2>&1; then
+        DOMAIN_TS_DNSNAME="$(domain_setup_tailscale_dnsname)"
+    fi
+    if [ -n "$DOMAIN_TS_DNSNAME" ] \
+        && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt" ] \
+        && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.key" ]; then
+        DOMAIN_LAN_TS_CERT="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt"
+        DOMAIN_LAN_TS_KEY="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.key"
+    fi
+    DOMAIN_LAN_MKCERT_PEM="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*.pem 2>/dev/null | grep -v -- '-key\.pem$' | head -1)"
+    DOMAIN_LAN_MKCERT_KEY="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*-key.pem 2>/dev/null | head -1)"
 }
 
 # 127.0.0.1 / localhost certificate through mkcert. Direct when mkcert is
