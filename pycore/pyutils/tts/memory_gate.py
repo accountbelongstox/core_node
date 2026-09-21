@@ -10,11 +10,19 @@ synthesis on engines that actually fit instead of dying inside
 
 Config:
   TTS_MEMORY_GATE   - set to 0 to disable the gate (default: on)
+  QWEN3TTS_MIN_FREE_VRAM_MB        - launch floor for auto->cuda (default 1024)
+  QWEN3TTS_RECOMMENDED_FREE_VRAM_MB - below this, foreign GPU processes are
+                                      forcibly stopped at startup/launch
+                                      (default 6144; qwen3tts is the only GPU
+                                      consumer by design)
+  QWEN3TTS_VRAM_RECLAIM - set to 0 to disable the forcible VRAM reclaim
 """
 
 import os
-from typing import List, Optional, Tuple
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.third_party.api import (
@@ -59,14 +67,26 @@ def _sherpa_kokoro_requirement(engine: str) -> Tuple[int, int]:
 
 
 def _qwen3tts_requirement() -> Tuple[int, int]:
-    # Weights load in the isolated-venv server process, but the gate answers
-    # for the HOST: a CPU-side 1.7B bf16 load stages ~3.4 GB of weights plus
-    # inference overhead. VRAM stays 0 — launch-time VRAM floors with CPU
-    # fallback live in tts_service_manager (_gpu_device_or_fallback).
-    tier = str(runtime_engine_model("qwen3tts") or "").lower()
-    if "0.6b" in tier:
-        return 3 * _GB, 0
-    return 6 * _GB, 0
+    # Minimum host memory floor: 1 GB. VRAM is deliberately 0 here — the card
+    # decision belongs to the launch path (tts_service_manager), which first
+    # RECLAIMS VRAM from foreign processes (qwen3tts is the only engine that
+    # needs the GPU by design) and then applies the 1 GB minimum free-VRAM
+    # floor with CPU fallback.
+    return 1 * _GB, 0
+
+
+# qwen3tts VRAM launch policy (MiB). The ONLY engine that uses the GPU by
+# design, so when free VRAM is below the recommended floor the launcher and
+# the startup profile forcibly stop OTHER GPU-holding processes (see
+# reclaim_vram). After reclaim, a GPU with at least the minimum free VRAM
+# takes the model; below it the server starts on CPU.
+# Env overrides: QWEN3TTS_MIN_FREE_VRAM_MB / QWEN3TTS_RECOMMENDED_FREE_VRAM_MB /
+# QWEN3TTS_VRAM_RECLAIM=0 (disable the forcible reclaim).
+QWEN3TTS_MIN_FREE_VRAM_MB = 1024
+QWEN3TTS_RECOMMENDED_FREE_VRAM_MB = 6144
+QWEN3TTS_MIN_FREE_VRAM_MB_ENV = "QWEN3TTS_MIN_FREE_VRAM_MB"
+QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV = "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB"
+QWEN3TTS_VRAM_RECLAIM_ENV = "QWEN3TTS_VRAM_RECLAIM"
 
 
 # engine -> callable returning (free RAM bytes, free VRAM bytes) required to
@@ -171,6 +191,114 @@ def _fmt(num_bytes: int) -> str:
     return f"{num_bytes / _GB:.1f}GB"
 
 
+def _env_mib(name: str, default: int) -> int:
+    raw = (os.environ.get(name) or "").strip()
+    return int(raw) if raw.isdigit() else default
+
+
+def vram_reclaim_enabled() -> bool:
+    return (os.environ.get(QWEN3TTS_VRAM_RECLAIM_ENV) or "1").strip() != "0"
+
+
+def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, int]]]:
+    """(pid, used VRAM bytes) per GPU compute app via an nvidia-smi SUBPROCESS
+    (same no-torch rule as _gpu_query). None when unreadable."""
+    try:
+        smi = CUDADetector._nvidia_smi_cmd()
+        cmd = [smi]
+        if device_index is not None:
+            cmd += ["-i", str(int(device_index))]
+        cmd += [
+            "--query-compute-apps=pid,used_memory",
+            "--format=csv,noheader,nounits",
+        ]
+        result = exec_silent(cmd, info=False)
+        if result.return_code != 0:
+            return None
+        rows: List[Tuple[int, int]] = []
+        for line in (result.stdout or "").strip().splitlines():
+            parts = [part.strip() for part in line.split(",")]
+            if len(parts) == 2 and all(part.isdigit() for part in parts):
+                rows.append((int(parts[0]), int(parts[1]) * _MB))
+        return rows
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def reclaim_vram(device_index: Optional[int] = None) -> Dict[str, Any]:
+    """Forcibly stop OTHER processes holding the GPU when free VRAM is below
+    the recommended floor (default 6 GB).
+
+    By design qwen3tts is the ONLY engine that needs the card, so foreign
+    compute apps are terminated (graceful terminate, then kill after a short
+    grace) and the freed VRAM is reported. This process is never touched, and
+    a GPU already above the recommended floor is left alone.
+    QWEN3TTS_VRAM_RECLAIM=0 disables the reclaim.
+    """
+    report: Dict[str, Any] = {
+        "enabled": vram_reclaim_enabled(),
+        "reclaimed": False,
+        "killed": [],
+        "free_mb_before": None,
+        "free_mb_after": None,
+    }
+    if not report["enabled"]:
+        return report
+    recommended_mb = _env_mib(
+        QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV,
+        QWEN3TTS_RECOMMENDED_FREE_VRAM_MB,
+    )
+    free_before = free_vram_bytes(device_index)
+    if free_before is None:
+        return report
+    report["free_mb_before"] = free_before // _MB
+    if free_before >= recommended_mb * _MB:
+        report["free_mb_after"] = report["free_mb_before"]
+        return report
+    apps = _gpu_compute_apps(device_index) or []
+    own_pid = os.getpid()
+    victims = [(pid, used) for pid, used in apps if pid and pid != own_pid]
+    if not victims:
+        report["free_mb_after"] = report["free_mb_before"]
+        return report
+    ColorPrint.yellow(
+        f"[tts-gpu] free VRAM {free_before // _MB} MiB < recommended "
+        f"{recommended_mb} MiB; stopping {len(victims)} foreign GPU process(es) "
+        "(qwen3tts is the only GPU consumer by design)"
+    )
+    psutil = get_third_package_psutil()
+    if psutil is None:
+        report["free_mb_after"] = report["free_mb_before"]
+        return report
+    for pid, used in victims:
+        try:
+            proc = psutil.Process(pid)
+            name = proc.name()
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except psutil.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+            report["killed"].append({"pid": pid, "name": name, "used_mb": used // _MB})
+            ColorPrint.yellow(
+                f"[tts-gpu] stopped GPU process pid={pid} ({name}), "
+                f"holding ~{used // _MB} MiB VRAM"
+            )
+        except psutil.NoSuchProcess:
+            continue
+        except Exception as exc:  # noqa: BLE001 - reclaim is best-effort per pid
+            ColorPrint.yellow(f"[tts-gpu] failed to stop GPU process pid={pid}: {exc}")
+    # Give the driver a moment to release the memory, then re-measure.
+    time.sleep(1.0)
+    free_after = free_vram_bytes(device_index)
+    report["free_mb_after"] = (
+        free_after // _MB if free_after is not None else report["free_mb_before"]
+    )
+    report["reclaimed"] = bool(report["killed"])
+    return report
+
+
 def memory_gate_allows(engine: str) -> Tuple[bool, str]:
     """(allowed, reason); reason is empty when allowed or the engine is ungated.
 
@@ -206,4 +334,11 @@ __all__ = [
     "total_ram_bytes",
     "gpu_stats",
     "free_vram_bytes",
+    "reclaim_vram",
+    "vram_reclaim_enabled",
+    "QWEN3TTS_MIN_FREE_VRAM_MB",
+    "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB",
+    "QWEN3TTS_MIN_FREE_VRAM_MB_ENV",
+    "QWEN3TTS_RECOMMENDED_FREE_VRAM_MB_ENV",
+    "QWEN3TTS_VRAM_RECLAIM_ENV",
 ]

@@ -45,6 +45,7 @@ from pycore.pyutils.tts.tts_service_manager import (
     start_server,
     stop_server,
 )
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_TTS_KEY,
     status_snapshot_cache,
@@ -127,6 +128,9 @@ def _build_status(refresh: int = 0):
         "streamelements_key_present": streamelements_key_present(),
         # Per-engine: name, priority, available, note, version (+ edge live probe).
         "engines": engines,
+        # Startup-pinned runtime profile (the configurator): mode, pinned
+        # per-capability chains and the auto-scheduled engine set.
+        "profile": runtime_profile.profile_snapshot(),
     }
 
 

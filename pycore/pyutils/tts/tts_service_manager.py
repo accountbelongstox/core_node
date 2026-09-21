@@ -81,11 +81,14 @@ _ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
 # busy peer legitimately holds the card (single-active never interrupts an
 # in-flight service), the newcomer starts on CPU instead of dying inside
 # model load with a CUDA OOM. ChatTTS floor follows its official FAQ
-# ("at least 4GB of GPU memory"); Qwen3-TTS floors follow the measured
-# residency of each variant (1.7B rests at ~6.2 GiB, 0.6B at ~2.5 GiB).
-# Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB.
+# ("at least 4GB of GPU memory"). qwen3tts is the ONLY engine that needs the
+# GPU by design: before its device decision the launcher RECLAIMS VRAM from
+# foreign processes when free VRAM is below the recommended floor
+# (memory_gate.QWEN3TTS_RECOMMENDED_FREE_VRAM_MB, 6 GB), then applies the 1 GB
+# minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB).
+# Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB /
+# QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=0.
 _CHATTTS_MIN_FREE_VRAM_MB = 4096
-_QWEN3TTS_MIN_FREE_VRAM_MB = {"1.7B": 6656, "0.6B": 3072}
 _MIB = 1024 ** 2
 
 
@@ -515,15 +518,15 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
     )
     gpu_tier = "1.7b" in runtime_model.lower()
     if not device:
-        # Same VRAM gate as chattts (auto / gpu_tier-implied cuda only - an
-        # explicit QWEN3TTS_DEVICE pin always wins): a busy single-active peer
-        # legitimately keeps the card, so an under-provisioned GPU start must
-        # degrade to cpu instead of crashing inside from_pretrained with a
-        # CUDA OOM.
-        variant = extra["QWEN3TTS_MODEL_VARIANT"]
+        # qwen3tts is the only GPU consumer by design: first RECLAIM the card
+        # from foreign processes when free VRAM is below the recommended
+        # floor (6 GB), then apply the 1 GB minimum free-VRAM floor — an
+        # under-provisioned GPU start still degrades to cpu instead of dying
+        # inside from_pretrained with a CUDA OOM. An explicit QWEN3TTS_DEVICE
+        # pin skips both (it always wins).
         required_mb = (
-            _env_int("QWEN3TTS_MIN_FREE_VRAM_MB")
-            or _QWEN3TTS_MIN_FREE_VRAM_MB[variant]
+            _env_int(memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB_ENV)
+            or memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB
         )
         index_raw = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
         device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
@@ -532,6 +535,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
             else int(device_suffix) if device_suffix.isdigit()
             else 0
         )
+        memory_gate.reclaim_vram(probe_index)
         if _gpu_device_or_fallback(QWEN_ENGINE_NAME, required_mb, probe_index) == "cpu":
             device = "cpu"
     if device == "cpu":

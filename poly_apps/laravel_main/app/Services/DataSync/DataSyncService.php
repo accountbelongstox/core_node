@@ -38,13 +38,67 @@ final class DataSyncService
             $syncResources,
             $compression
         ): array {
-            $activeReceiver = $this->store->active('receiver');
-            if ($activeReceiver !== null) {
-                throw new \RuntimeException('An incoming synchronization session is active on this node.');
-            }
+            $this->assertNoActiveWriter('An incoming synchronization session is active on this node.');
             $this->assertSourceTargetAvailable($normalizedTarget);
 
             $job = $this->store->create('source', [
+                'target_input' => $targetInput,
+                'target' => $normalizedTarget,
+                'options' => [
+                    'databases' => $syncDatabases,
+                    'resources' => $syncResources,
+                    'compression' => $syncResources && $compression,
+                ],
+                'context' => [
+                    'prepare_token' => bin2hex(random_bytes(32)),
+                ],
+            ]);
+
+            return $this->publicJob($job);
+        });
+    }
+
+    /**
+     * Reachability probe used by the dashboard to negotiate the transfer
+     * direction between two authenticated nodes. The first node that the
+     * other Laravel can reach becomes the externally reachable server.
+     */
+    public function probeTarget(string $target): array
+    {
+        $normalizedTarget = $this->peer->normalizeAddress(trim($target));
+
+        return ['target' => $normalizedTarget] + $this->peer->healthProbe($normalizedTarget);
+    }
+
+    /**
+     * Pull mode: this node (the new server) downloads packaged data from a
+     * peer exporter (the old server) when the peer cannot reach this node.
+     * A fetcher writes local databases and resource roots, so it follows the
+     * same exclusivity rules as a receiver.
+     */
+    public function startFetch(string $target, bool $syncDatabases, bool $syncResources, bool $compression): array
+    {
+        $targetInput = trim($target);
+        if ($targetInput === '') {
+            throw new \InvalidArgumentException('A fetch synchronization target is required.');
+        }
+        $normalizedTarget = $this->peer->normalizeAddress($targetInput);
+
+        if (!$syncDatabases && !$syncResources) {
+            throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
+        }
+
+        return $this->topology->run(function () use (
+            $targetInput,
+            $normalizedTarget,
+            $syncDatabases,
+            $syncResources,
+            $compression
+        ): array {
+            $this->assertNoActiveWriter('An incoming synchronization session is active on this node.');
+            $this->assertNoActiveReader();
+
+            $job = $this->store->create('fetcher', [
                 'target_input' => $targetInput,
                 'target' => $normalizedTarget,
                 'options' => [
@@ -89,10 +143,7 @@ final class DataSyncService
 
     public function list(): array
     {
-        $jobs = array_merge(
-            $this->store->listSummaries('source'),
-            $this->store->listSummaries('receiver')
-        );
+        $jobs = $this->store->listSummaries();
         usort($jobs, static fn (array $left, array $right): int => strcmp(
             (string) ($right['created_at'] ?? ''),
             (string) ($left['created_at'] ?? '')
@@ -109,7 +160,7 @@ final class DataSyncService
     public function pause(string $id): array
     {
         return $this->withSessionLock($id, function () use ($id): array {
-            $job = $this->requireJob($id, 'source');
+            $job = $this->requireDriverJob($id);
             if ($job['status'] === 'paused') {
                 return $this->publicJob($job);
             }
@@ -124,7 +175,7 @@ final class DataSyncService
     public function resume(string $id): array
     {
         return $this->withSessionLock($id, function () use ($id): array {
-            $job = $this->requireJob($id, 'source');
+            $job = $this->requireDriverJob($id);
             if ($job['status'] === 'running') {
                 return $this->publicJob($job);
             }
@@ -174,9 +225,8 @@ final class DataSyncService
                 }
                 return $this->receiverHandshake($active);
             }
-            if ($this->store->active('source') !== null) {
-                throw new \RuntimeException('This node already has an active source synchronization session.');
-            }
+            $this->assertNoActiveWriter('This node already has an active incoming synchronization session.');
+            $this->assertNoActiveReader();
 
             $job = $this->store->create('receiver', [
                 'status' => 'queued',
@@ -204,6 +254,205 @@ final class DataSyncService
 
             return $this->receiverHandshake($job);
         });
+    }
+
+    /**
+     * Pull mode counterpart of prepareReceiver: the old server opens a
+     * read-only exporter session so the unreachable new server can download
+     * packaged synchronization data. Exporters only read local data, so they
+     * coexist with source sessions but never with a local writer.
+     */
+    public function prepareExporter(
+        string $fetcherJobId,
+        string $prepareToken,
+        array $options,
+        ?string $fetcherAddress = null
+    ): array {
+        return $this->topology->run(function () use (
+            $fetcherJobId,
+            $prepareToken,
+            $options,
+            $fetcherAddress
+        ): array {
+            $active = $this->store->active('exporter');
+            $token = bin2hex(random_bytes(32));
+
+            if ($active !== null) {
+                if (($active['context']['fetcher_job_id'] ?? null) !== $fetcherJobId) {
+                    throw new \RuntimeException('This exporter already has an active synchronization session.');
+                }
+                if (!hash_equals(
+                    (string) ($active['context']['prepare_token_hash'] ?? ''),
+                    hash('sha256', $prepareToken)
+                )) {
+                    throw new \RuntimeException('Invalid exporter preparation token.');
+                }
+                return $this->exporterHandshake($active);
+            }
+            $this->assertNoActiveWriter('This node already has an active incoming synchronization session.');
+
+            $job = $this->store->create('exporter', [
+                'status' => 'queued',
+                'target_input' => $fetcherAddress,
+                'target' => null,
+                'options' => [
+                    'databases' => (bool) ($options['databases'] ?? true),
+                    'resources' => (bool) ($options['resources'] ?? true),
+                    'compression' => (bool) ($options['compression'] ?? false),
+                ],
+                'context' => [
+                    'fetcher_job_id' => $fetcherJobId,
+                    'prepare_token_hash' => hash('sha256', $prepareToken),
+                    'token' => $token,
+                    'ready' => false,
+                    'finalized' => false,
+                    'archives' => [],
+                ],
+            ]);
+
+            return $this->exporterHandshake($job);
+        });
+    }
+
+    public function exporterStatus(string $id, string $token): array
+    {
+        return $this->publicReceiverJob($this->requireExporter($id, $token));
+    }
+
+    public function exporterDatabaseInventory(string $id, string $token): array
+    {
+        $this->requireReadyExporter($id, $token);
+        return ['databases' => $this->databases->inventory()];
+    }
+
+    public function exporterDatabaseChunk(
+        string $id,
+        string $token,
+        string $connection,
+        string $table,
+        int $offset
+    ): array {
+        $job = $this->requireReadyExporter($id, $token);
+        $this->store->markStepByKey($job, 'serve_database_chunks', 'running', "{$connection}.{$table}");
+        return $this->databases->readChunk($connection, $table, $offset);
+    }
+
+    public function exporterResourceManifest(string $id, string $token, string $key): array
+    {
+        $job = $this->requireReadyExporter($id, $token);
+        $this->store->markStepByKey($job, 'serve_resource_chunks', 'running', $key);
+        return $this->resources->manifest($key);
+    }
+
+    public function exporterResourceFileChunk(
+        string $id,
+        string $token,
+        string $key,
+        string $relativePath,
+        int $offset
+    ): array {
+        $job = $this->requireReadyExporter($id, $token);
+        $this->store->markStepByKey($job, 'serve_resource_chunks', 'running', $relativePath);
+        $path = $this->resources->sourceFilePath($key, $relativePath);
+        $size = FileSystemManager::filesize($path);
+        if ($size === false) {
+            throw new \RuntimeException("Exported resource file is missing: {$key}/{$relativePath}");
+        }
+        $content = FileSystemManager::readFileSegment($path, max(0, $offset), ResourceSyncService::CHUNK_BYTES);
+        if ($content === false) {
+            throw new \RuntimeException("Unable to read the exported resource file: {$key}/{$relativePath}");
+        }
+        $nextOffset = $offset + strlen($content);
+
+        return [
+            'key' => $key,
+            'relative_path' => $relativePath,
+            'offset' => $offset,
+            'next_offset' => $nextOffset,
+            'size' => $size,
+            'final' => $nextOffset >= $size,
+            'content' => base64_encode($content),
+        ];
+    }
+
+    /**
+     * Build (or reuse) the on-demand 7-Zip archive for one resource root. The
+     * fetcher sends the difference list; the archive is cached per root so a
+     * lost response can be retried without repacking.
+     */
+    public function exporterResourceArchive(string $id, string $token, string $key, array $relativePaths): array
+    {
+        return $this->withSessionLock($id, function () use ($id, $token, $key, $relativePaths): array {
+            $job = $this->requireReadyExporter($id, $token);
+            if (empty($job['options']['compression'])) {
+                throw new \RuntimeException('This exporter session does not serve compressed archives.');
+            }
+            $existing = $job['context']['archives'][$key] ?? null;
+            if (is_array($existing) && FileSystemManager::isFile((string) ($existing['path'] ?? ''))) {
+                return $existing;
+            }
+            $archive = $this->resources->createArchive($id, $key, $relativePaths);
+            $job['context']['archives'][$key] = $archive;
+            $this->store->markStepByKey($job, 'serve_resource_chunks', 'running', $key);
+            return $archive;
+        });
+    }
+
+    public function exporterResourceArchiveChunk(
+        string $id,
+        string $token,
+        string $key,
+        int $offset
+    ): array {
+        $job = $this->requireReadyExporter($id, $token);
+        $archive = $job['context']['archives'][$key] ?? null;
+        if (!is_array($archive) || !FileSystemManager::isFile((string) ($archive['path'] ?? ''))) {
+            throw new \RuntimeException("The exported resource archive has not been prepared: {$key}");
+        }
+        $size = (int) $archive['size'];
+        $content = FileSystemManager::readFileSegment(
+            (string) $archive['path'],
+            max(0, $offset),
+            ResourceSyncService::CHUNK_BYTES
+        );
+        if ($content === false) {
+            throw new \RuntimeException("Unable to read the exported resource archive: {$key}");
+        }
+        $nextOffset = $offset + strlen($content);
+
+        return [
+            'key' => $key,
+            'offset' => $offset,
+            'next_offset' => $nextOffset,
+            'size' => $size,
+            'sha256' => (string) $archive['sha256'],
+            'final' => $nextOffset >= $size,
+            'content' => base64_encode($content),
+        ];
+    }
+
+    public function finalizeExporter(string $id, string $token): array
+    {
+        return $this->withSessionLock($id, function () use ($id, $token): array {
+            $job = $this->requireExporter($id, $token);
+            if ($job['status'] === 'completed') {
+                return ['success' => true];
+            }
+            if ($job['status'] === 'failed') {
+                throw new \RuntimeException((string) ($job['error'] ?? 'Exporter synchronization failed.'));
+            }
+            if (empty($job['context']['ready'])) {
+                throw new \RuntimeException('Exporter manifest preparation is not complete.');
+            }
+            $databaseStatus = !empty($job['options']['databases']) ? 'completed' : 'skipped';
+            $resourceStatus = !empty($job['options']['resources']) ? 'completed' : 'skipped';
+
+            $job = $this->store->markStepByKey($job, 'serve_database_chunks', $databaseStatus);
+            $job = $this->store->markStepByKey($job, 'serve_resource_chunks', $resourceStatus);
+            $job['context']['finalized'] = true;
+            $this->store->save($job);
+            return ['success' => true];
+        }, $token);
     }
 
     public function receiverStatus(string $id, string $token): array
@@ -375,6 +624,8 @@ final class DataSyncService
     public function advance(): void
     {
         $receiver = $this->store->active('receiver');
+        $fetcher = $this->store->active('fetcher');
+        $exporters = $this->store->activeAll('exporter');
         $sources = array_values(array_filter(
             $this->store->activeAll('source'),
             static fn (array $source): bool => $source['status'] !== 'paused'
@@ -383,10 +634,18 @@ final class DataSyncService
         if ($receiver !== null && $receiver['status'] !== 'paused') {
             $this->advanceReceiverWithLock((string) $receiver['id']);
         }
+        if ($fetcher !== null && $fetcher['status'] !== 'paused') {
+            $this->advanceDriverWithLock((string) $fetcher['id']);
+        }
+        foreach ($exporters as $exporter) {
+            if ($exporter['status'] !== 'paused') {
+                $this->advanceExporterWithLock((string) $exporter['id']);
+            }
+        }
         if ($sources !== []) {
             $sourceIndex = $this->sourceCursor % count($sources);
             $this->sourceCursor = ($sourceIndex + 1) % count($sources);
-            $this->advanceSourceWithLock((string) $sources[$sourceIndex]['id']);
+            $this->advanceDriverWithLock((string) $sources[$sourceIndex]['id']);
         }
     }
 
@@ -415,7 +674,7 @@ final class DataSyncService
         }
     }
 
-    private function advanceSourceWithLock(string $id): void
+    private function advanceDriverWithLock(string $id): void
     {
         $result = Context::scope(
             fn (): array => $this->sessionLock->run($id, function () use ($id): void {
@@ -423,9 +682,34 @@ final class DataSyncService
                 if ($source === null || $source['status'] === 'paused') {
                     return;
                 }
-                $this->advanceSource($source);
+                $this->advanceDriver($source);
             }),
-            data: ['data_sync_session_id' => $id, 'data_sync_role' => 'source']
+            data: ['data_sync_session_id' => $id, 'data_sync_role' => 'driver']
+        );
+
+        if (!$result['acquired']) {
+            return;
+        }
+    }
+
+    private function advanceExporterWithLock(string $id): void
+    {
+        $result = Context::scope(
+            fn (): array => $this->sessionLock->run($id, function () use ($id): void {
+                $exporter = $this->store->get($id);
+                if ($exporter === null || $exporter['status'] === 'paused') {
+                    return;
+                }
+                try {
+                    $this->advanceExporter($exporter);
+                } catch (\Throwable $exception) {
+                    $exporter = $this->store->get($id) ?? $exporter;
+                    $exporter['status'] = 'failed';
+                    $exporter['error'] = $exception->getMessage();
+                    $this->store->markCurrentStep($exporter, 'failed', $exception->getMessage());
+                }
+            }),
+            data: ['data_sync_session_id' => $id, 'data_sync_role' => 'exporter']
         );
 
         if (!$result['acquired']) {
@@ -495,7 +779,62 @@ final class DataSyncService
         $this->store->markCurrentStep($job, 'completed');
     }
 
-    private function advanceSource(array $job): void
+    private function advanceExporter(array $job): void
+    {
+        if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+            throw new \RuntimeException('The exporter session protocol version is incompatible.');
+        }
+
+        while (
+            isset($job['steps'][$job['current_step']])
+            && in_array($job['steps'][$job['current_step']]['status'], ['completed', 'skipped'], true)
+        ) {
+            $job['current_step']++;
+        }
+        $key = $job['steps'][$job['current_step']]['key'] ?? null;
+
+        if ($key === null) {
+            return;
+        }
+        $job['status'] = 'running';
+        $job = $this->store->markCurrentStep($job, 'running');
+
+        if (($job['context']['ready'] ?? false) && !($job['context']['finalized'] ?? false)) {
+            return;
+        }
+
+        if ($key === 'discover_source_databases') {
+            $job = !empty($job['options']['databases'])
+                ? $this->refreshSourceDatabaseInventory($job)
+                : $this->store->save($job);
+        } elseif ($key === 'discover_resource_roots') {
+            $job['context']['resource_roots'] = !empty($job['options']['resources'])
+                ? array_keys($this->resources->roots())
+                : [];
+            $job['context']['local_manifest'] = array_merge(
+                $job['context']['local_manifest'] ?? [],
+                [
+                    'resource_roots' => count($job['context']['resource_roots']),
+                    'resource_files' => 0,
+                    'resource_bytes' => 0,
+                ]
+            );
+            $job = $this->store->save($job);
+        } elseif ($key === 'build_source_resource_manifests') {
+            $job = $this->refreshSourceResourceManifests($job);
+        } elseif ($key === 'ready_for_export') {
+            $job['context']['ready'] = true;
+        } elseif (in_array($key, ['serve_database_chunks', 'serve_resource_chunks'], true)) {
+            return;
+        } elseif (($job['context']['finalized'] ?? false) && $key === 'complete') {
+            $job['status'] = 'completed';
+            $job['completed_at'] = now()->toIso8601String();
+        }
+
+        $this->store->markCurrentStep($job, 'completed');
+    }
+
+    private function advanceDriver(array $job): void
     {
         $key = $job['steps'][$job['current_step']]['key'] ?? null;
         $result = null;
@@ -509,7 +848,7 @@ final class DataSyncService
 
         try {
             $job = $this->refreshCounterpart($job);
-            $result = $this->executeSourceStep($job, $key);
+            $result = $this->executeDriverStep($job, $key);
             $job = $result['job'];
             if (!$result['done']) {
                 $this->store->markCurrentStep($job, 'running', $result['detail']);
@@ -549,7 +888,7 @@ final class DataSyncService
         return $this->store->save($job);
     }
 
-    private function executeSourceStep(array $job, string $key): array
+    private function executeDriverStep(array $job, string $key): array
     {
         return match ($key) {
             'validate_request' => $this->validateSourceProtocol($job),
@@ -557,11 +896,17 @@ final class DataSyncService
             'probe_peer_health' => $this->probePeer($job),
             'negotiate_protocol' => $this->negotiateProtocol($job),
             'create_receiver_session' => $this->createPeerSession($job),
+            'create_exporter_session' => $this->createExporterSession($job),
+            'wait_exporter_ready' => $this->waitForReceiver($job),
             'wait_receiver_lock', 'wait_receiver_backup' => $this->waitForReceiver($job),
             'discover_source_databases' => $this->discoverSourceDatabases($job),
             'discover_receiver_databases' => $this->discoverReceiverDatabases($job),
+            'discover_fetcher_databases' => $this->discoverFetcherDatabases($job),
+            'backup_fetcher_databases' => $this->backupFetcherDatabases($job),
+            'fetch_exporter_database_inventory' => $this->fetchExporterDatabaseInventory($job),
             'validate_database_compatibility' => $this->validateInventories($job),
             'record_receiver_backup_directory' => $this->recordBackupDirectory($job),
+            'record_backup_directory' => $this->recordFetcherBackupDirectory($job),
             'initialize_database_checkpoints' => $this->initializeDatabaseCheckpoints($job),
             'transfer_database_chunks' => $this->transferDatabaseChunk($job),
             'apply_database_differences' => $this->completePeerDatabaseTransfer($job),
@@ -572,13 +917,16 @@ final class DataSyncService
             ),
             'discover_resource_roots' => $this->discoverResourceRoots($job),
             'build_source_resource_manifests' => $this->buildSourceResourceManifests($job),
+            'build_fetcher_resource_manifests' => $this->buildFetcherResourceManifests($job),
             'fetch_receiver_resource_manifests' => $this->fetchReceiverResourceManifests($job),
+            'fetch_exporter_resource_manifests' => $this->fetchExporterResourceManifests($job),
             'calculate_resource_differences' => $this->calculateResourceDifferences($job),
             'prepare_resource_batches' => $this->prepareResourceBatches($job),
             'initialize_resource_checkpoints' => $this->initializeResourceCheckpoints($job),
             'transfer_resource_chunks' => $this->transferResourceChunk($job),
             'verify_resource_manifests' => $this->verifyResourceManifests($job),
             'finalize_receiver_session' => $this->finalizePeer($job),
+            'finalize_exporter_session' => $this->finalizePeer($job),
             'complete' => $this->completed($job, 'Synchronization completed.'),
             default => $this->completed($job),
         };
@@ -659,6 +1007,33 @@ final class DataSyncService
         return $this->completed($this->store->save($job));
     }
 
+    private function createExporterSession(array $job): array
+    {
+        $prepareToken = (string) ($job['context']['prepare_token'] ?? '');
+        if ($prepareToken === '') {
+            $prepareToken = bin2hex(random_bytes(32));
+            $job['context']['prepare_token'] = $prepareToken;
+            $job = $this->store->save($job);
+        }
+        $response = $this->peer->call($job, 'POST', '/export-prepare', [
+            'fetcher_job_id' => $job['id'],
+            'prepare_token' => $prepareToken,
+            'options' => $job['options'],
+        ], false);
+        if (isset($response['__waiting'])) {
+            return $this->waiting($job, $response['__waiting']);
+        }
+        if ((int) ($response['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+            throw new \RuntimeException('The prepared exporter protocol version is incompatible.');
+        }
+        $peerSessionId = (string) $response['id'];
+        $job['context']['peer_session_id'] = $peerSessionId;
+        $job['context']['peer_base_path'] = '/export-sessions/' . rawurlencode($peerSessionId);
+        $job['context']['peer_token'] = $response['token'];
+        unset($job['context']['prepare_token']);
+        return $this->completed($this->store->save($job));
+    }
+
     private function waitForReceiver(array $job): array
     {
         $response = $this->peer->status($job);
@@ -690,6 +1065,17 @@ final class DataSyncService
     private function refreshSourceDatabaseInventory(array $job): array
     {
         $inventory = $this->databases->inventory();
+
+        $job['context']['source_inventory'] = $inventory;
+        $job['context']['local_manifest'] = array_merge(
+            $job['context']['local_manifest'] ?? [],
+            $this->inventorySummary($inventory)
+        );
+        return $this->store->save($job);
+    }
+
+    private function inventorySummary(array $inventory): array
+    {
         $tableCount = 0;
         $rowCount = 0;
 
@@ -700,16 +1086,11 @@ final class DataSyncService
             }
         }
 
-        $job['context']['source_inventory'] = $inventory;
-        $job['context']['local_manifest'] = array_merge(
-            $job['context']['local_manifest'] ?? [],
-            [
-                'databases' => count($inventory),
-                'tables' => $tableCount,
-                'rows' => $rowCount,
-            ]
-        );
-        return $this->store->save($job);
+        return [
+            'databases' => count($inventory),
+            'tables' => $tableCount,
+            'rows' => $rowCount,
+        ];
     }
 
     private function discoverReceiverDatabases(array $job): array
@@ -728,6 +1109,65 @@ final class DataSyncService
         }
         $job['context']['receiver_inventory'] = $response['databases'] ?? [];
         return $this->completed($this->store->save($job));
+    }
+
+    private function discoverFetcherDatabases(array $job): array
+    {
+        if (empty($job['options']['databases'])) {
+            return $this->completed($job, 'Database synchronization disabled.');
+        }
+        $job['context']['receiver_inventory'] = $this->databases->inventory();
+        return $this->completed($this->store->save($job));
+    }
+
+    private function backupFetcherDatabases(array $job): array
+    {
+        if (empty($job['options']['databases'])) {
+            return $this->completed($job, 'Database synchronization disabled.');
+        }
+        $connections = DatabaseManagerService::physicalConnections();
+        $backupIndex = count($job['context']['backups'] ?? []);
+        if (isset($connections[$backupIndex])) {
+            $descriptor = $connections[$backupIndex];
+            $job['context']['backups'][] = DatabaseManagerService::backup((string) $descriptor['connection']);
+            $job = $this->store->save($job);
+            if (isset($connections[$backupIndex + 1])) {
+                return $this->waiting($job, 'Backing up local databases before fetch.');
+            }
+        }
+        return $this->completed($job, 'Local database backups completed.');
+    }
+
+    private function fetchExporterDatabaseInventory(array $job): array
+    {
+        if (empty($job['options']['databases'])) {
+            return $this->completed($job, 'Database synchronization disabled.');
+        }
+        if (empty($job['context']['database_inventory_snapshot_ready'])) {
+            $job['context']['receiver_inventory'] = $this->databases->inventory();
+            $job['context']['database_inventory_snapshot_ready'] = true;
+            $job = $this->store->save($job);
+        }
+        $response = $this->peer->call($job, 'GET', '/database-inventory');
+        if (isset($response['__waiting'])) {
+            return $this->waiting($job, $response['__waiting']);
+        }
+        $job['context']['source_inventory'] = $response['databases'] ?? [];
+        $job['context']['local_manifest'] = array_merge(
+            $job['context']['local_manifest'] ?? [],
+            $this->inventorySummary($job['context']['source_inventory'])
+        );
+        return $this->completed($this->store->save($job));
+    }
+
+    private function recordFetcherBackupDirectory(array $job): array
+    {
+        if (empty($job['options']['databases'])) {
+            $job['backup_directory'] = null;
+            return $this->completed($this->store->save($job), 'Database synchronization disabled.');
+        }
+        $job['backup_directory'] = \App\Providers\PathMapper::getBackupDir('db-manager');
+        return $this->completed($this->store->save($job), (string) $job['backup_directory']);
     }
 
     private function validateInventories(array $job): array
@@ -807,6 +1247,10 @@ final class DataSyncService
 
     private function transferDatabaseChunk(array $job): array
     {
+        if (($job['role'] ?? null) === 'fetcher') {
+            return $this->fetchDatabaseChunk($job);
+        }
+
         $checkpoints = $job['context']['database_checkpoints'] ?? [];
         $index = (int) ($job['context']['database_checkpoint_index'] ?? 0);
 

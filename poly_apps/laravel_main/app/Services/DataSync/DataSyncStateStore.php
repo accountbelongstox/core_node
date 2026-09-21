@@ -19,7 +19,9 @@ final class DataSyncStateStore
             'status' => 'queued',
             'current_step' => 0,
             'progress' => 0,
-            'backup_directory' => $role === 'receiver' ? PathMapper::getBackupDir('db-manager') : null,
+            'backup_directory' => in_array($role, ['receiver', 'fetcher'], true)
+                ? PathMapper::getBackupDir('db-manager')
+                : null,
             'steps' => DataSyncStepCatalog::create($role),
             'context' => [],
             'error' => null,
@@ -146,23 +148,27 @@ final class DataSyncStateStore
             unset($receiver['counterpart']);
         }
 
+        // Driver roles (source pushes, fetcher pulls) observe their passive
+        // counterpart (receiver / exporter) through the peer client.
+        $isDriver = in_array($job['role'] ?? null, ['source', 'fetcher'], true);
+
         return array_filter([
-            'endpoint' => ($job['role'] ?? null) === 'source'
+            'endpoint' => $isDriver
                 ? ($job['target'] ?? null)
                 : ($job['target_input'] ?? null),
-            'session_id' => ($job['role'] ?? null) === 'source'
+            'session_id' => $isDriver
                 ? ($context['peer_session_id'] ?? null)
-                : ($context['source_job_id'] ?? null),
-            'reachable' => ($job['role'] ?? null) === 'source'
+                : ($context['source_job_id'] ?? $context['fetcher_job_id'] ?? null),
+            'reachable' => $isDriver
                 ? ($context['counterpart_reachable'] ?? null)
                 : null,
-            'observed_at' => ($job['role'] ?? null) === 'source'
+            'observed_at' => $isDriver
                 ? ($context['counterpart_observed_at'] ?? null)
                 : null,
-            'error' => ($job['role'] ?? null) === 'source'
+            'error' => $isDriver
                 ? ($context['counterpart_error'] ?? null)
                 : null,
-            'session' => ($job['role'] ?? null) === 'source' ? $receiver : null,
+            'session' => $isDriver ? $receiver : null,
         ], static fn ($value): bool => $value !== null);
     }
 

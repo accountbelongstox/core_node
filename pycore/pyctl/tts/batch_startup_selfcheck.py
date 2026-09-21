@@ -13,8 +13,9 @@ state, config gates and the memory/VRAM gate WITHOUT touching weights, (2)
 actually synthesizes one small word batch through the engine's batch library
 into the shared cache dir, (3) verifies the outputs, then (4) releases CPU/GPU
 — in-process models (kokoro, parler) are unloaded explicitly; HTTP server
-engines (chattts, gptsovits) are STARTED via the managed-service lifecycle
-when down (Popen + health-wait), verified with the batch, then STOPPED again
+engines (chattts, gptsovits, qwen3tts) are STARTED via the managed-service
+lifecycle when down (Popen + health-wait), verified with the batch, then
+STOPPED again
 so the check hands CPU/GPU back — a server that was already running is tested
 through but never stopped (it keeps its own managed idle-shutdown lifecycle).
 GPT-SoVITS additionally needs a reference clip (official zero-shot flow: a ~5s
@@ -44,9 +45,10 @@ from pycore.pyutils.tts import audio_utils
 from pycore.pyutils.tts import tts_service_manager
 import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
+import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
-from pycore.pyutils.tts.batch.batch_common import BatchResult
+from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult, safe_name
 from pycore.pyutils.tts.batch import chattts_batch
 from pycore.pyutils.tts.batch import gptsovits_batch
 from pycore.pyutils.tts.batch import kokoro_batch
@@ -57,11 +59,47 @@ from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavail
 
 _Synthesizer = Callable[..., BatchResult]
 
+
+def _qwen3tts_synthesize_words(
+    words: Sequence[str],
+    lang: str,
+    out_dir: Path,
+) -> BatchResult:
+    """Per-word check synthesis through the managed qwen3tts server queue.
+
+    qwen3tts has no merge-then-split word batch library (it owns the
+    sentence/long-text pipeline), so the check synthesizes each probe word
+    through the standard engine entry — the server lifecycle (start -> verify
+    -> stop, RAM/GPU handed back) is the shared _check_server_engine path.
+    """
+    began = time.time()
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    result = BatchResult(engine="qwen3tts")
+    for index, word in enumerate(words):
+        out_path = out_dir / f"{safe_name(index, word)}.mp3"
+        item = BatchItem(index=index, text=word, output_path=str(out_path))
+        item_began = time.time()
+        try:
+            ok = qwen_engine.synthesize(word, lang, out_path)
+        except Exception as exc:  # noqa: BLE001 - one word must not break the sweep
+            ok = False
+            item.error = str(exc)
+        item.ok = bool(ok and out_path.exists() and out_path.stat().st_size > 0)
+        if not item.ok and not item.error:
+            item.error = "synthesis failed"
+        item.duration_ms = int((time.time() - item_began) * 1000)
+        result.items.append(item)
+    result.elapsed_ms = int((time.time() - began) * 1000)
+    return result
+
+
 _BATCH_LIBRARIES: Dict[str, _Synthesizer] = {
     "kokoro": kokoro_batch.synthesize_words,
     "parler": parler_batch.synthesize_words,
     "chattts": chattts_batch.synthesize_words,
     "gptsovits": gptsovits_batch.synthesize_words,
+    "qwen3tts": _qwen3tts_synthesize_words,
 }
 
 _RUN_LOCK = threading.Lock()

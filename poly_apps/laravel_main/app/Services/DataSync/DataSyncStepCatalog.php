@@ -33,6 +33,44 @@ final class DataSyncStepCatalog
         'complete',
     ];
 
+    public const FETCHER_STEPS = [
+        'validate_request',
+        'normalize_peer_address',
+        'probe_peer_health',
+        'negotiate_protocol',
+        'create_exporter_session',
+        'wait_exporter_ready',
+        'discover_fetcher_databases',
+        'backup_fetcher_databases',
+        'record_backup_directory',
+        'fetch_exporter_database_inventory',
+        'validate_database_compatibility',
+        'initialize_database_checkpoints',
+        'transfer_database_chunks',
+        'verify_database_counts',
+        'build_fetcher_resource_manifests',
+        'fetch_exporter_resource_manifests',
+        'calculate_resource_differences',
+        'prepare_resource_batches',
+        'initialize_resource_checkpoints',
+        'transfer_resource_chunks',
+        'verify_resource_manifests',
+        'finalize_exporter_session',
+        'complete',
+    ];
+
+    public const EXPORTER_STEPS = [
+        'accept_peer_session',
+        'discover_source_databases',
+        'discover_resource_roots',
+        'build_source_resource_manifests',
+        'ready_for_export',
+        'serve_database_chunks',
+        'serve_resource_chunks',
+        'finalize_export_session',
+        'complete',
+    ];
+
     public const RECEIVER_STEPS = [
         'discover_receiver_databases',
         'backup_receiver_databases',
@@ -50,7 +88,12 @@ final class DataSyncStepCatalog
 
     public static function create(string $role): array
     {
-        $keys = $role === 'receiver' ? self::RECEIVER_STEPS : self::SOURCE_STEPS;
+        $keys = match ($role) {
+            'receiver' => self::RECEIVER_STEPS,
+            'fetcher' => self::FETCHER_STEPS,
+            'exporter' => self::EXPORTER_STEPS,
+            default => self::SOURCE_STEPS,
+        };
         $steps = [];
 
         foreach ($keys as $index => $key) {
