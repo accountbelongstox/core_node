@@ -8,8 +8,8 @@ LAN_KEYWORD=""
 WAN_INTERFACE=""
 LAN_INTERFACE=""
 SYSTEM_SHARING="no"
-CORE_NODE_DATA_DIR="/var/_core_node"
-CONFIG_FILE="/var/_core_node/natgateway/interface_cache.conf"
+CORE_NODE_DATA_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}"
+CONFIG_FILE="$CORE_NODE_DATA_DIR/natgateway/interface_cache.conf"
 DNS_DETECTION_SOURCE=""
 declare -a DEFAULT_DNS_SERVERS=("8.8.8.8" "1.1.1.1")
 

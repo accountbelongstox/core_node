@@ -6,7 +6,7 @@ Launcher Windows startup manager using pythonw, PS1, and native shortcuts.
 Two-part design:
 
   1. A **PowerShell launcher script (.ps1)** at a FIXED path under the user data
-     directory (``~/.core_node/data/autostart/PyCore_RPC_Server.ps1``). It runs
+     directory (``<core_node_data_dir>/data/autostart/PyCore_RPC_Server.ps1``). It runs
      the repo's canonical entry point ``pyservice.ps1 -NoInstall`` so boot starts
      the SAME stack as a manual run: the unified dashboard UI dev server
      (poly_apps/pycore_laravel_wordnew_ui, exported as PYCORE_UI_URL) and then the pycore

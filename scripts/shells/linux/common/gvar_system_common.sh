@@ -252,6 +252,11 @@ export PI_VOLC_AGENT_AGENT_DIR
 export PI_VOLC_CODING_AGENT_DIR
 
 GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
+# Pre-relocation var center; readers (global_var_store.sh get_global_var,
+# pycore core_node_dirs, PathMapper::readPersistedVar) fall back to it so
+# persisted values survive the ~/.core_node -> <www>/core_node move.
+LEGACY_GLOBAL_VAR_DIR="${LEGACY_CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+export LEGACY_GLOBAL_VAR_DIR
 
 # Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
 # TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...). Idempotent, set -u-safe, and it

@@ -63,7 +63,7 @@
 #   pyservice.sh config codesync show --port 59000   # target a non-default port
 #
 # Config storage:
-#   - System settings      : ~/.core_node/config/user_data.json  (system_settings section)
+#   - System settings      : <core_node_data_dir>/config/user_data.json  (system_settings section)
 #   - Code-sync role/peers  : pycore/pyutils/codesync/code_sync_peers.json  (committed)
 #
 # ---------------------------------------------------------------------------

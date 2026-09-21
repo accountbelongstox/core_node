@@ -13,7 +13,7 @@ across both windows, so it cancels out:
     char_width  = (rect_w_B - rect_w_A) / (cols_B - cols_A)
     char_height = (rect_h_B - rect_h_A) / (rows_B - rows_A)
 
-The result is cached to ~/.core_node/launch_multiple/char_size_cache.json keyed
+The result is cached to <core_node_data_dir>/launch_multiple/char_size_cache.json keyed
 by system DPI + a cache-version constant. Dynamic measurement is OPT-IN: by
 default measure() never flashes calibration windows -- it returns a cached result
 if one exists, otherwise None so the caller falls back to config-derived ratios

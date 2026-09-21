@@ -36,7 +36,7 @@
 #      Install if missing: curl (or wget), ca-certificates, sudo (when root), git.
 #
 #   2. REPO BASE URL (deployment stage only)
-#      Global = GitHub, China (Cn) = Gitee. Choice is saved to cache (e.g. ~/.core_node/SELECTED_REGION).
+#      Global = GitHub, China (Cn) = Gitee. Choice is saved to cache (e.g. ~/core_node/SELECTED_REGION).
 #      Next run: prompt "Modify region? (N/y)" - N or Enter = use cached; y = show region menu and update cache.
 #
 #   3. DOWNLOAD REQUIRED PROJECT LIBRARIES (first priority)
@@ -122,9 +122,9 @@ BOOTSTRAP_SCRIPT_DIR="$(dirname "$BOOTSTRAP_SCRIPT_PATH")"
 LAUNCHER_ROOT="$BOOTSTRAP_SCRIPT_DIR"
 
 # Region cache (deployment stage only): persist Global/China so next run prompts "Modify region? (N/y)"
-REGION_CACHE_DIR="${HOME}/.core_node"
+REGION_CACHE_DIR="${HOME}/core_node"
 REGION_CACHE_FILE="$REGION_CACHE_DIR/SELECTED_REGION"
-[ "$(id -u)" -eq 0 ] && REGION_CACHE_DIR="/var/_core_node" && REGION_CACHE_FILE="$REGION_CACHE_DIR/SELECTED_REGION"
+[ "$(id -u)" -eq 0 ] && REGION_CACHE_DIR="/www/core_node" && REGION_CACHE_FILE="$REGION_CACHE_DIR/SELECTED_REGION"
 
 # Use repo base URL from environment if set (passed by dd.sh after region selection)
 REPO_BASE_URL="${REPO_BASE_URL:-}"

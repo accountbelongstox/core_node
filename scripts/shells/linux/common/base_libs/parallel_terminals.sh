@@ -153,7 +153,7 @@ pt_run() {
     PT_N=${#PT_LABELS[@]}
     if [[ "$PT_N" -eq 0 ]]; then echo "[!] No tasks to run."; return 0; fi
 
-    PT_RUNDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/${GROUP_SLUG:-parallel}/run_$$"
+    PT_RUNDIR="${CORE_NODE_DATA_DIR:-/www/core_node}/${GROUP_SLUG:-parallel}/run_$$"
     if ! mkdir -p "$PT_RUNDIR" 2>/dev/null; then
         PT_RUNDIR="${TMPDIR:-/tmp}/core_node_${GROUP_SLUG:-parallel}/run_$$"
         mkdir -p "$PT_RUNDIR" 2>/dev/null || true
@@ -190,7 +190,7 @@ pt_run() {
     # Coarse advisory lock: only ONE parallel group may install into the shared venv at a
     # time. Different groups (and TTS's opt-in MeloTTS/GPT-SoVITS) pin conflicting package
     # versions; running two at once would scramble the venv. Non-blocking -> fail fast.
-    PT_GROUP_LOCK="${CORE_NODE_DATA_DIR:-/var/_core_node}/locks/parallel_group.lock"
+    PT_GROUP_LOCK="${CORE_NODE_DATA_DIR:-/www/core_node}/locks/parallel_group.lock"
     mkdir -p "$(dirname "$PT_GROUP_LOCK")" 2>/dev/null || true
     : > "$PT_GROUP_LOCK" 2>/dev/null || true
     if command -v flock >/dev/null 2>&1; then

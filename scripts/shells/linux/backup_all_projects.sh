@@ -20,7 +20,7 @@
 #
 # Usage:
 #   bash backup_all_projects.sh [BACKUP_DIR]
-#   Default BACKUP_DIR: /var/_core_node/backups/projects_<date>
+#   Default BACKUP_DIR: $CORE_NODE_DATA_DIR/backups/projects_<date>
 # =============================================================================
 
 # Variable Declarations

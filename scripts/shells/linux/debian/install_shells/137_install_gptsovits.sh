@@ -118,7 +118,10 @@ source "$SCRIPT_DIR/../../common/common_functions.sh"
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
-server_up() { command -v curl >/dev/null 2>&1 || return 1; local c; c="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 "$SERVER_URL/" 2>/dev/null || echo 000)"; [[ "$c" != "000" ]]; }
+# curl prints the -w code ("000" on connect failure) AND exits non-zero, so the
+# fallback must replace the capture, not append to it: appending produced
+# "000\n000", which != "000" made every probe a false "server reachable".
+server_up() { command -v curl >/dev/null 2>&1 || return 1; local c; c="$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 "$SERVER_URL/" 2>/dev/null)" || c="000"; [[ "$c" != "000" && -n "$c" ]]; }
 pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null || vpip "$PYTHON" -m pip install "$@"; }
 
 echo "============================================================"

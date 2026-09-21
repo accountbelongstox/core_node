@@ -102,11 +102,11 @@ function Write-PgLog {
 # =============================================================================
 function Resolve-PgDataDir {
     # CORE_NODE_DATA_DIR drives where CoreNodeSecrets (and Laravel) read the
-    # password. Pin it to <data-drive>\var\_core_node and EXPORT so php/artisan
+    # password. Pin it to <data-drive>\www\core_node and EXPORT so php/artisan
     # children read the same store. Idempotent.
     if (-not $env:CORE_NODE_DATA_DIR) {
         $driveRoot = [System.IO.Path]::GetPathRoot($Global:PG_DATA_ROOT)
-        $env:CORE_NODE_DATA_DIR = Join-Path $driveRoot "var\_core_node"
+        $env:CORE_NODE_DATA_DIR = Join-Path $driveRoot "www\core_node"
     }
     return $env:CORE_NODE_DATA_DIR
 }

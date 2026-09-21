@@ -228,7 +228,8 @@ create_app_databases() {
 get_postgresql_password() {
     local pw="" mirror=""
     pw=$(get_global_var "POSTGRES_PASSWORD" "")
-    # Safety net: the global-var store lives on the OS disk (/var/_core_node) and is
+    # Safety net: the global-var store keeps a read-fallback at the legacy OS-disk
+    # location (/var/_core_node/global_var) and is
     # lost on a fresh reinstall, while the laravel_db secret mirror lives with the
     # app data and survives. If the store is empty but a mirror exists, REUSE it
     # (don't regenerate) so the password stays stable and keeps matching the value

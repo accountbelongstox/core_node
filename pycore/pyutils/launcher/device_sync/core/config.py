@@ -36,11 +36,11 @@ def get_cache_dir() -> Path:
     """
     Get unified cache directory across platforms
 
-    Windows: D:\\programing\\Users\\<user>\\.core_node\\.device_sync
-    Linux:   /var/_core_node/.device_sync (else ~/.core_node/.device_sync)
+    Windows: D:\\www\\core_node\\device_sync
+    Linux:   /www/www/core_node/device_sync or /www/core_node/device_sync
     """
-    # Centralized per-user state dir (see system_paths.get_system_cache_dir).
-    cache_dir = get_system_cache_dir() / '.device_sync'
+    # Centralized runtime data root (see system_paths.get_system_cache_dir).
+    cache_dir = get_system_cache_dir() / 'device_sync'
 
     # Create directory if it doesn't exist
     cache_dir.mkdir(parents=True, exist_ok=True)

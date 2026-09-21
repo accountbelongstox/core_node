@@ -214,6 +214,14 @@ get_global_var() {
     # Get normalized file path
     local file_path=$(_get_var_file_path "$key")
 
+    # Read-fallback: pre-relocation var center (see runtime_environment.sh
+    # LEGACY_CORE_NODE_DATA_DIR / gvar_system_common.sh LEGACY_GLOBAL_VAR_DIR)
+    # so persisted values survive the ~/.core_node -> <www>/core_node move.
+    if [[ ! -f "$file_path" ]] && [[ -n "${LEGACY_GLOBAL_VAR_DIR:-}" ]]; then
+        local legacy_path="$LEGACY_GLOBAL_VAR_DIR/$(basename "$file_path")"
+        [[ -f "$legacy_path" ]] && file_path="$legacy_path"
+    fi
+
     # Check if file exists
     if [[ ! -f "$file_path" ]]; then
         # Return default value if provided, otherwise return empty string

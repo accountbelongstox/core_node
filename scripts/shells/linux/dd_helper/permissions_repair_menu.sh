@@ -114,7 +114,7 @@ handle_permissions_choice() {
             fix_node_permissions "$project_root" "$user_info"
             ;;
         5)
-            echo "[INFO] Running /var/_core_node permissions repair..."
+            echo "[INFO] Running core_node data root permissions repair..."
             fix_var_core_node_permissions "$project_root" "$user_info"
             ;;
         6)
@@ -163,7 +163,7 @@ permissions_repair_menu() {
         "Full Core Node Repair - All project directories"
         "Python Permissions - pycore & pyapps directories"
         "Node.js Permissions - ncore & apps directories"
-        "/var/_core_node Permissions - MyBest directories"
+        "core_node data root Permissions - MyBest directories"
         "Environment Variables Setup"
         "AI Tools Repair - claude, codex, droid"
         "Complete System Repair - All of the above"

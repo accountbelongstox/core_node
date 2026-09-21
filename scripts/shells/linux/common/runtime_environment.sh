@@ -7,9 +7,26 @@ HAS_DESKTOP_ENVIRONMENT=false
 IS_HEADLESS_SERVER=false
 DESKTOP_ENVIRONMENT=""
 WSL_USERS_PATH="/mnt/c/Users"
-# Single definition of the shared core_node data root; every other script sources
-# this file (directly or via gvar_common.sh) and reuses the variable.
-CORE_NODE_DATA_DIR="/var/_core_node"
+# Single definition of the unified core_node runtime data root (NO dot-prefixed
+# names); every other script sources this file (directly or via gvar_common.sh)
+# and reuses the variable. Mirrors pycore core_node_dirs.get_core_node_data_dir,
+# GlobalVars.ps1 $Global:USER_DIR and PathMapper::getCoreNodeRuntimeDir:
+#   /www/www/core_node  when /www is the mounted Windows D: root (dual-boot)
+#   /www/core_node      on a native Linux /www
+# NOTE: the shared MODEL cache and the POSIX scratch temp intentionally stay on
+# the legacy native base /var/_core_node (pyservice model paths unchanged).
+LEGACY_CORE_NODE_DATA_DIR="/var/_core_node"
+if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+    CORE_NODE_DATA_DIR="/www/core_node"
+    if [ -d /www/www ] && command -v findmnt >/dev/null 2>&1; then
+        __re_src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
+        __re_src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
+        if [ -n "$__re_src_www" ] && [ -n "$__re_src_root" ] && [ "$__re_src_www" != "$__re_src_root" ]; then
+            CORE_NODE_DATA_DIR="/www/www/core_node"
+        fi
+        unset __re_src_www __re_src_root
+    fi
+fi
 # NOTE: process names (comm) are truncated to 15 chars ("gnome-session-b..."), so
 # never match with pgrep -x; use a start-anchored substring pattern instead.
 RUNTIME_DESKTOP_PROCESS_PATTERN="^(gnome-shell|gnome-session|startplasma|plasmashell|plasma_session|xfce4-session|mate-session|cinnamon-session|lxde-session|lxqt-session|openbox|fluxbox|i3|sway|awesome|dwm|gdm|gdm3|sddm|lightdm|Xorg)"
@@ -90,3 +107,4 @@ export IS_HEADLESS_SERVER
 export DESKTOP_ENVIRONMENT
 export WSL_USERS_PATH
 export CORE_NODE_DATA_DIR
+export LEGACY_CORE_NODE_DATA_DIR

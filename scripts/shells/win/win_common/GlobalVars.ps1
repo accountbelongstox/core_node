@@ -164,7 +164,10 @@ if ($null -eq $sharedCacheLoaded -or -not [bool]$sharedCacheLoaded.Value) {
 
 $Global:PROGRAMING_USERS_DIR = "D:\programing\Users"
 $Global:PROGRAMING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
-$Global:USER_DIR = Join-Path $Global:PROGRAMING_USER_DIR ".core_node"
+# Unified core_node runtime data root (no dot-prefixed names). Mirrors
+# pycore core_node_dirs / runtime_environment.sh CORE_NODE_DATA_DIR /
+# PathMapper::getCoreNodeRuntimeDir: D:\www\core_node (== Linux /www/www/core_node).
+$Global:USER_DIR = Join-Path "D:\www" "core_node"
 $Global:PI_COMMON_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiYolo"
 $Global:PI_KIMI_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiKimi"
 $Global:PI_CLAUDE_CODE_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiClaudeCode"
@@ -182,11 +185,11 @@ if (-not (Test-Path $Global:USER_CACHE_DIR)) {
     New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null
 }
 
-$Global:APP_INSTALLED_FLAG_DIR = "$Global:USER_DIR\.app_installed_flag"
-$Global:GIT_CONFIG_DIR = "$Global:USER_DIR\.git_config"
-$Global:USER_CONFIG_DIR = Join-Path $Global:USER_DIR ".config"
-$Global:SCRIPTS_DIR = "$Global:USER_DIR\.scripts"
-$Global:WINGET_FLAG_FILE = "$Global:USER_DIR\.winget_set_flag_file"
+$Global:APP_INSTALLED_FLAG_DIR = Join-Path $Global:USER_DIR "app_installed_flag"
+$Global:GIT_CONFIG_DIR = Join-Path $Global:USER_DIR "git_config"
+$Global:USER_CONFIG_DIR = Join-Path $Global:USER_DIR "config"
+$Global:SCRIPTS_DIR = Join-Path $Global:USER_DIR "scripts"
+$Global:WINGET_FLAG_FILE = Join-Path $Global:USER_DIR "winget_set_flag_file"
 
 # Desktop Category Constants
 $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS = "DevelopmentTools"
@@ -212,7 +215,7 @@ $Global:DESKTOP_CATEGORY_FINANCE = "Finance"
 $Global:DESKTOP_CATEGORY_SHOPPING = "Shopping"
 $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS = "AICLITools"
 # Global variables directory (must-be-defined-first)
-$Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR ".global_vars"
+$Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR "global_var"
 
 # Common encryption/decryption functions for GlobalVars
 . (Join-Path $PSScriptRoot 'GlobalVarStoreCommon.ps1')
@@ -221,7 +224,7 @@ $Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR ".global_vars"
 # Git related global variables
 $Global:GIT_INSTALL_DIR = "$Global:APP_INSTALL_DIR\Git"
 $Global:GIT_EXE_PATH = Join-Path $Global:GIT_INSTALL_DIR "cmd\git.exe"
-$Global:GIT_FLAG_FILE = "$Global:USER_DIR\.git_set"
+$Global:GIT_FLAG_FILE = Join-Path $Global:USER_DIR "git_set"
 $Global:GIT_WINGET_ID = "Git.Git"
 $Global:GIT_DEFAULT_USER = "DevOps User"
 $Global:GIT_DEFAULT_EMAIL = "devops@example.com"

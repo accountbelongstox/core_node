@@ -25,7 +25,7 @@ function Invoke-IsolatedPythonInstall {
     $RuntimeCommand = $RuntimeKey.ToLowerInvariant()
     $PipCommand = $RuntimeCommand.Replace('python', 'pip')
     $IsolatedPythonGetPipFile = Join-Path $Global:DOWNLOADS_DIR "${RuntimeCommand}-get-pip.py"
-    $PygvarStoreDir = Join-Path (Join-Path $env:USERPROFILE '.core_node') '.global_vars'
+    $PygvarStoreDir = Join-Path (Join-Path 'D:\www' 'core_node') 'global_var'
     $WindowsPathFunctionScript = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
     $WinEnvsDir = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
 $pygvarKeyFile = $null

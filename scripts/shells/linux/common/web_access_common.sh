@@ -23,7 +23,7 @@ WEB_ACCESS_SOURCE_FILE="$WEB_ACCESS_CORE_NODE_DIR/config/service_contract.json"
 # Absolute node path: /usr/local/bin link first, then PATH, gvar constant, var
 # center (install-time shells may run with a minimal PATH).
 WEB_ACCESS_NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
-WEB_ACCESS_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/$(sc_get paths.global_var_dir_name)"
+WEB_ACCESS_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}/$(sc_get paths.global_var_dir_name)"
 WEB_ACCESS_PREFIX_FILE="$WEB_ACCESS_GLOBAL_VAR_DIR/DOMAIN_API_REGION_PREFIX"
 WEB_ACCESS_CONFIG_FILE="$WEB_ACCESS_GLOBAL_VAR_DIR/$(sc_get files.web_access_config)"
 WEB_ACCESS_DEFAULT_PREFIX=""

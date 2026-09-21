@@ -568,7 +568,7 @@ def _install_into(
     spec = engine_spec(engine)
     build_packages = tuple(spec.get("build_packages", ()))
     build_constraints = tuple(spec.get("build_constraints", ()))
-    command_env = {}
+    command_env = dict(spec.get("pip_env") or {})
     repair_candidates = _repair_candidates(engine, pip_packages)
     if not _repair_broken_distributions(venv_python, repair_candidates):
         return False

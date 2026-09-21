@@ -296,7 +296,8 @@ setup_postgresql_user() {
     sleep 3
 
     # Generate (or reuse) the superuser password from the shared global-var store
-    # (/var/_core_node/global_var/POSTGRES_PASSWORD). It is NEVER written into the
+    # (<core_node_data_dir>/global_var/POSTGRES_PASSWORD, legacy /var/_core_node
+    # read-fallback). It is NEVER written into the
     # Laravel .env; Laravel reads it back via App\Support\CoreNodeSecrets, so a
     # copied/committed .env can never leak the credential.
     local pg_password
@@ -305,7 +306,7 @@ setup_postgresql_user() {
     echo "[$SCRIPT_INDEX] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)..."
     run_as_postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD '$pg_password';"
 
-    # Mirror the password into the app's OWN data dir as well. /var/_core_node may be
+    # Mirror the password into the app's OWN data dir as well. The var center may be
     # outside PHP's open_basedir on panel-style servers, so Laravel reads an empty
     # secret there and migrate fails with "fe_sendauth: no password supplied" -- while
     # WSL/desktop (no open_basedir) works. The laravel data dir is always inside

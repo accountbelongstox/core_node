@@ -6,7 +6,7 @@ Launcher Linux startup manager using XDG desktop integration.
 Mirrors the Windows approach using Linux-native mechanisms:
 
   1. A **shell launcher script (.sh)** at a FIXED path under the user data dir
-     (``~/.core_node/data/autostart/PyCore_RPC_Server.sh``). It execs the repo's
+     (``<core_node_data_dir>/data/autostart/PyCore_RPC_Server.sh``). It execs the repo's
      canonical entry point ``pyservice.sh run --no-install`` so boot starts the
      SAME stack as a manual run: the unified dashboard UI dev server
      (poly_apps/pycore_laravel_wordnew_ui, exported as PYCORE_UI_URL) and then the pycore

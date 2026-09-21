@@ -213,6 +213,7 @@ $userProfile = $env:USERPROFILE
 if ($userProfile) {
     $knownPaths.Add((Join-Path $userProfile '.cache\pycore\voxcpm2'))
     $knownPaths.Add((Join-Path $userProfile '.core_node\cache\pycore\voxcpm2'))
+    $knownPaths.Add('D:\www\core_node\cache\pycore\voxcpm2')
 }
 
 Write-ScanLine ("{0} [..] probing known canonical paths ..." -f $scriptIndex) ([ConsoleColor]::DarkGray)

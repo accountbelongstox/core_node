@@ -77,7 +77,7 @@ nginx_get_sites_available() {
         return 0
     fi
     local stored=""
-    local gdir="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+    local gdir="${CORE_NODE_DATA_DIR:-/www/core_node}/global_var"
     [ -f "$gdir/NGINX_SITES_AVAILABLE" ] && stored=$($USE_SUDO cat "$gdir/NGINX_SITES_AVAILABLE" 2>/dev/null | tr -d '[:space:]')
     echo "${stored:-/etc/nginx/sites-available}"
 }
@@ -89,7 +89,7 @@ nginx_get_sites_enabled() {
         return 0
     fi
     local stored=""
-    local gdir="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+    local gdir="${CORE_NODE_DATA_DIR:-/www/core_node}/global_var"
     [ -f "$gdir/NGINX_SITES_ENABLED" ] && stored=$($USE_SUDO cat "$gdir/NGINX_SITES_ENABLED" 2>/dev/null | tr -d '[:space:]')
     echo "${stored:-/etc/nginx/sites-enabled}"
 }

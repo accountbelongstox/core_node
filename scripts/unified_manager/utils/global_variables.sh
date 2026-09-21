@@ -1,7 +1,7 @@
 #!/bin/bash
 # Unified Global Variable Manager - Bash Implementation
 # Centralized variable storage system for Linux/Unix
-# Stores variables in: D:\programing\Users\{username}\.core_node\.build_global_vars / /var/_core_node/_build_global_vars/
+# Stores variables in: D:\www\core_node\build_global_vars / <core_node_data_dir>/build_global_vars/
 # Format: filename=key, file_content=value
 
 # Variable declarations - all at top
@@ -76,12 +76,12 @@ initialize_global_variables() {
     # on Linux/macOS, mirrors GlobalVars.ps1 USER_DIR on Windows bash).
     case "$(uname -s)" in
         MINGW*|CYGWIN*|MSYS*)
-            # Windows (bash): mirrors GlobalVars.ps1 USER_DIR (D:\programing\Users\<user>\.core_node).
-            GLOBAL_VARS_DIR="/d/programing/Users/$USER/.core_node/.build_global_vars"
+            # Windows (bash): mirrors GlobalVars.ps1 USER_DIR (D:\www\core_node).
+            GLOBAL_VARS_DIR="/d/www/core_node/build_global_vars"
             ;;
         *)
-            # Linux/macOS/other: CORE_NODE_DATA_DIR (default /var/_core_node, all-users-writable).
-            GLOBAL_VARS_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/.build_global_vars"
+            # Linux/macOS/other: CORE_NODE_DATA_DIR (default /www/core_node, all-users-writable).
+            GLOBAL_VARS_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}/build_global_vars"
             ;;
     esac
 

@@ -261,8 +261,8 @@ class AppFinder:
             cache_path: Path to cache file
         """
         if cache_path is None:
-            # Centralized per-user state dir (D:\programing\Users\<user>\.core_node
-            # on Windows, /var/_core_node on Linux) - see system_paths.
+            # Unified runtime data root (D:\www\core_node on Windows,
+            # /www/www/core_node or /www/core_node on Linux) - see core_node_dirs.
             cache_dir = get_system_cache_dir() / 'launch_multiple'
             cache_dir.mkdir(parents=True, exist_ok=True)
             cache_path = cache_dir / 'app_cache.json'
@@ -297,19 +297,16 @@ class AppFinder:
 
     def _linux_shell_gvar_dir(self) -> Path:
         """Shared shell gvar store (GLOBAL_VAR_DIR in gvar_system_common.sh)."""
-        base = os.environ.get('CORE_NODE_DATA_DIR') or '/var/_core_node'
-        return Path(base) / 'global_var'
+        from pycore.pyfoundations.core_node_dirs import get_global_var_dir
+        return get_global_var_dir()
 
     def _read_shell_gvar(self, key: str) -> Optional[str]:
-        """Read one value from the shell gvar store (plain-text file per key)."""
-        try:
-            value_file = self._linux_shell_gvar_dir() / key
-            if value_file.is_file():
-                value = value_file.read_text(encoding='utf-8', errors='ignore').strip()
-                return value or None
-        except OSError:
-            pass
-        return None
+        """Read one value from the shell gvar store (plain-text file per key).
+
+        Falls back to the pre-relocation var-center locations so persisted
+        values survive the ~/.core_node -> <www>/core_node move."""
+        from pycore.pyfoundations.core_node_dirs import read_global_var
+        return read_global_var(key)
 
     def _linux_binary_usable(self, path: Path) -> bool:
         """False for self-elevating wrapper scripts when running non-root."""

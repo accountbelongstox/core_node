@@ -30,11 +30,11 @@ $installerScriptsListPath = Join-Path $WIN_COMMON_DIR "InstallerScriptsList.ps1"
 # =============================================================================
 function Get-ExecutionMode {
     # Detect if running in project mode or installation mode
-    # Check if running from .core_node directory (installation mode) or project directory (project mode)
+    # Check if running from the core_node data dir (installation mode) or project directory (project mode)
     $currentDir = $script:PS_CURENT_DIR
-    $coreNodeInstallDir = "D:\programing\Users\$env:USERNAME\.core_node"
+    $coreNodeInstallDir = Join-Path "D:\www" "core_node"
 
-    # Check if running from .core_node installation directory
+    # Check if running from the core_node installation directory
     if ($currentDir -like "$coreNodeInstallDir*") {
         return "INSTALLATION"
     }
@@ -45,9 +45,9 @@ function Get-ExecutionMode {
 }
 
 function Test-InitializationRequired {
-    # Check if script is running from .core_node directory (not initialized)
+    # Check if script is running from the core_node data dir (not initialized)
     $currentDir = Get-Location
-    $coreNodeInstallDir = "D:\programing\Users\$env:USERNAME\.core_node"
+    $coreNodeInstallDir = Join-Path "D:\www" "core_node"
 
     if ($currentDir.Path -like "$coreNodeInstallDir*") {
         return $true

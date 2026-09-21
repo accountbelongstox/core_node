@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
+
 
 def _ensure_dir(path: Path) -> Path:
     if not path.exists():
@@ -18,22 +20,12 @@ def _ensure_dir(path: Path) -> Path:
 
 
 def get_system_cache_dir() -> Path:
-    if sys.platform == "win32":
-        username = os.environ.get("USERNAME", os.environ.get("USER", "default"))
-        return _ensure_dir(Path("D:/programing/Users") / username / ".core_node")
-
-    shared = Path("/var/_core_node")
-    try:
-        _ensure_dir(shared)
-    except OSError:
-        pass
-    if shared.is_dir() and os.access(shared, os.W_OK):
-        return shared
-    return _ensure_dir(Path.home() / ".core_node")
+    """Unified runtime data root (see pycore.pyfoundations.core_node_dirs)."""
+    return get_core_node_data_dir()
 
 
 def get_app_config_dir() -> Path:
-    return _ensure_dir(get_system_cache_dir() / "config")
+    return _ensure_dir(get_core_node_data_dir() / "config")
 
 
 __all__ = ["get_app_config_dir", "get_system_cache_dir"]

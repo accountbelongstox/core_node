@@ -4,7 +4,7 @@ User-data service models.
 
 Back the unified user-data store (pycore/pyutils/user_data_store.py) over
 HTTP: persistent system settings and the Video Extraction history/state. The
-store persists atomically to ~/.core_node/config/user_data.json.
+store persists atomically to <core_node_data_dir>/config/user_data.json.
 
 Sections used:
   * "system_settings" - free-form settings dict (theme, etc.), broadcast live

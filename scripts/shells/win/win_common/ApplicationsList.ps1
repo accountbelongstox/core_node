@@ -2007,7 +2007,7 @@ if ($OutputApplicationsList) {
 
     # Define output directory and file path
     $username = $env:USERNAME
-    $pybackupDir = Join-Path "D:\programing\Users\$username\.core_node" "pybackup"
+    $pybackupDir = Join-Path "D:\www\core_node" "pybackup"
     $jsonOutputFile = Join-Path $pybackupDir "applications_list.json"
 
     # Ensure directory exists

@@ -540,16 +540,16 @@ remove_desktop_apps() {
     read
 }
 
-# Cap all *.log under /var/_core_node to 10MB each (in place, inode preserved) and
+# Cap all *.log under the core_node data root to 10MB each (in place, inode preserved) and
 # install a periodic timer so they stay bounded regardless of the writer. The shared
-# runtime base /var/_core_node is where xrdp_monitor, mcp_chrome, etc. append logs.
+# runtime base $CORE_NODE_DATA_DIR is where xrdp_monitor, mcp_chrome, etc. append logs.
 cap_var_core_node_logs() {
     printf "\033c"
-    echo "=== Cap /var/_core_node log sizes (each *.log > 10MB trimmed) ==="
+    echo "=== Cap core_node data-root log sizes (each *.log > 10MB trimmed) ==="
     echo ""
     local guard="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/log_size_cap.sh"
     if [ -f "$guard" ]; then
-        bash "$guard" /var/_core_node
+        bash "$guard" "${CORE_NODE_DATA_DIR:-/www/core_node}"
         bash "$guard" --install-timer
     else
         echo "Error: log_size_cap.sh not found at: $guard"
@@ -571,7 +571,7 @@ show_slim_disk_submenu() {
         "Snap Slim (remove dev/desktop snaps + orphan bases)"
         "Remove LibreOffice + code-server"
         "Block & Remove Apache (pin -1 + purge)"
-        "Cap /var/_core_node log sizes (>10MB trim + timer)"
+        "Cap core_node data-root log sizes (>10MB trim + timer)"
         "Back to Linux System Tools"
     )
 

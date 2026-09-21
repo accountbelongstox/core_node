@@ -301,12 +301,12 @@ def _static_dir_registry() -> List[Tuple[str, str, Path, str]]:
         secret_dirs = {}
     secret_raw = secret_dirs.get("RAW_DIR")
     entries: List[Tuple[str, str, Any, str]] = [
-        ("app_cache",   "App cache",    APP_CACHE_DIR,      "Decoded media / TTS / OCR cache (.core_node/cache)"),
-        ("app_config",  "App config",   APP_CONFIG_DIR,     "Headless service configuration (.core_node/config)"),
-        ("app_data",    "App data",     APP_DATA_DIR,       "Unified user-data store (.core_node/data)"),
-        ("app_logs",    "App logs",     APP_LOGS_DIR,       "Service logs (.core_node/logs)"),
-        ("ui_state",    "UI state",     UI_STATE_CACHE_DIR, "Desktop UI state cache (.core_node/ui_state)"),
-        ("system_cache","System cache", SYSTEM_CACHE_DIR,   "Root cache directory (.core_node)"),
+        ("app_cache",   "App cache",    APP_CACHE_DIR,      "Decoded media / TTS / OCR cache (core_node/cache)"),
+        ("app_config",  "App config",   APP_CONFIG_DIR,     "Headless service configuration (core_node/config)"),
+        ("app_data",    "App data",     APP_DATA_DIR,       "Unified user-data store (core_node/data)"),
+        ("app_logs",    "App logs",     APP_LOGS_DIR,       "Service logs (core_node/logs)"),
+        ("ui_state",    "UI state",     UI_STATE_CACHE_DIR, "Desktop UI state cache (core_node/ui_state)"),
+        ("system_cache","System cache", SYSTEM_CACHE_DIR,   "Root runtime data directory (core_node)"),
     ]
     if secret_raw:
         entries.append(("secret_keys", "Secret keys", secret_raw,
@@ -364,7 +364,7 @@ def pycore_constants() -> List[Dict[str, Any]]:
         {"key": "tts_retry_attempts", "value": "3",
          "note": "edge-tts synth retry attempts with backoff before giving up"},
         {"key": "app_root", "value": str(SYSTEM_CACHE_DIR),
-         "note": "Root of all pycore runtime directories (.core_node)"},
+         "note": "Root of all pycore runtime directories (core_node)"},
     ]
 
 

@@ -87,6 +87,10 @@ class PathMapper
             'shared-data' => $basePath . $separator . 'shared-data',
             'backup' => $basePath . $separator . 'backup',
             'www' => $basePath,
+            // Unified core_node runtime data root (see getCoreNodeRuntimeDir):
+            // D:\www\core_node on Windows, /www/www/core_node on a dual-boot
+            // Linux, /www/core_node on a Linux-only machine.
+            'core_node_data' => self::getCoreNodeRuntimeDir(),
             // Shared download cache (HF / pip / whisper / torch models). Mirrors
             // gvar_common.sh + system_paths.py "cache": D:\www\cache on Windows,
             // /www/www/cache on a dual-boot Linux (extra level), /www/cache on a
@@ -203,17 +207,52 @@ class PathMapper
         return $out === null ? '' : trim((string) $out);
     }
 
+    /** Unified core_node runtime data root (no dot-prefixed names). Single
+     * PHP source of truth; mirrors pycore core_node_dirs.get_core_node_data_dir,
+     * runtime_environment.sh CORE_NODE_DATA_DIR and GlobalVars.ps1 USER_DIR:
+     *   Windows:              D:\www\core_node
+     *   Linux NTFS dual-boot: /www/www/core_node  (== D:\www\core_node)
+     *   Linux native:         /www/core_node
+     * CORE_NODE_DATA_DIR (already exported) wins on every platform. */
+    public static function getCoreNodeRuntimeDir(): string
+    {
+        $env = trim((string) getenv('CORE_NODE_DATA_DIR'));
+        if ($env !== '') {
+            return rtrim($env, '/\\');
+        }
+        if (self::isWindows()) {
+            return 'D:\\www\\core_node';
+        }
+        return (self::wwwNtfsRootMounted() ? '/www/www' : '/www') . '/core_node';
+    }
+
+    /** Var-center directory candidates (canonical first, legacy second).
+     * Mirrors pycore core_node_dirs.iter_global_var_dirs: pre-relocation
+     * installs keep var files at /var/_core_node/global_var. */
+    private static function globalVarDirectories(): array
+    {
+        return [
+            self::getCoreNodeRuntimeDir() . '/global_var',
+            '/var/_core_node/global_var',
+        ];
+    }
+
     /** First line of a var-center file ('' when absent/unreadable). Mirrors
-     * system_paths.py::_read_persisted_var; the file store lives at
-     * /var/_core_node/global_var/<KEY> (written by sh set_var/set_env_and_var). */
+     * system_paths.py::_read_persisted_var; the canonical store lives at
+     * <core_node_data_dir>/global_var/<KEY> (written by sh set_var/
+     * set_env_and_var), with the legacy /var/_core_node/global_var as
+     * read-fallback so pre-migration installs keep working. */
     private static function readPersistedVar(string $key): string
     {
-        $file = '/var/_core_node/global_var/' . $key;
-        if (!is_file($file) || !is_readable($file)) {
-            return '';
+        foreach (self::globalVarDirectories() as $dir) {
+            $file = $dir . '/' . $key;
+            if (!is_file($file) || !is_readable($file)) {
+                continue;
+            }
+            $val = (string) @file_get_contents($file);
+            return trim((string) strtok($val, "\r\n"));
         }
-        $val = (string) @file_get_contents($file);
-        return trim((string) strtok($val, "\r\n"));
+        return '';
     }
 
     /** True when /www is the ROOT of a mounted NTFS/data disk (the Windows D:\
@@ -276,12 +315,7 @@ class PathMapper
     /** The base the shell installer detected + persisted (cross-language source of truth). */
     private static function readPersistedBase(): ?string
     {
-        $file = '/var/_core_node/global_var/BASE_DATA_DIR';
-        if (!is_file($file) || !is_readable($file)) {
-            return null;
-        }
-        $val = (string) @file_get_contents($file);
-        $val = trim((string) strtok($val, "\r\n"));
+        $val = self::readPersistedVar('BASE_DATA_DIR');
         if ($val === '') {
             return null;
         }

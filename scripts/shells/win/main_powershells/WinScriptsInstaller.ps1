@@ -125,7 +125,7 @@ $FILES = @(
 # Function to determine base URL based on region preference
 function Get-RepoBaseUrl {
     $username = $env:USERNAME
-    $globalVarDir = "D:\programing\Users\$username\.core_node\.global_vars"
+    $globalVarDir = Join-Path (Join-Path "D:\www" "core_node") "global_var"
     $regionFile = Join-Path $globalVarDir "SELECTED_REGION"
     
     $selectedRegion = "Global"  # Default to Global if no preference set
@@ -142,7 +142,7 @@ function Get-RepoBaseUrl {
 }
 
 $RepoBaseUrl = Get-RepoBaseUrl
-$LocalDataDir = "D:\programing\Users\$env:USERNAME\.core_node"
+$LocalDataDir = Join-Path "D:\www" "core_node"
 
 # Common function for safe file downloads with atomic overwrite
 function Invoke-SafeDownload {

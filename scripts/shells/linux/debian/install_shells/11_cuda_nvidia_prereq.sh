@@ -33,6 +33,8 @@ CUDA_POLICY_TAG=""
 CNP_NEWEST_ROW=""
 CNP_INSTALLED_DRIVER=""
 CNP_TARGET_DRIVER=""
+CNP_NOUVEAU_CONF="/etc/modprobe.d/blacklist-nouveau.conf"
+CNP_NOUVEAU_CHANGED=0
 OS_ID=""
 PYTHON="python3"
 FORCE=0
@@ -50,6 +52,65 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$CUDA_POLICY_LIB"
 
 cnp_have() { command -v "$1" >/dev/null 2>&1; }
+
+# 0 when any NVIDIA PCI display device is currently driven by nouveau.
+cnp_nouveau_owns_gpu() {
+    local dev=""
+    for dev in /sys/bus/pci/devices/*; do
+        [ -r "$dev/vendor" ] || continue
+        [ "$(cat "$dev/vendor" 2>/dev/null)" = "0x10de" ] || continue
+        [ -e "$dev/driver/module" ] || continue
+        [ "$(basename "$(readlink "$dev/driver/module" 2>/dev/null)" 2>/dev/null)" = "nouveau" ] && return 0
+    done
+    return 1
+}
+
+# Idempotently keep nouveau from occupying the NVIDIA GPU. Only when NECESSARY:
+# Linux + NVIDIA GPU present (caller gate) + the proprietary nvidia module is
+# built for this kernel but NOT active + nouveau is loaded or owns the device.
+# Then (a) persist a blacklist so the handover survives reboots (initramfs is
+# refreshed only when the file actually changed) and (b) hand the GPU over at
+# runtime so no reboot is needed now. No-op otherwise.
+cnp_disable_nouveau_for_nvidia() {
+    local dev="" desired="" module=""
+    [ -d /sys/bus/pci/devices ] || return 0
+    [ -e /sys/module/nvidia ] && return 0
+    cnp_have modinfo && modinfo nvidia >/dev/null 2>&1 || return 0
+    if [ ! -e /sys/module/nouveau ] && ! cnp_nouveau_owns_gpu; then return 0; fi
+    desired="# Managed by core_node 11_cuda_nvidia_prereq.sh: keep nouveau off the NVIDIA GPU\n# so the proprietary driver can bind. Delete this file to re-enable nouveau.\nblacklist nouveau\noptions nouveau modeset=0\n"
+    if [ ! -f "$CNP_NOUVEAU_CONF" ] || [ "$(cat "$CNP_NOUVEAU_CONF" 2>/dev/null)" != "$(printf '%b' "$desired")" ]; then
+        echo "[$SCRIPT_INDEX] nouveau holds the NVIDIA GPU while the nvidia module is built; blacklisting nouveau (idempotent)..."
+        printf '%b' "$desired" | $USE_SUDO tee "$CNP_NOUVEAU_CONF" >/dev/null || {
+            echo "[$SCRIPT_INDEX] WARN: cannot write $CNP_NOUVEAU_CONF (need root); nouveau handover skipped." >&2
+            return 0
+        }
+        CNP_NOUVEAU_CHANGED=1
+    fi
+    if [ "$CNP_NOUVEAU_CHANGED" -eq 1 ]; then
+        if cnp_have update-initramfs; then
+            $USE_SUDO update-initramfs -u || echo "[$SCRIPT_INDEX] WARN: update-initramfs failed; blacklist applies after reboot anyway." >&2
+        else
+            echo "[$SCRIPT_INDEX] NOTE: update-initramfs not found; regenerate the initramfs for the blacklist to apply at boot."
+        fi
+    fi
+    # Runtime handover: unbind NVIDIA devices from nouveau, then load nvidia.
+    if [ -e /sys/module/nouveau ]; then
+        for dev in /sys/bus/pci/drivers/nouveau/0000:*; do
+            [ -e "$dev" ] || continue
+            echo "$(basename "$dev")" | $USE_SUDO tee /sys/bus/pci/drivers/nouveau/unbind >/dev/null 2>&1 \
+                || echo "[$SCRIPT_INDEX] NOTE: nouveau unbind of $(basename "$dev") failed (device busy); a reboot completes the handover."
+        done
+    fi
+    for module in nvidia nvidia_modeset nvidia_uvm; do
+        [ -e "/sys/module/$module" ] || $USE_SUDO modprobe "$module" 2>/dev/null || true
+    done
+    if cnp_have nvidia-smi && nvidia-smi >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] NVIDIA driver is now active: $(nvidia-smi -L 2>/dev/null | head -1)"
+    else
+        echo "[$SCRIPT_INDEX] nvidia module not active yet; it binds on next boot (blacklist in place)."
+    fi
+}
+
 
 # 0 if an NVIDIA GPU is physically present (driver not required for detection).
 # Delegates to the ONE shared detector (base_libs/lib_gpu.sh via gvar_common.sh).
@@ -231,6 +292,10 @@ if ! cnp_gpu_present; then
     exit 0
 fi
 echo "[$SCRIPT_INDEX] NVIDIA GPU detected."
+
+# Step 1b: nouveau must not occupy the GPU when the proprietary module is
+# available (persistent blacklist + runtime handover, both idempotent).
+cnp_disable_nouveau_for_nvidia
 
 OS_ID="$(cnp_os_id)"
 

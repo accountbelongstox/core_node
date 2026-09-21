@@ -58,7 +58,7 @@ nm_web_path() {
     local key="$1"
     local sub="${2:-}"
     local stored=""
-    local gdir="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+    local gdir="${CORE_NODE_DATA_DIR:-/www/core_node}/global_var"
     local store_key
 
     if declare -F map_web_path >/dev/null 2>&1; then

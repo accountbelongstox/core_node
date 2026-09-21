@@ -52,8 +52,8 @@ class WindowStateManager:
     Window state manager for saving and loading window geometry.
 
     Uses JSON files stored in the shared UI-state cache directory:
-    - Windows: D:\\programing\\Users\\{user}\\.core_node\\ui_state\\{app_id}_window.json
-    - Linux: /var/_core_node/ui_state/{app_id}_window.json
+    - Windows: D:\\www\\core_node\\ui_state\\{app_id}_window.json
+    - Linux: /www/www/core_node/ui_state/{app_id}_window.json (or /www/core_node/ui_state)
 
     Example:
         manager = WindowStateManager(app_id="matrix")

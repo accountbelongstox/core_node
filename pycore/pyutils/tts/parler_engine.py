@@ -130,7 +130,9 @@ class ParlerEngine(SerializedModelEngine):
             prompt_input_ids=prompt_inputs.input_ids,
             prompt_attention_mask=prompt_inputs.attention_mask,
         )
-        arr = generation.cpu().numpy().squeeze()
+        # The CUDA path loads the model in bfloat16; numpy has no bf16 dtype,
+        # so cast before the handoff ("Got unsupported ScalarType BFloat16").
+        arr = generation.float().cpu().numpy().squeeze()
         rate = int(getattr(model.config, "sampling_rate", 44100))
         soundfile = get_third_package_soundfile()
         if soundfile is None:
@@ -188,7 +190,8 @@ class ParlerEngine(SerializedModelEngine):
                     audio = generation.sequences[index, : audios_length[index]]
                 else:
                     audio = generation.sequences[index]
-                arr = audio.cpu().numpy().squeeze()
+                # bf16 (CUDA dtype) has no numpy counterpart; cast to float32.
+                arr = audio.float().cpu().numpy().squeeze()
                 output_wav.parent.mkdir(parents=True, exist_ok=True)
                 soundfile.write(str(output_wav), arr, rate)
             return True
