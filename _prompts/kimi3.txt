@@ -1,0 +1,298 @@
+ 注意当前系统不是局域网系统，请加入 
+    逻辑，快速查询：直接从外部获取（最 
+    推荐）如果您的机器目前可以访问网页 
+    ，直接向外部公共服务器发起请求，是 
+    获取当前公网 IP 最快、最准确的方法 
+    。请在终端运行以下任一命令         
+    ：bashcurl ifconfig.me             
+    Use code with caution.或者         
+    ：bashcurl icanhazip.com           
+    从上面的 获取IP，只要成功一个就根据
+    IP分析，如果有外网由直接 存入常量目
+    录，下次直接 读常量目录 在         
+    9_fix_dns.sh 中加入幂等逻辑，如果机
+    机还没有常量文件定义是否服务 器，则
+    先读取curl ifconfig.me             
+     任何 一个取得IP，然后使用系统服务 
+    停止所有80端口，并临时 启动一个py做
+    一个反射的80端口服务 器，然后立即  
+    在启动成功后访问 得到的IP，如果IP能
+    直接 访问到刚才启动的80端口，说明有
+    外网，则立即保存到常量，之后一直使 
+    用该常量，并将 9_fix_dns.sh 幂等引 
+    用到175脚本中，在没有常量文件时先探
+    测。JAVA_HOME="/usr" 需要 由       
+    92_install_java.sh                 
+    自愈，修复。                       
+ … thinking 3 times, call 8 tools, 6 mes
+ 
+ ● Ran a command · $ g… · 19 more lines
+   … 133:                NET_ENV_IS_LA…
+ 
+ ● Ran a command · $ s… · 47 more lines
+   … source "$(dirname "${BASH_SOURCE[…
+ 
+ ● Ran a command · $ s… · 36 more lines
+   … }
+ 
+ ● Now I have the full picture:        
+                                       
+   … (354 more lines, ctrl+o to expand)
+ 
+ ● Now I have the full picture. Design:
+                                       
+   … (192 more lines, ctrl+o to expand)
+ 
+ ● Ran a command · $ s… · 90 more lines
+   …         ts_ip=$(ip -4 addr show t…
+ 
+ ● Ran a command · $ grep -n -A 40 'en…
+   Command executed successfully.
+ 
+ ● Ran a command · $ grep -rn 'ensure_…
+   scripts/shells/linux/common/laravel…
+   scripts/shells/linux/common/laravel…
+ 
+ ● Ran a command · $ s… · 54 more lines
+   … # schedule:work binds NO port, so…
+ 
+ ● I have everything I need. Now       
+   implement.                          
+   … (632 more lines, ctrl+o to expand)
+ 
+ ● Ran a command · $ grep -n 'set_var(…
+   scripts/shells/linux/common/global_…
+   scripts/shells/linux/common/global_…
+ 
+ ● Ran a command · $ g… · 23 more lines
+   … }
+ 
+ ● `set_var`/`get_var` available via   
+   gvar_common.sh →                    
+   … (7 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…ells/9_fix_dns.sh) · +23
+   +23                                 
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh               
+      1   log_error() {                
+      2       echo -e                  
+   "${RED}[$SCRIPT_INDEX][ERROR]${NC}  
+   $1"                                 
+      3   }                            
+      4 +                              
+      5 + # --- Public-IP              
+   reachability probe (one-shot,       
+   cached in the global-var store)     
+   ---                                 
+      6 + # A cloud VPS behind 1:1     
+   NAT has NO public IP bound to a     
+   local interface, so                 
+      7 + # the interface-based        
+   classification reports "LAN" even   
+   when the machine IS                 
+      8 + # publicly reachable. The    
+   authoritative test is behavioral:   
+   stop every port-80                  
+      9 + # listener, bind a           
+   throwaway Python reflection server  
+   on 0.0.0.0:80, then                 
+     10 + # request the echo-service   
+   public IP -- the token can only     
+   round-trip when                     
+        … 16 more changes hidden       
+   (ctrl+o to expand)                  
+ 
+ ● Now add the probe functions. Insert 
+   before `main()` (before "# Main     
+   … (5 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…lls/9_fix_dns.sh) · +185
+   +185                                
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh               
+      1 + # Collect the PIDs           
+   currently listening on TCP port 80  
+   (one per line).                     
+      2 +                              
+   public_ip_probe_port80_pids() {     
+      3 +     if command -v ss         
+   >/dev/null 2>&1; then               
+      4 +         ss -ltnpH            
+   2>/dev/null | grep -E               
+   "[:.]${PUBLIC_IP_PROBE_PORT}[[:spa  
+   ce:]]" | grep -oE 'pid=[0-9]+' |    
+   cut -d= -f2 | sort -u               
+      5 +     elif command -v lsof     
+   >/dev/null 2>&1; then               
+      6 +         lsof -ti             
+   "tcp:${PUBLIC_IP_PROBE_PORT}"       
+   -sTCP:LISTEN 2>/dev/null | sort -u  
+      7 +     fi                       
+      8 + }                            
+      9 +                              
+     10 + # Echo the systemd unit      
+   owning a PID (from its cgroup),     
+   empty when the process              
+        … 175 more changes hidden      
+   (ctrl+o to expand)                  
+ 
+ ● Missing pieces:                     
+   1. Source network_detect_common.sh  
+   … (30 more lines, ctrl+o to expand)
+ 
+ ● Ran a command · $ gr… · 4 more lines
+   … scripts/shells/linux/common/gvar_…
+ 
+ ● USE_SUDO comes from gvar_common.sh  
+   (sourced at 9_fix_dns.sh line 28).  
+   … (4 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…hells/9_fix_dns.sh) · +4
+   +4                                  
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh               
+      1   # Source common functions    
+      2                                
+   COMMON_DIR="$PARENT_DIR_LEVEL_2/co  
+   mmon"                               
+      3   source                       
+   "$COMMON_DIR/common_functions.sh"   
+      4 +                              
+      5 + # Public-IP echo-service     
+   probe (api.ipify.org ->             
+   ifconfig.me -> icanhazip.com),      
+      6 + # reused by the              
+   reachability detection below.       
+      7 + source                       
+   "$COMMON_DIR/network_detect_common  
+   .sh"                                
+ 
+ ✗ Used Edit (…hells/9_fix_dns.sh) · +1
+   +1                                  
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh               
+      1   PROBE_BODY=""                
+      2 + PROBE_RESTORE_ORDER=""       
+   old_string is not unique in         
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh (found 2      
+   … (5 more lines, ctrl+o to expand)
+ 
+ ● Used Edit (…hells/9_fix_dns.sh) · +1
+   +1                                  
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh               
+      1   PROBE_ATTEMPT=""             
+      2   PROBE_BODY=""                
+      3 + PROBE_RESTORE_ORDER=""       
+ 
+ ● Used Edit (…hells/9_fix_dns.sh) · +7
+   +7                                  
+   scripts/shells/linux/debian/instal  
+   l_shells/9_fix_dns.sh               
+      1 + # Mode dispatch:             
+   --detect-public-ip runs ONLY the    
+   one-shot public-reachability        
+      2 + # probe (no DNS changes);    
+   anything else runs the DNS fixer.   
+      3 + if [ "${1:-}" =              
+   "--detect-public-ip" ]; then        
+      4 +                              
+   detect_public_ip_reachability       
+      5 +     exit $?                  
+      6 + fi                           
+      7 +                              
+      8   # Run main function          
+      9   main "$@"                    
+ 
+ ● Note: `set -e` is active —          
+   `detect_public_ip_reachability; exit
+   … (58 more lines, ctrl+o to expand)
+ 
+ ● 2/3：把探测幂等接入 175（域名收敛前 
+   ，无常量时先探测；确认公网后强制域名
+   平面走 server 模式）:               
+ 
+ ● Used Edit (…avel_main_start.sh) · +1
+   +1                                  
+   scripts/shells/linux/debian/instal  
+   l_shells/175_laravel_main_start.sh  
+      1                                
+   SSH_SETUP_SCRIPT="${INSTALL_SHELLS  
+   _DIR}/23_setup_ssh_remote.sh"       
+      2 +                              
+   PUBLIC_IP_PROBE_SCRIPT="${INSTALL_  
+   SHELLS_DIR}/9_fix_dns.sh"           
+ 
+ ● Used Edit (…vel_main_start.sh) · +15
+   +15                                 
+   scripts/shells/linux/debian/instal  
+   l_shells/175_laravel_main_start.sh  
+      1 + # --- Public-reachability    
+   probe before domain convergence     
+   (idempotent): the                   
+      2 + # interface-based            
+   classifier reads a 1:1-NAT VPS as   
+   "LAN"; 9_fix_dns.sh                 
+      3 + # --detect-public-ip proves  
+   inbound-80 reachability ONCE and    
+   caches                              
+      4 + # HAS_PUBLIC_IP/PUBLIC_IP    
+   in the global-var store. A          
+   cached/confirmed public             
+      5 + # server forces the domain   
+   plane into server mode (public      
+   certificates via                    
+      6 + # DNS-01) instead of the     
+   LAN mkcert fallback. The probe      
+   only ever runs (and                 
+      7 + # only briefly interrupts    
+   port 80) while the constant is      
+   absent. ---                         
+      8 + if [ "$DOMAIN_SCOPE" !=      
+   "none" ] && [ -f                    
+   "$PUBLIC_IP_PROBE_SCRIPT" ]; then   
+      9 +     bash                     
+   "$PUBLIC_IP_PROBE_SCRIPT"           
+   --detect-public-ip || true          
+     10 +     if [ "$(get_var          
+   HAS_PUBLIC_IP "")" = "yes" ]; then  
+        … 5 more changes hidden        
+   (ctrl+o to expand)                  
+ 
+ ● Wait — does the frankenphp domains  
+   sub-script see                      
+   … (22 more lines, ctrl+o to expand)
+ 
+ ● 验证 DOMAIN_SETUP_NET_MODE 能穿透到 
+   子脚本（防止被子脚本顶部重置）:     
+ 
+ ● Ran a command · $ grep -n 'DOMAIN_S…
+   scripts/shells/linux/common/domain_…
+   scripts/shells/linux/common/domain_…
+   scripts/shells/linux/common/domain_…
+ 
+ ● `DOMAIN_SETUP_NET_MODE` is only read
+   (`${DOMAIN_SETUP_NET_MODE:-auto}`), 
+   … (18 more lines, ctrl+o to expand)
+ 
+ ✗ Used Edit
+   Invalid args for tool "Edit": must  
+   have required property 'path';      
+   must have required property         
+   … (2 more lines, ctrl+o to expand)
+   Error: [provider.auth_error] 403    
+ {"error":{"type":"permission_error","m
+ essage":"You've reached your 5-hour   
+ usage limit. Your quota will reset    
+ when the current 5-hour window ends.  
+ To continue now, purchase extra usage 
+ or upgrade your plan:                 
+ https://www.kimi.com/membership/subscr
+ iption?tab=quota"},"type":"error"}    
+   If this persists, run               
+ `/export-debug-zip` and share the file
+ with us for diagnosis. Please don't   
+ share it publicly.                    
+ 

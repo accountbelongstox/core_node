@@ -30,7 +30,8 @@ _DEFAULT_HARD_LIMIT = 400
 _DEFAULT_MAX_CHUNKS = 256
 _DEFAULT_MAX_ATTEMPTS = 3
 _DEFAULT_PAUSE_MS = 120
-_SENTENCE_MERGE_RATIO = 0.85
+# Sentence/clause splitting shared with qwen3tts_synthesis (single source).
+SENTENCE_MERGE_RATIO = 0.85
 
 # Upstream evidence (see the development plan step 03):
 #   cosyvoice  - official cli/frontend.py splits with token_max_n=80 /
@@ -52,8 +53,8 @@ _ENGINE_POLICY_OVERRIDES: Dict[str, Dict[str, Any]] = {
     "melotts": {"owner": "native", "soft_limit": 200, "hard_limit": 400},
 }
 
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;。！？；:：])\s+|(?<=[。！？；])|\n+")
-_CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、])\s*")
+SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;。！？；:：])\s+|(?<=[。！？；])|\n+")
+CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、])\s*")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 # Latin abbreviations whose trailing dot must not become a sentence boundary.
@@ -101,7 +102,7 @@ class ChunkPolicy:
         hard = max(80, int(self.hard_limit))
         soft = int(self.soft_limit)
         if soft <= 0:
-            soft = max(60, round(hard * _SENTENCE_MERGE_RATIO))
+            soft = max(60, round(hard * SENTENCE_MERGE_RATIO))
         soft = min(soft, hard)
         return ChunkPolicy(
             owner=self.owner or "project",
@@ -219,7 +220,7 @@ def split_text(text: str, policy: Optional[ChunkPolicy] = None) -> List[TextChun
 
     masked = _shield_protected_dots(cleaned)
     sentences = [
-        piece.strip() for piece in _SENTENCE_SPLIT_RE.split(masked) if piece.strip()
+        piece.strip() for piece in SENTENCE_SPLIT_RE.split(masked) if piece.strip()
     ]
     units: List[str] = []
     for sentence in sentences:

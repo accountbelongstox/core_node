@@ -52,9 +52,22 @@ dbSync: {
       title: "Machine Data Synchronization",
       description: "Manage multiple Laravel Main nodes from one workspace. Every source session mirrors source and receiver progress together, and each receiver backs up selected databases before accepting differences.",
       managedNodes: "Managed Laravel nodes",
-      sourceNode: "Source Laravel node",
-      sourceEndpoint: "Source endpoint",
-      receiverEndpoint: "Receiver endpoint",
+      oldServer: "Old server",
+      newServer: "New server",
+      maxTwoEndpoints: "A sync pair uses at most two endpoints: this node and one peer.",
+      peerAuthRequired: "This node needs its own Laravel sign-in.",
+      peerLogin: "Sign in",
+      peerLogout: "Sign out",
+      peerLoggedInAs: "Signed in as {{name}}",
+      peerLoginTitle: "Peer Laravel sign-in",
+      peerLoginSubtitle: "Authenticate against the other Laravel node {{endpoint}}.",
+      probeDirection: "Detect direction",
+      probing: "Probing…",
+      directionPush: "The old server can reach {{new}} — the new server is the external server. The old server packs and uploads data to it (POST).",
+      directionPull: "The new server cannot be reached from the old server, but it can reach the old server — the old server is the external server and serves its data for the new server to download.",
+      directionNone: "Neither node can reach the other. Check the address and the firewall rules.",
+      startFetch: "Start pull sync (new server downloads)",
+      fetcherBlocked: "The new server is receiving data. Pull synchronization is disabled until that session finishes.",
       source: "Source",
       receiver: "Receiver",
       allSessions: "All node sessions",
@@ -92,7 +105,9 @@ dbSync: {
       incomingPeer: "Incoming peer",
       roles: {
         source: "Source",
-        receiver: "Receiver"
+        receiver: "Receiver",
+        fetcher: "Fetcher",
+        exporter: "Exporter"
       },
       tabs: {
         tables: "Status & Tables",
@@ -106,6 +121,8 @@ dbSync: {
         protocol: "The current machine synchronization protocol is required",
         load: "Synchronization sessions could not be loaded.",
         start: "Synchronization could not be started.",
+        fetch: "Pull synchronization could not be started.",
+        probe: "The direction probe failed.",
         target: "The receiver address could not be bound.",
         control: "Synchronization state could not be changed."
       },
@@ -174,7 +191,19 @@ dbSync: {
         finalize_source_session: "Finalize source session",
         release_source_lock: "Release source lock",
         publish_final_progress: "Publish final progress",
-        complete: "Complete synchronization"
+        complete: "Complete synchronization",
+        create_exporter_session: "Create exporter session",
+        wait_exporter_ready: "Wait for exporter manifest",
+        discover_fetcher_databases: "Discover fetcher databases",
+        backup_fetcher_databases: "Back up fetcher databases",
+        fetch_exporter_database_inventory: "Fetch exporter database inventory",
+        build_fetcher_resource_manifests: "Build fetcher resource manifests",
+        fetch_exporter_resource_manifests: "Fetch exporter resource manifests",
+        finalize_exporter_session: "Finalize exporter session",
+        ready_for_export: "Become ready for export",
+        serve_database_chunks: "Serve database chunks",
+        serve_resource_chunks: "Serve resource chunks",
+        finalize_export_session: "Finalize export session"
       }
     },
 header: {

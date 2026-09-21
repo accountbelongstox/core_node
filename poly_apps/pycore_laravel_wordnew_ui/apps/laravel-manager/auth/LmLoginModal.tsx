@@ -17,9 +17,18 @@ interface LoginModalProps {
   lang: Language;
   /** When true, modal was opened because user hit a protected page: do not close on backdrop click. */
   blockCloseBackdrop?: boolean;
+  /** Peer-backend mode: replaces the title/subtitle (identifies the other Laravel node). */
+  titleOverride?: string;
+  subtitleOverride?: string;
+  /**
+   * Peer-backend mode: custom credentials handler. When set, the modal is
+   * login-only (no registration) and submits through this handler instead of
+   * the shared user session.
+   */
+  authenticate?: (username: string, password: string) => Promise<void>;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lang: _lang, blockCloseBackdrop = false }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lang: _lang, blockCloseBackdrop = false, titleOverride, subtitleOverride, authenticate }) => {
   const { t } = useTranslation();
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -86,7 +95,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
 
     setLoading(true);
     try {
-      if (isRegisterMode) {
+      if (authenticate) {
+        await authenticate(formData.username, formData.password);
+      } else if (isRegisterMode) {
         await userModel.register(
           formData.username,
           formData.password,
@@ -124,8 +135,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
     setUserError(null);
   };
 
-  const title = isRegisterMode ? t('login.register_title') : t('login.title');
-  const subtitle = isRegisterMode ? t('login.register_subtitle') : t('login.subtitle');
+  const title = titleOverride ?? (isRegisterMode ? t('login.register_title') : t('login.title'));
+  const subtitle = subtitleOverride ?? (isRegisterMode ? t('login.register_subtitle') : t('login.subtitle'));
   const submitText = isRegisterMode ? t('login.register_submit') : t('login.submit');
   const processingText = isRegisterMode ? t('login.register_processing') : t('login.processing');
 
@@ -318,12 +329,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
 
           {/* Mode Toggle */}
           <div className="mt-6 text-center space-y-2">
-            <button
-              onClick={toggleMode}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors font-medium"
-            >
-              {isRegisterMode ? t('login.switch_to_login') : t('login.switch_to_register')}
-            </button>
+            {!authenticate && (
+              <button
+                onClick={toggleMode}
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors font-medium"
+              >
+                {isRegisterMode ? t('login.switch_to_login') : t('login.switch_to_register')}
+              </button>
+            )}
 
             <div>
               <button
