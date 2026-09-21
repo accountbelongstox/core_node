@@ -293,7 +293,8 @@ class DictionaryService:
                 .replace("_", "\\_") + "%")
         sql = ("SELECT word, translation, frq, bnc FROM stardict "
                "WHERE word LIKE ? ESCAPE '\\' COLLATE NOCASE "
-               "ORDER BY (frq = 0), frq, (bnc = 0), bnc, word LIMIT ?")
+               "ORDER BY (COALESCE(frq, 0) = 0), COALESCE(frq, 0), "
+               "(COALESCE(bnc, 0) = 0), COALESCE(bnc, 0), word LIMIT ?")
         rows = None
         busy = False
         for delay in _BUSY_RETRY_DELAYS:
