@@ -40,6 +40,7 @@ from pycore.pyutils.tts.memory_gate import (
     free_ram_bytes,
     gpu_stats,
     memory_gate_allows,
+    reclaim_vram,
 )
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 
@@ -96,6 +97,11 @@ def pin_runtime_profile() -> Dict[str, Any]:
             return _PROFILE
         mode = _detect_mode()
         enabled = mode != "off"
+        if mode == "gpu":
+            # Startup policy: qwen3tts is the only GPU consumer by design, so
+            # foreign processes holding the card are stopped when free VRAM is
+            # below the recommended floor (6 GB) — before the snapshot below.
+            reclaim_vram()
         plan = dict((_GPU_PLAN if mode == "gpu" else _CPU_PLAN)) if enabled else {}
         scheduled = frozenset(engine for chain in plan.values() for engine in chain)
         gpu_util, free_vram, total_vram = gpu_stats()

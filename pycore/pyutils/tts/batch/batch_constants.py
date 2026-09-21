@@ -55,7 +55,9 @@ PARLER_DEFAULT_BATCH_SIZE = 16
 # --------------------------------------------------------------------------- #
 # Startup self-check                                                           #
 # --------------------------------------------------------------------------- #
-SELFCHECK_ENGINE_ORDER: Tuple[str, ...] = ("kokoro", "parler", "chattts", "gptsovits")
+SELFCHECK_ENGINE_ORDER: Tuple[str, ...] = (
+    "kokoro", "parler", "chattts", "gptsovits", "qwen3tts",
+)
 SELFCHECK_WORDS: Tuple[str, ...] = ("apple", "banana", "orange", "grape")
 SELFCHECK_LANG = "en"
 SELFCHECK_REPORT_NAME = "report.json"

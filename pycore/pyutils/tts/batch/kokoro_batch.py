@@ -34,6 +34,7 @@ from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
+from pycore.pyutils.tts.tts_text_sanitize import sanitize_tts_text
 
 _ENGINE = "kokoro"
 _SYNTH_TIMEOUT_S = 900.0
@@ -53,6 +54,9 @@ def _speaker_id() -> int:
 
 
 def _generate_on_owner(tts: Any, text: str, sid: int, speed: float) -> Optional[Tuple[Any, int]]:
+    text = sanitize_tts_text(text)
+    if not text:
+        return None
     try:
         try:
             audio = tts.generate(text, sid, speed=float(speed))

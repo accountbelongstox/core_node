@@ -20,8 +20,9 @@ Env:
   QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto); auto picks
                                    cuda:0 only when the GPU has enough FREE VRAM
                                    for the model variant (see below)
-  QWEN3TTS_MIN_FREE_VRAM_MB      - free-VRAM floor for auto->cuda (default per
-                                   variant: 6656 for 1.7B, 3072 for 0.6B)
+  QWEN3TTS_MIN_FREE_VRAM_MB      - free-VRAM floor for auto->cuda (default 800;
+                                   the launcher reclaims foreign GPU processes
+                                   first, so this is only the 800 MB minimum)
   QWEN3TTS_MODEL_VARIANT         - installed model size (0.6B | 1.7B), supplied
                                    by the managed launcher for local paths
   QWEN3TTS_PHYSICAL_GPU_INDEX    - physical NVIDIA index selected at launch
@@ -255,18 +256,19 @@ async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
     return JSONResponse({"error": f"unhandled: {exc}"}, status_code=500)
 
 
-# Free-VRAM floors (MiB) for auto device selection; mirrors the launcher-side
-# gate in pycore/pyutils/tts/tts_service_manager.py (standalone script - no
-# pycore imports, so the table is duplicated by contract). 1.7B rests at ~6.2
-# GiB on the card, 0.6B at ~2.5 GiB. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
-_QWEN3TTS_MIN_FREE_VRAM_MB = {"1.7B": 6656, "0.6B": 3072}
+# Free-VRAM floor (MiB) for auto device selection; mirrors the launcher-side
+# gate in pycore/pyutils/tts/memory_gate.py (standalone script - no pycore
+# imports, so the value is duplicated by contract). The launcher already
+# reclaimed foreign GPU processes before this auto path runs, so the floor is
+# the 800 MB minimum. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
+_QWEN3TTS_MIN_FREE_VRAM_MB = 800
 
 
 def _min_free_vram_mb() -> int:
     raw = (os.environ.get("QWEN3TTS_MIN_FREE_VRAM_MB") or "").strip()
     if raw.isdigit():
         return int(raw)
-    return _QWEN3TTS_MIN_FREE_VRAM_MB[_model_variant()]
+    return _QWEN3TTS_MIN_FREE_VRAM_MB
 
 
 def _resolve_device() -> str:

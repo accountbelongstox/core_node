@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\DataSync\PrepareDataSyncExporterRequest;
 use App\Http\Requests\DataSync\PrepareDataSyncReceiverRequest;
 use App\Http\Requests\DataSync\SetDataSyncTargetRequest;
 use App\Http\Requests\DataSync\StartDataSyncRequest;
@@ -42,6 +43,28 @@ final class DataSyncController extends Controller
         );
 
         return $this->created(['session' => $job], 'Data synchronization session created.');
+    }
+
+    public function startFetch(StartDataSyncRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $job = $this->service->startFetch(
+            (string) ($validated['target'] ?? ''),
+            (bool) $validated['databases'],
+            (bool) $validated['resources'],
+            (bool) $validated['compression']
+        );
+
+        return $this->created(['session' => $job], 'Fetch synchronization session created.');
+    }
+
+    public function probe(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'target' => ['required', 'string', 'max:512'],
+        ]);
+
+        return $this->success(['probe' => $this->service->probeTarget((string) $validated['target'])]);
     }
 
     public function setTarget(SetDataSyncTargetRequest $request, string $id): JsonResponse
@@ -171,6 +194,106 @@ final class DataSyncController extends Controller
     public function peerFinalize(Request $request, string $id): JsonResponse
     {
         return $this->success($this->service->finalizeReceiver($id, $this->token($request)));
+    }
+
+    public function peerExportPrepare(PrepareDataSyncExporterRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+
+        return $this->created(
+            $this->service->prepareExporter(
+                (string) $validated['fetcher_job_id'],
+                (string) $validated['prepare_token'],
+                $validated['options'],
+                $request->ip()
+            ),
+            'Exporter synchronization session created.'
+        );
+    }
+
+    public function peerExportStatus(Request $request, string $id): JsonResponse
+    {
+        return $this->success($this->service->exporterStatus($id, $this->token($request)));
+    }
+
+    public function peerExportDatabaseInventory(Request $request, string $id): JsonResponse
+    {
+        return $this->success($this->service->exporterDatabaseInventory($id, $this->token($request)));
+    }
+
+    public function peerExportDatabaseChunk(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'connection' => 'required|string|max:128',
+            'table' => 'required|string|max:128',
+            'offset' => 'required|integer|min:0',
+        ]);
+
+        return $this->success($this->service->exporterDatabaseChunk(
+            $id,
+            $this->token($request),
+            (string) $validated['connection'],
+            (string) $validated['table'],
+            (int) $validated['offset']
+        ));
+    }
+
+    public function peerExportResourceManifest(Request $request, string $id, string $key): JsonResponse
+    {
+        return $this->success($this->service->exporterResourceManifest($id, $this->token($request), $key));
+    }
+
+    public function peerExportResourceFileChunk(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'key' => 'required|string|max:128',
+            'path' => 'required|string|max:4096',
+            'offset' => 'required|integer|min:0',
+        ]);
+
+        return $this->success($this->service->exporterResourceFileChunk(
+            $id,
+            $this->token($request),
+            (string) $validated['key'],
+            (string) $validated['path'],
+            (int) $validated['offset']
+        ));
+    }
+
+    public function peerExportResourceArchive(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'key' => 'required|string|max:128',
+            'paths' => 'required|array|max:100000',
+            'paths.*' => 'string|max:4096',
+        ]);
+
+        return $this->success($this->service->exporterResourceArchive(
+            $id,
+            $this->token($request),
+            (string) $validated['key'],
+            array_map('strval', array_values($validated['paths']))
+        ));
+    }
+
+    public function peerExportResourceArchiveChunk(Request $request, string $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'key' => 'required|string|max:128',
+            'offset' => 'required|integer|min:0',
+        ]);
+
+        return $this->success($this->service->exporterResourceArchiveChunk(
+            $id,
+            $this->token($request),
+            (string) $validated['key'],
+            (int) $validated['offset']
+        ));
+    }
+
+    public function peerExportFinalize(Request $request, string $id): JsonResponse
+    {
+        return $this->success($this->service->finalizeExporter($id, $this->token($request)));
     }
 
     private function validateResourceChunk(Request $request, bool $withRelativePath): array

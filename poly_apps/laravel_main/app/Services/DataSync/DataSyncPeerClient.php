@@ -48,9 +48,43 @@ final class DataSyncPeerClient
 
     public function status(array $session): array
     {
-        $peerSessionId = rawurlencode((string) ($session['context']['peer_session_id'] ?? ''));
+        return $this->call($session, 'GET', $this->sessionBasePath($session));
+    }
 
-        return $this->call($session, 'GET', "/sessions/{$peerSessionId}");
+    /**
+     * Unauthenticated reachability probe against a peer's open health route.
+     * Used by the dashboard probe endpoint to decide the transfer direction.
+     */
+    public function healthProbe(string $normalizedTarget): array
+    {
+        $url = rtrim($normalizedTarget, '/') . DataSyncProtocol::API_PREFIX . '/health';
+
+        try {
+            $response = Http::acceptJson()
+                ->connectTimeout(5)
+                ->timeout(15)
+                ->get($url);
+        } catch (ConnectionException $exception) {
+            return ['reachable' => false, 'error' => $exception->getMessage()];
+        }
+
+        if (!$response->successful()) {
+            return ['reachable' => false, 'error' => "Peer HTTP {$response->status()}"];
+        }
+
+        return [
+            'reachable' => true,
+            'health' => (array) ($response->json('data') ?? $response->json()),
+        ];
+    }
+
+    private function sessionBasePath(array $session): string
+    {
+        $basePath = (string) ($session['context']['peer_base_path'] ?? '');
+
+        return $basePath !== ''
+            ? $basePath
+            : '/sessions/' . rawurlencode((string) ($session['context']['peer_session_id'] ?? ''));
     }
 
     public function call(
@@ -71,9 +105,9 @@ final class DataSyncPeerClient
         bool $authenticated,
         bool $inspectReceiverFailure
     ): array {
-        if ($authenticated && !str_starts_with($path, '/sessions/')) {
-            $peerSessionId = rawurlencode((string) ($session['context']['peer_session_id'] ?? ''));
-            $path = "/sessions/{$peerSessionId}{$path}";
+        $basePath = $this->sessionBasePath($session);
+        if ($authenticated && !str_starts_with($path, $basePath)) {
+            $path = $basePath . $path;
         }
 
         $url = rtrim((string) ($session['target'] ?? ''), '/') . DataSyncProtocol::API_PREFIX . $path;
@@ -101,12 +135,12 @@ final class DataSyncPeerClient
         }
 
         if ($response->serverError()) {
-            $isStatusRequest = preg_match('#^/sessions/[^/]+$#', $path) === 1;
+            $isStatusRequest = $path === $basePath;
             if ($authenticated && !$isStatusRequest && $inspectReceiverFailure) {
                 $receiver = $this->send(
                     $session,
                     'GET',
-                    '/sessions/' . rawurlencode((string) ($session['context']['peer_session_id'] ?? '')),
+                    $basePath,
                     [],
                     true,
                     false

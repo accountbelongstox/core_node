@@ -249,9 +249,10 @@ Options (apply to 'run'):
   --ui-port PORT   Port the UI server listens on (default: 13054)
   --tts-selfcheck  Run the TTS batch self-check as a STANDALONE step before the
                    worker starts: probe each engine (kokoro, parler, chattts,
-                   gptsovits) with RAM/GPU memory gates, generate a real batch
-                   sample, log resource before/after, then release memory/GPU;
-                   the worker (RPC + services) starts only after it exits.
+                   gptsovits, qwen3tts) with RAM/GPU memory gates, generate a
+                   real batch sample, log resource before/after, then release
+                   memory/GPU; the worker (RPC + services) starts only after
+                   it exits and pins the global TTS runtime profile.
                    Same as exporting TTS_STARTUP_SELFCHECK=1.
   -h, --help       Show this help (also works as: run --help)
   --               Everything after a bare -- is forwarded to prepare.sh
