@@ -59,6 +59,8 @@ FM_DOMAIN_ROUTES_READY="no"
 FM_DOMAIN_ROUTE_FILE_READY="no"
 FM_DOMAIN_INSTALL_READY="no"
 FM_DOMAIN_CERTIFICATES_READY="no"
+FM_DOMAIN_LAN_SITE_READY="no"
+FM_DOMAIN_LAN_RENDERED=""
 # Live-apply contract: the plane service unit the reload/restart fallback
 # owns, plus the bounded /load retry window (tolerates transient admin
 # endpoint blips such as a worker-restart window).
@@ -366,6 +368,88 @@ fm_domain_cleanup_stale_routes() {
     fi
 }
 
+# Render the LAN-mode route file: one HTTPS site per available local
+# certificate (Tailscale ts.net cert and/or the mkcert 127.0.0.1 cert), each
+# proxying to the SAME canonical Laravel backend. Only blocks with real cert
+# material on disk are rendered.
+fm_domain_lan_site_render() {
+    local api_handlers=""
+    api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL" "$FM_DOMAIN_API_EARLY_HINTS_LINK")"
+
+    FM_DOMAIN_LAN_RENDERED="$({
+        echo "# ${FM_DOMAIN_MARKER} lan=local_lan ts=${DOMAIN_TS_DNSNAME:-none}"
+        if [ -n "$DOMAIN_LAN_TS_CERT" ] && [ -n "$DOMAIN_LAN_TS_KEY" ]; then
+            cat <<EOF
+
+https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} {
+	tls ${DOMAIN_LAN_TS_CERT} ${DOMAIN_LAN_TS_KEY}
+${api_handlers}
+}
+
+http://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTP_PORT} {
+	redir https://${DOMAIN_TS_DNSNAME}{uri} permanent
+}
+EOF
+        fi
+        if [ -n "$DOMAIN_LAN_MKCERT_PEM" ] && [ -n "$DOMAIN_LAN_MKCERT_KEY" ]; then
+            cat <<EOF
+
+https://127.0.0.1:${FM_DOMAIN_HTTPS_PORT} {
+	tls ${DOMAIN_LAN_MKCERT_PEM} ${DOMAIN_LAN_MKCERT_KEY}
+${api_handlers}
+}
+EOF
+        fi
+    })"
+}
+
+# Ensure the LAN-mode route file (content-hash idempotent). Drops the managed
+# file when no local certificate material exists (the printed manual steps
+# produce it on the next run). Server-mode runs never create this file, and
+# fm_domain_cleanup_stale_routes removes it there (basename not in the public
+# domain list), so the LAN site can never leak onto a public server.
+fm_domain_lan_site_ensure() {
+    local route_file="${FM_DOMAIN_ROUTES_DIR}/local_lan.caddy"
+    local rendered=""
+    local existing=""
+
+    FM_DOMAIN_LAN_SITE_READY="no"
+    fm_domain_ensure_routes_dir
+    if [ "$FM_DOMAIN_ROUTES_READY" != "yes" ]; then
+        echo "[fm-domain] [FAIL] LAN site deferred because the routes directory is unavailable: $route_file"
+        return
+    fi
+
+    domain_setup_lan_cert_paths_refresh
+    if [ -z "$DOMAIN_LAN_TS_CERT" ] && [ -z "$DOMAIN_LAN_MKCERT_PEM" ]; then
+        if [ -f "$route_file" ] && grep -q "$FM_DOMAIN_MARKER" "$route_file" 2>/dev/null; then
+            rm -f "$route_file"
+            echo "[fm-domain] [OK] Removed LAN route (no local certificates present): $route_file"
+        fi
+        echo "[fm-domain] [WARN] LAN site skipped: no Tailscale/mkcert certificate files in $DOMAIN_LAN_CERT_DIR"
+        return
+    fi
+
+    fm_domain_lan_site_render
+    rendered="$FM_DOMAIN_LAN_RENDERED"
+    echo "$rendered" | write_file_if_changed "$route_file"
+    if [ -f "$route_file" ]; then
+        existing="$(cat "$route_file")"
+    fi
+    if [ "$existing" = "$rendered" ]; then
+        FM_DOMAIN_LAN_SITE_READY="yes"
+        echo "[fm-domain] [OK] LAN route file: $route_file"
+        if [ -n "$DOMAIN_LAN_TS_CERT" ]; then
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: tailscale cert)"
+        fi
+        if [ -n "$DOMAIN_LAN_MKCERT_PEM" ]; then
+            echo "[fm-domain]     https://127.0.0.1:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: mkcert local CA)"
+        fi
+    else
+        echo "[fm-domain] [FAIL] LAN route file postcondition failed: $route_file"
+    fi
+}
+
 # Full idempotent frankenphp domain installation: secrets -> prefix ->
 # per-domain route files -> main Caddyfile -> DNS-01 readiness.
 # Mirrors domain_setup_install_all but for the Caddy-native plane:
@@ -382,8 +466,17 @@ fm_domain_install_all() {
     FM_DOMAIN_INSTALL_READY="no"
     domain_setup_detect_environment
     if [ "$DOMAIN_ENV_LAN_MODE" = "yes" ]; then
+        # LAN/desktop host: local certificates (Tailscale ts.net + mkcert
+        # 127.0.0.1) instead of the public-domain flow; deploy them as Caddy
+        # HTTPS sites on the same backend and live-apply. The public server
+        # logic below is untouched and never sees this branch.
         domain_setup_lan_certificates
-        FM_DOMAIN_INSTALL_READY="yes"
+        fm_domain_lan_site_ensure
+        fm_domain_ensure_main_caddyfile "$(sc_get ports.frankenphp_admin)" "${laravel_dir}/public"
+        fm_domain_caddy_apply_converged
+        if [ "$FM_CADDYFILE_READY" = "yes" ]; then
+            FM_DOMAIN_INSTALL_READY="yes"
+        fi
         return
     fi
     domain_setup_load_secrets

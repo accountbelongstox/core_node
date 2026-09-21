@@ -62,6 +62,12 @@ function Get-AiCudaTiers {
     return @($tiers | Sort-Object -Property MinimumDriverCv -Descending)
 }
 
+function Get-AiCudaNewestTier {
+    # Newest configured tier (highest minimum driver cv); Get-AiCudaTiers is
+    # already sorted MinimumDriverCv DESC. Mirrors cuda_policy_newest_row.
+    return Get-AiCudaTiers | Select-Object -First 1
+}
+
 function Get-AiCudaTierByTag {
     param([string]$Tag)
     $normalized = ([string]$Tag).Trim().ToLowerInvariant()

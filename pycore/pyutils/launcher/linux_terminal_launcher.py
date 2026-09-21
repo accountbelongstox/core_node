@@ -48,6 +48,7 @@ raises and returns a best-effort list of launched PIDs.
 """
 
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -81,6 +82,48 @@ class LinuxTerminalLauncher:
         # post-construction reassignment of self.command still takes effect.
         self._placer = LinuxWindowPlacer()
         self._argv = LinuxTerminalArgv()
+
+    # Grid-shell rc shared by every grid window: sources the user's ~/.bashrc,
+    # strips any OSC title-set block baked into PS1 (Debian's default .bashrc
+    # adds one for xterm* TERM values, which would otherwise overwrite the
+    # launcher-set title at the first prompt), then re-asserts the grid title
+    # before every prompt. The per-window title travels via PYLAUNCHER_TITLE.
+    _GRID_RC_TEXT = (
+        '# pylauncher grid shell: keep the launcher-set window title (pylauncher-NN).\n'
+        '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"\n'
+        + r'''PS1="$(printf '%s' "$PS1" | sed 's/\\\[\\e\]0;.*\\a\\\]//g')"'''
+        + '\n'
+        + r"""PROMPT_COMMAND='printf "\033]0;%s\007" "$PYLAUNCHER_TITLE"'"""
+        + '\n'
+    )
+
+    def _grid_shell_inner(self, title):
+        """
+        Build the ``bash -lc`` snippet that opens an interactive grid shell
+        whose window keeps its ``pylauncher-NN`` title (the launch_guard
+        deficit counter matches that marker). Falls back to a plain login
+        shell when the rc file cannot be written.
+
+        Args:
+            title: Unique grid window title (e.g. "pylauncher-01").
+
+        Returns:
+            str: Shell snippet for ``bash -lc``.
+        """
+        try:
+            rc_path = os.path.join(str(TMP_DIR), "pylauncher-grid.rc")
+            with open(rc_path, "w", encoding="utf-8") as fh:
+                fh.write(self._GRID_RC_TEXT)
+            # The launcher may run as root (pkexec grid) or as the desktop user;
+            # keep the shared rc rewritable by both so neither is stuck with the
+            # other's copy.
+            os.chmod(rc_path, 0o666)
+            return ("export PYLAUNCHER_TITLE={title}; "
+                    "printf '\\033]0;%s\\007' \"$PYLAUNCHER_TITLE\"; "
+                    "exec bash --rcfile {rc} -i").format(
+                        title=shlex.quote(title), rc=shlex.quote(rc_path))
+        except Exception:
+            return "printf '\\033]0;%s\\007'; exec ${SHELL:-bash}" % title
 
     # ------------------------------------------------------------------ #
     # Public surface (mirrors WindowsTerminalLauncher.launch_windows)
@@ -218,10 +261,13 @@ class LinuxTerminalLauncher:
         for i, (x, y, cols, rows) in enumerate(configs, 1):
             title = f"pylauncher-{i:0{width}d}"
             # Inner command: self-set a (cosmetic, fallback-only) unique title,
-            # then run the target command or login shell. The shell is free to
-            # rewrite the title afterwards -- placement matches by id, not title.
-            target = self.command or "${SHELL:-bash}"
-            inner = "printf '\\033]0;%s\\007'; exec %s" % (title, target)
+            # then run the target command or the grid shell (which re-asserts
+            # the title every prompt, so the deficit counter keeps seeing the
+            # pylauncher-NN marker). Placement matches by id, not title.
+            if self.command:
+                inner = "printf '\\033]0;%s\\007'; exec %s" % (title, self.command)
+            else:
+                inner = self._grid_shell_inner(title)
             # A geometry hint gets the window roughly placed up front (harmless on
             # emulators that ignore it); the id-based move then snaps it exactly.
             geometry = f"{cols}x{rows}+{x}+{y}" if geom_capable else None
@@ -303,7 +349,13 @@ class LinuxTerminalLauncher:
             title = f"pylauncher-{i:0{width}d}"
             # X geometry: character cells + pixel offset, e.g. "80x24+100+200".
             geometry = f"{cols}x{rows}+{x}+{y}"
-            argv = self._argv._build_x11_argv(emulator, title, geometry, self.command)
+            if self.command:
+                argv = self._argv._build_x11_argv(emulator, title, geometry, self.command)
+            else:
+                # Interactive shell: use the grid-shell snippet so the window
+                # keeps its pylauncher-NN title (deficit counting matches it).
+                argv = self._argv._build_titled_argv(
+                    emulator, self._grid_shell_inner(title), geometry)
             if argv is None:
                 continue
             try:

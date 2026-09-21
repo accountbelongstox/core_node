@@ -49,6 +49,7 @@ shared_cache_env=""
 gvar_common=""
 runtime_run_id=""
 python_resolved=""
+gpu_cache_seeded=0
 args=()
 
 while [[ $# -gt 0 ]]; do
@@ -89,6 +90,27 @@ pycore_export_python_env_from_common "$PYTHON"
 runtime_run_id="$(date +%s)_$$"
 set_var "PYCORE_RUNTIME_STATE_RUN_ID" "$runtime_run_id" false
 set_var "PYCORE_RUNTIME_STATE_PROCESS_ID" "$$" false
+
+# shellcheck source=/dev/null
+source "$COMMON_DIR/base_libs/cuda_index.sh"
+
+# Run-scoped GPU/CUDA detection cache: probe ONCE and export the results so every
+# later child installer (15 / whisper / TTS / the CPU-GPU guards ...) reuses them
+# instead of re-spawning nvidia-smi / re-scanning sysfs on every cuda_policy_tag
+# call. Seeded AFTER the cuda_policy entry because that step can add the nvidia-smi
+# provider package or upgrade the driver mid-run. A child run STANDALONE finds these
+# unset and detects on its own (lib_gpu.sh / cuda_index.sh fallback), so no script
+# ever requires these variables.
+seed_detection_cache() {
+    if gpu_present; then PYCORE_GPU_PRESENT=1; else PYCORE_GPU_PRESENT=0; fi
+    if gpu_hardware_present; then PYCORE_GPU_HARDWARE_PRESENT=1; else PYCORE_GPU_HARDWARE_PRESENT=0; fi
+    PYCORE_CUDA_DRIVER_VERSION="$(cuda_driver_version)"
+    PYCORE_CUDA_POLICY_TAG="$(cuda_policy_tag)"
+    export PYCORE_GPU_PRESENT PYCORE_GPU_HARDWARE_PRESENT
+    export PYCORE_CUDA_DRIVER_VERSION PYCORE_CUDA_DRIVER_VERSION_SET=1
+    export PYCORE_CUDA_POLICY_TAG PYCORE_CUDA_POLICY_TAG_SET=1
+    export PYCORE_CUDA_POLICY_TAG_SIG="${CORE_CUDA_TAG:-}|${PYTORCH_CUDA_INDEX_URL:-}|${PADDLE_CUDA_INDEX_URL:-}"
+}
 
 [[ "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && NEURAL_BATCH_INSTALL=1
 
@@ -172,9 +194,19 @@ for entry in "${PREREQ_ENTRIES[@]}"; do
     fi
 
     bash "$script_path" "${args[@]}"
+    if [[ "$name" == "cuda_policy" && "$gpu_cache_seeded" -eq 0 ]]; then
+        seed_detection_cache
+        gpu_cache_seeded=1
+    fi
 done
 
 GUARD_DIR="$COMMON_DIR"
+# --include runs may have filtered cuda_policy out; seed before the guard sweep so
+# the four guards still inherit one shared probe instead of re-detecting each.
+if [[ "$gpu_cache_seeded" -eq 0 ]]; then
+    seed_detection_cache
+    gpu_cache_seeded=1
+fi
 echo "[..] torch CPU/GPU guard (repair-only)"
 TCG_REPAIR_ONLY=1 bash "$GUARD_DIR/torch_cpu_guard.sh" --python "$PYTHON"
 echo "[..] onnxruntime CPU/GPU guard (repair-only)"

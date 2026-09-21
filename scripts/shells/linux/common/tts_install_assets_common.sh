@@ -918,6 +918,7 @@ neural_tts_local_weights_ready() {
     fi
     if [[ -n "$required_manifest" ]]; then
         while IFS= read -r required_path; do
+            required_path="${required_path%$'\r'}"
             [[ -n "$required_path" && "$required_path" != \#* ]] || continue
             [[ -s "${dir%/}/$required_path" ]] || return 1
         done < "$required_manifest"

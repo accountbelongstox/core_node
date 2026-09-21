@@ -15,13 +15,36 @@ AI_TORCH_CPU_INDEX="${AI_TORCH_CPU_INDEX:-https://download.pytorch.org/whl/cpu}"
 AI_PADDLE_INDEX_BASE="${AI_PADDLE_INDEX_BASE:-https://www.paddlepaddle.org.cn/packages/stable}"
 AI_PADDLE_CPU_INDEX="${AI_PADDLE_CPU_INDEX:-https://www.paddlepaddle.org.cn/packages/stable/cpu/}"
 
+# Run-scoped memoization (same contract as lib_gpu.sh): the pyservice orchestrator
+# exports PYCORE_CUDA_DRIVER_VERSION(+_SET) and PYCORE_CUDA_POLICY_TAG(+_SET/_SIG)
+# once per run so child installers skip the nvidia-smi spawn; standalone scripts
+# detect on their own and memoize in-process. The policy-tag cache is keyed by the
+# override signature (CORE_CUDA_TAG|PYTORCH_CUDA_INDEX_URL|PADDLE_CUDA_INDEX_URL)
+# so a changed override always recomputes.
+_CUDA_DRIVER_VERSION_CACHE=""
+_CUDA_DRIVER_VERSION_CACHE_SET=0
+_CUDA_POLICY_TAG_CACHE=""
+_CUDA_POLICY_TAG_CACHE_SET=0
+_CUDA_POLICY_TAG_SIG=""
+
 cuda_driver_version() {
     local output ver
-    if ! command -v nvidia-smi >/dev/null 2>&1; then printf '%s' ""; return 0; fi
-    output="$(nvidia-smi 2>/dev/null || true)"
-    ver="$(printf '%s\n' "$output" | grep -oE 'CUDA (UMD )?Version: [0-9.]+' | head -1)"
-    ver="${ver#CUDA UMD Version: }"
-    ver="${ver#CUDA Version: }"
+    if [[ "$_CUDA_DRIVER_VERSION_CACHE_SET" == "1" ]]; then
+        printf '%s' "$_CUDA_DRIVER_VERSION_CACHE"
+        return 0
+    fi
+    if [[ "${PYCORE_CUDA_DRIVER_VERSION_SET:-}" == "1" ]]; then
+        ver="${PYCORE_CUDA_DRIVER_VERSION:-}"
+    elif ! command -v nvidia-smi >/dev/null 2>&1; then
+        ver=""
+    else
+        output="$(nvidia-smi 2>/dev/null || true)"
+        ver="$(printf '%s\n' "$output" | grep -oE 'CUDA (UMD )?Version: [0-9.]+' | head -1)"
+        ver="${ver#CUDA UMD Version: }"
+        ver="${ver#CUDA Version: }"
+    fi
+    _CUDA_DRIVER_VERSION_CACHE="$ver"
+    _CUDA_DRIVER_VERSION_CACHE_SET=1
     printf '%s' "$ver"
 }
 
@@ -76,8 +99,21 @@ cuda_policy_driver_below_tiers() {
 }
 
 cuda_policy_tag() {
-    local cv requested torch_tag paddle_tag row tag minimum
+    local cv requested torch_tag paddle_tag row tag minimum row_tag sig
     local -a cuda_rows
+    sig="${CORE_CUDA_TAG:-}|${PYTORCH_CUDA_INDEX_URL:-}|${PADDLE_CUDA_INDEX_URL:-}"
+    if [[ "$_CUDA_POLICY_TAG_CACHE_SET" == "1" && "$sig" == "$_CUDA_POLICY_TAG_SIG" ]]; then
+        printf '%s' "$_CUDA_POLICY_TAG_CACHE"
+        return 0
+    fi
+    if [[ "${PYCORE_CUDA_POLICY_TAG_SET:-}" == "1" && "$sig" == "${PYCORE_CUDA_POLICY_TAG_SIG:-}" ]]; then
+        _CUDA_POLICY_TAG_CACHE="${PYCORE_CUDA_POLICY_TAG:-}"
+        _CUDA_POLICY_TAG_SIG="$sig"
+        _CUDA_POLICY_TAG_CACHE_SET=1
+        printf '%s' "$_CUDA_POLICY_TAG_CACHE"
+        return 0
+    fi
+    tag=""
     cv="$(cuda_driver_cv)"
     if [[ -z "$cv" ]]; then
         # No driver report (driver absent or not yet loaded pre-reboot): when the
@@ -90,12 +126,16 @@ cuda_policy_tag() {
                 requested="$(cuda_tag_from_url "${PYTORCH_CUDA_INDEX_URL:-}")"
             fi
             if [[ -n "$requested" ]] && row="$(cuda_policy_row_by_tag "$requested")"; then
-                printf '%s' "${row%%:*}"
-                return 0
+                tag="${row%%:*}"
+            else
+                IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+                [[ -n "${cuda_rows[0]:-}" ]] && tag="${cuda_rows[0]%%:*}"
             fi
-            IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
-            [[ -n "${cuda_rows[0]:-}" ]] && printf '%s' "${cuda_rows[0]%%:*}"
         fi
+        _CUDA_POLICY_TAG_CACHE="$tag"
+        _CUDA_POLICY_TAG_SIG="$sig"
+        _CUDA_POLICY_TAG_CACHE_SET=1
+        printf '%s' "$tag"
         return 0
     fi
     requested="${CORE_CUDA_TAG:-}"
@@ -111,15 +151,20 @@ cuda_policy_tag() {
         fi
     fi
     if [[ -n "$requested" ]] && row="$(cuda_policy_row_by_tag "$requested")"; then
-        IFS=':' read -r tag minimum _ <<< "$row"
-        if [[ "$cv" -ge "$minimum" ]]; then printf '%s' "$tag"; return 0; fi
+        IFS=':' read -r row_tag minimum _ <<< "$row"
+        if [[ "$cv" -ge "$minimum" ]]; then tag="$row_tag"; fi
     fi
-    IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
-    for row in "${cuda_rows[@]}"; do
-        IFS=':' read -r tag minimum _ <<< "$row"
-        if [[ "$cv" -ge "$minimum" ]]; then printf '%s' "$tag"; return 0; fi
-    done
-    printf '%s' ""
+    if [[ -z "$tag" ]]; then
+        IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+        for row in "${cuda_rows[@]}"; do
+            IFS=':' read -r row_tag minimum _ <<< "$row"
+            if [[ "$cv" -ge "$minimum" ]]; then tag="$row_tag"; break; fi
+        done
+    fi
+    _CUDA_POLICY_TAG_CACHE="$tag"
+    _CUDA_POLICY_TAG_SIG="$sig"
+    _CUDA_POLICY_TAG_CACHE_SET=1
+    printf '%s' "$tag"
 }
 
 cuda_policy_field() {

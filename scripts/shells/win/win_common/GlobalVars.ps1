@@ -115,6 +115,13 @@ if (-not (Test-Path -LiteralPath $Global:TEMP_DIR)) {
 $env:TEMP = $Global:TEMP_DIR
 $env:TMP = $Global:TEMP_DIR
 $env:PIP_NO_WARN_SCRIPT_LOCATION = '1'
+# Large accelerator wheels (torch, nvidia_cudnn_cuXX, paddle ~2GB) outlast pip's
+# 15s read timeout on slow or shared links; resume-retries restarts an
+# interrupted stream from its byte offset (pip >= 24, older pip ignores it).
+# Mirrors linux base_libs/pip_lock.sh vpip defaults; caller-set values win.
+if (-not $env:PIP_DEFAULT_TIMEOUT) { $env:PIP_DEFAULT_TIMEOUT = '120' }
+if (-not $env:PIP_RETRIES) { $env:PIP_RETRIES = '10' }
+if (-not $env:PIP_RESUME_RETRIES) { $env:PIP_RESUME_RETRIES = '10' }
 $Global:LOG_FILE = Join-Path $LOGS_DIR "devops_setup.log"
 $Global:STEP_COUNT = 1
 

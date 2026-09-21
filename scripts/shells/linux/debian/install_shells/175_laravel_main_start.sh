@@ -704,17 +704,33 @@ fi
 # foreground runtime; stop the service first when a foreground run is
 # explicitly wanted.
 _resolve_laravel_service_plane
-if [ -f "/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service" ] \
-    && systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
-    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is active; applying converged state (no competing foreground launch)..."
-    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
-        fm_domain_caddy_apply_converged
-        fm_domain_workers_restart
-    else
-        ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
+if [ -f "/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service" ]; then
+    # Boot-persistence repair: a previously registered plane service must stay
+    # boot-enabled (a manual stop/disable must not survive the next reboot)
+    # and active; converge or restart it instead of launching a competing
+    # foreground runtime.
+    if ! systemctl is-enabled --quiet "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null; then
+        echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is not boot-enabled; re-enabling..."
+        ${USE_SUDO:-} systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null
     fi
-    echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
-    return
+    if systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
+        echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is active; applying converged state (no competing foreground launch)..."
+        if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+            fm_domain_caddy_apply_converged
+            fm_domain_workers_restart
+        else
+            ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
+        fi
+        echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
+        return
+    fi
+    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} exists but is inactive; restarting (no competing foreground launch)..."
+    ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
+    if systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
+        echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
+        return
+    fi
+    echo "  Warning: ${LARAVEL_SERVICE_PLANE_NAME} did not come up; inspect: journalctl -u ${LARAVEL_SERVICE_PLANE_NAME} -n 100"
 fi
 
 echo "Detecting local IPs (excluding loopback)..."

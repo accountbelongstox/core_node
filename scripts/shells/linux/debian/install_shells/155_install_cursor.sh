@@ -32,6 +32,7 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_browser_bridge.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_electron_ime_compat.sh"
 source "$PARENT_DIR_LEVEL_2/common/ide_package_common.sh"
 source "$CURSOR_INSTALL_BACKEND"
@@ -171,6 +172,13 @@ cleanup_cursor() {
     if [[ -f "${system_desktop}.disabled" ]]; then
         print_step_from_common_functions "Removing disabled system desktop entry: ${system_desktop}.disabled"
         $USE_SUDO rm -f "${system_desktop}.disabled"
+    fi
+
+    # Remove the cursor:// URL scheme handler entry (login callback)
+    local url_handler_desktop="/usr/share/applications/cursor-url-handler.desktop"
+    if [[ -f "$url_handler_desktop" ]]; then
+        print_step_from_common_functions "Removing URL handler entry: $url_handler_desktop"
+        $USE_SUDO rm -f "$url_handler_desktop"
     fi
 
     # Remove the launcher symlink + system icon created by create_desktop_entry().

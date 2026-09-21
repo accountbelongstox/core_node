@@ -91,7 +91,8 @@ def start(
     ColorPrint.blue(f"[Callmodule] Mode: {'DESKTOP' if IS_DESKTOP_MODE else 'SERVER (Background Only)'}")
     if IS_LINUX:
         ColorPrint.blue(f"[Callmodule] X11 Display: {HAS_X11_DISPLAY}")
-        ColorPrint.yellow(f"[Callmodule] Linux: Running in BACKGROUND-ONLY mode (no GUI, no tray)")
+        if IS_SERVER_MODE:
+            ColorPrint.yellow(f"[Callmodule] Linux: Running in BACKGROUND-ONLY mode (no GUI, no tray)")
     ColorPrint.blue(f"[Callmodule] Frontend: {frontend_app_dir}")
     ColorPrint.blue(f"[Callmodule] Frontend mode: {Config.FRONTEND_MODE}")
     ColorPrint.blue(f"[Callmodule] Show UI window: {IS_WINDOWS and IS_DESKTOP_MODE}")
@@ -142,11 +143,12 @@ def start(
         logo_path=str(logo_path) if logo_path.exists() else None,
 
         # ========== Tray Configuration (Auto-detect based on platform and mode) ==========
-        # Windows: Enable tray (desktop mode)
-        # Linux: Disable tray (background/server mode only, no GUI)
-        # Note: Linux runs in pure backend mode - no tray, no desktop window
-        enable_tray=IS_WINDOWS,  # Only enable on Windows
-        tray_type="pyside6",  # Use PySide6 backend (Windows only)
+        # Desktop mode (Windows always; Linux with a display server): enable tray.
+        # Linux headless server: pure backend mode - no tray, no desktop window.
+        # Windows uses the PySide6 Qt tray; Linux desktop uses the native tray
+        # (AppIndicator on GNOME, pystray fallback) via the pylauncher tray service.
+        enable_tray=IS_DESKTOP_MODE,
+        tray_type="pyside6" if IS_WINDOWS else "tk",
 
         # ========== Debug Window Configuration (from settings.yaml) ==========
         show_debug_window=IS_WINDOWS and IS_DESKTOP_MODE,
@@ -170,9 +172,9 @@ def start(
     ColorPrint.blue(f"  - Frontend framework: vite (React)")
     ColorPrint.blue(f"  - Show UI window: {IS_WINDOWS and IS_DESKTOP_MODE}")
     ColorPrint.blue(f"  - Show debug window: {IS_WINDOWS and IS_DESKTOP_MODE}")
-    ColorPrint.blue(f"  - Enable tray: {IS_WINDOWS}")
-    if IS_WINDOWS:
-        native_tray_type = "tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6"
+    ColorPrint.blue(f"  - Enable tray: {IS_DESKTOP_MODE}")
+    if IS_DESKTOP_MODE:
+        native_tray_type = "pyside6" if IS_WINDOWS else "tk"
         ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
     ColorPrint.blue("  - HTTP controllers: register_http_routes")
 

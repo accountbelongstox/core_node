@@ -16,16 +16,43 @@
 # so the menu renders identically on Debian / Ubuntu / Kali, X11 or Wayland.
 #
 # Clipboard mouse functions: xfce4-terminal gets copy-on-select +
-# right-click-paste via the real user's terminalrc (configure_terminal_mouse_functions);
-# xterm gets the same via X resources baked into the helper and into every
-# launcher-spawned xterm (LinuxTerminalArgv.XTERM_XRM_ARGS); gnome-terminal /
-# konsole / qterminal expose copy/paste through their own context menus.
+# right-click-paste via terminalrc for both the real user and root (the pkexec
+# menu terminal runs as root and only reads root's config), plus
+# MiscShowUnsafePasteDialog=FALSE (official terminalrc key, default TRUE, see
+# terminal-preferences.c PROP_MISC_SHOW_UNSAFE_PASTE_DIALOG) so pasting never pops
+# the "Warning: Potentially Unsafe Paste" dialog; xterm gets the same via X resources
+# baked into the helper and into every launcher-spawned xterm
+# (LinuxTerminalArgv.XTERM_XRM_ARGS); gnome-terminal / konsole / qterminal expose
+# copy/paste through their own context menus.
+#
+# Input method (fcitx5 wubi etc.): a desktop-icon click - and especially the pkexec
+# re-spawn, which sanitizes the environment - can miss the session IM variables, so
+# the spawned terminal cannot type Chinese. The helper restores any unset
+# GTK_IM_MODULE/QT_IM_MODULE/XMODIFIERS/SDL_IM_MODULE/CLUTTER_IM_MODULE/INPUT_METHOD
+# from /etc/environment (written by 173_install_chinese_wubi.sh via im-config) and
+# derives DBUS_SESSION_BUS_ADDRESS from XDG_RUNTIME_DIR, then re-injects them
+# through the pkexec env(1) list.
+# Root terminals (the pkexec path) get XIM instead of the dbus modules: the user
+# session bus rejects non-owner uids at D-Bus auth (EXTERNAL), so the fcitx GTK/Qt
+# modules stay silent as root; XIM travels over the X connection itself and is
+# uid-independent (fcitx5 ships an XIM server: @server=fcitx in XIM_SERVERS), so
+# the helper exports GTK_IM_MODULE=xim and unsets QT_IM_MODULE (the Qt xcb plugin
+# falls back to XIM when it is unset) on the elevated side.
 #
 # Apps are launched by the launcher itself from its config.json, resolved through
 # AppFinder's central-constant chain (shell gvar store -> compile_dir/applications
 # -> fixed bin dirs -> PATH), so non-root desktop users never hit the pkexec /
 # systemd-run --system polkit password prompts that self-elevating wrappers
 # (cursor, *-rlimit system scope) would otherwise raise.
+#
+# Root terminals: when the icon is clicked by a non-root desktop user, the helper
+# re-spawns its menu terminal through pkexec (the official polkit path, man
+# pkexec(1)): ONE polkit password prompt authorizes the whole run, so every grid
+# terminal the launcher then spawns is already root - no per-window `su`. pkexec
+# sanitizes the environment, so the display variables (DISPLAY/WAYLAND_DISPLAY/
+# XDG_RUNTIME_DIR/XAUTHORITY) are re-injected through env(1). Cancelling the
+# dialog, or setting PYCORE_LAUNCHER_NO_ROOT=1, starts the grid as the normal
+# user instead.
 #
 # IDEMPOTENT: the helper is overwritten in place, the .desktop entry is upserted by
 # the shared desktop_shortcut_manager, and prerequisites are skipped when present.
@@ -146,12 +173,39 @@ EOF
 #   - Clicked from a desktop icon (no TTY): open ONE terminal emulator window
 #     running the interactive launcher menu (1:1 with the Windows console menu:
 #     [1] layout only, [2] pycore module only, [3] both, [M] configuration).
+#     A non-root desktop user is first asked for the root password ONCE via
+#     pkexec (polkit), so every grid terminal the launcher then opens is
+#     already root; declining the prompt (or PYCORE_LAUNCHER_NO_ROOT=1) starts
+#     the grid as the normal user.
 #   - Run from an existing terminal: exec the launcher inline (same menu).
 #   - --mode/--no-pause or no display: headless passthrough (autostart path;
 #     launcher.py auto-selects "both" when stdin is not a TTY).
 set -o pipefail
 HEADLESS=0
 EMULATOR=""
+USE_PKEXEC=1
+EMU_ARGV=()
+IM_VAR=""
+IM_VALUE=""
+# Input-method variables a desktop-icon click or pkexec re-spawn may be missing;
+# restored from /etc/environment (the im-config backstop written by
+# 173_install_chinese_wubi.sh) so fcitx5/ibus (e.g. wubi) works in the terminal.
+IM_VARS=(GTK_IM_MODULE QT_IM_MODULE XMODIFIERS SDL_IM_MODULE CLUTTER_IM_MODULE INPUT_METHOD)
+
+ensure_im_environment() {
+    for IM_VAR in "${IM_VARS[@]}"; do
+        if [ -z "${!IM_VAR:-}" ] && [ -r /etc/environment ]; then
+            IM_VALUE="$(sed -n "s/^${IM_VAR}=//p" /etc/environment | tail -1 | tr -d '"')"
+            [ -n "$IM_VALUE" ] && export "$IM_VAR=$IM_VALUE"
+        fi
+    done
+    # pkexec also drops the session bus address; derive it from the runtime dir
+    # so the terminal can reach the fcitx5/ibus daemon over D-Bus.
+    if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    fi
+}
+ensure_im_environment
 
 case " $* " in
     *" --mode "*|*" --no-pause "*) HEADLESS=1 ;;
@@ -177,14 +231,57 @@ fi
 # helper again; the inner copy gets a TTY and takes the run_launcher path above.
 # A non-zero exit holds the window so an instant failure stays readable.
 INNER_CMD="\"$HELPER_PATH\"; _ec=\$?; if [ \$_ec -ne 0 ]; then echo; read -r -p \"Window Launcher exited (\$_ec). Press Enter to close...\"; fi"
+
+# Root elevation (official polkit path, man pkexec(1)): re-spawn the menu
+# terminal as root so ONE password prompt covers the whole grid - no per-window
+# `su`. pkexec resets the environment to a minimal safe set, so the display
+# variables are re-injected through env(1). Exit 126 = dialog dismissed, 127 =
+# not authorized: both fall through to the unelevated spawn.
+if [ "$(id -u)" -eq 0 ] || [ "${PYCORE_LAUNCHER_NO_ROOT:-0}" = "1" ] || ! command -v pkexec >/dev/null 2>&1; then
+    USE_PKEXEC=0
+fi
+PKEXEC_ENV=(
+    "DISPLAY=${DISPLAY:-}"
+    "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}"
+    "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}"
+    "XAUTHORITY=${XAUTHORITY:-$HOME/.Xauthority}"
+)
+# Re-inject the input-method environment (fcitx5/ibus) and session bus, only
+# when set - an empty GTK_IM_MODULE= would disable the IM outright. Elevated
+# side only: swap the dbus-based modules for XIM - the user session bus rejects
+# non-owner uids at D-Bus auth, so the fcitx GTK/Qt modules stay silent as
+# root, while XIM travels over the X connection itself and works across uids
+# (fcitx5 ships an XIM server: @server=fcitx in the XIM_SERVERS root property).
+# QT_IM_MODULE is dropped because the Qt xcb plugin falls back to XIM when it
+# is unset (there is no xim platforminputcontext plugin to point at).
+for IM_VAR in DBUS_SESSION_BUS_ADDRESS "${IM_VARS[@]}"; do
+    [ -n "${!IM_VAR:-}" ] || continue
+    if [ "$USE_PKEXEC" = "1" ]; then
+        case "$IM_VAR" in
+            GTK_IM_MODULE) PKEXEC_ENV+=("GTK_IM_MODULE=xim"); continue ;;
+            QT_IM_MODULE)  continue ;;
+        esac
+    fi
+    PKEXEC_ENV+=("$IM_VAR=${!IM_VAR}")
+done
+
 for EMULATOR in "${EMULATOR_CANDIDATES[@]}"; do
     command -v "$EMULATOR" >/dev/null 2>&1 || continue
     case "$EMULATOR" in
-        xfce4-terminal) exec "$EMULATOR" --command="bash -lc '$INNER_CMD'" ;;
-        gnome-terminal) exec "$EMULATOR" -- bash -lc "$INNER_CMD" ;;
-        xterm)          exec "$EMULATOR" "${XTERM_MOUSE_XRM_ARGS[@]}" -e bash -lc "$INNER_CMD" ;;
-        *)              exec "$EMULATOR" -e bash -lc "$INNER_CMD" ;;
+        xfce4-terminal) EMU_ARGV=("$EMULATOR" "--command=bash -lc '$INNER_CMD'") ;;
+        gnome-terminal) EMU_ARGV=("$EMULATOR" "--" "bash" "-lc" "$INNER_CMD") ;;
+        xterm)          EMU_ARGV=("$EMULATOR" "${XTERM_MOUSE_XRM_ARGS[@]}" "-e" "bash" "-lc" "$INNER_CMD") ;;
+        *)              EMU_ARGV=("$EMULATOR" "-e" "bash" "-lc" "$INNER_CMD") ;;
     esac
+    if [ "$USE_PKEXEC" = "1" ]; then
+        pkexec env "${PKEXEC_ENV[@]}" "${EMU_ARGV[@]}"
+        _ec=$?
+        if [ "$_ec" -ne 126 ] && [ "$_ec" -ne 127 ]; then
+            exit "$_ec"
+        fi
+        echo "[window-launcher] pkexec declined/unavailable ($_ec); starting as $(id -un) instead." >&2
+    fi
+    exec "${EMU_ARGV[@]}"
 done
 
 echo "[window-launcher] no terminal emulator found (looked for: ${EMULATOR_CANDIDATES[*]})." >&2
@@ -210,23 +307,27 @@ remove_old_artifacts() {
 }
 
 # Enable the clipboard mouse functions for xfce4-terminal (the first-choice
-# emulator) in the real user's terminalrc: copy-on-select (select-to-copy into
-# CLIPBOARD) and right-click paste. xterm gets the same behavior through the
+# emulator): copy-on-select (select-to-copy into CLIPBOARD) and right-click
+# paste, plus MiscShowUnsafePasteDialog=FALSE (official terminalrc key, default
+# TRUE - terminal-preferences.c PROP_MISC_SHOW_UNSAFE_PASTE_DIALOG) so
+# Ctrl+Shift+V pastes directly instead of popping the "Warning: Potentially
+# Unsafe Paste" dialog every time. The file is written for BOTH the real user
+# and root, because the pkexec path re-spawns the menu terminal as root, which
+# reads /root/.config/xfce4/terminal/terminalrc - the real user's file is never
+# consulted in that window. xterm gets the same mouse behavior through the
 # baked X resources in the helper; gnome-terminal/konsole/qterminal provide
 # copy/paste through their own context menus. Unknown keys are ignored by older
 # xfce4-terminal. NON-FATAL.
-configure_terminal_mouse_functions() {
-    command -v xfce4-terminal >/dev/null 2>&1 || return 0
-    REAL_USER_HOME="$(get_real_user_home 2>/dev/null || true)"
-    [ -n "$REAL_USER_HOME" ] || return 0
-    XFCE_CFG_DIR="$REAL_USER_HOME/.config/xfce4/terminal"
+write_terminalrc_for_home() {
+    [ -n "$1" ] || return 0
+    XFCE_CFG_DIR="$1/.config/xfce4/terminal"
     XFCE_CFG="$XFCE_CFG_DIR/terminalrc"
     mkdir -p "$XFCE_CFG_DIR" 2>/dev/null || return 0
     if [ ! -f "$XFCE_CFG" ]; then
-        printf '[Configuration]\nMiscCopyOnSelect=TRUE\nMiscRightClickAction=paste\n' > "$XFCE_CFG" 2>/dev/null || return 0
+        printf '[Configuration]\nMiscCopyOnSelect=TRUE\nMiscRightClickAction=paste\nMiscShowUnsafePasteDialog=FALSE\n' > "$XFCE_CFG" 2>/dev/null || return 0
     else
         grep -q '^\[Configuration\]' "$XFCE_CFG" || printf '\n[Configuration]\n' >> "$XFCE_CFG"
-        for XFCE_KV in "MiscCopyOnSelect=TRUE" "MiscRightClickAction=paste"; do
+        for XFCE_KV in "MiscCopyOnSelect=TRUE" "MiscRightClickAction=paste" "MiscShowUnsafePasteDialog=FALSE"; do
             XFCE_KEY="${XFCE_KV%%=*}"
             if grep -q "^${XFCE_KEY}=" "$XFCE_CFG"; then
                 sed -i "s|^${XFCE_KEY}=.*|${XFCE_KV}|" "$XFCE_CFG" 2>/dev/null || true
@@ -235,11 +336,21 @@ configure_terminal_mouse_functions() {
             fi
         done
     fi
-    REAL_USER_NAME="$(get_real_user 2>/dev/null || true)"
-    if [ -n "$REAL_USER_NAME" ] && [ "$(id -u)" -eq 0 ] && [ "$REAL_USER_NAME" != "root" ]; then
-        chown -R "$REAL_USER_NAME:$REAL_USER_NAME" "$XFCE_CFG_DIR" 2>/dev/null || true
+    echo "[grid] xfce4-terminal configured (copy-on-select, right-click paste, unsafe-paste dialog off): $XFCE_CFG"
+}
+
+configure_terminal_mouse_functions() {
+    command -v xfce4-terminal >/dev/null 2>&1 || return 0
+    REAL_USER_HOME="$(get_real_user_home 2>/dev/null || true)"
+    if [ -n "$REAL_USER_HOME" ]; then
+        write_terminalrc_for_home "$REAL_USER_HOME"
+        REAL_USER_NAME="$(get_real_user 2>/dev/null || true)"
+        if [ -n "$REAL_USER_NAME" ] && [ "$(id -u)" -eq 0 ] && [ "$REAL_USER_NAME" != "root" ]; then
+            chown -R "$REAL_USER_NAME:$REAL_USER_NAME" "$REAL_USER_HOME/.config/xfce4/terminal" 2>/dev/null || true
+        fi
     fi
-    echo "[grid] xfce4-terminal mouse functions enabled (copy-on-select, right-click paste): $XFCE_CFG"
+    # The pkexec-elevated menu terminal runs as root and reads root's terminalrc.
+    [ "$(id -u)" -eq 0 ] && write_terminalrc_for_home "/root"
 }
 
 # Create (or idempotently update) the cross-DE shortcut: app menu + every user's

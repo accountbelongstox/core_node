@@ -39,6 +39,7 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_browser_bridge.sh"
 
 # Initialize globals (detect desktop, sudo, etc.)
 init_global_vars
@@ -579,16 +580,38 @@ create_desktop_entry() {
     local app_category="Utility;Development;"
     local app_description="Antigravity Client"
     local app_wm_class="antigravity"
-    local app_userdata_dir=""  # No specific userdata dir needed
+    local app_userdata_dir=""
+
+    # Root mode: the VS Code-derived CLI wrapper REFUSES to run as root unless an
+    # alternate --user-data-dir is passed (it exits 1 with a console-only message,
+    # which is why the menu icon silently did nothing). Pin the data dir to the
+    # desktop user's config path so login/state persist across launches.
+    if [[ "$USE_ROOT_MODE" == "true" ]]; then
+        local userdata_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+        app_userdata_dir="$userdata_home/.config/Antigravity"
+        if [[ ! -d "$app_userdata_dir" ]]; then
+            mkdir -p "$app_userdata_dir" 2>/dev/null || true
+            if [[ "$EUID" -eq 0 ]] && [[ -n "$ACTUAL_DESKTOP_USER" ]] && [[ "$ACTUAL_DESKTOP_USER" != "root" ]] && [[ -d "$app_userdata_dir" ]]; then
+                safe_chown_R "$ACTUAL_DESKTOP_USER:$ACTUAL_DESKTOP_USER" "$app_userdata_dir"
+            fi
+        fi
+        # Browser bridge: root-run Electron cannot spawn the user's browser (Google
+        # sign-in would silently fail); the bridge re-dispatches xdg-open to the
+        # desktop session. The DEM launcher prepends it to PATH automatically.
+        ensure_desktop_browser_bridge
+    fi
 
     # Resource limit: create a machine-relative cgroup-v2 wrapper for Antigravity
     # and launch THROUGH it. Root mode (pkexec) -> --system scope (a --user scope
     # would not govern the root-re-execed Electron app); normal mode -> --user. The
     # wrapper is passed to --create-app as the binary; desktop_entry_manager's
     # extract_original_binary leaves it untouched (no DEM marker) -> no recursion.
+    # Raised caps for an IDE + agent runtime: the uniform 1G/10%-CPU default
+    # OOM-kills or starves the agent process ("Agent terminated due to error").
     local arl_root_flag=""
     [[ "$USE_ROOT_MODE" == "true" ]] && arl_root_flag="--root"
-    if apply_app_resource_limit --id antigravity --exec "$exec_path" $arl_root_flag \
+    if APP_MEM_PCT=40 APP_MEM_CAP_MB=8192 APP_CPU_PCT=50 \
+        apply_app_resource_limit --id antigravity --exec "$exec_path" $arl_root_flag \
         && [[ -x /usr/local/bin/antigravity-rlimit ]]; then
         app_binary="/usr/local/bin/antigravity-rlimit"
     fi
@@ -627,13 +650,22 @@ create_desktop_entry_fallback() {
     local exec_path
     exec_path="$(command -v antigravity || echo "/usr/bin/antigravity")"
     local startup_wm_class="antigravity"
+    local fallback_exec="$exec_path"
+
+    # Root mode: the CLI wrapper refuses root without --user-data-dir (icon click
+    # silently fails), so bake the flags into the Exec line directly.
+    if [[ "$USE_ROOT_MODE" == "true" ]]; then
+        local userdata_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+        fallback_exec="$exec_path --no-sandbox --user-data-dir=$userdata_home/.config/Antigravity"
+        mkdir -p "$userdata_home/.config/Antigravity" 2>/dev/null || true
+    fi
 
     # System-wide menu entry in /usr/share/applications (read by ALL desktop
     # environments, covers ALL users) via the shared library; idempotent.
     create_desktop_shortcut_from_desktop_shortcut_manager \
         --id antigravity \
         --name "$DESKTOP_ENTRY_NAME" \
-        --exec "$exec_path" \
+        --exec "$fallback_exec" \
         --icon "$DESKTOP_ENTRY_ICON" \
         --comment "Antigravity Client" \
         --categories "Utility;Development;" \

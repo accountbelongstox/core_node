@@ -8,6 +8,7 @@ target is already running and skip when it is. Terminal counting mirrors
 """
 
 import platform
+import re
 import socket
 import sys
 from pathlib import Path
@@ -252,21 +253,25 @@ def _pycore_module_process_running() -> bool:
     return False
 
 
+# Title marker every grid window carries (re-asserted each prompt by the grid
+# shell rc written by LinuxTerminalLauncher._grid_shell_inner, so the
+# shell's own PS1 title escape cannot erase it).
+_GRID_TITLE_RE = re.compile(r'pylauncher-\d+')
+
+
 def _count_linux_terminals() -> int:
-    """Count terminal windows/processes on Linux (152 helper parity)."""
-    wmctrl = exec_silent(['wmctrl', '-lx'], capture_output=True, text=True)
-    if wmctrl.return_code == 0 and wmctrl.stdout:
-        count = 0
-        for line in wmctrl.stdout.splitlines():
-            parts = line.split(None, 3)
-            if len(parts) < 3:
-                continue
-            window_class = parts[2].lower()
-            if '.' in window_class:
-                window_class = window_class.split('.', 1)[1]
-            if is_linux_terminal_class(window_class):
-                count += 1
-        return count
+    """Count open GRID terminal windows on Linux.
+
+    Only windows whose title carries the launcher marker (pylauncher-NN)
+    count: unrelated terminals -- the launcher's own menu window included --
+    must never shrink the deficit, otherwise a 4x3 grid launches fewer than
+    12 windows. Falls back to the terminal-class count (152 helper parity)
+    only when wmctrl is unusable.
+    """
+    wmctrl = exec_silent(['wmctrl', '-l'], capture_output=True, text=True)
+    if wmctrl.return_code == 0 and wmctrl.stdout is not None:
+        return sum(1 for line in wmctrl.stdout.splitlines()
+                   if _GRID_TITLE_RE.search(line))
 
     ps = exec_silent(['ps', '-e', '-o', 'comm='], capture_output=True, text=True)
     if ps.return_code != 0 or not ps.stdout:
