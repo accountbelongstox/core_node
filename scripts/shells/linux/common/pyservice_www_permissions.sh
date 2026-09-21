@@ -16,11 +16,9 @@
 # the mapped tree to the real login user.
 #
 # Idempotency tiers:
-#   1. Every run: ownership probe of the bounded hot tree <www>/core_node (the
-#      pycore data root where the EACCES class occurs); the full owner/mode-777
-#      policy repair runs only when a foreign-owned entry is found. Ownership
-#      alone is the probe criterion because the live worker rewrites its files
-#      with the process umask, so a strict mode-777 probe would never settle.
+#   1. Every run: probe the bounded hot tree <www>/core_node (the pycore data
+#      root where the EACCES class occurs) for foreign-owned non-world-writable
+#      entries; the full owner/mode-777 policy repair runs only on a hit.
 #   2. Full tree: only when the per-user stamp is missing or the real user
 #      changed (force with PYSERVICE_WWW_PERM_FULL=1); runs in the background
 #      so a drifted 100GB+ NTFS tree never blocks service startup.
@@ -75,11 +73,13 @@ if [[ "$(id -u)" != "0" ]]; then
 fi
 
 # Tier 1: bounded hot tree (pycore writes here; the tray privilege drop makes
-# any root-owned remnant fail with EACCES). Synchronous and cheap: probe
-# ownership only, then apply the shared owner/mode-777 policy on a hit.
+# any root-owned remnant fail with EACCES). Synchronous and cheap: probe for
+# the actual EACCES pattern (foreign-owned AND not world-writable), then apply
+# the shared owner/mode-777 policy on a hit. Benign foreign-owned 777 entries
+# (e.g. the root-run pip cache) stay writable and never trigger a repair.
 PWP_HOT_MISMATCH=""
 if [[ -d "$PWP_HOT_TREE" ]]; then
-    PWP_HOT_MISMATCH="$(find "$PWP_HOT_TREE" \( -type d -o -type f \) ! -user "$PWP_REAL_USER" -print -quit 2>/dev/null)"
+    PWP_HOT_MISMATCH="$(find "$PWP_HOT_TREE" \( -type d -o -type f \) ! -user "$PWP_REAL_USER" ! -perm -o+w -print -quit 2>/dev/null)"
     if [[ -n "$PWP_HOT_MISMATCH" ]]; then
         repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
     else

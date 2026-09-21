@@ -24,6 +24,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
     // ECDICT offline dictionary (same stardict.db pycore serves; PathMapper-resolved).
     Route::get('/ecdict/status', [AppQyV1EcdictLookupCtl::class, 'status']);
     Route::match(['get', 'post'], '/ecdict/lookup', [AppQyV1EcdictLookupCtl::class, 'lookup']);
+    Route::match(['get', 'post'], '/ecdict/match', [AppQyV1EcdictLookupCtl::class, 'match']);
     
     Route::middleware(['client.token'])->group(function () {
         Route::any('/word_exists', [WordQController::class, 'wordExists']);

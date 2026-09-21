@@ -354,6 +354,24 @@ export interface PcCapabilitySaveResponse extends Partial<PcCapabilityBlock> {
 }
 
 // --- Offline dictionary (ECDICT + WordNet) --------------------------------- #
+/** One prefix-match suggestion row (search box dropdown). */
+export interface DictionaryMatchItem {
+  word: string;
+  /** First zh sense only (one line), for the dropdown label. */
+  translation: string;
+  frq: number;
+  bnc: number;
+}
+
+/** POST ui/dictionary/dictionary_match — prefix suggestions (<= limit). */
+export interface DictionaryMatchResponse {
+  success: boolean;
+  items: DictionaryMatchItem[];
+  /** True on a SQLITE_BUSY lock race with the Laravel end — retry immediately. */
+  busy?: boolean;
+  error?: string;
+}
+
 /** GET /api/local/dictionary/status — which offline dicts are installed. */
 export interface DictionaryStatus {
   success: boolean;
