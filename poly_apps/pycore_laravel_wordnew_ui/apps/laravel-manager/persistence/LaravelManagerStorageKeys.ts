@@ -18,4 +18,5 @@ export const LaravelManagerStorageKeys = {
   SERVER_MANAGER_SCRIPTS: `${PREFIX}servermanager_scripts`,
   SERVER_MANAGER_CERTBOT_STATUS: `${PREFIX}servermanager_certbot_status`,
   DATA_SYNC_ENDPOINTS: `${PREFIX}data_sync_endpoints`,
+  DATA_SYNC_PEER_AUTH: `${PREFIX}data_sync_peer_auth`,
 } as const;

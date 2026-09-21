@@ -1,20 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
-import { ArrowRightLeft, Pause, Play, RefreshCw, Server, ShieldCheck } from 'lucide-react';
+import { ArrowRightLeft, LogIn, LogOut, Pause, Play, Radar, RefreshCw, Server, ShieldCheck } from 'lucide-react';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { dataSyncModel } from '@/apps/laravel-manager/models';
 import {
+  DATA_SYNC_MAX_MANAGED_ENDPOINTS,
+  DATA_SYNC_PEER_UNREACHABLE_ERROR,
   DATA_SYNC_PROTOCOL_MISMATCH_ERROR,
+  type DataSyncDirectionProbe,
   type DataSyncManagedEndpoint,
   type ManagedDataSyncSession,
 } from '@/apps/laravel-manager/models/DataSyncModel';
-import type { DataSyncSessionSnapshot } from '@/apps/laravel-manager/api';
+import { DataSyncApiError, type DataSyncSessionSnapshot } from '@/apps/laravel-manager/api';
 import { formatBytes } from '@/core/utils/formatBytes';
 import { commonClasses } from '@/shared/styles/theme';
 import { AlertBox, EmptyState, Field, StatusBadge } from '../../common';
+import LoginModal from '../../../auth/LmLoginModal';
 
 const POLL_INTERVAL_MS = 2000;
 const ACTIVE_STATUSES = ['queued', 'running', 'paused'];
+const DRIVER_ROLES = ['source', 'fetcher'];
+const WRITER_ROLES = ['receiver', 'fetcher'];
 
 type Translate = TFunction;
 
