@@ -14,6 +14,7 @@ import {
   normalizePycorePath,
 } from './pycoreEndpoints';
 import { RELAY_CONTRACT } from '../../contracts/RelayContract';
+import { SERVICE_CONTRACT_URL_ENTRIES } from '../../contracts/ServiceContract';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
@@ -209,7 +210,21 @@ export function getPycoreTargetPresets(): PycorePresetHost[] {
     host: config.hosts[key],
     label: key,
   }));
-  return relayPreset ? [relayPreset, ...presets] : presets;
+  const urlPresets = SERVICE_CONTRACT_URL_ENTRIES
+    .map((entry): PycorePresetHost | null => {
+      const parsed = parseBackendUrl(entry.url);
+      const url = normalizePycoreBackendUrl(entry.url);
+      if (!parsed || !parsed.hostname || !url) return null;
+      return {
+        host: parsed.hostname,
+        label: entry.label,
+        url,
+        hint: 'https backend entry',
+      };
+    })
+    .filter((preset): preset is PycorePresetHost => preset !== null);
+  const ordered = [...urlPresets, ...presets];
+  return relayPreset ? [relayPreset, ...ordered] : ordered;
 }
 
 /**

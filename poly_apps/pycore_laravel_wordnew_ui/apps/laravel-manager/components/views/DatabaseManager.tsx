@@ -17,7 +17,7 @@ import {
   DatabaseZap, Layers, RefreshCw, ChevronLeft, ChevronRight, Search,
   ArrowUp, ArrowDown, ArrowUpDown, Columns3, Table2, Clock3,
   Maximize2, Minimize2, Download, Upload, Save, RotateCcw,
-  Trash2, HardDrive, KeyRound, ShieldAlert, Eye, EyeOff, Users, UserPlus,
+  Trash2, HardDrive, KeyRound, ShieldAlert, Eye, EyeOff, Users, UserPlus, Server,
 } from 'lucide-react';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_Z } from '@/shared/styles/overlay';

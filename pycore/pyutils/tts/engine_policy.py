@@ -21,6 +21,7 @@ from pycore.pyutils.common.engine_registry import (
 )
 from pycore.pyutils.tts.edge.command import build_edge_tts_command
 from pycore.pyutils.tts.qwen.config import default_speed as qwen_default_speed
+from pycore.pyutils.tts.runtime_profile import pinned_chain as _pinned_chain
 
 _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
@@ -251,6 +252,13 @@ def reload_tts_priority() -> tuple[str, ...]:
 
 
 def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
+    # The startup-pinned runtime profile (pyutils.tts.runtime_profile) replaces
+    # every persisted chain when enabled: word/sentence/long-text synthesis is
+    # restricted to the pinned models, and non-pinned engines are never
+    # auto-scheduled (explicit UI tests only, through the RAM/VRAM gateway).
+    pinned = _pinned_chain(profile)
+    if pinned:
+        return pinned
     default, sentence, word = _TTS_PRIORITY_STATE.get()
     if profile == "sentence":
         # Pinned single-engine contract - see _SENTENCE_PINNED_TTS.

@@ -56,6 +56,7 @@ from pycore.pyutils.tts.engine_registry import (
     tts_engine_registry,
 )
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_service_manager import (
     get_server_settings,
     is_server_engine,

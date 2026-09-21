@@ -5,7 +5,7 @@
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
 import { getWebAccessConfig, resolveApiHostname } from '../../contracts/DomainConfig';
-import { LARAVEL_API_BACKEND_PORT } from '../../contracts/ServiceContract';
+import { LARAVEL_API_BACKEND_PORT, SERVICE_CONTRACT_URL_ENTRIES } from '../../contracts/ServiceContract';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 
@@ -40,6 +40,22 @@ function isLocalHostname(hostname: string): boolean {
     || /^100\./.test(hostname);
 }
 
+/** Full-URL service entries from the central contract (https machine entries). */
+function parseServiceUrl(raw: string): { hostname: string; protocol: 'http' | 'https'; port?: number } | null {
+  try {
+    const parsed = new URL(raw);
+    const protocol = parsed.protocol === 'https:' ? 'https' : parsed.protocol === 'http:' ? 'http' : null;
+    if (!protocol || !parsed.hostname) return null;
+    return {
+      hostname: parsed.hostname,
+      protocol,
+      port: parsed.port ? Number(parsed.port) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
   const config = getWebAccessConfig();
   const endpoints = config.domains.map((domain, index): BackendApiEndpoint => ({
@@ -60,6 +76,19 @@ function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
       priority: 20 + index,
       isLocal: isLocalHostname(host),
       description: key,
+    });
+  });
+  SERVICE_CONTRACT_URL_ENTRIES.forEach((entry, index) => {
+    const parsed = parseServiceUrl(entry.url);
+    if (!parsed) return;
+    endpoints.push({
+      id: `configured-url-${entry.key}`,
+      url: parsed.hostname,
+      protocol: parsed.protocol,
+      port: parsed.port,
+      priority: 40 + index,
+      isLocal: isLocalHostname(parsed.hostname),
+      description: entry.label,
     });
   });
 
