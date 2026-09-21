@@ -40,6 +40,9 @@ export const DEFAULT_LARAVEL_API_HOST: string = [
 ].join('.');
 export const DEFAULT_LARAVEL_API_ORIGIN = `https://${DEFAULT_LARAVEL_API_HOST}`;
 export const SERVICE_CONTRACT_ROOT_DOMAINS: string[] = [...contractDocument.access.root_domains];
+export const SERVICE_CONTRACT_URL_ENTRIES: { key: string; label: string; url: string }[] = [
+  ...contractDocument.access.service_url_entries,
+];
 export const SERVICE_CONTRACT_HOSTS: Record<string, string> = { ...contractDocument.hosts };
 export const SERVICE_CONTRACT_SERVICE_HOST_KEYS: Record<string, string[]> = Object.fromEntries(
   Object.entries(contractDocument.access.service_host_keys).map(([service, keys]) => [service, [...keys]]),

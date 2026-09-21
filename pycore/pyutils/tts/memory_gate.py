@@ -58,14 +58,35 @@ def _sherpa_kokoro_requirement(engine: str) -> Tuple[int, int]:
     return 1 * _GB, 0
 
 
+def _qwen3tts_requirement() -> Tuple[int, int]:
+    # Weights load in the isolated-venv server process, but the gate answers
+    # for the HOST: a CPU-side 1.7B bf16 load stages ~3.4 GB of weights plus
+    # inference overhead. VRAM stays 0 — launch-time VRAM floors with CPU
+    # fallback live in tts_service_manager (_gpu_device_or_fallback).
+    tier = str(runtime_engine_model("qwen3tts") or "").lower()
+    if "0.6b" in tier:
+        return 3 * _GB, 0
+    return 6 * _GB, 0
+
+
 # engine -> callable returning (free RAM bytes, free VRAM bytes) required to
-# LOAD the engine's current model tier. Engines absent here are never gated
-# (cloud engines and remote HTTP APIs allocate nothing locally).
+# LOAD the engine's current model tier. Cloud engines are absent (they
+# allocate nothing locally). Class-C HTTP servers carry a RAM floor only:
+# their VRAM floors with CPU fallback are decided at launch in
+# tts_service_manager, so the gateway never masks them on a busy card.
 _REQUIREMENTS = {
     "parler": _parler_requirement,
     "bark": _bark_requirement,
     "kokoro": lambda: _sherpa_kokoro_requirement("kokoro"),
     "sherpa": lambda: _sherpa_kokoro_requirement("sherpa"),
+    "qwen3tts": _qwen3tts_requirement,
+    "chattts": lambda: (4 * _GB, 0),
+    "cosyvoice": lambda: (6 * _GB, 0),
+    "fishspeech": lambda: (6 * _GB, 0),
+    "gptsovits": lambda: (6 * _GB, 0),
+    "f5tts": lambda: (4 * _GB, 0),
+    "voxcpm2": lambda: (8 * _GB, 0),
+    "melotts": lambda: (2 * _GB, 0),
 }
 
 

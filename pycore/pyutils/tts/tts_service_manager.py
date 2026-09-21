@@ -56,6 +56,7 @@ from pycore.pyutils.common.model_tiers import runtime_engine_model
 import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.common.port_utils import is_port_in_use
 from pycore.pyutils.tts import memory_gate
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 import pycore.pyutils.tts.qwen.engine as qwen_engine
@@ -759,7 +760,17 @@ def is_server_running(engine: str) -> bool:
 
 def start_server(engine: str) -> Dict[str, Any]:
     """Manual start (UI button). Force-starts bypassing auto_manage/enabled,
-    still honouring single-active. Models load on use, so this is a no-op marker."""
+    still honouring single-active. Models load on use, so this is a no-op marker.
+
+    The explicit UI start is the ONLY way a non-pinned engine may run; it must
+    still pass the RAM/VRAM scheduling gateway (runtime_profile consults
+    memory_gate) before any weights are touched."""
+    allowed, reason = runtime_profile.engine_start_allowed(engine, explicit=True)
+    if not allowed:
+        ColorPrint.yellow(
+            f"[tts-service] {engine}: start denied by the scheduling gateway ({reason})"
+        )
+        return {"success": False, "engine": engine, "error": reason}
     return _TTS_SERVICE_FACADE.start(engine)
 
 
