@@ -75,6 +75,7 @@ from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
 from pycore.pyctl.runtime.event_handlers import register_event_handlers
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.tts.batch_startup_selfcheck import run_selfcheck, selfcheck_enabled
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.batch.batch_constants import TTS_STARTUP_SELFCHECK_ENV
 
 # Set when a NEWER instance supersedes this (running PRIMARY) one via the
@@ -248,6 +249,10 @@ if __name__ == '__main__':
         ColorPrint.blue("[Main] TTS self-check gate: running sweep before services start")
         run_selfcheck()
         os.environ.pop(TTS_STARTUP_SELFCHECK_ENV, None)
+    # Pin the global TTS runtime profile (the configurator) BEFORE services
+    # start: after the --tts-selfcheck sweep handed RAM/GPU back, or directly
+    # otherwise. Once pinned it is fixed in memory for the process lifetime.
+    runtime_profile.pin_runtime_profile()
     reload_enabled = True
     if args.no_reload or os.environ.get('PYCORE_NO_RELOAD', '') in ('1', 'true', 'True'):
         reload_enabled = False

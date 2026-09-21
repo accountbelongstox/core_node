@@ -586,7 +586,7 @@ class LaravelAudioWorkerStateMixin:
         key = (info.get("content_id") or "audio").strip()
         vkey = (info.get("variant_key") or "").strip()
         suffix = f"_{vkey}" if vkey else ""
-        engine_suffix = f"_{self.REQUIRED_ENGINE}" if self.REQUIRED_ENGINE else ""
+        engine_suffix = f"_{self._required_engine()}" if self._required_engine() else ""
         speaker = str(info.get("speaker") or "").strip()
         speaker_suffix = f"_{hashlib.sha1(speaker.encode('utf-8')).hexdigest()[:10]}" if speaker else ""
         return os.path.join(

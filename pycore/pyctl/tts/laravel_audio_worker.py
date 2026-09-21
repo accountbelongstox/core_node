@@ -104,6 +104,7 @@ from pycore.pyctl.tts.laravel_audio_worker_execution import (
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live inside the orchestrator.
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_concurrency import (
     effective_concurrency,
     recommended_concurrency,
@@ -324,6 +325,16 @@ class BaseLaravelAudioWorker(
 
     # -------------------- engine probe / concurrency --------------------
 
+    def _required_engine(self) -> Optional[str]:
+        """Effective pinned engine for this lane.
+
+        The startup-pinned runtime profile wins over the class pin: on a GPU
+        host the sentence lane keeps qwen3tts, on a CPU-only host the profile
+        pins sentence/long text to kokoro. None for unpinned lanes (word)."""
+        if self.REQUIRED_ENGINE is None:
+            return None
+        return runtime_profile.pinned_sentence_engine() or self.REQUIRED_ENGINE
+
     @serialized_method
     def _engine_plan(self) -> Tuple[Optional[str], List[str]]:
         """(planned engine, usable engine list) for this lane (60s TTL cache).
@@ -334,8 +345,8 @@ class BaseLaravelAudioWorker(
         usable list drives multi-engine fan-out: with per-task engine rotation,
         each usable engine can synthesize a different word concurrently.
         """
-        if self.REQUIRED_ENGINE:
-            return self.REQUIRED_ENGINE, [self.REQUIRED_ENGINE]
+        if self._required_engine():
+            return self._required_engine(), [self._required_engine()]
         now = time.monotonic()
         if (
             self._engine_probe_cache is not None
@@ -389,7 +400,7 @@ class BaseLaravelAudioWorker(
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
         concurrency = effective_concurrency(kind, self.get_concurrency())
-        if self.REQUIRED_ENGINE is None:
+        if self._required_engine() is None:
             usable_count = len(self._usable_engines())
             if usable_count > 1:
                 user_value = self.get_concurrency()
@@ -402,7 +413,7 @@ class BaseLaravelAudioWorker(
 
     def concurrency_status(self) -> Dict[str, Any]:
         """Return cached planning data without probing engines on a status RPC."""
-        engine = self.REQUIRED_ENGINE or self._engine_probe_cache or ""
+        engine = self._required_engine() or self._engine_probe_cache or ""
         kind = self._engine_concurrency_class(engine)
         concurrency = min(
             self.CONCURRENCY_LIMIT,
@@ -413,7 +424,7 @@ class BaseLaravelAudioWorker(
             recommended_concurrency(kind),
         )
         usable_count = len(self._usable_engines_cache)
-        if self.REQUIRED_ENGINE is None and usable_count > 1:
+        if self._required_engine() is None and usable_count > 1:
             multi = min(usable_count, self.CONCURRENCY_LIMIT)
             if self._concurrency > 0:
                 concurrency = max(1, min(int(self._concurrency), multi))
@@ -699,7 +710,7 @@ class BaseLaravelAudioWorker(
             ),
             "delivery_outbox": audio_delivery_outbox.stats(self.LANE),
             "usable_engines": list(self._usable_engines_cache),
-            "planned_engine": self.REQUIRED_ENGINE or self._engine_probe_cache or None,
+            "planned_engine": self._required_engine() or self._engine_probe_cache or None,
         }
         if self.LANE == "word":
             status["backend_progress"] = word_audio_backend_progress.snapshot()

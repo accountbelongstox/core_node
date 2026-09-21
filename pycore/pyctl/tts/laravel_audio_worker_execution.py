@@ -119,7 +119,7 @@ class LaravelAudioWorkerExecutionMixin:
                 accent=accent,
                 gender=info.get("gender") or None,
                 priority_profile="agent_history",
-                required_engine=QWEN3TTS_ENGINE,
+                required_engine=self._required_engine() or QWEN3TTS_ENGINE,
                 client_job_id=(
                     f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"
                 ),
@@ -140,7 +140,7 @@ class LaravelAudioWorkerExecutionMixin:
             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 ok_cache, _why = validate_mp3(out_path)
                 if ok_cache:
-                    return True, out_path, self.REQUIRED_ENGINE or "cache", "", False
+                    return True, out_path, self._required_engine() or "cache", "", False
             result = tts_orchestrator.synthesize(
                 info["text"],
                 language,
@@ -148,7 +148,7 @@ class LaravelAudioWorkerExecutionMixin:
                 accent=accent,
                 gender=info.get("gender") or None,
                 priority_profile=self.PRIORITY_PROFILE,
-                required_engine=self.REQUIRED_ENGINE,
+                required_engine=self._required_engine(),
                 speaker=info.get("speaker"),
                 client_job_id=(
                     f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"
@@ -419,7 +419,7 @@ class LaravelAudioWorkerExecutionMixin:
         progress = self._set_task_progress(info, stage, provider)
         result = {
             "stage": stage,
-            "engine": provider or self.REQUIRED_ENGINE or self._planned_engine(),
+            "engine": provider or self._required_engine() or self._planned_engine(),
             "backend_uploaded": stage in ("finalizing", "completed"),
         }
         if self.LANE == "sentence" and self._speaker:
@@ -718,7 +718,7 @@ class LaravelAudioWorkerExecutionMixin:
             self._report_progress(
                 info,
                 "synthesizing",
-                self.REQUIRED_ENGINE or "",
+                self._required_engine() or "",
             )
 
             ok, audio_path, provider, err, cleanup = self._resolve_audio(info)
