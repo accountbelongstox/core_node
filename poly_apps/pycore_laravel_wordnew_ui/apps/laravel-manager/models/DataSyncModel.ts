@@ -316,11 +316,46 @@ export class DataSyncModel {
 
   private managedEndpointIds(currentId: string): string[] {
     const saved = StorageManager.get<string[]>(LaravelManagerStorageKeys.DATA_SYNC_ENDPOINTS, []);
-    return Array.from(new Set([...saved, currentId])).filter(Boolean);
+    return Array.from(new Set([currentId, ...saved]))
+      .filter(Boolean)
+      .slice(0, DATA_SYNC_MAX_MANAGED_ENDPOINTS);
+  }
+
+  private peerAuthMap(): Record<string, DataSyncPeerAuth> {
+    const saved = StorageManager.get<Record<string, DataSyncPeerAuth>>(
+      LaravelManagerStorageKeys.DATA_SYNC_PEER_AUTH,
+      {},
+    );
+    return saved && typeof saved === 'object' ? { ...saved } : {};
+  }
+
+  private authHeaderFor(endpoint: DataSyncManagedEndpoint): string | null {
+    const peerAuth = this.peerAuth(endpoint.id);
+    if (peerAuth) return `Bearer ${peerAuth.token}`;
+    return endpoint.current ? getSharedAuthToken() : null;
+  }
+
+  private normalizeAdhocAddress(input: string): string | null {
+    const candidate = /^https?:\/\//i.test(input) ? input : `http://${input}`;
+
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.hostname === '' || parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') {
+        return null;
+      }
+      const protocol = parsed.protocol === 'https:' ? 'https' : 'http';
+      const port = parsed.port !== '' ? Number(parsed.port) : DATA_SYNC_DEFAULT_PORT;
+      if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+      const host = parsed.hostname.includes(':') ? `[${parsed.hostname}]` : parsed.hostname;
+      return `${protocol}://${host}:${port}`;
+    } catch {
+      return null;
+    }
   }
 
   private requireEndpoint(endpointId: string): DataSyncManagedEndpoint {
-    const endpoint = this.endpoints().find((candidate) => candidate.id === endpointId);
+    const endpoint = this.endpoints().find((candidate) => candidate.id === endpointId)
+      ?? this.adhocEndpoints.get(endpointId);
     if (!endpoint) throw new Error('DATA_SYNC_SOURCE_ENDPOINT_NOT_FOUND');
     return endpoint;
   }
@@ -329,11 +364,17 @@ export class DataSyncModel {
     const cached = this.clients.get(endpoint.id);
     if (cached) return cached;
 
-    const client = new DatabaseManagerAPI(createFixedLaravelModuleConfig(
-      LARAVEL_API_PREFIX.databaseManager,
-      endpoint.baseUrl,
-      WORKSPACE_TIMEOUT_MS,
-    ));
+    const client = new DatabaseManagerAPI({
+      ...createFixedLaravelModuleConfig(
+        LARAVEL_API_PREFIX.databaseManager,
+        endpoint.baseUrl,
+        WORKSPACE_TIMEOUT_MS,
+      ),
+      authToken: () => this.authHeaderFor(endpoint),
+      // Remote nodes own a separate login state: their 401s open the
+      // endpoint-scoped peer login, never the shared login modal.
+      onUnauthorized: endpoint.current ? undefined : () => undefined,
+    });
     this.clients.set(endpoint.id, client);
     return client;
   }
