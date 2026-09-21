@@ -54,6 +54,7 @@ DICTIONARIES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/123_install_dictionaries.sh"
 POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/75_install_postgresql.sh"
 PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
+PUBLIC_IP_PROBE_SCRIPT="${INSTALL_SHELLS_DIR}/9_fix_dns.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
 # GLOBAL_VAR_DIR comes from gvar_system_common.sh via common_functions.sh (sourced below).
