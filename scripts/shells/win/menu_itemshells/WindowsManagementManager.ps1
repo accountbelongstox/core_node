@@ -26,7 +26,7 @@ $script:TOOLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "tools
 $script:ANDROID_LAUNCHER = Join-Path $script:TOOLS_DIR "AndroidEmulatorLauncher.ps1"
 $script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
-$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\scripts\chromefix" "repair-chrome-crash.ps1"
+$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path "D:\www\core_node\scripts\chromefix" "repair-chrome-crash.ps1"
 $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
 $script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
 

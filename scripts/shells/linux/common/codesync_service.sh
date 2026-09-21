@@ -206,7 +206,7 @@ codesync_print_logs_help() {
     echo "    journalctl -u ${CODESYNC_SERVICE_NAME} -n 200 --no-pager  # last 200 lines"
     echo "    systemctl status ${CODESYNC_SERVICE_NAME} --no-pager      # current status"
     echo "[codesync-service] File-sync activity logs also go to:"
-    echo "    ~/.core_node/data/code_sync_logs/"
+    echo "    ${CORE_NODE_DATA_DIR:-/www/core_node}/data/code_sync_logs/"
     echo "------------------------------------------------------------"
 }
 

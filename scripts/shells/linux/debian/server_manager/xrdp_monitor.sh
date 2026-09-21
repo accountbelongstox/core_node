@@ -89,7 +89,7 @@ cap_log_file() {
     rm -f "$tmp" 2>/dev/null || true
 }
 
-# Bound every monitor log (and the appended .state file) so /var/_core_node never
+# Bound every monitor log (and the appended .state file) so the core_node data root never
 # grows without limit. Called on startup and periodically inside the monitor loop.
 cap_monitor_logs() {
     cap_log_file "$MONITOR_LOG"
@@ -280,7 +280,7 @@ install_service() {
 # XRDP Monitor Daemon
 set -euo pipefail
 
-MONITOR_DIR="/var/_core_node/xrdp_monitor"
+MONITOR_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}/xrdp_monitor"
 MONITOR_LOG="$MONITOR_DIR/monitor.log"
 CONNECTIONS_LOG="$MONITOR_DIR/connections.log"
 DISCONNECTS_LOG="$MONITOR_DIR/disconnects.log"

@@ -142,9 +142,14 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "packages": ("requirements.txt",),
         "windows_native_build": True,
         "linux_native_build": True,
-        "build_packages": (*_LEGACY_BUILD_PACKAGES, "Cython", *_GPTSOVITS_BUILD_CONSTRAINTS),
+        "build_packages": (*_LEGACY_BUILD_PACKAGES, "Cython", "setuptools_scm>=8", *_GPTSOVITS_BUILD_CONSTRAINTS),
         "build_constraints": (*_LEGACY_BUILD_CONSTRAINTS, *_GPTSOVITS_BUILD_CONSTRAINTS),
         "pip_args": ("--no-build-isolation",),
+        # pyopenjtalk (requirements.txt line: pyopenjtalk>=0.4.1) ships sdist-only
+        # and resolves its version through setuptools_scm; outside a git checkout
+        # that yields 0.0.0, and pip discards the sdist for the version mismatch.
+        # The targeted pretend-version stamps the real release on the build.
+        "pip_env": {"SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYOPENJTALK": "0.4.1"},
         "health_imports": "import numpy, torch, transformers, pyopenjtalk, jieba_fast, opencc",
         "upstream": {
             "repo": "https://github.com/RVC-Boss/GPT-SoVITS",

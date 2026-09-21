@@ -11,6 +11,13 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.core_node_dirs import (
+    get_core_node_data_dir,
+    get_global_var_dir,
+    global_var_read_names,
+    global_var_write_name,
+    iter_global_var_dirs,
+)
 from pycore.pyfoundations.machine_id import get_machine_id
 from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
@@ -81,7 +88,7 @@ os.environ["TMPDIR"] = DEFAULT_TEMP_DIR
 tempfile.tempdir = DEFAULT_TEMP_DIR
 
 BACKUP_DIR_NAME = "CoreNodeBackup"
-LOCAL_CORE_NODE_DIR = os.path.join(USER_HOME_DIR, ".core_node")
+LOCAL_CORE_NODE_DIR = str(get_core_node_data_dir())
 CACHE_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "cache")
 INSTALLER_SCRIPTS_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "installer_scripts")
 
@@ -89,37 +96,15 @@ INSTALLER_SCRIPTS_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "installer_scripts")
 def _default_global_var_dir() -> Path:
     """Canonical cross-language var center (one plain-text file per key).
 
-    Mirrors gvar_system_common.sh GLOBAL_VAR_DIR (= $CORE_NODE_DATA_DIR/global_var)
-    on Linux and GlobalVars.ps1 $Global:GLOBAL_VAR_DIR
-    (= D:\\programing\\Users\\<USERNAME>\\.core_node\\.global_vars) on Windows --
-    the cross-language var center that 3_setting_base.sh, GlobalVars.ps1 and
-    system_paths.py read/write:
-        Windows: D:\\programing\\Users\\<USERNAME>\\.core_node\\.global_vars
-        Linux:   /var/_core_node/global_var
-    CORE_NODE_DATA_DIR, when already exported, wins on both platforms. Falls
-    back to the per-user ~/.core_node/global_var only when the shared dir
-    cannot be created or written (e.g. non-root first run).
+    Single source of truth: pycore.pyfoundations.core_node_dirs
+    (= <core_node_data_dir>/global_var), mirroring gvar_system_common.sh
+    GLOBAL_VAR_DIR (= $CORE_NODE_DATA_DIR/global_var) on Linux and
+    GlobalVars.ps1 $Global:GLOBAL_VAR_DIR on Windows:
+        Windows: D:\\www\\core_node\\global_var
+        Linux:   /www/www/core_node/global_var  (NTFS dual-boot)
+                 /www/core_node/global_var      (native)
     """
-    env_base = os.environ.get("CORE_NODE_DATA_DIR", "").strip()
-    if env_base:
-        shared = Path(env_base) / "global_var"
-    elif IS_WINDOWS:
-        # Mirrors GlobalVars.ps1 $Global:GLOBAL_VAR_DIR
-        # (= D:\programing\Users\<USERNAME>\.core_node\.global_vars), the Windows
-        # shell var center. system_paths.get_system_cache_dir() uses the same base.
-        username = os.environ.get("USERNAME", os.environ.get("USER", "default"))
-        shared = Path("D:/programing/Users") / username / ".core_node" / ".global_vars"
-    else:
-        shared = Path("/var/_core_node/global_var")
-    try:
-        shared.mkdir(parents=True, exist_ok=True)
-        if os.access(shared, os.W_OK):
-            return shared
-    except OSError:
-        pass
-    fallback = Path(USER_HOME_DIR) / ".core_node" / "global_var"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+    return get_global_var_dir()
 
 
 GLOBAL_VAR_DIR = str(_default_global_var_dir())
@@ -234,11 +219,16 @@ class GlobalVarManager:
             raise ValueError("Key contains no valid characters")
         return sanitized
 
-    def _resolve_key(self, key: str) -> Path:
+    def _namespaced_key(self, key: str) -> str:
         sanitized = self._sanitize(key)
         if self._namespace:
             sanitized = f"{self._namespace}_{sanitized}"
-        return self._base_dir / sanitized
+        return sanitized
+
+    def _resolve_key(self, key: str) -> Path:
+        # Canonical on-disk name (shared keys stay bare, all others get the
+        # per-OS <TAG>_ prefix -- see core_node_dirs.global_var_write_name).
+        return self._base_dir / global_var_write_name(self._namespaced_key(key))
 
     @property
     def base_dir(self) -> Path:
@@ -254,15 +244,32 @@ class GlobalVarManager:
         return path
 
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
-        path = self._resolve_key(key)
-        if not path.exists():
-            return default
-        return path.read_text(encoding="utf-8")
+        # Read candidates: OS-tagged name first, then the bare name
+        # (pre-tagging values and unmigrated machines); the default base
+        # additionally falls back to the legacy dirs (see
+        # core_node_dirs.iter_global_var_dirs) so persisted secrets survive
+        # both the tagging and the relocation.
+        names = global_var_read_names(self._namespaced_key(key))
+        for name in names:
+            path = self._base_dir / name
+            if path.exists():
+                return path.read_text(encoding="utf-8")
+        if self._base_dir == GLOBAL_VARS_DIR:
+            for legacy_dir in iter_global_var_dirs()[1:]:
+                for name in names:
+                    legacy_path = legacy_dir / name
+                    if legacy_path.exists():
+                        return legacy_path.read_text(encoding="utf-8")
+        return default
 
     def clear(self, key: str) -> None:
-        path = self._resolve_key(key)
-        if path.exists():
-            path.unlink()
+        namespaced = self._namespaced_key(key)
+        names = {global_var_write_name(namespaced)}
+        names.update(global_var_read_names(namespaced))
+        for name in names:
+            path = self._base_dir / name
+            if path.exists():
+                path.unlink()
 
     def set_json(self, key: str, data: Dict[str, Any]) -> Path:
         return self.set(key, json.dumps(data, ensure_ascii=False))

@@ -51,7 +51,7 @@ if ! declare -F get_global_var >/dev/null 2>&1; then
     get_global_var() {
         local key="$1"
         local default_value="${2:-}"
-        local file="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}/$key"
+        local file="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/www/core_node}/global_var}/$key"
         if [ -f "$file" ]; then
             cat "$file" 2>/dev/null || echo "$default_value"
         else

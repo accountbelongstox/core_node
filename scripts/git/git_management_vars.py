@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 # Make pycore importable so the vars dir resolves via the centralized
-# system_paths module (one source of truth for the .core_node path).
+# system_paths module (one source of truth for the core_node data root).
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -34,10 +34,10 @@ class GitManagementVars:
     def _get_vars_directory(self) -> Path:
         """Get the global variables directory (centralized via system_paths).
 
-        Windows: D:\\programing\\Users\\<user>\\.core_node\\.build_global_vars
-        Linux:   /var/_core_node/.build_global_vars (else ~/.core_node/.build_global_vars)
+        Windows: D:\\www\\core_node\\build_global_vars
+        Linux:   <core_node_data_dir>/build_global_vars (else ~/core_node/build_global_vars)
         """
-        return get_system_cache_dir() / '.build_global_vars'
+        return get_system_cache_dir() / 'build_global_vars'
 
     def _ensure_vars_directory(self):
         """Ensure the variables directory exists"""

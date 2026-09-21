@@ -23,13 +23,13 @@
 # Cross-OS (Windows <-> Linux dual-boot): when the web data disk ROOT is mounted
 # at /www (NTFS), /www == D:\ and the shared cache is /www/www/cache -- the SAME
 # tree Windows uses (D:\www\cache, ONE EXTRA LEVEL on Linux) -- so both OSes
-# reuse one copy of every model. Otherwise the native shared root is
-# /var/_core_node (matches pycore get_system_cache_dir()); cache under
-# /var/_core_node/cache, created 1777 (sticky + world-writable, like /tmp) so any user can
-# read/write it. IDEMPOTENT and best-effort: it never fails the caller, and it respects any
-# value the caller already exported (so an explicit override still wins). On a locked-down
-# host where the shared tree cannot be made writable it leaves the caller's per-user
-# defaults untouched.
+# reuse one copy of every model. Otherwise the native shared root is the legacy
+# /var/_core_node (pinned there ON PURPOSE so pyservice model paths never move);
+# cache under /var/_core_node/cache, created 1777 (sticky + world-writable, like
+# /tmp) so any user can read/write it. IDEMPOTENT and best-effort: it never fails
+# the caller, and it respects any value the caller already exported (so an
+# explicit override still wins). On a locked-down host where the shared tree
+# cannot be made writable it leaves the caller's per-user defaults untouched.
 
 # ---- variable declarations (rule 5) ----
 SHARED_CACHE_DATA_ROOT=""
@@ -40,18 +40,19 @@ SHARED_WWW_PATH_VAR=""
 SHARED_CACHE_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_CACHE_RUNTIME_ENV="$SHARED_CACHE_ENV_DIR/runtime_environment.sh"
 __scc_d=""
-__scc_src_www=""
-__scc_src_root=""
 __scc_candidate=""
 
-if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ] || [ -z "${CORE_NODE_WWW_BASE:-}" ]; then
     source "$SHARED_CACHE_RUNTIME_ENV"
 fi
 
-# Shared root comes from runtime_environment.sh (single definition of
-# CORE_NODE_DATA_DIR); cache lives under it, created 1777 (sticky +
-# world-writable, like /tmp) so any user can read/write it.
-SHARED_CACHE_DATA_ROOT="$CORE_NODE_DATA_DIR"
+# Native shared MODEL-cache root. Pinned to the legacy native base
+# /var/_core_node ON PURPOSE: the unified runtime data root moved to
+# <www>/core_node (runtime_environment.sh CORE_NODE_DATA_DIR), but the model
+# cache must NOT move with it -- pyservice model paths stay valid and no
+# multi-GB re-download happens. Cache created 1777 (sticky + world-writable,
+# like /tmp) so any user can read/write it.
+SHARED_CACHE_DATA_ROOT="${LEGACY_CORE_NODE_DATA_DIR:-/var/_core_node}"
 SHARED_CACHE_DIR="$SHARED_CACHE_DATA_ROOT/cache"
 SHARED_CACHE_CROSS_OS=false
 
@@ -70,18 +71,22 @@ SHARED_CACHE_CROSS_OS=false
 # When /www is NOT an NTFS/data disk root (Linux-only machine), the native
 # /var/_core_node/cache below is used instead.
 # The persisted WWW_PATH var-center value (single central variable, written by
-# 3_setting_base.sh) is the primary signal; live mount detection is the
-# fallback for a fresh machine whose var center is not initialized yet.
+# 3_setting_base.sh) is the primary signal; the single-definition
+# CORE_NODE_WWW_BASE from runtime_environment.sh is the fallback for a fresh
+# machine whose var center is not initialized yet.
 SHARED_WWW_BASE=""
-SHARED_WWW_PATH_VAR="$(head -n1 "$SHARED_CACHE_DATA_ROOT/global_var/WWW_PATH" 2>/dev/null | tr -d '\r')"
+# Var center moved to $CORE_NODE_DATA_DIR/global_var; the legacy
+# /var/_core_node/global_var remains as read-fallback for pre-migration installs.
+SHARED_WWW_PATH_VAR="$(head -n1 "$CORE_NODE_DATA_DIR/global_var/WWW_PATH" 2>/dev/null | tr -d '\r')"
+if [ -z "$SHARED_WWW_PATH_VAR" ]; then
+    SHARED_WWW_PATH_VAR="$(head -n1 "$SHARED_CACHE_DATA_ROOT/global_var/WWW_PATH" 2>/dev/null | tr -d '\r')"
+fi
 if [ -n "$SHARED_WWW_PATH_VAR" ] && [ "$SHARED_WWW_PATH_VAR" != "/www" ] && [ -d "$SHARED_WWW_PATH_VAR" ]; then
     SHARED_WWW_BASE="$SHARED_WWW_PATH_VAR"
-elif [ -d /www/www ] && command -v findmnt >/dev/null 2>&1; then
-    __scc_src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
-    __scc_src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
-    if [ -n "$__scc_src_www" ] && [ -n "$__scc_src_root" ] && [ "$__scc_src_www" != "$__scc_src_root" ]; then
-        SHARED_WWW_BASE="/www/www"
-    fi
+elif [ "${CORE_NODE_WWW_BASE:-/www}" = "/www/www" ]; then
+    # Single-definition NTFS www base from runtime_environment.sh (fallback for
+    # a fresh machine whose var center is not initialized yet).
+    SHARED_WWW_BASE="/www/www"
 fi
 if [ -n "$SHARED_WWW_BASE" ]; then
     __scc_candidate="$SHARED_WWW_BASE/cache"

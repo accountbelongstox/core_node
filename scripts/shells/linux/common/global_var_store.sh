@@ -176,8 +176,11 @@ set_global_var() {
         return 1
     fi
 
-    # Get normalized file path
-    local file_path=$(_get_var_file_path "$key")
+    # Canonical on-disk name: shared keys stay bare, all others are namespaced
+    # per OS (see runtime_environment.sh OS_VAR_TAG / gvar_write_key) so the
+    # dual-boot shared var center never lets Windows and Linux overwrite each
+    # other's values for the same logical key.
+    local file_path="$GLOBAL_VAR_DIR/$(gvar_write_key "$key")"
 
     # Read the previous value first so the "Successfully set" line is announced only
     # ONCE per value: the script chain re-initializes the same vars many times, and
@@ -211,11 +214,34 @@ get_global_var() {
         return 1
     fi
 
-    # Get normalized file path
-    local file_path=$(_get_var_file_path "$key")
+    # Candidate on-disk names, first match wins: OS-tagged name in the new var
+    # center, bare name there (pre-tagging values / shared keys / unmigrated
+    # machines), then the same pair under the pre-relocation legacy var center
+    # (see gvar_system_common.sh LEGACY_GLOBAL_VAR_DIR).
+    local normalized_key
+    normalized_key="$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')"
+    local candidates=()
+    if gvar_is_shared_key "$normalized_key"; then
+        candidates+=("$GLOBAL_VAR_DIR/$normalized_key")
+        [[ -n "${LEGACY_GLOBAL_VAR_DIR:-}" ]] && candidates+=("$LEGACY_GLOBAL_VAR_DIR/$normalized_key")
+    else
+        candidates+=("$GLOBAL_VAR_DIR/${OS_VAR_TAG}_${normalized_key}" "$GLOBAL_VAR_DIR/$normalized_key")
+        if [[ -n "${LEGACY_GLOBAL_VAR_DIR:-}" ]]; then
+            candidates+=("$LEGACY_GLOBAL_VAR_DIR/${OS_VAR_TAG}_${normalized_key}" "$LEGACY_GLOBAL_VAR_DIR/$normalized_key")
+        fi
+    fi
+
+    local file_path=""
+    local candidate=""
+    for candidate in "${candidates[@]}"; do
+        if [[ -f "$candidate" ]]; then
+            file_path="$candidate"
+            break
+        fi
+    done
 
     # Check if file exists
-    if [[ ! -f "$file_path" ]]; then
+    if [[ -z "$file_path" ]]; then
         # Return default value if provided, otherwise return empty string
         echo "${default_value:-}"
         return 0
@@ -355,18 +381,22 @@ remove_global_vars() {
     fi
 
     for key in "${keys[@]}"; do
-        # Get normalized file path
-        local file_path=$(_get_var_file_path "$key")
-
-        if [[ -f "$file_path" ]]; then
-            $USE_SUDO rm -f "$file_path"
-            if [[ $? -eq 0 ]]; then
-                echo "Successfully removed global variable: $key"
-            else
-                echo "Failed to remove global variable: $key"
-                success=false
+        # Remove every on-disk variant of the key (OS-tagged and bare names).
+        local removed=false
+        local variant=""
+        for variant in "$GLOBAL_VAR_DIR/$(gvar_write_key "$key")" "$(_get_var_file_path "$key")"; do
+            if [[ -f "$variant" ]]; then
+                $USE_SUDO rm -f "$variant"
+                if [[ $? -eq 0 ]]; then
+                    echo "Successfully removed global variable: $key"
+                    removed=true
+                else
+                    echo "Failed to remove global variable: $key"
+                    success=false
+                fi
             fi
-        else
+        done
+        if [[ "$removed" != true ]]; then
             echo "Global variable not found: $key"
         fi
     done

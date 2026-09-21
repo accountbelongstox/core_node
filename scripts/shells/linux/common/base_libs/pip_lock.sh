@@ -15,7 +15,7 @@
 # vpip runs pip unserialized (best effort). Override the lock path via PIP_LOCK_FILE.
 
 if [ -z "${PIP_LOCK_FILE:-}" ]; then
-    _plk_dir="${CORE_NODE_DATA_DIR:-/var/_core_node}/locks"
+    _plk_dir="${CORE_NODE_DATA_DIR:-/www/core_node}/locks"
     if ! mkdir -p "$_plk_dir" 2>/dev/null; then
         _plk_dir="${TMPDIR:-/tmp}/core_node_locks"
         mkdir -p "$_plk_dir" 2>/dev/null || true

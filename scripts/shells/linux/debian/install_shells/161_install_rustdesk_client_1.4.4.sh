@@ -53,7 +53,7 @@ RUSTDESK_INSTALL_DIR="$APPLICATIONS_DIR/rustdesk"
 RUSTDESK_DEB_DIR="$RUSTDESK_INSTALL_DIR/deb"
 
 # Version tracking
-APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
+APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions/${OS_VAR_TAG:-UNKNOWN}"
 RUSTDESK_INSTALLED_FLAG="$APP_VERSIONS_DIR/rustdesk_client.version"
 
 # Ensure sudo is available

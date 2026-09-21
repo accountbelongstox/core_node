@@ -42,6 +42,9 @@
 # ============================================================================
 
 NGINX_MANAGER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Single-definition hub for CORE_NODE_WWW_BASE / CORE_NODE_DATA_DIR.
+# shellcheck source=/dev/null
+source "$NGINX_MANAGER_DIR/runtime_environment.sh"
 # shellcheck source=/dev/null
 source "$NGINX_MANAGER_DIR/domain_setup_common.sh"
 
@@ -58,8 +61,13 @@ nm_web_path() {
     local key="$1"
     local sub="${2:-}"
     local stored=""
-    local gdir="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
     local store_key
+    # WWW base from the single definition in runtime_environment.sh
+    # (CORE_NODE_WWW_BASE: /www/www on a dual-boot NTFS mount where D:\ == /www,
+    # /www on a native Linux). Falls back to plain /www only when the common
+    # hub was never sourced.
+    local www_base="${CORE_NODE_WWW_BASE:-/www}"
+    local gdir="${CORE_NODE_DATA_DIR:-$www_base/core_node}/global_var"
 
     if declare -F map_web_path >/dev/null 2>&1; then
         map_web_path "$key" "$sub"
@@ -75,11 +83,11 @@ nm_web_path() {
         return 0
     fi
     case "$key" in
-        wwwroot)     echo "/www/wwwroot" ;;
+        wwwroot)     echo "$www_base/wwwroot" ;;
         nginxconfig)
             if [ -n "$sub" ]; then echo "/etc/nginx/$sub"; else echo "/etc/nginx"; fi ;;
-        backup)      echo "/www/backup/${sub:-nginx-configs}" ;;
-        *)           echo "/www/$key${sub:+/$sub}" ;;
+        backup)      echo "$www_base/backup/${sub:-nginx-configs}" ;;
+        *)           echo "$www_base/$key${sub:+/$sub}" ;;
     esac
 }
 

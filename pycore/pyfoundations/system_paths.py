@@ -6,12 +6,13 @@ System Paths Module
 Defines system-wide cache and data directories for core_node applications.
 These paths are used for storing persistent data, cache, and configuration files.
 
-Platform-specific paths:
-    Windows: D:\programing\Users\{username}\.core_node
-    Linux:   /var/_core_node
+Platform-specific runtime data root (no dot-prefixed names; single source
+of truth: pycore.pyfoundations.core_node_dirs):
+    Windows: D:\www\core_node
+    Linux:   /www/www/core_node  (NTFS dual-boot) or /www/core_node (native)
 
 Directory Structure:
-    .core_node/
+    core_node/
         ├── cache/              # Application cache files
         ├── config/             # Configuration files
         ├── data/               # Persistent data
@@ -37,6 +38,11 @@ from pycore.pyfoundations.system_info import (
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.core_node_dirs import (
+    get_core_node_data_dir as _get_core_node_data_dir,
+    read_global_var as _read_global_var_center,
+    www_data_root_mounted as _www_data_root_mounted,
+)
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
 
 # --------------------------------------------------------------------------- #
@@ -140,13 +146,13 @@ def _fs_is_posix_capable(path: Path) -> bool:
 
 def _ensure_dir(path: Path) -> Path:
     r"""Create ``path``; on Linux make it ALL-USERS-WRITABLE (mode 1777, sticky)
-    so the shared ``/var/_core_node`` runtime tree is usable by ANY user.
+    so the shared runtime tree is usable by ANY user.
 
     The sticky bit (like ``/tmp``) lets every user create files there while
-    protecting others' files from deletion. ``chmod`` is a no-op on Windows
-    (per-user ``~/.core_node``). Best-effort: a failed chmod (e.g. the dir is
-    owned by another user and we're not root) is ignored — it was already
-    created 1777 by whoever made it first.
+    protecting others' files from deletion. ``chmod`` is a no-op on Windows.
+    Best-effort: a failed chmod (e.g. the dir is owned by another user and
+    we're not root) is ignored — it was already created 1777 by whoever made
+    it first.
     """
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
@@ -160,35 +166,21 @@ def _ensure_dir(path: Path) -> Path:
 
 def get_system_cache_dir() -> Path:
     r"""
-    Get platform-specific system cache directory
+    Get the unified runtime data root (delegates to
+    pycore.pyfoundations.core_node_dirs.get_core_node_data_dir).
 
     Returns:
-        Path: System cache directory path
-            - Windows: D:\programing\Users\{username}\.core_node  (per-user)
-            - Linux:   /var/_core_node                 (ONE shared, all-users-writable)
+        Path: Runtime data root
+            - Windows: D:\www\core_node
+            - Linux:   /www/www/core_node  (NTFS dual-boot) or
+                       /www/core_node      (native)
 
-    On Linux this is a SINGLE shared directory so every user (and the service,
-    whoever runs it) reads/writes the SAME runtime state. It is created 1777
-    (sticky + world-writable) so any user can use it; only when it cannot be
-    created AND is not writable do we fall back to the per-user ``~/.core_node``.
+    A SINGLE shared directory so every user (and the service, whoever runs
+    it) reads/writes the SAME runtime state; created 1777 (sticky +
+    world-writable). Falls back per core_node_dirs (legacy /var/_core_node,
+    then per-user ~/core_node) only when the shared dir is not writable.
     """
-    if sys.platform == 'win32':
-        # Windows: D:\programing\Users\{username}\.core_node
-        username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-        cache_dir = Path('D:/programing/Users') / username / '.core_node'
-        return _ensure_dir(cache_dir)
-
-    # Linux/Unix: ONE shared, all-users-writable system dir.
-    shared = Path('/var/_core_node')
-    try:
-        _ensure_dir(shared)
-    except OSError:
-        pass
-    if shared.is_dir() and os.access(shared, os.W_OK):
-        return shared
-
-    # Fallback: per-user home when the shared dir can't be created/written.
-    return _ensure_dir(Path.home() / '.core_node')
+    return _get_core_node_data_dir()
 
 
 def get_ui_state_cache_dir() -> Path:
@@ -198,7 +190,7 @@ def get_ui_state_cache_dir() -> Path:
     Used for storing window positions, sizes, and other UI state.
 
     Returns:
-        Path: UI state cache directory (.core_node/ui_state/)
+        Path: UI state cache directory (core_node/ui_state/)
     """
     return _ensure_dir(get_system_cache_dir() / 'ui_state')
 
@@ -208,7 +200,7 @@ def get_app_cache_dir() -> Path:
     Get application cache directory
 
     Returns:
-        Path: Application cache directory (.core_node/cache/)
+        Path: Application cache directory (core_node/cache/)
     """
     return _ensure_dir(get_system_cache_dir() / 'cache')
 
@@ -218,7 +210,7 @@ def get_app_config_dir() -> Path:
     Get application configuration directory
 
     Returns:
-        Path: Application config directory (.core_node/config/)
+        Path: Application config directory (core_node/config/)
     """
     return _get_foundation_app_config_dir()
 
@@ -228,7 +220,7 @@ def get_app_data_dir() -> Path:
     Get application persistent data directory
 
     Returns:
-        Path: Application data directory (.core_node/data/)
+        Path: Application data directory (core_node/data/)
     """
     return _ensure_dir(get_system_cache_dir() / 'data')
 
@@ -238,7 +230,7 @@ def get_app_logs_dir() -> Path:
     Get application logs directory
 
     Returns:
-        Path: Application logs directory (.core_node/logs/)
+        Path: Application logs directory (core_node/logs/)
     """
     return _ensure_dir(get_system_cache_dir() / 'logs')
 
@@ -269,7 +261,7 @@ def get_shared_download_cache_dir() -> Path:
         pass
     if shared.is_dir() and os.access(shared, os.W_OK):
         return shared
-    return _ensure_dir(Path.home() / '.core_node' / 'cache')
+    return _ensure_dir(Path.home() / 'core_node' / 'cache')
 
 
 def get_edge_tts_voice_cache_dir(lang: str = "en") -> Path:
@@ -432,19 +424,18 @@ def get_lang_compiler_dir() -> Path:
 # If the shell has not provided a (valid) path, fall back to a full blkid/blockdev/
 # findmnt disk detection re-implemented here so all three languages still converge.
 # --------------------------------------------------------------------------- #
-_BASE_DATA_DIR_FILE = '/var/_core_node/global_var/BASE_DATA_DIR'
-# Central WWW variable persisted by 3_setting_base.sh (single source of truth
-# for the D:\www-equivalent web base; read identically by sh/py/PHP).
-_WWW_PATH_FILE = '/var/_core_node/global_var/WWW_PATH'
+# Var-center keys persisted by 3_setting_base.sh (cross-language source of
+# truth for the detected data base and the D:\www-equivalent web base). Reads
+# go through core_node_dirs.read_global_var, which searches the canonical
+# var center (<core_node_data_dir>/global_var) first and the legacy
+# /var/_core_node/global_var second, so pre-migration installs keep working.
+_BASE_DATA_DIR_KEY = 'BASE_DATA_DIR'
+_WWW_PATH_KEY = 'WWW_PATH'
 
 
-def _read_persisted_var(key_file: str) -> str:
-    """First line of a var-center file ('' when absent/unreadable)."""
-    try:
-        with open(key_file, 'r', encoding='utf-8', errors='ignore') as fh:
-            return fh.readline().strip().strip('\r\n')
-    except Exception:
-        return ''
+def _read_persisted_var(key: str) -> str:
+    """First line of a var-center key ('' when absent/unreadable)."""
+    return _read_global_var_center(key) or ''
 
 
 def _www_ntfs_root_mounted() -> bool:
@@ -455,11 +446,11 @@ def _www_ntfs_root_mounted() -> bool:
         Windows D:\www\cache  ==  Linux /www/www/cache
     On a Linux-only machine /www is a plain native dir (same device as /) and
     there is NO extra level -- native paths are used directly.
-    SYNC: gvar_common.sh::www_ntfs_root_mounted / PathMapper.php::wwwNtfsRootMounted.
+    The detection itself lives ONCE in core_node_dirs.www_data_root_mounted
+    (single pycore definition; mirrors runtime_environment.sh
+    CORE_NODE_WWW_BASE and PathMapper.php::wwwNtfsRootMounted).
     """
-    if not Path('/www/www').is_dir():
-        return False
-    return _is_real_distinct_mount(Path('/www'))
+    return _www_data_root_mounted()
 
 
 def _linux_cross_os_cache_dir() -> Optional[Path]:
@@ -470,7 +461,7 @@ def _linux_cross_os_cache_dir() -> Optional[Path]:
     device-agnostic -- the same tree serves GPU (CUDA) and CPU runs on
     unchanged hardware; framework wheels differ but live in venvs, never here.
     Returns None on Linux-only machines (caller uses the native cache)."""
-    www_path_var = _read_persisted_var(_WWW_PATH_FILE)
+    www_path_var = _read_persisted_var(_WWW_PATH_KEY)
     candidate: Optional[Path] = None
     if www_path_var and www_path_var != '/www' and Path(www_path_var).is_dir():
         candidate = Path(www_path_var) / 'cache'
@@ -584,11 +575,7 @@ def _path_hosts_project(base: Path) -> bool:
 
 def _read_persisted_base() -> Optional[Path]:
     """The base the shell installer detected + persisted (cross-language source of truth)."""
-    try:
-        with open(_BASE_DATA_DIR_FILE, 'r', encoding='utf-8', errors='ignore') as fh:
-            val = fh.readline().strip().strip('\r\n')
-    except Exception:
-        return None
+    val = _read_persisted_var(_BASE_DATA_DIR_KEY)
     if not val:
         return None
     p = Path(val)
@@ -806,7 +793,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         if is_wsl():
             www_base = base_path / 'www'
         else:
-            www_path_var = _read_persisted_var(_WWW_PATH_FILE)
+            www_path_var = _read_persisted_var(_WWW_PATH_KEY)
             if www_path_var and Path(www_path_var).is_dir():
                 www_base = Path(www_path_var)
             elif _www_ntfs_root_mounted():

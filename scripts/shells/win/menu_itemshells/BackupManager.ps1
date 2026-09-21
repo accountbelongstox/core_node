@@ -207,7 +207,7 @@ function Restore-ClaudeCodexAnthropic {
 
 # Python Runtime + Models + User Data Backups
 # Snapshots the actual Python install directory (parent of python.exe), all
-# downloaded models and the ~/.core_node user-data root so the environment can
+# downloaded models and the core_node user-data root so the environment can
 # be restored without re-running the installers. The Python tool prompts for
 # compression (Y/n, default Y) and confirmation; restore accepts a compressed
 # .tar.gz archive or an uncompressed backup directory.
@@ -217,7 +217,7 @@ function Backup-PythonEnvironment {
     Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
     Write-Host "Includes:" -ForegroundColor $script:COLOR_INFO
     Write-Host "  - Python install directory (interpreter + all pip packages)" -ForegroundColor Gray
-    Write-Host "  - pycore models + user data (~/.core_node: cache/tts, cache/stt, ...)" -ForegroundColor Gray
+    Write-Host "  - pycore models + user data (core_node: cache/tts, cache/stt, ...)" -ForegroundColor Gray
     Write-Host "  - HuggingFace model cache (D:\www\cache\huggingface: faster-whisper, ...)" -ForegroundColor Gray
     Write-Host "  - Whisper model cache (D:\www\cache\whisper)" -ForegroundColor Gray
     Write-Host ""

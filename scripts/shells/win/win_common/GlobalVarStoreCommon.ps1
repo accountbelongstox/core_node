@@ -76,6 +76,54 @@ function Get-SecurePasswordForGlobalVar {
         [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
     }
 }
+# OS tag helpers for per-OS var-center keys (identical implementation to
+# CommonFunc.ps1; this file can be sourced standalone). A dual-boot machine
+# SHARES the var center with Linux; keys whose value differs per OS are stored
+# on disk as <TAG>_<KEY> so the two OSes never overwrite each other.
+if (-not (Get-Command Get-OsVarTag -ErrorAction SilentlyContinue)) {
+    function Get-OsVarTag {
+        try {
+            $build = [Environment]::OSVersion.Version.Build
+            if ($build -ge 22000) { return 'WIN11' }
+            return 'WIN10'
+        } catch {
+            return 'WIN10'
+        }
+    }
+}
+if (-not $script:SharedGlobalVarKeys) {
+    $script:SharedGlobalVarKeys = @(
+        'POSTGRES_PASSWORD',
+        'MERCURE_PUBLISHER_JWT',
+        'MERCURE_SUBSCRIBER_JWT',
+        'DNSPOD_API_TOKEN',
+        'DNSPOD_EMAIL',
+        'TAILSCALE_DOMAIN_1',
+        'DOMAIN_API_REGION_PREFIX',
+        'DOMAIN_UI_BINDING',
+        'START_WEB_SERVER',
+        'WEB_SERVER_PLANE',
+        'PHP_RUNTIME_PLANE',
+        'SELECTED_REGION',
+        'GIT_PUSH_BRANCH',
+        'GIT_UPDATE_TYPE'
+    )
+}
+if (-not (Get-Command Get-GlobalVarWriteName -ErrorAction SilentlyContinue)) {
+    function Get-GlobalVarWriteName {
+        param([string]$key)
+        $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
+        if ($script:SharedGlobalVarKeys -contains $normalized) { return $normalized }
+        return ('{0}_{1}' -f (Get-OsVarTag), $normalized)
+    }
+    function Get-GlobalVarReadNames {
+        param([string]$key)
+        $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
+        if ($script:SharedGlobalVarKeys -contains $normalized) { return @($normalized) }
+        return @(('{0}_{1}' -f (Get-OsVarTag), $normalized), $normalized)
+    }
+}
+
 function Get-GlobalVar {
     param (
         [string]$key,
@@ -100,11 +148,13 @@ function Get-GlobalVar {
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    if (Test-Path $filePath) {
-        $value = Get-Content $filePath -Raw
-        if (-not [string]::IsNullOrWhiteSpace($value)) {
-            return $value.Trim()
+    foreach ($name in (Get-GlobalVarReadNames $key)) {
+        $filePath = Join-Path $Global:GLOBAL_VAR_DIR $name
+        if (Test-Path $filePath) {
+            $value = Get-Content $filePath -Raw
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return $value.Trim()
+            }
         }
     }
     return $defaultValue
@@ -293,13 +343,13 @@ function Set-GlobalVar {
         [string]$key,
         [string]$value
     )
-    
+
     # Ensure directory exists
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
+
+    $filePath = Join-Path $Global:GLOBAL_VAR_DIR (Get-GlobalVarWriteName $key)
     Set-Content -Path $filePath -Value $value -Force
 }
 function Get-AllGlobalVars {

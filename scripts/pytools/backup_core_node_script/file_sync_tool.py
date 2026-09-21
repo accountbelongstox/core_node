@@ -118,9 +118,23 @@ if len(sys.argv) > 1 and sys.argv[1] == 'client':
 # Configuration
 # =============================================================================
 
+def detect_server_root() -> str:
+    """Server web root on the NTFS-aware WWW base. Single definition lives in
+    pycore core_node_dirs.get_linux_www_base; used when the repo is importable
+    (this script lives at <repo>/scripts/pytools/backup_core_node_script/)."""
+    try:
+        repo_root = Path(get_script_dir()).resolve().parents[2]
+        if (repo_root / 'pycore').is_dir() and str(repo_root) not in sys.path:
+            sys.path.insert(0, str(repo_root))
+        from pycore.pyfoundations.core_node_dirs import get_linux_www_base
+        return str(Path(get_linux_www_base()) / 'wwwroot')
+    except Exception:
+        return '/www/wwwroot'
+
+
 class Config:
     """Configuration settings"""
-    SERVER_ROOT = "/www/wwwroot"
+    SERVER_ROOT = detect_server_root()
     CLIENT_ROOT = r"D:\www\wwwroot"
     EXCLUDE_DIRS = ["core_node"]
     DEFAULT_PORT = 8888

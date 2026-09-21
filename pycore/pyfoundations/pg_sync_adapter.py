@@ -256,8 +256,8 @@ class PgSyncAdapter:
         """Read PG passwords from the global-var stores."""
         if self.win_secrets_dir:
             self._password_win = _read_file_stripped(self.win_secrets_dir / 'POSTGRES_PASSWORD')
-        linux_sec = Path('/var/_core_node/global_var/POSTGRES_PASSWORD')
-        self._password_linux = _read_file_stripped(linux_sec)
+        from pycore.pyfoundations.core_node_dirs import read_global_var
+        self._password_linux = read_global_var('POSTGRES_PASSWORD')
         # Fallback: both might share the same password
         if not self._password_linux and self._password_win:
             self._password_linux = self._password_win

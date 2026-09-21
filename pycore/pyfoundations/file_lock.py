@@ -66,8 +66,8 @@ class FileLockManager:
     - Process-safe atomic operations
 
     Lock Structure:
-        Windows: D:\\programing\\Users\\{username}\\.core_node\\_lck\\{md5}\\{timestamp}.{pid}.lck
-        Linux:   /var/_core_node/_lck/{md5}/{timestamp}.{pid}.lck
+        Windows: D:\\www\\core_node\\_lck\\{md5}\\{timestamp}.{pid}.lck
+        Linux:   <core_node_data_dir>/_lck/{md5}/{timestamp}.{pid}.lck
 
     Usage:
         # Create manager for a file
@@ -160,31 +160,11 @@ class FileLockManager:
     @staticmethod
     def _get_cache_directory() -> Path:
         """
-        Get platform-specific cache directory (reuse-first: system_paths).
-
-        Uses ``system_paths.get_system_cache_dir()`` instead of a private
-        hardcoded duplicate of the same paths:
-            Windows: D:\\programing\\Users\\{username}\\.core_node
-            Linux:   /var/_core_node  (ONE shared, all-users-writable dir)
-
-        The import is lazy (function-local, avoids any circular import with
-        system_paths) and RELATIVE so it binds to whichever package form
-        (``pyfoundations`` or ``pycore.pyfoundations``) the caller used,
-        avoiding the dual-module-identity trap. When run as ``__main__``
-        (no parent package) the relative import fails and the last-resort
-        fallback mirrors system_paths' own resolution so this never hard-fails.
+        Get the unified runtime data root (delegates to
+        system_paths.get_system_cache_dir -> core_node_dirs):
+            Windows: D:\\www\\core_node
+            Linux:   /www/www/core_node (NTFS dual-boot) or /www/core_node
         """
-        try:
-            pass
-        except ImportError:
-            # Last-resort fallback (mirrors system_paths.get_system_cache_dir).
-            # Reached when system_paths is unavailable OR this module runs as
-            # __main__ (no parent package for a relative import).
-            if sys.platform == 'win32':
-                # Mirror system_paths.get_system_cache_dir Windows resolution.
-                _user = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-                return Path('D:/programing/Users') / _user / '.core_node'
-            return Path('/var/_core_node')
         return get_system_cache_dir()
 
     @staticmethod
@@ -570,7 +550,7 @@ def main():
     ColorPrint.plain()
 
     # Test file path
-    test_file = Path.home() / '.core_node' / 'test_data.json'
+    test_file = Path.home() / 'core_node' / 'test_data.json'
 
     ColorPrint.plain(f"Test file: {test_file}")
     ColorPrint.plain()

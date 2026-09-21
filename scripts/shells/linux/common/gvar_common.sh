@@ -264,17 +264,13 @@ source "$GVAR_STORAGE_COMMON_SCRIPT"
 #   Windows D:\www\cache  ==  Linux /www/www/cache
 # When /www is a plain directory on the native Linux filesystem (Linux-only
 # machine), there is NO extra level: /www itself is the D:\www equivalent and
-# native paths are used directly. Detection: /www/www exists AND the device
-# backing /www differs from the device backing / (a real disk-root mount).
-# SYNC WARNING: keep in sync with system_paths.py::_www_ntfs_root_mounted() and
-# PathMapper.php::wwwNtfsRootMounted().
+# native paths are used directly. The detection itself lives ONCE in
+# runtime_environment.sh (which computes CORE_NODE_WWW_BASE); this function is
+# a thin reader of that single source of truth.
+# SYNC WARNING: consumers also exist in system_paths.py (delegates to
+# core_node_dirs.www_data_root_mounted) and PathMapper.php::mapWebPath.
 www_ntfs_root_mounted() {
-    local src_www="" src_root=""
-    [ -d /www/www ] || return 1
-    command -v findmnt >/dev/null 2>&1 || return 1
-    src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
-    src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
-    [ -n "$src_www" ] && [ -n "$src_root" ] && [ "$src_www" != "$src_root" ]
+    [ "${CORE_NODE_WWW_BASE:-/www}" = "/www/www" ]
 }
 
 # Function to map paths based on environment (using get_base_data_directory)

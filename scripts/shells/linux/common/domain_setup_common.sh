@@ -51,7 +51,7 @@ source "$DOMAIN_SETUP_COMMON_DIR/network_detect_common.sh"
 DOMAIN_SETUP_REPO_ROOT="$(cd "$DOMAIN_SETUP_COMMON_DIR/../../../.." && pwd)"
 DOMAIN_SETUP_CORE_NODE_DIR="${CORE_NODE_DIR:-$DOMAIN_SETUP_REPO_ROOT}"
 DOMAIN_SETUP_SECRETS_DIR="$DOMAIN_SETUP_CORE_NODE_DIR/.secret_keys/.secret_ignore"
-DOMAIN_SETUP_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/$(sc_get paths.global_var_dir_name)"
+DOMAIN_SETUP_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}/$(sc_get paths.global_var_dir_name)"
 DOMAIN_API_PREFIX_KEY="DOMAIN_API_REGION_PREFIX"
 DOMAIN_UI_BINDING_KEY="DOMAIN_UI_BINDING"
 DOMAIN_UI_SERVICE_NAME="ncore-nexus-dash"
@@ -297,37 +297,13 @@ except Exception:
 }
 
 # Resolve the LAN certificate directory into DOMAIN_LAN_CERT_DIR. The certs
-# live in the USER DATA tree (never in the repo, never committed). Cross-OS
-# rule (one machine dual-booting Windows/Debian off the shared NTFS data
-# disk must see the SAME files): Windows pins CORE_NODE_DATA_DIR to
-# <data-drive>:\var\_core_node (paths.core_node_data_dir_windows_subpath);
-# when Debian bind-mounts that NTFS disk root at /www (ensure_www_base_mount),
-# the SAME directory is /www/var/_core_node. Detection mirrors
-# gvar_common.sh::www_ntfs_root_mounted (reused when loaded; inline findmnt
-# fallback otherwise). Linux-only machines keep the native
-# CORE_NODE_DATA_DIR (/var/_core_node).
+# live in the USER DATA tree (never in the repo, never committed).
+# CORE_NODE_DATA_DIR (runtime_environment.sh) is the single NTFS-aware root:
+# /www/www/core_node when Debian mounts the Windows D: root at /www (the SAME
+# directory as Windows D:\www\core_node), /www/core_node on Linux-only
+# machines -- so a dual-boot machine sees the SAME cert files from both OSes.
 domain_setup_resolve_lan_cert_dir() {
-    local ntfs_mounted="no"
-    local src_www=""
-    local src_root=""
-
-    if declare -F www_ntfs_root_mounted >/dev/null 2>&1; then
-        if www_ntfs_root_mounted; then
-            ntfs_mounted="yes"
-        fi
-    elif command -v findmnt >/dev/null 2>&1 && [ -d /www/www ]; then
-        src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
-        src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
-        if [ -n "$src_www" ] && [ -n "$src_root" ] && [ "$src_www" != "$src_root" ]; then
-            ntfs_mounted="yes"
-        fi
-    fi
-
-    if [ "$ntfs_mounted" = "yes" ]; then
-        DOMAIN_LAN_CERT_DIR="/www/var/_core_node/certs/local"
-    else
-        DOMAIN_LAN_CERT_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/certs/local"
-    fi
+    DOMAIN_LAN_CERT_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}/certs/local"
     return 0
 }
 
@@ -370,7 +346,7 @@ domain_setup_mkcert_install() {
     local dl_bin=""
     local src_dir=""
     sudo_cmd=$(lazy_sudo)
-    dl_dir="${CORE_NODE_SHARED_DOWNLOADS:-${CORE_NODE_DATA_DIR:-/var/_core_node}/shared_downloads}/mkcert"
+    dl_dir="${CORE_NODE_SHARED_DOWNLOADS:-${CORE_NODE_DATA_DIR:-/www/core_node}/shared_downloads}/mkcert"
     dl_bin="$dl_dir/mkcert"
     src_dir="$dl_dir/src"
 

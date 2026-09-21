@@ -18,7 +18,11 @@
 # fingerprint equals the current one, so changed inputs re-run the step while
 # unchanged ones are skipped - re-running a whole script is always safe.
 
-STEP_STATE_DIR="$GLOBAL_VAR_DIR/step_state"
+# Step completion state is OS-specific (an install step done on Linux says
+# nothing about Windows on the same shared var center), so state files are
+# namespaced per OS under step_state/<OS_VAR_TAG>/ (OS_VAR_TAG comes from
+# runtime_environment.sh, sourced before this file).
+STEP_STATE_DIR="$GLOBAL_VAR_DIR/step_state/${OS_VAR_TAG:-UNKNOWN}"
 
 # Resolve the state file path for one step.
 # Usage: _step_state_file <namespace> <step>

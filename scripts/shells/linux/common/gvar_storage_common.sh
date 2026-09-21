@@ -76,7 +76,15 @@ export -f safe_path_for_recursive_chown
 
 # Centralized path for persisted base data directory (used by bootstrap and project)
 # GLOBAL_VAR_DIR is defined once in gvar_system_common.sh (sourced before this file).
-BASE_DATA_DIR_FILE="$GLOBAL_VAR_DIR/BASE_DATA_DIR"
+# The on-disk key name is OS-tagged via gvar_write_key (runtime_environment.sh):
+# BASE_DATA_DIR is an OS-specific path value, so Windows and Linux on one shared
+# var center must persist it under separate names.
+BASE_DATA_DIR_KEY_NAME="BASE_DATA_DIR"
+if declare -F gvar_write_key >/dev/null 2>&1; then
+    BASE_DATA_DIR_KEY_NAME="$(gvar_write_key BASE_DATA_DIR)"
+fi
+BASE_DATA_DIR_FILE="$GLOBAL_VAR_DIR/$BASE_DATA_DIR_KEY_NAME"
+unset BASE_DATA_DIR_KEY_NAME
 
 # True when the filesystem backing $1 supports POSIX ownership/permissions, which
 # the web DATA root REQUIRES: PostgreSQL needs a postgres-owned 0700 data dir and

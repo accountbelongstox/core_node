@@ -24,7 +24,7 @@ $CHROME_ID = "Google.Chrome"
 # Post-install Chrome crash repair script (idempotent) and fallback path
 $scriptsRootDir = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
 $chromeRepairScript = Join-Path $scriptsRootDir "chromefix\repair-chrome-crash.ps1"
-$chromeRepairFallback = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\scripts\chromefix" "repair-chrome-crash.ps1"
+$chromeRepairFallback = Join-Path "D:\www\core_node\scripts\chromefix" "repair-chrome-crash.ps1"
 
 function Step22_InstallChrome {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Chrome..." -Type "Info"

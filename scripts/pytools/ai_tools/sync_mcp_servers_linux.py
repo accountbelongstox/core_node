@@ -25,7 +25,8 @@ Supported targets:
 
 Templates:
 - WSL: D:\programing\core_node\_prompt\mcpWSLTemplate.json
-- Linux: /www/wwwroot/core_node/_prompt/mcpLinuxTemplate.json (or detected project root)
+- Linux: <www_base>/wwwroot/core_node/_prompt/mcpLinuxTemplate.json (NTFS-aware
+  www base via pycore core_node_dirs, or detected project root)
 
 The script automatically detects WSL vs native Linux and uses appropriate paths.
 """
@@ -85,10 +86,22 @@ def detect_environment() -> Tuple[str, str]:
     else:
         # Native Linux environment
         linux_template = project_root / '_prompt' / 'mcpLinuxTemplate.json'
-        
-        # Fallback paths
+
+        # Fallback: deployed core_node under the NTFS-aware WWW base (single
+        # definition: pycore core_node_dirs.get_linux_www_base).
         if not linux_template.exists():
-            linux_template = Path('/www/wwwroot/core_node/_prompt/mcpLinuxTemplate.json')
+            www_bases = []
+            try:
+                from pycore.pyfoundations.core_node_dirs import get_linux_www_base
+                www_bases.append(get_linux_www_base())
+            except Exception:
+                pass
+            www_bases.extend(['/www/www', '/www'])
+            for www_base in dict.fromkeys(www_bases):
+                candidate = Path(www_base) / 'wwwroot' / 'core_node' / '_prompt' / 'mcpLinuxTemplate.json'
+                linux_template = candidate
+                if candidate.exists():
+                    break
         if not linux_template.exists():
             linux_template = Path.home() / 'core_node' / '_prompt' / 'mcpLinuxTemplate.json'
         

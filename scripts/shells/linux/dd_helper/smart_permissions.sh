@@ -5,7 +5,7 @@
 # This script intelligently fixes all permissions and environment variables
 # for the Core Node Project, combining multiple functionalities:
 # - Core Node project permissions (root access issue fix)
-# - /var/_core_node permissions (MyBest directories)
+# - core_node data root permissions (MyBest directories)
 # - Environment variables setup (Claude Code auto-update disable, etc.)
 # - AI tools repair functionality
 # =============================================================================
@@ -57,7 +57,7 @@ fix_core_node_permissions_essential() {
 }
 
 # =============================================================================
-# /var/_core_node Permissions (MyBest directories)
+# core_node data root Permissions (MyBest directories)
 # =============================================================================
 fix_var_core_node_permissions() {
     local project_root="$1"
@@ -66,7 +66,7 @@ fix_var_core_node_permissions() {
     local real_group=""
     local target_path="$CORE_NODE_DATA_DIR"
 
-    echo "[INFO] Fixing /var/_core_node permissions for MyBest directories..."
+    echo "[INFO] Fixing core_node data root permissions for MyBest directories..."
     echo "[SAFE_PATH] target_path=$target_path (fixed path, allowed)"
 
     real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
@@ -200,8 +200,8 @@ smart_permissions_fix() {
     fix_core_node_permissions_essential "$project_root" "$user_info"
     echo ""
 
-    # 2. Fix /var/_core_node permissions
-    echo "[STEP 2/3] Fixing /var/_core_node permissions..."
+    # 2. Fix core_node data root permissions
+    echo "[STEP 2/3] Fixing core_node data root permissions..."
     fix_var_core_node_permissions "$project_root" "$user_info"
     echo ""
 
@@ -271,7 +271,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
             echo "Usage: $0 [smart|core|var|env|repair <tool>] [project_root]"
             echo "  smart - Run all fixes (default)"
             echo "  core  - Fix core project permissions only"
-            echo "  var   - Fix /var/_core_node permissions only"
+            echo "  var   - Fix core_node data root permissions only"
             echo "  env   - Setup environment variables only"
             echo "  repair - Repair specific AI tool"
             ;;

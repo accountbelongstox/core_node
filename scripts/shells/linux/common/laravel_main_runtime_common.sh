@@ -125,7 +125,7 @@ new_installation_access_code() {
 persist_global_var_file_value() {
     local key="$1"
     local value="$2"
-    local gdir="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}"
+    local gdir="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/www/core_node}/global_var}"
 
     GLOBAL_VAR_WRITE_READY="no"
     if [ -n "$key" ] && declare -F set_global_var >/dev/null 2>&1; then

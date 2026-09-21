@@ -49,7 +49,7 @@ $script:FrankenPhpCaddyfilePath = Join-Path $script:FrankenPhpLaravelConfigDirec
 $script:FrankenPhpLaravelDataDirectory = Join-Path (Join-Path $script:FrankenPhpWebRoot 'wwwroot') 'laravel_db'
 $script:FrankenPhpRuntimeSecretDirectory = Join-Path $script:FrankenPhpLaravelDataDirectory '.core_node_secrets'
 $script:FrankenPhpSecretDirectory = Join-Path (Join-Path $script:FrankenPhpRepositoryRoot '.secret_keys') '.secret_ignore'
-$script:FrankenPhpGlobalVarDirectory = Join-Path (Join-Path $script:FrankenPhpWebRoot 'var\_core_node') 'global_var'
+$script:FrankenPhpGlobalVarDirectory = Join-Path (Join-Path $script:FrankenPhpWebRoot 'core_node') 'global_var'
 $script:FrankenPhpWebAccessFileName = [string](Get-ServiceContractValue -ContractPath 'files.web_access_config')
 $script:FrankenPhpWebAccessPath = Join-Path $script:FrankenPhpGlobalVarDirectory $script:FrankenPhpWebAccessFileName
 $script:FrankenPhpServiceName = 'ncore-laravel-frankenphp'
@@ -59,9 +59,9 @@ $script:FrankenPhpComposerPath = Join-Path $script:FrankenPhpBinDirectory 'compo
 $script:FrankenPhpPublisherKeyName = 'MERCURE_PUBLISHER_JWT'
 $script:FrankenPhpSubscriberKeyName = 'MERCURE_SUBSCRIBER_JWT'
 # LAN local certificate contract (mirrors domain_setup_common.sh on Linux):
-# certs live in the USER DATA tree <data-drive>:\var\_core_node\certs\local
+# certs live in the USER DATA tree D:\www\core_node\certs\local
 # (the SAME physical directory a dual-boot Debian resolves as
-# /www/var/_core_node/certs/local through the NTFS mount), never in the repo.
+# /www/www/core_node/certs/local through the NTFS mount), never in the repo.
 $script:FrankenPhpLanRoutePath = Join-Path $script:FrankenPhpLaravelRoutesDirectory 'local_lan.caddy'
 $script:FrankenPhpMkcertVersion = 'v1.4.4'
 $script:FrankenPhpMkcertArchiveName = 'mkcert-{0}-windows-amd64.exe' -f $script:FrankenPhpMkcertVersion
@@ -481,7 +481,7 @@ function Get-FrankenPhpReverseProxyHandlers {
 function Get-FrankenPhpLanCertificateDirectory {
     $dataRoot = [string]$env:CORE_NODE_DATA_DIR
     if ([string]::IsNullOrWhiteSpace($dataRoot)) {
-        $dataRoot = Join-Path ([System.IO.Path]::GetPathRoot($script:FrankenPhpWebRoot)) 'var\_core_node'
+        $dataRoot = Join-Path $script:FrankenPhpWebRoot 'core_node'
     }
     return (Join-Path $dataRoot 'certs\local')
 }

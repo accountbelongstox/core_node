@@ -43,7 +43,7 @@ const CADDY_SYSTEMD_PATH = `/lib/systemd/system/caddy.service`;
 
 // Caddy System Information Constants
 const CADDY_SERVER_WEB_ROOT = `/usr/share/caddy`;
-const CADDY_WEBSITE_ROOT = `/www/wwwroot`;
+const CADDY_WEBSITE_ROOT = gdir.mapWebPath('wwwroot');
 
 // Caddy Domain Configuration Constants
 

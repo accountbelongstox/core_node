@@ -359,6 +359,8 @@ export interface DictionaryStatus {
   success: boolean;
   ecdict: { available: boolean; db_path: string; entries: number };
   wordnet: { available: boolean };
+  /** True on a SQLITE_BUSY lock race with the Laravel end — retry immediately. */
+  busy?: boolean;
   error?: string;
 }
 
@@ -386,6 +388,8 @@ export interface DictionaryEntry {
   target: string;
   /** Single-language answer for the requested target ('zh'|'en'); null on miss. */
   target_translation: string | null;
+  /** True on a SQLITE_BUSY lock race with the Laravel end — retry immediately. */
+  busy?: boolean;
   error?: string;
 }
 

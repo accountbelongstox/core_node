@@ -49,8 +49,9 @@ _FREE_DEFAULT_RPM = 10
 # Shared rate-usage store (cross-runtime: pycore on Windows + Laravel in WSL). #
 # --------------------------------------------------------------------------- #
 # pycore runs on the Windows host while the Laravel apps run inside WSL, so a
-# per-OS user-data path (APP_DATA_DIR -> D:\programing\Users\..\.core_node\data on Windows
-# vs /var/_core_node/data inside WSL) resolves to DIFFERENT physical files — the
+# per-OS user-data path (APP_DATA_DIR -> D:\www\core_node\data on Windows;
+# inside WSL the D: drive is /mnt/d, so <www>/core_node does not resolve there)
+# would resolve to DIFFERENT physical files — the
 # two runtimes would each keep their OWN counters and the same provider key would
 # get DOUBLE its real free-tier budget. The only filesystem location both see as
 # a SINGLE file is the core_node repo root itself (D:\..\core_node on Windows ==

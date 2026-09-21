@@ -547,9 +547,11 @@ function Initialize-GlobalVarDir {
 
 
 function Store-GlobalPaths {
-    # Store script directory path using UTF-8
+    # Store script directory path using UTF-8 (OS-tagged on-disk name: the
+    # script root is an OS-specific path on the dual-boot shared var center).
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText("$($Global:GLOBAL_VAR_DIR)\SCRIPT_ROOT_DIR", $Global:CORE_NODE_DIR, $utf8NoBom)
+    $scriptRootKeyName = Get-GlobalVarWriteName "SCRIPT_ROOT_DIR"
+    [System.IO.File]::WriteAllText("$($Global:GLOBAL_VAR_DIR)\$scriptRootKeyName", $Global:CORE_NODE_DIR, $utf8NoBom)
 }
 
 

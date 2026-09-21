@@ -34,10 +34,20 @@ def get_win_common_dir() -> Path:
 
 def get_global_var(key: str, default: Optional[str] = None) -> Optional[str]:
     """Get global variable value"""
-    # Try the same lookup paths used by the PowerShell implementation
+    # Canonical var center first (see pycore.pyfoundations.core_node_dirs),
+    # then the same legacy lookup paths used by the PowerShell implementation.
     candidates = []
     
-    # Windows/WSL user profile location
+    # Unified core_node data root (no dot-prefixed names)
+    env_base = os.environ.get("CORE_NODE_DATA_DIR")
+    if env_base:
+        candidates.append(Path(env_base) / "global_var" / key)
+    candidates.append(Path("D:/www/core_node/global_var") / key)
+    www_base = "/www/www" if os.path.isdir("/www/www") else "/www"
+    candidates.append(Path(www_base) / "core_node" / "global_var" / key)
+    candidates.append(Path("/var/_core_node/global_var") / key)
+    
+    # Windows/WSL user profile location (legacy)
     user_profile = os.environ.get("USERPROFILE")
     if user_profile:
         candidates.append(Path(user_profile) / ".core_node" / ".global_vars" / key)

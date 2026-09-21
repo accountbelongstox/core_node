@@ -54,9 +54,9 @@ class ScrcpyInitializer:
     def _get_user_data_dir(self) -> Path:
         """Get user data directory based on OS (centralized via system_paths).
 
-        Windows: D:\\programing\\Users\\<user>\\.core_node
-        Linux:   /var/_core_node (else ~/.core_node)
-        macOS:   ~/.core_node
+        Windows: D:\\www\\core_node
+        Linux:   /www/www/core_node or /www/core_node (else ~/core_node)
+        macOS:   ~/core_node
         """
         # Centralized per-user state dir (see system_paths.get_system_cache_dir);
         # it already handles per-OS resolution + idempotent creation.

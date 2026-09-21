@@ -47,7 +47,7 @@ COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 DEBIAN_COM_DIR="$PARENT_DIR_LEVEL_1/debian_com"
 
 # Configuration files
-CORE_NODE_DATA_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}"
+CORE_NODE_DATA_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}"
 CONFIG_DIR="${CORE_NODE_DATA_DIR}/natgateway"
 CONFIG_FILE="$CONFIG_DIR/config"
 CACHE_FILE="$CONFIG_DIR/interface_cache.conf"

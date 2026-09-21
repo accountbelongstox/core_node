@@ -224,7 +224,7 @@ class ServerManagerV1FrankenPhpReloadJob
 
     private static function jobsDirectory(): string
     {
-        return ServiceContract::path('core_node_data_dir_posix')
+        return PathMapper::getCoreNodeRuntimeDir()
             .DIRECTORY_SEPARATOR.'runtime'.DIRECTORY_SEPARATOR.'frankenphp-reload-jobs';
     }
 

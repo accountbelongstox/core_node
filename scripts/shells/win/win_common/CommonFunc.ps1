@@ -2254,23 +2254,80 @@ function Ensure-GlobalVarsEncoding {
     }
 }
 
+# OS tag for per-OS var-center keys: WIN10 / WIN11 (derived from the kernel
+# build number, >= 22000 is Windows 11). A dual-boot machine SHARES the var
+# center with Linux; keys whose value differs per OS are stored on disk as
+# <TAG>_<KEY> so the two OSes never overwrite each other. SYNC: pycore
+# core_node_dirs.get_os_var_tag / runtime_environment.sh OS_VAR_TAG /
+# PathMapper.php osVarTag.
+function Get-OsVarTag {
+    try {
+        $build = [Environment]::OSVersion.Version.Build
+        if ($build -ge 22000) { return 'WIN11' }
+        return 'WIN10'
+    } catch {
+        return 'WIN10'
+    }
+}
+
+# Var-center keys that stay SHARED (unprefixed) across the OSes of one
+# machine: secrets and cross-OS contract/selector values. SYNC: pycore
+# core_node_dirs._SHARED_GVAR_KEYS / runtime_environment.sh
+# CORE_NODE_SHARED_GVAR_KEYS / PathMapper.php SHARED_GVAR_KEYS.
+$script:SharedGlobalVarKeys = @(
+    'POSTGRES_PASSWORD',
+    'MERCURE_PUBLISHER_JWT',
+    'MERCURE_SUBSCRIBER_JWT',
+    'DNSPOD_API_TOKEN',
+    'DNSPOD_EMAIL',
+    'TAILSCALE_DOMAIN_1',
+    'DOMAIN_API_REGION_PREFIX',
+    'DOMAIN_UI_BINDING',
+    'START_WEB_SERVER',
+    'WEB_SERVER_PLANE',
+    'PHP_RUNTIME_PLANE',
+    'SELECTED_REGION',
+    'GIT_PUSH_BRANCH',
+    'GIT_UPDATE_TYPE'
+)
+
+# Canonical on-disk name for writing a var-center key: shared keys stay bare,
+# every other key is namespaced per OS (<TAG>_<KEY>).
+function Get-GlobalVarWriteName {
+    param([string]$key)
+    $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
+    if ($script:SharedGlobalVarKeys -contains $normalized) { return $normalized }
+    return ('{0}_{1}' -f (Get-OsVarTag), $normalized)
+}
+
+# Candidate on-disk names for reading, first match wins: the OS-tagged name,
+# then the bare name (pre-tagging values and unmigrated machines).
+function Get-GlobalVarReadNames {
+    param([string]$key)
+    $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
+    if ($script:SharedGlobalVarKeys -contains $normalized) { return @($normalized) }
+    return @(('{0}_{1}' -f (Get-OsVarTag), $normalized), $normalized)
+}
+
 # Function to read a global variable value
 function Get-GlobalVar {
     param (
         [string]$key
     )
-    
+
     # Ensure directory exists
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    if (Test-Path $filePath) {
-        # Read file with UTF-8 encoding without BOM
-        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
-        # Remove any null bytes and return
-        return $content -replace "`0", ""
+
+    foreach ($name in (Get-GlobalVarReadNames $key)) {
+        $filePath = Join-Path $Global:GLOBAL_VAR_DIR $name
+        if (Test-Path $filePath) {
+            # Read file with UTF-8 encoding without BOM
+            $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
+            # Remove any null bytes and return
+            return $content -replace "`0", ""
+        }
     }
     return $null
 }
@@ -2281,13 +2338,13 @@ function Set-GlobalVar {
         [string]$key,
         [string]$value
     )
-    
+
     # Ensure directory exists
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
+
+    $filePath = Join-Path $Global:GLOBAL_VAR_DIR (Get-GlobalVarWriteName $key)
     # Create UTF-8 encoding without BOM
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
     # Remove any null bytes from the value

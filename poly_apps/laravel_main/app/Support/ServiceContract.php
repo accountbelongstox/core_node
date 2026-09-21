@@ -149,11 +149,8 @@ final class ServiceContract
 
     public static function globalVarDirectory(): string
     {
-        $root = PathMapper::isWindows()
-            ? PathMapper::mapWebPath('www', self::string('paths.core_node_data_dir_windows_subpath'))
-            : self::string('paths.core_node_data_dir_posix');
-
-        return $root.DIRECTORY_SEPARATOR.self::string('paths.global_var_dir_name');
+        return PathMapper::getCoreNodeRuntimeDir()
+            .DIRECTORY_SEPARATOR.self::string('paths.global_var_dir_name');
     }
 
     public static function webAccessDocument(): array

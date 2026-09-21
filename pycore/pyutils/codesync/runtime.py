@@ -491,10 +491,24 @@ def _ensure_dir(path: Path) -> Path:
     return path
 
 
+def _www_data_base() -> str:
+    """Linux WWW base honoring the dual-boot extra level: /www/www when /www is
+    the root of a mounted data disk (the Windows D:\\ root), else /www. stdlib
+    mirror of pycore.pyfoundations.core_node_dirs.get_linux_www_base (codesync
+    runs standalone without importing the pycore package)."""
+    try:
+        if os.path.isdir('/www/www') and os.path.ismount('/www'):
+            if os.stat('/www').st_dev != os.stat('/').st_dev:
+                return '/www/www'
+    except OSError:
+        pass
+    return '/www'
+
+
 def get_app_data_dir() -> Path:
     """Per-user persistent data dir — identical to pycore.system_paths.get_app_data_dir():
-    <system_cache_dir>/data, where system_cache_dir is ~/.core_node on Windows and
-    /var/_core_node (if writable) else ~/.core_node on Linux."""
+    <core_node_data_dir>/data (Windows D:\\www\\core_node; Linux /www/www/core_node
+    or /www/core_node if writable, else ~/core_node)."""
     fn = _runtime_hook("app_data_dir")
     if fn is not None:
         try:
@@ -502,20 +516,21 @@ def get_app_data_dir() -> Path:
         except Exception:
             pass
     if sys.platform == "win32":
-        # Mirror pycore.system_paths.get_system_cache_dir (kept stdlib-only so
+        # Mirror pycore.pyfoundations.core_node_dirs (kept stdlib-only so
         # codesync runs standalone without importing the pycore package).
-        _user = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-        cache = _ensure_dir(Path('D:/programing/Users') / _user / '.core_node')
+        cache = _ensure_dir(Path('D:/www/core_node'))
     else:
-        shared = Path("/var/_core_node")
-        try:
-            _ensure_dir(shared)
-        except Exception:
-            pass
-        if shared.is_dir() and os.access(shared, os.W_OK):
-            cache = shared
-        else:
-            cache = _ensure_dir(Path.home() / ".core_node")
+        cache = None
+        for shared in (Path(_www_data_base()) / 'core_node', Path("/var/_core_node")):
+            try:
+                _ensure_dir(shared)
+            except Exception:
+                pass
+            if shared.is_dir() and os.access(shared, os.W_OK):
+                cache = shared
+                break
+        if cache is None:
+            cache = _ensure_dir(Path.home() / "core_node")
     return _ensure_dir(cache / "data")
 
 
@@ -533,7 +548,7 @@ def get_codesync_cache_dir() -> Path:
         pass
     if shared.is_dir() and os.access(shared, os.W_OK):
         return _ensure_dir(shared / 'codesync')
-    return _ensure_dir(Path.home() / '.core_node' / 'cache' / 'codesync')
+    return _ensure_dir(Path.home() / 'core_node' / 'cache' / 'codesync')
 
 
 # The committed peer list — the SHIPPED DEFAULT (baseline), read-only at runtime.

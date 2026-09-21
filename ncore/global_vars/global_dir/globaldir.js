@@ -69,6 +69,46 @@ const osVersion = (() => {
 })();
 const LANG_COMPILER_DIRNAME = `.dev_${osVersion}`;
 const APP_INSTALL_NAME = `applications_${osVersion}`
+
+// Single JS definition of the Linux WWW base (dual-boot extra-level rule:
+// when the data-disk ROOT (Windows D:\) is mounted at /www, the SAME logical
+// tree gains ONE EXTRA LEVEL on Linux: D:\www == /www/www). Detection mirrors
+// the shell runtime_environment.sh CORE_NODE_WWW_BASE and pycore
+// core_node_dirs.www_data_root_mounted: /www/www exists AND the device backing
+// /www differs from the device backing /. Never re-implement this inline in
+// other modules -- read WWW_BASE / mapWebPath from here.
+function mountSource(target) {
+    try {
+        const lines = fs.readFileSync('/proc/mounts', 'utf8').split('\n');
+        let best = null;
+        for (const line of lines) {
+            const parts = line.split(' ');
+            if (parts.length < 2) continue;
+            const mountPoint = parts[1].replace(/\\040/g, ' ');
+            if (target === mountPoint || target.startsWith(mountPoint.replace(/\/$/, '') + '/')) {
+                if (!best || mountPoint.length > best[0].length) {
+                    best = [mountPoint, parts[0]];
+                }
+            }
+        }
+        return best ? best[1] : null;
+    } catch (error) {
+        return null;
+    }
+}
+function wwwDataRootMounted() {
+    if (os.platform() === 'win32' || !fs.existsSync('/www/www')) {
+        return false;
+    }
+    const wwwSrc = mountSource('/www');
+    const rootSrc = mountSource('/');
+    return Boolean(wwwSrc && rootSrc && wwwSrc !== rootSrc);
+}
+const WWW_BASE = wwwDataRootMounted() ? '/www/www' : '/www';
+function mapWebPath(sub = '') {
+    return sub ? path.join(WWW_BASE, sub) : WWW_BASE;
+}
+
 let DATA_DRIVER, DATA_DIR;
 if (os.platform() === 'win32') {
     DATA_DRIVER = fs.existsSync('D:\\') ? 'D:\\' : 'C:\\';
@@ -78,7 +118,8 @@ if (os.platform() === 'win32') {
     DATA_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `wwwroot`) : null;
     if (!DATA_DRIVER) {
         DATA_DRIVER = fs.existsSync('/www') ? '/www' : null;
-        DATA_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `wwwroot`) : null;
+        // wwwroot sits under the NTFS-aware WWW base (/www/www on dual-boot).
+        DATA_DIR = DATA_DRIVER ? mapWebPath('wwwroot') : null;
     }
     if (!DATA_DRIVER) {
         DATA_DRIVER = fs.existsSync('/usr/') ? '/usr/' : null;
@@ -206,6 +247,9 @@ module.exports = {
     APP_METADATA_SQLITE_DIR,
     COMMON_CACHE_DIR,
     DATA_DRIVER,
+    WWW_BASE,
+    mapWebPath,
+    wwwDataRootMounted,
     APP_DATA_DIR,
     APP_DATA_CACHE_DIR,
     APP_TMP_DIR,

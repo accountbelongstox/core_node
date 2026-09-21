@@ -12,14 +12,38 @@ class FileVarHandler:
     def _get_var_dir(self):
         system = platform.system()
         if system == "Linux":
-            return Path("/var/_core_node/global_var")
+            base = os.environ.get("CORE_NODE_DATA_DIR")
+            if base:
+                return Path(base) / "global_var"
+            www_base = "/www/www" if self._www_data_root_mounted() else "/www"
+            return Path(www_base) / "core_node" / "global_var"
         elif system == "Windows":
-            user_profile = os.environ.get("USERPROFILE")
-            if not user_profile:
-                raise Exception("USERPROFILE environment variable not found")
-            return Path(user_profile) / ".core_node" / ".global_vars"
+            return Path("D:/www/core_node/global_var")
         else:
             raise Exception(f"Unsupported operating system: {system}")
+
+    @staticmethod
+    def _www_data_root_mounted():
+        try:
+            return (
+                os.path.isdir("/www/www")
+                and os.path.ismount("/www")
+                and os.stat("/www").st_dev != os.stat("/").st_dev
+            )
+        except OSError:
+            return False
+
+    def _legacy_var_dirs(self):
+        if platform.system() == "Linux":
+            return [Path("/var/_core_node/global_var")]
+        user_profile = os.environ.get("USERPROFILE", "")
+        username = os.environ.get("USERNAME", os.environ.get("USER", "default"))
+        return [
+            Path("D:/programing/Users") / username / ".core_node" / ".global_vars",
+            Path(user_profile) / ".core_node" / ".global_vars",
+        ] if user_profile else [
+            Path("D:/programing/Users") / username / ".core_node" / ".global_vars",
+        ]
 
     def _ensure_var_dir(self):
         self.var_dir.mkdir(parents=True, exist_ok=True)
@@ -45,6 +69,10 @@ class FileVarHandler:
         try:
             if file_path.exists():
                 return file_path.read_text(encoding="utf-8").strip()
+            for legacy_dir in self._legacy_var_dirs():
+                legacy_path = legacy_dir / self._normalize_key(key)
+                if legacy_path.exists():
+                    return legacy_path.read_text(encoding="utf-8").strip()
             return default_value
         except Exception as e:
             print(f"Error reading variable {key}: {e}")

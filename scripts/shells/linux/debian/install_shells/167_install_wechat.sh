@@ -99,7 +99,7 @@ WECHAT_DEB_DIR="$WECHAT_INSTALL_DIR/deb"
 LEGACY_APPIMAGE_DIR="$APPLICATIONS_DIR/appimages/wechat"   # from the old AppImage installer
 
 # Version tracking
-APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
+APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions/${OS_VAR_TAG:-UNKNOWN}"
 VERSION_FILE="$APP_VERSIONS_DIR/wechat.version"
 
 # Real user detection (for download location / ownership)

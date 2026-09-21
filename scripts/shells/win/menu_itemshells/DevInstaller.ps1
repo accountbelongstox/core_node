@@ -27,8 +27,8 @@ $SCRIPTS_SHELLS_WIN_WIN_COMMON_PATH = "$SCRIPTS_PATH\$SHELLS_WIN_PATH\$WIN_COMMO
 $SHELLS_WIN_WIN_COMMON_PATH = "$SHELLS_WIN_PATH\$WIN_COMMON_DIR_NAME"
 
 # Directory and path variables
-$USER_DIR = "D:\programing\Users\$env:USERNAME\.core_node"
-$GLOBAL_VAR_DIR = Join-Path $USER_DIR ".global_vars"
+$USER_DIR = Join-Path "D:\www" "core_node"
+$GLOBAL_VAR_DIR = Join-Path $USER_DIR "global_var"
 $INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $INSTALL_POWERSHELLS_DIR_NAME
 $WIN_COMMON_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $WIN_COMMON_DIR_NAME
 

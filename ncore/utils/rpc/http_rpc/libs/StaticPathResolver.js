@@ -2,6 +2,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const logger = require('#@logger');
+const globalDir = require('#@global_dir');
 
 class StaticPathResolver {
     constructor() {
@@ -61,7 +62,8 @@ class StaticPathResolver {
 
         if (this.isLinux) {
             if (this.isProduction) {
-                return '/www';
+                // NTFS-aware base from the single JS definition (globaldir.js).
+                return globalDir.WWW_BASE;
             }
 
             const dataDirs = ['/mnt/data', '/opt', '/home'];
@@ -104,7 +106,7 @@ class StaticPathResolver {
                 if (this.isWSL) {
                     resolvedPath = path.join(baseDir, 'www', 'wwwroot');
                 } else if (this.isProduction) {
-                    resolvedPath = '/www/wwwroot';
+                    resolvedPath = globalDir.mapWebPath('wwwroot');
                 } else if (this.isWindows) {
                     resolvedPath = path.join(baseDir, 'www', 'wwwroot');
                 } else {
@@ -116,7 +118,7 @@ class StaticPathResolver {
                 if (this.isWSL) {
                     resolvedPath = path.join(baseDir, 'www', 'static');
                 } else if (this.isProduction) {
-                    resolvedPath = '/www/static';
+                    resolvedPath = globalDir.mapWebPath('static');
                 } else if (this.isWindows) {
                     resolvedPath = path.join(baseDir, 'www', 'static');
                 } else {
@@ -128,7 +130,7 @@ class StaticPathResolver {
                 if (this.isWSL) {
                     resolvedPath = path.join(baseDir, 'www', 'uploads');
                 } else if (this.isProduction) {
-                    resolvedPath = '/www/uploads';
+                    resolvedPath = globalDir.mapWebPath('uploads');
                 } else if (this.isWindows) {
                     resolvedPath = path.join(baseDir, 'www', 'uploads');
                 } else {
@@ -140,7 +142,7 @@ class StaticPathResolver {
                 if (this.isWSL) {
                     resolvedPath = path.join(baseDir, 'www', 'assets');
                 } else if (this.isProduction) {
-                    resolvedPath = '/www/assets';
+                    resolvedPath = globalDir.mapWebPath('assets');
                 } else if (this.isWindows) {
                     resolvedPath = path.join(baseDir, 'www', 'assets');
                 } else {
@@ -152,7 +154,7 @@ class StaticPathResolver {
                 if (this.isWSL) {
                     resolvedPath = path.join(baseDir, 'www', 'shared-data');
                 } else if (this.isProduction) {
-                    resolvedPath = '/www/shared-data';
+                    resolvedPath = globalDir.mapWebPath('shared-data');
                 } else if (this.isWindows) {
                     resolvedPath = path.join(baseDir, 'www', 'shared-data');
                 } else {
@@ -204,9 +206,9 @@ class StaticPathResolver {
             paths['/assets'] = [this.resolveStaticPath('assets')];
             paths['/uploads'] = [this.resolveStaticPath('uploads')];
         } else if (this.isProduction) {
-            paths['/static'] = ['/www/static', '/www/wwwroot'];
-            paths['/assets'] = ['/www/assets'];
-            paths['/uploads'] = ['/www/uploads'];
+            paths['/static'] = [globalDir.mapWebPath('static'), globalDir.mapWebPath('wwwroot')];
+            paths['/assets'] = [globalDir.mapWebPath('assets')];
+            paths['/uploads'] = [globalDir.mapWebPath('uploads')];
         } else if (this.isWindows) {
             const baseDir = this.getBaseDataDirectory();
             paths['/static'] = [
