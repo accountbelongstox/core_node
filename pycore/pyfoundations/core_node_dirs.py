@@ -73,8 +73,10 @@ def www_data_root_mounted() -> bool:
         Windows D:\www  ==  Linux /www/www      (NOT /www)
     On a Linux-only machine /www is a plain native dir (same device as /) and
     there is NO extra level.
-    SYNC: gvar_common.sh::www_ntfs_root_mounted /
-    PathMapper.php::wwwNtfsRootMounted / system_paths.py::_www_ntfs_root_mounted.
+    SINGLE pycore definition: system_paths.py delegates here; the shell twin
+    lives ONCE in runtime_environment.sh (CORE_NODE_WWW_BASE, read by
+    gvar_common.sh::www_ntfs_root_mounted); Laravel mirrors it in
+    PathMapper.php::wwwNtfsRootMounted.
     """
     if sys.platform == 'win32' or not os.path.isdir('/www/www'):
         return False
@@ -172,17 +174,105 @@ def iter_global_var_dirs() -> List[Path]:
     return out
 
 
-def read_global_var(key: str) -> Optional[str]:
-    """First line of the var-center file for key, searching the fallback
-    chain (canonical first, then legacy). None when absent everywhere."""
-    for directory in iter_global_var_dirs():
-        candidate = directory / key
+# Keys that stay SHARED (unprefixed) across the OSes of one machine: secrets
+# and cross-OS contract/selector values. SYNC: runtime_environment.sh
+# CORE_NODE_SHARED_GVAR_KEYS / PathMapper.php SHARED_GVAR_KEYS /
+# CommonFunc.ps1 $script:SharedGlobalVarKeys.
+_SHARED_GVAR_KEYS = frozenset({
+    'POSTGRES_PASSWORD',
+    'MERCURE_PUBLISHER_JWT',
+    'MERCURE_SUBSCRIBER_JWT',
+    'DNSPOD_API_TOKEN',
+    'DNSPOD_EMAIL',
+    'TAILSCALE_DOMAIN_1',
+    'DOMAIN_API_REGION_PREFIX',
+    'DOMAIN_UI_BINDING',
+    'START_WEB_SERVER',
+    'WEB_SERVER_PLANE',
+    'PHP_RUNTIME_PLANE',
+    'SELECTED_REGION',
+    'GIT_PUSH_BRANCH',
+    'GIT_UPDATE_TYPE',
+})
+
+_OS_VAR_TAG: Optional[str] = None
+
+
+def get_os_var_tag() -> str:
+    r"""OS tag for per-OS var-center keys: DEBIAN_13, UBUNTU_26, WIN10, WIN11.
+
+    A dual-boot machine SHARES the var center between Windows and Linux; keys
+    whose value differs per OS are stored as <TAG>_<KEY> so the two OSes never
+    overwrite each other. Linux format mirrors dd_helper/system_functions.sh
+    CURRENT_SYSTEM (ID_MAJOR); Windows derives WIN10/WIN11 from the build
+    number (>= 22000 is Windows 11). SYNC: runtime_environment.sh OS_VAR_TAG /
+    PathMapper.php::osVarTag / CommonFunc.ps1 Get-OsVarTag.
+    """
+    global _OS_VAR_TAG
+    if _OS_VAR_TAG:
+        return _OS_VAR_TAG
+    tag = 'UNKNOWN'
+    if sys.platform == 'win32':
         try:
-            if candidate.is_file():
-                with open(candidate, 'r', encoding='utf-8', errors='ignore') as handle:
-                    return handle.readline().strip().strip('\r\n')
+            build = sys.getwindowsversion().build  # type: ignore[attr-defined]
+            tag = 'WIN11' if build >= 22000 else 'WIN10'
+        except (AttributeError, OSError):
+            tag = 'WIN10'
+    else:
+        try:
+            os_id = ''
+            version = '0'
+            with open('/etc/os-release', 'r', encoding='utf-8', errors='replace') as handle:
+                for line in handle:
+                    if line.startswith('ID='):
+                        os_id = line.split('=', 1)[1].strip().strip('"').upper()
+                    elif line.startswith('VERSION_ID='):
+                        version = line.split('=', 1)[1].strip().strip('"').split('.')[0]
+            if os_id:
+                tag = '{}_{}'.format(os_id, version or '0')
         except OSError:
-            continue
+            pass
+    _OS_VAR_TAG = tag
+    return tag
+
+
+def _normalize_gvar_key(key: str) -> str:
+    """Uppercase, strip anything that is not [A-Z0-9_] (mirrors the shell
+    key normalization in global_var_store.sh / gvar_write_key)."""
+    return ''.join(ch for ch in key.upper() if ch.isalnum() or ch == '_')
+
+
+def global_var_write_name(key: str) -> str:
+    """Canonical on-disk var-center file name for key: shared keys stay bare,
+    every other key is namespaced per OS (<TAG>_<KEY>)."""
+    normalized = _normalize_gvar_key(key)
+    if normalized in _SHARED_GVAR_KEYS:
+        return normalized
+    return '{}_{}'.format(get_os_var_tag(), normalized)
+
+
+def global_var_read_names(key: str) -> List[str]:
+    """Candidate on-disk names for reading, first match wins: the OS-tagged
+    name, then the bare name (pre-tagging values and unmigrated machines)."""
+    normalized = _normalize_gvar_key(key)
+    if normalized in _SHARED_GVAR_KEYS:
+        return [normalized]
+    return ['{}_{}'.format(get_os_var_tag(), normalized), normalized]
+
+
+def read_global_var(key: str) -> Optional[str]:
+    """First line of the var-center file for key, searching names (OS-tagged
+    first, then bare) across the dir fallback chain (canonical first, then
+    legacy). None when absent everywhere."""
+    for directory in iter_global_var_dirs():
+        for name in global_var_read_names(key):
+            candidate = directory / name
+            try:
+                if candidate.is_file():
+                    with open(candidate, 'r', encoding='utf-8', errors='ignore') as handle:
+                        return handle.readline().strip().strip('\r\n')
+            except OSError:
+                continue
     return None
 
 
@@ -197,5 +287,8 @@ __all__ = [
     'get_core_node_data_dir',
     'get_global_var_dir',
     'iter_global_var_dirs',
+    'get_os_var_tag',
+    'global_var_write_name',
+    'global_var_read_names',
     'read_global_var',
 ]

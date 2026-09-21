@@ -41,6 +41,7 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.core_node_dirs import (
     get_core_node_data_dir as _get_core_node_data_dir,
     read_global_var as _read_global_var_center,
+    www_data_root_mounted as _www_data_root_mounted,
 )
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
 
@@ -445,11 +446,11 @@ def _www_ntfs_root_mounted() -> bool:
         Windows D:\www\cache  ==  Linux /www/www/cache
     On a Linux-only machine /www is a plain native dir (same device as /) and
     there is NO extra level -- native paths are used directly.
-    SYNC: gvar_common.sh::www_ntfs_root_mounted / PathMapper.php::wwwNtfsRootMounted.
+    The detection itself lives ONCE in core_node_dirs.www_data_root_mounted
+    (single pycore definition; mirrors runtime_environment.sh
+    CORE_NODE_WWW_BASE and PathMapper.php::wwwNtfsRootMounted).
     """
-    if not Path('/www/www').is_dir():
-        return False
-    return _is_real_distinct_mount(Path('/www'))
+    return _www_data_root_mounted()
 
 
 def _linux_cross_os_cache_dir() -> Optional[Path]:

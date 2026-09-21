@@ -6,13 +6,14 @@ import {
   BookOpen,
   ListChecks,
   Search,
-  Newspaper
+  Newspaper,
+  BookMarked
 } from 'lucide-react';
 
 export { SUBTAB_MOTION } from '@/core/ui/motion';
 
 /** Sub-tab keys for the page. Active tab persists in localStorage. */
-export type VocabTab = 'translate' | 'words' | 'libraries' | 'articles' | 'queue';
+export type VocabTab = 'translate' | 'words' | 'libraries' | 'articles' | 'queue' | 'dictionary';
 export const VOCAB_TAB_KEY = 'vocab_active_tab';
 export const VOCAB_TABS: { key: VocabTab; label: string; Icon: React.FC<any> }[] = [
   { key: 'translate', label: 'Translate', Icon: Languages },
@@ -20,6 +21,7 @@ export const VOCAB_TABS: { key: VocabTab; label: string; Icon: React.FC<any> }[]
   { key: 'libraries', label: 'Libraries', Icon: BookOpen },
   { key: 'articles', label: 'Articles', Icon: Newspaper },
   { key: 'queue', label: 'TTS Queue', Icon: ListChecks },
+  { key: 'dictionary', label: 'Offline Dict', Icon: BookMarked },
 ];
 
 interface VocabSubTabBarProps {

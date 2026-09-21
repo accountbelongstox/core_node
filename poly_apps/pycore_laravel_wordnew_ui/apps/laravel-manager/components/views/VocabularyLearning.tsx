@@ -30,6 +30,7 @@ import TtsPlayerPanel from '../vocabulary/tabs/TtsPlayerPanel';
 import LearningTasksPanel from '../vocabulary/tabs/LearningTasksPanel';
 import LibrariesTab from '../vocabulary/tabs/LibrariesTab';
 import ArticleManagerTab from '../vocabulary/tabs/ArticleManagerTab';
+import EcdictLookupTab from '../vocabulary/EcdictLookupTab';
 import { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
 import WordDetail from '../vocabulary/words/WordDetail';
@@ -1076,6 +1077,9 @@ const VocabularyLearning: React.FC = () => {
 
       {/* ===================== WORDS TAB ===================== */}
       {activeTab === 'words' && <WordsManagerPanel />}
+
+      {/* ===================== OFFLINE DICT TAB (shared stardict.db) ===================== */}
+      {activeTab === 'dictionary' && <EcdictLookupTab />}
 
       {/* ===================== TRANSLATE TAB ===================== */}
       {activeTab === 'translate' && (

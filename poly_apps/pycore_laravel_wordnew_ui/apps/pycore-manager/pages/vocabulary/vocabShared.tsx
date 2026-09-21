@@ -17,6 +17,7 @@ export const VOCAB_TABS = [
   { key: 'tts-queue', labelKey: 'vocabularyPage.tabs.ttsQueue' },
   { key: 'learning', labelKey: 'vocabularyPage.tabs.learning' },
   { key: 'audio-orch', labelKey: 'vocabularyPage.tabs.audioOrch' },
+  { key: 'dictionary', labelKey: 'vocabularyPage.tabs.dictionary' },
 ] as const;
 export type VocabTabKey = (typeof VOCAB_TABS)[number]['key'];
 export const VOCAB_TAB_KEY = StorageKeys.PYCORE_VOCAB_TAB;

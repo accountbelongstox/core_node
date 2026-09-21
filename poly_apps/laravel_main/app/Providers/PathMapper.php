@@ -24,6 +24,29 @@ use Illuminate\Support\Facades\Log;
  */
 class PathMapper
 {
+    /** Var-center keys that stay SHARED (unprefixed) across the OSes of one
+     * machine: secrets and cross-OS contract/selector values. Every other key
+     * is stored on disk as <OS tag>_<KEY> (see osVarTag) so Windows and Linux
+     * on a dual-boot machine never overwrite each other. SYNC: pycore
+     * core_node_dirs._SHARED_GVAR_KEYS / runtime_environment.sh
+     * CORE_NODE_SHARED_GVAR_KEYS / CommonFunc.ps1 $script:SharedGlobalVarKeys. */
+    private const SHARED_GVAR_KEYS = [
+        'POSTGRES_PASSWORD',
+        'MERCURE_PUBLISHER_JWT',
+        'MERCURE_SUBSCRIBER_JWT',
+        'DNSPOD_API_TOKEN',
+        'DNSPOD_EMAIL',
+        'TAILSCALE_DOMAIN_1',
+        'DOMAIN_API_REGION_PREFIX',
+        'DOMAIN_UI_BINDING',
+        'START_WEB_SERVER',
+        'WEB_SERVER_PLANE',
+        'PHP_RUNTIME_PLANE',
+        'SELECTED_REGION',
+        'GIT_PUSH_BRANCH',
+        'GIT_UPDATE_TYPE',
+    ];
+
     /**
      * Map web path based on environment (PHP version of gvar_common.sh map_web_path)
      * 
@@ -237,6 +260,58 @@ class PathMapper
         ];
     }
 
+    /** OS tag for per-OS var-center keys: DEBIAN_13, UBUNTU_26, WIN10, WIN11.
+     * Linux parses /etc/os-release (ID + VERSION_ID major, mirroring
+     * dd_helper/system_functions.sh CURRENT_SYSTEM); Windows derives
+     * WIN10/WIN11 from the kernel build number (>= 22000 is Windows 11).
+     * SYNC: pycore core_node_dirs.get_os_var_tag / runtime_environment.sh
+     * OS_VAR_TAG / CommonFunc.ps1 Get-OsVarTag. */
+    private static function osVarTag(): string
+    {
+        static $tag = null;
+        if ($tag !== null) {
+            return $tag;
+        }
+        $tag = 'UNKNOWN';
+        if (self::isWindows()) {
+            $version = (string) php_uname('v');
+            if (preg_match('/build\s+(\d+)/i', $version, $m) || preg_match('/^(\d+)/', trim($version), $m)) {
+                $tag = ((int) $m[1] >= 22000) ? 'WIN11' : 'WIN10';
+            } else {
+                $tag = 'WIN10';
+            }
+            return $tag;
+        }
+        $osId = '';
+        $version = '0';
+        $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (is_array($lines)) {
+            foreach ($lines as $line) {
+                if (strpos($line, 'ID=') === 0) {
+                    $osId = strtoupper(trim(explode('=', $line, 2)[1], " \t\"'"));
+                } elseif (strpos($line, 'VERSION_ID=') === 0) {
+                    $version = explode('.', trim(explode('=', $line, 2)[1], " \t\"'"))[0];
+                }
+            }
+        }
+        if ($osId !== '') {
+            $tag = $osId . '_' . ($version !== '' ? $version : '0');
+        }
+        return $tag;
+    }
+
+    /** Candidate on-disk names for a var-center key, first match wins: the
+     * OS-tagged name, then the bare name (pre-tagging values and unmigrated
+     * machines). Shared keys are always bare. */
+    private static function persistedVarReadNames(string $key): array
+    {
+        $normalized = strtoupper((string) preg_replace('/[^A-Za-z0-9_]/', '', $key));
+        if (in_array($normalized, self::SHARED_GVAR_KEYS, true)) {
+            return [$normalized];
+        }
+        return [self::osVarTag() . '_' . $normalized, $normalized];
+    }
+
     /** First line of a var-center file ('' when absent/unreadable). Mirrors
      * system_paths.py::_read_persisted_var; the canonical store lives at
      * <core_node_data_dir>/global_var/<KEY> (written by sh set_var/
@@ -245,12 +320,14 @@ class PathMapper
     private static function readPersistedVar(string $key): string
     {
         foreach (self::globalVarDirectories() as $dir) {
-            $file = $dir . '/' . $key;
-            if (!is_file($file) || !is_readable($file)) {
-                continue;
+            foreach (self::persistedVarReadNames($key) as $name) {
+                $file = $dir . '/' . $name;
+                if (!is_file($file) || !is_readable($file)) {
+                    continue;
+                }
+                $val = (string) @file_get_contents($file);
+                return trim((string) strtok($val, "\r\n"));
             }
-            $val = (string) @file_get_contents($file);
-            return trim((string) strtok($val, "\r\n"));
         }
         return '';
     }
@@ -260,8 +337,9 @@ class PathMapper
      * SAME logical tree gains ONE EXTRA LEVEL on Linux:
      *   Windows D:\www == Linux /www/www  (NOT /www).
      * On a Linux-only machine /www is a plain native dir (same device as /) and
-     * there is NO extra level. SYNC: gvar_common.sh::www_ntfs_root_mounted /
-     * system_paths.py::_www_ntfs_root_mounted. */
+     * there is NO extra level. SINGLE Laravel definition; the shell twin lives
+     * ONCE in runtime_environment.sh (CORE_NODE_WWW_BASE) and the pycore twin
+     * in core_node_dirs.www_data_root_mounted (system_paths.py delegates). */
     private static function wwwNtfsRootMounted(): bool
     {
         if (!is_dir('/www/www')) {

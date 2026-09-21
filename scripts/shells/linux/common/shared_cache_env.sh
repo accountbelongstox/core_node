@@ -40,11 +40,9 @@ SHARED_WWW_PATH_VAR=""
 SHARED_CACHE_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_CACHE_RUNTIME_ENV="$SHARED_CACHE_ENV_DIR/runtime_environment.sh"
 __scc_d=""
-__scc_src_www=""
-__scc_src_root=""
 __scc_candidate=""
 
-if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ] || [ -z "${CORE_NODE_WWW_BASE:-}" ]; then
     source "$SHARED_CACHE_RUNTIME_ENV"
 fi
 
@@ -73,8 +71,9 @@ SHARED_CACHE_CROSS_OS=false
 # When /www is NOT an NTFS/data disk root (Linux-only machine), the native
 # /var/_core_node/cache below is used instead.
 # The persisted WWW_PATH var-center value (single central variable, written by
-# 3_setting_base.sh) is the primary signal; live mount detection is the
-# fallback for a fresh machine whose var center is not initialized yet.
+# 3_setting_base.sh) is the primary signal; the single-definition
+# CORE_NODE_WWW_BASE from runtime_environment.sh is the fallback for a fresh
+# machine whose var center is not initialized yet.
 SHARED_WWW_BASE=""
 # Var center moved to $CORE_NODE_DATA_DIR/global_var; the legacy
 # /var/_core_node/global_var remains as read-fallback for pre-migration installs.
@@ -84,12 +83,10 @@ if [ -z "$SHARED_WWW_PATH_VAR" ]; then
 fi
 if [ -n "$SHARED_WWW_PATH_VAR" ] && [ "$SHARED_WWW_PATH_VAR" != "/www" ] && [ -d "$SHARED_WWW_PATH_VAR" ]; then
     SHARED_WWW_BASE="$SHARED_WWW_PATH_VAR"
-elif [ -d /www/www ] && command -v findmnt >/dev/null 2>&1; then
-    __scc_src_www="$(findmnt -n -o SOURCE --target /www 2>/dev/null | head -n1)"
-    __scc_src_root="$(findmnt -n -o SOURCE --target / 2>/dev/null | head -n1)"
-    if [ -n "$__scc_src_www" ] && [ -n "$__scc_src_root" ] && [ "$__scc_src_www" != "$__scc_src_root" ]; then
-        SHARED_WWW_BASE="/www/www"
-    fi
+elif [ "${CORE_NODE_WWW_BASE:-/www}" = "/www/www" ]; then
+    # Single-definition NTFS www base from runtime_environment.sh (fallback for
+    # a fresh machine whose var center is not initialized yet).
+    SHARED_WWW_BASE="/www/www"
 fi
 if [ -n "$SHARED_WWW_BASE" ]; then
     __scc_candidate="$SHARED_WWW_BASE/cache"

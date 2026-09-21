@@ -13,6 +13,7 @@ vocabularyPage: {
       ttsQueue: 'TTS 队列',
       learning: '学习任务',
       audioOrch: '音频编排',
+      dictionary: '离线词典',
     },
     ttsQueue: {
       byStatus: '按状态',

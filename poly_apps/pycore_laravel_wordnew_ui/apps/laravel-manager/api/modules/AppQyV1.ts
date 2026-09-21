@@ -398,6 +398,18 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/vocabulary/statistics', params, false);
   }
 
+  // ========== Offline ECDICT dictionary (shared stardict.db with pycore) ==========
+  // Same offline database pycore serves via ui/dictionary/*; a lock race
+  // against the pycore service returns HTTP 503 with busy=true — retry
+  // immediately (the shared vocabulary UI library does this transparently).
+  async getEcdictStatus(): Promise<APIResponse> {
+    return this.get('/ecdict/status');
+  }
+
+  async lookupEcdict(word: string, target = 'zh'): Promise<APIResponse> {
+    return this.post('/ecdict/lookup', { word, target });
+  }
+
   // ========== Word Validity (third-party verification client) ==========
   // Validity is externally asserted: words are valid by default and become
   // invalid only when a client explicitly reports them so after an online check.

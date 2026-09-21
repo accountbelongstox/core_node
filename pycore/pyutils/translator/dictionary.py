@@ -24,6 +24,7 @@ every lookup returns empty, so callers fall back transparently. Read-only SQLite
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -47,6 +48,18 @@ _EN_TARGETS = {"en", "en-us", "en-gb", "english"}
 _ECDICT_COLUMNS = ("word", "phonetic", "definition", "translation",
                    "pos", "collins", "oxford", "tag", "bnc", "frq", "exchange")
 
+# SQLITE_BUSY markers: the SAME stardict.db is shared read-only with the
+# Laravel app (EcdictDictionary.php), so a lock race can surface here.
+_BUSY_MARKERS = ("database is locked", "database table is locked")
+# Immediate-retry policy for SQLITE_BUSY: up to 3 attempts, 0s/0.05s/0.15s.
+_BUSY_RETRY_DELAYS = (0.0, 0.05, 0.15)
+
+
+def _is_busy_error(exc: BaseException) -> bool:
+    """True when the SQLite error is a lock race (SQLITE_BUSY / locked)."""
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _BUSY_MARKERS)
+
 
 def _ecdict_db_path():
     """Resolve the ECDICT SQLite path (env override, else pycore_db/dictionaries)."""
@@ -64,6 +77,9 @@ class DictionaryService:
         self._conn: Optional[Any] = None
         self._columns: List[str] = []
         self._connect_attempted = False
+        # Set when the last ECDICT query lost a lock race against the Laravel
+        # end; surfaced to the API layer as busy=true (client retries).
+        self._last_busy = False
         # WordNet is optional; resolved on first use.
         self._wn = None
         self._wn_attempted = False
@@ -115,11 +131,26 @@ class DictionaryService:
         if not cols:
             return None
         sql = f"SELECT {', '.join(cols)} FROM stardict WHERE word = ? COLLATE NOCASE LIMIT 1"
-        try:
-            cur = conn.execute(sql, (word.strip(),))
-            row = cur.fetchone()
-        except SqliteError as e:
-            ColorPrint.yellow(f"[dictionary] ECDICT query failed: {e}")
+        row = None
+        self._last_busy = False
+        for delay in _BUSY_RETRY_DELAYS:
+            if delay:
+                time.sleep(delay)
+            try:
+                cur = conn.execute(sql, (word.strip(),))
+                row = cur.fetchone()
+                self._last_busy = False
+                break
+            except SqliteError as e:
+                if _is_busy_error(e):
+                    self._last_busy = True
+                    continue
+                ColorPrint.yellow(f"[dictionary] ECDICT query failed: {e}")
+                return None
+        if self._last_busy:
+            ColorPrint.yellow(
+                f"[dictionary] ECDICT locked by a concurrent reader/writer "
+                f"(word '{word}'); API reports busy for immediate retry")
             return None
         if not row:
             return None
@@ -187,9 +218,10 @@ class DictionaryService:
         pos, exam tags, frequency, word forms, + WordNet gloss/synonyms. Empty
         ``found=False`` when ECDICT has no entry."""
         row = self._ecdict_row(word)
+        busy = self._last_busy
         wn_def = self.wordnet_definition(word)
         if not row:
-            return {
+            miss = {
                 "word": word, "found": False,
                 "translation": "", "definition": wn_def, "phonetic": "",
                 "pos": "", "tags": [], "collins": 0, "oxford": False,
@@ -197,6 +229,11 @@ class DictionaryService:
                 "wordnet_definition": wn_def, "synonyms": self.wordnet_synonyms(word),
                 "source": "wordnet" if wn_def else "",
             }
+            if busy:
+                miss["busy"] = True
+                miss["error"] = ("ECDICT database is locked by a concurrent "
+                                 "process; retry immediately")
+            return miss
         tag = (row.get("tag") or "").strip()
         return {
             "word": row.get("word") or word,
@@ -243,12 +280,14 @@ class DictionaryService:
         """Install/availability snapshot for the UI + the /dictionary/status route."""
         conn = self._ensure_conn()
         entries = 0
+        busy = False
         if conn is not None:
             try:
                 entries = int(conn.execute("SELECT COUNT(*) FROM stardict").fetchone()[0])
-            except SqliteError:
+            except SqliteError as e:
+                busy = _is_busy_error(e)
                 entries = 0
-        return {
+        result = {
             "ecdict": {
                 "available": conn is not None,
                 "db_path": str(self._db_path),
@@ -256,6 +295,11 @@ class DictionaryService:
             },
             "wordnet": {"available": self._ensure_wordnet() is not None},
         }
+        if busy:
+            result["busy"] = True
+            result["error"] = ("ECDICT database is locked by a concurrent "
+                               "process; retry immediately")
+        return result
 
 
 dictionary_service = DictionaryService()

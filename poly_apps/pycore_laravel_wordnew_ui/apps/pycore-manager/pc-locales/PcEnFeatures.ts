@@ -13,6 +13,7 @@ vocabularyPage: {
       ttsQueue: 'TTS Queue',
       learning: 'Learning Tasks',
       audioOrch: 'Audio Orchestration',
+      dictionary: 'Offline Dict',
     },
     ttsQueue: {
       byStatus: 'By status',

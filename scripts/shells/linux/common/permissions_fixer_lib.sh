@@ -43,6 +43,13 @@
 PERMISSIONS_FIXER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PERMISSIONS_FIXER_FS_HELPER="$PERMISSIONS_FIXER_DIR/fs_perm_helpers.sh"
 
+# Single-definition hub for CORE_NODE_WWW_BASE (the dual-boot NTFS extra-level
+# rule: D:\ == /www, so D:\www == /www/www). Must be sourced BEFORE reading the
+# variable below; never re-implement the findmnt detection inline.
+# shellcheck source=/dev/null
+source "$PERMISSIONS_FIXER_DIR/runtime_environment.sh"
+PERMISSIONS_FIXER_WWW_BASE="${CORE_NODE_WWW_BASE:-/www}"
+
 # shellcheck source=/dev/null
 source "$PERMISSIONS_FIXER_FS_HELPER"
 
@@ -106,7 +113,7 @@ fix_permissions_project_dir() {
 fix_permissions_build_dir() {
     local www_base=$(map_web_path "www" 2>/dev/null)
     if [ -z "$www_base" ]; then
-        www_base="/www/programing"
+        www_base="$PERMISSIONS_FIXER_WWW_BASE/programing"
     fi
 
     local build_dir="$www_base/_build_dir"
@@ -117,7 +124,7 @@ fix_permissions_build_dir() {
 fix_permissions_wwwroot_dir() {
     local wwwroot=$(map_web_path "wwwroot" 2>/dev/null)
     if [ -z "$wwwroot" ]; then
-        wwwroot="/www/wwwroot"
+        wwwroot="$PERMISSIONS_FIXER_WWW_BASE/wwwroot"
     fi
 
     fix_directory_permissions "$wwwroot" "WWW Root Directory"
@@ -127,7 +134,7 @@ fix_permissions_wwwroot_dir() {
 fix_permissions_laravel_db_dir() {
     local laravel_db=$(map_web_path "laravel_db" 2>/dev/null)
     if [ -z "$laravel_db" ]; then
-        laravel_db="/www/wwwroot/laravel_db"
+        laravel_db="$PERMISSIONS_FIXER_WWW_BASE/wwwroot/laravel_db"
     fi
 
     fix_directory_permissions "$laravel_db" "Laravel Database Directory"
@@ -137,7 +144,7 @@ fix_permissions_laravel_db_dir() {
 fix_permissions_cache_dir() {
     local cache_dir=$(map_web_path "cache" 2>/dev/null)
     if [ -z "$cache_dir" ]; then
-        cache_dir="/www/cache"
+        cache_dir="$PERMISSIONS_FIXER_WWW_BASE/cache"
     fi
 
     fix_directory_permissions "$cache_dir" "Cache Directory"

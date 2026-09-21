@@ -147,9 +147,17 @@ verify_service_config() {
         needs_fix=1
     fi
 
-    # Check ReadWritePaths includes /www/wwwroot/laravel_db
-    if ! grep -q "ReadWritePaths=.*/www/wwwroot/laravel_db" "$service_file"; then
-        echo -e "${YELLOW}[FIX NEEDED] Missing ReadWritePaths for /www/wwwroot/laravel_db${NC}"
+    # Check ReadWritePaths includes the mapped laravel_db dir (WWW base from
+    # the single definition in runtime_environment.sh: CORE_NODE_WWW_BASE).
+    local laravel_db_path=""
+    if declare -F map_web_path >/dev/null 2>&1; then
+        laravel_db_path="$(map_web_path "laravel_db" 2>/dev/null)"
+    fi
+    if [ -z "$laravel_db_path" ]; then
+        laravel_db_path="${CORE_NODE_WWW_BASE:-/www}/wwwroot/laravel_db"
+    fi
+    if ! grep -qF "$laravel_db_path" "$service_file"; then
+        echo -e "${YELLOW}[FIX NEEDED] Missing ReadWritePaths for $laravel_db_path${NC}"
         needs_fix=1
     fi
 
@@ -609,7 +617,7 @@ Configuration Management (IDEMPOTENT):
     - User=root (fixes ubuntu or other users)
     - Group=root
     - ProtectSystem=full (fixes strict)
-    - ReadWritePaths includes /www/wwwroot/laravel_db
+    - ReadWritePaths includes the mapped laravel_db dir (NTFS-aware)
   Safe to run commands multiple times - automatically fixes configuration
 
 EOF

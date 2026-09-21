@@ -14,6 +14,8 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.core_node_dirs import (
     get_core_node_data_dir,
     get_global_var_dir,
+    global_var_read_names,
+    global_var_write_name,
     iter_global_var_dirs,
 )
 from pycore.pyfoundations.machine_id import get_machine_id
@@ -217,11 +219,16 @@ class GlobalVarManager:
             raise ValueError("Key contains no valid characters")
         return sanitized
 
-    def _resolve_key(self, key: str) -> Path:
+    def _namespaced_key(self, key: str) -> str:
         sanitized = self._sanitize(key)
         if self._namespace:
             sanitized = f"{self._namespace}_{sanitized}"
-        return self._base_dir / sanitized
+        return sanitized
+
+    def _resolve_key(self, key: str) -> Path:
+        # Canonical on-disk name (shared keys stay bare, all others get the
+        # per-OS <TAG>_ prefix -- see core_node_dirs.global_var_write_name).
+        return self._base_dir / global_var_write_name(self._namespaced_key(key))
 
     @property
     def base_dir(self) -> Path:
@@ -237,23 +244,32 @@ class GlobalVarManager:
         return path
 
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
-        path = self._resolve_key(key)
-        if path.exists():
-            return path.read_text(encoding="utf-8")
-        # Pre-relocation installs keep var files in the legacy locations
-        # (see core_node_dirs.iter_global_var_dirs); only the default base
-        # gets the read-fallback so persisted secrets survive the move.
+        # Read candidates: OS-tagged name first, then the bare name
+        # (pre-tagging values and unmigrated machines); the default base
+        # additionally falls back to the legacy dirs (see
+        # core_node_dirs.iter_global_var_dirs) so persisted secrets survive
+        # both the tagging and the relocation.
+        names = global_var_read_names(self._namespaced_key(key))
+        for name in names:
+            path = self._base_dir / name
+            if path.exists():
+                return path.read_text(encoding="utf-8")
         if self._base_dir == GLOBAL_VARS_DIR:
             for legacy_dir in iter_global_var_dirs()[1:]:
-                legacy_path = legacy_dir / path.name
-                if legacy_path.exists():
-                    return legacy_path.read_text(encoding="utf-8")
+                for name in names:
+                    legacy_path = legacy_dir / name
+                    if legacy_path.exists():
+                        return legacy_path.read_text(encoding="utf-8")
         return default
 
     def clear(self, key: str) -> None:
-        path = self._resolve_key(key)
-        if path.exists():
-            path.unlink()
+        namespaced = self._namespaced_key(key)
+        names = {global_var_write_name(namespaced)}
+        names.update(global_var_read_names(namespaced))
+        for name in names:
+            path = self._base_dir / name
+            if path.exists():
+                path.unlink()
 
     def set_json(self, key: str, data: Dict[str, Any]) -> Path:
         return self.set(key, json.dumps(data, ensure_ascii=False))
