@@ -514,7 +514,6 @@ vocabulary: {
         search: "Search",
         clear: "Clear",
         add_word: "Add word",
-        refresh: "Refresh",
         status: "Status",
         validity_field: "is_valid",
         columns: {

@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyfoundations.network_constants import COSYVOICE_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
@@ -66,7 +67,7 @@ def _sample_rate() -> int:
 
 
 def base_url() -> str:
-    return (os.environ.get("COSYVOICE_URL") or "http://127.0.0.1:50000").rstrip("/")
+    return (os.environ.get("COSYVOICE_URL") or f"http://127.0.0.1:{COSYVOICE_HTTP_PORT}").rstrip("/")
 
 
 def _ref_audio() -> Optional[Path]:

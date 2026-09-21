@@ -32,6 +32,10 @@ DESKTOP_ENTRY_SYSTEM="/usr/share/applications/antigravity.desktop"
 DESKTOP_ENTRY_NAME="Antigravity"
 DESKTOP_ENTRY_ICON="antigravity"
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
+AGY_CLI_EXEC="agy"
+AGY_CLI_INSTALL_URL="https://antigravity.google/cli/install.sh"
+AGY_SHARED_BIN_DIR="/usr/local/bin"
+AGY_PROFILE_FILE="/etc/profile.d/agy.sh"
 
 # Source shared libraries
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -680,6 +684,108 @@ create_desktop_entry_fallback() {
     return 0
 }
 
+# Ensure Antigravity CLI (agy) is idempotently installed and accessible to all users
+ensure_agy_cli_installed() {
+    log "Checking Antigravity CLI ($AGY_CLI_EXEC)..."
+    local agy_bin=""
+    local candidate=""
+    local target_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local candidates=(
+        "$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC"
+        "$HOME/.local/bin/$AGY_CLI_EXEC"
+        "/root/.local/bin/$AGY_CLI_EXEC"
+        "$target_home/.local/bin/$AGY_CLI_EXEC"
+    )
+
+    # First check PATH
+    if command -v "$AGY_CLI_EXEC" >/dev/null 2>&1; then
+        agy_bin="$(command -v "$AGY_CLI_EXEC")"
+    else
+        for candidate in "${candidates[@]}"; do
+            if [ -x "$candidate" ]; then
+                agy_bin="$candidate"
+                break
+            fi
+        done
+    fi
+
+    # If missing, install via fast-path script
+    if [ -z "$agy_bin" ]; then
+        log "Installing $AGY_CLI_EXEC via official fast-path installer..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL "$AGY_CLI_INSTALL_URL" | bash
+        elif command -v wget >/dev/null 2>&1; then
+            wget -qO- "$AGY_CLI_INSTALL_URL" | bash
+        else
+            log "ERROR: curl or wget is required to install $AGY_CLI_EXEC."
+            return 1
+        fi
+
+        # Re-check candidate locations after installation
+        for candidate in "${candidates[@]}"; do
+            if [ -x "$candidate" ]; then
+                agy_bin="$candidate"
+                break
+            fi
+        done
+    else
+        log "$AGY_CLI_EXEC already installed at $agy_bin"
+    fi
+
+    if [ -z "$agy_bin" ] || [ ! -x "$agy_bin" ]; then
+        log "WARNING: Could not verify $AGY_CLI_EXEC binary after install."
+        return 1
+    fi
+
+    # Make available for all users in /usr/local/bin
+    local dest_shared="$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC"
+    if [ "$agy_bin" != "$dest_shared" ]; then
+        if [ "$EUID" -eq 0 ] || [ -n "$USE_SUDO" ]; then
+            $USE_SUDO mkdir -p "$AGY_SHARED_BIN_DIR"
+            # If binary sits under /root (mode 700), regular users cannot traverse it.
+            # Copy rather than symlink so all users can execute it.
+            if [[ "$agy_bin" == /root/* ]]; then
+                $USE_SUDO cp -f "$agy_bin" "$dest_shared"
+                $USE_SUDO chmod 0755 "$dest_shared"
+                log "Copied $AGY_CLI_EXEC to $dest_shared (0755) for all users."
+            else
+                $USE_SUDO ln -sf "$agy_bin" "$dest_shared"
+                $USE_SUDO chmod 0755 "$dest_shared" 2>/dev/null || true
+                log "Linked $AGY_CLI_EXEC to $dest_shared for all users."
+            fi
+        fi
+    fi
+
+    # Also ensure user's ~/.local/bin has it if desktop user exists
+    if [ -n "$target_home" ] && [ -d "$target_home" ] && [ "$target_home" != "/root" ]; then
+        local user_local_bin="$target_home/.local/bin"
+        local entry_owner="$(stat -c '%U:%G' "$target_home" 2>/dev/null || echo "")"
+        if [ ! -d "$user_local_bin" ]; then
+            mkdir -p "$user_local_bin" 2>/dev/null || $USE_SUDO mkdir -p "$user_local_bin"
+            [ -n "$entry_owner" ] && $USE_SUDO chown -R "$entry_owner" "$target_home/.local" 2>/dev/null
+        fi
+        if [ ! -e "$user_local_bin/$AGY_CLI_EXEC" ] && [ -x "$dest_shared" ]; then
+            ln -sf "$dest_shared" "$user_local_bin/$AGY_CLI_EXEC" 2>/dev/null || $USE_SUDO ln -sf "$dest_shared" "$user_local_bin/$AGY_CLI_EXEC"
+            [ -n "$entry_owner" ] && $USE_SUDO chown -h "$entry_owner" "$user_local_bin/$AGY_CLI_EXEC" 2>/dev/null
+        fi
+    fi
+
+    # Auto resource: configure /etc/profile.d/agy.sh so both root and regular users get PATH
+    if [ "$EUID" -eq 0 ] || [ -n "$USE_SUDO" ]; then
+        if [ ! -f "$AGY_PROFILE_FILE" ]; then
+            echo 'export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"' | $USE_SUDO tee "$AGY_PROFILE_FILE" >/dev/null
+            $USE_SUDO chmod 0644 "$AGY_PROFILE_FILE"
+            log "Configured $AGY_PROFILE_FILE for persistent environment PATH."
+        fi
+    fi
+
+    # Reload PATH in current shell
+    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+    hash -r 2>/dev/null || true
+    log "$AGY_CLI_EXEC is ready for root and regular users: $(command -v "$AGY_CLI_EXEC" 2>/dev/null || echo "$dest_shared")"
+    return 0
+}
+
 main() {
     ensure_requirements
 
@@ -700,6 +806,7 @@ main() {
             update_antigravity
             log "$DESKTOP_ENTRY_NAME update finished."
         fi
+        ensure_agy_cli_installed
         exit 0
     fi
 
@@ -710,6 +817,7 @@ main() {
         prompt_root_mode_selection
         install_antigravity
         create_desktop_entry
+        ensure_agy_cli_installed
         log "$DESKTOP_ENTRY_NAME installation finished."
     else
         # Non-desktop environment: Prompt user (default No)
@@ -719,6 +827,7 @@ main() {
             create_desktop_entry
             log "$DESKTOP_ENTRY_NAME installation finished."
         fi
+        ensure_agy_cli_installed
     fi
 }
 

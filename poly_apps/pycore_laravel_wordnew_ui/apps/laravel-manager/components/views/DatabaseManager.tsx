@@ -72,7 +72,7 @@ const SchemaTable: React.FC<{ columns: DbStructureColumn[] }> = ({ columns }) =>
               className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50"
             >
               {headers.map((h) => {
-                const raw = String((col as Record<string, unknown>)[h] ?? '');
+                const raw = String((col as unknown as Record<string, unknown>)[h] ?? '');
                 return (
                   <td
                     key={h}

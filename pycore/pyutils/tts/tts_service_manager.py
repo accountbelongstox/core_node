@@ -45,6 +45,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+from pycore.pyfoundations.network_constants import (
+    CHATTTS_MIN_FREE_VRAM_MB,
+    COSYVOICE_HTTP_PORT,
+    FISHSPEECH_HTTP_PORT,
+    MELOTTS_HTTP_PORT,
+    VOXCPM2_HTTP_PORT,
+)
+from pycore.pyfoundations.pygvar import PROJECT_ROOT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.python_env.isolated_venv import (
     resolve_python as resolve_isolated_python,
@@ -88,7 +96,7 @@ _ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
 # 800 MB minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB).
 # Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB /
 # QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=0.
-_CHATTTS_MIN_FREE_VRAM_MB = 4096
+_CHATTTS_MIN_FREE_VRAM_MB = CHATTTS_MIN_FREE_VRAM_MB
 _MIB = 1024 ** 2
 
 
@@ -170,26 +178,36 @@ def _server_scripts(engine: str) -> List[Path]:
             _ASSETS_DIR / "qwen3tts_queue.py",
             _ASSETS_DIR / "qwen3tts_gpu.py",
             _ASSETS_DIR / "qwen3tts_web.py",
+            _ASSETS_DIR / "tts_server_common.py",
         ]
     if engine == "chattts":
-        return [_ASSETS_DIR / "chattts_api_server.py"]
+        return [
+            _ASSETS_DIR / "chattts_api_server.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
     if engine == "fishspeech":
         return [
             _ASSETS_DIR / "fishspeech_api_server.py",
             _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_server_common.py",
         ]
     if engine == "f5tts":
-        return [_ASSETS_DIR / "f5tts_api_server.py"]
+        return [
+            _ASSETS_DIR / "f5tts_api_server.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
     if engine == "melotts":
         return [
             _ASSETS_DIR / "melotts_api_server.py",
             _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_server_common.py",
         ]
     if engine == "voxcpm2":
         return [
             _ASSETS_DIR / "voxcpm2_api_server.py",
             _ASSETS_DIR / "tts_text_chunking.py",
             _ASSETS_DIR / "tts_audio_assembly.py",
+            _ASSETS_DIR / "tts_server_common.py",
         ]
     return []
 
@@ -201,6 +219,7 @@ def _start_command(engine: str) -> Optional[Tuple]:
     py = _python_exe()
     if engine == "chattts":
         _sync_server_script(staging, "chattts_api_server.py")
+        _sync_server_script(staging, "tts_server_common.py")
         script = staging / "chattts_api_server.py"
         if not script.is_file():
             return None
@@ -209,6 +228,7 @@ def _start_command(engine: str) -> Optional[Tuple]:
         if model_path is None:
             return None
         env = dict(os.environ)
+        env["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
         env["CHATTTS_MODEL_DIR"] = str(model_path)
         env["HF_HUB_OFFLINE"] = "1"
         env["TRANSFORMERS_OFFLINE"] = "1"
@@ -231,7 +251,7 @@ def _start_command(engine: str) -> Optional[Tuple]:
         if not venv_python:
             return None
         adapter = tts_engine_registry.get(engine)
-        port = _parse_port(adapter.base_url() if adapter else "", 50000)
+        port = _parse_port(adapter.base_url() if adapter else "", COSYVOICE_HTTP_PORT)
         model = runtime_engine_model("cosyvoice") or "iic/CosyVoice2-0.5B"
         return (
             staging,
@@ -241,13 +261,14 @@ def _start_command(engine: str) -> Optional[Tuple]:
     if engine == "fishspeech":
         _sync_server_script(staging, "fishspeech_api_server.py")
         _sync_server_script(staging, "tts_text_chunking.py")
+        _sync_server_script(staging, "tts_server_common.py")
         venv_python = resolve_isolated_python("fishspeech")
         if not venv_python:
             return None
         adapter = tts_engine_registry.get(engine)
         parsed = urlparse(adapter.base_url() if adapter else "")
         host = parsed.hostname or "127.0.0.1"
-        port = parsed.port or 8080
+        port = parsed.port or FISHSPEECH_HTTP_PORT
         extra: Dict[str, str] = {"FISHSPEECH_HOST": host, "FISHSPEECH_PORT": str(port)}
         for key in (
             "FISHSPEECH_UPSTREAM",
@@ -283,10 +304,13 @@ def _start_command(engine: str) -> Optional[Tuple]:
         return _gptsovits_start_command(staging)
     if engine == "f5tts":
         _sync_server_script(staging, "f5tts_api_server.py")
+        _sync_server_script(staging, "tts_server_common.py")
         script = staging / "f5tts_api_server.py"
         if not script.is_file():
             return None
-        return staging, [py, str(script)]
+        env = dict(os.environ)
+        env["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
+        return staging, [py, str(script)], env
     if engine == "qwen3tts":
         return _qwen3tts_start_command(staging)
     if engine == "melotts":
@@ -331,6 +355,7 @@ def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
     # PyTorch official anti-fragmentation setting (docs.pytorch.org
     # docs/stable/notes/cuda.html); setdefault so an explicit opt-out wins.
     env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+    env.setdefault("PYCORE_PROJECT_ROOT", str(PROJECT_ROOT))
     env.update(extra)
     return env
 
@@ -426,7 +451,7 @@ def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
     adapter = tts_engine_registry.get("melotts")
     parsed = urlparse(adapter.base_url() if adapter else "")
     host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 57212
+    port = parsed.port or MELOTTS_HTTP_PORT
     extra: Dict[str, str] = {"MELOTTS_HOST": host, "MELOTTS_PORT": str(port)}
     model = (os.environ.get("MELOTTS_MODEL") or "").strip()
     if model:
@@ -455,7 +480,7 @@ def _voxcpm2_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
     adapter = tts_engine_registry.get("voxcpm2")
     parsed = urlparse(adapter.base_url() if adapter else "")
     host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 57214
+    port = parsed.port or VOXCPM2_HTTP_PORT
     extra: Dict[str, str] = {"VOXCPM2_HOST": host, "VOXCPM2_PORT": str(port)}
     model = (os.environ.get("VOXCPM2_MODEL") or "").strip()
     if not model:

@@ -29,10 +29,17 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import shutil
 import subprocess
+import sys
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator, Optional
+
+_CURRENT_DIR = Path(__file__).resolve().parent
+if str(_CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(_CURRENT_DIR))
+
+import tts_server_common
 
 import ChatTTS
 import numpy as np
@@ -43,13 +50,16 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydub import AudioSegment
 from pydantic import BaseModel, Field
 
+_network_constants = tts_server_common.load_network_constants()
+_CHATTS_MIN_FREE_VRAM_MB = getattr(_network_constants, "CHATTTS_MIN_FREE_VRAM_MB", 4096)
+_DEFAULT_PORT = getattr(_network_constants, "CHATTTS_HTTP_PORT", 8000)
+_MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
+
 _chat = None
 _chat_lock = threading.Lock()
 _inference_lock = threading.Lock()
 _device = None
 _load_error: Optional[str] = None
-_CHATTS_MIN_FREE_VRAM_MB = 4096  # ChatTTS official FAQ: >= 4 GB GPU memory
-_MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
 
 
 @asynccontextmanager
@@ -229,7 +239,7 @@ def audio_speech(req: SpeechRequest):
 
 def main():
     host = (os.environ.get("CHATTTS_HOST") or "0.0.0.0").strip()
-    port = int(os.environ.get("CHATTTS_PORT") or "8000")
+    port = int(os.environ.get("CHATTTS_PORT") or _DEFAULT_PORT)
     uvicorn.run(app, host=host, port=port)
 
 

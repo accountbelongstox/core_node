@@ -45,6 +45,10 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from tts_text_chunking import ChunkPolicy, default_policy, split_text
+import tts_server_common
+
+_network_constants = tts_server_common.load_network_constants()
+_DEFAULT_PORT = getattr(_network_constants, "MELOTTS_HTTP_PORT", 57212)
 
 app = FastAPI()
 _models: Dict[str, Any] = {}
@@ -250,7 +254,7 @@ def synthesize(req: SynthRequest):
 
 def main():
     host = (os.environ.get("MELOTTS_HOST") or "127.0.0.1").strip()
-    port = int(os.environ.get("MELOTTS_PORT") or "57212")
+    port = int(os.environ.get("MELOTTS_PORT") or _DEFAULT_PORT)
     print(f"[api] MeloTTS API server starting on {host}:{port} "
           f"(default_lang={_default_lang()}, device={_resolve_device()})", flush=True)
     uvicorn.run(app, host=host, port=port)

@@ -54,6 +54,10 @@ from tts_audio_assembly import (
     ChunkedGenerationError,
     generate_chunked,
 )
+import tts_server_common
+
+_network_constants = tts_server_common.load_network_constants()
+_DEFAULT_PORT = getattr(_network_constants, "VOXCPM2_HTTP_PORT", 57214)
 
 app = FastAPI()
 _model: Any = None
@@ -267,7 +271,7 @@ def synthesize(req: SynthRequest):
 
 def main():
     host = (os.environ.get("VOXCPM2_HOST") or "127.0.0.1").strip()
-    port = int(os.environ.get("VOXCPM2_PORT") or "57214")
+    port = int(os.environ.get("VOXCPM2_PORT") or _DEFAULT_PORT)
     print(f"[api] VoxCPM2 API server starting on {host}:{port} "
           f"(model={_model_id()}, device={_resolve_device()})", flush=True)
     uvicorn.run(app, host=host, port=port)
