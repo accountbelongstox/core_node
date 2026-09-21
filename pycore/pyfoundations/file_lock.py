@@ -66,7 +66,7 @@ class FileLockManager:
     - Process-safe atomic operations
 
     Lock Structure:
-        Windows: C:\\Users\\{username}\\.core_node\\_lck\\{md5}\\{timestamp}.{pid}.lck
+        Windows: D:\\programing\\Users\\{username}\\.core_node\\_lck\\{md5}\\{timestamp}.{pid}.lck
         Linux:   /var/_core_node/_lck/{md5}/{timestamp}.{pid}.lck
 
     Usage:
@@ -164,7 +164,7 @@ class FileLockManager:
 
         Uses ``system_paths.get_system_cache_dir()`` instead of a private
         hardcoded duplicate of the same paths:
-            Windows: C:\\Users\\{username}\\.core_node
+            Windows: D:\\programing\\Users\\{username}\\.core_node
             Linux:   /var/_core_node  (ONE shared, all-users-writable dir)
 
         The import is lazy (function-local, avoids any circular import with

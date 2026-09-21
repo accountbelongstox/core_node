@@ -496,6 +496,71 @@ def _run_cmd(args: List[str]) -> str:
         return ''
 
 
+def _iter_ntfs_mount_points() -> List[str]:
+    """Mount points of every mounted NTFS volume (ntfs3 kernel driver or
+    ntfs-3g FUSE, which reports fstype fuseblk). Bind-mounts of an NTFS root
+    (e.g. 3_setting_base.sh binding the Windows D:\\ root at /www) appear here
+    with the source filesystem type, so they are covered too."""
+    points: List[str] = []
+    try:
+        with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                parts = line.split()
+                if len(parts) >= 3 and parts[2] in ('ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'):
+                    points.append(parts[1].replace('\\040', ' '))
+    except OSError:
+        pass
+    return points
+
+
+def get_shared_windows_users_roots() -> List[Path]:
+    r"""Windows user-profile roots reachable from Linux (user-data sharing).
+
+    When the current system has an NTFS mount (dual-boot data disk, or the
+    3_setting_base.sh bind-mount of the Windows D:\ root at /www), the Windows
+    per-slot agent profile roots become readable on Linux:
+        D:\programing\Users  ->  <mount>/programing/Users
+        D:\.tmp\Users        ->  <mount>/.tmp/Users
+    Under WSL the same roots live behind /mnt/<drive> (drvfs), plus the real
+    Windows users dir <drive>:\\Users. Returns only roots that exist; empty on
+    Linux-only machines and on Windows itself (native roots apply there).
+    """
+    if sys.platform == 'win32':
+        return []
+    candidates: List[Path] = []
+    if is_wsl():
+        try:
+            mnt = Path('/mnt')
+            mount_points = [str(p) for p in mnt.iterdir() if p.is_dir()]
+        except OSError:
+            mount_points = []
+        for mp in mount_points:
+            base = Path(mp)
+            candidates.extend((
+                base / 'programing' / 'Users',
+                base / '.tmp' / 'Users',
+                base / 'Users',
+            ))
+        return [p for p in candidates if p.is_dir()]
+    for mp in _iter_ntfs_mount_points():
+        base = Path(mp)
+        candidates.extend((base / 'programing' / 'Users', base / '.tmp' / 'Users'))
+    out: List[Path] = []
+    seen: set = set()
+    for p in candidates:
+        try:
+            if not p.is_dir():
+                continue
+            real = str(p.resolve())
+        except OSError:
+            continue
+        if real in seen:
+            continue
+        seen.add(real)
+        out.append(p)
+    return out
+
+
 def _is_real_distinct_mount(p: Path) -> bool:
     """True when p is a real mountpoint on a device different from root's device."""
     try:
@@ -811,6 +876,7 @@ APP_TEMP_DIR = get_app_temp_dir()
 __all__ = [
     'get_xdg_cache_home',
     'get_shared_download_cache_dir',
+    'get_shared_windows_users_roots',
     'get_system_cache_dir',
     'get_ui_state_cache_dir',
     'get_app_cache_dir',

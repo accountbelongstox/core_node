@@ -11,8 +11,8 @@ Refs:
 - CnOCR models: https://cnocr.readthedocs.io/zh-cn/stable/models/
 - HF collection: https://huggingface.co/collections/breezedeus/cnocr
 
-CnSTD root: ~/.cnstd, expects 1.2/ppocr/<model>/<model>_infer.onnx
-CnOCR root: ~/.cnocr, expects 2.3/ppocr/<model>/<model>_rec_infer.onnx
+CnSTD root: CNSTD_HOME (default <shared download cache>/ocr/cnstd), expects 1.2/ppocr/<model>/<model>_infer.onnx
+CnOCR root: CNOCR_HOME (default <shared download cache>/ocr/cnocr), expects 2.3/ppocr/<model>/<model>_rec_infer.onnx
 """
 
 import os
@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Optional, Union, Tuple, List, Dict, Any, Callable
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 
 from pycore.pyfoundations.third_party._hf_helpers import (
     hf_download_file,
@@ -146,24 +147,48 @@ CNSTD_COLLECTION_SLUG = "breezedeus/cnstd"
 CNOCR_COLLECTION_SLUG = "breezedeus/cnocr"
 
 
-def _appdata_root() -> Path:
+def _legacy_ocr_root(dir_name: str) -> Path:
+    """The pre-migration per-user root (%APPDATA%\\<name> on Windows, ~/.<name> else)."""
     if os.name == "nt":
-        return Path(os.environ.get("APPDATA", os.path.expanduser("~")))
-    return Path.home()
+        return Path(os.environ.get("APPDATA", os.path.expanduser("~"))) / dir_name
+    return Path.home() / f".{dir_name}"
+
+
+def _ocr_shared_root(env_key: str, dir_name: str) -> Path:
+    """Shared OCR model root inside the cross-OS download cache.
+
+    CnSTD/CnOCR models are multi-hundred-MB downloads; Windows previously kept
+    them under %APPDATA% (C:). They now live in the shared cache
+    (D:\\www\\cache\\ocr\\<name>; a dual-boot Linux reuses the SAME tree via
+    /www/www/cache/ocr/<name>). The cnstd/cnocr libraries honor CNSTD_HOME /
+    CNOCR_HOME (os.getenv at model-load time), which is set here with
+    setdefault so an explicit operator override always wins and downloads and
+    engine construction resolve to the same root. A pre-existing legacy root
+    keeps being used until the shared root exists, so installed models are
+    never silently re-downloaded.
+    """
+    existing = os.environ.get(env_key, "").strip()
+    if existing:
+        return Path(existing)
+    shared = get_shared_download_cache_dir() / "ocr" / dir_name
+    legacy = _legacy_ocr_root(dir_name)
+    root = legacy if (legacy.is_dir() and not shared.exists()) else shared
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    os.environ.setdefault(env_key, str(root))
+    return root
 
 
 def cnstd_root() -> Path:
-    """CnSTD model root. Win: %APPDATA%\\cnstd, else ~/.cnstd."""
-    if os.name == "nt":
-        return _appdata_root() / "cnstd"
-    return Path.home() / ".cnstd"
+    """CnSTD model root (CNSTD_HOME; default <shared cache>/ocr/cnstd)."""
+    return _ocr_shared_root("CNSTD_HOME", "cnstd")
 
 
 def cnocr_root() -> Path:
-    """CnOCR model root. Win: %APPDATA%\\cnocr, else ~/.cnocr."""
-    if os.name == "nt":
-        return _appdata_root() / "cnocr"
-    return Path.home() / ".cnocr"
+    """CnOCR model root (CNOCR_HOME; default <shared cache>/ocr/cnocr)."""
+    return _ocr_shared_root("CNOCR_HOME", "cnocr")
 
 
 def _model_name_from_ppocr_repo(repo_id: str) -> str:

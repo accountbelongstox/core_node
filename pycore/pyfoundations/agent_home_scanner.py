@@ -20,11 +20,19 @@ from pycore.pyfoundations.system_paths import (
     AGENT_HISTORY_USERS_ROOTS_ENV,
     AGENT_HISTORY_USERS_ROOTS_LINUX,
     AGENT_HISTORY_USERS_ROOTS_WINDOWS,
+    get_shared_windows_users_roots,
 )
 
 
 def agent_history_users_roots() -> List[Path]:
-    """Users-root directories to scan, platform-split, env-overridable."""
+    """Users-root directories to scan, platform-split, env-overridable.
+
+    On Linux the native roots are extended with the Windows user-data roots
+    reachable through a mounted NTFS data disk (or /mnt/<drive> under WSL), so
+    a dual-boot machine shares the SAME agent history (kimi/codex/pi/claude
+    per-slot profiles under D:\\programing\\Users and D:\\.tmp\\Users) instead
+    of scanning an empty Linux-only view.
+    """
     override = os.environ.get(AGENT_HISTORY_USERS_ROOTS_ENV, "").strip()
     if override:
         return [
@@ -32,12 +40,11 @@ def agent_history_users_roots() -> List[Path]:
             for item in override.split(os.pathsep)
             if item.strip()
         ]
-    raw = (
-        AGENT_HISTORY_USERS_ROOTS_WINDOWS
-        if sys.platform == "win32"
-        else AGENT_HISTORY_USERS_ROOTS_LINUX
-    )
-    return [Path(item) for item in raw]
+    if sys.platform == "win32":
+        return [Path(item) for item in AGENT_HISTORY_USERS_ROOTS_WINDOWS]
+    roots = [Path(item) for item in AGENT_HISTORY_USERS_ROOTS_LINUX]
+    roots.extend(get_shared_windows_users_roots())
+    return roots
 
 
 def scan_user_homes() -> Dict[str, str]:
