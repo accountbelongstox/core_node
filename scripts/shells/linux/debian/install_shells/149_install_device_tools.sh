@@ -9,15 +9,15 @@ SCRIPT_INDEX="149"
 #   - adb     -> Android Debug Bridge (device discovery, shell, file transfer)
 #   - scrcpy  -> screen mirroring / control of a connected device
 #
-# These are OPTIONAL: pycore's scrcpy_init.py can self-download a scrcpy build as
-# a fallback, so a missing apt or a failed install is non-fatal - the service
-# still runs, just without the system-provided binaries.
+# These are OPTIONAL: when apt cannot provide scrcpy (it is NOT in Debian 13
+# trixie), this script invokes pycore's scrcpy_init.py self-download (official
+# GitHub static build) as the fallback, so a failed apt install is non-fatal.
 #
 # IDEMPOTENT: each binary is skipped when already on PATH.
 # Cross-distro: the `adb` (android-tools-adb -> adb) and `scrcpy` apt packages
 # ship on Debian 11-12, Ubuntu 18.04-26.04 and Kali (distro main repos). scrcpy is
 # NOT in Debian 13 trixie, so each package installs independently and a missing one
-# falls back to pycore's scrcpy_init.py self-download.
+# triggers the pycore scrcpy_init.py self-download fallback below.
 #
 # Usage:  ./install_device_tools.sh [--python <py>] [--force]
 #         (--python is accepted but unused: these are system binaries, not pip pkgs.)
@@ -26,11 +26,15 @@ set -uo pipefail
 
 FORCE=0
 FAILED=()
+PYTHON_BIN="python3"
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_NODE_ROOT="$(cd "$SCRIPT_CURRENT_DIR/../../../../.." && pwd)"
 
-# Accept (and ignore) prepare_pycore_prerequisites.sh's --python; honor --force to reinstall when present.
+# Accept prepare_pycore_prerequisites.sh's --python (used for the pycore
+# self-download fallback); honor --force to reinstall when present.
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --python) shift 2 2>/dev/null || shift ;;
+        --python) PYTHON_BIN="${2:-python3}"; shift 2 2>/dev/null || shift ;;
         --force)  FORCE=1; shift ;;
         *)        shift ;;
     esac
@@ -86,7 +90,19 @@ for dev_pkg in "${NEED[@]}"; do
     fi
 done
 if [[ ${#FAILED[@]} -gt 0 ]]; then
-    echo "[install_device_tools] [!] unavailable via apt: ${FAILED[*]}; pycore's scrcpy_init.py self-download is the fallback."
+    echo "[install_device_tools] [!] unavailable via apt: ${FAILED[*]}"
+fi
+
+# Fallback: pycore's scrcpy_init.py downloads the official static build
+# (GitHub release tarball) into the shared data dir. Wired in directly because
+# scrcpy has no apt package on Debian 13 trixie.
+if [[ " ${FAILED[*]} " == *" scrcpy "* ]] && ! command -v scrcpy >/dev/null 2>&1; then
+    echo "[install_device_tools] [..] scrcpy fallback: pycore scrcpy_init self-download (official GitHub release) ..."
+    if (cd "$CORE_NODE_ROOT" && PYCORE_SKIP_DEP_CHECK=1 "$PYTHON_BIN" -m pycore.pyutils.device.scrcpy_init); then
+        echo "[install_device_tools] [OK] scrcpy available via pycore self-download."
+    else
+        echo "[install_device_tools] [!] scrcpy self-download failed; pycore retries it lazily on first use."
+    fi
 fi
 
 # Non-fatal by design: the service runs regardless of what got installed.

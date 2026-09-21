@@ -30,6 +30,7 @@ _tts_docker_context_assets() {
         melotts)  printf '%s\n' "melotts_api_server.py" "tts_text_chunking.py" ;;
         voxcpm2)  printf '%s\n' "voxcpm2_api_server.py" "tts_text_chunking.py" "tts_audio_assembly.py" ;;
         gptsovits) printf '%s\n' "gptsovits_build_constraints.txt" ;;
+        cosyvoice) printf '%s\n' "cosyvoice_build_constraints.txt" ;;
         *)        : ;;
     esac
 }

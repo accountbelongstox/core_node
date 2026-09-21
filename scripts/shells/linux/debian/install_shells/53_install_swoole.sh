@@ -30,6 +30,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/php_link_common.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
@@ -100,37 +101,16 @@ check_swoole_configuration() {
 ensure_php_symlink() {
     echo -e "${BLUE}$SCRIPT_INDEX Ensuring PHP ${PHP_VERSION} is the default php...${NC}"
 
-    if [ ! -x "$PHP_BIN" ]; then
-        echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} binary not found at $PHP_BIN${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 96_configure_php85.sh first${NC}"
-        return 1
-    fi
-
-    # 1) /usr/bin/php via update-alternatives -- SAME priority as step 31 (shared
-    #    PHP_ALT_PRIORITY) so re-running this step never lowers the default 31 set.
-    #    No --remove-all (that would wipe other registered php alternatives).
-    if [ ! -e "/usr/bin/php" ] || ! /usr/bin/php -v 2>/dev/null | grep -q "PHP ${PHP_VERSION}"; then
-        $USE_SUDO update-alternatives --install /usr/bin/php php "$PHP_BIN" "$PHP_ALT_PRIORITY"
-        $USE_SUDO update-alternatives --set php "$PHP_BIN"
-        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} set as default (priority ${PHP_ALT_PRIORITY})${NC}"
-    else
-        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} already the default php${NC}"
-    fi
-
-    # 2) The canonical entrypoint link that step 31 CREATES and step 34 CONSUMES.
-    #    32 previously only checked /usr/bin/php while this contract
-    #    link was broken. Keep it in sync here too.
-    if [ "$(readlink -f "$TARGET_LINK_PATH" 2>/dev/null)" != "$(readlink -f "$PHP_BIN" 2>/dev/null)" ]; then
-        $USE_SUDO mkdir -p "$(dirname "$TARGET_LINK_PATH")"
-        $USE_SUDO ln -sf "$PHP_BIN" "$TARGET_LINK_PATH"
-        echo -e "${GREEN}$SCRIPT_INDEX Linked $TARGET_LINK_PATH -> $PHP_BIN${NC}"
-    fi
-
-    if "$TARGET_LINK_PATH" -v 2>/dev/null | grep -q "PHP ${PHP_VERSION}"; then
-        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} available at $TARGET_LINK_PATH and /usr/bin/php${NC}"
+    # Converge on the single canonical link contract (php_link_common.sh):
+    # /usr/local/bin/php -> real CLI binary; removes the /usr/bin/php duplicate
+    # (plain symlink or update-alternatives entry) and the legacy frankenphp
+    # php-cli shims idempotently.
+    if ensure_single_php_link; then
+        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} default link converged${NC}"
         return 0
     else
-        echo -e "${RED}$SCRIPT_INDEX Failed to make PHP ${PHP_VERSION} the default${NC}"
+        echo -e "${RED}$SCRIPT_INDEX Failed to converge the default php link${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 96_configure_php85.sh first${NC}"
         return 1
     fi
 }

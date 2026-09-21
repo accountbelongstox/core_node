@@ -233,7 +233,7 @@ ensure_ssh_server() {
 # otherwise the canonical node toolchain installer (which also provisions bun)
 # is invoked, and the runtime upgrade is printed.
 ensure_ui_bun_runtime() {
-    BUN_BIN="$(command -v bun 2>/dev/null)"
+    BUN_BIN="$(resolve_tool_bin bun 2>/dev/null || true)"
     if [ -n "$BUN_BIN" ]; then
         echo "bun present -> dashboard frontend runtime ready ($BUN_BIN)."
         return
@@ -247,9 +247,9 @@ ensure_ui_bun_runtime() {
     echo "  $NODE_INSTALL_SCRIPT"
     bash "$NODE_INSTALL_SCRIPT"
     hash -r 2>/dev/null
-    BUN_BIN="$(command -v bun 2>/dev/null)"
+    BUN_BIN="$(resolve_tool_bin bun 2>/dev/null || true)"
     if [ -n "$BUN_BIN" ]; then
-        echo "Upgraded the dashboard frontend runtime to bun: $BUN_BIN ($(bun --version 2>/dev/null))"
+        echo "Upgraded the dashboard frontend runtime to bun: $BUN_BIN ($("$BUN_BIN" --version 2>/dev/null))"
     else
         echo "  *** ACTION REQUIRED: bun still unavailable after the installer."
         echo "  *** Manual (Debian/Ubuntu/WSL): npm i -g bun"
@@ -588,7 +588,7 @@ fi
 # --- Ensure Node.js BEFORE sys:init (composer dev / UI tooling; on the
 # nginx plane also the Octane --watch chokidar dependency) ---
 # Prefer the gvar absolute NODE_BIN (install-time PATH may be minimal); fall back to PATH lookup.
-if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then NODE_BIN="$(command -v node 2>/dev/null)"; fi
+if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"; fi
 if [ -z "$NODE_BIN" ]; then
     if [ -f "$NODE_INSTALL_SCRIPT" ]; then
         NODE_GLOBAL_VAR_DIR="$GLOBAL_VAR_DIR"
@@ -603,7 +603,7 @@ if [ -z "$NODE_BIN" ]; then
 fi
 resolve_npx
 # Prefer the gvar absolute NODE_BIN (install-time PATH may be minimal); fall back to PATH lookup.
-if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then NODE_BIN="$(command -v node 2>/dev/null)"; fi
+if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"; fi
 if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
     if [ -n "$NODE_BIN" ]; then
         echo "node present -> composer dev / UI tooling ready (hot-reload is FrankenPHP worker 'watch': no Node/chokidar needed)."

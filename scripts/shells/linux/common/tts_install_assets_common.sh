@@ -68,6 +68,15 @@ tts_runtime_policy_run() {
     (cd "$repo_root" && PYCORE_SKIP_DEP_CHECK=1 "$py" -m pycore.pyutils.common.python_env.runtime_policy "$@")
 }
 
+tts_engine_cpu_supported() {
+    # CPU-inference support per the canonical engine policy (runtime_policy.py).
+    # Fails closed: unknown engines keep skipping on headless GPU-less hosts.
+    local py="$1" engine="$2"
+    local output=""
+    output="$(tts_runtime_policy_run "$py" cpu-supported "$engine" 2>/dev/null)" || return 1
+    [[ "$output" == *true* ]]
+}
+
 tts_ensure_engine_base_runtime() {
     local py="$1" engine="$2"
     local repo_root runtime_version override_name installer
@@ -712,11 +721,100 @@ _hf_download_file() {
         echo "${prefix}[!] curl missing; cannot download ${name}" >&2
         return 1
     fi
-    curl -fsS "$HF_CURL_REDIRECT_FLAG" -C - --retry 3 --connect-timeout 30 "${HF_CURL_AUTH_ARGS[@]}" -o "$out" "$url" || return 1
+    # --retry-all-errors covers connection drops (curl 56) that plain --retry
+    # skips; --speed-limit aborts stalled transfers so the retry kicks in.
+    # curl -s is silent, so a multi-GB transfer looks frozen in no-TTY installer
+    # logs; run curl in the background and poll the output size for live progress.
+    curl -fsS "$HF_CURL_REDIRECT_FLAG" -C - --retry 5 --retry-delay 2 --retry-all-errors \
+        --connect-timeout 30 --speed-time 30 --speed-limit 1024 \
+        "${HF_CURL_AUTH_ARGS[@]}" -o "$out" "$url" &
+    local curl_pid=$!
+    local last_reported=-1
+    while kill -0 "$curl_pid" 2>/dev/null; do
+        sleep 10
+        have=0
+        [[ -f "$out" ]] && have="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
+        have="${have:-0}"
+        [[ "$have" == "$last_reported" ]] && continue
+        last_reported="$have"
+        if [[ "${expected:-0}" -gt 0 ]]; then
+            echo "${prefix}[download] ${name}: $((have / 1048576)) / $((expected / 1048576)) MB"
+        else
+            echo "${prefix}[download] ${name}: $((have / 1048576)) MB"
+        fi
+    done
+    wait "$curl_pid" || return 1
     if ! _hf_file_complete "$out" "${expected:-0}"; then
         return 1
     fi
     return 0
+}
+
+# Read a model sentinel written by EITHER OS and print the bare value: strips
+# a leading UTF-8 BOM (Windows PowerShell `Set-Content -Encoding utf8` emits
+# BOM + CRLF) and the trailing CR/LF. `tr -d` cannot do this: GNU tr has no
+# \u escape, so `tr -d '\r\n\ufeff'` silently deletes the LETTERS u/f/e from
+# the model id instead of the BOM bytes.
+_hf_read_sentinel() {
+    local path="$1"
+    [[ -f "$path" ]] || return 1
+    sed -e '1s/^\xef\xbb\xbf//' -e 's/\r$//' "$path" 2>/dev/null | head -n1
+}
+
+# Resolve the newest local HF hub snapshot dir for a repo ('' + rc 1 when absent):
+# $HF_HUB_CACHE/models--<org>--<name>/snapshots/<rev>. The hub cache is shared
+# with Windows (D:\www\cache\huggingface\hub == /www/www/cache/huggingface/hub),
+# so a repo fetched by EITHER OS (transformers runtime, hf CLI, or the other
+# side's installer) is found here.
+_hf_hub_repo_snapshot_dir() {
+    local repo="$1" hub_root="" repo_dir="" snap=""
+    hub_root="${HF_HUB_CACHE:-${HUGGINGFACE_HUB_CACHE:-${HF_HOME:+$HF_HOME/hub}}}"
+    [[ -n "$hub_root" ]] || return 1
+    repo_dir="${hub_root%/}/models--${repo//\//--}"
+    [[ -d "$repo_dir/snapshots" ]] || return 1
+    snap="$(ls -1t "$repo_dir/snapshots" 2>/dev/null | head -n1)"
+    [[ -n "$snap" && -d "$repo_dir/snapshots/$snap" ]] || return 1
+    printf '%s\n' "$repo_dir/snapshots/$snap"
+    return 0
+}
+
+# Reuse a repo already present in the HF HUB cache by MATERIALIZING the
+# allow-listed files into the flat dest: plain copies dereferencing the hub's
+# blob symlinks (cp -L), never new symlinks -- a cache shared across operating
+# systems must stay plain files (official HF_HUB_DISABLE_SYMLINKS guidance:
+# symlinks created on one OS are not always traversable on the other). Files
+# already present at the dest are kept (resume semantics). Returns 0 only when
+# the dest afterwards satisfies the OFFLINE readiness contract (config.json +
+# at least one nonzero allow-listed weight file); the caller then writes the
+# sentinel. On any gap it returns 1 and the caller falls through to the normal
+# resumable download, which also completes the partially materialized tree.
+_hf_flat_materialize_from_hub() {
+    local repo="$1" dest="$2" allow_raw="$3" prefix="$4" py="${5:-python3}"
+    local snap_dir="" src="" rel="" copied=0
+    local -a allow=()
+    IFS=',' read -r -a allow <<< "$allow_raw"
+    snap_dir="$(_hf_hub_repo_snapshot_dir "$repo")" || return 1
+    [[ -f "$snap_dir/config.json" ]] || return 1
+    while IFS= read -r -d '' src; do
+        rel="${src#"$snap_dir"/}"
+        _hf_allow_match "$rel" "${allow[@]}" || continue
+        # Resume semantics: skip only a byte-complete copy; a partial file
+        # (e.g. an interrupted earlier materialize) is re-copied in full.
+        if [[ -f "${dest%/}/$rel" ]]; then
+            local dst_size="" src_size=""
+            dst_size="$(wc -c < "${dest%/}/$rel" 2>/dev/null | tr -d ' ')"
+            src_size="$(wc -c < "$src" 2>/dev/null | tr -d ' ')"
+            [[ "${src_size:-0}" -gt 0 && "${dst_size:-0}" == "${src_size:-0}" ]] && continue
+        fi
+        mkdir -p "${dest%/}/$(dirname "$rel")" 2>/dev/null || true
+        cp -L "$src" "${dest%/}/$rel" 2>/dev/null || return 1
+        copied=$((copied + 1))
+    done < <(find "$snap_dir" \( -type f -o -type l \) -print0 2>/dev/null)
+    if neural_tts_local_weights_ready "$dest" "" "$py" "" "$allow_raw"; then
+        echo "${prefix}[reuse] materialized ${copied} file(s) from shared HF hub cache: $snap_dir (no download)"
+        return 0
+    fi
+    return 1
 }
 
 install_hf_repo_flat() {
@@ -732,6 +830,18 @@ install_hf_repo_flat() {
         local_bytes="$(find "$dest" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
         printf '%s\n' "$sentinel_value" > "$sentinel"
         echo "${prefix}[idempotent] local model found: ${dest} (${local_bytes} bytes); remote lookup skipped"
+        TTS_HF_REPO_READY=1
+        return 0
+    fi
+    # Cross-layout reuse (Windows <-> Linux dual-boot, transformers runtime):
+    # the SAME repo may already sit in the shared HF HUB cache even though this
+    # flat dest/sentinel was never populated (e.g. the other OS fetched it via
+    # the hub layout only -- observed: nllb200/qwen25 flat weights empty while
+    # models--facebook--nllb-200-distilled-600M / models--Qwen--Qwen2.5-0.5B-
+    # Instruct sit complete in the hub). Materialize from the hub snapshot --
+    # same-disk copy, no network -- before any remote lookup.
+    if _hf_flat_materialize_from_hub "$repo" "$dest" "$allow_raw" "$prefix" "$py"; then
+        printf '%s\n' "$sentinel_value" > "$sentinel"
         TTS_HF_REPO_READY=1
         return 0
     fi
@@ -816,7 +926,7 @@ neural_tts_local_weights_ready() {
         while IFS=$'\t' read -r entry entry_size; do
             [[ -n "$entry" ]] || continue
             case "$entry" in
-                *.safetensors|*.bin|*.pt) ;;
+                *.safetensors|*.bin|*.pt|*.pth) ;;
                 *) continue ;;
             esac
             _hf_allow_match "$entry" "${allow[@]}" || continue
@@ -837,7 +947,7 @@ neural_tts_local_weights_ready() {
         expected="${expected:-0}"
         [[ "$expected" -le 0 || "${file_size:-0}" -ge "$expected" ]] || return 1
         total_bytes=$((total_bytes + ${file_size:-0}))
-    done < <(find "$dir" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -print0 2>/dev/null)
+    done < <(find "$dir" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' -o -name '*.pth' \) -print0 2>/dev/null)
     if [[ "$weight_count" -gt 0 ]]; then
         if [[ "$NEURAL_TTS_LAST_REPORTED_MODEL_PATH" != "$dir" ]]; then
             echo "[model-cache] local model found: $dir (${total_bytes} bytes)"
@@ -857,7 +967,7 @@ _whisper_model_url() {
         base.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/25a8656b74f98eb9848ed2ceccc261d8628bba9ed516e8a86ac9738c6f1765c/base.en.pt' ;;
         small) echo 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.pt' ;;
         small.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.en.pt' ;;
-        medium) echo 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89f0c00d4a6021bbea85ae283/medium.pt' ;;
+        medium) echo 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt' ;;
         medium.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e89803ba5a0c5763e2bcf4f8d3a0ea7741dde9c265/medium.en.pt' ;;
         large-v2) echo 'https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc532187b61f875ceec1a1baeda7af2a7ab0e9a6395ad8a89d/large-v2.pt' ;;
         large-v3|large) echo 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a8937a99fd112907ae80315fedda765a69cfd366fb9bce46bada3b0d6010/large-v3.pt' ;;
@@ -866,12 +976,20 @@ _whisper_model_url() {
 }
 
 install_whisper_model_weights() {
-    local model="$1" cache_dir="$2" prefix="$3"
+    local model="$1" cache_dir="$2" prefix="$3" py="${4:-}"
     local url out expected local_bytes
-    url="$(_whisper_model_url "$model")" || {
-        echo "${prefix}[!] unknown whisper model '${model}'" >&2
-        return 1
-    }
+    # The installed whisper package is the single source of truth for model
+    # URLs (OpenAI rotates the hash segment); the shell table is a fallback.
+    url=""
+    if [[ -n "$py" ]] && command -v "$py" >/dev/null 2>&1; then
+        url="$("$py" -c "import whisper; print(whisper._MODELS.get('$model', ''))" 2>/dev/null | tr -d '\r\n' || true)"
+    fi
+    if [[ -z "$url" ]]; then
+        url="$(_whisper_model_url "$model")" || {
+            echo "${prefix}[!] unknown whisper model '${model}'" >&2
+            return 1
+        }
+    fi
     mkdir -p "$cache_dir"
     out="${cache_dir%/}/${model}.pt"
     if [[ -s "$out" ]]; then
@@ -889,6 +1007,7 @@ install_whisper_model_weights() {
         return 1
     fi
     echo "${prefix}[..] downloading whisper '${model}' -> ${out}"
-    curl -fsSL -C - --retry 3 --connect-timeout 30 -o "$out" "$url"
+    curl -fsSL -C - --retry 5 --retry-delay 2 --retry-all-errors \
+        --connect-timeout 30 --speed-time 30 --speed-limit 1024 -o "$out" "$url"
     _hf_file_complete "$out" "${expected:-0}"
 }

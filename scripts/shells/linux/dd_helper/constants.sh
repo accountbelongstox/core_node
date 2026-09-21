@@ -62,3 +62,14 @@ if [ -z "${CORE_NODE_ROOT_DIR:-}" ]; then
     _DD_HELPER_CONST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     CORE_NODE_ROOT_DIR="$(cd "$_DD_HELPER_CONST_DIR/../../../.." && pwd)"
 fi
+
+# Shared prompt helpers (prompt_read_default): TTY-guarded, timeout-bounded,
+# default-backed reads so startup prompts never block unattended runs.
+if [ -z "${_DD_HELPER_COMMON_DIR:-}" ]; then
+    _DD_HELPER_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../common" && pwd)"
+fi
+source "$_DD_HELPER_COMMON_DIR/prompt_common.sh"
+
+# Startup prompt timeout (seconds): every dd.sh startup prompt auto-continues
+# with its documented default after this delay (auto-skip).
+DD_STARTUP_PROMPT_TIMEOUT="${DD_STARTUP_PROMPT_TIMEOUT:-3}"

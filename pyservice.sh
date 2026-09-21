@@ -112,7 +112,11 @@ fi
 
 # Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
 # TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...) for the running service so every
-# model download lands in /var/_core_node/cache, shared across all users.
+# model download lands in one shared tree. On a dual-boot machine whose web data
+# disk ROOT is mounted at /www (NTFS), that tree is the SAME one Windows uses
+# (D:\www\cache == /www/www/cache -- ONE EXTRA LEVEL because /www == D:\ root),
+# so models download once for both OSes (weights are device-agnostic: GPU and
+# CPU runs share them); otherwise the native /var/_core_node/cache.
 if [[ "$PY_SERVICE_COMMAND" != "codesync" ]]; then
     source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
 fi

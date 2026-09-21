@@ -7,17 +7,8 @@ log_message() {
 }
 
 resolve_pnpm_binary_path() {
-    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
-        echo "$PNPM_BIN"
-        return
-    fi
-
-    if [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
-        echo "$NODE_BIN_DIR/pnpm"
-        return
-    fi
-
-    command -v pnpm 2>/dev/null || true
+    # /usr/local/bin link first, then PATH, gvar constant, var center.
+    resolve_tool_bin pnpm 2>/dev/null || true
 }
 
 resolve_pnpm_global_bin_dir() {
@@ -51,7 +42,7 @@ resolve_pnpm_global_bin_dir() {
     fi
 
     local fallback_pnpm_binary=""
-    fallback_pnpm_binary="$(command -v pnpm 2>/dev/null || true)"
+    fallback_pnpm_binary="$(resolve_tool_bin pnpm 2>/dev/null || command -v pnpm 2>/dev/null || true)"
     if [ -n "$fallback_pnpm_binary" ] && [ -x "$fallback_pnpm_binary" ]; then
         pnpm_global_bin_dir="$("$fallback_pnpm_binary" config get global-bin-dir 2>/dev/null)"
         if [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ]; then

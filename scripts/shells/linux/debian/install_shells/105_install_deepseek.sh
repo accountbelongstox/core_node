@@ -380,7 +380,7 @@ download_vl_model_weights() {
     mkdir -p "$VL_STAGING_DIR"
     local _model_ready=0 _sentinel_model=""
     if [[ -f "$VL_MODEL_SENTINEL" ]]; then
-        _sentinel_model="$(cat "$VL_MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+        _sentinel_model="$(_hf_read_sentinel "$VL_MODEL_SENTINEL")"
         if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$VL_MODEL_PATH" ]] && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd" "" "$VL_WEIGHT_ALLOW"; then
             print_success "model weights verified ($VL_MODEL_PATH) - skipping"
             _model_ready=1

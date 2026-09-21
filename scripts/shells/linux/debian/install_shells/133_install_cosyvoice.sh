@@ -122,7 +122,7 @@ echo "============================================================"
 echo " [install_cosyvoice] CosyVoice (multilingual clone TTS)"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "cosyvoice"; then
     echo "[install_cosyvoice] [skip] Server environment without desktop and GPU detected. Skipping CosyVoice installation."
     complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "server CPU host" torch
     exit 0
@@ -160,11 +160,11 @@ fi
 ensure_linux_system_deps
 
 echo "[install_cosyvoice]  staging : $TARGET_DIR"
-echo "[install_cosyvoice]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU only')"
+echo "[install_cosyvoice]  compute : $(gpu_hardware_present && echo 'CUDA GPU' || echo 'CPU only')"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" cosyvoice | while read -r _line; do
     echo "[install_cosyvoice]  official env (cosyvoice): $_line"
 done
-_cosy_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" cosyvoice_model_dir $(gpu_present && echo --gpu || echo --cpu))"
+_cosy_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" cosyvoice_model_dir $(gpu_hardware_present && echo --gpu || echo --cpu))"
 echo "[install_cosyvoice]  model_dir: $_cosy_model"
 
 if [[ -f "$REPO_MARKER" ]]; then

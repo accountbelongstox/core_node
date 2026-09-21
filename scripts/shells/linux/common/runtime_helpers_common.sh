@@ -181,7 +181,7 @@ fix_pnpm_global_permissions_from_common_functions() {
 
     pnpm_global_bin="${PNPM_GLOBAL_BIN_DIR:-}"
     if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
-        pnpm_binary="$(command -v pnpm 2>/dev/null || true)"
+        pnpm_binary="$(resolve_tool_bin pnpm 2>/dev/null || command -v pnpm 2>/dev/null || true)"
         if [ -n "$pnpm_binary" ]; then
             pnpm_global_bin="$("$pnpm_binary" config get global-bin-dir 2>/dev/null || true)"
         fi
@@ -459,20 +459,18 @@ prompt_and_wait_for_download_from_common_functions() {
 # Usage: run_node_from_common_functions [args...]
 # Returns: node exit code
 run_node_from_common_functions() {
-    # Ensure NODE_BIN is set
-    if [[ -z "$NODE_BIN" ]] || [[ ! -x "$NODE_BIN" ]]; then
-        # Fallback to system node
-        if command -v node >/dev/null 2>&1; then
-            node "$@"
-            return $?
-        else
-            echo "Error: Node.js not found. Please install Node.js first." >&2
-            return 127
-        fi
+    local node_bin="${NODE_BIN:-}"
+    if [ -z "$node_bin" ] || [ ! -x "$node_bin" ]; then
+        # /usr/local/bin link first, then PATH, gvar constant, var center
+        node_bin="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+    fi
+    if [ -z "$node_bin" ]; then
+        echo "Error: Node.js not found. Please install Node.js first." >&2
+        return 127
     fi
 
     # Execute with absolute path
-    "$NODE_BIN" "$@"
+    "$node_bin" "$@"
     return $?
 }
 
@@ -480,16 +478,13 @@ run_node_from_common_functions() {
 # Usage: run_npm_from_common_functions [args...]
 # Returns: npm exit code
 run_npm_from_common_functions() {
-    # Ensure NPM_BIN is set
-    if [[ -z "$NPM_BIN" ]] || [[ ! -x "$NPM_BIN" ]]; then
-        # Fallback to system npm
-        if command -v npm >/dev/null 2>&1; then
-            npm "$@"
-            return $?
-        else
-            echo "Error: npm not found. Please install npm first." >&2
-            return 127
-        fi
+    local npm_bin="${NPM_BIN:-}"
+    if [ -z "$npm_bin" ] || [ ! -x "$npm_bin" ]; then
+        npm_bin="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
+    fi
+    if [ -z "$npm_bin" ]; then
+        echo "Error: npm not found. Please install npm first." >&2
+        return 127
     fi
 
     # Add NODE_BIN_DIR to PATH for this execution
@@ -497,7 +492,7 @@ run_npm_from_common_functions() {
     export PATH="$NODE_BIN_DIR:$PATH"
 
     # Execute with absolute path
-    "$NPM_BIN" "$@"
+    "$npm_bin" "$@"
     local exit_code=$?
 
     # Restore PATH
@@ -518,28 +513,10 @@ run_pnpm_from_common_functions() {
     export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
 
     # Ensure PNPM_BIN is set
-    if [[ -z "$PNPM_BIN" ]]; then
-        # Try to find pnpm in NODE_BIN_DIR
-        if [[ -n "$NODE_BIN_DIR" ]] && [[ -x "$NODE_BIN_DIR/pnpm" ]]; then
-            PNPM_BIN="$NODE_BIN_DIR/pnpm"
-        elif command -v pnpm >/dev/null 2>&1; then
-            # Fallback to system pnpm
-            pnpm "$@"
-            return $?
-        else
+    if [[ -z "$PNPM_BIN" ]] || [[ ! -x "$PNPM_BIN" ]]; then
+        PNPM_BIN="$(resolve_tool_bin pnpm 2>/dev/null || command -v pnpm 2>/dev/null || true)"
+        if [[ -z "$PNPM_BIN" ]]; then
             echo "Error: pnpm not found. Please install pnpm first (npm install -g pnpm)" >&2
-            return 127
-        fi
-    fi
-
-    # Check if pnpm is installed
-    if [[ ! -x "$PNPM_BIN" ]]; then
-        # Try fallback
-        if command -v pnpm >/dev/null 2>&1; then
-            pnpm "$@"
-            return $?
-        else
-            echo "Error: pnpm not found at $PNPM_BIN" >&2
             return 127
         fi
     fi
@@ -566,28 +543,10 @@ run_pnpm_from_common_functions() {
 # Returns: yarn exit code
 run_yarn_from_common_functions() {
     # Ensure YARN_BIN is set
-    if [[ -z "$YARN_BIN" ]]; then
-        # Try to find yarn in NODE_BIN_DIR
-        if [[ -n "$NODE_BIN_DIR" ]] && [[ -x "$NODE_BIN_DIR/yarn" ]]; then
-            YARN_BIN="$NODE_BIN_DIR/yarn"
-        elif command -v yarn >/dev/null 2>&1; then
-            # Fallback to system yarn
-            yarn "$@"
-            return $?
-        else
+    if [[ -z "$YARN_BIN" ]] || [[ ! -x "$YARN_BIN" ]]; then
+        YARN_BIN="$(resolve_tool_bin yarn 2>/dev/null || command -v yarn 2>/dev/null || true)"
+        if [[ -z "$YARN_BIN" ]]; then
             echo "Error: yarn not found. Please install yarn first." >&2
-            return 127
-        fi
-    fi
-
-    # Check if yarn is installed
-    if [[ ! -x "$YARN_BIN" ]]; then
-        # Try fallback
-        if command -v yarn >/dev/null 2>&1; then
-            yarn "$@"
-            return $?
-        else
-            echo "Error: yarn not found at $YARN_BIN" >&2
             return 127
         fi
     fi

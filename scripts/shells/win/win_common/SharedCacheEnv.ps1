@@ -104,6 +104,16 @@ if (-not $env:WHISPER_CACHE_DIR) {
     $env:WHISPER_CACHE_DIR = Join-Path $Global:WWW_CACHE_DIR 'whisper'
 }
 
+# Cross-OS shared cache (Windows <-> Linux dual-boot on the same NTFS disk):
+# official HF guidance for a hub cache shared across operating systems is to
+# store plain files instead of snapshot symlinks (HF_HUB_DISABLE_SYMLINKS=1,
+# huggingface_hub environment_variables docs) -- symlinks created on one OS are
+# not always traversable on the other. Applies to new downloads only; existing
+# relative symlinks keep working on both sides.
+if (-not $env:HF_HUB_DISABLE_SYMLINKS) {
+    $env:HF_HUB_DISABLE_SYMLINKS = '1'
+}
+
 function Ensure-PipCacheDirConfigured {
     param(
         [string]$PipExe = '',

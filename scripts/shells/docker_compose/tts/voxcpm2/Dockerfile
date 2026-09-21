@@ -11,7 +11,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/voxcpm2
-RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" torch \
+RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" --extra-index-url https://pypi.org/simple/ torch \
     && pip install --no-cache-dir voxcpm soundfile fastapi "uvicorn[standard]"
 
 # Build context carries the pycore asset servers (synced by the apply helper).

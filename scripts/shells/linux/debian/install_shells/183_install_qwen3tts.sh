@@ -87,7 +87,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "qwen3tts"; then
     echo "[install_qwen3tts] [skip] Server environment without desktop and GPU detected. Skipping Qwen3-TTS installation."
     complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
     exit 0
@@ -105,7 +105,7 @@ if ! tts_engine_compatible "$PYTHON" "qwen3tts" "[install_qwen3tts] "; then
 fi
 
 mkdir -p "$TARGET_DIR"
-if gpu_present; then _gpu_flag="--gpu"; fi
+if gpu_hardware_present; then _gpu_flag="--gpu"; fi
 _qwen_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" qwen3tts_model "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" qwen3tts | while read -r _line; do
     echo "[install_qwen3tts]  official env (qwen3tts): $_line"
@@ -145,7 +145,7 @@ else
 fi
 
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
-    _sentinel_model="$(tr -d '\r\n\ufeff' < "$MODEL_SENTINEL" 2>/dev/null || true)"
+    _sentinel_model="$(_hf_read_sentinel "$MODEL_SENTINEL")"
     neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"
     if [[ "$_sentinel_model" == "$_qwen_model" && "$NEURAL_TTS_WEIGHTS_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_qwen_model)"

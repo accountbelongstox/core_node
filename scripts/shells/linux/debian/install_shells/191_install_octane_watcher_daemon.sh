@@ -138,8 +138,7 @@ if [ ! -d "node_modules/chokidar" ]; then
         echo "Using pnpm at: $PNPM_ABS_PATH"
         "$PNPM_ABS_PATH" install --save-dev chokidar
         echo "chokidar installed via pnpm"
-    elif command -v pnpm &> /dev/null; then
-        PNPM_RESOLVED="$(command -v pnpm)"
+    elif PNPM_RESOLVED="$(resolve_tool_bin pnpm 2>/dev/null || true)" && [ -n "$PNPM_RESOLVED" ]; then
         echo "Using pnpm: $PNPM_RESOLVED"
         "$PNPM_RESOLVED" install --save-dev chokidar
         echo "chokidar installed via pnpm"
@@ -147,8 +146,7 @@ if [ ! -d "node_modules/chokidar" ]; then
         echo "pnpm not found, using npm at: $NPM_ABS_PATH"
         "$NPM_ABS_PATH" install --save-dev chokidar
         echo "chokidar installed via npm"
-    elif command -v npm &> /dev/null; then
-        NPM_RESOLVED="$(command -v npm)"
+    elif NPM_RESOLVED="$(resolve_tool_bin npm 2>/dev/null || true)" && [ -n "$NPM_RESOLVED" ]; then
         echo "pnpm not found, using npm: $NPM_RESOLVED"
         "$NPM_RESOLVED" install --save-dev chokidar
         echo "chokidar installed via npm"

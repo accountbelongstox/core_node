@@ -71,7 +71,7 @@ fi
 case "$MODEL" in
     small) CHOSEN_NAME="$SMALL_NAME" ;;
     large) CHOSEN_NAME="$LARGE_NAME" ;;
-    *) if gpu_present; then CHOSEN_NAME="$LARGE_NAME"; echo "[install_vosk] CUDA detected -> LARGE model ($LARGE_NAME, ~2.3GB)."; \
+    *) if gpu_hardware_present; then CHOSEN_NAME="$LARGE_NAME"; echo "[install_vosk] CUDA hardware detected -> LARGE model ($LARGE_NAME, ~2.3GB)."; \
        else CHOSEN_NAME="$SMALL_NAME"; echo "[install_vosk] No CUDA -> SMALL CPU model ($SMALL_NAME, ~40MB)."; fi ;;
 esac
 MODEL_URL="$BASE_URL/$CHOSEN_NAME.zip"

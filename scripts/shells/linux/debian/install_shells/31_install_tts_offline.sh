@@ -114,7 +114,7 @@ if [ -z "$PYTHON" ]; then
 else
     echo "  python : $PYTHON"
     _gpu_flag="--cpu"
-    if gpu_present; then _gpu_flag="--gpu"; fi
+    if gpu_hardware_present; then _gpu_flag="--gpu"; fi
     MODEL_URL="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" kokoro_url "$_gpu_flag")"
     tts_official_env_line "$PYTHON" "$SCRIPT_DIR" sherpa | while read -r _line; do
         echo "  official env (sherpa): $_line"

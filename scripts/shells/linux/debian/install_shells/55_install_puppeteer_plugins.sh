@@ -64,14 +64,13 @@ echo "[$SCRIPT_INDEX] Configuring pnpm environment..."
 export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
 
 # Resolve the pnpm binary by ABSOLUTE path: install-time shells may run with a
-# minimal PATH (no /usr/local/bin yet), so prefer the gvar path, then the
-# /usr/local/bin link, then PATH.
-PNPM_CMD="${PNPM_BIN:-}"
-{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && [ -x /usr/local/bin/pnpm ] && PNPM_CMD="/usr/local/bin/pnpm"
-{ [ -z "$PNPM_CMD" ] || [ ! -x "$PNPM_CMD" ]; } && PNPM_CMD="$(command -v pnpm 2>/dev/null || true)"
+# minimal PATH (no /usr/local/bin yet). resolve_tool_bin checks PATH, the gvar
+# constant, the var-center <TOOL>_BIN, and the toolchain tree.
+PNPM_CMD="$(resolve_tool_bin pnpm 2>/dev/null || true)"
 
-# Get pnpm global bin directory
+# Get pnpm global bin directory (validate: the store may hold pre-fix garbage)
 PNPM_GLOBAL_BIN=$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null)
+case "$PNPM_GLOBAL_BIN" in /*) ;; *) PNPM_GLOBAL_BIN="" ;; esac
 
 if [ -z "$PNPM_GLOBAL_BIN" ]; then
     # Fallback: try to get from pnpm config
@@ -158,15 +157,18 @@ else
     install_pnpm_package "puppeteer-extra-plugin-recaptcha"
     install_pnpm_package "puppeteer-extra-plugin-block-resources"
 
-    # Apply rebrowser patches to puppeteer-core if installed
+    # Apply rebrowser patches only to a vanilla puppeteer-core install.
+    # rebrowser-puppeteer / rebrowser-puppeteer-core ship with the patches already
+    # applied (official drop-in replacements), so they must not be patched again.
+    # `pnpm list -g <pkg>` exits 0 even when the package is absent, so verify the
+    # package.json on disk instead of trusting the exit code.
     echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
-    if "$PNPM_CMD" list -g puppeteer-core >/dev/null 2>&1; then
+    pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
+    if [ -n "$pnpm_global_root" ] && [ -f "$pnpm_global_root/puppeteer-core/package.json" ]; then
         echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
-        local pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
-        if [ -n "$pnpm_global_root" ] && [ -d "$pnpm_global_root" ]; then
-            local target_dir="$(dirname "$pnpm_global_root")"
-            (cd "$target_dir" && "$PNPM_CMD" dlx rebrowser-patches@latest patch --packageName puppeteer-core) || true
-        fi
+        "$PNPM_CMD" dlx rebrowser-patches@latest patch --packagePath "$pnpm_global_root/puppeteer-core" || true
+    else
+        echo "[$SCRIPT_INDEX] No vanilla puppeteer-core found; rebrowser packages are pre-patched, skipping"
     fi
 
     echo "[$SCRIPT_INDEX] Puppeteer anti-detection plugins installation completed"

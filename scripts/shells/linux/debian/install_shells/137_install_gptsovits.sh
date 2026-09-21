@@ -125,7 +125,7 @@ echo "============================================================"
 echo " [install_gptsovits] GPT-SoVITS TTS (free voice-clone server)"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "gptsovits"; then
     echo "[install_gptsovits] [skip] Server environment without desktop and GPU detected. Skipping GPT-SoVITS installation."
     complete_prereq_step "$PYTHON" "[install_gptsovits] " --absent-ok "server CPU host" torch
     exit 0
@@ -162,7 +162,7 @@ fi
 
 echo "[install_gptsovits]  staging : $TARGET_DIR"
 echo "[install_gptsovits]  models  : $MODELS_DIR"
-echo "[install_gptsovits]  compute : $(gpu_present && echo 'CUDA GPU -> GPU build + models' || echo 'CPU only -> CPU build')"
+echo "[install_gptsovits]  compute : $(gpu_hardware_present && echo 'CUDA GPU -> GPU build + models' || echo 'CPU only -> CPU build')"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" gptsovits | while read -r _line; do
     echo "[install_gptsovits]  official env (gptsovits): $_line"
 done
@@ -223,12 +223,43 @@ else
     fi
 fi
 
+# 2b) torchcodec: api_v2 loads the reference clip via load_with_torchcodec; the
+# cloned requirements.txt predates that dependency, so repair missing-only
+# (never --upgrade; pip resolves the compatible build for the venv's torch).
+if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
+    gptsovits_venv_py="$(tts_resolve_isolated_python "$PYTHON" "gptsovits")"
+    if [[ -n "$gptsovits_venv_py" ]] && ! "$gptsovits_venv_py" -c 'import torchcodec' >/dev/null 2>&1; then
+        echo "[install_gptsovits] [..] installing missing torchcodec into the isolated venv (api_v2 audio loader) ..."
+        "$gptsovits_venv_py" -m pip install torchcodec || echo "[install_gptsovits] [!] torchcodec install failed; will retry next run."
+    fi
+fi
+
+# 2c) NLTK data: the English G2P path (pos_tag / g2p_en) fails every /tts call
+# without these resources; download missing-only into the venv's own nltk_data
+# (NLTK searches <sys.prefix>/nltk_data).
+if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
+    gptsovits_venv_py="$(tts_resolve_isolated_python "$PYTHON" "gptsovits")"
+    if [[ -n "$gptsovits_venv_py" ]]; then
+        gptsovits_venv_root="$(dirname "$(dirname "$gptsovits_venv_py")")"
+        nltk_missing=0
+        for res in "taggers/averaged_perceptron_tagger_eng" "corpora/cmudict"; do
+            if [[ ! -e "$gptsovits_venv_root/nltk_data/$res" && ! -e "$gptsovits_venv_root/nltk_data/$res.zip" ]]; then
+                nltk_missing=1
+            fi
+        done
+        if [[ "$nltk_missing" -eq 1 ]]; then
+            echo "[install_gptsovits] [..] downloading missing NLTK data (averaged_perceptron_tagger_eng, cmudict) into the isolated venv ..."
+            "$gptsovits_venv_py" -m nltk.downloader -d "$gptsovits_venv_root/nltk_data" averaged_perceptron_tagger_eng cmudict || echo "[install_gptsovits] [!] NLTK data download failed; will retry next run."
+        fi
+    fi
+fi
+
 # 3) pretrained models from HuggingFace (IDEMPOTENT: sentinel + curl resume) #
 if [[ -f "$SENTINEL" && "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "pretrained models sentinel present"
 else
     if [[ -z "${GPTSOVITS_HF_ALLOW:-}" ]]; then
-        if gpu_present; then
+        if gpu_hardware_present; then
             export GPTSOVITS_HF_ALLOW="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" gptsovits_hf_allow --gpu)"
             echo "[install_gptsovits]  models: GPU max -> GPTSOVITS_HF_ALLOW=$GPTSOVITS_HF_ALLOW"
         else

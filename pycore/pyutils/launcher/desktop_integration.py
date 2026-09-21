@@ -81,7 +81,7 @@ def ensure_desktop_shortcut():
         icon_field = str(icon_png) if icon_png.exists() else 'utilities-terminal'
         # The freedesktop "Terminal" key only says the app needs a terminal; the
         # spec leaves emulator choice to the DE, so the canonical helper (installed
-        # by 193_install_terminal_grid_shortcut.sh) is preferred: it spawns a known
+        # by 193_install_window_launcher_shortcut.sh) is preferred: it spawns a known
         # emulator itself and shows the same interactive startup menu as Windows.
         # Fallback: run launcher.py with Terminal=true and let the DE pick one.
         helper = Path('/usr/local/bin/devlauncher')

@@ -234,15 +234,17 @@ install_via_npm_from_common_functions() {
 
     print_step_from_common_functions "Installing $service_name via npm: $package"
 
-    if command -v npm >/dev/null 2>&1; then
+    local npm_cmd=""
+    npm_cmd="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
+    if [ -n "$npm_cmd" ]; then
         # Check if package is already installed globally
         print_step_from_common_functions "Checking if $package is already installed..."
-        if npm list -g "$package" >/dev/null 2>&1; then
+        if "$npm_cmd" list -g "$package" >/dev/null 2>&1; then
             print_success_from_common_functions "$package is already installed globally, skipping installation"
             return 0
         else
             print_step_from_common_functions "$package not found, installing..."
-            npm install -g "$package"
+            "$npm_cmd" install -g "$package"
             return $?
         fi
     else
@@ -697,3 +699,36 @@ add_to_global_path_from_common_functions() {
 # nginx/certbot/domain installers and every start-script context.
 # shellcheck source=/dev/null
 . "$COMMON_FUNCS_DIR/file_ops_common.sh"
+
+
+# ---------------------------------------------------------------------------
+# Terminal emulator candidates shared by the launcher prerequisite installer
+# (119_install_launcher.sh) and the "Window Launcher" shortcut installer
+# (193_install_window_launcher_shortcut.sh), in preference order. Mirrors
+# pycore/pyutils/launcher/linux_terminal_argv.py FALLBACK_EMULATORS; kitty is
+# intentionally absent (its CLI has no -e convention; the launcher uses it only
+# for the paned-grid path).
+TERMINAL_EMULATOR_CANDIDATES=("xfce4-terminal" "gnome-terminal" "konsole" "qterminal" "xterm")
+
+# X resources that give xterm the clipboard mouse behavior its defaults lack:
+# select-to-copy straight into CLIPBOARD (not just PRIMARY) and right-click
+# paste (the stock Btn3 binding extends the selection instead). Mirrors
+# LinuxTerminalArgv.XTERM_XRM_ARGS; the \n inside the translations value must
+# stay a literal backslash-n pair (xrm parses it as the entry separator).
+XTERM_MOUSE_XRM_ARGS=(
+    -xrm "XTerm*selectToClipboard: true"
+    -xrm "XTerm*VT100.translations: #override ~Shift <Btn3Down>: ignore()\n~Shift <Btn3Up>: insert-selection(CLIPBOARD, PRIMARY)"
+)
+
+# Echo the first terminal emulator from TERMINAL_EMULATOR_CANDIDATES on PATH;
+# return 1 when none is present.
+find_terminal_emulator_from_common_functions() {
+    local emu
+    for emu in "${TERMINAL_EMULATOR_CANDIDATES[@]}"; do
+        if command -v "$emu" >/dev/null 2>&1; then
+            echo "$emu"
+            return 0
+        fi
+    done
+    return 1
+}

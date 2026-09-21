@@ -39,6 +39,7 @@ SCRIPT_DIR=""
 SHARED_CACHE_ENV=""
 CORE_NODE_CACHE_DIR="${CORE_NODE_CACHE_DIR:-}"
 SHARED_ROOT=""
+LEGACY_NATIVE_CACHE="/var/_core_node/cache"
 COPIED_COUNT=0
 SKIPPED_COUNT=0
 COPY_TOOL=""
@@ -165,6 +166,14 @@ done
 if [ -n "${HOME:-}" ] && [ -d "$HOME/.core_node/cache" ]; then
     copy_merge "$HOME/.core_node/cache" "$SHARED_ROOT"
 fi
+
+# ---- legacy: the NATIVE Linux shared root /var/_core_node/cache -----------------
+# When the shared root moved onto the cross-OS NTFS/data web disk (Windows
+# D:\www\cache == Linux /www/www/cache, ONE EXTRA LEVEL because /www == D:\
+# root), reclaim what an earlier Linux-only run already downloaded into the
+# native tree. copy_merge's same-path guard makes this a no-op when the shared
+# root IS the native tree (Linux-only machine).
+copy_merge "$LEGACY_NATIVE_CACHE" "$SHARED_ROOT"
 
 # ---- make the shared tree readable by all users ----
 if [ "$DRY_RUN" -eq 0 ]; then

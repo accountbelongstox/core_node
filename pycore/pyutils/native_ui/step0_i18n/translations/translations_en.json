@@ -47,8 +47,12 @@
       "language": "Language",
       "code_sync": "Code Sync",
       "code_sync_distribute": "Start distributing",
-      "code_sync_skip_update": "Skip update"
+      "code_sync_skip_update": "Skip update",
+      "prompt_derive_sound": "Prompt derive sound"
     }
+  },
+  "toast": {
+    "prompt_derived_title": "New prompt on Linux (Debian)"
   },
   "loading": {
     "text": "Loading...",

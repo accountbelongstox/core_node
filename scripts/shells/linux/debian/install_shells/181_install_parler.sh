@@ -56,7 +56,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "parler"; then
     echo "[install_parler] [skip] Server environment without desktop and GPU detected. Skipping Parler-TTS installation."
     complete_prereq_step "$PYTHON" "[install_parler] " --absent-ok "server CPU host" parler_tts
     exit 0
@@ -79,7 +79,7 @@ fi
 
 mkdir -p "$TARGET_DIR"
 _gpu_flag="--cpu"
-if gpu_present; then _gpu_flag="--gpu"; fi
+if gpu_hardware_present; then _gpu_flag="--gpu"; fi
 _parler_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" parler_model "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" parler | while read -r _line; do
     echo "[install_parler]  official env (parler): $_line"
@@ -108,7 +108,7 @@ fi
 # allow-list excludes redundant flax/tf/onnx format variants.
 _model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
-    _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+    _sentinel_model="$(_hf_read_sentinel "$MODEL_SENTINEL")"
     if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_parler_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_parler_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_parler_model)"
         _model_ready=1

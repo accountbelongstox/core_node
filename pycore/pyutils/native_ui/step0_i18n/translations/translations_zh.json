@@ -47,8 +47,12 @@
       "language": "语言",
       "code_sync": "代码同步",
       "code_sync_distribute": "开始分发",
-      "code_sync_skip_update": "跳过更新"
+      "code_sync_skip_update": "跳过更新",
+      "prompt_derive_sound": "提示词推导提示音"
     }
+  },
+  "toast": {
+    "prompt_derived_title": "当前 Linux（Debian）系统新提示词"
   },
   "loading": {
     "text": "加载中...",

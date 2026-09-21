@@ -37,8 +37,10 @@ SCRIPT_TEMP_DIR=$(create_script_temp_dir "59_install_flutter")
 LOG_FILE="$SCRIPT_TEMP_DIR/flutter_install_$(date +%Y%m%d_%H%M%S).log"
 SELECTED_REGION=$(get_var "SELECTED_REGION" "Global")
 
-# Flutter configuration
-FLUTTER_VERSION="3.35.0"
+# Flutter configuration (latest stable per docs.flutter.dev: 3.47.5, released
+# 2026-09-18, ships Dart 3.13.4)
+FLUTTER_VERSION="3.47.5"
+FLUTTER_DART_VERSION="3.13.4"
 FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
 FLUTTER_INSTALL_DIR=$(map_web_path "compile_dir" "applications/flutter")
 
@@ -130,9 +132,19 @@ install_flutter_tarball() {
 
     install_flutter_dependencies
 
-    if [ -x "$flutter_bin" ]; then
-        log_message "Flutter SDK already present at $flutter_sdk_dir, skipping download"
+    # Idempotent version check: an existing SDK is only reused when its
+    # recorded version matches the pin; otherwise it is replaced (upgrade).
+    local installed_flutter_version=""
+    if [ -f "$flutter_sdk_dir/version" ]; then
+        installed_flutter_version="$(cat "$flutter_sdk_dir/version" 2>/dev/null | tr -d '\r\n ')"
+    fi
+
+    if [ -x "$flutter_bin" ] && [ "$installed_flutter_version" = "$FLUTTER_VERSION" ]; then
+        log_message "Flutter SDK $FLUTTER_VERSION already present at $flutter_sdk_dir, skipping download"
     else
+        if [ -x "$flutter_bin" ]; then
+            log_message "Flutter SDK version mismatch (installed: ${installed_flutter_version:-unknown}, target: $FLUTTER_VERSION), upgrading"
+        fi
         log_message "Downloading Flutter SDK to: $archive_path"
         # -c resumes a partial download on the next idempotent run
         if ! wget -c -O "$archive_path" "$FLUTTER_URL"; then
@@ -164,11 +176,18 @@ install_flutter_tarball() {
     $USE_SUDO chown -R "$real_user:$real_user" "$FLUTTER_INSTALL_DIR"
     $USE_SUDO chmod -R u+rwX,go+rX "$FLUTTER_INSTALL_DIR"
 
-    # Link the SDK bin tools into /usr/local/bin (shared PATH entry)
+    # Link the SDK bin tools into /usr/local/bin (shared PATH entry). ln -sf
+    # re-asserts the correct target on every run, installed or not.
     $USE_SUDO ln -sf "$flutter_bin" /usr/local/bin/flutter
     $USE_SUDO ln -sf "$dart_bin" /usr/local/bin/dart
     log_message "Linked /usr/local/bin/flutter -> $flutter_bin"
     log_message "Linked /usr/local/bin/dart -> $dart_bin"
+
+    # Share the absolute paths in the var center for minimal-PATH consumers
+    if command -v register_tool_bin >/dev/null 2>&1; then
+        register_tool_bin flutter "$flutter_bin" || true
+        register_tool_bin dart "$dart_bin" || true
+    fi
 
     ensure_flutter_git_safe_directory "$flutter_sdk_dir"
     return 0

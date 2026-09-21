@@ -58,6 +58,10 @@ SSE_RECORD_EVENT_NAME = "sse.event"
 SSE_EVENT_JOURNAL_MAX = 5000
 SSE_EVENT_MAX_AGE_SECONDS = 3600.0
 SSE_EVENT_WAIT_SECONDS = 20.0
+# Events published before the first SSE server binds (process startup logs)
+# are buffered here and flushed into the journal on the first bind, so the
+# full startup output is replayable instead of silently dropped.
+HTTP_EVENT_PRE_BIND_BUFFER_MAX = 2000
 SSE_EVENT_MAX_WAIT_SECONDS = 30.0
 
 

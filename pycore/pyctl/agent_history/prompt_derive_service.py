@@ -6,8 +6,10 @@ Subscribes the ``agent_history.prompt.new`` THREAD_BUS event emitted by
 detected" log line). On LINUX only, every genuinely new prompt is derived
 into standard English through the shared free-tier library
 (:mod:`pycore.pyctl.ai.prompt_derive`), the result is printed immediately,
-mirrored into the read-only ``prompt_derived_cache`` side store, and pushed
-to the UI as ``agent_history.prompt.derived``.
+mirrored into the read-only ``prompt_derived_cache`` side store, pushed
+to the UI as ``agent_history.prompt.derived``, and surfaced on the desktop
+as a bottom-right stacked toast (click copies the EN text) plus an optional
+notification sound (config flag ``prompt_derive_sound``).
 
 Derivations serialize on one worker queue (fire-and-forget messages, no
 response signals) so a burst of new prompts never fires parallel AI calls
@@ -28,6 +30,10 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.audio_utils.notification_sound import play_notification_sound
+from pycore.pyutils.desktop.toast_stack import show_desktop_toast
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 DERIVE_QUEUE = "pyctl.agent_history.prompt_derive"
 DERIVE_SOURCE = "agent_history_prompt_derive"
@@ -105,6 +111,23 @@ def _derive_event_prompts(event_data: Dict[str, Any]) -> None:
             {"item": entry},
             async_mode=True,
         )
+        _notify_desktop(tool, derived, config)
+
+
+def _notify_desktop(tool: str, derived: str, config: Dict[str, Any]) -> None:
+    """Bottom-right stacked desktop toast (click copies EN) + optional sound.
+
+    The sound flag is read from the shared agent-history config so the WEB UI
+    toggle (persistAgentHistoryArticleConfig prompt_derive_sound) and the tray
+    menu toggle operate this same switch on the pycore side.
+    """
+    show_desktop_toast(
+        title=f"{i18n.get(I18nKeys.TOAST_PROMPT_DERIVED_TITLE)} · {tool}",
+        message=derived,
+        copy_text=derived,
+    )
+    if bool(config.get("prompt_derive_sound", True)):
+        play_notification_sound()
 
 
 def _on_prompt_new(event_data: Any) -> None:

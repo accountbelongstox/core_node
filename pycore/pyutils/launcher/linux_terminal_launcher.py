@@ -477,6 +477,10 @@ class LinuxTerminalLauncher:
                 argv = self._argv._build_attach_argv(
                     emulator, ["bash", "-lc", self.command],
                 )
+            elif emulator == "xterm":
+                # Bare interactive shell: still pass the clipboard mouse
+                # resources so the last-resort window behaves like the rest.
+                argv = [emulator] + list(self._argv.XTERM_XRM_ARGS)
             else:
                 argv = [emulator]
             try:

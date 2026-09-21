@@ -9,6 +9,12 @@ run_vue_debug() {
     
     log_info "Starting Vue development server for: $app_name"
     log_info "Project directory: $app_dir"
+
+    # Absolute tool paths: /usr/local/bin links first, then PATH, gvar
+    # constants, var center (installer shells may have a minimal PATH).
+    local yarn_cmd="" npm_cmd=""
+    yarn_cmd="$(resolve_tool_bin yarn 2>/dev/null || command -v yarn 2>/dev/null || true)"
+    npm_cmd="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
     
     # Change to app directory
     cd "$app_dir" || {
@@ -21,14 +27,14 @@ run_vue_debug() {
         log_warning "node_modules not found. Installing dependencies with yarn..."
         
         # Check if yarn is available
-        if command -v yarn >/dev/null 2>&1; then
-            yarn install || {
+        if [ -n "$yarn_cmd" ]; then
+            "$yarn_cmd" install || {
                 log_error "Failed to install dependencies with yarn"
                 return 1
             }
         else
             log_warning "yarn not found. Using npm instead..."
-            npm install || {
+            "$npm_cmd" install || {
                 log_error "Failed to install dependencies with npm"
                 return 1
             }
@@ -44,24 +50,24 @@ run_vue_debug() {
     if [ -f "package.json" ]; then
         if grep -q "\"dev\":" package.json; then
             log_info "Running: yarn dev (or npm run dev)"
-            if command -v yarn >/dev/null 2>&1; then
-                yarn dev
+            if [ -n "$yarn_cmd" ]; then
+                "$yarn_cmd" dev
             else
-                npm run dev
+                "$npm_cmd" run dev
             fi
         elif grep -q "\"serve\":" package.json; then
             log_info "Running: yarn serve (or npm run serve)"
-            if command -v yarn >/dev/null 2>&1; then
-                yarn serve
+            if [ -n "$yarn_cmd" ]; then
+                "$yarn_cmd" serve
             else
-                npm run serve
+                "$npm_cmd" run serve
             fi
         elif grep -q "\"start\":" package.json; then
             log_info "Running: yarn start (or npm start)"
-            if command -v yarn >/dev/null 2>&1; then
-                yarn start
+            if [ -n "$yarn_cmd" ]; then
+                "$yarn_cmd" start
             else
-                npm start
+                "$npm_cmd" start
             fi
         else
             log_error "No suitable development script found in package.json"

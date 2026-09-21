@@ -312,7 +312,7 @@ fm_verify() {
         echo "[$SCRIPT_INDEX] [VERIFY] dnspod module: $([ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] && echo embedded || echo missing)"
         echo "[$SCRIPT_INDEX] [VERIFY] DNS-01 (dnspod): $(fm_dns01_status)"
     fi
-    echo "[$SCRIPT_INDEX] [VERIFY] php-cli shim: $([ -x "${FRANKENPHP_PHP_SHIM_DIR}/php" ] && echo present || echo missing)"
+    echo "[$SCRIPT_INDEX] [VERIFY] php CLI link: $([ -x "${PHP_LINK_CANONICAL:-/usr/local/bin/php}" ] && "${PHP_LINK_CANONICAL:-/usr/local/bin/php}" -v >/dev/null 2>&1 && echo "present ($(readlink -f "${PHP_LINK_CANONICAL:-/usr/local/bin/php}"))" || echo missing)"
     echo "[$SCRIPT_INDEX] [VERIFY] plane: $(web_server_plane)"
 }
 

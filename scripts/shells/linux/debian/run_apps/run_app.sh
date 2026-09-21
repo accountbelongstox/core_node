@@ -228,9 +228,11 @@ show_startup_selection() {
 
 # Function to initialize environment status
 init_env_status() {
-    # Check Node.js
-    if command -v node >/dev/null 2>&1; then
-        local node_version=$(node --version 2>/dev/null | sed 's/v//' || echo "?")
+    # Check Node.js (absolute path: /usr/local/bin link, PATH, gvar, var center)
+    local node_cmd=""
+    node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+    if [ -n "$node_cmd" ]; then
+        local node_version=$("$node_cmd" --version 2>/dev/null | sed 's/v//' || echo "?")
         ENV_STATUS+="Node [$node_version]"
     else
         ENV_STATUS+="Node [X]"

@@ -51,19 +51,54 @@ Requirements record: `docs_fix/TASK_20260920_PROMPT_DERIVE_EN_TRAY_TOAST_SOUND.m
 - UI `npm run build` (vite) succeeds; `tsc --noEmit` reports zero errors in all touched files
   (remaining errors are pre-existing in unrelated wordnew/laravel-manager apps).
 
-## In progress / pending (B)
+## Done (2026-09-20, second pass)
 
-- B6 Tray Debian 13 / Ubuntu 26.04 support — official-doc research running; current backend
-  selection lives in `pycore/pyutils/native_ui/platform_adapter.py` (X11-only detection is a
-  suspected gap on Wayland-default sessions), tray backends in
-  `pycore/pyutils/native_ui/step6_tray/` (AppIndicator ayatana/legacy fallback exists).
-- B7 Desktop stacked toasts (bottom-right, click-to-copy EN, new pushes old up) — no existing
-  pycore desktop-toast library found; will create one under `pycore/pyutils/`; WEB UI reuses
-  `shared/notify` (to be extended: stack offset + copy action on all surfaces).
-- B8 Sound on popup — pycore owns playback; WEB UI setting toggles a pycore-side flag via HTTP.
-- B9 Laravel relay forwarding of `agent_history.prompt.derived` — deep refactor of the relay
-  contract (`config/pycore_relay_contract.json` events table + digest) instead of the earlier
-  skip decision (superseded by user instruction).
+- B6 Tray Debian 13 / Ubuntu 26.04: `pycore/pyutils/native_ui/platform_adapter.py`
+  display detection refactored from X11-only (`DISPLAY`) to display-server aware
+  (`DISPLAY` or `WAYLAND_DISPLAY`/`XDG_SESSION_TYPE=wayland`) — AppIndicator is
+  D-Bus SNI and works natively on Wayland; `has_x11` kept as the compat name.
+  `step6_tray/appindicator_system_tray.py` docs + install errors updated:
+  Debian 13 = Ayatana-only + requires `gnome-shell-extension-appindicator`;
+  Ubuntu 26.04 = extension preinstalled (gnome-shell-ubuntu-extensions), Ayatana
+  preferred, legacy binding kept as Ubuntu-only fallback.
+  Sources: packages.debian.org trixie, packages.ubuntu.com resolute,
+  ubuntu/gnome-shell-extension-appindicator README.
+- B7 Desktop toasts: `pycore/pyutils/desktop/toast_stack.py` (new shared library;
+  no pre-existing desktop toast found) — tkinter bottom-right stacked cards,
+  newest at bottom pushes older up, click copies the EN prompt, max 5 visible,
+  headless-safe, THREAD_BUS shutdown hook. WEB UI: `shared/notify/notify.tsx`
+  upgraded in place (reuse confirmed): viewport moved to bottom-right with
+  new-pushes-old-up stacking, `copyText` option (copy chip + click-to-copy),
+  single global `AppToaster` mount = pops on all surfaces.
+  `PromptDerivedHost.tsx` passes `copyText` and bridges the Laravel relay
+  (Mercure) frame onto the local topic with id-based dedup.
+- B8 Sound: `pycore/pyutils/audio_utils/notification_sound.py` (new) —
+  Windows winsound alias; Linux canberra-gtk-play (`message-new-instant`) →
+  paplay/pw-play freedesktop theme file → bell. Flag `prompt_derive_sound`
+  (default true) added to `config/agent_history.settings.json` defaults +
+  `pipeline/config.py` save whitelist (note: keys MUST exist in the defaults
+  file — `get_config()` filters stored keys against defaults; `prompt_derive_en`
+  was added there too, fixing a read-filtering gap). Toggles: WEB UI bell button
+  in `PromptDerivedPanel` (persists via `persistAgentHistoryArticleConfig`) and
+  Linux tray menu item (`tray_action_toggle_prompt_derive_sound`, handler in
+  `pycore/pyctl/runtime/event_handlers.py`); the derive worker checks the flag
+  before every playback — pycore owns the sound.
+- B9 Laravel relay forwards `agent_history.prompt.derived` (deep refactor):
+  `config/pycore_relay_contract.json` (single source for pycore + Laravel + UI)
+  gained the event, its payload profile, and the `ui/agent_history/prompt_derived`
+  route policy; both validators now require the agent-history events
+  (`pycore/pyutils/common/relay_contract.py`, `RelayContract.php`);
+  `laravel_relay_agent_service.py` publish methods unified into
+  `_publish_agent_history_event(event_name, payload, container_key)` and the
+  derived handler registered/unregistered in start/stop;
+  `RelayDeviceService.php` allows the new device event.
+
+### Verification (B)
+- py_compile passes for all touched Python files; both edited JSON configs and
+  all three i18n translation files parse; pycore RelayContract loads the updated
+  contract (digest recomputed) and resolves the new event name.
+- `php -l` clean on RelayContract.php and RelayDeviceService.php.
+- UI `tsc --noEmit`: zero errors in touched files; `npm run build` (vite) succeeds.
 
 ## Known scope notes
 

@@ -425,8 +425,7 @@ main() {
             echo -e "\033[32m[CACHE INFO] All directories ($total_dirs) have been processed recently (cache valid for 24h)\033[0m"
             echo -e "\033[33m[SMART CACHE] Cache will auto-check file modification times (only reprocess modified files)\033[0m"
             echo -e "\033[33m[SCAN OPTION] Skip directory scan? (recommended for faster startup)\033[0m"
-            read -p "Skip scan? [Y/n]: " -n 1 -r scan_choice
-            echo
+            prompt_read_default scan_choice "y" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "Skip scan? [Y/n, auto-Y in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s]: "
             if [[ ! $scan_choice =~ ^[Nn]$ ]]; then
                 echo -e "\033[32m[SKIPPED] Directory scanning skipped (using smart cache)\033[0m"
                 skip_scan=true
@@ -615,6 +614,12 @@ main() {
     # Step 5-4: Show the Linux Management menu directly (no wrapper menu layer)
     echo ""
     detect_system_version
+
+    # Pause so all startup output above can be reviewed before the menu clears
+    # the screen; Enter continues immediately, otherwise auto-continues.
+    local menu_pause=""
+    prompt_read_default menu_pause "" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "Press Enter to show the menu (auto-continue in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s)..."
+
     if declare -F show_linux_management_submenu >/dev/null 2>&1; then
         show_linux_management_submenu
     else

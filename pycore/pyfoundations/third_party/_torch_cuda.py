@@ -21,6 +21,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.runtime_abi import (
     TORCH_INDEX_BASE,
+    CUDA_TIERS,
     cuda_tier_by_tag,
     cuda_tier_for_driver,
 )
@@ -112,8 +113,8 @@ def _ensure_sherpa_onnx_cpu_build_when_no_gpu():
         return  # not installed
     if "+cuda" not in (version or "").lower():
         return  # already the CPU build
-    if CUDADetector.is_cuda_available():
-        return  # GPU present -> keep the CUDA build
+    if CUDADetector.is_gpu_hardware_present():
+        return  # GPU hardware present -> keep the CUDA build
     ColorPrint.yellow(
         f"[sherpa] No GPU detected, but sherpa-onnx is a CUDA build ({version}); "
         "preserving it and allowing the caller to skip the engine."
@@ -161,6 +162,11 @@ def _resolve_pytorch_cuda_index_url() -> str:
     if requested_driver is not None:
         driver_cv = requested_driver[0] * 100 + requested_driver[1]
         tier = cuda_tier_for_driver(driver_cv)
+    if tier is None and requested_driver is None and CUDADetector.is_gpu_hardware_present():
+        # No driver report (driver absent or not yet loaded pre-reboot) but the
+        # hardware is physically present: select the FIRST (newest) tier, matching
+        # the shell cuda_policy_tag fallback. CPU hosts keep the CPU index.
+        tier = dict(CUDA_TIERS[0]) if CUDA_TIERS else None
     if tier is None:
         return PYTORCH_CPU_INDEX_URL
     return f"{TORCH_INDEX_BASE}/{tier['tag']}"
@@ -169,7 +175,9 @@ def _resolve_pytorch_cuda_index_url() -> str:
 def _ensure_torch_cuda_build_first():
     """Install torch only when absent; never mutate an installed runtime at startup."""
     _print_cuda_support_prompt()
-    cuda_available = CUDADetector.is_cuda_available()
+    # Install-time wheel selection follows HARDWARE presence (driver-independent),
+    # so a pre-driver / pre-reboot GPU host still receives the CUDA build.
+    cuda_available = CUDADetector.is_gpu_hardware_present()
     torch = _torch_module()
     if torch is not None:
         if cuda_available and not torch.cuda.is_available():

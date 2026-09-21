@@ -86,12 +86,13 @@ _devcache_dir_size_mb() {
     echo "$mb"
 }
 
-# Prompt [N/y] (default No, auto-continues after 60s so unattended/terminal runs
-# never block forever); return 0 only when the user explicitly types y.
+# Prompt [N/y] (default No, auto-continues after DD_STARTUP_PROMPT_TIMEOUT seconds
+# via the shared prompt_read_default helper, so unattended/terminal runs never
+# block); return 0 only when the user explicitly types y.
 _devcache_confirm() {
     local prompt="$1"
     local answer=""
-    read -r -t 60 -p "$prompt [N/y, auto-N in 60s]: " answer || true
+    prompt_read_default answer "n" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "$prompt [N/y, auto-N in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s]: "
     if [[ "$answer" =~ ^[Yy]$ ]]; then
         return 0
     fi
@@ -317,8 +318,10 @@ dev_cache_cleanup_prompt() {
 
     # npm
     echo -e "\033[37m[DEV CACHE] measuring npm cache...\033[0m"
-    if command -v npm >/dev/null 2>&1; then
-        npm_cache_dir="$(timeout 30 npm config get cache 2>/dev/null)"
+    local npm_cmd=""
+    npm_cmd="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
+    if [ -n "$npm_cmd" ]; then
+        npm_cache_dir="$(timeout 30 "$npm_cmd" config get cache 2>/dev/null)"
         [ -n "$npm_cache_dir" ] || npm_cache_dir="$HOME/.npm"
         if [ -d "$npm_cache_dir" ]; then
             size="$(_devcache_dir_size_mb "$npm_cache_dir")"

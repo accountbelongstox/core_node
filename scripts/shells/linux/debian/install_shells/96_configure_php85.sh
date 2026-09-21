@@ -38,6 +38,7 @@ PHP_ARGUMENT=""
 source "$COMMON_DIR/gvar_common.sh"
 source "$COMMON_DIR/common_functions.sh"
 source "$COMMON_DIR/frankenphp_manager.sh"
+source "$COMMON_DIR/php_link_common.sh"
 source "$DEBIAN_COM_DIR/php_common_vars.sh"
 source "$DEBIAN_COM_DIR/php_common_functions.sh"
 
@@ -74,13 +75,10 @@ php_configuration_frankenphp_ensure() {
 
 php_configuration_system_default_ensure() {
     PHP_DEFAULT_READY="no"
-    PHP_ACTIVE_LINK="$(readlink -f /etc/alternatives/php 2>/dev/null)"
-    if [ -f "$PHP_BIN" ] && [ "$PHP_ACTIVE_LINK" != "$PHP_BIN" ]; then
-        $USE_SUDO update-alternatives --install /usr/bin/php php "$PHP_BIN" "$PHP_ALT_PRIORITY"
-        $USE_SUDO update-alternatives --set php "$PHP_BIN"
-    fi
-    PHP_ACTIVE_LINK="$(readlink -f /etc/alternatives/php 2>/dev/null)"
-    if [ -f "$PHP_BIN" ] && [ "$PHP_ACTIVE_LINK" = "$PHP_BIN" ]; then
+    # Single canonical link contract (php_link_common.sh): converges
+    # /usr/local/bin/php on the real CLI binary and removes the /usr/bin/php
+    # duplicate (plain symlink or update-alternatives entry) idempotently.
+    if ensure_single_php_link; then
         PHP_DEFAULT_READY="yes"
     fi
 }

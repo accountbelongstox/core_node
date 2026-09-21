@@ -88,15 +88,11 @@ install_dependencies() {
     print_info "Using Python command: $python_cmd"
     print_info "Note: NLLB-200 requires transformers and sentencepiece"
 
-    # GPU detection -- same logic as the canonical lib_gpu.sh / *_cpu_guard.sh helpers
-    # (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
+    # GPU detection -- hardware presence via the canonical lib_gpu.sh helper
+    # (driver-independent; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
     print_info "Checking for GPU availability..."
     local has_gpu=false
-    if [ "${TORCH_FORCE_CUDA:-0}" = "1" ]; then
-        has_gpu=true
-    elif [ "${CUDA_VISIBLE_DEVICES:-}" = "-1" ]; then
-        has_gpu=false
-    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    if gpu_hardware_present; then
         has_gpu=true
     fi
     if [ "$has_gpu" = true ]; then
@@ -209,7 +205,7 @@ download_model_weights() {
     mkdir -p "$TARGET_DIR"
     local _model_ready=0 _sentinel_model=""
     if [[ -f "$MODEL_SENTINEL" ]]; then
-        _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+        _sentinel_model="$(_hf_read_sentinel "$MODEL_SENTINEL")"
         if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$MODEL_PATH" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$MODEL_PATH" "$VENV_PYTHON3" "" "$WEIGHT_ALLOW"; then
             print_success "model weights verified ($MODEL_PATH) - skipping"
             _model_ready=1

@@ -26,6 +26,12 @@
 
 SOG_PKG="sherpa-onnx"
 
+# Shared GPU hardware detector (driver-independent), same source of truth as the
+# torch/paddle/onnx guards.
+if ! command -v gpu_hardware_present >/dev/null 2>&1; then
+    . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/lib_gpu.sh"
+fi
+
 # Resolve a python interpreter (env/arg/python3/python). Echoes the path; 1 if none.
 sog_resolve_python() {
     local p="${SOG_PYTHON:-}"
@@ -36,10 +42,10 @@ sog_resolve_python() {
     return 1
 }
 
-# 0 if an NVIDIA GPU is usable (or forced), 1 otherwise.
+# 0 if an NVIDIA GPU is physically present (or forced), 1 otherwise.
 sog_gpu_present() {
     [[ "${TORCH_FORCE_CUDA:-0}" == "1" || "${SOG_FORCE_GPU:-0}" == "1" ]] && return 0
-    command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+    gpu_hardware_present
 }
 
 # 0 if sherpa-onnx is installed for interpreter $1.

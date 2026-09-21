@@ -32,6 +32,7 @@ IS_LINUX = platform.system() == 'Linux'
 TRAY_SET_LANGUAGE_SIGNAL = "tray_action_set_language"
 TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL = "tray_action_toggle_code_sync_distribute"
 TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL = "tray_action_toggle_code_sync_skip_update"
+TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL = "tray_action_toggle_prompt_derive_sound"
 
 
 def build_code_sync_submenu() -> List[TrayMenuItem]:
@@ -199,6 +200,23 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
                 text=I18nKeys.TRAY_MENU_SERVICE_TOGGLE,
                 action_signal="tray_action_toggle_service",
                 state_getter=get_service_toggle_state,
+            )
+        )
+        # Linux-only feature: new-prompt EN derivation plays a notification
+        # sound on the desktop; this toggle flips the same agent-history config
+        # flag (prompt_derive_sound) the WEB UI settings operate.
+        def get_prompt_derive_sound_state():
+            try:
+                from pycore.pyctl.agent_history.pipeline.config import get_config
+                return "[X]" if bool(get_config().get("prompt_derive_sound", True)) else "[ ]"
+            except Exception:
+                return "[X]"
+
+        menu_items.append(
+            TrayMenuItem(
+                text=I18nKeys.TRAY_MENU_PROMPT_DERIVE_SOUND,
+                action_signal=TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL,
+                state_getter=get_prompt_derive_sound_state,
             )
         )
 

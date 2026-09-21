@@ -76,7 +76,7 @@ echo "============================================================"
 echo " [install_f5tts] F5-TTS (flow-matching clone api)"
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "f5tts"; then
     echo "[install_f5tts] [skip] Server environment without desktop and GPU detected. Skipping F5-TTS installation."
     complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "server CPU host" f5_tts
     exit 0
@@ -106,7 +106,7 @@ fi
 ensure_linux_audio_deps
 
 echo "[install_f5tts]  staging : $TARGET_DIR"
-echo "[install_f5tts]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU only')"
+echo "[install_f5tts]  compute : $(gpu_hardware_present && echo 'CUDA GPU' || echo 'CPU only')"
 
 if [[ -f "$REPO_MARKER" ]]; then
     echo "[install_f5tts] [OK] repo already present."

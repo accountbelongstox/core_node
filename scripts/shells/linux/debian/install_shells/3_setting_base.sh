@@ -17,6 +17,14 @@
 
 set -e
 
+# Privileged helpers (usermod, groupadd, chpasswd, visudo) live in */sbin; runs
+# that inherit a minimal PATH (cron, su without -, restricted shells) otherwise
+# hit "usermod: command not found". Normalize once; idempotent.
+case ":$PATH:" in
+    *:/usr/sbin:*) ;;
+    *) PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"; export PATH ;;
+esac
+
 SCRIPT_INDEX="3"
 
 # Color codes
@@ -169,7 +177,14 @@ stop_mail_services() {
 # Ensure sudo is installed and the invoking user is in the sudo group (was 11).
 ensure_sudo_installed() {
     local current_user distro
-    current_user=${USER:-$(whoami)}
+    local sudoers_dropin="/etc/sudoers.d/90-core-node-sudo"
+    # Resolve the real login user even when this script runs as root: SUDO_USER
+    # first, then USER, then the first uid>=1000 account (same rule as
+    # ensure_system_user_password).
+    current_user=${SUDO_USER:-${USER:-$(whoami)}}
+    if [ "$current_user" = "root" ] || [ -z "$current_user" ]; then
+        current_user="$(getent passwd | awk -F: '$3>=1000 && $3<60000 {print $1; exit}')"
+    fi
     distro=$(lsb_release -is 2>/dev/null || echo "Unknown")
     log "Ensuring sudo is installed for $distro..."
 
@@ -197,19 +212,71 @@ ensure_sudo_installed() {
         if [ "$(id -u)" -eq 0 ]; then groupadd sudo || true; else $USE_SUDO groupadd sudo || true; fi
     fi
 
+    # Without a %sudo rule in sudoers, group membership has no effect and every
+    # sudo call fails with "user is not in the sudoers file". Idempotent drop-in.
+    if ! grep -Eq '^[[:space:]]*%sudo[[:space:]]+ALL' /etc/sudoers /etc/sudoers.d/* 2>/dev/null; then
+        info "sudoers has no %sudo rule; installing $sudoers_dropin..."
+        if [ "$(id -u)" -eq 0 ]; then
+            echo '%sudo ALL=(ALL:ALL) ALL' > "$sudoers_dropin"
+            chmod 0440 "$sudoers_dropin"
+        else
+            echo '%sudo ALL=(ALL:ALL) ALL' | $USE_SUDO tee "$sudoers_dropin" >/dev/null
+            $USE_SUDO chmod 0440 "$sudoers_dropin"
+        fi
+        if command -v visudo >/dev/null 2>&1; then
+            if [ "$(id -u)" -eq 0 ]; then
+                visudo -cf "$sudoers_dropin" >/dev/null 2>&1 || { error "sudoers drop-in failed syntax check; removing."; rm -f "$sudoers_dropin"; }
+            else
+                $USE_SUDO visudo -cf "$sudoers_dropin" >/dev/null 2>&1 || { error "sudoers drop-in failed syntax check; removing."; $USE_SUDO rm -f "$sudoers_dropin"; }
+            fi
+        fi
+    fi
+
     if [ -n "$current_user" ] && [ "$current_user" != "root" ]; then
         if id -nG "$current_user" | grep -qw "sudo"; then
             info "User $current_user is already in the sudo group."
         else
             info "Adding user $current_user to sudo group..."
             if [ "$(id -u)" -eq 0 ]; then
-                usermod -aG sudo "$current_user" && info "User $current_user added (re-login for effect)." || warning "Failed to add $current_user to sudo group."
+                usermod -aG sudo "$current_user" || warning "Failed to add $current_user to sudo group."
             else
-                $USE_SUDO usermod -aG sudo "$current_user" && info "User $current_user added (re-login for effect)." || warning "Failed to add $current_user to sudo group."
+                $USE_SUDO usermod -aG sudo "$current_user" || warning "Failed to add $current_user to sudo group."
             fi
         fi
+
+        # Verify sudoers actually resolves for the account (root check, no
+        # password needed): membership in /etc/group is useless when no %sudo
+        # rule matches.
+        if [ "$(id -u)" -eq 0 ]; then
+            if sudo -l -U "$current_user" >/dev/null 2>&1; then
+                info "sudoers resolution for $current_user: OK."
+            else
+                warning "sudoers still rejects $current_user; check /etc/sudoers and /etc/sudoers.d."
+            fi
+        fi
+
+        # usermod cannot patch a RUNNING session: Linux snapshots group
+        # membership at login, so shells opened before the change keep failing
+        # with "not in the sudoers file" even though the account is fixed.
+        # Detect any live process of the user whose credential set still lacks
+        # the sudo group and print the exact remedy.
+        local sudo_gid stale_pid p
+        sudo_gid="$(getent group sudo 2>/dev/null | cut -d: -f3)"
+        stale_pid=""
+        if [ -n "$sudo_gid" ]; then
+            for p in $(pgrep -u "$current_user" 2>/dev/null); do
+                if ! grep "^Groups:" "/proc/$p/status" 2>/dev/null | tr '\t ' '\n\n' | grep -qx "$sudo_gid"; then
+                    stale_pid="$p"
+                    break
+                fi
+            done
+        fi
+        if [ -n "$stale_pid" ]; then
+            warning "Live $current_user sessions (e.g. pid $stale_pid) predate the group change and still lack the sudo group."
+            warning "In those sessions run:  newgrp sudo   (or log out and back in), then retry sudo."
+        fi
     else
-        info "Running as root user, no need to add to sudo group."
+        info "Running as root with no non-root login user; skipping sudo group setup."
     fi
 
     log "Sudo installation and configuration completed."
@@ -479,6 +546,21 @@ main() {
     # Persist base data directory so project and all scripts use the same path (center)
     if command -v persist_base_data_directory >/dev/null 2>&1; then
         persist_base_data_directory "$(get_base_data_directory)"
+    fi
+
+    # Converge the canonical /www path: plain dir when root fs wins (case A),
+    # bind-mount to the selected NTFS/data disk when that disk has more free
+    # space (cases B/C, largest free wins). Idempotent; fstab + real-time mount.
+    if command -v ensure_www_base_mount >/dev/null 2>&1; then
+        ensure_www_base_mount || warning "/www base convergence incomplete (continuing base setup)"
+    fi
+
+    # Persist the canonical WWW path in the var center: /www/www when a shared
+    # NTFS/data disk is bound (the Windows D:\www equivalent), /www on
+    # Linux-only machines. All scripts read this instead of re-deriving it.
+    if command -v map_web_path >/dev/null 2>&1 && command -v set_env_and_var >/dev/null 2>&1; then
+        set_env_and_var "WWW_PATH" "$(map_web_path www)" || true
+        log "WWW_PATH persisted: $(map_web_path www)"
     fi
 
     echo ""

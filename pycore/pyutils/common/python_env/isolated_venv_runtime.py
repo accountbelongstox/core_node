@@ -159,6 +159,11 @@ def venv_ready(engine: str) -> bool:
 def _subprocess_env(executable: str, clean: bool = False) -> dict:
     env = os.environ.copy()
     env["PIP_NO_WARN_SCRIPT_LOCATION"] = "1"
+    # Large accelerator wheels (torch, nvidia_cudnn_cuXX) stream hundreds of MB;
+    # pip's 15s read timeout aborts them whenever another download shares the
+    # link. Raise the per-read timeout and retry budget; caller overrides win.
+    env.setdefault("PIP_DEFAULT_TIMEOUT", "120")
+    env.setdefault("PIP_RETRIES", "10")
     executable_dir = str(Path(executable).resolve().parent)
     current_path = env.get("PATH", "")
     env["PATH"] = os.pathsep.join(

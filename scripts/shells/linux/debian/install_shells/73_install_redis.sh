@@ -18,6 +18,10 @@ SCRIPT_INDEX="73"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
+# Source repository manager (trust-based programming)
+repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+source "$repo_manager_script"
+
 # Use compile_dir for Redis data and logs (auto-selects based on environment)
 REDIS_DATA_DIR=$(map_web_path "compile_dir" "redis/data")
 REDIS_LOG_DIR=$(map_web_path "compile_dir" "redis/logs")
@@ -98,15 +102,28 @@ check_redis_installed() {
     return 1
 }
 
-# Function to install Redis
+# Function to install or upgrade Redis from the official Redis APT repository.
+# Idempotent: apt install is a no-op when the latest version is already present,
+# and upgrades older distro/prior installs in place (same redis-server package name).
 install_redis() {
-    echo "[$SCRIPT_INDEX] Installing Redis server..."
+    echo "[$SCRIPT_INDEX] Installing Redis server (latest stable, 8.10.x, from official Redis repository)..."
 
-    # Update package list
-    $USE_SUDO apt update
+    # Detect OS for repository selection
+    local os_id=""
+    local os_codename=""
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        os_id="$ID"
+        os_codename="$VERSION_CODENAME"
+        echo "[$SCRIPT_INDEX] Detected OS: $os_id ($os_codename)"
+    fi
 
-    # Install Redis server
-    if $USE_SUDO apt install -y redis-server; then
+    # --force-confnew: auto-answer "install new config version" (Y) on dpkg
+    # conffile prompts during upgrades; our configure step re-applies settings after.
+    if add_redis_repository_from_apt_repository_manager \
+        "$os_id" \
+        "$os_codename" \
+        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y -o Dpkg::Options::=--force-confnew redis-server"; then
         echo "[$SCRIPT_INDEX] Redis server installed successfully"
     else
         echo "[$SCRIPT_INDEX] [ERROR] Failed to install Redis server"
@@ -156,14 +173,20 @@ configure_redis() {
         # Configure Redis for production use
         echo "[$SCRIPT_INDEX] Applying Redis configuration optimizations..."
 
-        # Revert supervised systemd to no (fix for Debian Type=forking service model)
-        $USE_SUDO sed -i 's/^supervised systemd/supervised no/' "$redis_conf"
+        # Normalize supervised to auto: safe under both Type=notify (NOTIFY_SOCKET
+        # set -> systemd notification) and forking unit models (no-op otherwise).
+        # Forcing "no" breaks the official package's Type=notify unit.
+        if grep -q "^supervised " "$redis_conf"; then
+            $USE_SUDO sed -i 's/^supervised .*/supervised auto/' "$redis_conf"
+        else
+            echo "supervised auto" | $USE_SUDO tee -a "$redis_conf" >/dev/null
+        fi
 
         # Set working directory to mapped path
         $USE_SUDO sed -i "s|^dir .*|dir $REDIS_DATA_DIR|" "$redis_conf"
 
         # Configure memory management
-        if ! grep -q "maxmemory-policy" "$redis_conf"; then
+        if ! grep -q "^maxmemory-policy" "$redis_conf"; then
             echo "maxmemory-policy allkeys-lru" | $USE_SUDO tee -a "$redis_conf" >/dev/null
         fi
 
@@ -391,21 +414,26 @@ echo "[$SCRIPT_INDEX] === Redis Installation Process ==="
 if [ "$START_REDIS" = "true" ]; then
     echo "[$SCRIPT_INDEX] START_REDIS is true - Installing and starting Redis..."
 
-    # Check if Redis is already installed
     if check_redis_installed; then
-        echo "[$SCRIPT_INDEX] Redis is already installed"
+        echo "[$SCRIPT_INDEX] Redis is already installed: $(redis-server --version 2>/dev/null)"
+        echo "[$SCRIPT_INDEX] Ensuring latest version (idempotent in-place upgrade)..."
+    fi
+
+    # Install or upgrade Redis (idempotent)
+    if install_redis; then
+        echo "[$SCRIPT_INDEX] Redis installation completed: $(redis-server --version 2>/dev/null)"
+
+        # Configure Redis (idempotent: settings are applied only when absent or different)
+        configure_redis
 
         # Create symlinks
         create_redis_symlinks
-
-        # Ensure directories and systemd overrides exist
-        ensure_redis_directories
 
         # Start service temporarily for testing
         if setup_redis_service_for_testing; then
             # Test installation
             if test_redis_installation; then
-                echo "[$SCRIPT_INDEX] [OK] Redis is ready for use"
+                echo "[$SCRIPT_INDEX] [OK] Redis installation and tests completed successfully"
 
                 # Configure service startup based on START_REDIS variable
                 configure_redis_service_startup "$START_REDIS"
@@ -413,49 +441,18 @@ if [ "$START_REDIS" = "true" ]; then
                 store_redis_info
                 display_redis_info
             else
-                echo "[$SCRIPT_INDEX] [WARNING] Redis is installed but tests failed"
-                configure_redis_service_startup "$START_REDIS"
-            fi
-        else
-            echo "[$SCRIPT_INDEX] [WARNING] Could not start Redis for testing"
-            configure_redis_service_startup "$START_REDIS"
-        fi
-    else
-        # Install Redis
-        if install_redis; then
-            echo "[$SCRIPT_INDEX] Redis installation completed"
-
-            # Configure Redis
-            configure_redis
-
-            # Create symlinks
-            create_redis_symlinks
-
-            # Start service temporarily for testing
-            if setup_redis_service_for_testing; then
-                # Test installation
-                if test_redis_installation; then
-                    echo "[$SCRIPT_INDEX] [OK] Redis installation and tests completed successfully"
-
-                    # Configure service startup based on START_REDIS variable
-                    configure_redis_service_startup "$START_REDIS"
-
-                    store_redis_info
-                    display_redis_info
-                else
-                    echo "[$SCRIPT_INDEX] [ERROR] Redis installation completed but tests failed"
-                    configure_redis_service_startup "$START_REDIS"
-                    exit 1
-                fi
-            else
-                echo "[$SCRIPT_INDEX] [ERROR] Redis service setup failed"
+                echo "[$SCRIPT_INDEX] [ERROR] Redis installation completed but tests failed"
                 configure_redis_service_startup "$START_REDIS"
                 exit 1
             fi
         else
-            echo "[$SCRIPT_INDEX] [ERROR] Redis installation failed"
+            echo "[$SCRIPT_INDEX] [ERROR] Redis service setup failed"
+            configure_redis_service_startup "$START_REDIS"
             exit 1
         fi
+    else
+        echo "[$SCRIPT_INDEX] [ERROR] Redis installation failed"
+        exit 1
     fi
 else
     echo "[$SCRIPT_INDEX] START_REDIS is false - Skipping Redis installation"

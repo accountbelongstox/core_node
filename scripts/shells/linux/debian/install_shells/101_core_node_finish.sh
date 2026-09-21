@@ -33,19 +33,16 @@ PNPM_ABS_PATH="$NODE_BIN_DIR/pnpm"
 # Function to check package manager availability (pnpm only)
 check_package_manager() {
     local version_out
-    # Check for pnpm using absolute path first (prevents "command not found" on first install)
-    if [ -f "$PNPM_ABS_PATH" ]; then
+    local resolved=""
+    # Absolute path via constant center + var center + PATH (first install has
+    # no env yet, so a bare PATH lookup is not enough).
+    resolved="$(resolve_tool_bin pnpm 2>/dev/null || true)"
+    if [ -n "$resolved" ]; then
+        PNPM_ABS_PATH="$resolved"
         echo "pnpm found at: $PNPM_ABS_PATH"
         version_out=$("$PNPM_ABS_PATH" --version 2>/dev/null) || version_out=$($USE_SUDO "$PNPM_ABS_PATH" --version 2>/dev/null)
         echo "pnpm version: ${version_out:-unknown}"
         echo "Will use pnpm for installation"
-        return 0
-    elif command -v pnpm >/dev/null 2>&1; then
-        echo "pnpm found in PATH: $(which pnpm)"
-        version_out=$(pnpm --version 2>/dev/null) || version_out=$($USE_SUDO pnpm --version 2>/dev/null)
-        echo "pnpm version: ${version_out:-unknown}"
-        echo "Will use pnpm for installation"
-        PNPM_ABS_PATH="$(which pnpm)"
         return 0
     else
         echo "Error: pnpm is not installed. Please install Node.js/pnpm first." >&2

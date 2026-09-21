@@ -47,12 +47,22 @@ class PathMapper
             // (cross-language source of truth), else a full blkid/blockdev/findmnt
             // detection re-implemented in getBaseDataDirectory(). The chosen disk is
             // honored AS-IS -- NO production short-circuit and NO POSIX coercion: a
-            // Windows NTFS DATA disk is SHARED with Windows (/mnt/<ntfs>/www == D:\\www),
-            // mounted uid=/gid= so the login user owns it. PostgreSQL is unaffected --
-            // its data dir stays on native ext4 (pg_mount -> /var/lib/postgresql/d).
+            // Windows NTFS DATA disk is SHARED with Windows. When that disk's ROOT is
+            // mounted at /www, /www == D:\ and the SAME logical tree gains ONE EXTRA
+            // LEVEL on Linux: D:\www == /www/www (NOT /www); on a Linux-only machine
+            // /www is a plain native dir and there is NO extra level.
+            // Priority: the persisted WWW_PATH central variable (single source of
+            // truth, written by 3_setting_base.sh) -> live NTFS-root-mount detection
+            // -> legacy data-base rule. PostgreSQL is unaffected -- its data dir
+            // stays on native ext4 (pg_mount -> /var/lib/postgresql/d).
             $dataBase = self::getBaseDataDirectory();
+            $wwwPathVar = self::readPersistedVar('WWW_PATH');
             if (self::isWSL()) {
                 $basePath = $dataBase . '/www';
+            } elseif ($wwwPathVar !== '' && is_dir($wwwPathVar)) {
+                $basePath = $wwwPathVar;
+            } elseif (self::wwwNtfsRootMounted()) {
+                $basePath = '/www/www';
             } elseif ($dataBase === '/' || $dataBase === '/www') {
                 $basePath = '/www';
             } else {
@@ -77,6 +87,12 @@ class PathMapper
             'shared-data' => $basePath . $separator . 'shared-data',
             'backup' => $basePath . $separator . 'backup',
             'www' => $basePath,
+            // Shared download cache (HF / pip / whisper / torch models). Mirrors
+            // gvar_common.sh + system_paths.py "cache": D:\www\cache on Windows,
+            // /www/www/cache on a dual-boot Linux (extra level), /www/cache on a
+            // Linux-only machine. NOTE: getSharedDownloadCacheDir() keeps the
+            // native /var/_core_node/cache for the Linux-only case.
+            'cache' => $basePath . $separator . 'cache',
             // Development tooling roots (node/python/go/...). See getDevCompileParts().
             'compile_dir' => $compileDir,
             'dev_system' => $compileDir,
@@ -185,6 +201,58 @@ class PathMapper
         }
         $out = @shell_exec($cmd . ' 2>/dev/null');
         return $out === null ? '' : trim((string) $out);
+    }
+
+    /** First line of a var-center file ('' when absent/unreadable). Mirrors
+     * system_paths.py::_read_persisted_var; the file store lives at
+     * /var/_core_node/global_var/<KEY> (written by sh set_var/set_env_and_var). */
+    private static function readPersistedVar(string $key): string
+    {
+        $file = '/var/_core_node/global_var/' . $key;
+        if (!is_file($file) || !is_readable($file)) {
+            return '';
+        }
+        $val = (string) @file_get_contents($file);
+        return trim((string) strtok($val, "\r\n"));
+    }
+
+    /** True when /www is the ROOT of a mounted NTFS/data disk (the Windows D:\
+     * root on a dual-boot machine, bound there by 3_setting_base.sh). Then the
+     * SAME logical tree gains ONE EXTRA LEVEL on Linux:
+     *   Windows D:\www == Linux /www/www  (NOT /www).
+     * On a Linux-only machine /www is a plain native dir (same device as /) and
+     * there is NO extra level. SYNC: gvar_common.sh::www_ntfs_root_mounted /
+     * system_paths.py::_www_ntfs_root_mounted. */
+    private static function wwwNtfsRootMounted(): bool
+    {
+        if (!is_dir('/www/www')) {
+            return false;
+        }
+        $srcWww = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target /www'), "\r\n");
+        $srcRoot = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target /'), "\r\n");
+        return $srcWww !== '' && $srcRoot !== '' && $srcWww !== $srcRoot;
+    }
+
+    /** Cross-OS shared model cache when /www is the mounted NTFS/data disk
+     * root: Windows D:\www\cache == Linux /www/www/cache. Windows downloads
+     * every model into D:\www\cache (SharedCacheEnv.ps1), so reusing the same
+     * tree means each model downloads ONCE for both OSes. Model weights are
+     * device-agnostic -- the same tree serves GPU (CUDA) and CPU runs on
+     * unchanged hardware. Returns null on Linux-only machines (native cache). */
+    private static function linuxCrossOsCacheDir(): ?string
+    {
+        $wwwPathVar = self::readPersistedVar('WWW_PATH');
+        $candidate = null;
+        if ($wwwPathVar !== '' && $wwwPathVar !== '/www' && is_dir($wwwPathVar)) {
+            $candidate = rtrim($wwwPathVar, '/') . '/cache';
+        } elseif (self::wwwNtfsRootMounted()) {
+            $candidate = '/www/www/cache';
+        }
+        if ($candidate === null) {
+            return null;
+        }
+        self::ensureDirectory($candidate);
+        return is_dir($candidate) && is_writable($candidate) ? $candidate : null;
     }
 
     /** True when base/programing/core_node is a real checkout (.git or package.json). */
@@ -1335,18 +1403,23 @@ class PathMapper
     /**
      * Get the shared download cache dir (mirror of pycore system_paths.get_shared_download_cache_dir).
      *
-     * Windows: D:\www\cache ; Linux: /var/_core_node/cache.
+     * Windows: D:\www\cache ; Linux dual-boot (/www = NTFS disk root): /www/www/cache
+     * (the SAME tree, ONE EXTRA LEVEL) ; Linux-only: /var/_core_node/cache.
      * This is the SAME physical location pycore resolves, so PHP + Python land on identical paths.
+     * Respects the CORE_NODE_CACHE_DIR env var when already exported.
      *
      * @param string|null $subPath Namespaced sub-path under the cache root (e.g. "pycore/.ai_state").
      * @return string Absolute path under the shared cache dir (dir ensured).
      */
     public static function getSharedDownloadCacheDir(?string $subPath = ""): string
     {
-        if (self::isWindows()) {
+        $envVal = getenv('CORE_NODE_CACHE_DIR');
+        if ($envVal !== false && trim($envVal) !== '') {
+            $base = rtrim(trim($envVal), '/\\');
+        } elseif (self::isWindows()) {
             $base = 'D:\\www\\cache';
         } else {
-            $base = '/var/_core_node/cache';
+            $base = self::linuxCrossOsCacheDir() ?? '/var/_core_node/cache';
         }
         $full = $base;
         if ($subPath !== null && $subPath !== '') {

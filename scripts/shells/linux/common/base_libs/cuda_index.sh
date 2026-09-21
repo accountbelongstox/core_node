@@ -4,6 +4,10 @@
 _CUDA_INDEX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_RUNTIME_POLICY_FILE="$(cd "$_CUDA_INDEX_DIR/../../.." && pwd)/ai_runtime_policy.env"
 source "$AI_RUNTIME_POLICY_FILE"
+# Hardware presence (driver-independent) for the no-driver fallback below.
+if ! type gpu_hardware_present >/dev/null 2>&1; then
+    source "$_CUDA_INDEX_DIR/lib_gpu.sh"
+fi
 
 AI_CUDA_TIERS="${AI_CUDA_TIERS:-}"
 AI_TORCH_INDEX_BASE="${AI_TORCH_INDEX_BASE:-https://download.pytorch.org/whl}"
@@ -48,11 +52,52 @@ cuda_policy_row_by_tag() {
     return 1
 }
 
+# Newest configured tier row (highest minimum driver cv; rows may be unordered).
+# Mirrors runtime_abi._load_cuda_tiers sorting (minimum_driver_cv DESC).
+cuda_policy_newest_row() {
+    local row best="" best_min=-1 tag minimum
+    local -a cuda_rows
+    IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+    for row in "${cuda_rows[@]}"; do
+        IFS=':' read -r tag minimum _ <<< "$row"
+        [[ "$minimum" =~ ^[0-9]+$ ]] || continue
+        if [[ "$minimum" -gt "$best_min" ]]; then best_min="$minimum"; best="$row"; fi
+    done
+    printf '%s' "$best"
+}
+
+# 0 when the active driver reports a CUDA cv but it is below EVERY configured
+# tier (driver too old for the unified policy; needs an upgrade, not CPU wheels).
+cuda_policy_driver_below_tiers() {
+    local cv
+    cv="$(cuda_driver_cv)"
+    [[ -n "$cv" ]] || return 1
+    [[ -z "$(cuda_policy_tag)" ]]
+}
+
 cuda_policy_tag() {
     local cv requested torch_tag paddle_tag row tag minimum
     local -a cuda_rows
     cv="$(cuda_driver_cv)"
-    [[ -n "$cv" ]] || { printf '%s' ""; return 0; }
+    if [[ -z "$cv" ]]; then
+        # No driver report (driver absent or not yet loaded pre-reboot): when the
+        # hardware is physically present, select a tier so install steps still fetch
+        # CUDA wheels/toolkit; the distro driver on Debian 13 / Ubuntu 26 (550+/580+)
+        # supports the newest tier. CPU hosts keep "".
+        if gpu_hardware_present 2>/dev/null; then
+            requested="${CORE_CUDA_TAG:-}"
+            if [[ -z "$requested" ]]; then
+                requested="$(cuda_tag_from_url "${PYTORCH_CUDA_INDEX_URL:-}")"
+            fi
+            if [[ -n "$requested" ]] && row="$(cuda_policy_row_by_tag "$requested")"; then
+                printf '%s' "${row%%:*}"
+                return 0
+            fi
+            IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+            [[ -n "${cuda_rows[0]:-}" ]] && printf '%s' "${cuda_rows[0]%%:*}"
+        fi
+        return 0
+    fi
     requested="${CORE_CUDA_TAG:-}"
     torch_tag="$(cuda_tag_from_url "${PYTORCH_CUDA_INDEX_URL:-}")"
     paddle_tag="$(cuda_tag_from_url "${PADDLE_CUDA_INDEX_URL:-}")"

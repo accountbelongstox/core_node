@@ -380,6 +380,12 @@ fm_domain_install_all() {
     local failures=0
 
     FM_DOMAIN_INSTALL_READY="no"
+    domain_setup_detect_environment
+    if [ "$DOMAIN_ENV_LAN_MODE" = "yes" ]; then
+        domain_setup_lan_certificates
+        FM_DOMAIN_INSTALL_READY="yes"
+        return
+    fi
     domain_setup_load_secrets
     if [ -z "$DOMAIN_DNSPOD_EMAIL" ] || [ -z "$DOMAIN_DNSPOD_TOKEN" ] || [ -z "$DOMAIN_DOMAINS_LIST" ]; then
         echo "[fm-domain] [WARN] Domain installation deferred because the secret postcondition is incomplete"
@@ -440,6 +446,12 @@ fm_domain_install_all() {
 # token pair are in place.
 fm_domain_certificates_only() {
     FM_DOMAIN_CERTIFICATES_READY="no"
+    domain_setup_detect_environment
+    if [ "$DOMAIN_ENV_LAN_MODE" = "yes" ]; then
+        domain_setup_lan_certificates
+        FM_DOMAIN_CERTIFICATES_READY="yes"
+        return
+    fi
     domain_setup_load_secrets
     if [ -z "$DOMAIN_DNSPOD_EMAIL" ] || [ -z "$DOMAIN_DNSPOD_TOKEN" ] || [ -z "$DOMAIN_DOMAINS_LIST" ]; then
         echo "[fm-domain] [WARN] Certificate convergence deferred because the secret postcondition is incomplete"

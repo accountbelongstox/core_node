@@ -24,7 +24,7 @@ TARGET_DIR="${VOXCPM2_DIR:-$CACHE_ROOT/pycore/voxcpm2}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
-WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.json,*.txt,*.model,*.vocab"
+WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.pth,*.json,*.txt,*.model,*.vocab,tokenization_voxcpm2.py"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -80,7 +80,7 @@ echo "============================================================"
 
 echo "============================================================"
 
-if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ] && ! tts_engine_cpu_supported "$PYTHON" "voxcpm2"; then
     echo "[install_voxcpm2] [skip] Server environment without desktop and GPU detected. Skipping VoxCPM2 installation."
     complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "server CPU host"
     exit 0
@@ -113,7 +113,7 @@ fi
 mkdir -p "$TARGET_DIR"
 echo "[install_voxcpm2]  staging : $TARGET_DIR"
 echo "[install_voxcpm2]  weights : $WEIGHTS_DIR"
-echo "[install_voxcpm2]  compute : $(gpu_present && echo 'CUDA GPU (default)' || echo 'CPU only')"
+echo "[install_voxcpm2]  compute : $(gpu_hardware_present && echo 'CUDA GPU (default)' || echo 'CPU only')"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" voxcpm2 | while read -r _line; do
     echo "[install_voxcpm2]  official env (voxcpm2): $_line"
 done
@@ -141,7 +141,7 @@ fi
 # allow-list excludes redundant flax/tf/onnx format variants.
 _model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
-    _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+    _sentinel_model="$(_hf_read_sentinel "$MODEL_SENTINEL")"
     if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_vox_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_vox_model)"
         _model_ready=1

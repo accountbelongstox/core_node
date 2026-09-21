@@ -20,6 +20,9 @@ source "$WEB_ACCESS_COMMON_DIR/file_ops_common.sh"
 WEB_ACCESS_REPO_ROOT="$(cd "$WEB_ACCESS_COMMON_DIR/../../../.." && pwd)"
 WEB_ACCESS_CORE_NODE_DIR="${CORE_NODE_DIR:-$WEB_ACCESS_REPO_ROOT}"
 WEB_ACCESS_SOURCE_FILE="$WEB_ACCESS_CORE_NODE_DIR/config/service_contract.json"
+# Absolute node path: /usr/local/bin link first, then PATH, gvar constant, var
+# center (install-time shells may run with a minimal PATH).
+WEB_ACCESS_NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
 WEB_ACCESS_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/$(sc_get paths.global_var_dir_name)"
 WEB_ACCESS_PREFIX_FILE="$WEB_ACCESS_GLOBAL_VAR_DIR/DOMAIN_API_REGION_PREFIX"
 WEB_ACCESS_CONFIG_FILE="$WEB_ACCESS_GLOBAL_VAR_DIR/$(sc_get files.web_access_config)"
@@ -55,8 +58,8 @@ web_access_valid_hosts() {
 web_access_source_value() {
     local key="$1"
 
-    if command -v node >/dev/null 2>&1; then
-        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(typeof v==="string"?v:"");' "$WEB_ACCESS_SOURCE_FILE" "$key" 2>/dev/null
+    if [ -n "$WEB_ACCESS_NODE_BIN" ]; then
+        "$WEB_ACCESS_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(typeof v==="string"?v:"");' "$WEB_ACCESS_SOURCE_FILE" "$key" 2>/dev/null
         return
     fi
     if command -v php >/dev/null 2>&1; then
@@ -67,8 +70,8 @@ web_access_source_value() {
 web_access_source_list() {
     local key="$1"
 
-    if command -v node >/dev/null 2>&1; then
-        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(Array.isArray(v)&&v.every(x=>typeof x==="string"&&x!=="")?v.join("\n"):"");' "$WEB_ACCESS_SOURCE_FILE" "$key" 2>/dev/null
+    if [ -n "$WEB_ACCESS_NODE_BIN" ]; then
+        "$WEB_ACCESS_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(Array.isArray(v)&&v.every(x=>typeof x==="string"&&x!=="")?v.join("\n"):"");' "$WEB_ACCESS_SOURCE_FILE" "$key" 2>/dev/null
         return
     fi
     if command -v php >/dev/null 2>&1; then
@@ -79,8 +82,8 @@ web_access_source_list() {
 web_access_source_json() {
     local key="$1"
 
-    if command -v node >/dev/null 2>&1; then
-        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(v&&typeof v==="object"?JSON.stringify(v):"");' "$WEB_ACCESS_SOURCE_FILE" "$key" 2>/dev/null
+    if [ -n "$WEB_ACCESS_NODE_BIN" ]; then
+        "$WEB_ACCESS_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const v=process.argv[2].split(".").reduce((o,p)=>(o==null?o:o[p]),c);process.stdout.write(v&&typeof v==="object"?JSON.stringify(v):"");' "$WEB_ACCESS_SOURCE_FILE" "$key" 2>/dev/null
         return
     fi
     if command -v php >/dev/null 2>&1; then
@@ -91,8 +94,8 @@ web_access_source_json() {
 web_access_source_hosts() {
     local service="$1"
 
-    if command -v node >/dev/null 2>&1; then
-        node -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const keys=c.access?.service_host_keys?.[process.argv[2]];process.stdout.write(Array.isArray(keys)&&keys.every(k=>typeof c.hosts?.[k]==="string")?keys.map(k=>c.hosts[k]).join("\n"):"");' "$WEB_ACCESS_SOURCE_FILE" "$service" 2>/dev/null
+    if [ -n "$WEB_ACCESS_NODE_BIN" ]; then
+        "$WEB_ACCESS_NODE_BIN" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const keys=c.access?.service_host_keys?.[process.argv[2]];process.stdout.write(Array.isArray(keys)&&keys.every(k=>typeof c.hosts?.[k]==="string")?keys.map(k=>c.hosts[k]).join("\n"):"");' "$WEB_ACCESS_SOURCE_FILE" "$service" 2>/dev/null
         return
     fi
     if command -v php >/dev/null 2>&1; then

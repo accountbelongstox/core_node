@@ -28,6 +28,15 @@ SCRIPT_INDEX="119"
 #   ./install_launcher.sh --python /usr/bin/python3   # --python ignored (system pkgs)
 #   ./install_launcher.sh --force                     # reinstall even if present
 # ---------------------------------------------------------------------------
+# Path setup and shared helpers (sourced before `set -u` so the shared files
+# do not have to be unset-variable safe). common_functions.sh provides the
+# central TERMINAL_EMULATOR_CANDIDATES list shared with
+# 193_install_window_launcher_shortcut.sh.
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
 set -uo pipefail
 
 PYTHON="python3"
@@ -35,7 +44,9 @@ FORCE=0
 SUDO=""
 NEED=()
 HAVE_EMULATOR=0
-EMULATOR_CANDIDATES=("xfce4-terminal" "gnome-terminal" "konsole" "qterminal" "xterm" "kitty")
+# Central spawnable-emulator list plus kitty (no -e convention; only used by
+# the launcher's paned-grid path, but still counts as "an emulator exists").
+EMULATOR_CANDIDATES=("${TERMINAL_EMULATOR_CANDIDATES[@]}" "kitty")
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -94,9 +105,14 @@ fi
 # none of the preferred ones is present: xfce4-terminal (lightest cross-DE) plus
 # kitty (its paned-grid path). xterm above stays the guaranteed fallback. Headless
 # hosts (no DISPLAY / WAYLAND_DISPLAY) skip this cleanly. Non-fatal.
+# Preferred = POSITIONABLE emulators only. gnome-terminal is deliberately not in
+# this list: it dropped --geometry in 3.36 and is excluded from the launcher's
+# Wayland XWayland path (a D-Bus client whose windows get the server's Wayland
+# backend), so on a GNOME/Wayland box with only gnome-terminal the grid would
+# fall back to bare xterm (no select-copy/right-click-paste mouse functions).
 if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
     HAVE_PREFERRED=0
-    for pref in xfce4-terminal gnome-terminal konsole qterminal kitty; do
+    for pref in xfce4-terminal konsole qterminal kitty; do
         if command -v "$pref" >/dev/null 2>&1; then
             HAVE_PREFERRED=1
             echo "[OK] preferred terminal emulator present: $pref"
