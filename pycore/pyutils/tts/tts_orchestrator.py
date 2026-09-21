@@ -587,6 +587,19 @@ def synthesize_engine(
             f"{engine} does not support language: {language or 'en'}",
         )
         return False
+    # Explicit UI per-engine test: the only path a non-pinned engine may take,
+    # and it still must pass the RAM/VRAM scheduling gateway before any
+    # weights load or any managed server starts.
+    allowed, gate_reason = runtime_profile.engine_start_allowed(engine, explicit=True)
+    if not allowed:
+        call_serialized(
+            _ORCHESTRATOR_STATE_QUEUE,
+            _set_orchestrator_state,
+            "last_engine_synth_error",
+            gate_reason,
+        )
+        ColorPrint.yellow(f"[tts] {engine} test denied by the scheduling gateway ({gate_reason})")
+        return False
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cleaned = (text or "").strip()
