@@ -98,7 +98,7 @@ export interface DataSyncStep {
 
 export interface DataSyncSessionSnapshot {
   id: string;
-  role: 'source' | 'receiver';
+  role: 'source' | 'receiver' | 'fetcher' | 'exporter';
   status: DataSyncStatus;
   target_input: string | null;
   target: string | null;
@@ -155,6 +155,30 @@ export interface DataSyncStartRequest {
   databases: boolean;
   resources: boolean;
   compression: boolean;
+}
+
+/** Result of POST /sync/probe — one node's reachability view of a peer. */
+export interface DataSyncProbeResult {
+  target: string;
+  reachable: boolean;
+  health?: {
+    service?: string;
+    protocol_version?: number;
+    compression_available?: boolean;
+    default_port?: number;
+  };
+  error?: string;
+}
+
+/** Error thrown by the data-sync endpoints; `status` carries the HTTP code (401 drives the peer login popup). */
+export class DataSyncApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'DataSyncApiError';
+    this.status = status;
+  }
 }
 
 /**
@@ -348,7 +372,7 @@ export class DatabaseManagerAPI extends BaseAPI {
   async getDataSyncSessions(): Promise<DataSyncSession[]> {
     const res = await this.get<{ sessions: DataSyncSession[] }>('sync');
     if (!res.success || !res.data) {
-      throw new Error(res.error || res.message || '');
+      throw this.syncFailure(res);
     }
     return (res.data as { sessions: DataSyncSession[] }).sessions ?? [];
   }
@@ -356,7 +380,7 @@ export class DatabaseManagerAPI extends BaseAPI {
   async startDataSync(payload: DataSyncStartRequest): Promise<DataSyncSession> {
     const res = await this.post<{ session: DataSyncSession }>('sync', payload);
     if (!res.success || !res.data) {
-      throw new Error(res.error || res.message || '');
+      throw this.syncFailure(res);
     }
     return (res.data as { session: DataSyncSession }).session;
   }
@@ -364,7 +388,7 @@ export class DatabaseManagerAPI extends BaseAPI {
   async getDataSyncSession(id: string): Promise<DataSyncSession> {
     const res = await this.get<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}`);
     if (!res.success || !res.data) {
-      throw new Error(res.error || res.message || '');
+      throw this.syncFailure(res);
     }
     return (res.data as { session: DataSyncSession }).session;
   }
@@ -372,7 +396,7 @@ export class DatabaseManagerAPI extends BaseAPI {
   async setDataSyncTarget(id: string, target: string): Promise<DataSyncSession> {
     const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/target`, { target });
     if (!res.success || !res.data) {
-      throw new Error(res.error || res.message || '');
+      throw this.syncFailure(res);
     }
     return (res.data as { session: DataSyncSession }).session;
   }
@@ -380,7 +404,7 @@ export class DatabaseManagerAPI extends BaseAPI {
   async pauseDataSync(id: string): Promise<DataSyncSession> {
     const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/pause`);
     if (!res.success || !res.data) {
-      throw new Error(res.error || res.message || '');
+      throw this.syncFailure(res);
     }
     return (res.data as { session: DataSyncSession }).session;
   }
@@ -388,9 +412,31 @@ export class DatabaseManagerAPI extends BaseAPI {
   async resumeDataSync(id: string): Promise<DataSyncSession> {
     const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/resume`);
     if (!res.success || !res.data) {
-      throw new Error(res.error || res.message || '');
+      throw this.syncFailure(res);
     }
     return (res.data as { session: DataSyncSession }).session;
+  }
+
+  /** POST /sync/probe { target } — this node's reachability view of a peer. */
+  async probeDataSyncPeer(target: string): Promise<DataSyncProbeResult> {
+    const res = await this.post<{ probe: DataSyncProbeResult }>('sync/probe', { target });
+    if (!res.success || !res.data) {
+      throw this.syncFailure(res);
+    }
+    return (res.data as { probe: DataSyncProbeResult }).probe;
+  }
+
+  /** POST /sync/fetch — pull mode: this node downloads packaged data from the target exporter. */
+  async startDataSyncFetch(payload: DataSyncStartRequest): Promise<DataSyncSession> {
+    const res = await this.post<{ session: DataSyncSession }>('sync/fetch', payload);
+    if (!res.success || !res.data) {
+      throw this.syncFailure(res);
+    }
+    return (res.data as { session: DataSyncSession }).session;
+  }
+
+  private syncFailure(res: { error: string | null; message?: string; status: number }): DataSyncApiError {
+    return new DataSyncApiError(res.error || res.message || '', res.status);
   }
 
   /**

@@ -159,6 +159,8 @@ export class BaseAPI {
   protected headers: Record<string, string>;
   protected timeout: number;
   protected retryConfig: { count: number; delay: number };
+  private authTokenResolver: (() => string | null) | null;
+  private unauthorizedHandler: (() => void) | null;
 
   /** Resolve either the active application endpoint or an explicit fixed node. */
   protected get baseURL(): string {
@@ -176,6 +178,8 @@ export class BaseAPI {
     // unless the module explicitly opts into a longer timeout.
     this.timeout = config.timeout || DEFAULT_REQUEST_TIMEOUT_MS;
     this.retryConfig = config.retry || { count: 3, delay: 1000 };
+    this.authTokenResolver = config.authToken ?? null;
+    this.unauthorizedHandler = config.onUnauthorized ?? null;
   }
 
   /**
@@ -352,7 +356,10 @@ export class BaseAPI {
           message: data.message
         };
       } else {
-        if (response.status === 401) requestGlobalLogin();
+        if (response.status === 401) {
+          if (this.unauthorizedHandler) this.unauthorizedHandler();
+          else requestGlobalLogin();
+        }
         // Error response - trigger HTML error modal if debug info available
         if (data.exception || data.trace) {
           // Pass JSON directly as string - don't convert to HTML
@@ -515,13 +522,15 @@ export class BaseAPI {
   }
 
   /**
-   * The sole header resolver for laravel-manager API modules. It always uses
-   * the shared session token after login and removes stale module tokens after
-   * logout, including raw fetch helpers that cannot call request().
+   * The sole header resolver for laravel-manager API modules. It prefers the
+   * module's own authToken resolver (fixed peer endpoints with their own
+   * login state), falls back to the shared session token, and removes stale
+   * module tokens after logout, including raw fetch helpers that cannot call
+   * request().
    */
   protected resolveRequestHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { ...this.headers, ...extra };
-    const authHeader = getSharedAuthToken();
+    const authHeader = this.authTokenResolver ? this.authTokenResolver() : getSharedAuthToken();
     if (authHeader) headers.Authorization = authHeader;
     else delete headers.Authorization;
     return headers;
