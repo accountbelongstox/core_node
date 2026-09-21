@@ -7,16 +7,24 @@ AppIndicator3 System Tray - Native Ubuntu/GNOME System Tray
 Native implementation using GTK3 + AppIndicator3 for Ubuntu/GNOME Shell.
 This provides the best system tray experience on Ubuntu 22.04+.
 
-Platform notes (official package archives, 2026):
+Platform notes (verified live on Debian 13, GNOME 48 + ubuntu-appindicators v59, 2026-09):
 - Debian 13 (trixie, GNOME 48, Wayland default): only the Ayatana binding
   exists (gir1.2-ayatanaappindicator3-0.1; legacy gir1.2-appindicator3-0.1 was
   dropped from Debian). GNOME Shell shows NO tray icons without the
   gnome-shell-extension-appindicator package (install + re-login required).
-- Ubuntu 26.04 (resolute, GNOME 50, Wayland-only): both GI packages exist;
+- Ubuntu 26.04 (GNOME 50, Wayland-only): both GI packages exist;
   prefer Ayatana. The appindicator extension ships enabled by default via
   gnome-shell-ubuntu-extensions, so tray works out of the box.
 - The AppIndicator protocol is D-Bus (StatusNotifierItem), so it works
-  natively under Wayland without XWayland.
+  natively under Wayland without XWayland. Menus are exported via
+  com.canonical.dbusmenu and rendered by the shell; a click reveals them.
+- The process MUST run as the desktop session user: a root process cannot
+  connect to the user's session bus (/run/user/<uid>/bus), even with
+  DBUS_SESSION_BUS_ADDRESS forwarded - the icon then never registers, or GTK
+  half-initializes and menu popups fail with Gdk-CRITICAL
+  'gdk_window_thaw_toplevel_updates'. pyservice_entry.sh therefore drops the
+  worker to the graphical session user; check_session_bus_available() guards
+  this backend when that did not happen.
 
 Features:
 - Native GNOME Shell integration (no extensions required for basic functionality)
@@ -76,7 +84,7 @@ GLib = None
 try:
     import gi
     gi.require_version('Gtk', '3.0')
-    from gi.repository import Gtk, GLib
+    from gi.repository import Gtk, GLib, Gio
 
     # 1) Modern Ubuntu: Ayatana AppIndicator
     try:
@@ -96,9 +104,31 @@ except (ImportError, ValueError) as e:
     Gtk = None
     AppIndicator3 = None
     GLib = None
+    Gio = None
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
+def check_session_bus_available() -> bool:
+    """
+    Preflight: verify the D-Bus session bus is actually reachable.
+
+    The StatusNotifierItem is registered on the DESKTOP USER's session bus.
+    When the process runs as root (direct root shell, no sudo/drop-privileges)
+    the user's bus socket (/run/user/<uid>/bus) refuses the connection even
+    with DBUS_SESSION_BUS_ADDRESS forwarded - the icon then never registers,
+    or GTK half-initializes and menu popups die with
+    'gdk_window_thaw_toplevel_updates' Gdk-CRITICAL. Catching it here lets the
+    caller fall back to another backend with a clear log instead of a dead tray.
+    """
+    if Gio is None:
+        return False
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        return bus is not None
+    except Exception:
+        return False
 
 
 class AppIndicatorSystemTray:

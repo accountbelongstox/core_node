@@ -81,13 +81,19 @@ def resolve_launch_path(
         if not app_path:
             app_path = app_finder.find_chrome_by_version('beta')
     elif app_name == 'edge':
-        cache_key = 'edge_path'
-        if cache_key in app_finder.cache:
-            cached_path = Path(app_finder.cache[cache_key])
-            if cached_path.exists():
-                app_path = str(cached_path)
-        if not app_path:
-            app_path = app_finder.find_portable_chrome()
+        # Linux: the edge slot resolves through the Linux candidate chain
+        # (microsoft-edge*, else the Chrome-family fallback); the portable-
+        # Chrome path below is Windows-only.
+        if sys.platform != 'win32':
+            app_path = app_finder.find_app('edge')
+        else:
+            cache_key = 'edge_path'
+            if cache_key in app_finder.cache:
+                cached_path = Path(app_finder.cache[cache_key])
+                if cached_path.exists():
+                    app_path = str(cached_path)
+            if not app_path:
+                app_path = app_finder.find_portable_chrome()
     else:
         cache_key = f'{app_name}_path'
         if cache_key in app_finder.cache:

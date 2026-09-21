@@ -173,6 +173,15 @@ class LinuxTerminalLauncher:
         """
         # Normalise to 4-tuples up front so both strategies share the shape.
         configs = [tuple(entry[:4]) for entry in windows_config]
+        # Optional per-cell pixel spacing hint (fields 6-7 of an 8-tuple, see
+        # WindowLauncher.calculate_window_layout): lets a deficit top-up subset
+        # (e.g. one row) still size windows to a full cell.
+        cell_hint = None
+        for entry in windows_config:
+            if len(entry) >= 8 and entry[6] and entry[7]:
+                cell_hint = (int(entry[6]), int(entry[7]))
+                break
+        self._cell_hint = cell_hint
         count = len(configs)
         if count == 0:
             ColorPrint.plain("No windows to launch.")
@@ -273,6 +282,10 @@ class LinuxTerminalLauncher:
         """
         geom_capable = emulator in self._argv.X11_EMULATORS
         cell_w, cell_h = self._placer._cell_pixel_size(configs)
+        hint = getattr(self, "_cell_hint", None)
+        if hint:
+            cell_w = cell_w or hint[0]
+            cell_h = cell_h or hint[1]
         col_gap, row_gap = self._placer._grid_gaps(cell_w, cell_h)
         frame = None  # WM frame extents, measured once from the first window
         width = len(str(len(configs)))  # zero-pad index so titles never collide
@@ -365,6 +378,10 @@ class LinuxTerminalLauncher:
             list: Launched PIDs.
         """
         cell_w, cell_h = self._placer._cell_pixel_size(configs)
+        hint = getattr(self, "_cell_hint", None)
+        if hint:
+            cell_w = cell_w or hint[0]
+            cell_h = cell_h or hint[1]
         col_gap, row_gap = self._placer._grid_gaps(cell_w, cell_h)
         frame = None  # WM frame extents, measured once from the first window
         width = len(str(len(configs)))

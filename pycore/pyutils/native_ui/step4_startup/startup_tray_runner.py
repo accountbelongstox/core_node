@@ -40,6 +40,7 @@ from pycore.pyutils.native_ui.platform_adapter import (
 from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     AppIndicatorSystemTray,
     APPINDICATOR_AVAILABLE,
+    check_session_bus_available,
 )
 from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
     build_appindicator_menu_items,
@@ -72,9 +73,13 @@ def run_tray_mode(thread):
     )
     if use_appindicator:
         try:
-            if APPINDICATOR_AVAILABLE:
+            if APPINDICATOR_AVAILABLE and check_session_bus_available():
                 run_appindicator_tray(thread, tray_config, bus_manager)
                 return
+            elif APPINDICATOR_AVAILABLE:
+                ColorPrint.print_warn(
+                    "[TkinterStartupThread] D-Bus session bus unreachable from this "
+                    "process (root outside the desktop session?); using pystray")
         except Exception as e:
             ColorPrint.print_warn(f"[TkinterStartupThread] AppIndicator failed ({e}), using pystray")
 

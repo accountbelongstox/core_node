@@ -61,6 +61,12 @@ class AppFinder:
             'app_subdir': 'cursor',
             # 155_install_cursor.sh: AppRun under the extracted AppImage tree.
             'subdir_binary': 'extracted/squashfs-root/AppRun',
+            # The PATH wrapper (155_install_cursor.sh) adds --no-sandbox, the
+            # browser bridge and IME env, all REQUIRED for Electron-as-root;
+            # the raw AppRun aborts as root. Non-root callers keep the AppRun
+            # path (the wrapper self-elevates via pkexec and is filtered out by
+            # _linux_binary_usable).
+            'root_prefer_wrapper': True,
         },
         'wechat': {
             'binaries': ['wechat', 'weixin'],
@@ -337,6 +343,7 @@ class AppFinder:
                     candidates.append(Path(dir_value) / binary)
 
         app_subdir = spec.get('app_subdir')
+        subdir_candidates = []
         if app_subdir:
             try:
                 apps_dir = map_web_path('compile_dir') / 'applications' / app_subdir
@@ -345,26 +352,101 @@ class AppFinder:
             if apps_dir is not None:
                 subdir_binary = spec.get('subdir_binary')
                 if subdir_binary:
-                    candidates.append(apps_dir / subdir_binary)
+                    subdir_candidates.append(apps_dir / subdir_binary)
                 for binary in binaries:
-                    candidates.append(apps_dir / binary)
-                    candidates.append(apps_dir / 'bin' / binary)
+                    subdir_candidates.append(apps_dir / binary)
+                    subdir_candidates.append(apps_dir / 'bin' / binary)
 
+        fixed_candidates = []
         for fixed_dir in self._LINUX_FIXED_BIN_DIRS:
             for binary in binaries:
-                candidates.append(Path(fixed_dir) / binary)
+                fixed_candidates.append(Path(fixed_dir) / binary)
 
         local_bin = Path.home() / '.local' / 'bin'
-        for binary in binaries:
-            candidates.append(local_bin / binary)
+        local_candidates = [local_bin / binary for binary in binaries]
+
+        # Apps whose PATH wrapper handles root-specific concerns (Electron
+        # --no-sandbox, IME env) must resolve that wrapper first when running
+        # as root; the raw install-tree binary would abort as root.
+        if spec.get('root_prefer_wrapper') and os.geteuid() == 0:
+            candidates.extend(fixed_candidates)
+            candidates.extend(local_candidates)
+            candidates.extend(subdir_candidates)
+        else:
+            candidates.extend(subdir_candidates)
+            candidates.extend(fixed_candidates)
+            candidates.extend(local_candidates)
 
         return candidates
+
+    def is_supported_on_platform(self, app_name: str) -> bool:
+        """True when *app_name* should be launched on the current OS."""
+        platforms = self._APP_PLATFORMS.get(app_name)
+        if not platforms:
+            return True
+        current = 'windows' if sys.platform == 'win32' else 'linux'
+        return current in platforms
+
+    def _find_linux_default_text_editor(self) -> Optional[str]:
+        """Resolve the desktop's DEFAULT text editor via xdg-mime (freedesktop).
+
+        ``xdg-mime query default text/plain`` returns the .desktop id the desktop
+        associates with plain text; the Exec line of that desktop file yields
+        the binary. Never raises; returns None when undeterminable.
+        """
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ['xdg-mime', 'query', 'default', 'text/plain'],
+                capture_output=True, text=True, timeout=3)
+            desktop_id = (result.stdout or '').strip()
+        except Exception:
+            return None
+        if not desktop_id.endswith('.desktop'):
+            return None
+
+        data_dirs = [
+            Path.home() / '.local' / 'share' / 'applications',
+            Path('/usr/local/share/applications'),
+            Path('/usr/share/applications'),
+        ]
+        for data_dir in data_dirs:
+            desktop_file = data_dir / desktop_id
+            try:
+                if not desktop_file.is_file():
+                    continue
+                exec_binary = None
+                terminal_entry = False
+                for line in desktop_file.read_text(
+                        encoding='utf-8', errors='ignore').splitlines():
+                    if line.startswith('Exec='):
+                        exec_binary = line[len('Exec='):].strip().split()[0]
+                    elif line.strip().lower() == 'terminal=true':
+                        terminal_entry = True
+                # Terminal editors (vim.desktop etc.) are not launchable as a
+                # detached GUI window -- decline them so the GUI fallback list
+                # is used instead.
+                if terminal_entry or not exec_binary:
+                    return None
+                resolved = shutil.which(os.path.basename(exec_binary))
+                if resolved:
+                    return resolved
+            except (OSError, IndexError):
+                continue
+        return None
 
     def _find_linux_app(self, app_name: str) -> Optional[str]:
         """Resolve an app's Linux binary: central constants, fixed dirs, PATH."""
         spec = self._LINUX_APP_DEFINITIONS.get(app_name)
         if not spec:
             return None
+
+        # The texteditor slot prefers the desktop's default editor (xdg-mime).
+        if app_name == 'texteditor':
+            default_editor = self._find_linux_default_text_editor()
+            if default_editor:
+                return default_editor
 
         for candidate in self._linux_candidates(app_name):
             try:

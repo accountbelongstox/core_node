@@ -28,7 +28,11 @@ def _spawn_detached(argv, cwd=None, shell=False):
         flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         return subprocess.Popen(argv, cwd=cwd, shell=shell,
                                 creationflags=flags, close_fds=True)
-    return subprocess.Popen(argv, cwd=cwd, start_new_session=True, close_fds=True)
+    # Detached GUI apps must not inherit the launcher's stdout/stderr: Electron/
+    # GTK noise (dbus, gdk, viz warnings) would pollute the launcher console and
+    # keep any pipe it is attached to open long after the launcher exits.
+    return subprocess.Popen(argv, cwd=cwd, start_new_session=True, close_fds=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _open_on_linux(path_str):

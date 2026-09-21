@@ -21,6 +21,7 @@ class EditorLauncher:
         'chrome': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
         'vscode': ['code', 'code-insiders'],
         'antigravity': ['antigravity'],
+        'cursor': ['cursor'],
     }
     
     def __init__(self, script_generator=None, executor=None):

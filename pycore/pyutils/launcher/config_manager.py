@@ -53,9 +53,9 @@ class ConfigManager:
                     'enabled': False  # Disabled by default
                 }
             else:
-                # Default enabled state: only antigravity enabled by default
+                # Default enabled state: cursor + the Linux default text editor are enabled; antigravity is no longer launched by default
                 defaults[app_name] = {
-                    'enabled': True if app_name == 'antigravity' else False
+                    'enabled': True if app_name in ('cursor', 'texteditor') else False
                 }
         
         return defaults
