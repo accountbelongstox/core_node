@@ -8,10 +8,18 @@ SCRIPT_NAME="17_install_node_toolchain_26.sh"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
+PARENT_DIR_LEVEL_4="$(dirname "$PARENT_DIR_LEVEL_3")"
+CORE_NODE_ROOT="$(dirname "$PARENT_DIR_LEVEL_4")"
 COMMON_DIR="$PARENT_DIR_LEVEL_2/common"
 
 SCRIPT_TEMP_NAME="17_install_node_toolchain_26"
 SCRIPT_TEMP_DIR=""
+PROJECT_PACKAGE_JSON_PATH="$CORE_NODE_ROOT/package.json"
+PROJECT_PNPM_SPEC=""
+PNPM_PREPARE_SPEC=""
+ACTIVE_PNPM_VERSION=""
+TARGET_PNPM_VERSION=""
 
 source "$COMMON_DIR/gvar_common.sh"
 source "$COMMON_DIR/common_functions.sh"
@@ -562,30 +570,73 @@ ensure_npm_latest() {
     fi
 }
 
+# Corepack resolves the pnpm shim from the nearest package.json "packageManager"
+# pin and silently falls back to its last-known-good release in a directory
+# without one (for example an isolated agent HOME outside this project). When
+# those two differ, one pnpm major writes a modules layout that the other refuses
+# to reuse (ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF / ERR_PNPM_UNEXPECTED_STORE), so
+# the project pin is authoritative here: activating it makes every resolution
+# path -- pinned or not -- yield one pnpm version.
+resolve_project_pnpm_spec() {
+    if [ ! -f "$PROJECT_PACKAGE_JSON_PATH" ] || [ ! -x "$NODE_BIN" ]; then
+        return
+    fi
+    "$NODE_BIN" -e "const manager=require(process.argv[1]).packageManager||'';process.stdout.write(manager.startsWith('pnpm@')?manager:'')" "$PROJECT_PACKAGE_JSON_PATH" 2>/dev/null || true
+}
+
 # Functional check for the corepack pnpm shim, run from a neutral directory
 # (a project package.json packageManager pin would change what corepack
 # resolves). The shim must actually EXECUTE, not merely exist.
+pnpm_neutral_version() {
+    if [ ! -x "$PNPM_BIN_PATH" ]; then
+        return
+    fi
+    (cd /tmp 2>/dev/null && timeout 60 "$PNPM_BIN_PATH" -v 2>/dev/null) || true
+}
+
 pnpm_shim_works() {
-    [ -x "$PNPM_BIN_PATH" ] || return 1
-    (cd /tmp 2>/dev/null && timeout 60 "$PNPM_BIN_PATH" -v >/dev/null 2>&1)
+    local pnpm_version=""
+    pnpm_version="$(pnpm_neutral_version)"
+    [ -n "$pnpm_version" ]
+}
+
+# Idempotent corepack activation: an already active version is left untouched, so
+# a repeated installer run does not rewrite the corepack state.
+activate_corepack_pnpm() {
+    PNPM_PREPARE_SPEC="$1"
+    if [ -z "$PNPM_PREPARE_SPEC" ]; then
+        return
+    fi
+    TARGET_PNPM_VERSION="${PNPM_PREPARE_SPEC#pnpm@}"
+    ACTIVE_PNPM_VERSION="$(pnpm_neutral_version)"
+    if [ "$ACTIVE_PNPM_VERSION" = "$TARGET_PNPM_VERSION" ]; then
+        return
+    fi
+
+    echo "[17] Activating corepack pnpm: $PNPM_PREPARE_SPEC (active: ${ACTIVE_PNPM_VERSION:-unknown})"
+    "$COREPACK_BIN_PATH" prepare "$PNPM_PREPARE_SPEC" --activate || true
+    "$COREPACK_BIN_PATH" enable pnpm || true
 }
 
 # Prepare/activate pnpm through corepack, verifying the result functionally.
 # corepack 0.36 cannot run pnpm >= 12 (bin/pnpm.mjs vs the hardcoded
-# bin/pnpm.cjs shim path), so when pnpm@latest produces a broken shim, fall
-# back to $PNPM_COREPACK_FALLBACK_SPEC. Idempotent: a working shim is kept.
+# bin/pnpm.cjs shim path), so when the activated pnpm produces a broken shim,
+# fall back to $PNPM_COREPACK_FALLBACK_SPEC. Idempotent: a working shim is kept.
 corepack_prepare_pnpm() {
     [ -x "$COREPACK_BIN_PATH" ] || return 0
 
-    "$COREPACK_BIN_PATH" prepare pnpm@latest --activate || true
-    "$COREPACK_BIN_PATH" enable pnpm || true
+    PROJECT_PNPM_SPEC="$(resolve_project_pnpm_spec)"
+    PNPM_PREPARE_SPEC="$PROJECT_PNPM_SPEC"
+    if [ -z "$PNPM_PREPARE_SPEC" ]; then
+        PNPM_PREPARE_SPEC="pnpm@latest"
+    fi
+    activate_corepack_pnpm "$PNPM_PREPARE_SPEC"
     if pnpm_shim_works; then
         return 0
     fi
 
-    echo "[17] corepack pnpm@latest shim is broken (pnpm>=12 uses bin/pnpm.mjs, corepack 0.36 maps bin/pnpm.cjs); activating $PNPM_COREPACK_FALLBACK_SPEC"
-    "$COREPACK_BIN_PATH" prepare "$PNPM_COREPACK_FALLBACK_SPEC" --activate || true
-    "$COREPACK_BIN_PATH" enable pnpm || true
+    echo "[17] corepack $PNPM_PREPARE_SPEC shim is broken (pnpm>=12 uses bin/pnpm.mjs, corepack 0.36 maps bin/pnpm.cjs); activating $PNPM_COREPACK_FALLBACK_SPEC"
+    activate_corepack_pnpm "$PNPM_COREPACK_FALLBACK_SPEC"
     if ! pnpm_shim_works; then
         echo "[17] WARNING: pnpm shim still not runnable after fallback"
     fi

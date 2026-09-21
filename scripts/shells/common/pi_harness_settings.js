@@ -34,6 +34,11 @@ const piHostPeerPackageNames = [
     'typebox',
 ];
 const publicHoistPatternExpression = /publicHoistPattern:\s*(?:\r?\n\s*-\s*['"]?\*['"]?|\[[^\]]*['"]?\*['"]?[^\]]*\])/;
+// pnpm refuses to reuse a modules directory or lockfile produced by another
+// pnpm layout (public-hoist-pattern, hoist-pattern, store major, node-linker,
+// virtual-store-dir-max-length, lockfile). Its errors all instruct the caller
+// to recreate the tree, which is the only repair that keeps installs idempotent.
+const staleModulesFailureExpression = /ERR_PNPM_(?:PUBLIC_HOIST_PATTERN_DIFF|HOIST_PATTERN_DIFF|VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF|NODE_LINKER_DIFF|UNEXPECTED_STORE|MODULES_BREAKING_CHANGE|STORE_BREAKING_CHANGE|LOCKFILE_BREAKING_CHANGE|OUTDATED_LOCKFILE)|was installed with a different major version of pnpm|recreate the modules directory/;
 const kimiK3ProviderId = 'kimi-coding';
 const kimiK3ModelId = 'k3';
 const kimiK3ContextWindow = 1048576;
@@ -86,7 +91,10 @@ let pnpmCliPath = '';
 let packageManagerCommand = '';
 let packageManagerArgs = [];
 let packageRepairResult = null;
-let packageInstallResult = null;
+let packageModulesSettings = null;
+let packageRepairAttempt = 0;
+let packageRepairOutput = '';
+let packageInstallArgs = [];
 let authCredentialMutable = false;
 let packageManagerOptions = {};
 let authSettingsValid = true;
@@ -157,6 +165,63 @@ let cleanEnv = { ...process.env };
 delete cleanEnv.SUDO_USER;
 delete cleanEnv.SUDO_UID;
 delete cleanEnv.SUDO_GID;
+
+// Pi's managed extension packages live in <agentDir>/npm and are written by two
+// callers: this helper and Pi itself at startup. Both must resolve the same
+// pnpm, because corepack picks the pnpm version from the nearest package.json
+// "packageManager" pin, so a directory outside this project resolves corepack's
+// last-known-good release instead. One pnpm major over another major's modules
+// directory aborts with ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF or
+// ERR_PNPM_UNEXPECTED_STORE, so every managed install runs from the caller's
+// working directory (the directory Pi runs from) with an explicit --prefix.
+function readPackageModulesMetadata(metadataPath) {
+    return fs.existsSync(metadataPath) ? fs.readFileSync(metadataPath, 'utf8') : '';
+}
+
+// pnpm >= 9 writes .modules.yaml as JSON, older releases wrote YAML, and the
+// recorded pattern is either the string "*" or a ["*"] list depending on the
+// pnpm release. Read the JSON form structurally first and keep the expression
+// for the legacy layout.
+function hasManagedHoistPattern(metadata) {
+    if (!metadata) {
+        return false;
+    }
+    try {
+        packageModulesSettings = JSON.parse(metadata);
+        return Array.isArray(packageModulesSettings.publicHoistPattern)
+            ? packageModulesSettings.publicHoistPattern.includes('*')
+            : packageModulesSettings.publicHoistPattern === '*';
+    } catch {
+        return publicHoistPatternExpression.test(metadata);
+    }
+}
+
+// Recreate a stale install tree and retry until pnpm accepts the state: attempt
+// 1 reuses the tree, attempt 2 drops the modules directory, attempt 3 also
+// drops the lockfile left by the other layout.
+function runManagedPackageInstall(command, args, options, directory) {
+    packageRepairAttempt = 0;
+    while (packageRepairAttempt < 3) {
+        packageRepairAttempt += 1;
+        packageRepairResult = childProcess.spawnSync(command, args, options);
+        packageRepairOutput = `${packageRepairResult.stdout || ''}${packageRepairResult.stderr || ''}`;
+        if (packageRepairOutput.trim()) {
+            process.stdout.write(packageRepairOutput.endsWith('\n') ? packageRepairOutput : `${packageRepairOutput}\n`);
+        }
+        if (packageRepairResult.status === 0) {
+            return true;
+        }
+        if (packageRepairAttempt >= 3 || !staleModulesFailureExpression.test(packageRepairOutput)) {
+            return false;
+        }
+        process.stderr.write(`[INFO] Recreating the stale Pi package install tree: ${directory}\n`);
+        fs.rmSync(path.join(directory, 'node_modules'), { recursive: true, force: true });
+        if (packageRepairAttempt >= 2) {
+            fs.rmSync(path.join(directory, 'pnpm-lock.yaml'), { force: true });
+        }
+    }
+    return false;
+}
 
 // Maintenance references:
 // - Pi providers and canonical auth.json behavior: https://pi.dev/docs/latest/providers
@@ -458,10 +523,8 @@ if (mode === 'pi-package') {
     packageJsonPath = path.join(packageDirectory, 'package.json');
     packageManifestPath = path.join(packageDirectory, 'node_modules', packageName, 'package.json');
     packageModulesMetadataPath = path.join(packageDirectory, 'node_modules', '.modules.yaml');
-    packageModulesMetadata = fs.existsSync(packageModulesMetadataPath)
-        ? fs.readFileSync(packageModulesMetadataPath, 'utf8')
-        : '';
-    packageLayoutReady = publicHoistPatternExpression.test(packageModulesMetadata);
+    packageModulesMetadata = readPackageModulesMetadata(packageModulesMetadataPath);
+    packageLayoutReady = hasManagedHoistPattern(packageModulesMetadata);
     if (fs.existsSync(packageJsonPath)) {
         try {
             packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -512,26 +575,42 @@ if (mode === 'pi-package') {
             packageManagerArgs = [pnpmCliPath];
         }
         packageManagerOptions = {
-            cwd: packageDirectory,
-            stdio: 'inherit',
+            cwd: process.cwd(),
+            encoding: 'utf8',
             env: cleanEnv,
         };
         if (!packageLayoutReady) {
-            packageRepairResult = childProcess.spawnSync(
+            packageInstallArgs = [
+                ...packageManagerArgs,
+                'install',
+                ...pnpmManagedInstallArgs,
+                '--prefix',
+                packageDirectory,
+            ];
+            packageRepairResult = runManagedPackageInstall(
                 packageManagerCommand,
-                [...packageManagerArgs, 'install', ...pnpmManagedInstallArgs],
+                packageInstallArgs,
                 packageManagerOptions,
+                packageDirectory,
             );
-            if (packageRepairResult.status === 0 && fs.existsSync(packageModulesMetadataPath)) {
-                packageModulesMetadata = fs.readFileSync(packageModulesMetadataPath, 'utf8');
-                packageLayoutReady = publicHoistPatternExpression.test(packageModulesMetadata);
-            }
+            packageModulesMetadata = readPackageModulesMetadata(packageModulesMetadataPath);
+            packageLayoutReady = hasManagedHoistPattern(packageModulesMetadata);
         }
         if (packageLayoutReady && !fs.existsSync(packageManifestPath)) {
-            packageInstallResult = childProcess.spawnSync(
+            packageInstallArgs = [
+                ...packageManagerArgs,
+                'add',
+                '--save-exact',
+                packageName,
+                ...pnpmManagedInstallArgs,
+                '--prefix',
+                packageDirectory,
+            ];
+            runManagedPackageInstall(
                 packageManagerCommand,
-                [...packageManagerArgs, 'add', '--save-exact', packageName, ...pnpmManagedInstallArgs],
+                packageInstallArgs,
                 packageManagerOptions,
+                packageDirectory,
             );
         }
     }
