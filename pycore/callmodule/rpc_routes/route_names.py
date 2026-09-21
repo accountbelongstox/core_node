@@ -196,6 +196,7 @@ UI_CAPABILITY_STATUS_GET_CAPABILITY_SETTINGS = "ui/capability_status/get_capabil
 UI_CAPABILITY_STATUS_POST_CAPABILITY_SETTINGS = "ui/capability_status/post_capability_settings"
 UI_DICTIONARY_DICTIONARY_STATUS = "ui/dictionary/dictionary_status"
 UI_DICTIONARY_DICTIONARY_LOOKUP = "ui/dictionary/dictionary_lookup"
+UI_DICTIONARY_DICTIONARY_MATCH = "ui/dictionary/dictionary_match"
 UI_ENGINES_LOAD_STATUS_LOAD_STATUS = "ui/engines_load_status/load_status"
 UI_IMAGE_SEARCH_STATUS = "ui/image_search/status"
 UI_IMAGE_SEARCH_SEARCH = "ui/image_search/search"

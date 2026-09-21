@@ -46,12 +46,21 @@ export interface EcdictEntryInfo {
   error?: string;
 }
 
+/** One prefix-match suggestion row (search box dropdown). */
+export interface EcdictMatchItem {
+  word: string;
+  /** First zh sense (one line), shown next to the word. */
+  translation?: string;
+}
+
 /** End-specific data source injected by the hosting app. */
 export interface EcdictLookupAdapter {
   /** Short badge label, e.g. 'pycore local' or 'laravel api'. */
   sourceLabel: string;
   fetchStatus: () => Promise<EcdictStatusInfo>;
   fetchLookup: (word: string, target?: string) => Promise<EcdictEntryInfo>;
+  /** Prefix suggestions for the search dropdown (server caps at 20). */
+  fetchMatch?: (prefix: string) => Promise<EcdictMatchItem[]>;
 }
 
 /**

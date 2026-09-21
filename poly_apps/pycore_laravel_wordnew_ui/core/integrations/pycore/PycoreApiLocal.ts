@@ -445,6 +445,9 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.dictionaryDictionaryStatus, {}),
   getDictionaryLookup: (word: string, target = 'zh') =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.dictionaryDictionaryLookup, { word, target }),
+  // Search-box prefix suggestions (<= limit words, most frequent first).
+  getDictionaryMatch: (prefix: string, limit = 20) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.dictionaryDictionaryMatch, { prefix, limit }),
 
   // --- auto-start on boot (native OS startup entry) ----------------------- #
   getAutostart: () =>

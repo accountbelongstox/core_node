@@ -11,13 +11,14 @@
  * Self-contained inline labels (matching the vocabulary pages' literal-label
  * convention, not the i18n `t` system).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BookOpen, Search, Loader2, AlertTriangle, Star, Sparkles, Volume2, RefreshCw,
 } from 'lucide-react';
 import {
   type EcdictEntryInfo,
   type EcdictLookupAdapter,
+  type EcdictMatchItem,
   type EcdictStatusInfo,
   withBusyRetry,
 } from './ecdictLookupTypes';

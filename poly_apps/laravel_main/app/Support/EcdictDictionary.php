@@ -13,6 +13,8 @@ namespace App\Support;
 use App\Providers\PathMapper;
 use PDO;
 use PDOException;
+use SQLite3;
+use Throwable;
 
 /**
  * ECDICT offline dictionary (shared read-only SQLite).
@@ -25,9 +27,13 @@ use PDOException;
  *
  * The database is shared between the pycore service and this Laravel app.
  * Both ends only SELECT. When a concurrent access wins the SQLite lock,
- * PDO throws "database is locked" (SQLITE_BUSY): the lookup retries
+ * the driver reports "database is locked" (SQLITE_BUSY): the lookup retries
  * IMMEDIATELY (bounded attempts, tiny backoff). If the lock persists the
  * result carries busy=true so the API layer can tell the caller to retry.
+ *
+ * Driver: pdo_sqlite is preferred; when the running PHP lacks it (e.g. an
+ * older FrankenPHP static binary) the sqlite3 extension (SQLite3 class,
+ * opened READONLY) is used instead.
  */
 class EcdictDictionary
 {
@@ -45,7 +51,7 @@ class EcdictDictionary
     private const BUSY_MAX_ATTEMPTS = 3;
     private const BUSY_BACKOFF_US = [0, 50000, 150000];
 
-    private static ?PDO $conn = null;
+    private static PDO|SQLite3|null $conn = null;
     private static bool $connectAttempted = false;
     /** @var string[] */
     private static array $columns = [];
@@ -60,15 +66,25 @@ class EcdictDictionary
         return PathMapper::mapWebPath('wwwroot', 'pycore_db/dictionaries/stardict.db');
     }
 
-    /** True when the PDO sqlite driver and the database file are both present. */
+    /** True when ANY sqlite driver and the database file are both present. */
     public static function available(): bool
     {
-        return self::pdoSqliteAvailable() && is_file(self::dbPath());
+        return self::sqliteDriverAvailable() && is_file(self::dbPath());
+    }
+
+    public static function sqliteDriverAvailable(): bool
+    {
+        return self::pdoSqliteAvailable() || self::sqlite3ExtAvailable();
     }
 
     public static function pdoSqliteAvailable(): bool
     {
         return class_exists(PDO::class) && in_array('sqlite', PDO::getAvailableDrivers(), true);
+    }
+
+    public static function sqlite3ExtAvailable(): bool
+    {
+        return extension_loaded('sqlite3') && class_exists(SQLite3::class);
     }
 
     /**
@@ -82,8 +98,8 @@ class EcdictDictionary
             'db_path' => $path,
             'entries' => 0,
         ];
-        if (!self::pdoSqliteAvailable()) {
-            $base['error'] = 'PDO sqlite driver is not installed';
+        if (!self::sqliteDriverAvailable()) {
+            $base['error'] = 'No SQLite driver is installed (pdo_sqlite / sqlite3)';
             return ['success' => true, 'busy' => false, 'ecdict' => $base];
         }
         if (!is_file($path)) {
@@ -95,8 +111,8 @@ class EcdictDictionary
             if ($conn === null) {
                 return null;
             }
-            $stmt = $conn->query('SELECT COUNT(*) FROM stardict');
-            return $stmt === false ? null : (int) $stmt->fetchColumn();
+            $rows = self::selectAll($conn, 'SELECT COUNT(*) AS c FROM stardict');
+            return isset($rows[0]) ? (int) $rows[0]['c'] : null;
         });
         if (is_array($count) && ($count['busy'] ?? false)) {
             return ['success' => false, 'busy' => true, 'ecdict' => $base];
@@ -137,13 +153,8 @@ class EcdictDictionary
             }
             $sql = 'SELECT ' . implode(', ', $cols)
                 . ' FROM stardict WHERE word = :word COLLATE NOCASE LIMIT 1';
-            $stmt = $conn->prepare($sql);
-            if ($stmt === false) {
-                return null;
-            }
-            $stmt->execute([':word' => $word]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            return $row === false ? null : $row;
+            $rows = self::selectAll($conn, $sql, [':word' => $word]);
+            return $rows[0] ?? null;
         });
 
         if (is_array($row) && ($row['busy'] ?? false)) {
@@ -201,6 +212,68 @@ class EcdictDictionary
         return implode('; ', $parts);
     }
 
+    /**
+     * Prefix suggestions for the search box (same envelope as the pycore
+     * dictionary_match route): up to $limit words starting with $prefix
+     * (case-insensitive), most frequent first (COCA frq then BNC), each with
+     * its first zh sense. busy=true signals a persistent lock race.
+     *
+     * @return array<string,mixed>
+     */
+    public static function match(string $prefix, int $limit = 20): array
+    {
+        $prefix = trim($prefix);
+        $result = ['success' => true, 'busy' => false, 'prefix' => $prefix, 'items' => []];
+        if ($prefix === '') {
+            return $result;
+        }
+        if (!self::available()) {
+            $result['error'] = 'ECDICT database is not installed';
+            return $result;
+        }
+        $limit = max(1, min($limit, 50));
+        $like = strtr($prefix, ['\\' => '\\\\', '%' => '\\%', '_' => '\\_']) . '%';
+        $rows = self::runWithBusyRetry(function () use ($like, $limit) {
+            $conn = self::connection();
+            if ($conn === null) {
+                return null;
+            }
+            return self::selectAll(
+                $conn,
+                "SELECT word, translation, frq, bnc FROM stardict"
+                . " WHERE word LIKE :pfx ESCAPE '\\' COLLATE NOCASE"
+                . " ORDER BY (COALESCE(frq, 0) = 0), COALESCE(frq, 0),"
+                . " (COALESCE(bnc, 0) = 0), COALESCE(bnc, 0), word LIMIT :lim",
+                [':pfx' => $like, ':lim' => $limit]
+            );
+        });
+        if (is_array($rows) && ($rows['busy'] ?? false)) {
+            $result['busy'] = true;
+            $result['error'] = 'ECDICT database is locked by a concurrent process; retry immediately';
+            return $result;
+        }
+        if (!is_array($rows)) {
+            return $result;
+        }
+        foreach ($rows as $row) {
+            $firstSense = '';
+            foreach (preg_split('/\r?\n/', (string) ($row['translation'] ?? '')) as $line) {
+                $line = trim((string) $line);
+                if ($line !== '') {
+                    $firstSense = $line;
+                    break;
+                }
+            }
+            $result['items'][] = [
+                'word' => (string) ($row['word'] ?? ''),
+                'translation' => $firstSense,
+                'frq' => (int) ($row['frq'] ?? 0),
+                'bnc' => (int) ($row['bnc'] ?? 0),
+            ];
+        }
+        return $result;
+    }
+
     /** Empty (not-found) entry envelope shared by every early return. */
     private static function emptyEntry(string $word): array
     {
@@ -224,11 +297,12 @@ class EcdictDictionary
     }
 
     /**
-     * Shared read-only connection. query_only=ON guarantees this process can
-     * never write the shared database; ATTR_TIMEOUT applies SQLite's own
+     * Shared read-only connection. PDO: query_only=ON guarantees this process
+     * can never write the shared database; ATTR_TIMEOUT applies SQLite's own
      * busy-timeout before SQLITE_BUSY is raised (sqlite.org/c3ref/busy_timeout).
+     * sqlite3-ext fallback: OPEN_READONLY + busyTimeout(2000).
      */
-    private static function connection(): ?PDO
+    private static function connection(): PDO|SQLite3|null
     {
         if (self::$conn !== null) {
             return self::$conn;
@@ -240,14 +314,20 @@ class EcdictDictionary
         if (!self::available()) {
             return null;
         }
-        $conn = new PDO('sqlite:' . self::dbPath(), null, null, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_TIMEOUT => 2,
-        ]);
-        $conn->exec('PRAGMA query_only = ON');
-        self::$columns = $conn
-            ->query('PRAGMA table_info(stardict)')
-            ->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (self::pdoSqliteAvailable()) {
+            $conn = new PDO('sqlite:' . self::dbPath(), null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_TIMEOUT => 2,
+            ]);
+            $conn->exec('PRAGMA query_only = ON');
+        } else {
+            $conn = new SQLite3(self::dbPath(), SQLITE3_OPEN_READONLY);
+            $conn->busyTimeout(2000);
+        }
+        self::$columns = array_map(
+            fn ($row) => (string) $row['name'],
+            self::selectAll($conn, 'PRAGMA table_info(stardict)')
+        );
         if (!in_array('word', self::$columns, true)) {
             self::$conn = null;
             return null;
@@ -257,10 +337,47 @@ class EcdictDictionary
     }
 
     /**
+     * Fetch all rows as assoc arrays across both drivers. Named params use
+     * ':key' placeholders on either side.
+     *
+     * @param array<string,mixed> $params
+     * @return array<int,array<string,mixed>>
+     */
+    private static function selectAll(PDO|SQLite3 $conn, string $sql, array $params = []): array
+    {
+        if ($conn instanceof PDO) {
+            $stmt = $conn->prepare($sql);
+            if ($stmt === false) {
+                return [];
+            }
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return is_array($rows) ? $rows : [];
+        }
+        $stmt = $conn->prepare($sql);
+        if ($stmt === false) {
+            return [];
+        }
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $rs = $stmt->execute();
+        if ($rs === false) {
+            return [];
+        }
+        $rows = [];
+        while (($row = $rs->fetchArray(SQLITE3_ASSOC)) !== false) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
      * Run $fn, retrying IMMEDIATELY when SQLite reports a lock race
      * (SQLITE_BUSY "database is locked" / SQLITE_LOCKED). Returns
      * ['busy' => true] when the lock outlives every attempt; try-catch is
-     * required here because PDO signals the busy state only via PDOException.
+     * required here because both drivers signal the busy state only via
+     * an exception (PDOException / Exception from SQLite3).
      *
      * @return mixed|array{busy:true}
      */
@@ -273,11 +390,11 @@ class EcdictDictionary
             }
             try {
                 return $fn();
-            } catch (PDOException $e) {
-                if (!self::isBusyError($e) || $attempt === self::BUSY_MAX_ATTEMPTS - 1) {
-                    if (!self::isBusyError($e)) {
-                        throw $e;
-                    }
+            } catch (Throwable $e) {
+                if (!self::isBusyError($e)) {
+                    throw $e;
+                }
+                if ($attempt === self::BUSY_MAX_ATTEMPTS - 1) {
                     return ['busy' => true];
                 }
             }
@@ -285,12 +402,14 @@ class EcdictDictionary
         return ['busy' => true];
     }
 
-    /** SQLITE_BUSY (5) / SQLITE_LOCKED (6) detection from the PDO error info. */
-    private static function isBusyError(PDOException $e): bool
+    /** SQLITE_BUSY (5) / SQLITE_LOCKED (6) detection across both drivers. */
+    private static function isBusyError(Throwable $e): bool
     {
-        $info = $e->errorInfo;
-        if (is_array($info) && isset($info[1]) && in_array((int) $info[1], [5, 6], true)) {
-            return true;
+        if ($e instanceof PDOException) {
+            $info = $e->errorInfo;
+            if (is_array($info) && isset($info[1]) && in_array((int) $info[1], [5, 6], true)) {
+                return true;
+            }
         }
         return stripos($e->getMessage(), 'locked') !== false;
     }

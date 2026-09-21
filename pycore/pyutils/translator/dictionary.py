@@ -276,6 +276,61 @@ class DictionaryService:
         return "; ".join(part.strip() for part in text.splitlines() if part.strip())
 
     @serialized_method
+    def match(self, prefix: str, limit: int = 20) -> Dict[str, Any]:
+        """Prefix suggestions for the search box: up to ``limit`` words starting
+        with ``prefix`` (case-insensitive), most frequent first (COCA ``frq``
+        then ``bnc``), each with its first zh sense. busy=True when a lock
+        race with the Laravel end outlives the immediate retries."""
+        prefix = (prefix or "").strip()
+        result: Dict[str, Any] = {"prefix": prefix, "items": []}
+        if not prefix:
+            return result
+        conn = self._ensure_conn()
+        if conn is None:
+            return result
+        limit = max(1, min(int(limit or 20), 50))
+        like = (prefix.replace("\\", "\\\\").replace("%", "\\%")
+                .replace("_", "\\_") + "%")
+        sql = ("SELECT word, translation, frq, bnc FROM stardict "
+               "WHERE word LIKE ? ESCAPE '\\' COLLATE NOCASE "
+               "ORDER BY (frq = 0), frq, (bnc = 0), bnc, word LIMIT ?")
+        rows = None
+        busy = False
+        for delay in _BUSY_RETRY_DELAYS:
+            if delay:
+                time.sleep(delay)
+            try:
+                cur = conn.execute(sql, (like, limit))
+                rows = cur.fetchall()
+                busy = False
+                break
+            except SqliteError as e:
+                if _is_busy_error(e):
+                    busy = True
+                    continue
+                ColorPrint.yellow(f"[dictionary] ECDICT match failed: {e}")
+                return result
+        if busy:
+            result["busy"] = True
+            result["error"] = ("ECDICT database is locked by a concurrent "
+                               "process; retry immediately")
+            return result
+        for word, translation, frq, bnc in rows or []:
+            first_sense = ""
+            for line in (translation or "").splitlines():
+                line = line.strip()
+                if line:
+                    first_sense = line
+                    break
+            result["items"].append({
+                "word": word,
+                "translation": first_sense,
+                "frq": int(frq or 0),
+                "bnc": int(bnc or 0),
+            })
+        return result
+
+    @serialized_method
     def status(self) -> Dict[str, Any]:
         """Install/availability snapshot for the UI + the /dictionary/status route."""
         conn = self._ensure_conn()

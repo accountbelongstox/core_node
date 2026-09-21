@@ -178,6 +178,7 @@ export const PYCORE_HTTP_ROUTES = {
   capabilityStatusPostCapabilitySettings: 'ui/capability_status/post_capability_settings',
   dictionaryDictionaryStatus: 'ui/dictionary/dictionary_status',
   dictionaryDictionaryLookup: 'ui/dictionary/dictionary_lookup',
+  dictionaryDictionaryMatch: 'ui/dictionary/dictionary_match',
   enginesLoadStatusLoadStatus: 'ui/engines_load_status/load_status',
   imageSearchStatus: 'ui/image_search/status',
   imageSearchSearch: 'ui/image_search/search',

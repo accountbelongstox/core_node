@@ -50,6 +50,7 @@ COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/94_install_composer.sh"
 NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_toolchain_26.sh"
 SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/53_install_swoole.sh"
 P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/69_install_p7zip.sh"
+DICTIONARIES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/123_install_dictionaries.sh"
 POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/75_install_postgresql.sh"
 PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
@@ -583,6 +584,18 @@ else
         echo "  Warning: p7zip installer missing: $P7ZIP_INSTALL_SCRIPT"
         echo "  *** ACTION REQUIRED: install 7z manually: sudo apt-get install -y p7zip-full"
     fi
+fi
+
+# --- Ensure the offline ECDICT word dictionary (shared stardict.db) ---
+# The same database backs the pycore translator AND the Laravel
+# /api/app_qy_v1/ecdict/* endpoints. The installer is idempotent (verifies the
+# db and skips when present) and never fails this setup fatally.
+if [ -f "$DICTIONARIES_INSTALL_SCRIPT" ]; then
+    echo "Ensuring offline ECDICT dictionary (idempotent):"
+    echo "  $DICTIONARIES_INSTALL_SCRIPT"
+    bash "$DICTIONARIES_INSTALL_SCRIPT"
+else
+    echo "  Warning: dictionary installer missing: $DICTIONARIES_INSTALL_SCRIPT"
 fi
 
 # --- Ensure Node.js BEFORE sys:init (composer dev / UI tooling; on the

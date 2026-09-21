@@ -5,6 +5,7 @@
 from pycore.callmodule.rpc_routes.route_names import (
     UI_DICTIONARY_DICTIONARY_STATUS,
     UI_DICTIONARY_DICTIONARY_LOOKUP,
+    UI_DICTIONARY_DICTIONARY_MATCH,
 )
 from pycore.pyutils.translator.dictionary import dictionary_service
 
@@ -36,4 +37,19 @@ def register_local_dictionary_routes(server):
         return _run()
 
     server.post(path=UI_DICTIONARY_DICTIONARY_LOOKUP, handler=dictionary_lookup_handler)
+
+    def dictionary_match_handler(params, request_id, context):
+        def _run():
+            prefix = str(params.get("prefix") or params.get("word") or "").strip()
+            try:
+                limit = int(params.get("limit") or 20)
+            except (TypeError, ValueError):
+                limit = 20
+            result = dictionary_service.match(prefix, limit)
+            result["success"] = True
+            return result
+
+        return _run()
+
+    server.post(path=UI_DICTIONARY_DICTIONARY_MATCH, handler=dictionary_match_handler)
 

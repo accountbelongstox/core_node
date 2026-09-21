@@ -56,4 +56,26 @@ class AppQyV1EcdictLookupCtl extends Controller
 
         return $this->success($entry, 'ECDICT lookup completed');
     }
+
+    public function match(Request $request)
+    {
+        $request->validate([
+            'prefix' => 'nullable|string|max:64',
+            'word' => 'nullable|string|max:64',
+            'limit' => 'nullable|integer|min:1|max:50',
+        ]);
+
+        $prefix = trim((string) $request->input('prefix', (string) $request->input('word', '')));
+        $limit = (int) $request->input('limit', 20);
+
+        $result = EcdictDictionary::match($prefix, $limit);
+        if ($result['busy'] ?? false) {
+            return $this->error(
+                'ECDICT database is busy (shared with the pycore service); retry immediately',
+                503,
+                $result
+            );
+        }
+        return $this->success($result, 'ECDICT match');
+    }
 }

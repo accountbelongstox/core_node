@@ -410,6 +410,11 @@ export class AppQyV1API extends BaseAPI {
     return this.post('/ecdict/lookup', { word, target });
   }
 
+  // Search-box prefix suggestions (<= limit words, most frequent first).
+  async matchEcdict(prefix: string, limit = 20): Promise<APIResponse> {
+    return this.get('/ecdict/match', { prefix, limit });
+  }
+
   // ========== Word Validity (third-party verification client) ==========
   // Validity is externally asserted: words are valid by default and become
   // invalid only when a client explicitly reports them so after an online check.
