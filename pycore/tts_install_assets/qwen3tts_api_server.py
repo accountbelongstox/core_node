@@ -257,18 +257,14 @@ async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
 
 
 # Free-VRAM floor (MiB) for auto device selection; mirrors the launcher-side
-# gate in pycore/pyutils/tts/memory_gate.py (standalone script - no pycore
-# imports, so the value is duplicated by contract). The launcher already
-# reclaimed foreign GPU processes before this auto path runs, so the floor is
-# the 800 MB minimum. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
-_QWEN3TTS_MIN_FREE_VRAM_MB = 800
-
-
+# gate in pycore/pyutils/tts/memory_gate.py via _network_constants.
+# The launcher already reclaimed foreign GPU processes before this auto path runs,
+# so the floor is the 800 MB minimum. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
 def _min_free_vram_mb() -> int:
     raw = (os.environ.get("QWEN3TTS_MIN_FREE_VRAM_MB") or "").strip()
     if raw.isdigit():
         return int(raw)
-    return _QWEN3TTS_MIN_FREE_VRAM_MB
+    return int(getattr(_network_constants, "QWEN3TTS_MIN_FREE_VRAM_MB", 800))
 
 
 def _resolve_device() -> str:
@@ -823,11 +819,12 @@ def _bind_port_or_exit(host: str, port: int, backlog: int) -> socket.socket:
 def main():
     host = (os.environ.get("QWEN3TTS_HOST") or _DEFAULT_HOST).strip() or _DEFAULT_HOST
     raw_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
+    default_port = int(getattr(_network_constants, "QWEN3TTS_HTTP_PORT", 57210))
     port_source = "QWEN3TTS_PORT" if raw_port else "default"
     try:
-        port = int(raw_port) if raw_port else 57210
+        port = int(raw_port) if raw_port else default_port
     except ValueError:
-        port = 57210
+        port = default_port
         port_source = "default (invalid QWEN3TTS_PORT ignored)"
     _log(f"[api] Qwen3-TTS API server starting on {host}:{port} "
          f"(port_source={port_source}, model={_model_id()}, device={_resolve_device()})")

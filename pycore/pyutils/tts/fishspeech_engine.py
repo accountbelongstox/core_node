@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyfoundations.network_constants import FISHSPEECH_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
@@ -43,15 +44,13 @@ from pycore.pyfoundations.third_party.api import (
 )
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-
-
 _AVAIL_SIGNAL = 'pyutils.tts.fishspeech.available'
 _AVAIL_TTL_S = 30.0
 _LAST_SYNTH_ERROR = SerializedValue(None, "FishSpeechErrorState")
 
 
 def base_url() -> str:
-    return (os.environ.get("FISHSPEECH_URL") or "http://127.0.0.1:8080").rstrip("/")
+    return (os.environ.get("FISHSPEECH_URL") or f"http://127.0.0.1:{FISHSPEECH_HTTP_PORT}").rstrip("/")
 
 
 def _reference_id() -> str:

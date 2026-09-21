@@ -24,11 +24,12 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyfoundations.network_constants import F5TTS_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.f5tts.available'
@@ -37,7 +38,7 @@ _LAST_SYNTH_ERROR = SerializedValue(None, "F5TTSErrorState")
 
 
 def base_url() -> str:
-    return (os.environ.get("F5TTS_URL") or "http://127.0.0.1:7860").rstrip("/")
+    return (os.environ.get("F5TTS_URL") or f"http://127.0.0.1:{F5TTS_HTTP_PORT}").rstrip("/")
 
 
 def _ref_audio() -> Optional[Path]:

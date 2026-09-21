@@ -84,6 +84,11 @@ $USE_SUDO chmod +x "$SCRIPT_DIR/ssh3.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/ssh3.sh" /usr/local/bin/ssh3
 echo "[LINK] ssh3 -> $SCRIPT_DIR/ssh3.sh"
 
+# Link agyyolo
+$USE_SUDO chmod +x "$SCRIPT_DIR/agyyolo.sh"
+$USE_SUDO ln -sf "$SCRIPT_DIR/agyyolo.sh" /usr/local/bin/agyyolo
+echo "[LINK] agyyolo -> $SCRIPT_DIR/agyyolo.sh"
+
 echo ""
 echo "Symlinks created successfully!"
 echo "You can now run these commands from anywhere:"
@@ -101,3 +106,4 @@ echo "  openai1"
 echo "  ssh1"
 echo "  ssh2"
 echo "  ssh3"
+echo "  agyyolo"

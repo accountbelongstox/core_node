@@ -1,3 +1,36 @@
+#!/usr/bin/env python3
+"""Reusable blocking synthesis operations for the standalone Qwen3-TTS API."""
+from __future__ import annotations
+
+import base64
+import io
+import os
+import re
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import Any, Callable, Dict, List
+
+_CURRENT_DIR = Path(__file__).resolve().parent
+if str(_CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(_CURRENT_DIR))
+
+import librosa
+import numpy as np
+import soundfile as sf
+from pydub import AudioSegment
+
+import tts_server_common
+from tts_text_chunking import (
+    CLAUSE_SPLIT_RE,
+    SENTENCE_MERGE_RATIO,
+    SENTENCE_SPLIT_RE,
+)
+
+# Sentence-level chunked synthesis: long inputs are split into
+# sentence-sized chunks, synthesized, and concatenated with a pause
+# (single-shot long-text generation degrades into noise in the second half,
 # QwenLM/Qwen3-TTS#258). This is the ONLY pipeline - there is no version
 # split: every synthesis result is multi-sentence audio by construction, and
 # /status reports "chunked": true so clients can tag it as such.
@@ -21,13 +54,14 @@
 #   merge cap - a fixed fraction of the hard cap. ADJACENT SENTENCES are only
 #               merged while the merged chunk stays within it, so a
 #               multi-sentence text never becomes one long merged chunk.
-_CHUNK_MAX_CHARS_DEFAULT = 280
-_CHUNK_PAUSE_MS_DEFAULT = 150
-_SENTENCE_MERGE_RATIO = 0.85
-_SPEED_MIN = 0.25
-_SPEED_MAX = 3.0
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;。！？；:：])\s+|(?<=[。！？；])|\n+")
-_CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、])\s*")
+_network_constants = tts_server_common.load_network_constants()
+_CHUNK_MAX_CHARS_DEFAULT = getattr(_network_constants, "QWEN3TTS_CHUNK_MAX_CHARS", 280)
+_CHUNK_PAUSE_MS_DEFAULT = getattr(_network_constants, "QWEN3TTS_CHUNK_PAUSE_MS", 150)
+_SENTENCE_MERGE_RATIO = SENTENCE_MERGE_RATIO
+_SPEED_MIN = getattr(_network_constants, "QWEN3TTS_SPEED_MIN", 0.25)
+_SPEED_MAX = getattr(_network_constants, "QWEN3TTS_SPEED_MAX", 3.0)
+_SENTENCE_SPLIT_RE = SENTENCE_SPLIT_RE
+_CLAUSE_SPLIT_RE = CLAUSE_SPLIT_RE
 
 
 def _chunk_max_chars(speed: float = 1.0) -> int:

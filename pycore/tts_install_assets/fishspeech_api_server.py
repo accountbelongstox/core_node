@@ -41,9 +41,11 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from tts_text_chunking import default_policy, split_text
+import tts_server_common
 
-TMP_DIR = Path(r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp")
-TMP_DIR.mkdir(parents=True, exist_ok=True)
+TMP_DIR = tts_server_common.TMP_DIR
+_network_constants = tts_server_common.load_network_constants()
+_DEFAULT_PORT = getattr(_network_constants, "FISHSPEECH_HTTP_PORT", 8080)
 
 app = FastAPI()
 _upstream = (os.environ.get("FISHSPEECH_UPSTREAM") or "").rstrip("/")
@@ -180,7 +182,7 @@ def tts(req: TtsRequest):
 
 def main():
     host = os.environ.get("FISHSPEECH_HOST", "0.0.0.0")
-    port = int(os.environ.get("FISHSPEECH_PORT", "8080"))
+    port = int(os.environ.get("FISHSPEECH_PORT") or _DEFAULT_PORT)
     uvicorn.run(app, host=host, port=port)
 
 

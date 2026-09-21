@@ -34,9 +34,22 @@ dbSync: {
       title: "机器数据同步",
       description: "在一个工作区中管理多个 Laravel Main 节点。每个源端会话会同时镜像源端与接收端进度；接收端在应用差异前会先备份选定数据库。",
       managedNodes: "管理的 Laravel 节点",
-      sourceNode: "源 Laravel 节点",
-      sourceEndpoint: "源端点",
-      receiverEndpoint: "接收端点",
+      oldServer: "旧服务器",
+      newServer: "新服务器",
+      maxTwoEndpoints: "一次同步最多使用两个端点：本机与一个对端。",
+      peerAuthRequired: "该节点需要单独登录 Laravel。",
+      peerLogin: "登录",
+      peerLogout: "登出",
+      peerLoggedInAs: "已登录为 {{name}}",
+      peerLoginTitle: "对端 Laravel 登录",
+      peerLoginSubtitle: "请登录另一个 Laravel 节点 {{endpoint}}。",
+      probeDirection: "探测方向",
+      probing: "探测中…",
+      directionPush: "旧服务器可以访问 {{new}} —— 新服务器为外网服务器。旧服务器将打包数据并上传（POST）。",
+      directionPull: "旧服务器无法访问新服务器，但新服务器可以访问旧服务器 —— 旧服务器为外网服务器，提供数据供新服务器下载。",
+      directionNone: "两台机器无法互相访问。请检查地址和防火墙规则。",
+      startFetch: "开始拉取同步（新服务器下载）",
+      fetcherBlocked: "新服务器正在接收数据；该会话结束前无法启动拉取同步。",
       source: "源端",
       receiver: "接收端",
       allSessions: "全部节点会话",
@@ -74,7 +87,9 @@ dbSync: {
       incomingPeer: "传入对端",
       roles: {
         source: "源端",
-        receiver: "接收端"
+        receiver: "接收端",
+        fetcher: "拉取端",
+        exporter: "导出端"
       },
       tabs: {
         tables: "状态与数据表",
@@ -88,6 +103,8 @@ dbSync: {
         protocol: "需要使用当前机器同步协议",
         load: "无法加载同步会话。",
         start: "无法启动同步。",
+        fetch: "无法启动拉取同步。",
+        probe: "方向探测失败。",
         target: "无法绑定接收端地址。",
         control: "无法更改同步状态。"
       },
@@ -156,7 +173,19 @@ dbSync: {
         finalize_source_session: "结束源端会话",
         release_source_lock: "释放源端锁",
         publish_final_progress: "发布最终进度",
-        complete: "完成同步"
+        complete: "完成同步",
+        create_exporter_session: "创建导出端会话",
+        wait_exporter_ready: "等待导出端清单就绪",
+        discover_fetcher_databases: "发现拉取端数据库",
+        backup_fetcher_databases: "备份拉取端数据库",
+        fetch_exporter_database_inventory: "获取导出端数据库清单",
+        build_fetcher_resource_manifests: "生成拉取端资源清单",
+        fetch_exporter_resource_manifests: "获取导出端资源清单",
+        finalize_exporter_session: "结束导出端会话",
+        ready_for_export: "进入可导出状态",
+        serve_database_chunks: "提供数据库分块下载",
+        serve_resource_chunks: "提供资源分块下载",
+        finalize_export_session: "结束导出会话"
       }
     },
 header: {
@@ -467,7 +496,6 @@ vocabulary: {
         search: "搜索",
         clear: "清除",
         add_word: "添加单词",
-        refresh: "刷新",
         status: "状态",
         validity_field: "is_valid",
         columns: {

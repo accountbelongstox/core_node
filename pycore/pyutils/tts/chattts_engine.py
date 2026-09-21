@@ -27,11 +27,12 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyfoundations.network_constants import CHATTTS_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.chattts.available'
@@ -40,7 +41,7 @@ _LAST_SYNTH_ERROR = SerializedValue(None, "ChatTTSErrorState")
 
 
 def base_url() -> str:
-    return (os.environ.get("CHATTTS_URL") or "http://127.0.0.1:8000").rstrip("/")
+    return (os.environ.get("CHATTTS_URL") or f"http://127.0.0.1:{CHATTTS_HTTP_PORT}").rstrip("/")
 
 
 def _voice() -> str:

@@ -14,15 +14,23 @@ Env:
 """
 
 import os
+import sys
 import tempfile
 from pathlib import Path
+
+_CURRENT_DIR = Path(__file__).resolve().parent
+if str(_CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(_CURRENT_DIR))
+
+import tts_server_common
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 import uvicorn
 
-TMP_DIR = Path(r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp")
-TMP_DIR.mkdir(parents=True, exist_ok=True)
+TMP_DIR = tts_server_common.TMP_DIR
+_network_constants = tts_server_common.load_network_constants()
+_DEFAULT_PORT = getattr(_network_constants, "F5TTS_HTTP_PORT", 7860)
 
 app = FastAPI()
 _f5 = None
@@ -86,7 +94,7 @@ async def process(
 
 def main():
     host = (os.environ.get("F5TTS_HOST") or "0.0.0.0").strip()
-    port = int(os.environ.get("F5TTS_PORT") or "7860")
+    port = int(os.environ.get("F5TTS_PORT") or _DEFAULT_PORT)
     uvicorn.run(app, host=host, port=port)
 
 

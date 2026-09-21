@@ -1471,6 +1471,24 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         )
         EnvVars           = @()
     }
+    AntigravityCli = @{
+        PackageId           = ""
+        Exec                = "agy.exe"
+        Name                = "AntigravityCli"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Antigravity CLI (agy) - AI-first coding assistant by Google"
+        InstallType         = "powershell"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--help"
+        AdditionalKeywords  = @("agy", "agy.exe", "agy.cmd", "antigravity-cli")
+        DesktopShortcuts    = @()
+        EnvVars             = @(
+            @{
+                Type = @("Path")
+            }
+        )
+        PowerShellCommand   = "irm 'https://antigravity.google/cli/install.ps1' | iex"
+    }
     LangChainCli = @{
         PackageId         = "langchain-cli"
         Exec              = "langchain"
