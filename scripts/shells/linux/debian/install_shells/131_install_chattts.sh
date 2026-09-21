@@ -111,7 +111,9 @@ if tts_dependencies_ready "$PYTHON" "chattts" "$DEPS_SENTINEL" && [[ "$FORCE" -e
 else
     install_pycore_torch_stack "$PYTHON" "[install_chattts] "
     MISSING_PACKAGES=()
-    for PACKAGE_NAME in ChatTTS fastapi uvicorn pydub; do
+    # Package set mirrors the chattts spec in runtime_policy.py (audioop-lts is
+    # pydub's audioop shim on Python 3.13+, where the stdlib module is gone).
+    for PACKAGE_NAME in ChatTTS fastapi uvicorn pydub audioop-lts; do
         PACKAGE_METADATA="$("$PYTHON" -m pip show "$PACKAGE_NAME" 2>/dev/null || true)"
         if [[ "$PACKAGE_METADATA" != *"Name:"* ]]; then
             MISSING_PACKAGES+=("$PACKAGE_NAME")

@@ -69,6 +69,22 @@ class AppFinder:
         'qq': {'binaries': ['qq', 'linuxqq']},
         'devin': {'binaries': ['windsurf', 'devin']},
         'notepad++': {'binaries': []},  # no Linux equivalent
+        # Linux slot for the desktop's DEFAULT text editor (the Windows flow
+        # launches notepad++ instead). The xdg-mime default is tried first in
+        # _find_linux_app; this list is the fallback order.
+        'texteditor': {
+            'binaries': ['gnome-text-editor', 'gedit', 'kate', 'mousepad',
+                         'pluma', 'xed', 'geany'],
+        },
+    }
+
+    # Platform availability per app (absent = both platforms). wechat/notepad++
+    # are launched on Windows only; texteditor is the Linux-only default-editor
+    # slot that replaces notepad++ there.
+    _APP_PLATFORMS = {
+        'wechat': ('windows',),
+        'notepad++': ('windows',),
+        'texteditor': ('linux',),
     }
 
     # Fixed search dirs tried after the central constants (chain step 3).
@@ -99,6 +115,10 @@ class AppFinder:
         'qq': ['qq'],
         'devin': ['windsurf'],
         'notepad++': [],
+        # Linux process comm is truncated to 15 chars: gnome-text-editor shows
+        # up as 'gnome-text-edit' in psutil/ps.
+        'texteditor': ['gnome-text-edit', 'gnome-text-editor', 'gedit', 'kate',
+                       'mousepad', 'pluma', 'xed', 'geany'],
     }
     
     # Chrome-related constants (shared between chrome and chrome_beta)
@@ -202,6 +222,21 @@ class AppFinder:
                 'C:\\Users\\{username}\\AppData\\Local\\Programs\\Microsoft VS Code',
                 'C:\\Program Files\\Microsoft VS Code'
             ]
+        },
+        # Cursor IDE (Windows side; the Linux side resolves via
+        # _LINUX_APP_DEFINITIONS['cursor']).
+        'cursor': {
+            'names': ['Cursor.exe', 'cursor.exe'],
+            'search_paths': [
+                'D:\\applications\\Cursor',
+                'C:\\Users\\{username}\\AppData\\Local\\Programs\\cursor',
+                'C:\\Program Files\\Cursor'
+            ]
+        },
+        # Linux-only slot (default text editor); no Windows exe names on purpose.
+        'texteditor': {
+            'names': [],
+            'search_paths': []
         },
         'aiassistant': {
             'names': [],

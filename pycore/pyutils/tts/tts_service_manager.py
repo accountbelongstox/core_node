@@ -47,7 +47,6 @@ from urllib.parse import urlparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.python_env.isolated_venv import (
-    MAIN_INTERPRETER,
     resolve_python as resolve_isolated_python,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_requests
@@ -90,7 +89,12 @@ def _parse_port(url: str, default: int) -> int:
     return default
 
 def _python_exe() -> str:
-    return str(MAIN_INTERPRETER)
+    """Interpreter for same-interpreter servers (chattts, f5tts): the RUNNING
+    interpreter, which is the exact target the installers pip into (on Linux the
+    project venv python3_venv; on Windows the shared python313). sys.executable
+    keeps the venv's site-packages; the venv's base interpreter (e.g.
+    /usr/bin/python3.13) does not see venv-installed packages like ChatTTS."""
+    return sys.executable
 
 
 def _sync_server_script(staging: Path, filename: str) -> None:
