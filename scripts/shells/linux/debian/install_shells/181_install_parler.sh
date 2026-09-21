@@ -108,7 +108,7 @@ fi
 # allow-list excludes redundant flax/tf/onnx format variants.
 _model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
-    _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+    _sentinel_model="$(_hf_read_sentinel "$MODEL_SENTINEL")"
     if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_parler_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_parler_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_parler_model)"
         _model_ready=1

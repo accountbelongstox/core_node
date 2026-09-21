@@ -430,108 +430,74 @@ add_edge_repository_from_apt_repository_manager() {
     return $?
 }
 
-# Add MariaDB/MySQL repository with automatic backup and restore
-# Note: MariaDB uses an official setup script, so we need to handle it differently
+# Add Oracle MySQL repository with automatic backup and restore
+# MySQL 26.7 is served from the "mysql-innovation" component of the official MySQL
+# APT repository (repo.mysql.com); see "A Quick Guide to Using the MySQL APT Repository".
 add_mysql_repository_from_apt_repository_manager() {
     local os_id="$1"
     local os_codename="$2"
     local command_to_execute="$3"
-    
+
     if [ -z "$os_id" ] || [ -z "$os_codename" ]; then
         echo "ERROR: OS ID and codename are required" >&2
         return 1
     fi
-    
-    # MariaDB uses an official setup script that handles repository addition
-    # We need to backup before running the script, then restore after installation
-    local repo_name="mariadb"
-    local backup_id=$(date +%Y%m%d_%H%M%S)_${repo_name}
-    local backup_dir="$APT_BACKUP_BASE_DIR/$backup_id"
-    
-    # Initialize backup directory
-    if command -v init_apt_backup_dir_from_apt_repository_manager >/dev/null 2>&1; then
-        if ! init_apt_backup_dir_from_apt_repository_manager; then
-            echo "ERROR: Failed to initialize backup directory" >&2
-            return 1
-        fi
-    else
-        echo "WARNING: apt_repository_backup.sh not loaded; skipping backup directory init" >&2
+
+    # repo.mysql.com hosts pools only under /apt/debian and /apt/ubuntu. Normalize
+    # derivatives (Kali etc.) to their base vendor + a hosted codename via the shared
+    # suite resolver (Debian clamps to bookworm/trixie, both hosted by MySQL).
+    local _resolved mysql_vendor mysql_codename
+    _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+    mysql_vendor="${_resolved%% *}"
+    mysql_codename="${_resolved##* }"
+    case "$mysql_vendor" in debian|ubuntu) : ;; *) mysql_vendor="debian" ;; esac
+
+    # Key A8D3785C (MySQL Release Engineering), verified against the repo InRelease.
+    local mysql_key_url="https://repo.mysql.com/RPM-GPG-KEY-mysql-2023"
+    local mysql_key_file="/usr/share/keyrings/mysql-archive-keyring.gpg"
+    local mysql_repo_line="deb [signed-by=$mysql_key_file] http://repo.mysql.com/apt/${mysql_vendor}/ ${mysql_codename} mysql-innovation"
+
+    execute_with_repo_backup_from_apt_repository_manager \
+        "mysql" \
+        "$mysql_repo_line" \
+        "$mysql_key_url" \
+        "$mysql_key_file" \
+        "$command_to_execute"
+
+    return $?
+}
+
+# Add official Redis repository with automatic backup and restore
+# Latest stable Redis (8.10.x) is published at packages.redis.io; see redis.io docs.
+add_redis_repository_from_apt_repository_manager() {
+    local os_id="$1"
+    local os_codename="$2"
+    local command_to_execute="$3"
+
+    if [ -z "$os_id" ] || [ -z "$os_codename" ]; then
+        echo "ERROR: OS ID and codename are required" >&2
+        return 1
     fi
 
-    # Backup current state
-    if command -v backup_apt_sources_from_apt_repository_manager >/dev/null 2>&1; then
-        if ! backup_apt_sources_from_apt_repository_manager "$backup_id"; then
-            echo "ERROR: Failed to backup current state" >&2
-            return 1
-        fi
-    else
-        echo "WARNING: apt_repository_backup.sh not loaded; skipping pre-install backup" >&2
-    fi
-    
-    # Ensure required packages are available
-    if ! ensure_packages_from_apt_repository_manager curl apt-transport-https ca-certificates; then
-        echo "ERROR: Failed to install required packages" >&2
-        restore_apt_sources_from_apt_repository_manager "$backup_id"
-        return 1
-    fi
-    
-    # Download the MariaDB setup script directly to an absolute path. -f makes an
-    # HTTP error (e.g. a transient 5xx returning an HTML body) a hard failure
-    # instead of saving error HTML and running it; -o avoids writing into (and
-    # depending on the writability of) the current working directory.
-    local setup_script="/tmp/mariadb_repo_setup"
-    if ! curl -fLsS -o "$setup_script" https://r.mariadb.com/downloads/mariadb_repo_setup; then
-        echo "ERROR: Failed to download mariadb_repo_setup script" >&2
-        restore_apt_sources_from_apt_repository_manager "$backup_id"
-        return 1
-    fi
-    fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
+    # packages.redis.io hosts a single multi-vendor pool keyed by distro codename.
+    # Normalize derivatives (Kali etc.) to a hosted codename via the shared suite resolver.
+    local _resolved redis_vendor redis_codename
+    _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+    redis_vendor="${_resolved%% *}"
+    redis_codename="${_resolved##* }"
 
-    # mariadb_repo_setup auto-detects the OS from /etc/os-release and does NOT
-    # recognize rolling derivatives (Kali/Parrot report ID=kali / kali-rolling),
-    # failing with "Could not identify OS type or version". Normalize such hosts to
-    # their base Debian/Ubuntu vendor + a hosted codename (reusing the same mapping
-    # the PHP repo uses) and pass --os-type/--os-version explicitly. Debian/Ubuntu
-    # are recognized natively and pass through unchanged.
-    local mdb_os_args=""
-    local _suite="" _vendor="" _codename=""
-    case "$(printf '%s' "$os_id" | tr '[:upper:]' '[:lower:]')" in
-        ubuntu|debian) : ;;
-        *)
-            _suite="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
-            _vendor="${_suite%% *}"
-            _codename="${_suite##* }"
-            if [ -n "$_vendor" ] && [ -n "$_codename" ] && [ "$_vendor" != "$os_id" ]; then
-                mdb_os_args="--os-type=$_vendor --os-version=$_codename"
-                echo "[mariadb] '$os_id/$os_codename' not natively supported; using $mdb_os_args"
-            fi
-            ;;
-    esac
+    local redis_key_url="https://packages.redis.io/gpg"
+    local redis_key_file="/usr/share/keyrings/redis-archive-keyring.gpg"
+    local redis_repo_line="deb [signed-by=$redis_key_file] https://packages.redis.io/deb ${redis_codename} main"
 
-    # Run the setup script
-    if ! $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools $mdb_os_args; then
-        echo "ERROR: Failed to setup MariaDB repository" >&2
-        $USE_SUDO rm -f "$setup_script"
-        restore_apt_sources_from_apt_repository_manager "$backup_id"
-        return 1
-    fi
-    
-    $USE_SUDO rm -f "$setup_script"
-    
-    # Update package list
-    $USE_SUDO apt update
-    
-    # Execute the installation command
-    if ! eval "$command_to_execute"; then
-        echo "ERROR: Installation command failed" >&2
-        restore_apt_sources_from_apt_repository_manager "$backup_id"
-        return 1
-    fi
-    
-    # Restore original sources after successful installation
-    restore_apt_sources_from_apt_repository_manager "$backup_id"
-    
-    return 0
+    execute_with_repo_backup_from_apt_repository_manager \
+        "redis" \
+        "$redis_repo_line" \
+        "$redis_key_url" \
+        "$redis_key_file" \
+        "$command_to_execute"
+
+    return $?
 }
 
 # Add repository permanently (no restore) - for manage_repositories function
@@ -609,25 +575,27 @@ remove_apt_repository_from_apt_repository_manager() {
         fi
     done
     
-    # Remove MariaDB specific files
-    if [ "$repo_name" = "mariadb" ]; then
-        local mariadb_files=(
+    # Remove MySQL/MariaDB specific files (including legacy MariaDB setup-script files)
+    if [ "$repo_name" = "mysql" ] || [ "$repo_name" = "mariadb" ]; then
+        local mysql_files=(
+            "/etc/apt/sources.list.d/mysql.list"
             "/etc/apt/sources.list.d/mariadb.list"
             "/etc/apt/sources.list.d/mariadb-10.11.list"
             "/etc/apt/sources.list.d/mariadb-maxscale.list"
         )
-        for file in "${mariadb_files[@]}"; do
+        for file in "${mysql_files[@]}"; do
             if [ -f "$file" ]; then
                 $USE_SUDO rm -f "$file"
                 echo "Removed: $file"
             fi
         done
-        
-        local mariadb_keys=(
+
+        local mysql_keys=(
+            "/usr/share/keyrings/mysql-archive-keyring.gpg"
             "/usr/share/keyrings/mariadb-keyring.gpg"
             "/usr/share/keyrings/mariadb-archive-keyring.gpg"
         )
-        for key in "${mariadb_keys[@]}"; do
+        for key in "${mysql_keys[@]}"; do
             if [ -f "$key" ]; then
                 $USE_SUDO rm -f "$key"
                 echo "Removed: $key"
@@ -694,7 +662,7 @@ manage_repositories_from_apt_repository_manager() {
     # Manage MySQL repository
     if [ "$install_mysql" = "true" ]; then
         echo "Managing MySQL repository..."
-        
+
         # Detect OS
         local os_id=""
         local os_codename=""
@@ -703,52 +671,39 @@ manage_repositories_from_apt_repository_manager() {
             os_id="$ID"
             os_codename="$VERSION_CODENAME"
         fi
-        
+
         # Check if already added
-        local mariadb_files=(
-            "/etc/apt/sources.list.d/mariadb.list"
-            "/etc/apt/sources.list.d/mariadb-10.11.list"
-            "/etc/apt/sources.list.d/mariadb-maxscale.list"
-        )
-        
-        local already_added=false
-        for file in "${mariadb_files[@]}"; do
-            if [ -f "$file" ]; then
-                already_added=true
-                echo "MariaDB repository already added at: $file"
-                break
-            fi
-        done
-        
-        if [ "$already_added" = false ]; then
-            # Use MariaDB setup script (permanent, no restore)
-            # Ensure required packages are available
-            if ! ensure_packages_from_apt_repository_manager curl apt-transport-https ca-certificates; then
-                echo "Warning: Failed to install required packages" >&2
-                return 1
-            fi
-            
-            local setup_script="/tmp/mariadb_repo_setup"
-            # -f: fail on HTTP error (don't save/run error HTML); -o: absolute path,
-            # never the current working directory.
-            if curl -fLsS -o "$setup_script" https://r.mariadb.com/downloads/mariadb_repo_setup; then
-                fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
-                
-                if $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools; then
-                    $USE_SUDO rm -f "$setup_script"
-                    $USE_SUDO apt update
-                    echo "MariaDB repository added successfully"
-                else
-                    echo "Warning: MariaDB repository addition failed"
-                    $USE_SUDO rm -f "$setup_script"
-                fi
+        if [ -f "/etc/apt/sources.list.d/mysql.list" ]; then
+            echo "MySQL repository already added"
+        else
+            # Resolve to the vendor + codename the official MySQL APT repository hosts
+            local _resolved mysql_vendor mysql_codename
+            _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+            mysql_vendor="${_resolved%% *}"
+            mysql_codename="${_resolved##* }"
+            case "$mysql_vendor" in debian|ubuntu) : ;; *) mysql_vendor="debian" ;; esac
+
+            local mysql_key_url="https://repo.mysql.com/RPM-GPG-KEY-mysql-2023"
+            local mysql_key_file="/usr/share/keyrings/mysql-archive-keyring.gpg"
+            local mysql_repo_line="deb [signed-by=$mysql_key_file] http://repo.mysql.com/apt/${mysql_vendor}/ ${mysql_codename} mysql-innovation"
+
+            # Add MySQL repository (permanent, no restore)
+            add_apt_repository_from_apt_repository_manager \
+                "mysql" \
+                "$mysql_repo_line" \
+                "$mysql_key_url" \
+                "$mysql_key_file"
+
+            if [ $? -eq 0 ]; then
+                $USE_SUDO apt update
+                echo "MySQL repository added successfully"
             else
-                echo "Warning: Failed to download MariaDB setup script"
+                echo "Warning: MySQL repository addition failed"
             fi
         fi
     elif [ "$install_mysql" = "false" ]; then
         echo "Removing MySQL repository..."
-        remove_apt_repository_from_apt_repository_manager "mariadb"
+        remove_apt_repository_from_apt_repository_manager "mysql"
     else
         echo "INSTALL_MYSQL not set or invalid: $install_mysql"
     fi

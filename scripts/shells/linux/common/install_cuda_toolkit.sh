@@ -99,45 +99,68 @@ cti_make_libxml2_shim() {
 
 # Persist CUDA PATH + LD_LIBRARY_PATH via /etc/profile.d (idempotent).
 cti_setup_env() {
-    local pf="/etc/profile.d/cuda.sh"
-    if [ ! -f "$pf" ] || ! grep -q "${CTI_CUDA_HOME}/bin" "$pf" 2>/dev/null; then
+    local pf="/etc/profile.d/cuda.sh" nvcc_path="" actual_home="$CTI_CUDA_HOME"
+    nvcc_path="$(cti_find_nvcc)"
+    if [ -n "$nvcc_path" ]; then
+        actual_home="$(dirname "$(dirname "$(readlink -f "$nvcc_path")")")"
+    fi
+    if [ ! -f "$pf" ] || ! grep -q "${actual_home}/bin" "$pf" 2>/dev/null; then
         printf 'export PATH=%s/bin:$PATH\nexport LD_LIBRARY_PATH=%s/lib64:${LD_LIBRARY_PATH:-}\n' \
-            "$CTI_CUDA_HOME" "$CTI_CUDA_HOME" | cti_sudo tee "$pf" >/dev/null 2>&1 || true
+            "$actual_home" "$actual_home" | cti_sudo tee "$pf" >/dev/null 2>&1 || true
         echo "[OK] Wrote CUDA env to $pf"
     fi
 }
 
+# Resolve the installed nvcc: the canonical policy home, the /usr/local/cuda
+# symlink, then any cuda-<major>.<minor> tree. The apt repo only carries the
+# newest minor per ABI major (policy 13.0 -> apt cuda-13.4), so the canonical
+# path is not authoritative.
+cti_find_nvcc() {
+    local candidate
+    for candidate in "$CTI_NVCC" /usr/local/cuda/bin/nvcc /usr/local/cuda-"${CTI_CUDA_SHORT%%.*}"*/bin/nvcc; do
+        [ -x "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+    done
+    command -v nvcc 2>/dev/null || true
+}
+
 cti_ensure_cuda_toolkit() {
-    local os scratch run_path shim_dir free ver toolkit_package
+    local os scratch run_path shim_dir free ver toolkit_package active_nvcc
     echo "============================================================"
     echo " CUDA Toolkit prerequisite installer (pinned ${CTI_CUDA_VERSION})"
     echo "============================================================"
 
-    # Idempotent skip only when the active nvcc matches the canonical minor.
-    if [ -x "$CTI_NVCC" ] || cti_have nvcc; then
-        ver="$( { "$CTI_NVCC" --version 2>/dev/null || nvcc --version 2>/dev/null; } | grep -i release | head -1)"
-        if [[ "$ver" == *"release $CTI_CUDA_SHORT"* ]]; then
-            echo "[SKIP] Canonical CUDA toolkit already installed: $(command -v nvcc 2>/dev/null || echo "$CTI_NVCC")"
+    # Idempotent skip when the active nvcc matches the canonical ABI major
+    # (the apt repo carries only the newest minor per major, so minors float).
+    active_nvcc=""
+    active_nvcc="$(cti_find_nvcc)"
+    if [ -n "$active_nvcc" ]; then
+        ver="$( { "$active_nvcc" --version 2>/dev/null || true; } | grep -i release | head -1)"
+        if [[ "$ver" =~ release\ (${CTI_CUDA_SHORT%%.*})\. ]]; then
+            echo "[SKIP] Canonical CUDA toolkit already installed: $active_nvcc"
             [ -n "$ver" ] && echo "       $ver"
             cti_setup_env
             return 0
         fi
-        echo "[INFO] Active nvcc differs from policy $CTI_CUDA_SHORT; installing the canonical toolkit alongside it."
+        echo "[INFO] Active nvcc differs from policy major ${CTI_CUDA_SHORT%%.*}; installing the canonical toolkit alongside it."
     fi
 
     os="$(cti_os_id)"
 
-    # Path A: versioned cuda-toolkit package when an NVIDIA CUDA apt repo is configured
-    # (typical on Ubuntu/Debian with the network repo). Kali has none -> skip.
-    toolkit_package="cuda-toolkit-${CTI_CUDA_SHORT//./-}"
-    if [ "$os" != "kali" ] && cti_have apt-get && apt-cache show "$toolkit_package" >/dev/null 2>&1; then
-        echo "[APT] NVIDIA CUDA repo detected -> installing $toolkit_package..."
-        if cti_sudo apt-get install -y "$toolkit_package" && { cti_have nvcc || [ -x "$CTI_NVCC" ]; }; then
-            echo "[OK] CUDA toolkit installed via apt."
-            cti_setup_env
-            return 0
-        fi
-        echo "[APT] apt install did not yield nvcc; falling back to the .run installer."
+    # Path A: versioned cuda-toolkit package when an NVIDIA CUDA apt repo is
+    # configured (typical on Ubuntu/Debian with the network repo). Kali has
+    # none -> skip. Candidates: exact policy minor first, then the ABI-major
+    # metapackage (the repo drops superseded minors, e.g. 13.0 -> 13.4).
+    if [ "$os" != "kali" ] && cti_have apt-get; then
+        for toolkit_package in "cuda-toolkit-${CTI_CUDA_SHORT//./-}" "cuda-toolkit-${CTI_CUDA_SHORT%%.*}"; do
+            apt-cache show "$toolkit_package" >/dev/null 2>&1 || continue
+            echo "[APT] NVIDIA CUDA repo detected -> installing $toolkit_package..."
+            if cti_sudo apt-get install -y "$toolkit_package" && [ -n "$(cti_find_nvcc)" ]; then
+                echo "[OK] CUDA toolkit installed via apt ($toolkit_package)."
+                cti_setup_env
+                return 0
+            fi
+        done
+        echo "[APT] apt cuda-toolkit unavailable or did not yield nvcc; falling back to the .run installer."
     fi
 
     # Path B: official local .run installer (Kali + any host without the apt repo).
@@ -174,13 +197,17 @@ cti_ensure_cuda_toolkit() {
     # --toolkit  : toolkit only (driver comes from apt nvidia-driver, not the .run)
     # --override : bypass the gcc/version compatibility check (Kali gcc is newer)
     # --silent   : non-interactive
-    cti_sudo env LD_LIBRARY_PATH="$shim_dir:${LD_LIBRARY_PATH:-}" \
+    # DISPLAY/XAUTHORITY are stripped: with a display present the makeself
+    # installer self-re-execs into an xterm GUI mode (--xwin) and hangs
+    # forever on headless/automation runs.
+    cti_sudo env -u DISPLAY -u XAUTHORITY LD_LIBRARY_PATH="$shim_dir:${LD_LIBRARY_PATH:-}" \
         sh "$run_path" --silent --toolkit --override --tmpdir="$scratch" \
         || echo "[RUN] WARN: .run returned non-zero (libxml2 'no version information' is benign); verifying nvcc..."
 
-    if [ -x "$CTI_NVCC" ]; then
-        echo "[OK] CUDA toolkit installed: $CTI_NVCC"
-        "$CTI_NVCC" --version 2>/dev/null | grep -i release | head -1
+    active_nvcc="$(cti_find_nvcc)"
+    if [ -n "$active_nvcc" ]; then
+        echo "[OK] CUDA toolkit installed: $active_nvcc"
+        "$active_nvcc" --version 2>/dev/null | grep -i release | head -1
         cti_setup_env
         return 0
     fi

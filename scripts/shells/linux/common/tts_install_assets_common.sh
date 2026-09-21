@@ -750,6 +750,73 @@ _hf_download_file() {
     return 0
 }
 
+# Read a model sentinel written by EITHER OS and print the bare value: strips
+# a leading UTF-8 BOM (Windows PowerShell `Set-Content -Encoding utf8` emits
+# BOM + CRLF) and the trailing CR/LF. `tr -d` cannot do this: GNU tr has no
+# \u escape, so `tr -d '\r\n\ufeff'` silently deletes the LETTERS u/f/e from
+# the model id instead of the BOM bytes.
+_hf_read_sentinel() {
+    local path="$1"
+    [[ -f "$path" ]] || return 1
+    sed -e '1s/^\xef\xbb\xbf//' -e 's/\r$//' "$path" 2>/dev/null | head -n1
+}
+
+# Resolve the newest local HF hub snapshot dir for a repo ('' + rc 1 when absent):
+# $HF_HUB_CACHE/models--<org>--<name>/snapshots/<rev>. The hub cache is shared
+# with Windows (D:\www\cache\huggingface\hub == /www/www/cache/huggingface/hub),
+# so a repo fetched by EITHER OS (transformers runtime, hf CLI, or the other
+# side's installer) is found here.
+_hf_hub_repo_snapshot_dir() {
+    local repo="$1" hub_root="" repo_dir="" snap=""
+    hub_root="${HF_HUB_CACHE:-${HUGGINGFACE_HUB_CACHE:-${HF_HOME:+$HF_HOME/hub}}}"
+    [[ -n "$hub_root" ]] || return 1
+    repo_dir="${hub_root%/}/models--${repo//\//--}"
+    [[ -d "$repo_dir/snapshots" ]] || return 1
+    snap="$(ls -1t "$repo_dir/snapshots" 2>/dev/null | head -n1)"
+    [[ -n "$snap" && -d "$repo_dir/snapshots/$snap" ]] || return 1
+    printf '%s\n' "$repo_dir/snapshots/$snap"
+    return 0
+}
+
+# Reuse a repo already present in the HF HUB cache by MATERIALIZING the
+# allow-listed files into the flat dest: plain copies dereferencing the hub's
+# blob symlinks (cp -L), never new symlinks -- a cache shared across operating
+# systems must stay plain files (official HF_HUB_DISABLE_SYMLINKS guidance:
+# symlinks created on one OS are not always traversable on the other). Files
+# already present at the dest are kept (resume semantics). Returns 0 only when
+# the dest afterwards satisfies the OFFLINE readiness contract (config.json +
+# at least one nonzero allow-listed weight file); the caller then writes the
+# sentinel. On any gap it returns 1 and the caller falls through to the normal
+# resumable download, which also completes the partially materialized tree.
+_hf_flat_materialize_from_hub() {
+    local repo="$1" dest="$2" allow_raw="$3" prefix="$4" py="${5:-python3}"
+    local snap_dir="" src="" rel="" copied=0
+    local -a allow=()
+    IFS=',' read -r -a allow <<< "$allow_raw"
+    snap_dir="$(_hf_hub_repo_snapshot_dir "$repo")" || return 1
+    [[ -f "$snap_dir/config.json" ]] || return 1
+    while IFS= read -r -d '' src; do
+        rel="${src#"$snap_dir"/}"
+        _hf_allow_match "$rel" "${allow[@]}" || continue
+        # Resume semantics: skip only a byte-complete copy; a partial file
+        # (e.g. an interrupted earlier materialize) is re-copied in full.
+        if [[ -f "${dest%/}/$rel" ]]; then
+            local dst_size="" src_size=""
+            dst_size="$(wc -c < "${dest%/}/$rel" 2>/dev/null | tr -d ' ')"
+            src_size="$(wc -c < "$src" 2>/dev/null | tr -d ' ')"
+            [[ "${src_size:-0}" -gt 0 && "${dst_size:-0}" == "${src_size:-0}" ]] && continue
+        fi
+        mkdir -p "${dest%/}/$(dirname "$rel")" 2>/dev/null || true
+        cp -L "$src" "${dest%/}/$rel" 2>/dev/null || return 1
+        copied=$((copied + 1))
+    done < <(find "$snap_dir" \( -type f -o -type l \) -print0 2>/dev/null)
+    if neural_tts_local_weights_ready "$dest" "" "$py" "" "$allow_raw"; then
+        echo "${prefix}[reuse] materialized ${copied} file(s) from shared HF hub cache: $snap_dir (no download)"
+        return 0
+    fi
+    return 1
+}
+
 install_hf_repo_flat() {
     local repo="$1" dest="$2" sentinel="$3" prefix="$4"
     shift 4 || true
@@ -763,6 +830,18 @@ install_hf_repo_flat() {
         local_bytes="$(find "$dest" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
         printf '%s\n' "$sentinel_value" > "$sentinel"
         echo "${prefix}[idempotent] local model found: ${dest} (${local_bytes} bytes); remote lookup skipped"
+        TTS_HF_REPO_READY=1
+        return 0
+    fi
+    # Cross-layout reuse (Windows <-> Linux dual-boot, transformers runtime):
+    # the SAME repo may already sit in the shared HF HUB cache even though this
+    # flat dest/sentinel was never populated (e.g. the other OS fetched it via
+    # the hub layout only -- observed: nllb200/qwen25 flat weights empty while
+    # models--facebook--nllb-200-distilled-600M / models--Qwen--Qwen2.5-0.5B-
+    # Instruct sit complete in the hub). Materialize from the hub snapshot --
+    # same-disk copy, no network -- before any remote lookup.
+    if _hf_flat_materialize_from_hub "$repo" "$dest" "$allow_raw" "$prefix" "$py"; then
+        printf '%s\n' "$sentinel_value" > "$sentinel"
         TTS_HF_REPO_READY=1
         return 0
     fi

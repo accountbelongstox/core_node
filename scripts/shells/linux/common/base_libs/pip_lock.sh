@@ -28,11 +28,20 @@ if [ -z "${PIP_LOCK_FILE:-}" ]; then
 fi
 
 # Run a command under the shared pip lock (exclusive). Falls back to running the
-# command directly when flock or the lock file is unavailable.
+# command directly when flock or the lock file is unavailable. Large accelerator
+# wheels (paddle ~2GB, torch ~600MB) outlast pip's 15s read timeout on slow or
+# shared links, so resilient defaults are injected; caller-set values win.
+# PIP_RESUME_RETRIES (pip >= 24) restarts an interrupted stream from its byte
+# offset instead of restarting the whole wheel; older pip ignores unknown env.
 vpip() {
+    local _env=(env
+        "PIP_DEFAULT_TIMEOUT=${PIP_DEFAULT_TIMEOUT:-120}"
+        "PIP_RETRIES=${PIP_RETRIES:-10}"
+        "PIP_RESUME_RETRIES=${PIP_RESUME_RETRIES:-10}"
+    )
     if command -v flock >/dev/null 2>&1 && [ -e "$PIP_LOCK_FILE" ]; then
-        flock "$PIP_LOCK_FILE" "$@"
+        flock "$PIP_LOCK_FILE" "${_env[@]}" "$@"
     else
-        "$@"
+        "${_env[@]}" "$@"
     fi
 }

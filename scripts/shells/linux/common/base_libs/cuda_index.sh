@@ -52,6 +52,29 @@ cuda_policy_row_by_tag() {
     return 1
 }
 
+# Newest configured tier row (highest minimum driver cv; rows may be unordered).
+# Mirrors runtime_abi._load_cuda_tiers sorting (minimum_driver_cv DESC).
+cuda_policy_newest_row() {
+    local row best="" best_min=-1 tag minimum
+    local -a cuda_rows
+    IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+    for row in "${cuda_rows[@]}"; do
+        IFS=':' read -r tag minimum _ <<< "$row"
+        [[ "$minimum" =~ ^[0-9]+$ ]] || continue
+        if [[ "$minimum" -gt "$best_min" ]]; then best_min="$minimum"; best="$row"; fi
+    done
+    printf '%s' "$best"
+}
+
+# 0 when the active driver reports a CUDA cv but it is below EVERY configured
+# tier (driver too old for the unified policy; needs an upgrade, not CPU wheels).
+cuda_policy_driver_below_tiers() {
+    local cv
+    cv="$(cuda_driver_cv)"
+    [[ -n "$cv" ]] || return 1
+    [[ -z "$(cuda_policy_tag)" ]]
+}
+
 cuda_policy_tag() {
     local cv requested torch_tag paddle_tag row tag minimum
     local -a cuda_rows

@@ -377,39 +377,29 @@ fm_variant_ready() {
 }
 
 # The runtime contract is file-backed: selected owner, canonical executable
-# target and both embedded-PHP shims must agree. Callers use this probe after
-# commit and before retiring any non-owner payload.
+# target and the single php CLI link must agree. Callers use this probe after
+# commit and before retiring any non-owner payload. The php entrypoint follows
+# the php_link_common.sh contract: ONE symlink /usr/local/bin/php -> the real
+# CLI binary (php-zts); the old frankenphp php-cli bash shims were removed
+# because `frankenphp php-cli` treats -v/-r/-l as script files.
 fm_runtime_contract_ready() {
     local variant=""
     local binary=""
     local linked_binary=""
-    local shim=""
-    local shim_content=""
-    local scan_path=""
+    local php_link=""
     local ready="yes"
 
     variant="${1:-$(fm_variant)}"
     binary="$(fm_resolve_binary_path "$(fm_variant_binary_path "$variant")")"
     linked_binary="$(fm_resolve_binary_path "$FRANKENPHP_LINK_PATH")"
-    scan_path="$(fm_php_ini_scan_path)"
+    php_link="${PHP_LINK_CANONICAL:-/usr/local/bin/php}"
     if [ "$(fm_variant)" != "$variant" ] || [ -z "$binary" ] || [ "$linked_binary" != "$binary" ] \
         || [ "$(fm_variant_binary_ready "$variant" "$binary")" != "yes" ]; then
         ready="no"
     fi
-    for shim in "$FRANKENPHP_PHP_SHIM_PATH" "$FRANKENPHP_PHP_CLI_SHIM_PATH"; do
-        shim_content=""
-        if [ -f "$shim" ]; then
-            shim_content="$(cat "$shim" 2>/dev/null)"
-        fi
-        case "$shim_content" in
-            *"exec ${binary} ${FRANKENPHP_PHP_RUNTIME_SUBCMD}"*) ;;
-            *) ready="no" ;;
-        esac
-        case "$shim_content" in
-            *"export PHP_INI_SCAN_DIR=\"${scan_path}\""*) ;;
-            *) ready="no" ;;
-        esac
-    done
+    if [ ! -x "$php_link" ] || ! "$php_link" -v >/dev/null 2>&1; then
+        ready="no"
+    fi
     echo "$ready"
 }
 
@@ -569,66 +559,24 @@ fm_php_full_version() {
     fm_php_full_version_of "$(fm_get_binary)"
 }
 
-# Ensure the `php` / `php-cli` command shims route to the embedded PHP
-# (frankenphp plane PHP runtime; file-probe idempotent - a shim already
-# execing this binary stays untouched). /usr/local/bin precedes /usr/bin
-# in PATH, so the shim is the effective `php` even if an apt PHP lingers.
+# Ensure the `php` CLI entrypoint converges on ONE canonical link (idempotent).
+# REPLACED the old bash shims (php / php-cli under /usr/local/bin exec'ing
+# `frankenphp php-cli`): that subcommand treats normal php flags (-v/-r/-l) as
+# SCRIPT FILES ("Failed opening required '-v'"), breaking composer and every
+# php CLI probe. The contract now lives in php_link_common.sh: a single
+# /usr/local/bin/php symlink to the real CLI binary (php-zts), duplicates
+# (/usr/bin/php, legacy shims) removed idempotently. The passed binary arg is
+# accepted for caller compatibility and ignored.
 fm_ensure_php_cli_shim() {
-    local binary=""
-    local shim=""
-    local wanted=""
-    local existing=""
-    local size=""
-    local tmp_shim=""
+    local _fm_link_common=""
 
-    binary="$(fm_resolve_binary_path "${1:-$(fm_get_binary)}")"
-    if [ -z "$binary" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] no selected frankenphp binary; php-cli shim not created (run step 93 first)"
-        return
+    _fm_link_common="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/php_link_common.sh"
+    [ -f "$_fm_link_common" ] && source "$_fm_link_common"
+    if command -v ensure_single_php_link >/dev/null 2>&1; then
+        ensure_single_php_link
+    else
+        echo "[$SCRIPT_INDEX] [WARN] php_link_common.sh missing; php link convergence skipped"
     fi
-    for shim in php php-cli; do
-        wanted="#!/usr/bin/env bash
-args=()
-export PHP_INI_SCAN_DIR=\"${FRANKENPHP_PHP_INI_SCAN_PATH}\"
-while [ \"\$#\" -gt 0 ]; do
-    case \"\$1\" in
-        --)
-            shift
-            ;;
-        -d)
-            shift
-            if [ \"\$#\" -gt 0 ]; then
-                shift
-            fi
-            ;;
-        -d*)
-            shift
-            ;;
-        *)
-            args+=(\"\$1\")
-            shift
-            ;;
-    esac
-done
-
-exec ${binary} php-cli \"\${args[@]}\""
-        existing=""
-        if [ -f "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" ]; then
-            # Only read if it's a small file (likely our shim) to avoid null byte warnings from binaries
-            size=$(wc -c < "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" 2>/dev/null || echo 0)
-            if [ "$size" -lt 1000 ]; then
-                existing="$(cat "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" 2>/dev/null | tr -d '\0')"
-            fi
-        fi
-        if [ "$existing" = "$wanted" ]; then
-            continue
-        fi
-        tmp_shim="${FRANKENPHP_PHP_SHIM_DIR}/.${shim}.tmp.$$"
-        printf '%s\n' "$wanted" > "$tmp_shim"
-        chmod 755 "$tmp_shim"
-        mv -f "$tmp_shim" "${FRANKENPHP_PHP_SHIM_DIR}/${shim}"
-        echo "[$SCRIPT_INDEX] php-cli shim installed: ${FRANKENPHP_PHP_SHIM_DIR}/${shim} -> ${binary} php-cli"
-    done
 }
 
 # Runtime-only convergence. Installation, compilation, package cleanup and

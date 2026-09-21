@@ -247,7 +247,10 @@ def get_shared_download_cache_dir() -> Path:
     r"""Shared download cache root (HF / pip / whisper / torch / TTS models).
 
     Windows: D:\www\cache  (replaces %USERPROFILE%\.cache)
-    Linux:   /var/_core_node/cache  (CORE_NODE_CACHE_DIR)
+    Linux dual-boot (/www = NTFS disk root): /www/www/cache -- the SAME tree
+        (D:\www\cache, ONE EXTRA LEVEL), so both OSes share one copy of every
+        model; weights are device-agnostic and serve GPU and CPU runs alike.
+    Linux-only: /var/_core_node/cache  (CORE_NODE_CACHE_DIR)
 
     Respects CORE_NODE_CACHE_DIR when already exported.
     """
@@ -256,6 +259,9 @@ def get_shared_download_cache_dir() -> Path:
         return _ensure_dir(Path(env_val))
     if sys.platform == 'win32':
         return _ensure_dir(map_web_path('cache'))
+    cross_os = _linux_cross_os_cache_dir()
+    if cross_os is not None:
+        return cross_os
     shared = Path('/var/_core_node/cache')
     try:
         _ensure_dir(shared)
@@ -324,8 +330,16 @@ def apply_shared_cache_env() -> None:
     shared = get_shared_download_cache_dir()
     hf_home = shared / 'huggingface'
     hf_hub = hf_home / 'hub'
+    # Cross-OS shared tree (Windows, or a Linux dual-boot whose /www is the NTFS
+    # disk root): XDG_CACHE_HOME is the cache ROOT itself (mirrors
+    # SharedCacheEnv.ps1 / shared_cache_env.sh) so whisper finds the SAME
+    # <cache>/whisper/*.pt files; and per official HF guidance a hub cache
+    # shared across operating systems stores plain files instead of snapshot
+    # symlinks (HF_HUB_DISABLE_SYMLINKS=1 -- symlinks created on one OS are not
+    # always traversable on the other).
+    cross_os_shared = sys.platform == 'win32' or _linux_cross_os_cache_dir() is not None
     xdg_home = get_xdg_cache_home() if os.environ.get('XDG_CACHE_HOME') else (
-        shared if sys.platform == 'win32' else shared / 'xdg'
+        shared if cross_os_shared else shared / 'xdg'
     )
 
     defaults = (
@@ -338,6 +352,8 @@ def apply_shared_cache_env() -> None:
         ('WHISPER_CACHE_DIR', str(shared / 'whisper')),
         ('XDG_CACHE_HOME', str(xdg_home)),
     )
+    if cross_os_shared:
+        defaults += (('HF_HUB_DISABLE_SYMLINKS', '1'),)
     for key, value in defaults:
         if not os.environ.get(key):
             os.environ[key] = value
@@ -417,6 +433,58 @@ def get_lang_compiler_dir() -> Path:
 # findmnt disk detection re-implemented here so all three languages still converge.
 # --------------------------------------------------------------------------- #
 _BASE_DATA_DIR_FILE = '/var/_core_node/global_var/BASE_DATA_DIR'
+# Central WWW variable persisted by 3_setting_base.sh (single source of truth
+# for the D:\www-equivalent web base; read identically by sh/py/PHP).
+_WWW_PATH_FILE = '/var/_core_node/global_var/WWW_PATH'
+
+
+def _read_persisted_var(key_file: str) -> str:
+    """First line of a var-center file ('' when absent/unreadable)."""
+    try:
+        with open(key_file, 'r', encoding='utf-8', errors='ignore') as fh:
+            return fh.readline().strip().strip('\r\n')
+    except Exception:
+        return ''
+
+
+def _www_ntfs_root_mounted() -> bool:
+    r"""True when /www is the ROOT of a mounted NTFS/data disk (the Windows D:\
+    root on a dual-boot machine, bound there by 3_setting_base.sh). Then the
+    SAME logical tree gains ONE EXTRA LEVEL on Linux:
+        Windows D:\www  ==  Linux /www/www      (NOT /www)
+        Windows D:\www\cache  ==  Linux /www/www/cache
+    On a Linux-only machine /www is a plain native dir (same device as /) and
+    there is NO extra level -- native paths are used directly.
+    SYNC: gvar_common.sh::www_ntfs_root_mounted / PathMapper.php::wwwNtfsRootMounted.
+    """
+    if not Path('/www/www').is_dir():
+        return False
+    return _is_real_distinct_mount(Path('/www'))
+
+
+def _linux_cross_os_cache_dir() -> Optional[Path]:
+    r"""Cross-OS shared model cache when /www is the mounted NTFS/data disk
+    root: Windows D:\www\cache == Linux /www/www/cache. Windows downloads every
+    model into D:\www\cache (SharedCacheEnv.ps1), so reusing the same tree
+    means each model downloads ONCE for both OSes. Model weights are
+    device-agnostic -- the same tree serves GPU (CUDA) and CPU runs on
+    unchanged hardware; framework wheels differ but live in venvs, never here.
+    Returns None on Linux-only machines (caller uses the native cache)."""
+    www_path_var = _read_persisted_var(_WWW_PATH_FILE)
+    candidate: Optional[Path] = None
+    if www_path_var and www_path_var != '/www' and Path(www_path_var).is_dir():
+        candidate = Path(www_path_var) / 'cache'
+    elif _www_ntfs_root_mounted():
+        candidate = Path('/www/www/cache')
+    if candidate is None:
+        return None
+    try:
+        _ensure_dir(candidate)
+    except OSError:
+        pass
+    if candidate.is_dir() and os.access(candidate, os.W_OK):
+        return candidate
+    return None
 
 
 def _run_cmd(args: List[str]) -> str:
@@ -664,17 +732,26 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         # Windows uses D:\www, so the SAME logical tree on Linux is /www/www when a
         # shared NTFS/data disk is present -- 3_setting_base.sh bind-mounts the
         # selected disk root onto /www, so /www/www IS the disk's www dir == D:\www
-        # (e.g. cache is D:\www\cache on Windows, /www/www/cache on Linux). A
-        # Linux-only machine (no disk selected, base collapses to root) uses /www.
+        # (e.g. cache is D:\www\cache on Windows, /www/www/cache on Linux; ONE
+        # EXTRA LEVEL because /www == D:\ root). A Linux-only machine (/www a
+        # plain native dir) uses /www directly -- no extra level.
+        # Priority: the persisted WWW_PATH central variable (single source of
+        # truth) -> live NTFS-root-mount detection -> legacy base_path rule.
         # PostgreSQL is unaffected (pg_mount stays on native ext4).
         if is_wsl():
             www_base = base_path / 'www'
-        elif str(base_path) not in ('/', '/www') and Path('/www/www').is_dir():
-            www_base = Path('/www/www')
-        elif str(base_path) in ('/', '/www'):
-            www_base = Path('/www')
         else:
-            www_base = base_path / 'www'
+            www_path_var = _read_persisted_var(_WWW_PATH_FILE)
+            if www_path_var and Path(www_path_var).is_dir():
+                www_base = Path(www_path_var)
+            elif _www_ntfs_root_mounted():
+                www_base = Path('/www/www')
+            elif str(base_path) not in ('/', '/www') and Path('/www/www').is_dir():
+                www_base = Path('/www/www')
+            elif str(base_path) in ('/', '/www'):
+                www_base = Path('/www')
+            else:
+                www_base = base_path / 'www'
 
         mappings = {
             'applications': www_base / 'applications',

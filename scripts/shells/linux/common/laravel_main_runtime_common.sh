@@ -141,23 +141,24 @@ persist_global_var_file_value() {
 }
 
 # Resolve php into PHP_BIN: PATH -> known bin locations.
-# In frankenphp plane, use shared frankenPHP shims first, then other known candidates.
+# In frankenphp plane, converge first, then use the single canonical php link
+# (php_link_common.sh contract: /usr/local/bin/php -> real CLI binary).
 resolve_php() {
     local runtime_plane=""
     local resolved_php=""
+    local canonical_php=""
 
     PHP_BIN=""
     runtime_plane="$(php_runtime_plane)"
+    canonical_php="${PHP_LINK_CANONICAL:-/usr/local/bin/php}"
 
     if [ "$runtime_plane" = "frankenphp" ]; then
         fm_runtime_converge
         fm_ensure_php_cli_shim
-        if [ -x "$FRANKENPHP_PHP_CLI_SHIM_PATH" ]; then
-            PHP_BIN="$FRANKENPHP_PHP_CLI_SHIM_PATH"
-        elif [ -x "$FRANKENPHP_PHP_SHIM_PATH" ]; then
-            PHP_BIN="$FRANKENPHP_PHP_SHIM_PATH"
+        if [ -x "$canonical_php" ]; then
+            PHP_BIN="$canonical_php"
         else
-            echo "WARNING: frankenphp plane detected but the PHP CLI shim is missing."
+            echo "WARNING: frankenphp plane detected but the canonical PHP CLI link is missing."
         fi
     else
         for resolved_php in \

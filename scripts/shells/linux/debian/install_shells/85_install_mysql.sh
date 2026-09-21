@@ -68,13 +68,13 @@ check_mysql() {
 # Function to check if MySQL service is running
 is_mysql_running() {
     if command_exists systemctl; then
-        if systemctl is-active --quiet mariadb; then
+        if systemctl is-active --quiet mysql; then
             return 0
         else
             return 1
         fi
     elif command_exists service; then
-        if service mariadb status >/dev/null 2>&1; then
+        if service mysql status >/dev/null 2>&1; then
             return 0
         else
             return 1
@@ -91,7 +91,7 @@ disable_mysql_services() {
     # Stop MySQL service if running
     if is_mysql_running; then
         echo "[$SCRIPT_INDEX] Stopping MySQL service..."
-        $USE_SUDO systemctl stop mariadb 2>/dev/null || $USE_SUDO service mariadb stop 2>/dev/null
+        $USE_SUDO systemctl stop mysql 2>/dev/null || $USE_SUDO service mysql stop 2>/dev/null
     fi
 
     # Wait a moment and check if MySQL processes are still running
@@ -121,7 +121,7 @@ disable_mysql_services() {
 
     # Disable MySQL service from auto-start
     echo "[$SCRIPT_INDEX] Disabling MySQL service from auto-start..."
-    $USE_SUDO systemctl disable mariadb 2>/dev/null || $USE_SUDO update-rc.d mariadb disable 2>/dev/null
+    $USE_SUDO systemctl disable mysql 2>/dev/null || $USE_SUDO update-rc.d mysql disable 2>/dev/null
 
     echo "[$SCRIPT_INDEX] MySQL services disabled successfully"
 }
@@ -132,11 +132,11 @@ enable_mysql_services() {
     
     # Enable MySQL service for auto-start
     echo "[$SCRIPT_INDEX] Enabling MySQL service for auto-start..."
-    $USE_SUDO systemctl enable mariadb 2>/dev/null || $USE_SUDO update-rc.d mariadb enable 2>/dev/null
-    
+    $USE_SUDO systemctl enable mysql 2>/dev/null || $USE_SUDO update-rc.d mysql enable 2>/dev/null
+
     # Start MySQL service
     echo "[$SCRIPT_INDEX] Starting MySQL service..."
-    $USE_SUDO systemctl start mariadb 2>/dev/null || $USE_SUDO service mariadb start 2>/dev/null
+    $USE_SUDO systemctl start mysql 2>/dev/null || $USE_SUDO service mysql start 2>/dev/null
     
     # Wait a moment for service to start
     sleep 3
@@ -220,7 +220,7 @@ collation-server      = utf8mb4_general_ci
 
 # Binary Logging
 log-bin                 = $MYSQL_DATA_DIR/mysql-bin
-expire-logs-days        = 7
+binlog_expire_logs_seconds = 604800
 max-binlog-size        = 100M
 binlog-format          = ROW
 EOF
@@ -240,7 +240,7 @@ get_mysql_password() {
 
 # Function to install MySQL
 install_mysql() {
-    echo "Installing MySQL (MariaDB)..."
+    echo "Installing Oracle MySQL 26.7..."
 
     # Detect OS for version-specific handling
     if [ -f /etc/os-release ]; then
@@ -252,14 +252,16 @@ install_mysql() {
     fi
 
     # Use repository manager with automatic backup and restore
-    echo "[$SCRIPT_INDEX] Installing MariaDB using repository manager with backup/restore..."
+    # --force-confnew: auto-answer "install new config version" (Y) on dpkg
+    # conffile prompts during upgrades; generate_mysql_config runs after install.
+    echo "[$SCRIPT_INDEX] Installing MySQL using repository manager with backup/restore..."
     add_mysql_repository_from_apt_repository_manager \
         "$OS_ID" \
         "$OS_CODENAME" \
-        "$USE_SUDO apt install -y mariadb-server mariadb-client"
-    
+        "DEBIAN_FRONTEND=noninteractive $USE_SUDO apt install -y -o Dpkg::Options::=--force-confnew mysql-server"
+
     if [ $? -eq 0 ]; then
-        echo "[$SCRIPT_INDEX] MariaDB installed successfully with repository cleanup"
+        echo "[$SCRIPT_INDEX] MySQL installed successfully with repository cleanup"
         
         # Create MySQL user and group if they don't exist
         if ! getent group mysql >/dev/null; then
@@ -276,8 +278,8 @@ install_mysql() {
         # Get or generate root password
         local root_password=$(get_mysql_password)
         
-        # Stop MariaDB service for configuration
-        systemctl stop mariadb
+        # Stop MySQL service for configuration
+        systemctl stop mysql
         
         # Define custom config directory from the config file path
         CUSTOM_CONFIG_DIR=$(dirname "$MYSQL_CONFIG_FILE")
@@ -302,25 +304,52 @@ install_mysql() {
         # Initialize MySQL if needed
         if [ $need_init -eq 1 ]; then
             echo "Initializing MySQL data directory..."
-            mysql_install_db --user=mysql --datadir="$MYSQL_DATA_DIR"
+            mysqld --initialize --user=mysql --datadir="$MYSQL_DATA_DIR"
         fi
-        
-        # Start MariaDB service
-        systemctl start mariadb
-        systemctl enable mariadb
+
+        # Start MySQL service
+        systemctl start mysql
+        systemctl enable mysql
         
         # Set root password and secure the installation
+        # First run: root uses auth_socket; later runs: password already set,
+        # so fall back to password auth for idempotency.
         echo "Securing MySQL installation..."
-        mysql --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_password';"
+        mysql --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_password';" 2>/dev/null || \
+            mysql -uroot -p"$root_password" -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_password';"
         
         # Store MySQL information
         store_mysql_info
         
         return 0
     else
-        echo "[$SCRIPT_INDEX] Failed to install MariaDB"
+        echo "[$SCRIPT_INDEX] Failed to install MySQL"
         return 1
     fi
+}
+
+# Function to create MySQL symlinks for system-wide access (idempotent)
+create_mysql_symlinks() {
+    echo "[$SCRIPT_INDEX] Creating MySQL symlinks for system-wide access..."
+
+    local mysql_binaries=("mysql" "mysqld" "mysqladmin")
+
+    for binary in "${mysql_binaries[@]}"; do
+        local binary_path=$(which "$binary" 2>/dev/null)
+        if [ -n "$binary_path" ] && [ -f "$binary_path" ]; then
+            local symlink_path="/usr/local/bin/$binary"
+
+            if [ ! -f "$symlink_path" ] || [ ! -x "$symlink_path" ]; then
+                if $USE_SUDO ln -sf "$binary_path" "$symlink_path"; then
+                    echo "[$SCRIPT_INDEX] Created symlink: $symlink_path -> $binary_path"
+                else
+                    echo "[$SCRIPT_INDEX] [WARNING] Failed to create symlink for $binary"
+                fi
+            else
+                echo "[$SCRIPT_INDEX] Symlink $symlink_path already exists and is valid"
+            fi
+        fi
+    done
 }
 
 # Function to store MySQL information in global variables
@@ -333,8 +362,12 @@ store_mysql_info() {
     set_global_var "MYSQL_DATA_DIR" "$MYSQL_DATA_DIR"
     set_global_var "MYSQL_LOG_DIR" "$MYSQL_LOG_DIR"
     set_global_var "MYSQL_CONFIG_FILE" "/etc/mysql/mysql.conf.d/mysqld.cnf"
-    set_global_var "MYSQL_SERVICE_STATUS" "$(systemctl is-active mariadb)"
-    local port=$(mysql -N -e "SHOW VARIABLES LIKE 'port';" | awk '{print $2}')
+    set_global_var "MYSQL_SERVICE_STATUS" "$(systemctl is-active mysql)"
+    local port=$(mysql -N -e "SHOW VARIABLES LIKE 'port';" 2>/dev/null | awk '{print $2}')
+    if [ -z "$port" ]; then
+        # root may already require password auth (idempotent re-run)
+        port=$(mysql -uroot -p"$(get_mysql_password)" -N -e "SHOW VARIABLES LIKE 'port';" 2>/dev/null | awk '{print $2}')
+    fi
     set_global_var "MYSQL_PORT" "$port"
 }
 
@@ -356,16 +389,20 @@ if [ "$START_MYSQL" = "true" ]; then
     # Check if MySQL is already installed
     if check_mysql; then
         echo "[$SCRIPT_INDEX] MySQL is already installed: $(mysql --version)"
-        # Update stored information
-        store_mysql_info
-    else
-        install_mysql
-        if ! check_mysql; then
-            echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
-            exit 1
-        fi
-        echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
+        echo "[$SCRIPT_INDEX] Ensuring latest version (idempotent in-place upgrade)..."
     fi
+
+    # Install or upgrade MySQL (idempotent: apt install is a no-op when the
+    # latest version is already present; config/init steps below are repeatable)
+    install_mysql
+    if ! check_mysql; then
+        echo "[$SCRIPT_INDEX] Error: MySQL installation failed"
+        exit 1
+    fi
+    echo "[$SCRIPT_INDEX] MySQL installed successfully: $(mysql --version)"
+
+    # Create symlinks (idempotent)
+    create_mysql_symlinks
 
     # Enable and start services
     enable_mysql_services
@@ -413,7 +450,7 @@ echo "[$SCRIPT_INDEX] MySQL configuration completed"
 echo "[$SCRIPT_INDEX] === MySQL Status ==="
 if check_mysql; then
     echo "[$SCRIPT_INDEX] Version: $(mysql --version)"
-    echo "[$SCRIPT_INDEX] Service Status: $(systemctl is-active mariadb 2>/dev/null || echo 'unknown')"
+    echo "[$SCRIPT_INDEX] Service Status: $(systemctl is-active mysql 2>/dev/null || echo 'unknown')"
     echo "[$SCRIPT_INDEX] Root Password: $(get_global_var "MYSQL_ROOT_PASSWORD" 2>/dev/null || echo 'not set')"
     echo "[$SCRIPT_INDEX] Data Directory: $(get_global_var "MYSQL_DATA_DIR" 2>/dev/null || echo 'not set')"
     echo "[$SCRIPT_INDEX] Port: $(get_global_var "MYSQL_PORT" 2>/dev/null || echo 'not set')"

@@ -7,7 +7,7 @@ sanitize_git_conflicts_from_apt_repository_manager() {
     [ -z "$file" ] && return 0
     [ -f "$file" ] || return 0
     if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
-        echo "WARNING: Removing git conflict markers from $file"
+        echo "WARNING: Removing git conflict markers from $file" >&2
         $USE_SUDO sed -i '/^<<<<<<< /d; /^=======/d; /^>>>>>>> /d' "$file" 2>/dev/null || true
     fi
 }
@@ -114,7 +114,7 @@ ensure_packages_from_apt_repository_manager() {
     
     [ -z "$missing_packages" ] && return 0
     
-    echo "Installing packages:$missing_packages"
+    echo "Installing packages:$missing_packages" >&2
     $USE_SUDO apt update >/dev/null 2>&1
     $USE_SUDO apt install -y $missing_packages >/dev/null 2>&1 || {
         echo "ERROR: Failed to install packages:$missing_packages" >&2
@@ -155,7 +155,7 @@ backup_original_apt_sources_from_apt_repository_manager() {
     
     # Pre-sanitize live sources before backing up
     sanitize_all_apt_sources_from_apt_repository_manager
-    echo "Creating original APT sources backup (first time use)..."
+    echo "Creating original APT sources backup (first time use)..." >&2
     $USE_SUDO mkdir -p "$APT_ORIGINAL_BACKUP_DIR" 2>/dev/null || {
         echo "ERROR: Failed to create original backup directory" >&2
         return 1
@@ -202,7 +202,7 @@ backup_original_apt_sources_from_apt_repository_manager() {
         find "$APT_ORIGINAL_BACKUP_DIR" -type f 2>/dev/null | sort
     } | $USE_SUDO tee "$APT_ORIGINAL_BACKUP_DIR/manifest.txt" >/dev/null 2>&1 || true
     
-    echo "Original backup completed: $APT_ORIGINAL_BACKUP_DIR"
+    echo "Original backup completed: $APT_ORIGINAL_BACKUP_DIR" >&2
     return 0
 }
 
@@ -224,7 +224,7 @@ backup_apt_sources_from_apt_repository_manager() {
         return 1
     }
     
-    echo "Backing up APT sources to: $backup_path"
+    echo "Backing up APT sources to: $backup_path" >&2
     
     # Backup sources.list (simple file copy)
     if [ -f "$APT_SOURCES_LIST" ]; then
@@ -268,7 +268,7 @@ backup_apt_sources_from_apt_repository_manager() {
         find "$backup_path" -type f 2>/dev/null | sort
     } | $USE_SUDO tee "$manifest_file" >/dev/null 2>&1 || true
     
-    echo "Backup completed: $backup_path"
+    echo "Backup completed: $backup_path" >&2
     echo "$backup_path"
     return 0
 }
@@ -281,8 +281,14 @@ restore_apt_sources_from_apt_repository_manager() {
         echo "ERROR: Backup ID is required" >&2
         return 1
     fi
-    
-    local backup_path="$APT_BACKUP_BASE_DIR/$backup_id"
+
+    # Accept either a backup directory name under APT_BACKUP_BASE_DIR or an
+    # absolute backup path (as echoed by backup_apt_sources_...).
+    local backup_path="$backup_id"
+    case "$backup_path" in
+        /*) : ;;
+        *)  backup_path="$APT_BACKUP_BASE_DIR/$backup_id" ;;
+    esac
     
     if [ ! -d "$backup_path" ]; then
         echo "ERROR: Backup directory not found: $backup_path" >&2
@@ -346,34 +352,34 @@ add_repository_with_backup_from_apt_repository_manager() {
         return 1
     fi
     
-    echo "Backup created: $backup_id"
-    echo "Adding repository: $repo_name"
-    
+    echo "Backup created: $backup_id" >&2
+    echo "Adding repository: $repo_name" >&2
+
     # Add GPG key if provided
     if [ -n "$key_url" ] && [ -n "$key_file" ]; then
-        echo "Adding GPG key from: $key_url"
+        echo "Adding GPG key from: $key_url" >&2
         $USE_SUDO mkdir -p "$(dirname "$key_file")" 2>/dev/null || true
-        
+
         # Ensure curl is available
         if ! ensure_packages_from_apt_repository_manager curl; then
             echo "WARNING: Failed to install curl, cannot add GPG key" >&2
             return 1
         fi
-        
+
         if curl -fsSL "$key_url" | $USE_SUDO gpg --dearmor --yes -o "$key_file" 2>/dev/null; then
-            echo "GPG key added successfully"
+            echo "GPG key added successfully" >&2
         else
             echo "WARNING: Failed to add GPG key" >&2
         fi
     fi
-    
+
     # Add repository source
     local repo_list_file="$APT_SOURCES_LIST_D/${repo_name}.list"
     echo "$repo_line" | $USE_SUDO tee "$repo_list_file" > /dev/null
-    
+
     if [ -f "$repo_list_file" ]; then
-        echo "Repository added: $repo_list_file"
-        echo "Backup ID for restore: $backup_id"
+        echo "Repository added: $repo_list_file" >&2
+        echo "Backup ID for restore: $backup_id" >&2
         echo "$backup_id"
         return 0
     else

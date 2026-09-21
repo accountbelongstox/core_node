@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.common.python_env.isolated_venv_runtime import (
     MAIN_INTERPRETER,
@@ -54,44 +55,77 @@ from pycore.pyfoundations.runtime_abi import (
     CUDA_TIERS,
     TORCH_CPU_INDEX,
     TORCH_INDEX_BASE,
+    cuda_tier_for_driver,
 )
 
 
-def _host_cuda_available() -> bool:
-    """Probe CUDA usability through the host interpreter's torch (install-time
-    only; the host carries torch as a shared prerequisite)."""
-    try:
-        import torch
+def _driver_cuda_cv() -> Optional[int]:
+    """Driver-reported CUDA version as a comparable int (12.4 -> 1204).
 
-        return bool(torch.cuda.is_available())
-    except Exception:  # noqa: BLE001
-        return False
+    None when no driver report exists (driver absent or not yet loaded
+    pre-reboot). Mirrors cuda_driver_cv() in base_libs/cuda_index.sh so the
+    shell and Python wheel selection resolve the SAME tier from the SAME
+    source (nvidia-smi), never from the host interpreter's torch health.
+    """
+    version = str(CUDADetector.get_cuda_info().get("cuda_version") or "").strip()
+    match = re.match(r"^(\d+)(?:\.(\d+))?", version)
+    if not match:
+        return None
+    return int(match.group(1)) * 100 + int(match.group(2) or 0)
+
+
+def _wheel_tag_minimum_cv(tag: str) -> Optional[int]:
+    """Minimum driver CUDA cv for one wheel tag (cu128 -> 12.8 -> 1208)."""
+    match = re.fullmatch(r"cu(\d{3})", str(tag or "").strip().lower())
+    if not match:
+        return None
+    digits = int(match.group(1))
+    return (digits // 10) * 100 + (digits % 10)
 
 
 def _torch_stack_target(engine: str, spec: Optional[dict] = None) -> Tuple[str, str]:
     """Resolve (device_label, torch wheel index) for one self-contained engine.
 
     Device policy (plan step 08): an explicit <ENGINE>_DEVICE=cpu always wins;
-    cuda* selects the configured CUDA wheel tier; auto uses the host CUDA probe
-    and falls back to the official CPU index. The CPU index is the official
-    pytorch CPU wheel source, not a stripped dependency set. An engine may pin
-    its CUDA wheel tag (spec torch_index_tag) when the upstream torch pin has
-    no wheels on the newest configured tier (e.g. fishspeech torch==2.8.0).
+    cuda* selects the engine-pinned wheel tag or the newest configured tier.
+    auto mirrors the shell cuda_policy_tag() driver-tier resolution (single
+    source of truth: scripts/shells/ai_runtime_policy.env):
+      - the driver reports a CUDA version -> the engine-pinned tag when the
+        driver satisfies it, else the newest configured tier the driver
+        supports, else the official CPU index;
+      - no driver report but GPU hardware present (pre-driver / pre-reboot)
+        -> the engine-pinned tag or newest configured tier, so the CUDA build
+        is already in place when the driver loads;
+      - no GPU -> the official CPU index.
+    An engine may pin its CUDA wheel tag (spec torch_index_tag) when the
+    upstream torch pin has no wheels on the newest configured tier (e.g.
+    fishspeech torch==2.8.0).
     """
     spec = spec or engine_spec(engine)
-    cuda_tag = str(spec.get("torch_index_tag") or "").strip().lower() or (
-        CUDA_TIERS[0]["tag"] if CUDA_TIERS else "cpu"
-    )
+    engine_tag = str(spec.get("torch_index_tag") or "").strip().lower()
+    newest_tag = CUDA_TIERS[0]["tag"] if CUDA_TIERS else ""
     want = (os.environ.get(f"{engine.upper()}_DEVICE") or "auto").strip().lower() or "auto"
     if want == "cpu":
         return "cpu", TORCH_CPU_INDEX
     if want.startswith("cuda"):
-        if cuda_tag == "cpu":
+        tag = engine_tag or newest_tag
+        if not tag:
             return "cpu", TORCH_CPU_INDEX
-        return "cuda", f"{TORCH_INDEX_BASE}/{cuda_tag}"
-    if _host_cuda_available() and cuda_tag != "cpu":
-        return "cuda", f"{TORCH_INDEX_BASE}/{cuda_tag}"
-    return "cpu", TORCH_CPU_INDEX
+        return "cuda", f"{TORCH_INDEX_BASE}/{tag}"
+    tag = ""
+    driver_cv = _driver_cuda_cv()
+    if driver_cv is not None:
+        engine_tag_cv = _wheel_tag_minimum_cv(engine_tag)
+        if engine_tag_cv is not None and driver_cv >= engine_tag_cv:
+            tag = engine_tag
+        else:
+            tier = cuda_tier_for_driver(driver_cv)
+            tag = str(tier["tag"]) if tier else ""
+    elif CUDADetector.is_gpu_hardware_present():
+        tag = engine_tag or newest_tag
+    if not tag:
+        return "cpu", TORCH_CPU_INDEX
+    return "cuda", f"{TORCH_INDEX_BASE}/{tag}"
 
 
 def _torch_flavor_mismatch(

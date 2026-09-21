@@ -664,6 +664,69 @@ function Invoke-HfFileDownloadResumable {
 # - Partial files are resumed in place.
 # - A failed pass removes only the model sentinel so the next run revalidates;
 #   already downloaded model files and their directory remain untouched.
+
+# Resolve the newest local HF hub snapshot dir for a repo ($null when absent):
+# $HF_HUB_CACHE\models--<org>--<name>\snapshots\<rev>. The hub cache is shared
+# with Linux (D:\www\cache\huggingface\hub == /www/www/cache/huggingface/hub),
+# so a repo fetched by EITHER OS (transformers runtime, hf CLI, or the other
+# side's installer) is found here. Mirrors linux _hf_hub_repo_snapshot_dir().
+function Get-HfHubRepoSnapshotDir {
+    param([Parameter(Mandatory = $true)][string]$RepoId)
+    $hubRoot = ''
+    if ($env:HF_HUB_CACHE) { $hubRoot = $env:HF_HUB_CACHE }
+    elseif ($env:HUGGINGFACE_HUB_CACHE) { $hubRoot = $env:HUGGINGFACE_HUB_CACHE }
+    elseif ($env:HF_HOME) { $hubRoot = Join-Path $env:HF_HOME 'hub' }
+    elseif ($Global:CORE_NODE_CACHE_DIR) { $hubRoot = Join-Path $Global:CORE_NODE_CACHE_DIR 'huggingface\hub' }
+    if (-not $hubRoot) { return $null }
+    $repoDir = Join-Path $hubRoot ('models--' + ($RepoId -replace '/', '--'))
+    $snapshotsDir = Join-Path $repoDir 'snapshots'
+    if (-not (Test-Path -LiteralPath $snapshotsDir)) { return $null }
+    $snap = Get-ChildItem -LiteralPath $snapshotsDir -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $snap) { return $null }
+    return $snap.FullName
+}
+
+# Reuse a repo already present in the HF HUB cache by MATERIALIZING the
+# allow-listed files into the flat dest: plain copies dereferencing the hub's
+# blob symlinks, never new symlinks -- a cache shared across operating systems
+# must stay plain files (official HF_HUB_DISABLE_SYMLINKS guidance: symlinks
+# created on one OS are not always traversable on the other). Files already
+# present at the dest are kept (resume semantics). Returns $true only when the
+# dest afterwards satisfies the OFFLINE readiness contract (config.json + at
+# least one nonzero allow-listed weight file); the caller then writes the
+# sentinel. Mirrors linux _hf_flat_materialize_from_hub().
+function Copy-HfRepoFlatFromHubCache {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [Parameter(Mandatory = $true)][string]$DestDir,
+        [string[]]$AllowPatterns = @('*'),
+        [string]$Prefix = ''
+    )
+    $snapDir = Get-HfHubRepoSnapshotDir -RepoId $RepoId
+    $snapPrefix = ''
+    $copied = 0
+    if (-not $snapDir) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $snapDir 'config.json') -PathType Leaf)) { return $false }
+    $snapPrefix = $snapDir.TrimEnd('\') + '\'
+    foreach ($src in Get-ChildItem -LiteralPath $snapDir -Recurse -File -Force -ErrorAction SilentlyContinue) {
+        $rel = $src.FullName.Substring($snapPrefix.Length)
+        if (-not (Test-HfAllowMatch -FileName ($rel -replace '\\', '/') -Patterns $AllowPatterns)) { continue }
+        $out = Join-Path $DestDir $rel
+        if ((Test-Path -LiteralPath $out -PathType Leaf) -and ((Get-Item -LiteralPath $out).Length -gt 0)) { continue }
+        $outParent = Split-Path -Parent $out
+        if (-not (Test-Path -LiteralPath $outParent)) { New-Item -ItemType Directory -Force -Path $outParent | Out-Null }
+        Copy-Item -LiteralPath $src.FullName -Destination $out -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $out -PathType Leaf)) { return $false }
+        $copied++
+    }
+    if (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId '' -AllowPatterns $AllowPatterns) {
+        Write-Host ("{0} [reuse] materialized {1} file(s) from shared HF hub cache: {2} (no download)" -f $Prefix, $copied, $snapDir) -ForegroundColor Green
+        return $true
+    }
+    return $false
+}
+
 function Install-HfRepoFlat {
     param(
         [Parameter(Mandatory = $true)][string]$RepoId,
@@ -688,6 +751,15 @@ function Install-HfRepoFlat {
         $localWeightBytes = [long](($localWeightFiles | Measure-Object -Property Length -Sum).Sum)
         Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
         Write-Host ("{0} [idempotent] local model found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $DestDir, $localWeightBytes) -ForegroundColor Green
+        return $true
+    }
+    # Cross-layout reuse (Windows <-> Linux dual-boot, transformers runtime):
+    # the SAME repo may already sit in the shared HF HUB cache even though this
+    # flat dest/sentinel was never populated (e.g. the other OS fetched it via
+    # the hub layout only). Materialize from the hub snapshot -- same-disk
+    # copy, no network -- before any remote lookup.
+    if (Copy-HfRepoFlatFromHubCache -RepoId $RepoId -DestDir $DestDir -AllowPatterns $AllowPatterns -Prefix $Prefix) {
+        Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
         return $true
     }
     if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }

@@ -145,7 +145,7 @@ else
 fi
 
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
-    _sentinel_model="$(tr -d '\r\n\ufeff' < "$MODEL_SENTINEL" 2>/dev/null || true)"
+    _sentinel_model="$(_hf_read_sentinel "$MODEL_SENTINEL")"
     neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"
     if [[ "$_sentinel_model" == "$_qwen_model" && "$NEURAL_TTS_WEIGHTS_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_qwen_model)"

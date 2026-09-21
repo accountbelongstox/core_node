@@ -45,6 +45,8 @@ source "$DOMAIN_SETUP_COMMON_DIR/web_access_common.sh"
 source "$DOMAIN_SETUP_COMMON_DIR/nginx_common.sh"
 # shellcheck source=/dev/null
 source "$DOMAIN_SETUP_COMMON_DIR/arrow_menu.sh"
+# shellcheck source=/dev/null
+source "$DOMAIN_SETUP_COMMON_DIR/network_detect_common.sh"
 
 DOMAIN_SETUP_REPO_ROOT="$(cd "$DOMAIN_SETUP_COMMON_DIR/../../../.." && pwd)"
 DOMAIN_SETUP_CORE_NODE_DIR="${CORE_NODE_DIR:-$DOMAIN_SETUP_REPO_ROOT}"
@@ -94,6 +96,18 @@ DOMAIN_DOMAINS_LIST=""
 DOMAIN_API_PREFIX=""
 DOMAIN_UI_BINDING_ENABLED="no"
 DOMAIN_UI_BINDING_READY="no"
+
+# Network environment state (domain_setup_detect_environment). LAN mode
+# means no public IP is bound to a local interface: the public-domain prefix
+# menu and public certificate issuance are skipped, and local certificates
+# (127.0.0.1 via mkcert + the Tailscale ts.net certificate) are provisioned
+# or printed instead. DOMAIN_SETUP_NET_MODE=server|lan forces the mode.
+DOMAIN_ENV_LAN_MODE="no"
+DOMAIN_ENV_PUBLIC_IP=""
+DOMAIN_ENV_TAILSCALE_IPV4=""
+DOMAIN_LAN_CERT_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/certs/local"
+DOMAIN_TS_DNSNAME=""
+DOMAIN_LAN_OUTPUT=""
 
 # Persist one key in the file-backed global-var store (the user data
 # directory). Reuses set_global_var when gvar_common.sh is loaded; otherwise
@@ -188,6 +202,138 @@ domain_setup_ask_no() {
 # Validate a region prefix token.
 domain_setup_prefix_valid() {
     echo "$1" | grep -qE '^[a-z0-9][a-z0-9-]{0,30}$'
+}
+
+# Classify this host: public server vs LAN/desktop (network_detect_common).
+# DOMAIN_SETUP_NET_MODE=server|lan overrides the probe (e.g. a NAT-ed VPS
+# that still wants DNS-01 public certificates).
+domain_setup_detect_environment() {
+    DOMAIN_ENV_LAN_MODE="no"
+    case "${DOMAIN_SETUP_NET_MODE:-auto}" in
+        lan)
+            DOMAIN_ENV_LAN_MODE="yes"
+            ;;
+        server)
+            DOMAIN_ENV_LAN_MODE="no"
+            ;;
+        *)
+            net_env_detect
+            DOMAIN_ENV_PUBLIC_IP="$NET_ENV_PUBLIC_IP"
+            DOMAIN_ENV_TAILSCALE_IPV4="$NET_ENV_TAILSCALE_IPV4"
+            if [ "$NET_ENV_IS_LAN" = "yes" ]; then
+                DOMAIN_ENV_LAN_MODE="yes"
+            fi
+            ;;
+    esac
+    if [ "$DOMAIN_ENV_LAN_MODE" = "yes" ]; then
+        echo "[domain] Network environment: LAN/desktop (no public IP bound to a local interface; public IP: ${DOMAIN_ENV_PUBLIC_IP:-none}, tailscale IP: ${DOMAIN_ENV_TAILSCALE_IPV4:-none})"
+        echo "[domain] Skipping the API region prefix selection and public certificate issuance; switching to local certificates (127.0.0.1 + Tailscale LAN IP)."
+    else
+        echo "[domain] Network environment: public server (public IP bound locally: ${DOMAIN_ENV_PUBLIC_IP:-unknown})"
+    fi
+    return 0
+}
+
+# Echo this machine's ts.net DNS name (without the trailing dot); empty when
+# tailscaled cannot report it.
+domain_setup_tailscale_dnsname() {
+    local dns=""
+    if command -v python3 >/dev/null 2>&1; then
+        dns=$(tailscale status --json 2>/dev/null | python3 -c 'import sys, json
+try:
+    print(json.load(sys.stdin).get("Self", {}).get("DNSName", "").rstrip("."))
+except Exception:
+    pass' 2>/dev/null)
+    fi
+    if [ -z "$dns" ]; then
+        dns=$(tailscale status --json 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -1)
+        dns="${dns%.}"
+    fi
+    printf '%s' "$dns"
+}
+
+# 127.0.0.1 / localhost certificate through mkcert. Direct when mkcert is
+# installed; otherwise prints the manual steps (public CAs cannot validate
+# the loopback address, so a local CA is the canonical path).
+domain_setup_lan_cert_mkcert() {
+    local mkcert_bin
+    mkcert_bin="$(command -v mkcert 2>/dev/null || true)"
+    mkdir -p "$DOMAIN_LAN_CERT_DIR" 2>/dev/null || true
+
+    if [ -z "$mkcert_bin" ]; then
+        echo "[domain] [MANUAL] mkcert not installed; create the trusted 127.0.0.1 certificate with:"
+        echo "[domain]   1) sudo apt install -y libnss3-tools"
+        echo "[domain]   2) Download mkcert from https://github.com/FiloSottile/mkcert/releases and install it to /usr/local/bin/mkcert (chmod +x)"
+        echo "[domain]   3) mkcert -install    (installs the local CA into the system/browser trust store)"
+        echo "[domain]   4) cd \"$DOMAIN_LAN_CERT_DIR\" && mkcert 127.0.0.1 localhost ::1"
+        echo "[domain]      -> creates 127.0.0.1+2.pem (certificate) and 127.0.0.1+2-key.pem (private key)"
+        return 1
+    fi
+
+    echo "[domain] mkcert present; ensuring the local CA and the 127.0.0.1 certificate in $DOMAIN_LAN_CERT_DIR ..."
+    (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" -install 2>&1) | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
+    (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" 127.0.0.1 localhost ::1 2>&1) | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
+    if ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+2.pem "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+2-key.pem >/dev/null 2>&1; then
+        echo "[domain] [OK] 127.0.0.1 certificate ready: $DOMAIN_LAN_CERT_DIR/127.0.0.1+2.pem (+ key)"
+        return 0
+    fi
+    echo "[domain] [WARN] mkcert ran but the 127.0.0.1 certificate files were not found in $DOMAIN_LAN_CERT_DIR"
+    return 1
+}
+
+# Tailscale LAN IP certificate through the ts.net MagicDNS/HTTPS integration
+# (Let's Encrypt via DNS-01, issued by tailscaled). Direct when tailscaled is
+# up and HTTPS certs are enabled; otherwise prints the manual steps.
+domain_setup_lan_cert_tailscale() {
+    local ts_bin
+    local ts_output=""
+    ts_bin="$(command -v tailscale 2>/dev/null || true)"
+    mkdir -p "$DOMAIN_LAN_CERT_DIR" 2>/dev/null || true
+
+    if [ -z "$ts_bin" ]; then
+        echo "[domain] [MANUAL] tailscale not installed; to get a trusted certificate for the Tailscale LAN IP:"
+        echo "[domain]   1) curl -fsSL https://tailscale.com/install.sh | sh"
+        echo "[domain]   2) sudo tailscale up"
+        echo "[domain]   3) Admin console -> Settings -> HTTPS -> Enable HTTPS (requires MagicDNS)"
+        echo "[domain]   4) cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.<tailnet>.ts.net"
+        return 1
+    fi
+    if ! "$ts_bin" status >/dev/null 2>&1; then
+        echo "[domain] [MANUAL] tailscale is installed but not connected; run: sudo tailscale up"
+        echo "[domain]   Then enable HTTPS (Admin console -> Settings -> HTTPS) and run:"
+        echo "[domain]   cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.<tailnet>.ts.net"
+        return 1
+    fi
+
+    DOMAIN_TS_DNSNAME="$(domain_setup_tailscale_dnsname)"
+    if [ -z "$DOMAIN_TS_DNSNAME" ]; then
+        echo "[domain] [MANUAL] Could not resolve this machine's ts.net DNS name; find it with 'tailscale status', then:"
+        echo "[domain]   cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert <machine>.<tailnet>.ts.net"
+        echo "[domain]   (requires MagicDNS + HTTPS enabled in the admin console: Settings -> HTTPS)"
+        return 1
+    fi
+
+    echo "[domain] Requesting the Tailscale certificate for $DOMAIN_TS_DNSNAME ..."
+    ts_output="$(cd "$DOMAIN_LAN_CERT_DIR" && "$ts_bin" cert "$DOMAIN_TS_DNSNAME" 2>&1)"
+    if [ $? -eq 0 ]; then
+        echo "$ts_output" | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
+        echo "[domain] [OK] Tailscale certificate ready for $DOMAIN_TS_DNSNAME (globally trusted, Let's Encrypt)"
+        return 0
+    fi
+    echo "[domain] [MANUAL] tailscale cert failed for $DOMAIN_TS_DNSNAME; enable HTTPS certificates first:"
+    echo "[domain]   1) Tailscale admin console -> Settings -> HTTPS -> Enable HTTPS (requires MagicDNS)"
+    echo "[domain]   2) Re-run: cd \"$DOMAIN_LAN_CERT_DIR\" && tailscale cert $DOMAIN_TS_DNSNAME"
+    echo "$ts_output" | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
+    return 1
+}
+
+# LAN-mode certificate replacement for the public-domain flow: best-effort
+# direct issuance where the tooling exists, printed steps where it does not.
+domain_setup_lan_certificates() {
+    echo "[domain] Provisioning local certificates (LAN mode):"
+    domain_setup_lan_cert_mkcert || true
+    domain_setup_lan_cert_tailscale || true
+    return 0
 }
 
 # Ensure the region prefix used to build api.<prefix>.<domain> sites.
@@ -494,6 +640,12 @@ domain_setup_install_all() {
     local domain
     local failures=0
 
+    domain_setup_detect_environment
+    if [ "$DOMAIN_ENV_LAN_MODE" = "yes" ]; then
+        domain_setup_lan_certificates
+        return 0
+    fi
+
     domain_setup_load_secrets || return 1
     domain_setup_ensure_prefix || return 1
     domain_setup_persist_state
@@ -539,6 +691,12 @@ domain_setup_certificates_only() {
     local laravel_dir="${1:-$DOMAIN_SETUP_LARAVEL_DIR}"
     local domain
     local failures=0
+
+    domain_setup_detect_environment
+    if [ "$DOMAIN_ENV_LAN_MODE" = "yes" ]; then
+        domain_setup_lan_certificates
+        return 0
+    fi
 
     domain_setup_load_secrets || return 1
     domain_setup_ensure_prefix || return 1

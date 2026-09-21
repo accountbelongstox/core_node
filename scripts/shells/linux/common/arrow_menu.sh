@@ -20,6 +20,33 @@ if [ "$ARROW_MENU_LOADED" = "true" ]; then
 fi
 ARROW_MENU_LOADED=true
 
+# Non-interactive probe (shared by both menu renderers). Returns 0 when the
+# menu must NOT block on the terminal:
+# (1) auto-continue envs (DD_AUTO_CONTINUE/CI/NONINTERACTIVE/DEBIAN_FRONTEND)
+# (2) no controlling terminal (cron/ssh -T)
+# (3) the process is not in the terminal's FOREGROUND process group -- a
+#     background job reading /dev/tty is stopped by SIGTTIN and freezes on
+#     the rendered menu (the Debian desktop launcher case); same probe as
+#     prompt_common.sh.
+arrow_menu_noninteractive() {
+    local tpgid=""
+    local pgid=""
+    if [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ "${DD_AUTO_CONTINUE:-}" = "true" ] \
+        || [ "${NONINTERACTIVE:-}" = "1" ] || [ "${CI:-}" = "true" ] \
+        || [ "${DEBIAN_FRONTEND:-}" = "noninteractive" ]; then
+        return 0
+    fi
+    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+        return 0
+    fi
+    tpgid="$(ps -o tpgid= -p $$ 2>/dev/null | tr -d ' ')"
+    pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+    if [ -n "$tpgid" ] && [ -n "$pgid" ] && [ "$tpgid" != "$pgid" ]; then
+        return 0
+    fi
+    return 1
+}
+
 arrow_menu_select() {
     local title="$1"
     local options_name="$2"
@@ -32,6 +59,7 @@ arrow_menu_select() {
     local old_settings=""
     local char=""
     local sequence=""
+    local read_rc=0
     local index=0
     local menu_width=0
     local option_length=0
@@ -44,7 +72,7 @@ arrow_menu_select() {
     if [ "$selected_index" -lt 0 ] || [ "$selected_index" -ge "$option_count" ]; then
         selected_index=0
     fi
-    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+    if arrow_menu_noninteractive; then
         ARROW_MENU_SELECTED_INDEX="$back_index"
         ARROW_MENU_CANCELLED=true
         return
@@ -90,20 +118,41 @@ arrow_menu_select() {
 
         stty -icanon -echo -isig < /dev/tty 2>/dev/null
         char="$(dd bs=1 count=1 < /dev/tty 2>/dev/null)"
+        read_rc=$?
         sequence=""
         if [ "$char" = $'\x1B' ]; then
             read -r -t 0.1 -d '' sequence < /dev/tty
         fi
         stty "$old_settings" < /dev/tty 2>/dev/null
 
+        if [ "$read_rc" -ne 0 ]; then
+            # tty hangup / read error -> cancel instead of spinning forever
+            # re-rendering the menu on a dead terminal (busy-loop freeze).
+            if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
+                ARROW_MENU_SELECTED_INDEX="$back_index"
+            else
+                ARROW_MENU_SELECTED_INDEX=-1
+            fi
+            ARROW_MENU_CANCELLED=true
+            printf "\n" > /dev/tty 2>/dev/null || true
+            return
+        fi
+
         case "$char" in
             $'\x1B')
+                # Accept both CSI (ESC [ A, normal cursor mode) and SS3
+                # (ESC O A, application cursor mode) arrow sequences: newer
+                # VTE/Ptyxis terminals on Debian 13 may report application
+                # mode, which otherwise makes the arrow keys look dead.
                 case "$sequence" in
-                    '[A') selected_index=$(((selected_index - 1 + option_count) % option_count)) ;;
-                    '[B') selected_index=$(((selected_index + 1) % option_count)) ;;
+                    '[A'|'OA') selected_index=$(((selected_index - 1 + option_count) % option_count)) ;;
+                    '[B'|'OB') selected_index=$(((selected_index + 1) % option_count)) ;;
                 esac
                 ;;
-            '')
+            ''|$'\r'|$'\n')
+                # '' is the stripped LF; '\r' covers terminals left without
+                # icrnl translation (raw-mode predecessors), where Enter
+                # otherwise never confirms and the menu looks stuck.
                 ARROW_MENU_SELECTED_INDEX="$selected_index"
                 printf "\n" > /dev/tty
                 return
@@ -143,7 +192,7 @@ numeric_menu_select() {
         ARROW_MENU_SELECTED_INDEX=-1
         return
     fi
-    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+    if arrow_menu_noninteractive; then
         ARROW_MENU_SELECTED_INDEX="$back_index"
         ARROW_MENU_CANCELLED=true
         return

@@ -14,10 +14,18 @@ fm_php_ini_dir() {
 
 # Ensure the ini scan directory exists with the canonical memory/time
 # overrides (idempotent content render, mirrors the system-plane ini).
+# The single canonical php link (/usr/local/bin/php -> php-zts) scans
+# /etc/php-zts/conf.d, NOT this directory - the retired frankenphp php-cli
+# shim used to bridge that via a PHP_INI_SCAN_DIR export. The bridge is now
+# a symlink in the CLI scan dir pointing at the ONE canonical ini file, so
+# composer/artisan get the same overrides (memory_limit 512M etc.).
 fm_php_ini_ensure() {
     local ini_dir=""
     local rendered=""
     local existing=""
+    local cli_scan_dir=""
+    local cli_scan_link=""
+    local canonical_php=""
 
     ini_dir="$(fm_php_ini_dir)"
     mkdir -p "$ini_dir"
@@ -32,10 +40,33 @@ opcache.enable_cli = 1"
     [ -f "${ini_dir}/99-core-node.ini" ] && existing="$(cat "${ini_dir}/99-core-node.ini")"
     if [ "$existing" = "$rendered" ]; then
         echo "[$SCRIPT_INDEX] PHP ini already canonical: ${ini_dir}/99-core-node.ini"
-        return
+    else
+        printf '%s\n' "$rendered" > "${ini_dir}/99-core-node.ini"
+        echo "[$SCRIPT_INDEX] PHP ini rendered: ${ini_dir}/99-core-node.ini"
     fi
-    printf '%s\n' "$rendered" > "${ini_dir}/99-core-node.ini"
-    echo "[$SCRIPT_INDEX] PHP ini rendered: ${ini_dir}/99-core-node.ini"
+
+    # Bridge into the real CLI binary's compiled scan dir (derived from the
+    # canonical link's own --ini report; fallback: the henderkes php-zts
+    # package default).
+    canonical_php="${PHP_LINK_CANONICAL:-/usr/local/bin/php}"
+    cli_scan_dir=""
+    if [ -x "$canonical_php" ]; then
+        cli_scan_dir="$("$canonical_php" --ini 2>/dev/null \
+            | sed -n 's/^Scan for additional \.ini files in: *//p' \
+            | head -n 1 | tr -d '",' )"
+    fi
+    [ -z "$cli_scan_dir" ] || [ ! -d "$cli_scan_dir" ] && cli_scan_dir="/etc/php-zts/conf.d"
+    if [ -d "$cli_scan_dir" ]; then
+        cli_scan_link="${cli_scan_dir}/99-core-node.ini"
+        if [ "$(readlink -f "$cli_scan_link" 2>/dev/null)" != "${ini_dir}/99-core-node.ini" ]; then
+            $USE_SUDO mkdir -p "$cli_scan_dir" 2>/dev/null || true
+            $USE_SUDO rm -f "$cli_scan_link" 2>/dev/null || true
+            if $USE_SUDO ln -s "${ini_dir}/99-core-node.ini" "$cli_scan_link" 2>/dev/null \
+                || ln -s "${ini_dir}/99-core-node.ini" "$cli_scan_link" 2>/dev/null; then
+                echo "[$SCRIPT_INDEX] PHP ini bridged into CLI scan dir: $cli_scan_link"
+            fi
+        fi
+    fi
 }
 
 # Compile-only bootstrap. The static builder needs an upstream FrankenPHP
