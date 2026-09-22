@@ -22,7 +22,6 @@ export const VIEW_TO_SLUG: Record<ViewType, string> = {
   [ViewType.TASK_CENTER]: 'task-center',
   [ViewType.SERVER_MANAGER]: 'server',
   [ViewType.AI_MANAGEMENT]: 'ai-management',
-  [ViewType.WORD_AUDIO]: 'word-audio',
   [ViewType.DATABASE_MANAGER]: 'db-manager',
 };
 

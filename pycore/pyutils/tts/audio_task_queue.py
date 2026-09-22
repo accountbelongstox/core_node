@@ -230,10 +230,38 @@ class AudioTaskQueue:
         return changed
 
     @serialized_method
+    def has_dedup_key(self, dedup_key: str) -> bool:
+        """INTERNAL: True when any queued entry carries this canonical dedup key.
+
+        Whole-Queue membership check for Part1 fills: an item whose single
+        copy already sits in the queue (either part) must NOT be inserted a
+        second time — the existing copy is claimed/re-ranked instead.
+        """
+        if self._dedup_key_of is None or not dedup_key:
+            return False
+        for entry in self._heap:
+            task = entry[-1]
+            if not isinstance(task, dict):
+                continue
+            if str(self._dedup_key_of(task) or "") == dedup_key:
+                return True
+        return False
+
+    @serialized_method
     def head_preview(self, limit: int = 1) -> List[Dict[str, Any]]:
         """Read the current queue head value(s) WITHOUT consuming them."""
         count = max(1, int(limit or 1))
         return [dict(entry[-1]) for entry in sorted(self._heap)[:count]]
+
+    @serialized_method
+    def export_tasks(self) -> List[Dict[str, Any]]:
+        """INTERNAL: the whole Queue as ONE list in exact pop order.
+
+        Queue-cache persistence only (the Part1/Part2 split stays internal:
+        part membership travels separately as the dedup-key set, and pop
+        order already encodes part_rank first).
+        """
+        return [dict(entry[-1]) for entry in sorted(self._heap)]
 
     def __len__(self) -> int:
         return len(self._heap)

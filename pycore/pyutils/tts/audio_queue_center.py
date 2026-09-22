@@ -31,6 +31,10 @@ Public API (the ONLY external surface; everything else is library-internal):
   M4 ``get_head(lane, limit)``          - read head value(s) WITHOUT consuming.
   M5 ``accept_task`` / ``pop_next`` / ``complete`` / ``request_pull`` /
      ``queue_snapshot`` - intake, consumer drain, wake, and status entries.
+  INTERNAL persistence hooks (not actor-facing API):
+     ``restore_from_cache(lane)`` - cache-first boot restore of the whole
+     Queue; ``persist_snapshot(lane, source)`` - whole-Queue snapshot write
+     (docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md).
 
 The Laravel-facing intake mechanics (HTTP, cursors, segment store) stay in
 the worker layer (pyctl); each lane worker registers its intake callables
@@ -48,6 +52,7 @@ from pycore.pyutils.common.queue_center_contract import (
     audio_dedup_key,
     audio_dedup_key_from_task,
 )
+from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_task_queue import AudioTaskQueue
 
 # Lanes owned by the library (contract queue keys), built eagerly so the
@@ -138,7 +143,9 @@ class AudioQueueCenter:
         diff_applier = (self._intake.get(str(lane or "").strip()) or {}).get("diff_applier")
         if diff_applier is None:
             return {"success": False, "error": f"no Laravel intake registered for lane {lane}"}
-        return diff_applier()
+        result = diff_applier()
+        self.persist_snapshot(str(lane or "").strip(), source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
+        return result
 
     def apply_head_ticket(self, lane: str, task_id: Any, queue_position: int) -> bool:
         """M2 realtime: one Laravel ``{queue}_head`` ticket.
@@ -168,12 +175,19 @@ class AudioQueueCenter:
         Whole-Queue dedup: an item whose single copy already sits in the
         queue is claimed into Part1 (front position wins); an item already
         in Part1 is refreshed in place. Never touches Laravel.
+
+        An item MAY carry ``task`` (a full task dict, e.g. the word-audio
+        full-pull fill): NEW items are then inserted into the whole Queue
+        (landing in Part1 automatically via the membership set) — still
+        deduped by canonical key, so an already-queued word keeps its ONE
+        existing copy instead of gaining a second entry.
         """
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
         if queue is None:
             return {"success": False, "error": f"unknown lane {lane}"}
         keys: Set[str] = set()
+        tasks_by_key: Dict[str, Dict[str, Any]] = {}
         for item in items:
             if not isinstance(item, dict):
                 continue
@@ -186,20 +200,90 @@ class AudioQueueCenter:
             )
             if key.split(":", 1)[-1]:
                 keys.add(key)
+                task = item.get("task")
+                if isinstance(task, dict):
+                    tasks_by_key[key] = task
         if not keys:
             return {"success": False, "error": "no promotable items"}
         self._part1_keys.setdefault(lane, set()).update(keys)
+        inserted = 0
+        for key, task in tasks_by_key.items():
+            if queue.has_dedup_key(key):
+                continue  # whole-Queue dedup: the ONE existing copy is claimed below
+            if queue.push(task):
+                inserted += 1
         claimed = queue.claim_part1(keys)
         self._wake(lane, prefer_remote=True)
         ColorPrint.green(
-            f"[AudioQueue] {lane} local promote: part1_keys={len(keys)} claimed={claimed}"
+            f"[AudioQueue] {lane} local promote: part1_keys={len(keys)} "
+            f"claimed={claimed} inserted={inserted}"
         )
+        self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         return {
             "success": True,
             "lane": lane,
             "promoted": len(keys),
             "claimed": claimed,
+            "inserted": inserted,
         }
+
+    # -------------------- queue cache (INTERNAL persistence hooks) --------------------
+
+    def restore_from_cache(self, lane: str) -> Dict[str, Any]:
+        """INTERNAL boot hook: restore the whole Queue from the local cache.
+
+        Cache-first boot (docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md):
+        runs ONCE at startup BEFORE any remote intake, so the lane drains
+        even with Laravel offline. Restores the ENTIRE Queue (Part1+Part2 as
+        one ordered list) plus the INTERNAL Part1 membership set; whole-Queue
+        dedup applies on every restored task (a task already queued from
+        another boot path is refreshed, never duplicated).
+        """
+        lane = str(lane or "").strip()
+        queue = self.queue_for(lane)
+        if queue is None:
+            return {"success": False, "error": f"unknown lane {lane}"}
+        snapshot = audio_queue_cache.load_snapshot(lane)
+        if not snapshot:
+            return {"success": True, "lane": lane, "restored": 0, "cached": False}
+        part1_keys = self._part1_keys.setdefault(lane, set())
+        part1_keys.update(snapshot.get("part1_keys") or set())
+        restored = 0
+        for task in snapshot.get("tasks") or []:
+            if queue.push(task):
+                restored += 1
+        ColorPrint.green(
+            f"[AudioQueue] {lane} cache restore: tasks={restored} "
+            f"part1_keys={len(part1_keys)} saved_at={snapshot.get('saved_at')} "
+            f"source={snapshot.get('source')}"
+        )
+        return {
+            "success": True,
+            "lane": lane,
+            "restored": restored,
+            "cached": True,
+            "saved_at": snapshot.get("saved_at"),
+            "source": snapshot.get("source"),
+        }
+
+    @serialized_method
+    def persist_snapshot(self, lane: str, source: str = "") -> None:
+        """INTERNAL: write the whole-Queue snapshot to the local cache.
+
+        The snapshot is the ENTIRE Queue (Part1+Part2 as ONE ordered list)
+        plus the INTERNAL Part1 membership set — the split never leaves the
+        library. Best-effort: a failed write is logged, never raised.
+        """
+        lane = str(lane or "").strip()
+        queue = self.queue_for(lane)
+        if queue is None:
+            return
+        audio_queue_cache.save_snapshot(
+            lane,
+            queue.export_tasks(),
+            self._part1_keys.get(lane) or set(),
+            source,
+        )
 
     # -------------------- M4/M5: reads, intake, drain, wake, status --------------------
 

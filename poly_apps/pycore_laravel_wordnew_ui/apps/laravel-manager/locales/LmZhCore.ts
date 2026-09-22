@@ -11,7 +11,6 @@ nav: {
       system: "系统信息",
       vocabulary: "词汇学习",
       aiManagement: "AI 管理",
-      wordAudio: "单词发音",
       devHistory: "AI 记录",
       mcp: "MCP 管理器",
       octane: "Octane 任务",
