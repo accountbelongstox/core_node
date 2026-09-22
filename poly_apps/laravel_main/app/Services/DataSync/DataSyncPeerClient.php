@@ -23,10 +23,10 @@ final class DataSyncPeerClient
 
         $scheme = strtolower((string) ($parts['scheme'] ?? 'http'));
         $host = trim((string) ($parts['host'] ?? ''), '[]');
-        // Scheme-aware default port: plain HTTP peers serve the LAN catch-all
-        // on 9000; TLS peers serve the HTTPS vhost on 443. An explicit port
-        // always wins (mirrors the UI's syncTarget resolution).
-        $port = (int) ($parts['port'] ?? ($scheme === 'https' ? 443 : DataSyncProtocol::DEFAULT_PORT));
+        // The managed endpoint dropdown entries already carry their full URL
+        // with port and pass through untouched. For typed input the default
+        // port is 9000 unless an explicit port is typed.
+        $port = (int) ($parts['port'] ?? DataSyncProtocol::DEFAULT_PORT);
         $path = (string) ($parts['path'] ?? '');
 
         if (
