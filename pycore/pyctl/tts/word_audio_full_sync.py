@@ -14,14 +14,14 @@ Laravel returns.
 
 Startup chain (event_handlers): cache restore -> full pull (background) ->
 drain. Runs only while the persisted Word Audio flag (assist capability
-``tts``) is ON; ``WORD_AUDIO_FULL_SYNC=1`` (pyservice --word-audio-full-sync)
-or the persisted ``word_tts_auto.full_sync_on_start`` key (default true)
-decides whether the pull runs at boot.
+``tts``) is ON; the persisted ``word_tts_auto.full_sync_on_start`` key
+(default true) — the SAME settings file the UI writes — decides whether the
+pull runs at boot. There is NO CLI/env parameter: the persisted flag is the
+single switch.
 """
 
 from __future__ import annotations
 
-import os
 import threading
 import time
 from typing import Any, Dict, List, Optional
@@ -36,8 +36,6 @@ from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 QUEUE_KEY = "word_audio"
-# Startup full-pull switch (pyservice --word-audio-full-sync sets this env).
-WORD_AUDIO_FULL_SYNC_ENV = "WORD_AUDIO_FULL_SYNC"
 # Persisted startup preference (user_data_store section word_tts_auto).
 FULL_SYNC_ON_START_KEY = "full_sync_on_start"
 # Laravel listing endpoints (read-only dictionary scan).
@@ -52,13 +50,11 @@ _LOCAL_TASK_ID_PREFIX = "word-full-"
 
 
 def full_sync_on_start() -> bool:
-    """Startup full-pull decision: env force-ON wins, else persisted key.
+    """Startup full-pull decision: the persisted key is the ONLY switch.
 
     Read DIRECTLY from the settings file (never from the UI process); default
     True so a Running Word Audio flag implies the full pull at boot.
     """
-    if os.environ.get(WORD_AUDIO_FULL_SYNC_ENV, "") in ("1", "true", "True"):
-        return True
     section = user_data_store.get_section(USER_DATA_SECTION_WORD_TTS_AUTO) or {}
     value = section.get(FULL_SYNC_ON_START_KEY)
     return True if value is None else bool(value)
@@ -89,8 +85,6 @@ class WordAudioFullSync:
         return {
             "running": self._running,
             "on_start": full_sync_on_start(),
-            "env_forced": os.environ.get(WORD_AUDIO_FULL_SYNC_ENV, "")
-            in ("1", "true", "True"),
             "last_sync_at": self._last_sync_at,
             "last_result": dict(self._last_result),
             "languages": [dict(row) for row in self._languages],
@@ -300,7 +294,6 @@ __all__ = [
     "FULL_SYNC_ON_START_KEY",
     "LOCAL_SOURCE_MARKER",
     "QUEUE_KEY",
-    "WORD_AUDIO_FULL_SYNC_ENV",
     "WordAudioFullSync",
     "full_sync_on_start",
     "set_full_sync_on_start",
