@@ -103,7 +103,7 @@ dbSync: {
       },
       errors: {
         nodes: "部分受管 Laravel 节点无法加载",
-        protocol: "需要使用当前机器同步协议",
+        protocol: "对端机器的同步协议版本不兼容 —— 请将两台机器的 Laravel Main 代码更新到同一版本后重试",
         load: "无法加载同步会话。",
         start: "无法启动同步。",
         fetch: "无法启动拉取同步。",
