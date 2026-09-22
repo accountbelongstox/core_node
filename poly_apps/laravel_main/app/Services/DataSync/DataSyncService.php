@@ -195,6 +195,25 @@ final class DataSyncService
         });
     }
 
+    /**
+     * Operator-initiated abort of a driver session (source/fetcher). Finished
+     * sessions are already inactive; active ones leave the active set so they
+     * no longer block new topologies (writer exclusivity, target conflicts).
+     */
+    public function cancel(string $id): array
+    {
+        return $this->withSessionLock($id, function () use ($id): array {
+            $job = $this->requireDriverJob($id);
+            if (in_array($job['status'], ['completed', 'failed'], true)) {
+                return $this->publicJob($job);
+            }
+            $job['status'] = 'failed';
+            $job['error'] = 'Synchronization session cancelled by the operator.';
+            $job = $this->store->markCurrentStep($job, 'failed', $job['error']);
+            return $this->publicJob($job);
+        });
+    }
+
     public function health(): array
     {
         return [
