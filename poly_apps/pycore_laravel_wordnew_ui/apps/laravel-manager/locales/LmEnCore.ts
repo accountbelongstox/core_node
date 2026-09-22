@@ -55,6 +55,7 @@ dbSync: {
       oldServer: "Old server",
       newServer: "New server",
       maxTwoEndpoints: "A sync pair uses at most two endpoints: this node and one peer.",
+      sameNode: "The new server must be a different machine from the old server.",
       peerAuthRequired: "This node needs its own Laravel sign-in.",
       peerLogin: "Sign in",
       peerLogout: "Sign out",

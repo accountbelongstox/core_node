@@ -7,6 +7,7 @@ import {
   DATA_SYNC_MAX_MANAGED_ENDPOINTS,
   DATA_SYNC_PEER_UNREACHABLE_ERROR,
   DATA_SYNC_PROTOCOL_MISMATCH_ERROR,
+  DATA_SYNC_SAME_NODE_ERROR,
   type DataSyncDirectionProbe,
   type DataSyncManagedEndpoint,
   type ManagedDataSyncSession,
@@ -132,6 +133,8 @@ export const DataSyncTab: React.FC = () => {
     () => (newServerInput.trim() === '' ? null : dataSyncModel.resolveNewServer(newServerInput)),
     [newServerInput, peerAuthVersion],
   );
+  // The pair must span two machines: probing or syncing a node onto itself is rejected.
+  const sameNodeSelected = Boolean(oldEndpoint && newServerNode && dataSyncModel.sameNode(oldEndpoint, newServerNode));
   const selected = useMemo(
     () => sessions.find((session) => session.manager_key === selectedKey) ?? sessions[0] ?? null,
     [sessions, selectedKey],
@@ -169,9 +172,10 @@ export const DataSyncTab: React.FC = () => {
   }, [selected?.id, selected?.context?.awaiting_target, selected?.target_input]);
 
   useEffect(() => {
-    if (managedEndpoints.some((endpoint) => endpoint.id === oldEndpointId)) return;
-    setOldEndpointId(managedEndpoints[0]?.id ?? '');
-  }, [managedEndpoints, oldEndpointId]);
+    // The old server may be any known node, managed or not.
+    if (endpoints.some((endpoint) => endpoint.id === oldEndpointId)) return;
+    setOldEndpointId(endpoints.find((endpoint) => endpoint.current)?.id ?? endpoints[0]?.id ?? '');
+  }, [endpoints, oldEndpointId]);
 
   // A changed pair invalidates the negotiated direction.
   useEffect(() => {
@@ -227,7 +231,7 @@ export const DataSyncTab: React.FC = () => {
   };
 
   const runProbe = useCallback(async () => {
-    if (!oldEndpointId || newServerInput.trim() === '') return;
+    if (!oldEndpointId || newServerInput.trim() === '' || sameNodeSelected) return;
     setProbing(true);
     setProbeError(null);
     try {
@@ -238,14 +242,16 @@ export const DataSyncTab: React.FC = () => {
         setAuthEndpoint((current) => current ?? newServerNode);
       }
       setProbeError(
-        probeFailure instanceof Error && probeFailure.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
+        probeFailure instanceof Error && probeFailure.message === DATA_SYNC_SAME_NODE_ERROR
+          ? t('dbSync.sameNode')
+          : probeFailure instanceof Error && probeFailure.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
           ? t('dbSync.directionNone')
           : (probeFailure instanceof Error && probeFailure.message ? probeFailure.message : t('dbSync.errors.probe')),
       );
     } finally {
       setProbing(false);
     }
-  }, [oldEndpointId, newServerInput, newServerNode, t]);
+  }, [oldEndpointId, newServerInput, sameNodeSelected, newServerNode, t]);
 
   const afterPeerLogin = useCallback(async () => {
     setPeerAuthVersion((version) => version + 1);
@@ -258,11 +264,16 @@ export const DataSyncTab: React.FC = () => {
   }, [loadWorkspace, newServerInput, runProbe]);
 
   const start = async () => {
-    if (!oldEndpointId) return;
+    if (!oldEndpointId || sameNodeSelected) return;
     setBusy(true);
     setError(null);
     try {
       if (probe?.direction === 'pull') {
+        // The fetcher drives the pull: keep its sessions visible by managing
+        // the node when it is a registry endpoint outside the managed pair.
+        if (!probe.newServer.managed && !probe.newServer.adhoc) {
+          setEndpoints(dataSyncModel.setManagedEndpoints([probe.newServer.id]));
+        }
         const session = await dataSyncModel.startFetch(probe.newServer.id, {
           target: probe.oldServer.syncTarget,
           databases,
@@ -272,6 +283,9 @@ export const DataSyncTab: React.FC = () => {
         setSessions((current) => [session, ...current]);
         setSelectedKey(session.manager_key);
       } else {
+        if (oldEndpoint && !oldEndpoint.managed && !oldEndpoint.adhoc) {
+          setEndpoints(dataSyncModel.setManagedEndpoints([oldEndpoint.id]));
+        }
         const session = await dataSyncModel.start(oldEndpointId, { target: newServerInput, databases, resources, compression });
         setSessions((current) => [session, ...current]);
         setSelectedKey(session.manager_key);
@@ -379,7 +393,7 @@ export const DataSyncTab: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label={t('dbSync.oldServer')}>
             <select value={oldEndpointId} onChange={(event) => setOldEndpointId(event.target.value)} className={`${commonClasses.select} w-full`}>
-              {managedEndpoints.map((endpoint) => <option key={endpoint.id} value={endpoint.id}>{endpoint.description} · {endpoint.baseUrl}</option>)}
+              {endpoints.map((endpoint) => <option key={endpoint.id} value={endpoint.id}>{endpoint.description} · {endpoint.baseUrl}</option>)}
             </select>
           </Field>
           <Field label={t('dbSync.newServer')}>
@@ -415,14 +429,14 @@ export const DataSyncTab: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={start} disabled={busy || !oldEndpointId || Boolean(receiverActive) || (!databases && !resources) || (probe?.direction === 'pull' ? Boolean(newServerWriterActive) : (newServerInput.trim() === '' && Boolean(manifestDraftActive)))} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
+          <button type="button" onClick={start} disabled={busy || !oldEndpointId || sameNodeSelected || Boolean(receiverActive) || (!databases && !resources) || (probe?.direction === 'pull' ? Boolean(newServerWriterActive) : (newServerInput.trim() === '' && Boolean(manifestDraftActive)))} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
             <Play className="w-4 h-4" />
             {probe?.direction === 'pull' ? t('dbSync.startFetch') : newServerInput.trim() === '' ? t('dbSync.collectManifest') : t('dbSync.start')}
           </button>
           <button
             type="button"
             onClick={() => void runProbe()}
-            disabled={probing || !oldEndpointId || newServerInput.trim() === ''}
+            disabled={probing || !oldEndpointId || newServerInput.trim() === '' || sameNodeSelected}
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}
           >
             <Radar className="w-4 h-4" />{probing ? t('dbSync.probing') : t('dbSync.probeDirection')}
@@ -437,6 +451,7 @@ export const DataSyncTab: React.FC = () => {
             </button>
           )}
         </div>
+        {sameNodeSelected && <AlertBox variant="warning">{t('dbSync.sameNode')}</AlertBox>}
         {probe && (
           <AlertBox variant="info" icon={false}>
             {t(probe.direction === 'push' ? 'dbSync.directionPush' : 'dbSync.directionPull', {

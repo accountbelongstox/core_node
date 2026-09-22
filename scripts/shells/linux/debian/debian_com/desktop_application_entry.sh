@@ -227,6 +227,10 @@ SAVED_HOME="$(getent passwd "$SAVED_USER" 2>/dev/null | cut -d: -f6)"
 SAVED_DISPLAY="${DISPLAY:-:0}"
 SAVED_XAUTHORITY="${XAUTHORITY:-$SAVED_HOME/.Xauthority}"
 SAVED_XDG_RUNTIME_DIR="/run/user/$(id -u $SAVED_USER)"
+SAVED_WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
+SAVED_XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-}"
+SAVED_DBUS_BUS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u $SAVED_USER)/bus}"
+SAVED_IBUS_ADDR="${IBUS_ADDRESS:-}"
 
 # Launch with pkexec (root privileges) and preserve necessary environment
 # PATH prepend: core_node browser bridge so URL opens (Sign in buttons) are
@@ -235,6 +239,15 @@ exec pkexec env \
     DISPLAY="$SAVED_DISPLAY" \
     XAUTHORITY="$SAVED_XAUTHORITY" \
     XDG_RUNTIME_DIR="$SAVED_XDG_RUNTIME_DIR" \
+    WAYLAND_DISPLAY="$SAVED_WAYLAND_DISPLAY" \
+    XDG_SESSION_TYPE="$SAVED_XDG_SESSION_TYPE" \
+    DBUS_SESSION_BUS_ADDRESS="$SAVED_DBUS_BUS" \
+    IBUS_ADDRESS="$SAVED_IBUS_ADDR" \
+    GTK_IM_MODULE="${GTK_IM_MODULE:-fcitx}" \
+    QT_IM_MODULE="${QT_IM_MODULE:-fcitx}" \
+    XMODIFIERS="${XMODIFIERS:-@im=fcitx}" \
+    SDL_IM_MODULE="${SDL_IM_MODULE:-fcitx}" \
+    ELECTRON_OZONE_PLATFORM_HINT="auto" \
     PATH="/usr/local/lib/core_node/browser-bridge:$PATH" \
 EOF
 

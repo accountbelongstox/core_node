@@ -37,6 +37,7 @@ dbSync: {
       oldServer: "旧服务器",
       newServer: "新服务器",
       maxTwoEndpoints: "一次同步最多使用两个端点：本机与一个对端。",
+      sameNode: "新服务器不能与旧服务器是同一台机器。",
       peerAuthRequired: "该节点需要单独登录 Laravel。",
       peerLogin: "登录",
       peerLogout: "登出",

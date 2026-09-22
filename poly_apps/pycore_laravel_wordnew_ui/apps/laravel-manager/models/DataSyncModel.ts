@@ -23,6 +23,7 @@ export const DATA_SYNC_PROTOCOL_VERSION = 3;
 export const DATA_SYNC_PROTOCOL_MISMATCH_ERROR = 'DATA_SYNC_PROTOCOL_VERSION_MISMATCH';
 export const DATA_SYNC_PEER_UNREACHABLE_ERROR = 'DATA_SYNC_PEER_UNREACHABLE';
 export const DATA_SYNC_MAX_MANAGED_ENDPOINTS = 2;
+export const DATA_SYNC_SAME_NODE_ERROR = 'DATA_SYNC_SAME_NODE';
 const DATA_SYNC_DEFAULT_PORT = 9000;
 
 export interface DataSyncManagedEndpoint {
@@ -248,6 +249,16 @@ export class DataSyncModel {
   }
 
   /**
+   * The old and new servers must be two different machines. Registry matches
+   * compare by id; typed addresses compare by host with the loopback aliases
+   * folded together (mirrors the backend guard).
+   */
+  sameNode(first: DataSyncManagedEndpoint, second: DataSyncManagedEndpoint): boolean {
+    if (first.id === second.id) return true;
+    return this.hostKey(first.syncTarget) === this.hostKey(second.syncTarget);
+  }
+
+  /**
    * Mutual reachability negotiation. The old server probes the new server
    * first: when reachable, the new server is the externally reachable node
    * and the old server packs + uploads (push). Otherwise the new server
@@ -259,6 +270,9 @@ export class DataSyncModel {
     const newServer = this.resolveNewServer(newServerInput);
     if (!newServer) {
       throw new Error(DATA_SYNC_PEER_UNREACHABLE_ERROR);
+    }
+    if (this.sameNode(oldServer, newServer)) {
+      throw new Error(DATA_SYNC_SAME_NODE_ERROR);
     }
 
     const forward = await this.client(oldServer)
@@ -333,6 +347,15 @@ export class DataSyncModel {
     const peerAuth = this.peerAuth(endpoint.id);
     if (peerAuth) return `Bearer ${peerAuth.token}`;
     return endpoint.current ? getSharedAuthToken() : null;
+  }
+
+  private hostKey(address: string): string {
+    try {
+      const host = new URL(address).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+      return host === 'localhost' || host === '127.0.0.1' || host === '::1' ? 'loopback' : host;
+    } catch {
+      return address.toLowerCase();
+    }
   }
 
   private normalizeAdhocAddress(input: string): string | null {

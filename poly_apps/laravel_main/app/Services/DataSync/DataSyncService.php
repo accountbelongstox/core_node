@@ -31,6 +31,8 @@ final class DataSyncService
             throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
         }
 
+        $this->assertNotSelfTarget($normalizedTarget);
+
         return $this->topology->run(function () use (
             $targetInput,
             $normalizedTarget,
@@ -87,6 +89,8 @@ final class DataSyncService
         if (!$syncDatabases && !$syncResources) {
             throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
         }
+
+        $this->assertNotSelfTarget($normalizedTarget);
 
         return $this->topology->run(function () use (
             $targetInput,
@@ -959,6 +963,7 @@ final class DataSyncService
         }
 
         $job['target'] = $this->peer->normalizeAddress($input);
+        $this->assertNotSelfTarget($job['target']);
         $job['context']['awaiting_target'] = false;
         return $this->completed($this->store->save($job), $job['target']);
     }
@@ -1905,6 +1910,31 @@ final class DataSyncService
         }
 
         return $signatures;
+    }
+
+    /**
+     * The new server must be a different machine than this node: syncing a
+     * node onto itself would diff its own databases against themselves.
+     * Compared by host, with the loopback aliases folded together.
+     */
+    private function assertNotSelfTarget(?string $target): void
+    {
+        $selfUrl = trim((string) config('app.url'));
+        if ($target === null || $selfUrl === '') {
+            return;
+        }
+
+        if ($this->hostKey($target) === $this->hostKey($selfUrl)) {
+            throw new \InvalidArgumentException('The new server must be a different machine than this node.');
+        }
+    }
+
+    private function hostKey(string $address): string
+    {
+        $candidate = str_contains($address, '://') ? $address : 'http://' . $address;
+        $host = strtolower((string) parse_url($candidate, PHP_URL_HOST));
+
+        return in_array($host, ['localhost', '127.0.0.1', '::1'], true) ? 'loopback' : $host;
     }
 
     private function assertSourceTargetAvailable(?string $target, ?string $excludedId = null): void
