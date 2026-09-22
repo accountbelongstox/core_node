@@ -69,6 +69,7 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({
       selectedKey={selectedKey}
       onSelect={(item) => onSelect({ kind: 'source', source: { ...item, kind: sourceKind } })}
       reloadSignal={reloadSignal}
+      onRequireLogin={onRequireLogin}
     />
   );
 };
