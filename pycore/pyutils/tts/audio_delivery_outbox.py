@@ -664,6 +664,21 @@ class AudioDeliveryExecutor:
             info["backend_upload_error"] = domain_error
 
         result_accepted = bool(claimed.get("result_accepted"))
+        if (
+            not result_accepted
+            and domain_delivery_finished
+            and str(info.get("_local_source") or "")
+        ):
+            # Locally sourced tasks (word-audio full pull) have no global_tasks
+            # row to close: the domain report above IS the whole delivery, so
+            # the global result step is skipped once the domain upload reached
+            # a terminal state (accepted OR terminally rejected).
+            result_accepted = True
+            audio_delivery_outbox.patch(
+                delivery_id,
+                {"result_accepted": True, "last_error": ""},
+                owner=owner,
+            )
         if not result_accepted:
             result = handler._build_success_result(
                 info,

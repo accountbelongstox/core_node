@@ -35,7 +35,7 @@ import type { UnifiedAppContextType, UnifiedAppState } from './unifiedAppContext
  * Default State
  */
 const DEFAULT_STATE: UnifiedAppState = {
-  activeView: ViewType.MEDIA_BROWSER,
+  activeView: ViewType.SERVER_MANAGER,
   UnifiedUser: null,
   isLoggedIn: false,
   preferences: {

@@ -496,6 +496,9 @@ class LaravelAudioWorkerStateMixin:
             "attempt": self._task_attempt(task),
             "queue_position": task.get("queue_position"),
             "language": language,
+            # Locally sourced tasks (word-audio full pull) have no global_tasks
+            # row: claim/result posts against Laravel are skipped for them.
+            "_local_source": str(task.get("_local_source") or "").strip(),
         }
 
         if self.LANE == "sentence":

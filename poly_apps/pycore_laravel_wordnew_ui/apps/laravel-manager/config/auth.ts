@@ -32,6 +32,7 @@ import i18n from '../i18n';
 /** All view types that require the user to be logged in for protected operations. */
 export const REQUIRE_LOGIN_VIEWS: ViewType[] = [
   ViewType.SERVER_MANAGER,
+  ViewType.MEDIA_BROWSER,
   ViewType.SETTINGS,
   ViewType.DATABASE_MANAGER
 ];
@@ -65,6 +66,7 @@ export function isDebugAuthBypass(): boolean {
 /** Map ViewType -> key path in TRANSLATIONS[lang] for auth_required message (e.g. server_manager.auth_required). Only entries for REQUIRE_LOGIN_VIEWS. */
 const VIEW_AUTH_MESSAGE_KEYS: Partial<Record<ViewType, string>> = {
   [ViewType.SERVER_MANAGER]: 'server_manager.auth_required',
+  [ViewType.MEDIA_BROWSER]: 'server_manager.auth_required',
   [ViewType.SETTINGS]: 'settings.auth_required',
   [ViewType.DATABASE_MANAGER]: 'db_manager.auth_required'
 };

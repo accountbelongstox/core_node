@@ -628,6 +628,17 @@ class LaravelAudioWorkerExecutionMixin:
 
     # -------------------- per-task processing --------------------
 
+    def _post_task_result(self, task: Dict[str, Any], *args: Any, **kwargs: Any) -> bool:
+        """Global result post for one queued task.
+
+        Locally sourced tasks (``_local_source``, word-audio full pull) have
+        no global_tasks row: the post would 404, so it is skipped — delivery
+        is the domain report + durable outbox instead.
+        """
+        if task.get("_local_source"):
+            return True
+        return self._post_result(*args, **kwargs)
+
     def _process_claimed(self, task: Dict[str, Any]) -> bool:
         """Inflight-guard + process one queued task (lane entry point)."""
         if not self._claim_inflight(task):
@@ -639,8 +650,9 @@ class LaravelAudioWorkerExecutionMixin:
         try:
             # Full-sync lanes claim just-in-time here: the claim lease then
             # covers only the short processing window, and 404/409 rows are
-            # dropped before any synthesis work happens.
-            if not self._ensure_laravel_claim(task):
+            # dropped before any synthesis work happens. Locally sourced
+            # tasks (word-audio full pull) have no global_tasks row to claim.
+            if not task.get("_local_source") and not self._ensure_laravel_claim(task):
                 return True
             return self._process_task(task)
         finally:
@@ -667,7 +679,8 @@ class LaravelAudioWorkerExecutionMixin:
                     f"task_type {task.get('task_type')!r} / capability "
                     f"{task.get('capability')!r} - reporting failed so it can be re-routed"
                 )
-                self._post_result(
+                self._post_task_result(
+                    task,
                     task_id,
                     "failed",
                     error=(
@@ -690,7 +703,8 @@ class LaravelAudioWorkerExecutionMixin:
                 )
             if info.get("error"):
                 self._report_failure(info, "none", info["error"])
-                self._post_result(
+                self._post_task_result(
+                    task,
                     task_id,
                     "failed",
                     error=info["error"],
@@ -727,7 +741,8 @@ class LaravelAudioWorkerExecutionMixin:
             try:
                 if not ok:
                     self._report_failure(info, provider, err)
-                    self._post_result(
+                    self._post_task_result(
+                        task,
                         task_id,
                         "failed",
                         error=err,
@@ -762,7 +777,8 @@ class LaravelAudioWorkerExecutionMixin:
             ColorPrint.red(
                 f"{self._log_prefix} Task {self._display_task_id(task_id)} error: {e}"
             )
-            self._post_result(
+            self._post_task_result(
+                task,
                 task_id,
                 "failed",
                 error=str(e),

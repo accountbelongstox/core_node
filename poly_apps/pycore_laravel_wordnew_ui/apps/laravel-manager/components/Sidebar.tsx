@@ -3,17 +3,13 @@ import { ViewType, NavItem, Language } from '@/apps/laravel-manager/uiTypes';
 import { useTranslation } from 'react-i18next';
 import {
   Wrench,
-  Server,
   Settings,
   Rocket,
   BookOpen,
   ListChecks,
   Network,
-  Sparkles,
   BrainCircuit,
   DatabaseZap,
-  Clapperboard,
-  Cloud,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -23,10 +19,6 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: ViewType.CLOUD_CLIPBOARD, icon: Cloud, labelKey: 'cloudClipboard' },
-  { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
-  // Unified resources hub: Movies, Books, Files, and Code in one explorer.
-  { id: ViewType.MEDIA_BROWSER, icon: Clapperboard, labelKey: 'media' },
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.AI_MANAGEMENT, icon: BrainCircuit, labelKey: 'aiManagement' },

@@ -53,6 +53,7 @@ from pycore.callmodule.rpc_routes.translator_routes import register_translator_r
 from pycore.callmodule.rpc_routes.tts_routes import register_tts_routes
 from pycore.callmodule.rpc_routes.video_extract_routes import register_video_extract_routes
 from pycore.callmodule.rpc_routes.voice_subtitle_routes import register_voice_subtitle_routes
+from pycore.callmodule.rpc_routes.word_audio_full_sync_routes import register_word_audio_full_sync_routes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -85,6 +86,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_local_ocr_status_routes,
     register_local_queue_accept_routes,
     register_local_queue_head_routes,
+    register_word_audio_full_sync_routes,
     register_local_sentence_audio_routes,
     register_local_speech_history_routes,
     register_local_stt_status_routes,

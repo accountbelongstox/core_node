@@ -9,7 +9,6 @@ export enum ViewType {
   DASHBOARD = 'dashboard',
   MEDIA_BROWSER = 'media',
   TOOLS = 'tools',
-  API_TESTER = 'api',
   SETTINGS = 'settings',
   SYSTEM_INFO = 'system',
   VOCABULARY = 'vocabulary',
