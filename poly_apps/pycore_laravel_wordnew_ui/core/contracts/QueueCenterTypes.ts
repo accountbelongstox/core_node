@@ -335,6 +335,31 @@ export interface QueueCenterWorkerMetrics {
   last_heartbeat: string | null;
 }
 
+/** Word-audio full-pull status (pycore `word_audio_full_sync`, word_audio section only). */
+export interface QueueCenterWordAudioFullSyncStatus {
+  running: boolean;
+  on_start: boolean;
+  env_forced: boolean;
+  last_sync_at: number;
+  last_result: {
+    success?: boolean;
+    pulled?: number;
+    inserted?: number;
+    languages?: number;
+    error?: string;
+  };
+  languages: Array<{
+    language: string;
+    language_code?: string;
+    without_audio?: number;
+    pulled?: number;
+    inserted?: number;
+  }>;
+  cache_saved_at: number;
+  cache_source: string;
+  cache_count: number;
+}
+
 export interface QueueCenterErrorState {
   last_error: string | null;
   error_code: string | null;
@@ -358,6 +383,8 @@ export interface QueueCenterSectionContract {
   worker: QueueCenterWorkerMetrics;
   toggle: QueueCenterToggleEnvelope;
   lifecycle: QueueCenterSectionLifecycle;
+  /** word_audio only: pycore full-pull status block (absent for other scopes). */
+  full_sync?: QueueCenterWordAudioFullSyncStatus | null;
   error_code: string | null;
   last_error: string | null;
   observed_at: string | null;

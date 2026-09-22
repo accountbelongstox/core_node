@@ -67,6 +67,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
+import type { QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
@@ -388,6 +389,18 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterPromoteLocalHead, payload) as Promise<{
       success: boolean;
       data?: { promoted?: number; claimed?: number };
+      error?: string;
+    }>,
+
+  /**
+   * On-demand word-audio full pull: pycore pulls EVERY dictionary word
+   * without audio into its local word_audio queue (Part1 fill, background).
+   * NEVER mutates Laravel's queue; returns the live sync status block.
+   */
+  wordAudioFullSync: () =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterWordAudioFullSync, {}) as Promise<{
+      success: boolean;
+      data?: { status?: QueueCenterWordAudioFullSyncStatus };
       error?: string;
     }>,
 
