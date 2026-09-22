@@ -129,13 +129,27 @@ export class DataSyncModel {
         };
       }
     }));
-    const sessions = results.flatMap(({ endpoint, sessions: endpointSessions }) =>
+    const merged = results.flatMap(({ endpoint, sessions: endpointSessions }) =>
       endpointSessions.map((session) => ({
         ...session,
         manager_endpoint: endpoint,
         manager_key: `${endpoint.id}:${session.id}`,
       }))
     ).sort((left, right) => right.created_at.localeCompare(left.created_at));
+
+    // The same node can be reachable through several endpoint addresses
+    // (loopback, LAN, public domain): its sessions then arrive once per
+    // endpoint. Collapse copies of the same session, preferring the current
+    // endpoint's copy so actions stay on the local connection.
+    const deduped = new Map<string, ManagedDataSyncSession>();
+    for (const session of merged) {
+      const key = `${session.role}:${session.id}`;
+      const existing = deduped.get(key);
+      if (!existing || (!existing.manager_endpoint.current && session.manager_endpoint.current)) {
+        deduped.set(key, session);
+      }
+    }
+    const sessions = Array.from(deduped.values());
     const errors = results
       .filter((result) => result.error !== null)
       .map((result) => ({
