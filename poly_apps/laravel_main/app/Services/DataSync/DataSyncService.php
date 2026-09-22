@@ -39,7 +39,9 @@ final class DataSyncService
             $syncResources,
             $compression
         ): array {
+            $cancelled = $this->cancelOtherActiveSessions();
             $this->assertNoActiveWriter('An incoming synchronization session is active on this node.');
+            $this->assertNoActiveReader();
             $this->assertSourceTargetAvailable($normalizedTarget);
 
             $job = $this->store->create('source', [
@@ -55,7 +57,9 @@ final class DataSyncService
                 ],
             ]);
 
-            return $this->publicJob($job);
+            $result = $this->publicJob($job);
+            $result['cancelled_sessions'] = $cancelled;
+            return $result;
         });
     }
 
@@ -98,6 +102,7 @@ final class DataSyncService
             $syncResources,
             $compression
         ): array {
+            $cancelled = $this->cancelOtherActiveSessions();
             $this->assertNoActiveWriter('An incoming synchronization session is active on this node.');
             $this->assertNoActiveReader();
 
@@ -120,7 +125,9 @@ final class DataSyncService
                 ],
             ]);
 
-            return $this->publicJob($job);
+            $result = $this->publicJob($job);
+            $result['cancelled_sessions'] = $cancelled;
+            return $result;
         });
     }
 
@@ -210,7 +217,7 @@ final class DataSyncService
      */
     public function cancel(string $id): array
     {
-        $job = $this->requireDriverJob($id);
+        $job = $this->requireAnyJob($id);
         if (in_array($job['status'], ['completed', 'failed'], true)) {
             FileSystemManager::delete($this->cancelFlagPath($id));
             return $this->publicJob($job);
@@ -224,18 +231,22 @@ final class DataSyncService
         try {
             return $this->withSessionLock($id, fn (): array => $this->applyCancel($id));
         } catch (\RuntimeException $exception) {
-            if ($exception->getMessage() !== 'The synchronization session is busy; retry the request.') {
+            if (!in_array($exception->getMessage(), [
+                'The synchronization session is busy; retry the request.',
+                'The synchronization session has been cancelled.',
+            ], true)) {
                 throw $exception;
             }
-            // Busy: the driver applies the recorded cancel request at the next
-            // tick boundary; the UI polls and observes the transition.
-            return $this->publicJob($job);
+            // Busy: the driver or the next peer call applies the recorded
+            // cancel request at the next lock boundary; already-applied cancels
+            // surface through the refreshed job state.
+            return $this->publicJob($this->store->get($id) ?? $job);
         }
     }
 
     private function applyCancel(string $id): array
     {
-        $job = $this->requireDriverJob($id);
+        $job = $this->requireAnyJob($id);
         FileSystemManager::delete($this->cancelFlagPath($id));
         if (in_array($job['status'], ['completed', 'failed'], true)) {
             return $this->publicJob($job);
@@ -256,6 +267,40 @@ final class DataSyncService
         $safeId = DataSyncSessionId::require($id);
         return rtrim(PathMapper::getBackupDir('data-sync/locks'), '/\\')
             . DIRECTORY_SEPARATOR . $safeId . '.cancel';
+    }
+
+    /**
+     * Single-active-session contract: only one synchronization may run per
+     * node. Starting a new session cancels every other active session (any
+     * role); busy sessions wind down at their next lock boundary via the
+     * cancel flag, so the new session never blocks on them.
+     *
+     * @return list<string> ids of sessions a cancel was requested for
+     */
+    private function cancelOtherActiveSessions(?string $excludeId = null): array
+    {
+        $cancelled = [];
+        foreach (['source', 'fetcher', 'receiver', 'exporter'] as $role) {
+            try {
+                $actives = $this->store->activeAll($role);
+            } catch (\Throwable) {
+                continue;
+            }
+            foreach ($actives as $active) {
+                $activeId = (string) ($active['id'] ?? '');
+                if ($activeId === '' || $activeId === $excludeId || $this->cancelRequested($activeId)) {
+                    continue;
+                }
+                try {
+                    $this->cancel($activeId);
+                    $cancelled[] = $activeId;
+                } catch (\Throwable) {
+                    // A session that cannot be signalled keeps the exclusivity
+                    // asserts below authoritative.
+                }
+            }
+        }
+        return $cancelled;
     }
 
     public function health(): array
@@ -737,6 +782,10 @@ final class DataSyncService
                 if ($receiver === null || $receiver['status'] === 'paused') {
                     return;
                 }
+                if ($this->cancelRequested($id)) {
+                    $this->applyCancel($id);
+                    return;
+                }
                 try {
                     $this->advanceReceiver($receiver);
                 } catch (\Throwable $exception) {
@@ -780,6 +829,10 @@ final class DataSyncService
             fn (): array => $this->sessionLock->run($id, function () use ($id): void {
                 $exporter = $this->store->get($id);
                 if ($exporter === null || $exporter['status'] === 'paused') {
+                    return;
+                }
+                if ($this->cancelRequested($id)) {
+                    $this->applyCancel($id);
                     return;
                 }
                 try {
@@ -2079,6 +2132,9 @@ final class DataSyncService
             if (($source['id'] ?? null) === $excludedId) {
                 continue;
             }
+            if ($this->cancelRequested((string) ($source['id'] ?? ''))) {
+                continue;
+            }
 
             $sourceTarget = $source['target'] ?? null;
             if ($target === null && $sourceTarget === null) {
@@ -2103,6 +2159,15 @@ final class DataSyncService
     {
         $job = $this->store->get($id);
         if ($job === null || !in_array($job['role'] ?? null, ['source', 'fetcher'], true)) {
+            throw new \InvalidArgumentException('Data synchronization session was not found.');
+        }
+        return $job;
+    }
+
+    private function requireAnyJob(string $id): array
+    {
+        $job = $this->store->get($id);
+        if ($job === null) {
             throw new \InvalidArgumentException('Data synchronization session was not found.');
         }
         return $job;
@@ -2138,8 +2203,13 @@ final class DataSyncService
      */
     private function assertNoActiveWriter(string $message): void
     {
-        if ($this->store->active('receiver') !== null || $this->store->active('fetcher') !== null) {
-            throw new \RuntimeException($message);
+        foreach (['receiver', 'fetcher'] as $role) {
+            foreach ($this->store->activeAll($role) as $active) {
+                if ($this->cancelRequested((string) ($active['id'] ?? ''))) {
+                    continue;
+                }
+                throw new \RuntimeException($message);
+            }
         }
     }
 
@@ -2149,8 +2219,13 @@ final class DataSyncService
      */
     private function assertNoActiveReader(): void
     {
-        if ($this->store->activeAll('source') !== [] || $this->store->active('exporter') !== null) {
-            throw new \RuntimeException('This node already has an active outgoing synchronization session.');
+        foreach (['source', 'exporter'] as $role) {
+            foreach ($this->store->activeAll($role) as $active) {
+                if ($this->cancelRequested((string) ($active['id'] ?? ''))) {
+                    continue;
+                }
+                throw new \RuntimeException('This node already has an active outgoing synchronization session.');
+            }
         }
     }
 
@@ -2158,6 +2233,10 @@ final class DataSyncService
     {
         $result = $this->sessionLock->run($id, function () use ($id, $callback, $receiverToken): mixed {
             try {
+                if ($this->cancelRequested($id)) {
+                    $this->applyCancel($id);
+                    throw new \RuntimeException('The synchronization session has been cancelled.');
+                }
                 return $callback();
             } catch (\Throwable $exception) {
                 $job = $this->store->get($id);

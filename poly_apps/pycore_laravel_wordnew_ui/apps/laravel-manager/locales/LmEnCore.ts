@@ -72,6 +72,8 @@ dbSync: {
       source: "Source",
       receiver: "Receiver",
       allSessions: "All node sessions",
+      currentSession: "Current session",
+      autoCancelled: "Started. {{count}} other active session(s) were cancelled — only one synchronization can run at a time; busy ones wind down at their next checkpoint.",
       counterpartPending: "The receiver session has not been created yet.",
       counterpartOffline: "The receiver status is temporarily unavailable; backend checkpoints continue to persist.",
       target: "Receiver IP or host",
