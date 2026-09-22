@@ -21,6 +21,7 @@ Layering (PYTHON_PYCORE.md §2.2): stdlib only — no third-party, no pyutils/py
 Extensible: add to ``_MARKERS`` (and the laravel seeder); ``ensure_*`` is idempotent.
 """
 
+import re
 import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -56,6 +57,8 @@ _MARKERS: List[Dict[str, Any]] = [
 MARKER_BY_CODE: Dict[str, Dict[str, Any]] = {m["code"]: m for m in _MARKERS}
 MARKER_BY_CHAR: Dict[str, str] = {m["char"]: m["code"] for m in _MARKERS}
 TERMINAL_CHARS: str = "".join(m["char"] for m in _MARKERS if m["terminal"] and len(m["char"]) == 1)
+TERMINAL_PUNCT: str = TERMINAL_CHARS
+TERMINAL_RE: re.Pattern = re.compile(r".*[" + re.escape(TERMINAL_CHARS) + r"]\s*$")
 TERMINAL_CODES = frozenset(m["code"] for m in _MARKERS if m["terminal"])
 
 # Schema version — bump when _MARKERS changes so the laravel seeder can re-sync.

@@ -38,6 +38,7 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+from pycore.pyfoundations.punctuation_markers import TERMINAL_PUNCT, TERMINAL_RE
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Reuse shared ASCII filename transcoding.
@@ -77,8 +78,8 @@ _RESULT_DIR_NAME = "_book_result"
 
 # Sentence-terminal punctuation (Latin + CJK) used to re-split merged line text
 # into real sentences - kept in sync with laravel_media_sync's splitter.
-_TERMINAL_PUNCT = ".!?。！？…；"
-_TERMINAL_RE = re.compile(r".*[" + re.escape(_TERMINAL_PUNCT) + r"]\s*$")
+_TERMINAL_PUNCT = TERMINAL_PUNCT
+_TERMINAL_RE = TERMINAL_RE
 
 
 # --------------------------------------------------------------------------- #

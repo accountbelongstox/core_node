@@ -8,8 +8,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.pyutils.common.result_cache as result_cache
 from pycore.pyctl.ai.ai_gateway import generate_text
+from pycore.pyutils.common.llm_content import JSON_ARRAY_RE
 
-_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+_JSON_ARRAY_RE = JSON_ARRAY_RE
 _DEFAULT_CHUNK = 120
 
 

@@ -862,6 +862,9 @@ APP_LOGS_DIR = get_app_logs_dir()
 CORE_NODE_ROOT = get_core_node_root()
 LOCAL_DATA_DIR = get_local_data_dir()
 APP_TEMP_DIR = get_app_temp_dir()
+AI_SHARED_STATE_DIR = LOCAL_DATA_DIR / ".ai_state"
+AI_OLD_SHARED_DIR = CORE_NODE_ROOT / ".ai_state"
+AI_LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 
 __all__ = [
@@ -889,6 +892,9 @@ __all__ = [
     'CORE_NODE_ROOT',
     'LOCAL_DATA_DIR',
     'APP_TEMP_DIR',
+    'AI_SHARED_STATE_DIR',
+    'AI_OLD_SHARED_DIR',
+    'AI_LEGACY_DIR',
     'AGENT_HISTORY_USERS_ROOTS_ENV',
     'AGENT_HISTORY_USERS_ROOTS_WINDOWS',
     'AGENT_HISTORY_USERS_ROOTS_LINUX',

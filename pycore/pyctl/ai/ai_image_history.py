@@ -35,7 +35,15 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
+from pycore.pyfoundations.system_paths import (
+    AI_LEGACY_DIR,
+    AI_OLD_SHARED_DIR,
+    AI_SHARED_STATE_DIR,
+    APP_DATA_DIR,
+    get_core_node_root,
+    get_local_data_dir,
+)
+from pycore.pyctl.ai.ai_gateway_state import AI_HISTORY_MAX_ENTRIES
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -44,12 +52,12 @@ from pycore.pyfoundations.serialized_worker import (
 # Cross-runtime shared store (see module docstring + ai_rate_limits rationale).
 # Lives under <cache>/pycore/.ai_state; the prior <core_node>/.ai_state location
 # is migrated once on first access.
-_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
-_OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
-_LEGACY_DIR = APP_DATA_DIR / "ai_state"
+_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
+_OLD_SHARED_DIR = AI_OLD_SHARED_DIR
+_LEGACY_DIR = AI_LEGACY_DIR
 
 # Newest-last ring buffer cap; older entries (and their image files) are trimmed.
-_MAX_ENTRIES = 200
+_MAX_ENTRIES = AI_HISTORY_MAX_ENTRIES
 
 _MIME_EXT = {
     "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg",

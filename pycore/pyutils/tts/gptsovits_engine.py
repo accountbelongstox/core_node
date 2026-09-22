@@ -30,17 +30,19 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyutils.common.http_progress_upload import http_progress_client
-from pycore.pyfoundations.network_constants import GPTSOVITS_HTTP_PORT
+from pycore.pyfoundations.network_constants import GPTSOVITS_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-_LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
+GPTSOVITS_LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
+_LANG_MAP = GPTSOVITS_LANG_MAP
 
-_AVAIL_SIGNAL = 'pyutils.tts.gptsovits.available'
-_AVAIL_TTL_S = 30.0
+_AVAIL_SIGNAL = BusSignals.TTS_GPTSOVITS_AVAILABLE
+_AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
 
 
 def base_url() -> str:

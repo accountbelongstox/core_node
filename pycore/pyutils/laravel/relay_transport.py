@@ -12,6 +12,10 @@ from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
+from pycore.pyfoundations.network_constants import (
+    HTTP_JSON_CONTENT_TYPE as RELAY_JSON_CONTENT_TYPE,
+    HTTP_OCTET_STREAM_CONTENT_TYPE as RELAY_BINARY_CONTENT_TYPE,
+)
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.common.relay_request_clock import relay_request_clock
@@ -19,8 +23,6 @@ from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import HEALTH_PATH
 
 
-RELAY_JSON_CONTENT_TYPE = "application/json"
-RELAY_BINARY_CONTENT_TYPE = "application/octet-stream"
 RELAY_REQUEST_BLOB_ENDPOINT = "device_request_blob_download"
 RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT = "device_response_blob_chunk"
 RELAY_EMPTY_BODY_SHA256 = hashlib.sha256(b"").hexdigest()

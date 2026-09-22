@@ -4,13 +4,12 @@
 from pathlib import Path
 from typing import Optional, Tuple
 
+from pycore.pyfoundations.network_constants import STATIC_ASSET_CONTENT_TYPES
+
 
 PUBLIC_DIR = Path(__file__).resolve().parent / "public" / "code_sync"
 PANEL_INDEX_FILE = PUBLIC_DIR / "index.html"
-PANEL_ASSET_TYPES = {
-    ".css": "text/css; charset=utf-8",
-    ".js": "application/javascript; charset=utf-8",
-}
+PANEL_ASSET_TYPES = STATIC_ASSET_CONTENT_TYPES
 
 
 def load_panel_index() -> bytes:

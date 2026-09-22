@@ -16,6 +16,7 @@ import re
 import threading
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
@@ -45,7 +46,7 @@ MCP_CHROME_IMAGE_DELEGATION = (
 )
 
 # (connect, read) timeouts (seconds) — mirrors ai_gateway's image fetch budget.
-_HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
+_HTTP_TIMEOUT: Tuple[int, int] = EXTERNAL_API_HTTP_TIMEOUT
 
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/multi"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w780"

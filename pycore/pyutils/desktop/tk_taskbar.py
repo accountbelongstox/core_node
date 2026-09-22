@@ -23,20 +23,17 @@ from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get
 
 import ctypes
 
-
-
-# GWL_EXSTYLE = -20, GWLP_HWNDPARENT = -8 (owner; 0 = unowned top-level)
-# WS_EX_TOOLWINDOW: window does not appear in taskbar (MSDN)
-# WS_EX_APPWINDOW: forces top-level window onto taskbar when visible (MSDN)
-GWL_EXSTYLE = -20
-GWLP_HWNDPARENT = -8
-WS_EX_TOOLWINDOW = 0x00000080
-WS_EX_APPWINDOW = 0x00040000
-SWP_NOMOVE = 0x0002
-SWP_NOSIZE = 0x0001
-SWP_NOZORDER = 0x0004
-SWP_FRAMECHANGED = 0x0020
-HWND_TOP = 0
+from pycore.pyutils.window.win32_window_constants import (
+    GWL_EXSTYLE,
+    GWLP_HWNDPARENT,
+    HWND_TOP,
+    SWP_FRAMECHANGED,
+    SWP_NOMOVE,
+    SWP_NOSIZE,
+    SWP_NOZORDER,
+    WS_EX_APPWINDOW,
+    WS_EX_TOOLWINDOW,
+)
 
 
 def set_windows_app_user_model_id(app_id: str) -> bool:

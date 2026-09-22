@@ -34,6 +34,7 @@ from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import build_pyside6_menu_from_dicts
@@ -109,7 +110,7 @@ class ThreadBusBridgeMixin(QObject):
         # the independent pystray tray registers its own 'tray.update_menu' handler).
         if self.config.enable_tray:
             THREAD_BUS.register_event_handler('tray.update_menu', self._on_thread_bus_update_tray_menu)
-            last_payload = THREAD_BUS.get_signal('tray.menu.payload')
+            last_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
             if isinstance(last_payload, dict):
                 menu_items = last_payload.get('menu_items')
                 if menu_items is not None:

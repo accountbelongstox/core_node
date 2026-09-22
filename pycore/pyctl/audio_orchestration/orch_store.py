@@ -52,6 +52,7 @@ _TASKS_DIR = "tasks"
 _BOOK_SENTENCES_DIR = "book_sentences"
 _OUTPUT_DIR = "output"
 _TASK_EVENT_CAP = 200
+ORCH_REQUEST_TIMEOUT = 60
 
 
 def base_dir() -> Path:

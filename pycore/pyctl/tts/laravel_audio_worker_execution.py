@@ -13,6 +13,7 @@ import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
 from pycore.pyctl.task_history.store import append_record
 from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_progress
+from pycore.pyctl.tts.word_audio_service import LARAVEL_WORD_MEDIA_PATH
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import map_bus_tasks, start_bus_task
 from pycore.pyfoundations.system_paths import get_app_cache_dir
@@ -59,7 +60,7 @@ _TYPE_DIGIT_WORD = 1
 _SENTENCE_HISTORY_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
 # Per-word "backend already has the audio" probe (skip duplicate uploads when
 # the queue re-issues tasks for rows whose file already exists on Laravel).
-_LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
+_LARAVEL_WORD_MEDIA = LARAVEL_WORD_MEDIA_PATH
 _WORD_MEDIA_PROBE_TIMEOUT = 15
 _WORD_MEDIA_PROBE_CACHE_MAX = 5000
 _WORD_MEDIA_PROBE_CACHE_TTL = float(http_transfer_contract()["dedup_window_seconds"])

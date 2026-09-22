@@ -27,17 +27,19 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.network_constants import (
+    HTTP_LOOPBACK_HOST,
     MELOTTS_HTTP_PORT,
     MELOTTS_HTTP_TIMEOUT_SECONDS,
+    TTS_HEALTH_TIMEOUT_SECONDS,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 
 _ENGINE = "melotts"
-_DEFAULT_HOST = "127.0.0.1"
+_DEFAULT_HOST = HTTP_LOOPBACK_HOST
 _DEFAULT_PORT = MELOTTS_HTTP_PORT
-_HEALTH_TIMEOUT_S = 3.0
+_HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _REQUEST_TIMEOUT_S = float(
     os.environ.get("MELOTTS_HTTP_TIMEOUT_S", str(MELOTTS_HTTP_TIMEOUT_SECONDS))
     or str(MELOTTS_HTTP_TIMEOUT_SECONDS)

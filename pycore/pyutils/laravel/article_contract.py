@@ -22,6 +22,8 @@ bounded field is still well-formed text in EN and CJK alike.
 import re
 from typing import Any, Dict
 
+from pycore.pyutils.common.strtools.normalization import WHITESPACE_RE
+
 TITLE_MAX = 255
 # Asked of the model in generation prompts; the boundary clipper still
 # enforces TITLE_MAX (models do not reliably obey length instructions).
@@ -33,7 +35,7 @@ FALLBACK_TITLE = "Agent history article"
 
 _ELLIPSIS = "..."
 _SENTENCE_END_RE = re.compile(r"[.!?。！？;；]")
-_WORD_SPACE_RE = re.compile(r"\s+")
+_WORD_SPACE_RE = WHITESPACE_RE
 
 
 def _normalized(text: Any) -> str:

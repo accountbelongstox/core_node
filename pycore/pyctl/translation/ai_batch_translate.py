@@ -29,13 +29,14 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.pyutils.common.result_cache as result_cache
 from pycore.pyctl.ai.ai_gateway import generate_text
+from pycore.pyutils.common.llm_content import JSON_ARRAY_RE
 
 
 # Max words folded into a single AI request. Larger batches are split so a single
 # prompt never grows unbounded (and a partial failure re-pends fewer words).
 _CHUNK_SIZE = 40
 
-_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+_JSON_ARRAY_RE = JSON_ARRAY_RE
 
 
 def _build_prompt(lines: List[str], src: str, dest: str) -> str:

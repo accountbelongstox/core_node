@@ -24,7 +24,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.network_constants import F5TTS_HTTP_PORT
+from pycore.pyfoundations.network_constants import F5TTS_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -32,8 +33,8 @@ from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-_AVAIL_SIGNAL = 'pyutils.tts.f5tts.available'
-_AVAIL_TTL_S = 30.0
+_AVAIL_SIGNAL = BusSignals.TTS_F5TTS_AVAILABLE
+_AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
 _LAST_SYNTH_ERROR = SerializedValue(None, "F5TTSErrorState")
 
 

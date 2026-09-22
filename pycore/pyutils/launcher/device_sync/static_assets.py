@@ -4,15 +4,13 @@
 from pathlib import Path
 from typing import Any
 
+from pycore.pyfoundations.network_constants import STATIC_ASSET_CONTENT_TYPES
 import pycore.pyutils.launcher.device_sync.routes as routes
 
 
 PUBLIC_DIR = Path(__file__).resolve().parent / "public"
 INDEX_FILE = PUBLIC_DIR / "index.html"
-ASSET_TYPES = {
-    ".css": "text/css; charset=utf-8",
-    ".js": "application/javascript; charset=utf-8",
-}
+ASSET_TYPES = STATIC_ASSET_CONTENT_TYPES
 
 
 def serve_device_sync_asset(handler: Any, request_path: str) -> bool:

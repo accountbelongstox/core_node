@@ -31,7 +31,7 @@ from pycore.pyutils.codesync.file_operations import (
     file_tree_drift,
     scan_code_stats,
 )
-from pycore.pyutils.codesync.peer_config import get_peer_config, _local_lan_ip
+from pycore.pyutils.codesync.peer_config import VALID_ROLES, get_peer_config, _local_lan_ip
 from pycore.pyutils.codesync.peer_mesh import PeerMeshManager
 from pycore.pyutils.codesync.runtime_prefs import get_runtime_prefs
 from pycore.pyutils.codesync.push_receiver import PushReceiver
@@ -44,7 +44,6 @@ from pycore.pyutils.codesync.sync_settings import get_sync_settings
 from pycore.pyutils.codesync.watcher import get_watch_manager
 
 
-VALID_ROLES = ("dev", "client")
 STATS_REFRESH_SECONDS = 60
 SYNC_LOG_MAX = 300
 # A light client keeps only a tiny sync-log ring (it barely logs sync activity).

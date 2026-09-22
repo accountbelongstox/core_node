@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.engine_registry import EngineAdapter, EngineRegistry
 import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.tts.edge.client import edge_tts_client
@@ -257,7 +258,7 @@ _ENGINE_ADAPTERS = (
         chattts_engine,
         managed_kind="server",
         health_paths=("/health", "/"),
-        availability_signal="pyutils.tts.chattts.available",
+        availability_signal=BusSignals.TTS_CHATTTS_AVAILABLE,
         config_ready=_chattts_model_ready,
         health_probe=chattts_engine.probe_ready,
         model_dir=_chattts_model_dir,
@@ -268,7 +269,7 @@ _ENGINE_ADAPTERS = (
         cosyvoice_engine,
         managed_kind="server",
         health_paths=("/docs", "/"),
-        availability_signal="pyutils.tts.cosyvoice.available",
+        availability_signal=BusSignals.TTS_COSYVOICE_AVAILABLE,
         note="CosyVoice local api (multilingual clone; COSYVOICE_URL)",
         tiered=True,
     ),
@@ -277,7 +278,7 @@ _ENGINE_ADAPTERS = (
         fishspeech_engine,
         managed_kind="server",
         health_paths=("/v1/health", "/health", "/"),
-        availability_signal="pyutils.tts.fishspeech.available",
+        availability_signal=BusSignals.TTS_FISHSPEECH_AVAILABLE,
         config_ready=fishspeech_engine.synth_ready,
         ready_without_process=fishspeech_engine._sdk_available,
         note="Fish Speech / Fish Audio (FISHSPEECH_URL or FISH_API_KEY)",
@@ -311,7 +312,7 @@ _ENGINE_ADAPTERS = (
         voxcpm2_engine,
         managed_kind="server",
         health_paths=("/health", "/"),
-        availability_signal="pyutils.tts.voxcpm2.available",
+        availability_signal=BusSignals.TTS_VOXCPM2_AVAILABLE,
         note="VoxCPM2 class-C HTTP server (self-contained 3.10 venv; managed lifecycle)",
         tiered=True,
     ),
@@ -328,7 +329,7 @@ _ENGINE_ADAPTERS = (
         f5tts_engine,
         managed_kind="server",
         health_paths=("/health", "/"),
-        availability_signal="pyutils.tts.f5tts.available",
+        availability_signal=BusSignals.TTS_F5TTS_AVAILABLE,
         config_ready=lambda: f5tts_engine.disabled_reason() is None,
         note="F5-TTS local api (fast flow-matching clone; F5TTS_URL)",
     ),
@@ -363,7 +364,7 @@ _ENGINE_ADAPTERS = (
         gptsovits_engine,
         managed_kind="server",
         health_paths=("/",),
-        availability_signal="pyutils.tts.gptsovits.available",
+        availability_signal=BusSignals.TTS_GPTSOVITS_AVAILABLE,
         config_ready=lambda: gptsovits_engine._ref_audio() is not None,
         note="GPT-SoVITS local api server (voice clone)",
         tiered=True,

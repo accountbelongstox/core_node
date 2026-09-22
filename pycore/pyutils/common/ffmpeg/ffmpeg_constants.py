@@ -1,5 +1,11 @@
 import os
+import re
 from pathlib import Path
+
+
+NUMBER_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
+FRACTION_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?/-?\d+(?:\.\d+)?$")
+SPEED_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?x$")
 
 
 VIDEO_EXTENSIONS = {

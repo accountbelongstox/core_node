@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.common.managed_service import managed_services
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SENTENCE_AUDIO_AUTO, user_data_store
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as SENTENCE_AUDIO_ENGINE
 from pycore.pyutils.common.status_snapshot_cache import (
@@ -28,9 +28,11 @@ from pycore.pyctl.tts.laravel_audio_worker import (
 )
 
 
-_SECTION = "sentence_audio_auto"
-_CONCURRENCY_KEY = "concurrency"
-_SPEAKER_KEY = "speaker"
+_SECTION = USER_DATA_SECTION_SENTENCE_AUDIO_AUTO
+AUTO_TTS_CONCURRENCY_KEY = "concurrency"
+AUTO_TTS_SPEAKER_KEY = "speaker"
+_CONCURRENCY_KEY = AUTO_TTS_CONCURRENCY_KEY
+_SPEAKER_KEY = AUTO_TTS_SPEAKER_KEY
 
 
 def get_config() -> Dict[str, Any]:

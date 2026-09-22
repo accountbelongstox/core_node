@@ -107,6 +107,7 @@ except (ImportError, ValueError) as e:
     Gio = None
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -365,7 +366,7 @@ class AppIndicatorSystemTray:
         THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
         ColorPrint.blue("[AppIndicatorSystemTray] THREAD_BUS event handlers registered")
 
-        latest_menu_payload = THREAD_BUS.get_signal("tray.menu.payload")
+        latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
         if isinstance(latest_menu_payload, dict):
             handle_update_menu(latest_menu_payload)
 

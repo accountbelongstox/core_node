@@ -12,6 +12,7 @@ import platform
 from typing import Any, Dict, List
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.service_config import UI_ENABLE_TRAY
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
@@ -129,7 +130,7 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     # State getter for Voice Subtitle window visibility (published by the UI framework)
     def get_voice_subtitle_state():
         """Get current Voice Subtitle window visibility state"""
-        visible = THREAD_BUS.get_signal('voice_subtitle_ui.window_visible', False)
+        visible = THREAD_BUS.get_signal(BusSignals.VOICE_SUBTITLE_UI_WINDOW_VISIBLE, False)
         return "[X]" if visible else "[ ]"
 
     # State getter for the Linux system-service toggle: reflects whether the
@@ -280,7 +281,7 @@ _TRAY_MENU_SIGNATURE = {'value': None}
 def _menu_signature(menu_items: list) -> str:
     """Create a stable signature for tray menu payloads."""
     try:
-        state = THREAD_BUS.get_signal("tray.codesync.state")
+        state = THREAD_BUS.get_signal(BusSignals.TRAY_CODESYNC_STATE)
         if not isinstance(state, dict):
             state = {}
         payload = {
@@ -317,7 +318,7 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
 
     signature = _menu_signature(payload)
     THREAD_BUS.signal(
-        'tray.menu.payload',
+        BusSignals.TRAY_MENU_PAYLOAD,
         {
             'menu_items': payload,
             'signature': signature,

@@ -57,6 +57,7 @@ import threading
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urljoin
 
+from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT, HTTP_USER_AGENT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.text_parsing import normalize_language_codes
@@ -67,7 +68,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_BeautifulSoup
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #
 # (connect, read) timeouts (seconds) — mirrors movie_poster_client's budget.
-_HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
+_HTTP_TIMEOUT: Tuple[int, int] = EXTERNAL_API_HTTP_TIMEOUT
 
 FREE_DICTIONARY_API_BASE = "https://api.dictionaryapi.dev/api/v2/entries/en"
 
@@ -80,10 +81,7 @@ CAMBRIDGE_ORIGIN = "https://dictionary.cambridge.org"
 CAMBRIDGE_DICTIONARY_BASE = CAMBRIDGE_ORIGIN + "/dictionary/english"
 # A normal browser User-Agent — this is a plain HTTP GET + HTML parse of a
 # publicly served page, nothing more evasive than identifying as a browser.
-CAMBRIDGE_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
+CAMBRIDGE_USER_AGENT = HTTP_USER_AGENT
 
 # Official paid API only (see module docstring) — never the free web tier.
 FORVO_API_BASE = "https://apifree.forvo.com"

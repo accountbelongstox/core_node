@@ -27,8 +27,9 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.punctuation_markers import TERMINAL_PUNCT, TERMINAL_RE
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_VIDEO_EXTRACT, user_data_store
 
 # Stored-first multi-endpoint manager (probe + persist + cache) - the single
 # source of the Laravel base URL for every media-sync HTTP call.
@@ -43,8 +44,8 @@ SUBTITLES_PATH = "/api/app_qy_v1/media/subtitles"
 
 # Sentence-terminal punctuation (Latin + CJK) used to re-split merged cue text
 # into real sentences. Includes the ellipsis and the (full-width) semicolons.
-_TERMINAL_PUNCT = ".!?。！？…；"
-_TERMINAL_RE = re.compile(r".*[" + re.escape(_TERMINAL_PUNCT) + r"]\s*$")
+_TERMINAL_PUNCT = TERMINAL_PUNCT
+_TERMINAL_RE = TERMINAL_RE
 
 # backend_status only PROBES Laravel (paginated subtitle list); keep it snappy so
 # an unreachable backend degrades to reachable=False fast instead of hanging.
@@ -55,7 +56,7 @@ _STATUS_MAX_PAGES = 5
 
 # The user-data store section the Video Extract page persists its state in
 # (same section the /api/local/video-extract/history endpoint serves).
-_USER_DATA_SECTION = "video_extract"
+_USER_DATA_SECTION = USER_DATA_SECTION_VIDEO_EXTRACT
 
 # Sibling per-language track pattern: ``<stem>.<lang>.srt`` / ``<stem>.<lang>.vtt``.
 # The lang token is matched against the canonical supported set, so only real

@@ -20,7 +20,7 @@ refresh runs the live check and caches its result.
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_TTS, user_data_store
 from pycore.pyutils.tts.edge.client import (
     edge_tts_client,
     get_synth_timeout,
@@ -53,7 +53,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
 
 # Settings-adjustable TTS tuning is persisted in user_data.json under this section
 # and re-applied to the engines on import, so a saved override survives restarts.
-_TTS_SECTION = "tts"
+_TTS_SECTION = USER_DATA_SECTION_TTS
 
 
 def _load_persisted_tts_settings() -> None:

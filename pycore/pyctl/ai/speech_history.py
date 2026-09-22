@@ -35,11 +35,16 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
+from pycore.pyfoundations.system_paths import (
+    AI_LEGACY_DIR,
+    AI_SHARED_STATE_DIR,
+    APP_DATA_DIR,
+    get_local_data_dir,
+)
 
 # Same shared root as ai_image_history (cross-runtime DrvFs-visible).
-_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
-_LEGACY_DIR = APP_DATA_DIR / "ai_state"
+_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
+_LEGACY_DIR = AI_LEGACY_DIR
 
 # Newest-last ring buffer cap; older entries (and their audio files) are trimmed.
 _MAX_ENTRIES = 100

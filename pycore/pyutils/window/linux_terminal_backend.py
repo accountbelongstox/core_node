@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.window.terminal_backend import (
+    FOCUS_DELAY_SECONDS,
+    PASTE_DELAY_SECONDS,
     TERMINAL_SCROLL_BOTTOM,
     TERMINAL_SCROLL_MODES,
     terminal_scroll_steps,
@@ -17,8 +19,6 @@ from pycore.pyutils.window.terminal_backend import (
 
 
 WINDOW_ID_PREFIX = "x11:"
-FOCUS_DELAY_SECONDS = 0.05
-PASTE_DELAY_SECONDS = 0.12
 INTEGER_PATTERN = re.compile(r"^-?\d+$")
 HEX_WINDOW_PATTERN = re.compile(r"^0x[0-9a-fA-F]+$")
 HISTORY_DIRECTION_KEYS = {

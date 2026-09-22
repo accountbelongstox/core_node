@@ -28,7 +28,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
+from pycore.pyfoundations.system_paths import (
+    AI_OLD_SHARED_DIR,
+    AI_SHARED_STATE_DIR,
+    APP_DATA_DIR,
+    get_core_node_root,
+    get_local_data_dir,
+)
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
 from pycore.pyctl.ai.ai_usage_log import usage_log
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
@@ -66,8 +72,8 @@ _FREE_DEFAULT_RPM = 10
 # lost-update window is negligible; atomic replace guarantees no corruption.
 # Lives under <cache>/pycore/.ai_state; the prior <core_node>/.ai_state and the
 # per-OS APP_DATA location are both migrated once on first access.
-_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
-_OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
+_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
+_OLD_SHARED_DIR = AI_OLD_SHARED_DIR
 _LEGACY_USAGE_FILE = APP_DATA_DIR / "ai_rate_usage.json"
 
 

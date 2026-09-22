@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.network_constants import TTS_HEALTH_TIMEOUT_SECONDS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
@@ -44,7 +45,7 @@ from pycore.pyutils.tts.qwen.config import (
     api_server_path,
 )
 
-_HEALTH_TIMEOUT_S = 3.0
+_HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _TEXT_PREVIEW_CHARS = 80
 
 

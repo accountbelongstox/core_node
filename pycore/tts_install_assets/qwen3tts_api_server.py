@@ -118,6 +118,11 @@ from qwen3tts_web import (
     QWEN3TTS_WEB_HTML_PATH,
     QWEN3TTS_WEB_JS_PATH,
 )
+from tts_server_common import (
+    _NETWORK_CONSTANTS_MODULE_NAME,
+    _PYCORE_MODULE_NAME,
+    _PYFOUNDATIONS_MODULE_NAME,
+)
 
 BaseModel = pydantic.BaseModel
 FastAPI = fastapi.FastAPI
@@ -128,11 +133,8 @@ Response = fastapi.responses.Response
 StreamingResponse = fastapi.responses.StreamingResponse
 _DEFAULT_HOST = "0.0.0.0"
 _MANAGED_CODE_ID = os.environ.get("PYCORE_MANAGED_CODE_ID") or ""
-_PYCORE_MODULE_NAME = "pycore"
-_PYFOUNDATIONS_MODULE_NAME = "pycore.pyfoundations"
 _PYCORE_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 _PYFOUNDATIONS_PACKAGE_ROOT = _PYCORE_PACKAGE_ROOT / "pyfoundations"
-_NETWORK_CONSTANTS_MODULE_NAME = "pycore.pyfoundations.network_constants"
 _NETWORK_CONSTANTS_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "network_constants.py"
 _HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
 _HTTP_SSE_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "http_sse.py"

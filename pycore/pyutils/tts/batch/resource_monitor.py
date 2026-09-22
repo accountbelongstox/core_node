@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.pyutils.tts.memory_gate as memory_gate
 
-_GB = 1024 ** 3
+_GB = memory_gate.BYTES_PER_GIB
 
 
 @dataclass

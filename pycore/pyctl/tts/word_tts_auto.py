@@ -8,7 +8,7 @@ When enabled, turns on Pycore's persistent word-audio pull worker.
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_WORD_TTS_AUTO, user_data_store
 from pycore.pyctl.assist.assist_settings import (
     load_assist_settings,
     set_assist_capability,
@@ -18,10 +18,11 @@ from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_word_audio_worker,
 )
+from pycore.pyctl.tts.sentence_audio_auto import AUTO_TTS_CONCURRENCY_KEY
 
 
-_SECTION = "word_tts_auto"
-_CONCURRENCY_KEY = "concurrency"
+_SECTION = USER_DATA_SECTION_WORD_TTS_AUTO
+_CONCURRENCY_KEY = AUTO_TTS_CONCURRENCY_KEY
 
 
 def get_config() -> Dict[str, Any]:

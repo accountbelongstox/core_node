@@ -54,6 +54,7 @@ from typing import List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_pystray
 
@@ -345,7 +346,7 @@ class TkinterSystemTray:
         THREAD_BUS.register_event_handler('ui.i18n.language_changed', handle_language_changed, priority=10)
         ColorPrint.blue("[TRAY] THREAD_BUS event handlers registered")
 
-        latest_menu_payload = THREAD_BUS.get_signal("tray.menu.payload")
+        latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
         if isinstance(latest_menu_payload, dict):
             handle_update_menu(latest_menu_payload)
 
@@ -474,10 +475,10 @@ class TkinterSystemTray:
 
         normalized = {
             "items": [normalize_item(menu_item) for menu_item in menu_items],
-            "codesync": THREAD_BUS.get_signal("tray.codesync.state", {}),
+            "codesync": THREAD_BUS.get_signal(BusSignals.TRAY_CODESYNC_STATE, {}),
             "language": i18n.get_current_language(),
             "voice_subtitle_visible": THREAD_BUS.get_signal(
-                "voice_subtitle_ui.window_visible", False
+                BusSignals.VOICE_SUBTITLE_UI_WINDOW_VISIBLE, False
             ),
         }
 

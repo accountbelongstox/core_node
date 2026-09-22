@@ -11,7 +11,7 @@ import time
 import subprocess
 from pathlib import Path
 
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, USER_DATA_SECTION_VIDEO_EXTRACT, user_data_store
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -67,8 +67,8 @@ except Exception as exc:
     sys.exit(2)
 """
 
-SYSTEM_SETTINGS_SECTION = "system_settings"
-VIDEO_EXTRACT_SECTION = "video_extract"
+SYSTEM_SETTINGS_SECTION = USER_DATA_SECTION_SYSTEM_SETTINGS
+VIDEO_EXTRACT_SECTION = USER_DATA_SECTION_VIDEO_EXTRACT
 
 
 def _default_base_dir() -> str:

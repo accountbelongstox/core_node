@@ -10,12 +10,9 @@ The field keys match the kwargs accepted by ``ocr_test()`` in
 
 from typing import Any, Dict, List
 
-_COMMON_OCR_LANGS: List[Dict[str, str]] = [
-    {"value": "en", "label": "English"},
-    {"value": "zh", "label": "中文"},
-    {"value": "ja", "label": "日本語"},
-    {"value": "ko", "label": "한국어"},
-]
+from pycore.pyutils.common.engine_language_options import COMMON_CORE_LANGUAGE_OPTIONS
+
+_COMMON_OCR_LANGS: List[Dict[str, str]] = COMMON_CORE_LANGUAGE_OPTIONS
 
 OCR_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
     "windows_ocr": {

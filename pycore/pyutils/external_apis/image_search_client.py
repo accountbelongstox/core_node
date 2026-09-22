@@ -13,11 +13,12 @@ NEVER raises — failures return empty results / None.
 import base64
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
-_HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
+_HTTP_TIMEOUT: Tuple[int, int] = EXTERNAL_API_HTTP_TIMEOUT
 _SERPAPI_URL = "https://serpapi.com/search"
 _ENGINE = "google_images"
 _KEY_NAME = "SERPAPI_API_KEY"

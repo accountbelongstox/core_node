@@ -37,6 +37,7 @@ from typing import Any, Dict, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.model_tiers import gpu_present
 from pycore.pyutils.tts.memory_gate import (
+    BYTES_PER_GIB,
     free_ram_bytes,
     gpu_stats,
     memory_gate_allows,
@@ -48,7 +49,7 @@ TTS_RUNTIME_PROFILE_ENV = "TTS_RUNTIME_PROFILE"
 
 _EDGE_ENGINE = "edge"
 _KOKORO_ENGINE = "kokoro"
-_GB = 1024 ** 3
+_GB = BYTES_PER_GIB
 
 # Pinned engine chains per capability. The word chain is the single-word
 # profile; batch word generation reads the "word_batch" entry; sentences and

@@ -34,6 +34,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.network_constants import (
+    HTTP_JSON_CONTENT_TYPE,
+    HTTP_LOOPBACK_HOST,
+    TTS_HEALTH_TIMEOUT_SECONDS,
     VOXCPM2_HTTP_PORT,
     VOXCPM2_HTTP_TIMEOUT_SECONDS,
 )
@@ -43,8 +46,8 @@ import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _ENGINE = "voxcpm2"
-_DEFAULT_HOST = "127.0.0.1"
-_HEALTH_TIMEOUT_S = 3.0
+_DEFAULT_HOST = HTTP_LOOPBACK_HOST
+_HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _REQUEST_TIMEOUT_S = float(
     os.environ.get("VOXCPM2_HTTP_TIMEOUT_S", "") or VOXCPM2_HTTP_TIMEOUT_SECONDS
 )
@@ -122,7 +125,7 @@ def _post_bytes(path: str, payload: Dict[str, Any]) -> "tuple[bool, bytes, Optio
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         url, data=body, method="POST",
-        headers={"Content-Type": "application/json", "Accept": "*/*"},
+        headers={"Content-Type": HTTP_JSON_CONTENT_TYPE, "Accept": "*/*"},
     )
     try:
         with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT_S) as resp:

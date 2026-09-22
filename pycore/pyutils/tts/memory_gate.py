@@ -37,8 +37,10 @@ from pycore.pyfoundations.third_party.api import (
 )
 from pycore.pyutils.common.model_tiers import gpu_present, runtime_engine_model
 
-_GB = 1024 ** 3
-_MB = 1024 ** 2
+BYTES_PER_GIB = 1024 ** 3
+BYTES_PER_MIB = 1024 ** 2
+_GB = BYTES_PER_GIB
+_MB = BYTES_PER_MIB
 
 
 def _parler_requirement() -> Tuple[int, int]:

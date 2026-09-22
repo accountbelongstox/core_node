@@ -27,6 +27,8 @@ from pycore.pyutils.window.ops import (
     show_window_without_activation,
 )
 from pycore.pyutils.window.terminal_backend import (
+    FOCUS_DELAY_SECONDS,
+    PASTE_DELAY_SECONDS,
     TERMINAL_SCROLL_BOTTOM,
     TERMINAL_SCROLL_MODES,
     terminal_scroll_steps,
@@ -34,8 +36,6 @@ from pycore.pyutils.window.terminal_backend import (
 
 
 WINDOW_ID_PREFIX = "win32:"
-FOCUS_DELAY_SECONDS = 0.05
-PASTE_DELAY_SECONDS = 0.12
 HISTORY_DIRECTION_KEYS = {
     "up": "UP",
     "down": "DOWN",

@@ -43,10 +43,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyutils.common.flat_text_store import SAFE_TEXT_KEY_PATTERN
 
 _LIST_CAP = 500
 _INDEX_FILE_NAME = "index.json"
-_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+_ID_RE = SAFE_TEXT_KEY_PATTERN
 
 # Rule §4: no module-level locks. On-disk state is mutated via single atomic
 # file replacements (_atomic_write_json -> os.replace); index updates are

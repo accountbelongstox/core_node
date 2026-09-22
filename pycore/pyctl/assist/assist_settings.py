@@ -14,10 +14,10 @@ the mapped user configuration directory override them in memory and on disk.
 
 from typing import Any, Dict, Optional
 
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_ASSIST_LARAVEL, user_data_store
 
 
-USER_DATA_SECTION = "assist_laravel"
+USER_DATA_SECTION = USER_DATA_SECTION_ASSIST_LARAVEL
 ASSIST_API_PREFIX = "/api/app_qy_v1/assist"
 CAPABILITY_KEYS = (
     "translation",

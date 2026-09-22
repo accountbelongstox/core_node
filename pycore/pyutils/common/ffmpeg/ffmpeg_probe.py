@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional
 from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (
     ERROR_INPUT_NOT_FOUND,
     ERROR_PROBE_FAILED,
+    FRACTION_PATTERN,
+    NUMBER_PATTERN,
 )
 from pycore.pyutils.common.ffmpeg.ffmpeg_models import (
     MediaProbeResult,
@@ -15,8 +17,8 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_models import (
 from pycore.pyutils.common.ffmpeg.ffmpeg_runner import ffmpeg_runner
 
 
-_NUMBER_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
-_FRACTION_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?/-?\d+(?:\.\d+)?$")
+_NUMBER_PATTERN = NUMBER_PATTERN
+_FRACTION_PATTERN = FRACTION_PATTERN
 
 
 class FFprobeClient:
