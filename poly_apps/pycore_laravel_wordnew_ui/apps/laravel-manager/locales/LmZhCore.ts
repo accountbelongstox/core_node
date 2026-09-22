@@ -77,7 +77,7 @@ dbSync: {
       receiverBlocked: "本机正在接收数据；传入会话结束前不能新建出站会话。",
       manifestDraftBlocked: "已有一个本机清单会话正在等待接收端。请先为其绑定地址，或在上方输入另一个接收端。",
       session: "同步会话",
-      empty: "尚无同步会话。",
+      empty: "当前没有进行中的同步。点击“开始同步”启动。",
       progress: "总进度",
       manifestTitle: "本机同步清单",
       manifestDatabases: "数据库",

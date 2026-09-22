@@ -158,18 +158,35 @@ export const DataSyncTab: React.FC = () => {
       setSelectedKey('');
     }
   }, [selectedKey, oldEndpointId, newServerNode]);
+  const activePairSessions = useMemo(
+    () => pairSessions.filter((session) => ACTIVE_STATUSES.includes(session.status)),
+    [pairSessions],
+  );
+  // The session that was running most recently in this page view: it keeps
+  // its final state visible after finishing. Sessions that were already dead
+  // when the page loaded are never recorded here.
+  const lastActiveKeyRef = useRef('');
+  useEffect(() => {
+    const current = activePairSessions.find((session) => session.manager_endpoint.id === oldEndpointId)
+      ?? activePairSessions[0];
+    if (current) lastActiveKeyRef.current = current.manager_key;
+  }, [activePairSessions, oldEndpointId]);
   const selected = useMemo(
     () => sessions.find((session) => session.manager_key === selectedKey)
       ?? (selectedKey !== '' ? lastSeenRef.current.get(selectedKey) : undefined)
       // The backend that owns a session is authoritative: prefer the active
       // session on the selected OLD server, then the new server, then the
-      // latest pair session.
-      ?? pairSessions.find((session) => session.manager_endpoint.id === oldEndpointId && ACTIVE_STATUSES.includes(session.status))
-      ?? pairSessions.find((session) => session.manager_endpoint.id === (newServerNode?.id ?? '') && ACTIVE_STATUSES.includes(session.status))
-      ?? pairSessions.find((session) => session.manager_endpoint.id === oldEndpointId)
-      ?? pairSessions[0]
+      // session that was running most recently in this page view (so a
+      // finished run keeps its final state visible). Dead relics from before
+      // this page view are never auto-shown.
+      ?? activePairSessions.find((session) => session.manager_endpoint.id === oldEndpointId)
+      ?? activePairSessions.find((session) => session.manager_endpoint.id === (newServerNode?.id ?? ''))
+      ?? (lastActiveKeyRef.current !== ''
+        ? (sessions.find((session) => session.manager_key === lastActiveKeyRef.current)
+          ?? lastSeenRef.current.get(lastActiveKeyRef.current))
+        : undefined)
       ?? null,
-    [sessions, pairSessions, selectedKey, oldEndpointId, newServerNode],
+    [sessions, activePairSessions, selectedKey, oldEndpointId, newServerNode],
   );
   const writerActiveOn = useCallback(
     (endpointId: string) => sessions.find((session) => session.manager_endpoint.id === endpointId
@@ -195,12 +212,11 @@ export const DataSyncTab: React.FC = () => {
       .filter((session) => DRIVER_ROLES.includes(session.role) && session.counterpart?.session_id)
       .map((session) => `${session.counterpart?.endpoint}:${session.counterpart?.session_id}`));
 
-    const visible = pairSessions.filter((session) => DRIVER_ROLES.includes(session.role)
-      || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`));
-    // Single-active-session contract: list only live sessions; when nothing
-    // is running, keep the most recent finished one for reference.
-    const active = visible.filter((session) => ACTIVE_STATUSES.includes(session.status));
-    return active.length > 0 ? active : visible.slice(0, 1);
+    // Single-active-session contract: the list shows live sessions of the
+    // selected pair only; finished history never occupies the view.
+    return pairSessions.filter((session) => ACTIVE_STATUSES.includes(session.status)
+      && (DRIVER_ROLES.includes(session.role)
+        || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`)));
   }, [pairSessions]);
 
   useEffect(() => {
@@ -229,20 +245,22 @@ export const DataSyncTab: React.FC = () => {
     setEndpoints(workspace.endpoints);
     setSessions(workspace.sessions);
     setSelectedKey((current) => {
-      // An explicit selection sticks: transient endpoint failures must not
-      // steal it. Auto-pick only when nothing is selected yet, scoped to the
-      // selected pair: active on the old server, then the new server, then
-      // the latest pair session.
-      if (current) return current;
       const [oldId, newId] = pairIdsRef.current;
       const pool = workspace.sessions.filter((session) =>
         session.manager_endpoint.id === oldId || session.manager_endpoint.id === newId);
       const active = pool.find((session) => session.manager_endpoint.id === oldId && ACTIVE_STATUSES.includes(session.status))
         ?? pool.find((session) => session.manager_endpoint.id === newId && ACTIVE_STATUSES.includes(session.status));
-      return active?.manager_key
-        ?? pool.find((session) => session.manager_endpoint.id === oldId)?.manager_key
-        ?? pool[0]?.manager_key
-        ?? '';
+      if (current) {
+        const selectedSession = workspace.sessions.find((session) => session.manager_key === current);
+        // A live selection sticks, and so does a run that was live in this
+        // page view (its final state stays visible after finishing).
+        if (selectedSession && ACTIVE_STATUSES.includes(selectedSession.status)) return current;
+        if (current === lastActiveKeyRef.current) return current;
+        // A finished selection yields to a fresh run; a dead relic from
+        // before this page view is released so the panel clears.
+        return active?.manager_key ?? '';
+      }
+      return active?.manager_key ?? '';
     });
     setError(workspace.errors.length > 0
       ? `${t('dbSync.errors.nodes')}: ${workspace.errors.map((item) => {

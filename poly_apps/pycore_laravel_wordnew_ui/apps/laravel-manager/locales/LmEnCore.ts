@@ -95,7 +95,7 @@ dbSync: {
       receiverBlocked: "This node is receiving data. New outbound sessions are disabled until the incoming session finishes.",
       manifestDraftBlocked: "A local manifest session is already waiting for a receiver. Bind its address or enter another receiver above.",
       session: "Synchronization session",
-      empty: "No synchronization session yet.",
+      empty: "No active synchronization. Press Start synchronization to launch one.",
       progress: "Overall progress",
       manifestTitle: "Local synchronization manifest",
       manifestDatabases: "Databases",
