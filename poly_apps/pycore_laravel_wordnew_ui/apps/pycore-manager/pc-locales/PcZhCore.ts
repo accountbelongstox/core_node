@@ -596,6 +596,17 @@ queueCenter: {
       task: '任务',
       progress: '进度',
       logTitle: '工作事件',
+      fullSync: {
+        title: '全量同步',
+        action: '同步全量单词',
+        actionTitle: '从 Laravel 拉取所有无语音的词典单词到本地队列（队首填充；不修改 Laravel 队列）',
+        running: '同步中…',
+        lastSync: '上次 {{time}}',
+        never: '从未同步',
+        pulled: '拉取 {{pulled}} · 新增 {{inserted}}',
+        cached: '缓存 {{count}}',
+        unavailable: '状态不可用',
+      },
     },
     sentenceQueue: {
       title: '句子语音队列',

@@ -604,6 +604,17 @@ queueCenter: {
       task: 'Task',
       progress: 'Progress',
       logTitle: 'Worker events',
+      fullSync: {
+        title: 'Full sync',
+        action: 'Sync full word list',
+        actionTitle: 'Pull every dictionary word without audio from Laravel into the local queue (Part1 fill; never mutates Laravel)',
+        running: 'syncing…',
+        lastSync: 'last {{time}}',
+        never: 'never synced',
+        pulled: 'pulled {{pulled}} · new {{inserted}}',
+        cached: 'cached {{count}}',
+        unavailable: 'status unavailable',
+      },
     },
     sentenceQueue: {
       title: 'Sentence Audio Queue',

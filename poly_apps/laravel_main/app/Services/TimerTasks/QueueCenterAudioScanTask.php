@@ -35,6 +35,13 @@ use App\Support\QueueCenterContract;
  * Cheap by construction: bounded ID pages, one full page in process memory,
  * indexed queue-capacity probes, and no repeated full-row scans.
  *
+ * pycore consumer contract (REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE):
+ * this feeder is capacity-bounded, so the dictionary backlog larger than the
+ * queue target is fed by pycore's own full pull instead — pycore pages
+ * AppQyV1VocabularyStatsController::dictionaryWords (filter=without_audio,
+ * read-only) into its LOCAL queue head (Part1 fill) and reports results via
+ * AppQyV1DictionaryTTSCoordinator::encodeTaskId. No behavior change here.
+ *
  * Registered automatically by the auto-discovering OctaneTimerServiceProvider.
  */
 class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
