@@ -368,6 +368,7 @@ server: {
         ssl: "SSL Certificates",
         system: "System Status",
         files: "File Manager",
+        media: "Media Hub",
         executor: "Code Executor",
         unified: "Unified Manager"
       },

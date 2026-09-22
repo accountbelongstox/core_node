@@ -66,6 +66,7 @@ interface SourceListPanelProps {
   selectedKey: string | null;
   onSelect: (item: MediaSourceListItem) => void;
   reloadSignal: number;
+  onRequireLogin?: () => void;
 }
 
 const SourceListPanel: React.FC<SourceListPanelProps> = ({
@@ -74,8 +75,12 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
   selectedKey,
   onSelect,
   reloadSignal,
+  onRequireLogin,
 }) => {
   const { t } = useTranslation();
+  const { isLoggedIn } = useUnifiedApp();
+  const authed = isLoggedIn === true ? true : isDebugAuthBypass();
+  const browseBlocked = authed !== true;
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -94,6 +99,11 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
 
   // Load the source list whenever kind / search changes.
   const loadList = useCallback(async () => {
+    if (browseBlocked) {
+      setSources([]);
+      setListLoading(false);
+      return;
+    }
     setListLoading(true);
     setListError(null);
     setOffline(false);
@@ -108,7 +118,7 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
       else setListError(res.error ? res.error : t('moviesBooksView.loadError'));
     }
     setListLoading(false);
-  }, [isMovie, debouncedSearch, t]);
+  }, [browseBlocked, isMovie, debouncedSearch, t]);
 
   useEffect(() => {
     loadList();
@@ -116,7 +126,19 @@ const SourceListPanel: React.FC<SourceListPanelProps> = ({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-1.5 scrollbar-thin scrollbar-thumb-black/10 dark:scrollbar-thumb-white/10">
-      {offline ? (
+      {browseBlocked ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
+          <Lock size={32} className="text-amber-400" />
+          <p className="text-sm">Login required to browse {isMovie ? 'Movies' : 'Books'}.</p>
+          <button
+            type="button"
+            onClick={() => { if (onRequireLogin) onRequireLogin(); }}
+            className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+          >
+            <Lock size={14} /> Login
+          </button>
+        </div>
+      ) : offline ? (
         <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">
           <WifiOff size={28} />
           <p className="text-xs">{t('moviesBooksView.offline')}</p>

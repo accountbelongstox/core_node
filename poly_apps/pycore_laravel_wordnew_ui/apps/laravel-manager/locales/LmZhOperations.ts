@@ -368,6 +368,7 @@ server: {
         ssl: "SSL 证书",
         system: "系统状态",
         files: "文件管理",
+        media: "媒体资源",
         executor: "代码执行",
         unified: "统一管理器"
       },
