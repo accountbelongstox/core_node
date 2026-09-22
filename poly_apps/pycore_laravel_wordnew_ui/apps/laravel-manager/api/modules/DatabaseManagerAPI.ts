@@ -148,6 +148,8 @@ export interface DataSyncCounterpart {
 
 export interface DataSyncSession extends DataSyncSessionSnapshot {
   counterpart?: DataSyncCounterpart;
+  /** Ids of sessions auto-cancelled because this start enforced the single-active-session contract. */
+  cancelled_sessions?: string[];
 }
 
 export interface DataSyncStartRequest {

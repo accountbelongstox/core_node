@@ -54,6 +54,8 @@ dbSync: {
       source: "源端",
       receiver: "接收端",
       allSessions: "全部节点会话",
+      currentSession: "当前会话",
+      autoCancelled: "已启动。已自动取消另外 {{count}} 个进行中的会话 —— 同一时间只允许一个同步运行；执行中的会话会在下一个检查点退出。",
       counterpartPending: "接收端会话尚未创建。",
       counterpartOffline: "暂时无法获取接收端状态；后端检查点仍会持续保存。",
       target: "接收端 IP 或主机",

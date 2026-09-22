@@ -116,6 +116,7 @@ export const DataSyncTab: React.FC = () => {
   const [pendingTarget, setPendingTarget] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [probe, setProbe] = useState<DataSyncDirectionProbe | null>(null);
   const [probing, setProbing] = useState(false);
   const [probeError, setProbeError] = useState<string | null>(null);
@@ -163,8 +164,12 @@ export const DataSyncTab: React.FC = () => {
       .filter((session) => DRIVER_ROLES.includes(session.role) && session.counterpart?.session_id)
       .map((session) => `${session.counterpart?.endpoint}:${session.counterpart?.session_id}`));
 
-    return sessions.filter((session) => DRIVER_ROLES.includes(session.role)
+    const visible = sessions.filter((session) => DRIVER_ROLES.includes(session.role)
       || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`));
+    // Single-active-session contract: list only live sessions; when nothing
+    // is running, keep the most recent finished one for reference.
+    const active = visible.filter((session) => ACTIVE_STATUSES.includes(session.status));
+    return active.length > 0 ? active : visible.slice(0, 1);
   }, [sessions]);
 
   useEffect(() => {
@@ -267,6 +272,7 @@ export const DataSyncTab: React.FC = () => {
     if (!oldEndpointId || sameNodeSelected) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       if (probe?.direction === 'pull') {
         // The fetcher drives the pull: keep its sessions visible by managing
@@ -282,6 +288,9 @@ export const DataSyncTab: React.FC = () => {
         });
         setSessions((current) => [session, ...current]);
         setSelectedKey(session.manager_key);
+        if (session.cancelled_sessions?.length) {
+          setNotice(t('dbSync.autoCancelled', { count: session.cancelled_sessions.length }));
+        }
       } else {
         if (oldEndpoint && !oldEndpoint.managed && !oldEndpoint.adhoc) {
           setEndpoints(dataSyncModel.setManagedEndpoints([oldEndpoint.id]));
@@ -290,6 +299,9 @@ export const DataSyncTab: React.FC = () => {
         setSessions((current) => [session, ...current]);
         setSelectedKey(session.manager_key);
         setNewServerInput('');
+        if (session.cancelled_sessions?.length) {
+          setNotice(t('dbSync.autoCancelled', { count: session.cancelled_sessions.length }));
+        }
       }
     } catch (startError) {
       setError(startError instanceof Error && startError.message ? startError.message : t('dbSync.errors.start'));
@@ -483,11 +495,12 @@ export const DataSyncTab: React.FC = () => {
         {!receiverActive && probe?.direction === 'pull' && newServerWriterActive && <AlertBox variant="warning">{t('dbSync.fetcherBlocked')}</AlertBox>}
         {!receiverActive && newServerInput.trim() === '' && manifestDraftActive && <AlertBox variant="warning">{t('dbSync.manifestDraftBlocked')}</AlertBox>}
         {error && <AlertBox variant="error">{error}</AlertBox>}
+        {notice && <AlertBox variant="info">{notice}</AlertBox>}
       </div>
 
       {displayedSessions.length > 0 && (
         <div className={`${commonClasses.card} p-4 space-y-3`}>
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('dbSync.allSessions')}</div>
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('dbSync.currentSession')}</div>
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
             {displayedSessions.map((session) => (
               <button key={session.manager_key} type="button" onClick={() => setSelectedKey(session.manager_key)} className={`rounded-lg border p-3 text-left transition ${selected?.manager_key === session.manager_key ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
