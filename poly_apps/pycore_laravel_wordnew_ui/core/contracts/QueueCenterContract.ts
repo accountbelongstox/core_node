@@ -479,7 +479,6 @@ export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordA
   return {
     running: toBoolean(value.running),
     on_start: toBoolean(value.on_start),
-    env_forced: toBoolean(value.env_forced),
     last_sync_at: toNumber(value.last_sync_at),
     last_result: {
       success: lastResult.success == null ? undefined : toBoolean(lastResult.success),

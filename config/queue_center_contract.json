@@ -1,5 +1,5 @@
 {
-  "schema_version": 33,
+  "schema_version": 34,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "word_validity": {
@@ -53,8 +53,7 @@
     "local_task_marker": "_local_source=full_sync; locally sourced tasks skip the just-in-time Laravel claim and the global result post; delivery is the domain report (encodeTaskId: dict_row_id*1000 + 1*100 + langIndex) plus the durable outbox",
     "cache_file": "get_app_cache_dir()/audio_queue/word_audio_queue.json (whole-Queue snapshot + Part1 key set; cache-first boot restores it without any remote pull)",
     "rpc": "ui/queue_center/word_audio_full_sync (on-demand full pull, background, returns the status block)",
-    "env_flag": "WORD_AUDIO_FULL_SYNC=1 (pyservice --word-audio-full-sync) forces the startup pull",
-    "persisted_key": "user_data_store section word_tts_auto, key full_sync_on_start (bool, default true)",
+    "persisted_key": "user_data_store section word_tts_auto, key full_sync_on_start (bool, default true) — the ONLY startup switch; no CLI/env parameter",
     "snapshot_block": "queue-center snapshot word_audio section carries full_sync status (running, last_sync_at, last_result, languages, cache_saved_at)"
   },
   "diff_delivery": {

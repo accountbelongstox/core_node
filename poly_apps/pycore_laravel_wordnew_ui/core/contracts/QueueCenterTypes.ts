@@ -339,7 +339,6 @@ export interface QueueCenterWorkerMetrics {
 export interface QueueCenterWordAudioFullSyncStatus {
   running: boolean;
   on_start: boolean;
-  env_forced: boolean;
   last_sync_at: number;
   last_result: {
     success?: boolean;

@@ -393,9 +393,9 @@ def _start_word_audio_boot_chain() -> None:
 
     Runs only while the persisted Word Audio flag (assist capability ``tts``)
     is ON: (a) restore the lane queue from the local cache, (b) run the full
-    pull when WORD_AUDIO_FULL_SYNC=1 or the persisted
-    ``word_tts_auto.full_sync_on_start`` key is true (background bus task),
-    (c) wake the drain. Flag OFF -> none of this runs.
+    pull when the persisted ``word_tts_auto.full_sync_on_start`` key is true
+    (background bus task; the settings file is the ONLY switch — no CLI/env
+    parameter), (c) wake the drain. Flag OFF -> none of this runs.
     """
     if not assist_capability_enabled("tts"):
         return

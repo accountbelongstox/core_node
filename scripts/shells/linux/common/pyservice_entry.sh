@@ -143,7 +143,6 @@ NO_INSTALL=0
 ONLY=0
 NO_UI=0
 TTS_SELFCHECK=0
-WORD_AUDIO_FULL_SYNC=0
 SERVICE_MODE="1"
 UI_MODE="dashboard (pycore-manager)"
 UI_BUILD=0
@@ -255,11 +254,6 @@ Options (apply to 'run'):
                    memory/GPU; the worker (RPC + services) starts only after
                    it exits and pins the global TTS runtime profile.
                    Same as exporting TTS_STARTUP_SELFCHECK=1.
-  --word-audio-full-sync  Force the startup word-audio full pull: at boot the
-                   worker pulls EVERY dictionary word without audio from
-                   Laravel into the local word_audio queue (Part1 fill, no
-                   Laravel queue mutation). Same as exporting
-                   WORD_AUDIO_FULL_SYNC=1.
   -h, --help       Show this help (also works as: run --help)
   --               Everything after a bare -- is forwarded to prepare.sh
 
@@ -446,7 +440,6 @@ while [[ $# -gt 0 ]]; do
         --ui-build)   UI_BUILD=1;     shift   ;;
         --ui-port)    UI_PORT="$2";   shift 2 ;;
         --tts-selfcheck) TTS_SELFCHECK=1; shift ;;
-        --word-audio-full-sync) WORD_AUDIO_FULL_SYNC=1; shift ;;
         -h|--help|help) print_usage; exit 0 ;;
         --)           shift; PREPARE_ARGS+=("$@"); break ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
@@ -646,7 +639,6 @@ fi
 PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT" --service-mode "$SERVICE_MODE")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
-if [[ "$WORD_AUDIO_FULL_SYNC" -eq 1 ]]; then PY_ARGS+=(--word-audio-full-sync); fi
 
 # TTS batch self-check: run the STANDALONE entry as its own process and wait for
 # it to exit BEFORE the worker starts, so the sweep owns the console (no
