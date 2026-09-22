@@ -236,4 +236,111 @@ Goal: pycore becomes self-sufficient for word audio.
 
 ## 8. Implementation record (filled after development)
 
-(To be completed with the files changed and verification results.)
+Implemented 2026-09-22 against R1–R13.
+
+### pycore (queue library + worker + startup + RPC)
+
+- `pycore/pyutils/tts/audio_queue_cache.py` (R1): whole-Queue snapshot
+  persistence — atomic tmp+replace write to
+  `get_app_cache_dir()/audio_queue/<lane>_queue.json`; document = ordered
+  task list + INTERNAL Part1 key set + `saved_at` + `source`
+  (`full_sync|laravel_intake|local_promote|drain`); format version guard on
+  load; corrupt/absent cache never blocks boot.
+- `pycore/pyutils/tts/audio_queue_center.py` (R2): INTERNAL hooks
+  `restore_from_cache(lane)` (one-shot boot restore, whole-Queue dedup on
+  every restored task) and `persist_snapshot(lane, source)`; persist runs
+  after Laravel intake (M2), local promote (M3), and full-pull fills.
+- `pycore/pyutils/tts/audio_task_queue.py` (R2 support): `has_dedup_key`
+  whole-Queue membership probe; `export_tasks` exact-pop-order snapshot;
+  Part2 paths (`move_to_head`) never demote Part1 members.
+- `pycore/pyctl/tts/word_audio_full_sync.py` (R3/R4, new): singleton
+  `word_audio_full_sync`; `run_full_sync(base_url="")` idempotent full pull
+  (language-breakdown → contract language priority → `english` fallback;
+  per-language paging `limit=1000`, `start += count` until `total`; Laravel
+  unreachable → skip quietly); fill via `promote_local_head` with task
+  payload `{task_id: "word-full-<md5>", task_type: word_audio, payload:
+  {word, content, language, md5, dict_row_id}, _local_source: "full_sync",
+  _laravel_base_url}`; snapshot persisted with `source=full_sync` per page;
+  `get_status()` status block; `full_sync_on_start()` = env
+  `WORD_AUDIO_FULL_SYNC=1` OR persisted `word_tts_auto.full_sync_on_start`
+  (default true), read directly from the settings file.
+- `pycore/pyctl/tts/laravel_audio_worker_execution.py` (R5):
+  `_process_claimed` skips `_ensure_laravel_claim` for `_local_source`
+  tasks; new `_post_task_result` guard skips the global result post for
+  local tasks (no global_tasks row exists — the post would 404).
+- `pycore/pyctl/tts/laravel_audio_worker_state.py` (R5): `_normalize`
+  carries `_local_source` into the execution info block.
+- `pycore/pyutils/tts/audio_delivery_outbox.py` (R5): the outbox executor
+  skips the global result step for `_local_source` deliveries once the
+  domain report (encodeTaskId) reached a terminal state — the domain
+  report IS the whole delivery for locally sourced words.
+- `pycore/pyctl/tts/laravel_audio_worker.py` (R2): drain-cycle completion
+  boundary persists the whole-Queue snapshot (`source=drain`) right after
+  `_record_cycle`, so a restart never resurrects consumed tasks.
+- `pycore/pyctl/runtime/event_handlers.py` (R6): `_start_word_audio_boot_chain`
+  after `apply_assist_runtime` — flag (`assist_laravel.capabilities.tts`)
+  ON → `restore_from_cache("word_audio")` → background full pull when
+  env/persisted key says so → `request_pull`; flag OFF → none of it runs.
+- `pycore/pycore_module_caller.py` (R7): `--word-audio-full-sync` argparse
+  flag → env `WORD_AUDIO_FULL_SYNC=1`.
+- `scripts/shells/linux/common/pyservice_entry.sh` (R7):
+  `--word-audio-full-sync` parse + usage text + `PY_ARGS` forwarding.
+- `pycore/callmodule/rpc_routes/word_audio_full_sync_routes.py` (R8, new):
+  RPC `ui/queue_center/word_audio_full_sync` kicks the background full pull
+  and returns the live status block; registered in
+  `register_http_routes.py` (route name in `route_names.py`).
+- `pycore/pyctl/queue_center/snapshot_service.py` (R9): the word_audio
+  section carries the `full_sync` status block (best-effort).
+
+### UI (poly_apps/pycore_laravel_wordnew_ui, pycore-manager)
+
+- `core/contracts/QueueCenterTypes.ts`: `QueueCenterWordAudioFullSyncStatus`;
+  optional `full_sync` on `QueueCenterSectionContract` (word_audio only).
+- `core/contracts/QueueCenterContract.ts`: `normalizeWordAudioFullSyncStatus`;
+  wired into `normalizeQueueCenterSections` for the word_audio scope.
+- `core/integrations/pycore/PycoreHttpRoutes.ts`: route
+  `queueCenterWordAudioFullSync`.
+- `core/integrations/pycore/PycoreApiLocal.ts` (R10): `wordAudioFullSync()`.
+- `apps/pycore-manager/components/PcWordAudioPanel.tsx` (R10): full-sync
+  status row (running / last sync time / pulled+inserted / cached count /
+  last error) and a manual "Sync full word list" action wired to the R8
+  RPC, followed by a hub refresh; the section switch keeps rendering the
+  shared flag as Running/Off exactly as before.
+- `apps/pycore-manager/pc-locales/PcEnCore.ts` / `PcZhCore.ts` (R10):
+  `queueCenter.wordAudioQueue.fullSync.*` en/zh labels.
+
+### Laravel (poly_apps/laravel_main) — doc comments only (R11)
+
+- `AppQyV1VocabularyStatsController::dictionaryWords` and
+  `QueueCenterAudioScanTask` docblocks note the pycore full-pull consumer
+  contract (read-only listing, Part1 fill, report via `encodeTaskId`).
+  No behavior change.
+
+### Contract
+
+- `config/queue_center_contract.json` (R12): new `word_audio_full_sync`
+  block (listing endpoint, language source, local-task marker, cache file,
+  RPC, env flag, persisted key, snapshot block); `schema_version` 32 → 33.
+
+### Verification
+
+- `py_compile` passes for every new/changed Python file;
+  `pycore_module_caller.py --help` lists `--word-audio-full-sync`;
+  `bash -n pyservice_entry.sh` passes; contract JSON parses
+  (`schema_version` 33); `php -l` passes for both Laravel files;
+  `tsc --noEmit` reports zero errors in all changed UI files (the one
+  remaining laravel-manager `GlobalQueuePositionTaskAlias` error is
+  pre-existing at HEAD).
+- Import smoke: `register_http_routes` loads 49 registrars including
+  `register_word_audio_full_sync_routes`; `event_handlers` exposes
+  `_start_word_audio_boot_chain`.
+- Behavior smoke (isolated cache dir): full-pull fill inserts new tasks
+  into Part1 ahead of a Part2 task (`apple, banana` before `zebra`);
+  re-promoting the same word inserts no duplicate and keeps the front
+  position; a Part2 head ticket does not demote the Part1 member; pop →
+  complete → drain persist writes `source=drain` with the consumed task
+  removed; cache restore dedups against the live queue (no resurrection);
+  `full_sync_on_start()` defaults True; `get_status()` reports the cache
+  block.
+- §6 acceptance 1–3, 5–6 (runtime boot chains with Laravel online/offline,
+  UI toggle round-trip) require verification on a running deployment.

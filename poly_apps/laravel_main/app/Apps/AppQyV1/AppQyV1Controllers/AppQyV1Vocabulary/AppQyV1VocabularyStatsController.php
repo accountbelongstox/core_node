@@ -43,6 +43,13 @@ class AppQyV1VocabularyStatsController extends Controller
      *
      * Returns { success, total, start, limit, items:[{content,md5,has_translation,
      * has_audio,is_valid,translations,us_phonetic,uk_phonetic}] }.
+     *
+     * pycore consumer contract (REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE):
+     * pycore's word-audio full pull pages this listing with filter=without_audio
+     * (limit<=1000) as a READ-ONLY source and fills its LOCAL queue head (Part1)
+     * — it never enqueues or reorders Laravel's queue here. Generated audio is
+     * reported back through the TTS worker report endpoint with the task id
+     * encoded by AppQyV1DictionaryTTSCoordinator::encodeTaskId.
      */
     public function dictionaryWords(Request $request): JsonResponse
     {

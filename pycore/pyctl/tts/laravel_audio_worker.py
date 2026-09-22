@@ -112,6 +112,7 @@ from pycore.pyutils.tts.tts_concurrency import (
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_delivery_outbox import audio_delivery_outbox
 
 
@@ -672,6 +673,11 @@ class BaseLaravelAudioWorker(
                 return
 
             self._record_cycle(processed, succeeded, failed)
+            # Drain-cycle completion boundary: persist the whole-Queue snapshot
+            # so a restart never resurrects the tasks this cycle consumed.
+            audio_queue_center.persist_snapshot(
+                self.QUEUE_KEY, source=audio_queue_cache.SOURCE_DRAIN
+            )
             queue_progress = self._queue_progress.get(self.QUEUE_KEY, {})
             line = (
                 f"{self._log_prefix} Cycle summary: "

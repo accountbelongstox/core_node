@@ -57,6 +57,22 @@ export function PcWordAudioPanel(): ReactElement {
   const effectiveConcurrency = hub.voiceWord?.concurrency;
   const recommendedConcurrency = hub.voiceWord?.concurrency_recommended;
   const queueProgress = worker?.queue_progress;
+  const fullSync = wordSection.full_sync ?? null;
+  const [fullSyncBusy, setFullSyncBusy] = useState(false);
+  const runFullSync = useCallback(async () => {
+    if (fullSyncBusy) return;
+    setFullSyncBusy(true);
+    setActionError(null);
+    try {
+      const response = await pycoreApi.wordAudioFullSync();
+      if (!response.success) throw new Error(response.error || 'Full sync failed');
+      await hub.refreshHub();
+    } catch (error: any) {
+      setActionError(error?.message || 'Full sync failed');
+    } finally {
+      setFullSyncBusy(false);
+    }
+  }, [fullSyncBusy, hub]);
   const eventPage = useQueueWorkerEventPage(
     'word',
     expanded,
@@ -191,6 +207,42 @@ export function PcWordAudioPanel(): ReactElement {
                 className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-0.5 text-xs text-slate-200 disabled:opacity-50" />
             </label>
           </div>
+
+        <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-500 flex items-center gap-2 flex-wrap">
+          <span className="uppercase tracking-wider text-slate-400">{t('queueCenter.wordAudioQueue.fullSync.title')}</span>
+          {fullSync ? (
+            <>
+              <span className={fullSync.running ? 'text-amber-400' : 'text-slate-400'}>
+                {fullSync.running
+                  ? t('queueCenter.wordAudioQueue.fullSync.running')
+                  : fullSync.last_sync_at
+                    ? t('queueCenter.wordAudioQueue.fullSync.lastSync', { time: new Date(fullSync.last_sync_at * 1000).toLocaleString() })
+                    : t('queueCenter.wordAudioQueue.fullSync.never')}
+              </span>
+              {fullSync.last_result?.pulled != null && fullSync.last_result.pulled > 0 && (
+                <span className="font-mono">
+                  {t('queueCenter.wordAudioQueue.fullSync.pulled', {
+                    pulled: fullSync.last_result.pulled,
+                    inserted: fullSync.last_result.inserted ?? 0,
+                  })}
+                </span>
+              )}
+              <span className="font-mono">
+                {t('queueCenter.wordAudioQueue.fullSync.cached', { count: fullSync.cache_count })}
+              </span>
+              {fullSync.last_result?.error && (
+                <span className="text-rose-400">{fullSync.last_result.error}</span>
+              )}
+            </>
+          ) : (
+            <span>{t('queueCenter.wordAudioQueue.fullSync.unavailable')}</span>
+          )}
+          <button type="button" onClick={() => void runFullSync()} disabled={fullSyncBusy || fullSync?.running}
+            title={t('queueCenter.wordAudioQueue.fullSync.actionTitle')}
+            className="ml-auto rounded bg-indigo-600/80 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-indigo-500 disabled:opacity-50">
+            {t('queueCenter.wordAudioQueue.fullSync.action')}
+          </button>
+        </div>
 
         <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-500 flex gap-2 flex-wrap">
           <span>pycore worker</span>

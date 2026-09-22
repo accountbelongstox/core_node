@@ -400,7 +400,7 @@ export const pycoreApiLocal = {
   wordAudioFullSync: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterWordAudioFullSync, {}) as Promise<{
       success: boolean;
-      data?: { status?: QueueCenterWordAudioFullSyncStatus };
+      status?: QueueCenterWordAudioFullSyncStatus;
       error?: string;
     }>,
 
