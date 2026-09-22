@@ -177,6 +177,26 @@ final class DataSyncStateStore
         return $this->activeAll($role)[0] ?? null;
     }
 
+    /**
+     * Lightweight per-tick probe: true when any session summary is in an
+     * active status. Reads summary files only (no full job load, no throw),
+     * so timer tasks can call it every tick to yield during a sync.
+     */
+    public function hasActiveSession(): bool
+    {
+        foreach ($this->storedJobIds() as $id) {
+            $content = FileSystemManager::readFile($this->summaryPath($id));
+            $summary = $content !== false ? json_decode($content, true) : null;
+            if (
+                is_array($summary)
+                && in_array($summary['status'] ?? null, ['queued', 'running', 'paused'], true)
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function activeAll(string $role): array
     {
         $jobs = [];

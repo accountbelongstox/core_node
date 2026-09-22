@@ -71,6 +71,10 @@ php_configuration_frankenphp_ensure() {
         && grep -Fq "max_input_time = $PHP_RUNTIME_MAX_INPUT_TIME" "$PHP_FRANKENPHP_INI"; then
         PHP_RUNTIME_READY="yes"
     fi
+    # The canonical /usr/local/bin/php link converges on BOTH planes
+    # (idempotent self-repair; the nginx path calls the same function via
+    # php_configuration_system_ensure).
+    php_configuration_system_default_ensure
 }
 
 php_configuration_system_default_ensure() {
@@ -112,6 +116,7 @@ php_configuration_ensure() {
 
     PHP_CONFIGURATION_READY="no"
     if [ "$PHP_RUNTIME_READY" = "yes" ] \
+        && [ "$PHP_DEFAULT_READY" = "yes" ] \
         && [ "$PHP_PERMISSIONS_READY" = "yes" ] \
         && [ "$PHP_WEB_SERVER_READY" = "yes" ]; then
         PHP_CONFIGURATION_READY="yes"
