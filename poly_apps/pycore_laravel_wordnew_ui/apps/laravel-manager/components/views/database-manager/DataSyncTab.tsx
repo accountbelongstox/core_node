@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { ArrowRightLeft, LogIn, LogOut, Pause, Play, Radar, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
@@ -136,8 +136,21 @@ export const DataSyncTab: React.FC = () => {
   );
   // The pair must span two machines: probing or syncing a node onto itself is rejected.
   const sameNodeSelected = Boolean(oldEndpoint && newServerNode && dataSyncModel.sameNode(oldEndpoint, newServerNode));
+  // Last-seen snapshot per session key: a slow or temporarily failing endpoint
+  // poll must not flip the detail panel to another session.
+  const lastSeenRef = useRef(new Map<string, ManagedDataSyncSession>());
+  useEffect(() => {
+    sessions.forEach((session) => lastSeenRef.current.set(session.manager_key, session));
+  }, [sessions]);
   const selected = useMemo(
-    () => sessions.find((session) => session.manager_key === selectedKey) ?? sessions[0] ?? null,
+    () => sessions.find((session) => session.manager_key === selectedKey)
+      ?? (selectedKey !== '' ? lastSeenRef.current.get(selectedKey) : undefined)
+      // The backend that owns a session is authoritative: prefer the active
+      // session on THIS node, then any active peer session, then the newest.
+      ?? sessions.find((session) => session.manager_endpoint.current && ACTIVE_STATUSES.includes(session.status))
+      ?? sessions.find((session) => ACTIVE_STATUSES.includes(session.status))
+      ?? sessions[0]
+      ?? null,
     [sessions, selectedKey],
   );
   const writerActiveOn = useCallback(
@@ -193,8 +206,12 @@ export const DataSyncTab: React.FC = () => {
     setEndpoints(workspace.endpoints);
     setSessions(workspace.sessions);
     setSelectedKey((current) => {
-      if (current && workspace.sessions.some((session) => session.manager_key === current)) return current;
-      const active = workspace.sessions.find((session) => ACTIVE_STATUSES.includes(session.status));
+      // An explicit selection sticks: transient endpoint failures must not
+      // steal it. Auto-pick only when nothing is selected yet, preferring
+      // the session owned by THIS node's backend.
+      if (current) return current;
+      const active = workspace.sessions.find((session) => session.manager_endpoint.current && ACTIVE_STATUSES.includes(session.status))
+        ?? workspace.sessions.find((session) => ACTIVE_STATUSES.includes(session.status));
       return active?.manager_key ?? workspace.sessions[0]?.manager_key ?? '';
     });
     setError(workspace.errors.length > 0
