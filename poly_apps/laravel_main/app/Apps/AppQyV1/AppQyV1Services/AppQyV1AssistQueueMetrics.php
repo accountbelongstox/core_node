@@ -98,7 +98,12 @@ trait AppQyV1AssistQueueMetrics
     /**
      * word_audio (pycore lane) counts split by language. global_tasks
      * task_type='word_audio' pending/processing PLUS dictionary rows missing
-     * audio (has_audio=false OR tts_status='pending') per language.
+     * audio per language. The by-language definition is EXACTLY the
+     * dictionary management filter `without_audio` (has_audio=false OR NULL —
+     * AppQyV1LangDictionaryModel::managementFilter), so this card always
+     * matches the Vocabulary "No audio" query and pycore's full pull.
+     * (The previous `OR tts_status='pending'` clause counted ~130k stale
+     * pending rows that already have audio, inflating en to ~233k.)
      *
      * @return array{pending:int,processing:int,leased:int,total:int,
      *               by_language:array<string,int>,sample:array<int,array<string,mixed>>}
@@ -106,7 +111,7 @@ trait AppQyV1AssistQueueMetrics
     public function wordAudioCounts(): array
     {
         $task = $this->globalTaskStatusCounts('word_audio');
-        $byLanguage = $this->dictionaryByLanguage("(has_audio = false OR tts_status = 'pending')");
+        $byLanguage = $this->dictionaryByLanguage('(has_audio = false OR has_audio IS NULL)');
 
         return [
             'pending' => $task['pending'],
