@@ -9,8 +9,6 @@ use Illuminate\Support\Facades\Context;
 
 final class DataSyncService
 {
-    private int $sourceCursor = 0;
-
     public function __construct(
         private readonly DataSyncStateStore $store,
         private readonly DatabaseSyncService $databases,
@@ -652,10 +650,19 @@ final class DataSyncService
                 $this->advanceExporterWithLock((string) $exporter['id']);
             }
         }
-        if ($sources !== []) {
-            $sourceIndex = $this->sourceCursor % count($sources);
-            $this->sourceCursor = ($sourceIndex + 1) % count($sources);
-            $this->advanceDriverWithLock((string) $sources[$sourceIndex]['id']);
+
+        // One source per tick, least-recently-advanced first. Stateless (the
+        // old in-memory round-robin cursor reset in every fresh scheduler
+        // process, starving all but the newest source); a busy session lock
+        // skips to the next source instead of wasting the tick.
+        usort($sources, static fn (array $left, array $right): int => strcmp(
+            (string) ($left['updated_at'] ?? ''),
+            (string) ($right['updated_at'] ?? '')
+        ));
+        foreach ($sources as $source) {
+            if ($this->advanceDriverWithLock((string) $source['id'])) {
+                break;
+            }
         }
     }
 
@@ -684,7 +691,7 @@ final class DataSyncService
         }
     }
 
-    private function advanceDriverWithLock(string $id): void
+    private function advanceDriverWithLock(string $id): bool
     {
         $result = Context::scope(
             fn (): array => $this->sessionLock->run($id, function () use ($id): void {
@@ -697,9 +704,7 @@ final class DataSyncService
             data: ['data_sync_session_id' => $id, 'data_sync_role' => 'driver']
         );
 
-        if (!$result['acquired']) {
-            return;
-        }
+        return (bool) ($result['acquired'] ?? false);
     }
 
     private function advanceExporterWithLock(string $id): void
@@ -1915,12 +1920,23 @@ final class DataSyncService
     /**
      * The new server must be a different machine than this node: syncing a
      * node onto itself would diff its own databases against themselves.
-     * Compared by host, with the loopback aliases folded together.
+     * Compared by host, with the loopback aliases folded together. A loopback
+     * target always resolves back to this node (the sync protocol serves on
+     * this machine's own listeners), so it is rejected outright — the UI's
+     * sameNode() folds the same aliases.
      */
     private function assertNotSelfTarget(?string $target): void
     {
+        if ($target === null) {
+            return;
+        }
+
+        if ($this->hostKey($target) === 'loopback') {
+            throw new \InvalidArgumentException('The new server must be a different machine than this node.');
+        }
+
         $selfUrl = trim((string) config('app.url'));
-        if ($target === null || $selfUrl === '') {
+        if ($selfUrl === '') {
             return;
         }
 

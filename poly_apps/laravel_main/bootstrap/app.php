@@ -216,6 +216,31 @@ $application = Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        // Data-sync domain failures (session state conflicts, invalid peer
+        // addresses, missing sessions) are client-actionable, not server
+        // faults: surface the real message with a 4xx status instead of the
+        // generic production 500 "Internal server error". Scoped to the
+        // db-manager surface (both the dashboard routes and the sync-peer
+        // routes, so a peer node also receives the real reason).
+        $exceptions->render(function (\InvalidArgumentException $e, Request $request) {
+            if ($request->is('api/dashboard/db-manager/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => 422,
+                ], 422);
+            }
+        });
+        $exceptions->render(function (\RuntimeException $e, Request $request) {
+            if ($request->is('api/dashboard/db-manager/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => 409,
+                ], 409);
+            }
+        });
+
         // Render all other exceptions. The HTTP status is derived from the
         // exception type — an HttpException (abort(404)/403/405/429/...) keeps its
         // own status — defaulting to 500, so API responses carry the correct code
