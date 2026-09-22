@@ -110,7 +110,8 @@ from pycore.pyutils.tts.tts_concurrency import (
     recommended_concurrency,
 )
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
-from pycore.pyutils.tts.audio_task_queue import AudioTaskQueue
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts.audio_delivery_outbox import audio_delivery_outbox
 
 
@@ -214,9 +215,17 @@ class BaseLaravelAudioWorker(
         self._concurrency = max(0, self.CONCURRENCY_DEFAULT)
         self._speaker = ""
 
-        self._queue = AudioTaskQueue(
-            queue_name=self.LANE,
-            task_type=self.QUEUE_KEY,
+        # The lane queue is owned by the shared audio queue library
+        # (Queue = Part1 + Part2); this worker consumes it, never
+        # constructs it, and registers its Laravel-intake callables so the
+        # library's public M1/M2 entries drive the Part2 fill/update.
+        self._queue = audio_queue_center.queue_for(self.QUEUE_KEY)
+        audio_queue_center.register_lane_intake(
+            self.QUEUE_KEY,
+            initializer=self._initialize_lane_from_laravel,
+            diff_applier=self._apply_lane_laravel_diff,
+            head_ticket_applier=self._persist_head_ticket,
+            waker=self.request_pull,
         )
 
         # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
@@ -505,9 +514,32 @@ class BaseLaravelAudioWorker(
         self._log_event("task_done" if success else "task_fail", detail, info)
 
     def set_cached_task_head(self, task_id: Any, queue_position: int) -> None:
-        """Apply one queue-head ticket to persistent and in-process caches."""
-        super().set_cached_task_head(task_id, queue_position)
-        self._queue.move_to_head(task_id, queue_position)
+        """Apply one Laravel queue-head ticket through the shared queue library.
+
+        Part2 realtime entry (M2 ``apply_head_ticket``): the heap move,
+        whole-Queue dedup (a Part1 member keeps its front copy), and the
+        wake all happen inside ``audio_queue_center``."""
+        audio_queue_center.apply_head_ticket(self.QUEUE_KEY, task_id, queue_position)
+
+    def _initialize_lane_from_laravel(self) -> Dict[str, Any]:
+        """M1 intake: initial Laravel full sync -> fills the queue's Part2."""
+        return self._pull_once(prefer_remote=True)
+
+    def _apply_lane_laravel_diff(self) -> Dict[str, Any]:
+        """M2 intake: one timed Laravel diff round -> Part2 update only."""
+        return self._fetch_mirror_from_diffs(self._pull_task_types())
+
+    def _persist_head_ticket(self, task_id: Any, queue_position: int) -> None:
+        """Persist one Part2 head ticket in the durable segment store.
+
+        Registered with the shared queue library as the head-ticket
+        applier; the in-process heap ordering itself is the library's."""
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        diff_task_segment_store.move_to_head(
+            self._diff_segment_scope(base_url),
+            task_id,
+            queue_position,
+        )
 
     def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
         """Re-align the lane heap with the synced backend pending claim order."""

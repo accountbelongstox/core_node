@@ -137,7 +137,64 @@ the UI route map is
   Laravel. The Laravel `head` / `head/batch` endpoints stay (wordnew is
   their only producer after this change).
 
+### 3.1 Independent class library + public API surface (binding)
+
+The Queue is an INDEPENDENT class library (one module owning the class and
+its shared instance), instantiated at pycore initialization and GLOBALLY
+SHARED by every actor. It must NOT be embedded/nested inside other code
+(not inside the lane worker, not inside orchestration, not inside RPC
+controllers): other modules import the shared instance, never construct
+their own and never hold the implementation as a private detail of another
+class. Laravel-facing intake mechanics (HTTP, cursors, segment store) stay
+in the worker layer; the library exposes them through registered callables
+(dependency injection), so the library itself never imports upward.
+
+The library's ONLY external surface is this public API (everything else —
+heap mechanics, membership set, reorder/move_to_head internals, segment
+store — is library-internal):
+
+- **M1 `initialize_from_laravel(lane)`** — fetch Laravel's initial state
+  and initialize the queue. Actually FILLS Part2 (bootstrap full order +
+  mirror). Delegates to the lane's registered initializer.
+- **M2 `apply_laravel_diff(lane)`** — the TIMED diff receive entry. When
+  the diff carries changes, only the diff portion is updated — actually a
+  Part2 update (stage new, drop vanished, re-align order). Also
+  `apply_head_ticket(lane, task_id, queue_position)`: the realtime
+  `{queue}_head` receive entry; because wordnew notifies Laravel first, a
+  head ticket DEFAULTS to landing in Part2, deduped against the whole
+  Queue (a Part1 copy keeps its single front position).
+- **M3 `promote_local_head(lane, items)`** — pycore self-promotion
+  (orchestration push / pycore-manager manual promote). Actually FILLS
+  Part1 directly; dedup runs against the whole Queue.
+- **M4 `get_head(lane, limit)`** — read the current queue-head value(s)
+  WITHOUT consuming them.
+- **M5 (further public methods required by the logic):**
+  `accept_task(lane, task)` — external task intake into the whole Queue;
+  `pop_next(lane)` / `complete(lane, task)` — the consumer drain entries;
+  `request_pull(lane, prefer_remote)` — the wake entry that re-runs M1/M2;
+  `queue_snapshot(lane)` — status read (whole-queue size, Part1 size, head
+  preview) for UI/RPC surfaces.
+- All other methods are library-internal and must be named/commented as
+  such (leading underscore or an explicit internal section, per the
+  file's existing conventions).
+
 ## 4. Development requirements
+
+### R0 — Independent queue library (pycore)
+
+New module `pycore/pyutils/tts/audio_queue_center.py`: class
+`AudioQueueCenter` owning ONE `AudioTaskQueue` per lane
+(`word_audio`, `sentence_audio`, built eagerly from the contract at
+construction), the per-lane Part1 membership sets, and the registered
+Laravel-intake callables. The shared instance is created in the same
+module (`audio_queue_center = AudioQueueCenter()`, per PYTHON_PYCORE.md
+§1) and imported — never constructed — by the lane workers, audio
+orchestration, snapshot service, and RPC controllers. The lane workers
+register their intake callables (initializer, diff applier, head-ticket
+persister, waker) with the library at construction; the library's public
+API (M1–M5) delegates to them. The library imports only downward
+(pyfoundations / pyutils); the Part1/Part2 split and every public method
+carry the section-3 annotations.
 
 ### R1 — Part rank in the local ordering key (pycore)
 
@@ -155,32 +212,34 @@ unchanged and always run against the whole Queue.
 
 ### R2 — Per-lane Part1 membership (pycore)
 
-`pycore/pyctl/tts/laravel_audio_worker.py` (`BaseLaravelAudioWorker`): add a
-per-lane Part1 membership set keyed by the canonical dedup key
-(`word_audio` → `{lang}:{md5(lower(word))}`, `sentence_audio` →
-`{lang}:{media_content_id(text)}` — identical to
-`orch_promote._promotion_item` / `QueueCenterService::dedupKeyFor`). Provide
-`promote_local_head(items)` on the worker: this FILLS Part1 directly —
+In the shared library (R0), per lane: a Part1 membership set keyed by the
+canonical dedup key (`word_audio` → `{lang}:{md5(lower(word))}`,
+`sentence_audio` → `{lang}:{media_content_id(text)}` — identical to
+`QueueCenterService::dedupKeyFor`; ONE shared helper in
+`pyutils/common/queue_center_contract.py` computes it from
+`(queue, language, text[, content_id/md5])` and from a raw task payload,
+so the heap resolver, `orch_promote`, and the RPC controller all use the
+same implementation). `promote_local_head` (M3) FILLS Part1 directly:
 record membership for the given dedup keys, claim any already-queued
 single copy of those items into Part1 (whole-Queue dedup: an item whose
 copy sits in Part2 moves its ONE copy to Part1; an item already in Part1
-is refreshed in place), re-rank the heap, and `request_pull(prefer_remote=True)`.
-`accept_task`/`push` assigns part rank from membership. Part2 tickets
-(`set_cached_task_head`, `reorder`) never demote a Part1 member — the
-existing single copy keeps its Part1 (front) position. Part1 membership is
-in-process; it is rebuilt when an orchestration manifest re-resolves
-(manifests are durable), satisfying "empty Part1 by default after restart
-with no orchestration".
+is refreshed in place), re-rank the heap, and wake via the registered
+waker (`request_pull(prefer_remote=True)`). `accept_task`/`push` assigns
+part rank from membership. Part2 tickets (`apply_head_ticket`, `reorder`)
+never demote a Part1 member — the existing single copy keeps its Part1
+(front) position. Part1 membership is in-process; it is rebuilt when an
+orchestration manifest re-resolves (manifests are durable), satisfying
+"empty Part1 by default after restart with no orchestration".
 
 ### R3 — Orchestration self-promotion becomes local-only (pycore)
 
 `pycore/pyctl/audio_orchestration/orch_promote.py::
 promote_missing_to_queue_head`: stop calling
-`queue_head_client.promote_batch`. Compute the same dedup-key items and call
-the lane worker's `promote_local_head` (R2) per queue — the orchestration
-push FILLS Part1 directly; dedup runs against the whole Queue inside the
-worker/heap. No HTTP, no timeout, no deferred backlog. Generation of the
-misses proceeds exactly as today.
+`queue_head_client.promote_batch`. Compute the same dedup-key items and
+call the shared library's `promote_local_head` (M3) per lane — the
+orchestration push FILLS Part1 directly; dedup runs against the whole
+Queue inside the library. No HTTP, no timeout, no deferred backlog.
+Generation of the misses proceeds exactly as today.
 
 ### R4 — Remove the pycore→Laravel head client (pycore)
 
@@ -198,11 +257,11 @@ New RPC route `ui/queue_center/promote_local_head` in
 `pycore/callmodule/rpc_routes/` (name constant in `route_names.py`,
 controller wired like `local_queue_accept_routes.py`). Params:
 `{queue, items: [{kind: "word"|"sentence", language, text}, ...]}`.
-Controller resolves the lane via `lane_registry.lane_worker`, computes
-canonical dedup keys (shared helper — extract the dedup-key logic so
-`orch_promote` and the controller use ONE implementation), and calls
-`promote_local_head` — the SAME Part1 fill path as orchestration (R3),
-with whole-Queue dedup inside the worker. Never touches Laravel.
+Controller calls the shared library's `promote_local_head` (M3) — the SAME
+Part1 fill path as orchestration (R3), with whole-Queue dedup inside the
+library. The controller is a thin routing layer (no business logic, no
+Laravel contact); the dedup-key helper comes from the contract module
+(R2), never re-implemented.
 
 ### R6 — pycore-manager head-notify action (UI)
 
@@ -266,15 +325,20 @@ sides share one machine-readable definition.
 
 ## 6. Implementation roadmap (after this doc is approved)
 
-1. `config/queue_center_contract.json`: `head_parts` block (R8).
-2. pycore `AudioTaskQueue` part rank (R1) + lane-worker Part1 membership
-   (R2).
-3. pycore `orch_promote` local-only (R3); delete `queue_head_client`
+1. `config/queue_center_contract.json`: `head_parts` block (R8) + shared
+   dedup-key helper in `pyutils/common/queue_center_contract.py` (R2).
+2. pycore shared library `pyutils/tts/audio_queue_center.py` (R0) +
+   `AudioTaskQueue` part rank (R1) + Part1 membership (R2).
+3. pycore lane workers register intake with the library and consume its
+   shared lane queues; `snapshot_service` realtime head events enter via
+   `apply_head_ticket` (M2); heartbeat poll enters via `apply_laravel_diff`
+   (M2) / `initialize_from_laravel` (M1).
+4. pycore `orch_promote` local-only (R3); delete `queue_head_client`
    Laravel path and `orch_resources` flush call sites (R4).
-4. pycore RPC `ui/queue_center/promote_local_head` (R5).
-5. pycore-manager UI action + i18n (R6); wordnew role comments (R8).
-6. laravel_main Part2 comments (R7).
-7. Verify per section 5 (py_compile / php -l / tsc --noEmit; runtime checks
+5. pycore RPC `ui/queue_center/promote_local_head` (R5).
+6. pycore-manager UI action + i18n (R6); wordnew role comments (R8).
+7. laravel_main Part2 comments (R7).
+8. Verify per section 5 (py_compile / php -l / tsc --noEmit; runtime checks
    need the running deploy).
 
 ## 7. Relationship to earlier docs
@@ -285,3 +349,60 @@ sides share one machine-readable definition.
 - The offline durable backlog
   (`queue_head_pending_promotions.sqlite3`) is retired: Part1 needs no
   cross-side replay because it is local-only by definition.
+
+## 8. Implementation record (2026-09-22)
+
+R0 — `pycore/pyutils/tts/audio_queue_center.py`: `AudioQueueCenter`
+independent library + shared instance `audio_queue_center`, built eagerly
+for `word_audio`/`sentence_audio` at import (pycore init). Public API
+M1–M5 (`initialize_from_laravel` / `apply_laravel_diff` /
+`apply_head_ticket` / `promote_local_head` / `get_head` / `accept_task` /
+`pop_next` / `complete` / `request_pull` / `queue_snapshot`); Laravel
+intake arrives via `register_lane_intake` dependency injection (library
+never imports pyctl). Lane workers consume the shared queues and register
+their intake in `BaseLaravelAudioWorker.__init__`;
+`set_cached_task_head` is now a compat entry delegating to
+`apply_head_ticket` (realtime `{queue}_head` events flow through the
+library unchanged for `snapshot_service`).
+
+R1 — `pycore/pyutils/tts/audio_task_queue.py`: heap key is now
+`(part_rank, language_tier_rank, -queue_position, seq)`; new
+`claim_part1` / `head_preview`; Part2 paths (`reorder`, `move_to_head`)
+never demote a Part1 member.
+
+R2 — dedup-key helper `audio_dedup_key` / `audio_dedup_key_from_task` in
+`pycore/pyutils/common/queue_center_contract.py` (ONE implementation for
+the heap resolver, orchestration, and RPC).
+
+R3 — `orch_promote.promote_missing_to_queue_head` is local-only:
+`audio_queue_center.promote_local_head` per lane; no HTTP.
+
+R4 — `pycore/pyutils/laravel/queue_head_client.py` DELETED (Laravel
+head POST path, durable pending backlog, `flush_pending`); `orch_resources`
+online-edge/startup flush call sites removed. The 30s `head/batch`
+read-timeout incident class is gone.
+
+R5 — `ui/queue_center/promote_local_head` RPC
+(`callmodule/rpc_routes/local_queue_head_routes.py`, registered in
+`register_http_routes.py`).
+
+R6 — pycore-manager `OrchManifestPanel` per-row move-to-head action via
+`pycoreApi.promoteLocalQueueHead` (`PycoreApiLocal.ts` +
+`PycoreHttpRoutes.ts`); i18n `moveToHead`/`moveToHeadDone` in
+`OrchLocales.ts` (en+zh).
+
+R7 — Part1/Part2 contract comments on `QueueCenterService::moveToHead` /
+`moveToHeadBatch` and `QueueHeadNotificationService` (behavior unchanged).
+
+R8 — wordnew sole-notifier comments on
+`WordNewQueueCenter.moveWordsToHead/moveSentencesToHead` and
+`DiffQueueContext.touch`; `head_parts` descriptor block added to
+`config/queue_center_contract.json` (schema_version 31 -> 32).
+
+Verification: `py_compile` on all changed pycore files; contract JSON
+parse; `php -l` on both Laravel files; `tsc --noEmit` shows no errors in
+any changed UI file (pre-existing errors elsewhere unchanged); import +
+behavior smoke: Part1 promote moves the single queued copy to the head
+(`claimed=1`), a Part2 ticket on another task does not demote it, and the
+whole-queue snapshot reports one queue face. Runtime acceptance checks
+(section 5, items 1-7) require the running deploy.

@@ -20,6 +20,7 @@ from pycore.callmodule.rpc_routes.local_engines_load_status_routes import regist
 from pycore.callmodule.rpc_routes.local_image_search_routes import register_local_image_search_routes
 from pycore.callmodule.rpc_routes.local_llm_status_routes import register_local_llm_status_routes
 from pycore.callmodule.rpc_routes.local_queue_accept_routes import register_local_queue_accept_routes
+from pycore.callmodule.rpc_routes.local_queue_head_routes import register_local_queue_head_routes
 from pycore.callmodule.rpc_routes.local_local_config_routes import register_local_local_config_routes
 from pycore.callmodule.rpc_routes.local_ocr_status_routes import register_local_ocr_status_routes
 from pycore.callmodule.rpc_routes.local_sentence_audio_routes import register_local_sentence_audio_routes
@@ -83,6 +84,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_local_llm_status_routes,
     register_local_ocr_status_routes,
     register_local_queue_accept_routes,
+    register_local_queue_head_routes,
     register_local_sentence_audio_routes,
     register_local_speech_history_routes,
     register_local_stt_status_routes,

@@ -14,7 +14,6 @@ from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import LARAVEL_ONLINE_SIGNAL, laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
-from pycore.pyutils.laravel.queue_head_client import queue_head_client
 from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts.audio_delivery_outbox import AUDIO_DELIVERY_PROCESS_ID, audio_delivery_outbox
 from pycore.pyutils.tts.audio_validation import validate_mp3
@@ -255,11 +254,10 @@ def resolve_batch(
 
     misses = [resource for resource in items if resource["resource_id"] not in results]
 
-    # Queue-head self-promotion (collaboration with Laravel): the cache misses
-    # are exactly what this machine still needs, so enqueue-or-move them to
-    # the Laravel queue head — any online worker (this machine's lanes or a
-    # peer's) drains them next — and mirror the head order into the local lane
-    # queues. Never blocks resolution on a Laravel outage.
+    # Queue-head self-promotion (Part1 fill, LOCAL ONLY): the cache misses
+    # are exactly what this machine still needs, so fill Part1 of the shared
+    # audio queue — this machine's lane workers drain them before Part2.
+    # Never notifies Laravel; generation proceeds regardless.
     if misses:
         try:
             orch_promote.promote_missing_to_queue_head(misses, base_url)
@@ -364,23 +362,15 @@ def synchronize_audio(resource: Dict[str, Any], base_url: Optional[str], progres
 
 def _recover_deliveries() -> None:
     last_online_at = 0.0
-    startup_flush_done = False
     while True:
         online = THREAD_BUS.get_signal(LARAVEL_ONLINE_SIGNAL)
         if isinstance(online, dict):
             online_at = float(online.get("at") or 0)
             if online_at > last_online_at:
                 # Offline -> online edge: deliver offline-generated audio at
-                # once (reset the retry backoff) and replay the queue-head
-                # promotions deferred while Laravel was unreachable.
+                # once (reset the retry backoff).
                 last_online_at = online_at
                 audio_delivery_outbox.hurry_pending(DELIVERY_LANE)
-                queue_head_client.flush_pending(base_url=str(online.get("base_url") or ""))
-        if not startup_flush_done:
-            # Process restart with Laravel already up: replay the durable
-            # promotion backlog left by a previous offline session.
-            startup_flush_done = True
-            queue_head_client.flush_pending()
         for record in audio_delivery_outbox.list_ready(DELIVERY_LANE, limit=25):
             _deliver(record)
         THREAD_BUS.wait_signal("audio_orchestration.delivery.wait", timeout=5)

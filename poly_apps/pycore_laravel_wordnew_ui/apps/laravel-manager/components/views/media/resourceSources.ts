@@ -125,11 +125,11 @@ const okTree = (data: any, sourceId: ResourceSourceId): TreeResult => {
   return { items, basePath, realPath };
 };
 
-/** Static media resources adapter (view-open; upload/mutate require login). */
+/** Static media resources adapter (all access requires login). */
 const StaticResourceSource: ResourceSource = {
   id: 'files',
   label: 'Static Resources',
-  requiresLogin: false,
+  requiresLogin: true,
   canUpload: true,
   canEdit: true,
   canWrite: true,

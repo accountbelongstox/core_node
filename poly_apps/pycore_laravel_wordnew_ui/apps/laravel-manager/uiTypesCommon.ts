@@ -19,8 +19,6 @@ export enum ViewType {
   /** AI Management — laravel_main's unified AI gateway (provider grid, live
    *  rate/quota meters, gateway records, chat test). */
   AI_MANAGEMENT = 'ai_management',
-  /** Word Audio — laravel_main real-pronunciation lookup (sources + fetch test). */
-  WORD_AUDIO = 'word_audio',
   /** AI Dev History — extracted Claude/Codex/Gemini/Cursor prompts & sessions. */
   DATABASE_MANAGER = 'db_manager',
 }

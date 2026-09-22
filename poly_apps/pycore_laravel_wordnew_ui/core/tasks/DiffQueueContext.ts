@@ -73,7 +73,12 @@ class DiffQueueContext {
     StorageManager.set(STORAGE_KEY, state);
   }
 
-  /** Locally promote IDs to the head (queue.changed seam / manual bump). */
+  /**
+   * Locally promote IDs to the head (queue.changed seam / manual bump).
+   * Part2 mirror only: wordnew is the sole notifier of Laravel head moves:
+   * the authoritative move happens via Laravel, and this local headIds
+   * touch just keeps the UI's own diff context aligned with it.
+   */
   touch(scope: string, ids: string[]): void {
     const normalized = this.normalize(ids);
     if (normalized.length === 0) return;

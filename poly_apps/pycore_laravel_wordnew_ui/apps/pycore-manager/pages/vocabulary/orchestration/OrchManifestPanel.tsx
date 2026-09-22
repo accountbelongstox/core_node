@@ -9,7 +9,7 @@
  * orch_store manifest, nothing is re-derived on the UI side.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { ArrowUpToLine, Loader2 } from 'lucide-react';
 import {
   pycoreApi,
   type OrchManifestCategory,
@@ -66,6 +66,29 @@ const OrchManifestPanel: React.FC<{
   const [pageCount, setPageCount] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // LOCAL self-adjust only: promoting fills Part1 of the Pycore shared
+  // audio queue and NEVER notifies Laravel (wordnew owns the Part2 path).
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [promotedIds, setPromotedIds] = useState<Set<string>>(new Set());
+
+  const promoteToHead = useCallback(async (item: OrchManifestItem) => {
+    if (promotingId) return;
+    setPromotingId(item.resource_id);
+    try {
+      const kind = item.kind === 'word' ? 'word' : 'sentence';
+      const response = await pycoreApi.promoteLocalQueueHead({
+        queue: kind === 'word' ? 'word_audio' : 'sentence_audio',
+        items: [{ kind, language: item.language, text: item.text }],
+      });
+      if (!response.success) throw new Error(response.error || ORCH_L.actionFailed);
+      setPromotedIds((prev) => new Set(prev).add(item.resource_id));
+      setError(null);
+    } catch (e) {
+      setError(orchErrorMessage(e, ORCH_L.actionFailed));
+    } finally {
+      setPromotingId(null);
+    }
+  }, [promotingId]);
 
   const load = useCallback(async (cat: OrchManifestCategory, targetPage: number) => {
     setLoading(true);
@@ -161,6 +184,21 @@ const OrchManifestPanel: React.FC<{
                     {item.synced ? ORCH_L.manifestSynced : ORCH_L.syncingNow}
                   </span>
                 )}
+                <button
+                  type="button"
+                  title={ORCH_L.moveToHead}
+                  disabled={promotingId !== null || promotedIds.has(item.resource_id)}
+                  onClick={() => void promoteToHead(item)}
+                  className="ml-auto shrink-0 rounded border border-slate-300 dark:border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 hover:border-indigo-400/50 hover:text-indigo-300 disabled:opacity-50 disabled:hover:border-slate-300 dark:disabled:hover:border-white/10 disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400"
+                >
+                  {promotingId === item.resource_id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : promotedIds.has(item.resource_id) ? (
+                    ORCH_L.moveToHeadDone
+                  ) : (
+                    <ArrowUpToLine className="w-3 h-3" />
+                  )}
+                </button>
               </div>
               <p className="mt-1 text-[11px] text-slate-700 dark:text-slate-300 break-words">{item.text}</p>
             </div>

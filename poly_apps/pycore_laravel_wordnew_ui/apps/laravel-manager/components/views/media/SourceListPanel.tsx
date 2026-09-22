@@ -9,7 +9,10 @@ import {
   Loader2,
   WifiOff,
   Languages,
+  Lock,
 } from 'lucide-react';
+import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
+import { isDebugAuthBypass } from '@/apps/laravel-manager/config/auth';
 
 // ----------------------------------------------------------- source list item
 

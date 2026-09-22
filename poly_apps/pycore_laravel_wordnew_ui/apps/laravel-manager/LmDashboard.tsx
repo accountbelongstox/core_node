@@ -7,7 +7,6 @@ import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import AiManagement from './components/views/AiManagement';
-import WordAudioCapability from './components/views/WordAudioCapability';
 import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
 import DatabaseManager from './components/views/DatabaseManager';
@@ -204,8 +203,6 @@ const LmDashboardContent: React.FC = () => {
         return <VocabularyLearning />;
       case ViewType.AI_MANAGEMENT:
         return <AiManagement />;
-      case ViewType.WORD_AUDIO:
-        return <WordAudioCapability />;
       case ViewType.TASK_CENTER:
         return <TaskCenter lang={lang} />;
       case ViewType.SERVER_MANAGER:

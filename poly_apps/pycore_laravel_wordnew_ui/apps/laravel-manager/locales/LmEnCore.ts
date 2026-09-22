@@ -29,7 +29,6 @@ nav: {
       vocabulary: "Vocabulary",
       aiTools: "AI Tools",
       aiManagement: "AI Management",
-      wordAudio: "Word Audio",
       devHistory: "AI History",
       mcp: "MCP Manager",
       octane: "Octane Tasks",
