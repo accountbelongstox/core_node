@@ -291,14 +291,23 @@ export const DataSyncTab: React.FC = () => {
     setError(null);
     setNotice(null);
     try {
-      if (probe?.direction === 'pull') {
+      // No manual probe yet: negotiate the direction first so Start follows
+      // the same reachability rules as Detect direction. This is what lets a
+      // "Current URL" new server fall back to pull mode instead of pushing
+      // to a loopback address the old server reads as itself.
+      let direction = probe;
+      if (!direction && newServerInput.trim() !== '') {
+        direction = await dataSyncModel.probeDirection(oldEndpointId, newServerInput);
+        setProbe(direction);
+      }
+      if (direction?.direction === 'pull') {
         // The fetcher drives the pull: keep its sessions visible by managing
         // the node when it is a registry endpoint outside the managed pair.
-        if (!probe.newServer.managed && !probe.newServer.adhoc) {
-          setEndpoints(dataSyncModel.setManagedEndpoints([probe.newServer.id]));
+        if (!direction.newServer.managed && !direction.newServer.adhoc) {
+          setEndpoints(dataSyncModel.setManagedEndpoints([direction.newServer.id]));
         }
-        const session = await dataSyncModel.startFetch(probe.newServer.id, {
-          target: probe.oldServer.syncTarget,
+        const session = await dataSyncModel.startFetch(direction.newServer.id, {
+          target: direction.oldServer.syncTarget,
           databases,
           resources,
           compression,
@@ -312,7 +321,12 @@ export const DataSyncTab: React.FC = () => {
         if (oldEndpoint && !oldEndpoint.managed && !oldEndpoint.adhoc) {
           setEndpoints(dataSyncModel.setManagedEndpoints([oldEndpoint.id]));
         }
-        const session = await dataSyncModel.start(oldEndpointId, { target: newServerInput, databases, resources, compression });
+        const session = await dataSyncModel.start(oldEndpointId, {
+          target: direction ? direction.newServer.syncTarget : newServerInput,
+          databases,
+          resources,
+          compression,
+        });
         setSessions((current) => [session, ...current]);
         setSelectedKey(session.manager_key);
         setNewServerInput('');
@@ -321,7 +335,16 @@ export const DataSyncTab: React.FC = () => {
         }
       }
     } catch (startError) {
-      setError(startError instanceof Error && startError.message ? startError.message : t('dbSync.errors.start'));
+      if (startError instanceof DataSyncApiError && startError.status === 401 && newServerNode) {
+        setAuthEndpoint((current) => current ?? newServerNode);
+      }
+      setError(
+        startError instanceof Error && startError.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
+          ? t('dbSync.directionNone')
+          : startError instanceof Error && startError.message === DATA_SYNC_SAME_NODE_ERROR
+          ? t('dbSync.sameNode')
+          : (startError instanceof Error && startError.message ? startError.message : t('dbSync.errors.start')),
+      );
     } finally {
       setBusy(false);
     }

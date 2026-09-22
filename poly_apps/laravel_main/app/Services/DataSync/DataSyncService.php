@@ -71,6 +71,9 @@ final class DataSyncService
     public function probeTarget(string $target): array
     {
         $normalizedTarget = $this->peer->normalizeAddress(trim($target));
+        // Probing a loopback/self address would always "succeed" (the node
+        // probes itself) and falsely negotiate a push onto itself.
+        $this->assertNotSelfTarget($normalizedTarget);
 
         return ['target' => $normalizedTarget] + $this->peer->healthProbe($normalizedTarget);
     }
