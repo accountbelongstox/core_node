@@ -320,6 +320,11 @@ export class DataSyncModel {
     return this.managedSession(session.manager_endpoint, updated);
   }
 
+  async cancel(session: ManagedDataSyncSession): Promise<ManagedDataSyncSession> {
+    const updated = await this.client(session.manager_endpoint).cancelDataSync(session.id);
+    return this.managedSession(session.manager_endpoint, updated);
+  }
+
   private syncTarget(endpoint: BackendApiEndpoint): string {
     const port = endpoint.port ?? (endpoint.protocol === 'https' ? 443 : 80);
     const host = endpoint.url.includes(':') && !endpoint.url.startsWith('[')

@@ -87,6 +87,11 @@ final class DataSyncController extends Controller
         return $this->success(['session' => $this->service->resume($id)], 'Data synchronization resumed.');
     }
 
+    public function cancel(string $id): JsonResponse
+    {
+        return $this->success(['session' => $this->service->cancel($id)], 'Data synchronization cancelled.');
+    }
+
     public function peerHealth(): JsonResponse
     {
         return $this->success($this->service->health());

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TFunction } from 'i18next';
-import { ArrowRightLeft, LogIn, LogOut, Pause, Play, Radar, RefreshCw, Server, ShieldCheck } from 'lucide-react';
+import { ArrowRightLeft, LogIn, LogOut, Pause, Play, Radar, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { dataSyncModel } from '@/apps/laravel-manager/models';
 import {
@@ -314,6 +314,19 @@ export const DataSyncTab: React.FC = () => {
     }
   };
 
+  const cancelSelected = async () => {
+    if (!selectedDriver) return;
+    setBusy(true);
+    setError(null);
+    try {
+      replaceSession(await dataSyncModel.cancel(selectedDriver));
+    } catch (cancelError) {
+      setError(cancelError instanceof Error && cancelError.message ? cancelError.message : t('dbSync.errors.control'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const bindTarget = async () => {
     if (!selectedDriver || pendingTarget.trim() === '') return;
     setBusy(true);
@@ -448,6 +461,11 @@ export const DataSyncTab: React.FC = () => {
             <button type="button" onClick={togglePause} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
               {selectedDriver.status === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               {selectedDriver.status === 'paused' ? t('dbSync.resume') : t('dbSync.pause')}
+            </button>
+          )}
+          {selectedDriver && (
+            <button type="button" onClick={cancelSelected} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
+              <XCircle className="w-4 h-4" />{t('dbSync.cancel')}
             </button>
           )}
         </div>

@@ -3,6 +3,7 @@
 namespace App\Services\DataSync;
 
 use App\Services\Dashboard\DatabaseManagerService;
+use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 use App\Utils\SystemArchiveManager;
 use Illuminate\Support\Facades\Context;
@@ -127,6 +128,7 @@ final class DataSyncService
     {
         $targetInput = trim($target);
         $normalizedTarget = $this->peer->normalizeAddress($targetInput);
+        $this->assertNotSelfTarget($normalizedTarget);
 
         return $this->topology->run(fn (): array => $this->withSessionLock(
             $id,
@@ -199,19 +201,61 @@ final class DataSyncService
      * Operator-initiated abort of a driver session (source/fetcher). Finished
      * sessions are already inactive; active ones leave the active set so they
      * no longer block new topologies (writer exclusivity, target conflicts).
+     *
+     * The scheduler may hold the session lock for a whole slow step (e.g.
+     * probing a dead peer with connect-timeout retries), so the request is
+     * recorded as a flag file first — a race-free signal the driver honors at
+     * the next tick boundary — and then applied immediately when the lock
+     * happens to be free (paused or idle sessions).
      */
     public function cancel(string $id): array
     {
-        return $this->withSessionLock($id, function () use ($id): array {
-            $job = $this->requireDriverJob($id);
-            if (in_array($job['status'], ['completed', 'failed'], true)) {
-                return $this->publicJob($job);
-            }
-            $job['status'] = 'failed';
-            $job['error'] = 'Synchronization session cancelled by the operator.';
-            $job = $this->store->markCurrentStep($job, 'failed', $job['error']);
+        $job = $this->requireDriverJob($id);
+        if (in_array($job['status'], ['completed', 'failed'], true)) {
+            FileSystemManager::delete($this->cancelFlagPath($id));
             return $this->publicJob($job);
-        });
+        }
+
+        FileSystemManager::writeFile(
+            $this->cancelFlagPath($id),
+            (string) json_encode(['requested_at' => now()->toIso8601String()])
+        );
+
+        try {
+            return $this->withSessionLock($id, fn (): array => $this->applyCancel($id));
+        } catch (\RuntimeException $exception) {
+            if ($exception->getMessage() !== 'The synchronization session is busy; retry the request.') {
+                throw $exception;
+            }
+            // Busy: the driver applies the recorded cancel request at the next
+            // tick boundary; the UI polls and observes the transition.
+            return $this->publicJob($job);
+        }
+    }
+
+    private function applyCancel(string $id): array
+    {
+        $job = $this->requireDriverJob($id);
+        FileSystemManager::delete($this->cancelFlagPath($id));
+        if (in_array($job['status'], ['completed', 'failed'], true)) {
+            return $this->publicJob($job);
+        }
+        $job['status'] = 'failed';
+        $job['error'] = 'Synchronization session cancelled by the operator.';
+        $job = $this->store->markCurrentStep($job, 'failed', $job['error']);
+        return $this->publicJob($job);
+    }
+
+    private function cancelRequested(string $id): bool
+    {
+        return FileSystemManager::isFile($this->cancelFlagPath($id));
+    }
+
+    private function cancelFlagPath(string $id): string
+    {
+        $safeId = DataSyncSessionId::require($id);
+        return rtrim(PathMapper::getBackupDir('data-sync/locks'), '/\\')
+            . DIRECTORY_SEPARATOR . $safeId . '.cancel';
     }
 
     public function health(): array
@@ -716,6 +760,10 @@ final class DataSyncService
             fn (): array => $this->sessionLock->run($id, function () use ($id): void {
                 $source = $this->store->get($id);
                 if ($source === null || $source['status'] === 'paused') {
+                    return;
+                }
+                if ($this->cancelRequested($id)) {
+                    $this->applyCancel($id);
                     return;
                 }
                 $this->advanceDriver($source);
@@ -1942,7 +1990,10 @@ final class DataSyncService
      * Compared by host, with the loopback aliases folded together. A loopback
      * target always resolves back to this node (the sync protocol serves on
      * this machine's own listeners), so it is rejected outright — the UI's
-     * sameNode() folds the same aliases.
+     * sameNode() folds the same aliases. Hosts and domains this Laravel
+     * serves (service contract: laravelApi host keys, web domains, allowed
+     * hosts) are rejected too — targeting api.si.12gm.com from this machine
+     * is still self.
      */
     private function assertNotSelfTarget(?string $target): void
     {
@@ -1950,18 +2001,52 @@ final class DataSyncService
             return;
         }
 
-        if ($this->hostKey($target) === 'loopback') {
+        $targetHost = $this->hostKey($target);
+        if ($targetHost === 'loopback') {
             throw new \InvalidArgumentException('The new server must be a different machine than this node.');
         }
 
         $selfUrl = trim((string) config('app.url'));
-        if ($selfUrl === '') {
-            return;
-        }
-
-        if ($this->hostKey($target) === $this->hostKey($selfUrl)) {
+        if ($selfUrl !== '' && $targetHost === $this->hostKey($selfUrl)) {
             throw new \InvalidArgumentException('The new server must be a different machine than this node.');
         }
+
+        foreach ($this->selfHostKeys() as $selfHost) {
+            if ($targetHost === $selfHost || str_ends_with($targetHost, '.' . $selfHost)) {
+                throw new \InvalidArgumentException('The new server must be a different machine than this node.');
+            }
+        }
+    }
+
+    /**
+     * Every host key this node answers on, from the central service contract.
+     * Best-effort: when the contract is unreadable (broken CLI bootstrap) the
+     * check degrades to the app.url/loopback comparison above.
+     */
+    private function selfHostKeys(): array
+    {
+        try {
+            $document = \App\Support\ServiceContract::webAccessDocument();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $hosts = [];
+        $hostMap = is_array($document['hosts'] ?? null) ? $document['hosts'] : [];
+        foreach ((array) ($document['serviceHostKeys']['laravelApi'] ?? []) as $key) {
+            $value = $hostMap[$key] ?? null;
+            if (is_string($value) && $value !== '') {
+                $hosts[] = $this->hostKey($value);
+            }
+        }
+        foreach ((array) ($document['allowedHosts'] ?? []) as $host) {
+            $hosts[] = $this->hostKey((string) $host);
+        }
+        foreach ((array) ($document['domains'] ?? []) as $domain) {
+            $hosts[] = strtolower((string) $domain);
+        }
+
+        return array_values(array_unique(array_filter($hosts, static fn (string $host): bool => $host !== '' && $host !== '0.0.0.0')));
     }
 
     private function hostKey(string $address): string
