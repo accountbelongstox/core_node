@@ -72,6 +72,7 @@ dbSync: {
       refresh: "刷新",
       pause: "暂停",
       resume: "继续",
+      cancel: "取消",
       receiverBlocked: "本机正在接收数据；传入会话结束前不能新建出站会话。",
       manifestDraftBlocked: "已有一个本机清单会话正在等待接收端。请先为其绑定地址，或在上方输入另一个接收端。",
       session: "同步会话",

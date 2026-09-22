@@ -43,6 +43,7 @@ Route::prefix('dashboard/db-manager')->middleware('dashboard.auth')->group(funct
     Route::post('/sync/{id}/target', [DataSyncController::class, 'setTarget']);
     Route::post('/sync/{id}/pause', [DataSyncController::class, 'pause']);
     Route::post('/sync/{id}/resume', [DataSyncController::class, 'resume']);
+    Route::post('/sync/{id}/cancel', [DataSyncController::class, 'cancel']);
 
     // Credential management (driver-aware; pgsql/mysql only — sqlite has no
     // accounts). Changing the CONFIGURED superuser's password re-syncs it into

@@ -90,6 +90,7 @@ dbSync: {
       refresh: "Refresh",
       pause: "Pause",
       resume: "Resume",
+      cancel: "Cancel",
       receiverBlocked: "This node is receiving data. New outbound sessions are disabled until the incoming session finishes.",
       manifestDraftBlocked: "A local manifest session is already waiting for a receiver. Bind its address or enter another receiver above.",
       session: "Synchronization session",

@@ -417,6 +417,15 @@ export class DatabaseManagerAPI extends BaseAPI {
     return (res.data as { session: DataSyncSession }).session;
   }
 
+  /** POST /sync/{id}/cancel — operator abort; the session leaves the active set. */
+  async cancelDataSync(id: string): Promise<DataSyncSession> {
+    const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/cancel`);
+    if (!res.success || !res.data) {
+      throw this.syncFailure(res);
+    }
+    return (res.data as { session: DataSyncSession }).session;
+  }
+
   /** POST /sync/probe { target } — this node's reachability view of a peer. */
   async probeDataSyncPeer(target: string): Promise<DataSyncProbeResult> {
     const res = await this.post<{ probe: DataSyncProbeResult }>('sync/probe', { target });
