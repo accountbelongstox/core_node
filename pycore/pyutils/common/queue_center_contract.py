@@ -11,11 +11,14 @@ must start in the JSON document. All four runtime adapters derive their values
 from it; consumers must not introduce another literal vocabulary.
 """
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, TypedDict
 from urllib.parse import quote
+
+from pycore.pyutils.common.strtools.normalization import media_content_id
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _CONTRACT_PATH = _PROJECT_ROOT / "config" / "queue_center_contract.json"
@@ -532,6 +535,49 @@ def task_language_tier_rank(task: Mapping[str, Any], fallback_task_type: object 
         return 1
     language = str((task.get("payload") or {}).get("language") or "").strip().lower()
     return 0 if language in tiers else 1
+
+
+def audio_dedup_key(
+    queue: object,
+    language: object,
+    text: object,
+    content_id: object = "",
+    md5: object = "",
+) -> str:
+    """Canonical audio-lane dedup key "{lang}:{contentId}".
+
+    Mirrors QueueCenterService::dedupKeyFor: ``word_audio`` uses the md5 of
+    the lowercased word, ``sentence_audio`` the media content id. ONE
+    implementation for the audio queue heap resolver, audio orchestration,
+    and the queue-center RPC controllers — never re-implemented elsewhere.
+    """
+    lang = str(language or "").strip().lower()
+    queue_key = str(queue or "").strip()
+    if queue_key == "sentence_audio":
+        content = str(content_id or "").strip() or media_content_id(str(text or ""))
+    else:
+        content = str(md5 or "").strip() or hashlib.md5(
+            str(text or "").strip().lower().encode("utf-8")
+        ).hexdigest()
+    return f"{lang}:{content}"
+
+
+def audio_dedup_key_from_task(task: Mapping[str, Any], fallback_queue: object = None) -> str:
+    """Dedup key of one raw task dict (task_type + payload word/text)."""
+    payload = task.get("payload") if isinstance(task.get("payload"), Mapping) else {}
+    text = (
+        payload.get("word")
+        or payload.get("text")
+        or payload.get("content")
+        or ""
+    )
+    return audio_dedup_key(
+        task.get("task_type") or fallback_queue,
+        payload.get("language"),
+        text,
+        payload.get("content_id"),
+        payload.get("md5"),
+    )
 
 
 QUEUE_CENTER_QUEUE_POSITION_CONTROLS: Tuple[str, ...] = tuple(

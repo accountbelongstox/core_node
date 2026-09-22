@@ -153,6 +153,12 @@ class QueueCenterService
      * the existing queued task, assign a monotonic queue_position head ticket,
      * and stage one compact diff notification for the interval publisher.
      *
+     * Part1/Part2 contract (docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md):
+     * externally the queue is ONE whole Queue; internally pycore mirrors it as
+     * Part1+Part2. This Laravel head move is the Part2 fill path — its ONLY
+     * producer is wordnew (AppQyV1AudioGateway). pycore consumes Part2 via
+     * Mercure/diff and NEVER pushes head state back to Laravel.
+     *
      * @return array{ok:bool,task_id:string,created:bool,head_action:string,status:string,queue_position:int}
      */
     public function moveToHead(
@@ -190,6 +196,11 @@ class QueueCenterService
      * head notification for the queue at the end. Monotonic head tickets
      * preserve submission order; the live-dedup contract keeps one live row
      * per dedup key even when Laravel and pycore race the same batch.
+     *
+     * Part1/Part2 contract: wordnew is the ONLY producer of this batch
+     * endpoint (the Part2 fill path). pycore no longer calls it — its
+     * orchestration/pycore-manager promotes fill Part1 locally and never
+     * notify Laravel.
      *
      * @param array<int,array{dedup_key:string,payload?:array}> $items
      * @return array{ok:bool,queue:string,results:array<int,array>,moved:int,created:int}

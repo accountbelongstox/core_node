@@ -376,6 +376,20 @@ export const pycoreApiLocal = {
     }>,
   retryAudioDelivery: (lane: 'all' | 'word' | 'sentence' = 'all') =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterRetryAudioDelivery, { lane }),
+  /**
+   * LOCAL self-adjust only: fill Part1 of the shared audio queue on the
+   * selected Pycore. NEVER notifies Laravel — wordnew is the sole actor
+   * that moves the Laravel queue head (Part2 path).
+   */
+  promoteLocalQueueHead: (payload: {
+    queue?: 'word_audio' | 'sentence_audio';
+    items: Array<{ kind?: 'word' | 'sentence'; language: string; text: string }>;
+  }) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterPromoteLocalHead, payload) as Promise<{
+      success: boolean;
+      data?: { promoted?: number; claimed?: number };
+      error?: string;
+    }>,
 
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),

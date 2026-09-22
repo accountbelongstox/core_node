@@ -1,5 +1,5 @@
 {
-  "schema_version": 31,
+  "schema_version": 32,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "word_validity": {
@@ -35,6 +35,16 @@
       "poster_priority": "poster.priority",
       "worker_presence": "worker.presence"
     }
+  },
+  "head_parts": {
+    "description": "Queue = Part1 + Part2, ALWAYS both parts; externally abstracted as ONE whole Queue. The split is internal to the consumer's queue implementation only. Binding doc: docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md.",
+    "parts": {
+      "part1": "pycore-local head. Filled ONLY by pycore self-promotion (audio orchestration manifest misses, pycore-manager manual promote). Self-adjust only; NEVER notifies Laravel. Empty by default.",
+      "part2": "Laravel-mediated head. Filled by Laravel initial sync, diff updates, and realtime {queue}_head tickets. Produced ONLY by wordnew (wordnew -> Laravel -> Mercure/diff -> pycore)."
+    },
+    "ordering": "Every Part1 item sits in front of every Part2 item (part_rank 0 < 1), ahead of queue_position; language tier then queue_position then FIFO within a part.",
+    "operation": "ANY head promotion operates on the WHOLE Queue; dedup always runs against the whole Queue (an item exists at most once across parts; a Part1 copy keeps its front position).",
+    "direction": "Laravel -> pycore only. pycore never sends head state to Laravel."
   },
   "diff_delivery": {
     "version": 1,

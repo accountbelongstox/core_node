@@ -36,6 +36,14 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
     super(QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
   }
 
+  /**
+   * Part2 fill path (wordnew -> Laravel -> Mercure/diff -> pycore): wordnew
+   * is the SOLE actor that notifies Laravel of queue-head moves. Because
+   * wordnew notifies Laravel first, Laravel's head notification defaults to
+   * landing in Part2 on the pycore side, deduped against the whole Queue.
+   * pycore itself never pushes head state to Laravel (its orchestration /
+   * pycore-manager promotes fill Part1 locally).
+   */
   moveSentencesToHead(items: WordNewSentenceAudioHeadItem[]): Promise<unknown> {
     const normalized = this.normalizeSentences(items);
     if (normalized.length === 0) return Promise.resolve(null);
@@ -66,6 +74,11 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
     );
   }
 
+  /**
+   * Part2 fill path: wordnew is the SOLE notifier of Laravel head moves
+   * (see moveSentencesToHead). Word moves default to landing in Part2 on
+   * the pycore side; pycore never pushes head state back to Laravel.
+   */
   moveWordsToHead(words: string[], language: string): Promise<unknown> {
     const normalizedLanguage = language.trim();
     const normalizedWords = this.boundedUnique(words);

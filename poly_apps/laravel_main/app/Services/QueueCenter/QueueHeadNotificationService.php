@@ -11,6 +11,12 @@ class QueueHeadNotificationService
     private const REVISION_PREFIX = 'queue_center:head_notifications:v3:revision:';
     private const EMITTED_PREFIX = 'queue_center:head_notifications:v3:emitted:';
 
+    // Part1/Part2 contract (docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md):
+    // the emitted {queue}_head event is the Part2 fill path into pycore —
+    // wordnew notifies Laravel FIRST, so when pycore applies this event the
+    // ticket DEFAULTS to landing in Part2, deduped against pycore's whole
+    // Queue (an item already held in Part1 keeps its single front copy).
+    // pycore NEVER pushes head state back to Laravel.
     public function record(string $queue): void
     {
         QueueCenterCacheStore::increment($this->revisionKey($queue));
