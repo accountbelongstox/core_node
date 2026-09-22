@@ -238,10 +238,16 @@ if __name__ == '__main__':
                         help='Run the TTS batch-model self-check synchronously BEFORE services start '
                              '(pyservice.ps1/.sh instead run pycore.pyctl.tts.batch_selfcheck_main as a '
                              'separate standalone step; this flag is the direct-invocation fallback)')
+    parser.add_argument('--word-audio-full-sync', action='store_true',
+                        help='Force the startup word-audio full pull (env WORD_AUDIO_FULL_SYNC=1): '
+                             'at boot every dictionary word without audio is pulled from Laravel '
+                             'into the local word_audio queue (Part1 fill, no Laravel queue mutation)')
 
     args = parser.parse_args()
     if args.tts_selfcheck:
         os.environ[TTS_STARTUP_SELFCHECK_ENV] = '1'
+    if args.word_audio_full_sync:
+        os.environ['WORD_AUDIO_FULL_SYNC'] = '1'
     if selfcheck_enabled():
         # Gate: sweep synchronously BEFORE any service starts (RPC :59000,
         # singleton, launcher threads), so the single-module test owns the

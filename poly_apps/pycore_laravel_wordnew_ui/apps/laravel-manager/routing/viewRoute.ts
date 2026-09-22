@@ -13,9 +13,8 @@ export interface ViewLocation {
 export const VIEW_TO_SLUG: Record<ViewType, string> = {
   [ViewType.CLOUD_CLIPBOARD]: CLOUD_CLIPBOARD_PAGE_SLUG,
   [ViewType.DASHBOARD]: 'dashboard',
-  [ViewType.MEDIA_BROWSER]: 'media',
+  [ViewType.MEDIA_BROWSER]: 'server',
   [ViewType.TOOLS]: 'tools',
-  [ViewType.API_TESTER]: 'api',
   [ViewType.SETTINGS]: 'settings',
   [ViewType.SYSTEM_INFO]: 'system',
   [ViewType.VOCABULARY]: 'vocabulary',
@@ -39,6 +38,10 @@ export function slugToView(rawSlug: string | null | undefined): ViewType | null 
   if (queryIx >= 0) s = s.slice(0, queryIx);
   s = s.replace(/\/+$/, '');
   if (!s) return null;
+  if (s === 'media') {
+    try { localStorage.setItem('server_manager_tab', 'media'); } catch { /* ignore */ }
+    return ViewType.SERVER_MANAGER;
+  }
   return SLUG_TO_VIEW[s] ?? null;
 }
 

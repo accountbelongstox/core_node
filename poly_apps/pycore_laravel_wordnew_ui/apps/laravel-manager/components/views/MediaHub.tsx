@@ -14,16 +14,20 @@
  * Guardrails: no try/catch here, no `||`/`??` — explicit ternaries.
  */
 import React, { useState } from 'react';
-import { Clapperboard, BookOpen, Film, Code2, RefreshCw, LucideIcon } from 'lucide-react';
+import { Clapperboard, BookOpen, Film, Code2, RefreshCw, LucideIcon, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Language, FileNode } from '@/apps/laravel-manager/uiTypes';
 import type { Segment, Selection } from './media/mbShared';
 import LibraryPanel from './media/LibraryPanel';
 import MbSourceDetail from './media/MbSourceDetail';
 import FileViewer from './media/FileViewer';
+import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
+import { isDebugAuthBypass } from '@/apps/laravel-manager/config/auth';
 
 const MediaHub: React.FC<{ lang?: Language; onRequireLogin?: () => void }> = ({ lang = 'en', onRequireLogin }) => {
   const { t } = useTranslation();
+  const { isLoggedIn } = useUnifiedApp();
+  const authed = isLoggedIn === true ? true : isDebugAuthBypass();
 
   const [segment, setSegment] = useState<Segment>('files');
   const [search, setSearch] = useState('');
@@ -50,6 +54,22 @@ const MediaHub: React.FC<{ lang?: Language; onRequireLogin?: () => void }> = ({ 
   const isFile = selection !== null && selection.kind === 'file';
   const sourceSel = isSource ? selection.source : null;
   const fileSel = isFile ? selection.file : null;
+
+  if (authed !== true) {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
+        <Lock size={36} className="text-amber-400" />
+        <p className="text-sm font-medium">{t('mediaHub.loginRequired', { defaultValue: 'Login required to access Media Hub.' })}</p>
+        <button
+          type="button"
+          onClick={() => { if (onRequireLogin) onRequireLogin(); }}
+          className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors font-medium"
+        >
+          <Lock size={14} /> {t('common.login', { defaultValue: 'Login' })}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

@@ -56,7 +56,8 @@ import {
   Terminal,
   Rocket,
   Copy,
-  Save
+  Save,
+  Clapperboard
 } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
 import { LoadingBlock, AlertBox, StatusBadge } from '../common';
@@ -68,27 +69,36 @@ import FrankenPhpPanel from '../server-manager/panels/FrankenPhpPanel';
 import SslPanel from '../server-manager/panels/SslPanel';
 import SystemPanel from '../server-manager/panels/SystemPanel';
 import ServerFileManagerPanel from '../server-manager/panels/ServerFileManagerPanel';
+import MediaHub from './MediaHub';
+import { requestAuthLogin } from '@/core/auth/AuthRequestCenter';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 
 interface ServerManagerProps {
   lang?: Language;
+  initialTab?: ServerTab;
 }
 
-type ServerTab = 'nginx' | 'frankenphp' | 'ssl' | 'system' | 'files' | 'executor' | 'unified';
+type ServerTab = 'nginx' | 'frankenphp' | 'ssl' | 'system' | 'files' | 'media' | 'executor' | 'unified';
 
-const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
+const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }) => {
   const { setActiveView } = useUnifiedApp();
   const [activeTab, setActiveTab] = useState<ServerTab>(() => {
     try {
       const pending = localStorage.getItem('server_manager_tab');
-      if (pending === 'system') {
+      if (pending && ['nginx', 'frankenphp', 'ssl', 'system', 'files', 'media', 'executor', 'unified'].includes(pending)) {
         localStorage.removeItem('server_manager_tab');
-        return 'system';
+        return pending as ServerTab;
       }
     } catch { /* ignore */ }
-    return 'nginx';
+    return initialTab ?? 'nginx';
   });
+
+  useEffect(() => {
+    if (initialTab && ['nginx', 'frankenphp', 'ssl', 'system', 'files', 'media', 'executor', 'unified'].includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [octaneRestarting, setOctaneRestarting] = useState(false);
   const [restartProgress, setRestartProgress] = useState('');
   const [servicesSummary, setServicesSummary] = useState<any>(null);
@@ -1362,6 +1372,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     { id: 'ssl' as ServerTab, label: t.tabs.ssl, icon: Shield },
     { id: 'system' as ServerTab, label: t.tabs.system, icon: Server },
     { id: 'files' as ServerTab, label: t.tabs.files, icon: FileText },
+    { id: 'media' as ServerTab, label: t.tabs.media || (lang === 'zh' ? '媒体资源' : 'Media Hub'), icon: Clapperboard },
     { id: 'executor' as ServerTab, label: t.tabs.executor, icon: Settings },
     { id: 'unified' as ServerTab, label: t.tabs.unified, icon: Settings },
   ];
@@ -1458,7 +1469,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={`flex-1 ${activeTab === 'media' ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto'}`}>
         {activeTab === 'nginx' && (
           <NginxPanel
             lang={lang}
@@ -1547,12 +1558,21 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               loadStaticResources();
               loadSystemStorage();
             }}
-            onOpenMedia={() => setActiveView(ViewType.MEDIA_BROWSER)}
+            onOpenMedia={() => setActiveTab('media')}
           />
         )}
 
         {activeTab === 'files' && (
           <ServerFileManagerPanel lang={lang} />
+        )}
+
+        {activeTab === 'media' && (
+          <div className="flex-1 min-h-0 flex flex-col h-full">
+            <MediaHub
+              lang={lang}
+              onRequireLogin={() => requestAuthLogin({ source: 'server-manager-media', reason: 'protected-feature' })}
+            />
+          </div>
         )}
 
         {activeTab === 'executor' && (

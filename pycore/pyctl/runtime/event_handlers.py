@@ -35,6 +35,7 @@ from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.assist.assist_settings import (
     assist_callback_states,
+    assist_capability_enabled,
     load_assist_settings,
 )
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
@@ -387,6 +388,30 @@ def register_event_handlers(
     register_runtime_workers()
 
 
+def _start_word_audio_boot_chain() -> None:
+    """Word-audio boot chain (REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE R6).
+
+    Runs only while the persisted Word Audio flag (assist capability ``tts``)
+    is ON: (a) restore the lane queue from the local cache, (b) run the full
+    pull when WORD_AUDIO_FULL_SYNC=1 or the persisted
+    ``word_tts_auto.full_sync_on_start`` key is true (background bus task),
+    (c) wake the drain. Flag OFF -> none of this runs.
+    """
+    if not assist_capability_enabled("tts"):
+        return
+    from pycore.pyctl.tts.word_audio_full_sync import (
+        full_sync_on_start,
+        word_audio_full_sync,
+    )
+    from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+
+    lane = "word_audio"
+    audio_queue_center.restore_from_cache(lane)
+    if full_sync_on_start():
+        word_audio_full_sync.start_background()
+    audio_queue_center.request_pull(lane)
+
+
 def register_runtime_workers() -> None:
     """
     Register pycore's periodic PyHeartbeat workers (idempotent).
@@ -427,6 +452,12 @@ def register_runtime_workers() -> None:
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
     apply_assist_runtime(assist_settings)
+    if "word_audio_boot_chain" not in _RUNTIME_STEPS_COMPLETED:
+        try:
+            _start_word_audio_boot_chain()
+            _RUNTIME_STEPS_COMPLETED.add("word_audio_boot_chain")
+        except Exception as exc:
+            ColorPrint.red(f"[EventHandlers] Runtime step word_audio_boot_chain failed: {exc}")
     service_steps = (
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("agent_history", register_agent_history_extraction),

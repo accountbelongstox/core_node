@@ -55,7 +55,8 @@ const VocabularyStorageSummary: React.FC<VocabularyStorageSummaryProps> = ({ chi
   };
 
   const openMediaFiles = () => {
-    setActiveView(ViewType.MEDIA_BROWSER);
+    try { localStorage.setItem(SERVER_TAB_KEY, 'media'); } catch { /* ignore */ }
+    setActiveView(ViewType.SERVER_MANAGER);
   };
 
   const audioCount = summary?.by_type?.audio?.count ?? 0;

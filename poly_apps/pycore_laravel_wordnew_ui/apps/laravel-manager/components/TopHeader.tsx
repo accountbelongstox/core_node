@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Power, Sun, Moon, Languages, LogIn } from 'lucide-react';
+import { Power, Sun, Moon, Languages, LogIn, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ApiEndpointSwitcher } from './ApiEndpointSwitcher';
@@ -61,7 +61,8 @@ function formatRelativeAgo(lastModifiedIso: string, serverNow: number, t: TFunct
  * Rendered inside the main content column (next to the fixed Sidebar).
  */
 const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn, onAuthClick }) => {
-  const { lang, theme, toggleLang, toggleTheme } = useUnifiedApp();
+  const { lang, theme, toggleLang, toggleTheme, UnifiedUser } = useUnifiedApp();
+  const username = UnifiedUser?.username || UnifiedUser?.name || 'adminroot';
   const { t } = useTranslation();
   const [codeUpdatedAt, setCodeUpdatedAt] = useState<string | null>(null);
   const [codeUpdatedFile, setCodeUpdatedFile] = useState<string | null>(null);
@@ -115,75 +116,89 @@ const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn, onAuthClick }) => {
     : t('header.code_last_updated_unavailable');
 
   return (
-    <header className="sticky top-0 z-40 min-h-16 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md transition-colors duration-300 flex-shrink-0">
-      <div className="grid w-full grid-cols-1 lg:grid-cols-2 items-center gap-3 px-4 sm:px-6 py-2">
-        <div className="flex min-w-0 items-center justify-start">
-        <span
-          className="inline-block max-w-full truncate px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap"
-          title={codeUpdatedFile ? codeUpdatedFile : undefined}
-        >
-          {codeUpdateBadge}
-        </span>
-        </div>
-
-      <div className="flex items-center justify-end gap-2 sm:gap-4 text-xs font-medium flex-wrap">
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-          <span className={`${isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'} whitespace-nowrap`}>
-            {isLoggedIn ? t('header.system_online') : t('header.system_offline')}
+    <header className="sticky top-0 z-40 h-14 border-b border-black/5 dark:border-white/10 bg-white/70 dark:bg-slate-900/60 backdrop-blur-md transition-colors duration-300 shrink-0">
+      <div className="flex items-center justify-between w-full h-full px-4 sm:px-6 gap-3 overflow-x-auto scrollbar-none flex-nowrap whitespace-nowrap">
+        {/* Left: Code Update Timestamp Badge */}
+        <div className="flex items-center min-w-0 shrink">
+          <span
+            className="inline-flex items-center h-7 max-w-full truncate px-2.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap"
+            title={codeUpdatedFile ? codeUpdatedFile : undefined}
+          >
+            {codeUpdateBadge}
           </span>
         </div>
 
-        <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block" />
+        {/* Right: Actions and Status - Single Line, Never Wraps */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 flex-nowrap whitespace-nowrap text-xs font-medium">
+          {/* Online / Offline Status Badge */}
+          <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 shrink-0 whitespace-nowrap">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${isLoggedIn ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' : 'bg-slate-400'}`} />
+            <span className={`text-xs ${isLoggedIn ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+              {isLoggedIn ? t('header.system_online') : t('header.system_offline')}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2">
+          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
+
+          {/* API Endpoint Switcher */}
           <ApiEndpointSwitcher />
-          <button
-            onClick={() => toggleLang(true)}
-            className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
-            title="Switch Language"
-          >
-            <Languages size={18} />
-          </button>
-          <button
-            onClick={() => toggleTheme(true)}
-            className="p-2 rounded-lg text-slate-500 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
-            title="Toggle Theme"
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-        </div>
 
-        <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block" />
+          {/* Language and Theme Toggles */}
+          <div className="flex items-center h-8 bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 rounded-lg p-0.5 shrink-0">
+            <button
+              onClick={() => toggleLang(true)}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-all"
+              title="Switch Language"
+            >
+              <Languages size={15} />
+            </button>
+            <button
+              onClick={() => toggleTheme(true)}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-yellow-400 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+          </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {isLoggedIn && (
-            <div className="hidden lg:flex items-center gap-2 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              <span className="text-xs">{t('header.logged_in_as')}</span>
-              <span className="text-slate-800 dark:text-white font-bold text-xs">adminroot</span>
+          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
+
+          {/* User Status and Login / Logout */}
+          {isLoggedIn ? (
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 shrink-0 whitespace-nowrap">
+                <User size={13} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
+                <span className="text-slate-400 dark:text-slate-500 text-xs hidden md:inline">{t('header.logged_in_as')}</span>
+                <span className="text-slate-800 dark:text-slate-200 font-semibold text-xs">{username}</span>
+              </div>
+
+              <button
+                onClick={onAuthClick}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition-all shrink-0 whitespace-nowrap shadow-sm"
+                title={t('header.logout')}
+              >
+                <Power size={13} className="shrink-0" />
+                <span>{t('header.logout')}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-black/[0.02] dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-slate-500 dark:text-slate-400 text-xs shrink-0 whitespace-nowrap">
+                <User size={13} className="text-slate-400 shrink-0" />
+                <span className="font-medium">{t('header.guest')}</span>
+              </div>
+
+              <button
+                onClick={onAuthClick}
+                className="flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 border border-transparent shadow-sm shadow-indigo-500/25 transition-all shrink-0 whitespace-nowrap"
+                title={t('header.login')}
+              >
+                <LogIn size={13} className="shrink-0" />
+                <span>{t('header.login')}</span>
+              </button>
             </div>
           )}
-          <button
-            onClick={onAuthClick}
-            className={`
-              px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-all flex items-center gap-1.5 border font-semibold text-xs sm:text-sm flex-shrink-0
-              ${isLoggedIn
-                ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/20'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-lg shadow-indigo-500/20'}
-            `}
-          >
-            {isLoggedIn ? (
-              <>
-                <Power size={14} /> <span className="hidden sm:inline whitespace-nowrap">{t('header.logout')}</span>
-              </>
-            ) : (
-              <>
-                <LogIn size={14} /> <span className="whitespace-nowrap">{t('header.login')}</span>
-              </>
-            )}
-          </button>
         </div>
-      </div>
       </div>
     </header>
   );

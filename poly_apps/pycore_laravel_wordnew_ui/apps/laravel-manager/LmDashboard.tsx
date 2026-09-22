@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import CloudClipboardPage from '../../shared/cloud-clipboard/CloudClipboardPage';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
-import MediaHub from './components/views/MediaHub';
 import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
-import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import AiManagement from './components/views/AiManagement';
 import TaskCenter from './components/views/TaskCenter';
@@ -189,16 +187,9 @@ const LmDashboardContent: React.FC = () => {
       case ViewType.CLOUD_CLIPBOARD:
         return <CloudClipboardPage />;
       case ViewType.MEDIA_BROWSER:
-        return (
-          <MediaHub
-            lang={lang}
-            onRequireLogin={() => requestAuthLogin({ source: 'laravel-manager-media', reason: 'protected-feature' })}
-          />
-        );
+        return wrapWithAuthGuard(ViewType.SERVER_MANAGER, <ServerManager lang={lang} initialTab="media" />);
       case ViewType.TOOLS:
         return <UnifiedToolsPage lang={lang} />;
-      case ViewType.API_TESTER:
-        return <ApiTester lang={lang} />;
       case ViewType.VOCABULARY:
         return <VocabularyLearning />;
       case ViewType.AI_MANAGEMENT:
