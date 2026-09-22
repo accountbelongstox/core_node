@@ -76,15 +76,21 @@ return [
         'single' => [
             'driver' => 'single',
             'path' => $laravelLogPath,
-            'level' => 'info',
+            'level' => env('LOG_LEVEL', 'warning'),
             'replace_placeholders' => true,
         ],
 
         'daily' => [
-            'driver' => 'daily',
+            // Custom factory channel: a rotating daily handler that caps its
+            // own files by size and sweeps aged/oversized rotations before
+            // every write (the stock daily driver only bounds file count).
+            'driver' => 'custom',
+            'via' => \App\Logging\CreateSizeCappedDailyLogger::class,
             'path' => $laravelLogPath,
-            'level' => 'info',
-            'max_files' => 14,
+            // Routine INFO chatter (timer ticks, request noise) is suppressed;
+            // warnings and errors remain.
+            'level' => env('LOG_LEVEL', 'warning'),
+            'max_files' => 7,
             'replace_placeholders' => true,
         ],
 
