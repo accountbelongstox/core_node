@@ -2019,34 +2019,50 @@ final class DataSyncService
     }
 
     /**
-     * Every host key this node answers on, from the central service contract.
-     * Best-effort: when the contract is unreadable (broken CLI bootstrap) the
-     * check degrades to the app.url/loopback comparison above.
+     * Every host key this node answers on: the hosts in this node's own
+     * frankenphp route files (generated per machine at runtime — they are the
+     * authoritative "what does THIS node serve" list), each resolved to its
+     * IPs too (so the NAT'd public address behind api.si.12gm.com still
+     * matches), plus the machine's own interface addresses. The fleet-wide
+     * service contract is NOT used: it lists every machine's addresses.
+     * Best-effort: unreadable files or failed DNS simply shrink the set.
      */
     private function selfHostKeys(): array
     {
-        try {
-            $document = \App\Support\ServiceContract::webAccessDocument();
-        } catch (\Throwable) {
-            return [];
-        }
-
         $hosts = [];
-        $hostMap = is_array($document['hosts'] ?? null) ? $document['hosts'] : [];
-        foreach ((array) ($document['serviceHostKeys']['laravelApi'] ?? []) as $key) {
-            $value = $hostMap[$key] ?? null;
-            if (is_string($value) && $value !== '') {
-                $hosts[] = $this->hostKey($value);
+
+        foreach (glob(base_path('storage/frankenphp/routes/*.caddy')) ?: [] as $routeFile) {
+            $content = FileSystemManager::readFile($routeFile, false);
+            if (!is_string($content)) {
+                continue;
+            }
+            if (preg_match_all('/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z0-9-]+|\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?(?=[\s,\{]|$)/mi', $content, $matches)) {
+                foreach ($matches[1] as $host) {
+                    $hosts[] = $host;
+                }
             }
         }
-        foreach ((array) ($document['allowedHosts'] ?? []) as $host) {
-            $hosts[] = $this->hostKey((string) $host);
-        }
-        foreach ((array) ($document['domains'] ?? []) as $domain) {
-            $hosts[] = strtolower((string) $domain);
+
+        foreach (gethostbynamel(gethostname()) ?: [] as $ip) {
+            $hosts[] = $ip;
         }
 
-        return array_values(array_unique(array_filter($hosts, static fn (string $host): bool => $host !== '' && $host !== '0.0.0.0')));
+        $keys = [];
+        foreach ($hosts as $host) {
+            $key = $this->hostKey((string) $host);
+            if ($key === '' || $key === '0.0.0.0') {
+                continue;
+            }
+            $keys[] = $key;
+            if (filter_var($key, FILTER_VALIDATE_IP) === false && $key !== 'loopback') {
+                $resolved = gethostbyname($key);
+                if ($resolved !== $key) {
+                    $keys[] = strtolower($resolved);
+                }
+            }
+        }
+
+        return array_values(array_unique($keys));
     }
 
     private function hostKey(string $address): string

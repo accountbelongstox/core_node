@@ -3,6 +3,7 @@
 namespace App\Services\TimerTasks;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AgentHistoryAudioWritebackService;
+use App\Services\DataSync\DataSyncStateStore;
 
 final class AppQyV1AgentHistoryAudioWritebackTask extends OctaneTimerTaskAbstract
 {
@@ -13,6 +14,13 @@ final class AppQyV1AgentHistoryAudioWritebackTask extends OctaneTimerTaskAbstrac
     public function getInterval(): int
     {
         return self::INTERVAL_SECONDS;
+    }
+
+    public function isEnabled(): bool
+    {
+        // Writeback runs 80-110s per pass and would stall the shared serial
+        // heartbeat while a data synchronization session is active.
+        return !app(DataSyncStateStore::class)->hasActiveSession();
     }
 
     public function exec(): void

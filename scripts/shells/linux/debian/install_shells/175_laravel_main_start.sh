@@ -309,8 +309,9 @@ set_web_server_plane "frankenphp"
 resolve_php
 if [ -z "$PHP_BIN" ]; then
     # Plane-aware init-ensure: the frankenphp plane provisions php through
-    # the frankenphp pipeline (php-cli shims ship with the binary); the
-    # nginx plane has no canonical system-PHP installer -> apt hint.
+    # the frankenphp pipeline (canonical /usr/local/bin/php symlink to the
+    # real CLI binary per php_link_common.sh); the nginx plane has no
+    # canonical system-PHP installer -> apt hint.
     CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null)"
     if [ -z "$CURRENT_WEB_SERVER_PLANE" ]; then
         CURRENT_WEB_SERVER_PLANE="frankenphp"
@@ -522,8 +523,8 @@ fi
 # --- Ensure Swoole (nginx plane ONLY: the Octane swoole driver; the
 # frankenphp plane embeds its app server in the static binary - Swoole is
 # never probed, installed or required there). The `php -m` module probe runs
-# only on the nginx plane: the frankenphp shim's embedded php-cli accepts no
-# -m flag (script-file mode), so probing it would print fatal-error noise. ---
+# only on the nginx plane: the frankenphp plane's canonical php link resolves
+# to php-zts, but probing modules there is unnecessary and adds noise. ---
 if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
     echo "frankenphp plane -> Swoole not required (octane:frankenphp embeds the app server)."
 else
@@ -894,8 +895,9 @@ if [ "$AS_SERVICE" = "yes" ]; then
     done
     systemctl daemon-reload 2>/dev/null
 
-    # PHP_BIN defaults to "php" (the frankenphp php-cli shim); WORKERS and
-    # MAX_REQUESTS use the runtime launcher's own defaults.
+    # PHP_BIN is the resolved absolute path from resolve_php (frankenphp
+    # plane: the canonical /usr/local/bin/php link to the real CLI binary);
+    # WORKERS and MAX_REQUESTS use the runtime launcher's own defaults.
     # The runtime launcher resolves the site host from the central service
     # contract on every start, so a regenerated domain list cannot leave a
     # stale issuer pinned in the systemd environment.
