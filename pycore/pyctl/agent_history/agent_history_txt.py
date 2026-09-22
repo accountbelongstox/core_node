@@ -21,7 +21,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
+from pycore.pyfoundations.system_paths import (
+    AI_LEGACY_DIR,
+    AI_SHARED_STATE_DIR,
+    APP_DATA_DIR,
+    get_local_data_dir,
+)
 
 import json
 
@@ -31,8 +36,8 @@ TEXT_START = "<<<TEXT"
 BLOCK_MARKERS = ("@session", "@prompt", "@turn", "@meta")
 ARTICLE_FRAGMENT_BOOLEAN_FIELDS = ("article_boundary", "direct_text")
 
-_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state" / "agent_history"
-_LEGACY_DIR = APP_DATA_DIR / "ai_state" / "agent_history"
+_SHARED_STATE_DIR = AI_SHARED_STATE_DIR / "agent_history"
+_LEGACY_DIR = AI_LEGACY_DIR / "agent_history"
 
 def store_dir() -> Path:
     try:

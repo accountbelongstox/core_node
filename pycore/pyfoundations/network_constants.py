@@ -6,8 +6,18 @@ from pycore.pyfoundations.service_contract import host, port
 HTTP_BIND_HOST = host("any")
 HTTP_LOOPBACK_HOST = host("loopback")
 HTTP_DEFAULT_TIMEOUT_SECONDS = 10.0
+EXTERNAL_API_HTTP_TIMEOUT = (8, 25)
 HTTP_JSON_CONTENT_TYPE = "application/json"
+HTTP_OCTET_STREAM_CONTENT_TYPE = "application/octet-stream"
+STATIC_ASSET_CONTENT_TYPES = {
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+}
 HTTP_PROTOCOL_VERSION = "2.0"
+HTTP_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
 HTTP_API_PREFIX = "/api"
 HTTP_CLIENT_ID_PATH = f"{HTTP_API_PREFIX}/client-id"
 HTTP_STATUS_PATH = f"{HTTP_API_PREFIX}/status"
@@ -84,6 +94,11 @@ FISHSPEECH_HTTP_PORT = 8080
 # GPT-SoVITS HTTP server (cloned repo / isolated venv).
 GPTSOVITS_HTTP_PORT = 9880
 
+# Shared TTS timeouts and probing budgets
+TTS_AVAILABILITY_TTL_SECONDS = 30.0
+TTS_REQUEST_TIMEOUT_SECONDS = 300.0
+TTS_HEALTH_TIMEOUT_SECONDS = 3.0
+
 SSE_CONTENT_TYPE = "text/event-stream"
 SSE_RESPONSE_HEADERS = (
     ("Cache-Control", "no-cache, no-transform"),
@@ -112,6 +127,7 @@ __all__ = [
     "CHATTTS_HTTP_PORT",
     "CHATTTS_MIN_FREE_VRAM_MB",
     "COSYVOICE_HTTP_PORT",
+    "EXTERNAL_API_HTTP_TIMEOUT",
     "F5TTS_HTTP_PORT",
     "FISHSPEECH_HTTP_PORT",
     "GPTSOVITS_HTTP_PORT",
@@ -127,9 +143,11 @@ __all__ = [
     "HTTP_INFO_PATH",
     "HTTP_JSON_CONTENT_TYPE",
     "HTTP_LOOPBACK_HOST",
+    "HTTP_OCTET_STREAM_CONTENT_TYPE",
     "HTTP_PROTOCOL_VERSION",
     "HTTP_ROUTES_PATH",
     "HTTP_STATUS_PATH",
+    "HTTP_USER_AGENT",
     "MELOTTS_HTTP_PORT",
     "MELOTTS_HTTP_TIMEOUT_SECONDS",
     "PYCORE_HTTP_PORT",
@@ -157,6 +175,10 @@ __all__ = [
     "SSE_REQUEST_HEADERS",
     "SSE_RESPONSE_HEADERS",
     "SSE_STATE_EVENT_NAME",
+    "STATIC_ASSET_CONTENT_TYPES",
+    "TTS_AVAILABILITY_TTL_SECONDS",
+    "TTS_HEALTH_TIMEOUT_SECONDS",
+    "TTS_REQUEST_TIMEOUT_SECONDS",
     "VOXCPM2_HTTP_PORT",
     "VOXCPM2_HTTP_TIMEOUT_SECONDS",
 ]

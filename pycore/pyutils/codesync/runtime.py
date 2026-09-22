@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyutils.common.http_client import HttpClient
 from pycore.pyutils.common.strtools.normalization import to_bool
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS as shared_thread_bus
+from pycore.pyfoundations.machine_id import INVALID_SMBIOS_UUIDS, SMBIOS_UUID_RE
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread as SharedSerializedWorkerThread,
@@ -319,13 +320,8 @@ def request_local_shutdown() -> None:
 # --------------------------------------------------------------------------- #
 # identity + paths (stdlib; identical results to the pycore helpers)           #
 # --------------------------------------------------------------------------- #
-_INVALID_SMBIOS_UUIDS = frozenset({
-    "00000000-0000-0000-0000-000000000000",
-    "ffffffff-ffff-ffff-ffff-ffffffffffff",
-})
-_SMBIOS_UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
+_INVALID_SMBIOS_UUIDS = INVALID_SMBIOS_UUIDS
+_SMBIOS_UUID_RE = SMBIOS_UUID_RE
 
 
 def _subprocess_no_window() -> int:

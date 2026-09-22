@@ -14,7 +14,11 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import (
+    USER_DATA_SECTION_CAPABILITY_PRIORITIES,
+    USER_DATA_SECTION_TASK_CAPABILITY_CHAINS,
+    user_data_store,
+)
 from pycore.pyutils.common.engine_registry import (
     merge_engine_priority,
     parse_engine_priority,
@@ -130,8 +134,8 @@ _ENGINE_ENV_OVERRIDES: Dict[str, Dict[str, str]] = {
     "gptsovits": {"GPTSOVITS_PROMPT_TEXT": "prompt_text", "GPTSOVITS_PROMPT_LANG": "prompt_lang"},
     "chattts": {"CHATTTS_VOICE": "voice"},
 }
-_CAP_SECTION = "capability_priorities"
-_CHAIN_SECTION = "task_capability_chains"
+_CAP_SECTION = USER_DATA_SECTION_CAPABILITY_PRIORITIES
+_CHAIN_SECTION = USER_DATA_SECTION_TASK_CAPABILITY_CHAINS
 _ORCHESTRATOR_STATE_QUEUE = "tts.orchestrator.state"
 _orchestrator_state: Dict[str, Any] = {
     "startup_reported": False,

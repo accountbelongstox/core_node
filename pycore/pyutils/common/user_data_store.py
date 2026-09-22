@@ -22,6 +22,14 @@ STORE_FILE_NAME = "user_data.json"
 DEFAULT_CONFIG_DIR = CORE_NODE_ROOT / "config"
 DEFAULT_FILE_PATTERNS = ("*.config.json", "*.settings.json")
 DEFAULT_FILE_EXCLUDES = frozenset({"queue_center_contract.json"})
+USER_DATA_SECTION_SYSTEM_SETTINGS = "system_settings"
+USER_DATA_SECTION_VIDEO_EXTRACT = "video_extract"
+USER_DATA_SECTION_CAPABILITY_PRIORITIES = "capability_priorities"
+USER_DATA_SECTION_TASK_CAPABILITY_CHAINS = "task_capability_chains"
+USER_DATA_SECTION_ASSIST_LARAVEL = "assist_laravel"
+USER_DATA_SECTION_SENTENCE_AUDIO_AUTO = "sentence_audio_auto"
+USER_DATA_SECTION_WORD_TTS_AUTO = "word_tts_auto"
+USER_DATA_SECTION_TTS = "tts"
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -403,6 +411,14 @@ user_data_store = UserDataStore()
 __all__ = [
     "DEFAULT_CONFIG_DIR",
     "STORE_FILE_NAME",
+    "USER_DATA_SECTION_ASSIST_LARAVEL",
+    "USER_DATA_SECTION_CAPABILITY_PRIORITIES",
+    "USER_DATA_SECTION_SENTENCE_AUDIO_AUTO",
+    "USER_DATA_SECTION_SYSTEM_SETTINGS",
+    "USER_DATA_SECTION_TASK_CAPABILITY_CHAINS",
+    "USER_DATA_SECTION_TTS",
+    "USER_DATA_SECTION_VIDEO_EXTRACT",
+    "USER_DATA_SECTION_WORD_TTS_AUTO",
     "UserDataStore",
     "user_data_store",
     "user_data_store_center",

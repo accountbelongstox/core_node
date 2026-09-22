@@ -25,13 +25,16 @@ else:
     winreg = None
 
 
-_INVALID_SMBIOS_UUIDS = frozenset({
+INVALID_SMBIOS_UUIDS = frozenset({
     "00000000-0000-0000-0000-000000000000",
     "ffffffff-ffff-ffff-ffff-ffffffffffff",
 })
-_UUID_RE = re.compile(
+SMBIOS_UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+
+_INVALID_SMBIOS_UUIDS = INVALID_SMBIOS_UUIDS
+_UUID_RE = SMBIOS_UUID_RE
 
 
 def _normalize_uuid(value: str) -> str:
@@ -194,4 +197,9 @@ def get_hardware_machine_id() -> str:
     return get_machine_id()
 
 
-__all__ = ["get_machine_id", "get_hardware_machine_id"]
+__all__ = [
+    "get_machine_id",
+    "get_hardware_machine_id",
+    "INVALID_SMBIOS_UUIDS",
+    "SMBIOS_UUID_RE",
+]

@@ -32,7 +32,12 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
+from pycore.pyfoundations.system_paths import (
+    AI_LEGACY_DIR,
+    AI_SHARED_STATE_DIR,
+    APP_DATA_DIR,
+    get_local_data_dir,
+)
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -42,8 +47,8 @@ RUNTIME = "pycore"
 
 # Shared cross-runtime state dir (mirrors ai_usage_log: <cache>/pycore/.ai_state,
 # legacy app-data fallback when the cache root is not writable).
-_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
-_LEGACY_DIR = APP_DATA_DIR / "ai_state"
+_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
+_LEGACY_DIR = AI_LEGACY_DIR
 
 _LOG_NAME = "ai_calls.log"
 # 5 MB, then keep the most recent ~half (matches AiTextLog.php MAX_BYTES).

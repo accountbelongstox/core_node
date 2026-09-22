@@ -8,7 +8,10 @@ import json
 import uuid
 from typing import Any, Dict, Mapping, Optional
 
-from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
+from pycore.pyfoundations.network_constants import (
+    HTTP_API_PREFIX,
+    HTTP_JSON_CONTENT_TYPE as RPC_JSON_CONTENT_TYPE,
+)
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
@@ -17,7 +20,6 @@ from pycore.pyutils.common.rpc_response import RpcExecutionResponse
 from pycore.pyutils.rpc_v2.dispatcher import HttpDispatcher, HttpRoute
 
 
-RPC_JSON_CONTENT_TYPE = "application/json"
 RPC_TEXT_CONTENT_TYPE = "text/plain"
 RPC_RELAY_JSON_PAYLOADS = frozenset(
     {

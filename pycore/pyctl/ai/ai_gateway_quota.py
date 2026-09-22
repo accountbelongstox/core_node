@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_AI_KEY,
     STATUS_SNAPSHOT_AI_PROBE_KEY,
@@ -39,9 +40,9 @@ from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.ai.ai_gateway_state import _PROBE_TTL_S, _in_cooldown
 
 
-_PROBE_CACHE_SIGNAL = 'pyctl.ai.gateway.probe_cache'
-_QUOTA_CACHE_SIGNAL = 'pyctl.ai.gateway.quota_cache'
-_VISION_CACHE_SIGNAL = 'pyctl.ai.gateway.vision_cache'
+_PROBE_CACHE_SIGNAL = BusSignals.AI_GATEWAY_PROBE_CACHE
+_QUOTA_CACHE_SIGNAL = BusSignals.AI_GATEWAY_QUOTA_CACHE
+_VISION_CACHE_SIGNAL = BusSignals.AI_GATEWAY_VISION_CACHE
 
 
 def available_providers(refresh: bool = False) -> List[Dict[str, Any]]:

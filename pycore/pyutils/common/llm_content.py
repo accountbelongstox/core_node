@@ -28,7 +28,9 @@ import re
 from typing import Any, Dict, Iterator, List, Optional
 
 _FENCE_RE = re.compile(r"```[ \t]*(?:json)?[ \t]*\r?\n(.*?)```", re.DOTALL | re.IGNORECASE)
-_GREEDY_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
+JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+_GREEDY_OBJ_RE = JSON_OBJECT_RE
 _EXCERPT_LEN = 300
 _HEX_DIGITS = frozenset("0123456789abcdefABCDEF")
 _CONTROL_CHAR_ESCAPES = {

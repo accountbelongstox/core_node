@@ -15,11 +15,12 @@ from pycore.pyctl.agent_history.snapshot_cache import (
     read_index_catalog,
 )
 from pycore.pyfoundations.text_parsing import tokenize_words
+from pycore.pyutils.common.strtools.normalization import WHITESPACE_RE
 
 _CODE_TOKEN_RE = re.compile(r"\[\[CODE_\d+\]\]")
 _FENCE_RE = re.compile(r"```[\s\S]*?```|`[^`]+`")
 _NOISE_RE = re.compile(r"[^\w\s\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af.,!?;:'\"()-]+")
-_WS_RE = re.compile(r"\s+")
+_WS_RE = WHITESPACE_RE
 
 def _summary_last_ts(summary: Dict[str, Any]) -> int:
     ended_ts = int(summary.get("ended_ts") or 0)

@@ -11,13 +11,19 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
+from pycore.pyfoundations.system_paths import (
+    AI_LEGACY_DIR,
+    AI_SHARED_STATE_DIR,
+    APP_DATA_DIR,
+    get_local_data_dir,
+)
+from pycore.pyctl.ai.ai_gateway_state import AI_HISTORY_MAX_ENTRIES
 from pycore.pyfoundations.serialized_worker import call_serialized
 
-_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
-_LEGACY_DIR = APP_DATA_DIR / "ai_state"
+_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
+_LEGACY_DIR = AI_LEGACY_DIR
 _INDEX_NAME = "translate_history.json"
-_MAX_ENTRIES = 200
+_MAX_ENTRIES = AI_HISTORY_MAX_ENTRIES
 _WORK_QUEUE = "pyctl.ai.translate_history.operations"
 
 

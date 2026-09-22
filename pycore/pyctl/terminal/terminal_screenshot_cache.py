@@ -12,6 +12,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
+from pycore.callmodule.rpc_routes.route_names import UI_TERMINAL_SCREENSHOT
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
@@ -38,7 +39,7 @@ TERMINAL_SCREENSHOT_MAX_RESOURCES = relay_contract.limit(
 TERMINAL_SCREENSHOT_CAPTURE_BATCH = relay_contract.limit(
     "terminal_screenshot_capture_batch"
 )
-TERMINAL_SCREENSHOT_RESOURCE_ROUTE = "ui/terminal/screenshot"
+TERMINAL_SCREENSHOT_RESOURCE_ROUTE = UI_TERMINAL_SCREENSHOT
 
 
 class TerminalScreenshotCache:

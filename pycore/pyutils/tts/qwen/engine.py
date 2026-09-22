@@ -28,6 +28,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from pycore.pyfoundations.network_constants import TTS_HEALTH_TIMEOUT_SECONDS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyutils.common.model_tiers import runtime_engine_model
@@ -50,7 +51,7 @@ from pycore.pyutils.tts.qwen.config import (
     request_timeout_seconds,
 )
 
-_HEALTH_TIMEOUT_S = 3.0
+_HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _REQUEST_TIMEOUT_S = request_timeout_seconds()
 ProgressCallback = Callable[[Dict[str, Any]], None]
 

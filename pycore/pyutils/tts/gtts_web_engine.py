@@ -17,6 +17,7 @@ import shlex
 from pathlib import Path
 from typing import Tuple
 
+from pycore.pyfoundations.network_constants import HTTP_USER_AGENT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts.engine_policy import truncate_command_text
@@ -27,10 +28,7 @@ _HTTP_TIMEOUT: Tuple[int, int] = (8, 30)
 # The endpoint rejects long inputs; word/short-sentence use only.
 _MAX_CHARS = 200
 # A normal browser User-Agent — the endpoint answers 403 to bare clients.
-_BROWSER_USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-)
+_BROWSER_USER_AGENT = HTTP_USER_AGENT
 # Two-letter language -> translate_tts "tl" code (fallback: the code itself).
 _TL_BY_LANG = {
     "en": "en",

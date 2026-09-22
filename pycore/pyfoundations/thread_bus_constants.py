@@ -121,6 +121,26 @@ class BusSignals:
     VOICE_SUBTITLE_UI_HIDE = "voice_subtitle_ui_hide"
     VOICE_SUBTITLE_UI_SHOW = "voice_subtitle_ui_show"
     VOICE_SUBTITLE_UPDATE = "voice_subtitle_update"
+    VOICE_SUBTITLE_UI_WINDOW_VISIBLE = "voice_subtitle_ui.window_visible"
+
+    # TTS availability signals
+    TTS_CHATTTS_AVAILABLE = "pyutils.tts.chattts.available"
+    TTS_COSYVOICE_AVAILABLE = "pyutils.tts.cosyvoice.available"
+    TTS_F5TTS_AVAILABLE = "pyutils.tts.f5tts.available"
+    TTS_FISHSPEECH_AVAILABLE = "pyutils.tts.fishspeech.available"
+    TTS_GPTSOVITS_AVAILABLE = "pyutils.tts.gptsovits.available"
+    TTS_VOXCPM2_AVAILABLE = "pyutils.tts.voxcpm2.available"
+    TTS_EDGE_AVAILABLE = "pyutils.tts.edge.available"
+
+    # AI gateway signals
+    AI_GATEWAY_STATE = "pyctl.ai.gateway.state"
+    AI_GATEWAY_PROBE_CACHE = "pyctl.ai.gateway.probe_cache"
+    AI_GATEWAY_QUOTA_CACHE = "pyctl.ai.gateway.quota_cache"
+    AI_GATEWAY_VISION_CACHE = "pyctl.ai.gateway.vision_cache"
+
+    # System tray signals
+    TRAY_CODESYNC_STATE = "tray.codesync.state"
+    TRAY_MENU_PAYLOAD = "tray.menu.payload"
 
 
 # ============================================================

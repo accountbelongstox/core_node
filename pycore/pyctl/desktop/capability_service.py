@@ -30,7 +30,12 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import (
+    USER_DATA_SECTION_CAPABILITY_PRIORITIES,
+    USER_DATA_SECTION_TASK_CAPABILITY_CHAINS,
+    USER_DATA_SECTION_TTS,
+    user_data_store,
+)
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_CAPABILITY_SETTINGS_KEY,
     status_snapshot_cache,
@@ -69,13 +74,13 @@ from pycore.pyutils.tts.tts_service_manager import get_server_settings
 # Persisted custom engine order per capability lives in this user_data section
 # ({stt|tts|image|translation: [engine, ...]}). The live availability/options are
 # always read fresh from the orchestrators; only the ORDER is persisted here.
-_CAP_SECTION = "capability_priorities"
+_CAP_SECTION = USER_DATA_SECTION_CAPABILITY_PRIORITIES
 # sentence_tts (qwen3tts-first) + word_tts (edge-first) are separate priority
 # profiles consumed by tts_orchestrator._priority("sentence"|"word"); the shared
 # ``tts`` block remains the global default for ad-hoc synth + UI tests.
 _CAP_KEYS = ("stt", "tts", "sentence_tts", "word_tts", "image", "translation")
 # TTS tuning shares the same user_data section the tts router persists to.
-_TTS_SECTION = "tts"
+_TTS_SECTION = USER_DATA_SECTION_TTS
 _ENGINE_PROBE_TIMEOUT_S = 8.0
 
 
@@ -438,9 +443,9 @@ def post_capability_settings(capability: str, priority=None, options=None):
                     laravel_sentence_audio_worker.invalidate_engine_plan()
             if cap == "tts":
                 store = user_data_store
-                chains = dict(store.get_section("task_capability_chains") or {})
+                chains = dict(store.get_section(USER_DATA_SECTION_TASK_CAPABILITY_CHAINS) or {})
                 chains["voice_tts"] = [e for e in priority if isinstance(e, str) and e]
-                store.set_section("task_capability_chains", chains)
+                store.set_section(USER_DATA_SECTION_TASK_CAPABILITY_CHAINS, chains)
         if cap == "tts" and options:
             _apply_tts_options(options)
     except Exception as e:  # noqa: BLE001 — persist/apply is best-effort

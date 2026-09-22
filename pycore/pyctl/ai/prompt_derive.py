@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from pycore.pyctl.ai.ai_free_text import free_text_prompt, resolve_free_text_model
+from pycore.pyctl.ai.ai_gateway_state import EXHAUSTED_ERROR_MARKERS, is_exhausted_error
 
 CONFIG_KEY_PROMPT_DERIVE_EN = "prompt_derive_en"
 
@@ -34,12 +35,7 @@ DEFAULT_PROMPT_DERIVE_EN_PROMPT = (
     "PROMPT:\n{prompt}"
 )
 
-_EXHAUSTED_MARKERS = ("rate limit", "quota", "no ai provider available")
-
-
-def is_exhausted_error(error: str) -> bool:
-    low = (error or "").lower()
-    return any(marker in low for marker in _EXHAUSTED_MARKERS)
+_EXHAUSTED_MARKERS = EXHAUSTED_ERROR_MARKERS
 
 
 def render_prompt_derive_en(config: Dict[str, Any], prompt_text: str) -> str:

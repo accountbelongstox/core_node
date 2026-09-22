@@ -5,8 +5,10 @@ from typing import Any
 from pycore.pyfoundations.punctuation_markers import strip_punctuation
 
 
-_WHITESPACE_RE = re.compile(r"\s+")
-_HORIZONTAL_WHITESPACE_RE = re.compile(r"[ \t]+")
+WHITESPACE_RE = re.compile(r"\s+")
+_WHITESPACE_RE = WHITESPACE_RE
+HORIZONTAL_WHITESPACE_RE = re.compile(r"[ \t]+")
+_HORIZONTAL_WHITESPACE_RE = HORIZONTAL_WHITESPACE_RE
 
 
 def collapse_whitespace(value: str, strip: bool = True) -> str:

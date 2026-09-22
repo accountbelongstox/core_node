@@ -58,7 +58,8 @@ from pycore.pyutils.laravel.client import laravel_client
 _LARAVEL_MISSING_BATCH = "/api/app_qy_v1/word/audio/missing-batch"
 _LARAVEL_UPLOAD = "/api/app_qy_v1/word/audio/upload"
 _LARAVEL_FIX_WORD = "/api/app_qy_v1/word/fix-text"
-_LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
+LARAVEL_WORD_MEDIA_PATH = "/api/app_qy_v1/word/{lang}/{word}/media"
+_LARAVEL_WORD_MEDIA = LARAVEL_WORD_MEDIA_PATH
 # Youdao (朗文) public CDN: type=1 UK, type=2 US. No key needed.
 _YOUDAO_URL = "http://dict.youdao.com/dictvoice"
 _YOUDAO_TIMEOUT = 10

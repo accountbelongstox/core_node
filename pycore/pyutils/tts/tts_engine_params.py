@@ -10,15 +10,10 @@ The field keys match the kwargs accepted by ``tts_test()`` /
 
 from typing import Any, Dict, List
 
+from pycore.pyutils.common.engine_language_options import COMMON_TTS_LANGUAGE_OPTIONS
+
 # Shared language options used by every engine that accepts a language field.
-_COMMON_LANGS: List[Dict[str, str]] = [
-    {"value": "en", "label": "English"},
-    {"value": "zh", "label": "中文"},
-    {"value": "ja", "label": "日本語"},
-    {"value": "ko", "label": "한국어"},
-    {"value": "es", "label": "Español"},
-    {"value": "fr", "label": "Français"},
-]
+_COMMON_LANGS: List[Dict[str, str]] = COMMON_TTS_LANGUAGE_OPTIONS
 
 # ---- per-engine definitions ------------------------------------------------
 

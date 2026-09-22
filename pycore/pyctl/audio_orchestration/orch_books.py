@@ -28,7 +28,7 @@ _LARAVEL_BOOKS = "/api/app_qy_v1/media/books"
 _LARAVEL_BOOK_DETAIL = "/api/app_qy_v1/media/books/{source_key}"
 _BOOKS_PAGE_SIZE = 100
 _SENTENCES_PAGE_SIZE = 2000
-_REQUEST_TIMEOUT = 60
+_REQUEST_TIMEOUT = orch_store.ORCH_REQUEST_TIMEOUT
 
 # Background fetch jobs (UI calls return immediately — relay-safe — while these
 # threads do the multi-page Laravel walk; state is visible via sync_state).

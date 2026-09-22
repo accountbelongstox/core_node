@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 
@@ -456,7 +457,7 @@ class Win32SystemTray:
         THREAD_BUS.register_event_handler("tray.update_menu", handle_update, priority=10)
         ColorPrint.blue("[Win32Tray] THREAD_BUS event handlers registered")
 
-        latest_menu_payload = THREAD_BUS.get_signal("tray.menu.payload")
+        latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
         if isinstance(latest_menu_payload, dict):
             handle_update(latest_menu_payload)
 
@@ -529,10 +530,10 @@ class Win32SystemTray:
 
         normalized = {
             "items": [normalize_item(menu_item) for menu_item in menu_items],
-            "codesync": THREAD_BUS.get_signal("tray.codesync.state", {}),
+            "codesync": THREAD_BUS.get_signal(BusSignals.TRAY_CODESYNC_STATE, {}),
             "language": i18n.get_current_language(),
             "voice_subtitle_visible": THREAD_BUS.get_signal(
-                "voice_subtitle_ui.window_visible", False
+                BusSignals.VOICE_SUBTITLE_UI_WINDOW_VISIBLE, False
             ),
         }
 

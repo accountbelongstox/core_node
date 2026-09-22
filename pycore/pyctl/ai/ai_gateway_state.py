@@ -24,9 +24,11 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyctl.ai.ai_keys import PROVIDER_ORDER
 from pycore.pyctl.ai.ai_rate_limits import resolve_limit
 from pycore.pyctl.ai.ai_usage_log import record_usage
@@ -42,6 +44,7 @@ _QUOTA_TTL_S = 600.0
 _COOLDOWN_BASE_S = 60.0
 _COOLDOWN_MAX_S = 1800.0
 _RECORDS_MAX = 100
+AI_HISTORY_MAX_ENTRIES = 200
 _USAGE_FILE = APP_CONFIG_DIR / "ai_gateway_usage.json"
 _STATE_MUTATION_QUEUE = 'pyctl.ai.gateway_state.mutations'
 _STATE_MUTATION_WORKER = SerializedWorkerThread(
@@ -54,7 +57,7 @@ _STATE_MUTATION_WORKER.start()
 # instead of hanging; a hard per-provider thread bound covers SDK calls (e.g. the
 # google-genai client) that don't honour a requests timeout - so no single
 # provider can stall the whole image request.
-_IMG_HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
+_IMG_HTTP_TIMEOUT: Tuple[int, int] = EXTERNAL_API_HTTP_TIMEOUT
 _IMG_BOUND_S = 30.0
 # Overall wall-clock budget for ONE generate_image call: once exceeded we stop
 # trying further providers and return the last error, so a sequence of slow/dead
@@ -93,7 +96,13 @@ _HARD_DISABLE_MARKS = (
     "invalid api key", "invalid_api_key", "permission_denied",
 )
 
-_GATEWAY_STATE_SIGNAL = 'pyctl.ai.gateway.state'
+_GATEWAY_STATE_SIGNAL = BusSignals.AI_GATEWAY_STATE
+EXHAUSTED_ERROR_MARKERS = ("no ai provider available", "rate limit", "quota")
+
+
+def is_exhausted_error(error: str) -> bool:
+    low = (error or "").lower()
+    return any(marker in low for marker in EXHAUSTED_ERROR_MARKERS)
 
 # Per-provider runtime stats: which AI worked, how often, and its cooldown.
 _stats: Dict[str, Dict[str, Any]] = {

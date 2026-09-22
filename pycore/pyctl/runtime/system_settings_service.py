@@ -9,13 +9,13 @@ notebooklmAutoConvert) to the runtime services they control.
 from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 
 from pycore.pyctl.desktop.background_services import background_services
 from pycore.pyutils.whisper_stt.notebooklm_stt import apply_notebooklm_auto_convert
 
 
-_SECTION = "system_settings"
+_SECTION = USER_DATA_SECTION_SYSTEM_SETTINGS
 
 
 def apply_persisted_system_settings() -> None:

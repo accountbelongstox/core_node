@@ -4,12 +4,15 @@ import os
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
+from pycore.pyutils.common.ultralytics_comm.layout import (
+    DATA_YAML_NAME,
+    IMAGES_SUBDIR,
+    LABELS_SUBDIR,
+)
 
-IMAGES_SUBDIR = "images"
-LABELS_SUBDIR = "labels"
+
 RECORD_SUBDIR = "record"
 FRAMES_SUBDIR = "frames"
-DATA_YAML_NAME = "data.yaml"
 YOLO_DATA_ROOT = os.path.abspath(os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data"))
 
 

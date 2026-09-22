@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence
 
 from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyfoundations.network_constants import TTS_REQUEST_TIMEOUT_SECONDS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.third_party.api import get_third_package_requests
@@ -31,8 +32,8 @@ from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
 
 _ENGINE = "gptsovits"
-_REQUEST_TIMEOUT_S = 300
-_LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
+_REQUEST_TIMEOUT_S = int(TTS_REQUEST_TIMEOUT_SECONDS)
+_LANG_MAP = gptsovits_engine.GPTSOVITS_LANG_MAP
 
 
 def _post_merged_wav(merged_text: str, text_lang: str, ref: Path, speed: float, out_wav: Path) -> bool:

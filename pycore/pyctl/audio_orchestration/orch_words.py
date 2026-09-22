@@ -24,7 +24,7 @@ from pycore.pyctl.audio_orchestration import orch_store
 
 _LARAVEL_SENTENCE_WORDS = "/api/app_qy_v1/learning/sentence-words"
 _CLIENT_KEY = "audio_orchestration"
-_REQUEST_TIMEOUT = 60
+_REQUEST_TIMEOUT = orch_store.ORCH_REQUEST_TIMEOUT
 _WORD_RE = re.compile(r"[^\W\d_]+(?:['\u2019][^\W\d_]+)*", re.UNICODE)
 _WORD_STATE_BATCH_SIZE = 300
 

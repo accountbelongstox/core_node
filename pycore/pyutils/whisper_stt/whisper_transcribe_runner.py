@@ -43,7 +43,12 @@ except ImportError:
     LANGUAGES = {}
 
 
-WHISPER_MODEL_CANDIDATES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
+try:
+    from pycore.pyutils.media_processing.whisper_runtime import (
+        WHISPER_MODEL_CANDIDATES,
+    )
+except ImportError:
+    WHISPER_MODEL_CANDIDATES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
 
 
 def _srt_timestamp(seconds: float) -> str:

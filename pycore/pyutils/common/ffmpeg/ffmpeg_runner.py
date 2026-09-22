@@ -9,6 +9,8 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (
     ERROR_BINARY_NOT_FOUND,
     ERROR_PROCESS_FAILED,
     ERROR_PROCESS_STOPPED,
+    NUMBER_PATTERN,
+    SPEED_PATTERN,
 )
 from pycore.pyutils.common.ffmpeg.ffmpeg_models import (
     FFmpegProcessResult,
@@ -18,8 +20,8 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_models import (
 )
 
 
-_NUMBER_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
-_SPEED_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?x$")
+_NUMBER_PATTERN = NUMBER_PATTERN
+_SPEED_PATTERN = SPEED_PATTERN
 
 
 class FFmpegRunner:

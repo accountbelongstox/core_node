@@ -13,12 +13,12 @@ import re
 from typing import Any, Dict, List
 
 from pycore.pyctl.ai.ai_gateway import generate_text
-
+from pycore.pyctl.ai.ai_gateway_state import (
+    EXHAUSTED_ERROR_MARKERS as _EXHAUSTED_MARKERS,
+    is_exhausted_error as _is_exhausted,
+)
+from pycore.pyutils.common.llm_content import JSON_OBJECT_RE as _JSON_OBJ_RE
 from pycore.pyutils.translator.code_filter import mask_code, unmask_code
-
-# Marker the AI gateway returns when every provider is rate-limited / keyless.
-_EXHAUSTED_MARKERS = ("no ai provider available", "rate limit", "quota")
-_JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
 def _build_prompt(masked: str, src: str) -> str:
@@ -48,11 +48,6 @@ def _parse(answer: str) -> Dict[str, Any]:
     except (ValueError, TypeError):
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def _is_exhausted(error: str) -> bool:
-    low = (error or "").lower()
-    return any(m in low for m in _EXHAUSTED_MARKERS)
 
 
 def translate_prompt(text: str, src: str = "auto", source: str = "prompt_translate_worker") -> Dict[str, Any]:

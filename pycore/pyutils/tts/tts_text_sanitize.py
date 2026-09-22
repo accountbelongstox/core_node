@@ -22,6 +22,8 @@ punctuation the frontends map are left untouched so prosody is unchanged.
 import re
 import unicodedata
 
+from pycore.pyutils.common.strtools.normalization import WHITESPACE_RE
+
 # Emoji & pictograph blocks (planes 0/1), regional indicators, variation
 # selectors and the zero-width joiner that glues emoji sequences.
 _STRIP_RE = re.compile(
@@ -33,7 +35,7 @@ _STRIP_RE = re.compile(
     "\u200D"             # zero-width joiner
     "]"
 )
-_WS_RE = re.compile(r"\s+")
+_WS_RE = WHITESPACE_RE
 
 
 def _unpronounceable(char: str) -> bool:

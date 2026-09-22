@@ -8,10 +8,14 @@ voice_tts:   mirrors tts_orchestrator order (chattts → cosyvoice → gptsovits
 
 from typing import Any, Dict, List
 
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import (
+    USER_DATA_SECTION_CAPABILITY_PRIORITIES,
+    USER_DATA_SECTION_TASK_CAPABILITY_CHAINS,
+    user_data_store,
+)
 from pycore.pyutils.tts.tts_orchestrator import reload_tts_priority
 
-_SECTION = "task_capability_chains"
+_SECTION = USER_DATA_SECTION_TASK_CAPABILITY_CHAINS
 
 _DEFAULT_TRANSLATION = ["google", "ecdict", "wordnet", "ai"]
 
@@ -40,8 +44,8 @@ def save_chain(task_type: str, priority: List[str]) -> Dict[str, Any]:
     section[key] = cleaned
     store.set_section(_SECTION, section)
     if key == "voice_tts":
-        caps = store.get_section("capability_priorities") or {}
+        caps = store.get_section(USER_DATA_SECTION_CAPABILITY_PRIORITIES) or {}
         caps["tts"] = cleaned
-        store.set_section("capability_priorities", caps)
+        store.set_section(USER_DATA_SECTION_CAPABILITY_PRIORITIES, caps)
         reload_tts_priority()
     return {"ok": True, "chains": get_chains()}

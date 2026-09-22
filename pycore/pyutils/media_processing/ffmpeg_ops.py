@@ -19,16 +19,13 @@ import subprocess
 from typing import List, Optional
 
 from pycore.pyutils.common.ffmpeg.ffmpeg_binary import ffmpeg_binary_resolver
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import OPUS_SAMPLE_RATES, VIDEO_EXTENSIONS
 
 
 # --------------------------------------------------------------------------- #
 # Constants (ported)                                                           #
 # --------------------------------------------------------------------------- #
-VIDEO_EXTENSIONS = {
-    ".mp4", ".m4v", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm",
-    ".mpg", ".mpeg", ".mts", ".m2ts", ".ts", ".3gp", ".3g2", ".ogv",
-    ".vob", ".rm", ".rmvb", ".asf", ".f4v", ".divx",
-}
+_OPUS_RATES = OPUS_SAMPLE_RATES
 
 CODECS = {
     "opus":   {"encoder": "libopus",    "ext": ".opus", "default_bitrate": "24k"},
@@ -36,8 +33,6 @@ CODECS = {
     "vorbis": {"encoder": "libvorbis",   "ext": ".ogg",  "default_bitrate": "48k"},
     "mp3":    {"encoder": "libmp3lame",  "ext": ".mp3",  "default_bitrate": "32k"},
 }
-
-_OPUS_RATES = (8000, 12000, 16000, 24000, 48000)
 
 
 def _mb(num_bytes: int) -> float:
