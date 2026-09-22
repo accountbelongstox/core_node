@@ -121,7 +121,7 @@ dbSync: {
       },
       errors: {
         nodes: "Some managed Laravel nodes could not be loaded",
-        protocol: "The current machine synchronization protocol is required",
+        protocol: "The peer machine runs an incompatible synchronization protocol — update the Laravel Main code on both machines to the same version and retry",
         load: "Synchronization sessions could not be loaded.",
         start: "Synchronization could not be started.",
         fetch: "Pull synchronization could not be started.",

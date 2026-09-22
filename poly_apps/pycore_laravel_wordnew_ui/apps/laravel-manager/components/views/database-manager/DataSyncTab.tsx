@@ -136,22 +136,40 @@ export const DataSyncTab: React.FC = () => {
   );
   // The pair must span two machines: probing or syncing a node onto itself is rejected.
   const sameNodeSelected = Boolean(oldEndpoint && newServerNode && dataSyncModel.sameNode(oldEndpoint, newServerNode));
+  // The session view follows the selected pair (old server dropdown + new
+  // server input), never window.location: only sessions owned by those two
+  // endpoints are listed or auto-selected.
+  const pairSessions = useMemo(() => {
+    const pairIds = new Set([oldEndpointId, newServerNode?.id ?? '']);
+    return sessions.filter((session) => pairIds.has(session.manager_endpoint.id));
+  }, [sessions, oldEndpointId, newServerNode]);
   // Last-seen snapshot per session key: a slow or temporarily failing endpoint
   // poll must not flip the detail panel to another session.
   const lastSeenRef = useRef(new Map<string, ManagedDataSyncSession>());
   useEffect(() => {
     sessions.forEach((session) => lastSeenRef.current.set(session.manager_key, session));
   }, [sessions]);
+  // A selection outside the current pair is released so the panel re-anchors
+  // to the selected endpoints.
+  useEffect(() => {
+    if (selectedKey === '') return;
+    const owner = lastSeenRef.current.get(selectedKey)?.manager_endpoint.id;
+    if (owner && owner !== oldEndpointId && owner !== (newServerNode?.id ?? '')) {
+      setSelectedKey('');
+    }
+  }, [selectedKey, oldEndpointId, newServerNode]);
   const selected = useMemo(
     () => sessions.find((session) => session.manager_key === selectedKey)
       ?? (selectedKey !== '' ? lastSeenRef.current.get(selectedKey) : undefined)
       // The backend that owns a session is authoritative: prefer the active
-      // session on THIS node, then any active peer session, then the newest.
-      ?? sessions.find((session) => session.manager_endpoint.current && ACTIVE_STATUSES.includes(session.status))
-      ?? sessions.find((session) => ACTIVE_STATUSES.includes(session.status))
-      ?? sessions[0]
+      // session on the selected OLD server, then the new server, then the
+      // latest pair session.
+      ?? pairSessions.find((session) => session.manager_endpoint.id === oldEndpointId && ACTIVE_STATUSES.includes(session.status))
+      ?? pairSessions.find((session) => session.manager_endpoint.id === (newServerNode?.id ?? '') && ACTIVE_STATUSES.includes(session.status))
+      ?? pairSessions.find((session) => session.manager_endpoint.id === oldEndpointId)
+      ?? pairSessions[0]
       ?? null,
-    [sessions, selectedKey],
+    [sessions, pairSessions, selectedKey, oldEndpointId, newServerNode],
   );
   const writerActiveOn = useCallback(
     (endpointId: string) => sessions.find((session) => session.manager_endpoint.id === endpointId
@@ -173,17 +191,17 @@ export const DataSyncTab: React.FC = () => {
     [selected],
   );
   const displayedSessions = useMemo(() => {
-    const linkedPassive = new Set(sessions
+    const linkedPassive = new Set(pairSessions
       .filter((session) => DRIVER_ROLES.includes(session.role) && session.counterpart?.session_id)
       .map((session) => `${session.counterpart?.endpoint}:${session.counterpart?.session_id}`));
 
-    const visible = sessions.filter((session) => DRIVER_ROLES.includes(session.role)
+    const visible = pairSessions.filter((session) => DRIVER_ROLES.includes(session.role)
       || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`));
     // Single-active-session contract: list only live sessions; when nothing
     // is running, keep the most recent finished one for reference.
     const active = visible.filter((session) => ACTIVE_STATUSES.includes(session.status));
     return active.length > 0 ? active : visible.slice(0, 1);
-  }, [sessions]);
+  }, [pairSessions]);
 
   useEffect(() => {
     setPendingTarget(selected?.context?.awaiting_target ? selected.target_input ?? '' : '');
@@ -201,18 +219,30 @@ export const DataSyncTab: React.FC = () => {
     setProbeError(null);
   }, [newServerInput, oldEndpointId]);
 
+  const pairIdsRef = useRef<[string, string]>(['', '']);
+  useEffect(() => {
+    pairIdsRef.current = [oldEndpointId, newServerNode?.id ?? ''];
+  }, [oldEndpointId, newServerNode]);
+
   const loadWorkspace = useCallback(async () => {
     const workspace = await dataSyncModel.workspace();
     setEndpoints(workspace.endpoints);
     setSessions(workspace.sessions);
     setSelectedKey((current) => {
       // An explicit selection sticks: transient endpoint failures must not
-      // steal it. Auto-pick only when nothing is selected yet, preferring
-      // the session owned by THIS node's backend.
+      // steal it. Auto-pick only when nothing is selected yet, scoped to the
+      // selected pair: active on the old server, then the new server, then
+      // the latest pair session.
       if (current) return current;
-      const active = workspace.sessions.find((session) => session.manager_endpoint.current && ACTIVE_STATUSES.includes(session.status))
-        ?? workspace.sessions.find((session) => ACTIVE_STATUSES.includes(session.status));
-      return active?.manager_key ?? workspace.sessions[0]?.manager_key ?? '';
+      const [oldId, newId] = pairIdsRef.current;
+      const pool = workspace.sessions.filter((session) =>
+        session.manager_endpoint.id === oldId || session.manager_endpoint.id === newId);
+      const active = pool.find((session) => session.manager_endpoint.id === oldId && ACTIVE_STATUSES.includes(session.status))
+        ?? pool.find((session) => session.manager_endpoint.id === newId && ACTIVE_STATUSES.includes(session.status));
+      return active?.manager_key
+        ?? pool.find((session) => session.manager_endpoint.id === oldId)?.manager_key
+        ?? pool[0]?.manager_key
+        ?? '';
     });
     setError(workspace.errors.length > 0
       ? `${t('dbSync.errors.nodes')}: ${workspace.errors.map((item) => {
@@ -343,6 +373,8 @@ export const DataSyncTab: React.FC = () => {
           ? t('dbSync.directionNone')
           : startError instanceof Error && startError.message === DATA_SYNC_SAME_NODE_ERROR
           ? t('dbSync.sameNode')
+          : startError instanceof Error && startError.message === DATA_SYNC_PROTOCOL_MISMATCH_ERROR
+          ? t('dbSync.errors.protocol')
           : (startError instanceof Error && startError.message ? startError.message : t('dbSync.errors.start')),
       );
     } finally {
