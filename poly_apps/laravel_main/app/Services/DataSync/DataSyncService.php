@@ -985,7 +985,11 @@ final class DataSyncService
         $job = $this->store->markCurrentStep($job, 'running');
 
         try {
-            $job = $this->refreshCounterpart($job);
+            // The passive peer purges its own record once finalized, so the
+            // closing 'complete' step must not poll it anymore.
+            if ($key !== 'complete') {
+                $job = $this->refreshCounterpart($job);
+            }
             $result = $this->executeDriverStep($job, $key);
             $job = $result['job'];
             if (!$result['done']) {

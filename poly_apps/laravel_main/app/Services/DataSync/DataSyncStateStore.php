@@ -8,6 +8,8 @@ use App\Utils\FileSystemManager;
 final class DataSyncStateStore
 {
     private const STORAGE_SUBDIR = 'data-sync/jobs';
+    private const LOCKS_SUBDIR = 'data-sync/locks';
+    private const TERMINAL_STATUSES = ['completed', 'failed'];
 
     public function create(string $role, array $attributes): array
     {
@@ -51,6 +53,22 @@ final class DataSyncStateStore
         return is_array($job) ? $job : null;
     }
 
+    /**
+     * Remove every artifact of a session: state, summary, staged pending file,
+     * and any cancel flag left behind in the locks directory.
+     */
+    public function delete(string $id): void
+    {
+        if (!DataSyncSessionId::valid($id)) {
+            return;
+        }
+        FileSystemManager::delete($this->jobPath($id));
+        FileSystemManager::delete($this->summaryPath($id));
+        FileSystemManager::delete($this->pendingPath($id));
+        $locksDirectory = rtrim(PathMapper::getBackupDir(self::LOCKS_SUBDIR), '/\\');
+        FileSystemManager::delete($locksDirectory . DIRECTORY_SEPARATOR . $this->safeId($id) . '.cancel');
+    }
+
     public function save(array $job): array
     {
         $stateJson = null;
@@ -62,6 +80,13 @@ final class DataSyncStateStore
             static fn (array $step): bool => in_array($step['status'] ?? null, ['completed', 'skipped'], true)
         ));
         $job['progress'] = $stepCount > 0 ? (int) floor(($completedCount / $stepCount) * 100) : 0;
+
+        // Terminal sessions are purged instead of persisted: the final state
+        // is returned to the caller in memory, and nothing accumulates on disk.
+        if (in_array($job['status'] ?? null, self::TERMINAL_STATUSES, true)) {
+            $this->delete((string) $job['id']);
+            return $job;
+        }
 
         $stateJson = (string) json_encode(
             $job,
