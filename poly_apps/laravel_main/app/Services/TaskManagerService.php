@@ -932,6 +932,78 @@ class TaskManagerService
     }
 
     /**
+     * Settle a still-pending queue task whose work already landed through a
+     * domain channel (e.g. word audio persisted via the TTS report endpoint
+     * or the Bing assist write-back). The global_tasks row is only the CLAIM
+     * TICKET: once the canonical row holds the media, keeping the ticket
+     * pending makes every queue mirror claim and re-synthesize a word that is
+     * already done (or 409 on a stale local copy). The ticket is completed
+     * with a system result and the diff revision is bumped so mirrors drop it
+     * on the next sync instead of claiming it.
+     *
+     * Only PENDING rows are settled: a leased row (assigned/processing)
+     * belongs to its worker, whose own report/result path closes it (the
+     * report endpoint's already_done short-circuit).
+     *
+     * @return string One of 'settled', 'not_found', 'not_pending'
+     */
+    public function settlePendingTaskByGroupKey(string $taskType, string $groupKey, string $reason): string
+    {
+        $changedTaskType = null;
+        $outcome = GlobalTask::runInTransaction(function () use ($taskType, $groupKey, $reason, &$changedTaskType) {
+            $candidate = GlobalTask::findNewestLiveByGroupKey(
+                $taskType,
+                $groupKey,
+                QueueCenterContract::taskStatuses('live')
+            );
+            if (!$candidate) {
+                return 'not_found';
+            }
+
+            $task = GlobalTask::lockByTaskId((string) $candidate->task_id);
+            if (!$task) {
+                return 'not_found';
+            }
+            if ($task->status !== GlobalTask::status('pending')) {
+                return 'not_pending';
+            }
+
+            $task->status = GlobalTask::status('completed');
+            $task->progress = 100;
+            $task->result = [
+                'settled' => 'domain_delivery',
+                'reason' => $reason,
+            ];
+            $task->assigned_to = null;
+            $task->assigned_at = null;
+            $task->timeout_at = null;
+            $task->completed_at = now();
+            $task->saveRecord();
+            $changedTaskType = (string) $task->task_type;
+
+            GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::event('completed'), null, (int) $task->retry_count, [
+                'settled' => 'domain_delivery',
+                'reason' => $reason,
+            ]);
+
+            Log::info('Queue task settled by domain delivery', [
+                'task_id' => $task->task_id,
+                'task_type' => $task->task_type,
+                'group_key' => $groupKey,
+                'reason' => $reason,
+            ]);
+
+            return 'settled';
+        }, self::TRANSACTION_ATTEMPTS);
+
+        if ($outcome === 'settled' && $changedTaskType !== null && $changedTaskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+        }
+
+        return $outcome;
+    }
+
+    /**
      * Re-queue a terminal task (control-plane retry behind
      * POST /api/queue-center/tasks/{id}/retry).
      *

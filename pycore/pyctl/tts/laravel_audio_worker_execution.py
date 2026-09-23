@@ -12,6 +12,11 @@ from urllib.parse import quote
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
 from pycore.pyctl.task_history.store import append_record
+from pycore.pyctl.tts.laravel_audio_worker_state import (
+    TASK_OUTCOME_COMPLETED,
+    TASK_OUTCOME_FAILED,
+    TASK_OUTCOME_SKIPPED,
+)
 from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_progress
 from pycore.pyctl.tts.word_audio_service import LARAVEL_WORD_MEDIA_PATH
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -639,22 +644,39 @@ class LaravelAudioWorkerExecutionMixin:
             return True
         return self._post_result(*args, **kwargs)
 
-    def _process_claimed(self, task: Dict[str, Any]) -> bool:
-        """Inflight-guard + process one queued task (lane entry point)."""
+    def _process_claimed(self, task: Dict[str, Any]) -> str:
+        """Inflight-guard + process one queued task (lane entry point).
+
+        Returns a TASK_OUTCOME_* role. SKIPPED means the task never reached
+        synthesis: either a duplicate dispatch is already in flight, or the
+        just-in-time Laravel claim was rejected (the row vanished or belongs
+        to another worker) and the task was dropped from the local queue. A
+        skipped task is NOT a success - the drain cycle must not count it
+        into the ok/fail counters or the backend progress, and must not log
+        it as completed.
+        """
         if not self._claim_inflight(task):
+            task["_skip_reason"] = "duplicate dispatch already in flight"
             ColorPrint.gray(
                 f"{self._log_prefix} Task {self._display_task_id(task.get('task_id'))} "
                 "already in flight - skipping duplicate"
             )
-            return True
+            return TASK_OUTCOME_SKIPPED
         try:
             # Full-sync lanes claim just-in-time here: the claim lease then
             # covers only the short processing window, and 404/409 rows are
             # dropped before any synthesis work happens. Locally sourced
             # tasks (word-audio full pull) have no global_tasks row to claim.
             if not task.get("_local_source") and not self._ensure_laravel_claim(task):
-                return True
-            return self._process_task(task)
+                task["_skip_reason"] = (
+                    "Laravel claim rejected - task is gone or owned elsewhere"
+                )
+                return TASK_OUTCOME_SKIPPED
+            return (
+                TASK_OUTCOME_COMPLETED
+                if self._process_task(task)
+                else TASK_OUTCOME_FAILED
+            )
         finally:
             self._release_inflight(task)
 

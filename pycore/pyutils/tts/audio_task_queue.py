@@ -142,10 +142,11 @@ class AudioTaskQueue:
         Part2 ticket path (Laravel diff): ordered_task_ids IS the claim
         order; each queued task's queue_position is synthesized as a
         descending rank (index 0 -> highest value) so the heap pops the
-        queue head first. Queued tasks absent from the list keep their
-        relative order behind ranked rows until the just-in-time claim at
-        task start drops them. Part1 members keep their front rank — a
-        Part2 reorder never demotes them.
+        queue head first. Queued tasks absent from the list are no longer
+        pending on the backend — ``prune_absent`` drops them at the same
+        diff boundary so they never reach a doomed just-in-time claim.
+        Part1 members keep their front rank — a Part2 reorder never demotes
+        them.
         """
         rank: Dict[str, int] = {}
         total = 0
@@ -177,6 +178,52 @@ class AudioTaskQueue:
         if changed:
             heapq.heapify(self._heap)
         return changed
+
+    @serialized_method
+    def prune_absent(self, keep_task_ids: List[Any]) -> int:
+        """Drop queued Laravel-mirrored entries absent from the pending set.
+
+        The ordered diff IS the authoritative pending claim order: a mirrored
+        task missing from it was finished or claimed elsewhere, so keeping it
+        queued guarantees a doomed just-in-time claim (HTTP 409) at pop time.
+        Locally sourced entries (``_local_source`` — the word-audio full
+        pull) have no Laravel row and are never pruned. A pruned entry's
+        active key and Part1 membership are released with it. Tasks already
+        popped (in flight) are not in the heap and stay untouched.
+        """
+        keep: Set[str] = {
+            str(raw_id or "").strip()
+            for raw_id in keep_task_ids
+            if str(raw_id or "").strip()
+        }
+        if not self._heap:
+            return 0
+        kept: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
+        pruned = 0
+        for entry in self._heap:
+            task = entry[-1]
+            task_id = (
+                str(task.get("task_id") or "").strip()
+                if isinstance(task, dict)
+                else ""
+            )
+            if (
+                not task_id
+                or str(task.get("_local_source") or "").strip()
+                or task_id in keep
+            ):
+                kept.append(entry)
+                continue
+            pruned += 1
+            self._active_keys.discard(self._task_key(task))
+            if self._dedup_key_of is not None:
+                dedup_key = str(self._dedup_key_of(task) or "")
+                if dedup_key:
+                    self._part1_keys.discard(dedup_key)
+        if pruned:
+            self._heap = kept
+            heapq.heapify(self._heap)
+        return pruned
 
     @serialized_method
     def move_to_head(self, task_id: Any, queue_position: int) -> bool:

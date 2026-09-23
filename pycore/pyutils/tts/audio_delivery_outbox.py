@@ -698,9 +698,29 @@ class AudioDeliveryExecutor:
                 attempt=info.get("attempt"),
             )
             if not posted:
-                info["backend_result_accepted"] = False
-                handler._mark_backend_result(task_id, False, info.get("attempt"))
-                if str(task_id) not in handler._task_type_by_id:
+                ownership_lost = str(task_id) not in handler._task_type_by_id
+                if ownership_lost and domain_uploaded:
+                    # The completed-result POST was rejected 409 (the global
+                    # row is owned elsewhere or already finished — e.g. the
+                    # backend settled the claim ticket the moment this domain
+                    # report landed). The durable domain upload IS the
+                    # delivery: close the record as delivered instead of
+                    # dead-lettering audio that is already on the backend.
+                    result_accepted = True
+                    audio_delivery_outbox.patch(
+                        delivery_id,
+                        {"result_accepted": True, "last_error": ""},
+                        owner=owner,
+                    )
+                    handler._log_event(
+                        "result_settled",
+                        "global row already closed; durable domain upload stands",
+                        info,
+                        mirror=handler.LANE != "word",
+                    )
+                elif ownership_lost:
+                    info["backend_result_accepted"] = False
+                    handler._mark_backend_result(task_id, False, info.get("attempt"))
                     error = "completed result rejected because task ownership changed"
                     audio_delivery_outbox.mark_dead_letter(delivery_id, owner, error)
                     handler._append_delivery_failure_history(
@@ -711,19 +731,23 @@ class AudioDeliveryExecutor:
                         delivery_id,
                     )
                     return {"delivery_id": delivery_id, "processed": True, "success": False}
-                audio_delivery_outbox.release(
+                else:
+                    info["backend_result_accepted"] = False
+                    handler._mark_backend_result(task_id, False, info.get("attempt"))
+                    audio_delivery_outbox.release(
+                        delivery_id,
+                        owner,
+                        error="Laravel result endpoint unavailable",
+                        retry_at=time.time() + retry_delay,
+                    )
+                    return {"delivery_id": delivery_id, "processed": True, "success": False}
+            else:
+                result_accepted = True
+                audio_delivery_outbox.patch(
                     delivery_id,
-                    owner,
-                    error="Laravel result endpoint unavailable",
-                    retry_at=time.time() + retry_delay,
+                    {"result_accepted": True, "last_error": ""},
+                    owner=owner,
                 )
-                return {"delivery_id": delivery_id, "processed": True, "success": False}
-            result_accepted = True
-            audio_delivery_outbox.patch(
-                delivery_id,
-                {"result_accepted": True, "last_error": ""},
-                owner=owner,
-            )
 
         info["backend_uploaded"] = domain_uploaded
         info["backend_result_accepted"] = result_accepted
