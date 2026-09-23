@@ -118,18 +118,40 @@ class AppQyV1VocabularyStatsController extends Controller
             ], 'No dictionary for this language');
         }
 
-        $page = AppQyV1LangDictionaryModel::managementPage(
-            $languageCode,
-            $filter,
-            $validitySource,
-            $search,
-            $sortKey,
-            $order,
-            $start,
-            $limit
-        );
-        $total = $page['total'];
-        $rows = $page['rows'];
+        // Dict-lane live queue (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+        // the canonical backlog listing filters (without_audio / without_translation
+        // / valid / invalid — no search/sort narrowing; without_audio with no
+        // narrowing is also the exact pycore full-pull access pattern) are served
+        // from the cached lane queues: total + ordered id page come from the
+        // in-memory lane (one ms-level table probe), full rows materialize for
+        // the requested page only. Lane filters are byte-identical to
+        // managementFilter, so totals never drift. Search/sort variants and the
+        // with_*/all filters keep the direct managementPage path.
+        $laneKey = $search === '' && $sortKey === '' && $validitySource === ''
+            ? \App\Services\QueueCenter\DictLane\DictLaneCatalog::laneForManagementFilter($filter)
+            : null;
+        if ($laneKey !== null) {
+            $lanePage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
+                ->page($laneKey, $languageCode, $start, $limit);
+            $total = $lanePage['total'];
+            $positions = array_flip($lanePage['ids']);
+            $rows = AppQyV1LangDictionaryModel::rowsByIds($languageCode, $lanePage['ids'])
+                ->sortBy(static fn ($row): int => $positions[(int) $row->id] ?? PHP_INT_MAX)
+                ->values();
+        } else {
+            $page = AppQyV1LangDictionaryModel::managementPage(
+                $languageCode,
+                $filter,
+                $validitySource,
+                $search,
+                $sortKey,
+                $order,
+                $start,
+                $limit
+            );
+            $total = $page['total'];
+            $rows = $page['rows'];
+        }
 
         $items = $rows->map(function (AppQyV1LangDictionaryModel $row) {
             // Reuse the canonical rich builder (translations + phonetics +

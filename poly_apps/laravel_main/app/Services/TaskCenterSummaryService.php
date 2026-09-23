@@ -10,24 +10,20 @@ use App\Services\QueueCenter\QueueCenterRealtimeService;
 
 final class TaskCenterSummaryService
 {
+    /**
+     * Timer => queue-role map for the Task Center relations table.
+     *
+     * Dict-lane live queues (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+     * the retired scan/filler timers (appqyv1_word_validity_scan,
+     * app_qy_v1_word_translation_scan_task,
+     * app_qy_v1_dictionary_translation_task,
+     * app_qy_v1_word_translation_filler_task) were REMOVED — their producer/
+     * consumer roles are now filled by just-in-time materialization in the
+     * worker pull path (DictLaneQueueCenter::ensureMaterialized), which is
+     * not a timer task and therefore has no relations row. The maintenance
+     * timer is disabled; its role moved to DictLaneMaintenance::onPull.
+     */
     private const TIMER_QUEUE_ROLES = [
-        'appqyv1_word_validity_scan' => [
-            'role' => 'producer',
-            'target' => 'word_validity',
-        ],
-        'app_qy_v1_word_translation_scan_task' => [
-            'role' => 'producer',
-            'target' => 'word_translation',
-        ],
-        'app_qy_v1_dictionary_translation_task' => [
-            'role' => 'producer',
-            'target' => 'dictionary_explanation',
-        ],
-        'app_qy_v1_word_translation_filler_task' => [
-            'role' => 'consumer',
-            'target' => 'word_translation',
-            'worker_id' => 'laravel-internal-ai',
-        ],
         'global_task_maintenance_task' => [
             'role' => 'maintainer',
             'target' => '*',

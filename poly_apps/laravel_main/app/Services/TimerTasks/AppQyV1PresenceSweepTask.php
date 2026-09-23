@@ -32,6 +32,17 @@ class AppQyV1PresenceSweepTask extends OctaneTimerTaskAbstract
         return 15;
     }
 
+    /**
+     * Disabled by default (2026-09-22, operator request): the sweep was
+     * running_with_errors on the dashboard. Enable only via the user-data
+     * setting where friend.offline push symmetry is required.
+     */
+    public function isEnabled(): bool
+    {
+        return (bool) app(\App\Services\UserConfig\UserConfigService::class)
+            ->get('appqyv1_presence_sweep', false);
+    }
+
     public function exec(): void
     {
         $transitions = [];

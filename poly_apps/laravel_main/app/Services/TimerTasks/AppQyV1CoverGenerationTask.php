@@ -126,9 +126,9 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
         }
 
         // The assist pending-work snapshot (/assist/pending, /assist/status)
-        // is published by AppQyV1OverviewWarmTask every 20s; this task must
-        // not warm it (its flexible-based warm was a silent no-op inside an
-        // Octane tick anyway).
+        // is rebuilt on demand by the snapshot serving path (serveSnapshot);
+        // this task must not warm it (its flexible-based warm was a silent
+        // no-op inside an Octane tick anyway).
     }
 
     /**

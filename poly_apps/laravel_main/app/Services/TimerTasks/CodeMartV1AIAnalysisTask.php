@@ -34,9 +34,11 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
 
     public function isEnabled(): bool
     {
+        // Disabled by default (2026-09-22, operator request). Enable via the
+        // user-data setting where CodeMart AI analysis is actively used.
         return (bool) app(UserConfigService::class)->get(
             UserConfigService::CODEMARTV1_AI_ANALYSIS_ENABLED,
-            true
+            false
         );
     }
 

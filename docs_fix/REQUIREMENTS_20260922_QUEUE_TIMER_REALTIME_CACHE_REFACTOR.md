@@ -1,8 +1,11 @@
 # Queue Timer Tasks → Realtime Query + In-Memory Diff Cache — Design & Progress
 
 Date: 2026-09-22
-Status: **DESIGN phase** — design-doc-first per instruction; development has
-NOT started for this refactor.
+Status: **SUPERSEDED** — implementation proceeded under
+`docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md` (binding design +
+implementation record), which follows the operator's later directive
+(retires `queue_center_audio_scan` and the head/outbox/maintenance pollers
+via direct-emit + on-demand maintenance; this draft had kept them).
 Scope: `poly_apps/laravel_main` (timer tasks, queue metrics, dictionary
 scans), `pycore` (queue consumers), `poly_apps/pycore_laravel_wordnew_ui`
 (pycore-manager surfaces).

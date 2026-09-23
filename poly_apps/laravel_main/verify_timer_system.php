@@ -33,21 +33,15 @@ if (is_dir($tasksDir)) {
 }
 echo PHP_EOL;
 
-echo "[3] Checking AppQyV1DictionaryTranslationTask..." . PHP_EOL;
-$taskClass = 'App\\Services\\TimerTasks\\AppQyV1DictionaryTranslationTask';
+echo "[3] Checking DictLaneQueueCenter (replaces the retired scan timer tasks)..." . PHP_EOL;
+$taskClass = 'App\\Services\\QueueCenter\\DictLane\\DictLaneQueueCenter';
 if (class_exists($taskClass)) {
     echo "✓ Class exists: {$taskClass}" . PHP_EOL;
-
-    $task = new $taskClass();
-    echo "  - Task name: " . $task->getName() . PHP_EOL;
-    echo "  - Interval: " . $task->getInterval() . " seconds" . PHP_EOL;
-    echo "  - Enabled: " . ($task->isEnabled() ? 'YES' : 'NO') . PHP_EOL;
-
-    $implements = class_implements($taskClass);
-    if (isset($implements['App\\Services\\TimerTasks\\OctaneTimerTaskInterface'])) {
-        echo "  ✓ Implements OctaneTimerTaskInterface" . PHP_EOL;
+    $catalogClass = 'App\\Services\\QueueCenter\\DictLane\\DictLaneCatalog';
+    if (class_exists($catalogClass)) {
+        echo "  - Lanes: " . implode(', ', $catalogClass::lanes()) . PHP_EOL;
     } else {
-        echo "  ✗ Does NOT implement OctaneTimerTaskInterface" . PHP_EOL;
+        echo "  ✗ Class NOT found: {$catalogClass}" . PHP_EOL;
     }
 } else {
     echo "✗ Class NOT found: {$taskClass}" . PHP_EOL;

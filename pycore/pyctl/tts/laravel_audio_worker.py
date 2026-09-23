@@ -514,13 +514,16 @@ class BaseLaravelAudioWorker(
         )
         self._log_event("task_done" if success else "task_fail", detail, info)
 
-    def set_cached_task_head(self, task_id: Any, queue_position: int) -> None:
+    def set_cached_task_head(self, task_id: Any, queue_position: int, dedup_key: Any = "") -> None:
         """Apply one Laravel queue-head ticket through the shared queue library.
 
         Part2 realtime entry (M2 ``apply_head_ticket``): the heap move,
         whole-Queue dedup (a Part1 member keeps its front copy), and the
-        wake all happen inside ``audio_queue_center``."""
-        audio_queue_center.apply_head_ticket(self.QUEUE_KEY, task_id, queue_position)
+        wake all happen inside ``audio_queue_center``. ``dedup_key`` is the
+        event's canonical identity (``{language}:{md5}`` /
+        ``{language}:{content_id}``) used when the ticket's Laravel task_id
+        has no local counterpart (full-pull-filled lanes)."""
+        audio_queue_center.apply_head_ticket(self.QUEUE_KEY, task_id, queue_position, dedup_key)
 
     def _initialize_lane_from_laravel(self) -> Dict[str, Any]:
         """M1 intake: initial Laravel full sync -> fills the queue's Part2."""

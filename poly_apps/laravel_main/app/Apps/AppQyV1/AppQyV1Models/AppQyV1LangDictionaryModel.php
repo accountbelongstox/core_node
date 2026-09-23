@@ -281,6 +281,9 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         // write isn't masked by a stale summary for up to their TTL.
         Cache::forget('appqyv1_system_statistics_summary');
         Cache::forget('appqyv1_audio_file_size_stats');
+        // Dict-lane live queues: bump the dirty counter so the next lane serve
+        // refreshes immediately, without waiting for the stats collector.
+        \App\Services\QueueCenter\DictLane\DictLaneQueueCenter::noteDictionaryWrite($langCode);
         app(QueueCenterRealtimeService::class)->publish(
             'dictionary',
             AppQyV1TableMaps::normalizeLangCode($langCode)

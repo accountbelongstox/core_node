@@ -41,6 +41,7 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DIFF_DELIVERY,
     QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
     QUEUE_CENTER_REALTIME_EVENTS,
+    audio_dedup_key,
     queue_center_endpoint,
 )
 from pycore.pyutils.common.status_snapshot_cache import (
@@ -529,7 +530,18 @@ class _QueueCenterSnapshotService:
             )
             if worker is None:
                 continue
-            worker.set_cached_task_head(task_id, queue_position)
+            dedup_key = audio_dedup_key(
+                queue,
+                item.get("language"),
+                item.get("word") or item.get("text"),
+                item.get("content_id"),
+                item.get("md5"),
+            )
+            # Resolve by task_id first, dedup identity fallback: the
+            # word_audio lane is filled by pycore's full pull (local
+            # word-full-<md5> tasks), so a wordnew head ticket's Laravel
+            # task_id may have no local counterpart.
+            worker.set_cached_task_head(task_id, queue_position, dedup_key)
             applied.append({
                 **item,
                 "task_id": task_id,

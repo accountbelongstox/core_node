@@ -53,9 +53,12 @@ class AppQyV1PosterCollectionTask extends OctaneTimerTaskAbstract
      */
     public function isEnabled(): bool
     {
+        // Disabled by default (2026-09-22, operator request): the task was
+        // running_with_errors on the dashboard. Enable via the user-data
+        // setting where poster collection is actively used.
         return (bool) app(UserConfigService::class)->get(
             UserConfigService::APPQYV1_POSTER_COLLECTION_ENABLED,
-            true
+            false
         );
     }
 
