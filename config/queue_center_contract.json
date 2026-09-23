@@ -1,1111 +1,1148 @@
 {
-  "schema_version": 34,
-  "contract": "queue_center",
-  "source_path": "config/queue_center_contract.json",
-  "word_validity": {
-    "batch_size": 20,
-    "view_page_size": 1000,
-    "request_timeout_ms": 120000,
-    "default_languages": [
-      "en"
-    ],
-    "source_marker": "ai_ensure",
-    "idle_poll_seconds": 60
-  },
-  "http_transfer": {
-    "protocol": "offset-v1",
-    "chunk_bytes": 262144,
-    "maximum_chunk_bytes": 1048576,
-    "connect_timeout_seconds": 15,
-    "idle_timeout_seconds": 30,
-    "retry_interval_ms": 250,
-    "dedup_window_seconds": 300
-  },
-  "realtime": {
-    "transport": "mercure",
-    "topic": "queue-center",
-    "event": "queue.changed",
-    "events": {
-      "task_priority": "task.priority",
-      "queue_changed": "queue.changed",
-      "word_audio_head": "word_audio.head",
-      "sentence_audio_head": "sentence_audio.head",
-      "word_image_priority": "word_image.priority",
-      "cover_priority": "cover.priority",
-      "poster_priority": "poster.priority",
-      "worker_presence": "worker.presence"
-    }
-  },
-  "head_parts": {
-    "description": "Queue = Part1 + Part2, ALWAYS both parts; externally abstracted as ONE whole Queue. The split is internal to the consumer's queue implementation only. Binding doc: docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md.",
-    "parts": {
-      "part1": "pycore-local head. Filled ONLY by pycore self-promotion (audio orchestration manifest misses, pycore-manager manual promote). Self-adjust only; NEVER notifies Laravel. Empty by default.",
-      "part2": "Laravel-mediated head. Filled by Laravel initial sync, diff updates, and realtime {queue}_head tickets. Produced ONLY by wordnew (wordnew -> Laravel -> Mercure/diff -> pycore)."
-    },
-    "ordering": "Every Part1 item sits in front of every Part2 item (part_rank 0 < 1), ahead of queue_position; language tier then queue_position then FIFO within a part.",
-    "operation": "ANY head promotion operates on the WHOLE Queue; dedup always runs against the whole Queue (an item exists at most once across parts; a Part1 copy keeps its front position).",
-    "direction": "Laravel -> pycore only. pycore never sends head state to Laravel."
-  },
-  "word_audio_full_sync": {
-    "description": "pycore self-driven word-audio full pull: at startup (Word Audio flag ON) pycore pulls EVERY dictionary word without audio into the local word_audio queue (Part1 fill via promote_local_head, whole-Queue dedup) and keeps generating while Laravel is offline; uploads resume through the durable audio_delivery_outbox when Laravel returns. Binding doc: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md.",
-    "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?language=<lang>&filter=without_audio&start=<n>&limit=1000",
-    "language_source": "GET /api/app_qy_v1/vocabulary/language-breakdown, fallback: contract word_audio language priority, final fallback: english",
-    "local_task_marker": "_local_source=full_sync; locally sourced tasks skip the just-in-time Laravel claim and the global result post; delivery is the domain report (encodeTaskId: dict_row_id*1000 + 1*100 + langIndex) plus the durable outbox",
-    "cache_file": "get_app_cache_dir()/audio_queue/word_audio_queue.json (whole-Queue snapshot + Part1 key set; cache-first boot restores it without any remote pull)",
-    "rpc": "ui/queue_center/word_audio_full_sync (on-demand full pull, background, returns the status block)",
-    "persisted_key": "user_data_store section word_tts_auto, key full_sync_on_start (bool, default true) — the ONLY startup switch; no CLI/env parameter",
-    "snapshot_block": "queue-center snapshot word_audio section carries full_sync status (running, last_sync_at, last_result, languages, cache_saved_at)"
-  },
-  "diff_delivery": {
-    "version": 1,
-    "cursor_store": "Persistent revision and high-water metadata only.",
-    "id_page_store": "Bounded ID pages; queue-head moves update this layer without loading rows.",
-    "data_segment_store": "Full records are materialized only on a UI or consumer request and compacted after consumption.",
-    "id_page_limit": 64,
-    "id_limit": 4096,
-    "data_segment_limit": 128,
-    "poll_interval_ms": 1000,
-    "consumer_slice_default": 8,
-    "head_reserve": 1,
-    "head_notification_interval_seconds": 2,
-    "producer_batch_limits": {
-      "word_audio": 100
-    },
-    "consumer_batch_limits": {
-      "word_audio": 100,
-      "sentence_audio": 100
-    },
-    "consumer_task_timeout_seconds": {
-      "word_audio": 300,
-      "sentence_audio": 900
-    },
-    "consumer_upload_retry": {
-      "initial_seconds": 2,
-      "maximum_seconds": 30
-    },
-    "consumer_log_tags": {
-      "sentence_audio": [
-        "[SentenceAudioWorker]",
-        "[SentenceAudioAuto]",
-        "[qwen3tts]",
-        "[managed]"
-      ]
-    },
-    "ready_ttl_seconds": 300,
-    "consumed_ttl_seconds": 86400
-  },
-  "endpoints": {
-    "queue_center_overview": "/api/queue-center/overview",
-    "queue_center_events": "/api/queue-center/events",
-    "queue_center_receipts": "/api/queue-center/receipts",
-    "queue_center_queue_items": "/api/queue-center/queues/{queue}/items",
-    "queue_center_queue_diff": "/api/queue-center/queues/{queue}/diff",
-    "queue_center_queue_id_pages": "/api/queue-center/queues/{queue}/id-pages",
-    "queue_center_queue_page_data": "/api/queue-center/queues/{queue}/page-data",
-    "queue_center_queue_head": "/api/queue-center/queues/{queue}/head",
-    "queue_center_queue_head_batch": "/api/queue-center/queues/{queue}/head/batch",
-    "queue_center_task_cancel": "/api/queue-center/tasks/{task_id}/cancel",
-    "queue_center_task_retry": "/api/queue-center/tasks/{task_id}/retry",
-    "worker_register": "/api/worker/register",
-    "worker_heartbeat": "/api/worker/heartbeat",
-    "worker_unregister": "/api/worker/unregister",
-    "worker_list": "/api/worker/list",
-    "worker_stats": "/api/worker/stats",
-    "worker_task_pull": "/api/worker/tasks/{task_type}/pull",
-    "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
-    "worker_task_result": "/api/worker/tasks/{task_type}/result",
-    "worker_task_release": "/api/worker/tasks/{task_type}/release",
-    "queue_center_hub_authorization": "/api/queue-center/mercure-authorization"
-  },
-  "relay": {
-    "hub": {
-      "protocol": "mercure",
-      "path": "/.well-known/mercure",
-      "token_ttl_seconds": 600
-    },
-    "device_identity": {
-      "clock_skew_seconds": 300,
-      "nonce_ttl_seconds": 600
-    },
-    "topics": {
-      "machines": "pycore.machines",
-      "pair": "pycore.pair.{machine_id}"
-    },
-    "events": {
-      "request": "relay.request",
-      "response": "relay.response",
-      "roster": "roster.update"
-    },
-    "machine_heartbeat_seconds": 20,
-    "machine_offline_after_seconds": 45,
-    "pair_session_ttl_seconds": 60,
-    "request_ttl_seconds": 60,
-    "response_poll_interval_ms": 400,
-    "caps": {
-      "control_frame_bytes": 8192,
-      "inline_body_bytes": 262144,
-      "blob_chunk_bytes": 4194304,
-      "request_total_bytes": 33554432
-    },
-    "capability_providers": {
-      "pycore": {
-        "class": "machine",
-        "implemented": true,
-        "provides": [
-          "http-rpc-relay",
-          "queue-worker"
-        ]
-      },
-      "laravel-manager": {
-        "class": "ui-end",
-        "implemented": false,
-        "provides": []
-      },
-      "wordnew": {
-        "class": "ui-end",
-        "implemented": false,
-        "provides": []
-      },
-      "mcp-chrome": {
-        "class": "machine",
-        "implemented": false,
-        "provides": []
-      }
-    }
-  },
-  "delivery_receipt": {
-    "stages": {
-      "waiting": "waiting",
-      "laravel_received": "laravel_received",
-      "worker_received": "worker_received",
-      "processing": "processing",
-      "completed": "completed",
-      "failed": "failed"
-    },
-    "worker_kinds": [
-      "pycore",
-      "chrome",
-      "laravel"
-    ],
-    "task_id_limit_source": "diff_delivery.data_segment_limit"
-  },
-  "metric_semantics": {
-    "pending": "Ready work that has not been claimed.",
-    "leased": "Claimed or assigned work that has not started processing.",
-    "processing": "Work actively being processed.",
-    "total": "All records represented by the section; live queue sections sum pending, leased, and processing only."
-  },
-  "control_names": [
-    "assist_translation",
-    "word_audio",
-    "sentence_audio"
+ "schema_version": 35,
+ "contract": "queue_center",
+ "source_path": "config/queue_center_contract.json",
+ "word_validity": {
+  "batch_size": 20,
+  "view_page_size": 1000,
+  "request_timeout_ms": 120000,
+  "default_languages": [
+   "en"
   ],
-  "callback_queue_roles": {
-    "translation_worker": "consumer",
-    "translation_queue_monitor": "monitor",
-    "translation_realtime_client": "signal",
-    "tts_queue_poller": "consumer",
-    "tts_sentence_worker": "consumer",
-    "ai_rate_reset": "maintainer",
-    "agent_history_extraction": "maintainer",
-    "agent_history_pipeline": "maintainer"
+  "source_marker": "ai_ensure",
+  "idle_poll_seconds": 60
+ },
+ "http_transfer": {
+  "protocol": "offset-v1",
+  "chunk_bytes": 262144,
+  "maximum_chunk_bytes": 1048576,
+  "connect_timeout_seconds": 15,
+  "idle_timeout_seconds": 30,
+  "retry_interval_ms": 250,
+  "dedup_window_seconds": 300
+ },
+ "realtime": {
+  "transport": "mercure",
+  "topic": "queue-center",
+  "event": "queue.changed",
+  "events": {
+   "task_priority": "task.priority",
+   "queue_changed": "queue.changed",
+   "word_audio_head": "word_audio.head",
+   "sentence_audio_head": "sentence_audio.head",
+   "word_image_priority": "word_image.priority",
+   "cover_priority": "cover.priority",
+   "poster_priority": "poster.priority",
+   "worker_presence": "worker.presence"
+  }
+ },
+ "head_parts": {
+  "description": "Queue = Part1 + Part2, ALWAYS both parts; externally abstracted as ONE whole Queue. The split is internal to the consumer's queue implementation only. Binding doc: docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md.",
+  "parts": {
+   "part1": "pycore-local head. Filled ONLY by pycore self-promotion (audio orchestration manifest misses, pycore-manager manual promote). Self-adjust only; NEVER notifies Laravel. Empty by default.",
+   "part2": "Laravel-mediated head. Filled by Laravel initial sync, diff updates, and realtime {queue}_head tickets. Produced ONLY by wordnew (wordnew -> Laravel -> Mercure/diff -> pycore)."
   },
-  "section_contract_defaults": {
-    "queue": {
-      "pending": 0,
-      "leased": 0,
-      "processing": 0,
-      "total": 0
-    },
-    "worker": {
-      "online": false,
-      "claimed": 0,
-      "ok": null,
-      "fail": null,
-      "last_heartbeat": null
-    },
-    "toggle": {
-      "requested_by": null,
-      "enabled": false,
-      "reason": null,
-      "graceful_stop": false,
-      "paused_by_user": null
-    },
-    "lifecycle": "off",
-    "error_code": null,
-    "last_error": null,
-    "age_s": null,
-    "stale": false
+  "ordering": "Every Part1 item sits in front of every Part2 item (part_rank 0 < 1), ahead of queue_position; language tier then queue_position then FIFO within a part.",
+  "operation": "ANY head promotion operates on the WHOLE Queue; dedup always runs against the whole Queue (an item exists at most once across parts; a Part1 copy keeps its front position).",
+  "direction": "Laravel -> pycore only. pycore never sends head state to Laravel."
+ },
+ "word_audio_full_sync": {
+  "description": "pycore self-driven word-audio full pull: at startup (Word Audio flag ON) pycore pulls EVERY dictionary word without audio into the local word_audio queue (Part1 fill via promote_local_head, whole-Queue dedup) and keeps generating while Laravel is offline; uploads resume through the durable audio_delivery_outbox when Laravel returns. Binding doc: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md.",
+  "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?language=<lang>&filter=without_audio&start=<n>&limit=1000",
+  "language_source": "GET /api/app_qy_v1/vocabulary/language-breakdown, fallback: contract word_audio language priority, final fallback: english",
+  "local_task_marker": "_local_source=full_sync; locally sourced tasks skip the just-in-time Laravel claim and the global result post; delivery is the domain report (encodeTaskId: dict_row_id*1000 + 1*100 + langIndex) plus the durable outbox",
+  "cache_file": "get_app_cache_dir()/audio_queue/word_audio_queue.json (whole-Queue snapshot + Part1 key set; cache-first boot restores it without any remote pull)",
+  "rpc": "ui/queue_center/word_audio_full_sync (on-demand full pull, background, returns the status block)",
+  "persisted_key": "user_data_store section word_tts_auto, key full_sync_on_start (bool, default true) — the ONLY startup switch; no CLI/env parameter",
+  "snapshot_block": "queue-center snapshot word_audio section carries full_sync status (running, last_sync_at, last_result, languages, cache_saved_at)"
+ },
+ "dict_lane_queue": {
+  "description": "Dict-lane live queues: the backend no longer maintains these queues with timer tasks. Each lane is a live view over its dictionary source query, cached in the FrankenPHP worker's memory and mirrored to the database cache store; every serve runs one ms-level table probe (table length + write counters: PostgreSQL pg_stat_user_tables, fallback COUNT(*)+MAX(updated_at)); unchanged signature serves the cached queue with zero database reads, a changed signature re-fetches only the lane's lite id list and minimally diffs it. global_tasks rows are materialized just-in-time when a worker pulls (POST /api/worker/tasks/{taskType}/pull). Retired timer tasks: appqyv1_word_validity_scan, app_qy_v1_word_translation_scan_task, app_qy_v1_dictionary_translation_task, app_qy_v1_word_translation_filler_task, queue_center_audio_scan, appqyv1_word_media_scan, appqyv1_tts_generation, app_qy_v1_tts_lock_reclaim_task. Binding doc: docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md.",
+  "lanes": {
+   "word_audio": {
+    "source": "dictionary table per language; filter: has_audio=false OR has_audio IS NULL (identical to the without_audio management filter)",
+    "order": "query_count DESC, id ASC",
+    "materialize": "one word_audio global_tasks row per word via QueueCenterService::enqueue (group_key live-dedup)",
+    "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?filter=without_audio served from the lane cache when no search/sort narrowing (same for the view lanes)"
+   },
+   "word_translation": {
+    "source": "has_translation=false AND is_valid=true",
+    "order": "query_count DESC, id ASC",
+    "materialize": "one task per 40 words; execution_type remote_translation; payload {words[],language,target_language=zh,word_count}; pile-up guard max 1 live task per language"
+   },
+   "word_validity": {
+    "source": "validity_checked_at IS NULL",
+    "order": "query_count DESC, id ASC",
+    "materialize": "one task per contract word_validity.batch_size words; execution_type remote_validity; pile-up guard max 1 live task per language"
+   },
+   "dictionary_explanation": {
+    "source": "has_translation=false AND is_valid=true (dictionary_explanation_demo shares the lane)",
+    "order": "query_count DESC, id ASC",
+    "materialize": "one task per 10 words; execution_type from contract task_types; pile-up guard max 2 live tasks per language"
+   }
   },
-  "capability_claimants": {
-    "translate": [
-      "chrome"
-    ],
-    "ai_translate": [
-      "chrome"
-    ],
-    "puter_translate": [
-      "chrome"
-    ],
-    "audio": [
-      "pycore"
-    ],
-    "image": [
-      "chrome"
-    ],
-    "sentence_audio": [
-      "pycore"
-    ],
-    "subtitle": [
-      "pycore"
-    ],
-    "poster": [
-      "chrome"
-    ],
-    "stt": [
-      "pycore"
+  "probe": {
+   "pgsql": "SELECT n_live_tup,n_tup_ins,n_tup_upd,n_tup_del FROM pg_stat_user_tables (ms-level, no table scan)",
+   "fallback": "COUNT(*) + MAX(updated_at) on the source table",
+   "dirty_bump": "AppQyV1LangDictionaryModel::forgetMetricsCache increments a per-language dirty counter folded into the signature, so same-request writes are visible immediately"
+  },
+  "direct_emit": "Head notifications and realtime outbox events publish in the same request that creates them; the queue_head_notification_task and realtime_outbox_publish_task pollers are decommissioned (registered but disabled as operator safety nets via user-data settings queue_center_head_notification_poller / realtime_outbox_publish_poller). Global task maintenance runs on-demand in the pull path (DictLaneMaintenance::onPull, throttled 15s; hourly slow slice); global_task_maintenance_task is disabled (safety net setting global_task_maintenance_poller).",
+  "view_lanes": {
+   "without_translation": "view-only listing lane; filter byte-identical to managementFilter without_translation (has_translation false/NULL AND translations empty); serves dictionaryWords?filter=without_translation",
+   "valid": "view-only listing lane; is_valid=true OR NULL; serves dictionaryWords?filter=valid",
+   "invalid": "view-only listing lane; is_valid=false; serves dictionaryWords?filter=invalid"
+  }
+ },
+ "diff_delivery": {
+  "version": 1,
+  "cursor_store": "Persistent revision and high-water metadata only.",
+  "id_page_store": "Bounded ID pages; queue-head moves update this layer without loading rows.",
+  "data_segment_store": "Full records are materialized only on a UI or consumer request and compacted after consumption.",
+  "id_page_limit": 64,
+  "id_limit": 4096,
+  "data_segment_limit": 128,
+  "poll_interval_ms": 1000,
+  "consumer_slice_default": 8,
+  "head_reserve": 1,
+  "head_notification_interval_seconds": 2,
+  "producer_batch_limits": {
+   "word_audio": 100
+  },
+  "consumer_batch_limits": {
+   "word_audio": 100,
+   "sentence_audio": 100
+  },
+  "consumer_task_timeout_seconds": {
+   "word_audio": 300,
+   "sentence_audio": 900
+  },
+  "consumer_upload_retry": {
+   "initial_seconds": 2,
+   "maximum_seconds": 30
+  },
+  "consumer_log_tags": {
+   "sentence_audio": [
+    "[SentenceAudioWorker]",
+    "[SentenceAudioAuto]",
+    "[qwen3tts]",
+    "[managed]"
+   ]
+  },
+  "ready_ttl_seconds": 300,
+  "consumed_ttl_seconds": 86400
+ },
+ "endpoints": {
+  "queue_center_overview": "/api/queue-center/overview",
+  "queue_center_events": "/api/queue-center/events",
+  "queue_center_receipts": "/api/queue-center/receipts",
+  "queue_center_queue_items": "/api/queue-center/queues/{queue}/items",
+  "queue_center_queue_diff": "/api/queue-center/queues/{queue}/diff",
+  "queue_center_queue_id_pages": "/api/queue-center/queues/{queue}/id-pages",
+  "queue_center_queue_page_data": "/api/queue-center/queues/{queue}/page-data",
+  "queue_center_queue_head": "/api/queue-center/queues/{queue}/head",
+  "queue_center_queue_head_batch": "/api/queue-center/queues/{queue}/head/batch",
+  "queue_center_task_cancel": "/api/queue-center/tasks/{task_id}/cancel",
+  "queue_center_task_retry": "/api/queue-center/tasks/{task_id}/retry",
+  "worker_register": "/api/worker/register",
+  "worker_heartbeat": "/api/worker/heartbeat",
+  "worker_unregister": "/api/worker/unregister",
+  "worker_list": "/api/worker/list",
+  "worker_stats": "/api/worker/stats",
+  "worker_task_pull": "/api/worker/tasks/{task_type}/pull",
+  "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
+  "worker_task_result": "/api/worker/tasks/{task_type}/result",
+  "worker_task_release": "/api/worker/tasks/{task_type}/release",
+  "queue_center_hub_authorization": "/api/queue-center/mercure-authorization"
+ },
+ "relay": {
+  "hub": {
+   "protocol": "mercure",
+   "path": "/.well-known/mercure",
+   "token_ttl_seconds": 600
+  },
+  "device_identity": {
+   "clock_skew_seconds": 300,
+   "nonce_ttl_seconds": 600
+  },
+  "topics": {
+   "machines": "pycore.machines",
+   "pair": "pycore.pair.{machine_id}"
+  },
+  "events": {
+   "request": "relay.request",
+   "response": "relay.response",
+   "roster": "roster.update"
+  },
+  "machine_heartbeat_seconds": 20,
+  "machine_offline_after_seconds": 45,
+  "pair_session_ttl_seconds": 60,
+  "request_ttl_seconds": 60,
+  "response_poll_interval_ms": 400,
+  "caps": {
+   "control_frame_bytes": 8192,
+   "inline_body_bytes": 262144,
+   "blob_chunk_bytes": 4194304,
+   "request_total_bytes": 33554432
+  },
+  "capability_providers": {
+   "pycore": {
+    "class": "machine",
+    "implemented": true,
+    "provides": [
+     "http-rpc-relay",
+     "queue-worker"
     ]
+   },
+   "laravel-manager": {
+    "class": "ui-end",
+    "implemented": false,
+    "provides": []
+   },
+   "wordnew": {
+    "class": "ui-end",
+    "implemented": false,
+    "provides": []
+   },
+   "mcp-chrome": {
+    "class": "machine",
+    "implemented": false,
+    "provides": []
+   }
+  }
+ },
+ "delivery_receipt": {
+  "stages": {
+   "waiting": "waiting",
+   "laravel_received": "laravel_received",
+   "worker_received": "worker_received",
+   "processing": "processing",
+   "completed": "completed",
+   "failed": "failed"
   },
-  "section_scopes": {
-    "assist_translation": {
-      "category": "assist_translation",
-      "category_keys": [
-        "word_translation",
-        "ai_translate",
-        "subtitle_search",
-        "subtitle_lang",
-        "book_lang"
-      ],
-      "queue_metrics": true
-    },
-    "word_audio": {
-      "category": "word_audio",
-      "category_keys": [
-        "word_audio"
-      ],
-      "queue_metrics": true
-    },
-    "sentence_audio": {
-      "category": "sentence_audio",
-      "category_keys": [
-        "sentence_audio"
-      ],
-      "queue_metrics": true
-    },
-    "media_image": {
-      "category": "media_image",
-      "category_keys": [
-        "cover",
-        "poster",
-        "gemini_image"
-      ],
-      "queue_metrics": true
-    }
+  "worker_kinds": [
+   "pycore",
+   "chrome",
+   "laravel"
+  ],
+  "task_id_limit_source": "diff_delivery.data_segment_limit"
+ },
+ "metric_semantics": {
+  "pending": "Ready work that has not been claimed.",
+  "leased": "Claimed or assigned work that has not started processing.",
+  "processing": "Work actively being processed.",
+  "total": "All records represented by the section; live queue sections sum pending, leased, and processing only."
+ },
+ "control_names": [
+  "assist_translation",
+  "word_audio",
+  "sentence_audio"
+ ],
+ "callback_queue_roles": {
+  "translation_worker": "consumer",
+  "translation_queue_monitor": "monitor",
+  "translation_realtime_client": "signal",
+  "tts_queue_poller": "consumer",
+  "tts_sentence_worker": "consumer",
+  "ai_rate_reset": "maintainer",
+  "agent_history_extraction": "maintainer",
+  "agent_history_pipeline": "maintainer"
+ },
+ "section_contract_defaults": {
+  "queue": {
+   "pending": 0,
+   "leased": 0,
+   "processing": 0,
+   "total": 0
   },
-  "task_contract": {
-    "statuses": {
-      "values": {
-        "pending": "pending",
-        "assigned": "assigned",
-        "processing": "processing",
-        "completed": "completed",
-        "completed_demo": "completed_demo",
-        "failed": "failed",
-        "cancelled": "cancelled"
-      },
-      "all": [
-        "pending",
-        "assigned",
-        "processing",
-        "completed",
-        "completed_demo",
-        "failed",
-        "cancelled"
-      ],
-      "live": [
-        "pending",
-        "assigned",
-        "processing"
-      ],
-      "terminal": [
-        "completed",
-        "completed_demo",
-        "failed",
-        "cancelled"
-      ],
-      "worker_reportable": [
-        "processing",
-        "completed",
-        "failed"
-      ]
-    },
-    "events": {
-      "values": {
-        "assigned": "assigned",
-        "processing": "processing",
-        "completed": "completed",
-        "failed": "failed",
-        "timeout": "timeout",
-        "reclaimed": "reclaimed",
-        "cancelled": "cancelled"
-      },
-      "terminal": [
-        "completed",
-        "failed",
-        "cancelled"
-      ]
-    },
-    "stream_events": {
-      "initial": "task.detail-initial",
-      "transition": "task.event",
-      "ping": "ping",
-      "close": "stream.close"
-    },
-    "execution_types": {
-      "local_timer": "local_timer",
-      "remote_client": "remote_client",
-      "remote_compute": "remote_compute",
-      "remote_ocr": "remote_ocr",
-      "remote_translation": "remote_translation",
-      "remote_video": "remote_video",
-      "remote_io": "remote_io",
-      "remote_audio": "remote_audio",
-      "remote_notebooklm": "remote_notebooklm",
-      "remote_gemini": "remote_gemini",
-      "remote_gemini_text": "remote_gemini_text",
-      "remote_validity": "remote_validity",
-      "remote_fast": "remote_fast",
-      "remote_subtitle": "remote_subtitle",
-      "remote_poster": "remote_poster",
-      "remote_sentence_audio": "remote_sentence_audio",
-      "remote_stt": "remote_stt",
-      "remote_chatgpt": "remote_chatgpt"
-    },
-    "priorities": {
-      "default": 0,
-      "manual": 50,
-      "fast": 100,
-      "maximum": 1000
-    },
-    "progress_stages": {
-      "accepted": 1,
-      "synthesizing": 10,
-      "uploading": 80,
-      "finalizing": 95,
-      "completed": 100
-    },
-    "limits": {
-      "list_default": 20,
-      "list": 200,
-      "monitor": 100,
-      "worker_pull_default": 5,
-      "worker_pull": 100,
-      "completed": 500,
-      "long_poll_seconds": 30,
-      "history_records": 200,
-      "history_timeline": 50,
-      "event_batch": 200
-    },
-    "capability_labels": {
-      "audio": "Audio",
-      "image": "Image",
-      "translate": "Translate (Chrome)",
-      "sentence_audio": "Sentence Audio",
-      "ai_translate": "AI Translate (Chrome)",
-      "puter_translate": "Puter Translate",
-      "subtitle": "Subtitle",
-      "poster": "Poster",
-      "stt": "Speech to Text"
-    },
-    "capability_single_lanes": {
-      "translate": "remote_translation",
-      "audio": "remote_audio",
-      "image": "remote_gemini",
-      "subtitle": "remote_subtitle",
-      "poster": "remote_poster",
-      "sentence_audio": "remote_sentence_audio",
-      "stt": "remote_stt"
-    },
-    "fast_lane_capabilities": [
-      "translate",
-      "ai_translate",
-      "puter_translate",
-      "image"
-    ],
-    "chrome_capability_switches": {
-      "image": {
-        "storage_key": "tkCapImage",
-        "label": "Cover and poster search",
-        "hint": "Search and write back book covers and media posters through the shared browser worker",
-        "processors": [
-          "media_image"
-        ]
-      },
-      "gemini_image": {
-        "storage_key": "tkCapGeminiImage",
-        "label": "AI word-group cover generation",
-        "hint": "Generate vocabulary-library covers with Gemini and write them back to Laravel",
-        "processors": [
-          "remote_gemini"
-        ]
-      },
-      "validity": {
-        "storage_key": "tkCapValidity",
-        "label": "Word validity and translation",
-        "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
-        "processors": [
-          "bing_dictionary",
-          "word_validity_web"
-        ]
-      },
-      "notebooklm": {
-        "storage_key": "tkCapNotebooklm",
-        "label": "执行 NotebookLM 生成任务",
-        "hint": "Laravel NotebookLM queue to shared browser runtime with result write-back",
-        "processors": [
-          "remote_notebooklm"
-        ]
-      },
-      "chatgpt": {
-        "storage_key": "tkCapChatgpt",
-        "label": "执行 ChatGPT 长语音任务",
-        "hint": "ChatGPT web conversations with read-aloud audio capture and Laravel write-back",
-        "processors": [
-          "chatgpt_web"
-        ]
-      }
-    },
-    "wire_shapes": {
-      "create_result": [
-        "task_id",
-        "execution_type",
-        "queue_position",
-        "priority",
-        "is_fast_tier"
-      ],
-      "summary": [
-        "task_id",
-        "app_name",
-        "task_type",
-        "execution_type",
-        "status",
-        "progress",
-        "assigned_to",
-        "created_at",
-        "capability",
-        "queue_position",
-        "priority",
-        "is_fast_tier"
-      ],
-      "worker_pull": [
-        "task_id",
-        "app_name",
-        "task_type",
-        "execution_type",
-        "status",
-        "payload",
-        "timeout_seconds",
-        "retry_count",
-        "queue_position",
-        "priority",
-        "capability",
-        "is_fast_tier",
-        "created_at"
-      ],
-      "status": [
-        "task_id",
-        "app_name",
-        "task_type",
-        "execution_type",
-        "capability",
-        "is_fast_tier",
-        "status",
-        "queue_position",
-        "priority",
-        "progress",
-        "retry_count",
-        "max_retries",
-        "timeout_seconds",
-        "payload",
-        "result",
-        "error",
-        "assigned_to",
-        "assigned_at",
-        "timeout_at",
-        "completed_at",
-        "created_at",
-        "updated_at"
-      ],
-      "detail": [
-        "task_id",
-        "app_name",
-        "task_type",
-        "execution_type",
-        "capability",
-        "is_fast_tier",
-        "status",
-        "queue_position",
-        "priority",
-        "progress",
-        "payload",
-        "result",
-        "error",
-        "assigned_to",
-        "assigned_at",
-        "timeout_at",
-        "completed_at",
-        "created_at",
-        "updated_at"
-      ],
-      "event": [
-        "id",
-        "task_id",
-        "event",
-        "worker_id",
-        "attempt",
-        "detail",
-        "created_at"
-      ],
-      "detail_bundle": [
-        "task",
-        "events",
-        "current_phase",
-        "metadata"
-      ],
-      "current_phase": [
-        "phase",
-        "worker_id",
-        "elapsed_seconds"
-      ],
-      "detail_metadata": [
-        "total_attempts",
-        "max_retries",
-        "will_retry",
-        "estimated_timeout_in_seconds"
-      ],
-      "stats": [
-        "total",
-        "pending",
-        "assigned",
-        "processing",
-        "completed",
-        "completed_demo",
-        "failed",
-        "cancelled"
-      ],
-      "worker_registration": [
-        "worker_id",
-        "worker_name",
-        "processor_types",
-        "capabilities",
-        "hostname",
-        "platform",
-        "metadata",
-        "lease_capacity"
-      ],
-      "worker_result": [
-        "task_id",
-        "worker_id",
-        "attempt",
-        "status",
-        "progress",
-        "result",
-        "error"
-      ]
-    },
-    "task_types": [
-      {
-        "key": "word_translation",
-        "label": "Word Translation (Chrome)",
-        "execution_type": "remote_translation",
-        "capability": "translate",
-        "capability_mode": "selectable",
-        "capabilities": [
-          "translate",
-          "ai_translate",
-          "puter_translate"
-        ],
-        "ordering": "priority",
-        "interactive": true,
-        "fast_promotable": true,
-        "pycore_local_label": "remote_translation",
-        "ui": {
-          "icon": "🔤",
-          "badge": "TRANSLATE",
-          "summary_label": "待翻译任务",
-          "color": "#818cf8"
-        }
-      },
-      {
-        "key": "dictionary_explanation",
-        "label": "Dictionary Explanation",
-        "execution_type": "remote_client",
-        "capability": null,
-        "claimants": [
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_client",
-        "ui": {
-          "icon": "📖",
-          "badge": "DICTIONARY",
-          "summary_label": "待词典释义",
-          "color": "#2563eb"
-        }
-      },
-      {
-        "key": "dictionary_explanation_demo",
-        "label": "Dictionary Explanation Demo",
-        "execution_type": "remote_client",
-        "capability": null,
-        "claimants": [
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_client",
-        "ui": {
-          "icon": "🧪",
-          "badge": "DICTIONARY DEMO",
-          "summary_label": "待演示词典释义",
-          "color": "#3b82f6"
-        }
-      },
-      {
-        "key": "prompt_translation",
-        "label": "Prompt Translation",
-        "execution_type": "remote_translation",
-        "capability": null,
-        "claimants": [
-          "pycore",
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "prompt_payload_field": "text",
-        "pycore_local_label": "remote_translation",
-        "ui": {
-          "icon": "🌐",
-          "badge": "PROMPT",
-          "summary_label": "待提示词翻译",
-          "color": "#06b6d4"
-        }
-      },
-      {
-        "key": "word_audio",
-        "label": "Word Audio",
-        "execution_type": "remote_audio",
-        "capability": "audio",
-        "claimants": [
-          "pycore"
-        ],
-        "aliases": [
-          "word"
-        ],
-        "ordering": "queue_position",
-        "interactive": true,
-        "fast_promotable": false,
-        "pycore_local_label": "remote_audio",
-        "payload_limits": {
-          "text_max_chars": 200
-        },
-        "ui": {
-          "icon": "🔊",
-          "badge": "AUDIO",
-          "summary_label": "待生成语音",
-          "color": "#2dd4bf"
-        }
-      },
-      {
-        "key": "article_audio",
-        "label": "Article Audio",
-        "execution_type": "remote_audio",
-        "capability": "audio",
-        "claimants": [
-          "pycore",
-          "chrome"
-        ],
-        "aliases": [
-          "article"
-        ],
-        "ordering": "queue_position",
-        "interactive": false,
-        "fast_promotable": false,
-        "pycore_local_label": "remote_audio",
-        "payload_limits": {
-          "text_max_chars": 30000
-        },
-        "ui": {
-          "icon": "🔊",
-          "badge": "ARTICLE AUDIO",
-          "summary_label": "待文章语音",
-          "color": "#14b8a6"
-        }
-      },
-      {
-        "key": "sentence_audio",
-        "label": "Sentence Audio",
-        "execution_type": "remote_sentence_audio",
-        "capability": "sentence_audio",
-        "claimants": [
-          "pycore"
-        ],
-        "aliases": [
-          "sentence"
-        ],
-        "ordering": "queue_position",
-        "interactive": true,
-        "fast_promotable": false,
-        "pycore_local_label": "remote_sentence_audio",
-        "payload_limits": {
-          "text_max_chars": 2000
-        },
-        "ui": {
-          "icon": "🎧",
-          "badge": "SENTENCE",
-          "summary_label": "待句子音频",
-          "color": "#34d399"
-        },
-        "language_priority": [
-          "en"
-        ]
-      },
-      {
-        "key": "subtitle_search",
-        "label": "Subtitle Search",
-        "execution_type": "remote_subtitle",
-        "capability": "subtitle",
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_subtitle",
-        "ui": {
-          "icon": "💬",
-          "badge": "SUBTITLE",
-          "summary_label": "待字幕搜索",
-          "color": "#60a5fa"
-        }
-      },
-      {
-        "key": "poster",
-        "label": "Book / Media Cover",
-        "execution_type": "remote_poster",
-        "capability": "poster",
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_poster",
-        "ui": {
-          "icon": "🎬",
-          "badge": "COVER",
-          "summary_label": "待搜索封面与海报",
-          "color": "#fb7185"
-        }
-      },
-      {
-        "key": "notebooklm",
-        "label": "NotebookLM",
-        "execution_type": "remote_notebooklm",
-        "capability": null,
-        "claimants": [
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "prompt_payload_field": "question",
-        "pycore_local_label": "remote_notebooklm",
-        "ui": {
-          "icon": "📓",
-          "badge": "NOTEBOOK",
-          "summary_label": "待 NLM 处理",
-          "color": "#fbbf24"
-        }
-      },
-      {
-        "key": "gemini_image",
-        "label": "Gemini Image",
-        "execution_type": "remote_gemini",
-        "capability": "image",
-        "ordering": "priority",
-        "interactive": false,
-        "prompt_payload_field": "prompt",
-        "pycore_local_label": "remote_image",
-        "ui": {
-          "icon": "🎨",
-          "badge": "IMAGE",
-          "summary_label": "待 AI 生图",
-          "color": "#c084fc"
-        }
-      },
-      {
-        "key": "gemini_chat",
-        "label": "Gemini Chat",
-        "execution_type": "remote_gemini_text",
-        "capability": null,
-        "claimants": [
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "prompt_payload_field": "question",
-        "pycore_local_label": "remote_gemini_text",
-        "ui": {
-          "icon": "💬",
-          "badge": "CHAT",
-          "summary_label": "待 AI 对话",
-          "color": "#f472b6"
-        }
-      },
-      {
-        "key": "chatgpt_chat",
-        "label": "ChatGPT Chat",
-        "execution_type": "remote_chatgpt",
-        "capability": null,
-        "claimants": [
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "prompt_payload_field": "prompt",
-        "pycore_local_label": "remote_chatgpt",
-        "ui": {
-          "icon": "💭",
-          "badge": "CHATGPT",
-          "summary_label": "待 ChatGPT 对话",
-          "color": "#10a37f"
-        }
-      },
-      {
-        "key": "word_validity",
-        "label": "Word Validity",
-        "execution_type": "remote_validity",
-        "capability": null,
-        "claimants": [
-          "chrome"
-        ],
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_validity",
-        "ui": {
-          "icon": "✅",
-          "badge": "VALIDITY",
-          "summary_label": "待有效检测",
-          "color": "#22c55e"
-        }
-      },
-      {
-        "key": "stt",
-        "label": "Speech to Text",
-        "execution_type": "remote_stt",
-        "capability": "stt",
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_stt",
-        "ui": {
-          "icon": "🎙️",
-          "badge": "STT",
-          "summary_label": "待语音识别",
-          "color": "#38bdf8"
-        }
-      },
-      {
-        "key": "audio_transcribe",
-        "label": "Audio Transcription",
-        "execution_type": "remote_stt",
-        "capability": "stt",
-        "ordering": "priority",
-        "interactive": false,
-        "pycore_local_label": "remote_stt",
-        "ui": {
-          "icon": "🎙️",
-          "badge": "STT",
-          "summary_label": "待音频转写",
-          "color": "#38bdf8"
-        }
-      }
-    ],
-    "history_buckets": {
-      "all": [
-        "word_audio",
-        "sentence_audio",
-        "article_audio",
-        "translation",
-        "assist",
-        "media_image"
-      ],
-      "exact_aliases": {
-        "word_translation": "translation",
-        "prompt_translation": "translation",
-        "google_translate": "translation",
-        "word-translation": "translation",
-        "ai_translate": "translation",
-        "gemini_image": "media_image",
-        "poster": "media_image"
-      },
-      "token_rules": [
-        {
-          "bucket": "word_audio",
-          "all": [
-            "word"
-          ],
-          "any": [
-            "tts",
-            "audio"
-          ]
-        },
-        {
-          "bucket": "sentence_audio",
-          "all": [
-            "sentence"
-          ],
-          "any": [
-            "tts",
-            "audio",
-            "prompt"
-          ]
-        },
-        {
-          "bucket": "article_audio",
-          "all": [
-            "article"
-          ],
-          "any": [
-            "tts",
-            "audio"
-          ]
-        },
-        {
-          "bucket": "translation",
-          "all": [],
-          "any": [
-            "translate",
-            "translation"
-          ]
-        },
-        {
-          "bucket": "assist",
-          "all": [],
-          "any": [
-            "assist"
-          ]
-        },
-        {
-          "bucket": "media_image",
-          "all": [],
-          "any": [
-            "media",
-            "image",
-            "cover",
-            "poster",
-            "screenshot",
-            "book"
-          ]
-        }
-      ],
-      "fallback": "assist"
-    }
+  "worker": {
+   "online": false,
+   "claimed": 0,
+   "ok": null,
+   "fail": null,
+   "last_heartbeat": null
   },
-  "categories": [
-    {
-      "key": "word_translation",
-      "label": "Word Translation (Chrome)",
-      "laravel_task_type": "word_translation",
-      "summary_task_type": "word_translation",
-      "capability": "translate",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "ai_translate",
-      "label": "AI Translate (Chrome)",
-      "laravel_task_type": "word_translation",
-      "summary_task_type": "word_translation",
-      "capability": "ai_translate",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "word_audio",
-      "label": "Word Audio",
-      "laravel_task_type": "word_audio",
-      "summary_task_type": "word_audio",
-      "capability": "audio",
-      "primary_handler": "pycore"
-    },
-    {
-      "key": "sentence_audio",
-      "label": "Sentence Audio",
-      "laravel_task_type": "sentence_audio",
-      "summary_task_type": "sentence_audio",
-      "capability": "sentence_audio",
-      "primary_handler": "pycore"
-    },
-    {
-      "key": "subtitle_search",
-      "label": "Subtitle Search",
-      "laravel_task_type": "subtitle_search",
-      "summary_task_type": "subtitle_search",
-      "capability": "subtitle",
-      "primary_handler": "pycore"
-    },
-    {
-      "key": "subtitle_lang",
-      "label": "Subtitle Add-Language",
-      "laravel_task_type": null,
-      "capability": "ai_translate",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "book_lang",
-      "label": "Book Add-Language",
-      "laravel_task_type": null,
-      "capability": "ai_translate",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "cover",
-      "label": "Vocabulary Cover",
-      "laravel_task_type": null,
-      "summary_task_type": "gemini_image",
-      "capability": "image",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "poster",
-      "label": "Media Poster",
-      "laravel_task_type": "poster",
-      "summary_task_type": "poster",
-      "capability": "poster",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "notebooklm",
-      "label": "NotebookLM",
-      "laravel_task_type": "notebooklm",
-      "summary_task_type": "notebooklm",
-      "capability": null,
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "gemini_image",
-      "label": "Gemini Image",
-      "laravel_task_type": "gemini_image",
-      "summary_task_type": "gemini_image",
-      "capability": "image",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "gemini_chat",
-      "label": "Gemini Chat",
-      "laravel_task_type": "gemini_chat",
-      "summary_task_type": "gemini_chat",
-      "capability": null,
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "chatgpt_chat",
-      "label": "ChatGPT Long-form Audio",
-      "laravel_task_type": "chatgpt_chat",
-      "summary_task_type": "chatgpt_chat",
-      "capability": null,
-      "primary_handler": "chrome"
-    }
+  "toggle": {
+   "requested_by": null,
+   "enabled": false,
+   "reason": null,
+   "graceful_stop": false,
+   "paused_by_user": null
+  },
+  "lifecycle": "off",
+  "error_code": null,
+  "last_error": null,
+  "age_s": null,
+  "stale": false
+ },
+ "capability_claimants": {
+  "translate": [
+   "chrome"
+  ],
+  "ai_translate": [
+   "chrome"
+  ],
+  "puter_translate": [
+   "chrome"
+  ],
+  "audio": [
+   "pycore"
+  ],
+  "image": [
+   "chrome"
+  ],
+  "sentence_audio": [
+   "pycore"
+  ],
+  "subtitle": [
+   "pycore"
+  ],
+  "poster": [
+   "chrome"
+  ],
+  "stt": [
+   "pycore"
   ]
+ },
+ "section_scopes": {
+  "assist_translation": {
+   "category": "assist_translation",
+   "category_keys": [
+    "word_translation",
+    "ai_translate",
+    "subtitle_search",
+    "subtitle_lang",
+    "book_lang"
+   ],
+   "queue_metrics": true
+  },
+  "word_audio": {
+   "category": "word_audio",
+   "category_keys": [
+    "word_audio"
+   ],
+   "queue_metrics": true
+  },
+  "sentence_audio": {
+   "category": "sentence_audio",
+   "category_keys": [
+    "sentence_audio"
+   ],
+   "queue_metrics": true
+  },
+  "media_image": {
+   "category": "media_image",
+   "category_keys": [
+    "cover",
+    "poster",
+    "gemini_image"
+   ],
+   "queue_metrics": true
+  }
+ },
+ "task_contract": {
+  "statuses": {
+   "values": {
+    "pending": "pending",
+    "assigned": "assigned",
+    "processing": "processing",
+    "completed": "completed",
+    "completed_demo": "completed_demo",
+    "failed": "failed",
+    "cancelled": "cancelled"
+   },
+   "all": [
+    "pending",
+    "assigned",
+    "processing",
+    "completed",
+    "completed_demo",
+    "failed",
+    "cancelled"
+   ],
+   "live": [
+    "pending",
+    "assigned",
+    "processing"
+   ],
+   "terminal": [
+    "completed",
+    "completed_demo",
+    "failed",
+    "cancelled"
+   ],
+   "worker_reportable": [
+    "processing",
+    "completed",
+    "failed"
+   ]
+  },
+  "events": {
+   "values": {
+    "assigned": "assigned",
+    "processing": "processing",
+    "completed": "completed",
+    "failed": "failed",
+    "timeout": "timeout",
+    "reclaimed": "reclaimed",
+    "cancelled": "cancelled"
+   },
+   "terminal": [
+    "completed",
+    "failed",
+    "cancelled"
+   ]
+  },
+  "stream_events": {
+   "initial": "task.detail-initial",
+   "transition": "task.event",
+   "ping": "ping",
+   "close": "stream.close"
+  },
+  "execution_types": {
+   "local_timer": "local_timer",
+   "remote_client": "remote_client",
+   "remote_compute": "remote_compute",
+   "remote_ocr": "remote_ocr",
+   "remote_translation": "remote_translation",
+   "remote_video": "remote_video",
+   "remote_io": "remote_io",
+   "remote_audio": "remote_audio",
+   "remote_notebooklm": "remote_notebooklm",
+   "remote_gemini": "remote_gemini",
+   "remote_gemini_text": "remote_gemini_text",
+   "remote_validity": "remote_validity",
+   "remote_fast": "remote_fast",
+   "remote_subtitle": "remote_subtitle",
+   "remote_poster": "remote_poster",
+   "remote_sentence_audio": "remote_sentence_audio",
+   "remote_stt": "remote_stt",
+   "remote_chatgpt": "remote_chatgpt"
+  },
+  "priorities": {
+   "default": 0,
+   "manual": 50,
+   "fast": 100,
+   "maximum": 1000
+  },
+  "progress_stages": {
+   "accepted": 1,
+   "synthesizing": 10,
+   "uploading": 80,
+   "finalizing": 95,
+   "completed": 100
+  },
+  "limits": {
+   "list_default": 20,
+   "list": 200,
+   "monitor": 100,
+   "worker_pull_default": 5,
+   "worker_pull": 100,
+   "completed": 500,
+   "long_poll_seconds": 30,
+   "history_records": 200,
+   "history_timeline": 50,
+   "event_batch": 200
+  },
+  "capability_labels": {
+   "audio": "Audio",
+   "image": "Image",
+   "translate": "Translate (Chrome)",
+   "sentence_audio": "Sentence Audio",
+   "ai_translate": "AI Translate (Chrome)",
+   "puter_translate": "Puter Translate",
+   "subtitle": "Subtitle",
+   "poster": "Poster",
+   "stt": "Speech to Text"
+  },
+  "capability_single_lanes": {
+   "translate": "remote_translation",
+   "audio": "remote_audio",
+   "image": "remote_gemini",
+   "subtitle": "remote_subtitle",
+   "poster": "remote_poster",
+   "sentence_audio": "remote_sentence_audio",
+   "stt": "remote_stt"
+  },
+  "fast_lane_capabilities": [
+   "translate",
+   "ai_translate",
+   "puter_translate",
+   "image"
+  ],
+  "chrome_capability_switches": {
+   "image": {
+    "storage_key": "tkCapImage",
+    "label": "Cover and poster search",
+    "hint": "Search and write back book covers and media posters through the shared browser worker",
+    "processors": [
+     "media_image"
+    ]
+   },
+   "gemini_image": {
+    "storage_key": "tkCapGeminiImage",
+    "label": "AI word-group cover generation",
+    "hint": "Generate vocabulary-library covers with Gemini and write them back to Laravel",
+    "processors": [
+     "remote_gemini"
+    ]
+   },
+   "validity": {
+    "storage_key": "tkCapValidity",
+    "label": "Word validity and translation",
+    "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
+    "processors": [
+     "bing_dictionary",
+     "word_validity_web"
+    ]
+   },
+   "notebooklm": {
+    "storage_key": "tkCapNotebooklm",
+    "label": "执行 NotebookLM 生成任务",
+    "hint": "Laravel NotebookLM queue to shared browser runtime with result write-back",
+    "processors": [
+     "remote_notebooklm"
+    ]
+   },
+   "chatgpt": {
+    "storage_key": "tkCapChatgpt",
+    "label": "执行 ChatGPT 长语音任务",
+    "hint": "ChatGPT web conversations with read-aloud audio capture and Laravel write-back",
+    "processors": [
+     "chatgpt_web"
+    ]
+   }
+  },
+  "wire_shapes": {
+   "create_result": [
+    "task_id",
+    "execution_type",
+    "queue_position",
+    "priority",
+    "is_fast_tier"
+   ],
+   "summary": [
+    "task_id",
+    "app_name",
+    "task_type",
+    "execution_type",
+    "status",
+    "progress",
+    "assigned_to",
+    "created_at",
+    "capability",
+    "queue_position",
+    "priority",
+    "is_fast_tier"
+   ],
+   "worker_pull": [
+    "task_id",
+    "app_name",
+    "task_type",
+    "execution_type",
+    "status",
+    "payload",
+    "timeout_seconds",
+    "retry_count",
+    "queue_position",
+    "priority",
+    "capability",
+    "is_fast_tier",
+    "created_at"
+   ],
+   "status": [
+    "task_id",
+    "app_name",
+    "task_type",
+    "execution_type",
+    "capability",
+    "is_fast_tier",
+    "status",
+    "queue_position",
+    "priority",
+    "progress",
+    "retry_count",
+    "max_retries",
+    "timeout_seconds",
+    "payload",
+    "result",
+    "error",
+    "assigned_to",
+    "assigned_at",
+    "timeout_at",
+    "completed_at",
+    "created_at",
+    "updated_at"
+   ],
+   "detail": [
+    "task_id",
+    "app_name",
+    "task_type",
+    "execution_type",
+    "capability",
+    "is_fast_tier",
+    "status",
+    "queue_position",
+    "priority",
+    "progress",
+    "payload",
+    "result",
+    "error",
+    "assigned_to",
+    "assigned_at",
+    "timeout_at",
+    "completed_at",
+    "created_at",
+    "updated_at"
+   ],
+   "event": [
+    "id",
+    "task_id",
+    "event",
+    "worker_id",
+    "attempt",
+    "detail",
+    "created_at"
+   ],
+   "detail_bundle": [
+    "task",
+    "events",
+    "current_phase",
+    "metadata"
+   ],
+   "current_phase": [
+    "phase",
+    "worker_id",
+    "elapsed_seconds"
+   ],
+   "detail_metadata": [
+    "total_attempts",
+    "max_retries",
+    "will_retry",
+    "estimated_timeout_in_seconds"
+   ],
+   "stats": [
+    "total",
+    "pending",
+    "assigned",
+    "processing",
+    "completed",
+    "completed_demo",
+    "failed",
+    "cancelled"
+   ],
+   "worker_registration": [
+    "worker_id",
+    "worker_name",
+    "processor_types",
+    "capabilities",
+    "hostname",
+    "platform",
+    "metadata",
+    "lease_capacity"
+   ],
+   "worker_result": [
+    "task_id",
+    "worker_id",
+    "attempt",
+    "status",
+    "progress",
+    "result",
+    "error"
+   ]
+  },
+  "task_types": [
+   {
+    "key": "word_translation",
+    "label": "Word Translation (Chrome)",
+    "execution_type": "remote_translation",
+    "capability": "translate",
+    "capability_mode": "selectable",
+    "capabilities": [
+     "translate",
+     "ai_translate",
+     "puter_translate"
+    ],
+    "ordering": "priority",
+    "interactive": true,
+    "fast_promotable": true,
+    "pycore_local_label": "remote_translation",
+    "ui": {
+     "icon": "🔤",
+     "badge": "TRANSLATE",
+     "summary_label": "待翻译任务",
+     "color": "#818cf8"
+    }
+   },
+   {
+    "key": "dictionary_explanation",
+    "label": "Dictionary Explanation",
+    "execution_type": "remote_client",
+    "capability": null,
+    "claimants": [
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_client",
+    "ui": {
+     "icon": "📖",
+     "badge": "DICTIONARY",
+     "summary_label": "待词典释义",
+     "color": "#2563eb"
+    }
+   },
+   {
+    "key": "dictionary_explanation_demo",
+    "label": "Dictionary Explanation Demo",
+    "execution_type": "remote_client",
+    "capability": null,
+    "claimants": [
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_client",
+    "ui": {
+     "icon": "🧪",
+     "badge": "DICTIONARY DEMO",
+     "summary_label": "待演示词典释义",
+     "color": "#3b82f6"
+    }
+   },
+   {
+    "key": "prompt_translation",
+    "label": "Prompt Translation",
+    "execution_type": "remote_translation",
+    "capability": null,
+    "claimants": [
+     "pycore",
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "text",
+    "pycore_local_label": "remote_translation",
+    "ui": {
+     "icon": "🌐",
+     "badge": "PROMPT",
+     "summary_label": "待提示词翻译",
+     "color": "#06b6d4"
+    }
+   },
+   {
+    "key": "word_audio",
+    "label": "Word Audio",
+    "execution_type": "remote_audio",
+    "capability": "audio",
+    "claimants": [
+     "pycore"
+    ],
+    "aliases": [
+     "word"
+    ],
+    "ordering": "queue_position",
+    "interactive": true,
+    "fast_promotable": false,
+    "pycore_local_label": "remote_audio",
+    "payload_limits": {
+     "text_max_chars": 200
+    },
+    "ui": {
+     "icon": "🔊",
+     "badge": "AUDIO",
+     "summary_label": "待生成语音",
+     "color": "#2dd4bf"
+    }
+   },
+   {
+    "key": "article_audio",
+    "label": "Article Audio",
+    "execution_type": "remote_audio",
+    "capability": "audio",
+    "claimants": [
+     "pycore",
+     "chrome"
+    ],
+    "aliases": [
+     "article"
+    ],
+    "ordering": "queue_position",
+    "interactive": false,
+    "fast_promotable": false,
+    "pycore_local_label": "remote_audio",
+    "payload_limits": {
+     "text_max_chars": 30000
+    },
+    "ui": {
+     "icon": "🔊",
+     "badge": "ARTICLE AUDIO",
+     "summary_label": "待文章语音",
+     "color": "#14b8a6"
+    }
+   },
+   {
+    "key": "sentence_audio",
+    "label": "Sentence Audio",
+    "execution_type": "remote_sentence_audio",
+    "capability": "sentence_audio",
+    "claimants": [
+     "pycore"
+    ],
+    "aliases": [
+     "sentence"
+    ],
+    "ordering": "queue_position",
+    "interactive": true,
+    "fast_promotable": false,
+    "pycore_local_label": "remote_sentence_audio",
+    "payload_limits": {
+     "text_max_chars": 2000
+    },
+    "ui": {
+     "icon": "🎧",
+     "badge": "SENTENCE",
+     "summary_label": "待句子音频",
+     "color": "#34d399"
+    },
+    "language_priority": [
+     "en"
+    ]
+   },
+   {
+    "key": "subtitle_search",
+    "label": "Subtitle Search",
+    "execution_type": "remote_subtitle",
+    "capability": "subtitle",
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_subtitle",
+    "ui": {
+     "icon": "💬",
+     "badge": "SUBTITLE",
+     "summary_label": "待字幕搜索",
+     "color": "#60a5fa"
+    }
+   },
+   {
+    "key": "poster",
+    "label": "Book / Media Cover",
+    "execution_type": "remote_poster",
+    "capability": "poster",
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_poster",
+    "ui": {
+     "icon": "🎬",
+     "badge": "COVER",
+     "summary_label": "待搜索封面与海报",
+     "color": "#fb7185"
+    }
+   },
+   {
+    "key": "notebooklm",
+    "label": "NotebookLM",
+    "execution_type": "remote_notebooklm",
+    "capability": null,
+    "claimants": [
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "question",
+    "pycore_local_label": "remote_notebooklm",
+    "ui": {
+     "icon": "📓",
+     "badge": "NOTEBOOK",
+     "summary_label": "待 NLM 处理",
+     "color": "#fbbf24"
+    }
+   },
+   {
+    "key": "gemini_image",
+    "label": "Gemini Image",
+    "execution_type": "remote_gemini",
+    "capability": "image",
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "prompt",
+    "pycore_local_label": "remote_image",
+    "ui": {
+     "icon": "🎨",
+     "badge": "IMAGE",
+     "summary_label": "待 AI 生图",
+     "color": "#c084fc"
+    }
+   },
+   {
+    "key": "gemini_chat",
+    "label": "Gemini Chat",
+    "execution_type": "remote_gemini_text",
+    "capability": null,
+    "claimants": [
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "question",
+    "pycore_local_label": "remote_gemini_text",
+    "ui": {
+     "icon": "💬",
+     "badge": "CHAT",
+     "summary_label": "待 AI 对话",
+     "color": "#f472b6"
+    }
+   },
+   {
+    "key": "chatgpt_chat",
+    "label": "ChatGPT Chat",
+    "execution_type": "remote_chatgpt",
+    "capability": null,
+    "claimants": [
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "prompt",
+    "pycore_local_label": "remote_chatgpt",
+    "ui": {
+     "icon": "💭",
+     "badge": "CHATGPT",
+     "summary_label": "待 ChatGPT 对话",
+     "color": "#10a37f"
+    }
+   },
+   {
+    "key": "word_validity",
+    "label": "Word Validity",
+    "execution_type": "remote_validity",
+    "capability": null,
+    "claimants": [
+     "chrome"
+    ],
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_validity",
+    "ui": {
+     "icon": "✅",
+     "badge": "VALIDITY",
+     "summary_label": "待有效检测",
+     "color": "#22c55e"
+    }
+   },
+   {
+    "key": "stt",
+    "label": "Speech to Text",
+    "execution_type": "remote_stt",
+    "capability": "stt",
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_stt",
+    "ui": {
+     "icon": "🎙️",
+     "badge": "STT",
+     "summary_label": "待语音识别",
+     "color": "#38bdf8"
+    }
+   },
+   {
+    "key": "audio_transcribe",
+    "label": "Audio Transcription",
+    "execution_type": "remote_stt",
+    "capability": "stt",
+    "ordering": "priority",
+    "interactive": false,
+    "pycore_local_label": "remote_stt",
+    "ui": {
+     "icon": "🎙️",
+     "badge": "STT",
+     "summary_label": "待音频转写",
+     "color": "#38bdf8"
+    }
+   }
+  ],
+  "history_buckets": {
+   "all": [
+    "word_audio",
+    "sentence_audio",
+    "article_audio",
+    "translation",
+    "assist",
+    "media_image"
+   ],
+   "exact_aliases": {
+    "word_translation": "translation",
+    "prompt_translation": "translation",
+    "google_translate": "translation",
+    "word-translation": "translation",
+    "ai_translate": "translation",
+    "gemini_image": "media_image",
+    "poster": "media_image"
+   },
+   "token_rules": [
+    {
+     "bucket": "word_audio",
+     "all": [
+      "word"
+     ],
+     "any": [
+      "tts",
+      "audio"
+     ]
+    },
+    {
+     "bucket": "sentence_audio",
+     "all": [
+      "sentence"
+     ],
+     "any": [
+      "tts",
+      "audio",
+      "prompt"
+     ]
+    },
+    {
+     "bucket": "article_audio",
+     "all": [
+      "article"
+     ],
+     "any": [
+      "tts",
+      "audio"
+     ]
+    },
+    {
+     "bucket": "translation",
+     "all": [],
+     "any": [
+      "translate",
+      "translation"
+     ]
+    },
+    {
+     "bucket": "assist",
+     "all": [],
+     "any": [
+      "assist"
+     ]
+    },
+    {
+     "bucket": "media_image",
+     "all": [],
+     "any": [
+      "media",
+      "image",
+      "cover",
+      "poster",
+      "screenshot",
+      "book"
+     ]
+    }
+   ],
+   "fallback": "assist"
+  }
+ },
+ "categories": [
+  {
+   "key": "word_translation",
+   "label": "Word Translation (Chrome)",
+   "laravel_task_type": "word_translation",
+   "summary_task_type": "word_translation",
+   "capability": "translate",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "ai_translate",
+   "label": "AI Translate (Chrome)",
+   "laravel_task_type": "word_translation",
+   "summary_task_type": "word_translation",
+   "capability": "ai_translate",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "word_audio",
+   "label": "Word Audio",
+   "laravel_task_type": "word_audio",
+   "summary_task_type": "word_audio",
+   "capability": "audio",
+   "primary_handler": "pycore"
+  },
+  {
+   "key": "sentence_audio",
+   "label": "Sentence Audio",
+   "laravel_task_type": "sentence_audio",
+   "summary_task_type": "sentence_audio",
+   "capability": "sentence_audio",
+   "primary_handler": "pycore"
+  },
+  {
+   "key": "subtitle_search",
+   "label": "Subtitle Search",
+   "laravel_task_type": "subtitle_search",
+   "summary_task_type": "subtitle_search",
+   "capability": "subtitle",
+   "primary_handler": "pycore"
+  },
+  {
+   "key": "subtitle_lang",
+   "label": "Subtitle Add-Language",
+   "laravel_task_type": null,
+   "capability": "ai_translate",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "book_lang",
+   "label": "Book Add-Language",
+   "laravel_task_type": null,
+   "capability": "ai_translate",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "cover",
+   "label": "Vocabulary Cover",
+   "laravel_task_type": null,
+   "summary_task_type": "gemini_image",
+   "capability": "image",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "poster",
+   "label": "Media Poster",
+   "laravel_task_type": "poster",
+   "summary_task_type": "poster",
+   "capability": "poster",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "notebooklm",
+   "label": "NotebookLM",
+   "laravel_task_type": "notebooklm",
+   "summary_task_type": "notebooklm",
+   "capability": null,
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "gemini_image",
+   "label": "Gemini Image",
+   "laravel_task_type": "gemini_image",
+   "summary_task_type": "gemini_image",
+   "capability": "image",
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "gemini_chat",
+   "label": "Gemini Chat",
+   "laravel_task_type": "gemini_chat",
+   "summary_task_type": "gemini_chat",
+   "capability": null,
+   "primary_handler": "chrome"
+  },
+  {
+   "key": "chatgpt_chat",
+   "label": "ChatGPT Long-form Audio",
+   "laravel_task_type": "chatgpt_chat",
+   "summary_task_type": "chatgpt_chat",
+   "capability": null,
+   "primary_handler": "chrome"
+  }
+ ]
 }

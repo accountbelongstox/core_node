@@ -147,17 +147,31 @@ class AudioQueueCenter:
         self.persist_snapshot(str(lane or "").strip(), source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
         return result
 
-    def apply_head_ticket(self, lane: str, task_id: Any, queue_position: int) -> bool:
+    def apply_head_ticket(
+        self,
+        lane: str,
+        task_id: Any,
+        queue_position: int,
+        dedup_key: Any = "",
+    ) -> bool:
         """M2 realtime: one Laravel ``{queue}_head`` ticket.
 
         Because wordnew notifies Laravel first, a head ticket DEFAULTS to
         landing in Part2. Whole-Queue dedup: an entry already held in Part1
         keeps its single front copy (the ticket never demotes it).
+
+        Resolution order: exact task_id first; when the ticket's Laravel
+        task_id has no local counterpart (the lane is filled by pycore's
+        full pull — local ``word-full-<md5>`` tasks), fall back to the
+        canonical dedup identity carried by the event
+        (``{language}:{md5}`` / ``{language}:{content_id}``).
         """
         queue = self.queue_for(lane)
         if queue is None:
             return False
         moved = queue.move_to_head(task_id, queue_position)
+        if not moved and str(dedup_key or "").strip():
+            moved = queue.move_to_head_by_dedup_key(dedup_key, queue_position)
         applier = (self._intake.get(str(lane or "").strip()) or {}).get("head_ticket_applier")
         if applier is not None:
             applier(task_id, int(queue_position or 0))

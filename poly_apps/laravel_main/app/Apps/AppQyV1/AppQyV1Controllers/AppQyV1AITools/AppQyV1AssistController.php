@@ -472,9 +472,10 @@ class AppQyV1AssistController extends Controller
         $fresh = (bool) $request->query('fresh', false);
 
         try {
-            // Fast path: return the pre-warmed cache immediately. A cold cache
-            // never blocks the HTTP worker; the Octane timer warms it every 20s.
-            // ?fresh=1 still forces a synchronous rebuild for explicit refresh.
+            // Fresh snapshots come straight from the shared cache; once a
+            // snapshot ages past the fresh window the request rebuilds it on
+            // demand (the warm timer is retired). ?fresh=1 always forces a
+            // synchronous rebuild for explicit refresh.
             $snapshot = $fresh
                 ? $this->assist->warmOverviewSnapshot()
                 : $this->assist->overviewSnapshotFast();

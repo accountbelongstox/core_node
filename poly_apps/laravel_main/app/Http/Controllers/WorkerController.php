@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
+use App\Services\QueueCenter\DictLane\DictLaneCatalog;
+use App\Services\QueueCenter\DictLane\DictLaneMaintenance;
+use App\Services\QueueCenter\DictLane\DictLaneQueueCenter;
 use App\Services\QueueCenter\QueueSliceDiffService;
 use App\Support\QueueCenterContract;
 use Illuminate\Http\Request;
@@ -242,6 +245,17 @@ class WorkerController extends Controller
                 $validated['capabilities'] ?? null
             );
         }
+
+        // Dict-lane live queues (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+        // the typed pull itself is the producer. Just-in-time claim rows
+        // materialize from the cached lane view (ms-level table probe; zero
+        // database reads when the dictionary table is unchanged), replacing
+        // the retired scanner timer tasks. On-demand maintenance replaces the
+        // 15s global maintenance poller and runs for every lane.
+        if (DictLaneCatalog::isDictLaneTaskType($taskType)) {
+            app(DictLaneQueueCenter::class)->ensureMaterialized($taskType, $limit);
+        }
+        DictLaneMaintenance::onPull($this->taskManager);
 
         $tasks = $this->taskManager->pullAndAssignTasksForWorker(
             $workerId,

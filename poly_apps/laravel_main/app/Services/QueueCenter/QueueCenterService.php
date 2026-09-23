@@ -181,6 +181,21 @@ class QueueCenterService
             $task = $head['task'];
         }
 
+        // Dict-lane live queue: keep the in-memory lane head in step with the
+        // head ticket so later lane serves/materializations see the same
+        // front order (the pycore notification itself rides the direct-emit
+        // head notification recorded above).
+        if ($taskType === self::QUEUE_WORD_AUDIO) {
+            $parts = explode(':', $dedupKey, 2);
+            if (count($parts) === 2 && $parts[0] !== '' && $parts[1] !== '') {
+                app(DictLane\DictLaneQueueCenter::class)->noteHeadMove(
+                    DictLane\DictLaneCatalog::LANE_WORD_AUDIO,
+                    $parts[0],
+                    $parts[1]
+                );
+            }
+        }
+
         return [
             'ok' => true,
             'task_id' => (string) $task->task_id,

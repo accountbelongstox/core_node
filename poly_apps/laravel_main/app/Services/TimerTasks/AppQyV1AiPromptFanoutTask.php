@@ -42,6 +42,17 @@ class AppQyV1AiPromptFanoutTask extends TaskManagerTimerTaskAbstract
         return 5;
     }
 
+    /**
+     * Disabled by default (2026-09-22, operator request): the fan-out was
+     * running_with_errors on the dashboard. Enable only via the user-data
+     * setting when the prompt-library submission flow is actively used.
+     */
+    public function isEnabled(): bool
+    {
+        return (bool) app(\App\Services\UserConfig\UserConfigService::class)
+            ->get('appqyv1_ai_prompt_fanout', false);
+    }
+
     public function exec(): void
     {
         $requests = AppQyV1AiPromptRequest::pendingBatch(self::REQUEST_BATCH_SIZE);

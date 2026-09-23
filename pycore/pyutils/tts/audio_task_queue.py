@@ -204,6 +204,36 @@ class AudioTaskQueue:
         return False
 
     @serialized_method
+    def move_to_head_by_dedup_key(self, dedup_key: Any, queue_position: int) -> bool:
+        """Apply one head ticket to the queued entry with this canonical dedup key.
+
+        Fallback of move_to_head for tickets whose Laravel task_id has no
+        local counterpart — e.g. the word_audio lane is filled by pycore's
+        full pull (local ``word-full-<md5>`` tasks), so a wordnew head
+        notification must be matched by its dedup identity
+        (``{language}:{md5}`` / ``{language}:{content_id}``). Same
+        whole-Queue semantics: the single existing copy keeps its part rank.
+        """
+        key = str(dedup_key or "").strip()
+        if not key or self._dedup_key_of is None:
+            return False
+        try:
+            position = int(queue_position)
+        except (TypeError, ValueError):
+            return False
+        for index, entry in enumerate(self._heap):
+            task = entry[-1]
+            if not isinstance(task, dict):
+                continue
+            if str(self._dedup_key_of(task) or "") != key:
+                continue
+            task["queue_position"] = position
+            self._heap[index] = (*self._order(task, entry[3]), task)
+            heapq.heapify(self._heap)
+            return True
+        return False
+
+    @serialized_method
     def claim_part1(self, dedup_keys: Set[str]) -> int:
         """INTERNAL: claim already-queued copies of the keys into Part1.
 

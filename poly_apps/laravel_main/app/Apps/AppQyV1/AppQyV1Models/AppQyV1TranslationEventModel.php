@@ -116,6 +116,20 @@ class AppQyV1TranslationEventModel extends AppQyV1Model
                         'error' => $exception->getMessage(),
                     ]);
                 }
+
+                // Direct-emit (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+                // publish in the same request that created the event — the 1s
+                // realtime_outbox_publish_task poller is decommissioned. The
+                // outbox row stays the durable journal: a failed publish is
+                // retried by the next emit (or the disabled safety-net poller).
+                try {
+                    app(\App\Services\Realtime\RealtimeOutboxPublisher::class)->publishPending();
+                } catch (\Throwable $exception) {
+                    Log::warning('[AppQyV1TranslationEvent] direct publish failed', [
+                        'event' => $event,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
             },
             $connectionName
         );

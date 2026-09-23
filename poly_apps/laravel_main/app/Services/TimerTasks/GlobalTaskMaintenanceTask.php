@@ -31,6 +31,21 @@ use App\Models\Worker;
  */
 class GlobalTaskMaintenanceTask extends TaskManagerTimerTaskAbstract
 {
+    /**
+     * DECOMMISSIONED (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md §2.5):
+     * lease recovery / offline-worker cleanup / priority aging now run
+     * on-demand inside the worker pull path (DictLaneMaintenance::onPull,
+     * throttled), and the slow janitor paths (terminal purge, never-assigned
+     * expiry, legacy retag, stale worker purge, zero-byte audio roll) run on
+     * its hourly slow slice. This class stays registered but disabled as an
+     * operator safety net; enable only via the user-data setting.
+     */
+    public function isEnabled(): bool
+    {
+        return (bool) app(\App\Services\UserConfig\UserConfigService::class)
+            ->get('global_task_maintenance_poller', false);
+    }
+
     // Retention policy: terminal tasks are transient bookkeeping (their real
     // output lives in the app tables, e.g. the dictionary rows), so they are
     // purged after a grace window. Failed tasks are kept longer for diagnosis.

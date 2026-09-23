@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Log;
 trait AppQyV1AssistOverview
 {
     public const OVERVIEW_SNAPSHOT_KEY = 'appqyv1:assist:overview_snapshot:v2';
-    /** Warm-published snapshot TTL; the Octane timer republishes every 20s. */
+    /** Freshness window: snapshots younger than this are served as-is. */
+    public const OVERVIEW_FRESH_TTL = 30;
+    /** Cache retention for the last good snapshot (stale fallback window). */
     public const OVERVIEW_STALE_TTL = 300;
 
     /**
@@ -39,11 +41,10 @@ trait AppQyV1AssistOverview
 
     /**
      * Synchronously rebuild the overview snapshot and store it in the shared
-     * cache. The Octane timer (AppQyV1OverviewWarmTask) calls this so HTTP
-     * readers never compute the aggregates themselves; ?fresh=1 requests may
-     * call it explicitly. Never route this through Cache::flexible: its
+     * cache. Called for ?fresh=1 requests and by the on-demand rebuild inside
+     * serveSnapshot(). Never route this through Cache::flexible: its
      * stale-while-revalidate refresh is a deferred callback that only runs
-     * inside an HTTP request lifecycle, so inside an Octane tick it would be
+     * inside an HTTP request lifecycle, so inside a non-HTTP tick it would be
      * discarded silently.
      */
     public function warmOverviewSnapshot(): array
@@ -122,39 +123,72 @@ trait AppQyV1AssistOverview
     }
 
     public const PENDING_SNAPSHOT_KEY = 'appqyv1:assist:pending_snapshot';
-    /** Warm-published snapshot TTL; the Octane timer republishes every 20s. */
-    public const PENDING_SNAPSHOT_STALE_TTL = 300;
 
     /**
-     * Return the overview snapshot from cache immediately. Never blocks on a
-     * cold aggregate build — if the cache is empty we return a degraded shell
-     * and let the Octane timer warm the real snapshot in the background.
+     * Serve a shared snapshot, rebuilding on demand once it ages past the
+     * fresh window. The warm timer is retired, so the first request past
+     * OVERVIEW_FRESH_TTL rebuilds synchronously; concurrent requests keep
+     * serving the last good snapshot via a short rebuild lock, and a failed
+     * rebuild falls back to the stale snapshot (or the degraded shell when no
+     * snapshot has ever been stored).
      */
-    public function overviewSnapshotFast(): array
+    private function serveSnapshot(string $key, callable $builder, array $degraded): array
     {
         $cache = $this->overviewCacheStore();
-        $snapshot = $cache->get(self::OVERVIEW_SNAPSHOT_KEY);
-        if (is_array($snapshot) && ($snapshot['success'] ?? false)) {
+        $snapshot = $cache->get($key);
+        $usable = is_array($snapshot) && isset($snapshot['generated_at']);
+        $age = $usable ? time() - strtotime((string) $snapshot['generated_at']) : null;
+
+        if ($usable && $age !== null && $age >= 0 && $age < self::OVERVIEW_FRESH_TTL) {
             $snapshot['cached'] = true;
             $snapshot['stale'] = false;
             return $snapshot;
         }
 
-        $empty = [
-            'success' => true,
-            'cached' => false,
-            'stale' => true,
-            'schema_version' => QueueCenterContract::schemaVersion(),
-            'generated_at' => now()->toIso8601String(),
-            'observed_at' => now()->toIso8601String(),
-            'categories' => QueueCenterContract::normalizeCategories([], []),
-            'workers' => [],
-        ];
+        if ($cache->add($key . ':rebuild', 1, self::OVERVIEW_FRESH_TTL)) {
+            try {
+                $built = $builder();
+                $this->putShared($key, $built, self::OVERVIEW_STALE_TTL);
+                $built['cached'] = false;
+                $built['stale'] = false;
+                return $built;
+            } catch (\Throwable $e) {
+                Log::error('[Assist] on-demand snapshot rebuild failed', [
+                    'key' => $key,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
-        // No warm snapshot yet. The Octane timer (AppQyV1OverviewWarmTask)
-        // rebuilds it every 20 seconds; this request must stay cheap, so it
-        // returns the degraded shell instead of computing the aggregates.
-        return $empty;
+        if ($usable) {
+            $snapshot['cached'] = true;
+            $snapshot['stale'] = true;
+            return $snapshot;
+        }
+
+        return $degraded;
+    }
+
+    /**
+     * Return the overview snapshot, fresh from cache when possible and
+     * rebuilt on demand otherwise (see serveSnapshot).
+     */
+    public function overviewSnapshotFast(): array
+    {
+        return $this->serveSnapshot(
+            self::OVERVIEW_SNAPSHOT_KEY,
+            fn () => $this->buildOverviewSnapshot(),
+            [
+                'success' => true,
+                'cached' => false,
+                'stale' => true,
+                'schema_version' => QueueCenterContract::schemaVersion(),
+                'generated_at' => now()->toIso8601String(),
+                'observed_at' => now()->toIso8601String(),
+                'categories' => QueueCenterContract::normalizeCategories([], []),
+                'workers' => [],
+            ]
+        );
     }
 
     /**
@@ -213,11 +247,10 @@ trait AppQyV1AssistOverview
     }
 
     /**
-     * Pending-work snapshot across the assist tracks. Same contract as the
-     * overview snapshot: HTTP readers get a pure cache read and a degraded
-     * shell until the Octane warm timer publishes (never a synchronous
-     * aggregate build on an HTTP worker); ?fresh=1 forces an explicit
-     * synchronous rebuild + store.
+     * Pending-work snapshot across the assist tracks. Same serving policy as
+     * the overview snapshot: fresh cache hit when possible, on-demand
+     * synchronous rebuild past the fresh window, degraded shell only when no
+     * snapshot has ever been built; ?fresh=1 forces an explicit rebuild.
      */
     public function pendingSnapshot(bool $fresh = false): array
     {
@@ -225,35 +258,38 @@ trait AppQyV1AssistOverview
             return $this->warmPendingSnapshot();
         }
 
-        $snapshot = $this->overviewCacheStore()->get(self::PENDING_SNAPSHOT_KEY);
-        if (is_array($snapshot) && isset($snapshot['cover'])) {
-            $snapshot['cached'] = true;
-            $snapshot['stale'] = false;
-            return $snapshot;
-        }
-
-        return [
-            'generated_at' => now()->toIso8601String(),
-            'enabled' => self::isAssistEnabled(),
-            'lease_minutes' => self::LEASE_MINUTES,
-            'cached' => false,
-            'stale' => true,
-            'cover' => ['pending' => 0, 'retry' => 0, 'processing' => 0, 'ready' => 0, 'failed' => 0, 'total' => 0, 'leased' => 0],
-            'tts' => ['pending' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0, 'leased' => 0],
-            'translation' => ['pending' => 0, 'leased' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0, 'total' => 0],
-            'poster' => ['pending' => 0, 'ready' => 0, 'failed' => 0, 'none' => 0, 'total' => 0, 'leased' => 0],
-        ];
+        return $this->serveSnapshot(
+            self::PENDING_SNAPSHOT_KEY,
+            fn () => $this->buildPendingSnapshot(),
+            [
+                'generated_at' => now()->toIso8601String(),
+                'enabled' => self::isAssistEnabled(),
+                'lease_minutes' => self::LEASE_MINUTES,
+                'cached' => false,
+                'stale' => true,
+                'cover' => ['pending' => 0, 'retry' => 0, 'processing' => 0, 'ready' => 0, 'failed' => 0, 'total' => 0, 'leased' => 0],
+                'tts' => ['pending' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0, 'leased' => 0],
+                'translation' => ['pending' => 0, 'leased' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0, 'total' => 0],
+                'poster' => ['pending' => 0, 'ready' => 0, 'failed' => 0, 'none' => 0, 'total' => 0, 'leased' => 0],
+            ]
+        );
     }
 
     /**
      * Synchronously rebuild the pending snapshot and store it in the shared
-     * cache. Called by the Octane warm timer; never via Cache::flexible (its
-     * deferred refresh is discarded outside the HTTP lifecycle — Octane
-     * ticks included).
+     * cache. Called for ?fresh=1 requests; the on-demand path stores via
+     * serveSnapshot instead.
      */
     public function warmPendingSnapshot(): array
     {
-        $snapshot = [
+        $snapshot = $this->buildPendingSnapshot();
+        $this->putShared(self::PENDING_SNAPSHOT_KEY, $snapshot, self::OVERVIEW_STALE_TTL);
+        return $snapshot;
+    }
+
+    private function buildPendingSnapshot(): array
+    {
+        return [
             'generated_at' => now()->toIso8601String(),
             'enabled' => self::isAssistEnabled(),
             'lease_minutes' => self::LEASE_MINUTES,
@@ -262,8 +298,6 @@ trait AppQyV1AssistOverview
             'translation' => $this->translationCounts(),
             'poster' => $this->posterCounts(),
         ];
-        $this->putShared(self::PENDING_SNAPSHOT_KEY, $snapshot, self::PENDING_SNAPSHOT_STALE_TTL);
-        return $snapshot;
     }
 
     public static function looksLikeImage(string $bytes): bool
