@@ -174,7 +174,7 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync',
-                'feature' => 'auth_required:dashboard.auth/GET|List persistent machine synchronization sessions with paired endpoint state|DataSyncController|response:sessions(array,Source and receiver sessions with counterpart endpoint/session snapshots)|tags:system,database,sync'
+                'feature' => 'auth_required:dashboard.auth/GET|List persistent machine synchronization sessions with paired endpoint state|DataSyncController|response:sessions(array,Source and receiver sessions with counterpart endpoint/session snapshots),machine_code(string,This node machine code for same-machine detection)|tags:system,database,sync'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync',
@@ -198,7 +198,7 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/health',
-                'feature' => 'no_auth_required/GET|Probe Laravel 13 machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . '),compression_available(boolean,System 7-Zip availability),default_port(int,Default peer port)|tags:system,sync,peer'
+                'feature' => 'no_auth_required/GET|Probe Laravel 13 machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . '),compression_available(boolean,System 7-Zip availability),default_port(int,Default peer port),machine_code(string,Machine code for same-machine detection)|tags:system,sync,peer'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/prepare',

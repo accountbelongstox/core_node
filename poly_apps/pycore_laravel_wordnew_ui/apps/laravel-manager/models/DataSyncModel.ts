@@ -19,7 +19,7 @@ import { getSharedAuthToken } from '../../../core/integrations/laravel/transport
 import { StorageManager } from '../../../core/persistence';
 
 const WORKSPACE_TIMEOUT_MS = 5000;
-export const DATA_SYNC_PROTOCOL_VERSION = 3;
+export const DATA_SYNC_PROTOCOL_VERSION = 4;
 export const DATA_SYNC_PROTOCOL_MISMATCH_ERROR = 'DATA_SYNC_PROTOCOL_VERSION_MISMATCH';
 export const DATA_SYNC_PEER_UNREACHABLE_ERROR = 'DATA_SYNC_PEER_UNREACHABLE';
 export const DATA_SYNC_MAX_MANAGED_ENDPOINTS = 2;
@@ -70,6 +70,8 @@ export interface DataSyncWorkspaceError {
 export interface DataSyncWorkspace {
   endpoints: DataSyncManagedEndpoint[];
   sessions: ManagedDataSyncSession[];
+  /** Machine code per queried endpoint id (same machine = same code). */
+  machineCodes: Record<string, string>;
   errors: DataSyncWorkspaceError[];
 }
 
@@ -116,21 +118,27 @@ export class DataSyncModel {
     ];
     const results = await Promise.all(queryEndpoints.map(async (endpoint) => {
       try {
-        const sessions = await this.client(endpoint).getDataSyncSessions();
-        if (sessions.some((session) => session.protocol_version !== DATA_SYNC_PROTOCOL_VERSION)) {
+        const workspace = await this.client(endpoint).getDataSyncWorkspace();
+        if (workspace.sessions.some((session) => session.protocol_version !== DATA_SYNC_PROTOCOL_VERSION)) {
           throw new Error(DATA_SYNC_PROTOCOL_MISMATCH_ERROR);
         }
-        return { endpoint, sessions, error: null };
+        return { endpoint, workspace, error: null };
       } catch (error) {
         return {
           endpoint,
-          sessions: [] as DataSyncSession[],
+          workspace: { sessions: [] as DataSyncSession[], machine_code: undefined },
           error,
         };
       }
     }));
-    const merged = results.flatMap(({ endpoint, sessions: endpointSessions }) =>
-      endpointSessions.map((session) => ({
+    const machineCodes: Record<string, string> = {};
+    for (const { endpoint, workspace } of results) {
+      if (workspace.machine_code) {
+        machineCodes[endpoint.id] = workspace.machine_code;
+      }
+    }
+    const merged = results.flatMap(({ endpoint, workspace }) =>
+      workspace.sessions.map((session) => ({
         ...session,
         manager_endpoint: endpoint,
         manager_key: `${endpoint.id}:${session.id}`,
@@ -158,7 +166,7 @@ export class DataSyncModel {
         status: result.error instanceof DataSyncApiError ? result.error.status : undefined,
       }));
 
-    return { endpoints, sessions, errors };
+    return { endpoints, sessions, machineCodes, errors };
   }
 
   async start(endpointId: string, payload: DataSyncStartRequest): Promise<ManagedDataSyncSession> {
@@ -263,21 +271,25 @@ export class DataSyncModel {
   }
 
   /**
-   * The old and new servers must be two different machines. Registry matches
-   * compare by id; typed addresses compare by host with the loopback aliases
-   * folded together (mirrors the backend guard).
+   * The old and new servers must be two different machines. Compared by
+   * machine code — never by IP: loopback port-forwards and LAN addresses do
+   * not identify the answering machine. Falls back to registry identity only
+   * when a machine code is not known yet for one side.
    */
-  sameNode(first: DataSyncManagedEndpoint, second: DataSyncManagedEndpoint): boolean {
+  sameNode(first: DataSyncManagedEndpoint, second: DataSyncManagedEndpoint, machineCodes: Record<string, string> = {}): boolean {
     if (first.id === second.id) return true;
-    return this.hostKey(first.syncTarget) === this.hostKey(second.syncTarget);
+    const firstCode = machineCodes[first.id];
+    const secondCode = machineCodes[second.id];
+    if (firstCode && secondCode) return firstCode === secondCode;
+    return false;
   }
 
   /**
-   * Mutual reachability negotiation. The old server probes the new server
-   * first: when reachable, the new server is the externally reachable node
-   * and the old server packs + uploads (push). Otherwise the new server
-   * probes back; when it can reach the old server, the old server is the
-   * external node and serves its data for download (pull).
+   * Mutual reachability negotiation. A LAN or loopback new-server address is
+   * only meaningful from the browser's side (NAT, port forwards), so the old
+   * server never probes it: the new server downloads directly from the old
+   * server (pull). Public addresses probe forward (push) first, then backward
+   * (pull). Same-machine pairs are rejected by machine code.
    */
   async probeDirection(oldEndpointId: string, newServerInput: string): Promise<DataSyncDirectionProbe> {
     const oldServer = this.requireEndpoint(oldEndpointId);
@@ -285,8 +297,19 @@ export class DataSyncModel {
     if (!newServer) {
       throw new Error(DATA_SYNC_PEER_UNREACHABLE_ERROR);
     }
-    if (this.sameNode(oldServer, newServer)) {
-      throw new Error(DATA_SYNC_SAME_NODE_ERROR);
+
+    if (this.isPrivateAddress(newServer.syncTarget)) {
+      return {
+        direction: 'pull',
+        oldServer,
+        newServer,
+        forward: {
+          target: newServer.syncTarget,
+          reachable: false,
+          error: 'LAN address: the old server is not probed; the new server downloads directly.',
+        },
+        backward: null,
+      };
     }
 
     const forward = await this.client(oldServer)
@@ -297,6 +320,9 @@ export class DataSyncModel {
         error: error instanceof Error ? error.message : '',
       }));
     if (forward.reachable) {
+      if (forward.same_machine === true) {
+        throw new Error(DATA_SYNC_SAME_NODE_ERROR);
+      }
       return { direction: 'push', oldServer, newServer, forward, backward: null };
     }
 
@@ -308,10 +334,32 @@ export class DataSyncModel {
         error: error instanceof Error ? error.message : '',
       }));
     if (backward.reachable) {
+      if (backward.same_machine === true) {
+        throw new Error(DATA_SYNC_SAME_NODE_ERROR);
+      }
       return { direction: 'pull', oldServer, newServer, forward, backward };
     }
 
     throw new Error(DATA_SYNC_PEER_UNREACHABLE_ERROR);
+  }
+
+  /** Loopback, RFC1918, and IPv6 ULA addresses are only LAN-reachable. */
+  private isPrivateAddress(address: string): boolean {
+    let host: string;
+    try {
+      host = new URL(address).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    } catch {
+      return false;
+    }
+    if (host === 'localhost' || host === '::1') return true;
+    if (/^fc/i.test(host) || /^fd/i.test(host)) return true;
+    const parts = host.split('.').map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+      return false;
+    }
+    if (parts[0] === 10 || parts[0] === 127) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    return parts[0] === 192 && parts[1] === 168;
   }
 
   async refresh(session: ManagedDataSyncSession): Promise<ManagedDataSyncSession> {
@@ -366,15 +414,6 @@ export class DataSyncModel {
     const peerAuth = this.peerAuth(endpoint.id);
     if (peerAuth) return `Bearer ${peerAuth.token}`;
     return endpoint.current ? getSharedAuthToken() : null;
-  }
-
-  private hostKey(address: string): string {
-    try {
-      const host = new URL(address).hostname.toLowerCase().replace(/^\[|\]$/g, '');
-      return host === 'localhost' || host === '127.0.0.1' || host === '::1' ? 'loopback' : host;
-    } catch {
-      return address.toLowerCase();
-    }
   }
 
   private normalizeAdhocAddress(input: string): string | null {

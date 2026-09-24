@@ -155,6 +155,7 @@ final class DataSyncStateStore
             'resource_checkpoint_count' => $context['resource_checkpoint_count']
                 ?? (isset($context['resource_checkpoints']) ? count($context['resource_checkpoints']) : null),
             'received' => $context['received'] ?? null,
+            'cancel_requested' => $context['cancel_requested'] ?? null,
             'ready' => $context['ready'] ?? null,
             'finalized' => $context['finalized'] ?? null,
             'receiver_status' => $context['receiver_status'] ?? ($context['receiver']['status'] ?? null),

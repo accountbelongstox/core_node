@@ -50,13 +50,13 @@ final class ResourceSyncService
         return PHP_OS_FAMILY === 'Windows' ? strtolower($normalized) : $normalized;
     }
 
-    public function manifest(string $key): array
+    public function manifest(string $key, ?callable $shouldAbort = null): array
     {
         $root = $this->root($key);
         return [
             'key' => $key,
             'root' => $root,
-            'files' => FileSystemManager::fileManifest($root),
+            'files' => FileSystemManager::fileManifest($root, $shouldAbort),
         ];
     }
 

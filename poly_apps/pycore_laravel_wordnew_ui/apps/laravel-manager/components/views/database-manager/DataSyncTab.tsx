@@ -112,6 +112,7 @@ export const DataSyncTab: React.FC = () => {
   const [resources, setResources] = useState(true);
   const [compression, setCompression] = useState(false);
   const [sessions, setSessions] = useState<ManagedDataSyncSession[]>([]);
+  const [machineCodes, setMachineCodes] = useState<Record<string, string>>({});
   const [selectedKey, setSelectedKey] = useState('');
   const [pendingTarget, setPendingTarget] = useState('');
   const [busy, setBusy] = useState(false);
@@ -134,8 +135,10 @@ export const DataSyncTab: React.FC = () => {
     () => (newServerInput.trim() === '' ? null : dataSyncModel.resolveNewServer(newServerInput)),
     [newServerInput, peerAuthVersion],
   );
-  // The pair must span two machines: probing or syncing a node onto itself is rejected.
-  const sameNodeSelected = Boolean(oldEndpoint && newServerNode && dataSyncModel.sameNode(oldEndpoint, newServerNode));
+  // The pair must span two machines: probing or syncing a node onto itself is
+  // rejected. Compared by machine code — IPs cannot tell machines apart
+  // behind loopback port-forwards or LAN addresses.
+  const sameNodeSelected = Boolean(oldEndpoint && newServerNode && dataSyncModel.sameNode(oldEndpoint, newServerNode, machineCodes));
   // The session view follows the selected pair (old server dropdown + new
   // server input), never window.location: only sessions owned by those two
   // endpoints are listed or auto-selected.
@@ -244,6 +247,7 @@ export const DataSyncTab: React.FC = () => {
     const workspace = await dataSyncModel.workspace();
     setEndpoints(workspace.endpoints);
     setSessions(workspace.sessions);
+    setMachineCodes(workspace.machineCodes);
     setSelectedKey((current) => {
       const [oldId, newId] = pairIdsRef.current;
       const pool = workspace.sessions.filter((session) =>
@@ -625,6 +629,10 @@ export const DataSyncTab: React.FC = () => {
                 <ArrowRightLeft className="w-4 h-4" />{t('dbSync.bindTarget')}
               </button>
             </div>
+          )}
+
+          {selected.context?.cancel_requested && (
+            <AlertBox variant="warning" icon={false}>{t('dbSync.cancelling')}</AlertBox>
           )}
 
           {selected.context?.local_manifest && (

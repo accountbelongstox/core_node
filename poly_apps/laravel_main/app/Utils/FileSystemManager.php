@@ -336,7 +336,7 @@ class FileSystemManager
         return hash_file($algorithm, $mappedPath);
     }
 
-    public static function fileManifest(string $rootPath): array
+    public static function fileManifest(string $rootPath, ?callable $shouldAbort = null): array
     {
         $mappedRoot = self::mapExternalPath($rootPath);
         $manifest = [];
@@ -352,6 +352,9 @@ class FileSystemManager
         );
 
         foreach ($iterator as $file) {
+            if ($shouldAbort !== null) {
+                $shouldAbort();
+            }
             if (!$file->isFile() || !$file->isReadable()) {
                 continue;
             }

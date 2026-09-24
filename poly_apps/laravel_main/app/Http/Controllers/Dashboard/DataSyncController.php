@@ -21,7 +21,10 @@ final class DataSyncController extends Controller
 
     public function index(): JsonResponse
     {
-        return $this->success(['sessions' => $this->service->list()]);
+        return $this->success([
+            'sessions' => $this->service->list(),
+            'machine_code' => $this->service->machineCode(),
+        ]);
     }
 
     public function show(string $id): JsonResponse

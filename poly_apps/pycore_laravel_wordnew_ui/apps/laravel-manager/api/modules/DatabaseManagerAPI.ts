@@ -115,6 +115,7 @@ export interface DataSyncSessionSnapshot {
   context?: {
     source_job_id?: string;
     awaiting_target?: boolean;
+    cancel_requested?: boolean;
     local_manifest?: {
       databases?: number;
       tables?: number;
@@ -168,7 +169,14 @@ export interface DataSyncProbeResult {
     protocol_version?: number;
     compression_available?: boolean;
     default_port?: number;
+    machine_code?: string;
   };
+  /** Machine code of the probing node itself. */
+  machine_code?: string | null;
+  /** Machine code of the probed peer, when it answered. */
+  peer_machine_code?: string | null;
+  /** True when both ends answer with the same machine code (same machine). */
+  same_machine?: boolean | null;
   error?: string;
 }
 
@@ -371,12 +379,13 @@ export class DatabaseManagerAPI extends BaseAPI {
     await this.downloadBlob(url, filename || `backup_${id}`);
   }
 
-  async getDataSyncSessions(): Promise<DataSyncSession[]> {
-    const res = await this.get<{ sessions: DataSyncSession[] }>('sync');
+  async getDataSyncWorkspace(): Promise<{ sessions: DataSyncSession[]; machine_code?: string }> {
+    const res = await this.get<{ sessions: DataSyncSession[]; machine_code?: string }>('sync');
     if (!res.success || !res.data) {
       throw this.syncFailure(res);
     }
-    return (res.data as { sessions: DataSyncSession[] }).sessions ?? [];
+    const data = res.data as { sessions: DataSyncSession[]; machine_code?: string };
+    return { sessions: data.sessions ?? [], machine_code: data.machine_code };
   }
 
   async startDataSync(payload: DataSyncStartRequest): Promise<DataSyncSession> {

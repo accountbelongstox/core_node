@@ -18,7 +18,8 @@ final class DataSyncService
         private readonly DataSyncTransferPlanStore $plans,
         private readonly DataSyncReceiptStore $receipts,
         private readonly DataSyncPeerClient $peer,
-        private readonly DataSyncTopologyGuard $topology
+        private readonly DataSyncTopologyGuard $topology,
+        private readonly DataSyncMachineIdentity $machine
     ) {}
 
     public function start(string $target, bool $syncDatabases, bool $syncResources, bool $compression): array
@@ -29,8 +30,6 @@ final class DataSyncService
         if (!$syncDatabases && !$syncResources) {
             throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
         }
-
-        $this->assertNotSelfTarget($normalizedTarget);
 
         return $this->topology->run(function () use (
             $targetInput,
@@ -67,15 +66,25 @@ final class DataSyncService
      * Reachability probe used by the dashboard to negotiate the transfer
      * direction between two authenticated nodes. The first node that the
      * other Laravel can reach becomes the externally reachable server.
+     *
+     * Same-machine detection is by machine code, never by IP: loopback
+     * port-forwards and LAN addresses do not identify the answering machine.
+     * The response always carries this node's machine code plus the peer's
+     * (when it answered) so the dashboard can compare the two ends directly.
      */
     public function probeTarget(string $target): array
     {
         $normalizedTarget = $this->peer->normalizeAddress(trim($target));
-        // Probing a loopback/self address would always "succeed" (the node
-        // probes itself) and falsely negotiate a push onto itself.
-        $this->assertNotSelfTarget($normalizedTarget);
+        $probe = ['target' => $normalizedTarget] + $this->peer->healthProbe($normalizedTarget);
+        $probe['machine_code'] = $this->machine->code();
 
-        return ['target' => $normalizedTarget] + $this->peer->healthProbe($normalizedTarget);
+        $peerMachineCode = (string) ($probe['health']['machine_code'] ?? '');
+        $probe['peer_machine_code'] = $peerMachineCode !== '' ? $peerMachineCode : null;
+        $probe['same_machine'] = $peerMachineCode !== ''
+            ? hash_equals($this->machine->code(), $peerMachineCode)
+            : null;
+
+        return $probe;
     }
 
     /**
@@ -95,8 +104,6 @@ final class DataSyncService
         if (!$syncDatabases && !$syncResources) {
             throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
         }
-
-        $this->assertNotSelfTarget($normalizedTarget);
 
         return $this->topology->run(function () use (
             $targetInput,
@@ -138,7 +145,6 @@ final class DataSyncService
     {
         $targetInput = trim($target);
         $normalizedTarget = $this->peer->normalizeAddress($targetInput);
-        $this->assertNotSelfTarget($normalizedTarget);
 
         return $this->topology->run(fn (): array => $this->withSessionLock(
             $id,
@@ -234,16 +240,24 @@ final class DataSyncService
         try {
             return $this->withSessionLock($id, fn (): array => $this->applyCancel($id));
         } catch (\RuntimeException $exception) {
-            if (!in_array($exception->getMessage(), [
-                'The synchronization session is busy; retry the request.',
-                'The synchronization session has been cancelled.',
-            ], true)) {
+            if ($exception->getMessage() === 'The synchronization session has been cancelled.') {
+                // The lock wrapper applied the recorded cancel before throwing;
+                // the terminal state is already purged from the store, so the
+                // cancelled session is reported directly instead of the stale
+                // pre-cancel copy.
+                $job['status'] = 'failed';
+                $job['error'] = 'Synchronization session cancelled by the operator.';
+                return $this->publicJob($this->store->markCurrentStep($job, 'failed', $job['error']));
+            }
+            if ($exception->getMessage() !== 'The synchronization session is busy; retry the request.') {
                 throw $exception;
             }
             // Busy: the driver or the next peer call applies the recorded
             // cancel request at the next lock boundary; already-applied cancels
             // surface through the refreshed job state.
-            return $this->publicJob($this->store->get($id) ?? $job);
+            $job = $this->store->get($id) ?? $job;
+            $job['context']['cancel_requested'] = true;
+            return $this->publicJob($job);
         }
     }
 
@@ -263,6 +277,20 @@ final class DataSyncService
     private function cancelRequested(string $id): bool
     {
         return FileSystemManager::isFile($this->cancelFlagPath($id));
+    }
+
+    /**
+     * Abort hook for long-running discovery steps: throws as soon as the
+     * operator's cancel flag exists, so a cancel lands within the current
+     * table or file instead of after the whole inventory or manifest scan.
+     */
+    private function abortIfCancelRequested(string $id): callable
+    {
+        return function () use ($id): void {
+            if ($this->cancelRequested($id)) {
+                throw new DataSyncAbortException();
+            }
+        };
     }
 
     private function cancelFlagPath(string $id): string
@@ -306,6 +334,11 @@ final class DataSyncService
         return $cancelled;
     }
 
+    public function machineCode(): string
+    {
+        return $this->machine->code();
+    }
+
     public function health(): array
     {
         return [
@@ -313,6 +346,7 @@ final class DataSyncService
             'protocol_version' => DataSyncProtocol::VERSION,
             'compression_available' => SystemArchiveManager::available(),
             'default_port' => DataSyncProtocol::DEFAULT_PORT,
+            'machine_code' => $this->machine->code(),
         ];
     }
 
@@ -791,6 +825,8 @@ final class DataSyncService
                 }
                 try {
                     $this->advanceReceiver($receiver);
+                } catch (DataSyncAbortException) {
+                    $this->applyCancel($id);
                 } catch (\Throwable $exception) {
                     $receiver = $this->store->get($id) ?? $receiver;
                     $receiver['status'] = 'failed';
@@ -840,6 +876,8 @@ final class DataSyncService
                 }
                 try {
                     $this->advanceExporter($exporter);
+                } catch (DataSyncAbortException) {
+                    $this->applyCancel($id);
                 } catch (\Throwable $exception) {
                     $exporter = $this->store->get($id) ?? $exporter;
                     $exporter['status'] = 'failed';
@@ -880,7 +918,7 @@ final class DataSyncService
         }
 
         if ($key === 'discover_receiver_databases') {
-            $job['context']['inventory'] = $this->databases->inventory();
+            $job['context']['inventory'] = $this->databases->inventory($this->abortIfCancelRequested((string) $job['id']));
         } elseif ($key === 'backup_receiver_databases' && !empty($job['options']['databases'])) {
             $connections = DatabaseManagerService::physicalConnections();
             $backupIndex = count($job['context']['backups']);
@@ -1001,6 +1039,8 @@ final class DataSyncService
                 $job['completed_at'] = now()->toIso8601String();
             }
             $this->store->markCurrentStep($job, 'completed', $result['detail']);
+        } catch (DataSyncAbortException) {
+            $this->applyCancel((string) $job['id']);
         } catch (\Throwable $exception) {
             $job['status'] = 'failed';
             $job['error'] = $exception->getMessage();
@@ -1095,7 +1135,6 @@ final class DataSyncService
         }
 
         $job['target'] = $this->peer->normalizeAddress($input);
-        $this->assertNotSelfTarget($job['target']);
         $job['context']['awaiting_target'] = false;
         return $this->completed($this->store->save($job), $job['target']);
     }
@@ -1106,8 +1145,26 @@ final class DataSyncService
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
+        $this->assertDifferentMachine($response);
         $job['context']['peer_health'] = $response;
         return $this->completed($this->store->save($job));
+    }
+
+    /**
+     * The peer must answer with a different machine code than this node:
+     * syncing a machine onto itself would diff its own databases against
+     * themselves. Compared by machine code, never by IP — loopback
+     * port-forwards and LAN addresses do not identify the answering machine.
+     */
+    private function assertDifferentMachine(array $peerHealth): void
+    {
+        $peerMachineCode = (string) ($peerHealth['machine_code'] ?? '');
+        if ($peerMachineCode === '') {
+            return;
+        }
+        if (hash_equals($this->machine->code(), $peerMachineCode)) {
+            throw new \RuntimeException('The new server must be a different machine than this node.');
+        }
     }
 
     private function negotiateProtocol(array $job): array
@@ -1207,7 +1264,7 @@ final class DataSyncService
 
     private function refreshSourceDatabaseInventory(array $job): array
     {
-        $inventory = $this->databases->inventory();
+        $inventory = $this->databases->inventory($this->abortIfCancelRequested((string) $job['id']));
 
         $job['context']['source_inventory'] = $inventory;
         $job['context']['local_manifest'] = array_merge(
@@ -1556,7 +1613,7 @@ final class DataSyncService
         $byteCount = 0;
 
         foreach ($job['context']['resource_roots'] ?? [] as $key) {
-            $manifests[$key] = $this->resources->manifest($key)['files'];
+            $manifests[$key] = $this->resources->manifest($key, $this->abortIfCancelRequested((string) $job['id']))['files'];
             $fileCount += count($manifests[$key]);
             foreach ($manifests[$key] as $metadata) {
                 $byteCount += max(0, (int) ($metadata['size'] ?? 0));
@@ -1615,7 +1672,7 @@ final class DataSyncService
         }
         $manifests = [];
         foreach ($job['context']['resource_roots'] ?? [] as $key) {
-            $manifests[$key] = $this->resources->manifest($key)['files'];
+            $manifests[$key] = $this->resources->manifest($key, $this->abortIfCancelRequested((string) $job['id']))['files'];
         }
         $job['context']['receiver_resource_manifests'] = $manifests;
         return $this->completed($this->store->save($job));
@@ -1626,7 +1683,7 @@ final class DataSyncService
         if (empty($job['context']['resource_manifest_snapshot_ready'])) {
             $snapshotManifests = [];
             foreach ($job['context']['resource_roots'] ?? [] as $key) {
-                $snapshotManifests[$key] = $this->resources->manifest($key)['files'];
+                $snapshotManifests[$key] = $this->resources->manifest($key, $this->abortIfCancelRequested((string) $job['id']))['files'];
             }
             $job['context']['receiver_resource_manifests'] = $snapshotManifests;
             $job['context']['resource_manifest_snapshot_ready'] = true;
@@ -2042,95 +2099,6 @@ final class DataSyncService
         }
 
         return $signatures;
-    }
-
-    /**
-     * The new server must be a different machine than this node: syncing a
-     * node onto itself would diff its own databases against themselves.
-     * Compared by host, with the loopback aliases folded together. A loopback
-     * target always resolves back to this node (the sync protocol serves on
-     * this machine's own listeners), so it is rejected outright — the UI's
-     * sameNode() folds the same aliases. Hosts and domains this Laravel
-     * serves (service contract: laravelApi host keys, web domains, allowed
-     * hosts) are rejected too — targeting api.si.12gm.com from this machine
-     * is still self.
-     */
-    private function assertNotSelfTarget(?string $target): void
-    {
-        if ($target === null) {
-            return;
-        }
-
-        $targetHost = $this->hostKey($target);
-        if ($targetHost === 'loopback') {
-            throw new \InvalidArgumentException('The new server must be a different machine than this node.');
-        }
-
-        $selfUrl = trim((string) config('app.url'));
-        if ($selfUrl !== '' && $targetHost === $this->hostKey($selfUrl)) {
-            throw new \InvalidArgumentException('The new server must be a different machine than this node.');
-        }
-
-        foreach ($this->selfHostKeys() as $selfHost) {
-            if ($targetHost === $selfHost || str_ends_with($targetHost, '.' . $selfHost)) {
-                throw new \InvalidArgumentException('The new server must be a different machine than this node.');
-            }
-        }
-    }
-
-    /**
-     * Every host key this node answers on: the hosts in this node's own
-     * frankenphp route files (generated per machine at runtime — they are the
-     * authoritative "what does THIS node serve" list), each resolved to its
-     * IPs too (so the NAT'd public address behind api.si.12gm.com still
-     * matches), plus the machine's own interface addresses. The fleet-wide
-     * service contract is NOT used: it lists every machine's addresses.
-     * Best-effort: unreadable files or failed DNS simply shrink the set.
-     */
-    private function selfHostKeys(): array
-    {
-        $hosts = [];
-
-        foreach (glob(base_path('storage/frankenphp/routes/*.caddy')) ?: [] as $routeFile) {
-            $content = FileSystemManager::readFile($routeFile, false);
-            if (!is_string($content)) {
-                continue;
-            }
-            if (preg_match_all('/(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z0-9-]+|\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?(?=[\s,\{]|$)/mi', $content, $matches)) {
-                foreach ($matches[1] as $host) {
-                    $hosts[] = $host;
-                }
-            }
-        }
-
-        foreach (gethostbynamel(gethostname()) ?: [] as $ip) {
-            $hosts[] = $ip;
-        }
-
-        $keys = [];
-        foreach ($hosts as $host) {
-            $key = $this->hostKey((string) $host);
-            if ($key === '' || $key === '0.0.0.0') {
-                continue;
-            }
-            $keys[] = $key;
-            if (filter_var($key, FILTER_VALIDATE_IP) === false && $key !== 'loopback') {
-                $resolved = gethostbyname($key);
-                if ($resolved !== $key) {
-                    $keys[] = strtolower($resolved);
-                }
-            }
-        }
-
-        return array_values(array_unique($keys));
-    }
-
-    private function hostKey(string $address): string
-    {
-        $candidate = str_contains($address, '://') ? $address : 'http://' . $address;
-        $host = strtolower((string) parse_url($candidate, PHP_URL_HOST));
-
-        return in_array($host, ['localhost', '127.0.0.1', '::1'], true) ? 'loopback' : $host;
     }
 
     private function assertSourceTargetAvailable(?string $target, ?string $excludedId = null): void

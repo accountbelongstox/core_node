@@ -13,15 +13,21 @@ final class DatabaseSyncService
     public const CHUNK_ROWS = 250;
     public const CHUNK_JSON_BYTES = 4 * 1024 * 1024;
 
-    public function inventory(): array
+    public function inventory(?callable $shouldAbort = null): array
     {
         $inventory = [];
 
         foreach (DatabaseManagerService::physicalConnections() as $descriptor) {
+            if ($shouldAbort !== null) {
+                $shouldAbort();
+            }
             $connectionKey = (string) $descriptor['key'];
             $connectionName = (string) $descriptor['connection'];
             $tables = [];
             foreach (DatabaseManagerService::tables($connectionName) as $table) {
+                if ($shouldAbort !== null) {
+                    $shouldAbort();
+                }
                 $tableName = (string) $table['name'];
                 $tables[$tableName] = [
                     'name' => $tableName,
