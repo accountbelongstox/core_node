@@ -97,6 +97,8 @@ from pycore.pyctl.tts.word_audio_backend_progress import (
 )
 from pycore.pyctl.tts.laravel_audio_worker_state import (
     LaravelAudioWorkerStateMixin,
+    TASK_OUTCOME_COMPLETED,
+    TASK_OUTCOME_SKIPPED,
 )
 from pycore.pyctl.tts.laravel_audio_worker_execution import (
     LaravelAudioWorkerExecutionMixin,
@@ -123,7 +125,7 @@ _ENGINE_PROBE_TTL_S = 60.0
 def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     """Drain one synth lane; payload and result travel through THREAD_BUS."""
     worker = payload["worker"]
-    processed = succeeded = failed = 0
+    processed = succeeded = failed = skipped = 0
     while True:
         if worker._lane_halt_requested():
             break
@@ -131,22 +133,26 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
         if task is None:
             break
         processed += 1
-        success = False
         started = time.monotonic()
-        try:
-            success = worker._process_claimed(task)
+        outcome = worker._process_claimed(task)
+        if outcome == TASK_OUTCOME_SKIPPED:
+            # Claim rejected / duplicate dispatch: never synthesized, so the
+            # lifetime counters and backend progress stay untouched.
+            skipped += 1
+        else:
+            success = outcome == TASK_OUTCOME_COMPLETED
             if success:
                 succeeded += 1
             else:
                 failed += 1
-        finally:
             worker._record_task_result(success, time.monotonic() - started)
-            worker._log_cycle_task_result(task, success)
-            worker._queue.complete(task)
+        worker._log_cycle_task_result(task, outcome)
+        worker._queue.complete(task)
     return {
         "processed": processed,
         "succeeded": succeeded,
         "failed": failed,
+        "skipped": skipped,
     }
 
 
@@ -475,10 +481,29 @@ class BaseLaravelAudioWorker(
 
 
 
-    def _log_cycle_task_result(self, task: Dict[str, Any], success: bool) -> None:
+    def _log_cycle_task_result(self, task: Dict[str, Any], outcome: str) -> None:
         """Write one compact terminal line with canonical backend-table progress."""
         if self.LANE != "word":
             return
+        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        word = str(payload.get("word") or payload.get("content") or "").strip()
+        language = str(payload.get("language") or "en").strip().lower() or "en"
+        if outcome == TASK_OUTCOME_SKIPPED:
+            # The task was dropped before synthesis (claim rejected or
+            # duplicate dispatch): audit the drop without recording a result.
+            self._log_event(
+                "task_skipped",
+                str(task.get("_skip_reason") or "skipped before synthesis"),
+                {
+                    "task_id": task.get("task_id"),
+                    "word": word,
+                    "text": word,
+                    "language": language,
+                    "stage": "skipped",
+                },
+            )
+            return
+        success = outcome == TASK_OUTCOME_COMPLETED
         if bool(task.get("_delivery_staged")):
             self._log_event(
                 "delivery_staged",
@@ -492,9 +517,6 @@ class BaseLaravelAudioWorker(
             )
             return
         backend_progress = word_audio_backend_progress.record_result(success)
-        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
-        word = str(payload.get("word") or payload.get("content") or "").strip()
-        language = str(payload.get("language") or "en").strip().lower() or "en"
         provider = str(task.get("_terminal_provider") or "").strip()
         info: Dict[str, Any] = {
             "task_id": task.get("task_id"),
@@ -546,8 +568,19 @@ class BaseLaravelAudioWorker(
         )
 
     def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
-        """Re-align the lane heap with the synced backend pending claim order."""
+        """Re-align the lane heap with the synced backend pending claim order.
+
+        The ordered diff is authoritative: mirrored entries missing from it
+        were finished or claimed elsewhere, so they are pruned here — before
+        the drain would pop them into a doomed just-in-time claim (HTTP 409).
+        """
         self._queue.reorder(ordered_ids)
+        pruned = self._queue.prune_absent(ordered_ids)
+        if pruned:
+            ColorPrint.gray(
+                f"{self._log_prefix} pruned {pruned} queued task(s) "
+                "no longer pending on Laravel"
+            )
 
     def accept_task(
         self,
@@ -629,7 +662,7 @@ class BaseLaravelAudioWorker(
     def _drain_cycle(self) -> None:
         """One ordered drain cycle over the local dispatch heap. Runs on a
         background bus thread and is fully exception-safe."""
-        processed = succeeded = failed = 0
+        processed = succeeded = failed = skipped = 0
         try:
             if len(self._queue) == 0:
                 return
@@ -651,6 +684,7 @@ class BaseLaravelAudioWorker(
                     processed += int(result.get("processed") or 0)
                     succeeded += int(result.get("succeeded") or 0)
                     failed += int(result.get("failed") or 0)
+                    skipped += int(result.get("skipped") or 0)
             else:
                 while True:
                     if self._lane_halt_requested():
@@ -659,18 +693,19 @@ class BaseLaravelAudioWorker(
                     if task is None:
                         break
                     processed += 1
-                    success = False
                     started = time.monotonic()
-                    try:
-                        success = self._process_claimed(task)
+                    outcome = self._process_claimed(task)
+                    if outcome == TASK_OUTCOME_SKIPPED:
+                        skipped += 1
+                    else:
+                        success = outcome == TASK_OUTCOME_COMPLETED
                         if success:
                             succeeded += 1
                         else:
                             failed += 1
-                    finally:
                         self._record_task_result(success, time.monotonic() - started)
-                        self._log_cycle_task_result(task, success)
-                        self._queue.complete(task)
+                    self._log_cycle_task_result(task, outcome)
+                    self._queue.complete(task)
 
             if processed == 0:
                 return
@@ -688,10 +723,12 @@ class BaseLaravelAudioWorker(
                 f"{int(queue_progress.get('total') or 0)} "
                 f"succeeded={succeeded} failed={failed}"
             )
+            if skipped:
+                line += f" skipped={skipped}"
             (ColorPrint.green if failed == 0 else ColorPrint.yellow)(line)
             self._log_event(
                 "cycle_summary",
-                f"processed={processed} ok={succeeded} fail={failed}",
+                f"processed={processed} ok={succeeded} fail={failed} skipped={skipped}",
                 mirror=self.LANE != "word",
             )
         except Exception as e:  # noqa: BLE001 — never raise out of the cycle thread
@@ -820,5 +857,5 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     CONCURRENCY_LIMIT = 3
 
 
-laravel_word_audio_worker = LaravelWordAudioWorker(LARAVEL_WORKER_API_URL)
-laravel_sentence_audio_worker = LaravelSentenceAudioWorker(LARAVEL_WORKER_API_URL)
+laravel_word_audio_worker = LaravelWordAudioWorker()
+laravel_sentence_audio_worker = LaravelSentenceAudioWorker()

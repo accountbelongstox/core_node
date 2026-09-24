@@ -764,6 +764,14 @@ class LaravelEndpointManager:
             ColorPrint.green(f"[LaravelEndpoints] Selected {u} (probe in background)")
         else:
             self._resolved = u
+            # Browser-verified selection: skip the probe, but listeners (every
+            # Laravel worker registers one in worker_base) still need the
+            # endpoint-change edge to re-register immediately. Notify off the
+            # state-owner thread, same discipline as _finish_select.
+            start_bus_task(
+                lambda: self._notify_endpoint_changed(u),
+                thread_name="laravel-endpoint-notify",
+            )
             ColorPrint.green(f"[LaravelEndpoints] Selected verified UI endpoint {u}")
         return {"success": True,
                 "endpoints": self._endpoint_rows(endpoints, state["frontend_endpoints"]),

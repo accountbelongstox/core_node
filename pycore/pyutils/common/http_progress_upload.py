@@ -201,7 +201,7 @@ class HttpProgressClient:
         request = session.build_request(method, url, **request_options)
         content = HttpProgressContent(
             request.stream, int(request.headers.get("Content-Length") or 0),
-            transfer_id, request.url.path, report_progress if callbacks else None,
+            transfer_id, str(request.url), report_progress if callbacks else None,
             max(1, min(int(contract["chunk_bytes"]), int(contract["maximum_chunk_bytes"]))),
         )
         request.stream = httpx.Request(method, url, content=content).stream

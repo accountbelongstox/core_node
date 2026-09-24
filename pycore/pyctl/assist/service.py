@@ -10,7 +10,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import load_assist_settings, save_assist_settings
 from pycore.pyutils.common.service_config import (
-    LARAVEL_WORKER_API_URL,
     TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
 )
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime

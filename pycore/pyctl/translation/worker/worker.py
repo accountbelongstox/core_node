@@ -468,4 +468,4 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         }
 
 
-translation_worker_service = TranslationWorkerService(LARAVEL_WORKER_API_URL)
+translation_worker_service = TranslationWorkerService()

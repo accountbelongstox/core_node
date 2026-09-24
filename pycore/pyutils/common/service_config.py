@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Central code-backed service and worker configuration."""
 
+import os
 import time
 
 from pycore.pyfoundations.service_contract import service_domain
@@ -12,7 +13,10 @@ from pycore.pyfoundations.service_contract import service_domain
 PYSERVICE_STARTED_AT = time.time()
 PYSERVICE_STARTED_MONOTONIC = time.monotonic()
 
-LARAVEL_WORKER_API_URL = f"https://{service_domain('laravel_api')}"
+LARAVEL_WORKER_API_URL = (
+    os.environ.get("LARAVEL_WORKER_API_URL", "").strip().rstrip("/")
+    or f"https://{service_domain('laravel_api')}"
+)
 PYCORE_WORKER_INSTANCE = ""
 TRAY_BACKEND = "native"
 UI_ENABLE_TRAY = TRAY_BACKEND == "pyside"

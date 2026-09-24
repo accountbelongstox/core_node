@@ -36,6 +36,12 @@ function lastCheckedText(ep: LaravelApiEndpoint, t: (key: string) => string): st
   return ` · ${t('endpoint.checked')} ${when}`;
 }
 
+function actionErrorText(code: string, t: (key: string) => string): string {
+  if (code === 'MIXED_CONTENT_BLOCKED') return t('endpoint.blockedSwitch');
+  if (code === 'PYCORE_BIND_FAILED') return t('endpoint.pycoreBindFailed');
+  return code;
+}
+
 export type PcLaravelEndpointSwitcherVariant = 'embedded' | 'header';
 
 interface Props {
@@ -207,9 +213,7 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
               </button>
             </div>
             {actionError && (
-              <p className="text-[11px] text-amber-500 break-words">
-                {actionError === 'MIXED_CONTENT_BLOCKED' ? t('endpoint.blockedSwitch') : actionError}
-              </p>
+              <p className="text-[11px] text-amber-500 break-words">{actionErrorText(actionError, t)}</p>
             )}
             <p className="text-[10px] text-slate-400">{t('endpoint.hint')}</p>
           </div>

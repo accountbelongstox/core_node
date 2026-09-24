@@ -9,6 +9,8 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
+use App\Services\QueueCenter\QueueCenterService;
+use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
@@ -614,6 +616,43 @@ class AppQyV1DictionaryTTSCoordinator
         ], $meta));
 
         $entry->saveRecord();
+
+        $this->settleWordAudioQueueTask($entry, (string) ($meta['variant_key'] ?? ''));
+    }
+
+    /**
+     * Close the pending word_audio claim ticket for a word whose primary audio
+     * just landed (ANY path: worker report, Bing assist write-back, disk
+     * self-heal). Without this the ticket stays pending and every queue mirror
+     * keeps claiming and re-synthesizing a word that is already done (or 409s
+     * on a stale local copy). Only the primary variant settles the ticket; a
+     * leased (non-pending) ticket is left to its owner's result path.
+     */
+    private function settleWordAudioQueueTask(AppQyV1LangDictionaryModel $entry, string $variantKey): void
+    {
+        if ($variantKey !== '') {
+            return;
+        }
+        $lang = (string) ($entry->getLanguage() ?? '');
+        $md5 = (string) ($entry->md5 ?? '');
+        if ($lang === '' || $md5 === '') {
+            return;
+        }
+        try {
+            app(TaskManagerService::class)->settlePendingTaskByGroupKey(
+                'word_audio',
+                QueueCenterService::dedupKeyFor('word_audio', $lang, $md5),
+                'word audio persisted to the canonical row'
+            );
+        } catch (\Throwable $exception) {
+            // Best-effort: the canonical row is authoritative; a missed settle
+            // only costs one already_done claim cycle, never the audio itself.
+            Log::warning('[DictTTS] word_audio queue settle failed', [
+                'language' => $lang,
+                'md5' => $md5,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     public function markWordFailed(AppQyV1LangDictionaryModel $entry, string $langCode, string $error, string $by): void

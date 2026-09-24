@@ -78,7 +78,12 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       return;
     }
     await reload();
-    void pycoreApi.bindLaravelWorkerEndpoint(url).catch(() => undefined);
+    try {
+      const bind = (await pycoreApi.bindLaravelWorkerEndpoint(url)) as { success?: boolean } | null;
+      if (!bind?.success) setActionError('PYCORE_BIND_FAILED');
+    } catch {
+      setActionError('PYCORE_BIND_FAILED');
+    }
   }, [reload, switching]);
 
   const addUrl = useCallback(async (url: string) => {

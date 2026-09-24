@@ -7,11 +7,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
 )
-from pycore.pyctl.translation.worker.worker import translation_worker_service
-from pycore.pyctl.tts.laravel_audio_worker import (
-    laravel_sentence_audio_worker,
-    laravel_word_audio_worker,
-)
 
 
 def resolve_selected_endpoint_for_ui(*, monitor_reachable: bool = False) -> Optional[Dict[str, Any]]:
@@ -34,14 +29,16 @@ def resolve_selected_endpoint_for_ui(*, monitor_reachable: bool = False) -> Opti
 
 
 def bind_selected_endpoint_for_workers(base_url: str) -> Dict[str, Any]:
-    """Persist a frontend-selected endpoint and update local worker state."""
+    """Persist a frontend-selected endpoint and update local worker state.
+
+    select(probe=False) trusts the browser-verified endpoint and notifies
+    every registered endpoint-change listener (all Laravel workers register
+    one in worker_base), so no per-worker calls are needed here.
+    """
     normalized = str(base_url or "").strip().rstrip("/")
     if not normalized:
         return {"success": False, "error": "LARAVEL_ENDPOINT_REQUIRED"}
     selected = laravel_endpoint_manager.select(normalized, probe=False)
     if not selected.get("success"):
         return selected
-    translation_worker_service.on_endpoint_changed(normalized)
-    laravel_word_audio_worker.on_endpoint_changed(normalized)
-    laravel_sentence_audio_worker.on_endpoint_changed(normalized)
     return {"success": True, "endpoint": normalized}

@@ -24,6 +24,16 @@ from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 _QWEN_PROGRESS_EMIT_MIN_SECONDS = 5.0
 _QWEN_PROGRESS_HEARTBEAT_SECONDS = 60.0
 
+# Per-task drain outcome roles. A SKIPPED task never reached synthesis
+# (duplicate inflight dispatch, or a just-in-time Laravel claim rejected
+# because the row vanished / belongs to another worker), so it is NOT a
+# success: it must never touch the ok/fail counters, the average-duration
+# accounting, or the backend-table progress, and it logs task_skipped
+# instead of task_done.
+TASK_OUTCOME_COMPLETED = "completed"
+TASK_OUTCOME_FAILED = "failed"
+TASK_OUTCOME_SKIPPED = "skipped"
+
 
 class LaravelAudioWorkerStateMixin:
     """Own bounded worker state and task-shape normalization."""
@@ -121,7 +131,7 @@ class LaravelAudioWorkerStateMixin:
         # terminal successes are green; failures stay yellow.
         if kind.endswith("_fail") or kind in ("report_reject", "synth_error"):
             ColorPrint.yellow(line)
-        elif kind in ("progress", "idle"):
+        elif kind in ("progress", "idle", "task_skipped"):
             ColorPrint.gray(line)
         elif kind.endswith("_done"):
             ColorPrint.green(line)
@@ -599,4 +609,9 @@ class LaravelAudioWorkerStateMixin:
         )
 
 
-__all__ = ["LaravelAudioWorkerStateMixin"]
+__all__ = [
+    "LaravelAudioWorkerStateMixin",
+    "TASK_OUTCOME_COMPLETED",
+    "TASK_OUTCOME_FAILED",
+    "TASK_OUTCOME_SKIPPED",
+]
