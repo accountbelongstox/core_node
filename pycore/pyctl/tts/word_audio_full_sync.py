@@ -29,9 +29,9 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.common.queue_center_contract import task_language_priority
-from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_WORD_TTS_AUTO, user_data_store
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
@@ -110,7 +110,7 @@ class WordAudioFullSync:
                 return {"success": True, "running": True, "status": self.get_status()}
             self._running = True
         try:
-            result = self._pull_all(base_url or LARAVEL_WORKER_API_URL)
+            result = self._pull_all(base_url or laravel_endpoint_manager.get_active_base_url())
         except Exception as exc:  # noqa: BLE001 - startup/RPC entry never raises
             ColorPrint.yellow(f"[WordAudioFullSync] full pull failed: {exc}")
             result = {"success": False, "error": str(exc)}

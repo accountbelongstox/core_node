@@ -11,7 +11,6 @@ import platform
 from pathlib import Path
 
 from pycore.pyutils.common.service_config import (
-    LARAVEL_WORKER_API_URL,
     TRAY_BACKEND,
     TTS_SENTENCE_WORKER_CONCURRENCY,
     TTS_WORKER_CONCURRENCY,
@@ -107,10 +106,11 @@ class Config:
     UI_ENABLE_TRAY = UI_ENABLE_TRAY
 
     # ==================== Translation Worker (Laravel worker-API) ====================
-    # Base URL of the Laravel backend that receives result uploads.
+    # The worker-API base URL is NOT re-declared here: the single code default
+    # lives in pyutils/common/service_config.py (LARAVEL_WORKER_API_URL) and the
+    # user's persisted UI selection overrides it via the endpoint manager.
     # The UI pump dispatches tasks via RPC; pycore only processes them and posts
     # /tasks/result back (exchange-hub rule: no pull/claim/heartbeat from pycore).
-    LARAVEL_WORKER_API_URL = LARAVEL_WORKER_API_URL
     # Task lanes and capability values are loaded from
     # config/queue_center_contract.json by queue_center_contract.py. They are not
     # configurable here because Pycore, Laravel, both UIs, and mcp-chrome must

@@ -7,7 +7,7 @@ bridge) goes through here. Each request:
 
   * resolves the base URL via ``LaravelEndpointManager`` (or an explicit override),
   * times the round-trip,
-  * prints ``[laravel] METHOD /path -> STATUS (XXms) <body summary>`` via
+  * prints ``[laravel] METHOD https://host/path -> STATUS (XXms) <body summary>`` — always the FULL URL, scheme and host included — via
     ColorPrint (JSON bodies surface success/total/items/error; text truncated;
     binary reported as content-type + bytes) - so it lands
     in the ``pyservice.ps1``/``pyservice.sh`` terminal (the worker runs foreground
@@ -262,7 +262,7 @@ class LaravelClient:
             status = resp.status_code
             body_summary = "" if stream else _summarize_response(resp)
             if log_line:
-                line = f"[laravel] {method} {display_path} -> {status} ({ms:.0f}ms)"
+                line = f"[laravel] {method} {url} -> {status} ({ms:.0f}ms)"
                 if body_summary:
                     line += f" {body_summary}"
                 if status >= 400:
@@ -281,7 +281,7 @@ class LaravelClient:
             ms = (time.perf_counter() - started) * 1000.0
             err = _short_err(e)
             if log_line:
-                ColorPrint.red(f"[laravel] {method} {display_path} -> ERR ({ms:.0f}ms) {err}")
+                ColorPrint.red(f"[laravel] {method} {url} -> ERR ({ms:.0f}ms) {err}")
             laravel_http_recorder.notify({
                 "ts": time.time(), "method": method, "url": url, "path": display_path,
                 "params_summary": summary, "status": status, "ms": round(ms, 1),

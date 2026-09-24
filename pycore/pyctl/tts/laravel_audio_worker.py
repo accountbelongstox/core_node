@@ -857,5 +857,5 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     CONCURRENCY_LIMIT = 3
 
 
-laravel_word_audio_worker = LaravelWordAudioWorker(LARAVEL_WORKER_API_URL)
-laravel_sentence_audio_worker = LaravelSentenceAudioWorker(LARAVEL_WORKER_API_URL)
+laravel_word_audio_worker = LaravelWordAudioWorker()
+laravel_sentence_audio_worker = LaravelSentenceAudioWorker()
