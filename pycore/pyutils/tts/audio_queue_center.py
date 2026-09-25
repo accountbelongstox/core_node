@@ -224,25 +224,30 @@ class AudioQueueCenter:
                     tasks_by_key[key] = task
         if not keys:
             return {"success": False, "error": "no promotable items"}
-        self._part1_keys.setdefault(lane, set()).update(keys)
+        eligible_keys = {
+            key
+            for key in keys
+            if key in tasks_by_key or queue.has_dedup_key(key)
+        }
+        self._part1_keys.setdefault(lane, set()).update(eligible_keys)
         inserted = 0
         for key, task in tasks_by_key.items():
             if queue.has_dedup_key(key):
                 continue  # whole-Queue dedup: the ONE existing copy is claimed below
             if queue.push(task):
                 inserted += 1
-        claimed = queue.claim_part1(keys)
+        claimed = queue.claim_part1(eligible_keys)
         if wake:
             self._wake(lane, prefer_remote=True)
         ColorPrint.green(
-            f"[AudioQueue] {lane} local promote: part1_keys={len(keys)} "
+            f"[AudioQueue] {lane} local promote: part1_keys={len(eligible_keys)} "
             f"claimed={claimed} inserted={inserted}"
         )
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         return {
             "success": True,
             "lane": lane,
-            "promoted": len(keys),
+            "promoted": len(eligible_keys),
             "claimed": claimed,
             "inserted": inserted,
         }

@@ -40,7 +40,6 @@ from pycore.pyutils.tts.audio_delivery_outbox import (
 )
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
-from pycore.pyutils.tts.engine_policy import rotated_engine_exclusions
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path, save_to_cache
@@ -198,8 +197,14 @@ class LaravelAudioWorkerExecutionMixin:
                 return False, out_path, provider, f"invalid audio from {provider}: {why}", False
             return True, out_path, provider, "", False
 
-        # word / article: scratch output (the word lane also fills the word cache).
-        planned_engine = self._planned_engine() or "edge"
+        # Word cache hits remain reusable regardless of their historical
+        # provider. A cache miss must have been prepared by the Kokoro batch
+        # entry above; there is deliberately no per-word synthesis fallback.
+        planned_engine = (
+            runtime_profile.WORD_BATCH_ENGINE
+            if kind == "word"
+            else self._planned_engine() or "none"
+        )
         if kind == "word":
             # Unified any-provider cache: audio produced by ANY engine — the
             # audio-orchestration pipeline included — is reused, never
@@ -209,12 +214,20 @@ class LaravelAudioWorkerExecutionMixin:
                 ok_cache, _why = validate_mp3(str(cached_path))
                 if ok_cache:
                     return True, str(cached_path), planned_engine, "", False
+            return (
+                False,
+                "",
+                runtime_profile.WORD_BATCH_ENGINE,
+                "word audio requires Kokoro batch preparation",
+                False,
+            )
 
+        # Non-word lane scratch output.
         os.makedirs(self._tmp_dir, exist_ok=True)
         out_path = os.path.join(
             self._tmp_dir, f"{info.get('task_id')}_{info.get('md5') or 'audio'}.mp3"
         )
-        profile = self.PRIORITY_PROFILE if kind == "word" else "sentence"
+        profile = "sentence"
         result = tts_orchestrator.synthesize(
             info["text"],
             language,
@@ -222,16 +235,7 @@ class LaravelAudioWorkerExecutionMixin:
             accent=accent,
             gender=info.get("gender") or None,
             priority_profile=profile,
-            # Per-task deterministic rotation: parallel lanes begin on different
-            # engines so several local models synthesize different words at the
-            # same time (same-engine work still serializes on its lease).
-            excluded_engines=(
-                rotated_engine_exclusions(
-                    profile, language, f"{info.get('task_id')}:{info.get('md5') or info.get('word')}",
-                )
-                if kind == "word"
-                else ()
-            ),
+            excluded_engines=(),
         )
         provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
         if not result.get("success"):
@@ -239,15 +243,6 @@ class LaravelAudioWorkerExecutionMixin:
         ok, why = validate_mp3(out_path)
         if not ok:
             return False, out_path, provider, f"invalid audio from {provider}: {why}", True
-        if kind == "word":
-            save_to_cache(info["word"], language, provider, out_path)
-            cache_path = get_cache_path(info["word"], language, provider)
-            if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
-                try:
-                    os.remove(out_path)
-                except OSError:
-                    pass
-                return True, cache_path, provider, "", False
         return True, out_path, provider, "", True
 
     # -------------------- domain report endpoints (file transport) --------------------
@@ -743,7 +738,12 @@ class LaravelAudioWorkerExecutionMixin:
             claimed.append((task, started))
 
         try:
-            self._prepare_word_batch([task for task, _started in claimed])
+            try:
+                self._prepare_word_batch([task for task, _started in claimed])
+            except Exception as exc:  # noqa: BLE001 - fail the whole atomic batch
+                detail = self._short_err(exc)
+                for task, _started in claimed:
+                    task["_batch_audio_error"] = f"Kokoro batch synthesis failed: {detail}"
             for task, started in claimed:
                 outcome = (
                     TASK_OUTCOME_COMPLETED

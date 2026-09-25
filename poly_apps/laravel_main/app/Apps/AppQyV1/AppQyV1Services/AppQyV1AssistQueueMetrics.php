@@ -96,9 +96,10 @@ trait AppQyV1AssistQueueMetrics
     }
 
     /**
-     * word_audio (pycore lane) counts split by language. global_tasks
-     * task_type='word_audio' pending/processing PLUS dictionary rows missing
-     * audio per language. The by-language definition is EXACTLY the
+     * word_audio (pycore lane) counts split by language. The dictionary rows
+     * missing audio are the canonical total; live global_tasks states are
+     * bounded within that backlog for leased/processing presentation. The
+     * by-language definition is EXACTLY the
      * dictionary management filter `without_audio` (has_audio=false OR NULL —
      * AppQyV1LangDictionaryModel::managementFilter), so this card always
      * matches the Vocabulary "No audio" query and pycore's full pull.
