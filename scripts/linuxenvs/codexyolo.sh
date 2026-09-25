@@ -25,17 +25,11 @@ mcp_chrome_shared_artifact_path=""
 mcp_chrome_native_artifact_path=""
 mcp_chrome_extension_manifest_path=""
 mcp_chrome_register_script_path=""
-mcp_chrome_supervisor_script_path=""
-mcp_chrome_dev_log_path=""
 mcp_chrome_linux_common_dir=""
 mcp_chrome_gvar_common_path=""
-mcp_chrome_venv_python_common_path=""
 mcp_chrome_service_contract_common_path=""
-mcp_chrome_python_path=""
 mcp_chrome_url=""
 mcp_chrome_port=""
-mcp_chrome_port_ready=0
-mcp_chrome_port_wait_count=0
 mcp_chrome_needs_build=0
 mcp_chrome_enabled=0
 model="gpt-5.6-sol"
@@ -62,18 +56,13 @@ mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
 mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
 mcp_chrome_extension_manifest_path="$mcp_chrome_path/.output/build_extension/manifest.json"
 mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
-mcp_chrome_supervisor_script_path="$mcp_chrome_path/scripts/service_supervisor.py"
-mcp_chrome_dev_log_path="/tmp/mcp-chrome-codexyolo.log"
 mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
-mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
 mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
 source "$mcp_chrome_gvar_common_path"
-source "$mcp_chrome_venv_python_common_path"
 source "$mcp_chrome_service_contract_common_path"
 mcp_chrome_port="$(sc_require ports.mcp_chrome)"
 mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
-mcp_chrome_python_path="$VENV_PYTHON3"
 if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
     mcp_chrome_enabled=1
 fi
@@ -87,6 +76,7 @@ codex_args=(
     --config "plan_mode_reasoning_effort=\"$reasoning_effort\""
     --config "agents.default_subagent_model=\"$model\""
     --config "agents.default_subagent_reasoning_effort=\"$reasoning_effort\""
+    --config "tui.raw_output_mode=true"
 )
 
 for resume_argument in "$@"; do
@@ -207,25 +197,7 @@ fi
 
 codex mcp add chrome --url "$mcp_chrome_url"
 echo "[INFO] Chrome MCP registered in Codex."
-
-echo "[INFO] Ensuring the singleton Chrome MCP supervisor is running..."
-if [ "$mcp_chrome_needs_build" -eq 1 ] || [ "$mcp_chrome_port_ready" -eq 0 ]; then
-    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
-else
-    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
-fi
-while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 60 ]; do
-    sleep 0.5
-    if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
-        mcp_chrome_port_ready=1
-    fi
-    mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
-done
-if [ "$mcp_chrome_port_ready" -eq 1 ]; then
-    echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
-else
-    echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
-fi
+echo "[INFO] Chrome MCP supervisor startup skipped."
 else
     echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
 fi

@@ -689,6 +689,7 @@ class AudioDeliveryExecutor:
                     and str(info.get("kind") or "") in ("word", "sentence")
                 ),
             )
+            result_meta: Dict[str, Any] = {}
             posted = handler._post_result(
                 task_id,
                 "completed",
@@ -696,17 +697,31 @@ class AudioDeliveryExecutor:
                 progress=100,
                 attempts=1,
                 attempt=info.get("attempt"),
+                meta=result_meta,
             )
             if not posted:
                 ownership_lost = str(task_id) not in handler._task_type_by_id
-                if ownership_lost and domain_uploaded:
-                    # The completed-result POST was rejected 409 (the global
-                    # row is owned elsewhere or already finished — e.g. the
-                    # backend settled the claim ticket the moment this domain
-                    # report landed). The durable domain upload IS the
-                    # delivery: close the record as delivered instead of
-                    # dead-lettering audio that is already on the backend.
+                result_http_status = int(result_meta.get("http_status") or 0)
+                if result_http_status == 404 or (ownership_lost and domain_uploaded):
+                    # The completed-result POST was rejected for a terminal
+                    # ownership reason: 409 means the global row is owned
+                    # elsewhere or already finished, 404 means the row itself
+                    # is gone on the server (purged past the retention window
+                    # or the task was resurrected from a stale local mirror).
+                    # Retrying can never succeed, so the row is poison — settle
+                    # instead of dead-lettering. When the durable domain upload
+                    # already landed it IS the delivery; otherwise the audio
+                    # stays in the local persistent cache and fill-missing
+                    # re-delivers it if the task ever reappears.
                     result_accepted = True
+                    if not domain_uploaded:
+                        handler._append_delivery_failure_history(
+                            info,
+                            provider,
+                            audio_path,
+                            "completed result undeliverable: task row gone on the server (HTTP 404)",
+                            delivery_id,
+                        )
                     audio_delivery_outbox.patch(
                         delivery_id,
                         {"result_accepted": True, "last_error": ""},
@@ -714,7 +729,9 @@ class AudioDeliveryExecutor:
                     )
                     handler._log_event(
                         "result_settled",
-                        "global row already closed; durable domain upload stands",
+                        "global row already closed; durable domain upload stands"
+                        if domain_uploaded
+                        else "global row gone (404); audio retained in the local cache",
                         info,
                         mirror=handler.LANE != "word",
                     )
