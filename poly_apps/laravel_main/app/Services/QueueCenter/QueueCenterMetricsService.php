@@ -3,6 +3,8 @@
 namespace App\Services\QueueCenter;
 
 use App\Models\GlobalTask;
+use App\Services\QueueCenter\DictLane\DictLaneCatalog;
+use App\Services\QueueCenter\DictLane\DictLaneQueueCenter;
 use App\Support\QueueCenterContract;
 
 final class QueueCenterMetricsService
@@ -100,6 +102,23 @@ final class QueueCenterMetricsService
     public function liveQueue(string $taskType): array
     {
         $snapshot = $this->snapshot($taskType);
+        if ($taskType === QueueCenterService::QUEUE_WORD_AUDIO) {
+            $backlog = array_sum(
+                app(DictLaneQueueCenter::class)->counts(DictLaneCatalog::LANE_WORD_AUDIO)
+            );
+            $assigned = min($backlog, (int) ($snapshot['assigned'] ?? 0));
+            $processing = min(
+                max(0, $backlog - $assigned),
+                (int) ($snapshot['processing'] ?? 0)
+            );
+
+            return [
+                'pending' => max(0, $backlog - $assigned - $processing),
+                'assigned' => $assigned,
+                'processing' => $processing,
+                'total' => $backlog,
+            ];
+        }
 
         return [
             'pending' => (int) ($snapshot['pending'] ?? 0),

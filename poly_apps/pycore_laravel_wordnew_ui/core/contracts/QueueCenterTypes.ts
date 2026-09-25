@@ -345,6 +345,8 @@ export interface QueueCenterWordAudioFullSyncStatus {
     pulled?: number;
     inserted?: number;
     languages?: number;
+    stopped?: boolean;
+    source?: string;
     error?: string;
   };
   languages: Array<{

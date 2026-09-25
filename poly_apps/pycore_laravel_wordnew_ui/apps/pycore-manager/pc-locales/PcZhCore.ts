@@ -527,10 +527,10 @@ queueCenter: {
     },
     drawer: {
       open: '能力设置',
-      openTitle: '打开能力设置抽屉（引擎优先级 + 选项）',
+      openTitle: '打开能力设置与静态引擎策略',
       close: '关闭',
       title: '能力设置',
-      subtitle: '各能力的引擎优先级与选项。保存后在下次调度时即时生效。',
+      subtitle: '可编辑的引擎优先级，以及固定的 Kokoro/CPU 单词语音策略。',
       unavailable: '能力设置不可用 — pycore (:59000) 可能已离线。',
       loading: '正在加载能力设置…',
       reload: '重新加载能力设置',

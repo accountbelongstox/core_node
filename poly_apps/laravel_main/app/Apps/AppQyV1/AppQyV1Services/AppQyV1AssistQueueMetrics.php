@@ -111,18 +111,16 @@ trait AppQyV1AssistQueueMetrics
      */
     public function wordAudioCounts(): array
     {
-        $task = $this->globalTaskStatusCounts('word_audio');
-        $byLanguage = $this->dictionaryByLanguage('(has_audio = false OR has_audio IS NULL)');
-        $backlog = array_sum($byLanguage);
-        $leased = min($backlog, $task['leased']);
-        $processing = min(max(0, $backlog - $leased), $task['processing']);
-        $pending = max(0, $backlog - $leased - $processing);
+        $byLanguage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
+            ->counts(\App\Services\QueueCenter\DictLane\DictLaneCatalog::LANE_WORD_AUDIO);
+        $queue = app(\App\Services\QueueCenter\QueueCenterMetricsService::class)
+            ->liveQueue('word_audio');
 
         return [
-            'pending' => $pending,
-            'processing' => $processing,
-            'leased' => $leased,
-            'total' => $backlog,
+            'pending' => $queue['pending'],
+            'processing' => $queue['processing'],
+            'leased' => $queue['assigned'],
+            'total' => $queue['total'],
             'by_language' => $byLanguage,
             'sample' => $this->wordTaskSample('word_audio'),
         ];

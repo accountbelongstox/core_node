@@ -186,6 +186,7 @@ class AudioQueueCenter:
         lane: str,
         items: List[Dict[str, Any]],
         wake: bool = True,
+        source: str = audio_queue_cache.SOURCE_LOCAL_PROMOTE,
     ) -> Dict[str, Any]:
         """M3: pycore self-promotion — FILLS Part1 DIRECTLY.
 
@@ -243,7 +244,7 @@ class AudioQueueCenter:
             f"[AudioQueue] {lane} local promote: part1_keys={len(eligible_keys)} "
             f"claimed={claimed} inserted={inserted}"
         )
-        self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
+        self.persist_snapshot(lane, source=source)
         return {
             "success": True,
             "lane": lane,

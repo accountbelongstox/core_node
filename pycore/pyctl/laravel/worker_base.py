@@ -911,10 +911,13 @@ class BaseLaravelWorkerService:
 
     def _release_claimed_tasks(self, tasks: List[Dict[str, Any]]) -> None:
         """Return claimed-but-unstarted tasks to Laravel (best-effort, async)."""
+        remote_tasks = [task for task in tasks if not task.get("_local_source")]
+        if not remote_tasks:
+            return
         try:
             start_bus_task(
                 self._post_task_release,
-                tasks,
+                remote_tasks,
                 thread_name=f"{self.STATE_OWNER_NAME}Release",
             )
         except Exception as exc:  # noqa: BLE001 - release is best-effort

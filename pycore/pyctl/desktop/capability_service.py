@@ -51,7 +51,6 @@ from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_orchestrator import (
     default_tts_engine_priority,
     default_sentence_tts_priority,
-    default_word_tts_priority,
     get_edge_cooldown_seconds,
     invalidate_tts_status_cache,
     reload_tts_priority,
@@ -63,7 +62,6 @@ from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 from pycore.pyutils.translator.dictionary import dictionary_service
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
-    laravel_word_audio_worker,
 )
 
 from pycore.pyutils.tts.tts_service_manager import apply_server_settings
@@ -434,13 +432,10 @@ def post_capability_settings(capability: str, priority=None, options=None):
     try:
         if priority is not None:
             _save_priority(cap, priority)
-            if cap in ("tts", "sentence_tts", "word_tts"):
-                # reload_tts_priority() rebinds ALL THREE profiles, so a save to
-                # any one applies realtime to synthesize(priority_profile=...).
+            if cap in ("tts", "sentence_tts"):
+                # Reload the editable profiles for the next synthesis dispatch.
                 reload_tts_priority()
                 invalidate_tts_status_cache()
-                if cap in ("tts", "word_tts"):
-                    laravel_word_audio_worker.invalidate_engine_plan()
                 if cap in ("tts", "sentence_tts"):
                     laravel_sentence_audio_worker.invalidate_engine_plan()
             if cap == "tts":

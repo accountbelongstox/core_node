@@ -714,6 +714,10 @@ class LaravelAudioWorkerExecutionMixin:
                     runtime_profile.WORD_BATCH_ENGINE,
                 )
                 if os.path.exists(cache_path) and validate_mp3(cache_path)[0]:
+                    try:
+                        os.remove(output_path)
+                    except OSError:
+                        pass
                     task["_batch_audio_path"] = cache_path
                     task["_batch_audio_cleanup"] = False
                 else:

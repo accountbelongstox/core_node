@@ -485,6 +485,8 @@ export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordA
       pulled: lastResult.pulled == null ? undefined : toNumber(lastResult.pulled),
       inserted: lastResult.inserted == null ? undefined : toNumber(lastResult.inserted),
       languages: lastResult.languages == null ? undefined : toNumber(lastResult.languages),
+      stopped: lastResult.stopped == null ? undefined : toBoolean(lastResult.stopped),
+      source: toNullableString(lastResult.source) ?? undefined,
       error: toNullableString(lastResult.error) ?? undefined,
     },
     languages: rawLanguages

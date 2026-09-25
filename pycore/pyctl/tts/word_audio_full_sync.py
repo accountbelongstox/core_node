@@ -76,6 +76,7 @@ class WordAudioFullSync:
         self._last_sync_at: int = 0
         self._last_result: Dict[str, Any] = {}
         self._languages: List[Dict[str, Any]] = []
+        self._cache_source: str = ""
 
     # -------------------- status --------------------
 
@@ -90,10 +91,16 @@ class WordAudioFullSync:
             "last_result": dict(self._last_result),
             "languages": [dict(row) for row in self._languages],
             "cache_saved_at": cache_saved_at,
-            "cache_source": str(self._last_result.get("source") or ""),
+            "cache_source": self._cache_source,
             "cache_count": queue_count,
             "queue_count": queue_count,
         }
+
+    def record_cache_restore(self, result: Dict[str, Any]) -> None:
+        """Keep cache provenance aligned with the last restored snapshot."""
+        source = str(result.get("source") or "").strip()
+        if source:
+            self._cache_source = source
 
     # -------------------- full pull --------------------
 
@@ -124,6 +131,8 @@ class WordAudioFullSync:
         finally:
             self._running.set(False)
         self._last_result = dict(result)
+        if assist_capability_enabled("tts"):
+            audio_queue_center.request_pull(QUEUE_KEY)
         result["status"] = self.get_status()
         return result
 
@@ -183,7 +192,9 @@ class WordAudioFullSync:
             "inserted": total_inserted,
             "languages": len(per_language),
             "stopped": stopped,
+            "source": audio_queue_cache.SOURCE_FULL_SYNC,
         }
+        self._cache_source = audio_queue_cache.SOURCE_FULL_SYNC
         ColorPrint.green(
             f"[WordAudioFullSync] full pull done: pulled={total_pulled} "
             f"inserted={total_inserted} languages={len(per_language)}"
@@ -303,11 +314,11 @@ class WordAudioFullSync:
             })
         if not items:
             return {"success": True, "inserted": 0}
-        result = audio_queue_center.promote_local_head(QUEUE_KEY, items)
-        # Whole-Queue snapshot persisted (source=full_sync): head/dedup are
-        # already resolved by the library, so the cache is restart-ready.
-        audio_queue_center.persist_snapshot(
-            QUEUE_KEY, source=audio_queue_cache.SOURCE_FULL_SYNC
+        result = audio_queue_center.promote_local_head(
+            QUEUE_KEY,
+            items,
+            wake=False,
+            source=audio_queue_cache.SOURCE_FULL_SYNC,
         )
         return result
 
@@ -325,6 +336,7 @@ def activate_word_audio_queue() -> Dict[str, Any]:
     if not assist_capability_enabled("tts"):
         return {"success": False, "error": "WORD_AUDIO_DISABLED"}
     restored = audio_queue_center.restore_from_cache(QUEUE_KEY)
+    word_audio_full_sync.record_cache_restore(restored)
     if full_sync_on_start():
         word_audio_full_sync.start_background()
     audio_queue_center.request_pull(QUEUE_KEY)

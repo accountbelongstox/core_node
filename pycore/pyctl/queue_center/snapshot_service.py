@@ -697,14 +697,14 @@ class _QueueCenterSnapshotService:
             if metrics is not None:
                 contracts[scope]["queue"] = metrics
         contracts["word_audio"]["worker"].update({
-            "online": bool(word_audio.get("processor_enabled")),
+            "online": bool(controls["word_audio"]["running"]),
             "claimed": int((word_audio.get("worker") or {}).get("total_claimed") or 0),
             "ok": int((word_audio.get("worker") or {}).get("total_succeeded") or 0),
             "fail": int((word_audio.get("worker") or {}).get("total_failed") or 0),
         })
         contracts["word_audio"]["full_sync"] = word_audio_full_sync.get_status()
         contracts["sentence_audio"]["worker"].update({
-            "online": bool(sentence_audio.get("processor_enabled")),
+            "online": bool(controls["sentence_audio"]["running"]),
             "claimed": int((sentence_audio.get("worker") or {}).get("total_claimed") or 0),
             "ok": int((sentence_audio.get("worker") or {}).get("total_succeeded") or 0),
             "fail": int((sentence_audio.get("worker") or {}).get("total_failed") or 0),

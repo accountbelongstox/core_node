@@ -14,7 +14,7 @@ import {
   Mic, AudioLines,
 } from 'lucide-react';
 import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/pycore-manager/api';
-import type { PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '@/apps/pycore-manager/api';
+import type { PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '@/apps/pycore-manager/api';
 
 type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image' | 'translation'>;
 
@@ -40,7 +40,6 @@ const CAP_LABEL_KEY: Record<DisplayedCapabilityKey, string> = {
 
 export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { t } = useTranslation('pc');
-  const [settings, setSettings] = useState<PcCapabilitySettings | null>(null);
   // Local editable copy (priority order + options) per capability.
   const [draft, setDraft] = useState<Record<DisplayedCapabilityKey, PcCapabilityBlock>>(() =>
     CAP_KEYS.reduce((acc, k) => {
@@ -61,7 +60,6 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
       const r = await pycoreApi.getCapabilitySettings();
       if (!mounted.current) return;
       if (!r || (r as any).success === false || !r.tts) throw new Error((r as any)?.error || 'unavailable');
-      setSettings(r);
       setDraft(CAP_KEYS.reduce((acc, k) => {
         const b = (r as any)[k] as PcCapabilityBlock | undefined;
         acc[k] = {

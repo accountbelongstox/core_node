@@ -242,7 +242,6 @@ export const PYCORE_HTTP_ROUTES = {
   wordAudioStatus: 'ui/word_audio/status',
   wordAudioTest: 'ui/word_audio/test',
   wordAudioFetchYoudao: 'ui/word_audio/fetch_youdao',
-  wordAudioEdgeSynth: 'ui/word_audio/edge_synth',
   wordTtsStatus: 'ui/word_tts/status',
   wordTtsConfig: 'ui/word_tts/config',
   audioOrchBooksList: 'ui/audio_orch/books/list',

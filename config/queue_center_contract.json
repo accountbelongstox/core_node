@@ -48,13 +48,13 @@
  },
  "word_audio_full_sync": {
   "description": "pycore self-driven word-audio full pull: at startup (Word Audio flag ON) pycore pulls EVERY dictionary word without audio into the local word_audio queue (Part1 fill via promote_local_head, whole-Queue dedup) and keeps generating while Laravel is offline; uploads resume through the durable audio_delivery_outbox when Laravel returns. Binding doc: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md.",
-  "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?language=<lang>&filter=without_audio&start=<n>&limit=1000",
+  "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?language=<lang>&filter=without_audio&cursor_id=<id>&limit=1000 (stable keyset paging)",
   "language_source": "GET /api/app_qy_v1/vocabulary/language-breakdown, fallback: contract word_audio language priority, final fallback: english",
   "local_task_marker": "_local_source=full_sync; locally sourced tasks skip the just-in-time Laravel claim and the global result post; delivery is the domain report (encodeTaskId: dict_row_id*1000 + 1*100 + langIndex) plus the durable outbox",
   "cache_file": "get_app_cache_dir()/audio_queue/word_audio_queue.json (whole-Queue snapshot + Part1 key set; cache-first boot restores it without any remote pull)",
   "rpc": "ui/queue_center/word_audio_full_sync (on-demand full pull, background, returns the status block)",
   "persisted_key": "user_data_store section word_tts_auto, key full_sync_on_start (bool, default true) — the ONLY startup switch; no CLI/env parameter",
-  "snapshot_block": "queue-center snapshot word_audio section carries full_sync status (running, last_sync_at, last_result, languages, cache_saved_at)"
+  "snapshot_block": "queue-center snapshot word_audio section carries full_sync status (running, last_sync_at, last_result, languages, cache_saved_at, queue_count)"
  },
  "dict_lane_queue": {
   "description": "Dict-lane live queues: the backend no longer maintains these queues with timer tasks. Each lane is a live view over its dictionary source query, cached in the FrankenPHP worker's memory and mirrored to the database cache store; every serve runs one ms-level table probe (table length + write counters: PostgreSQL pg_stat_user_tables, fallback COUNT(*)+MAX(updated_at)); unchanged signature serves the cached queue with zero database reads, a changed signature re-fetches only the lane's lite id list and minimally diffs it. global_tasks rows are materialized just-in-time when a worker pulls (POST /api/worker/tasks/{taskType}/pull). Retired timer tasks: appqyv1_word_validity_scan, app_qy_v1_word_translation_scan_task, app_qy_v1_dictionary_translation_task, app_qy_v1_word_translation_filler_task, queue_center_audio_scan, appqyv1_word_media_scan, appqyv1_tts_generation, app_qy_v1_tts_lock_reclaim_task. Binding doc: docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md.",

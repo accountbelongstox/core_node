@@ -535,10 +535,10 @@ queueCenter: {
     // Right-side capability settings drawer.
     drawer: {
       open: 'Capability settings',
-      openTitle: 'Open the capability settings drawer (engine priority + options)',
+      openTitle: 'Open capability settings and static engine policies',
       close: 'Close',
       title: 'Capability Settings',
-      subtitle: 'Engine priority + options per capability. Saving applies live on the next dispatch.',
+      subtitle: 'Editable engine priorities plus the static Kokoro/CPU Word Audio policy.',
       unavailable: 'Capability settings unavailable — pycore (:59000) may be offline.',
       loading: 'Loading capability settings…',
       reload: 'Reload capability settings',

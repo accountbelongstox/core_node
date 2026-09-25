@@ -17,8 +17,6 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_QUEUE_CENTER_DRAWER: 'pc_qc_drawer',
   PYCORE_SENTENCE_AUDIO_GENERATION: 'pc_sentence_audio_gen',
   PYCORE_WORD_AUDIO_EXPANDED: 'pc_word_audio_expanded',
-  PYCORE_WORD_AUDIO_ENGINE: 'pc_word_audio_engine',
-  PYCORE_WORD_TTS_CONCURRENCY: 'pc_word_tts_concurrency',
   PYCORE_CODE_SYNC_TREE_OPEN: 'pc.codesync.tree.open',
   PYCORE_CODE_SYNC_TREE_EXPANDED: 'pc.codesync.tree.expanded',
   PYCORE_AI_TAB: 'pc_ai_tab',

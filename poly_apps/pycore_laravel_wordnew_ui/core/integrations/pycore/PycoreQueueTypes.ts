@@ -308,8 +308,8 @@ export interface PcVersionInfo {
 
 // --- Queue Center: capability settings (contract B) ------------------------ #
 // GET/POST /api/local/capabilities/settings. Each capability block carries the
-// engine PRIORITY chain (re-orderable), an availability map, and its options
-// (TTS has synth_timeout_s + edge_cooldown_s; the others are typically empty).
+// engine priority chain, an availability map, and its options. Word audio is
+// the read-only Kokoro batch policy; editable TTS carries the tuning options.
 
 export interface PcCapabilityOptions {
   synth_timeout_s?: number;

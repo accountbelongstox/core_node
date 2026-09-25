@@ -18,16 +18,6 @@ export function PcWordAudioPanel(): ReactElement {
   const hub = useQueueCenterHub();
   const [expanded, setExpanded] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_EXPANDED) === '1');
   const [actionError, setActionError] = useState<string | null>(null);
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * Old behavior read worker status from hub.controls.word_audio?.running and showed
-   * worker state from `auto_start` + controls signals.
-   * New behavior uses sectionContracts.word_audio for contract-aligned status.
-   * // const workerOn = hub.voiceWord?.auto_start === true;
-   // const workerRunning = hub.controls.word_audio?.running === true;
-   // const heartbeatOn = worker?.heartbeat_enabled ?? hub.voiceWord?.heartbeat_enabled ?? false;
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
   const wordSection = hub.sectionContracts.word_audio;
   const worker = hub.voiceWord?.worker;
   const workerOn = wordSection.toggle.enabled;
