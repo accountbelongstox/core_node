@@ -11,7 +11,8 @@
     }
   },
   "word_tts_auto": {
-    "concurrency": 0
+    "concurrency": 0,
+    "full_sync_on_start": true
   },
   "sentence_audio_auto": {
     "concurrency": 0

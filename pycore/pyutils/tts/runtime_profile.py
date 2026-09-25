@@ -48,7 +48,9 @@ from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 TTS_RUNTIME_PROFILE_ENV = "TTS_RUNTIME_PROFILE"
 
 _EDGE_ENGINE = "edge"
-_KOKORO_ENGINE = "kokoro"
+WORD_BATCH_ENGINE = "kokoro"
+WORD_BATCH_PROFILE = "word_batch"
+WORD_BATCH_DEVICE = "cpu"
 _GB = BYTES_PER_GIB
 
 # Pinned engine chains per capability. The word chain is the single-word
@@ -56,21 +58,21 @@ _GB = BYTES_PER_GIB
 # long text read "sentence". GPU mode keeps kokoro (CPU) and qwen3tts (GPU)
 # disjoint so the two pinned local models never fight over the card.
 _GPU_PLAN: Dict[str, Tuple[str, ...]] = {
-    "word": (_EDGE_ENGINE, _KOKORO_ENGINE),
-    "word_batch": (_KOKORO_ENGINE,),
+    "word": (_EDGE_ENGINE, WORD_BATCH_ENGINE),
+    WORD_BATCH_PROFILE: (WORD_BATCH_ENGINE,),
     "sentence": (QWEN3TTS_ENGINE,),
 }
 _CPU_PLAN: Dict[str, Tuple[str, ...]] = {
-    "word": (_KOKORO_ENGINE,),
-    "word_batch": (_KOKORO_ENGINE,),
-    "sentence": (_KOKORO_ENGINE,),
+    "word": (WORD_BATCH_ENGINE,),
+    WORD_BATCH_PROFILE: (WORD_BATCH_ENGINE,),
+    "sentence": (WORD_BATCH_ENGINE,),
 }
 
 # Orchestrator profile names that map onto a pinned capability chain.
 _PROFILE_ALIASES = {
     "default": "word",
     "word": "word",
-    "word_batch": "word_batch",
+    WORD_BATCH_PROFILE: WORD_BATCH_PROFILE,
     "sentence": "sentence",
     "agent_history": "sentence",
 }
@@ -202,6 +204,9 @@ def engine_start_allowed(engine: str, explicit: bool = False) -> Tuple[bool, str
 
 __all__ = [
     "TTS_RUNTIME_PROFILE_ENV",
+    "WORD_BATCH_DEVICE",
+    "WORD_BATCH_ENGINE",
+    "WORD_BATCH_PROFILE",
     "pin_runtime_profile",
     "profile_snapshot",
     "profile_enabled",

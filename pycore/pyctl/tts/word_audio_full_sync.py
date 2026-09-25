@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyutils.common.queue_center_contract import task_language_priority
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_WORD_TTS_AUTO, user_data_store
 from pycore.pyutils.laravel.client import laravel_client
@@ -103,6 +104,13 @@ class WordAudioFullSync:
         unreachable -> the pull aborts quietly; the cache-restored queue
         keeps the lane alive offline.
         """
+        if not assist_capability_enabled("tts"):
+            return {
+                "success": False,
+                "running": False,
+                "error": "WORD_AUDIO_DISABLED",
+                "status": self.get_status(),
+            }
         if self._running:
             return {"success": True, "running": True, "status": self.get_status()}
         with self._lock:
@@ -116,6 +124,7 @@ class WordAudioFullSync:
             result = {"success": False, "error": str(exc)}
         finally:
             self._running = False
+        self._last_result = dict(result)
         result["status"] = self.get_status()
         return result
 
@@ -140,6 +149,8 @@ class WordAudioFullSync:
         total_inserted = 0
         per_language: List[Dict[str, Any]] = []
         for language in languages:
+            if not assist_capability_enabled("tts"):
+                break
             name = str(language.get("language") or "").strip()
             if not name:
                 continue
@@ -153,13 +164,22 @@ class WordAudioFullSync:
                 "pulled": pulled,
                 "inserted": inserted,
             })
+            self._languages = [dict(row) for row in per_language]
+            self._last_result = {
+                "success": True,
+                "pulled": total_pulled,
+                "inserted": total_inserted,
+                "languages": len(per_language),
+            }
         self._languages = per_language
         self._last_sync_at = int(time.time())
+        stopped = not assist_capability_enabled("tts")
         self._last_result = {
-            "success": True,
+            "success": not stopped,
             "pulled": total_pulled,
             "inserted": total_inserted,
             "languages": len(per_language),
+            "stopped": stopped,
         }
         ColorPrint.green(
             f"[WordAudioFullSync] full pull done: pulled={total_pulled} "
@@ -206,7 +226,7 @@ class WordAudioFullSync:
         pulled = 0
         inserted = 0
         start = 0
-        while True:
+        while assist_capability_enabled("tts"):
             response = laravel_client.get(
                 _WORDS_PATH,
                 base_url=base_url,
@@ -230,6 +250,8 @@ class WordAudioFullSync:
             if not isinstance(items, list) or not items:
                 break
             items = [dict(row) for row in items if isinstance(row, dict)]
+            if not assist_capability_enabled("tts"):
+                break
             result = self._fill_queue(base_url, language_code, items)
             pulled += len(items)
             inserted += int(result.get("inserted") or 0)
@@ -256,7 +278,7 @@ class WordAudioFullSync:
             if not word or not md5 or row_id in (None, ""):
                 continue
             task = {
-                "task_id": f"{_LOCAL_TASK_ID_PREFIX}{md5}",
+                "task_id": f"{_LOCAL_TASK_ID_PREFIX}{language_code}-{md5}",
                 "task_type": QUEUE_KEY,
                 "payload": {
                     "word": word,
@@ -290,10 +312,27 @@ class WordAudioFullSync:
 word_audio_full_sync = WordAudioFullSync()
 
 
+def activate_word_audio_queue() -> Dict[str, Any]:
+    """Apply the complete persisted ON transition immediately.
+
+    Every UI control path uses this same entry: restore the durable queue,
+    start the configured full pull, then wake the batch drain. Repeated calls
+    are safe because restore and full pull both use whole-Queue dedup.
+    """
+    if not assist_capability_enabled("tts"):
+        return {"success": False, "error": "WORD_AUDIO_DISABLED"}
+    restored = audio_queue_center.restore_from_cache(QUEUE_KEY)
+    if full_sync_on_start():
+        word_audio_full_sync.start_background()
+    audio_queue_center.request_pull(QUEUE_KEY)
+    return {"success": True, "restored": restored}
+
+
 __all__ = [
     "FULL_SYNC_ON_START_KEY",
     "LOCAL_SOURCE_MARKER",
     "QUEUE_KEY",
+    "activate_word_audio_queue",
     "WordAudioFullSync",
     "full_sync_on_start",
     "set_full_sync_on_start",

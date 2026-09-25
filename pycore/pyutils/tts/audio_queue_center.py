@@ -264,6 +264,9 @@ class AudioQueueCenter:
         part1_keys.update(snapshot.get("part1_keys") or set())
         restored = 0
         for task in snapshot.get("tasks") or []:
+            dedup_key = audio_dedup_key_from_task(task, lane)
+            if dedup_key and queue.has_dedup_key(dedup_key):
+                continue
             if queue.push(task):
                 restored += 1
         ColorPrint.green(
@@ -309,9 +312,14 @@ class AudioQueueCenter:
         return queue.head_preview(limit)
 
     def accept_task(self, lane: str, task: Dict[str, Any]) -> bool:
-        """M5 intake: admit one task into the whole Queue (dedup + part rank)."""
+        """M5 intake: admit one task with whole-Queue canonical dedup."""
         queue = self.queue_for(lane)
-        return bool(queue and queue.push(task))
+        if queue is None:
+            return False
+        dedup_key = audio_dedup_key_from_task(task, lane)
+        if dedup_key and queue.has_dedup_key(dedup_key):
+            return False
+        return queue.push(task)
 
     def pop_next(self, lane: str) -> Optional[Dict[str, Any]]:
         """M5 consumer entry: pop the whole-Queue head (Part1 first)."""
@@ -319,10 +327,20 @@ class AudioQueueCenter:
         return queue.pop() if queue is not None else None
 
     def complete(self, lane: str, task: Dict[str, Any]) -> None:
-        """M5 consumer entry: mark one popped task terminal."""
+        """M5 consumer entry: mark one popped task terminal.
+
+        Part1 membership describes live queue entries, not historical words.
+        Release it at the terminal boundary so a later Laravel row for the
+        same audio identity returns through the normal Part2 intake path.
+        """
         queue = self.queue_for(lane)
         if queue is not None:
             queue.complete(task)
+            dedup_key = audio_dedup_key_from_task(task, lane)
+            if dedup_key:
+                self._part1_keys.setdefault(str(lane or "").strip(), set()).discard(
+                    dedup_key
+                )
 
     def request_pull(self, lane: str, prefer_remote: bool = False) -> None:
         """M5 wake entry: re-run the lane's Laravel intake (M1/M2)."""
