@@ -5,8 +5,8 @@ Word pronunciation audio router — status + live test for the real-pronunciatio
 Endpoints (prefix /api/local/word-audio):
   GET  /status  -> the 4 real sources (free_dictionary_api, wikimedia_commons,
                    cambridge_dictionary, forvo) with availability + requires-key
-                   flags, whether a Forvo key is present, the tts_fallback flag,
-                   the TTS engine priority list and the supported accents. No
+                   flags, whether a Forvo key is present, the separate static
+                   Kokoro batch policy, and the supported accents. No
                    network call is made and the Forvo key is NEVER leaked.
   POST /test    -> run find_pronunciation(word, lang, accent) through the live
                    client and return the base64-encoded audio + the ACTUAL accent
@@ -20,9 +20,8 @@ Wikimedia Commons + Cambridge Dictionary + Forvo). ``find_pronunciation`` return
 this router base64-encodes those RAW bytes into ``audio_base64`` before
 returning.
 
-Forvo / StreamElements presence is determined the SAME way their engines check
-(get_secret_key_indexed from ``.secret_keys/.secret_ignore/``) WITHOUT any
-network call and WITHOUT returning the key.
+Forvo presence is determined through ``get_secret_key_indexed`` without a
+network call and without returning the key.
 
 pycore rules honored: imports at file top (PYTHON_PYCORE.md §1.4), secrets only
 via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
@@ -33,7 +32,7 @@ import tempfile
 import traceback
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -41,10 +40,10 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.api_secrets import streamelements_key_present
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
+from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts.batch import batch_constants
 from pycore.pyutils.tts.engine_policy import tts_locale
-from pycore.pyutils.tts.tts_orchestrator import TTS_ENGINE_PRIORITY, _priority
 from pycore.pyutils.tts.edge.client import edge_tts_client
 from pycore.pyutils.tts.edge.config import TTSConfig
 # Stored-first Laravel endpoint resolution for worker-side task integration.
@@ -86,25 +85,11 @@ def _forvo_key_present() -> bool:
     return bool((get_secret_key_indexed("FORVO_API_KEY") or "").strip())
 
 
-def _live_tts_priority() -> List[str]:
-    """Runtime TTS engine priority (reflects Settings saves immediately).
-
-    ``_priority()`` returns the module-level ``TTS_ENGINE_PRIORITY`` tuple that
-    ``reload_tts_priority`` mutates at runtime; the imported constant is kept as
-    a last-resort fallback so this endpoint never raises.
-    """
-    try:
-        return list(_priority())
-    except Exception:  # noqa: BLE001 - status endpoint must never break
-        return list(TTS_ENGINE_PRIORITY)
-
-
 def _build_status() -> Dict[str, Any]:
     """Assemble the /status payload: the 4 real sources + Forvo key presence
     + TTS engine priority names (no availability probe — that is the TTS
     status router's job) + supported accents."""
     forvo_present = _forvo_key_present()
-    streamelements_present = streamelements_key_present()
     return {
         "backend": "pycore",
         "sources": [
@@ -138,12 +123,14 @@ def _build_status() -> Dict[str, Any]:
             },
         ],
         "forvo_key_present": forvo_present,
-        "streamelements_key_present": streamelements_present,
-        "tts_fallback": True,
-        # TTS fallback engine priority (local AI first; accent-aware: edge/streamelements).
-        # Read at request time via _priority() so a Settings save (reload_tts_priority)
-        # is reflected immediately; the imported constant is a last-resort fallback.
-        "tts_engines": _live_tts_priority(),
+        # This endpoint is a real-recording lookup only. Missing dictionary
+        # audio is handled by the separate Queue Center Kokoro batch lane.
+        "tts_fallback": False,
+        "tts_engines": [runtime_profile.WORD_BATCH_ENGINE],
+        "batch_engine": runtime_profile.WORD_BATCH_ENGINE,
+        "batch_profile": runtime_profile.WORD_BATCH_PROFILE,
+        "batch_device": runtime_profile.WORD_BATCH_DEVICE,
+        "batch_size": batch_constants.group_size(),
         "accents_supported": ["us", "uk"],
     }
 
@@ -188,10 +175,7 @@ def test(word: str, lang: str = "en", accent=None):
             "provider": None,
             "accent": None,
             "accent_requested": accent_requested,
-            "message": (
-                f"No real pronunciation found for '{word}' ({lang}); "
-                "the TTS fallback would handle it."
-            ),
+            "message_code": "REAL_PRONUNCIATION_NOT_FOUND",
         }
 
     raw = result.get("audio_bytes") or b""
