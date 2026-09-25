@@ -509,17 +509,17 @@ export interface SubtitleCacheClearResponse {
   removed: number;
 }
 
-// --- Word audio (real pronunciation lookup + TTS fallback) ----------------- #
+// --- Word audio (real pronunciation lookup + Queue Center batch policy) ---- #
 // GET /api/local/word-audio/status reports which real-pronunciation sources are
 // wired. pycore exposes 3 (free_dictionary_api, cambridge_dictionary, forvo);
 // laravel exposes 2 (no cambridge). The Forvo key is never leaked — only its
-// presence is reported. `tts_fallback` is always true (TTS covers a miss).
+// presence is reported. A miss stays a miss; dictionary fill belongs to the
+// separate Kokoro/CPU Queue Center batch lane returned in the policy fields.
 /**
  * POST /api/local/word-audio/test — the REAL live fetch through the existing
  * pronunciation client. On a hit the raw audio bytes are base64-encoded into
  * `audio_base64` (play via new Audio('data:'+mime+';base64,'+audio_base64)).
- * On a clean miss `success` is false, `provider` is null and `message` explains
- * the TTS fallback would cover it.
+ * On a clean miss `success` is false and `provider` is null.
  */
 export interface WordAudioTestResponse {
   success: boolean;
@@ -530,5 +530,6 @@ export interface WordAudioTestResponse {
   meta?: Record<string, unknown>;
   bytes?: number;
   message?: string;
+  message_code?: string;
 }
 

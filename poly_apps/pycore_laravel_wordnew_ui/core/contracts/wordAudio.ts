@@ -12,6 +12,11 @@ export interface WordAudioStatus {
   backend: string;
   sources: WordAudioSource[];
   forvo_key_present: boolean;
-  streamelements_key_present?: boolean;
+  /** False: this API only looks up existing recordings. */
   tts_fallback: boolean;
+  tts_engines?: string[];
+  batch_engine: string;
+  batch_profile: string;
+  batch_device: string;
+  batch_size: number;
 }
