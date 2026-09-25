@@ -61,6 +61,26 @@ def service_domain(name: str, replacements: dict[str, str] | None = None, root_d
     return ".".join([*resolved_labels, root_domain(root_domain_index)])
 
 
+def service_url_entries() -> tuple[dict[str, str], ...]:
+    entries = value("access.service_url_entries")
+    resolved_entries: list[dict[str, str]] = []
+
+    if not isinstance(entries, list):
+        raise ValueError("Invalid service contract URL entries")
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid service contract URL entry")
+        key = entry.get("key")
+        label = entry.get("label")
+        url = entry.get("url")
+        if not all(isinstance(item, str) and item for item in (key, label, url)):
+            raise ValueError("Invalid service contract URL entry fields")
+        resolved_entries.append({"key": key, "label": label, "url": url})
+
+    return tuple(resolved_entries)
+
+
 def build_url(protocol: str, hostname: str, port_number: int | None = None, path: str = "") -> str:
     port_part = f":{port_number}" if port_number else ""
     path_part = f"/{path}" if path and not path.startswith("/") else path

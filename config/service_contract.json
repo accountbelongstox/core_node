@@ -105,7 +105,7 @@
         "service_url_entries": [
             {
                 "key": "debian_dev_machine_1",
-                "label": "Debian Dev Machine 1",
+                "label": "Dev-GPUOne",
                 "url": "https://debian-gpu.thresher-python.ts.net"
             }
         ]

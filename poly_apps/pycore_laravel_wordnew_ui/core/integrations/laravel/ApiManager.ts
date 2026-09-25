@@ -14,7 +14,7 @@ import {
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { clampRecheckInterval } from '../../health/OfflineRecheckScheduler';
 import { loadWebAccessConfig } from '../../contracts/DomainConfig';
-import { setSharedBaseURL } from './transport/BaseAPI';
+import { persistSharedBaseURL, setSharedBaseURL } from './transport/BaseAPI';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 import { EndpointProbeAPI } from './transport/EndpointProbeAPI';
@@ -459,6 +459,7 @@ class ApiManager {
 
     this.activateEndpoint(endpoint);
     this.setUserModifiedEndpoint(endpointId);
+    await persistSharedBaseURL(buildApiUrl(endpoint));
     return { ok: true, endpoint, result };
   }
 

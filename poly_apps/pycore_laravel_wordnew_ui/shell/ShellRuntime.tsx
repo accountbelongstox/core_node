@@ -6,6 +6,7 @@ import { TaskPersistenceProvider } from '../core/tasks/TaskPersistenceProvider';
 import { ShellProvider } from './ShellProvider';
 import { ShellCloudClipboard } from './ShellCloudClipboard';
 import PromptDerivedHost from '../shared/prompt-derived/PromptDerivedHost';
+import { ShellLaravelEndpointBridge } from './ShellLaravelEndpointBridge';
 
 interface ShellRuntimeProps {
   authHost?: React.ReactNode;
@@ -26,6 +27,7 @@ export const ShellRuntime: React.FC<ShellRuntimeProps> = ({ authHost, children }
   <TaskPersistenceProvider>
     <BrowserRouter>
       <ShellProvider>
+        <ShellLaravelEndpointBridge />
         <AppToaster />
         {authHost}
         {children}

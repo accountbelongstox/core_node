@@ -5,7 +5,7 @@
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
-import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { LaravelApiEndpoint } from '@/apps/pycore-manager/api';
 
 export interface PcLaravelEndpointContextValue {
@@ -78,12 +78,6 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       return;
     }
     await reload();
-    try {
-      const bind = (await pycoreApi.bindLaravelWorkerEndpoint(url)) as { success?: boolean } | null;
-      if (!bind?.success) setActionError('PYCORE_BIND_FAILED');
-    } catch {
-      setActionError('PYCORE_BIND_FAILED');
-    }
   }, [reload, switching]);
 
   const addUrl = useCallback(async (url: string) => {
