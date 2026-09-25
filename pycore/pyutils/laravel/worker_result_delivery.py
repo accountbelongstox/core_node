@@ -51,6 +51,7 @@ class WorkerResultDelivery:
         progress: Optional[int] = None,
         attempts: Optional[int] = None,
         attempt: Optional[int] = None,
+        meta: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         POST a task result (processing/completed/failed) back to Laravel.
@@ -69,6 +70,10 @@ class WorkerResultDelivery:
         ``attempts`` overrides the retry budget - best-effort progress pings
         pass 1 (a lost ping costs nothing; the next report or the final result
         carries the same information).
+
+        ``meta`` (optional out-param) receives the definitive HTTP rejection
+        status (409/4xx) as ``meta["http_status"]`` so the durable outbox can
+        tell a permanently-gone task row (404) apart from a transient outage.
         """
         status = GLOBAL_TASK_STATUSES_BY_ROLE.get(status_role, status_role)
         task_display_id = worker._display_task_id(task_id)
@@ -153,6 +158,8 @@ class WorkerResultDelivery:
                 if resp.status_code == 409:
                     # Task reassigned (we lost the claim, e.g. after a timeout
                     # release) - the new owner reports it; do not retry.
+                    if meta is not None:
+                        meta["http_status"] = resp.status_code
                     ColorPrint.yellow(
                         f"{worker._log_prefix} Result for task {task_display_id} rejected (409: "
                         f"task reassigned / not ours) - dropping"
@@ -164,9 +171,20 @@ class WorkerResultDelivery:
                     worker._forget_task_endpoint(task_id)
                     return False
                 if 400 <= resp.status_code < 500:
+                    if meta is not None:
+                        meta["http_status"] = resp.status_code
+                    # A 404 here is NOT a missing route: the typed result
+                    # endpoint answered and WorkerController could not find the
+                    # global_tasks row - the task was purged/recreated
+                    # server-side, so no retry can ever land this result.
+                    rejection_note = (
+                        "task row gone on the server - not retryable"
+                        if resp.status_code == 404
+                        else "not retryable"
+                    )
                     ColorPrint.yellow(
                         f"{worker._log_prefix} Result POST for task {task_display_id} -> "
-                        f"HTTP {resp.status_code} (not retryable)"
+                        f"HTTP {resp.status_code} ({rejection_note})"
                     )
                     if terminal_result:
                         diff_task_segment_store.consume(
