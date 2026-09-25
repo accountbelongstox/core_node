@@ -16,6 +16,8 @@ param(
     [switch]$SkipInitialization
 )
 
+$global:SharedGlobalVarKeys = @()
+
 <#
 .SYNOPSIS
     Core Node Management Script for Windows

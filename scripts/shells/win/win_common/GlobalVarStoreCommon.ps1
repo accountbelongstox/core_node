@@ -91,8 +91,8 @@ if (-not (Get-Command Get-OsVarTag -ErrorAction SilentlyContinue)) {
         }
     }
 }
-if (-not $script:SharedGlobalVarKeys) {
-    $script:SharedGlobalVarKeys = @(
+if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorAction SilentlyContinue) -or -not ((Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ValueOnly -ErrorAction SilentlyContinue))) {
+    $global:SharedGlobalVarKeys = @(
         'POSTGRES_PASSWORD',
         'MERCURE_PUBLISHER_JWT',
         'MERCURE_SUBSCRIBER_JWT',
@@ -113,13 +113,13 @@ if (-not (Get-Command Get-GlobalVarWriteName -ErrorAction SilentlyContinue)) {
     function Get-GlobalVarWriteName {
         param([string]$key)
         $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
-        if ($script:SharedGlobalVarKeys -contains $normalized) { return $normalized }
+        if ($global:SharedGlobalVarKeys -contains $normalized) { return $normalized }
         return ('{0}_{1}' -f (Get-OsVarTag), $normalized)
     }
     function Get-GlobalVarReadNames {
         param([string]$key)
         $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
-        if ($script:SharedGlobalVarKeys -contains $normalized) { return @($normalized) }
+        if ($global:SharedGlobalVarKeys -contains $normalized) { return @($normalized) }
         return @(('{0}_{1}' -f (Get-OsVarTag), $normalized), $normalized)
     }
 }

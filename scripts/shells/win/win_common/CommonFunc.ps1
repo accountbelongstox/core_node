@@ -2274,7 +2274,7 @@ function Get-OsVarTag {
 # machine: secrets and cross-OS contract/selector values. SYNC: pycore
 # core_node_dirs._SHARED_GVAR_KEYS / runtime_environment.sh
 # CORE_NODE_SHARED_GVAR_KEYS / PathMapper.php SHARED_GVAR_KEYS.
-$script:SharedGlobalVarKeys = @(
+$global:SharedGlobalVarKeys = @(
     'POSTGRES_PASSWORD',
     'MERCURE_PUBLISHER_JWT',
     'MERCURE_SUBSCRIBER_JWT',
@@ -2296,7 +2296,7 @@ $script:SharedGlobalVarKeys = @(
 function Get-GlobalVarWriteName {
     param([string]$key)
     $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
-    if ($script:SharedGlobalVarKeys -contains $normalized) { return $normalized }
+    if ($global:SharedGlobalVarKeys -contains $normalized) { return $normalized }
     return ('{0}_{1}' -f (Get-OsVarTag), $normalized)
 }
 
@@ -2305,7 +2305,7 @@ function Get-GlobalVarWriteName {
 function Get-GlobalVarReadNames {
     param([string]$key)
     $normalized = ($key.ToUpper() -replace '[^A-Z0-9_]', '')
-    if ($script:SharedGlobalVarKeys -contains $normalized) { return @($normalized) }
+    if ($global:SharedGlobalVarKeys -contains $normalized) { return @($normalized) }
     return @(('{0}_{1}' -f (Get-OsVarTag), $normalized), $normalized)
 }
 
