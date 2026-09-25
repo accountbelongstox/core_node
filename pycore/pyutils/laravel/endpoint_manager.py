@@ -57,7 +57,10 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
+from pycore.pyutils.common.service_config import (
+    LARAVEL_WORKER_API_URL,
+    LARAVEL_WORKER_API_URLS,
+)
 from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 from pycore.pyutils.laravel.identity import (
@@ -254,8 +257,8 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     @staticmethod
     def _configured_candidates() -> List[str]:
-        """Return the backend runtime override, independent of UI defaults."""
-        return _normalize_candidates([LARAVEL_WORKER_API_URL])
+        """Return the shared contract catalog with the runtime default first."""
+        return _normalize_candidates(list(LARAVEL_WORKER_API_URLS))
 
     @staticmethod
     def _merge_candidates(*groups: List[str]) -> List[str]:

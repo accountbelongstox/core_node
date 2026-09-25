@@ -40,7 +40,10 @@ function logRequestOutcome(
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
 export const SHARED_BASE_URL_CHANGED_EVENT = 'laravel-shared-base-url-changed';
 const SHARED_BASE_URL_GLOBAL_KEY = '__unifiedLaravelSharedBaseURL__';
+const SHARED_BASE_URL_PERSISTENCE_GLOBAL_KEY = '__unifiedLaravelSharedBaseURLPersistence__';
 const sharedTransportRegistry = globalThis as typeof globalThis & Record<string, unknown>;
+
+export type SharedBaseURLPersistence = (baseURL: string) => Promise<boolean>;
 
 /**
  * Single source of truth for the active API base URL.
@@ -81,12 +84,24 @@ export function setSharedBaseURL(url: string): void {
       detail: { url: nextBaseURL },
     }));
   }
+  if (currentBaseURL !== nextBaseURL) void persistSharedBaseURL(nextBaseURL);
 }
 
 /** The current shared base URL, or null if none has been set yet. */
 export function getSharedBaseURL(): string | null {
   const value = sharedTransportRegistry[SHARED_BASE_URL_GLOBAL_KEY];
   return typeof value === 'string' && value ? value : null;
+}
+
+export function setSharedBaseURLPersistence(persistence: SharedBaseURLPersistence | null): void {
+  sharedTransportRegistry[SHARED_BASE_URL_PERSISTENCE_GLOBAL_KEY] = persistence;
+}
+
+export async function persistSharedBaseURL(baseURL: string | null = getSharedBaseURL()): Promise<boolean> {
+  const persistence = sharedTransportRegistry[SHARED_BASE_URL_PERSISTENCE_GLOBAL_KEY];
+  const normalizedBaseURL = normalizeBaseURL(baseURL || '');
+  if (!normalizedBaseURL || typeof persistence !== 'function') return false;
+  return (persistence as SharedBaseURLPersistence)(normalizedBaseURL);
 }
 
 /** Set the process-wide bearer value used by every request path. */
