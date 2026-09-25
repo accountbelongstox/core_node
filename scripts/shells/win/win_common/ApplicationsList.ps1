@@ -736,6 +736,27 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
+    Tftpd64         = @{
+        PackageId            = "PJO2.tftpd64"
+        Exec                = "tftpd64.exe"
+        Name                = "Tftpd64"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description         = "Tftpd64 - Lightweight TFTP, DNS, SNTP, Syslog, and DHCP server"
+        InstallType         = "winget"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AppCustomInstallDir = ""
+        DesktopShortcuts    = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     NotepadPlusPlus = @{
         PackageId          = "Notepad++.Notepad++"
         Exec              = "notepad++.exe"

@@ -218,6 +218,9 @@ $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS = "AICLITools"
 $Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR "global_var"
 
 # Common encryption/decryption functions for GlobalVars
+if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorAction SilentlyContinue)) {
+    $global:SharedGlobalVarKeys = @()
+}
 . (Join-Path $PSScriptRoot 'GlobalVarStoreCommon.ps1')
 
 
@@ -578,7 +581,7 @@ function Initialize-AllGlobalVars {
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    Get-ChildItem $Global:GLOBAL_VAR_DIR | ForEach-Object {
+    Get-ChildItem -LiteralPath $Global:GLOBAL_VAR_DIR -File | ForEach-Object {
         $name = $_.Name
         $value = Get-Content $_.FullName -Raw
         Set-Variable -Name $name -Value $value -Scope Global
