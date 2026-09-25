@@ -46,6 +46,7 @@ resume_argument=""
 codex_home_path=""
 thread_writer_locks_path=""
 thread_writer_lock_count=0
+codex_install_script_path=""
 
 script_source_path="${BASH_SOURCE[0]}"
 if [ -L "$script_source_path" ]; then
@@ -54,6 +55,7 @@ fi
 script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
+codex_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/153_install_desktop_applications.sh"
 mcp_chrome_path="$core_node_path/apps/mcp-chrome"
 mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
 mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
@@ -113,8 +115,21 @@ echo "codexyolo.sh"
 echo "============================================================"
 
 if ! command -v codex >/dev/null 2>&1; then
-    echo "[ERROR] codex is not available on PATH."
-    exit 1
+    echo "[INFO] codex is not available on PATH; installing via 153_install_desktop_applications.sh --exact-app codex..."
+    if [ -s "$codex_install_script_path" ]; then
+        bash "$codex_install_script_path" --exact-app codex
+    else
+        echo "[ERROR] Codex install script not found: $codex_install_script_path"
+    fi
+    hash -r
+    if ! command -v codex >/dev/null 2>&1 && [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+        PATH="$PNPM_GLOBAL_BIN_DIR:$PATH"
+        hash -r
+    fi
+    if ! command -v codex >/dev/null 2>&1; then
+        echo "[ERROR] codex is still not available on PATH after installation attempt."
+        exit 1
+    fi
 fi
 if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
     current_version_output="$(codex --version 2>/dev/null || true)"
