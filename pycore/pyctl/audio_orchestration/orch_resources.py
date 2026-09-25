@@ -15,8 +15,11 @@ from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import LARAVEL_ONLINE_SIGNAL, laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.audio_delivery_outbox import AUDIO_DELIVERY_PROCESS_ID, audio_delivery_outbox
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts.audio_validation import validate_mp3
+from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.engine_policy import (
     configured_tts_priority,
     rotated_engine_exclusions,
@@ -264,10 +267,71 @@ def resolve_batch(
         except Exception as error:  # noqa: BLE001
             ColorPrint.yellow(f"[AudioOrch] queue-head promotion skipped: {error}")
 
+    # Word misses use the SAME pinned Kokoro batch policy as the persistent
+    # word-audio lane. They are never fanned out through per-word synthesize().
+    word_misses_by_language: Dict[str, List[Dict[str, Any]]] = {}
+    for resource in misses:
+        if resource["kind"] == "word":
+            word_misses_by_language.setdefault(
+                str(resource["language"]), []
+            ).append(resource)
+    for language, group in word_misses_by_language.items():
+        if cancel_requested is not None and cancel_requested():
+            return results
+        if activity_callback is not None:
+            activity_callback(group[0], {
+                "stage": (
+                    f"batch generating missing word audio with "
+                    f"{runtime_profile.WORD_BATCH_ENGINE} ({language})"
+                ),
+            })
+        output_dir = staging / "word_batch" / language
+        batch_result = kokoro_batch.synthesize_words(
+            [resource["text"] for resource in group],
+            language,
+            output_dir,
+        )
+        for index, resource in enumerate(group):
+            item = batch_result.items[index] if index < len(batch_result.items) else None
+            if item is None or not item.ok or not validate_mp3(str(item.output_path))[0]:
+                _completed(resource, {
+                    "source": "missing",
+                    "status": "failed",
+                    "provider": runtime_profile.WORD_BATCH_ENGINE,
+                    "error": (
+                        item.error if item is not None and item.error
+                        else "Kokoro batch synthesis produced no valid audio"
+                    ),
+                })
+                continue
+            word_audio_cache.save_to_cache(
+                resource["text"],
+                language,
+                runtime_profile.WORD_BATCH_ENGINE,
+                str(item.output_path),
+            )
+            cache_path = word_audio_cache.get_cache_path(
+                resource["text"],
+                language,
+                runtime_profile.WORD_BATCH_ENGINE,
+            )
+            audio_path = cache_path if validate_mp3(cache_path)[0] else str(item.output_path)
+            _completed(resource, {
+                "audio_path": audio_path,
+                "source": "generated",
+                "provider": runtime_profile.WORD_BATCH_ENGINE,
+                "status": "ready",
+            })
+
+    misses = [resource for resource in misses if resource["resource_id"] not in results]
+    if word_misses_by_language:
+        audio_queue_center.request_pull("word_audio")
+    if any(resource["kind"] == "sentence" for resource in misses):
+        audio_queue_center.request_pull("sentence_audio")
+
     def _engine_exclusions(resource: Dict[str, Any]) -> tuple:
-        # Rotate the per-kind engine fallback order by resource id so parallel
-        # workers start on DIFFERENT engines (several local models synthesize
-        # concurrently); every worker still falls through the full chain.
+        # Remaining misses are sentences; rotate their model chain across the
+        # bounded resolver lanes. Word misses were completed in one batch above.
         return rotated_engine_exclusions(
             str(resource["kind"]), resource["language"], resource["resource_id"],
         )

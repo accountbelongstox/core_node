@@ -112,12 +112,16 @@ trait AppQyV1AssistQueueMetrics
     {
         $task = $this->globalTaskStatusCounts('word_audio');
         $byLanguage = $this->dictionaryByLanguage('(has_audio = false OR has_audio IS NULL)');
+        $backlog = array_sum($byLanguage);
+        $leased = min($backlog, $task['leased']);
+        $processing = min(max(0, $backlog - $leased), $task['processing']);
+        $pending = max(0, $backlog - $leased - $processing);
 
         return [
-            'pending' => $task['pending'],
-            'processing' => $task['processing'],
-            'leased' => $task['leased'],
-            'total' => $task['total'],
+            'pending' => $pending,
+            'processing' => $processing,
+            'leased' => $leased,
+            'total' => $backlog,
             'by_language' => $byLanguage,
             'sample' => $this->wordTaskSample('word_audio'),
         ];

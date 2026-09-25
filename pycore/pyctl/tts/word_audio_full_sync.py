@@ -128,18 +128,22 @@ class WordAudioFullSync:
         result["status"] = self.get_status()
         return result
 
-    def start_background(self, base_url: str = "") -> None:
+    def start_background(self, base_url: str = "") -> Dict[str, Any]:
         """Kick the full pull on a background bus task (non-blocking boot)."""
+        if not assist_capability_enabled("tts"):
+            return {"success": False, "error": "WORD_AUDIO_DISABLED"}
         if self._running:
-            return
+            return {"success": True, "running": True}
         try:
             start_bus_task(
                 self.run_full_sync,
                 base_url,
                 thread_name="WordAudioFullSync",
             )
+            return {"success": True, "running": True}
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[WordAudioFullSync] background start failed: {exc}")
+            return {"success": False, "error": str(exc)}
 
     # -------------------- internals --------------------
 
@@ -225,7 +229,7 @@ class WordAudioFullSync:
         language_code = str(language.get("language_code") or language_name).strip()
         pulled = 0
         inserted = 0
-        start = 0
+        cursor_id = 0
         while assist_capability_enabled("tts"):
             response = laravel_client.get(
                 _WORDS_PATH,
@@ -233,7 +237,7 @@ class WordAudioFullSync:
                 params={
                     "language": language_name,
                     "filter": "without_audio",
-                    "start": start,
+                    "cursor_id": cursor_id,
                     "limit": _PAGE_LIMIT,
                 },
                 timeout=_REQUEST_TIMEOUT_SECONDS,
@@ -255,10 +259,10 @@ class WordAudioFullSync:
             result = self._fill_queue(base_url, language_code, items)
             pulled += len(items)
             inserted += int(result.get("inserted") or 0)
-            start += len(items)
-            total = int(data.get("total") or 0) if isinstance(data, dict) else 0
-            if total and start >= total:
+            next_cursor = int(data.get("next_cursor") or 0) if isinstance(data, dict) else 0
+            if next_cursor <= cursor_id:
                 break
+            cursor_id = next_cursor
             if len(items) < _PAGE_LIMIT:
                 break
         return pulled, inserted

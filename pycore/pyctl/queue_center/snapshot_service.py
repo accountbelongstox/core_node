@@ -26,6 +26,7 @@ from pycore.pyctl.queue_center.task_center_sections import (
 from pycore.pyctl.tts.status_service import peek_status as peek_tts_status
 from pycore.pyctl.tts.sentence_audio_auto import get_status as get_sentence_audio_status
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
+from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
@@ -701,11 +702,7 @@ class _QueueCenterSnapshotService:
             "ok": int((word_audio.get("worker") or {}).get("total_succeeded") or 0),
             "fail": int((word_audio.get("worker") or {}).get("total_failed") or 0),
         })
-        try:
-            from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
-            contracts["word_audio"]["full_sync"] = word_audio_full_sync.get_status()
-        except Exception:  # noqa: BLE001 - the status block is best-effort
-            pass
+        contracts["word_audio"]["full_sync"] = word_audio_full_sync.get_status()
         contracts["sentence_audio"]["worker"].update({
             "online": bool(sentence_audio.get("processor_enabled")),
             "claimed": int((sentence_audio.get("worker") or {}).get("total_claimed") or 0),

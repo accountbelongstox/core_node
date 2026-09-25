@@ -39,7 +39,9 @@ from pycore.pyutils.tts.audio_delivery_outbox import (
     audio_delivery_outbox,
 )
 from pycore.pyutils.tts.audio_validation import validate_mp3
+from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.engine_policy import rotated_engine_exclusions
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path, save_to_cache
 
@@ -106,6 +108,33 @@ class LaravelAudioWorkerExecutionMixin:
         kind = info["kind"]
         language = info["language"]
         accent = info.get("accent") or None
+
+        if kind == "word" and info.get("_batch_audio_error"):
+            return (
+                False,
+                "",
+                runtime_profile.WORD_BATCH_ENGINE,
+                str(info["_batch_audio_error"]),
+                False,
+            )
+        if kind == "word" and info.get("_batch_audio_path"):
+            batch_path = str(info["_batch_audio_path"])
+            valid, detail = validate_mp3(batch_path)
+            if valid:
+                return (
+                    True,
+                    batch_path,
+                    runtime_profile.WORD_BATCH_ENGINE,
+                    "",
+                    bool(info.get("_batch_audio_cleanup")),
+                )
+            return (
+                False,
+                batch_path,
+                runtime_profile.WORD_BATCH_ENGINE,
+                f"invalid batch audio: {detail}",
+                bool(info.get("_batch_audio_cleanup")),
+            )
 
         if kind == "article":
             cache_path = os.path.join(
@@ -644,6 +673,89 @@ class LaravelAudioWorkerExecutionMixin:
             return True
         return self._post_result(*args, **kwargs)
 
+    def _prepare_word_batch(self, tasks: List[Dict[str, Any]]) -> None:
+        """Generate every uncached word through the pinned Kokoro batch path."""
+        groups: Dict[str, List[Tuple[Dict[str, Any], Dict[str, Any]]]] = {}
+        for task in tasks:
+            info = self._normalize(task)
+            if info.get("error") or info.get("kind") != "word":
+                continue
+            cached_path = find_cached(info["word"], info["language"])
+            if cached_path is not None and validate_mp3(str(cached_path))[0]:
+                continue
+            groups.setdefault(info["language"], []).append((task, info))
+
+        for language, entries in groups.items():
+            output_dir = Path(self._tmp_dir) / (
+                f"word-batch-{language}-{time.time_ns()}"
+            )
+            result = kokoro_batch.synthesize_words(
+                [info["word"] for _task, info in entries],
+                language,
+                output_dir,
+            )
+            for index, (task, info) in enumerate(entries):
+                item = result.items[index] if index < len(result.items) else None
+                if item is None or not item.ok:
+                    task["_batch_audio_error"] = (
+                        item.error if item is not None and item.error
+                        else "Kokoro batch synthesis produced no audio"
+                    )
+                    continue
+                output_path = str(item.output_path)
+                valid, detail = validate_mp3(output_path)
+                if not valid:
+                    task["_batch_audio_error"] = f"invalid Kokoro batch audio: {detail}"
+                    continue
+                save_to_cache(
+                    info["word"],
+                    info["language"],
+                    runtime_profile.WORD_BATCH_ENGINE,
+                    output_path,
+                )
+                cache_path = get_cache_path(
+                    info["word"],
+                    info["language"],
+                    runtime_profile.WORD_BATCH_ENGINE,
+                )
+                if os.path.exists(cache_path) and validate_mp3(cache_path)[0]:
+                    task["_batch_audio_path"] = cache_path
+                    task["_batch_audio_cleanup"] = False
+                else:
+                    task["_batch_audio_path"] = output_path
+                    task["_batch_audio_cleanup"] = True
+
+    def _process_claimed_batch(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Claim a queue slice, synthesize it once as a batch, then deliver rows."""
+        claimed: List[Tuple[Dict[str, Any], float]] = []
+        outcomes: List[Dict[str, Any]] = []
+        for task in tasks:
+            started = time.monotonic()
+            if not self._claim_inflight(task):
+                task["_skip_reason"] = "duplicate dispatch already in flight"
+                outcomes.append({"task": task, "outcome": TASK_OUTCOME_SKIPPED, "started": started})
+                continue
+            if not task.get("_local_source") and not self._ensure_laravel_claim(task):
+                task["_skip_reason"] = "Laravel claim rejected - task is gone or owned elsewhere"
+                self._release_inflight(task)
+                outcomes.append({"task": task, "outcome": TASK_OUTCOME_SKIPPED, "started": started})
+                continue
+            claimed.append((task, started))
+
+        try:
+            self._prepare_word_batch([task for task, _started in claimed])
+            for task, started in claimed:
+                outcome = (
+                    TASK_OUTCOME_COMPLETED
+                    if self._process_task(task)
+                    else TASK_OUTCOME_FAILED
+                )
+                outcomes.append({"task": task, "outcome": outcome, "started": started})
+        finally:
+            for task, _started in claimed:
+                self._release_inflight(task)
+        return outcomes
+
     def _process_claimed(self, task: Dict[str, Any]) -> str:
         """Inflight-guard + process one queued task (lane entry point).
 
@@ -715,6 +827,13 @@ class LaravelAudioWorkerExecutionMixin:
                 return False
 
             info = self._normalize(task)
+            for field in (
+                "_batch_audio_path",
+                "_batch_audio_cleanup",
+                "_batch_audio_error",
+            ):
+                if field in task:
+                    info[field] = task[field]
             if self.LANE == "word":
                 backend_progress = word_audio_backend_progress.snapshot()
                 info["backend_progress_current"] = int(

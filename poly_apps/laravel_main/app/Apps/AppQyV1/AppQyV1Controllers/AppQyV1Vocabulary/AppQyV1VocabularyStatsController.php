@@ -66,6 +66,7 @@ class AppQyV1VocabularyStatsController extends Controller
             'order' => 'nullable|string|in:asc,desc',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:1000',
+            'cursor_id' => 'nullable|integer|min:0',
         ]);
 
         $language = 'english';
@@ -92,6 +93,7 @@ class AppQyV1VocabularyStatsController extends Controller
         if (isset($validated['limit'])) {
             $limit = (int) $validated['limit'];
         }
+        $cursorId = isset($validated['cursor_id']) ? (int) $validated['cursor_id'] : null;
         $sortKey = '';
         if (isset($validated['sort'])) {
             $sortKey = $validated['sort'];
@@ -130,6 +132,30 @@ class AppQyV1VocabularyStatsController extends Controller
         $laneKey = $search === '' && $sortKey === '' && $validitySource === ''
             ? \App\Services\QueueCenter\DictLane\DictLaneCatalog::laneForManagementFilter($filter)
             : null;
+        if ($laneKey === \App\Services\QueueCenter\DictLane\DictLaneCatalog::LANE_WORD_AUDIO
+            && $cursorId !== null
+        ) {
+            $lanePage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
+                ->pageAfterId($laneKey, $languageCode, $cursorId, $limit);
+            $items = array_values(array_map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'content' => (string) $row['word'],
+                'md5' => (string) $row['md5'],
+                'has_audio' => false,
+            ], $lanePage['rows']));
+
+            return $this->success([
+                'language' => $language,
+                'language_code' => $languageCode,
+                'filter' => $filter,
+                'total' => $lanePage['total'],
+                'start' => 0,
+                'limit' => $limit,
+                'cursor_id' => $cursorId,
+                'next_cursor' => $lanePage['next_cursor'],
+                'items' => $items,
+            ], 'Dictionary words retrieved');
+        }
         if ($laneKey !== null) {
             $lanePage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
                 ->page($laneKey, $languageCode, $start, $limit);

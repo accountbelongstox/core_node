@@ -19,6 +19,7 @@ from pycore.pyctl.tts.sentence_audio_auto import (
 )
 from pycore.pyctl.tts.sentence_audio_auto import warm_engine_after_enable
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
+from pycore.pyctl.tts.word_audio_full_sync import activate_word_audio_queue
 
 pydantic = get_third_package_pydantic()
 BaseModel = pydantic.BaseModel
@@ -87,6 +88,8 @@ def set_queue_center_control(
 
     result: Dict[str, Any] = {"config": settings}
     if canonical_name == "word_audio":
+        if enabled:
+            activate_word_audio_queue()
         status = get_word_audio_status()
         result = {"ok": not bool(status.get("error")), "status": status}
     elif canonical_name == "sentence_audio":

@@ -17,7 +17,8 @@ def register_word_audio_full_sync_routes(server) -> None:
 
     def full_sync_handler(params, _request_id, _context):
         base_url = str((params or {}).get("base_url") or "").strip()
-        word_audio_full_sync.start_background(base_url)
-        return {"success": True, "status": word_audio_full_sync.get_status()}
+        result = word_audio_full_sync.start_background(base_url)
+        result["status"] = word_audio_full_sync.get_status()
+        return result
 
     server.post(path=UI_QUEUE_CENTER_WORD_AUDIO_FULL_SYNC, handler=full_sync_handler)

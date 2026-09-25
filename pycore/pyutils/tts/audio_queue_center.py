@@ -181,7 +181,12 @@ class AudioQueueCenter:
 
     # -------------------- M3: pycore self-promotion (fills Part1) --------------------
 
-    def promote_local_head(self, lane: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def promote_local_head(
+        self,
+        lane: str,
+        items: List[Dict[str, Any]],
+        wake: bool = True,
+    ) -> Dict[str, Any]:
         """M3: pycore self-promotion — FILLS Part1 DIRECTLY.
 
         ``items``: ``[{language, text, content_id?, md5?}, ...]`` (the
@@ -227,7 +232,8 @@ class AudioQueueCenter:
             if queue.push(task):
                 inserted += 1
         claimed = queue.claim_part1(keys)
-        self._wake(lane, prefer_remote=True)
+        if wake:
+            self._wake(lane, prefer_remote=True)
         ColorPrint.green(
             f"[AudioQueue] {lane} local promote: part1_keys={len(keys)} "
             f"claimed={claimed} inserted={inserted}"

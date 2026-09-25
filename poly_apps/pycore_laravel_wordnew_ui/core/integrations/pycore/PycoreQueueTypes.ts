@@ -252,6 +252,12 @@ export interface WordTtsAutoStatus {
   };
   worker?: {
     batch_running?: boolean;
+    batch_engine?: string;
+    batch_profile?: string;
+    batch_device?: string;
+    batch_size?: number;
+    planned_engine?: string | null;
+    usable_engines?: string[];
     enabled?: boolean;
     total_claimed?: number;
     total_succeeded?: number;

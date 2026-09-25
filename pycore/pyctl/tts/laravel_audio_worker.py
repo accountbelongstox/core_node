@@ -107,6 +107,7 @@ from pycore.pyctl.tts.laravel_audio_worker_execution import (
 # process-wide serialization live inside the orchestrator.
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts.batch import batch_constants
 from pycore.pyutils.tts.tts_concurrency import (
     effective_concurrency,
     recommended_concurrency,
@@ -129,7 +130,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     while True:
         if worker._lane_halt_requested():
             break
-        task = worker._queue.pop()
+        task = audio_queue_center.pop_next(worker.QUEUE_KEY)
         if task is None:
             break
         processed += 1
@@ -147,7 +148,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
                 failed += 1
             worker._record_task_result(success, time.monotonic() - started)
         worker._log_cycle_task_result(task, outcome)
-        worker._queue.complete(task)
+        audio_queue_center.complete(worker.QUEUE_KEY, task)
     return {
         "processed": processed,
         "succeeded": succeeded,
@@ -624,7 +625,7 @@ class BaseLaravelAudioWorker(
                 }
             queued_task["_laravel_base_url"] = endpoint
             self._remember_task_types([queued_task], endpoint)
-            queued = self._queue.push(queued_task)
+            queued = audio_queue_center.accept_task(self.QUEUE_KEY, queued_task)
             self._start_drain()
             return {
                 "success": True,
@@ -652,10 +653,10 @@ class BaseLaravelAudioWorker(
         """Pop every queued-but-unstarted heap task for an immediate stop."""
         dropped: List[Dict[str, Any]] = []
         while True:
-            task = self._queue.pop()
+            task = audio_queue_center.pop_next(self.QUEUE_KEY)
             if task is None:
                 break
-            self._queue.complete(task)
+            audio_queue_center.complete(self.QUEUE_KEY, task)
             dropped.append(task)
         return dropped
 
@@ -668,7 +669,43 @@ class BaseLaravelAudioWorker(
                 return
 
             concurrency, engine = self._effective_concurrency()
-            if concurrency > 1 and len(self._queue) > 1:
+            if self.LANE == "word":
+                batch_size = batch_constants.group_size()
+                while True:
+                    if self._lane_halt_requested():
+                        break
+                    tasks = []
+                    for _index in range(batch_size):
+                        task = audio_queue_center.pop_next(self.QUEUE_KEY)
+                        if task is None:
+                            break
+                        tasks.append(task)
+                    if not tasks:
+                        break
+                    self._log_event(
+                        "batch",
+                        f"Kokoro batch size={len(tasks)} device={runtime_profile.WORD_BATCH_DEVICE}",
+                    )
+                    outcomes = self._process_claimed_batch(tasks)
+                    for entry in outcomes:
+                        task = entry["task"]
+                        outcome = entry["outcome"]
+                        processed += 1
+                        if outcome == TASK_OUTCOME_SKIPPED:
+                            skipped += 1
+                        else:
+                            success = outcome == TASK_OUTCOME_COMPLETED
+                            if success:
+                                succeeded += 1
+                            else:
+                                failed += 1
+                            self._record_task_result(
+                                success,
+                                time.monotonic() - float(entry["started"]),
+                            )
+                        self._log_cycle_task_result(task, outcome)
+                        audio_queue_center.complete(self.QUEUE_KEY, task)
+            elif concurrency > 1 and len(self._queue) > 1:
                 self._log_event(
                     "parallel",
                     f"fan-out x{concurrency} (planned={engine or '?'}, usable_engines={len(self._usable_engines_cache)})",
@@ -689,7 +726,7 @@ class BaseLaravelAudioWorker(
                 while True:
                     if self._lane_halt_requested():
                         break
-                    task = self._queue.pop()
+                    task = audio_queue_center.pop_next(self.QUEUE_KEY)
                     if task is None:
                         break
                     processed += 1
@@ -705,7 +742,7 @@ class BaseLaravelAudioWorker(
                             failed += 1
                         self._record_task_result(success, time.monotonic() - started)
                     self._log_cycle_task_result(task, outcome)
-                    self._queue.complete(task)
+                    audio_queue_center.complete(self.QUEUE_KEY, task)
 
             if processed == 0:
                 return
@@ -788,9 +825,18 @@ class BaseLaravelAudioWorker(
             ),
             "delivery_outbox": audio_delivery_outbox.stats(self.LANE),
             "usable_engines": list(self._usable_engines_cache),
-            "planned_engine": self._required_engine() or self._engine_probe_cache or None,
+            "planned_engine": (
+                runtime_profile.WORD_BATCH_ENGINE
+                if self.LANE == "word"
+                else self._required_engine() or self._engine_probe_cache or None
+            ),
         }
         if self.LANE == "word":
+            status["batch_running"] = running
+            status["batch_engine"] = runtime_profile.WORD_BATCH_ENGINE
+            status["batch_profile"] = runtime_profile.WORD_BATCH_PROFILE
+            status["batch_device"] = runtime_profile.WORD_BATCH_DEVICE
+            status["batch_size"] = batch_constants.group_size()
             status["backend_progress"] = word_audio_backend_progress.snapshot()
         status["queue_progress"] = dict(self._queue_progress.get(self.QUEUE_KEY) or {})
         return status
@@ -802,7 +848,7 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     LANE = "word"
     QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
     CAPABILITY = "audio"
-    PRIORITY_PROFILE = "word"
+    PRIORITY_PROFILE = runtime_profile.WORD_BATCH_PROFILE
     ASSIST_CAPABILITY = "tts"
     WORKER_NAME_TAG = "word-audio"
     LOG_PREFIX = "[WordAudioWorker]"

@@ -49,6 +49,9 @@ final class DictLaneQueueCenter
     /** @var array<string,array<int,int>> lane+lang => row id => inflight since (unix). */
     private static array $inflight = [];
 
+    /** @var array<string,array{signature:string,rows:array<int,array>}> */
+    private static array $idOrderCache = [];
+
     private TaskManagerService $taskManager;
     private QueueCenterService $queueCenter;
 
@@ -102,6 +105,47 @@ final class DictLaneQueueCenter
             'total' => count($rows),
             'ids' => array_values(array_map(static fn (array $row): int => (int) $row['id'], $slice)),
             'rows' => $slice,
+        ];
+    }
+
+    /**
+     * Stable keyset page for long-running consumers. Unlike offset paging,
+     * rows completed while the consumer is reading cannot shift later rows
+     * backward and make them disappear from the scan.
+     *
+     * @return array{total:int,rows:array<int,array>,next_cursor:int}
+     */
+    public function pageAfterId(string $lane, string $langCode, int $afterId, int $limit): array
+    {
+        $rows = $this->laneRowsFresh($lane, $langCode);
+        $cacheKey = $lane . ':' . strtolower($langCode);
+        $signature = (string) (self::$laneCache[$lane][strtolower($langCode)]['signature'] ?? '');
+        $ordered = self::$idOrderCache[$cacheKey] ?? null;
+
+        if ($ordered === null || $ordered['signature'] !== $signature) {
+            $idRows = $rows;
+            usort($idRows, static fn (array $left, array $right): int => $left['id'] <=> $right['id']);
+            $ordered = ['signature' => $signature, 'rows' => $idRows];
+            self::$idOrderCache[$cacheKey] = $ordered;
+        }
+
+        $page = [];
+        foreach ($ordered['rows'] as $row) {
+            if ((int) $row['id'] <= $afterId) {
+                continue;
+            }
+            $page[] = $row;
+            if (count($page) >= max(1, $limit)) {
+                break;
+            }
+        }
+
+        $last = end($page);
+
+        return [
+            'total' => count($ordered['rows']),
+            'rows' => $page,
+            'next_cursor' => is_array($last) ? (int) $last['id'] : $afterId,
         ];
     }
 
@@ -196,6 +240,7 @@ final class DictLaneQueueCenter
         $langCode = strtolower($langCode);
         foreach (DictLaneCatalog::allCacheLanes() as $lane) {
             unset(self::$laneCache[$lane][$langCode], self::$inflight[$lane . ':' . $langCode]);
+            unset(self::$idOrderCache[$lane . ':' . $langCode]);
         }
     }
 

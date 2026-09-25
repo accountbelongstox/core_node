@@ -43,6 +43,7 @@ class AudioTaskQueue:
         # Heap entries: (part_rank, tier_rank, -queue_position, seq, task).
         self._heap: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
         self._active_keys: Set[str] = set()
+        self._active_dedup_keys: Set[str] = set()
         self._seq = 0
         # Lane task type (contract key) so tier ranking works even when the
         # queued task dicts do not carry task_type themselves.
@@ -101,6 +102,10 @@ class AudioTaskQueue:
         heapq.heappush(self._heap, (*order, task))
         if task_key:
             self._active_keys.add(task_key)
+        if self._dedup_key_of is not None:
+            dedup_key = str(self._dedup_key_of(task) or "")
+            if dedup_key:
+                self._active_dedup_keys.add(dedup_key)
         self._seq += 1
         return True
 
@@ -116,6 +121,10 @@ class AudioTaskQueue:
         task_key = self._task_key(task)
         if task_key:
             self._active_keys.discard(task_key)
+        if self._dedup_key_of is not None:
+            dedup_key = str(self._dedup_key_of(task) or "")
+            if dedup_key:
+                self._active_dedup_keys.discard(dedup_key)
 
     @serialized_method
     def contains(self, task: Dict[str, Any]) -> bool:
@@ -219,6 +228,7 @@ class AudioTaskQueue:
             if self._dedup_key_of is not None:
                 dedup_key = str(self._dedup_key_of(task) or "")
                 if dedup_key:
+                    self._active_dedup_keys.discard(dedup_key)
                     self._part1_keys.discard(dedup_key)
         if pruned:
             self._heap = kept
@@ -314,15 +324,7 @@ class AudioTaskQueue:
         copy already sits in the queue (either part) must NOT be inserted a
         second time — the existing copy is claimed/re-ranked instead.
         """
-        if self._dedup_key_of is None or not dedup_key:
-            return False
-        for entry in self._heap:
-            task = entry[-1]
-            if not isinstance(task, dict):
-                continue
-            if str(self._dedup_key_of(task) or "") == dedup_key:
-                return True
-        return False
+        return bool(dedup_key and dedup_key in self._active_dedup_keys)
 
     @serialized_method
     def head_preview(self, limit: int = 1) -> List[Dict[str, Any]]:

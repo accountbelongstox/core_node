@@ -62,7 +62,7 @@ def promote_missing_to_queue_head(
 
     summary: Dict[str, Any] = {"success": True, "queues": {}, "promoted": 0}
     for queue, items in items_by_queue.items():
-        result = audio_queue_center.promote_local_head(queue, items)
+        result = audio_queue_center.promote_local_head(queue, items, wake=False)
         summary["queues"][queue] = {
             "requested": len(items),
             "promoted": int(result.get("promoted") or 0),

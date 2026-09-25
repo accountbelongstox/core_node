@@ -49,6 +49,7 @@ from pycore.pyctl.tts.sentence_audio_auto import (
 from pycore.pyctl.tts.word_tts_auto import (
     restore_persisted_auto_start as restore_word_audio_settings,
 )
+from pycore.pyctl.tts.word_audio_full_sync import activate_word_audio_queue
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
 from pycore.pylauncher.tray_menu import (
     TRAY_SET_LANGUAGE_SIGNAL,
@@ -399,17 +400,7 @@ def _start_word_audio_boot_chain() -> None:
     """
     if not assist_capability_enabled("tts"):
         return
-    from pycore.pyctl.tts.word_audio_full_sync import (
-        full_sync_on_start,
-        word_audio_full_sync,
-    )
-    from pycore.pyutils.tts.audio_queue_center import audio_queue_center
-
-    lane = "word_audio"
-    audio_queue_center.restore_from_cache(lane)
-    if full_sync_on_start():
-        word_audio_full_sync.start_background()
-    audio_queue_center.request_pull(lane)
+    activate_word_audio_queue()
 
 
 def register_runtime_workers() -> None:
