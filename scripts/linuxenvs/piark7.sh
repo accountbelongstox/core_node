@@ -284,6 +284,7 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
                 ARKCLI_PROFILE_RESULT="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" arkcli-profile "$ARKCLI_CONFIG_PATH" "$VOLC_PROFILE_TYPE")"
                 if [ -n "$ARKCLI_PROFILE_RESULT" ]; then
                     VOLC_API_KEY="${ARKCLI_PROFILE_RESULT%%$'\t'*}"
+                    echo "[INFO] Loaded Volcengine API Key from $(basename "$ARKCLI_CONFIG_PATH"): $VOLC_API_KEY"
                     if [[ "$ARKCLI_PROFILE_RESULT" == *$'\t'* ]]; then
                         ARKCLI_PROFILE_BASE_URL="${ARKCLI_PROFILE_RESULT#*$'\t'}"
                     fi
@@ -307,7 +308,7 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
                 if [ -z "$VOLC_API_KEY" ]; then
                     VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
                     if [ -n "$VOLC_API_KEY" ]; then
-                        echo "[INFO] Loaded Volcengine API Key from $(basename "$LEGACY_SECRET_PATH")"
+                        echo "[INFO] Loaded Volcengine API Key from $(basename "$LEGACY_SECRET_PATH"): $VOLC_API_KEY"
                     fi
                 fi
             done

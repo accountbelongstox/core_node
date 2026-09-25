@@ -1,0 +1,4 @@
+减小laravel某些任务可能 占满cpu的问题，改为使用更合适的方式运行。同时将以上开如结果 写到docsfix目录，并关联前面的文档。同时从底翅重构pycore,确保UI中的0FF/ON
+实时与pycore中的状态绑定，并推动事件。
+
+codexyolo -r

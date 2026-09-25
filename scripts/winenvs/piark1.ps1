@@ -336,6 +336,7 @@ if ($piPath -and
                 if ($arkcliProfileResult) {
                     $arkcliProfileParts = @($arkcliProfileResult -split "`t", 2)
                     $volcApiKey = $arkcliProfileParts[0]
+                    Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($arkcliConfigPath)): $volcApiKey" -ForegroundColor Green
                     if ($arkcliProfileParts.Count -gt 1 -and $arkcliProfileParts[1]) {
                         $volcBaseUrl = $arkcliProfileParts[1].TrimEnd('/')
                         if (-not $volcBaseUrl.ToLowerInvariant().EndsWith('/v3')) {
@@ -358,7 +359,7 @@ if ($piPath -and
                     $legacySecretPath = $candidatePath
                     $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
                     if ($volcApiKey) {
-                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath))" -ForegroundColor Green
+                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath)): $volcApiKey" -ForegroundColor Green
                     }
                 }
             }
