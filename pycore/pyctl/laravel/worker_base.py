@@ -1184,6 +1184,7 @@ class BaseLaravelWorkerService:
         progress: Optional[int] = None,
         attempts: Optional[int] = None,
         attempt: Optional[int] = None,
+        meta: Optional[Dict[str, Any]] = None,
     ) -> bool:
         return worker_result_delivery.post(
             self,
@@ -1194,6 +1195,7 @@ class BaseLaravelWorkerService:
             progress,
             attempts,
             attempt,
+            meta=meta,
         )
 
     def _diff_segment_scope(self, base: str) -> str:
