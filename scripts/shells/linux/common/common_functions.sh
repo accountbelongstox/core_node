@@ -125,6 +125,41 @@ print_info_from_common_functions() {
   echo -e "\033[0;36m[INFO] ${msg}\033[0m"
 }
 
+# Idempotent /usr/local/bin launcher for pnpm global shims (from common_functions.sh).
+# pnpm global shims resolve the real package path relative to $0, so a bare
+# symlink breaks module resolution (dirname $0 becomes the link's directory).
+# A wrapper that execs the shim by its absolute resolved path keeps $0 correct.
+ensure_pnpm_shim_wrapper_from_common_functions() {
+  local binary_path="$1"
+  local link_path="$2"
+  local wrapper_content=""
+
+  if [ -z "$binary_path" ] || [ -z "$link_path" ] || [ ! -e "$binary_path" ]; then
+    return 1
+  fi
+
+  binary_path="$(readlink -f "$binary_path")"
+  if [ -z "$binary_path" ] || [ "$binary_path" = "$link_path" ]; then
+    return 1
+  fi
+
+  wrapper_content="#!/bin/sh
+exec \"$binary_path\" \"\$@\""
+
+  if [ ! -L "$link_path" ] && [ -f "$link_path" ]; then
+    if [ "$(cat "$link_path" 2>/dev/null)" = "$wrapper_content" ]; then
+      return 0
+    fi
+  fi
+
+  if [ -e "$link_path" ] || [ -L "$link_path" ]; then
+    $USE_SUDO rm -f "$link_path"
+  fi
+  printf '%s\n' "$wrapper_content" | $USE_SUDO tee "$link_path" >/dev/null
+  $USE_SUDO chmod 755 "$link_path"
+  return 0
+}
+
 
 
 # Read a single raw secret value from .secret_keys/.secret_ignore: first non-empty,

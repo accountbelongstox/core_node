@@ -53,6 +53,9 @@ $upgradeChoice = $null
 $pnpmCommand = $null
 $nodeCommand = $null
 $codexCommand = $null
+$codexInstallScriptPath = $null
+$codexCandidatePaths = @()
+$codexCandidatePath = $null
 $currentVersionOutput = $null
 $latestVersionOutput = $null
 $currentVersionTokens = @()
@@ -83,6 +86,8 @@ $coreNodePath = Split-Path $scriptsDirPath -Parent
 $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
+$codexInstallScriptPath = Join-Path $shellsWinPath "install_powershells"
+$codexInstallScriptPath = Join-Path $codexInstallScriptPath "Step63_InstallCodexMultiDevice.ps1"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
 $serviceContractScript = Join-Path $winCommonDirPath "ServiceContract.ps1"
 $mcpChromePath = Join-Path $coreNodePath "apps"
@@ -139,7 +144,29 @@ Write-Host "============================================================" -Foreg
 
 $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
 if ($null -eq $codexCommand) {
-    throw "codex is not available on PATH."
+    Write-Host "[INFO] codex is not available on PATH; installing via Step63_InstallCodexMultiDevice.ps1..." -ForegroundColor Cyan
+    if (Test-Path -LiteralPath $codexInstallScriptPath -PathType Leaf) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $codexInstallScriptPath
+    } else {
+        Write-Host "[ERROR] Codex install script not found: $codexInstallScriptPath" -ForegroundColor Red
+    }
+    $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
+    if ($null -eq $codexCommand) {
+        $codexCandidatePaths = @(
+            (Join-Path $Global:PNPM_GLOBAL_BIN_DIR "codex.cmd"),
+            (Join-Path $Global:NODE_DIR "codex.cmd"),
+            (Join-Path $Global:NODE_DIR "codex.exe")
+        )
+        foreach ($codexCandidatePath in $codexCandidatePaths) {
+            if (($null -eq $codexCommand) -and (Test-Path -LiteralPath $codexCandidatePath -PathType Leaf)) {
+                Add-Path -newPath $Global:PNPM_GLOBAL_BIN_DIR
+                $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    if ($null -eq $codexCommand) {
+        throw "codex is still not available on PATH after installation attempt."
+    }
 }
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
 $versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")

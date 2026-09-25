@@ -189,6 +189,35 @@ repair_broken_symlinks() {
     done
 }
 
+# Idempotent repair for pnpm-global package launchers (codex, gemini, auggie,
+# ...): install step 153 links them into /usr/local/bin, and any legacy bare
+# symlink there breaks the shim's $0-relative module resolution. Convert such
+# links to the wrapper form shared with refresh_npm_package_links.
+repair_pnpm_global_shim_links() {
+    [ -d "$PNPM_GLOBAL_BIN_DIR" ] || return 0
+
+    local shim=""
+    local name=""
+    local link=""
+    local resolved=""
+
+    for shim in "$PNPM_GLOBAL_BIN_DIR"/*; do
+        [ -e "$shim" ] || continue
+        [ -f "$shim" ] || continue
+        name="$(basename "$shim")"
+        link="/usr/local/bin/$name"
+        [ -L "$link" ] || continue
+        resolved="$(readlink -f "$link" 2>/dev/null || true)"
+        case "$resolved" in
+            "$PNPM_GLOBAL_BIN_DIR"/*) ;;
+            *) continue ;;
+        esac
+        if ensure_pnpm_shim_wrapper_from_common_functions "$shim" "$link"; then
+            echo "[17] Repaired pnpm shim launcher: $link -> $shim"
+        fi
+    done
+}
+
 cleanup_wrong_install_locations() {
     local candidate=""
     local candidate_state=""
@@ -850,6 +879,7 @@ else
     ensure_npm_latest
     ensure_corepack
     ensure_pnpm
+    repair_pnpm_global_shim_links
     ensure_yarn
     ensure_bun
     ensure_node_symlinks

@@ -133,32 +133,41 @@ refresh_npm_package_links() {
             return
         fi
     fi
-    
+
+    # Resolve symlinks so the wrapper never points back at /usr/local/bin/<exec> itself
+    binary_path="$(readlink -f "$binary_path")"
+    if [ "$binary_path" = "/usr/local/bin/$exec_name" ]; then
+        log_message "Warning: Binary for $exec_name resolves to its own launch path, skipping"
+        return
+    fi
+
     log_message "Refreshing links for pnpm package: $exec_name"
-    
-    # Create symbolic link in /usr/local/bin pointing directly to pnpm binary
+
+    # pnpm global shims resolve the real package path relative to $0, so a bare
+    # symlink in /usr/local/bin breaks module resolution; install a wrapper via
+    # the shared helper instead.
     local link_path="/usr/local/bin/$exec_name"
-    
-    # Check if link already points to correct target
-    if [ -L "$link_path" ]; then
-        local current_target=$(readlink -f "$link_path")
-        local real_binary=$(readlink -f "$binary_path")
-        
-        if [ "$current_target" = "$real_binary" ]; then
-            log_message "Link already correct: $link_path -> $binary_path"
-            return
+
+    if [ ! -L "$link_path" ] && [ -f "$link_path" ]; then
+        local existing_content=""
+        existing_content="$(cat "$link_path" 2>/dev/null)"
+        if [ "$existing_content" = "#!/bin/sh
+exec \"$binary_path\" \"\$@\"" ]; then
+            log_message "Wrapper already correct: $link_path -> $binary_path"
+            return 0
         fi
     fi
-    
-    # Remove existing link/file if it exists
+
     if [ -e "$link_path" ] || [ -L "$link_path" ]; then
         $USE_SUDO rm -f "$link_path"
         log_message "Removed existing link/file: $link_path"
     fi
-    
-    # Create new symbolic link directly to pnpm binary
-    $USE_SUDO ln -sf "$binary_path" "$link_path"
-    log_message "Created symbolic link: $link_path -> $binary_path"
+
+    if ensure_pnpm_shim_wrapper_from_common_functions "$binary_path" "$link_path"; then
+        log_message "Created wrapper script: $link_path -> $binary_path"
+    else
+        log_message "Warning: Failed to create wrapper script: $link_path -> $binary_path"
+    fi
     
     return 0
 }
