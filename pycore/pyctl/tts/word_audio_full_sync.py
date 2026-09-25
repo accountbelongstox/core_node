@@ -22,12 +22,11 @@ single switch.
 
 from __future__ import annotations
 
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.serialized_worker import SerializedValue, start_bus_task
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyutils.common.queue_center_contract import task_language_priority
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_WORD_TTS_AUTO, user_data_store
@@ -73,8 +72,7 @@ class WordAudioFullSync:
     """Idempotent full without-audio pull for the word_audio lane."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._running = False
+        self._running = SerializedValue(False, "WordAudioFullSyncRunningState")
         self._last_sync_at: int = 0
         self._last_result: Dict[str, Any] = {}
         self._languages: List[Dict[str, Any]] = []
@@ -82,16 +80,19 @@ class WordAudioFullSync:
     # -------------------- status --------------------
 
     def get_status(self) -> Dict[str, Any]:
-        snapshot = audio_queue_cache.load_snapshot(QUEUE_KEY) or {}
+        cache_path = audio_queue_cache.snapshot_path(QUEUE_KEY)
+        cache_saved_at = int(cache_path.stat().st_mtime) if cache_path.is_file() else 0
+        queue_count = audio_queue_center.queued_count(QUEUE_KEY)
         return {
-            "running": self._running,
+            "running": bool(self._running.get()),
             "on_start": full_sync_on_start(),
             "last_sync_at": self._last_sync_at,
             "last_result": dict(self._last_result),
             "languages": [dict(row) for row in self._languages],
-            "cache_saved_at": int(snapshot.get("saved_at") or 0),
-            "cache_source": str(snapshot.get("source") or ""),
-            "cache_count": len(snapshot.get("tasks") or []),
+            "cache_saved_at": cache_saved_at,
+            "cache_source": str(self._last_result.get("source") or ""),
+            "cache_count": queue_count,
+            "queue_count": queue_count,
         }
 
     # -------------------- full pull --------------------
@@ -111,19 +112,17 @@ class WordAudioFullSync:
                 "error": "WORD_AUDIO_DISABLED",
                 "status": self.get_status(),
             }
-        if self._running:
+        if self._running.get():
             return {"success": True, "running": True, "status": self.get_status()}
-        with self._lock:
-            if self._running:
-                return {"success": True, "running": True, "status": self.get_status()}
-            self._running = True
+        if not self._running.compare_and_set(False, True):
+            return {"success": True, "running": True, "status": self.get_status()}
         try:
             result = self._pull_all(base_url or laravel_endpoint_manager.get_active_base_url())
         except Exception as exc:  # noqa: BLE001 - startup/RPC entry never raises
             ColorPrint.yellow(f"[WordAudioFullSync] full pull failed: {exc}")
             result = {"success": False, "error": str(exc)}
         finally:
-            self._running = False
+            self._running.set(False)
         self._last_result = dict(result)
         result["status"] = self.get_status()
         return result
@@ -132,7 +131,7 @@ class WordAudioFullSync:
         """Kick the full pull on a background bus task (non-blocking boot)."""
         if not assist_capability_enabled("tts"):
             return {"success": False, "error": "WORD_AUDIO_DISABLED"}
-        if self._running:
+        if self._running.get():
             return {"success": True, "running": True}
         try:
             start_bus_task(

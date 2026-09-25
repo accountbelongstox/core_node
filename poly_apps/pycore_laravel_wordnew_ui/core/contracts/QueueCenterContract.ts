@@ -499,6 +499,7 @@ export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordA
     cache_saved_at: toNumber(value.cache_saved_at),
     cache_source: typeof value.cache_source === 'string' ? value.cache_source : '',
     cache_count: toNumber(value.cache_count),
+    queue_count: value.queue_count == null ? toNumber(value.cache_count) : toNumber(value.queue_count),
   };
 }
 

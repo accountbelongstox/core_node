@@ -47,6 +47,7 @@ from pycore.pyctl.tts.status_service import status as tts_api_status
 from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_status
 from pycore.pyutils.stt.stt_orchestrator import stt_status
 from pycore.pyutils.tts.edge.client import get_synth_timeout, set_synth_timeout
+from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_orchestrator import (
     default_tts_engine_priority,
     default_sentence_tts_priority,
@@ -75,9 +76,9 @@ from pycore.pyutils.tts.tts_service_manager import get_server_settings
 # ({stt|tts|image|translation: [engine, ...]}). The live availability/options are
 # always read fresh from the orchestrators; only the ORDER is persisted here.
 _CAP_SECTION = USER_DATA_SECTION_CAPABILITY_PRIORITIES
-# sentence_tts (qwen3tts-first) + word_tts (edge-first) are separate priority
-# profiles consumed by tts_orchestrator._priority("sentence"|"word"); the shared
-# ``tts`` block remains the global default for ad-hoc synth + UI tests.
+# sentence_tts is an editable synthesis profile. Queue Center word audio uses
+# the static Kokoro batch profile and exposes word_tts as read-only policy data;
+# the shared ``tts`` block remains the default for ad-hoc synth + UI tests.
 _CAP_KEYS = ("stt", "tts", "sentence_tts", "word_tts", "image", "translation")
 # TTS tuning shares the same user_data section the tts router persists to.
 _TTS_SECTION = USER_DATA_SECTION_TTS
@@ -219,8 +220,7 @@ def _block(
     """Assemble one capability block (priority = persisted∪live, availability maps).
 
     ``live_order`` overrides the availability-map key order used as the merge
-    fallback - used by sentence_tts/word_tts so their qwen3tts/edge-first
-    defaults show when never saved (instead of the global tts order)."""
+    fallback, so a specialized profile does not inherit the global TTS order."""
     available, installed, setup_reasons = _maps_from_engines(engines)
     priority = _merge_order(
         _persisted_priority(cap),
@@ -297,11 +297,9 @@ def _capability_blocks() -> Dict[str, Dict[str, Any]]:
     stt_known = list(default_stt_engine_priority())
     tts_known = list(default_tts_engine_priority())
     sentence_known = list(default_sentence_tts_priority())
-    word_known = list(default_word_tts_priority())
-    # sentence_tts + word_tts reuse the SAME tts_status availability probe (the
-    # engine set is identical); only the default ORDER differs (qwen3tts-first /
-    # edge-first). live_order pins that default so an unsaved profile shows its
-    # own chain, not the global tts order.
+    word_known = [runtime_profile.WORD_BATCH_ENGINE]
+    # Specialized TTS blocks reuse the same availability probe. The sentence
+    # order remains editable; word audio is the static Kokoro batch policy.
     tts_engines = _engines_from_orchestrator(orchestrator_tts_status, tts_known)
     return {
         "stt": _block(
@@ -429,6 +427,10 @@ def post_capability_settings(capability: str, priority=None, options=None):
     cap = (capability or "").strip().lower()
     if cap not in _CAP_KEYS:
         return {"success": False, "error": f"Unknown capability: {capability}"}
+    if cap == "word_tts":
+        _invalidate_capability_cache()
+        block = _capability_blocks()[cap]
+        return {"success": True, "capability": cap, "read_only": True, **block}
     try:
         if priority is not None:
             _save_priority(cap, priority)

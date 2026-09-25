@@ -71,9 +71,9 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
             ColorPrint.yellow(f"[WordTtsAuto] live concurrency apply failed ({exc})")
 
     settings = set_assist_capability("tts", bool(enabled))
-    runtime = apply_assist_runtime(settings)
     if enabled:
         activate_word_audio_queue()
+    runtime = apply_assist_runtime(settings)
     errors = list(runtime.get("errors") or [])
 
     ColorPrint.blue(f"[WordTtsAuto] auto_start set to {bool(enabled)}")

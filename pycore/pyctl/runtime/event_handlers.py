@@ -34,7 +34,6 @@ from pycore.pyctl.relay import laravel_relay_agent_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.assist.assist_settings import (
-    assist_callback_states,
     assist_capability_enabled,
     load_assist_settings,
 )
@@ -415,7 +414,6 @@ def register_runtime_workers() -> None:
         heartbeat.start()
 
     assist_settings = load_assist_settings()
-    callback_states = assist_callback_states(assist_settings)
     runtime_steps = (
         ("restore_word_audio", restore_word_audio_settings),
         ("restore_sentence_audio", restore_sentence_audio_settings),
@@ -437,18 +435,18 @@ def register_runtime_workers() -> None:
                 name=callback_name,
                 callback=callback,
                 interval=interval,
-                enabled=callback_states[callback_name],
+                enabled=False,
             )
             _RUNTIME_STEPS_COMPLETED.add(step_name)
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
-    apply_assist_runtime(assist_settings)
     if "word_audio_boot_chain" not in _RUNTIME_STEPS_COMPLETED:
         try:
             _start_word_audio_boot_chain()
             _RUNTIME_STEPS_COMPLETED.add("word_audio_boot_chain")
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step word_audio_boot_chain failed: {exc}")
+    apply_assist_runtime(assist_settings)
     service_steps = (
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("agent_history", register_agent_history_extraction),

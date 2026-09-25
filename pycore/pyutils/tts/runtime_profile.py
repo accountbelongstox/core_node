@@ -53,9 +53,9 @@ WORD_BATCH_PROFILE = "word_batch"
 WORD_BATCH_DEVICE = "cpu"
 _GB = BYTES_PER_GIB
 
-# Pinned engine chains per capability. The word chain is the single-word
-# profile; batch word generation reads the "word_batch" entry; sentences and
-# long text read "sentence". GPU mode keeps kokoro (CPU) and qwen3tts (GPU)
+# Pinned engine chains per capability. The word chain is for explicit ad-hoc
+# single-word requests. Queue Center and orchestration batch work always reads
+# the static "word_batch" entry. GPU mode keeps kokoro (CPU) and qwen3tts (GPU)
 # disjoint so the two pinned local models never fight over the card.
 _GPU_PLAN: Dict[str, Tuple[str, ...]] = {
     "word": (_EDGE_ENGINE, WORD_BATCH_ENGINE),

@@ -28,16 +28,14 @@ const CAP_DEFAULT_PRIORITY: Record<DisplayedCapabilityKey, string[]> = {
   tts: ['gptsovits', 'streamelements', 'sherpa', 'melotts', 'edge', 'gtts_web', 'azure', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts'],
   // Sentence TTS: qwen3tts-first (high-quality neural voices for sentence audio).
   sentence_tts: ['qwen3tts', 'chattts', 'cosyvoice', 'fishspeech', 'bark', 'voxcpm2', 'kokoro', 'gptsovits', 'f5tts', 'melotts', 'sherpa', 'edge', 'streamelements', 'gtts_web', 'azure'],
-  // Word TTS: edge-first (fast lightweight single-word pronunciation).
-  word_tts: ['edge', 'streamelements', 'gtts_web', 'sherpa', 'melotts', 'gptsovits', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts', 'azure'],
+  // Queue Center word audio is a static CPU batch policy.
+  word_tts: ['kokoro'],
 };
-/** Clear English titles for each capability block (the translation keys are not
- *  defined in the i18n tables, so raw keys would show otherwise). */
-const CAP_LABEL: Record<DisplayedCapabilityKey, string> = {
-  stt: 'Speech-to-Text',
-  tts: 'Text-to-Speech (Default)',
-  sentence_tts: 'Text-to-Speech (Sentence)',
-  word_tts: 'Text-to-Speech (Word)',
+const CAP_LABEL_KEY: Record<DisplayedCapabilityKey, string> = {
+  stt: 'queueCenter.drawer.cap.stt',
+  tts: 'queueCenter.drawer.cap.tts',
+  sentence_tts: 'queueCenter.drawer.cap.sentenceTts',
+  word_tts: 'queueCenter.drawer.cap.wordTts',
 };
 
 export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
@@ -131,13 +129,13 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
           options: r.options ?? prev[cap].options,
         },
       }));
-      setNotice({ cap, ok: true, text: `${CAP_LABEL[cap]} saved` });
+      setNotice({ cap, ok: true, text: t('queueCenter.drawer.saved', { cap: t(CAP_LABEL_KEY[cap]) }) });
     } catch (e: any) {
       if (mounted.current) setNotice({ cap, ok: false, text: e?.message || 'pycore unreachable' });
     } finally {
       if (mounted.current) setSavingCap(null);
     }
-  }, [draft]);
+  }, [draft, t]);
 
   return (
     <>
@@ -185,6 +183,7 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
             const inst = block.installed ?? {};
             const reasons = block.setup_reasons ?? {};
             const isTts = cap === 'tts';
+            const isStaticWordBatch = cap === 'word_tts';
             const badgeLabels = {
               ready: t('queueCenter.drawer.available'),
               setup: t('queueCenter.drawer.needsSetup'),
@@ -194,18 +193,26 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
               <section key={cap} className="rounded-2xl p-3 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 space-y-2">
                 <div className="flex items-center gap-2">
                   <CIcon className="w-4 h-4 text-indigo-500 shrink-0" />
-                  <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">{CAP_LABEL[cap]}</h3>
-                  <button onClick={() => save(cap)} disabled={savingCap === cap}
-                    className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition shrink-0">
-                    {savingCap === cap ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                    {savingCap === cap ? t('queueCenter.drawer.saving') : t('queueCenter.drawer.save')}
-                  </button>
+                  <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">{t(CAP_LABEL_KEY[cap])}</h3>
+                  {isStaticWordBatch ? (
+                    <span className="ml-auto rounded-md bg-violet-500/15 px-2 py-1 text-[10px] font-bold text-violet-500">
+                      {t('queueCenter.drawer.staticPolicy')}
+                    </span>
+                  ) : (
+                    <button onClick={() => save(cap)} disabled={savingCap === cap}
+                      className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition shrink-0">
+                      {savingCap === cap ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                      {savingCap === cap ? t('queueCenter.drawer.saving') : t('queueCenter.drawer.save')}
+                    </button>
+                  )}
                 </div>
 
                 {/* engine priority (re-orderable) */}
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('queueCenter.drawer.priority')}</div>
-                  <p className="text-[10px] text-slate-400 mb-1.5">{t('queueCenter.drawer.priorityHint')}</p>
+                  <p className="text-[10px] text-slate-400 mb-1.5">
+                    {isStaticWordBatch ? t('queueCenter.drawer.wordBatchHint') : t('queueCenter.drawer.priorityHint')}
+                  </p>
                   <ul className="space-y-1">
                     {block.priority.map((engine, idx) => {
                       const uiState = ttsEngineUiState(inst[engine], avail[engine] === true);
@@ -231,16 +238,18 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
                             <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
                             {ttsEngineBadgeLabel(uiState, badgeLabels)}
                           </span>
-                          <div className="flex flex-col shrink-0">
-                            <button onClick={() => move(cap, idx, -1)} disabled={idx === 0}
-                              className="p-0.5 rounded text-slate-400 hover:text-indigo-500 disabled:opacity-30 transition" title={t('queueCenter.drawer.moveUp')}>
-                              <ChevronUp className="w-3 h-3" />
-                            </button>
-                            <button onClick={() => move(cap, idx, 1)} disabled={idx === block.priority.length - 1}
-                              className="p-0.5 rounded text-slate-400 hover:text-indigo-500 disabled:opacity-30 transition" title={t('queueCenter.drawer.moveDown')}>
-                              <ChevronDown className="w-3 h-3" />
-                            </button>
-                          </div>
+                          {!isStaticWordBatch && (
+                            <div className="flex flex-col shrink-0">
+                              <button onClick={() => move(cap, idx, -1)} disabled={idx === 0}
+                                className="p-0.5 rounded text-slate-400 hover:text-indigo-500 disabled:opacity-30 transition" title={t('queueCenter.drawer.moveUp')}>
+                                <ChevronUp className="w-3 h-3" />
+                              </button>
+                              <button onClick={() => move(cap, idx, 1)} disabled={idx === block.priority.length - 1}
+                                className="p-0.5 rounded text-slate-400 hover:text-indigo-500 disabled:opacity-30 transition" title={t('queueCenter.drawer.moveDown')}>
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
                         </li>
                       );
                     })}

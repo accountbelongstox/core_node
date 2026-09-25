@@ -357,6 +357,7 @@ export interface QueueCenterWordAudioFullSyncStatus {
   cache_saved_at: number;
   cache_source: string;
   cache_count: number;
+  queue_count: number;
 }
 
 export interface QueueCenterErrorState {

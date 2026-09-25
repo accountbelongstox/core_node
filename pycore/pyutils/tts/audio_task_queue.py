@@ -135,6 +135,11 @@ class AudioTaskQueue:
     def active_count(self) -> int:
         return len(self._active_keys)
 
+    @serialized_method
+    def active_dedup_keys(self) -> Set[str]:
+        """INTERNAL: canonical identities currently represented in the Queue."""
+        return set(self._active_dedup_keys)
+
     @staticmethod
     def _task_key(task: Dict[str, Any]) -> str:
         task_id = str(task.get("task_id") or "").strip()

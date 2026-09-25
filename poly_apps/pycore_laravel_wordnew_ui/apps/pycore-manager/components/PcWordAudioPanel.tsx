@@ -1,6 +1,6 @@
 /**
  * Unified Word Audio panel. The Queue Center section switch is the only
- * worker control; this panel owns engine priority, concurrency and live logs.
+ * worker control; the static Kokoro/CPU batch policy is read-only here.
  */
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
@@ -162,7 +162,7 @@ export function PcWordAudioPanel(): ReactElement {
                 </span>
               )}
               <span className="font-mono">
-                {t('queueCenter.wordAudioQueue.fullSync.cached', { count: fullSync.cache_count })}
+                {t('queueCenter.wordAudioQueue.fullSync.queued', { count: fullSync.queue_count })}
               </span>
               {fullSync.last_result?.error && (
                 <span className="text-rose-400">{fullSync.last_result.error}</span>

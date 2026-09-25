@@ -106,7 +106,9 @@ def _build_config(model_root: Path) -> Any:
             data_dir=str(_find(model_root, "espeak-ng-data") or model_root),
             dict_dir=str(_find(model_root, "dict") or ""),
         )
-        return sherpa.OfflineTtsConfig(model=sherpa.OfflineTtsModelConfig(kokoro=kokoro))
+        return sherpa.OfflineTtsConfig(
+            model=sherpa.OfflineTtsModelConfig(kokoro=kokoro, provider="cpu")
+        )
 
     vits = sherpa.OfflineTtsVitsModelConfig(
         model=str(onnx),
@@ -115,7 +117,9 @@ def _build_config(model_root: Path) -> Any:
         data_dir=str(_find(model_root, "espeak-ng-data") or model_root),
         dict_dir=str(_find(model_root, "dict") or ""),
     )
-    return sherpa.OfflineTtsConfig(model=sherpa.OfflineTtsModelConfig(vits=vits))
+    return sherpa.OfflineTtsConfig(
+        model=sherpa.OfflineTtsModelConfig(vits=vits, provider="cpu")
+    )
 
 
 def _get_tts() -> Any:

@@ -267,9 +267,19 @@ class AudioQueueCenter:
         if not snapshot:
             return {"success": True, "lane": lane, "restored": 0, "cached": False}
         part1_keys = self._part1_keys.setdefault(lane, set())
-        part1_keys.update(snapshot.get("part1_keys") or set())
+        tasks = snapshot.get("tasks") or []
+        cached_task_keys = {
+            audio_dedup_key_from_task(task, lane)
+            for task in tasks
+            if isinstance(task, dict)
+        }
+        part1_keys.update(
+            key
+            for key in (snapshot.get("part1_keys") or set())
+            if key in cached_task_keys
+        )
         restored = 0
-        for task in snapshot.get("tasks") or []:
+        for task in tasks:
             dedup_key = audio_dedup_key_from_task(task, lane)
             if dedup_key and queue.has_dedup_key(dedup_key):
                 continue
@@ -304,7 +314,7 @@ class AudioQueueCenter:
         audio_queue_cache.save_snapshot(
             lane,
             queue.export_tasks(),
-            self._part1_keys.get(lane) or set(),
+            (self._part1_keys.get(lane) or set()) & queue.active_dedup_keys(),
             source,
         )
 
@@ -316,6 +326,11 @@ class AudioQueueCenter:
         if queue is None:
             return []
         return queue.head_preview(limit)
+
+    def queued_count(self, lane: str) -> int:
+        """M4: O(1) whole-Queue size for status surfaces."""
+        queue = self.queue_for(lane)
+        return len(queue) if queue is not None else 0
 
     def accept_task(self, lane: str, task: Dict[str, Any]) -> bool:
         """M5 intake: admit one task with whole-Queue canonical dedup."""

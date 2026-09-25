@@ -83,13 +83,13 @@ def set_queue_center_control(
     )
 
     settings = set_assist_capability(capability, enabled)
+    if canonical_name == "word_audio" and enabled:
+        activate_word_audio_queue()
     runtime = apply_assist_runtime(settings, graceful_stop=req.graceful_stop)
     errors: List[str] = list(runtime.get("errors") or [])
 
     result: Dict[str, Any] = {"config": settings}
     if canonical_name == "word_audio":
-        if enabled:
-            activate_word_audio_queue()
         status = get_word_audio_status()
         result = {"ok": not bool(status.get("error")), "status": status}
     elif canonical_name == "sentence_audio":
