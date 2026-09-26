@@ -16,6 +16,17 @@
 >   (translated in the UI), scoped to one attempt and one book. Raw
 >   exception text is never shown.
 > - *Relay reliability.* Still valid; orchestration routes stay non-blocking.
+> - *UI location (2026-09-27).* Audio Orchestration is a standalone,
+>   source-agnostic page `/pycore-manager/audio-orchestration`
+>   (`pages/PcAudioOrchestrationPage.tsx` + `pages/audio-orchestration/`), no
+>   longer a Vocabulary tab. See
+>   `docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`.
+> - *Word batch + timing (2026-09-27, W1).* Every word (fresh misses AND
+>   words a lane worker failed) is generated only through the shared
+>   `kokoro_batch.synthesize_words_to_cache`; there is no per-word word
+>   synthesis. Generation start/finish/duration, per-phase, per-segment,
+>   per-lane-item and per-resource times are persisted and shown. See the W1
+>   record in `REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`.
 
 ## Relay reliability
 
@@ -38,6 +49,17 @@
 - Word audio lives ONLY in the unified `word_audio_cache` base (`{word}_{provider}.mp3`, any provider counts).
 - Resource resolution is batch-first: one word-cache directory scan per language (`find_cached_many`) plus content-addressed sentence stats; Laravel and local generation run for cache misses only.
 
+## Task sources (2026-09-27)
+
+- Tasks are source-agnostic: `source` is `vocab_book` (default, Laravel book sentences) or a text-input source such as `prompt_rewrite` (inline `sentences` in the task record). `orch_sources.py` owns the ids and the sentence provider; manifest, resources, and assembly are one pipeline for all sources.
+- Non-book sources submit through `orch_service.submit_text_task` / route `ui/audio_orch/task/submit_text` and generate immediately. Contract: `REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md` §3 "W2 contract".
+
+## Laravel delivery of orchestrated output (2026-09-27)
+
+- pycore side (W4): `pyctl/audio_orchestration/orch_delivery.py` kind `audio_orch.output` on the shared durable Laravel delivery outbox (`pyutils/laravel/delivery_outbox.py`). One row per task output version (task id + generation id + finished segment files); enqueued when a run finishes (done/failed with at least one segment) and backfilled for every task on each Laravel online edge and at startup; delivered receipts are retained so history is sent once. Per-task counts: `progress.output_delivery` (tasks list / task get / progress); status panel on the Audio Orchestration page. Generated manifest clips use kind `audio_orch.resource`. Each assembled segment records `timeline` (per-clip `start_ms`/`end_ms`, sentence `seq`) and `duration_ms`; older segments send `timeline: []`.
+- Finished tasks (metadata, sentences, final segment mp3s) of every source are delivered idempotently to Laravel `/api/app_qy_v1/orch_audio/ingest/*` (tasks → offset-v1 segment upload); which tasks/segments are still owed is answered by the Laravel diff `POST /api/app_qy_v1/delivery/diff` kind `orch_output` (the former `ingest/probe` was folded into it; `REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md` "W7 contract"); wordnew reads `/api/app_qy_v1/orch_audio/tasks[/{id}]`. Keys: task `sha256(machine_id\ntask_id)[0:40]` + pycore `meta_hash`; segment (task, index, sha256); audio stored content-addressed under `/static/app_qy_v1/audio/orchestration/`. Contract: `REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md` "W5 contract".
+- wordnew playback (R9): home card → `#/orch-audio` listing (source filter, paged) → `#/orch-audio/<task_key>` player (segment playlist + per-sentence resources on the shared `WordNewBookReaderPlayback` engine, highlight via the per-segment `timeline` (length estimate only as fallback), sentence pages loaded on demand, original prompt, word resources). Design: `apps/wordnew/docs/DESIGN.en.md` §7; record: "W6 implementation record".
+
 ## Book tasks
 
 - Every Backend Books item has its own New Task action on the right.
@@ -56,7 +78,7 @@
 - Generate first collects the complete manifest of words and sentences for the selected book and pattern.
 - Resolve each audio resource in order: existing Pycore cache, Laravel resource, then live Pycore TTS generation.
 - Reuse the established cache keys, resource download, upload, and durable delivery mechanisms.
-- Newly generated resources synchronize to Laravel; retries remain idempotent and preserve pending uploads.
+- Newly generated resources synchronize to Laravel through the shared delivery outbox (kind `audio_orch.resource`); retries remain idempotent and preserve pending uploads.
 - Final audio/video generation starts only after manifest collection and required resource completion.
 - Show manifest collection, resource resolution/generation/synchronization, and final generation as separate phases with detailed steps, counts, progress bars, and actionable errors.
 - Persist phase/progress data so refreshes and reconnects recover the active job.

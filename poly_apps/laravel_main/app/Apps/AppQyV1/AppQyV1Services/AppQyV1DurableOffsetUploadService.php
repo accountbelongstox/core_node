@@ -96,6 +96,41 @@ final class AppQyV1DurableOffsetUploadService
         return $spoolPath !== '' ? FileSystemManager::readFile($spoolPath) : false;
     }
 
+    /**
+     * Move a completed spool file to its final path (no in-memory copy) and
+     * drop the spool.
+     */
+    public function promoteCompleted(array $receipt, string $destination): bool
+    {
+        $spoolPath = '';
+
+        if (!($receipt['upload_complete'] ?? false)) {
+            return false;
+        }
+        $spoolPath = (string) ($receipt['spool_path'] ?? '');
+
+        return $spoolPath !== '' && FileSystemManager::moveFile($spoolPath, $destination);
+    }
+
+    /** Receipt for a payload the receiver already holds; no chunk is written. */
+    public function alreadyStoredReceipt(string $lane, string $identity, int $totalBytes): array
+    {
+        $contract = QueueCenterContract::httpTransfer();
+
+        return [
+            'upload_protocol' => (string) ($contract['protocol'] ?? 'offset-v1'),
+            'transfer_id' => hash('sha256', trim($lane) . ':' . trim($identity)),
+            'offset' => $totalBytes,
+            'total_bytes' => $totalBytes,
+            'progress' => 100.0,
+            'upload_complete' => true,
+            'accepted' => false,
+            'idempotent' => true,
+            'busy' => false,
+            'retry_after_ms' => 0,
+        ];
+    }
+
     public function publicReceipt(array $receipt): array
     {
         unset($receipt['spool_path']);

@@ -53,9 +53,10 @@ class ConfigManager:
                     'enabled': False  # Disabled by default
                 }
             else:
-                # Default enabled state: cursor + the Linux default text editor are enabled; antigravity is no longer launched by default
+                # Default enabled state: the code-editor slot (cursor, then codex) and
+                # the system default text editor are enabled; antigravity is no longer launched by default
                 defaults[app_name] = {
-                    'enabled': True if app_name in ('cursor', 'texteditor') else False
+                    'enabled': True if app_name in ('cursor', 'codex', 'texteditor') else False
                 }
         
         return defaults
@@ -67,7 +68,17 @@ class ConfigManager:
                 'enabled': True,
                 'columns': 3,
                 'rows': 2,
-                'toggle': 'X6'  # X4, X6, X8, DISABLE
+                'toggle': 'X6',  # X4, X6, X8, X12, X15, X18, DISABLE
+                # Resolution grid: 2K screens use 5x3, 4K use 6x3; smaller
+                # screens keep columns/rows above.
+                'auto_grid': True
+            },
+            # Background services offered after the window layout
+            # (laravel_main, mcp-chrome watcher, nexus-dash UI): each prompt
+            # auto-answers Yes after prompt_timeout_sec.
+            'services': {
+                'prompt_enabled': True,
+                'prompt_timeout_sec': 5
             },
             'measurements': {
                 'columns': 67,
@@ -205,6 +216,10 @@ class ConfigManager:
         """Get specific application configuration"""
         return self.config.get('applications', {}).get(app_name, {})
     
+    def get_services_config(self):
+        """Get background-service prompt configuration"""
+        return self.config.get('services', {})
+
     def get_measurements_config(self):
         """Get measurements configuration"""
         return self.config.get('measurements', {})

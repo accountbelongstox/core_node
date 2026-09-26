@@ -33,6 +33,8 @@ export interface CmPageDef {
   path: string;
   labelKey: string;
   capability: string | null;
+  applyCapability?: string;
+  applyLabelKey?: string;
   Icon: LucideIcon;
   Component: React.ComponentType;
   group: 'primary' | 'account';
@@ -44,8 +46,8 @@ export const CM_PAGES: CmPageDef[] = [
   { id: 'projects', path: 'projects', labelKey: 'nav.myProjects', capability: 'project.read', Icon: BriefcaseBusiness, Component: CmProjectsPage, group: 'primary' },
   { id: 'project-create', path: 'projects/new', labelKey: 'nav.createProject', capability: 'project.create', Icon: FilePlus2, Component: CmProjectCreatePage, group: 'primary' },
   { id: 'tasks', path: 'tasks', labelKey: 'nav.tasks', capability: 'task.read', Icon: ListTodo, Component: CmTasksPage, group: 'primary' },
-  { id: 'reviews', path: 'reviews', labelKey: 'nav.reviews', capability: 'review.read', Icon: ClipboardCheck, Component: CmReviewsPage, group: 'primary' },
-  { id: 'architect', path: 'architect', labelKey: 'nav.architect', capability: 'architect.read', Icon: Workflow, Component: CmArchitectPage, group: 'primary' },
+  { id: 'reviews', path: 'reviews', labelKey: 'nav.reviews', capability: 'review.read', applyCapability: 'task.browse', applyLabelKey: 'nav.reviewerApply', Icon: ClipboardCheck, Component: CmReviewsPage, group: 'primary' },
+  { id: 'architect', path: 'architect', labelKey: 'nav.architect', capability: 'architect.read', applyCapability: 'task.browse', applyLabelKey: 'nav.architectApply', Icon: Workflow, Component: CmArchitectPage, group: 'primary' },
   { id: 'wallet', path: 'wallet', labelKey: 'nav.wallet', capability: 'finance.read', Icon: WalletCards, Component: CmWalletPage, group: 'primary' },
   { id: 'verification', path: 'verification', labelKey: 'nav.verification', capability: 'onboarding.read', Icon: ShieldCheck, Component: CmVerificationPage, group: 'account' },
   { id: 'profile', path: 'profile', labelKey: 'nav.profile', capability: 'profile.read', Icon: UserRound, Component: CmProfilePage, group: 'account' },

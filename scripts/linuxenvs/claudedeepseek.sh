@@ -16,7 +16,7 @@
 # =============================================================================
 # Synopsis: Launches Claude Code via the DeepSeek Anthropic-compatible endpoint
 #     with the model forced to deepseek-v4-pro everywhere, experimental agent
-#     teams force-enabled, and ultracode opt-in (default Yes).
+#     teams force-enabled.
 # Notes:
 #     - API key is read from .secret_keys/.secret_ignore/DEEPSEEK_API_KEY_1,
 #       written by the Special Software Environment Variables Manager (dd.sh /
@@ -28,7 +28,7 @@
 #     - deepseek-v4-pro is the flagship model (claude-opus* maps to it). The
 #       legacy deepseek-chat / deepseek-reasoner names are deprecated on
 #       2026/07/24.
-#     - team is always on; ultracode is opt-in; --dangerously-skip-permissions
+#     - team is always on; --dangerously-skip-permissions
 #       is added for non-root only (root is refused that flag by Claude Code).
 # Source: https://api-docs.deepseek.com/guides/anthropic_api
 # =============================================================================
@@ -39,10 +39,7 @@ set -e
 DEEPSEEK_BASE_URL=""
 DEEPSEEK_API_KEY=""
 DEEPSEEK_MODEL="deepseek-v4-pro"
-ultra_settings_json='{"ultracode":true}'
 claude_args=()
-ultra_choice=""
-ultra_enabled=0
 secret_dir=""
 scriptSource=""
 scriptCurrentPath=""
@@ -59,7 +56,7 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
 
 echo ""
 echo "============================================================"
-echo "Claude AI (DeepSeek) - v4 [deepseek-v4-pro + team + opt-in ultracode]"
+echo "Claude AI (DeepSeek) - v4 [deepseek-v4-pro + team]"
 echo "============================================================"
 echo ""
 
@@ -158,21 +155,11 @@ fi
 echo "============================================================"
 echo ""
 
-# Build claude args: deepseek-v4-pro always on; ultracode opt-in; skip-permissions for non-root.
+# Build claude args: deepseek-v4-pro always on; skip-permissions for non-root.
 claude_args+=(--model "$DEEPSEEK_MODEL")
 
-# Ultracode: opt-in prompt (default Yes).
-read -r -p "Enable ultracode? [Y/n]: " ultra_choice || ultra_choice=""
-if [ "$ultra_choice" != "n" ] && [ "$ultra_choice" != "N" ]; then
-    ultra_enabled=1
-    claude_args+=(--settings "$ultra_settings_json")
-fi
-
-if [ "$ultra_enabled" -eq 1 ]; then
-    echo "Ultracode: enabled (--settings $ultra_settings_json)"
-else
-    echo "Ultracode: off (opted out)"
-fi
+ai_cli_ultracode_prompt
+claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
 
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Film, Wand2 } from 'lucide-react';
+import { AudioLines, Film, Languages, Wand2 } from 'lucide-react';
 import {
   persistAgentHistoryArticleConfig,
   useAgentHistoryRuntime,
@@ -229,16 +229,40 @@ const PcAgentHistoryConfigPanel: React.FC<{
             </button>
           </div>
         </div>
-        {/* Learning video generation lives in Vocabulary → Audio Orchestration
+        {/* Learning video generation lives in the Audio Orchestration page
             (OrchLearningVideoPanel) — same backend config, single editor. */}
         <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
           <Link
-            to="/pycore-manager/vocabulary?tab=audio-orch"
+            to="/pycore-manager/audio-orchestration"
             className="flex items-center gap-2 text-xs text-sky-600 dark:text-sky-300 hover:underline"
           >
             <Film className="w-3.5 h-3.5" />
             {tk('videoMovedToOrch')} → {tk('openAudioOrch')}
           </Link>
+        </div>
+        {/* Prompt rewrite (OpenRouter source agent_history_prompt_rewrite) and
+            its audio orchestration submit: backend switches, applied live. */}
+        <div className="flex flex-wrap gap-2">
+          {([
+            ['prompt_rewrite_enabled', 'promptRewriteEnabled', Languages],
+            ['prompt_rewrite_audio', 'promptRewriteAudio', AudioLines],
+          ] as const).map(([key, label, Icon]) => {
+            const on = articleCfg ? articleCfg[key] !== false : true;
+            return (
+              <label key={key} title={tk(`${label}Hint`)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-colors ${
+                  on
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : 'border-slate-300 dark:border-white/10 text-slate-500'
+                }`}>
+                <input type="checkbox" className="accent-emerald-600" checked={on}
+                  onChange={(event) => { void persistAgentHistoryArticleConfig({ [key]: event.target.checked }); }}
+                  aria-label={tk(label)} />
+                <Icon className="w-3.5 h-3.5" />
+                {tk(label)}
+              </label>
+            );
+          })}
         </div>
         {/* Pipeline prompt editing moved to AI → Capability → OpenRouter card
             (PcAiProviderPromptsEditor) — single editor, same backend config. */}

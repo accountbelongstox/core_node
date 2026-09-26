@@ -1,0 +1,14 @@
+{
+  "launcher.grid.auto_profile": "Terminal grid: {columns}x{rows} ({profile} auto profile, screen height {height}px)",
+  "launcher.grid.below_threshold": "Terminal grid: {columns}x{rows} (configured; screen height {height}px is below the {threshold}px auto-grid threshold)",
+  "launcher.grid.auto_off": "Terminal grid: {columns}x{rows} (configured; auto grid is off)",
+  "launcher.grid.disabled": "Terminal grid: disabled in the configuration",
+  "launcher.grid.state_on": "ON",
+  "launcher.grid.state_off": "OFF",
+  "launcher.grid.menu_auto_grid": "AUTO GRID ({profiles}): {state}",
+  "launcher.grid.menu_toggle_entry": "1. Toggle Terminal ({choices})",
+  "launcher.grid.menu_current_toggle": "  Toggle: {toggle} ({choices})",
+  "launcher.grid.menu_current_auto_grid": "  Auto grid ({profiles}): {state}",
+  "launcher.grid.menu_toggle_item": "{index}. {toggle} ({count} windows)",
+  "launcher.grid.menu_toggle_disable_item": "{index}. {toggle}"
+}

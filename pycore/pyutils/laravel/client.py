@@ -40,8 +40,15 @@ from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.laravel.http_recorder import (
     laravel_http_recorder,
 )
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
-from pycore.pyutils.laravel.identity import build_pycore_identity_headers
+from pycore.pyutils.laravel.endpoint_manager import (
+    LARAVEL_OFFLINE_STATUSES,
+    laravel_endpoint_manager,
+    laravel_reachability,
+)
+from pycore.pyutils.laravel.identity import (
+    LARAVEL_SERVER_ID_HEADER,
+    build_pycore_identity_headers,
+)
 from pycore.pyutils.common.laravel_http_transport import (
     TRANSPORT_HTTPX,
     create_laravel_http_session,
@@ -90,6 +97,14 @@ def laravel_failure(error: Any = None, status_code: int = 0) -> Dict[str, Any]:
     else:
         code = LARAVEL_ERROR_REQUEST_FAILED
     return {"error_code": code, "detail": _short_err(error) if error is not None else "", "status": 0}
+
+
+def laravel_envelope(response: Any) -> Dict[str, Any]:
+    """JSON envelope ``{success, data, error_code, ...}`` of one Laravel
+    response; ``{}`` when the body is not a JSON object."""
+    content_type = str(response.headers.get("Content-Type") or "").lower()
+    body = response.json() if "json" in content_type else {}
+    return body if isinstance(body, dict) else {}
 
 
 def _short_err(err: Any) -> str:
@@ -201,6 +216,11 @@ class LaravelClient:
         return base + path
 
     @staticmethod
+    def _origin(url: str) -> str:
+        parts = urlsplit(url)
+        return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else ""
+
+    @staticmethod
     def _display_path(path: str) -> str:
         if LaravelClient._is_full_url(path):
             try:
@@ -296,6 +316,12 @@ class LaravelClient:
             # close()/exhaustion.
             ms = (time.perf_counter() - started) * 1000.0
             status = resp.status_code
+            server_id = str(resp.headers.get(LARAVEL_SERVER_ID_HEADER) or "").strip()
+            laravel_reachability.note(
+                self._origin(url),
+                status not in LARAVEL_OFFLINE_STATUSES,
+                {"server_id": server_id} if server_id else None,
+            )
             body_summary = "" if stream else _summarize_response(resp)
             if log_line:
                 line = f"[laravel] {method} {url} -> {status} ({ms:.0f}ms)"
@@ -316,6 +342,8 @@ class LaravelClient:
         except Exception as e:
             ms = (time.perf_counter() - started) * 1000.0
             err = _short_err(e)
+            if laravel_failure(e)["error_code"] in (LARAVEL_ERROR_TIMEOUT, LARAVEL_ERROR_UNREACHABLE):
+                laravel_reachability.note(self._origin(url), False)
             if log_line:
                 ColorPrint.red(f"[laravel] {method} {url} -> ERR ({ms:.0f}ms) {err}")
             laravel_http_recorder.notify({

@@ -6,7 +6,7 @@ import os
 import secrets
 import threading
 import time
-from typing import Dict
+from typing import Any, Dict
 from urllib.parse import urlsplit
 
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
@@ -34,6 +34,14 @@ DEVICE_IDENTITY_STORE = AtomicJsonStore(
     lambda: {},
 )
 DEVICE_IDENTITY_LOCK = threading.Lock()
+# Laravel server identity (W7 contract): ``/api/health`` answers a stable
+# ``server_id``; an API response may carry it in LARAVEL_SERVER_ID_HEADER.
+# Delivery state is namespaced per server id; an endpoint whose server id is
+# unknown (legacy server) is namespaced by URL.
+LARAVEL_SERVER_ID_FIELD = "server_id"
+LARAVEL_SERVER_ID_HEADER = "X-Core-Node-Server-Id"
+SERVER_NAMESPACE_PREFIX = "server:"
+URL_NAMESPACE_PREFIX = "url:"
 
 
 def get_pycore_machine_id() -> str:
@@ -99,4 +107,27 @@ def build_pycore_identity_headers(
     return headers
 
 
-__all__ = ["build_pycore_identity_headers", "get_pycore_machine_id"]
+def laravel_server_namespace(server_id: str, base_url: str) -> str:
+    """Delivery namespace of one Laravel server: its stable id when known,
+    otherwise the endpoint URL (legacy servers without an id)."""
+    server_id = str(server_id or "").strip()
+    if server_id:
+        return SERVER_NAMESPACE_PREFIX + server_id
+    return URL_NAMESPACE_PREFIX + str(base_url or "").strip().rstrip("/")
+
+
+def parse_laravel_server_identity(body: Any) -> Dict[str, str]:
+    """``{server_id}`` from a health body ('' for a legacy server)."""
+    body = body if isinstance(body, dict) else {}
+    return {"server_id": str(body.get(LARAVEL_SERVER_ID_FIELD) or "").strip()}
+
+
+__all__ = [
+    "LARAVEL_SERVER_ID_HEADER",
+    "SERVER_NAMESPACE_PREFIX",
+    "URL_NAMESPACE_PREFIX",
+    "build_pycore_identity_headers",
+    "get_pycore_machine_id",
+    "laravel_server_namespace",
+    "parse_laravel_server_identity",
+]

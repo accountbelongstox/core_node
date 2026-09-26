@@ -24,7 +24,7 @@ Generates numbered ``ark${index}.ps1`` / ``ark${index}.sh`` launchers that:
 9. Model for Claude: if ``ARKCLI_MODEL`` is set, prompt Use model xxx? [Y/n]
    (default Y = xxx); if empty, prompt Use model kimi-k3? [Y/n]
    (default Y = kimi-k3). Any N auto-forces ``ark-code-latest`` (tip only).
-10. Launch ``claude`` with ultracode / permission behavior; Agent Teams are
+10. Launch ``claude`` with permission behavior; Agent Teams are
    OFF by default — pass ``-team`` / ``--team`` to enable
    (``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` + ``--teammate-mode in-process``).
    Any other CLI args are forwarded to ``claude``.
@@ -102,6 +102,7 @@ $scriptActualPath = $null
 $item = $null
 $scriptCurrentPath = $null
 $scriptsDirPath = $null
+$aiCliProvisionCommonPath = $null
 $projectRootPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
@@ -136,13 +137,9 @@ $docsGetExit = 0
 $docsGetResult = $null
 $docsUrlFound = $null
 $docsAddResult = $null
-$ultraSettingsJson = $null
-$ultraSettingsFile = $null
 $claudeArgs = $null
 $teammateMode = $null
 $enableTeam = $false
-$enableUltra = $false
-$ultraChoice = $null
 $prevEap = $null
 $hasAgentPlanMcp = $false
 $hasDocsMcp = $false
@@ -159,8 +156,6 @@ $claudeSettingsFile = $null
 $env:DISABLE_AUTOUPDATER = "1"
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
 
-$ultraSettingsJson = '{{"ultracode":true}}'
-$ultraSettingsFile = Join-Path $env:TEMP "ark{file_number}_ultracode_settings.json"
 # Parse -team/--team (opt-in Agent Teams); remaining args forwarded to claude.
 $userArgs = @()
 foreach ($arg in @($args)) {{
@@ -195,6 +190,8 @@ if (-not $scriptCurrentPath) {{
     }}
 }}
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$aiCliProvisionCommonPath = Join-Path $scriptsDirPath "shells\\win\\win_common\\AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonPath
 $projectRootPath = Split-Path $scriptsDirPath -Parent
 
 # Ensure PATH + absolute pnpm path (Global:PNPM_EXE_PATH from Step4_InstallNodeJS).
@@ -740,14 +737,8 @@ if ($enableTeam) {{
 if ($forceModel) {{
     $claudeArgs = @("--model", $resolvedModel) + $claudeArgs
 }}
-# Ultracode: opt-in prompt (default No).
-$ultraChoice = Read-Host "Enable ultracode? [y/N]"
-if ($ultraChoice -eq 'y' -or $ultraChoice -eq 'Y') {{
-    $enableUltra = $true
-    [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
-    $claudeArgs += @("--settings", $ultraSettingsFile)
-}}
 
+$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "ark{file_number}")
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 if ($usePlainClaude) {{
@@ -789,10 +780,6 @@ Write-Host ""
 & claude @claudeArgs
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {{ $exitCode = 0 }}
-
-if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path -LiteralPath $ultraSettingsFile)) {{
-    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-}}
 
 exit $exitCode
 '''
@@ -841,6 +828,7 @@ loginChoice=""
 scriptSource=""
 scriptCurrentPath=""
 scriptsDirPath=""
+aiCliProvisionCommonPath=""
 projectRootPath=""
 pnpmBin=""
 gvarCommon=""
@@ -869,10 +857,7 @@ mcp_exit=0
 docs_get_output=""
 docs_get_exit=0
 docs_url_found=""
-ultra_settings_json='{{"ultracode":true}}'
 claude_args=()
-ultra_choice=""
-ultra_enabled=0
 enable_team=0
 has_agent_plan_mcp=0
 has_docs_mcp=0
@@ -913,6 +898,8 @@ if [ -L "$scriptSource" ]; then
 fi
 scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
+. "$aiCliProvisionCommonPath"
 projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
 gvarCommon="$projectRootPath/scripts/shells/linux/common/gvar_common.sh"
 if [ -f "$gvarCommon" ]; then
@@ -1329,16 +1316,12 @@ if [ "$force_model" -eq 1 ]; then
     claude_args+=(--model "$resolved_model")
 fi
 
-# Ultracode: opt-in prompt (default No).
-read -r -p "Enable ultracode? [y/N]: " ultra_choice || ultra_choice=""
-if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
-    ultra_enabled=1
-    claude_args+=(--settings "$ultra_settings_json")
-fi
-
 if [ "$enable_team" -eq 1 ]; then
     claude_args+=(--teammate-mode in-process)
 fi
+
+ai_cli_ultracode_prompt
+claude_args+=("${{AI_CLI_ULTRACODE_ARGS[@]}}")
 
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)

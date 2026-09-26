@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   CalendarDays,
   ChevronRight,
@@ -10,9 +10,6 @@ import {
 import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
 import PcAiUsageRecordsPanel from '../../components/PcAiUsageRecordsPanel';
 import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
-
-// Usage sources the article pipeline records through chat_once (CN + EN).
-const ARTICLE_USAGE_SOURCES = ['agent_history_article', 'agent_history_translate'];
 
 function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? value as Record<string, any> : {};
@@ -65,6 +62,10 @@ const PcAgentHistoryAiPanel: React.FC<{
   const quotaPercent = dayLimit > 0 ? Math.min(100, Math.round((dayUsed / dayLimit) * 100)) : 0;
   const quotaPaused = dayLimit > 0 && dayUsed >= dayLimit;
   const cooldown = asRecord(rate.cooldown);
+  // Backend-owned source ids (ai_sources.OPENROUTER_ATTEMPT_SOURCES): article,
+  // translation, and prompt rewrite.
+  const sourcesKey = Array.isArray(dashboard.sources) ? dashboard.sources.map(String).join('|') : '';
+  const usageSources = useMemo(() => (sourcesKey ? sourcesKey.split('|') : undefined), [sourcesKey]);
   const [modalOpen, setModalOpen] = useState(false);
 
   const periodUsage = taskPeriod === 'today' ? todayUsage : historyUsage;
@@ -166,7 +167,7 @@ const PcAgentHistoryAiPanel: React.FC<{
       </section>
 
       {/* Paged request records (prompt/response detail, in-flight progress,
-          day filter) — the generic panel scoped to the article pipeline's
+          day filter) — the generic panel scoped to the agent-history
           OpenRouter sources. */}
       <PcAiUsageRecordsPanel
         open={modalOpen}
@@ -174,7 +175,7 @@ const PcAgentHistoryAiPanel: React.FC<{
         tk={tk}
         title={tk('requestAttemptList')}
         provider="openrouter"
-        sources={ARTICLE_USAGE_SOURCES}
+        sources={usageSources}
         defaultDay={taskPeriod === 'today' ? String(dashboard.day || '') : ''}
       />
     </>

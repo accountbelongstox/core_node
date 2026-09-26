@@ -37,6 +37,7 @@ RUNTIME_CONFIG_COMMON="${COMMON_DIR}/runtime_config_common.sh"
 LARAVEL_MAIN_RUNTIME_COMMON="${COMMON_DIR}/laravel_main_runtime_common.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
+REDIS_ENDPOINT_COMMON="${COMMON_DIR}/redis_endpoint_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
@@ -79,6 +80,9 @@ LARAVEL_RUNTIME_DIRS=(
 # Tool resolution state
 PHP_BIN=""
 PHP_PDO_PGSQL_READY="no"
+PHP_REDIS_READY="no"
+LARAVEL_REDIS_INDEX_COMMAND="app_qy_v1:resource-index"
+RUNTIME_EXTENSIONS_CHANGED="no"
 COMPOSER_CMD=""
 COMPOSER_COMMAND_READY="no"
 NPX_BIN=""
@@ -192,6 +196,7 @@ FRANKENPHP_DOMAIN_COMMON_SCRIPT="${LINUX_DIR}/common/frankenphp_domain_common.sh
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
 . "$FRANKENPHP_MANAGER_SCRIPT"
+. "$REDIS_ENDPOINT_COMMON"
 # FrankenPHP plane live-apply library (fm_domain_caddy_apply_converged /
 # fm_domain_workers_restart): the idempotent re-run branch applies the
 # converged Caddy configuration to an ACTIVE plane service.
@@ -337,10 +342,16 @@ if [ -z "$PHP_BIN" ]; then
     fi
 fi
 
+# Redis-compatible endpoint first: its selector gvar decides whether phpredis
+# joins the install-time extension set repaired by ensure_php_pdo_pgsql.
+echo "Ensuring Redis endpoint (reuse running Redis/Dragonfly, start or install only when missing)..."
+redis_endpoint_ensure
+
 ensure_php_pdo_pgsql
 if [ "$PHP_PDO_PGSQL_READY" != "yes" ]; then
     return
 fi
+ensure_php_redis
 
 # --- Ensure composer (auto-install via init-ensure script if missing or wrapper broken) ---
 resolve_composer
@@ -644,14 +655,15 @@ fi
 
 echo "Initializing system (php artisan sys:init)..."
 "$PHP_BIN" artisan sys:init
+ensure_laravel_redis_index
 
 # --- Optional: CodeMart demo data (sys:codemartinit) ---
-# Idempotent seed of demo accounts, projects, milestones, tasks, deposits,
-# wallets and testimonials so a fresh install can exercise the full CodeMart
-# marketplace immediately. Unconditional y/N prompt (defaults to N; safe
-# non-interactively); CODEMART_INIT=yes|no skips the prompt.
+# sys:init already applies the idempotent CodeMart demo dataset unless the
+# environment is production or CODEMART_SEED_DEMO=false. This explicit run
+# seeds it regardless (e.g. on production installs). Unconditional y/N prompt
+# (defaults to N; safe non-interactively); CODEMART_INIT=yes|no skips it.
 if [ -z "$CODEMART_INIT" ]; then
-    ask_default_no "Initialize CodeMart demo data (php artisan sys:codemartinit)?"
+    ask_default_no "Force CodeMart demo data seeding (php artisan sys:codemartinit)?"
     if [ "$PROMPT_ANSWER" = "yes" ]; then
         CODEMART_INIT="yes"
     else
@@ -745,10 +757,11 @@ if [ -f "/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service" ]; then
     fi
     if systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
         echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is active; applying converged state (no competing foreground launch)..."
-        if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ] && [ "$RUNTIME_EXTENSIONS_CHANGED" != "yes" ]; then
             fm_domain_caddy_apply_converged
             fm_domain_workers_restart
         else
+            # Changed PHP extensions load only in a fresh runtime process.
             ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
         fi
         echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"

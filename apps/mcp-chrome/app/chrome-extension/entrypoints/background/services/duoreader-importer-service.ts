@@ -2,7 +2,7 @@
  * Duoreader import background service — tab scrape + Laravel upload.
  */
 
-import { apiManager } from '@/services/ApiManager';
+import { resolveApiBase } from '@/services/ApiManager';
 import { logger } from '@/utils/logger';
 import { delay } from '@/utils/async';
 import { toErrorMessage } from '@/utils/errors';
@@ -119,11 +119,6 @@ async function saveState(state: PersistedState): Promise<void> {
 async function saveProgress(progress: DuoreaderImportProgress): Promise<void> {
   progress.updatedAt = new Date().toISOString();
   await chrome.storage.local.set({ [PROGRESS_STORAGE_KEY]: progress });
-}
-
-async function resolveApiBase(): Promise<string> {
-  await apiManager.initialize({ autoDetect: false });
-  return apiManager.getCurrentBaseUrl();
 }
 
 async function ensureHelperInjected(tabId: number): Promise<void> {

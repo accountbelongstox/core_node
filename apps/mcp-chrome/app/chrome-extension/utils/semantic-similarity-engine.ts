@@ -4,7 +4,6 @@ import type { WorkerMessagePayload, WorkerStats } from './semantic-similarity-mo
 import { SemanticSimilarityInitializedEngine } from './semantic-similarity-engine-initialization';
 
 export * from './semantic-similarity-models';
-export { SemanticSimilarityEngineProxy } from './semantic-similarity-proxy';
 
 export class SemanticSimilarityEngine extends SemanticSimilarityInitializedEngine {
   public async getEmbedding(

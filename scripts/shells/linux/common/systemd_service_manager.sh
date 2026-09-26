@@ -772,6 +772,77 @@ EOF
     fi
 }
 
+# Print "KEY=VALUE ..." desktop-session variables for a unit running as $1, or
+# nothing when that user has no session bus (headless). create_systemd_service
+# turns the leading KEY=VALUE pairs of an exec command into Environment= lines.
+systemd_desktop_session_env() {
+    local session_user="$1"
+    local session_uid=""
+    local runtime_dir=""
+    local session_env=""
+
+    session_uid="$(id -u "$session_user" 2>/dev/null || true)"
+    runtime_dir="/run/user/${session_uid}"
+    if [ -n "$session_uid" ] && [ -S "${runtime_dir}/bus" ]; then
+        session_env="XDG_RUNTIME_DIR=${runtime_dir} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime_dir}/bus"
+        if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+            session_env="$session_env WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
+        elif [ -S "${runtime_dir}/wayland-0" ]; then
+            session_env="$session_env WAYLAND_DISPLAY=wayland-0"
+        fi
+        if [ -n "${DISPLAY:-}" ]; then
+            session_env="$session_env DISPLAY=${DISPLAY}"
+        elif [ -e /tmp/.X11-unix/X0 ]; then
+            session_env="$session_env DISPLAY=:0"
+        fi
+    fi
+    printf '%s' "$session_env"
+}
+
+# Idempotent unit convergence (root): the unit file is rendered by
+# create_systemd_service and compared with the previous content; the service is
+# restarted only when the unit changed, enabled when disabled, started when
+# inactive. Sets SYSTEMD_CONVERGE_STATE=unchanged|rewritten|failed.
+converge_systemd_service() {
+    local service_name="$1"
+    local description="$2"
+    local exec_command="$3"
+    local working_dir="$4"
+    local user="${5:-root}"
+    local restart_policy="${6:-always}"
+    local restart_sec="${7:-10s}"
+    local cpu_limit="${8:-}"
+    local memory_limit="${9:-}"
+    local service_file="$SYSTEMD_DIR/${service_name}.service"
+    local previous_unit=""
+    local current_unit=""
+
+    SYSTEMD_CONVERGE_STATE="failed"
+    if [ -f "$service_file" ]; then
+        previous_unit="$(cat "$service_file")"
+    fi
+
+    create_systemd_service "$service_name" "$description" "$exec_command" "$working_dir" "$user" "$restart_policy" "$restart_sec" "$cpu_limit" "$memory_limit" "" "" "no" >/dev/null
+    if [ "$SYSTEMD_OPERATION_READY" != true ]; then
+        echo "[ERROR] Failed to render unit: $service_file"
+        return
+    fi
+    current_unit="$(cat "$service_file")"
+    SYSTEMD_CONVERGE_STATE="unchanged"
+    if [ "$current_unit" != "$previous_unit" ]; then
+        SYSTEMD_CONVERGE_STATE="rewritten"
+    fi
+
+    if [ "$(systemctl is-enabled "$service_name" 2>/dev/null)" != "enabled" ]; then
+        systemctl enable "$service_name" >/dev/null 2>&1 || echo "[WARNING] enable reported failure: $service_name"
+    fi
+    if ! systemctl is-active --quiet "$service_name"; then
+        systemctl start "$service_name" || echo "[WARNING] start reported failure: $service_name"
+    elif [ "$SYSTEMD_CONVERGE_STATE" = "rewritten" ]; then
+        systemctl restart "$service_name" || echo "[WARNING] restart reported failure: $service_name"
+    fi
+    echo "[INFO] $service_name: unit=$SYSTEMD_CONVERGE_STATE enabled=$(systemctl is-enabled "$service_name" 2>/dev/null) active=$(systemctl is-active "$service_name" 2>/dev/null)"
+}
 
 # Load the command-line interface only for direct execution.
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then

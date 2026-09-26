@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.launcher.linux_screen_manager import LinuxScreenManager
 from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
 
 from pycore.pyutils.launcher.char_size_measurer import CharSizeMeasurer
@@ -29,7 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import platform
 
-from pycore.pyutils.launcher.screen_manager import ScreenManager
+from pycore.pyutils.launcher.screen_manager import create_screen_manager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.wt_launcher import WindowsTerminalLauncher
 from pycore.pyutils.launcher.editor_launcher import EditorLauncher
@@ -54,12 +53,14 @@ class WindowLauncher:
                  calibration_actual_height=None, calibration_term_rows=None,
                  window_chrome_title_bar_px=None, window_chrome_horizontal_px=None,
                  window_chrome_content_scale=None,
-                 window_chrome_gap_horizontal_px=None, window_chrome_gap_vertical_px=None):
+                 window_chrome_gap_horizontal_px=None, window_chrome_gap_vertical_px=None,
+                 screen_rect=None):
         """
         Initialize window launcher.
 
         Args:
             grid_columns, grid_rows: Grid size.
+            screen_rect: (x, y, width, height) already detected; None = detect on launch.
             measured_columns, measured_rows, measured_width_px, measured_height_px: Ratio calibration.
             calibration_actual_height, calibration_term_rows: Height calibration.
             window_chrome_title_bar_px: Reserve px for title bar (default 56).
@@ -71,6 +72,7 @@ class WindowLauncher:
         # Use provided values or defaults (3x2 grid, standard measurements)
         self.grid_columns = grid_columns or 3
         self.grid_rows = grid_rows or 2
+        self.screen_rect = screen_rect
 
         # Use provided calibration or defaults
         self.calibration_actual_height = calibration_actual_height or 485
@@ -110,13 +112,17 @@ class WindowLauncher:
         # kitty/tmux multiplexer on Wayland (which forbids clients from positioning
         # their own windows). The Linux backend mirrors the WindowsTerminalLauncher
         # and ScreenManager interfaces, so the rest of this class is unchanged.
+        self.screen_manager = create_screen_manager()
         if platform.system() == "Linux":
-            self.screen_manager = LinuxScreenManager()
             self.wt_launcher = LinuxTerminalLauncher()
         else:
-            self.screen_manager = ScreenManager()
             self.wt_launcher = WindowsTerminalLauncher(self.script_generator)
         self.editor_launcher = EditorLauncher(self.script_generator)
+
+    def _resolve_screen_rect(self):
+        if self.screen_rect is not None:
+            return self.screen_rect
+        return self.screen_manager.get_screen_dimensions()
 
     def _ensure_char_size_measured(self):
         """Resolve char_width/char_height to real measured values (Windows Terminal).
@@ -317,8 +323,7 @@ class WindowLauncher:
             ColorPrint.plain(f"\nSkipping terminal grid (limit=0, target {grid_total}).")
             return []
 
-        # Get screen dimensions
-        screen_x, screen_y, screen_width, screen_height = self.screen_manager.get_screen_dimensions()
+        screen_x, screen_y, screen_width, screen_height = self._resolve_screen_rect()
 
         # Calculate window layout (all cells, including Ubuntu positions)
         windows = self.calculate_window_layout(screen_x, screen_y, screen_width, screen_height)
@@ -375,8 +380,7 @@ class WindowLauncher:
             ColorPrint.plain(f"\nSkipping {app_key} editor grid (already running).")
             return []
 
-        # Get screen dimensions
-        screen_x, screen_y, screen_width, screen_height = self.screen_manager.get_screen_dimensions()
+        screen_x, screen_y, screen_width, screen_height = self._resolve_screen_rect()
 
         # Calculate window layout (using pixel dimensions for editors)
         target_window_width = screen_width // self.grid_columns

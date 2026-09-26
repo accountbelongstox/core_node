@@ -40,6 +40,7 @@ def upload_to_laravel(
     audio: Dict[str, Any],
     raw_text: str,
     idempotency_key: str,
+    base_url: str = "",
 ) -> Dict[str, Any]:
     """Upload the generated article and audio to Laravel.
 
@@ -48,9 +49,10 @@ def upload_to_laravel(
     pycore OWNS the composition: any document size is accepted internally,
     batch-generated/synthesized and combined, and delivered to Laravel as an
     already-contract-compliant payload; Laravel only validates and stores
-    (out-of-contract fields would 422 and poison the retry lane)."""
+    (out-of-contract fields would 422 and poison the retry lane).
+    ``base_url`` is the delivery outbox's endpoint of the target server."""
     cfg = get_config()
-    base = laravel_endpoint_manager.resolve()
+    base = base_url or laravel_endpoint_manager.resolve()
     if not base:
         raise RuntimeError("No active Laravel endpoint available")
 
@@ -100,15 +102,17 @@ def upload_to_laravel(
 def replace_audio_on_laravel(
     record: Dict[str, Any],
     audio_bytes: bytes,
+    base_url: str = "",
 ) -> Dict[str, Any]:
     """Replace the published audio of an already-uploaded agent-history article.
 
     Laravel stores article audio at the deterministic <article_id>.mp3 path,
     so the replacement keeps the public audio_url stable; only the bytes and
     the provenance metadata move. Targets the Laravel record by its stored
-    Laravel id or the stable Pycore source-record identity.
+    Laravel id or the stable Pycore source-record identity. ``base_url`` is
+    the delivery outbox's endpoint of the target server.
     """
-    base = laravel_endpoint_manager.resolve()
+    base = base_url or laravel_endpoint_manager.resolve()
     if not base:
         raise RuntimeError("No active Laravel endpoint available")
 

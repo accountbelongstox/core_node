@@ -34,7 +34,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { BING_DICT_MSG } from '@/common/message-types';
 import { localStorage } from '@/services/ExtensionStorage';
@@ -44,7 +44,6 @@ import { getMessage } from '@/utils/i18n';
 
 const { apiBaseUrl } = useApiEndpoint();
 const config = ref<ClientConfig>({
-  apiUrl: '',
   fetchInterval: 5,
   batchSize: 10,
   mode: 'worker',
@@ -53,10 +52,8 @@ const config = ref<ClientConfig>({
   targetLanguage: 'zh',
 });
 let unsubscribe: (() => void) | null = null;
-let initialized = false;
 
 const normalize = (value: Partial<ClientConfig>): ClientConfig => ({
-  apiUrl: apiBaseUrl.value.replace(/\/+$/, ''),
   fetchInterval: Math.max(1, Math.min(3600, Math.round(Number(value.fetchInterval) || 5))),
   batchSize: Math.max(1, Math.min(50, Math.round(Number(value.batchSize) || 10))),
   mode: 'worker',
@@ -83,23 +80,10 @@ const save = async () => {
   }
 };
 
-watch(apiBaseUrl, (url) => {
-  if (!initialized) return;
-  const normalized = url.replace(/\/+$/, '');
-  if (config.value.apiUrl === normalized) return;
-  config.value.apiUrl = normalized;
-  void save();
-});
-
 onMounted(async () => {
   applyStored(
     await localStorage.getOptional<ClientConfig>(STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG),
   );
-  initialized = true;
-  if (config.value.apiUrl !== apiBaseUrl.value.replace(/\/+$/, '')) {
-    config.value.apiUrl = apiBaseUrl.value.replace(/\/+$/, '');
-    await save();
-  }
   unsubscribe = localStorage.subscribe<ClientConfig>(
     STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG,
     applyStored,

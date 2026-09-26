@@ -32,6 +32,7 @@ loginChoice=""
 scriptSource=""
 scriptCurrentPath=""
 scriptsDirPath=""
+aiCliProvisionCommonPath=""
 projectRootPath=""
 pnpmBin=""
 gvarCommon=""
@@ -60,10 +61,7 @@ mcp_exit=0
 docs_get_output=""
 docs_get_exit=0
 docs_url_found=""
-ultra_settings_json='{"ultracode":true}'
 claude_args=()
-ultra_choice=""
-ultra_enabled=0
 enable_team=0
 has_agent_plan_mcp=0
 has_docs_mcp=0
@@ -104,6 +102,8 @@ if [ -L "$scriptSource" ]; then
 fi
 scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
+. "$aiCliProvisionCommonPath"
 projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
 gvarCommon="$projectRootPath/scripts/shells/linux/common/gvar_common.sh"
 if [ -f "$gvarCommon" ]; then
@@ -520,16 +520,12 @@ if [ "$force_model" -eq 1 ]; then
     claude_args+=(--model "$resolved_model")
 fi
 
-# Ultracode: opt-in prompt (default No).
-read -r -p "Enable ultracode? [y/N]: " ultra_choice || ultra_choice=""
-if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
-    ultra_enabled=1
-    claude_args+=(--settings "$ultra_settings_json")
-fi
-
 if [ "$enable_team" -eq 1 ]; then
     claude_args+=(--teammate-mode in-process)
 fi
+
+ai_cli_ultracode_prompt
+claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
 
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)

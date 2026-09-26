@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyfoundations.service_contract import port
+from pycore.pyfoundations.service_contract import port, value as contract_value
 
 APP_MUTEX_NAME = "Local\\CoreNodeMcpChromeServiceSupervisor"
 LOCK_FILE_NAME = "core-node-mcp-chrome-supervisor.lock"
@@ -31,11 +31,12 @@ RECOVERY_REQUEST_FILE_NAME = "core-node-mcp-chrome-recovery.request"
 WATCH_MODE_REQUEST_FILE_NAME = "core-node-mcp-chrome-watch-mode.request"
 TAKEOVER_REQUEST_FILE_NAME = "core-node-mcp-chrome-takeover.request"
 WAKE_STATE_FILE_NAME = "core-node-mcp-chrome-last-wake.state"
-NATIVE_HOST_NAME = "com.chromemcp.nativehost.json"
+NATIVE_HOST_NAME = f"{contract_value('mcp_chrome.native_host_name')}.json"
+BUILD_OUTPUT_DIR_NAME = contract_value("mcp_chrome.build_output_dir")
+EXTENSION_DIR_NAME = contract_value("mcp_chrome.extension_dir")
 MCP_PORT = port("mcp_chrome")
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
-RECOVERY_DEBOUNCE_SECONDS = 2.0
 SERVICE_RECOVERY_COOLDOWN_SECONDS = 15.0
 LINK_RECOVERY_COOLDOWN_SECONDS = 5.0
 WAKE_MIN_INTERVAL_SECONDS = 5.0
@@ -293,10 +294,11 @@ def chrome_executable() -> Optional[str]:
     return None
 
 
-def wake_extension(reload_extension: bool = True, force: bool = False) -> None:
+# Builds reload themselves (WXT dev client, build stamp, native host self-exit);
+# waking only asks a disconnected extension to reconnect its native host.
+def wake_extension(force: bool = False) -> None:
     recovery_url = extension_recovery_url()
     chrome_path = chrome_executable()
-    reload_url: Optional[str] = None
     reconnect_url: Optional[str] = None
     now = time.time()
     remaining = wake_interval_remaining(now)
@@ -311,37 +313,25 @@ def wake_extension(reload_extension: bool = True, force: bool = False) -> None:
     if not recovery_url:
         print("[Supervisor] Native host manifest has no Chrome extension origin.", flush=True)
         return
-    reload_url = f"{recovery_url}?reloadExtension=1"
     reconnect_url = f"{recovery_url}?reconnectNative=1"
     try:
         if chrome_path:
-            if reload_extension:
-                subprocess.Popen(
-                    [chrome_path, reload_url],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                time.sleep(1.5)
             subprocess.Popen(
                 [chrome_path, reconnect_url],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         else:
-            if reload_extension:
-                webbrowser.open(reload_url, new=0, autoraise=False)
-                time.sleep(1.5)
             webbrowser.open(reconnect_url, new=0, autoraise=False)
         record_wake(now)
-        recovery_mode = "reload and reconnect" if reload_extension else "reconnect"
-        print(f"[Supervisor] Requested Chrome extension {recovery_mode}.", flush=True)
+        print("[Supervisor] Requested Chrome extension reconnect.", flush=True)
     except OSError as error:
         print(f"[Supervisor] Could not wake the Chrome extension: {error}", flush=True)
 
 
 def artifact_signature(project_root: Path) -> tuple[Optional[int], Optional[int]]:
     native_artifact = project_root / "app" / "native-server" / "dist" / "index.js"
-    extension_manifest = project_root / ".output" / "build_extension" / "manifest.json"
+    extension_manifest = project_root / BUILD_OUTPUT_DIR_NAME / EXTENSION_DIR_NAME / "manifest.json"
 
     def modified_ns(path: Path) -> Optional[int]:
         try:
@@ -381,8 +371,10 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
         now = time.monotonic()
         current_signature = artifact_signature(project_root)
         if current_signature != signature:
+            # A fresh build restarts the extension/native host on its own; give
+            # that reconnect a cooldown window before any wake attempt.
             signature = current_signature
-            pending_recovery_at = now + RECOVERY_DEBOUNCE_SECONDS
+            last_recovery_at = now
             consecutive_down_recoveries = 0
             auto_recovery_suspended_logged = False
 
@@ -406,15 +398,16 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
         )
         cooldown_elapsed = now - last_recovery_at >= recovery_cooldown
         if recovery_due:
-            wake_extension(reload_extension=True, force=True)
-            last_recovery_at = now
+            if not extension_connected:
+                wake_extension(force=True)
+                last_recovery_at = now
             pending_recovery_at = None
         elif (
             cooldown_elapsed
             and not extension_connected
             and consecutive_down_recoveries < RECOVERY_MAX_ATTEMPTS
         ):
-            wake_extension(reload_extension=False, force=service_up)
+            wake_extension(force=service_up)
             last_recovery_at = now
             consecutive_down_recoveries += 1
         elif (

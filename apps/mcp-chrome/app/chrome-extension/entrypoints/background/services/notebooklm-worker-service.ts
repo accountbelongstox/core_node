@@ -24,9 +24,6 @@ class NotebookLmWorkerService extends SimpleWorkerBase {
     return 'notebooklm';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'notebooklm_worker_id_base';
-  }
 
   // No fast-lane capability — routed purely by task_type (capability=null).
   protected get capabilities(): WorkerCapability[] {

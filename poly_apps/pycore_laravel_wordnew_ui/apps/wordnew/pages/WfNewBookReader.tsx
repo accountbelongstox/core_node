@@ -19,7 +19,6 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewReadingProgressCenter } from '../services/WordNewReadingProgressCenter';
 import { wordNewReaderSettingsRoamer } from '../services/WordNewReaderSettingsRoamer';
 import { WordNewBookReaderPlayback } from '../services/WordNewBookReaderPlayback';
-import { useReaderQueueHead } from '../hooks/usePriorityBoost';
 import { WordNewBookReaderProgressSaver } from '../services/WordNewBookReaderProgressSaver';
 import {
   formatBookLangLabel,
@@ -32,15 +31,8 @@ import { WordNewBookReaderSettingsPanel } from '../components/reader/WordNewBook
 import { WordNewBookReaderPlayBar } from '../components/reader/WordNewBookReaderPlayBar';
 import { WordNewBookReaderVerseRow } from '../components/reader/WordNewBookReaderVerseRow';
 import type { ElementTheme } from '../WfNewThemes';
-import {
-  moveSentenceAudioToHeadImmediate,
-  requestSentenceAudio,
-  resetSentenceAudioScheduler,
-  waitForSentenceAudioUrl,
-} from '../services/WordNewBookReaderSentenceAudio';
-import { cellKeyOf, ttsStatusToCellState, type WordNewAudioCellState } from '../utils/WordNewAudioCellState';
-import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WordNewSentenceAudioPick';
-import { ensureAudio } from '../runtime-store/WfNewAudioCache';
+import { moveSentenceAudioToHeadImmediate } from '../services/WordNewBookReaderSentenceAudio';
+import { useWordNewSentenceAudioCells } from '../hooks/useWordNewSentenceAudioCells';
 import { readWordCardsForSentence } from '../services/WordNewBookReaderWordCards';
 
 interface WfNewBookReaderProps {
@@ -134,7 +126,6 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const persistReaderChange = useCallback(() => {
     wordNewReaderSettingsRoamer.schedulePush();
   }, []);
-  const readerVariantByLangRef = useRef(readerVariantByLang);
   const [liveReadText, setLiveReadText] = useState('');
   const [liveReadLang, setLiveReadLang] = useState('');
 
@@ -146,13 +137,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const playbackRef = useRef<WordNewBookReaderPlayback | null>(null);
   const progressSaverRef = useRef<WordNewBookReaderProgressSaver | null>(null);
   const playingRef = useRef(false);
-  const requestedCellKeys = useRef<Set<string>>(new Set());
-  const resolvedAudioUrlsRef = useRef<Record<string, string>>({});
   const reloadRef = useRef<() => void>(() => { });
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollPausedUntil = useRef(0);
   const userPickedVerse = useRef(false);
-  const [cellStatuses, setCellStatuses] = useState<Record<string, WordNewAudioCellState>>({});
 
   // Stable refs for every value the WordNewBookReaderPlayback engine reads, so the
   // playback instance is created ONCE per sourceKey and never torn down on a
@@ -214,6 +202,15 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     [displayLangs, sequence],
   );
 
+  const {
+    cellStatuses, requestCellMedia, retryCellAudio, resolveAudioUrl,
+  } = useWordNewSentenceAudioCells({
+    verses,
+    langs: orderedDisplayLangs,
+    variantByLang: readerVariantByLang,
+    scopeKey: `${sourceKey}|${activeChapter ?? ''}|${flat}|${page}`,
+  });
+
   const browserTtsRef = useRef(browserTts);
   useEffect(() => { browserTtsRef.current = browserTts; }, [browserTts]);
 
@@ -243,8 +240,6 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     }
   }, [sourceKey]);
 
-  useEffect(() => { readerVariantByLangRef.current = readerVariantByLang; }, [readerVariantByLang]);
-
   const onReaderVariantSelect = useCallback((lang: string, variantKey: string) => {
     setReaderVariantByLang((prev) => {
       const next = { ...prev, [lang]: variantKey };
@@ -253,71 +248,6 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       return next;
     });
   }, [persistReaderChange]);
-
-  const setCellStatus = useCallback((verse: WfNewBookVerse, lang: string, state: WordNewAudioCellState) => {
-    const k = cellKeyOf(verse.grain, verse.seq, lang);
-    setCellStatuses((prev) => (prev[k] === state ? prev : { ...prev, [k]: state }));
-  }, []);
-
-  const requestCellMedia = useCallback((verse: WfNewBookVerse, lang: string, text: string | null, hasAudio: boolean) => {
-    const cellKey = `${verse.grain}-${verse.seq}-${lang}:${(text || '').slice(0, 64)}`;
-    if (requestedCellKeys.current.has(cellKey) || !text?.trim()) return;
-    requestedCellKeys.current.add(cellKey);
-    setCellStatus(verse, lang, 'queued');
-    requestSentenceAudio(text, lang, {
-      onStatus: ({ exists, queued, tts_status }) => {
-        setCellStatus(verse, lang, ttsStatusToCellState(exists, tts_status, queued));
-      },
-      onReady: (url) => {
-        setCellStatus(verse, lang, 'ready');
-        if (url) resolvedAudioUrlsRef.current[cellKeyOf(verse.grain, verse.seq, lang)] = url;
-      },
-      onSettled: (url) => {
-        if (!url) requestedCellKeys.current.delete(cellKey);
-      },
-    });
-  }, [setCellStatus]);
-
-  const retryCellAudio = useCallback((verse: WfNewBookVerse, lang: string, text: string) => {
-    const cellKey = `${verse.grain}-${verse.seq}-${lang}:${text.slice(0, 64)}`;
-    requestedCellKeys.current.delete(cellKey);
-    setCellStatus(verse, lang, 'queued');
-    requestSentenceAudio(text, lang, {
-      urgent: true,
-      onStatus: ({ exists, queued, tts_status }) => {
-        setCellStatus(verse, lang, ttsStatusToCellState(exists, tts_status, queued));
-      },
-      onReady: (url) => {
-        setCellStatus(verse, lang, 'ready');
-        if (url) resolvedAudioUrlsRef.current[cellKeyOf(verse.grain, verse.seq, lang)] = url;
-      },
-      onSettled: (url) => {
-        if (!url) requestedCellKeys.current.delete(cellKey);
-      },
-    });
-  }, [setCellStatus]);
-
-  const resolveAudioUrl = useCallback(async (
-    verse: WfNewBookVerse,
-    lang: string,
-    shouldContinue?: () => boolean,
-  ): Promise<string | null> => {
-    const cell = verse.languages?.[lang];
-    const variantKey = readerVariantByLangRef.current[lang] ?? '';
-    const preferredAccent = readerPreferredAccent(wfNewSettings.get('voiceAccent'));
-    const picked = pickSentenceAudioUrl(cell, { variantKey, preferredAccent });
-    if (picked.url) return (await ensureAudio(picked.url)) ?? picked.url;
-
-    const k = cellKeyOf(verse.grain, verse.seq, lang);
-    if (resolvedAudioUrlsRef.current[k]) {
-      const remoteUrl = resolvedAudioUrlsRef.current[k];
-      return (await ensureAudio(remoteUrl)) ?? remoteUrl;
-    }
-
-    const text = cell?.text?.trim();
-    if (!text) return null;
-    return null;
-  }, []);
 
   const goNextChapterInternal = useCallback(async (): Promise<boolean> => {
     const order = chapters.map((c) => c.chapterIndex);
@@ -469,48 +399,6 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   useEffect(() => {
     reloadRef.current = () => { void loadVerses(flat ? null : activeChapter, page); };
   }, [loadVerses, flat, activeChapter, page]);
-
-  useEffect(() => {
-    const next: Record<string, WordNewAudioCellState> = {};
-    for (const v of verses) {
-      for (const lang of orderedDisplayLangs) {
-        const cell = v.languages?.[lang];
-        if (!cell?.text?.trim()) continue;
-        const k = cellKeyOf(v.grain, v.seq, lang);
-        if (cell.hasAudio || cell.audioFiles?.some((f) => f.hasFile && f.url)) next[k] = 'ready';
-        else if (cell.ttsStatus === 'processing') next[k] = 'processing';
-        else if (cell.ttsStatus === 'pending') next[k] = 'queued';
-      }
-    }
-    if (Object.keys(next).length) {
-      setCellStatuses((prev) => ({ ...prev, ...next }));
-    }
-  }, [verses, orderedDisplayLangs]);
-
-  useEffect(() => {
-    requestedCellKeys.current = new Set();
-    resetSentenceAudioScheduler();
-  }, [sourceKey, activeChapter, flat, page]);
-
-  // Visible verse texts lacking audio are moved to Laravel's sentence queue head.
-  const queueHeadSentences = useMemo(() => {
-    const seen = new Set<string>();
-    const items: { text: string; language: string }[] = [];
-    for (const v of verses) {
-      for (const lang of orderedDisplayLangs) {
-        const cell = v.languages?.[lang];
-        const text = cell?.text?.trim();
-        if (!text) continue;
-        if (cell.hasAudio || cell.audioFiles?.some((f) => f.hasFile && f.url)) continue;
-        const key = `${lang}:${text}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        items.push({ text, language: lang });
-      }
-    }
-    return items.length ? items : null;
-  }, [verses, orderedDisplayLangs]);
-  useReaderQueueHead(queueHeadSentences);
 
   useEffect(() => {
     if (!resumeTarget || resumeApplied || loadingVerses || !verses.length) return;

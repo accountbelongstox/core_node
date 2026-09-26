@@ -13,4 +13,5 @@ export * from './types/endpoints';
 export * from './types/bookProgress';
 export * from './types/readerSettings';
 export * from './types/learning';
+export * from './types/orchAudio';
 export * from './types/api';

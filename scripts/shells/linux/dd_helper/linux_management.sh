@@ -15,10 +15,6 @@
 # Linux Management Functions
 # =============================================================================
 
-# Source constants (backup copy)
-source "$DD_HELPER_DIR/constants.sh"
-source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
-
 # Build full paths from constants
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
 PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
@@ -572,11 +568,13 @@ show_slim_disk_submenu() {
         "Remove LibreOffice + code-server"
         "Block & Remove Apache (pin -1 + purge)"
         "Cap core_node data-root log sizes (>10MB trim + timer)"
+        "Dev Cache & /var/log Cleanup (pip/npm/go/rust + logs)"
+        "System Log Size Limits (journald + logrotate)"
         "Back to Linux System Tools"
     )
 
     while true; do
-        arrow_menu_select "Slim & Disk Cleanup" menu_items "$selected_index" 8
+        arrow_menu_select "Slim & Disk Cleanup" menu_items "$selected_index" 10
         selected_index=$ARROW_MENU_SELECTED_INDEX
         case "$selected_index" in
             0) scan_large_paths ;;
@@ -587,7 +585,9 @@ show_slim_disk_submenu() {
             5) remove_desktop_apps ;;
             6) block_and_remove_apache ;;
             7) cap_var_core_node_logs ;;
-            8) return ;;
+            8) dev_cache_cleanup_menu ;;
+            9) system_log_limits_menu ;;
+            10) return ;;
         esac
     done
 }
@@ -611,7 +611,7 @@ show_linux_system_tools_submenu() {
             "Show System Information"
             "RustDesk Server Install Info (Key & Ports)"
             "APP Install"
-            "Slim & Disk Cleanup (scan + GPU/Snap/Apache/Server slim)"
+            "Slim & Disk Cleanup (scan, caches, logs, GPU/Snap/Apache slim)"
             "Management & Backup"
             "User Management"
         )
@@ -779,7 +779,7 @@ show_linux_management_submenu() {
             3) (cd "$CORE_NODE_ROOT_DIR" && bash "$UNIFIED_MANAGER_SCRIPT_PATH") ;;
             4) show_special_software_env_menu ;;
             5) show_service_manager ;;
-            6) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
+            6) show_ai_mcp_management ;;
             7) show_linux_system_tools_submenu ;;
             8) return ;;
         esac

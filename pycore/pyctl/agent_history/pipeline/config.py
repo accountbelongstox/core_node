@@ -26,8 +26,11 @@ USER_CONFIG_KEYS = (
     "min_raw_words", "openrouter_model", "video_enabled", "video_username",
     "video_batch_name", "video_concurrency", "prompt_article_cn",
     "prompt_translate_en", "prompt_derive_en", "prompt_derive_sound",
-    "prompt_new_notify", "live_prompt_monitor",
+    "prompt_new_notify", "live_prompt_monitor", "prompt_rewrite_en",
+    "prompt_rewrite_enabled", "prompt_rewrite_audio",
 )
+# Pipeline-owned keys a patch may also set (not broadcast as user config).
+_INTERNAL_PATCH_KEYS = ("extract_as_article", "live_listen", "phase")
 
 def _default_cursor() -> Dict[str, Any]:
     defaults = user_data_store.get_default_section(_SECTION)
@@ -158,15 +161,8 @@ def mark_tool_live_item_completed(
 def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
     cfg = get_config()
     before = {key: cfg.get(key) for key in USER_CONFIG_KEYS}
-    for key in (
-        "enabled", "extract_as_article", "reference_lang", "target_lang",
-        "min_raw_words", "openrouter_model",
-        "live_listen", "phase", "video_enabled", "video_username",
-        "video_batch_name", "video_concurrency",
-        "prompt_article_cn", "prompt_translate_en", "prompt_derive_en",
-        "prompt_derive_sound", "prompt_new_notify", "live_prompt_monitor",
-    ):
-        if key in patch:
+    for key in (*USER_CONFIG_KEYS, *_INTERNAL_PATCH_KEYS):
+        if key != "enabled_tools" and key in patch:
             cfg[key] = patch[key]
     low, high = MIN_RAW_WORDS_RANGE
     raw_words = str(cfg.get("min_raw_words") or "").strip()

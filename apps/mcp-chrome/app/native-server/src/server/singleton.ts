@@ -9,6 +9,7 @@
 
 import http from 'http';
 import { createLogger } from '../util/logger';
+import { SERVER_CONFIG } from '../constant';
 
 const log = createLogger('Singleton');
 
@@ -112,7 +113,7 @@ export class SingletonDetector {
 
       const data = JSON.stringify(message);
       const options = {
-        hostname: '127.0.0.1',
+        hostname: SERVER_CONFIG.HOST,
         port: this.port,
         path: '/singleton',
         method: 'POST',

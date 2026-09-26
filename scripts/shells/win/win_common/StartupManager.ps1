@@ -273,5 +273,100 @@ function Clear-InvalidStartupLinks {
     return $removedCount
 }
 
+# Idempotent per-user at-logon Scheduled Task. It runs in the interactive session
+# of the current user (desktop apps such as Chrome are reachable), never times
+# out, restarts after failures, and is re-registered only when its action drifts.
+function Register-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName,
+        [Parameter(Mandatory=$true)]
+        [string]$Execute,
+        [Parameter(Mandatory=$true)]
+        [string]$Arguments,
+        [Parameter(Mandatory=$true)]
+        [string]$WorkingDirectory,
+        [string]$Description = ""
+    )
+
+    $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $existingAction = $null
+    $taskAction = $null
+    $taskTrigger = $null
+    $taskPrincipal = $null
+    $taskSettings = $null
+    $actionDrifted = $true
+
+    if ($existingTask) {
+        $existingAction = $existingTask.Actions | Select-Object -First 1
+        $actionDrifted = -not (
+            $existingAction.Execute -eq $Execute -and
+            $existingAction.Arguments -eq $Arguments -and
+            $existingAction.WorkingDirectory -eq $WorkingDirectory
+        )
+    }
+
+    if ($actionDrifted) {
+        if ($existingTask -and $existingTask.State -eq "Running") {
+            Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        }
+        $taskAction = New-ScheduledTaskAction -Execute $Execute -Argument $Arguments -WorkingDirectory $WorkingDirectory
+        $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
+        $taskPrincipal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
+        $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+            -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal `
+            -Settings $taskSettings -Description $Description -Force | Out-Null
+        Write-StartupMessage "Registered logon task: $TaskName" "Success"
+    } else {
+        Write-StartupMessage "Logon task already up to date: $TaskName"
+    }
+
+    if ((Get-ScheduledTask -TaskName $TaskName).State -ne "Running") {
+        Start-ScheduledTask -TaskName $TaskName
+    }
+    Write-StartupMessage "Logon task state: $((Get-ScheduledTask -TaskName $TaskName).State)"
+    return $true
+}
+
+function Test-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    return [bool](Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
+}
+
+function Stop-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($existingTask -and $existingTask.State -eq "Running") {
+        Stop-ScheduledTask -TaskName $TaskName
+    }
+}
+
+function Unregister-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    if (-not (Test-UserLogonTask -TaskName $TaskName)) {
+        Write-StartupMessage "Logon task not installed: $TaskName" "Warning"
+        return $false
+    }
+    Stop-UserLogonTask -TaskName $TaskName
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    Write-StartupMessage "Removed logon task: $TaskName" "Success"
+    return $true
+}
+
 # Functions are available when script is dot-sourced
-# Add-StartupLink, Remove-StartupLink, Get-StartupLinks, Clear-InvalidStartupLinks, Remove-ExistingStartupLinks
+# Add-StartupLink, Remove-StartupLink, Get-StartupLinks, Clear-InvalidStartupLinks, Remove-ExistingStartupLinks,
+# Register-UserLogonTask, Test-UserLogonTask, Stop-UserLogonTask, Unregister-UserLogonTask

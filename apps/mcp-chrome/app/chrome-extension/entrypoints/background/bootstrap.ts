@@ -1,6 +1,7 @@
 import { initAiWebClientListener } from './ai-web-client-listener';
 import { initApiHealthListener } from './api-health-listener';
 import { initBingDictionaryClientListener } from './bing-dictionary-client-listener';
+import { initBuildReloadWatcher } from './build-reload';
 import { initChatGptTextListener } from './chatgpt-text-listener';
 import { initCopilotTextListener } from './copilot-text-listener';
 import { getDeepSeekPollingService } from './deepseek-polling-service';
@@ -32,6 +33,7 @@ interface BackgroundService {
 
 const CORE_SERVICES: BackgroundService[] = [
   { name: 'native-host', initialize: initNativeHostListener },
+  { name: 'build-reload', initialize: initBuildReloadWatcher },
   { name: 'semantic-similarity', initialize: initSemanticSimilarityListener },
   { name: 'storage-manager', initialize: initStorageManagerListener },
   { name: 'audio-status', initialize: setupAudioStatusListener },

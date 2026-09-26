@@ -3,6 +3,7 @@ import {
   createLaravelModuleConfig,
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
+import { cmHandleUnauthorized } from '../auth/cmAuthSession';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import type { CmEstimateInput, CmEstimateResult, CmPublicHomeData, CmPublicTestimonialData } from './CmApiTypes';
 
@@ -262,7 +263,7 @@ export function resolveCmPublicLocale(language: string | undefined): CmPublicLoc
 /** Anonymous CodeMart endpoints used by the public showcase interface. */
 export class CmPublicApi extends BaseAPI {
   constructor() {
-    super(createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1));
+    super({ ...createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1), onUnauthorized: cmHandleUnauthorized });
   }
 
   async getHome(locale: CmPublicLocale): Promise<CmPublicHomeResult> {

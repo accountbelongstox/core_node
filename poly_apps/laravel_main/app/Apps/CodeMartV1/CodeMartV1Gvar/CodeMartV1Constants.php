@@ -295,10 +295,11 @@ class CodeMartV1Constants
     public const DEFAULT_LOCALE = 'en';
     public const SUPPORTED_LOCALES = ['en', 'zh'];
 
-    // Rate limits (Laravel throttle middleware "attempts,minutes")
-    public const THROTTLE_PUBLIC = 'throttle:30,1';
-    public const THROTTLE_REGISTER = 'throttle:10,1';
-    public const THROTTLE_CONTACT = 'throttle:5,1';
+    // Rate limits (Laravel throttle middleware "attempts,minutes,prefix"); the
+    // prefix gives each group its own per-IP bucket instead of one shared one.
+    public const THROTTLE_PUBLIC = 'throttle:120,1,codemart_public';
+    public const THROTTLE_REGISTER = 'throttle:10,1,codemart_register';
+    public const THROTTLE_CONTACT = 'throttle:5,1,codemart_contact';
 
     // Additional capability keys
     public const CAPABILITY_ROLE_REQUEST = 'role.request';

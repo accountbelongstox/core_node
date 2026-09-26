@@ -19,11 +19,19 @@ import { AlertBox, EmptyState, Field, StatusBadge } from '../../common';
 import LoginModal from '../../../auth/LmLoginModal';
 
 const POLL_INTERVAL_MS = 2000;
+const HISTORY_LIMIT = 6;
 const ACTIVE_STATUSES = ['queued', 'running', 'paused'];
 const DRIVER_ROLES = ['source', 'fetcher'];
 const WRITER_ROLES = ['receiver', 'fetcher'];
 
 type Translate = TFunction;
+
+function statusTone(status: string): 'success' | 'error' | 'warning' | 'info' {
+  if (status === 'completed') return 'success';
+  if (status === 'failed') return 'error';
+  if (status === 'paused' || status === 'cancelled') return 'warning';
+  return 'info';
+}
 
 /** Counterpart role for a sync pair: source↔receiver (push), fetcher↔exporter (pull). */
 function counterpartRoleOf(session: ManagedDataSyncSession): string {
@@ -61,10 +69,7 @@ const EndpointStatusPanel: React.FC<EndpointStatusPanelProps> = ({
         {session && <div className="text-[10px] font-mono text-slate-400 break-all">{session.id}</div>}
       </div>
       {session && (
-        <StatusBadge
-          status={t(`dbSync.status.${session.status}`)}
-          tone={session.status === 'completed' ? 'success' : session.status === 'failed' ? 'error' : session.status === 'paused' ? 'warning' : 'info'}
-        />
+        <StatusBadge status={t(`dbSync.status.${session.status}`)} tone={statusTone(session.status)} />
       )}
     </div>
     {!session ? (
@@ -102,6 +107,49 @@ const EndpointStatusPanel: React.FC<EndpointStatusPanelProps> = ({
     )}
   </div>
 );
+
+const SyncResultsPanel: React.FC<{ session: ManagedDataSyncSession; t: Translate }> = ({ session, t }) => {
+  const database = session.context?.database_results;
+  const resource = session.context?.resource_results;
+  const skipped = [
+    ...(database?.skipped ?? []).map((item) => `${item.table}: ${item.reason}`),
+    ...(resource?.skipped ?? []),
+  ];
+  if (!database && !resource) return null;
+
+  return (
+    <div className="rounded border border-slate-200 dark:border-slate-700 p-3 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+      <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('dbSync.results.title')}</div>
+      {database && <div>{t('dbSync.results.rows', { ...database, conflicts: database.conflicts ?? 0 })}</div>}
+      {database && <div>{t('dbSync.results.tables', { tables: database.tables ?? 0, skipped: database.skipped_count ?? 0 })}</div>}
+      {database?.incomplete && database.incomplete.length > 0 && (
+        <div>{t('dbSync.results.incomplete', { count: database.incomplete.length })}</div>
+      )}
+      {resource && (
+        <div>{t('dbSync.results.files', {
+          transferred: resource.transferred_files,
+          present: resource.already_present,
+          skipped: resource.skipped_count,
+          planned: resource.planned_files,
+        })}</div>
+      )}
+      {resource && (
+        <div>{t('dbSync.results.bytes', {
+          transferred: formatBytes(resource.transferred_bytes),
+          planned: formatBytes(resource.planned_bytes),
+        })}</div>
+      )}
+      {skipped.length > 0 && (
+        <details>
+          <summary className="cursor-pointer">{t('dbSync.results.skippedTitle')} ({skipped.length})</summary>
+          <div className="mt-1 max-h-48 overflow-y-auto font-mono text-[10px] break-all space-y-0.5">
+            {skipped.map((item) => <div key={item}>{item}</div>)}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+};
 
 export const DataSyncTab: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -188,8 +236,11 @@ export const DataSyncTab: React.FC = () => {
         ? (sessions.find((session) => session.manager_key === lastActiveKeyRef.current)
           ?? lastSeenRef.current.get(lastActiveKeyRef.current))
         : undefined)
+      // Otherwise the newest session of the pair, so a finished run keeps
+      // its final result visible after a reload.
+      ?? pairSessions[0]
       ?? null,
-    [sessions, activePairSessions, selectedKey, oldEndpointId, newServerNode],
+    [sessions, pairSessions, activePairSessions, selectedKey, oldEndpointId, newServerNode],
   );
   const writerActiveOn = useCallback(
     (endpointId: string) => sessions.find((session) => session.manager_endpoint.id === endpointId
@@ -210,16 +261,21 @@ export const DataSyncTab: React.FC = () => {
     () => selected && DRIVER_ROLES.includes(selected.role) && ACTIVE_STATUSES.includes(selected.status) ? selected : null,
     [selected],
   );
+  const selectedActive = useMemo(
+    () => selected && ACTIVE_STATUSES.includes(selected.status) ? selected : null,
+    [selected],
+  );
   const displayedSessions = useMemo(() => {
     const linkedPassive = new Set(pairSessions
       .filter((session) => DRIVER_ROLES.includes(session.role) && session.counterpart?.session_id)
       .map((session) => `${session.counterpart?.endpoint}:${session.counterpart?.session_id}`));
 
-    // Single-active-session contract: the list shows live sessions of the
-    // selected pair only; finished history never occupies the view.
-    return pairSessions.filter((session) => ACTIVE_STATUSES.includes(session.status)
-      && (DRIVER_ROLES.includes(session.role)
-        || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`)));
+    // Single-active-session contract: at most one live session per node,
+    // followed by the few finished sessions each backend retains.
+    return pairSessions.filter((session) => DRIVER_ROLES.includes(session.role)
+      || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`))
+      .sort((left, right) => Number(ACTIVE_STATUSES.includes(right.status)) - Number(ACTIVE_STATUSES.includes(left.status)))
+      .slice(0, HISTORY_LIMIT);
   }, [pairSessions]);
 
   useEffect(() => {
@@ -421,11 +477,11 @@ export const DataSyncTab: React.FC = () => {
   };
 
   const cancelSelected = async () => {
-    if (!selectedDriver) return;
+    if (!selectedActive) return;
     setBusy(true);
     setError(null);
     try {
-      replaceSession(await dataSyncModel.cancel(selectedDriver));
+      replaceSession(await dataSyncModel.cancel(selectedActive));
     } catch (cancelError) {
       setError(cancelError instanceof Error && cancelError.message ? cancelError.message : t('dbSync.errors.control'));
     } finally {
@@ -569,7 +625,7 @@ export const DataSyncTab: React.FC = () => {
               {selectedDriver.status === 'paused' ? t('dbSync.resume') : t('dbSync.pause')}
             </button>
           )}
-          {selectedDriver && (
+          {selectedActive && (
             <button type="button" onClick={cancelSelected} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
               <XCircle className="w-4 h-4" />{t('dbSync.cancel')}
             </button>
@@ -594,7 +650,7 @@ export const DataSyncTab: React.FC = () => {
 
       {displayedSessions.length > 0 && (
         <div className={`${commonClasses.card} p-4 space-y-3`}>
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('dbSync.currentSession')}</div>
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">{activePairSessions.length > 0 ? t('dbSync.currentSession') : t('dbSync.history')}</div>
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
             {displayedSessions.map((session) => (
               <button key={session.manager_key} type="button" onClick={() => setSelectedKey(session.manager_key)} className={`rounded-lg border p-3 text-left transition ${selected?.manager_key === session.manager_key ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
@@ -603,7 +659,7 @@ export const DataSyncTab: React.FC = () => {
                     <div className="text-xs font-medium truncate">{t(`dbSync.roles.${session.role}`)} · {session.manager_endpoint.description} → {session.counterpart?.endpoint ?? t('dbSync.targetPending')}</div>
                     <div className="text-[10px] font-mono text-slate-500 truncate">{session.id}</div>
                   </div>
-                  <StatusBadge status={t(`dbSync.status.${session.status}`)} tone={session.status === 'completed' ? 'success' : session.status === 'failed' ? 'error' : session.status === 'paused' ? 'warning' : 'info'} />
+                  <StatusBadge status={t(`dbSync.status.${session.status}`)} tone={statusTone(session.status)} />
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] text-slate-500">
                   <div>{t(`dbSync.roles.${session.role}`)}: {session.progress}%</div>
@@ -648,6 +704,8 @@ export const DataSyncTab: React.FC = () => {
               </div>
             </div>
           )}
+
+          <SyncResultsPanel session={selected} t={t} />
 
           {selected.backup_directory && (
             <div className="flex items-start gap-2 rounded border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 p-3">

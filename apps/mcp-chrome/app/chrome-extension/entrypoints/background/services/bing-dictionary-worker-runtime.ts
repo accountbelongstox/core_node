@@ -43,6 +43,7 @@ import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { LaravelWorkerLifecycleBase } from './task-center/LaravelWorkerLifecycleBase';
 import { queueCenterWakeService } from './task-center/QueueCenterWakeService';
 import { IntervalController, TimeoutController, delay as waitForDelay } from '@/utils/async';
+import { resolveApiBase } from '@/services/ApiManager';
 
 // Subsystem tag for the global logger.
 export const LOG = 'Bing Worker';
@@ -644,7 +645,7 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
       return;
     }
 
-    if (!persisted || !persisted.running || !persisted.config?.apiUrl) {
+    if (!persisted || !persisted.running || !persisted.config) {
       // No active session to recover (e.g. fresh browser start) — make sure a
       // stale watchdog alarm from a previous session does not linger and fire
       // every minute for nothing.
@@ -654,7 +655,8 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
 
     try {
       logger.info(LOG, 'Resuming assist after SW termination (silent)');
-      await this.start(persisted.config, /* surface */ false);
+      // The persisted base may be stale: resume on the current global endpoint.
+      await this.start({ ...persisted.config, apiUrl: await resolveApiBase() }, /* surface */ false);
     } catch (error) {
       logger.error(LOG, 'Resume failed', error);
     }
@@ -789,5 +791,7 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
   }
 
   protected abstract pollAndProcessTasks(): Promise<void>;
+  protected abstract enqueuePending(): Promise<void>;
+  protected abstract subscribeRealtimeWake(): void;
 }
 

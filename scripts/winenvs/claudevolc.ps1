@@ -16,8 +16,7 @@
 
 .DESCRIPTION
     Launches Claude Code via Volcano Ark (Doubao) coding endpoint with the model
-    forced to glm-5.2 everywhere, experimental agent teams force-enabled,
-    and ultracode opt-in (default No).
+    forced to glm-5.2 everywhere, experimental agent teams force-enabled.
     API key is read from .secret_keys/.secret_ignore/ARK_API_KEY_1 (written by
     the Special Software Environment Variables Manager, dd.sh / dd.cmd).
     Volcano Ark /api/coding is the Anthropic-compatible endpoint and serves
@@ -31,8 +30,6 @@ $ErrorActionPreference = "Stop"
 $volcBaseUrl = ""
 $volcApiKey = ""
 $volcModel = "glm-5.2"
-$ultraSettingsJson = $null
-$ultraSettingsFile = $null
 $claudeArgs = $null
 $teammateMode = $null
 $exitCode = 0
@@ -49,8 +46,6 @@ $windowsPathFunctionScript = $null
 $claudeLaunchCommonScript = $null
 $aiCliProvisionCommonScript = $null
 $claudeExecutable = $null
-$ultraChoice = $null
-$enableUltra = $false
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
 $env:DISABLE_AUTOUPDATER = "1"
@@ -62,14 +57,9 @@ $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 # Windows default: run experimental agent teams in-process (like claudeteam).
 $teammateMode = 'in-process'
 
-# Ultracode via temp settings FILE when opted in (Windows PowerShell 5.1 strips
-# double quotes when handing a JSON literal to a native exe).
-$ultraSettingsJson = '{"ultracode":true}'
-$ultraSettingsFile = Join-Path $env:TEMP "claudevolc_ultracode_settings.json"
-
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team + opt-in ultracode]" -ForegroundColor Yellow
+Write-Host "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -177,9 +167,6 @@ if (-not $volcApiKey) {
     Write-Host "  $secretDir\ARK_API_KEY_1" -ForegroundColor Gray
     Write-Host ""
     $null = Read-Host "Press Enter to exit"
-    if ($enableUltra -and (-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-        Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-    }
     exit 1
 }
 else {
@@ -189,22 +176,10 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 # Build claude args: glm-5.2 always on; teammate-mode in-process;
-# skip-permissions (Windows default, like claudeteam); ultracode opt-in.
+# skip-permissions (Windows default, like claudeteam).
 $claudeArgs = @("--model", $volcModel, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 
-# Ultracode: opt-in prompt (default Yes).
-$ultraChoice = Read-Host "Enable ultracode? [Y/n]"
-if ($ultraChoice -ne 'n' -and $ultraChoice -ne 'N') {
-    $enableUltra = $true
-    [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
-    $claudeArgs += @("--settings", $ultraSettingsFile)
-}
-
-if ($enableUltra) {
-    Write-Host "Ultracode: enabled (--settings via $ultraSettingsFile)" -ForegroundColor White
-} else {
-    Write-Host "Ultracode: off (opted out)" -ForegroundColor White
-}
+$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudevolc")
 
 # Launch tool (info already shown above; start Claude directly).
 if (-not $claudeExecutable) {
@@ -213,9 +188,6 @@ if (-not $claudeExecutable) {
     Write-Host "Install via: npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
     Write-Host "Or ensure $env:USERPROFILE\.local\bin\claude.exe exists." -ForegroundColor Yellow
     Write-Host ""
-    if ($enableUltra -and (-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-        Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-    }
     exit 1
 }
 
@@ -229,11 +201,6 @@ Write-Host ""
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
-}
-
-# Remove the temp settings file (claude reads it only at startup).
-if ($enableUltra -and (-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
 }
 
 exit $exitCode

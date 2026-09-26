@@ -6,12 +6,18 @@ Handles cross-platform path and UI configuration for the shell launchers.
 
 import os
 import sys
-import json
 from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 # Import variable manager and variable definitions
 from var_manager import get_instance as get_var_manager
 from build_vars import BuildVars
+from pycore.pyfoundations.service_contract import value as contract_value
+
+NATIVE_HOST_MANIFEST_NAME = f"{contract_value('mcp_chrome.native_host_name')}.json"
 
 
 class BuildOrchestrator:
@@ -23,11 +29,10 @@ class BuildOrchestrator:
         self.vm = get_var_manager()
         self.platform = self.vm.platform
 
-        # Path configuration: build in current directory (no _build_dir)
-        # project_root: e.g. D:\programing\core_node\apps\mcp-chrome
-        # Extension output: <mcp-chrome>/.output/build_extension (wxt outDir + outDirTemplate)
-        self.build_output_dir = self.project_root / ".output"
-        self.extension_path = self.build_output_dir / "build_extension"
+        # Extension output: <mcp-chrome>/<mcp_chrome.build_output_dir>/<mcp_chrome.extension_dir>
+        # (wxt outDir + outDirTemplate, both named in config/service_contract.json)
+        self.build_output_dir = self.project_root / contract_value("mcp_chrome.build_output_dir")
+        self.extension_path = self.build_output_dir / contract_value("mcp_chrome.extension_dir")
         self.native_path = self.project_root / "app" / "native-server" / "dist"
         self.shared_path = self.project_root / "packages" / "shared" / "dist"
 
@@ -90,11 +95,11 @@ class BuildOrchestrator:
 
         if self.platform == "windows":
             # Use real user's home dir instead of APPDATA
-            return os.path.join(home, "AppData", "Roaming", "Google", "Chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
+            return os.path.join(home, "AppData", "Roaming", "Google", "Chrome", "NativeMessagingHosts", NATIVE_HOST_MANIFEST_NAME)
         elif self.platform == "darwin":
-            return os.path.join(home, "Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
+            return os.path.join(home, "Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts", NATIVE_HOST_MANIFEST_NAME)
         else:  # linux
-            return os.path.join(home, ".config", "google-chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
+            return os.path.join(home, ".config", "google-chrome", "NativeMessagingHosts", NATIVE_HOST_MANIFEST_NAME)
 
     def generate_ui_strings(self):
         """Generate UI display strings"""

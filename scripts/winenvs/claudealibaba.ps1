@@ -17,7 +17,7 @@
 .DESCRIPTION
     Launches Claude Code via Alibaba Cloud Model Studio (Bailian / DashScope)
     Anthropic-compatible endpoint with a Qwen model forced into every slot, and
-    experimental agent teams + ultracode force-enabled (like claudeteam).
+    experimental agent teams force-enabled (like claudeteam).
     API key is read from .secret_keys/.secret_ignore/DASHSCOPE_API_KEY_1 (written
     by the Special Software Environment Variables Manager, dd.sh / dd.cmd). The
     same standard Model Studio API Key works for the Pay-as-you-go Anthropic
@@ -38,8 +38,6 @@ $ErrorActionPreference = "Stop"
 $aliBaseUrl = ""
 $aliApiKey = ""
 $aliModel = "qwen3.6-plus"
-$ultraSettingsJson = $null
-$ultraSettingsFile = $null
 $claudeArgs = $null
 $teammateMode = $null
 $exitCode = 0
@@ -66,17 +64,9 @@ $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 # Windows default: run experimental agent teams in-process (like claudeteam).
 $teammateMode = 'in-process'
 
-# Ultracode via temp settings FILE (Windows PowerShell 5.1 strips the double
-# quotes when handing a JSON literal to a native exe, so `claude --settings
-# {"ultracode":true}` arrives as `{ultracode:true}` -> invalid JSON. --settings
-# also accepts a file path, which sidesteps all shell quoting).
-$ultraSettingsJson = '{"ultracode":true}'
-$ultraSettingsFile = Join-Path $env:TEMP "claudealibaba_ultracode_settings.json"
-[System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
-
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Claude AI (Alibaba Model Studio / Qwen) - v4 [qwen + team + ultracode]" -ForegroundColor Yellow
+Write-Host "Claude AI (Alibaba Model Studio / Qwen) - v4 [qwen + team]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -167,7 +157,6 @@ $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $aliModel
 Write-Host "API Endpoint: $env:ANTHROPIC_BASE_URL" -ForegroundColor White
 Write-Host "Model: $env:ANTHROPIC_MODEL (forced: main + subagents + background)" -ForegroundColor White
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)" -ForegroundColor White
-Write-Host "Ultracode: --settings $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor White
 
 if (-not $aliApiKey) {
     Write-Host ""
@@ -184,9 +173,6 @@ if (-not $aliApiKey) {
     Write-Host "  $secretDir\DASHSCOPE_API_KEY_1" -ForegroundColor Gray
     Write-Host ""
     $null = Read-Host "Press Enter to exit"
-    if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-        Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-    }
     exit 1
 }
 else {
@@ -195,13 +181,15 @@ else {
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Build claude args: ultracode settings always on; teammate-mode in-process;
+# Build claude args: teammate-mode in-process;
 # skip-permissions (Windows default, like claudeteam).
-$claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+$claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+
+$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudealibaba")
 
 # Launch tool
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start Claude AI (Alibaba Model Studio) [qwen + team + ultracode]..." -ForegroundColor Yellow
+Write-Host "Press Enter to start Claude AI (Alibaba Model Studio) [qwen + team]..." -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 
@@ -215,11 +203,6 @@ Write-Host ""
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
-}
-
-# Remove the temp settings file (claude reads it only at startup).
-if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
 }
 
 exit $exitCode

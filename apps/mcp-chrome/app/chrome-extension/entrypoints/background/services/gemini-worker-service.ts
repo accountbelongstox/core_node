@@ -25,9 +25,6 @@ class GeminiWorkerService extends SimpleWorkerBase {
     return 'gemini_web';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'gemini_web_worker_id_base';
-  }
 
   protected get capabilities(): WorkerCapability[] {
     return [];

@@ -23,7 +23,7 @@ import { StorageManager } from '../../../core/persistence';
 import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import {
-  dailyReadingHash,
+  itemRouteTab,
   parseWordGroupHash,
   wordGroupHash,
   WORDNEW_TABS,
@@ -115,8 +115,9 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
         activate('shelf');
         return;
       }
-      if (fromHash === 'daily-reading' || fromHash.startsWith('daily-reading?') || fromHash.startsWith('daily-reading/')) {
-        activate('daily-reading');
+      const itemTab = itemRouteTab(window.location.hash);
+      if (itemTab) {
+        activate(itemTab);
         return;
       }
       if (fromHash.startsWith('book-reader/')) {
@@ -169,12 +170,8 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     if (activeTab === 'library' && libraryRoute) {
       next = `#/library/${encodeURIComponent(libraryRoute.id)}?page=${libraryRoute.page}&view=${libraryRoute.view}`;
     }
-    if (activeTab === 'daily-reading') {
-      const current = window.location.hash;
-      next = /^#\/daily-reading$/.test(current)
-        || /^#\/daily-reading\/[^?]+$/.test(current)
-        ? current
-        : dailyReadingHash();
+    if (itemRouteTab(window.location.hash) === activeTab) {
+      next = window.location.hash;
     }
     if (activeTab === 'shelf') {
       next = wordGroupHash(wordGroupRouteId);

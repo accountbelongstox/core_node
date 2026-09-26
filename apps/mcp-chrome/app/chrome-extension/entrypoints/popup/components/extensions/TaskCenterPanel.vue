@@ -24,7 +24,7 @@
         <button
           class="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
           @click="toggleCenter"
-          :disabled="!isRunning && !config.apiUrl"
+          :disabled="!isRunning && !apiBaseUrl"
         >
           {{ isRunning || isStarting ? getMessage('taskCenterCancelReadyAction') : readinessAction }}
         </button>
@@ -153,7 +153,7 @@ import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
 import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
 const {
-  config,
+  apiBaseUrl,
   state,
   error,
   isStarting,

@@ -64,39 +64,19 @@ install_package() {
         echo "Error: apt-get not found. This script only supports Debian-based systems."
         return
     fi
-    $sudo apt-get update
-    $sudo apt-get install -y "$package_name" || true
+    $USE_SUDO apt-get update -qq
+    $USE_SUDO apt-get install -y "$package_name" || true
     command -v "$package_name" >/dev/null 2>&1 && SYSTEM_PACKAGE_READY=true
 }
 
-check_and_install_sudo() {
-    if [ "$EUID" -eq 0 ]; then
-        sudo=""
-        USE_SUDO=""
+# Resolve USE_SUDO through gvar_common.sh check_and_install_sudo and report it.
+dd_prepare_privileges() {
+    check_and_install_sudo
+    if [ "$(id -u)" -eq 0 ]; then
         echo "Running as root. sudo not needed."
-        return
-    fi
-
-    if ! command -v sudo >/dev/null 2>&1; then
-        echo "sudo not found. Attempting to install..."
-        install_package "sudo"
-        if [ "$SYSTEM_PACKAGE_READY" = true ]; then
-            echo "sudo installed successfully."
-        else
-            echo "Failed to install sudo. Commands will be run without sudo."
-            sudo=""
-            USE_SUDO=""
-            return
-        fi
-    fi
-
-    if command -v sudo >/dev/null 2>&1; then
-        sudo="sudo"
-        USE_SUDO="sudo"
+    elif [ "${SUDO_READY:-false}" = true ]; then
         echo "sudo is available and will be used."
     else
-        sudo=""
-        USE_SUDO=""
         echo "sudo is not available. Commands will be run without sudo."
     fi
 }
@@ -108,8 +88,7 @@ check_and_install_dos2unix() {
         if [ "$SYSTEM_PACKAGE_READY" = true ]; then
             echo "dos2unix installed successfully."
         else
-            echo "Failed to install dos2unix. Please install it manually and try again."
-            return
+            echo "Failed to install dos2unix; the sed fallback is used."
         fi
     fi
 }
@@ -127,15 +106,12 @@ check_and_install_git() {
     fi
 }
 
+# Root-level *.sh get +x; project directories go through the full CRLF/+x check.
 make_sh_executable() {
     if [ -z "$CORE_NODE_ROOT_DIR" ]; then
         echo "CORE_NODE_ROOT_DIR is not specified."
         return
     fi
-    find "$CORE_NODE_ROOT_DIR" -maxdepth 1 -type f -name "*.sh" -exec chmod +x {} \;
-    if [ -d "$SCRIPT_DIR" ]; then
-        find "$SCRIPT_DIR" -type f -name "*.sh" -exec chmod +x {} \;
-    else
-        echo "Directory $SCRIPT_DIR does not exist."
-    fi
+    find "$CORE_NODE_ROOT_DIR" -maxdepth 1 -type f -name "*.sh" ! -perm -u=x -exec $USE_SUDO chmod +x {} +
+    process_project_sh_files "$CORE_NODE_ROOT_DIR" "${DD_SH_TARGET_DIRS[@]}"
 }

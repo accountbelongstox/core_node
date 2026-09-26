@@ -47,7 +47,7 @@ HTTPS backend selection activates relay behavior. Direct non-HTTPS local selecti
 The current architecture satisfies the queue requirements through a shared worker kernel rather than separate word and sentence implementations:
 
 - `pycore/pyctl/tts/laravel_audio_worker.py` owns ordered task admission, bounded execution, cache lookup, progress, and non-blocking delivery dispatch.
-- `pycore/pyutils/tts/audio_delivery_outbox.py` atomically persists every retained cache path and the domain, result, and history checkpoints before network delivery begins.
+- `pycore/pyutils/laravel/delivery_outbox.py` (shared Laravel delivery outbox since 2026-09-27; was `pyutils/tts/audio_delivery_outbox.py`) atomically persists every retained cache path and the domain, result, and history checkpoints before network delivery begins.
 - Word tasks use the word lane and Edge/Azure-compatible providers according to task policy.
 - Sentence tasks use the sentence lane and Qwen3-TTS by default.
 - Multi-sentence articles reuse sentence synthesis and are recorded as composed output.
@@ -60,7 +60,7 @@ Laravel's queue gateway returns the queue position, whether the task was moved t
 
 ## Persistence and observability
 
-Pycore continues synthesis while Laravel is unavailable. Generation and delivery are separate task groups: the worker writes a cache-backed outbox row first, then continues draining synthesis work while bounded delivery lanes independently retry the domain upload and terminal Queue Center result. A process restart immediately reclaims stale-process leases. Successful checkpoints are monotonic, so an idempotent re-delivery cannot regress from “audio uploaded” to “not uploaded.” Domain delivery completion and domain upload success are separate checkpoints: a non-retryable domain 4xx records the upload failure and continues through the global completed-result fallback, whose body carries the audio. Missing cached files or terminal global-result failures become visible dead letters and may be explicitly requeued through `ui/queue_center/retry_audio_delivery`.
+Pycore continues synthesis while Laravel is unavailable. Generation and delivery are separate task groups: the worker writes a cache-backed outbox row first, then continues draining synthesis work while bounded delivery lanes independently retry the domain upload and terminal Queue Center result. A process restart immediately reclaims stale-process leases. Successful checkpoints are monotonic, so an idempotent re-delivery cannot regress from “audio uploaded” to “not uploaded.” Domain delivery completion and domain upload success are separate checkpoints: a non-retryable domain 4xx records the upload failure and continues through the global completed-result fallback, whose body carries the audio. Missing cached files or terminal global-result failures become visible dead letters and may be explicitly requeued through `ui/laravel_delivery/retry` (per kind; status `ui/laravel_delivery/status`).
 
 The durable outbox and history repository use the existing atomically replaced user-data document rather than SQLite; SQLite was optional, not a contract requirement. Domain delivery, global-result acceptance, and local-history persistence are separate monotonic checkpoints. Completed outbox rows are removed only after all three steps finish. Audio history uses a stable delivery-derived `record_id`, so replay updates the existing record instead of duplicating it; cached audio is retained when a delivery becomes a dead letter.
 

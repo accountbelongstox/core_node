@@ -708,6 +708,18 @@
     },
     {
       "match": "exact",
+      "value": "ui/laravel_delivery/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/laravel_delivery/retry",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
       "value": "ui/agent_history/update_prompt",
       "profile": "general_write",
       "methods": ["POST"]

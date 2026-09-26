@@ -75,6 +75,7 @@ final class DataSyncStepCatalog
         'discover_receiver_databases',
         'backup_receiver_databases',
         'record_backup_directory',
+        'build_receiver_resource_manifests',
         'ready_for_transfer',
         'receive_database_chunks',
         'apply_database_differences',

@@ -51,6 +51,14 @@ class TableKeys:
     # ===== Util Clipboard Tables =====
     CLIPBOARD_HISTORY = f"{TableNamespaces.UTIL_CLIPBOARD}.history"
 
+    # ===== Util Laravel Delivery Tables (pyutils/laravel/delivery_outbox.py) =====
+    LARAVEL_DELIVERIES = f"{TableNamespaces.UTIL_LARAVEL}.deliveries"
+    # Schema v1 receipts table; only read (and dropped) by the v2 migration.
+    LARAVEL_DELIVERY_RECEIPTS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_receipts"
+    LARAVEL_DELIVERY_STATE = f"{TableNamespaces.UTIL_LARAVEL}.delivery_state"
+    LARAVEL_DELIVERY_METRICS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_metrics"
+    LARAVEL_DELIVERY_META = f"{TableNamespaces.UTIL_LARAVEL}.delivery_meta"
+
     # ===== Voice App Tables =====
     VOICE_DICTIONARIES = f"{TableNamespaces.APP_VOICE}.dictionaries"
     VOICE_CACHE_DB_DONE = f"{TableNamespaces.APP_VOICE}.cache_db_done"

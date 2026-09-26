@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import time
 from io import BytesIO
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
@@ -17,6 +18,7 @@ from pycore.pyutils.common.x11_display import X11Window, x11_display
 from pycore.pyutils.common.xdg_desktop_portal import xdg_desktop_portal
 from pycore.pyutils.window.terminal_backend import (
     CONTROL_NONE,
+    FOCUS_DELAY_SECONDS,
     TERMINAL_KEY_END,
     TERMINAL_KEY_INSERT,
     TERMINAL_KEY_SHIFT,
@@ -35,6 +37,7 @@ CONTROL_PORTAL = "portal"
 X11_WINDOW_PREFIX = "x11:"
 GNOME_WINDOW_PREFIX = "gnome:"
 INTROSPECT_WINDOW_PREFIX = "introspect:"
+ACTIVATION_ATTEMPTS = 2
 INTEGRATION_ACTIONS = frozenset({
     "status",
     "install_bridge",
@@ -125,16 +128,20 @@ class LinuxTerminalBackend(TerminalWindowBackend):
         }
 
     def _raise_window(self, window: Dict[str, Any]) -> Dict[str, Any]:
+        for _attempt in range(ACTIVATION_ATTEMPTS):
+            if self._activate_once(window):
+                return {"success": True}
+            time.sleep(FOCUS_DELAY_SECONDS)
+        return {"success": False, "error_code": "terminal_raise_failed"}
+
+    @staticmethod
+    def _activate_once(window: Dict[str, Any]) -> bool:
         control = str(window["control"])
         if control in (CONTROL_X11, CONTROL_XWAYLAND):
-            activated = x11_display.activate(int(str(window["native_id"]), 16))
-        elif control == CONTROL_GNOME_BRIDGE:
-            activated = gnome_shell_bridge.activate(str(window["native_id"]))
-        else:
-            activated = False
-        if not activated:
-            return {"success": False, "error_code": "terminal_raise_failed"}
-        return {"success": True}
+            return x11_display.activate(int(str(window["native_id"]), 16))
+        if control == CONTROL_GNOME_BRIDGE:
+            return gnome_shell_bridge.activate(str(window["native_id"]))
+        return False
 
     def _click(self, window: Dict[str, Any], x: int, y: int, button: int) -> bool:
         return self._dispatch(

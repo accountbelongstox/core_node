@@ -1655,7 +1655,6 @@ export const TOOL_SCHEMAS: Tool[] = [
           enum: ['status', 'start', 'stop', 'set_capability', 'test_validity'],
           description: 'Task center command',
         },
-        apiBaseUrl: { type: 'string', description: 'Backend API base URL override' },
         capabilities: {
           type: 'array',
           items: { type: 'string' },

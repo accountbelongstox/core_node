@@ -130,6 +130,11 @@ FRANKENPHP_BIN_CANDIDATES="${FRANKENPHP_COMPILED_BINARY_PATH} ${FRANKENPHP_PREBU
 # GD driver): prebuilt/compiled binaries embed it (official default set), the
 # apt variant loads it from the php-zts-gd deb (FRANKENPHP_APT_PACKAGES).
 FRANKENPHP_RUNTIME_REQUIRED_PHP_EXTENSIONS=("pdo" "pdo_pgsql" "phar" "simplexml" "pcntl" "gd")
+# Desired (not floor) extension: phpredis backs LaravelConfig::REDIS_CLIENT
+# whenever a Redis-compatible store is selected (START_REDIS/START_DRAGONFLY).
+# Missing phpredis triggers a variant repair in step 93 but never fails the
+# runtime contract: Laravel degrades to its database path instead.
+FRANKENPHP_REDIS_PHP_EXTENSION="redis"
 # Managed route-file marker (first-line comment written by
 # frankenphp_domain_common.sh FM_DOMAIN_MARKER). The pre-flight below only
 # ever DELETES files carrying this marker; user-owned routes are reported,

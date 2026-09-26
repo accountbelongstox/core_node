@@ -27,6 +27,13 @@ export function buildPosterQuery(
   return parts.join(' ').trim();
 }
 
+/** Web image query for a vocabulary-library cover when the task has no search_query. */
+export function buildLibraryCoverQuery(name: string, category?: string): string {
+  const clean = String(name || '').trim();
+  if (!clean) return '';
+  return [clean, String(category || '').trim(), 'illustration'].filter(Boolean).join(' ');
+}
+
 async function fetchImageUrlAsBase64(url: string): Promise<{ imageBase64: string; mime: string } | null> {
   try {
     const normalizedUrl = url.toLowerCase();

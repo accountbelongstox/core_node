@@ -8,7 +8,7 @@ import {
   Search, Volume2, Star, Settings, Check, RefreshCw, Layers, 
   CheckCircle, Play, Pause, SkipForward, ArrowRight,
   Languages, Moon, Sun, Heart, Send, Info, Trash2, ArrowLeft, RotateCw,
-  BarChart2, LogIn, ShieldCheck
+  BarChart2, LogIn, ShieldCheck, AudioLines
 } from 'lucide-react';
 
 import { useShell } from '../../../shell/ShellContext';
@@ -68,6 +68,7 @@ import { WfNewOnboarding } from '../pages/WfNewOnboarding';
 import { WfNewNavLogo } from './WfNewNavLogo';
 import { WfNewNotificationBell } from './WfNewNotificationBell';
 import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
+import { WfNewHomeLabCard } from './WfNewHomeLabCard';
 import { dailyReadingHash } from '../routing/WordNewHashRoutes';
 
 interface WfNewHomeTabProps {
@@ -122,88 +123,30 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
               <div className="space-y-3.5 pt-4 animate-fade-in">
                 <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 px-1">
-                  Omni-Dimensional Audio-Visual Labs
+                  {trans('home.labsHeader')}
                 </h3>
-                {/* Mobile: compact 2-col icon-on-top / label-below grid (no list rows);
-                    sm+ keeps the richer card with description. */}
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                  
-                  {/* Cyber Walkman Card */}
-                  <div
-                    onClick={() => {
-                      setActiveTab('walkman');
-                      window.speechSynthesis.cancel();
-                    }}
-                    className={`p-6 rounded-3xl ${activeTheme.cardClass} hover:border-indigo-500/25 border border-white/5 cursor-pointer hover:scale-[1.01] transition-all duration-300 group flex flex-col items-center text-center sm:items-start sm:text-left`}
-                  >
-                    <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl sm:rounded-2xl w-fit mb-2.5 sm:mb-4">
-                      <Volume2 className="w-5.5 h-5.5 animate-pulse" />
-                    </div>
-                    <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-100 group-hover:text-indigo-400 transition-colors">
-                      {trans('home.walkmanTitle')}
-                    </h4>
-                    <p className="hidden sm:block text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      {trans('home.walkmanDesc')}
-                    </p>
-                  </div>
-
-                  {/* Interactive Subtitles Video Card */}
-                  <div
-                    onClick={() => {
-                      setActiveTab('subtitles');
-                      window.speechSynthesis.cancel();
-                    }}
-                    className={`p-6 rounded-3xl ${activeTheme.cardClass} hover:border-fuchsia-500/25 border border-white/5 cursor-pointer hover:scale-[1.01] transition-all duration-300 group flex flex-col items-center text-center sm:items-start sm:text-left`}
-                  >
-                    <div className="p-3 bg-fuchsia-500/10 text-fuchsia-400 rounded-xl sm:rounded-2xl w-fit mb-2.5 sm:mb-4">
-                      <Play className="w-5.5 h-5.5" />
-                    </div>
-                    <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-100 group-hover:text-fuchsia-400 transition-colors">
-                      {trans('home.subsTitle')}
-                    </h4>
-                    <p className="hidden sm:block text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      {trans('home.subsDesc')}
-                    </p>
-                  </div>
-
-                  {/* Bilingual Cosmos Recital Room Card */}
-                  <div
-                    onClick={() => {
-                      setActiveTab('bilingual');
-                      window.speechSynthesis.cancel();
-                    }}
-                    className={`p-6 rounded-3xl ${activeTheme.cardClass} hover:border-amber-500/25 border border-white/5 cursor-pointer hover:scale-[1.01] transition-all duration-300 group flex flex-col items-center text-center sm:items-start sm:text-left`}
-                  >
-                    <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl sm:rounded-2xl w-fit mb-2.5 sm:mb-4">
-                      <Languages className="w-5.5 h-5.5 text-amber-400" />
-                    </div>
-                    <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-100 group-hover:text-amber-400 transition-colors">
-                      {trans('home.bilingualTitle')}
-                    </h4>
-                    <p className="hidden sm:block text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      {trans('home.bilingualDesc')}
-                    </p>
-                  </div>
-
-                  {/* Telemetry Stats Card */}
-                  <div
-                    onClick={() => {
-                      setActiveTab('stats');
-                      window.speechSynthesis.cancel();
-                    }}
-                    className={`p-6 rounded-3xl ${activeTheme.cardClass} hover:border-emerald-500/25 border border-white/5 cursor-pointer hover:scale-[1.01] transition-all duration-300 group flex flex-col items-center text-center sm:items-start sm:text-left`}
-                  >
-                    <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl sm:rounded-2xl w-fit mb-2.5 sm:mb-4">
-                      <BarChart2 className="w-5.5 h-5.5" />
-                    </div>
-                    <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-100 group-hover:text-emerald-400 transition-colors">
-                      {trans('home.statsTitle')}
-                    </h4>
-                    <p className="hidden sm:block text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      {trans('home.statsDesc')}
-                    </p>
-                  </div>
-
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6">
+                  {([
+                    { tab: 'walkman', accent: 'indigo', icon: Volume2, iconClassName: 'animate-pulse', title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
+                    { tab: 'subtitles', accent: 'fuchsia', icon: Play, title: 'home.subsTitle', desc: 'home.subsDesc' },
+                    { tab: 'bilingual', accent: 'amber', icon: Languages, title: 'home.bilingualTitle', desc: 'home.bilingualDesc' },
+                    { tab: 'orch-audio', accent: 'cyan', icon: AudioLines, title: 'home.orchAudioTitle', desc: 'home.orchAudioDesc' },
+                    { tab: 'stats', accent: 'emerald', icon: BarChart2, title: 'home.statsTitle', desc: 'home.statsDesc' },
+                  ] as const).map((card) => (
+                    <WfNewHomeLabCard
+                      key={card.tab}
+                      theme={activeTheme}
+                      accent={card.accent}
+                      icon={card.icon}
+                      iconClassName={'iconClassName' in card ? card.iconClassName : undefined}
+                      title={trans(card.title)}
+                      description={trans(card.desc)}
+                      onOpen={() => {
+                        setActiveTab(card.tab);
+                        window.speechSynthesis.cancel();
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
 

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyDocumentController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyExportController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyLibraryPublicController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyCoverTaskCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyValidityController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyStatsController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1DictionaryWordManagementController;
@@ -15,6 +16,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::prefix('vocabulary')->group(function () {
         Route::get('/statistics', [AppQyV1VocabularyLibraryPublicController::class, 'getStatistics']);
         Route::get('/libraries/recommended', [AppQyV1VocabularyLibraryPublicController::class, 'getRecommended']);
+        // Library cover tasks on the global queue (chrome worker first, Laravel
+        // AI fallback). Registered before the {libraryId} routes.
+        Route::post('/libraries/cover/tasks', [AppQyV1VocabularyCoverTaskCtl::class, 'enqueue']);
+        Route::get('/libraries/cover/tasks', [AppQyV1VocabularyCoverTaskCtl::class, 'status']);
         Route::get('/libraries/{libraryId}/words', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraryWords']);
         // One-click AI cover regeneration (Laravel AiGateway text-to-image,
         // prompt-hash disk cache). POST so an optional prompt override can ride along.

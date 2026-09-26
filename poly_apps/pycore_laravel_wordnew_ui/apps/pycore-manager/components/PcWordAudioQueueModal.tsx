@@ -6,6 +6,7 @@ import Portal from '@/shared/ui/Portal';
 import { OVERLAY_BACKDROP, OVERLAY_CONTAINER, OVERLAY_Z } from '@/shared/styles/overlay';
 import type { WordTtsWorkerTask } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import { formatElapsed } from '../utils/pcFormat';
 
 interface PcWordAudioQueueModalProps {
   open: boolean;
@@ -13,12 +14,6 @@ interface PcWordAudioQueueModalProps {
 }
 
 const clampProgress = (value?: number): number => Math.min(100, Math.max(0, Number(value) || 0));
-
-const formatDuration = (seconds?: number): string => {
-  const value = Math.max(0, Number(seconds) || 0);
-  if (value < 60) return `${value.toFixed(value < 10 ? 1 : 0)}s`;
-  return `${Math.floor(value / 60)}m ${Math.floor(value % 60)}s`;
-};
 
 export function PcWordAudioQueueModal({ open, onClose }: PcWordAudioQueueModalProps): ReactElement | null {
   const { t } = useTranslation('pc');
@@ -106,7 +101,7 @@ export function PcWordAudioQueueModal({ open, onClose }: PcWordAudioQueueModalPr
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
                       <span>{t('queueCenter.wordAudioQueue.stage')}: {t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}</span>
-                      <span>{t('queueCenter.wordAudioQueue.elapsed')}: {formatDuration(task.elapsed_seconds)}</span>
+                      <span>{t('queueCenter.wordAudioQueue.elapsed')}: {formatElapsed(task.elapsed_seconds)}</span>
                       {task.current_provider && <span>{t('queueCenter.wordAudioQueue.engine')}: {task.current_provider}</span>}
                       {task.queue_position != null && <span>{t('queueCenter.wordAudioQueue.queuePosition')}: #{task.queue_position}</span>}
                     </div>

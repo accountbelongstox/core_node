@@ -24,7 +24,9 @@
  */
 import { ref, computed, watch } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
-import { apiManager } from '@/services/ApiManager';
+import { currentApiClient } from '@/services/ApiManager';
+import { StudyGenApiClient } from '@/services/StudyGenApiClient';
+import { ApiError } from '@/entrypoints/background/api/BaseApiClient';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { getMessage } from '@/utils/i18n';
@@ -37,7 +39,6 @@ import {
 } from './useArticleStudyGuide';
 import { buildBookStudySegmentPrompt, type BookStudySlot } from './promptPresets';
 import { parseStudySegmentReply } from './studyReplyParser';
-import { studyGenPath } from '@/utils/api-paths';
 
 const LOG = 'Book Study Generator';
 
@@ -148,7 +149,7 @@ export function useBookStudyGenerator() {
   const error = ref('');
   const result = ref('');
   const activeSourceKey = ref('');
-  const { apiBaseUrl, apiBaseNormalized, syncApiEndpoint } = useApiEndpoint();
+  const { apiBaseUrl, syncApiEndpoint } = useApiEndpoint();
 
   // Single in-instance guard so the resume watcher and a Generate click can't
   // drive two loops at once.
@@ -156,8 +157,15 @@ export function useBookStudyGenerator() {
   let stopRequested = false;
 
   const keyOf = (sourceType: string, sourceKey: string): string => `${sourceType}:${sourceKey}`;
-  const apiBase = (): string => apiBaseNormalized() || apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
-  const studyUrl = (path: string): string => `${apiBase()}${studyGenPath(path)}`;
+  const studyClient = (): StudyGenApiClient => currentApiClient(StudyGenApiClient);
+  // HTTP failures prefer the backend's own error, else "<action failed> (HTTP n)".
+  const requestError = (error: any, fallbackKey: string): string => {
+    if (error instanceof ApiError && error.statusCode) {
+      return error.response?.error
+        || getMessage('httpStatusError', [getMessage(fallbackKey), String(error.statusCode)]);
+    }
+    return error?.message || getMessage(fallbackKey);
+  };
 
   const ensureClaimer = (): void => {
     if (!claimerId.value) {
@@ -177,21 +185,13 @@ export function useBookStudyGenerator() {
     loadingSources.value = true;
     sourcesError.value = '';
     try {
-      const params = new URLSearchParams({
+      const json = await studyClient().listSources({
         type: typeFilter.value,
-        page: String(Math.max(1, Math.floor(targetPage) || 1)),
-        per_page: String(perPage.value),
+        page: Math.max(1, Math.floor(targetPage) || 1),
+        per_page: perPage.value,
+        q: search.value.trim() || undefined,
       });
-      if (search.value.trim()) params.set('q', search.value.trim());
-      const res = await fetch(`${studyUrl('sources')}?${params.toString()}`, {
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      if (!res.ok) {
-        sourcesError.value = `Failed to load sources (${res.status})`;
-        return;
-      }
-      const json = await res.json();
-      if (json && json.success === false) {
+      if (json.success === false) {
         sourcesError.value = json.error || getMessage('loadSourcesFailed');
         return;
       }
@@ -200,7 +200,7 @@ export function useBookStudyGenerator() {
       page.value = typeof json?.page === 'number' ? json.page : targetPage;
       if (typeof json?.per_page === 'number') perPage.value = json.per_page;
     } catch (e: any) {
-      sourcesError.value = e?.message || getMessage('loadSourcesFailed');
+      sourcesError.value = requestError(e, 'loadSourcesFailed');
     } finally {
       loadingSources.value = false;
     }
@@ -226,19 +226,8 @@ export function useBookStudyGenerator() {
     const prev = statusBySource.value[k] || emptyStatus();
     statusBySource.value = { ...statusBySource.value, [k]: { ...prev, loading: true, error: '' } };
     try {
-      const params = new URLSearchParams({ source_type: sourceType, source_key: sourceKey });
-      const res = await fetch(`${studyUrl('status')}?${params.toString()}`, {
-        headers: { 'Cache-Control': 'no-cache' },
-      });
-      if (!res.ok) {
-        statusBySource.value = {
-          ...statusBySource.value,
-          [k]: { ...prev, loading: false, error: `Failed to load status (${res.status})` },
-        };
-        return null;
-      }
-      const json = await res.json();
-      if (json && json.success === false) {
+      const json = await studyClient().status(sourceType, sourceKey);
+      if (json.success === false) {
         statusBySource.value = {
           ...statusBySource.value,
           [k]: { ...prev, loading: false, error: json.error || getMessage('loadStatusFailed') },
@@ -256,7 +245,7 @@ export function useBookStudyGenerator() {
     } catch (e: any) {
       statusBySource.value = {
         ...statusBySource.value,
-        [k]: { ...prev, loading: false, error: e?.message || getMessage('loadStatusFailed') },
+        [k]: { ...prev, loading: false, error: requestError(e, 'loadStatusFailed') },
       };
       return null;
     }
@@ -303,25 +292,19 @@ export function useBookStudyGenerator() {
     langs: string[],
   ): Promise<{ ok: boolean; item?: any; error?: string }> => {
     try {
-      const res = await fetch(studyUrl('claim'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          claimer: claimerId.value,
-          source_type: sourceType,
-          source_key: sourceKey,
-          limit: 1,
-          languages: langs,
-          target_chars: TARGET_CHARS,
-        }),
+      const json = await studyClient().claim({
+        claimer: claimerId.value,
+        source_type: sourceType,
+        source_key: sourceKey,
+        limit: 1,
+        languages: langs,
+        target_chars: TARGET_CHARS,
       });
-      if (!res.ok) return { ok: false, error: `Claim failed (${res.status})` };
-      const json = await res.json();
-      if (json && json.success === false) return { ok: false, error: json.error || getMessage('claimRejected') };
-      const items = Array.isArray(json?.items) ? json.items : [];
+      if (json.success === false) return { ok: false, error: json.error || getMessage('claimRejected') };
+      const items = Array.isArray(json.items) ? json.items : [];
       return { ok: true, item: items[0] };
     } catch (e: any) {
-      return { ok: false, error: e?.message || getMessage('claimFailed') };
+      return { ok: false, error: requestError(e, 'claimFailed') };
     }
   };
 
@@ -332,16 +315,12 @@ export function useBookStudyGenerator() {
     errorMsg: string,
   ): Promise<void> => {
     try {
-      await fetch(studyUrl('release'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source_type: sourceType,
-          source_key: sourceKey,
-          segment_indexes: [segmentIndex],
-          claimer: claimerId.value,
-          error: errorMsg,
-        }),
+      await studyClient().release({
+        source_type: sourceType,
+        source_key: sourceKey,
+        segment_indexes: [segmentIndex],
+        claimer: claimerId.value,
+        error: errorMsg,
       });
     } catch (e) {
       logger.warn(LOG, 'release failed', e);
@@ -355,28 +334,27 @@ export function useBookStudyGenerator() {
   ): Promise<{ ok: boolean; applied?: any; error?: string }> => {
     try {
       const languages = parsed.languages.length ? parsed.languages : ctx.targetLanguages;
-      const res = await fetch(studyUrl('submit'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source_type: job.sourceType,
-          source_key: job.sourceKey,
-          segment_index: job.segmentIndex,
-          claimer: claimerId.value,
-          provider: job.provider,
-          languages,
-          slots: parsed.slots,
-          phrases: parsed.phrases,
-          grammar_points: parsed.grammar_points,
-        }),
+      const json = await studyClient().submit({
+        source_type: job.sourceType,
+        source_key: job.sourceKey,
+        segment_index: job.segmentIndex,
+        claimer: claimerId.value,
+        provider: job.provider,
+        languages,
+        slots: parsed.slots,
+        phrases: parsed.phrases,
+        grammar_points: parsed.grammar_points,
       });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) return { ok: false, error: json?.error || `Submit failed (${res.status})` };
-      if (json && json.success === false) return { ok: false, error: json.error || getMessage('submitDisabled') };
-      if (json && json.ok) return { ok: true, applied: json.applied };
-      return { ok: false, error: json?.status ? `Submit rejected (${json.status})` : 'Submit rejected' };
+      if (json.success === false) return { ok: false, error: json.error || getMessage('submitDisabled') };
+      if (json.ok) return { ok: true, applied: json.applied };
+      return {
+        ok: false,
+        error: json.status
+          ? getMessage('submitRejectedStatus', [String(json.status)])
+          : getMessage('submitRejected'),
+      };
     } catch (e: any) {
-      return { ok: false, error: e?.message || getMessage('submitFailed') };
+      return { ok: false, error: requestError(e, 'submitFailed') };
     }
   };
 

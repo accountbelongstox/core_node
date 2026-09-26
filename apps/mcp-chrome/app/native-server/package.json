@@ -8,7 +8,7 @@
     "mcp-chrome-stdio": "./dist/mcp/mcp-server-stdio.js"
   },
   "scripts": {
-    "dev": "nodemon --watch src --ext ts,js,json --ignore dist/ --exec \"bun run build && bun run register:dev\"",
+    "dev": "nodemon --watch src --watch ../../packages/shared/dist --ext ts,js,cjs,mjs,json --exec \"bun run build && bun run register:dev\"",
     "build": "bun src/scripts/build.ts",
     "test": "jest",
     "test:watch": "jest --watch",

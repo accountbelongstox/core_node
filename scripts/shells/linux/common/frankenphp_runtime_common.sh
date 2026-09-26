@@ -414,6 +414,46 @@ fm_php_runtime_extensions_ready() {
     echo "$ready"
 }
 
+# phpredis is desired while a Redis-compatible store is selected (local
+# selector or the endpoint recorded by redis_endpoint_common.sh). Shared by
+# the static builder extension set, the apt package set and the 175 Redis
+# convergence (string contract: yes/no).
+fm_php_redis_extension_desired() {
+    if [ "$(get_var "START_REDIS" "false")" = "true" ] \
+        || [ "$(get_var "START_DRAGONFLY" "false")" = "true" ] \
+        || [ -n "$(get_var "LARAVEL_REDIS_ENDPOINT" "")" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+# Desired-extension readiness: yes when phpredis is not desired or loaded.
+fm_php_redis_extension_ready() {
+    local binary="$1"
+
+    if [ "$(fm_php_redis_extension_desired)" != "yes" ] \
+        || [ "$(fm_embedded_extension_loaded "$binary" "$FRANKENPHP_REDIS_PHP_EXTENSION")" = "yes" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+# Install-time completeness: the fail-closed floor plus desired extensions.
+# Step 93 preparation uses it to decide repairs; the runtime contract keeps
+# using the floor only.
+fm_php_install_extensions_ready() {
+    local binary="$1"
+
+    if [ "$(fm_php_runtime_extensions_ready "$binary")" = "yes" ] \
+        && [ "$(fm_php_redis_extension_ready "$binary")" = "yes" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
 # Embedded-runtime completeness floor for a compile-variant binary (string
 # contract: yes/no): the dnspod DNS-01 module, the embedded Mercure hub
 # module plus the shared runtime extension floor. A binary missing any of
@@ -529,12 +569,14 @@ fm_ensure_dnspod_module() {
     fm_dnspod_token_ensure
     fm_compile_baseline_ensure
     binary="$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_CANDIDATE_PATH")"
-    if [ -n "$binary" ] && [ "$(fm_binary_compile_complete "$binary")" = "yes" ]; then
+    if [ -n "$binary" ] && [ "$(fm_binary_compile_complete "$binary")" = "yes" ] \
+        && [ "$(fm_php_redis_extension_ready "$binary")" = "yes" ]; then
         echo "[$SCRIPT_INDEX] compiled candidate already ready (phar/pcntl/dnspod present)"
         return
     fi
     binary="$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_BINARY_PATH")"
-    if [ -n "$binary" ] && [ "$(fm_binary_compile_complete "$binary")" = "yes" ]; then
+    if [ -n "$binary" ] && [ "$(fm_binary_compile_complete "$binary")" = "yes" ] \
+        && [ "$(fm_php_redis_extension_ready "$binary")" = "yes" ]; then
         echo "[$SCRIPT_INDEX] dnspod module already embedded (phar/pcntl present)"
         return
     fi

@@ -7,10 +7,11 @@ import { wordNewQueueCenter } from './WordNewQueueCenter';
 const WORD_CLIP_TIMEOUT_MS = 8000;
 const MAX_WORDS_PER_SENTENCE = 40;
 
-async function playWordClip(
+/** Play one word clip (browser speech when the clip is missing); resolves when done. */
+export async function playWordClip(
   audioUrl: string | null | undefined,
   word: string,
-  shouldContinue: () => boolean,
+  shouldContinue: () => boolean = () => true,
 ): Promise<void> {
   const url = audioUrl ? resolveAudioSync(audioUrl) ?? audioUrl : null;
   if (!url || !/^https?:\/\//.test(url)) {

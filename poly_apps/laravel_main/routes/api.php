@@ -11,6 +11,8 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\JsonResponse;
 use App\Http\Middleware\GoLatency;
+use App\Support\LaravelServerIdentity;
+use App\Http\Middleware\ServerIdentityHeader;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 // Health Check Endpoint (for Nuxt API endpoints monitoring).
@@ -28,13 +30,15 @@ Route::withoutMiddleware([
         'ui_direct' => true,
         'timestamp' => now()->toIso8601String(),
         'server_time_unix' => microtime(true),
-        'version' => app()->version()
+        'version' => app()->version(),
+        'server_id' => LaravelServerIdentity::id(),
     ]);
 
     $responseTime = (microtime(true) - $startTime) * 1000;
 
     return $response
         ->header('Cache-Control', 'no-store, max-age=0')
+        ->header(ServerIdentityHeader::HEADER, LaravelServerIdentity::id())
         ->header('X-Go-Version', 'go1.21')
         ->header('X-Framework', 'Gin')
         ->header('X-Response-Time', number_format($responseTime, 10) . 'ms')
@@ -230,6 +234,8 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Assist.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1OrchAudio.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Delivery.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1StudyGen.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1PersonDict.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Social.php';

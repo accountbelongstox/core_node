@@ -42,6 +42,7 @@ export const BACKGROUND_MESSAGE_TYPES = {
   INITIALIZE_SEMANTIC_ENGINE: 'initialize_semantic_engine',
   ELEMENT_PICKER_FRAME_EVENT: 'element_picker_frame_event',
   ELEMENT_PICKER_UI_EVENT: 'element_picker_ui_event',
+  API_HEALTH_CHECK: 'api_health_check',
 } as const;
 
 // Offscreen message types

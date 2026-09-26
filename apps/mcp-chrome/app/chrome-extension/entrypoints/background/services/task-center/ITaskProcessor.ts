@@ -42,6 +42,11 @@ export interface ITaskProcessor {
   stop(): void;
 
   /**
+   * Move a running processor to another API base while keeping its settings
+   */
+  repoint(apiUrl: string): Promise<void>;
+
+  /**
    * Get processor status
    */
   getStatus(): ProcessorStatus;

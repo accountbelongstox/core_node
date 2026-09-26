@@ -14,7 +14,11 @@
 # Python is called after builds to recover the MCP connection.
 
 param(
-    [switch]$InstallShortcut
+    [switch]$InstallShortcut,
+    [switch]$Service,
+    [switch]$NoService,
+    [switch]$UninstallService,
+    [switch]$ServiceRun
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,22 +71,18 @@ $manifestContent = $null
 $nativePath = $null
 $manifestPath = $null
 $regKeyPath = $null
-$WatchRoots = @()
-$IgnoredWatchRoots = @()
-$IgnoredWatchFilePatterns = @("tsup.config.bundled_*.mjs")
-$WatchedFileExtensions = @(".cjs", ".css", ".html", ".js", ".json", ".mjs", ".png", ".svg", ".ts", ".tsx", ".vue", ".wasm")
-$FileWatchers = [System.Collections.Generic.List[System.IO.FileSystemWatcher]]::new()
-$WatchSubscriptions = [System.Collections.Generic.List[object]]::new()
-$WatchSubscription = $null
-$WatchRoot = $null
-$IgnoredWatchRoot = $null
-$Watcher = $null
-$WatchEventName = $null
-$WatchSourceIdentifier = $null
-$WatchSourcePrefix = "McpChromeDevelopmentWatch"
-$WatchIndex = 0
-$WatchDebounceMilliseconds = 750
-$ChangedPaths = @()
+$ServiceContractScript = $null
+$StartupManagerScript = $null
+$NssmServiceManagerScript = $null
+$ServiceTaskName = $null
+$ServiceDescription = $null
+$ServiceChoice = $env:MCP_CHROME_AS_SERVICE
+$ServiceMode = "none"
+$ServiceExe = $null
+$ServiceArguments = $null
+$NativeHostName = $null
+$DevWatchScript = $null
+$ServiceRestartSeconds = 5
 
 function Get-LocalizedMessage {
     param(
@@ -137,108 +137,6 @@ function Get-LocalizedMessage {
     return $template
 }
 
-function Test-DevelopmentWatchPath {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Path,
-
-        [Parameter(Mandatory=$true)]
-        [string[]]$IgnoredRoots,
-
-        [Parameter(Mandatory=$true)]
-        [string[]]$IgnoredFilePatterns,
-
-        [Parameter(Mandatory=$true)]
-        [string[]]$WatchedExtensions
-    )
-
-    $ignoredRoot = $null
-    $ignoredPrefix = $null
-    $ignoredFilePattern = $null
-    $fileName = $null
-    $extension = $null
-
-    foreach ($ignoredRoot in $IgnoredRoots) {
-        $ignoredPrefix = [string]::Concat($ignoredRoot, [System.IO.Path]::DirectorySeparatorChar)
-        if ($Path.Equals($ignoredRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
-            $Path.StartsWith($ignoredPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-            return $false
-        }
-    }
-
-    $fileName = [System.IO.Path]::GetFileName($Path)
-    foreach ($ignoredFilePattern in $IgnoredFilePatterns) {
-        if ($fileName -like $ignoredFilePattern) {
-            return $false
-        }
-    }
-
-    $extension = [System.IO.Path]::GetExtension($Path)
-    return $WatchedExtensions -contains $extension
-}
-
-function Wait-DevelopmentChangeBatch {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$SourcePrefix,
-
-        [Parameter(Mandatory=$true)]
-        [string[]]$IgnoredRoots,
-
-        [Parameter(Mandatory=$true)]
-        [string[]]$IgnoredFilePatterns,
-
-        [Parameter(Mandatory=$true)]
-        [string[]]$WatchedExtensions,
-
-        [Parameter(Mandatory=$true)]
-        [int]$DebounceMilliseconds
-    )
-
-    $changeEvent = $null
-    $eventPath = $null
-    $deadline = $null
-    $isWatchedPath = $false
-    $changedPathSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-
-    while ($true) {
-        $changeEvent = Wait-Event
-        $eventPath = [string]$changeEvent.SourceEventArgs.FullPath
-        Remove-Event -EventIdentifier $changeEvent.EventIdentifier -ErrorAction SilentlyContinue
-        if (-not $changeEvent.SourceIdentifier.StartsWith($SourcePrefix, [System.StringComparison]::Ordinal)) {
-            continue
-        }
-
-        $isWatchedPath = Test-DevelopmentWatchPath -Path $eventPath -IgnoredRoots $IgnoredRoots -IgnoredFilePatterns $IgnoredFilePatterns -WatchedExtensions $WatchedExtensions
-        if ($isWatchedPath) {
-            [void]$changedPathSet.Add($eventPath)
-            break
-        }
-    }
-
-    $deadline = [DateTime]::UtcNow.AddMilliseconds($DebounceMilliseconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        $changeEvent = Wait-Event -Timeout 1
-        if (-not $changeEvent) {
-            continue
-        }
-
-        $eventPath = [string]$changeEvent.SourceEventArgs.FullPath
-        Remove-Event -EventIdentifier $changeEvent.EventIdentifier -ErrorAction SilentlyContinue
-        if (-not $changeEvent.SourceIdentifier.StartsWith($SourcePrefix, [System.StringComparison]::Ordinal)) {
-            continue
-        }
-
-        $isWatchedPath = Test-DevelopmentWatchPath -Path $eventPath -IgnoredRoots $IgnoredRoots -IgnoredFilePatterns $IgnoredFilePatterns -WatchedExtensions $WatchedExtensions
-        if ($isWatchedPath) {
-            [void]$changedPathSet.Add($eventPath)
-            $deadline = [DateTime]::UtcNow.AddMilliseconds($DebounceMilliseconds)
-        }
-    }
-
-    return @($changedPathSet)
-}
-
 $ScriptDir = Split-Path -Parent $PSScriptRoot
 $ProjectRoot = $ScriptDir
 $AppsDir = Split-Path -Parent $ProjectRoot
@@ -281,6 +179,39 @@ Set-Location $ProjectRoot
 . $VarKeysPath
 Import-Module $VarManagerPath -Force
 $PythonExe = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
+$ServiceContractScript = Join-Path $WindowsCommonRoot "ServiceContract.ps1"
+$StartupManagerScript = Join-Path $WindowsCommonRoot "StartupManager.ps1"
+$NssmServiceManagerScript = Join-Path $WindowsCommonRoot "NssmServiceManager.ps1"
+$DevWatchScript = Join-Path $PSScriptRoot "dev-watch.mjs"
+. $ServiceContractScript
+. $StartupManagerScript
+. $NssmServiceManagerScript
+$ServiceTaskName = Get-ServiceContractValue -ContractPath "mcp_chrome.windows_task_name"
+$ServiceDescription = Get-ServiceContractValue -ContractPath "mcp_chrome.service_description"
+$NativeHostName = Get-ServiceContractValue -ContractPath "mcp_chrome.native_host_name"
+$SupervisorArguments = @(
+    [string]::Concat('"', $SupervisorScript, '"'),
+    "--project-root",
+    [string]::Concat('"', $ProjectRoot, '"'),
+    "--watch-mode",
+    "dev",
+    "--recover-on-start"
+)
+
+# Logon-task run: recovery supervisor plus the WXT/tsup/nodemon watchers; a
+# watcher exit restarts the set after a short pause.
+if ($ServiceRun) {
+    Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden | Out-Null
+    while ($true) {
+        & node $DevWatchScript --parent-pid $PID
+        Start-Sleep -Seconds $ServiceRestartSeconds
+    }
+}
+
+if ($UninstallService) {
+    [void](Unregister-UserLogonTask -TaskName $ServiceTaskName)
+    return
+}
 
 Write-Host ""
 Write-Host "========================================"
@@ -288,7 +219,37 @@ Write-Host (Get-LocalizedMessage -Key "startBannerTitle")
 Write-Host "========================================"
 Write-Host ""
 
+# Idempotent service choice: an installed logon task is converged without
+# asking (and paused while this build writes its folder); otherwise ask once,
+# default No. MCP_CHROME_AS_SERVICE / -Service / -NoService pre-answer.
+if (Test-UserLogonTask -TaskName $ServiceTaskName) {
+    $ServiceMode = "converge"
+    Write-Host (Get-LocalizedMessage -Key "startServiceInstalled" -Arguments @($ServiceTaskName)) -ForegroundColor Green
+    Stop-UserLogonTask -TaskName $ServiceTaskName
+    Start-Sleep -Seconds $ServiceRestartSeconds
+} else {
+    if ($Service) {
+        $ServiceChoice = "yes"
+    } elseif ($NoService) {
+        $ServiceChoice = "no"
+    }
+    if ([string]::IsNullOrWhiteSpace($ServiceChoice)) {
+        $ServiceChoice = "no"
+        if (($env:DD_AUTO_CONTINUE -ne "1") -and ($env:DD_AUTO_CONTINUE -ne "true") -and [Environment]::UserInteractive) {
+            if (Read-YesNoDefaultNo (Get-LocalizedMessage -Key "startServicePrompt")) {
+                $ServiceChoice = "yes"
+            }
+        }
+    }
+    if (@("y", "yes") -contains $ServiceChoice.ToLowerInvariant()) {
+        $ServiceMode = "install"
+    }
+}
+
 $WatchChoice = $env:MCP_CHROME_WATCH_MODE
+if ($ServiceMode -ne "none") {
+    $WatchChoice = "once"
+}
 if ($WatchChoice -match "^(n|no|once)$") {
     $WatchMode = "once"
     Write-Host (Get-LocalizedMessage -Key "startWatchOnceSelected") -ForegroundColor Yellow
@@ -459,7 +420,7 @@ if (Test-Path $manifestPath) {
 }
 
 # Verify Windows registry key
-$regKeyPath = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.chromemcp.nativehost"
+$regKeyPath = Join-Path "HKCU:\Software\Google\Chrome\NativeMessagingHosts" $NativeHostName
 if (Test-Path $regKeyPath) {
     Write-Host (Get-LocalizedMessage -Key "startRegistryExists") -ForegroundColor Green
 } else {
@@ -499,72 +460,31 @@ if ($WatchMode -eq "dev") {
 Write-Host "========================================"
 Write-Host ""
 
-if ($WatchMode -eq "dev") {
-    $SupervisorArguments = @(
-        [string]::Concat('"', $SupervisorScript, '"'),
-        "--project-root",
-        [string]::Concat('"', $ProjectRoot, '"'),
-        "--watch-mode",
-        $WatchMode,
-        "--recover-on-start"
-    )
-    $SupervisorProcess = Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden -PassThru
-    Write-Host "Chrome recovery supervisor started (PID $($SupervisorProcess.Id))." -ForegroundColor Green
+if ($ServiceMode -ne "none") {
+    $ServiceExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+    if (-not $ServiceExe) {
+        $ServiceExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+    }
+    $ServiceArguments = [string]::Concat('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "', $PSCommandPath, '" -ServiceRun')
+    [void](Register-UserLogonTask -TaskName $ServiceTaskName -Execute $ServiceExe -Arguments $ServiceArguments -WorkingDirectory $ProjectRoot -Description $ServiceDescription)
+    Write-Host (Get-LocalizedMessage -Key "startServiceOwnsWatch" -Arguments @($ServiceTaskName)) -ForegroundColor Green
+    Write-Host (Get-LocalizedMessage -Key "startServiceRemoveHint" -Arguments @($PSCommandPath))
+    Set-Location $InitialDir
+    return
 }
 
-# Shell owns source watching and runs one complete build batch per change.
-# The persistent supervisor observes artifacts, reloads the extension after
-# successful builds, and reconnects the native host after browser restarts.
+# One cross-platform watcher (scripts/dev-watch.mjs) runs WXT dev, tsup and
+# nodemon; the extension and native host reload themselves on new builds, and
+# the supervisor only reconnects a disconnected extension.
 Set-Location $ProjectRoot
 try {
     if ($WatchMode -eq "dev") {
-        $WatchRoots = @(
-            $ConfigRoot,
-            (Join-Path (Join-Path $ProjectRoot "packages") "shared"),
-            (Join-Path (Join-Path $ProjectRoot "app") "native-server"),
-            (Join-Path (Join-Path $ProjectRoot "app") "chrome-extension")
-        )
-        $IgnoredWatchRoots = @(
-            (Join-Path $WatchRoots[1] "dist"),
-            (Join-Path $WatchRoots[1] "node_modules"),
-            (Join-Path $WatchRoots[2] "dist"),
-            (Join-Path $WatchRoots[2] "node_modules"),
-            (Join-Path $WatchRoots[3] ".wxt"),
-            (Join-Path $WatchRoots[3] "node_modules")
-        )
-
-        foreach ($WatchRoot in $WatchRoots) {
-            $Watcher = [System.IO.FileSystemWatcher]::new($WatchRoot)
-            $Watcher.IncludeSubdirectories = $true
-            $Watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName -bor [System.IO.NotifyFilters]::DirectoryName -bor [System.IO.NotifyFilters]::LastWrite
-            $Watcher.InternalBufferSize = 65536
-            foreach ($WatchEventName in @("Changed", "Created", "Deleted", "Renamed")) {
-                $WatchSourceIdentifier = [string]::Concat($WatchSourcePrefix, "-", $WatchIndex, "-", $WatchEventName)
-                $WatchSubscriptions.Add(
-                    (Register-ObjectEvent -InputObject $Watcher -EventName $WatchEventName -SourceIdentifier $WatchSourceIdentifier)
-                )
-            }
-            $Watcher.EnableRaisingEvents = $true
-            $FileWatchers.Add($Watcher)
-            $WatchIndex = $WatchIndex + 1
-        }
-
-        while ($true) {
-            $ChangedPaths = @(Wait-DevelopmentChangeBatch -SourcePrefix $WatchSourcePrefix -IgnoredRoots $IgnoredWatchRoots -IgnoredFilePatterns $IgnoredWatchFilePatterns -WatchedExtensions $WatchedFileExtensions -DebounceMilliseconds $WatchDebounceMilliseconds)
-            Write-Host ([string]::Join(", ", $ChangedPaths)) -ForegroundColor DarkGray
-            & bun run build:shared
-            & bun run build:native
-            & bun run build:extension
-        }
+        $SupervisorProcess = Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden -PassThru
+        Write-Host (Get-LocalizedMessage -Key "startSupervisorStarted" -Arguments @($SupervisorProcess.Id)) -ForegroundColor Green
+        & node $DevWatchScript
     } else {
         & $PythonExe $SupervisorScript --wake
     }
 } finally {
-    foreach ($WatchSubscription in $WatchSubscriptions) {
-        Unregister-Event -SubscriptionId $WatchSubscription.SubscriptionId -ErrorAction SilentlyContinue
-    }
-    foreach ($Watcher in $FileWatchers) {
-        $Watcher.Dispose()
-    }
     Set-Location $InitialDir
 }

@@ -65,6 +65,7 @@ export interface CmOnboarding {
   phone_verified: boolean;
   kyc_status: string;
   deposit_required: Record<string, number>;
+  requestable_roles?: string[];
   steps: CmOnboardingStep[];
   next_step: string | null;
   complete: boolean;
@@ -94,6 +95,7 @@ export interface CmBootstrap {
   vocabulary: {
     states: Record<string, string[]>;
     roles: string[];
+    transitions?: Record<string, Record<string, Record<string, string[]>>>;
     policy: {
       currency: string;
       supported_currencies: string[];
@@ -148,6 +150,15 @@ export interface CmProject {
   currency: string | null;
   total_milestones?: number;
   completed_milestones?: number;
+  architect_id?: number | null;
+  analysis_status?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  skills?: string[] | null;
+  languages?: string[] | null;
+  frameworks?: string[] | null;
+  databases?: string[] | null;
+  published_at?: string | null;
   created_at: string | null;
   updated_at?: string | null;
 }
@@ -163,6 +174,7 @@ export interface CmTask {
   due_date: string | null;
   budget_allocation: string | null;
   required_skills?: string[] | null;
+  deliverables?: unknown;
   created_at: string | null;
 }
 
@@ -176,12 +188,194 @@ export interface CmMilestone {
   due_date: string | null;
   budget: string | null;
   completed_at?: string | null;
+  deliverables?: string[] | null;
   tasks?: CmTask[];
 }
 
+export interface CmAnalysisSummary {
+  id: number;
+  status: string;
+  revision: number;
+  estimated_hours: number | null;
+  estimated_cost: string | null;
+  complexity_score: number | null;
+  completed_at: string | null;
+  accepted_at: string | null;
+}
+
+export interface CmProjectAccess {
+  role: 'owner' | 'architect' | 'assignee' | string;
+  read_only: boolean;
+  can_manage: boolean;
+  allowed_transitions: string[];
+}
+
 export interface CmProjectDetail extends CmProject {
-  architect_id?: number | null;
   milestones?: CmMilestone[];
+  latest_analysis?: CmAnalysisSummary | null;
+  access?: CmProjectAccess;
+}
+
+export interface CmProjectProposal {
+  id: number;
+  project_id: number;
+  status: string;
+  estimated_duration: string | number | null;
+  estimated_cost: string | null;
+  ai_notes: string | null;
+}
+
+export interface CmProjectAnalysis {
+  project_id: number;
+  project_status: string;
+  analysis_status: string | null;
+  analysis: CmAiAnalysis | null;
+  proposal: CmProjectProposal | null;
+  can_accept: boolean;
+}
+
+export interface CmFundResult {
+  project_id: number;
+  project_status: string | null;
+  escrow: {
+    id: number;
+    amount: string;
+    currency: string | null;
+    status: string;
+    remaining_amount: string;
+  };
+  idempotent_replay: boolean;
+}
+
+export interface CmAttachment {
+  id: number;
+  project_id: number;
+  file_name: string;
+  original_name: string | null;
+  mime_type: string | null;
+  size: number | null;
+  uploaded_by: number | null;
+  created_at: string | null;
+}
+
+export interface CmListPage<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size?: number;
+  pageSize?: number;
+  total_pages?: number;
+  totalPages?: number;
+}
+
+export interface CmPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface CmUserRef {
+  id: number;
+  name?: string | null;
+  username?: string | null;
+}
+
+export interface CmTaskComment {
+  id: number;
+  task_id: number;
+  user_id: number;
+  comment: string;
+  created_at: string | null;
+  user?: CmUserRef | null;
+}
+
+export interface CmSubmissionFile {
+  index: number;
+  name?: string | null;
+  url?: string | null;
+  size?: number | null;
+  mime_type?: string | null;
+  storage?: string | null;
+}
+
+export interface CmLineComment {
+  file?: string;
+  line?: number | string;
+  comment?: string;
+}
+
+export interface CmCodeReview {
+  id: number;
+  task_submission_id: number;
+  reviewer_id: number;
+  review_kind: string | null;
+  status: string | null;
+  recommendation: string | null;
+  code_score: string | null;
+  rating: number | null;
+  quality_rating: number | null;
+  readability_rating: number | null;
+  efficiency_rating: number | null;
+  security_rating: number | null;
+  review_notes: string | null;
+  comments: string | null;
+  line_comments: CmLineComment[] | null;
+  created_at: string | null;
+  reviewer?: CmUserRef | null;
+}
+
+export interface CmSubmission {
+  id: number;
+  task_id: number;
+  submitted_by: number;
+  submission_note: string | null;
+  files: CmSubmissionFile[] | null;
+  status: string;
+  reviewed_at: string | null;
+  created_at: string | null;
+  submitter?: CmUserRef | null;
+  reviews?: CmCodeReview[];
+}
+
+export interface CmTaskAccess {
+  roles: string[];
+  allowed_transitions: string[];
+  can_edit: boolean;
+  can_submit: boolean;
+  can_review: boolean;
+}
+
+export interface CmTaskDetail extends CmTask {
+  milestone?: CmMilestone | null;
+  assignee?: CmUserRef | null;
+  submissions?: CmSubmission[];
+  comments?: CmTaskComment[];
+  project: {
+    id: number;
+    title: string;
+    status: string;
+    client_id: number;
+    architect_id: number | null;
+  } | null;
+  access: CmTaskAccess;
+}
+
+export interface CmEscrowRelease {
+  released: boolean;
+  amount: string | null;
+  error_code: string | null;
+  net_amount?: string;
+  commission?: string;
+  payment_id?: number;
+  replayed?: boolean;
+}
+
+export interface CmSubmissionReviewResult {
+  review: CmCodeReview;
+  submission: CmSubmission;
+  task: CmTask | null;
+  escrow: CmEscrowRelease | null;
 }
 
 export interface CmPage<T> {
@@ -208,11 +402,120 @@ export interface CmWalletTransaction {
   created_at: string | null;
 }
 
-export interface CmDepositInfo {
-  required_deposit: number;
-  current_deposit: number;
+export interface CmDepositRole {
+  role_type: string;
+  role_status: string;
+  required_amount: string;
+  paid_amount: string;
+  paid_for_role: string;
+  remaining_amount: string;
   is_sufficient: boolean;
-  shortfall: number;
+}
+
+export interface CmDepositInfo {
+  currency: string;
+  roles: CmDepositRole[];
+  role_type: string | null;
+  required_deposit: string;
+  current_deposit: string;
+  is_sufficient: boolean;
+  shortfall: string;
+  pending_amount: string;
+}
+
+export interface CmDepositCreateResult {
+  deposit_id: number;
+  role_type: string;
+  amount: string;
+  payment_method: string;
+  payment_url: string | null;
+  status: string;
+  paid_at: string | null;
+  admin_notes: string | null;
+  idempotent_replay?: boolean;
+}
+
+export interface CmDepositBankInfo {
+  deposit_id: number;
+  amount: string;
+  status: string;
+  reference: string;
+  bank: {
+    bank_name: string | null;
+    account_name: string | null;
+    account_number: string | null;
+    branch: string | null;
+    swift_code: string | null;
+    currency: string | null;
+  };
+}
+
+export interface CmInvoice {
+  id: number;
+  payment_id: number;
+  invoice_number: string;
+  issued_by: number;
+  description: string | null;
+  subtotal: string;
+  tax: string;
+  total: string;
+  issued_date: string | null;
+  status: string;
+  created_at: string | null;
+  payment?: CmPayment | null;
+}
+
+export interface CmRefund {
+  id: number;
+  payment_id: number;
+  amount: string;
+  status: string;
+  reason: string | null;
+  notes: string | null;
+  admin_notes: string | null;
+  requested_at: string | null;
+  processed_at: string | null;
+  created_at: string | null;
+  payment?: CmPayment | null;
+}
+
+export interface CmWithdrawal {
+  id: number;
+  amount: string;
+  currency: string | null;
+  status: string;
+  method: string;
+  account_info: Record<string, unknown> | null;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+}
+
+export interface CmRegistrationStatus {
+  user_id: number;
+  username: string;
+  email: string | null;
+  email_verified: boolean;
+  phone_verified: boolean;
+  kyc_status: string;
+  roles: Record<string, string>;
+  registration_complete: boolean;
+}
+
+export interface CmRoleRequestResult {
+  role_type: string;
+  role_status: string;
+  deposit_required: boolean;
+  deposit_amount: string | number | null;
+  next_step: string;
+}
+
+export interface CmTestimonialPayload {
+  quotes: Record<string, string>;
+  project_id?: number;
+  author_label?: string;
+  role_label?: string;
 }
 
 export interface CmNotification {
@@ -306,6 +609,10 @@ export interface CmAiAnalysis {
   analysis_id: number;
   project_id: number;
   status: string;
+  revision?: number;
+  is_latest?: boolean;
+  revision_notes?: string | null;
+  accepted_at?: string | null;
   keywords: string[] | null;
   recommended_languages: string[] | null;
   recommended_frameworks: string[] | null;
@@ -340,7 +647,15 @@ export interface CmReviewSubmission {
   task_id?: number;
   submission_note?: string | null;
   status?: string;
+  files?: CmSubmissionFile[] | null;
   created_at?: string | null;
+  task?: {
+    id: number;
+    title: string;
+    description: string | null;
+    required_skills: string[] | null;
+    status: string;
+  } | null;
 }
 
 export interface CmArchitectEligibility {
@@ -371,6 +686,10 @@ export interface CmPayment {
   amount: string;
   currency?: string | null;
   status: string;
+  type?: string | null;
+  payment_method?: string | null;
+  description?: string | null;
+  project_id?: number | null;
   payer_id?: number;
   payee_id?: number;
   created_at?: string | null;
@@ -383,6 +702,7 @@ export interface CmDepositRecord {
   payment_method: string;
   status: string;
   payment_url?: string | null;
+  admin_notes?: string | null;
   paid_at: string | null;
   created_at: string | null;
 }

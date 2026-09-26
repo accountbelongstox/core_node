@@ -6,7 +6,13 @@ export interface WordNewArticleSentenceSegment {
 
 class WordNewArticlePlaybackHighlighterClass {
   segment(text: string): WordNewArticleSentenceSegment[] {
-    const matches = text.match(/[^.!?。！？]+[.!?。！？]+(?:["'”’」』)\]]*)?|[^.!?。！？]+$/gu) ?? [];
+    return this.segmentSentences(
+      text.match(/[^.!?。！？]+[.!?。！？]+(?:["'”’」』)\]]*)?|[^.!?。！？]+$/gu) ?? [],
+    );
+  }
+
+  /** Length-weighted time ratios for already split sentences (one audio clip). */
+  segmentSentences(matches: readonly string[]): WordNewArticleSentenceSegment[] {
     const weights = matches.map((sentence) => Math.max(1, sentence.trim().length));
     const totalWeight = weights.reduce((total, weight) => total + weight, 0);
     let consumedWeight = 0;

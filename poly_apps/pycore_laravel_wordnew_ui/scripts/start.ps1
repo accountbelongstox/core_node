@@ -18,7 +18,10 @@
 #   Build detected APK: -BuildApk [-App wordnew] [-ApkType debug|release]
 #   Background service (idempotent, via NSSM): needs NO parameter -- env var
 #   AS_SERVICE=yes|no pre-answers the prompt (same name/values as start.sh) for
-#   non-interactive callers. Env var NEXUS_DASH_SERVICE_RUN=1 (set via NSSM
+#   non-interactive callers and wins over -NonInteractive. -Service is the explicit
+#   non-interactive install/start (elevated): running -> no restart, stopped -> start,
+#   absent -> register + start; it never falls back to the foreground dev server.
+#   Env var NEXUS_DASH_SERVICE_RUN=1 (set via NSSM
 #   AppEnvironmentExtra, never a script argument) marks the NSSM-launched invocation
 #   itself: it skips the prompt/registration and the interactive browser-open, and
 #   serves in the foreground (that IS the service body).
@@ -46,7 +49,9 @@ param(
     [Parameter(Mandatory = $false)]
     [switch]$Dist,
     [Parameter(Mandatory = $false)]
-    [int]$Port = 0
+    [int]$Port = 0,
+    [Parameter(Mandatory = $false)]
+    [switch]$Service
 )
 
 $OriginalDir = (Get-Location).Path
@@ -108,6 +113,9 @@ $NssmPath = $null
 $PwshServiceExe = $null
 $ServiceArgs = $null
 $ServiceRegistered = $false
+$UiServiceState = $null
+$UiServiceLog = Join-Path $LogDir "nexus_dash.service.out.log"
+$UiServiceErrLog = Join-Path $LogDir "nexus_dash.service.err.log"
 $PythonCommand = $null
 $BuildArguments = @()
 $DistIndexPath = Join-Path $AppRoot "dist\index.html"
@@ -147,6 +155,37 @@ function Test-DashboardDevServerHealthy {
         return $true
     } catch {
         return $false
+    }
+}
+
+# --- 0) -Service: explicit non-interactive install/start, never restarting a running service ---
+# Service installs usually run with redirected output; GlobalVars' "Stop" preference would turn
+# redirected native stderr (bun, nssm) into terminating errors, so this mode keeps "Continue".
+if ($Service) {
+    $ErrorActionPreference = "Continue"
+    $AsServiceEnv = "yes"
+    $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
+    if ($UiServiceState -eq "running") {
+        Write-Success "Service $UiServiceName is already running; nothing to do (no restart)."
+        Set-Location -LiteralPath $OriginalDir
+        exit 0
+    }
+    if (-not (Test-AdminPrivileges)) {
+        Write-Err "-Service installs/starts the Windows service $UiServiceName and needs an elevated (Administrator) PowerShell."
+        Set-Location -LiteralPath $OriginalDir
+        exit 1
+    }
+    if ($UiServiceState -eq "stopped") {
+        Write-Info "Starting existing service $UiServiceName..."
+        Start-Service -Name $UiServiceName -ErrorAction SilentlyContinue
+        $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
+        Set-Location -LiteralPath $OriginalDir
+        if ($UiServiceState -eq "running") {
+            Write-Success "Service $UiServiceName started."
+            exit 0
+        }
+        Write-Err "Service $UiServiceName did not start (state: $UiServiceState). Logs: $UiServiceLog ; $UiServiceErrLog"
+        exit 1
     }
 }
 
@@ -318,12 +357,12 @@ if ($BuildApk) {
 # its OWN separate background service too (a visible new window, used by step 3 below,
 # cannot run under a service session).
 if (-not $IsServiceRun) {
-    if ($NonInteractive) {
-        $AsServiceChoice = [bool]$ExistingUiService
-    } elseif ($AsServiceEnv -eq "no") {
+    if ($AsServiceEnv -eq "no") {
         $AsServiceChoice = $false
     } elseif ($AsServiceEnv -eq "yes") {
         $AsServiceChoice = $true
+    } elseif ($NonInteractive) {
+        $AsServiceChoice = [bool]$ExistingUiService
     } else {
         $AsServiceChoice = Read-YesNoDefaultNo "Add the nexus-dash dashboard to a background Windows service (via NSSM)?"
     }
@@ -333,6 +372,11 @@ if (-not $IsServiceRun) {
         if (-not $NssmPath) {
             Write-Warn "NSSM unavailable and auto-install (winget) failed -> cannot register a background service."
             Write-Warn "Install it manually (e.g. 'winget install NSSM.NSSM' or https://nssm.cc/), then re-run start.ps1."
+            if ($Service) {
+                Write-Err "-Service never falls back to the foreground dev server; stopping."
+                Set-Location -LiteralPath $OriginalDir
+                exit 1
+            }
             Write-Warn "Continuing in the foreground."
         } else {
             if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
@@ -348,13 +392,21 @@ if (-not $IsServiceRun) {
                 -DisplayName $UiServiceDisplayName -Description $UiServiceDesc `
                 -ExePath $PwshServiceExe -Arguments $ServiceArgs -WorkingDirectory $AppRoot `
                 -EnvironmentExtra @("NEXUS_DASH_SERVICE_RUN=1") `
-                -StdoutLog (Join-Path $LogDir "nexus_dash.service.out.log") `
-                -StderrLog (Join-Path $LogDir "nexus_dash.service.err.log")
+                -StdoutLog $UiServiceLog `
+                -StderrLog $UiServiceErrLog
 
+            if ($ServiceRegistered -and $Service) {
+                $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
+                if ($UiServiceState -ne "running") {
+                    Write-Err "Service $UiServiceName registered but not running (state: $UiServiceState). Logs: $UiServiceLog ; $UiServiceErrLog"
+                    Set-Location -LiteralPath $OriginalDir
+                    exit 1
+                }
+            }
             if ($ServiceRegistered) {
                 Write-Success "Service $UiServiceName registered and (re)started."
                 Write-Info "  Manage: Get-Service $UiServiceName ; Restart-Service $UiServiceName ; Stop-Service $UiServiceName"
-                Write-Info "  Logs:   $LogDir\nexus_dash.service.out.log"
+                Write-Info "  Logs:   $UiServiceLog"
 
                 if (-not $NoBackend) {
                     if ((-not $PwshExe) -or (-not (Test-Path -LiteralPath $LaravelStart))) {
@@ -362,9 +414,9 @@ if (-not $IsServiceRun) {
                     } else {
                         # Non-blocking (mirrors start.sh's nohup): laravel_main's own prerequisite
                         # setup (migrate/sys:init/...) can take a while and registers its own
-                        # separate NSSM service, so it must not block this script's own startup.
-                        # AS_SERVICE=yes pre-answers laravel_main's own prompt (env var, not an
-                        # argument -- laravel_main's start.ps1 needs no parameters either).
+                        # separate service (ncore-laravel-frankenphp via Step175), so it must not
+                        # block this script's own startup. AS_SERVICE=yes is laravel_main's
+                        # non-interactive service mode (same as its --service argument).
                         # Start-ChildScriptWithEnv (not Start-Process) GUARANTEES the env var
                         # reaches the child -- Start-Process's ShellExecute path does not
                         # reliably propagate one set just before the call.
@@ -376,6 +428,10 @@ if (-not $IsServiceRun) {
 
                 Set-Location -LiteralPath $OriginalDir
                 exit 0
+            } elseif ($Service) {
+                Write-Err "Service registration failed; -Service never falls back to the foreground dev server."
+                Set-Location -LiteralPath $OriginalDir
+                exit 1
             } else {
                 Write-Warn "Service registration failed; continuing in the foreground."
             }

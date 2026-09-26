@@ -4,15 +4,27 @@ Application Finder
 Finds application executables in common installation directories
 """
 
+import ctypes
 import os
 import sys
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.core_node_dirs import get_global_var_dir, read_global_var
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import get_system_cache_dir, map_web_path
+from pycore.pyfoundations.system_paths import (
+    get_lang_compiler_dir,
+    get_system_cache_dir,
+    map_web_path,
+)
+from pycore.pyutils.launcher.linux_desktop_user import (
+    desktop_user,
+    desktop_user_argv,
+    desktop_user_env,
+)
 
 
 class AppFinder:
@@ -75,23 +87,77 @@ class AppFinder:
         'qq': {'binaries': ['qq', 'linuxqq']},
         'devin': {'binaries': ['windsurf', 'devin']},
         'notepad++': {'binaries': []},  # no Linux equivalent
-        # Linux slot for the desktop's DEFAULT text editor (the Windows flow
-        # launches notepad++ instead). The xdg-mime default is tried first in
-        # _find_linux_app; this list is the fallback order.
+        # The desktop's DEFAULT text editor. find_text_editor tries the
+        # xdg-mime default first; this list is the fallback order.
         'texteditor': {
             'binaries': ['gnome-text-editor', 'gedit', 'kate', 'mousepad',
                          'pluma', 'xed', 'geany'],
+            'binary_priority': True,
         },
+        # @openai/codex CLI (pnpm-global shim linked into /usr/local/bin).
+        'codex': {'binaries': ['codex']},
     }
 
     # Platform availability per app (absent = both platforms). wechat/notepad++
-    # are launched on Windows only; texteditor is the Linux-only default-editor
-    # slot that replaces notepad++ there.
+    # are launched on Windows only.
     _APP_PLATFORMS = {
         'wechat': ('windows',),
         'notepad++': ('windows',),
-        'texteditor': ('linux',),
     }
+
+    # Apps detected by command line instead of process name/exe path (any
+    # user, both platforms): codex runs as node + codex.js or as the native
+    # codex binary. Keyword arguments of launch_guard.is_cmdline_process_running.
+    _CMDLINE_PROCESS_MATCHERS = {
+        'codex': {
+            'arg_markers': ('@openai/codex',),
+            'exe_basenames': ('codex', 'codex.exe', 'codex.cmd'),
+            'process_names': ('codex', 'codex.exe'),
+        },
+    }
+
+    # Windows apps detected by process NAME: the Win11 Store Notepad runs from
+    # WindowsApps, never from the resolved System32 path.
+    _WINDOWS_NAME_MATCHED_APPS = frozenset({'texteditor'})
+
+    # Windows default text editor: the .txt "open" association, else Notepad.
+    WINDOWS_TEXT_EXTENSION = '.txt'
+    WINDOWS_ASSOC_VERB = 'open'
+    ASSOCF_NONE = 0
+    ASSOCSTR_EXECUTABLE = 2
+    ASSOC_S_OK = 0
+    ASSOC_BUFFER_CHARS = 1024
+    WINDOWS_NOTEPAD_EXE = 'notepad.exe'
+    WINDOWS_SYSTEM_ROOT_ENV = 'SystemRoot'
+    WINDOWS_DEFAULT_SYSTEM_ROOT = 'C:\\Windows'
+    WINDOWS_SYSTEM_DIR = 'System32'
+    # Packaged-app executables under WindowsApps are not directly launchable;
+    # System32\notepad.exe forwards to the Store Notepad instead.
+    WINDOWS_APPS_MARKER = 'windowsapps'
+
+    # Linux default text editor (freedesktop xdg-mime + desktop entries).
+    LINUX_TEXT_MIME = 'text/plain'
+    XDG_MIME_QUERY = ('xdg-mime', 'query', 'default')
+    XDG_MIME_TIMEOUT_SEC = 3
+    DESKTOP_ENTRY_SUFFIX = '.desktop'
+    DESKTOP_ENTRY_GROUP = '[Desktop Entry]'
+    DESKTOP_EXEC_PREFIX = 'Exec='
+    DESKTOP_TERMINAL_TRUE = 'terminal=true'
+    DESKTOP_CATEGORIES_PREFIX = 'Categories='
+    DESKTOP_TEXT_EDITOR_CATEGORY = 'TextEditor'
+    DESKTOP_EXEC_WRAPPER = 'env'
+    SYSTEM_APPLICATION_DIRS = ('/usr/local/share/applications', '/usr/share/applications')
+    USER_APPLICATION_SUBDIR = ('.local', 'share', 'applications')
+
+    # Windows codex (ApplicationsList.ps1 OpenAICodex, pnpm global install):
+    # <LANG_COMPILER_DIR>\node-v<ver>\pnpm-global\.bin\codex.cmd, then NODE_DIR.
+    WINDOWS_NODE_DIR_GLOB = 'node-v*'
+    WINDOWS_CODEX_RELATIVE_PATHS = (
+        Path('pnpm-global') / '.bin' / 'codex.cmd',
+        Path('codex.cmd'),
+        Path('codex.exe'),
+    )
+    CODEX_COMMAND = 'codex'
 
     # Fixed search dirs tried after the central constants (chain step 3).
     _LINUX_FIXED_BIN_DIRS = ('/usr/local/bin', '/usr/bin', '/bin', '/snap/bin')
@@ -125,6 +191,7 @@ class AppFinder:
         # up as 'gnome-text-edit' in psutil/ps.
         'texteditor': ['gnome-text-edit', 'gnome-text-editor', 'gedit', 'kate',
                        'mousepad', 'pluma', 'xed', 'geany'],
+        'codex': ['codex'],
     }
     
     # Chrome-related constants (shared between chrome and chrome_beta)
@@ -239,9 +306,16 @@ class AppFinder:
                 'C:\\Program Files\\Cursor'
             ]
         },
-        # Linux-only slot (default text editor); no Windows exe names on purpose.
+        # System default text editor on both platforms; resolved by
+        # find_text_editor (Windows .txt association / Linux xdg-mime default).
         'texteditor': {
             'names': [],
+            'search_paths': []
+        },
+        # OpenAI Codex CLI; resolved by find_codex on Windows (pnpm global bin)
+        # and through _LINUX_APP_DEFINITIONS on Linux. Launched in a terminal.
+        'codex': {
+            'names': ['codex.cmd', 'codex.exe'],
             'search_paths': []
         },
         'aiassistant': {
@@ -297,7 +371,6 @@ class AppFinder:
 
     def _linux_shell_gvar_dir(self) -> Path:
         """Shared shell gvar store (GLOBAL_VAR_DIR in gvar_system_common.sh)."""
-        from pycore.pyfoundations.core_node_dirs import get_global_var_dir
         return get_global_var_dir()
 
     def _read_shell_gvar(self, key: str) -> Optional[str]:
@@ -305,7 +378,6 @@ class AppFinder:
 
         Falls back to the pre-relocation var-center locations so persisted
         values survive the ~/.core_node -> <www>/core_node move."""
-        from pycore.pyfoundations.core_node_dirs import read_global_var
         return read_global_var(key)
 
     def _linux_binary_usable(self, path: Path) -> bool:
@@ -354,10 +426,16 @@ class AppFinder:
                     subdir_candidates.append(apps_dir / binary)
                     subdir_candidates.append(apps_dir / 'bin' / binary)
 
-        fixed_candidates = []
-        for fixed_dir in self._LINUX_FIXED_BIN_DIRS:
-            for binary in binaries:
-                fixed_candidates.append(Path(fixed_dir) / binary)
+        # binary_priority: the binaries list is a preference order (the first
+        # installed editor wins wherever it lives), else directories come first.
+        if spec.get('binary_priority'):
+            fixed_candidates = [Path(fixed_dir) / binary
+                                for binary in binaries
+                                for fixed_dir in self._LINUX_FIXED_BIN_DIRS]
+        else:
+            fixed_candidates = [Path(fixed_dir) / binary
+                                for fixed_dir in self._LINUX_FIXED_BIN_DIRS
+                                for binary in binaries]
 
         local_bin = Path.home() / '.local' / 'bin'
         local_candidates = [local_bin / binary for binary in binaries]
@@ -389,61 +467,155 @@ class AppFinder:
 
         ``xdg-mime query default text/plain`` returns the .desktop id the desktop
         associates with plain text; the Exec line of that desktop file yields
-        the binary. Never raises; returns None when undeterminable.
+        the binary. A root launcher asks as the pkexec/sudo caller, whose
+        mimeapps.list is the one that matters. Returns None when undeterminable.
         """
-        import subprocess
-
+        query = list(self.XDG_MIME_QUERY) + [self.LINUX_TEXT_MIME]
+        if not shutil.which(query[0]):
+            return None
+        home = Path.home()
+        env = None
+        user = desktop_user()
+        if user is not None:
+            user_query = desktop_user_argv(user, query)
+            if user_query:
+                query, home, env = user_query, Path(user.home), desktop_user_env(user)
+        # A hung desktop query must not stall the launcher; the timeout is the
+        # only failure the checks above cannot rule out.
         try:
-            result = subprocess.run(
-                ['xdg-mime', 'query', 'default', 'text/plain'],
-                capture_output=True, text=True, timeout=3)
-            desktop_id = (result.stdout or '').strip()
-        except Exception:
+            result = subprocess.run(query, capture_output=True, text=True, env=env,
+                                    stdin=subprocess.DEVNULL,
+                                    timeout=self.XDG_MIME_TIMEOUT_SEC)
+        except subprocess.TimeoutExpired:
             return None
-        if not desktop_id.endswith('.desktop'):
+        desktop_id = (result.stdout or '').strip()
+        if not desktop_id.endswith(self.DESKTOP_ENTRY_SUFFIX):
             return None
 
-        data_dirs = [
-            Path.home() / '.local' / 'share' / 'applications',
-            Path('/usr/local/share/applications'),
-            Path('/usr/share/applications'),
-        ]
+        data_dirs = [home.joinpath(*self.USER_APPLICATION_SUBDIR)]
+        data_dirs.extend(Path(data_dir) for data_dir in self.SYSTEM_APPLICATION_DIRS)
         for data_dir in data_dirs:
             desktop_file = data_dir / desktop_id
-            try:
-                if not desktop_file.is_file():
-                    continue
-                exec_binary = None
-                terminal_entry = False
-                for line in desktop_file.read_text(
-                        encoding='utf-8', errors='ignore').splitlines():
-                    if line.startswith('Exec='):
-                        exec_binary = line[len('Exec='):].strip().split()[0]
-                    elif line.strip().lower() == 'terminal=true':
-                        terminal_entry = True
-                # Terminal editors (vim.desktop etc.) are not launchable as a
-                # detached GUI window -- decline them so the GUI fallback list
-                # is used instead.
-                if terminal_entry or not exec_binary:
-                    return None
-                resolved = shutil.which(os.path.basename(exec_binary))
-                if resolved:
-                    return resolved
-            except (OSError, IndexError):
-                continue
+            if desktop_file.is_file():
+                return self._desktop_entry_binary(desktop_file)
         return None
+
+    def _desktop_entry_binary(self, desktop_file: Path) -> Optional[str]:
+        """Launchable GUI text-editor binary of a desktop entry, else None.
+
+        Declined (so the GUI fallback list is used instead): terminal editors
+        (vim.desktop), entries without the TextEditor category (office suites)
+        and the launcher's other apps. Without XDG_CURRENT_DESKTOP (pkexec drops
+        it) xdg-mime falls back to mimeinfo.cache, whose first text/plain entry
+        can be cursor.desktop or google-chrome.desktop.
+        """
+        exec_tokens: List[str] = []
+        categories: List[str] = []
+        terminal_entry = False
+        in_entry_group = False
+        for line in desktop_file.read_text(encoding='utf-8', errors='ignore').splitlines():
+            stripped = line.strip()
+            if stripped.startswith('['):
+                in_entry_group = stripped == self.DESKTOP_ENTRY_GROUP
+                continue
+            if not in_entry_group:
+                continue
+            if stripped.startswith(self.DESKTOP_EXEC_PREFIX):
+                exec_tokens = stripped[len(self.DESKTOP_EXEC_PREFIX):].split()
+            elif stripped.startswith(self.DESKTOP_CATEGORIES_PREFIX):
+                categories = stripped[len(self.DESKTOP_CATEGORIES_PREFIX):].split(';')
+            elif stripped.lower() == self.DESKTOP_TERMINAL_TRUE:
+                terminal_entry = True
+        while exec_tokens and (exec_tokens[0] == self.DESKTOP_EXEC_WRAPPER or '=' in exec_tokens[0]):
+            exec_tokens.pop(0)
+        if terminal_entry or not exec_tokens or self.DESKTOP_TEXT_EDITOR_CATEGORY not in categories:
+            return None
+        binary_name = os.path.basename(exec_tokens[0])
+        if binary_name in self._linux_non_text_editor_binaries():
+            return None
+        resolved = shutil.which(binary_name)
+        if resolved and self._linux_binary_usable(Path(resolved)):
+            return resolved
+        return None
+
+    def _linux_non_text_editor_binaries(self) -> frozenset:
+        """Binaries of every other launcher app (browsers, IDEs, messengers)."""
+        return frozenset(
+            binary
+            for app_name, spec in self._LINUX_APP_DEFINITIONS.items()
+            if app_name != 'texteditor'
+            for binary in spec.get('binaries', []))
+
+    def find_text_editor(self) -> Optional[str]:
+        """System default text editor: Windows .txt association, Linux xdg-mime.
+
+        Always resolved live (app_cache.json is only written, for the menu) so
+        a changed default or a stale cached fallback never pins an old editor.
+        """
+        if sys.platform == 'win32':
+            return self._find_windows_text_editor()
+        cache_key = 'texteditor_path'
+        resolved = self._find_linux_default_text_editor() or self._find_linux_app('texteditor')
+        if resolved and self.cache.get(cache_key) != resolved:
+            self.cache[cache_key] = resolved
+            self.save_cache()
+        return resolved
+
+    def _find_windows_text_editor(self) -> Optional[str]:
+        """Executable of the .txt open verb, else %SystemRoot%\\System32\\notepad.exe."""
+        associated = self._windows_association_executable(self.WINDOWS_TEXT_EXTENSION)
+        if associated and self.WINDOWS_APPS_MARKER not in associated.lower() \
+                and os.path.isfile(associated):
+            return associated
+        system_root = os.environ.get(self.WINDOWS_SYSTEM_ROOT_ENV) or self.WINDOWS_DEFAULT_SYSTEM_ROOT
+        notepad = Path(system_root) / self.WINDOWS_SYSTEM_DIR / self.WINDOWS_NOTEPAD_EXE
+        return str(notepad) if notepad.is_file() else None
+
+    def _windows_association_executable(self, extension: str) -> Optional[str]:
+        """shlwapi AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_EXECUTABLE, ext, 'open')."""
+        size = ctypes.c_ulong(self.ASSOC_BUFFER_CHARS)
+        buffer = ctypes.create_unicode_buffer(self.ASSOC_BUFFER_CHARS)
+        result = ctypes.windll.shlwapi.AssocQueryStringW(
+            self.ASSOCF_NONE, self.ASSOCSTR_EXECUTABLE, extension,
+            self.WINDOWS_ASSOC_VERB, buffer, ctypes.byref(size))
+        if result != self.ASSOC_S_OK or not buffer.value:
+            return None
+        return buffer.value
+
+    def windows_text_editor_process_names(self) -> List[str]:
+        """Process names meaning "a text editor is open" on Windows."""
+        names = [self.WINDOWS_NOTEPAD_EXE]
+        resolved = self.find_text_editor()
+        if resolved:
+            editor_name = Path(resolved).name.lower()
+            if editor_name not in names:
+                names.insert(0, editor_name)
+        return names
+
+    def find_codex(self, force_refresh: bool = False) -> Optional[str]:
+        """Codex CLI on Windows: pnpm global bin under the node dir, else PATH."""
+        cache_key = 'codex_path'
+        if not force_refresh and cache_key in self.cache:
+            cached_path = Path(self.cache[cache_key])
+            if cached_path.is_file():
+                return str(cached_path)
+
+        node_dirs = sorted(get_lang_compiler_dir().glob(self.WINDOWS_NODE_DIR_GLOB), reverse=True)
+        candidates = [node_dir / relative
+                      for node_dir in node_dirs
+                      for relative in self.WINDOWS_CODEX_RELATIVE_PATHS]
+        found = next((str(candidate) for candidate in candidates if candidate.is_file()), None)
+        found = found or shutil.which(self.CODEX_COMMAND)
+        if found:
+            self.cache[cache_key] = found
+            self.save_cache()
+        return found
 
     def _find_linux_app(self, app_name: str) -> Optional[str]:
         """Resolve an app's Linux binary: central constants, fixed dirs, PATH."""
         spec = self._LINUX_APP_DEFINITIONS.get(app_name)
         if not spec:
             return None
-
-        # The texteditor slot prefers the desktop's default editor (xdg-mime).
-        if app_name == 'texteditor':
-            default_editor = self._find_linux_default_text_editor()
-            if default_editor:
-                return default_editor
 
         for candidate in self._linux_candidates(app_name):
             try:
@@ -471,6 +643,10 @@ class AppFinder:
         Returns:
             Path to executable or None
         """
+        # The live system default wins over the cache (see find_text_editor).
+        if app_name == 'texteditor':
+            return self.find_text_editor()
+
         # Check cache first
         cache_key = f"{app_name}_path"
         if not force_refresh and cache_key in self.cache:
@@ -510,6 +686,10 @@ class AppFinder:
         # AIAssistant: newest AIAssistant*.exe in the user's Downloads folder.
         if app_name == 'aiassistant':
             return self.find_aiassistant(force_refresh=force_refresh)
+
+        # Codex CLI: pnpm global bin under the node install, else PATH.
+        if app_name == 'codex':
+            return self.find_codex(force_refresh=force_refresh)
 
         # Edge slot launches portable Chrome under D:\applications\Chrome.
         if app_name == 'edge':

@@ -137,15 +137,18 @@ resolve_active_permission_owner() {
 # repair_owned_tree_777 <absolute-path> [user] [group]
 # Makes the complete tree writable by the active regular user. Root performs
 # the privileged operation but does not become owner unless no active regular
-# user exists. Existing correct trees are skipped after a bounded first-match
-# scan so repeated calls remain idempotent.
+# user exists. One full-tree walk collects the mismatched entries; only those
+# entries are repaired, so a correct tree costs one walk and a partly wrong
+# tree never pays a second recursive chown/chmod walk.
 repair_owned_tree_777() {
     local target_path="$1"
     local target_user="${2:-}"
     local target_group="${3:-}"
-    local mismatch=""
+    local mismatch_list=""
+    local mismatch_count=0
     local privilege_prefix=""
     local scan_status=0
+    local repair_status=0
     local privilege_command=()
 
     case "$target_path" in
@@ -178,22 +181,31 @@ repair_owned_tree_777() {
         privilege_command=("$privilege_prefix")
     fi
 
-    mismatch="$("${privilege_command[@]}" find "$target_path" \
-        \( \( -type d -o -type f \) \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \) \
-        -print -quit 2>/dev/null)" || scan_status=$?
-    if [ "$scan_status" -ne 0 ]; then
+    mismatch_list="$(mktemp)" || return 1
+    "${privilege_command[@]}" find "$target_path" \
+        \( -type d -o -type f \) \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \
+        -print0 > "$mismatch_list" 2>/dev/null || scan_status=$?
+    mismatch_count="$(tr -cd '\0' < "$mismatch_list" | wc -c)"
+    if [ "$scan_status" -ne 0 ] && [ "$mismatch_count" -eq 0 ]; then
+        rm -f "$mismatch_list"
         echo "[permissions] Unable to inspect: $target_path" >&2
         return "$scan_status"
     fi
-    if [ -z "$mismatch" ]; then
+    if [ "$mismatch_count" -eq 0 ]; then
+        rm -f "$mismatch_list"
         echo "[permissions] Ready: $target_path -> $target_user:$target_group mode 777"
         return 0
     fi
 
-    echo "[permissions] Repairing: $target_path -> $target_user:$target_group mode 777"
-    "${privilege_command[@]}" chown -R "$target_user:$target_group" "$target_path" || return $?
-    "${privilege_command[@]}" chmod -R 777 "$target_path" || return $?
-    return 0
+    echo "[permissions] Repairing $mismatch_count entries: $target_path -> $target_user:$target_group mode 777"
+    "${privilege_command[@]}" xargs -0 -r chown "$target_user:$target_group" -- < "$mismatch_list" || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod 777 -- < "$mismatch_list" || repair_status=$?
+    rm -f "$mismatch_list"
+    if [ "$scan_status" -ne 0 ]; then
+        echo "[permissions] Partially inspected: $target_path" >&2
+        return "$scan_status"
+    fi
+    return "$repair_status"
 }
 
 # ensure_owned_tree_777 <absolute-path> [user] [group]

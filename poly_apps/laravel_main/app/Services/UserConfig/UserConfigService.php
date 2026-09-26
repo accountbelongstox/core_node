@@ -28,6 +28,7 @@ class UserConfigService
     public const APPQYV1_ASSIST_ENABLED = 'appqyv1_assist_enabled';
     public const APPQYV1_COVER_GENERATION_ENABLED = 'appqyv1_cover_generation_enabled';
     public const APPQYV1_COVER_MAINTENANCE_ENABLED = 'appqyv1_cover_maintenance_enabled';
+    public const APPQYV1_LIBRARY_COVER_FALLBACK_ENABLED = 'appqyv1_library_cover_fallback_enabled';
     public const APPQYV1_MEDIA_SCAN = 'appqyv1_media_scan';
     public const APPQYV1_POSTER_COLLECTION_ENABLED = 'appqyv1_poster_collection_enabled';
     public const APPQYV1_STUDY_GEN_ENABLED = 'appqyv1_study_gen_enabled';

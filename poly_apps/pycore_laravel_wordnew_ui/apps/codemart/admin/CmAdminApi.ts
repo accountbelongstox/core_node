@@ -3,6 +3,7 @@ import {
   createLaravelModuleConfig,
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
+import { cmHandleUnauthorized } from '../auth/cmAuthSession';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import {
   CM_ADMIN_PAGE_SIZE,
@@ -57,7 +58,7 @@ function normalizePage<T>(response: APIResponse<unknown>, itemsKey = 'items'): A
 
 export class CmAdminApi extends BaseAPI {
   constructor() {
-    super(createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1));
+    super({ ...createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1), onUnauthorized: cmHandleUnauthorized });
   }
 
   private async list<T>(path: string, query: CmAdminQuery, itemsKey = 'items'): CmAdminListResponse<T> {

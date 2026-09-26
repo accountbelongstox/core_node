@@ -3,19 +3,23 @@ import type { WfNewContentKind } from '../api';
 export const WORDNEW_HASH_ROUTES = Object.freeze({
   dailyReading: 'daily-reading',
   wordGroups: 'shelf',
+  orchAudio: 'orch-audio',
 });
+
+/** Tabs whose hash carries a sub-path (`#/<tab>/<id>`) or query the tab owns. */
+const ITEM_ROUTE_TABS: readonly WordNewTab[] = Object.freeze(['daily-reading', 'orch-audio']);
 
 export type WordNewTab =
   | 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman'
   | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'languages'
   | 'learning-model' | 'review-settings' | 'playback' | 'book-reader' | 'content-list' | 'library' | 'about'
-  | 'daily-reading' | 'admin';
+  | 'daily-reading' | 'orch-audio' | 'admin';
 
 export const WORDNEW_TABS: readonly WordNewTab[] = Object.freeze([
   'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
   'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
   'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
-  'daily-reading', 'admin',
+  'daily-reading', 'orch-audio', 'admin',
 ]);
 
 export function wordNewPageHeader(
@@ -42,6 +46,7 @@ export function wordNewPageHeader(
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
     case 'admin': return { title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
     case 'daily-reading': return { title: trans('home.dailyReading.title'), subtitle: trans('home.dailyReading.pageSubtitle') };
+    case 'orch-audio': return { title: trans('orchAudio.title'), subtitle: trans('orchAudio.subtitle') };
     case 'shelf': return { title: context.wordGroupTitle || trans('library.title'), subtitle: trans('library.subtitle') };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
@@ -61,19 +66,66 @@ function hashPath(hash: string): string {
   return hash.replace(/^#\/?/, '').split('?')[0] ?? '';
 }
 
-export function dailyReadingHash(articleId?: string | null): string {
-  return articleId
-    ? `#/${WORDNEW_HASH_ROUTES.dailyReading}/${encodeURIComponent(articleId)}`
-    : `#/${WORDNEW_HASH_ROUTES.dailyReading}`;
+function hashQuery(hash: string): URLSearchParams {
+  return new URLSearchParams(hash.split('?')[1] ?? '');
 }
 
-export function dailyReadingArticleId(hash: string): string | null {
+function itemRouteHash(route: string, itemId?: string | null, query?: URLSearchParams): string {
+  const path = itemId ? `#/${route}/${encodeURIComponent(itemId)}` : `#/${route}`;
+  const search = query?.toString();
+  return search ? `${path}?${search}` : path;
+}
+
+function itemRouteId(route: string, hash: string): string | null {
   const path = hashPath(hash);
-  const prefix = `${WORDNEW_HASH_ROUTES.dailyReading}/`;
+  const prefix = `${route}/`;
 
   return path.startsWith(prefix)
     ? decodeURIComponent(path.slice(prefix.length)).trim() || null
     : null;
+}
+
+/** The tab an item-route hash (`#/<tab>`, `#/<tab>/<id>`, `#/<tab>?...`) belongs to. */
+export function itemRouteTab(hash: string): WordNewTab | null {
+  const path = hashPath(hash);
+  return ITEM_ROUTE_TABS.find((tab) => path === tab || path.startsWith(`${tab}/`)) ?? null;
+}
+
+export function dailyReadingHash(articleId?: string | null): string {
+  return itemRouteHash(WORDNEW_HASH_ROUTES.dailyReading, articleId);
+}
+
+export function dailyReadingArticleId(hash: string): string | null {
+  return itemRouteId(WORDNEW_HASH_ROUTES.dailyReading, hash);
+}
+
+export interface WordNewOrchAudioRoute {
+  itemId: string | null;
+  source: string | null;
+  page: number;
+}
+
+export function orchAudioHash(route: Partial<WordNewOrchAudioRoute> = {}): string {
+  const query = new URLSearchParams();
+  if (!route.itemId && route.source) query.set('source', route.source);
+  if (!route.itemId && route.page && route.page > 1) query.set('page', String(route.page));
+  return itemRouteHash(WORDNEW_HASH_ROUTES.orchAudio, route.itemId, query);
+}
+
+export function parseOrchAudioHash(hash: string): WordNewOrchAudioRoute {
+  const query = hashQuery(hash);
+  return {
+    itemId: itemRouteId(WORDNEW_HASH_ROUTES.orchAudio, hash),
+    source: query.get('source') || null,
+    page: Math.max(1, parseInt(query.get('page') || '1', 10) || 1),
+  };
+}
+
+export function navigateToOrchAudio(route: Partial<WordNewOrchAudioRoute> = {}): void {
+  const nextHash = orchAudioHash(route);
+
+  if (typeof window === 'undefined' || window.location.hash === nextHash) return;
+  window.location.hash = nextHash;
 }
 
 export function wordGroupHash(groupId?: string | null): string {

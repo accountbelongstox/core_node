@@ -243,6 +243,36 @@ frankenphp_install_apt_packages_ensure() {
             echo "[${FRANKENPHP_INSTALL_INDEX}] package ready: ${package}"
         fi
     done
+    frankenphp_install_apt_redis_package_ensure
+}
+
+# Optional phpredis deb: installed only while the Redis extension is desired
+# and missing; an existing package is never removed here (variant retirement
+# owns purging).
+frankenphp_install_apt_redis_package_ensure() {
+    local service_guard_ready=""
+
+    if [ "$(fm_php_redis_extension_desired)" != "yes" ]; then
+        return
+    fi
+    if [ "$(frankenphp_install_apt_package_missing "$FRANKENPHP_APT_REDIS_PACKAGE")" = "yes" ]; then
+        service_guard_ready="$(frankenphp_install_apt_policy_rc_ready)"
+        if [ "$service_guard_ready" = "yes" ]; then
+            echo "[${FRANKENPHP_INSTALL_INDEX}] installing desired package: ${FRANKENPHP_APT_REDIS_PACKAGE}"
+            $USE_SUDO apt-get install -y "$FRANKENPHP_APT_REDIS_PACKAGE"
+            if [ "$(frankenphp_install_apt_package_missing "$FRANKENPHP_APT_REDIS_PACKAGE")" = "yes" ]; then
+                $USE_SUDO apt-get update
+                $USE_SUDO apt-get install -y "$FRANKENPHP_APT_REDIS_PACKAGE"
+            fi
+        else
+            echo "[${FRANKENPHP_INSTALL_INDEX}] [WARN] package deferred because the service start guard is absent: ${FRANKENPHP_APT_REDIS_PACKAGE}"
+        fi
+    fi
+    if [ "$(frankenphp_install_apt_package_missing "$FRANKENPHP_APT_REDIS_PACKAGE")" = "yes" ]; then
+        echo "[${FRANKENPHP_INSTALL_INDEX}] [WARN] desired package remains missing (Laravel uses its database path): ${FRANKENPHP_APT_REDIS_PACKAGE}"
+    else
+        echo "[${FRANKENPHP_INSTALL_INDEX}] package ready: ${FRANKENPHP_APT_REDIS_PACKAGE}"
+    fi
 }
 
 frankenphp_install_apt() {

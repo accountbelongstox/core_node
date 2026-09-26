@@ -1261,6 +1261,13 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
         PowerShellCommand = "try { irm https://claude.ai/install.ps1 | iex } catch { irm https://downloads.claude.ai/claude-code-releases/bootstrap.ps1 | iex }"
+        PostInstallCallbacks = @(
+            @{
+                Type = "command"
+                Description = "Claude team setup, item by item (shared with claudeteamup/claudeagents)"
+                Command = ". (Join-Path (Join-Path (Join-Path (Join-Path `$Global:PROJECT_DIR 'scripts') 'shells') 'win') 'win_common\ClaudeTeamInstallCommon.ps1'); Invoke-ClaudeTeamInstall"
+            }
+        )
     }
     OpenClaw = @{
         PackageId           = "openclaw"

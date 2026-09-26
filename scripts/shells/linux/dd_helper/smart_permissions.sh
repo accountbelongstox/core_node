@@ -18,6 +18,10 @@ SMART_PERMISSIONS_HELPER="$SMART_PERMISSIONS_DIR/../common/fs_perm_helpers.sh"
 source "$SMART_PERMISSIONS_HELPER"
 # CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
 [ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$SMART_PERMISSIONS_DIR/../common/runtime_environment.sh"
+# dd.sh background repair state: the worker holds the lock while it runs.
+SMART_PERMISSIONS_STATE_DIR="$CORE_NODE_INSTALLER_STATE_DIR/dd_startup"
+SMART_PERMISSIONS_LOG_FILE="$SMART_PERMISSIONS_STATE_DIR/permissions.log"
+SMART_PERMISSIONS_LOCK_FILE="$SMART_PERMISSIONS_STATE_DIR/permissions.lock"
 
 # Get real user information
 get_real_user_info() {
@@ -173,52 +177,67 @@ repair_ai_tool_simple() {
 }
 
 # =============================================================================
-# Main Smart Permissions Function (Essential Only - Fast)
+# Main Smart Permissions Function
 # =============================================================================
-smart_permissions_fix() {
-    echo "========================================" >&2
-    echo "[TEST] smart_permissions_fix CALLED" >&2
-    echo "========================================" >&2
 
+# Tree repairs: project root + _build_dir, then the core_node data root.
+smart_permissions_repair_trees() {
+    local project_root="$1"
+    local user_info=""
+
+    user_info="$(get_real_user_info "$project_root")"
+    echo "[INFO] Real user: ${user_info%%:*} (home: ${user_info##*:})"
+    echo "[STEP 1/2] Fixing essential Core Node permissions..."
+    fix_core_node_permissions_essential "$project_root" "$user_info"
+    echo "[STEP 2/2] Fixing core_node data root permissions..."
+    fix_var_core_node_permissions "$project_root" "$user_info"
+    echo "[SUCCESS] Permission repair completed"
+}
+
+# 0 while a background repair holds the lock.
+smart_permissions_background_running() {
+    [ -e "$SMART_PERMISSIONS_LOCK_FILE" ] || return 1
+    ! flock -n "$SMART_PERMISSIONS_LOCK_FILE" true 2>/dev/null
+}
+
+# Environment setup runs in this shell. As root, the full-tree permission walk
+# (minutes on a cold ntfs cache) runs detached so startup continues; it keeps
+# running after dd.sh exits. Non-root runs it in the foreground (sudo may ask).
+smart_permissions_fix() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 
-    echo "[INFO] Essential Permissions & Environment Setup"
-    echo "[DEBUG] Project root: $project_root"
-
-    # Get user information
-    echo "[DEBUG] Getting real user information..."
-    local user_info="$(get_real_user_info "$project_root")"
-    local real_user="${user_info%%:*}"
-    local real_user_home="${user_info##*:}"
-
-    echo "[INFO] Real user: $real_user"
-    echo "[INFO] Real user home: $real_user_home"
-    echo ""
-
-    # 1. Fix essential Core Node permissions (fast)
-    echo "[STEP 1/3] Fixing essential Core Node permissions..."
-    fix_core_node_permissions_essential "$project_root" "$user_info"
-    echo ""
-
-    # 2. Fix core_node data root permissions
-    echo "[STEP 2/3] Fixing core_node data root permissions..."
-    fix_var_core_node_permissions "$project_root" "$user_info"
-    echo ""
-
-    # 3. Setup environment variables
-    echo "[STEP 3/3] Setting up environment variables..."
+    echo "[INFO] Project root: $project_root"
     setup_environment_variables "$project_root"
-    echo ""
-
-    echo "[SUCCESS] Essential setup completed"
+    if [ "$(id -u)" -ne 0 ]; then
+        smart_permissions_repair_trees "$project_root"
+        return 0
+    fi
+    mkdir -p "$SMART_PERMISSIONS_STATE_DIR" 2>/dev/null
+    if smart_permissions_background_running; then
+        echo "[INFO] Permission repair is already running in the background (log: $SMART_PERMISSIONS_LOG_FILE)"
+        return 0
+    fi
+    setsid bash "$SMART_PERMISSIONS_DIR/smart_permissions.sh" perms "$project_root" \
+        > "$SMART_PERMISSIONS_LOG_FILE" 2>&1 < /dev/null &
+    echo "[INFO] Permission repair started in the background (pid $!, log: $SMART_PERMISSIONS_LOG_FILE)"
     return 0
+}
+
+# Status of the background repair; printed right before the menu.
+smart_permissions_report() {
+    [ "$(id -u)" -eq 0 ] || return 0
+    if smart_permissions_background_running; then
+        echo -e "\033[33m[PERMISSIONS] Background repair still running; log: $SMART_PERMISSIONS_LOG_FILE\033[0m"
+    elif [ -s "$SMART_PERMISSIONS_LOG_FILE" ]; then
+        echo -e "\033[36m[PERMISSIONS] Background repair finished ($SMART_PERMISSIONS_LOG_FILE):\033[0m"
+        grep -E '^\[(permissions|SUCCESS|ERROR|WARNING)\]' "$SMART_PERMISSIONS_LOG_FILE" | tail -n 6 | sed 's/^/  /'
+    fi
 }
 
 # =============================================================================
 # Export functions for use by other scripts
 # =============================================================================
 
-# Simplified functions that dd.sh can call
 ensure_var_core_node_permissions() {
     local project_root="$1"
     local user_info="$(get_real_user_info "$project_root")"
@@ -241,22 +260,32 @@ repair_ai_tool() {
 # Main execution when called directly
 # =============================================================================
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
     case "${1:-smart}" in
         "smart"|"all")
-            smart_permissions_fix "$2"
+            setup_environment_variables "$project_root"
+            smart_permissions_repair_trees "$project_root"
+            ;;
+        "perms")
+            mkdir -p "$SMART_PERMISSIONS_STATE_DIR" 2>/dev/null
+            exec 9>"$SMART_PERMISSIONS_LOCK_FILE"
+            if ! flock -n 9; then
+                echo "[INFO] Another permission repair is running"
+                exit 0
+            fi
+            printf '[INFO] Started %(%Y-%m-%d %H:%M:%S)T\n' -1
+            smart_permissions_repair_trees "$project_root"
+            printf '[INFO] Finished %(%Y-%m-%d %H:%M:%S)T\n' -1
             ;;
         "core")
-            project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             user_info="$(get_real_user_info "$project_root")"
             fix_core_node_permissions_essential "$project_root" "$user_info"
             ;;
         "var")
-            project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             user_info="$(get_real_user_info "$project_root")"
             fix_var_core_node_permissions "$project_root" "$user_info"
             ;;
         "env")
-            project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             setup_environment_variables "$project_root"
             ;;
         "repair")
@@ -268,8 +297,9 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
             fi
             ;;
         *)
-            echo "Usage: $0 [smart|core|var|env|repair <tool>] [project_root]"
+            echo "Usage: $0 [smart|perms|core|var|env|repair <tool>] [project_root]"
             echo "  smart - Run all fixes (default)"
+            echo "  perms - Permission repair only, single instance (dd.sh background worker)"
             echo "  core  - Fix core project permissions only"
             echo "  var   - Fix core_node data root permissions only"
             echo "  env   - Setup environment variables only"

@@ -59,12 +59,6 @@ export type {
 export { mapQueueSnapshot } from './PycoreApiBooksTypes';
 export type {
   TerminalActionResult,
-  TerminalCapability,
-  TerminalCapabilityName,
-  TerminalControlMode,
-  TerminalDesktopIntegrationAction,
-  TerminalDesktopIntegrationResult,
-  TerminalPlatformProfile,
   TerminalDraftResult,
   TerminalLogEntry,
   TerminalScheduleClearResult,

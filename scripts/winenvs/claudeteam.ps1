@@ -12,16 +12,11 @@
 
 <#
 .SYNOPSIS
-    Launches Claude Code with multiple roles (experimental agent teams) always on
-    and an opt-in ultracode prompt (default No).
+    Launches Claude Code with multiple roles (experimental agent teams) always on.
 
 .DESCRIPTION
     Always sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session
-    (multiple roles). Then prompts "Enable ultracode?" (default No); when enabled it
-    adds --effort ultracode (session-only xhigh effort + automatic workflow
-    orchestration; official CLI reference, requires Claude Code v2.1.203+). Using
-    --effort (not an inline --settings JSON) avoids PowerShell native-exe quote
-    mangling. The model is the account default (Opus 5.5 since v2.1.280), so no
+    (multiple roles). The model is the account default (Opus 5.5 since v2.1.280), so no
     model is pinned. Any script arguments are appended to the command line.
 
 .EXAMPLE
@@ -39,8 +34,6 @@ $shellsWinPath = $null
 $winCommonDirPath = $null
 $aiCliProvisionCommonScript = $null
 $windowsPathFunctionScript = $null
-$ultraChoice = $null
-$enableUltra = $false
 $teammateMode = $null
 $claudeArgs = $null
 $exitCode = 0
@@ -66,28 +59,17 @@ $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.
 Invoke-AiCliProvision -Tool "claude"
 
 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+$env:CLAUDE_AGENTS_GIT_GUARD = "1"
 
 # Windows default: run experimental agent teams in-process.
 $teammateMode = 'in-process'
 
-# Ultracode: opt-in prompt, default No. When enabled, ultracode is turned on via
-# the dedicated effort flag "--effort ultracode" (official CLI reference; requires
-# Claude Code v2.1.203+): session-only xhigh effort with automatic workflow
-# orchestration. Using --effort avoids the Windows PowerShell 5.1 native-exe quote
-# mangling that breaks an inline "--settings '{"ultracode":true}'" (it arrives as
-# invalid JSON), so no temp settings file is needed. Ultracode cannot be persisted
-# (effortLevel / CLAUDE_CODE_EFFORT_LEVEL accept only low/medium/high/xhigh).
-$ultraChoice = Read-Host "Enable ultracode? [y/N]"
-$enableUltra = (($ultraChoice -eq 'y') -or ($ultraChoice -eq 'Y'))
+# Build the claude argument list. --teammate-mode in-process and --permission-mode
+# auto are the defaults; teammates inherit the lead's mode.
+# The model is the account default (Opus 5.5 since v2.1.280), so no model is pinned.
+$claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "auto")
 
-# Build the claude argument list. --teammate-mode in-process, --permission-mode
-# bypassPermissions and --dangerously-skip-permissions are Windows defaults;
-# --effort ultracode is added only when ultracode is enabled. The model is the
-# account default (Opus 5.5 since v2.1.280), so no model is pinned.
-$claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
-if ($enableUltra) {
-    $claudeArgs += @("--effort", "ultracode")
-}
+$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
 
 $claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
     [string]::Format(" {0}", ($args -join " "))
@@ -100,11 +82,6 @@ Write-Host "============================================================" -Foreg
 Write-Host "claudeteam.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
-if ($enableUltra) {
-    Write-Host "[INFO] Ultracode: ON (--effort ultracode)" -ForegroundColor Green
-} else {
-    Write-Host "[INFO] Ultracode: off (default N)" -ForegroundColor Green
-}
 Write-Host "[INFO] Teammate mode: $teammateMode (Windows default)" -ForegroundColor Green
 Write-Host "[INFO] Invoking: claude $($claudeArgs -join ' ')$claudeInvokeDisplayArgs" -ForegroundColor Green
 if ($args.Count -gt 0) {

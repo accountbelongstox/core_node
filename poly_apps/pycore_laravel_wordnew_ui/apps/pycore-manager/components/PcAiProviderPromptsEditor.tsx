@@ -1,9 +1,9 @@
 /**
  * PcAiProviderPromptsEditor — editable prompt templates under the OpenRouter
  * provider label on the AI Capability page. One editor for the agent-history
- * article pipeline prompts (CN article / EN translation) AND the Linux
- * new-prompt EN derivation preset. Persisted through the shared agent-history
- * runtime store (persistAgentHistoryArticleConfig) so the backend keeps
+ * article pipeline prompts (CN article / EN translation), the Linux
+ * new-prompt EN derivation preset, and the new-prompt EN rewrite system
+ * prompt. Persisted through the shared agent-history runtime store (persistAgentHistoryArticleConfig) so the backend keeps
  * exactly one config surface (the agent_history_article user-data section);
  * clearing a field restores the built-in default.
  */
@@ -13,27 +13,30 @@ import { useAgentHistoryRuntime, persistAgentHistoryArticleConfig } from '@/apps
 
 const inputCls = 'mt-1 w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm';
 
+// Editable template config keys and their label keys (agentHistory.*).
+const PROMPT_FIELDS = [
+  ['prompt_article_cn', 'promptArticleCn'],
+  ['prompt_translate_en', 'promptTranslateEn'],
+  ['prompt_derive_en', 'promptDeriveEn'],
+  ['prompt_rewrite_en', 'promptRewriteEn'],
+] as const;
+type PromptKey = typeof PROMPT_FIELDS[number][0];
+type PromptValues = Record<PromptKey, string>;
+
+const mapFields = (value: (key: PromptKey) => string): PromptValues =>
+  Object.fromEntries(PROMPT_FIELDS.map(([key]) => [key, value(key)])) as PromptValues;
+
 const PcAiProviderPromptsEditor: React.FC = () => {
   const { t } = useTranslation('pc');
   const { articleConfig, articlePromptDefaults } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [promptArticleCn, setPromptArticleCn] = useState('');
-  const [promptTranslateEn, setPromptTranslateEn] = useState('');
-  const [promptDeriveEn, setPromptDeriveEn] = useState('');
+  const [values, setValues] = useState<PromptValues>(() => mapFields(() => ''));
   const dirty = useRef(false);
 
   useEffect(() => {
     if (!articleConfig || dirty.current) return;
-    setPromptArticleCn(String(
-      articleConfig.prompt_article_cn || articlePromptDefaults?.prompt_article_cn || '',
-    ));
-    setPromptTranslateEn(String(
-      articleConfig.prompt_translate_en || articlePromptDefaults?.prompt_translate_en || '',
-    ));
-    setPromptDeriveEn(String(
-      articleConfig.prompt_derive_en || articlePromptDefaults?.prompt_derive_en || '',
-    ));
+    setValues(mapFields((key) => String(articleConfig[key] || articlePromptDefaults?.[key] || '')));
   }, [articleConfig, articlePromptDefaults]);
 
   const persist = async (patch: Record<string, unknown>) => {
@@ -54,26 +57,21 @@ const PcAiProviderPromptsEditor: React.FC = () => {
   // override falls back to the code default automatically.
   const save = () => {
     const defaults = articlePromptDefaults || {};
-    const valueOrBlank = (value: string, key: string) =>
-      value.trim() === String(defaults[key] || '').trim() ? '' : value;
-    void persist({
-      prompt_article_cn: valueOrBlank(promptArticleCn, 'prompt_article_cn'),
-      prompt_translate_en: valueOrBlank(promptTranslateEn, 'prompt_translate_en'),
-      prompt_derive_en: valueOrBlank(promptDeriveEn, 'prompt_derive_en'),
-    });
+    void persist(mapFields((key) => (
+      values[key].trim() === String(defaults[key] || '').trim() ? '' : values[key]
+    )));
   };
 
   const reset = () => {
     dirty.current = false;
-    setPromptArticleCn(String(articlePromptDefaults?.prompt_article_cn || ''));
-    setPromptTranslateEn(String(articlePromptDefaults?.prompt_translate_en || ''));
-    setPromptDeriveEn(String(articlePromptDefaults?.prompt_derive_en || ''));
-    void persist({ prompt_article_cn: '', prompt_translate_en: '', prompt_derive_en: '' });
+    setValues(mapFields((key) => String(articlePromptDefaults?.[key] || '')));
+    void persist(mapFields(() => ''));
   };
 
-  const edit = (setter: (value: string) => void) => (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const edit = (key: PromptKey) => (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     dirty.current = true;
-    setter(event.target.value);
+    const { value } = event.target;
+    setValues((current) => ({ ...current, [key]: value }));
   };
 
   return (
@@ -82,21 +80,13 @@ const PcAiProviderPromptsEditor: React.FC = () => {
         {t('agentHistory.promptsTitle')}
       </p>
       <p className="text-[10px] text-slate-500">{t('agentHistory.promptOverrideHint')}</p>
-      <label className="block text-[11px] text-slate-500">
-        {t('agentHistory.promptArticleCn')}
-        <textarea value={promptArticleCn} onChange={edit(setPromptArticleCn)} rows={6}
-          spellCheck={false} className={`${inputCls} font-mono text-[11px] leading-relaxed`} />
-      </label>
-      <label className="block text-[11px] text-slate-500">
-        {t('agentHistory.promptTranslateEn')}
-        <textarea value={promptTranslateEn} onChange={edit(setPromptTranslateEn)} rows={6}
-          spellCheck={false} className={`${inputCls} font-mono text-[11px] leading-relaxed`} />
-      </label>
-      <label className="block text-[11px] text-slate-500">
-        {t('agentHistory.promptDeriveEn')}
-        <textarea value={promptDeriveEn} onChange={edit(setPromptDeriveEn)} rows={6}
-          spellCheck={false} className={`${inputCls} font-mono text-[11px] leading-relaxed`} />
-      </label>
+      {PROMPT_FIELDS.map(([key, label]) => (
+        <label key={key} className="block text-[11px] text-slate-500">
+          {t(`agentHistory.${label}`)}
+          <textarea value={values[key]} onChange={edit(key)} rows={6}
+            spellCheck={false} className={`${inputCls} font-mono text-[11px] leading-relaxed`} />
+        </label>
+      ))}
       <div className="flex items-center gap-2">
         <button type="button" onClick={save} disabled={busy}
           className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-60">

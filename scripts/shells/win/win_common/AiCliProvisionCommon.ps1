@@ -27,9 +27,16 @@
 #      to N and auto-skipping after $AiCliUpgradeTimeoutSeconds.
 # Both steps are no-ops when the CLI is present and current; the launcher stops
 # with an error when the CLI is still missing.
+#
+# Get-AiCliUltracodeArgs asks whether to enable Claude Code ultracode, defaulting
+# to Y and auto-accepting after $AiCliUltracodeTimeoutSeconds; it returns the
+# claude arguments (a temp settings file, since Windows PowerShell 5.1 strips the
+# quotes of an inline JSON argument).
 # =============================================================================
 
 $AiCliUpgradeTimeoutSeconds = 5
+$AiCliUltracodeTimeoutSeconds = 2
+$AiCliUltracodeSettingsJson = '{"ultracode":true}'
 $AiCliKimiInstallerUrl = "https://code.kimi.com/kimi-code/install.ps1"
 $AiCliClaudeInstallerUrls = @(
     "https://claude.ai/install.ps1",
@@ -168,7 +175,7 @@ function Get-AiCliPublishedVersion {
     return $publishedVersion
 }
 
-function Read-AiCliUpgradeChoice {
+function Read-AiCliTimedChoice {
     param([int]$TimeoutSeconds)
 
     $choiceDeadline = $null
@@ -359,7 +366,7 @@ function Invoke-AiCliUpgradePrompt {
     }
 
     Write-Host "Upgrade $toolLabel $installedVersion -> $publishedVersion`? [N/y] (auto-skip in $AiCliUpgradeTimeoutSeconds`s): " -ForegroundColor Yellow -NoNewline
-    $upgradeChoice = Read-AiCliUpgradeChoice -TimeoutSeconds $AiCliUpgradeTimeoutSeconds
+    $upgradeChoice = Read-AiCliTimedChoice -TimeoutSeconds $AiCliUpgradeTimeoutSeconds
     if ([string]::IsNullOrWhiteSpace($upgradeChoice)) {
         Write-Host "N (auto)"
     }
@@ -381,4 +388,25 @@ function Invoke-AiCliProvision {
         exit 1
     }
     Invoke-AiCliUpgradePrompt -Tool $Tool
+}
+
+function Get-AiCliUltracodeArgs {
+    param([string]$SettingsName)
+
+    $ultracodeChoice = ""
+    $ultracodeSettingsFile = $null
+
+    Write-Host "Enable ultracode? [Y/n] (auto-Y in $AiCliUltracodeTimeoutSeconds`s): " -ForegroundColor Yellow -NoNewline
+    $ultracodeChoice = Read-AiCliTimedChoice -TimeoutSeconds $AiCliUltracodeTimeoutSeconds
+    if ([string]::IsNullOrEmpty($ultracodeChoice)) {
+        Write-Host "Y (auto)"
+    }
+    if (($ultracodeChoice -eq 'n') -or ($ultracodeChoice -eq 'N')) {
+        Write-Host "[INFO] Ultracode: off" -ForegroundColor Green
+        return
+    }
+    $ultracodeSettingsFile = Join-Path ([System.IO.Path]::GetTempPath()) "$($SettingsName)_ultracode_settings.json"
+    [System.IO.File]::WriteAllText($ultracodeSettingsFile, $AiCliUltracodeSettingsJson)
+    Write-Host "[INFO] Ultracode: on" -ForegroundColor Green
+    return @("--settings", $ultracodeSettingsFile)
 }

@@ -13,9 +13,6 @@
 
 # Management & Backup is a child of Linux Management and dispatches backup tools.
 
-MANAGEMENT_BACKUP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$MANAGEMENT_BACKUP_SCRIPT_DIR/../common/arrow_menu.sh"
-
 show_management_and_backup() {
     local selected_index=0
     local menu_items=(

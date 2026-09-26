@@ -1,8 +1,8 @@
 import { orchEn } from './OrchLocales';
 /** Pycore Manager locale resource fragment. */
 export const pcEnFeatures = {
+audioOrchestration: orchEn,
 vocabularyPage: {
-    orchestration: orchEn,
     title: 'Vocabulary',
     subtitle: 'Dictionary words, libraries, statistics, translation, and TTS queues from Laravel.',
     tabs: {
@@ -12,8 +12,21 @@ vocabularyPage: {
       statistics: 'Statistics',
       ttsQueue: 'TTS Queue',
       learning: 'Learning Tasks',
-      audioOrch: 'Audio Orchestration',
       dictionary: 'Offline Dict',
+    },
+    libraries: {
+      regenerateCover: 'Regenerate cover (AI: Chrome first, Laravel AI fallback)',
+      researchCover: 'Re-search cover (web image search)',
+      coverStatus: {
+        queued: 'Queued',
+        processing: 'Processing',
+        processingBy: 'Processing · {{handler}}',
+        failed: 'Failed',
+      },
+      coverHandler: {
+        chrome: 'Chrome',
+        laravel_ai: 'Laravel AI',
+      },
     },
     ttsQueue: {
       byStatus: 'By status',
@@ -451,11 +464,18 @@ agentHistory: {
     promptArticleCn: 'Chinese article prompt',
     promptTranslateEn: 'English translation prompt',
     promptDeriveEn: 'Prompt EN-derivation preset',
-    promptOverrideHint: 'Saved to the user data directory; clearing a field restores the built-in default. Tokens: {ref} {title_max} {raw} (CN) · {title_max} {title_cn} {article_cn} (EN) · {prompt} (derive).',
+    promptRewriteEn: 'Prompt EN-rewrite system prompt',
+    promptRewriteEnabled: 'Rewrite new prompts',
+    promptRewriteEnabledHint: 'Every new prompt from the realtime prompt monitor is rewritten into standard English by OpenRouter (code blocks become short descriptions).',
+    promptRewriteAudio: 'Rewrite to audio',
+    promptRewriteAudioHint: 'Submit each rewrite to Audio Orchestration and generate its audio immediately.',
+    promptRewritten: 'Rewritten (EN)',
+    promptRewriteAudioTask: 'Audio task',
+    promptOverrideHint: 'Saved to the user data directory; clearing a field restores the built-in default. Tokens: {ref} {title_max} {raw} (CN) · {title_max} {title_cn} {article_cn} (EN) · {prompt} (derive) · rewrite: system prompt, no tokens.',
     promptReset: 'Reset to default',
     promptsMovedToAi: 'Pipeline prompts moved to the AI → Capability → OpenRouter card.',
     openAiPage: 'Open AI page',
-    videoMovedToOrch: 'Learning video generation moved to Vocabulary → Audio Orchestration.',
+    videoMovedToOrch: 'Learning video generation moved to the Audio Orchestration page.',
     openAudioOrch: 'Open audio orchestration',
   }
 } as const;

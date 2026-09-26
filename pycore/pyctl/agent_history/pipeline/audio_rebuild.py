@@ -15,8 +15,8 @@ SAME pinned audio stage as new articles (qwen3tts, multi-sentence). The lane
 is LOCAL-ONLY: generation and its ``tts_chunked`` commit never require
 Laravel main - an unreachable server defers nothing here. Delivering the
 regenerated audio to Laravel (full submit for never-uploaded records, audio
-replacement for published ones) is owned by the OTHER piggyback, the
-network-upload lane in worker.py, which stamps ``rebuild_uploaded``.
+replacement for published ones) is owned by the shared durable delivery
+outbox (pipeline/delivery.py), which stamps ``rebuild_uploaded``.
 
 Every step is idempotent at its own granularity (one step being done must
 never short-circuit or poison the others):
@@ -24,7 +24,7 @@ never short-circuit or poison the others):
   generation      - skipped per record when tts_chunked is set AND the local
                     audio file exists; otherwise synthesized and committed
                     atomically (audio bytes + provenance + marker)
-  delivery        - owned by the upload lane (pending_rebuild_uploads)
+  delivery        - enqueued on the delivery outbox (pipeline/delivery.py)
 
 Ordering contract: no new article stage runs until the legacy backlog is
 empty. Rebuilds run newest-first, while failed records use bounded backoff and
@@ -42,6 +42,7 @@ from pycore.pyutils.common.operation_event_service import operation_event_servic
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.agent_history import article_records as records
 from pycore.pyctl.agent_history.pipeline.audio_stage import advance_audio_synthesis
+from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
 
 # Deliberately NOT prefixed "agent_history": the worker's active-operation
 # scan adopts startswith("agent_history") operations as batch items, and this
@@ -264,13 +265,15 @@ def rebuild_record(record: Dict[str, Any]) -> Dict[str, Any]:
         # lane exists to remove - never stamp it.
         raise RuntimeError("rebuild synthesis was not multi-sentence (chunked=false)")
 
-    records.mark_audio_rebuilt(
+    rebuilt = records.mark_audio_rebuilt(
         record_id,
         audio_bytes,
         tts_engine=audio.get("engine"),
         tts_model=audio.get("model"),
         tts_chunked=True,
     )
+    if rebuilt is not None:
+        agent_history_delivery.enqueue_record(record_id)
     return {
         "status": "done",
         "engine": audio.get("engine"),

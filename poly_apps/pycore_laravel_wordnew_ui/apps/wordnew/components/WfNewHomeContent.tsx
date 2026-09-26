@@ -21,6 +21,7 @@ import type { WfNewContentGroup, WfNewContentKind, WfNewHomeContent as WfNewHome
 import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCard';
 import { WfNewContentGrid, WFNEW_GRID_COLS_CLASS } from './WfNewContentGrid';
 import { WfNewLoadingDots } from './WfNewLoadingDots';
+import { useWfNewLoadMoreSentinel } from '../hooks/useWfNewLoadMoreSentinel';
 import { useWfNewGridCols, WFNEW_HOME_ROWS } from '../api';
 import { laravelApi } from '@/core/integrations/laravel';
 
@@ -142,16 +143,12 @@ const HomeGridSection: React.FC<{
   };
 
   // Auto-load on scroll: reveal more rows when the sentinel enters the viewport.
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasMore || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) void revealMore(2);
-    }, { rootMargin: '120px' });
-    io.observe(el);
-    return () => io.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, hasLocalMore, serverExhausted, fetching]);
+  useWfNewLoadMoreSentinel(
+    sentinelRef,
+    hasMore,
+    () => { void revealMore(2); },
+    `${hasLocalMore}|${serverExhausted}|${fetching}`,
+  );
 
   return (
     <>

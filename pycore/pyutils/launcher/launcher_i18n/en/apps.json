@@ -1,0 +1,23 @@
+{
+  "launcher.apps.slot_browser": "browser",
+  "launcher.apps.slot_code_editor": "code editor",
+  "launcher.apps.slot_text_editor": "text editor",
+  "launcher.apps.slot_running": "Skipping {slot}: {app} is already running.",
+  "launcher.apps.slot_disabled": "Skipping {slot}: every candidate is disabled in config.",
+  "launcher.apps.slot_not_found": "Skipping {slot}: none of {apps} could be started.",
+  "launcher.apps.skip_alternative": "Skipping {app} (only one browser, code editor and text editor are launched).",
+  "launcher.apps.skip_disabled": "Skipping {app} (disabled in config).",
+  "launcher.apps.skip_platform": "Skipping {app} (not launched on this platform).",
+  "launcher.apps.skip_running": "Skipping {app} (already running).",
+  "launcher.apps.skip_same_executable": "Skipping {app} (same executable already launched in this run).",
+  "launcher.apps.skip_not_found": "Skipping {app} (executable not found).",
+  "launcher.apps.skip_aiassistant_missing": "Skipping {app} (no AIAssistant*.exe found in Downloads).",
+  "launcher.apps.launching": "Launching {app}...",
+  "launcher.apps.launching_admin": "Launching {app} (as administrator)...",
+  "launcher.apps.launching_terminal": "Launching {app} in a new terminal window ({cwd})...",
+  "launcher.apps.as_desktop_user": "  Running as desktop user: {user}",
+  "launcher.apps.launched": "  Launched: {path}",
+  "launcher.apps.path_missing": "  Error: application path does not exist: {path}",
+  "launcher.apps.no_terminal": "  Error: no terminal emulator found to run {app}.",
+  "launcher.apps.failed": "  Failed to launch {app}: {error}"
+}

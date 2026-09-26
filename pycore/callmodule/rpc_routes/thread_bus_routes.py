@@ -65,6 +65,8 @@ def register_thread_bus_routes(server):
         BusSignals.AGENT_HISTORY_SESSIONS_CHANGED,
         BusSignals.AGENT_HISTORY_PROMPT_NEW,
         BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
+        BusSignals.AGENT_HISTORY_PROMPT_REWRITTEN,
+        BusSignals.AUDIO_ORCH_TASKS_CHANGED,
         BusSignals.AGENT_HISTORY_VIDEO_CHANGED,
         BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
         BusSignals.LARAVEL_LOGS_CHANGED,

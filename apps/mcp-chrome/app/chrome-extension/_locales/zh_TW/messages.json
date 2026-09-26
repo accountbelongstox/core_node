@@ -82,6 +82,33 @@
   "apiCustomUrlPlaceholder": {
     "message": "輸入 URL（例如 api.example.com）"
   },
+  "apiCustomEndpointDescription": {
+    "message": "自訂：{0}"
+  },
+  "httpStatusError": {
+    "message": "{0}（HTTP {1}）"
+  },
+  "submitRejected": {
+    "message": "提交被拒絕"
+  },
+  "submitRejectedStatus": {
+    "message": "提交被拒絕（{0}）"
+  },
+  "valueNotAvailable": {
+    "message": "無"
+  },
+  "latestCodeFileUnreachable": {
+    "message": "laravel_main 最新檔案：後端無法連線"
+  },
+  "latestCodeFileLatest": {
+    "message": "最近修改的檔案：{0}"
+  },
+  "latestCodeFileModified": {
+    "message": "修改時間：{0}"
+  },
+  "latestCodeFileScan": {
+    "message": "掃描：{0}（{1}ms）"
+  },
   "apiLocalTag": {
     "message": "本地"
   },
@@ -620,9 +647,6 @@
   },
   "endpointNotConfiguredHint": {
     "message": "未設置 — 請在「設置 → API 配置」中配置"
-  },
-  "endpointSwitchFailed": {
-    "message": "切換正在使用的 API 接入點失敗"
   },
   "enterPromptFirst": {
     "message": "請先輸入提示詞"
@@ -1928,16 +1952,16 @@
     "message": "執行 ChatGPT 長語音任務"
   },
   "taskCenterCapability_gemini_image_hint": {
-    "message": "使用 Gemini 生成詞庫單詞組封面並回寫 Laravel"
+    "message": "使用 Gemini 生成詞庫封面及指定圖像並回寫 Laravel"
   },
   "taskCenterCapability_gemini_image_label": {
-    "message": "AI 單詞組封面生成"
+    "message": "AI 詞庫封面與圖像生成"
   },
   "taskCenterCapability_image_hint": {
-    "message": "通過共享瀏覽器處理器搜索並回寫圖書封面和媒體海報"
+    "message": "通過共享瀏覽器處理器搜索並回寫圖書封面、媒體海報和詞庫封面"
   },
   "taskCenterCapability_image_label": {
-    "message": "搜索封面與海報"
+    "message": "搜索封面、海報與詞庫封面"
   },
   "taskCenterCapability_notebooklm_hint": {
     "message": "將 Laravel NotebookLM 隊列交給共享瀏覽器運行時處理並回寫結果"
@@ -1977,6 +2001,12 @@
   },
   "taskCenterCategory_gemini_image": {
     "message": "待 AI 生圖"
+  },
+  "taskCenterCategory_library_cover": {
+    "message": "待 AI 生成詞庫封面"
+  },
+  "taskCenterCategory_library_cover_search": {
+    "message": "待搜索詞庫封面"
   },
   "taskCenterCategory_notebooklm": {
     "message": "待 NotebookLM 處理"
@@ -2367,5 +2397,49 @@
   },
   "youglishPronunciationHint": {
     "message": "真實語境視頻發音（YouGlish）"
+  },
+  "startServicePrompt": {
+    "message": "是否將 MCP Chrome 安裝為背景服務（登入時自動啟動，熱重載）？",
+    "description": "start.ps1 prompt asking whether to install the background logon task"
+  },
+  "startServiceInstalled": {
+    "message": "背景服務 $TASK$ 已安裝；本次編譯期間暫停，編譯後自動對齊。",
+    "description": "start.ps1 notice that the background logon task already exists",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceOwnsWatch": {
+    "message": "監聽模式與 Chrome 恢復由背景工作 $TASK$ 執行。",
+    "description": "start.ps1 notice that the logon task runs the watchers",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceRemoveHint": {
+    "message": "移除方式：powershell -File \"$SCRIPT$\" -UninstallService",
+    "description": "start.ps1 hint for removing the logon task",
+    "placeholders": {
+      "script": {
+        "content": "$1",
+        "example": "C:\\project\\apps\\mcp-chrome\\scripts\\start.ps1"
+      }
+    }
+  },
+  "startSupervisorStarted": {
+    "message": "Chrome 恢復監督程序已啟動（PID $PID$）。",
+    "description": "start.ps1 notice after starting the recovery supervisor",
+    "placeholders": {
+      "pid": {
+        "content": "$1",
+        "example": "1234"
+      }
+    }
   }
 }

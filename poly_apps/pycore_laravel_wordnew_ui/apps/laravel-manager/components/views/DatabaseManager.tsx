@@ -25,6 +25,7 @@ import { logInfo, logSuccess, logError } from '@/core/logstore/logStore';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { DataSyncTab } from './database-manager/DataSyncTab';
+import { findDbTableActions, type DbTableRowActionsProps } from './database-manager/DbTableActions';
 
 const DEFAULT_PER_PAGE = 1000;
 const MAX_PER_PAGE = 5000;
@@ -105,7 +106,10 @@ const SchemaTable: React.FC<{ columns: DbStructureColumn[] }> = ({ columns }) =>
 const DataGrid: React.FC<{
   columns: { name: string }[];
   rows: Record<string, unknown>[];
-}> = ({ columns, rows }) => {
+  /** Table-specific row actions (leading column) from the table-action registry. */
+  RowActions?: React.ComponentType<DbTableRowActionsProps>;
+  actionsLabel?: string;
+}> = ({ columns, rows, RowActions, actionsLabel }) => {
   const keys = columns.map((c) => c.name);
   if (!keys.length) {
     return <p className="text-sm text-slate-500 dark:text-slate-400 p-3">No columns</p>;
@@ -115,6 +119,11 @@ const DataGrid: React.FC<{
       <table className="min-w-full text-sm">
         <thead>
           <tr>
+            {RowActions && (
+              <th className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap border-b border-slate-200 dark:border-slate-700">
+                {actionsLabel}
+              </th>
+            )}
             {keys.map((k) => (
               <th
                 key={k}
@@ -128,7 +137,7 @@ const DataGrid: React.FC<{
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={keys.length} className="px-3 py-4 text-center text-slate-500">
+              <td colSpan={keys.length + (RowActions ? 1 : 0)} className="px-3 py-4 text-center text-slate-500">
                 No rows
               </td>
             </tr>
@@ -140,6 +149,11 @@ const DataGrid: React.FC<{
                   i % 2 === 1 ? 'bg-slate-50/60 dark:bg-slate-800/30' : ''
                 }`}
               >
+                {RowActions && (
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    <RowActions row={row} />
+                  </td>
+                )}
                 {keys.map((k) => (
                   <td
                     key={k}
@@ -289,6 +303,7 @@ const fmtActivity = (iso: string | null): string => {
 };
 
 const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
+  const { t } = useTranslation();
   const [tables, setTables] = useState<DbTableInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -415,6 +430,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
   };
 
   const selectedInfo = selected ? tables.find((t) => t.name === selected) ?? null : null;
+  const tableActions = useMemo(() => findDbTableActions(selected), [selected]);
 
   const sortButton = (key: TableSortKey, label: string) => {
     const active = sortKey === key;
@@ -650,7 +666,12 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                       Loading…
                     </div>
                   ) : data ? (
-                    <DataGrid columns={structure.length ? structure : []} rows={data.data} />
+                    <DataGrid
+                      columns={structure.length ? structure : []}
+                      rows={data.data}
+                      RowActions={tableActions?.RowActions}
+                      actionsLabel={t('db_manager.row_actions')}
+                    />
                   ) : null}
                 </div>
               </div>

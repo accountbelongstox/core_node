@@ -35,6 +35,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1StaticAp
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1PolyAppsCommand;
 use App\Console\Commands\CheckCertbotCommand;
 use App\Console\Commands\NuxtServiceRefreshCommand;
+use App\Apps\AppQyV1\AppQyV1Commands\AppQyV1ResourceIndexCommand;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -107,6 +108,7 @@ class AppServiceProvider extends ServiceProvider
                 ServerManagerV1PolyAppsCommand::class,
                 CheckCertbotCommand::class,
                 NuxtServiceRefreshCommand::class,
+                AppQyV1ResourceIndexCommand::class,
             ]);
         }
     }

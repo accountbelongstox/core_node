@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
+import { CmPublicIllustration } from './CmPublicBlocks';
+import type { CmPublicImageName } from './cmPublicImages';
 
 const HERO_ROTATION_MS = 7000;
-const HERO_SLIDES = [
-  { titleKey: 'publicHome.hero.slide1Title', subtitleKey: 'publicHome.hero.slide1Subtitle', variant: 'delivery' },
-  { titleKey: 'publicHome.hero.slide2Title', subtitleKey: 'publicHome.hero.slide2Subtitle', variant: 'milestones' },
-  { titleKey: 'publicHome.hero.slide3Title', subtitleKey: 'publicHome.hero.slide3Subtitle', variant: 'specialists' },
-] as const;
+const HERO_SLIDES: ReadonlyArray<{ titleKey: string; subtitleKey: string; altKey: string; variant: string; image: CmPublicImageName }> = [
+  { titleKey: 'publicHome.hero.slide1Title', subtitleKey: 'publicHome.hero.slide1Subtitle', altKey: 'publicHome.hero.slide1Alt', variant: 'delivery', image: 'hero-delivery' },
+  { titleKey: 'publicHome.hero.slide2Title', subtitleKey: 'publicHome.hero.slide2Subtitle', altKey: 'publicHome.hero.slide2Alt', variant: 'milestones', image: 'hero-marketplace' },
+  { titleKey: 'publicHome.hero.slide3Title', subtitleKey: 'publicHome.hero.slide3Subtitle', altKey: 'publicHome.hero.slide3Alt', variant: 'specialists', image: 'hero-escrow' },
+];
 
 export interface CmHeroProps {
   onPrimaryAction: () => void;
   onSecondaryAction: () => void;
+  onRegister?: () => void;
 }
 
-export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryAction }) => {
+export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryAction, onRegister }) => {
   const { t } = useTranslation('cm');
   const [activeIndex, setActiveIndex] = useState(0);
   const [rotationEnabled, setRotationEnabled] = useState(false);
@@ -69,16 +72,26 @@ export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryActi
         aria-label={t('common.slidePosition', { number: activeIndex + 1, total: HERO_SLIDES.length })}
         aria-live={rotationEnabled && !hovered ? 'off' : 'polite'}
       >
-        <p className="cm-hero__eyebrow">{t('publicHome.eyebrow')}</p>
-        <h1 key={`${activeIndex}-title`}>{t(activeSlide.titleKey)}</h1>
-        <p key={`${activeIndex}-subtitle`} className="cm-hero__subtitle">{t(activeSlide.subtitleKey)}</p>
-        <div className="cm-hero__actions">
-          <button type="button" className="cm-public-button cm-public-button--primary" onClick={onPrimaryAction}>
-            {t('publicHome.hero.primaryAction')}
-          </button>
-          <button type="button" className="cm-public-button cm-public-button--outline" onClick={onSecondaryAction}>
-            {t('publicHome.hero.secondaryAction')}
-          </button>
+        <div className="cm-hero__copy">
+          <p className="cm-hero__eyebrow">{t('publicHome.eyebrow')}</p>
+          <h1 key={`${activeIndex}-title`}>{t(activeSlide.titleKey)}</h1>
+          <p key={`${activeIndex}-subtitle`} className="cm-hero__subtitle">{t(activeSlide.subtitleKey)}</p>
+          <div className="cm-hero__actions">
+            <button type="button" className="cm-public-button cm-public-button--primary" onClick={onPrimaryAction}>
+              {t('publicHome.hero.primaryAction')}
+            </button>
+            <button type="button" className="cm-public-button cm-public-button--outline" onClick={onSecondaryAction}>
+              {t('publicHome.hero.secondaryAction')}
+            </button>
+            {onRegister && (
+              <button type="button" className="cm-public-button cm-public-button--ghost" onClick={onRegister}>
+                {t('nav.register')}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="cm-hero__media" key={`${activeIndex}-media`}>
+          <CmPublicIllustration name={activeSlide.image} altKey={activeSlide.altKey} eager />
         </div>
       </div>
       <button type="button" className="cm-hero__arrow cm-hero__arrow--next" onClick={showNext} aria-label={t('common.next')}>

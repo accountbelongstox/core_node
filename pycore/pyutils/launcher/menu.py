@@ -11,6 +11,21 @@ import json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.launcher.grid_profile import (
+    DEFAULT_AUTO_GRID,
+    DEFAULT_GRID_COLUMNS,
+    DEFAULT_GRID_ROWS,
+    DEFAULT_TOGGLE,
+    TERMINAL_TOGGLE_CHOICES,
+    TERMINAL_TOGGLE_GRIDS,
+    TERMINAL_TOGGLE_SEQUENCE,
+    TOGGLE_DISABLE,
+    GridI18nKeys,
+    describe_auto_profiles,
+    next_terminal_toggle,
+    normalize_toggle,
+)
+from pycore.pyutils.launcher.launcher_text import launcher_text
 
 try:
     import msvcrt
@@ -143,14 +158,13 @@ class InteractiveMenu:
         app_order = []  # Track order: ['terminal', 'chrome', 'chrome_beta', 'antigravity', ...]
         
         # First: Terminal (special case)
-        term_config = self.config_manager.get_terminal_config()
-        term_toggle = term_config.get('toggle', 'X6')
-        term_enabled = term_config.get('enabled', True)
-        term_status = f"{term_toggle}" if term_enabled else "DISABLE"
-        menu_items.append(f"Terminal: {term_status}")
+        menu_items.append(f"Terminal: {self._terminal_status()}")
         toggle_callbacks.append(self._toggle_terminal)
         app_order.append('terminal')
-        
+        menu_items.append(self._auto_grid_menu_label())
+        toggle_callbacks.append(self._toggle_auto_grid)
+        app_order.append('auto_grid')
+
         # Then: All apps from APP_DEFINITIONS, with special handling for chrome
         for app_name in all_apps:
             if app_name == 'chrome':
@@ -219,12 +233,9 @@ class InteractiveMenu:
             menu_items = []
             
             # Terminal
-            term_config = self.config_manager.get_terminal_config()
-            term_toggle = term_config.get('toggle', 'X6')
-            term_enabled = term_config.get('enabled', True)
-            term_status = f"{term_toggle}" if term_enabled else "DISABLE"
-            menu_items.append(f"Terminal: {term_status}")
-            
+            menu_items.append(f"Terminal: {self._terminal_status()}")
+            menu_items.append(self._auto_grid_menu_label())
+
             # All apps from APP_DEFINITIONS, with special handling for chrome
             for app_name in all_apps:
                 if app_name == 'chrome':
@@ -299,13 +310,10 @@ class InteractiveMenu:
         """
         while True:
             # Refresh menu items with current status
-            term_config = self.config_manager.get_terminal_config()
             chrome_config = self.config_manager.get_app_config('chrome')
             antigravity_config = self.config_manager.get_app_config('antigravity')
 
-            term_toggle = term_config.get('toggle', 'X6')
-            term_enabled = term_config.get('enabled', True)
-            term_status = f"{term_toggle}" if term_enabled else "DISABLE"
+            term_status = self._terminal_status()
             chrome_enabled = chrome_config.get('enabled', True)
             chrome_status = "ON" if chrome_enabled else "OFF"
             antigravity_enabled = antigravity_config.get('enabled', True)
@@ -360,43 +368,49 @@ class InteractiveMenu:
             elif key == 'esc':
                 return -1
     
-    def _toggle_terminal(self):
-        """Toggle terminal configuration (X4 -> X6 -> X8 -> X12 -> DISABLE -> X4)"""
+    def _terminal_status(self):
+        """Displayed terminal toggle: the normalized preset, or DISABLE."""
         term_config = self.config_manager.get_terminal_config()
-        current_toggle = term_config.get('toggle', 'X6')
-        if current_toggle == 'X16':
-            current_toggle = 'X12'
-        toggle_sequence = ['X4', 'X6', 'X8', 'X12', 'DISABLE']
+        if not term_config.get('enabled', True):
+            return TOGGLE_DISABLE
+        return normalize_toggle(term_config.get('toggle', DEFAULT_TOGGLE))
 
-        try:
-            current_index = toggle_sequence.index(current_toggle)
-            next_index = (current_index + 1) % len(toggle_sequence)
-        except ValueError:
-            next_index = 1  # Default to X6
+    def _auto_grid_state_label(self):
+        auto_grid = self.config_manager.get_terminal_config().get('auto_grid', DEFAULT_AUTO_GRID)
+        return launcher_text.get(GridI18nKeys.STATE_ON if auto_grid else GridI18nKeys.STATE_OFF)
 
-        next_toggle = toggle_sequence[next_index]
-        enabled = next_toggle != 'DISABLE'
+    def _auto_grid_menu_label(self):
+        return launcher_text.get(GridI18nKeys.MENU_AUTO_GRID,
+                                 profiles=describe_auto_profiles(),
+                                 state=self._auto_grid_state_label())
 
-        self.config_manager.set('terminal.toggle', next_toggle)
-        self.config_manager.set('terminal.enabled', enabled)
-
-        # Update grid based on toggle
-        if next_toggle == 'X4':
-            self.config_manager.set('terminal.columns', 2)
-            self.config_manager.set('terminal.rows', 2)
-        elif next_toggle == 'X6':
-            self.config_manager.set('terminal.columns', 3)
-            self.config_manager.set('terminal.rows', 2)
-        elif next_toggle == 'X8':
-            self.config_manager.set('terminal.columns', 4)
-            self.config_manager.set('terminal.rows', 2)
-        elif next_toggle == 'X12':
-            self.config_manager.set('terminal.columns', 4)
-            self.config_manager.set('terminal.rows', 3)
-
-        # Save immediately
+    def _toggle_auto_grid(self):
+        """Toggle resolution-based terminal grid on/off"""
+        auto_grid = self.config_manager.get_terminal_config().get('auto_grid', DEFAULT_AUTO_GRID)
+        self.config_manager.set('terminal.auto_grid', not auto_grid)
         self.config_manager.save_config()
-    
+
+    def _apply_terminal_toggle(self, toggle):
+        """Store a toggle preset with its grid (DISABLE keeps columns/rows) and save"""
+        self.config_manager.set('terminal.toggle', toggle)
+        self.config_manager.set('terminal.enabled', toggle != TOGGLE_DISABLE)
+        grid = TERMINAL_TOGGLE_GRIDS.get(toggle)
+        if grid is not None:
+            self.config_manager.set('terminal.columns', grid[0])
+            self.config_manager.set('terminal.rows', grid[1])
+        self.config_manager.save_config()
+
+    def _toggle_item_label(self, index, toggle):
+        grid = TERMINAL_TOGGLE_GRIDS.get(toggle)
+        if grid is None:
+            return launcher_text.get(GridI18nKeys.MENU_TOGGLE_DISABLE_ITEM, index=index, toggle=toggle)
+        return launcher_text.get(GridI18nKeys.MENU_TOGGLE_ITEM, index=index, toggle=toggle,
+                                 count=grid[0] * grid[1])
+
+    def _toggle_terminal(self):
+        """Advance the terminal toggle through TERMINAL_TOGGLE_SEQUENCE (wraps after DISABLE)"""
+        self._apply_terminal_toggle(next_terminal_toggle(self._terminal_status()))
+
     def _toggle_chrome(self):
         """Toggle Chrome enabled/disabled"""
         chrome_config = self.config_manager.get_app_config('chrome')
@@ -459,60 +473,42 @@ class InteractiveMenu:
         
         ColorPrint.plain(f"Current settings:")
         ColorPrint.plain(f"  Enabled: {term_config.get('enabled', True)}")
-        toggle_label = term_config.get('toggle', 'X6')
-        if toggle_label == 'X16':
-            toggle_label = 'X12'
-        ColorPrint.plain(f"  Toggle: {toggle_label} (X4/X6/X8/X12/DISABLE)")
-        ColorPrint.plain(f"  Columns: {term_config.get('columns', 3)}")
-        ColorPrint.plain(f"  Rows: {term_config.get('rows', 2)}")
+        ColorPrint.plain(launcher_text.get(GridI18nKeys.MENU_CURRENT_TOGGLE,
+                                           toggle=normalize_toggle(term_config.get('toggle', DEFAULT_TOGGLE)),
+                                           choices=TERMINAL_TOGGLE_CHOICES))
+        ColorPrint.plain(f"  Columns: {term_config.get('columns', DEFAULT_GRID_COLUMNS)}")
+        ColorPrint.plain(f"  Rows: {term_config.get('rows', DEFAULT_GRID_ROWS)}")
+        ColorPrint.plain(launcher_text.get(GridI18nKeys.MENU_CURRENT_AUTO_GRID,
+                                           profiles=describe_auto_profiles(),
+                                           state=self._auto_grid_state_label()))
         ColorPrint.plain("\nOptions:")
-        
+
         menu_items = [
-            "1. Toggle Terminal (X4/X6/X8/X12/DISABLE)",
+            launcher_text.get(GridI18nKeys.MENU_TOGGLE_ENTRY, choices=TERMINAL_TOGGLE_CHOICES),
             "2. Set Grid Layout (Columns x Rows)",
             "0. Back"
         ]
-        
+
         selected = self.show_menu_with_selection("Terminal Configuration", menu_items, 0)
-        
+
         if selected == -1 or selected == 2:
             return
-        
+
         if selected == 0:
             # Toggle Terminal
-            toggle_items = [
-                "1. X4 (4 windows)",
-                "2. X6 (6 windows)",
-                "3. X8 (8 windows)",
-                "4. X12 (12 windows)",
-                "5. DISABLE",
-                "0. Back"
-            ]
-            
-            toggle_selected = self.show_menu_with_selection("Toggle Terminal", toggle_items, 1)
-            
-            if toggle_selected >= 0 and toggle_selected < 5:
-                toggle_map = ['X4', 'X6', 'X8', 'X12', 'DISABLE']
-                toggle_value = toggle_map[toggle_selected]
-                
-                self.config_manager.set('terminal.toggle', toggle_value)
-                self.config_manager.set('terminal.enabled', toggle_value != 'DISABLE')
-                
-                # Update grid based on toggle
-                if toggle_value == 'X4':
-                    self.config_manager.set('terminal.columns', 2)
-                    self.config_manager.set('terminal.rows', 2)
-                elif toggle_value == 'X6':
-                    self.config_manager.set('terminal.columns', 3)
-                    self.config_manager.set('terminal.rows', 2)
-                elif toggle_value == 'X8':
-                    self.config_manager.set('terminal.columns', 4)
-                    self.config_manager.set('terminal.rows', 2)
-                elif toggle_value == 'X12':
-                    self.config_manager.set('terminal.columns', 4)
-                    self.config_manager.set('terminal.rows', 3)
-                
-                self.config_manager.save_config()
+            toggle_items = [self._toggle_item_label(index, toggle)
+                            for index, toggle in enumerate(TERMINAL_TOGGLE_SEQUENCE, start=1)]
+            toggle_items.append("0. Back")
+            current_toggle = self._terminal_status()
+            if current_toggle not in TERMINAL_TOGGLE_SEQUENCE:
+                current_toggle = DEFAULT_TOGGLE
+
+            toggle_selected = self.show_menu_with_selection(
+                "Toggle Terminal", toggle_items, TERMINAL_TOGGLE_SEQUENCE.index(current_toggle))
+
+            if 0 <= toggle_selected < len(TERMINAL_TOGGLE_SEQUENCE):
+                toggle_value = TERMINAL_TOGGLE_SEQUENCE[toggle_selected]
+                self._apply_terminal_toggle(toggle_value)
                 ColorPrint.plain(f"\nUpdated: Toggle set to {toggle_value}")
                 input("\nPress Enter to continue...")
         

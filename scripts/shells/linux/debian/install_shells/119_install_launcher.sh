@@ -10,13 +10,15 @@ SCRIPT_INDEX="119"
 # Invoked sequentially by prepare_pycore_prerequisites.sh (pyservice; scripts never call siblings).
 # Installs the system tools the launcher needs:
 #
-#     wmctrl   -> primary window positioner (preferred over xdotool)
-#     xdotool  -> fallback window positioner (linux_terminal_launcher: wmctrl > xdotool)
+#     wmctrl   -> window tool used by shell launch helpers
+#     xdotool  -> window tool used by shell launch helpers
+#     xclip    -> CLIPBOARD/PRIMARY owner for Terminal Control paste on X11/Xwayland
+#     wl-clipboard -> clipboard for pure Wayland sessions without Xwayland
 #     tmux     -> single-window paned-grid fallback when no X11 positioner is usable
 #     xterm    -> universal last-resort emulator (only installed when NONE of
 #                 xfce4-terminal/gnome-terminal/konsole/qterminal/xterm is present)
 #
-# Debian/Ubuntu/Kali only (apt). The launcher target needs a graphical session
+# Debian 13 / Ubuntu 26.04 / Kali (apt). The launcher target needs a graphical session
 # ($DISPLAY / Wayland); these tools are still safe to pre-install on a box that
 # gains a display later.
 #
@@ -71,6 +73,17 @@ for tool in wmctrl xdotool tmux; do
         echo "[OK] $tool already present; skipping."
     else
         NEED+=("$tool")
+    fi
+done
+
+# Clipboard tools used by Terminal Control (pycore clipboard_text): binary:package.
+for map in "xclip:xclip" "wl-copy:wl-clipboard"; do
+    clip_bin="${map%%:*}"
+    clip_pkg="${map##*:}"
+    if command -v "$clip_bin" >/dev/null 2>&1 && [[ "$FORCE" -eq 0 ]]; then
+        echo "[OK] $clip_bin already present; skipping."
+    else
+        NEED+=("$clip_pkg")
     fi
 done
 

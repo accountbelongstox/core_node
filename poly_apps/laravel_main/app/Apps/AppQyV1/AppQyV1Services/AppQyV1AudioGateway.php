@@ -56,6 +56,12 @@ final class AppQyV1AudioGateway
         );
     }
 
+    /** @param array<int,array{text:string,language:string}> $items */
+    public function resolveSentencesPassive(array $items): array
+    {
+        return $this->sentenceGateway()->resolvePassiveBatch($items);
+    }
+
     public function requestSentenceBatch(array $items): array
     {
         return $this->sentenceGateway()->moveToHeadBatch($items);

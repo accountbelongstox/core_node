@@ -1,60 +1,55 @@
 /**
- * Media Image Worker — book and poster imagery via Google/Bing search.
+ * Media Image Worker — book, poster and library-cover imagery via Google/Bing search.
  *
  * Fulfils:
- *   - GlobalTask `poster` on dedicated `remote_poster` lane
+ *   - GlobalTask `poster` and `library_cover_search` on the dedicated `remote_poster` lane
  *   - Laravel assist pool `poster` items via /assist/claim + /assist/submit
- *     (cover submits share the assist-cover pipeline with the Gemini worker)
+ *     (all image submits share the image pipeline with the Gemini worker)
  *
- * Replaces pycore TMDB/OMDB + AI cover generation (delegated to mcp-chrome).
+ * Replaces pycore TMDB/OMDB poster lookups (delegated to mcp-chrome).
  */
 
-import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
-import { SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import type { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { AssistPollingWorkerBase } from './task-center/AssistPollingWorkerBase';
+import { submitAssistImage } from './assist-cover-pipeline';
 import { LANES } from '@/utils/task-center-lanes';
 import { logger } from '@/utils/logger';
-import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import {
+  LIBRARY_COVER_TASK_TYPES,
+  TASK_CAPABILITY_BY_ROLE,
+  TASK_TYPE_KEYS,
+  type LibraryCoverTaskPayload,
+} from '@/utils/queue-center-contract';
+import {
+  buildLibraryCoverQuery,
   buildPosterQuery,
   resolvePosterImageFromSearch,
 } from '@/utils/media-image-search';
 import {
-  claimAssistItems,
   releaseAssistItem,
-  submitAssistPoster,
-  looksLikeImageBase64,
   type AssistClaimItem,
+  type AssistItemType,
 } from '@/services/assist-image-api';
-import { finalizeAssistSubmit } from './assist-cover-pipeline';
 
 const LOG = 'Media Image';
 const ASSIST_CLAIMER = 'mcp-chrome-media-image';
+const RELEASE_REASON_PREFIX = 'mcp-chrome';
+const SOURCE_ID_MAX_LENGTH = 512;
 
-class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unknown>> {
-  protected readonly assistStats = {
-    postersSubmitted: 0,
-    assistFailed: 0,
-    lastAssistRun: null as number | null,
-    lastAssistError: null as string | null,
-    currentAssistItem: null as string | null,
-    currentAssistStage: 'idle',
-  };
+type PosterMediaType = 'book' | 'subtitle';
 
+class MediaImageWorkerService extends AssistPollingWorkerBase {
   protected get processorKey(): string {
     return 'media_image';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'media_image_worker_id_base';
-  }
 
   protected get capabilities(): WorkerCapability[] {
-    return [TASK_CAPABILITY_BY_ROLE.poster, TASK_CAPABILITY_BY_ROLE.image];
+    return [TASK_CAPABILITY_BY_ROLE.poster];
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return [LANES.REMOTE_POSTER, LANES.REMOTE_FAST];
+    return [LANES.REMOTE_POSTER];
   }
 
   protected get workerLabel(): string {
@@ -62,197 +57,116 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
   }
 
   protected get pullTaskTypes(): string[] {
-    return [TASK_TYPE_KEYS.poster];
+    return [TASK_TYPE_KEYS.poster, LIBRARY_COVER_TASK_TYPES.search];
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === TASK_TYPE_KEYS.poster;
+    return this.pullTaskTypes.includes(taskType);
   }
 
-  async start(config: SimpleWorkerConfig): Promise<void> {
-    await super.start({ ...config, pollWait: 0 });
-    this.startAssistPolling();
-    logger.info(LOG, 'Assist polling activated', {
-      apiUrl: config.apiUrl,
-      types: ['poster'],
-      intervalMs: this.assistPollIntervalMs,
-    });
+  protected get assistItemTypes(): AssistItemType[] {
+    return ['poster'];
   }
 
-  protected async executeAssistCycle(): Promise<void> {
-    if (!this.config?.apiUrl) return;
-    this.assistStats.lastAssistRun = Date.now();
-    this.assistStats.lastAssistError = null;
-    this.assistStats.currentAssistStage = 'claiming';
-    this.stats.lastRun = this.assistStats.lastAssistRun;
-    logger.debug(LOG, 'Assist claim cycle started', {
-      apiUrl: this.config.apiUrl,
-      types: ['poster'],
-      limit: 3,
-    });
-    try {
-      const items = await claimAssistItems(
-        this.config.apiUrl,
-        ['poster'],
-        ASSIST_CLAIMER,
-        3,
-      );
-      this.noteBackendSuccess();
-      if (!items.length) {
-        logger.debug(LOG, 'Assist claim returned no work');
-        return;
-      }
-      logger.info(LOG, `Assist claimed ${items.length} item(s)`, {
-        items: items.map((item) => ({
-          type: item.type,
-          mediaType: item.media_type || null,
-          id: item.id,
-          title: String(item.payload?.title || item.payload?.name || ''),
-        })),
-      });
-      for (const item of items) {
-        if (!this.getStatus().isRunning) break;
-        const itemKey = `${item.type}:${item.media_type || 'library'}:${item.id}`;
-        this.assistStats.currentAssistItem = itemKey;
-        this.assistStats.currentAssistStage = 'processing';
-        this.stats.currentTaskId = `assist:${itemKey}`;
-        try {
-          await this.processAssistItem(item);
-        } finally {
-          this.assistStats.currentAssistItem = null;
-          this.assistStats.currentAssistStage = 'idle';
-          this.stats.currentTaskId = null;
-        }
-        await this.delay(1200);
-      }
-    } catch (error: any) {
-      const message = error?.message || String(error);
-      this.noteBackendFailure(error);
-      this.assistStats.lastAssistError = message;
-      this.assistStats.currentAssistStage = 'failed';
-      logger.error(LOG, `Assist cycle failed: ${message}`, {
-        apiUrl: this.config.apiUrl,
-      });
-    } finally {
-      if (!this.assistStats.currentAssistItem && this.assistStats.currentAssistStage !== 'failed') {
-        this.assistStats.currentAssistStage = 'idle';
-      }
-    }
+  protected get assistClaimer(): string {
+    return ASSIST_CLAIMER;
   }
 
-  private async processAssistItem(item: AssistClaimItem): Promise<void> {
-    if (!this.config?.apiUrl) return;
-    const baseUrl = this.config.apiUrl;
-    const started = Date.now();
+  protected async processAssistItem(item: AssistClaimItem): Promise<void> {
+    const apiUrl = this.config?.apiUrl;
+    if (!apiUrl || item.type !== 'poster') return;
     const payload = item.payload || {};
-    logger.info(LOG, `Processing assist ${item.type}#${item.id}`, {
-      mediaType: item.media_type || null,
-      title: String(payload.title || payload.name || ''),
-    });
+    const mediaType: PosterMediaType = item.media_type === 'subtitle' ? 'subtitle' : 'book';
+    const title = String(payload.title || '').trim();
+    const query = this.posterQuery(mediaType, title, payload.year);
+    const startedAt = Date.now();
 
-    if (item.type === 'poster') {
-      const mediaType = (item.media_type === 'subtitle' ? 'subtitle' : 'book') as 'book' | 'subtitle';
-      const title = String(payload.title || '').trim();
-      const yearRaw = payload.year;
-      const year = yearRaw == null || yearRaw === '' ? null : Number(yearRaw);
-      const kind = mediaType === 'book' ? 'book' : 'movie';
-      const query = buildPosterQuery(title, Number.isFinite(year) ? year : null, kind);
-      this.assistStats.currentAssistStage = 'image_search';
-      logger.info(LOG, `Searching image for ${mediaType} poster#${item.id}`, { title, query });
-      const image = await resolvePosterImageFromSearch(query);
-      if (!image) {
-        this.assistStats.assistFailed += 1;
-        this.stats.failed += 1;
-        logger.warn(LOG, `No image found for ${mediaType} poster#${item.id}`, { title, query });
-        await releaseAssistItem(baseUrl, 'poster', item.id, 'mcp-chrome: no poster image found', {
-          media_type: mediaType,
-        });
-        return;
-      }
-      if (!looksLikeImageBase64(image.imageBase64)) {
-        // Same terminal-bytes guard as the cover pipeline.
-        this.assistStats.assistFailed += 1;
-        this.stats.failed += 1;
-        logger.warn(LOG, `Image validation failed for ${mediaType} poster#${item.id}`, {
-          provider: image.provider,
-          mime: image.mime,
-          sourceUrl: image.sourceUrl,
-        });
-        await releaseAssistItem(baseUrl, 'poster', item.id, 'mcp-chrome: poster image failed magic validation', {
-          media_type: mediaType,
-        });
-        return;
-      }
-      const extras = {
-        mime: image.mime,
-        provider: image.provider,
-        sourceId: image.sourceUrl.slice(0, 512),
-        latencyMs: Date.now() - started,
-      };
-      this.assistStats.currentAssistStage = 'submitting';
-      logger.debug(LOG, `Submitting ${mediaType} poster#${item.id}`, extras);
-      const result = await submitAssistPoster(baseUrl, mediaType, item.id, image.imageBase64, ASSIST_CLAIMER, extras);
-      const outcome = await finalizeAssistSubmit(baseUrl, result, {
-        onOk: () => {
-          logger.info(LOG, `Backend accepted ${mediaType} poster#${item.id}${result.already_done ? ' (already done)' : ''}`, {
-            status: result.status,
-            provider: image.provider,
-          });
-        },
-        release: () => releaseAssistItem(baseUrl, 'poster', item.id,
-          `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`, { media_type: mediaType }),
-        outboxPayload: {
-          type: 'poster', media_type: mediaType, id: item.id,
-          imageBase64: image.imageBase64, claimer: ASSIST_CLAIMER, extras,
-        },
+    this.setAssistStage('image_search');
+    logger.info(LOG, `Searching image for ${mediaType} poster#${item.id}`, { title, query });
+    const image = await resolvePosterImageFromSearch(query);
+    if (!image) {
+      this.noteAssistOutcome(false);
+      logger.warn(LOG, `No image found for ${mediaType} poster#${item.id}`, { title, query });
+      await releaseAssistItem(apiUrl, 'poster', item.id, `${RELEASE_REASON_PREFIX}: no poster image found`, {
+        media_type: mediaType,
       });
-      if (outcome === 'submitted') {
-        this.assistStats.postersSubmitted += 1;
-        this.stats.translated += 1;
-        this.assistStats.currentAssistStage = 'completed';
-      } else {
-        this.assistStats.assistFailed += 1;
-        this.stats.failed += 1;
-      }
+      return;
     }
+
+    this.setAssistStage('submitting');
+    const outcome = await submitAssistImage({
+      baseUrl: apiUrl,
+      item,
+      artifact: image,
+      claimer: ASSIST_CLAIMER,
+      startedAt,
+      releaseReasonPrefix: RELEASE_REASON_PREFIX,
+    });
+    this.noteAssistOutcome(outcome === 'submitted');
   }
 
   protected async executeTask(task: Task): Promise<void> {
-    const payload = (task.payload as Record<string, unknown>) || {};
-    const mediaType = payload.media_type === 'subtitle' ? 'subtitle' : 'book';
-    const title = String(payload.title || payload.name || '').trim();
-    const yearRaw = payload.year;
-    const year = yearRaw == null || yearRaw === '' ? null : Number(yearRaw);
-    const kind = mediaType === 'book' ? 'book' : 'movie';
-    const query = buildPosterQuery(title, Number.isFinite(year) ? year : null, kind);
+    if (task.task_type === LIBRARY_COVER_TASK_TYPES.search) {
+      await this.executeLibraryCoverSearch(task);
+      return;
+    }
+    await this.executePosterTask(task);
+  }
 
+  private async executePosterTask(task: Task): Promise<void> {
+    const payload = (task.payload as Record<string, unknown>) || {};
+    const mediaType: PosterMediaType = payload.media_type === 'subtitle' ? 'subtitle' : 'book';
+    const query = this.posterQuery(mediaType, String(payload.title || payload.name || '').trim(), payload.year);
     if (!query) {
       await this.submitResult(task.task_id, 'failed', undefined, { error: 'poster task missing title' });
       return;
     }
 
-    const started = Date.now();
+    const startedAt = Date.now();
     const image = await resolvePosterImageFromSearch(query);
-    if (!image) {
-      await this.submitResult(task.task_id, 'failed', undefined, { error: 'no poster image found via Google/Bing' });
+    await this.submitImageTaskResult(
+      task.task_id,
+      image,
+      startedAt,
+      'no poster image found via Google/Bing',
+      image
+        ? {
+          source_id: image.sourceUrl.slice(0, SOURCE_ID_MAX_LENGTH),
+          poster_url: image.sourceUrl,
+          image_url: image.sourceUrl,
+          media_type: mediaType,
+          query,
+        }
+        : {},
+    );
+  }
+
+  private async executeLibraryCoverSearch(task: Task): Promise<void> {
+    const payload = (task.payload || {}) as Partial<LibraryCoverTaskPayload>;
+    const query = String(payload.search_query || '').trim()
+      || buildLibraryCoverQuery(String(payload.name || ''), String(payload.category || ''));
+    if (!query) {
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: 'library cover task missing search_query and name',
+      });
       return;
     }
 
-    await this.submitResult(task.task_id, 'completed', {
-      image_base64: image.imageBase64,
-      poster_base64: image.imageBase64,
-      mime: image.mime,
-      provider: image.provider,
-      source_id: image.sourceUrl.slice(0, 512),
-      poster_url: image.sourceUrl,
-      image_url: image.sourceUrl,
-      media_type: mediaType,
-      query,
-      latency_ms: Date.now() - started,
-    });
-    logger.info(LOG, `Poster task ${task.task_id} completed (${mediaType})`);
+    const startedAt = Date.now();
+    logger.info(LOG, `Searching library cover#${payload.library_id ?? '?'}`, { query });
+    const image = await resolvePosterImageFromSearch(query);
+    await this.submitImageTaskResult(
+      task.task_id,
+      image,
+      startedAt,
+      'no library cover image found via Google/Bing',
+    );
   }
 
+  private posterQuery(mediaType: PosterMediaType, title: string, yearRaw: unknown): string {
+    const year = yearRaw == null || yearRaw === '' ? null : Number(yearRaw);
+    return buildPosterQuery(title, Number.isFinite(year) ? year : null, mediaType === 'book' ? 'book' : 'movie');
+  }
 }
 
 export const mediaImageWorkerService = new MediaImageWorkerService();

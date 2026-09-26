@@ -430,6 +430,10 @@ export interface AudioLaneTrackedItem {
   provider: string;
   error: string;
   settled_by: string;
+  /** Unix seconds: entered Part1 / generation began / reached done|failed. */
+  queued_at?: number | null;
+  started_at?: number | null;
+  finished_at?: number | null;
   updated_at: number;
 }
 

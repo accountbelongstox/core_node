@@ -10,6 +10,7 @@ final class DataSyncPeerClient
     public function normalizeAddress(string $input): string
     {
         $trimmedInput = trim($input);
+        $explicitScheme = preg_match('#^[a-z][a-z0-9+.-]*://#i', $trimmedInput) === 1;
         $rawIpv6 = !str_contains($trimmedInput, '://')
             && filter_var($trimmedInput, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
         $candidate = $rawIpv6
@@ -23,10 +24,12 @@ final class DataSyncPeerClient
 
         $scheme = strtolower((string) ($parts['scheme'] ?? 'http'));
         $host = trim((string) ($parts['host'] ?? ''), '[]');
-        // The managed endpoint dropdown entries already carry their full URL
-        // with port and pass through untouched. For typed input the default
-        // port is 9000 unless an explicit port is typed.
-        $port = (int) ($parts['port'] ?? DataSyncProtocol::DEFAULT_PORT);
+        // Bare hosts address the Laravel Main port directly; an explicit
+        // scheme without a port means that scheme's standard port (a
+        // reverse-proxied domain such as https://api.example.com).
+        $port = (int) ($parts['port'] ?? ($explicitScheme
+            ? ($scheme === 'https' ? 443 : 80)
+            : DataSyncProtocol::DEFAULT_PORT));
         $path = (string) ($parts['path'] ?? '');
 
         if (
@@ -64,8 +67,8 @@ final class DataSyncPeerClient
 
         try {
             $response = Http::acceptJson()
-                ->connectTimeout(5)
-                ->timeout(15)
+                ->connectTimeout(DataSyncProtocol::CONNECT_TIMEOUT_SECONDS)
+                ->timeout(20)
                 ->get($url);
         } catch (ConnectionException $exception) {
             return ['reachable' => false, 'error' => $exception->getMessage()];
@@ -115,7 +118,7 @@ final class DataSyncPeerClient
 
         $url = rtrim((string) ($session['target'] ?? ''), '/') . DataSyncProtocol::API_PREFIX . $path;
         $request = Http::acceptJson()
-            ->connectTimeout(5)
+            ->connectTimeout(DataSyncProtocol::CONNECT_TIMEOUT_SECONDS)
             ->timeout(DataSyncProtocol::REQUEST_TIMEOUT_SECONDS)
             ->retry([250, 500], throw: false);
 

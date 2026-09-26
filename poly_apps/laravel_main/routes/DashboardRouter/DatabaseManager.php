@@ -57,28 +57,33 @@ Route::prefix('dashboard/db-manager')->middleware('dashboard.auth')->group(funct
 
 Route::prefix('dashboard/db-manager/sync-peer')->group(function () {
     Route::get('/health', [DataSyncController::class, 'peerHealth']);
-    Route::post('/prepare', [DataSyncController::class, 'peerPrepare'])->middleware('throttle:5,1');
-    Route::post('/export-prepare', [DataSyncController::class, 'peerExportPrepare'])->middleware('throttle:5,1');
-    Route::middleware('throttle:600,1')->group(function () {
+    Route::post('/prepare', [DataSyncController::class, 'peerPrepare'])->middleware('throttle:10,1');
+    Route::post('/export-prepare', [DataSyncController::class, 'peerExportPrepare'])->middleware('throttle:10,1');
+    Route::middleware('throttle:6000,1')->group(function () {
+        // Push mode: the source uploads into this node's receiver session.
         Route::get('/sessions/{id}', [DataSyncController::class, 'peerStatus']);
-        Route::get('/sessions/{id}/resources/{key}/manifest', [DataSyncController::class, 'peerResourceManifest']);
+        Route::post('/sessions/{id}/cancel', [DataSyncController::class, 'peerCancel']);
         Route::get('/sessions/{id}/database-inventory', [DataSyncController::class, 'peerDatabaseInventory']);
+        Route::get('/sessions/{id}/database-counts', [DataSyncController::class, 'peerDatabaseCounts']);
         Route::post('/sessions/{id}/database-chunks', [DataSyncController::class, 'peerDatabaseChunk']);
         Route::post('/sessions/{id}/database-sequences', [DataSyncController::class, 'peerDatabaseSequence']);
         Route::post('/sessions/{id}/database-complete', [DataSyncController::class, 'peerDatabaseComplete']);
-        Route::post('/sessions/{id}/resource-chunks', [DataSyncController::class, 'peerResourceChunk']);
+        Route::get('/sessions/{id}/resources/{key}/manifest', [DataSyncController::class, 'peerResourceManifest']);
+        Route::post('/sessions/{id}/resource-file-batch', [DataSyncController::class, 'peerResourceFileBatch']);
         Route::post('/sessions/{id}/resource-file-chunks', [DataSyncController::class, 'peerResourceFileChunk']);
+        Route::post('/sessions/{id}/resource-chunks', [DataSyncController::class, 'peerResourceChunk']);
         Route::post('/sessions/{id}/finalize', [DataSyncController::class, 'peerFinalize']);
 
-        // Pull mode: the old server (exporter) serves packaged data so the
-        // externally unreachable new server (fetcher) can download it.
-        Route::get('/export-sessions/{id}', [DataSyncController::class, 'peerExportStatus']);
-        Route::get('/export-sessions/{id}/database-inventory', [DataSyncController::class, 'peerExportDatabaseInventory']);
+        // Pull mode: this node's exporter session serves an unreachable fetcher.
+        Route::get('/export-sessions/{id}', [DataSyncController::class, 'peerStatus']);
+        Route::post('/export-sessions/{id}/cancel', [DataSyncController::class, 'peerCancel']);
+        Route::get('/export-sessions/{id}/database-inventory', [DataSyncController::class, 'peerDatabaseInventory']);
         Route::get('/export-sessions/{id}/database-chunks', [DataSyncController::class, 'peerExportDatabaseChunk']);
-        Route::get('/export-sessions/{id}/resources/{key}/manifest', [DataSyncController::class, 'peerExportResourceManifest']);
+        Route::get('/export-sessions/{id}/resources/{key}/manifest', [DataSyncController::class, 'peerResourceManifest']);
+        Route::post('/export-sessions/{id}/resource-file-batch', [DataSyncController::class, 'peerExportResourceFileBatch']);
         Route::get('/export-sessions/{id}/resource-file-chunks', [DataSyncController::class, 'peerExportResourceFileChunk']);
         Route::post('/export-sessions/{id}/resource-archives', [DataSyncController::class, 'peerExportResourceArchive']);
         Route::get('/export-sessions/{id}/resource-archive-chunks', [DataSyncController::class, 'peerExportResourceArchiveChunk']);
-        Route::post('/export-sessions/{id}/finalize', [DataSyncController::class, 'peerExportFinalize']);
+        Route::post('/export-sessions/{id}/finalize', [DataSyncController::class, 'peerFinalize']);
     });
 });

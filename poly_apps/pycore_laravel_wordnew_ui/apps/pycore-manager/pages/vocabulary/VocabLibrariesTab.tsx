@@ -1,19 +1,30 @@
 /**
- * Libraries tab - vocabulary libraries by language, with cover-retry, delete,
+ * Libraries tab - vocabulary libraries by language, with cover tasks, delete,
  * and a paginated library-words detail modal. Loaded directly from Laravel.
  *
  * Params mirror AppQyV1.getLibraries (language/page/per_page) and
  * getLibraryWords (page/per_page).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Trash2, RefreshCw, BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { laravelApi } from '@/apps/pycore-manager/api';
-import type { VocabLibrary, VocabLibraryWordRow, VocabLibraryWordsResponse } from '@/apps/pycore-manager/api';
+import { useTranslation } from 'react-i18next';
+import { Loader2, Trash2, BookOpen, X, ChevronLeft, ChevronRight, Wand2, ScanSearch } from 'lucide-react';
+import {
+  laravelApi,
+  libraryCoverView,
+  pcLibraryCoverTaskModel,
+  useLibraryCoverTasks,
+} from '@/apps/pycore-manager/api';
+import type {
+  LibraryCoverMode,
+  LibraryCoverView,
+  VocabLibrary,
+  VocabLibraryWordRow,
+  VocabLibraryWordsResponse,
+} from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
 const L = {
   languagePh: 'english',
-  retryCover: 'Retry cover',
   openLib: 'Open',
   words: 'words',
   noCover: 'No cover',
@@ -45,13 +56,41 @@ function VocabCoverImage({ url, alt }: { url: string; alt: string }) {
     : <span ref={targetRef} className="w-full h-full flex items-center justify-center text-slate-600"><BookOpen className="w-8 h-8" /></span>;
 }
 
+function CoverTaskChip({ cover }: { cover: LibraryCoverView }) {
+  const { t } = useTranslation('pc');
+  if (cover.phase === 'queued' || cover.phase === 'processing' || cover.phase === 'failed') {
+    const label = cover.phase === 'processing' && cover.handler
+      ? t('vocabularyPage.libraries.coverStatus.processingBy', {
+        handler: t(`vocabularyPage.libraries.coverHandler.${cover.handler}`),
+      })
+      : t(`vocabularyPage.libraries.coverStatus.${cover.phase}`);
+    const tone = cover.phase === 'failed' ? 'bg-rose-500/80' : cover.phase === 'queued' ? 'bg-amber-500/80' : 'bg-sky-500/80';
+    return (
+      <span title={cover.taskError ?? undefined}
+        className={`absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded text-white ${tone}`}>
+        {label}
+      </span>
+    );
+  }
+  if (cover.coverStatus && cover.coverStatus !== 'ready') {
+    return (
+      <span title={cover.errorMessage ?? undefined}
+        className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/80 text-white">
+        {cover.coverStatus}
+      </span>
+    );
+  }
+  return null;
+}
+
 export default function VocabLibrariesTab() {
+  const { t } = useTranslation('pc');
+  const coverTasks = useLibraryCoverTasks(pcLibraryCoverTaskModel);
   const [language, setLanguage] = useState('english');
   const [libs, setLibs] = useState<VocabLibrary[]>([]);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState<Set<number>>(new Set());
   const [detail, setDetail] = useState<VocabLibrary | null>(null);
 
   const load = useCallback(async () => {
@@ -59,7 +98,9 @@ export default function VocabLibrariesTab() {
     setError(null);
     try {
       const r = await laravelApi.getVocabLibraries({ language, page: 1, per_page: 100 });
-      setLibs(toArray<VocabLibrary>(vp(r)));
+      const list = toArray<VocabLibrary>(vp(r));
+      setLibs(list);
+      pcLibraryCoverTaskModel.track(list);
       setOffline(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : VL.error;
@@ -72,15 +113,11 @@ export default function VocabLibrariesTab() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const retryCover = async (lib: VocabLibrary) => {
-    setRetrying((s) => new Set(s).add(lib.id));
+  const enqueueCover = async (lib: VocabLibrary, mode: LibraryCoverMode) => {
     try {
-      await laravelApi.retryVocabCover({ library_id: lib.id });
-      await load();
+      await pcLibraryCoverTaskModel.enqueue([lib.id], mode);
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
-    } finally {
-      setRetrying((s) => { const n = new Set(s); n.delete(lib.id); return n; });
     }
   };
 
@@ -116,36 +153,40 @@ export default function VocabLibrariesTab() {
         <p className="py-8 text-center text-slate-500">{L.empty}</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {libs.map((lib) => (
-            <div key={lib.id} className="rounded-lg border border-slate-700 bg-slate-800/40 overflow-hidden">
-              <button onClick={() => setDetail(lib)} className="block w-full aspect-[3/4] bg-slate-900 relative">
-                {lib.cover_url ? (
-                  <VocabCoverImage url={lib.cover_url} alt={lib.name} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-600">
-                    <BookOpen className="w-8 h-8" />
+          {libs.map((lib) => {
+            const cover = libraryCoverView(lib, coverTasks.entries[lib.id]);
+            return (
+              <div key={lib.id} className="rounded-lg border border-slate-700 bg-slate-800/40 overflow-hidden">
+                <button onClick={() => setDetail(lib)} className="block w-full aspect-[3/4] bg-slate-900 relative">
+                  {cover.imageUrl ? (
+                    <VocabCoverImage url={cover.imageUrl} alt={lib.name} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-600">
+                      <BookOpen className="w-8 h-8" />
+                    </div>
+                  )}
+                  <CoverTaskChip cover={cover} />
+                </button>
+                <div className="p-2 space-y-1">
+                  <div className="text-sm font-medium text-slate-100 truncate">{lib.name}</div>
+                  <div className="text-xs text-slate-400">{humanInt(lib.word_count)} {L.words}</div>
+                  <div className="flex items-center gap-1 pt-1">
+                    <button onClick={() => setDetail(lib)} title={L.openLib}
+                      className="flex-1 px-2 py-1 rounded text-xs bg-slate-700/50 text-slate-200 hover:bg-slate-700">{L.openLib}</button>
+                    <IconBtn title={t('vocabularyPage.libraries.regenerateCover')}
+                      onClick={() => void enqueueCover(lib, 'generate')} disabled={cover.active}>
+                      {cover.active ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    </IconBtn>
+                    <IconBtn title={t('vocabularyPage.libraries.researchCover')}
+                      onClick={() => void enqueueCover(lib, 'search')} disabled={cover.active}>
+                      <ScanSearch className="w-3.5 h-3.5" />
+                    </IconBtn>
+                    <IconBtn title={VL.delete} onClick={() => deleteLib(lib)} danger><Trash2 className="w-3.5 h-3.5" /></IconBtn>
                   </div>
-                )}
-                {lib.cover_status && lib.cover_status !== 'completed' && (
-                  <span className="absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/80 text-white">
-                    {lib.cover_status}
-                  </span>
-                )}
-              </button>
-              <div className="p-2 space-y-1">
-                <div className="text-sm font-medium text-slate-100 truncate">{lib.name}</div>
-                <div className="text-xs text-slate-400">{humanInt(lib.word_count)} {L.words}</div>
-                <div className="flex items-center gap-1 pt-1">
-                  <button onClick={() => setDetail(lib)} title={L.openLib}
-                    className="flex-1 px-2 py-1 rounded text-xs bg-slate-700/50 text-slate-200 hover:bg-slate-700">{L.openLib}</button>
-                  <IconBtn title={L.retryCover} onClick={() => retryCover(lib)} disabled={retrying.has(lib.id)}>
-                    {retrying.has(lib.id) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                  </IconBtn>
-                  <IconBtn title={VL.delete} onClick={() => deleteLib(lib)} danger><Trash2 className="w-3.5 h-3.5" /></IconBtn>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

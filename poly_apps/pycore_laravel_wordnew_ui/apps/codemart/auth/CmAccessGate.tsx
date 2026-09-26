@@ -1,35 +1,15 @@
-import React, { useEffect } from 'react';
-import { ArrowLeft, LockKeyhole } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthSession } from '../../../core/auth/useAuthSession';
-import { useTranslation } from '../../../core/i18n/UiI18n';
+import { cmLoginHref } from './cmAuthSession';
 
+/** Signed-out visitors go to the CodeMart sign-in page with the requested path preserved. */
 export const CmAccessGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { t } = useTranslation('cm');
   const authenticated = useAuthSession();
-
-  useEffect(() => {
-    if (!authenticated) {
-      requestAuthLogin({ source: 'codemart', reason: 'protected-view' });
-    }
-  }, [authenticated]);
+  const location = useLocation();
 
   if (authenticated) return <>{children}</>;
-
-  return (
-    <main className="cm-access-gate" data-end="codemart">
-      <section className="cm-access-gate__card">
-        <span className="cm-access-gate__icon" aria-hidden="true"><LockKeyhole /></span>
-        <h1>{t('common.signInRequired')}</h1>
-        <p>{t('common.signInRequiredDescription')}</p>
-        <button type="button" onClick={() => requestAuthLogin({ source: 'codemart', reason: 'protected-view' })}>
-          {t('common.signIn')}
-        </button>
-        <Link to="/codemart"><ArrowLeft aria-hidden="true" /> {t('common.backHome')}</Link>
-      </section>
-    </main>
-  );
+  return <Navigate to={cmLoginHref(`${location.pathname}${location.search}${location.hash}`)} replace />;
 };
 
 export default CmAccessGate;

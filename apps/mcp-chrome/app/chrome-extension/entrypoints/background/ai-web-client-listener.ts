@@ -20,6 +20,7 @@ import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { logger } from '@/utils/logger';
 import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
+import { resolveApiBase } from '@/services/ApiManager';
 
 const LOG = 'AI-Web Listener';
 
@@ -80,10 +81,7 @@ async function handleMessage(
     }
 
     case 'start': {
-      const apiUrl = (message.apiUrl || '').trim();
-      if (!apiUrl) {
-        return { success: false, error: 'apiUrl required' };
-      }
+      const apiUrl = (message.apiUrl || '').trim() || await resolveApiBase();
       await promptTranslateWebWorkerService.start({
         apiUrl,
         workerName: 'MCP Chrome Prompt-Translate Web Worker',

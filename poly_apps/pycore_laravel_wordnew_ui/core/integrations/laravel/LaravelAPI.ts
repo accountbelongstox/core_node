@@ -10,7 +10,11 @@ import { laravelRelayApi } from './LaravelRelayAPI';
 import { MediaQueryAPI } from './transport/MediaQueryAPI';
 import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from './transport/ApiContract';
 import { unwrapLaravelData } from './transport/LaravelEnvelope';
-import { APPQYV1_API_BASE, APPQYV1_AI_TOOLS_ROUTES } from '../../contracts/AppQyV1AiToolsContract';
+import {
+  APPQYV1_API_BASE,
+  APPQYV1_AI_TOOLS_ROUTES,
+  APPQYV1_LIBRARY_COVER_ROUTES,
+} from '../../contracts/AppQyV1AiToolsContract';
 import type { BackendApiEndpoint } from '@/core/integrations/laravel/LaravelEndpoints';
 import {
   addCustomEndpoint,
@@ -41,6 +45,9 @@ import type {
   LaravelTranslationStackResult,
   LaravelVocabTranslateRequest,
   LaravelVocabTtsGenerateRequest,
+  LibraryCoverEnqueueRequest,
+  LibraryCoverEnqueueResult,
+  LibraryCoverTasksResult,
   RelayHubToken,
 } from './LaravelTypes';
 export type {
@@ -124,6 +131,7 @@ const ROUTES = {
   assistCoverRetry: '/api/app_qy_v1/assist/cover/retry',
   assistPosterPriority: '/api/app_qy_v1/assist/poster/priority',
   libraries: '/api/app_qy_v1/vocabulary/libraries',
+  libraryCoverTasks: APPQYV1_API_BASE + APPQYV1_LIBRARY_COVER_ROUTES.tasks,
   library: (id: number): string => `/api/app_qy_v1/learning/libraries/${encodeURIComponent(id)}`,
   libraryWords: (id: number): string => `/api/app_qy_v1/vocabulary/libraries/${encodeURIComponent(id)}/words`,
   statistics: '/api/app_qy_v1/vocabulary/statistics',
@@ -383,7 +391,10 @@ const laravelMethods = {
     requestLaravel<AssistOverviewResponse>('GET', ROUTES.assistOverview),
   getQueueOverviewItems: (params: Record<string, unknown>): Promise<AssistCategoryItemsResponse> =>
     requestLaravel<AssistCategoryItemsResponse>('GET', ROUTES.assistOverviewItems, params),
-  retryVocabCover: (payload: Record<string, unknown>) => requestLaravel<any>('POST', ROUTES.assistCoverRetry, payload),
+  enqueueLibraryCoverTasks: async (payload: LibraryCoverEnqueueRequest): Promise<LibraryCoverEnqueueResult> =>
+    unwrapData<LibraryCoverEnqueueResult>(await requestLaravel<any>('POST', ROUTES.libraryCoverTasks, payload)),
+  getLibraryCoverTasks: async (ids: number[]): Promise<LibraryCoverTasksResult> =>
+    unwrapData<LibraryCoverTasksResult>(await requestLaravel<any>('GET', ROUTES.libraryCoverTasks, { ids: ids.join(',') })),
   getVocabLibraries: (params: Record<string, unknown>) => requestLaravel<any>('GET', ROUTES.libraries, params),
   getVocabResourceUrl: resourceUrl,
   getVocabLibraryWords: (libraryId: number, params: Record<string, unknown>) =>

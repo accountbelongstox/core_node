@@ -18,7 +18,8 @@ import {
   createAppRouteElements,
   type AppRouteElementDefinition,
 } from '../../shared/routing/AppRouteElements';
-import { PC_PAGES } from './pcPages';
+import { PC_PAGES, PC_LEGACY_TAB_REDIRECTS } from './pcPages';
+import { PcLegacyTabRedirect } from './components/PcLegacyTabRedirect';
 import { PcCloudClipboardRedirect } from './components/PcCloudClipboardRedirect';
 import { CLOUD_CLIPBOARD_PAGE_SLUG } from '../../shared/cloud-clipboard/CloudClipboardNavigation';
 
@@ -34,8 +35,13 @@ const wrap = (node: React.ReactNode) => <Suspense fallback={<Fallback />}>{node}
 // behind everything else instead of loading in parallel.
 void import('./pages/PcAgentHistoryPage');
 
+// Pages that absorbed or lost a former `?tab=` sub-tab redirect those links
+// (PC_LEGACY_TAB_REDIRECTS) before rendering.
 const pcPageRoutes = createAppRouteElements(PC_PAGES.flatMap((p) => {
-  const element = wrap(<p.Component />);
+  const page = <p.Component />;
+  const element = wrap(PC_LEGACY_TAB_REDIRECTS.some((entry) => entry.page === p.id)
+    ? <PcLegacyTabRedirect pageId={p.id}>{page}</PcLegacyTabRedirect>
+    : page);
   const routes: AppRouteElementDefinition[] = [{ key: p.id, path: p.id, element }];
   if (p.index) routes.unshift({ key: `${p.id}-index`, index: true, element });
   return routes;

@@ -9,10 +9,9 @@ target is already running and skip when it is. Terminal counting mirrors
 
 import platform
 import re
-import socket
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
@@ -20,6 +19,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
 from pycore.pyfoundations.process_manager import ProcessManager
+from pycore.pyfoundations.system_service_state import tcp_port_open
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.common.x11_display import x11_display
 from pycore.pyutils.launcher.app_finder import AppFinder
@@ -41,6 +41,9 @@ def resolve_process_names(app_name: str, app_finder: 'AppFinder') -> List[str]:
 
     if app_name in ('chrome', 'edge', 'chrome_beta'):
         return list(app_finder.CHROME_EXE_NAMES)
+
+    if app_name in app_finder._WINDOWS_NAME_MATCHED_APPS:
+        return app_finder.windows_text_editor_process_names()
 
     app_def = app_finder.APP_DEFINITIONS.get(app_name, {})
     names = list(app_def.get('names', []))
@@ -81,6 +84,9 @@ def resolve_launch_path(
                 app_path = str(cached_path)
         if not app_path:
             app_path = app_finder.find_chrome_by_version('beta')
+    elif app_name == 'texteditor':
+        # The live system default wins over app_cache.json (see find_text_editor).
+        app_path = app_finder.find_text_editor()
     elif app_name == 'edge':
         # Linux: the edge slot resolves through the Linux candidate chain
         # (microsoft-edge*, else the Chrome-family fallback); the portable-
@@ -186,6 +192,14 @@ def is_app_running(
     exe_path: Optional[str] = None,
 ) -> bool:
     """True when the target *app_name* (or *exe_path* when given) is already running."""
+    cmdline_matcher = app_finder._CMDLINE_PROCESS_MATCHERS.get(app_name)
+    if cmdline_matcher:
+        return is_cmdline_process_running(**cmdline_matcher)
+
+    if sys.platform == 'win32' and app_name in app_finder._WINDOWS_NAME_MATCHED_APPS:
+        return any(process_manager.is_process_running(name)
+                   for name in resolve_process_names(app_name, app_finder))
+
     if sys.platform != 'win32':
         # comm-name match first: the resolved launch path is a wrapper/symlink
         # (google-chrome -> .../google-chrome script) whose resolved target never
@@ -227,35 +241,49 @@ def compute_terminal_deficit(grid_columns: int, grid_rows: int, open_count: Opti
 
 def is_pycore_module_running() -> bool:
     """True when a pycore_module_caller singleton instance is already alive."""
-    if _is_tcp_port_open(HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT):
+    if tcp_port_open(HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT, _SOCKET_TIMEOUT_SEC):
         return True
     return _pycore_module_process_running()
 
 
-def _is_tcp_port_open(host: str, port: int, timeout: float = _SOCKET_TIMEOUT_SEC) -> bool:
-    """Return True when *host*:*port* accepts a TCP connection."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(timeout)
-    try:
-        sock.connect((host, port))
-        return True
-    except OSError:
-        return False
-    finally:
-        sock.close()
-
-
 def _pycore_module_process_running() -> bool:
     """Fallback: locate pycore_module_caller in a Python process command line."""
+    return is_cmdline_process_running(
+        arg_markers=(_PYCORE_MODULE_MARKER,),
+        owner_names=_PYTHON_PROC_NAMES,
+    )
 
+
+def is_cmdline_process_running(
+    arg_markers: Iterable[str] = (),
+    exe_basenames: Iterable[str] = (),
+    process_names: Iterable[str] = (),
+    owner_names: Iterable[str] = (),
+) -> bool:
+    """True when any process (any user) matches by name, argv[0] basename or argv marker.
+
+    Names compare case-insensitively; argv is compared with '/' separators so
+    one marker covers Windows and POSIX paths. owner_names limits the argv
+    checks to processes with those names. Processes whose command line is not
+    readable (other users on Windows, zombies) only match by name.
+    """
     psutil = get_third_package_psutil()
-    marker = _PYCORE_MODULE_MARKER
-    for proc in psutil.process_iter(['name']):
+    markers = tuple(arg_markers)
+    basenames = {name.lower() for name in exe_basenames}
+    wanted_names = {name.lower() for name in process_names}
+    owners = {name.lower() for name in owner_names}
+    for proc in psutil.process_iter(['name', 'cmdline']):
         name = (proc.info.get('name') or '').lower()
-        if name not in _PYTHON_PROC_NAMES:
+        if name in wanted_names:
+            return True
+        if owners and name not in owners:
             continue
-        cmdline = proc.cmdline()
-        if any(marker in part for part in cmdline):
+        cmdline = [part.replace('\\', '/') for part in (proc.info.get('cmdline') or [])]
+        if not cmdline:
+            continue
+        if cmdline[0].rsplit('/', 1)[-1].lower() in basenames:
+            return True
+        if any(marker in part for part in cmdline for marker in markers):
             return True
     return False
 

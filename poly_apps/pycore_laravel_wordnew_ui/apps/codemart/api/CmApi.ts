@@ -3,41 +3,58 @@ import {
   createLaravelModuleConfig,
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
+import { cmHandleUnauthorized } from '../auth/cmAuthSession';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { setAuthToken } from '../../../core/auth/AuthSession';
 import type {
-  CmAdminDeposit,
-  CmAdminKycItem,
-  CmAdminOverview,
-  CmAdminRefund,
-  CmAdminUser,
   CmAiAnalysis,
   CmArchitectEligibility,
   CmArchitectTasks,
+  CmAttachment,
   CmBootstrap,
+  CmDepositBankInfo,
+  CmDepositCreateResult,
   CmDepositInfo,
+  CmDepositRecord,
   CmEstimateInput,
   CmEstimateResult,
+  CmFundResult,
+  CmInvoice,
+  CmListPage,
+  CmMilestone,
   CmNotification,
   CmPage,
+  CmPagination,
   CmPayment,
   CmProfileResponse,
   CmProject,
+  CmProjectAnalysis,
   CmProjectDetail,
   CmPublicHomeData,
   CmPublicHomeLoadResult,
   CmPublicTestimonialData,
+  CmRefund,
   CmRegisterPayload,
   CmRegisterResult,
+  CmRegistrationStatus,
   CmReviewerApplicationStart,
   CmReviewerTestResult,
   CmReviewSubmission,
+  CmRoleRequestResult,
+  CmSubmission,
+  CmSubmissionReviewResult,
   CmTask,
+  CmTaskComment,
+  CmTaskDetail,
+  CmTestimonialPayload,
   CmWallet,
   CmWalletTransaction,
+  CmWithdrawal,
 } from './CmApiTypes';
+import { cmFileNameFromDisposition, cmSaveBlob } from './cmDownload';
 
 const PUBLIC_HOME_CACHE_TTL_MS = 60_000;
+const IDEMPOTENCY_HEADER = 'Idempotency-Key';
 
 function asNullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -81,7 +98,7 @@ function normalizePublicHome(value: unknown): CmPublicHomeData | null {
 
 export class CmApi extends BaseAPI {
   constructor() {
-    super(createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1));
+    super({ ...createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1), onUnauthorized: cmHandleUnauthorized });
   }
 
   async getPublicHome(): Promise<CmPublicHomeLoadResult> {
@@ -115,6 +132,43 @@ export class CmApi extends BaseAPI {
     return response;
   }
 
+  private postIdempotent<T>(url: string, data: unknown, idempotencyKey: string): Promise<APIResponse<T>> {
+    return this.request<T>({ url, method: 'POST', data, headers: { [IDEMPOTENCY_HEADER]: idempotencyKey } });
+  }
+
+  private postMultipart<T>(url: string, data: FormData): Promise<APIResponse<T>> {
+    return this.request<T>({ url, method: 'POST', data });
+  }
+
+  /** Authenticated blob download saved through the browser; failures keep the server error body. */
+  async downloadFile(path: string, fallbackName: string): Promise<APIResponse<null>> {
+    let response: Response;
+    try {
+      response = await this.rawRequest(path, { method: 'GET' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'download_failed';
+      return { success: false, data: null, error: message, status: 0, isNetworkError: true };
+    }
+    if (!response.ok) {
+      let body: Record<string, unknown> | undefined;
+      try {
+        body = await response.json() as Record<string, unknown>;
+      } catch {
+        body = undefined;
+      }
+      return {
+        success: false,
+        data: null,
+        error: typeof body?.message === 'string' ? body.message : response.statusText,
+        status: response.status,
+        debugInfo: body,
+      };
+    }
+    const blob = await response.blob();
+    cmSaveBlob(blob, cmFileNameFromDisposition(response.headers.get('content-disposition')) ?? fallbackName);
+    return { success: true, data: null, error: null, status: response.status };
+  }
+
   async getBootstrap(): Promise<APIResponse<CmBootstrap>> {
     return this.get<CmBootstrap>('bootstrap');
   }
@@ -127,8 +181,16 @@ export class CmApi extends BaseAPI {
     return this.put<CmProfileResponse>('profile', payload);
   }
 
-  async getProjects(params?: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.get<unknown>('projects', params as Record<string, any>);
+  async requestRole(roleType: string): Promise<APIResponse<CmRoleRequestResult>> {
+    return this.post<CmRoleRequestResult>('roles/request', { role_type: roleType });
+  }
+
+  async submitTestimonial(payload: CmTestimonialPayload): Promise<APIResponse<{ id: number; status: string; project_id: number | null }>> {
+    return this.post('testimonials', payload);
+  }
+
+  async getProjects(params?: Record<string, unknown>): Promise<APIResponse<{ projects: CmProject[]; pagination: CmPagination }>> {
+    return this.get('projects', params as Record<string, any>);
   }
 
   async createProject(payload: Record<string, unknown>): Promise<APIResponse<CmProject>> {
@@ -139,44 +201,173 @@ export class CmApi extends BaseAPI {
     return this.get<CmProjectDetail>(`projects/${projectId}`);
   }
 
-  async publishProject(projectId: number): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`projects/${projectId}/publish`, {});
+  async updateProject(projectId: number, payload: Record<string, unknown>): Promise<APIResponse<CmProject>> {
+    return this.put<CmProject>(`projects/${projectId}`, payload);
   }
 
-  async browseMarketplace(params?: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.get<unknown>('marketplace/tasks', params as Record<string, any>);
+  async publishProject(projectId: number): Promise<APIResponse<CmProject>> {
+    return this.post<CmProject>(`projects/${projectId}/publish`, {});
+  }
+
+  async transitionProject(projectId: number, toStatus: string, reason: string): Promise<APIResponse<{ project: CmProject; from: string; to: string }>> {
+    return this.post(`projects/${projectId}/transition`, { to_status: toStatus, reason: reason || null });
+  }
+
+  async getProjectAnalysis(projectId: number): Promise<APIResponse<CmProjectAnalysis>> {
+    return this.get<CmProjectAnalysis>(`projects/${projectId}/analysis`);
+  }
+
+  async fundProject(projectId: number, idempotencyKey: string): Promise<APIResponse<CmFundResult>> {
+    return this.postIdempotent<CmFundResult>(`projects/${projectId}/fund`, {}, idempotencyKey);
+  }
+
+  async getProjectAttachments(projectId: number, page = 1): Promise<APIResponse<CmListPage<CmAttachment>>> {
+    return this.get(`projects/${projectId}/attachments`, { page });
+  }
+
+  async uploadProjectAttachment(projectId: number, file: File, onProgress: (percentage: number) => void): Promise<APIResponse<CmAttachment>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.uploadWithProgress<CmAttachment>(`projects/${projectId}/attachments`, formData, onProgress);
+  }
+
+  async downloadProjectAttachment(projectId: number, attachment: CmAttachment): Promise<APIResponse<null>> {
+    return this.downloadFile(
+      `projects/${projectId}/attachments/${attachment.id}/download`,
+      attachment.original_name ?? attachment.file_name,
+    );
+  }
+
+  async createMilestone(projectId: number, payload: Record<string, unknown>): Promise<APIResponse<CmMilestone>> {
+    return this.post<CmMilestone>(`projects/${projectId}/milestones`, payload);
+  }
+
+  async updateMilestone(milestoneId: number, payload: Record<string, unknown>): Promise<APIResponse<CmMilestone>> {
+    return this.put<CmMilestone>(`milestones/${milestoneId}`, payload);
+  }
+
+  async completeMilestone(milestoneId: number): Promise<APIResponse<CmMilestone>> {
+    return this.post<CmMilestone>(`milestones/${milestoneId}/complete`, {});
+  }
+
+  async createTask(payload: Record<string, unknown>): Promise<APIResponse<CmTask>> {
+    return this.post<CmTask>('tasks', payload);
+  }
+
+  async getTask(taskId: number): Promise<APIResponse<CmTaskDetail>> {
+    return this.get<CmTaskDetail>(`tasks/${taskId}`);
+  }
+
+  async transitionTask(taskId: number, toStatus: string, reason: string): Promise<APIResponse<{ task: CmTask; from: string; to: string }>> {
+    return this.post(`tasks/${taskId}/transition`, { to_status: toStatus, reason: reason || null });
+  }
+
+  async getTaskSubmissions(taskId: number, page = 1): Promise<APIResponse<CmListPage<CmSubmission>>> {
+    return this.get(`tasks/${taskId}/submissions`, { page });
+  }
+
+  async downloadSubmissionFile(submissionId: number, fileIndex: number, fallbackName: string): Promise<APIResponse<null>> {
+    return this.downloadFile(`submissions/${submissionId}/files/${fileIndex}/download`, fallbackName);
+  }
+
+  async submitTask(taskId: number, submissionNote: string, fileUrls: string[], uploads: File[]): Promise<APIResponse<CmSubmission>> {
+    const formData = new FormData();
+    if (submissionNote) formData.append('submission_note', submissionNote);
+    fileUrls.forEach((url) => formData.append('files[]', url));
+    uploads.forEach((file) => formData.append('uploads[]', file));
+    return this.postMultipart<CmSubmission>(`tasks/${taskId}/submit`, formData);
+  }
+
+  async addTaskComment(taskId: number, comment: string): Promise<APIResponse<CmTaskComment>> {
+    return this.post<CmTaskComment>(`tasks/${taskId}/comments`, { comment });
+  }
+
+  async reviewSubmission(submissionId: number, payload: Record<string, unknown>): Promise<APIResponse<CmSubmissionReviewResult>> {
+    return this.post<CmSubmissionReviewResult>(`submissions/${submissionId}/review`, payload);
+  }
+
+  async analyzeProject(projectId: number): Promise<APIResponse<{ analysis_id: number; status: string }>> {
+    return this.post(`ai-analysis/projects/${projectId}/analyze`, {});
+  }
+
+  async getAnalysis(analysisId: number): Promise<APIResponse<CmAiAnalysis>> {
+    return this.get<CmAiAnalysis>(`ai-analysis/${analysisId}`);
+  }
+
+  async acceptAnalysis(analysisId: number): Promise<APIResponse<{ project_status: string; funding_amount: string }>> {
+    return this.post(`ai-analysis/${analysisId}/accept`, {});
+  }
+
+  async requestAnalysisRevision(analysisId: number, revisionNotes: string): Promise<APIResponse<unknown>> {
+    return this.post<unknown>(`ai-analysis/${analysisId}/revision`, { revision_notes: revisionNotes });
+  }
+
+  async browseMarketplace(params?: Record<string, unknown>): Promise<APIResponse<{ tasks: CmTask[]; pagination: CmPagination }>> {
+    return this.get('marketplace/tasks', params as Record<string, any>);
   }
 
   async acceptTask(taskId: number): Promise<APIResponse<unknown>> {
     return this.post<unknown>(`marketplace/tasks/${taskId}/accept`, {});
   }
 
-  async getMyTasks(): Promise<APIResponse<unknown>> {
-    return this.get<unknown>('marketplace/my-tasks');
+  async getMyTasks(page = 1): Promise<APIResponse<{ my_tasks: CmTask[]; pagination: CmPagination }>> {
+    return this.get('marketplace/my-tasks', { page });
   }
 
   async getWallet(): Promise<APIResponse<CmWallet>> {
     return this.get<CmWallet>('wallet');
   }
 
-  async getWalletTransactions(params?: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.get<unknown>('wallet/transactions', params as Record<string, any>);
+  async getWalletTransactions(page = 1): Promise<APIResponse<CmListPage<CmWalletTransaction>>> {
+    return this.get('wallet/transactions', { page });
   }
 
   async getDepositInfo(): Promise<APIResponse<CmDepositInfo>> {
     return this.get<CmDepositInfo>('deposits/info');
   }
 
-  async createDeposit(amount: number, paymentMethod: string): Promise<APIResponse<unknown>> {
-    return this.post<unknown>('deposits', { amount, payment_method: paymentMethod });
+  async createDeposit(payload: { role_type: string; amount?: number; payment_method: string }, idempotencyKey: string): Promise<APIResponse<CmDepositCreateResult>> {
+    return this.postIdempotent<CmDepositCreateResult>('deposits', payload, idempotencyKey);
   }
 
-  async confirmDeposit(depositId: number): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`deposits/${depositId}/confirm`, {});
+  async getDepositHistory(): Promise<APIResponse<CmDepositRecord[] | { items?: CmDepositRecord[]; deposits?: CmDepositRecord[] }>> {
+    return this.get('deposits/history');
   }
 
-  async getDepositHistory(): Promise<APIResponse<unknown>> {
-    return this.get<unknown>('deposits/history');
+  async getDepositBankInfo(depositId: number): Promise<APIResponse<CmDepositBankInfo>> {
+    return this.get<CmDepositBankInfo>(`deposits/${depositId}/bank-info`);
+  }
+
+  async getPayments(page = 1): Promise<APIResponse<CmListPage<CmPayment>>> {
+    return this.get('payments', { page });
+  }
+
+  async createPayment(payload: Record<string, unknown>, idempotencyKey: string): Promise<APIResponse<CmPayment>> {
+    return this.postIdempotent<CmPayment>('payments', payload, idempotencyKey);
+  }
+
+  async getInvoices(page = 1): Promise<APIResponse<CmListPage<CmInvoice>>> {
+    return this.get('invoices', { page });
+  }
+
+  async createInvoice(payload: Record<string, unknown>): Promise<APIResponse<CmInvoice>> {
+    return this.post<CmInvoice>('invoices', payload);
+  }
+
+  async getRefunds(page = 1): Promise<APIResponse<CmListPage<CmRefund>>> {
+    return this.get('refunds', { page });
+  }
+
+  async requestRefund(payload: { payment_id: number; reason: string; notes?: string }, idempotencyKey: string): Promise<APIResponse<CmRefund>> {
+    return this.postIdempotent<CmRefund>('refunds/request', payload, idempotencyKey);
+  }
+
+  async getWithdrawals(page = 1): Promise<APIResponse<CmListPage<CmWithdrawal>>> {
+    return this.get('withdrawals', { page });
+  }
+
+  async requestWithdrawal(payload: { amount: number; method: string; account_info: Record<string, string> }, idempotencyKey: string): Promise<APIResponse<CmWithdrawal>> {
+    return this.postIdempotent<CmWithdrawal>('withdrawals', payload, idempotencyKey);
   }
 
   async estimate(input: CmEstimateInput): Promise<APIResponse<CmEstimateResult>> {
@@ -199,78 +390,6 @@ export class CmApi extends BaseAPI {
     return this.post<{ unread: number }>('notifications/read-all', {});
   }
 
-  async adminOverview(): Promise<APIResponse<CmAdminOverview>> {
-    return this.get<CmAdminOverview>('admin/overview');
-  }
-
-  async adminUsers(search: string, page = 1): Promise<APIResponse<{ total: number; users: CmAdminUser[] }>> {
-    return this.get('admin/users', { search, page });
-  }
-
-  async adminSetRoleStatus(userId: number, roleType: string, status: string): Promise<APIResponse<unknown>> {
-    return this.post(`admin/users/${userId}/roles/${roleType}/status`, { status });
-  }
-
-  async adminKycList(status: string, page = 1): Promise<APIResponse<{ total: number; items: CmAdminKycItem[] }>> {
-    return this.get('admin/kyc', { status, page });
-  }
-
-  async adminKycApprove(kycId: number): Promise<APIResponse<unknown>> {
-    return this.post(`admin/kyc/${kycId}/approve`, {});
-  }
-
-  async adminKycReject(kycId: number, notes: string): Promise<APIResponse<unknown>> {
-    return this.post(`admin/kyc/${kycId}/reject`, { notes });
-  }
-
-  async adminRefunds(status = '', page = 1): Promise<APIResponse<{ total: number; items: CmAdminRefund[] }>> {
-    return this.get('admin/refunds', { status, page });
-  }
-
-  async adminDeposits(status = '', page = 1): Promise<APIResponse<{ total: number; items: CmAdminDeposit[] }>> {
-    return this.get('admin/deposits', { status, page });
-  }
-
-  async adminConfirmDeposit(depositId: number): Promise<APIResponse<unknown>> {
-    return this.post(`admin/deposits/${depositId}/confirm`, {});
-  }
-
-  async adminProjects(status = '', page = 1): Promise<APIResponse<{ total: number; items: CmProject[] }>> {
-    return this.get('admin/projects', { status, page });
-  }
-
-  async getTask(taskId: number): Promise<APIResponse<unknown>> {
-    return this.get<unknown>(`tasks/${taskId}`);
-  }
-
-  async submitTask(taskId: number, submissionNote: string): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`tasks/${taskId}/submit`, { submission_note: submissionNote });
-  }
-
-  async addTaskComment(taskId: number, comment: string): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`tasks/${taskId}/comments`, { comment });
-  }
-
-  async reviewSubmission(submissionId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`submissions/${submissionId}/review`, payload);
-  }
-
-  async analyzeProject(projectId: number): Promise<APIResponse<{ analysis_id: number; status: string }>> {
-    return this.post(`ai-analysis/projects/${projectId}/analyze`, {});
-  }
-
-  async getAnalysis(analysisId: number): Promise<APIResponse<CmAiAnalysis>> {
-    return this.get<CmAiAnalysis>(`ai-analysis/${analysisId}`);
-  }
-
-  async acceptAnalysis(analysisId: number): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`ai-analysis/${analysisId}/accept`, {});
-  }
-
-  async requestAnalysisRevision(analysisId: number, revisionNotes: string): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`ai-analysis/${analysisId}/revision`, { revision_notes: revisionNotes });
-  }
-
   async applyReviewer(): Promise<APIResponse<CmReviewerApplicationStart>> {
     return this.post<CmReviewerApplicationStart>('reviewer/apply', {});
   }
@@ -279,12 +398,12 @@ export class CmApi extends BaseAPI {
     return this.post<CmReviewerTestResult>(`reviewer/application/${applicationId}/submit`, { reviews });
   }
 
-  async getReviewTasks(): Promise<APIResponse<{ pending_reviews: CmReviewSubmission[] }>> {
-    return this.get<{ pending_reviews: CmReviewSubmission[] }>('reviewer/tasks');
+  async getReviewTasks(page = 1): Promise<APIResponse<{ pending_reviews: CmReviewSubmission[]; pagination: CmPagination }>> {
+    return this.get('reviewer/tasks', { page });
   }
 
-  async submitCodeReview(submissionId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`reviewer/reviews/${submissionId}`, payload);
+  async submitCodeReview(submissionId: number, payload: Record<string, unknown>): Promise<APIResponse<{ review_id: number; recommendation: string | null; code_score: string | number }>> {
+    return this.post(`reviewer/reviews/${submissionId}`, payload);
   }
 
   async getArchitectEligibility(): Promise<APIResponse<CmArchitectEligibility>> {
@@ -307,24 +426,12 @@ export class CmApi extends BaseAPI {
     return this.post<unknown>('architect/deposit/complete', {});
   }
 
-  async getPayments(params?: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.get<unknown>('payments', params as Record<string, any>);
+  async verifyEmail(email: string, token: string): Promise<APIResponse<{ user_id: number; next_step: string }>> {
+    return this.post('auth/verify-email', { email, token });
   }
 
-  async createInvoice(payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.post<unknown>('invoices', payload);
-  }
-
-  async requestRefund(payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.post<unknown>('refunds/request', payload);
-  }
-
-  async approveRefund(refundId: number): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`refunds/${refundId}/approve`, {});
-  }
-
-  async processRefund(refundId: number): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`refunds/${refundId}/process`, {});
+  async getRegistrationStatus(): Promise<APIResponse<CmRegistrationStatus>> {
+    return this.get<CmRegistrationStatus>('auth/registration-status');
   }
 
   async requestPhoneVerification(phone: string): Promise<APIResponse<Record<string, unknown>>> {
@@ -337,18 +444,6 @@ export class CmApi extends BaseAPI {
 
   async uploadKycDocuments(formData: FormData, onProgress: (percentage: number) => void = () => {}): Promise<APIResponse<unknown>> {
     return this.uploadWithProgress<unknown>('auth/upload-kyc-documents', formData, onProgress);
-  }
-
-  async updateProject(projectId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.put<unknown>(`projects/${projectId}`, payload);
-  }
-
-  async createMilestone(projectId: number, payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.post<unknown>(`projects/${projectId}/milestones`, payload);
-  }
-
-  async createTask(payload: Record<string, unknown>): Promise<APIResponse<unknown>> {
-    return this.post<unknown>('tasks', payload);
   }
 }
 

@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
@@ -86,6 +87,51 @@ trait AppQyV1SentenceAudioLookupTrait
     {
         $suffix = ($variantKey !== null && $variantKey !== '') ? ('_' . $variantKey) : '';
         return $language . '/' . $contentId . $suffix . '.mp3';
+    }
+
+    /**
+     * Passive default-variant resolve for many sentences: one row query per
+     * language, then exactly one disk check per item (the cached audio path
+     * when the row has one, else the canonical mp3 path). Never enqueues.
+     *
+     * @param array<int,array{text:string,language:string}> $items
+     * @return array<int,array{content_id:string,language:string,exists:bool,url:?string}> same keys as $items
+     */
+    public function resolvePassiveBatch(array $items): array
+    {
+        $contentIds = [];
+        $rows = [];
+        $results = [];
+
+        foreach ($items as $key => $item) {
+            $language = AppQyV1TableMaps::normalizeLangCode((string) $item['language']);
+            $contentIds[$language][$key] = MediaIngestService::computeContentId((string) $item['text']);
+        }
+        foreach ($contentIds as $language => $ids) {
+            $rows[$language] = $this->tableExists($language)
+                ? LangSentence::rowsByContentIds($language, $ids)->keyBy('content_id')->all()
+                : [];
+        }
+        foreach ($contentIds as $language => $ids) {
+            foreach ($ids as $key => $contentId) {
+                $row = $rows[$language][$contentId] ?? null;
+                $cached = $row !== null && $row->has_audio && is_string($row->audio) && $row->audio !== ''
+                    ? $row->audio
+                    : null;
+                $relative = $cached ?? $this->relativePathFor($language, $contentId);
+                $full = PathMapper::getAppQyV1SentenceSoundsDir($relative);
+                clearstatcache(true, $full);
+                $exists = is_file($full) && filesize($full) > 0;
+                $results[$key] = [
+                    'content_id' => $contentId,
+                    'language' => $language,
+                    'exists' => $exists,
+                    'url' => $exists ? AppQyV1SentenceAudioUrl::forRelative($relative) : null,
+                ];
+            }
+        }
+
+        return array_replace(array_fill_keys(array_keys($items), null), $results);
     }
 
     public function variantExistsOnDisk(string $language, string $contentId, ?string $variantKey = null): bool

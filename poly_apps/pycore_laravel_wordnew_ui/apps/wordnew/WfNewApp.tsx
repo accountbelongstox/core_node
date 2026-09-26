@@ -31,6 +31,7 @@ import { WfNewPracticeTab } from './components/WfNewPracticeTab';
 import { WfNewOrbs } from './components/WfNewOrbs';
 import { WfNewHeader } from './components/WfNewHeader';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
+import { WordNewOrchAudioRoute } from './components/orch-audio/WordNewOrchAudioRoute';
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
@@ -550,6 +551,18 @@ export const WfNewApp: React.FC = () => {
                   category: 'daily',
                 })}
               />
+            </motion.div>
+          )}
+
+          {/* ====== ORCHESTRATED AUDIO (listing + player, hash-routed) ====== */}
+          {activeTab === 'orch-audio' && (
+            <motion.div
+              key="orch-audio"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+            >
+              <WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} />
             </motion.div>
           )}
 

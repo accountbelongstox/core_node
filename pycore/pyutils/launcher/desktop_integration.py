@@ -7,9 +7,10 @@ helpers:
 - get_windows_version / get_dev_env_path: DELEGATE to ShortcutManager (re-use; the
   local copies duplicated pycore/pyutils/desktop/universal_shortcut.py static methods).
   The sibling is NOT edited - we only call into it.
-- ensure_desktop_shortcut: Windows .bat+.lnk via DesktopIconGenerator; Linux
-  freedesktop .desktop entry. TODO: consolidate the hand-rolled freedesktop .desktop
-  path with DesktopShortcutManager/ShortcutManager (reuse-first).
+- ensure_desktop_shortcut: Windows .lnk via DesktopIconGenerator (the same target as
+  shortcut_check.ps1, so neither writer rewrites the other); Linux freedesktop
+  .desktop entry. TODO: consolidate the hand-rolled freedesktop .desktop path with
+  DesktopShortcutManager/ShortcutManager (reuse-first).
 - show_admin_permission_warning: Windows-only "Run as administrator" guidance.
 """
 
@@ -31,12 +32,23 @@ import os
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.desktop_icon_generator import DesktopIconGenerator
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.runtime_abi import PYTHON_VERSION
 from pycore.pyfoundations.shortcut_manager import ShortcutManager
 
-# Real entry point for the desktop shortcut (.bat / .desktop). Must NOT use __file__
+# Real entry point for the .desktop fallback. Must NOT use __file__
 # here — this module was split out of launcher.py and __file__ would point here.
 _LAUNCHER_DIR = Path(__file__).resolve().parent
 _LAUNCHER_PY_PATH = _LAUNCHER_DIR / 'launcher.py'
+
+# Windows shortcut contract shared with shortcut_check.ps1 (keep both identical):
+# <GlobalVars.ps1 PYTHON_EXE_PATH> -m pycore.pyutils.launcher, started in the repo root.
+LAUNCHER_SHORTCUT_NAME = "Window Launcher"
+LAUNCHER_SHORTCUT_DESCRIPTION = "Launch Window Launcher - Multiple Terminal Windows"
+LAUNCHER_SHORTCUT_ARGUMENTS = "-m pycore.pyutils.launcher"
+_PYTHON_DIR_PREFIX = "python"
+_PYTHON_EXE_NAME = "python.exe"
+_ICON_ICO_NAME = "icon.ico"
+_ICON_PNG_NAME = "icon.png"
 
 
 def get_windows_version():
@@ -49,7 +61,7 @@ def get_windows_version():
 
 def get_dev_env_path():
     """Get dev environment path. On Windows this is D:\\.dev_<winver>\\.winenvs
-    (where the launcher .bat shortcut lives). On non-Windows there is no such
+    (its parent is GlobalVars.ps1 LANG_COMPILER_DIR). On non-Windows there is no such
     drive, so use a hidden dir under the user home - otherwise the literal
     "D:\\.dev_...\\.winenvs" string is created as a folder in the cwd.
 
@@ -58,11 +70,23 @@ def get_dev_env_path():
     return ShortcutManager.get_dev_env_path()
 
 
+def get_launcher_python_exe() -> Path:
+    """Interpreter the Windows shortcut targets: GlobalVars.ps1 PYTHON_EXE_PATH
+    (D:\\.dev_<winver>\\python<ver>\\python.exe) when installed, else the running one."""
+    lang_compiler_dir = get_dev_env_path().parent
+    canonical_python = lang_compiler_dir / f"{_PYTHON_DIR_PREFIX}{PYTHON_VERSION.replace('.', '')}" / _PYTHON_EXE_NAME
+    if canonical_python.is_file():
+        return canonical_python
+    return Path(sys.executable)
+
+
 def ensure_desktop_shortcut():
     """Ensure the "Window Launcher" desktop entry exists (create or replace).
 
-    Windows: a .bat plus a .lnk via DesktopIconGenerator. Linux (Debian/Ubuntu/Kali):
-    a freedesktop .desktop file in ~/.local/share/applications. macOS/other: no-op.
+    Windows: a .lnk via DesktopIconGenerator targeting get_launcher_python_exe() with
+    LAUNCHER_SHORTCUT_ARGUMENTS in the repo root (identical to shortcut_check.ps1).
+    Linux (Debian/Ubuntu/Kali): a freedesktop .desktop file in
+    ~/.local/share/applications. macOS/other: no-op.
     The previous version ran the Windows path on every OS, so on Linux it wrote a
     useless .bat and then swallowed a RuntimeError (win32com absent) - leaving no
     desktop entry at all.
@@ -94,12 +118,12 @@ def ensure_desktop_shortcut():
         entry = (
             "[Desktop Entry]\n"
             "Type=Application\n"
-            "Name=Window Launcher\n"
+            f"Name={LAUNCHER_SHORTCUT_NAME}\n"
             f"{exec_line}\n"
             f"Icon={icon_field}\n"
             f"Terminal={terminal_field}\n"
             "Categories=Utility;\n"
-            "Comment=Launch Window Launcher - Multiple Terminal Windows\n"
+            f"Comment={LAUNCHER_SHORTCUT_DESCRIPTION}\n"
         )
         dest = apps_dir / 'window-launcher.desktop'
         try:
@@ -116,46 +140,28 @@ def ensure_desktop_shortcut():
         return  # macOS / other: no desktop-shortcut integration
 
     icon_generator = DesktopIconGenerator()
-    shortcut_name = "Window Launcher"
-
-    # Create bat file in dev environment directory
-    dev_env_path = get_dev_env_path()
-    bat_path = dev_env_path / 'launch.bat'
-
-    # Get Python executable
-    python_exe = sys.executable
-
-    # Create bat file content - use start with /B to run in background and avoid cmd window
-    # Change to launcher directory to ensure correct working directory
-    launcher_dir = launcher_py_path.parent
-    bat_content = f'@echo off\r\ncd /d "{launcher_dir}"\r\n"{python_exe}" "{launcher_py_path}"\r\n'
-
-    # Write bat file (overwrite if exists)
-    with open(bat_path, 'w', encoding='utf-8', newline='\r\n') as f:
-        f.write(bat_content)
-
-    ColorPrint.plain(f"Created/updated bat file: {bat_path}")
+    python_exe = get_launcher_python_exe()
 
     # Use icon.ico if available, then icon.png, otherwise use Python icon
-    icon_ico_path = launcher_dir / 'icon.ico'
-    icon_png_path = launcher_dir / 'icon.png'
+    icon_ico_path = launcher_dir / _ICON_ICO_NAME
+    icon_png_path = launcher_dir / _ICON_PNG_NAME
     if icon_ico_path.exists():
         icon_path = str(icon_ico_path)
     elif icon_png_path.exists():
         icon_path = str(icon_png_path)
     else:
-        icon_path = python_exe
+        icon_path = str(python_exe)
 
-    # Create desktop shortcut pointing to bat file (will create or overwrite)
+    # DesktopIconGenerator rewrites the .lnk only when a property differs
     try:
         icon_generator.create_shortcut(
-            target_path=bat_path,
-            name=shortcut_name,
-            icon_path=icon_path,  # Use icon.ico, icon.png, or Python icon
-            working_dir=str(launcher_dir),  # Set working directory to launcher directory
-            description="Launch Window Launcher - Multiple Terminal Windows"
+            target_path=python_exe,
+            name=LAUNCHER_SHORTCUT_NAME,
+            icon_path=icon_path,
+            working_dir=str(PROJECT_ROOT.resolve()),
+            arguments=LAUNCHER_SHORTCUT_ARGUMENTS,
+            description=LAUNCHER_SHORTCUT_DESCRIPTION
         )
-        ColorPrint.plain(f"Created/updated desktop shortcut: {shortcut_name}")
     except Exception as e:
         ColorPrint.plain(f"Warning: Failed to create desktop shortcut: {e}")
 

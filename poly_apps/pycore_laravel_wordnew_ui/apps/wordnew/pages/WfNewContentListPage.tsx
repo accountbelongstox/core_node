@@ -10,14 +10,14 @@
  * there may be a next page). The home fragment is used only as an instant first
  * paint for page 1 before the network confirms it. Same responsive masonry look.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewContentGroup, WfNewContentKind } from '../api';
 import { wfNewPageSize, WFNEW_LIST_ROWS } from '../api';
 import { WFNEW_KIND_STYLES } from '../components/WfNewContentGroupCard';
 import { WfNewContentGrid } from '../components/WfNewContentGrid';
 import { WfNewLoadingDots } from '../components/WfNewLoadingDots';
+import { WfNewPager } from '../components/WfNewPager';
 import { dedupGroups } from '../runtime-store/WfNewContentCache';
 
 interface WfNewContentListPageProps {
@@ -105,16 +105,6 @@ export const WfNewContentListPage: React.FC<WfNewContentListPageProps> = ({
     setPage(clamped);
   };
 
-  // A small windowed range of page numbers around the current page (1-based).
-  const pageWindow = useMemo(() => {
-    const span = 2;
-    const start = Math.max(1, Math.min(page - span, totalPages - (span * 2)));
-    const end = Math.min(totalPages, start + span * 2);
-    const out: number[] = [];
-    for (let i = Math.max(1, start); i <= end; i += 1) out.push(i);
-    return out;
-  }, [page, totalPages]);
-
   const atLastPage = lastPage != null && page >= lastPage;
 
   return (
@@ -136,46 +126,14 @@ export const WfNewContentListPage: React.FC<WfNewContentListPageProps> = ({
       )}
 
       {/* Pagination — prev / windowed page numbers / next + indicator */}
-      {(totalPages > 1 || page > 1) && (
-        <div className="flex flex-col items-center gap-2 pt-2">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => goTo(page - 1)}
-              disabled={page <= 1 || loading}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" /> {trans('content.prev')}
-            </button>
-            {pageWindow.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => goTo(p)}
-                disabled={loading}
-                className={`min-w-[2rem] px-2 py-1.5 rounded-lg text-[11px] font-mono font-bold border transition disabled:opacity-50 ${
-                  p === page
-                    ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-300'
-                    : 'border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => goTo(page + 1)}
-              disabled={atLastPage || loading}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-            >
-              {trans('content.next')} <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <span className="text-[10px] font-mono text-zinc-500">
-            {trans('content.pageOf', { page, total: totalPages })}
-          </span>
-        </div>
-      )}
+      <WfNewPager
+        page={page}
+        totalPages={totalPages}
+        atLastPage={atLastPage}
+        loading={loading}
+        onGoTo={goTo}
+        trans={trans}
+      />
     </div>
   );
 };

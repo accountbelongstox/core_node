@@ -617,6 +617,11 @@ class AppQyV1DictionaryTTSCoordinator
 
         $entry->saveRecord();
 
+        app(AppQyV1ResourceIndexService::class)->recordWord(
+            (string) strtok($relativePath, '/'),
+            (string) $entry->md5,
+            (string) ($meta['variant_key'] ?? '')
+        );
         $this->settleWordAudioQueueTask($entry, (string) ($meta['variant_key'] ?? ''));
     }
 

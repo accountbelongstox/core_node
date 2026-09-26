@@ -17,19 +17,21 @@ tts_chunked (multi-sentence synthesis marker; MISSING = legacy audio that
 predates sentence chunking), rebuild_attempts, audio_rebuilt_at,
 rebuild_uploaded / rebuild_uploaded_at (the multi-sentence audio was
 uploaded to Laravel main and replaced the old published audio; MISSING =
-the replacement is still pending - drained by the network-upload piggyback),
+the replacement is still pending - delivered by the Laravel delivery outbox),
 audio_file, uploaded, uploaded_at.
 
-Lane contract (two independent piggybacks, each step idempotent on its own):
+Lane contract (two independent lanes, each step idempotent on its own):
   rebuild lane   - records lacking tts_chunked are regenerated LOCALLY as
                    multi-sentence audio (Laravel main NOT required); commits
                    audio file + provenance + tts_chunked in one atomic write.
-  upload lane    - drains everything not yet on Laravel main: full submits
-                   for never-uploaded records (submit stamps uploaded and,
-                   when the local audio is already multi-sentence,
-                   rebuild_uploaded) and audio replacements for uploaded
-                   records whose regenerated audio is pending (stamps
-                   rebuild_uploaded). Each record is one independent step.
+  delivery       - pycore/pyctl/agent_history/pipeline/delivery.py kinds on
+                   the shared Laravel delivery outbox (retry/backoff/status
+                   and the per-server diff live there) deliver to every
+                   Laravel server what its diff reports: full submits for
+                   missing records and audio replacements for records whose
+                   published audio differs from the local mp3. The uploaded
+                   / rebuild_uploaded stamps record the last upload for
+                   display; they never decide delivery.
 """
 
 from __future__ import annotations
@@ -158,14 +160,7 @@ def load_index() -> Dict[str, Any]:
 
 
 RECORD_BODY_FIELDS = ("article_en", "reference_cn")
-_DELIVERY_RETRY_BASE_SECONDS = 2.0
-_DELIVERY_RETRY_MAX_SECONDS = 300.0
 _REBUILD_DELIVERY_CONTRACT = "audio-replace-v1"
-
-
-def _delivery_retry_at(attempts: int) -> float:
-    delay = _DELIVERY_RETRY_BASE_SECONDS * (2 ** min(max(0, attempts - 1), 8))
-    return time.time() + min(_DELIVERY_RETRY_MAX_SECONDS, delay)
 
 
 def _iso_timestamp_value(value: Any) -> float:
@@ -196,50 +191,6 @@ def is_rebuild_upload_current(record: Dict[str, Any]) -> bool:
         str(record.get("rebuild_delivery_contract") or "")
         == _REBUILD_DELIVERY_CONTRACT
         and uploaded_at >= rebuilt_at
-    )
-
-
-def _reset_delivery_state(rec: Dict[str, Any], prefix: str) -> List[str]:
-    fields = [f"{prefix}_attempts", f"{prefix}_not_before", f"{prefix}_last_error"]
-    rec[fields[0]] = 0
-    rec[fields[1]] = 0.0
-    rec[fields[2]] = None
-    return fields
-
-
-def _mark_delivery_failed(
-    record_id: str,
-    error: str,
-    prefix: str,
-    fallback_error: str,
-) -> Optional[Dict[str, Any]]:
-    rec = get_record(record_id)
-    if rec is None:
-        return None
-    attempts_field = f"{prefix}_attempts"
-    not_before_field = f"{prefix}_not_before"
-    error_field = f"{prefix}_last_error"
-    attempts = int(rec.get(attempts_field) or 0) + 1
-    rec[attempts_field] = attempts
-    rec[not_before_field] = _delivery_retry_at(attempts)
-    rec[error_field] = str(error or fallback_error)
-    return _commit_record(
-        rec,
-        [attempts_field, not_before_field, error_field],
-    )
-
-
-def _delivery_priority(
-    rows: List[Dict[str, Any]],
-    prefix: str,
-) -> List[Dict[str, Any]]:
-    return sorted(
-        rows,
-        key=lambda row: (
-            int(row.get(f"{prefix}_attempts") or 0),
-            str(row.get("created_at") or ""),
-            str(row.get("id") or ""),
-        ),
     )
 
 
@@ -476,7 +427,7 @@ def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None)
         return None
     rec["uploaded"] = True
     rec["uploaded_at"] = datetime.now(timezone.utc).isoformat()
-    fields = ["uploaded", "uploaded_at", *_reset_delivery_state(rec, "upload")]
+    fields = ["uploaded", "uploaded_at"]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id")
         rec["audio_url"] = laravel_data.get("audio_url")
@@ -491,7 +442,6 @@ def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None)
         rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
         fields += [
             "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
-            *_reset_delivery_state(rec, "rebuild_upload"),
         ]
     return _commit_record(rec, fields)
 
@@ -507,7 +457,7 @@ def mark_audio_rebuilt(
     """Stamp one LOCAL rebuild step: the multi-sentence regeneration is
     persisted (audio file + provenance + tts_chunked marker) independently
     of Laravel main - an unreachable server never blocks generation. The
-    rebuild_uploaded marker starts UNSET: the network-upload piggyback owns
+    rebuild_uploaded marker starts UNSET: the Laravel delivery outbox owns
     replacing the published audio and setting it."""
     rid = str(record_id or "")
     if not rid or not _ID_RE.match(rid) or not audio_bytes:
@@ -532,7 +482,6 @@ def mark_audio_rebuilt(
         "audio_file", "audio_status", "tts_engine", "tts_model",
         "tts_chunked", "rebuild_attempts", "rebuild_audio_job", "rebuild_not_before", "audio_rebuilt_at",
         "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
-        *_reset_delivery_state(rec, "rebuild_upload"),
     ])
 
 
@@ -555,7 +504,6 @@ def mark_rebuild_uploaded(
     fields = [
         "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
         "rebuild_writeback_pending",
-        *_reset_delivery_state(rec, "rebuild_upload"),
     ]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id") or rec.get("laravel_article_id")
@@ -565,64 +513,8 @@ def mark_rebuild_uploaded(
     if not bool(rec.get("uploaded")):
         rec["uploaded"] = True
         rec["uploaded_at"] = stamped_at
-        fields += [
-            "uploaded", "uploaded_at", *_reset_delivery_state(rec, "upload"),
-        ]
+        fields += ["uploaded", "uploaded_at"]
     return _commit_record(rec, fields)
-
-
-def mark_rebuild_upload_received(
-    record_id: str,
-    laravel_data: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Any]]:
-    """Persist the minimum durable-receipt step without claiming publication.
-
-    Laravel owns the staged artifact and writeback marker at this point. The
-    next upload heartbeat polls the same idempotent resource until Laravel
-    confirms that metadata and the public file are aligned.
-    """
-    rec = get_record(record_id)
-    if rec is None:
-        return None
-    rec["rebuild_writeback_pending"] = True
-    rec["rebuild_upload_attempts"] = 0
-    rec["rebuild_upload_not_before"] = time.time() + _DELIVERY_RETRY_BASE_SECONDS
-    rec["rebuild_upload_last_error"] = None
-    fields = [
-        "rebuild_writeback_pending",
-        "rebuild_upload_attempts",
-        "rebuild_upload_not_before",
-        "rebuild_upload_last_error",
-    ]
-    if isinstance(laravel_data, dict):
-        rec["laravel_article_id"] = laravel_data.get("article_id") or rec.get("laravel_article_id")
-        rec["audio_url"] = laravel_data.get("audio_url") or rec.get("audio_url")
-        rec["rebuild_result_sha256"] = laravel_data.get("result_sha256")
-        fields += ["laravel_article_id", "audio_url", "rebuild_result_sha256"]
-    return _commit_record(rec, fields)
-
-
-def mark_upload_failed(record_id: str, error: str) -> Optional[Dict[str, Any]]:
-    """Defer one full-submit step without blocking another record."""
-    return _mark_delivery_failed(
-        record_id,
-        error,
-        "upload",
-        "upload failed",
-    )
-
-
-def mark_rebuild_upload_failed(
-    record_id: str,
-    error: str,
-) -> Optional[Dict[str, Any]]:
-    """Defer one replacement step without blocking another record."""
-    return _mark_delivery_failed(
-        record_id,
-        error,
-        "rebuild_upload",
-        "audio replacement failed",
-    )
 
 
 def mark_rebuild_failed(record_id: str) -> Optional[Dict[str, Any]]:
@@ -657,7 +549,7 @@ def mark_audio_rebuild_waiting(
 def clear_rebuild_marker(record_id: str) -> Optional[Dict[str, Any]]:
     """Reset a record whose local multi-sentence audio went missing: the
     tts_chunked/rebuild_uploaded markers are cleared so the rebuild lane
-    regenerates it and the upload lanes stop seeing a delivery that cannot
+    regenerates it and the delivery outbox stops seeing a delivery that cannot
     be made from this machine."""
     rec = get_record(record_id)
     if rec is None:
@@ -671,36 +563,9 @@ def clear_rebuild_marker(record_id: str) -> Optional[Dict[str, Any]]:
         rec,
         [
             "tts_chunked", "rebuild_uploaded", "rebuild_uploaded_at",
-            "rebuild_delivery_contract",
-            *_reset_delivery_state(rec, "rebuild_upload"), "audio_status",
+            "rebuild_delivery_contract", "audio_status",
         ],
     )
-
-
-def pending_uploads() -> List[Dict[str, Any]]:
-    """Ready full submissions, fair by attempt count and then record age."""
-    now = time.time()
-    rows = [
-        r for r in load_index()["records"]
-        if not r.get("uploaded")
-        and float(r.get("upload_not_before") or 0.0) <= now
-    ]
-    return _delivery_priority(rows, "upload")
-
-
-def pending_rebuild_uploads() -> List[Dict[str, Any]]:
-    """Uploaded records whose regenerated multi-sentence audio has not
-    replaced the published legacy audio yet, fair by attempt count and then
-    record age."""
-    now = time.time()
-    rows = [
-        r for r in load_index()["records"]
-        if bool(r.get("uploaded"))
-        and bool(r.get("tts_chunked"))
-        and not is_rebuild_upload_current(r)
-        and float(r.get("rebuild_upload_not_before") or 0.0) <= now
-    ]
-    return _delivery_priority(rows, "rebuild_upload")
 
 
 def audio_path(record_id: str) -> Optional[Path]:

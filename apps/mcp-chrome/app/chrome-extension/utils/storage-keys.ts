@@ -28,9 +28,6 @@ export const STORAGE_KEYS = {
   AI_VALIDITY_PROVIDER: 'aiValidityProvider',
   VALIDITY_LANGUAGE: 'validityLanguage',
   VALIDITY_LANGUAGES: 'validityLanguages',
-  LARAVEL_API_BASE: 'laravelApiBase',
-  API_BASE_URL: 'apiBaseUrl',
-  MCP_SERVER_URL: 'mcpServerUrl',
 
   USER_PREFERENCES: 'userPreferences',
   VECTOR_INDEX: 'vectorIndex',
@@ -42,6 +39,9 @@ export const STORAGE_KEYS = {
   TC_RUN_INTENT: 'tc_run_intent',
   TASK_CENTER_RUNTIME: 'task_center_runtime',
   TASK_CENTER_WATCHDOG_ALARM: 'task-center-watchdog',
+
+  // Unpacked-build reload baseline (session; build-reload.ts).
+  BUILD_STAMP_BASELINE: 'build_stamp_baseline',
 
   // Durable write-retry queue (outbox/submit-outbox.ts).
   SUBMIT_OUTBOX: 'submit_outbox_v1',
@@ -77,5 +77,13 @@ export const STORAGE_KEYS = {
 } as const;
 
 export const UI_STORAGE_PREFIX = 'ui:' as const;
+
+/** Session key suffix for a SimpleWorkerBase worker's registered id. */
+export const WORKER_ID_STORAGE_SUFFIX = '_worker_id_base' as const;
+
+/** Session key holding the registered worker id of the lane `processorKey`. */
+export function workerIdSessionKey(processorKey: string): string {
+  return `${processorKey}${WORKER_ID_STORAGE_SUFFIX}`;
+}
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

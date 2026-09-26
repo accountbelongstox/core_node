@@ -227,3 +227,23 @@ mcp-chrome 独占封面处理的规划需求，维护在：
 
 该文档是此新增范围的功能需求来源。本文件已实现的书架进度和播放规则在被复用时
 继续有效。该新增范围当前为规划状态，在完成实现与验收审核前不得标记为已实现。
+
+## 7. 编排音频——首页入口、列表、播放页（2026-09-27，R9）
+
+需求与跨端记录：`docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`
+（R9、“W5 contract”、“W6 implementation record”）。数据来自 Laravel 只读接口
+`GET /api/app_qy_v1/orch_audio/tasks[/{id}]`（sanctum）。
+
+- 首页：实验室卡片区新增“编排音频”（五张卡片共用 `WfNewHomeLabCard`），打开 `orch-audio`。
+- 路由：`#/orch-audio[?source=<id>&page=N]` 为列表，`#/orch-audio/<task_key>` 为播放页；
+  `itemRouteTab` 统一处理带子路径/查询参数的标签页（`daily-reading`、`orch-audio`）。
+- 列表：来源筛选（后端 `sources` 及数量），共享分页组件 `WfNewPager`，未登录时提示登录。
+- 播放页：两种模式（分段 mp3 编排音频 / 逐句资源）共用同一播放引擎
+  `WordNewBookReaderPlayback`；支持循环（关/列表/单曲）、语速、上一个/下一个、点击句子重播、
+  句子重复次数、先读单词、译文行。当前句高亮：逐句模式取当前句；分段模式以分段
+  `timeline` 为准，仅在分段没有 timeline 时按句长估算。
+- 句子按需分页加载：打开时只加载第 1 页；播放接近页尾、分段需要其句子范围、或列表末尾
+  哨兵进入视口（与首页内容网格共用 `useWfNewLoadMoreSentinel`）时再加载后续页。
+- 同页资源：原始提示词（prompt_rewrite 的 `source_text`）、分段列表、任务单词资源、
+  当前句单词、句子行（音频状态来自与书籍阅读器共用的 `useWordNewSentenceAudioCells`）。
+- 播放设置按设备保存在 `wfnew.orchAudio.player`。

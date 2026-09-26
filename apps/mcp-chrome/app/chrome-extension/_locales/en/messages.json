@@ -763,6 +763,33 @@
   "apiCustomUrlPlaceholder": {
     "message": "Enter URL (e.g., api.example.com)"
   },
+  "apiCustomEndpointDescription": {
+    "message": "Custom: {0}"
+  },
+  "httpStatusError": {
+    "message": "{0} (HTTP {1})"
+  },
+  "submitRejected": {
+    "message": "Submit rejected"
+  },
+  "submitRejectedStatus": {
+    "message": "Submit rejected ({0})"
+  },
+  "valueNotAvailable": {
+    "message": "n/a"
+  },
+  "latestCodeFileUnreachable": {
+    "message": "laravel_main latest file: backend unreachable"
+  },
+  "latestCodeFileLatest": {
+    "message": "Latest changed file: {0}"
+  },
+  "latestCodeFileModified": {
+    "message": "Modified: {0}"
+  },
+  "latestCodeFileScan": {
+    "message": "Scan: {0} ({1}ms)"
+  },
   "apiPortPlaceholder": {
     "message": "Port (optional)"
   },
@@ -1136,16 +1163,16 @@
     "message": "Loaded $1 pending ($2 browser-processable)"
   },
   "taskCenterCapability_image_label": {
-    "message": "Cover and poster search"
+    "message": "Cover, poster and library cover search"
   },
   "taskCenterCapability_image_hint": {
-    "message": "Searches and writes back book covers and media posters through the shared browser worker"
+    "message": "Searches and writes back book covers, media posters and vocabulary-library covers through the shared browser worker"
   },
   "taskCenterCapability_gemini_image_label": {
-    "message": "AI word-group cover generation"
+    "message": "AI library cover and image generation"
   },
   "taskCenterCapability_gemini_image_hint": {
-    "message": "Generates vocabulary-library covers with Gemini and writes them back to Laravel"
+    "message": "Generates vocabulary-library covers and requested Gemini images, then writes them back to Laravel"
   },
   "taskCenterCapability_validity_label": {
     "message": "Execute word validity and translation tasks"
@@ -1209,6 +1236,12 @@
   },
   "taskCenterCategory_gemini_image": {
     "message": "AI image generation"
+  },
+  "taskCenterCategory_library_cover": {
+    "message": "AI library cover"
+  },
+  "taskCenterCategory_library_cover_search": {
+    "message": "Library cover search"
   },
   "taskCenterCategory_gemini_chat": {
     "message": "AI conversation"
@@ -1481,7 +1514,7 @@
     "placeholders": {
       "path": {
         "content": "$1",
-        "example": "C:\\project\\.output\\build_extension\\manifest.json"
+        "example": "C:\\project\\build_output\\build_extension\\manifest.json"
       }
     }
   },
@@ -1547,7 +1580,7 @@
     "placeholders": {
       "extensionPath": {
         "content": "$1",
-        "example": "C:\\project\\.output\\build_extension"
+        "example": "C:\\project\\build_output\\build_extension"
       },
       "nativePath": {
         "content": "$2",
@@ -1563,7 +1596,7 @@
     "placeholders": {
       "extensionPath": {
         "content": "$1",
-        "example": "C:\\project\\.output\\build_extension"
+        "example": "C:\\project\\build_output\\build_extension"
       }
     }
   },
@@ -2135,9 +2168,6 @@
   "taskCenterStopFailed": {
     "message": "Failed to stop Task Center"
   },
-  "endpointSwitchFailed": {
-    "message": "Failed to switch the running API endpoint"
-  },
   "loadQueueFailed": {
     "message": "Failed to load queue"
   },
@@ -2381,6 +2411,50 @@
       },
       "age": {
         "content": "$2"
+      }
+    }
+  },
+  "startServicePrompt": {
+    "message": "Install MCP Chrome as a background service (starts at logon, hot reload)?",
+    "description": "start.ps1 prompt asking whether to install the background logon task"
+  },
+  "startServiceInstalled": {
+    "message": "Background service $TASK$ is installed; it is paused for this build and converged afterwards.",
+    "description": "start.ps1 notice that the background logon task already exists",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceOwnsWatch": {
+    "message": "Watch mode and Chrome recovery run in background task $TASK$.",
+    "description": "start.ps1 notice that the logon task runs the watchers",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceRemoveHint": {
+    "message": "Remove it with: powershell -File \"$SCRIPT$\" -UninstallService",
+    "description": "start.ps1 hint for removing the logon task",
+    "placeholders": {
+      "script": {
+        "content": "$1",
+        "example": "C:\\project\\apps\\mcp-chrome\\scripts\\start.ps1"
+      }
+    }
+  },
+  "startSupervisorStarted": {
+    "message": "Chrome recovery supervisor started (PID $PID$).",
+    "description": "start.ps1 notice after starting the recovery supervisor",
+    "placeholders": {
+      "pid": {
+        "content": "$1",
+        "example": "1234"
       }
     }
   }

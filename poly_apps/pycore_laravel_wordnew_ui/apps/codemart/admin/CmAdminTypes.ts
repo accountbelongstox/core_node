@@ -19,6 +19,41 @@ export const CM_ADMIN_TESTIMONIAL_LOCALES = ['en', 'zh'] as const;
 export const CM_ADMIN_REVIEWER_STATUSES = ['in_progress', 'passed', 'failed', 'revoked'] as const;
 export const CM_ADMIN_CONTACT_STATUSES = ['new', 'handled'] as const;
 export const CM_ADMIN_DISPUTE_RESOLUTIONS = ['refund', 'complete'] as const;
+export const CM_ADMIN_FALLBACK_CURRENCY = 'CNY';
+export const CM_ADMIN_ACTIVITY_RESOURCES = [
+  'project', 'milestone', 'task', 'submission', 'analysis', 'comment', 'attachment', 'payment', 'refund', 'deposit',
+  'withdrawal', 'escrow', 'user', 'user_role', 'role', 'kyc', 'testimonial', 'reviewer_application', 'contact_message',
+] as const;
+export const CM_ADMIN_ACTIVITY_ACTIONS = [
+  'created', 'status_changed', 'accepted', 'submitted', 'approved', 'completed', 'revision_requested', 'escrow_released',
+  'first_task_accepted', 'project_funded', 'proposal_accepted', 'analysis_completed', 'comment_added',
+  'submission_created', 'submission_reviewed', 'reviewer_review_recorded', 'payment_created', 'dispute_resolved',
+  'refund_requested', 'refund_approved', 'refund_rejected', 'refund_processed', 'deposit_created', 'deposit_confirmed',
+  'deposit_rejected', 'deposit_refunded', 'withdrawal_requested', 'withdrawal_approved', 'withdrawal_rejected',
+  'withdrawal_paid', 'role_requested', 'role_activated', 'role_activated_by_deposit', 'role_suspended',
+  'architect_activated', 'kyc_submitted', 'test_graded', 'testimonial_submitted', 'contact_message_received',
+  'admin_role_granted', 'admin_role_status_changed', 'admin_kyc_approved', 'admin_kyc_rejected',
+  'admin_testimonial_approved', 'admin_testimonial_hidden', 'admin_testimonial_updated', 'admin_reviewer_revoked',
+  'admin_contact_message_handled',
+] as const;
+/** Locale group used to translate the from/to states of an activity row, per resource type. */
+export const CM_ADMIN_RESOURCE_STATE_GROUPS: Record<string, string> = {
+  project: 'states.project',
+  milestone: 'states.milestone',
+  task: 'states.task',
+  submission: 'states.submission',
+  payment: 'states.payment',
+  refund: 'admin.states.refund',
+  deposit: 'admin.states.deposit',
+  withdrawal: 'admin.states.withdrawal',
+  user_role: 'states.role',
+  role: 'states.role',
+  kyc: 'states.kyc',
+  testimonial: 'admin.states.testimonial',
+  reviewer_application: 'admin.states.reviewer',
+  contact_message: 'admin.states.contact',
+  escrow: 'admin.states.escrow',
+};
 
 export type CmAdminDisputeResolution = typeof CM_ADMIN_DISPUTE_RESOLUTIONS[number];
 export type CmAdminKycDocument = typeof CM_ADMIN_KYC_DOCUMENTS[number];
@@ -109,6 +144,7 @@ export interface CmAdminKycRecord {
 export interface CmAdminDepositRow {
   id: number;
   user_id: number;
+  user?: CmAdminUserSummary | null;
   role_type: string;
   amount: string;
   payment_method: string;
@@ -129,6 +165,11 @@ export interface CmAdminRefundRow {
   notes?: string | null;
   admin_notes?: string | null;
   requested_by?: number | null;
+  requester?: CmAdminUserSummary | null;
+  payer?: CmAdminUserSummary | null;
+  payee?: CmAdminUserSummary | null;
+  project_id?: number | null;
+  currency?: string | null;
   requested_at: string | null;
   reviewed_at?: string | null;
   processed_at?: string | null;

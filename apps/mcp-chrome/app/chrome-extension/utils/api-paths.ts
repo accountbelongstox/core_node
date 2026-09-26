@@ -16,6 +16,13 @@
 
 import { queueCenterEndpoint } from './queue-center-contract';
 
+// ─────────────────────── Reachability probes (laravel_main) ───────────────────────
+/** HEALTH answers `{status:'healthy'}` (readable from the background); UP is the framework liveness route. */
+export const API_HEALTH_PATHS = {
+  HEALTH: '/api/health',
+  UP: '/up',
+} as const;
+
 // ─────────────────────── Worker control plane (/api/worker/*) ───────────────────────
 export const WORKER_PATHS = {
   REGISTER: queueCenterEndpoint('worker_register'),

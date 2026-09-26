@@ -21,8 +21,7 @@ import {
   setPreferredProvider,
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
-import { apiManager } from '@/services/ApiManager';
-import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
+import { resolveApiBase } from '@/services/ApiManager';
 import { delay as waitForDelay, fetchWithTimeout } from '@/utils/async';
 import { toErrorMessage } from '@/utils/errors';
 
@@ -37,21 +36,12 @@ export type { AiWebProvider };
  * chatgpt/gemini have full page-driver tools; deepseek is driven by the shared
  * DeepSeek prompt tool. Only providers with a working page driver are exposed.
  */
-/** Resolve the Laravel backend base URL from the shared endpoint manager. */
+/** Laravel backend base URL: an explicit per-call override, else the global endpoint. */
 export async function resolveBackendBase(override?: string): Promise<string> {
   if (override && override.trim().length > 0) {
     return override.trim().replace(/\/+$/, '');
   }
-  try {
-    await apiManager.initialize({ autoDetect: false });
-    const endpoint = apiManager.getCurrentBaseUrl();
-    if (endpoint.trim().length > 0) {
-      return endpoint.trim().replace(/\/+$/, '');
-    }
-  } catch {
-    // Endpoint storage may be unavailable in some contexts; use the local default.
-  }
-  return DEFAULT_API_BASE_URL;
+  return resolveApiBase();
 }
 
 /**

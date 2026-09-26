@@ -12,6 +12,7 @@ const { execSync } = require('child_process');
 const { getExtensionIdFromManifest } = require('./extension-id-calculator.cjs');
 const {
   HOST_NAME,
+  EXTENSION_BUILD_DIR,
   SUPPORTED_BROWSERS,
   getUserManifestPath,
   getWindowsUserRegistryKey,
@@ -198,10 +199,9 @@ function main() {
   console.log('Registering local development version (user-level)...\n');
 
   // Try to get extension ID from built manifest.json
-  // Support the configured .output/build_extension, the legacy .output/chrome-mv3, and direct paths
+  // The contract-named build folder first, then a source-tree manifest.
   const possibleManifestPaths = [
-    path.join(PROJECT_ROOT, '.output', 'build_extension', 'manifest.json'),
-    path.join(PROJECT_ROOT, 'app', 'chrome-extension', '.output', 'chrome-mv3', 'manifest.json'),
+    path.join(EXTENSION_BUILD_DIR, 'manifest.json'),
     path.join(PROJECT_ROOT, 'app', 'chrome-extension', 'manifest.json'),
   ];
   

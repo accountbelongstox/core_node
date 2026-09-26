@@ -13,12 +13,18 @@ budgets, key rotation, and usage recording as every other free-tier caller.
 The preset template is user-editable (config key ``prompt_derive_en``);
 ``{prompt}`` is substituted with ``str.replace`` so templates may freely
 contain JSON braces.
+
+The second transform, ``rewrite_prompt_en``, sends a preset SYSTEM prompt
+(config key ``prompt_rewrite_en``) plus the raw prompt as the user message:
+the prompt is rewritten into standard English and every code block/snippet
+is replaced by a short plain-language description of that code. Both
+transforms share one call/normalize path (``_transform``).
 """
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List
 
-from pycore.pyctl.ai.ai_free_text import free_text_prompt, resolve_free_text_model
+from pycore.pyctl.ai.ai_free_text import free_text_chat, resolve_free_text_model
 from pycore.pyctl.ai.ai_gateway_state import EXHAUSTED_ERROR_MARKERS, is_exhausted_error
 
 CONFIG_KEY_PROMPT_DERIVE_EN = "prompt_derive_en"
@@ -35,6 +41,23 @@ DEFAULT_PROMPT_DERIVE_EN_PROMPT = (
     "PROMPT:\n{prompt}"
 )
 
+CONFIG_KEY_PROMPT_REWRITE_EN = "prompt_rewrite_en"
+
+DEFAULT_PROMPT_REWRITE_EN_PROMPT = (
+    "You rewrite software-development prompts written for an AI coding agent.\n"
+    "Rewrite the user's message into clear, standard, natural English.\n"
+    "Rules:\n"
+    "1. Preserve the exact intent, requirements, constraints, names, paths, and order.\n"
+    "2. Remove every code block and inline code snippet (source code, logs, stack\n"
+    "   traces, command output, JSON/config dumps). Replace each one with ONE short\n"
+    "   plain-language sentence describing what that code is, e.g. \"(A Python function\n"
+    "   that parses the config file.)\".\n"
+    "3. Write complete sentences that read naturally aloud; no markdown, lists of\n"
+    "   symbols, or code formatting.\n"
+    "4. If the message is already standard English without code, return it unchanged.\n"
+    "Return ONLY the rewritten text - no explanations, no preface, no code fences."
+)
+
 _EXHAUSTED_MARKERS = EXHAUSTED_ERROR_MARKERS
 
 
@@ -45,12 +68,19 @@ def render_prompt_derive_en(config: Dict[str, Any], prompt_text: str) -> str:
     return template.replace("{prompt}", str(prompt_text or ""))
 
 
-def derive_prompt_en(
+def render_prompt_rewrite_en(config: Dict[str, Any]) -> str:
+    """User-saved rewrite system prompt when present, else the built-in preset."""
+    custom = str((config or {}).get(CONFIG_KEY_PROMPT_REWRITE_EN) or "").strip()
+    return custom or DEFAULT_PROMPT_REWRITE_EN_PROMPT
+
+
+def _transform(
     text: str,
-    config: Dict[str, Any] | None = None,
-    source: str = "prompt_derive_en",
+    build_messages: Callable[[Dict[str, Any], str], List[Dict[str, Any]]],
+    config: Dict[str, Any] | None,
+    source: str,
 ) -> Dict[str, Any]:
-    """Derive one raw prompt into standard English. Returns:
+    """One free-tier transform call. Returns:
 
     { success, exhausted, derived, provider, model, error }
     """
@@ -69,37 +99,69 @@ def derive_prompt_en(
 
     cfg = config or {}
     model = resolve_free_text_model(cfg.get("openrouter_model"))
-    res = free_text_prompt(
-        render_prompt_derive_en(cfg, text),
-        model=model,
-        source=source,
-    )
+    res = free_text_chat(build_messages(cfg, text), model=model, source=source)
     out["provider"] = res.get("provider")
     out["model"] = str(res.get("model") or model)
 
     if not res.get("success"):
-        err = str(res.get("error") or "prompt derivation failed")
+        err = str(res.get("error") or "prompt transform failed")
         out["error"] = err
         out["exhausted"] = is_exhausted_error(err)
         return out
 
     derived = str(res.get("text") or "").strip()
-    # Strip a single wrapping code fence when the model ignores rule 3.
+    # Strip a single wrapping code fence when the model ignores the rules.
     if derived.startswith("```") and derived.endswith("```"):
         lines = derived.splitlines()
         derived = "\n".join(lines[1:-1]).strip()
     if not derived:
-        out["error"] = "model returned no derived prompt"
+        out["error"] = "model returned no text"
         return out
 
     out.update({"success": True, "derived": derived})
     return out
 
 
+def derive_prompt_en(
+    text: str,
+    config: Dict[str, Any] | None = None,
+    source: str = "prompt_derive_en",
+) -> Dict[str, Any]:
+    """Derive one raw prompt into standard English (single user message)."""
+    return _transform(
+        text,
+        lambda cfg, body: [{"role": "user", "content": render_prompt_derive_en(cfg, body)}],
+        config,
+        source,
+    )
+
+
+def rewrite_prompt_en(
+    text: str,
+    config: Dict[str, Any] | None = None,
+    source: str = "prompt_rewrite_en",
+) -> Dict[str, Any]:
+    """Rewrite one raw prompt into standard English, code replaced by short
+    descriptions (preset system prompt + raw prompt as the user message)."""
+    return _transform(
+        text,
+        lambda cfg, body: [
+            {"role": "system", "content": render_prompt_rewrite_en(cfg)},
+            {"role": "user", "content": body},
+        ],
+        config,
+        source,
+    )
+
+
 __all__ = [
     "CONFIG_KEY_PROMPT_DERIVE_EN",
+    "CONFIG_KEY_PROMPT_REWRITE_EN",
     "DEFAULT_PROMPT_DERIVE_EN_PROMPT",
+    "DEFAULT_PROMPT_REWRITE_EN_PROMPT",
     "derive_prompt_en",
     "is_exhausted_error",
     "render_prompt_derive_en",
+    "render_prompt_rewrite_en",
+    "rewrite_prompt_en",
 ]

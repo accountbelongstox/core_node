@@ -29,9 +29,16 @@
 #      compares against the official native release channel.
 # Both steps are no-ops when the CLI is present and current. The launcher stops
 # with an error when the CLI is still missing, instead of exec'ing a missing command.
+#
+# ai_cli_ultracode_prompt asks whether to enable Claude Code ultracode, defaulting
+# to Y and auto-accepting after AI_CLI_ULTRACODE_TIMEOUT_SECONDS; the resulting
+# claude arguments are left in AI_CLI_ULTRACODE_ARGS.
 # =============================================================================
 
 AI_CLI_UPGRADE_TIMEOUT_SECONDS="5"
+AI_CLI_ULTRACODE_TIMEOUT_SECONDS="2"
+AI_CLI_ULTRACODE_SETTINGS_JSON='{"ultracode":true}'
+AI_CLI_ULTRACODE_ARGS=()
 AI_CLI_KIMI_INSTALLER_URL="https://code.kimi.com/kimi-code/install.sh"
 AI_CLI_CLAUDE_LATEST_URL="https://downloads.claude.ai/claude-code-releases/latest"
 AI_CLI_PROVISION_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -268,5 +275,27 @@ ai_cli_provision() {
         exit 1
     fi
     ai_cli_upgrade_prompt "$tool"
+    return 0
+}
+
+ai_cli_ultracode_prompt() {
+    local ultracode_choice=""
+    AI_CLI_ULTRACODE_ARGS=()
+    if [ -t 0 ]; then
+        printf '\033[33mEnable ultracode? [Y/n] (auto-Y in %ss): \033[0m' "$AI_CLI_ULTRACODE_TIMEOUT_SECONDS"
+        read -r -t "$AI_CLI_ULTRACODE_TIMEOUT_SECONDS" ultracode_choice || ultracode_choice=""
+        if [ -z "$ultracode_choice" ]; then
+            printf 'Y (auto)\n'
+        fi
+    fi
+    case "$ultracode_choice" in
+        n|N)
+            echo "[INFO] Ultracode: off"
+            ;;
+        *)
+            AI_CLI_ULTRACODE_ARGS=(--settings "$AI_CLI_ULTRACODE_SETTINGS_JSON")
+            echo "[INFO] Ultracode: on"
+            ;;
+    esac
     return 0
 }

@@ -211,6 +211,8 @@ class AppQyV1DailyReadingService
             }
         );
 
+        app(AppQyV1ResourceIndexService::class)->recordArticle($article);
+
         $eventIdentity = (string) $article->article_id
             . ':' . $artifact['sha256']
             . (($provenance['audio_rebuild'] ?? false) === true ? ':rebuild' : ':publish');

@@ -138,22 +138,23 @@ def _user_runtime_dir() -> str:
     return str(candidate) if candidate.is_dir() else ""
 
 
+def xauthority_candidates(runtime_dir: str) -> Tuple[str, ...]:
+    """Session cookie files, newest first; a re-login leaves the inherited XAUTHORITY stale."""
+    search_roots = [runtime_dir] if runtime_dir else []
+    search_roots.append(str(Path.home()))
+    candidates = []
+    for root in search_roots:
+        for pattern in XWAYLAND_AUTH_PATTERNS:
+            candidates.extend(glob.glob(os.path.join(root, pattern)))
+    return tuple(sorted(set(candidates), key=os.path.getmtime, reverse=True))
+
+
 def _resolve_xauthority(runtime_dir: str) -> str:
     configured = os.environ.get("XAUTHORITY", "")
     if configured:
         return configured
-    search_roots = [runtime_dir] if runtime_dir else []
-    search_roots.append(str(Path.home()))
-    for root in search_roots:
-        for pattern in XWAYLAND_AUTH_PATTERNS:
-            matches = sorted(
-                glob.glob(os.path.join(root, pattern)),
-                key=os.path.getmtime,
-                reverse=True,
-            )
-            if matches:
-                return matches[0]
-    return ""
+    candidates = xauthority_candidates(runtime_dir)
+    return candidates[0] if candidates else ""
 
 
 def _resolve_dbus_address(runtime_dir: str) -> str:
@@ -247,6 +248,7 @@ __all__ = [
     "SESSION_WIN32",
     "SESSION_X11",
     "current_desktop_session",
+    "xauthority_candidates",
     "ensure_session_environment",
     "has_graphical_display",
     "is_headless_linux",

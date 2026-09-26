@@ -13,6 +13,7 @@ import type {
   WordNewRecitationLogPayload, WordNewRecitationLogResult,
   WordNewRecitationTodayPlan, WordNewRecitationSummary, WordNewRecitationStreak,
 } from './learning';
+import type { WfNewOrchAudioDetail, WfNewOrchAudioPage, WfNewOrchAudioSentencePage } from './orchAudio';
 
 /**
  * Every data access the /wordnew app needs, in one interface. Both
@@ -216,6 +217,12 @@ export interface WfNewApi {
   getHomeContent(): Promise<WfNewHomeContent>;
   getAgentArticlesPage(limit?: number, offset?: number): Promise<WfNewAgentArticlePage>;
   getRecentAgentArticles(limit?: number): Promise<WfNewAgentArticle[]>;
+  /** Orchestrated audio listing (paged; `source` filters by orchestration source id). */
+  getOrchAudioPage(opts?: { source?: string | null; page?: number; perPage?: number }): Promise<WfNewOrchAudioPage>;
+  /** One orchestrated audio item: segments, sentence page 1, words and source text. */
+  getOrchAudioDetail(id: string): Promise<WfNewOrchAudioDetail | null>;
+  /** One page of an orchestrated audio item's sentences (1-based). */
+  getOrchAudioSentencePage(id: string, page: number): Promise<WfNewOrchAudioSentencePage>;
 
   // ---- Book reading (book -> chapter -> verses) ----
   /** Ordered chapter list for a book (GET /media/books/{key}/chapters). */

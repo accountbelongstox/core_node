@@ -31,7 +31,7 @@ mediaHub: {
     },
 dbSync: {
       title: "机器数据同步",
-      description: "在一个工作区中管理多个 Laravel Main 节点。每个源端会话会同时镜像源端与接收端进度；接收端在应用差异前会先备份选定数据库。",
+      description: "在两台 Laravel Main 机器之间同步数据。每个节点同一时间只运行一个会话，每个会话只执行一次任务；启动新任务会取消旧任务。写入方（接收端或拉取端）会先备份数据库，数据行按主键/唯一键幂等合并，文件仅在 SHA-256 校验一致后才落盘。",
       managedNodes: "管理的 Laravel 节点",
       oldServer: "旧服务器",
       newServer: "新服务器",
@@ -59,7 +59,7 @@ dbSync: {
       counterpartPending: "接收端会话尚未创建。",
       counterpartOffline: "暂时无法获取接收端状态；后端检查点仍会持续保存。",
       target: "接收端 IP 或主机",
-      targetPlaceholder: "192.168.1.20 或 192.168.1.20:9001",
+      targetPlaceholder: "api.example.com、192.168.1.20:9001 或 https://api.example.com",
       targetPending: "尚未绑定接收端",
       targetRequired: "本机同步清单已就绪。请输入接收端 IP 或主机以继续同步。",
       databases: "数据库",
@@ -89,6 +89,16 @@ dbSync: {
       manifestResourceBytes: "资源字节",
       backupDirectory: "接收端备份目录",
       incomingPeer: "传入对端",
+      history: "最近会话",
+      results: {
+        title: "同步结果",
+        rows: "数据行：新增 {{inserted}}，更新 {{updated}}，未变 {{unchanged}}，已校验 {{verified}}，冲突跳过 {{conflicts}}",
+        tables: "已同步表：{{tables}}；跳过：{{skipped}}",
+        incomplete: "行数低于源端快照的表：{{count}}",
+        files: "文件：已传输 {{transferred}}，已存在 {{present}}，跳过 {{skipped}}，计划 {{planned}}",
+        bytes: "已传输 {{transferred}} / {{planned}}",
+        skippedTitle: "跳过项"
+      },
       roles: {
         source: "源端",
         receiver: "接收端",
@@ -117,7 +127,8 @@ dbSync: {
         running: "运行中",
         paused: "已暂停",
         completed: "已完成",
-        failed: "失败"
+        failed: "失败",
+        cancelled: "已取消"
       },
       stepStatus: {
         pending: "待执行",
@@ -189,7 +200,8 @@ dbSync: {
         ready_for_export: "进入可导出状态",
         serve_database_chunks: "提供数据库分块下载",
         serve_resource_chunks: "提供资源分块下载",
-        finalize_export_session: "结束导出会话"
+        finalize_export_session: "结束导出会话",
+        build_receiver_resource_manifests: "构建接收端资源清单"
       }
     },
 header: {

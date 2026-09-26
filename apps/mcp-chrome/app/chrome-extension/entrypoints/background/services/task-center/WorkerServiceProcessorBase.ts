@@ -74,6 +74,18 @@ export class WorkerServiceProcessorBase implements ITaskProcessor {
     this.service.stop();
   }
 
+  async repoint(apiUrl: string): Promise<void> {
+    if (!this.getStatus().isRunning) return;
+    if (typeof this.service.repoint === 'function') {
+      await this.service.repoint(apiUrl);
+    } else if (typeof this.service.updateConfig === 'function') {
+      await this.service.updateConfig({ apiUrl });
+    } else {
+      this.stop();
+      await this.start({ apiUrl });
+    }
+  }
+
   getStatus(): ProcessorStatus {
     const status = this.service.getStatus();
     return {

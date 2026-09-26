@@ -1,5 +1,9 @@
 import type { WfNewWordMediaOptions } from './WfNewApiTypes';
-import { APPQYV1_API_BASE, APPQYV1_AI_TOOLS_ROUTES } from '../../../core/contracts/AppQyV1AiToolsContract';
+import {
+  APPQYV1_API_BASE,
+  APPQYV1_AI_TOOLS_ROUTES,
+  APPQYV1_LIBRARY_COVER_ROUTES,
+} from '../../../core/contracts/AppQyV1AiToolsContract';
 
 /**
  * WfNewApiPaths — the /wordnew ENDPOINT LIST CENTER.
@@ -25,6 +29,7 @@ import { APPQYV1_API_BASE, APPQYV1_AI_TOOLS_ROUTES } from '../../../core/contrac
  *   MediaBrowseController (app_qy_v1/media)       : /media/books /media/subtitles (public),
  *                                                   /media/documents (optional-auth, user-scoped)
  *   AppQyV1Vocabulary.php (app_qy_v1/vocabulary)  : /vocabulary/libraries (public word libraries)
+ *   AppQyV1OrchAudio.php  (app_qy_v1/orch_audio)  : /tasks /tasks/{id} (sanctum reads)
  *
  * The 2026-06-19 register 404 was exactly this: the HTTP impl posted to the bare
  * `/register` instead of `/api/app_qy_v1/register`. Always route through here.
@@ -94,6 +99,14 @@ export const WfNewApiPaths = {
   agentArticles: (limit = 100, offset = 0): string =>
     p(`/ai_tools/articles?category=daily&limit=${limit}&offset=${offset}`),
   recentAgentArticles: (limit = 20): string => p(`/ai_tools/article/worker/recent?limit=${limit}`),
+  // ---- Orchestrated audio read API (AppQyV1OrchAudio.php — prefix app_qy_v1/orch_audio, sanctum) ----
+  orchAudioTasks: (page: number, perPage: number, source?: string | null): string => {
+    const query = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (source) query.set('source', source);
+    return p(`/orch_audio/tasks?${query.toString()}`);
+  },
+  orchAudioTask: (id: string, sentencePage: number, sentencePerPage: number): string =>
+    p(`/orch_audio/tasks/${encodeURIComponent(id)}?sentence_page=${sentencePage}&sentence_per_page=${sentencePerPage}`),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,
@@ -418,8 +431,11 @@ export const WfNewAdminPaths = {
   /** Delete a user-created library (DELETE, auth:sanctum). */
   learningLibrary: (libraryId: number | string): string =>
     p(`/learning/libraries/${encodeURIComponent(String(libraryId))}`),
-  /** Reset failed/pending AI covers (POST {ids[]} | {all:true}, PUBLIC). */
-  coverRetry: p('/assist/cover/retry'),
+  /** Queue library cover tasks (POST {ids[], mode: generate|search, prompt?}). */
+  libraryCoverTasks: p(APPQYV1_LIBRARY_COVER_ROUTES.tasks),
+  /** Per-library cover state + latest cover task (GET ?ids=1,2). */
+  libraryCoverTaskStatus: (ids: number[]): string =>
+    p(`${APPQYV1_LIBRARY_COVER_ROUTES.tasks}?ids=${ids.map(Number).join(',')}`),
 
   // ---- queues (PUBLIC) ----
   /** Unified TTS queue statistics snapshot. */

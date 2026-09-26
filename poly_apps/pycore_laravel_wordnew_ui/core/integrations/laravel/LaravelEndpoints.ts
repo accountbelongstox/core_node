@@ -122,12 +122,14 @@ function createCurrentOriginEndpoint(
     };
   }
 
+  // A loopback/LAN origin serves its own Laravel backend on :9000, so it ranks
+  // ahead of the configured remote domains for first-run selection.
   return {
     id: `${CURRENT_URL_TYPE}:${hostname}`,
     url: hostname,
     protocol,
     port: FIXED_API_PORT,
-    priority: 5,
+    priority: isLocal ? -1 : 5,
     isLocal,
     description: `Current URL — this site (${protocol}://${hostname}:${FIXED_API_PORT})`,
   };

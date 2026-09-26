@@ -44,6 +44,13 @@ export type {
   VocabLibraryWordRow,
   VocabLibraryWordsResponse,
   VocabAssistCategory,
+  LibraryCoverMode,
+  LibraryCoverHandler,
+  LibraryCoverTask,
+  LibraryCoverEnqueueRequest,
+  LibraryCoverEnqueueResult,
+  LibraryCoverTaskStatus,
+  LibraryCoverTasksResult,
 } from './LaravelTypes';
 
 export { isWordRowValid, wordValidityDisplay } from './wordValidity';

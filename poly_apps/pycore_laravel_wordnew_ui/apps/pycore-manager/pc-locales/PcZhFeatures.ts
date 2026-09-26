@@ -1,8 +1,8 @@
 import { orchZh } from './OrchLocales';
 /** Pycore Manager locale resource fragment. */
 export const pcZhFeatures = {
+audioOrchestration: orchZh,
 vocabularyPage: {
-    orchestration: orchZh,
     title: '词汇',
     subtitle: '直接管理 Laravel 中的词典单词、词库、统计、翻译与 TTS 队列。',
     tabs: {
@@ -12,8 +12,21 @@ vocabularyPage: {
       statistics: '统计',
       ttsQueue: 'TTS 队列',
       learning: '学习任务',
-      audioOrch: '音频编排',
       dictionary: '离线词典',
+    },
+    libraries: {
+      regenerateCover: '重新生成封面（AI：优先 Chrome，Laravel AI 兜底）',
+      researchCover: '重新搜索封面（网络图片搜索）',
+      coverStatus: {
+        queued: '排队中',
+        processing: '处理中',
+        processingBy: '处理中 · {{handler}}',
+        failed: '失败',
+      },
+      coverHandler: {
+        chrome: 'Chrome',
+        laravel_ai: 'Laravel AI',
+      },
     },
     ttsQueue: {
       byStatus: '按状态',
@@ -451,11 +464,18 @@ agentHistory: {
     promptArticleCn: '中文文章提示词',
     promptTranslateEn: '英文翻译提示词',
     promptDeriveEn: '提示词英文推导预置词',
-    promptOverrideHint: '保存在用户数据目录；清空字段即恢复内置默认提示词。占位符：{ref} {title_max} {raw}（中文）· {title_max} {title_cn} {article_cn}（英文）· {prompt}（推导）。',
+    promptRewriteEn: '提示词英文改写系统提示词',
+    promptRewriteEnabled: '改写新提示词',
+    promptRewriteEnabledHint: '实时监控到的每条新提示词都会经 OpenRouter 改写为标准英文（代码块替换为简短描述）。',
+    promptRewriteAudio: '改写转音频',
+    promptRewriteAudioHint: '每条改写结果立即提交到音频编排并马上生成音频。',
+    promptRewritten: '改写（英文）',
+    promptRewriteAudioTask: '音频任务',
+    promptOverrideHint: '保存在用户数据目录；清空字段即恢复内置默认提示词。占位符：{ref} {title_max} {raw}（中文）· {title_max} {title_cn} {article_cn}（英文）· {prompt}（推导）· 改写：系统提示词，无占位符。',
     promptReset: '恢复默认',
     promptsMovedToAi: '流水线提示词已迁移到「AI → 能力 → OpenRouter」卡片。',
     openAiPage: '打开 AI 页',
-    videoMovedToOrch: '生成学习视频已迁移到「词汇 → 音频编排」。',
+    videoMovedToOrch: '生成学习视频已迁移到「音频编排」页面。',
     openAudioOrch: '打开音频编排',
   }
 } as const;

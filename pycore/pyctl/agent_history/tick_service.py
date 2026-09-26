@@ -12,10 +12,8 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.pipeline.config import SUPPORTED_TOOLS, get_config, save_config
-from pycore.pyctl.agent_history.pipeline.worker import (
-    tick_pipeline as pipeline_tick,
-    tick_upload as upload_tick,
-)
+from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
+from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
@@ -305,7 +303,7 @@ class AgentHistoryTickService:
     def _run_upload(self) -> None:
         self._upload_count += 1
         try:
-            upload_tick()
+            agent_history_delivery.tick()
         except Exception as upload_err:  # noqa: BLE001
             ColorPrint.yellow(f"[AgentHistoryArticle] upload tick error: {upload_err}")
         finally:

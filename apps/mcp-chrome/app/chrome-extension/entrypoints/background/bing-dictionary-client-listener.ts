@@ -11,6 +11,7 @@ import { logger } from '@/utils/logger';
 import { BING_DICT_MSG, FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
+import { resolveApiBase } from '@/services/ApiManager';
 
 const LOG = 'Bing Listener';
 
@@ -38,10 +39,16 @@ async function handleBingDictionaryMessage(
   message: {
     type: string;
     action: string;
-    config?: WorkerConfig;
+    config?: Omit<WorkerConfig, 'apiUrl'>;
     words?: string[];
   },
 ) {
+  // The popup never sends an API base: the worker always uses the global endpoint.
+  const workerConfig = async (): Promise<WorkerConfig> => ({
+    ...(message.config || {}),
+    apiUrl: await resolveApiBase(),
+  });
+
   switch (message.action) {
     case 'start': {
       if (!message.config) {
@@ -51,7 +58,7 @@ async function handleBingDictionaryMessage(
         };
       }
 
-      await bingDictionaryWorkerService.start(message.config as WorkerConfig);
+      await bingDictionaryWorkerService.start(await workerConfig());
       return {
         success: true,
         message: 'Worker service started',
@@ -67,7 +74,7 @@ async function handleBingDictionaryMessage(
       if (!message.config) {
         return { success: false, error: 'Config is required to update settings' };
       }
-      await bingDictionaryWorkerService.updateConfig(message.config as WorkerConfig);
+      await bingDictionaryWorkerService.updateConfig(await workerConfig());
       const status = bingDictionaryWorkerService.getStatus();
       return {
         success: true,
@@ -79,20 +86,20 @@ async function handleBingDictionaryMessage(
 
     case 'test_scrape': {
       const words = Array.isArray(message.words) ? message.words : [];
-      const tabCount = (message.config as WorkerConfig | undefined)?.tabCount;
+      const tabCount = message.config?.tabCount;
       const results = await bingDictionaryWorkerService.testScrape(words, tabCount);
       return { success: true, results };
     }
 
     case 'queue_overview': {
-      const config = message.config as WorkerConfig | undefined;
+      const config = message.config;
       const status = (message as any).status || 'pending';
       const limit = (message as any).limit || 10;
       const page = (message as any).page || 1;
       const language = config?.sourceLanguage || 'en';
       const targetLanguage = config?.targetLanguage || 'zh';
       const overview = await bingDictionaryWorkerService.getQueueOverview(
-        config?.apiUrl || '',
+        await resolveApiBase(),
         status,
         limit,
         page,
@@ -103,8 +110,7 @@ async function handleBingDictionaryMessage(
     }
 
     case 'test_connection': {
-      const apiUrl = (message.config as WorkerConfig | undefined)?.apiUrl || '';
-      const result = await bingDictionaryWorkerService.testConnection(apiUrl);
+      const result = await bingDictionaryWorkerService.testConnection(await resolveApiBase());
       return { success: true, ok: result.ok, message: result.message };
     }
 

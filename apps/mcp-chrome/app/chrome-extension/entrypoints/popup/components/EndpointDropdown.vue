@@ -132,223 +132,39 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { apiManager } from '@/services/ApiManager';
-import type { ApiEndpoint, EndpointStatus } from '@/services/ApiManager';
-import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { computed } from 'vue';
+import { endpointAddress, useEndpointSelection } from '@/composables/useEndpointSelection';
 import { getMessage } from '@/utils/i18n';
 
-const BASE_INTERVAL_MS = 15000;
-const MAX_INTERVAL_MS = 60000;
-const PROBE_TIMEOUT_MS = 3000;
+const {
+  open,
+  rootRef,
+  currentEndpoint,
+  isRefreshing,
+  isAutoDetecting,
+  testingId,
+  showCustomForm,
+  autoMode,
+  customUrl,
+  customProtocol,
+  customPort,
+  sortedEndpoints,
+  currentEndpointUrl,
+  headerDotClass,
+  isCurrentEndpoint,
+  getStatus,
+  dotClass,
+  formatResponseTime,
+  refreshEndpoints,
+  testEndpoint,
+  selectEndpoint,
+  selectAuto,
+  addCustomEndpoint,
+} = useEndpointSelection();
 
-const open = ref(false);
-const rootRef = ref<HTMLElement | null>(null);
-
-const currentEndpoint = ref<ApiEndpoint | null>(null);
-const endpointStatuses = ref<EndpointStatus[]>([]);
-const isRefreshing = ref(false);
-const isAutoDetecting = ref(false);
-const testingId = ref<string | null>(null);
-const showCustomForm = ref(false);
-const autoMode = ref(false);
-
-const customUrl = ref('');
-const customProtocol = ref<'http' | 'https'>('http');
-const customPort = ref<number | undefined>(undefined);
-
-let autoDetectTimer: ReturnType<typeof setTimeout> | null = null;
-let currentBackoff = BASE_INTERVAL_MS;
-let disposed = false;
-let unsubscribeEndpoint: (() => void) | null = null;
-
-const sortedEndpoints = computed(() =>
-  [...apiManager.getAllEndpoints()].sort((a, b) => a.priority - b.priority),
+const triggerLabel = computed(() =>
+  currentEndpoint.value ? endpointAddress(currentEndpoint.value, false) : getMessage('apiNone'),
 );
-
-const currentEndpointUrl = computed(() => {
-  const ep = currentEndpoint.value;
-  if (!ep) return getMessage('apiNone');
-  const port = ep.port ? `:${ep.port}` : '';
-  return `${ep.protocol}://${ep.url}${port}`;
-});
-
-const triggerLabel = computed(() => {
-  const ep = currentEndpoint.value;
-  if (!ep) return getMessage('apiNone');
-  const port = ep.port ? `:${ep.port}` : '';
-  return `${ep.url}${port}`;
-});
-
-const isCurrentEndpoint = (id: string) => currentEndpoint.value?.id === id;
-
-const headerDotClass = computed(() =>
-  currentEndpoint.value ? dotClass(currentEndpoint.value.id) : 'bg-slate-500',
-);
-
-const getStatus = (id: string): EndpointStatus | undefined =>
-  endpointStatuses.value.find((s) => s.endpoint.id === id);
-
-const dotClass = (id: string): string => {
-  const status = getStatus(id);
-  if (!status) return 'bg-slate-500';
-  return status.isAvailable ? 'bg-emerald-500' : 'bg-rose-500';
-};
-
-const formatResponseTime = (ms: number): string =>
-  ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
-
-const refreshEndpoints = async () => {
-  if (isRefreshing.value) return;
-  isRefreshing.value = true;
-  try {
-    const statuses = await Promise.all(
-      apiManager.getAllEndpoints().map((ep) => apiManager.checkEndpoint(ep, PROBE_TIMEOUT_MS, 0)),
-    );
-    endpointStatuses.value = statuses;
-  } finally {
-    isRefreshing.value = false;
-  }
-};
-
-const testEndpoint = async (ep: ApiEndpoint) => {
-  if (testingId.value) return;
-  testingId.value = ep.id;
-  try {
-    const status = await apiManager.checkEndpoint(ep, PROBE_TIMEOUT_MS, 0);
-    const idx = endpointStatuses.value.findIndex((s) => s.endpoint.id === ep.id);
-    if (idx >= 0) endpointStatuses.value[idx] = status;
-    else endpointStatuses.value = [...endpointStatuses.value, status];
-  } finally {
-    testingId.value = null;
-  }
-};
-
-const selectEndpoint = async (endpointId: string) => {
-  const success = await apiManager.setEndpoint(endpointId);
-  if (success) {
-    autoMode.value = false;
-    open.value = false;
-    currentEndpoint.value = apiManager.getCurrentEndpoint();
-    currentBackoff = BASE_INTERVAL_MS;
-  }
-};
-
-const selectAuto = async () => {
-  autoMode.value = true;
-  open.value = false;
-  await apiManager.setAutoMode(true);
-  isAutoDetecting.value = true;
-  try {
-    const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
-    endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
-    if (best) {
-      currentEndpoint.value = best;
-    }
-  } finally {
-    isAutoDetecting.value = false;
-    currentBackoff = BASE_INTERVAL_MS;
-  }
-};
-
-const addCustomEndpoint = async () => {
-  if (!customUrl.value) return;
-  await apiManager.addCustomEndpoint({
-    url: customUrl.value,
-    protocol: customProtocol.value,
-    port: customPort.value,
-    priority: 99,
-    isLocal: false,
-    description: `Custom: ${customUrl.value}`,
-  });
-  customUrl.value = '';
-  customPort.value = undefined;
-  await refreshEndpoints();
-};
-
-const upsertStatus = (status: EndpointStatus) => {
-  const idx = endpointStatuses.value.findIndex((s) => s.endpoint.id === status.endpoint.id);
-  if (idx >= 0) endpointStatuses.value[idx] = status;
-  else endpointStatuses.value = [...endpointStatuses.value, status];
-};
-
-const scheduleNext = () => {
-  if (disposed) return;
-  autoDetectTimer = setTimeout(tick, currentBackoff);
-};
-
-const tick = async () => {
-  if (disposed) return;
-  if (isRefreshing.value || testingId.value) { scheduleNext(); return; }
-  try {
-    if (autoMode.value) {
-      isAutoDetecting.value = true;
-      const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
-      endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
-      if (best) {
-        currentEndpoint.value = best;
-        currentBackoff = BASE_INTERVAL_MS;
-      } else {
-        currentBackoff = Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
-      }
-      return;
-    }
-    const current = currentEndpoint.value;
-    if (current) {
-      const status = await apiManager.checkEndpoint(current, PROBE_TIMEOUT_MS);
-      upsertStatus(status);
-      currentBackoff = status.isAvailable
-        ? BASE_INTERVAL_MS
-        : Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
-    }
-  } finally {
-    isAutoDetecting.value = false;
-    scheduleNext();
-  }
-};
-
-const onDocumentClick = (e: MouseEvent) => {
-  if (!open.value) return;
-  if (rootRef.value && !rootRef.value.contains(e.target as Node)) open.value = false;
-};
-
-const syncSelection = () => {
-  currentEndpoint.value = apiManager.getCurrentEndpoint();
-  autoMode.value = apiManager.isAutoMode();
-};
-
-const onStorageChanged = async (
-  changes: Record<string, chrome.storage.StorageChange>,
-  area: string,
-) => {
-  if (area !== 'local' || !changes[STORAGE_KEYS.API_SETTINGS]) return;
-  await apiManager.initialize({ autoDetect: false });
-  syncSelection();
-  await refreshEndpoints();
-};
-
-onMounted(async () => {
-  await apiManager.initialize({ autoDetect: false });
-  autoMode.value = apiManager.isAutoMode();
-  currentEndpoint.value = apiManager.getCurrentEndpoint();
-  unsubscribeEndpoint = apiManager.onEndpointChange(syncSelection);
-  chrome.storage.onChanged.addListener(onStorageChanged);
-  await refreshEndpoints();
-  if (autoMode.value) {
-    const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
-    if (best) currentEndpoint.value = best;
-  }
-  document.addEventListener('click', onDocumentClick);
-  scheduleNext();
-});
-
-onUnmounted(() => {
-  disposed = true;
-  unsubscribeEndpoint?.();
-  chrome.storage.onChanged.removeListener(onStorageChanged);
-  document.removeEventListener('click', onDocumentClick);
-  if (autoDetectTimer !== null) { clearTimeout(autoDetectTimer); autoDetectTimer = null; }
-});
 </script>
 
 <style scoped>

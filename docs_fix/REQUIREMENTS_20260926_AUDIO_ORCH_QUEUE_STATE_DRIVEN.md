@@ -5,7 +5,8 @@ Status: binding requirement list (development requirements; design and
 implementation record are appended below as work proceeds)
 Scope: `pycore` (audio orchestration, audio queue library, word/sentence lane
 workers, queue-center snapshot/control, RPC, pycore→UI push),
-`poly_apps/pycore_laravel_wordnew_ui` (pycore-manager: audio-orchestration tab,
+`poly_apps/pycore_laravel_wordnew_ui` (pycore-manager: audio-orchestration page
+`/pycore-manager/audio-orchestration` — a Vocabulary tab until 2026-09-27,
 `/pycore-manager/queue-center` Word Audio / Sentence Audio sections, shared
 contracts and pycore integration), `poly_apps/laravel_main` (listing/queue
 endpoints; not running on this machine, so changes are derived from code),
@@ -31,7 +32,7 @@ endpoints; not running on this machine, so changes are derived from code),
   raw Python exception of an earlier BACKGROUND Laravel fetch
   (`orch_books._books_job` / sentence sync). It is persisted in `sync_state`
   and returned with every later `books/list` response. The UI
-  (`VocabAudioOrchTab.loadBooks`) then renders it as a sticky error banner.
+  (`AudioOrchWorkspace.loadBooks`) then renders it as a sticky error banner.
   Required: classify upstream failures into stable error codes (i18n in the
   UI, never raw exception text). A job's failure belongs to that job attempt
   and clears on the next attempt or success. The slow Laravel books/sentences
@@ -124,7 +125,7 @@ endpoints; not running on this machine, so changes are derived from code),
 ### 5.1 Measured root causes (code scan, 2026-09-26)
 
 - M1 **Sticky, raw sync errors.** `orch_books._books_job` / `_sentences_job`
-  persist `str(exc)` in `sync_state.json`. `VocabAudioOrchTab.loadBooks` shows
+  persist `str(exc)` in `sync_state.json`. `AudioOrchWorkspace.loadBooks` shows
   the books-job failure AND the first failed per-book sentence sync as ONE
   books banner. The banner keeps showing until that exact job succeeds again,
   so a 200 `books/list` still shows an old timeout.
@@ -239,7 +240,9 @@ endpoints; not running on this machine, so changes are derived from code),
   3. per chunk: `take_local` → generate (word: one Kokoro batch per language;
      sentence: Laravel lookup, then local synthesis) → `settle_local`;
   4. items in flight on a lane worker are awaited, then resolved from the
-     cache.
+     cache; words the lane failed go back through the Kokoro batch (never
+     per-word synthesis; 2026-09-27 W1, shared entry
+     `kokoro_batch.synthesize_words_to_cache`).
 - Task progress carries per-lane tracker counts. The task view embeds the
   shared Part1 / Part2 / Queue component, scoped to the task owner.
 - Sync jobs store `error_code` (stable, i18n on the UI) plus a short `detail`
@@ -371,7 +374,7 @@ endpoints; not running on this machine, so changes are derived from code),
   - manifest rows show their lane queue state; manual promote passes the
     task owner.
 - Issue 1:
-  - `VocabAudioOrchTab` shows the books banner only for the books-list
+  - `AudioOrchWorkspace` shows the books banner only for the books-list
     attempt, localized by `error_code`;
   - `OrchBookPicker` shows per-book failure plus Retry (resume);
   - the spinner reflects only a user refresh plus pycore's

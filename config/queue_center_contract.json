@@ -1,5 +1,5 @@
 {
- "schema_version": 37,
+ "schema_version": 38,
  "contract": "queue_center",
  "source_path": "config/queue_center_contract.json",
  "word_validity": {
@@ -368,6 +368,14 @@
    "queue_metrics": true
   }
  },
+ "library_cover": {
+  "task_types": {
+   "generate": "library_cover",
+   "search": "library_cover_search"
+  },
+  "fallback_grace_seconds": 20,
+  "fallback_worker_id": "laravel-ai"
+ },
  "task_contract": {
   "statuses": {
    "values": {
@@ -501,16 +509,16 @@
   "chrome_capability_switches": {
    "image": {
     "storage_key": "tkCapImage",
-    "label": "Cover and poster search",
-    "hint": "Search and write back book covers and media posters through the shared browser worker",
+    "label": "Cover, poster and library cover search",
+    "hint": "Search and write back book covers, media posters and vocabulary-library covers through the shared browser worker",
     "processors": [
      "media_image"
     ]
    },
    "gemini_image": {
     "storage_key": "tkCapGeminiImage",
-    "label": "AI word-group cover generation",
-    "hint": "Generate vocabulary-library covers with Gemini and write them back to Laravel",
+    "label": "AI library cover and image generation",
+    "hint": "Generate vocabulary-library covers and requested Gemini images, then write them back to Laravel",
     "processors": [
      "remote_gemini"
     ]
@@ -903,6 +911,38 @@
     }
    },
    {
+    "key": "library_cover",
+    "label": "Vocabulary Library Cover (AI)",
+    "execution_type": "remote_gemini",
+    "capability": "image",
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "prompt",
+    "pycore_local_label": "remote_image",
+    "ui": {
+     "icon": "🖼️",
+     "badge": "COVER",
+     "summary_label": "待 AI 生成词库封面",
+     "color": "#a78bfa"
+    }
+   },
+   {
+    "key": "library_cover_search",
+    "label": "Vocabulary Library Cover (Search)",
+    "execution_type": "remote_poster",
+    "capability": "poster",
+    "ordering": "priority",
+    "interactive": false,
+    "prompt_payload_field": "search_query",
+    "pycore_local_label": "remote_poster",
+    "ui": {
+     "icon": "🔎",
+     "badge": "COVER SEARCH",
+     "summary_label": "待搜索词库封面",
+     "color": "#f472b6"
+    }
+   },
+   {
     "key": "gemini_chat",
     "label": "Gemini Chat",
     "execution_type": "remote_gemini_text",
@@ -1005,7 +1045,9 @@
     "word-translation": "translation",
     "ai_translate": "translation",
     "gemini_image": "media_image",
-    "poster": "media_image"
+    "poster": "media_image",
+    "library_cover": "media_image",
+    "library_cover_search": "media_image"
    },
    "token_rules": [
     {
@@ -1128,7 +1170,7 @@
   {
    "key": "cover",
    "label": "Vocabulary Cover",
-   "laravel_task_type": null,
+   "laravel_task_type": "library_cover",
    "summary_task_type": "gemini_image",
    "capability": "image",
    "primary_handler": "chrome"

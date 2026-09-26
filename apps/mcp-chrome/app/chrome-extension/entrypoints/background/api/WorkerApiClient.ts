@@ -31,6 +31,7 @@ import {
   type WorkerSubmitOutcome,
   type QueueProgress,
   type QueueSliceDiff,
+  type TaskDetailBundle,
 } from '@/utils/queue-center-contract';
 
 export { PRIORITY_FAST, WORKER_CAPABILITIES } from '@/utils/queue-center-contract';
@@ -293,10 +294,13 @@ export class WorkerApiClient extends BaseApiClient {
    * Fetch the full detail bundle for a task. Mirrors Laravel
    * `GET /api/task/{id}/detail` (the same shape the SSE detail stream emits as
    * its task.detail-initial frame), used by the popup TaskDetailModal drilldown.
-   * A control read — no worker_id required.
+   * A control read — no worker_id required; the single task-detail read path.
    */
-  async getTaskDetail(taskId: string): Promise<ApiResponse<any>> {
-    return this.get<any>(taskPath(taskId, 'detail'));
+  async getTaskDetail(taskId: string): Promise<ApiResponse<TaskDetailBundle>> {
+    return this.get<TaskDetailBundle>(taskPath(taskId, 'detail'), undefined, {
+      ...CONTROL_RPC_OPTS,
+      headers: { 'Cache-Control': 'no-cache' },
+    });
   }
 
   /**

@@ -44,6 +44,8 @@ SCRIPT_INDEX="175SN"
 . "$LINUX_COMMON_DIR/common_functions.sh"
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/nginx_manager.sh"
+# shellcheck source=/dev/null
+. "$LINUX_COMMON_DIR/redis_endpoint_common.sh"
 
 echo "[$SCRIPT_INDEX] nginx plane service runtime: minimal convergence, then octane:swoole (watch=${OCTANE_WATCH})"
 
@@ -52,6 +54,10 @@ echo "[$SCRIPT_INDEX] nginx plane service runtime: minimal convergence, then oct
 # no installer - those are the 175 init job.
 nm_edge_ports_ensure
 nm_service_state "start" || echo "  Warning: nginx service state reported issues (continuing)."
+
+# Redis service state only (no installer): start the store 175 selected when
+# it is down; Laravel falls back to its database path while it stays down.
+redis_endpoint_service_state_ensure
 
 cd "$LARAVEL_DIR" || exit 1
 

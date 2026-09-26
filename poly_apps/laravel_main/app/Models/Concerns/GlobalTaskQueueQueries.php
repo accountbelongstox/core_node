@@ -34,6 +34,70 @@ trait GlobalTaskQueueQueries
             ->first();
     }
 
+    /**
+     * Newest task per group_key across $taskTypes in one query; $statuses
+     * null means any status.
+     *
+     * @return array<string,GlobalTask> group_key => task
+     */
+    public static function newestByGroupKeys(array $taskTypes, array $groupKeys, ?array $statuses = null): array
+    {
+        if ($taskTypes === [] || $groupKeys === []) {
+            return [];
+        }
+        $newestIds = self::query()
+            ->selectRaw('MAX(id)')
+            ->whereIn('task_type', $taskTypes)
+            ->whereIn('group_key', $groupKeys)
+            ->when($statuses !== null, static function (EloquentBuilder $query) use ($statuses): void {
+                $query->whereIn('status', $statuses);
+            })
+            ->groupBy('group_key');
+
+        return self::query()
+            ->whereIn('id', $newestIds)
+            ->get()
+            ->keyBy(static fn (GlobalTask $task): string => (string) $task->group_key)
+            ->all();
+    }
+
+    /**
+     * Failed tasks updated since $updatedAfter that are still the newest task
+     * of their group_key across $taskTypes (single query).
+     */
+    public static function newestFailedInGroupsSince(array $taskTypes, $updatedAfter, int $limit): EloquentCollection
+    {
+        $table = (new static())->getTable();
+
+        return self::query()
+            ->whereIn('task_type', $taskTypes)
+            ->where('status', self::status('failed'))
+            ->whereNotNull('group_key')
+            ->where('updated_at', '>=', $updatedAfter)
+            ->whereNotExists(static function ($newer) use ($table, $taskTypes): void {
+                $newer->selectRaw('1')
+                    ->from($table . ' as newer')
+                    ->whereIn('newer.task_type', $taskTypes)
+                    ->whereColumn('newer.group_key', $table . '.group_key')
+                    ->whereColumn('newer.id', '>', $table . '.id');
+            })
+            ->orderByDesc('updated_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function pendingOfTaskTypesCreatedBefore(array $taskTypes, $createdBefore, int $limit): EloquentCollection
+    {
+        return self::query()
+            ->where('status', self::status('pending'))
+            ->whereIn('task_type', $taskTypes)
+            ->where('created_at', '<=', $createdBefore)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
     public static function statusCountsForTaskType(string $taskType): Collection
     {
         return self::query()

@@ -3,6 +3,6 @@
   "name": "Pycore Window Bridge",
   "description": "Exposes window listing, activation, input and window capture to the local pycore service over the session D-Bus.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "version": 1,
+  "version": 2,
   "url": "https://github.com/accountbelongstox/core_node"
 }

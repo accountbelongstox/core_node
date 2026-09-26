@@ -49,7 +49,7 @@ mediaHub: {
     },
 dbSync: {
       title: "Machine Data Synchronization",
-      description: "Manage multiple Laravel Main nodes from one workspace. Every source session mirrors source and receiver progress together, and each receiver backs up selected databases before accepting differences.",
+      description: "Synchronize data between two Laravel Main machines. One node runs one session at a time and each session performs one run; starting a new run cancels the previous one. A node that writes (receiver or pull fetcher) backs up its databases first, rows are merged idempotently by primary/unique key, and files are committed only after their SHA-256 matches.",
       managedNodes: "Managed Laravel nodes",
       oldServer: "Old server",
       newServer: "New server",
@@ -77,7 +77,7 @@ dbSync: {
       counterpartPending: "The receiver session has not been created yet.",
       counterpartOffline: "The receiver status is temporarily unavailable; backend checkpoints continue to persist.",
       target: "Receiver IP or host",
-      targetPlaceholder: "192.168.1.20 or 192.168.1.20:9001",
+      targetPlaceholder: "api.example.com, 192.168.1.20:9001 or https://api.example.com",
       targetPending: "Receiver not bound",
       targetRequired: "The local manifest is ready. Enter a receiver IP or host to continue synchronization.",
       databases: "Databases",
@@ -107,6 +107,16 @@ dbSync: {
       manifestResourceBytes: "Resource bytes",
       backupDirectory: "Receiver backup directory",
       incomingPeer: "Incoming peer",
+      history: "Recent sessions",
+      results: {
+        title: "Results",
+        rows: "Rows: {{inserted}} inserted, {{updated}} updated, {{unchanged}} unchanged, {{verified}} verified, {{conflicts}} conflicting rows skipped",
+        tables: "Tables synchronized: {{tables}}; skipped: {{skipped}}",
+        incomplete: "Tables below the source snapshot count: {{count}}",
+        files: "Files: {{transferred}} transferred, {{present}} already present, {{skipped}} skipped of {{planned}} planned",
+        bytes: "Transferred {{transferred}} of {{planned}}",
+        skippedTitle: "Skipped items"
+      },
       roles: {
         source: "Source",
         receiver: "Receiver",
@@ -135,7 +145,8 @@ dbSync: {
         running: "Running",
         paused: "Paused",
         completed: "Completed",
-        failed: "Failed"
+        failed: "Failed",
+        cancelled: "Cancelled"
       },
       stepStatus: {
         pending: "Pending",
@@ -207,7 +218,8 @@ dbSync: {
         ready_for_export: "Become ready for export",
         serve_database_chunks: "Serve database chunks",
         serve_resource_chunks: "Serve resource chunks",
-        finalize_export_session: "Finalize export session"
+        finalize_export_session: "Finalize export session",
+        build_receiver_resource_manifests: "Build receiver resource manifests"
       }
     },
 header: {

@@ -5,11 +5,8 @@
 
 import { TextChunker } from './text-chunker';
 import { VectorDatabase, getGlobalVectorDatabase } from './vector-database';
-import {
-  SemanticSimilarityEngineProxy,
-  PREDEFINED_MODELS,
-  type ModelPreset,
-} from './semantic-similarity-engine';
+import { SemanticSimilarityEngineProxy } from './semantic-similarity-proxy';
+import { PREDEFINED_MODELS, type ModelPreset } from './semantic-similarity-models';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { AsyncOperationController } from './async';

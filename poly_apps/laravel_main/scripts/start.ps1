@@ -12,29 +12,26 @@
 #   ensure php/composer -> Laravel runtime dirs / runtime secret store -> ensure pdo_pgsql
 #   -> ensure PostgreSQL (shared PostgresqlManager: idempotent, native cluster on D:,
 #      REUSES an already-serving :5432 server e.g. a WSL one) -> route:clear ->
-#      route:list -> sys:init -> detect IPs -> composer dev:win.
+#      route:list -> sys:init -> detect IPs -> service (Step175) or foreground runtime.
 # PostgreSQL parity: the installer owns POSTGRES_PASSWORD in its global-var store
 #   and mirrors it into RuntimeConfigurationStore; config/database.php is code-only
 #   PostgreSQL at 127.0.0.1:5432.
-# Runtime: Laravel Octane's HTTP server cannot run on native Windows (octane:start
-#   needs the pcntl SIGINT constant) -> use composer dev:win (serve+queue+reverb+
-#   timer). The sub-minute timer task system (app/Services/TimerTasks/*, same code
-#   as Linux/WSL) still runs here: OctaneTimerServiceProvider auto-falls-back from
-#   the missing Octane(Swoole) tick to a Laravel Schedule->everySecond() tick,
-#   driven by the `timer` lane (`php artisan schedule:work`) composer dev:win starts.
+# Runtime: the Windows runtime is FrankenPHP running the Octane worker
+#   (win_common/FrankenPhpManager.ps1). The background service ncore-laravel-frankenphp
+#   (WinSW) is converged by install_powershells/Step175_LaravelMainStart.ps1, exactly as
+#   Linux start.sh delegates to 175_laravel_main_start.sh. The foreground runtime runs
+#   the same frankenphp binary + Caddyfile; before Step175 has provisioned them it falls
+#   back to `php artisan serve` (HTTP API only).
 # DB sharing: when Windows and Linux/WSL run on the same machine, whichever starts
 #   first owns :5432; the other REUSES it (Ensure-Postgresql probes the port first),
 #   so there is one live server at a time -- the only safe shared model (a native
 #   Windows NTFS cluster and a Linux ext4 cluster cannot share one data dir).
-# Background service (idempotent, via NSSM -- see win_common/NssmServiceManager.ps1):
-#   needs NO parameters, mirroring start.sh. Asked ONLY after the full prerequisite
-#   setup below succeeds (env var AS_SERVICE=yes|no pre-answers it, same name/values as
-#   start.sh, for non-interactive callers -- no prompt either way). env var
-#   LARAVEL_SERVICE_RUN=1 marks the NSSM-launched invocation itself (set via NSSM
-#   AppEnvironmentExtra, never a script argument): it skips the prompt and runs
-#   straight through to composer dev:win in the foreground (that IS the service body),
-#   exactly mirroring LARAVEL_SERVICE_RUN in start.sh. env var INCLUDE_UI=yes|no
-#   pre-answers the extra "also register the nexus-dash UI as a service" step.
+# Arguments (parsed from $args, see Show-Usage): --service | --no-service | --status |
+#   --with-ui | --no-ui. Env AS_SERVICE=yes|no, INCLUDE_UI=yes|no and CODEMART_INIT=yes|no
+#   pre-answer the prompts; --service (= AS_SERVICE=yes) never prompts and never restarts
+#   an already running service. The legacy NSSM service ncore-laravel-main (its body ran
+#   the removed `composer dev:win` runtime) is retired: its body (LARAVEL_SERVICE_RUN=1)
+#   now stops itself, and service installs remove it.
 
 # --- Variables (declared at the beginning of the file) ---
 $OriginalDirectory = Get-Location
@@ -42,13 +39,19 @@ $ScriptDir = $PSScriptRoot
 $LaravelDir = Split-Path -Parent $ScriptDir
 $PolyAppsDir = Split-Path -Parent $LaravelDir
 $RepoRootDir = Split-Path -Parent $PolyAppsDir
+$WinCommonDir = Join-Path $RepoRootDir "scripts\shells\win\win_common"
+$InstallStepsDir = Join-Path $RepoRootDir "scripts\shells\win\install_powershells"
 $VendorDir = Join-Path $LaravelDir "vendor"
 $VendorAutoload = Join-Path $VendorDir "autoload.php"
 $BootstrapApp = Join-Path $LaravelDir "bootstrap\app.php"
 $Laravel13UpgradeScript = Join-Path $ScriptDir "upgrade_laravel_13.ps1"
 $RuntimeConfigDir = $null
-$Port = 9000
-$PgManagerScript = Join-Path $RepoRootDir "scripts\shells\win\win_common\PostgresqlManager.ps1"
+$Port = $null
+$BindHost = $null
+$PgManagerScript = Join-Path $WinCommonDir "PostgresqlManager.ps1"
+$ServiceContractScript = Join-Path $WinCommonDir "ServiceContract.ps1"
+$FrankenPhpManagerScript = Join-Path $WinCommonDir "FrankenPhpManager.ps1"
+$Step175Script = Join-Path $InstallStepsDir "Step175_LaravelMainStart.ps1"
 $PhpIniConfigScript = Join-Path $RepoRootDir "scripts\shells\win\1_phpconfig\configure_php_ini.php"
 $PhpIniDepsFixScript = Join-Path $RepoRootDir "scripts\shells\win\1_phpconfig\fix_php_ini_deps.php"
 $IPList = @()
@@ -76,25 +79,33 @@ $PgWinExportSql = $null
 $PgWinExportStale = $false
 $PgWinExportBinDir = $null
 $PgWinExportTmp = $null
-# Background service registration (NSSM-backed; see win_common/NssmServiceManager.ps1).
-$NssmServiceManagerScript = Join-Path $RepoRootDir "scripts\shells\win\win_common\NssmServiceManager.ps1"
-$LaravelServiceName = "ncore-laravel-main"
-$LaravelServiceDisplayName = "Laravel Main (core_node)"
-$LaravelServiceDesc = "laravel_main backend (native Windows: serve+queue+reverb)"
+# Background service: ncore-laravel-frankenphp (WinSW, converged by Step175). The name comes
+# from FrankenPhpManager.ps1; ncore-laravel-main is the retired NSSM service.
+$NssmServiceManagerScript = Join-Path $WinCommonDir "NssmServiceManager.ps1"
+$LegacyServiceName = "ncore-laravel-main"
+$LaravelServiceName = $null
+$LaravelServiceState = $null
+$FrankenPhpRuntime = $null
+$FrankenPhpExe = $null
+$FrankenPhpCaddyfile = $null
+$FrankenPhpReady = $false
 $SelfScript = Join-Path $ScriptDir "start.ps1"
-$CacheBaseDir = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
-$LogDir = Join-Path $CacheBaseDir 'pycore\logs'
 $UiStartPs1 = Join-Path $PolyAppsDir "pycore_laravel_wordnew_ui\scripts\start.ps1"
 $AsServiceEnv = $env:AS_SERVICE
 $IncludeUiEnv = $env:INCLUDE_UI
 $IsServiceRun = ($env:LARAVEL_SERVICE_RUN -eq "1")
+$StatusRequested = $false
+$ServiceFlag = $null
+$ServiceMode = $false
 $AsServiceChoice = $false
 $IncludeUiChoice = $false
-$NssmPath = $null
-$PwshServiceExe = $null
-$ServiceArgs = $null
-$ServiceRegistered = $false
-$npxCmd = $null
+$CodemartInitDefault = "no"
+$IncludeUiDefault = "no"
+$PwshExe = $null
+$ComposerInteractionArgs = @()
+$ArtisanInteractionArgs = @()
+$FrameworkMajor = $null
+$LegacyServiceRemoved = $false
 $GeneratedAccessCode = $null
 $ShownAccessCode = $null
 $StoredAccessCode = $null
@@ -117,12 +128,62 @@ $LaravelRuntimeDirs = @(
 )
 
 . $Laravel13UpgradeScript
+. $ServiceContractScript
 function Show-Usage {
     Write-Host "Usage: powershell -File `"$SelfScript`" [options]"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  --help, -h          Show this help message and exit."
     Write-Host "  --show-super-code   Show the last generated super code and exit."
+    Write-Host "  --status            Print the runtime service state (running|stopped|absent) and exit."
+    Write-Host "  --service           Non-interactive: install/start the FrankenPHP Windows service via Step175"
+    Write-Host "                      (elevated; no restart when already running). Same as AS_SERVICE=yes."
+    Write-Host "  --no-service        Skip the service prompt and run in the foreground. Same as AS_SERVICE=no."
+    Write-Host "  --with-ui, --no-ui  Also register (or skip) the nexus-dash UI service. Same as INCLUDE_UI=yes|no."
+    Write-Host ""
+    Write-Host "Environment: CODEMART_INIT=yes|no (default no with --service), DD_AUTO_CONTINUE=1."
+}
+
+# FrankenPHP runtime paths from the shared manager. It is dot-sourced inside this function
+# so GlobalVars' StrictMode/"Stop" preference stays out of this script's own scope.
+function Get-FrankenPhpRuntimeProfile {
+    . $FrankenPhpManagerScript
+    return @{
+        ServiceName           = Get-FrankenPhpServiceName
+        BinaryPath            = Get-FrankenPhpBinaryPath
+        CaddyfilePath         = Get-FrankenPhpCaddyfilePath
+        WorkerPath            = Join-Path (Join-Path (Get-FrankenPhpLaravelDirectory) 'public') 'frankenphp-worker.php'
+        PhpIniScanDirectory   = Split-Path -Parent (Get-FrankenPhpPhpIniPath)
+        DataDirectory         = $script:FrankenPhpDataDirectory
+        CaddyConfigDirectory  = $script:FrankenPhpCaddyConfigDirectory
+        IsElevated            = Test-AdminPrivileges
+    }
+}
+
+# Process environment the FrankenPHP service gets from Ensure-FrankenPhpWindowsService,
+# applied to this process for the foreground runtime (same Caddyfile, no watch directives).
+function Set-FrankenPhpForegroundEnvironment {
+    param([Parameter(Mandatory = $true)][hashtable]$Runtime)
+    $env:PHP_INI_SCAN_DIR = $Runtime.PhpIniScanDirectory
+    $env:XDG_DATA_HOME = $Runtime.DataDirectory
+    $env:XDG_CONFIG_HOME = $Runtime.CaddyConfigDirectory
+    $env:FRANKENPHP_BINARY_PATH = $Runtime.BinaryPath
+    $env:FRANKENPHP_VARIANT = "windows-native"
+    $env:FRANKENPHP_DNS01_MODE = "external"
+    $env:CADDY_SERVER_WORKER_DIRECTIVE = ""
+    $env:CADDY_SERVER_WATCH_DIRECTIVES = ""
+}
+
+# Retired NSSM body (LARAVEL_SERVICE_RUN=1): it used to run `composer dev:win` and free
+# port 9000 on every restart, killing the FrankenPHP service. Make NSSM stop the service
+# when this body exits instead of restarting it, and never touch the ports.
+function Stop-LegacyServiceBody {
+    $legacyNssm = Find-NssmExe
+    Write-Host "Legacy service $LegacyServiceName is retired; laravel_main runs as $LaravelServiceName." -ForegroundColor Yellow
+    Write-Host "Run (elevated): powershell -File `"$SelfScript`" --service" -ForegroundColor Yellow
+    if ($legacyNssm) {
+        & $legacyNssm set $LegacyServiceName AppExit Default Exit | Out-Null
+    }
 }
 
 # The access code lives in the external runtime store (PathMapper
@@ -151,8 +212,17 @@ foreach ($Argument in $args) {
         "--help" { $HelpRequested = $true }
         "-h" { $HelpRequested = $true }
         "--show-super-code" { $ShowSuperCode = $true }
+        "--status" { $StatusRequested = $true }
+        "--service" { $ServiceFlag = "yes" }
+        "--no-service" { $ServiceFlag = "no" }
+        "--with-ui" { $IncludeUiEnv = "yes" }
+        "--no-ui" { $IncludeUiEnv = "no" }
     }
 }
+if ($ServiceFlag) {
+    $AsServiceEnv = $ServiceFlag
+}
+$ServiceMode = ($AsServiceEnv -eq "yes")
 
 if ($HelpRequested) {
     Show-Usage
@@ -179,8 +249,11 @@ if ($ShowSuperCode) {
 # Step17_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
 . $PgManagerScript
 
-# Shared NSSM service registration helper (idempotent install-or-update + restart).
+# Shared NSSM helpers (service state, legacy service removal, DevInstaller steps, prompts).
 . $NssmServiceManagerScript
+
+$Port = Get-ServiceContractPort -Name "laravel_api_backend"
+$BindHost = Get-ServiceContractHost -Name "any"
 
 function New-InstallationAccessCode {
     $segments = @(
@@ -315,6 +388,44 @@ function Initialize-RuntimeConfigurationStore {
     return $directory
 }
 
+$FrankenPhpRuntime = Get-FrankenPhpRuntimeProfile
+$LaravelServiceName = $FrankenPhpRuntime.ServiceName
+$LaravelServiceState = Get-ServiceRunState -ServiceName $LaravelServiceName
+
+if ($StatusRequested) {
+    Write-Output $LaravelServiceState
+    exit 0
+}
+
+if ($IsServiceRun) {
+    Stop-LegacyServiceBody
+    exit 0
+}
+
+if ($LaravelServiceState -eq "running") {
+    Write-Host "Service $LaravelServiceName is already running (port $Port); nothing to start, no restart." -ForegroundColor Green
+    Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
+    exit 0
+}
+
+$PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $PwshExe) { $PwshExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
+
+if ($ServiceMode) {
+    if (-not $FrankenPhpRuntime.IsElevated) {
+        Write-Host "ERROR: --service installs the Windows service $LaravelServiceName and needs an elevated (Administrator) PowerShell." -ForegroundColor Red
+        exit 1
+    }
+    $LegacyServiceRemoved = Remove-NssmService -ServiceName $LegacyServiceName
+    if (-not $LegacyServiceRemoved) {
+        Write-Host "  Warning: legacy service $LegacyServiceName is still registered; its body no longer touches port $Port." -ForegroundColor Yellow
+    }
+    if ([string]::IsNullOrEmpty($env:CODEMART_INIT)) { $env:CODEMART_INIT = $CodemartInitDefault }
+    if ([string]::IsNullOrEmpty($IncludeUiEnv)) { $IncludeUiEnv = $IncludeUiDefault }
+    $ComposerInteractionArgs = @("--no-interaction")
+    $ArtisanInteractionArgs = @("--no-interaction")
+}
+
 Write-Host "Initial directory (invocation): $($OriginalDirectory.Path)" -ForegroundColor DarkGray
 Write-Host "Working directory (Laravel root): $LaravelDir" -ForegroundColor DarkGray
 Write-Host ""
@@ -355,14 +466,21 @@ try {
         }
     }
 
-    if (-not (Invoke-Laravel13Upgrade -LaravelRoot $LaravelDir -PhpExecutable $phpCmd.Source -ComposerExecutable $composerCmd.Source)) {
+    # The Laravel 12 -> 13 upgrade is interactive only; --service reports it and stops.
+    if ($ServiceMode) {
+        $FrameworkMajor = Get-LaravelFrameworkMajor -LaravelRoot $LaravelDir -PhpExecutable $phpCmd.Source
+        if (($null -ne $FrameworkMajor) -and ($FrameworkMajor -ne $Laravel13TargetMajor)) {
+            Write-Host "ERROR: Laravel $FrameworkMajor detected; run start.ps1 interactively once to upgrade to Laravel $Laravel13TargetMajor." -ForegroundColor Red
+            exit 1
+        }
+    } elseif (-not (Invoke-Laravel13Upgrade -LaravelRoot $LaravelDir -PhpExecutable $phpCmd.Source -ComposerExecutable $composerCmd.Source)) {
         exit 1
     }
 
     # Ensure vendor dependencies before any artisan command.
     if ((-not (Test-Path -LiteralPath $VendorDir)) -or (-not (Test-Path -LiteralPath $VendorAutoload))) {
         Write-Host "vendor/ not found. Running composer install..." -ForegroundColor Yellow
-        composer install
+        composer install @ComposerInteractionArgs
         if ($LASTEXITCODE -ne 0) {
             Write-Host "ERROR: composer install failed" -ForegroundColor Red
             exit 1
@@ -429,13 +547,9 @@ try {
     }
 
     # --- Runtime store root: pin CORE_NODE_DATA_DIR so every PHP/Artisan child
-    # resolves the same RuntimeConfigurationStore mirror. On Windows a
-    # rootless '/var/...' resolves against the current drive, so pin it explicitly.
-    # Anchor to the PG data drive (same as the manager + all path mappers), NOT the
-    # repo drive, so a standalone Step33 run and start.ps1 always agree on the store.
-    if (-not $env:CORE_NODE_DATA_DIR) {
-        $env:CORE_NODE_DATA_DIR = Join-Path ([System.IO.Path]::GetPathRoot($Global:PG_DATA_ROOT)) "var\_core_node"
-    }
+    # resolves the same store as the PG manager, PathMapper and the FrankenPHP
+    # service (<PG data drive>\www\core_node), NOT the repo drive.
+    Resolve-PgDataDir | Out-Null
 
     # --- PostgreSQL: native cluster on D:, idempotent, reuse an already-serving :5432.
     Write-Host "Ensuring PostgreSQL (native Windows, idempotent, :5432 reuse)..." -ForegroundColor Yellow
@@ -505,7 +619,7 @@ try {
     }
 
     Write-Host "Initializing system (php artisan sys:init)..." -ForegroundColor Yellow
-    php artisan sys:init
+    php artisan sys:init @ArtisanInteractionArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: sys:init failed; Laravel runtime startup stopped." -ForegroundColor Red
         exit 1
@@ -532,19 +646,20 @@ try {
         Write-Host "  http://localhost:$Port (fallback)" -ForegroundColor Cyan
     }
 
-    # --- Idempotent: stop previous dev:win session before (re)starting ---
-    # Mirrors start.sh ensure_port_free(): kill stale app processes first, wait for
-    # port release, then fall back to netsh reserve only for Windows dynamic-range
-    # conflicts (Hyper-V/WSL2 reserving the port with no listener process).
+    # --- Idempotent: stop stale foreground sessions before (re)starting ---
+    # Reached only when the FrankenPHP service is NOT running (checked above), so the
+    # listener on $Port is never the service. Mirrors start.sh ensure_port_free(): kill
+    # stale app processes first, wait for port release, then fall back to netsh reserve
+    # only for Windows dynamic-range conflicts (Hyper-V/WSL2 reserving the port with no
+    # listener process).
     Write-Host "Ensuring port $Port is free (idempotent restart)..." -ForegroundColor Yellow
     $stopPids = @()
 
     # (1) Kill any php.exe running artisan serve / queue:listen / reverb:start /
-    #     schedule:work. Get-CimInstance gives us the full command line to
-    #     distinguish them. schedule:work binds NO port, so step (2) below (port
-    #     based) can never catch a stale one -- this command-line match is its
-    #     ONLY cleanup path; omitting it here would leak one extra ticking
-    #     schedule:work process (a duplicate TimerTasks/* driver) per restart.
+    #     schedule:work (the artisan serve fallback and the retired dev:win lanes).
+    #     Get-CimInstance gives the full command line to distinguish them.
+    #     schedule:work binds NO port, so the port-based step (2) can never catch a
+    #     stale one -- this command-line match is its ONLY cleanup path.
     $prevPhpProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
         $_.Name -eq 'php.exe' -and $_.CommandLine -and
         ($_.CommandLine -match 'artisan\s+serve' -or
@@ -556,11 +671,9 @@ try {
         $stopPids += @($prevPhpProcs | Select-Object -ExpandProperty ProcessId)
     }
 
-    # (2) Kill processes owning port $Port (serve) or 8080 (reverb).
-    #     This also catches npx/node concurrently if it holds the socket.
+    # (2) Kill processes owning port $Port (a stale foreground frankenphp / artisan serve).
     $portConns = @(
-        (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue),
-        (Get-NetTCPConnection -LocalPort 8080  -State Listen -ErrorAction SilentlyContinue)
+        (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
     ) | Where-Object { $_ } | Select-Object -ExpandProperty OwningProcess -Unique
     if ($portConns) { $stopPids += @($portConns) }
 
@@ -609,112 +722,85 @@ try {
     }
     Write-Host ""
 
-    # --- Optional background service registration (AFTER the full prerequisite setup) ---
-    # Mirrors start.sh: only once php/composer/PostgreSQL/migrate/sys:init/port-free are
-    # all done do we ask whether to install a background service. LARAVEL_SERVICE_RUN=1
-    # (set via NSSM AppEnvironmentExtra, never a script argument) marks the NSSM-launched
-    # invocation itself: it skips the prompt/registration and falls straight through to
-    # composer dev:win below, which is the actual service body.
-    if (-not $IsServiceRun) {
-        if ($AsServiceEnv -eq "no") {
-            $AsServiceChoice = $false
-        } elseif ($AsServiceEnv -eq "yes") {
-            $AsServiceChoice = $true
-        } else {
-            $AsServiceChoice = Read-YesNoDefaultYes "Prerequisites ready. Add laravel_main to a background Windows service (via NSSM)?"
+    # --- Background service (AFTER the full prerequisite setup; mirrors start.sh -> 175) ---
+    # --service / AS_SERVICE=yes installs it without asking; otherwise ask (default Y) unless
+    # --no-service / AS_SERVICE=no. Step175 converges FrankenPHP and the WinSW service in its
+    # own PowerShell process (it loads GlobalVars' strict mode).
+    if ($ServiceMode) {
+        $AsServiceChoice = $true
+    } elseif ($AsServiceEnv -eq "no") {
+        $AsServiceChoice = $false
+    } else {
+        $AsServiceChoice = Read-YesNoDefaultYes "Prerequisites ready. Install laravel_main as the Windows service $LaravelServiceName (FrankenPHP, Step175)?"
+    }
+    if ($AsServiceChoice -and (-not $ServiceMode) -and (-not $FrankenPhpRuntime.IsElevated)) {
+        Write-Host "  Installing $LaravelServiceName needs an elevated (Administrator) PowerShell; continuing in the foreground." -ForegroundColor Yellow
+        $AsServiceChoice = $false
+    }
+
+    if ($AsServiceChoice) {
+        if (-not $ServiceMode) {
+            $LegacyServiceRemoved = Remove-NssmService -ServiceName $LegacyServiceName
         }
+        Write-Host "Converging $LaravelServiceName via $Step175Script ..." -ForegroundColor Yellow
+        & $PwshExe -NoProfile -ExecutionPolicy Bypass -File $Step175Script
+        $LaravelServiceState = Get-ServiceRunState -ServiceName $LaravelServiceName
+        if ($LaravelServiceState -eq "running") {
+            Write-Host "Service $LaravelServiceName is running (port $Port)." -ForegroundColor Green
+            Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
 
-        if ($AsServiceChoice) {
-            $NssmPath = Ensure-Nssm -RepoRootDir $RepoRootDir
-            if (-not $NssmPath) {
-                Write-Host "  NSSM unavailable and auto-install (winget) failed -> cannot register a background service." -ForegroundColor Yellow
-                Write-Host "  Install it manually (e.g. 'winget install NSSM.NSSM' or https://nssm.cc/), then re-run start.ps1." -ForegroundColor Yellow
-                Write-Host "  Continuing in the foreground." -ForegroundColor Yellow
+            # --- Optional: also bring the nexus-dash UI up as its own background service ---
+            # A separate process (never dot-sourced or `&`): the UI script may itself
+            # `exit`, which would otherwise terminate this script's own process.
+            if ($IncludeUiEnv -eq "no") {
+                $IncludeUiChoice = $false
+            } elseif ($IncludeUiEnv -eq "yes") {
+                $IncludeUiChoice = $true
+            } elseif (Test-Path -LiteralPath $UiStartPs1) {
+                $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
             } else {
-                if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
-                $PwshServiceExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
-                if (-not $PwshServiceExe) { $PwshServiceExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
-                $ServiceArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$SelfScript`""
-                Write-Host "Registering Windows service $LaravelServiceName (NSSM)..." -ForegroundColor Yellow
-                $ServiceRegistered = Register-NssmService -NssmPath $NssmPath -ServiceName $LaravelServiceName `
-                    -DisplayName $LaravelServiceDisplayName -Description $LaravelServiceDesc `
-                    -ExePath $PwshServiceExe -Arguments $ServiceArgs -WorkingDirectory $LaravelDir `
-                    -EnvironmentExtra @("PORT=$Port", "LARAVEL_SERVICE_RUN=1") `
-                    -StdoutLog (Join-Path $LogDir "laravel_main.service.out.log") `
-                    -StderrLog (Join-Path $LogDir "laravel_main.service.err.log")
-
-                if ($ServiceRegistered) {
-                    Write-Host "Service $LaravelServiceName registered and (re)started." -ForegroundColor Green
-                    Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
-                    Write-Host "  Logs:   $LogDir\laravel_main.service.out.log" -ForegroundColor DarkGray
-
-                    # --- Optional: also bring the nexus-dash UI up as its own background service ---
-                    # A separate process (never dot-sourced or `&`): the UI script may itself
-                    # `exit`, which would otherwise terminate this script's own process. Uses
-                    # Start-ChildScriptWithEnv (not Start-Process) so AS_SERVICE=yes is
-                    # GUARANTEED to reach the child -- Start-Process's ShellExecute path does
-                    # not reliably propagate an env var set just before the call, which
-                    # otherwise leaves the child re-asking its own Y/n prompt.
-                    if ($IncludeUiEnv -eq "no") {
-                        $IncludeUiChoice = $false
-                    } elseif ($IncludeUiEnv -eq "yes") {
-                        $IncludeUiChoice = $true
-                    } elseif (Test-Path -LiteralPath $UiStartPs1) {
-                        $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
-                    } else {
-                        $IncludeUiChoice = $false
-                    }
-                    if ($IncludeUiChoice) {
-                        if (Test-Path -LiteralPath $UiStartPs1) {
-                            Write-Host "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..." -ForegroundColor Yellow
-                            Start-ChildScriptWithEnv -PwshExePath $PwshServiceExe -ScriptPath $UiStartPs1 -ScriptArgs @("-NoBackend") `
-                                -WorkingDirectory (Split-Path -Parent $UiStartPs1) -EnvironmentVars @{ AS_SERVICE = "yes" } -Wait
-                        } else {
-                            Write-Host "  Warning: UI start script not found: $UiStartPs1 (skipping)." -ForegroundColor Yellow
-                        }
-                    }
-
-                    exit 0
+                $IncludeUiChoice = $false
+            }
+            if ($IncludeUiChoice) {
+                if (Test-Path -LiteralPath $UiStartPs1) {
+                    Write-Host "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..." -ForegroundColor Yellow
+                    Start-ChildScriptWithEnv -PwshExePath $PwshExe -ScriptPath $UiStartPs1 -ScriptArgs @("-Service", "-NoBackend") `
+                        -WorkingDirectory (Split-Path -Parent $UiStartPs1) -Wait | Out-Null
                 } else {
-                    Write-Host "Service registration failed; continuing in the foreground." -ForegroundColor Yellow
+                    Write-Host "  Warning: UI start script not found: $UiStartPs1 (skipping)." -ForegroundColor Yellow
                 }
             }
+            exit 0
         }
+        Write-Host "Service $LaravelServiceName is not running after Step175 (state: $LaravelServiceState)." -ForegroundColor Red
+        if ($ServiceMode) {
+            exit 1
+        }
+        Write-Host "Continuing in the foreground." -ForegroundColor Yellow
     }
 
-    # --- Runtime: native Windows server + queue + websockets + timer ---
-    # IMPORTANT: Laravel Octane's HTTP server CANNOT run on native Windows. octane:start
-    # references the pcntl signal constants SIGINT/SIGTERM/SIGHUP (no Windows pcntl build
-    # -> "Undefined constant SIGINT"). RoadRunner/FrankenPHP do not provide Octane ticks
-    # either. So we run the proven native Windows runtime: `composer dev:win` = artisan
-    # serve + queue:listen + reverb + schedule:work (via npx concurrently). HTTP API,
-    # queued jobs, WebSockets, and the sub-minute task-system timer (TimerTasks/*, the
-    # SAME code as Linux/WSL) all run natively -- OctaneTimerServiceProvider detects the
-    # missing Octane(Swoole) tick and drives the SAME tasks through a Laravel
-    # Schedule->everySecond() tick instead, consumed by the `timer` lane
-    # (`php artisan schedule:work`) composer dev:win now starts.
-    # Native Windows lacks pcntl_fork, so the built-in server must use one worker.
-    # This process-only runtime control is independent from Laravel configuration.
-    $env:PHP_CLI_SERVER_WORKERS = "1"
-
-    # --- Ensure Node.js/npx (idempotent auto-install): composer dev:win runs everything
-    # through `npx concurrently` -- without it the runtime fails immediately.
-    $npxCmd = Get-Command npx -ErrorAction SilentlyContinue
-    if (-not $npxCmd) {
-        Write-Host "npx not found -> invoking canonical installer (idempotent): Step4_InstallNodeJS.ps1" -ForegroundColor Yellow
-        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
-        $npxCmd = Get-Command npx -ErrorAction SilentlyContinue
-    }
-    if (-not $npxCmd) {
-        Write-Host "  *** npx still unavailable after Step4_InstallNodeJS.ps1 -> composer dev:win (npx concurrently) will fail." -ForegroundColor Red
-    }
-
-    Write-Host "Starting native Windows runtime: composer dev:win (serve + queue + reverb + timer)..." -ForegroundColor Green
-    Write-Host "Note: sub-minute timer tasks run via Laravel Schedule + schedule:work here (same TimerTasks/* as Linux/WSL Octane tick)." -ForegroundColor Yellow
+    # --- Foreground runtime ---
+    # FrankenPHP with the Octane worker: same binary, Caddyfile and environment as the
+    # service (Ctrl+C stops it). Until Step175 has provisioned them, fall back to the
+    # built-in server; native Windows lacks pcntl_fork, so it must use one worker, and it
+    # serves the HTTP API only (no Octane worker, Mercure, queue or timer lanes).
+    $FrankenPhpExe = $FrankenPhpRuntime.BinaryPath
+    $FrankenPhpCaddyfile = $FrankenPhpRuntime.CaddyfilePath
+    $FrankenPhpReady = ((Test-Path -LiteralPath $FrankenPhpExe -PathType Leaf) -and
+        (Test-Path -LiteralPath $FrankenPhpCaddyfile -PathType Leaf) -and
+        (Test-Path -LiteralPath $FrankenPhpRuntime.WorkerPath -PathType Leaf))
     Write-Host "Press Ctrl+C to stop." -ForegroundColor Gray
     Write-Host ""
-
-    composer dev:win
+    if ($FrankenPhpReady) {
+        Set-FrankenPhpForegroundEnvironment -Runtime $FrankenPhpRuntime
+        Write-Host "Starting FrankenPHP (Octane worker) in the foreground: $FrankenPhpCaddyfile" -ForegroundColor Green
+        & $FrankenPhpExe run --config $FrankenPhpCaddyfile --adapter caddyfile
+    } else {
+        Write-Host "FrankenPHP runtime not provisioned yet (run this script with --service, elevated, or Step175_LaravelMainStart.ps1)." -ForegroundColor Yellow
+        Write-Host "Fallback: php artisan serve on ${BindHost}:$Port (HTTP API only; no Octane worker, Mercure, queue or timer lanes)." -ForegroundColor Yellow
+        $env:PHP_CLI_SERVER_WORKERS = "1"
+        php artisan serve "--host=$BindHost" "--port=$Port"
+    }
 }
 finally {
     Set-Location -Path $OriginalDirectory

@@ -15,18 +15,7 @@
 # Main Execution Functions for dd.sh
 # =============================================================================
 
-print_color() {
-    local color="$1"
-    local message="$2"
-    local code=""
-    case "$color" in
-        yellow) code='\033[33m' ;;
-        red)    code='\033[31m' ;;
-        green)  code='\033[32m' ;;
-        *)      code='' ;;
-    esac
-    echo -e "${code}${message}\033[0m"
-}
+RESOURCE_LIMITER_SCRIPT="$CORE_NODE_ROOT_DIR/$RESOURCE_LIMITER_SCRIPT_RELATIVE"
 
 handle_arguments() {
     if [ $# -eq 0 ]; then
@@ -43,7 +32,7 @@ handle_arguments() {
         echo "[INFO] Resource limiter available: $RESOURCE_LIMITER_SCRIPT"
         source_file_with_dos2unix "$RESOURCE_LIMITER_SCRIPT"
         has_resource_limiter=true
-        local detected_method=$(detect_resource_method)
+        local detected_method=$(detect_resource_method_from_common_functions)
         echo "[INFO] Resource limiting method: $detected_method"
     else
         echo "[ERROR] Resource limiter not found: $RESOURCE_LIMITER_SCRIPT"
@@ -60,7 +49,7 @@ handle_arguments() {
 
         if [ "$has_resource_limiter" = true ]; then
             echo "[INFO] Running with resource limits (CPU: 20%, Memory: calculated based on system)"
-            run_with_limits "20" "" "$arg"
+            run_with_limits_from_common_functions "20" "" "$arg"
         else
             echo "[WARNING] Running without resource limits"
             eval "$arg"
@@ -103,7 +92,7 @@ Resource Management:
   - Memory limits: 200M (GB RAM), 300M (2-4GB), 500M (4-8GB), 1G (>8GB)
   - Auto-detects best resource limiting method available
   - Supported methods: systemd-run, cgroup, cpulimit, ulimit
-  - Generates temporary scripts in /var/_core_node/_tmp/dd_scripts/
+  - Generates temporary scripts in $CORE_NODE_DATA_DIR/dd_scripts/
   - Automatic dependency installation and cleanup
 
 EOF

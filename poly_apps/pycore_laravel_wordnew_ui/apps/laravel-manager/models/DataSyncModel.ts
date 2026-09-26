@@ -19,7 +19,7 @@ import { getSharedAuthToken } from '../../../core/integrations/laravel/transport
 import { StorageManager } from '../../../core/persistence';
 
 const WORKSPACE_TIMEOUT_MS = 5000;
-export const DATA_SYNC_PROTOCOL_VERSION = 4;
+export const DATA_SYNC_PROTOCOL_VERSION = 5;
 export const DATA_SYNC_PROTOCOL_MISMATCH_ERROR = 'DATA_SYNC_PROTOCOL_VERSION_MISMATCH';
 export const DATA_SYNC_PEER_UNREACHABLE_ERROR = 'DATA_SYNC_PEER_UNREACHABLE';
 export const DATA_SYNC_MAX_MANAGED_ENDPOINTS = 2;
@@ -119,9 +119,12 @@ export class DataSyncModel {
     const results = await Promise.all(queryEndpoints.map(async (endpoint) => {
       try {
         const workspace = await this.client(endpoint).getDataSyncWorkspace();
-        if (workspace.sessions.some((session) => session.protocol_version !== DATA_SYNC_PROTOCOL_VERSION)) {
+        // The node's own protocol decides compatibility; sessions left over
+        // from another protocol version are history, not a node failure.
+        if ((workspace.protocol_version ?? DATA_SYNC_PROTOCOL_VERSION) !== DATA_SYNC_PROTOCOL_VERSION) {
           throw new Error(DATA_SYNC_PROTOCOL_MISMATCH_ERROR);
         }
+        workspace.sessions = workspace.sessions.filter((session) => session.protocol_version === DATA_SYNC_PROTOCOL_VERSION);
         return { endpoint, workspace, error: null };
       } catch (error) {
         return {
@@ -323,6 +326,9 @@ export class DataSyncModel {
       if (forward.same_machine === true) {
         throw new Error(DATA_SYNC_SAME_NODE_ERROR);
       }
+      if (forward.protocol_compatible === false) {
+        throw new Error(DATA_SYNC_PROTOCOL_MISMATCH_ERROR);
+      }
       return { direction: 'push', oldServer, newServer, forward, backward: null };
     }
 
@@ -336,6 +342,9 @@ export class DataSyncModel {
     if (backward.reachable) {
       if (backward.same_machine === true) {
         throw new Error(DATA_SYNC_SAME_NODE_ERROR);
+      }
+      if (backward.protocol_compatible === false) {
+        throw new Error(DATA_SYNC_PROTOCOL_MISMATCH_ERROR);
       }
       return { direction: 'pull', oldServer, newServer, forward, backward };
     }
@@ -416,8 +425,13 @@ export class DataSyncModel {
     return endpoint.current ? getSharedAuthToken() : null;
   }
 
+  /**
+   * Mirrors the backend rule: a bare host uses http and the Laravel Main
+   * port; an explicit scheme without a port uses that scheme's standard port.
+   */
   private normalizeAdhocAddress(input: string): string | null {
-    const candidate = /^https?:\/\//i.test(input) ? input : `http://${input}`;
+    const explicitScheme = /^https?:\/\//i.test(input);
+    const candidate = explicitScheme ? input : `http://${input}`;
 
     try {
       const parsed = new URL(candidate);
@@ -425,7 +439,9 @@ export class DataSyncModel {
         return null;
       }
       const protocol = parsed.protocol === 'https:' ? 'https' : 'http';
-      const port = parsed.port !== '' ? Number(parsed.port) : DATA_SYNC_DEFAULT_PORT;
+      const port = parsed.port !== ''
+        ? Number(parsed.port)
+        : (explicitScheme ? (protocol === 'https' ? 443 : 80) : DATA_SYNC_DEFAULT_PORT);
       if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
       const host = parsed.hostname.includes(':') ? `[${parsed.hostname}]` : parsed.hostname;
       return `${protocol}://${host}:${port}`;

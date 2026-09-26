@@ -39,9 +39,9 @@ export function initializeProcessors(): void {
 
   // Register NotebookLM / Gemini-Image processors (DISABLED by default,
   // opt-in): Task Center v3 lanes (remote_notebooklm / remote_gemini). They
-  // drive the live notebooklm.google.com / gemini.google.com tab and are the
-  // autonomous consumers for tasks the AppQyV1AiPromptFanoutTask timer (and
-  // the manual /task/enqueue endpoint) creates on those lanes.
+  // drive the live notebooklm.google.com / gemini.google.com tab. Gemini-Image
+  // is the only extension consumer of `library_cover` and `gemini_image` tasks
+  // and also drains the assist `cover` pool.
   taskCenter.registerProcessor(notebookLmProcessor, false);
   taskCenter.registerProcessor(geminiImageProcessor, false);
 
@@ -64,9 +64,10 @@ export function initializeProcessors(): void {
   // browser tab). Advertises capability 'puter_translate' on the fast lane.
   taskCenter.registerProcessor(puterAiTranslateProcessor, false);
 
-  // Poster + vocabulary cover via Google/Bing image search (replaces pycore
-  // TMDB/OMDB + AI cover). Opt-in through its Task-tab checkbox; while active
-  // it also polls Laravel /assist/claim for cover/poster.
+  // Poster + library-cover web search via Google/Bing (replaces pycore
+  // TMDB/OMDB). The only extension consumer of `poster` and
+  // `library_cover_search` tasks; while active it also drains the assist
+  // `poster` pool. AI cover generation belongs to Gemini-Image.
   taskCenter.registerProcessor(mediaImageProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');

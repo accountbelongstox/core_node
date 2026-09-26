@@ -147,6 +147,20 @@ return [
             'backoff_cap' => LaravelConfig::REDIS_BACKOFF_CAP,
         ],
 
+        // Static resource index (delivery diff); optional, rebuildable, short
+        // timeouts so an absent Redis degrades to the database path quickly.
+        LaravelConfig::REDIS_RESOURCE_INDEX_CONNECTION => [
+            'url' => null,
+            'host' => ServiceContract::host('loopback'),
+            'username' => null,
+            'password' => null,
+            'port' => ServiceContract::port('redis'),
+            'database' => LaravelConfig::REDIS_RESOURCE_INDEX_DATABASE,
+            'timeout' => LaravelConfig::REDIS_RESOURCE_INDEX_CONNECT_TIMEOUT,
+            'read_timeout' => LaravelConfig::REDIS_RESOURCE_INDEX_READ_TIMEOUT,
+            'max_retries' => 0,
+        ],
+
     ],
 
 ];

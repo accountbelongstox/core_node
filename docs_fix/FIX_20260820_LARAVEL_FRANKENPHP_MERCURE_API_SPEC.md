@@ -70,7 +70,7 @@ Exactly one Mercure handler and Bolt transport are rendered on the direct LAN/lo
 The `175_laravel_main_start.sh` flow converges independent steps in this order:
 
 1. Resolve the active web-server plane from the shared service contract and plane record.
-2. Ensure the selected FrankenPHP binary and its required embedded modules.
+2. Ensure the selected FrankenPHP binary and its required embedded modules. Before this, `redis_endpoint_ensure` (`common/redis_endpoint_common.sh`) checks `hosts.loopback:ports.redis`. It reuses any running Redis or Dragonfly, starts the one already installed, and runs `73_install_redis.sh` only when the binary is missing. It then records `LARAVEL_REDIS_ENDPOINT`. While a store is selected, phpredis joins the install-time extension set that step 93 repairs (`php-zts-redis` on apt, a redis-enabled static build on compile; prebuilt already embeds it). It never joins the fail-closed runtime floor.
 3. Ensure Composer dependencies and the Laravel autoloader.
 4. Ensure `APP_KEY`, publisher key, subscriber key, installation access code, and trusted issuer independently.
 5. Re-read each persisted runtime value after its write; shell function exit status is not business data.

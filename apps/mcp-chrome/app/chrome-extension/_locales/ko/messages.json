@@ -82,6 +82,33 @@
   "apiCustomUrlPlaceholder": {
     "message": "URL(예: api.example.com)을 입력하세요."
   },
+  "apiCustomEndpointDescription": {
+    "message": "사용자 지정: {0}"
+  },
+  "httpStatusError": {
+    "message": "{0} (HTTP {1})"
+  },
+  "submitRejected": {
+    "message": "제출이 거부되었습니다"
+  },
+  "submitRejectedStatus": {
+    "message": "제출이 거부되었습니다 ({0})"
+  },
+  "valueNotAvailable": {
+    "message": "없음"
+  },
+  "latestCodeFileUnreachable": {
+    "message": "laravel_main 최신 파일: 백엔드에 연결할 수 없음"
+  },
+  "latestCodeFileLatest": {
+    "message": "최근 변경된 파일: {0}"
+  },
+  "latestCodeFileModified": {
+    "message": "수정 시각: {0}"
+  },
+  "latestCodeFileScan": {
+    "message": "스캔: {0} ({1}ms)"
+  },
   "apiLocalTag": {
     "message": "현지의"
   },
@@ -620,9 +647,6 @@
   },
   "endpointNotConfiguredHint": {
     "message": "설정되지 않음 — 설정 → API 구성에서 구성"
-  },
-  "endpointSwitchFailed": {
-    "message": "실행 중인 API 엔드포인트를 전환하지 못했습니다."
   },
   "enterPromptFirst": {
     "message": "먼저 프롬프트를 입력하세요."
@@ -1928,16 +1952,16 @@
     "message": "ChatGPT 긴 형식 오디오 작업 실행"
   },
   "taskCenterCapability_gemini_image_hint": {
-    "message": "Gemini를 사용하여 어휘 라이브러리 표지를 생성하고 이를 다시 Laravel에 씁니다."
+    "message": "Gemini로 어휘 라이브러리 표지와 요청된 이미지를 생성하여 Laravel에 다시 기록합니다."
   },
   "taskCenterCapability_gemini_image_label": {
-    "message": "AI 단어그룹 표지 생성"
+    "message": "AI 어휘 라이브러리 표지 및 이미지 생성"
   },
   "taskCenterCapability_image_hint": {
-    "message": "공유 브라우저 워커를 통해 책 표지, 미디어 포스터를 검색하고 답장합니다."
+    "message": "공유 브라우저 워커를 통해 책 표지, 미디어 포스터, 어휘 라이브러리 표지를 검색하고 다시 기록합니다."
   },
   "taskCenterCapability_image_label": {
-    "message": "표지 및 포스터 검색"
+    "message": "표지, 포스터 및 어휘 라이브러리 표지 검색"
   },
   "taskCenterCapability_notebooklm_hint": {
     "message": "결과 쓰기 저장을 통해 공유 브라우저 런타임에 대한 Laravel NotebookLM 대기열"
@@ -1977,6 +2001,12 @@
   },
   "taskCenterCategory_gemini_image": {
     "message": "AI 이미지 생성"
+  },
+  "taskCenterCategory_library_cover": {
+    "message": "AI 어휘 라이브러리 표지"
+  },
+  "taskCenterCategory_library_cover_search": {
+    "message": "어휘 라이브러리 표지 검색"
   },
   "taskCenterCategory_notebooklm": {
     "message": "노트북LM 처리"
@@ -2367,5 +2397,49 @@
   },
   "youglishPronunciationHint": {
     "message": "실시간 상황 영상 발음 (YouGlish)"
+  },
+  "startServicePrompt": {
+    "message": "MCP Chrome을 백그라운드 서비스로 설치할까요(로그온 시 시작, 핫 리로드)?",
+    "description": "start.ps1 prompt asking whether to install the background logon task"
+  },
+  "startServiceInstalled": {
+    "message": "백그라운드 서비스 $TASK$이(가) 설치되어 있습니다. 이 빌드 동안 일시 중지되고 이후 정렬됩니다.",
+    "description": "start.ps1 notice that the background logon task already exists",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceOwnsWatch": {
+    "message": "감시 모드와 Chrome 복구는 백그라운드 작업 $TASK$에서 실행됩니다.",
+    "description": "start.ps1 notice that the logon task runs the watchers",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceRemoveHint": {
+    "message": "제거: powershell -File \"$SCRIPT$\" -UninstallService",
+    "description": "start.ps1 hint for removing the logon task",
+    "placeholders": {
+      "script": {
+        "content": "$1",
+        "example": "C:\\project\\apps\\mcp-chrome\\scripts\\start.ps1"
+      }
+    }
+  },
+  "startSupervisorStarted": {
+    "message": "Chrome 복구 감독자가 시작되었습니다 (PID $PID$).",
+    "description": "start.ps1 notice after starting the recovery supervisor",
+    "placeholders": {
+      "pid": {
+        "content": "$1",
+        "example": "1234"
+      }
+    }
   }
 }

@@ -26,6 +26,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
         'align_contract_tables' => 'Align additive contract tables and columns',
         'align_status_constraints' => 'Align check constraints with the contract status sets',
         'verify_tables' => 'Verify all CodeMart tables exist',
+        'seed_demo_data' => 'Seed CodeMart demo dataset',
     ];
 
     private const REQUIRED_TABLES = [
@@ -133,6 +134,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
             'align_contract_tables' => $this->alignContractTables(),
             'align_status_constraints' => $this->alignStatusConstraints(),
             'verify_tables' => $this->verifyTables(),
+            'seed_demo_data' => $this->seedDemoData(),
             default => ['status' => 'error', 'message' => "Unknown step: {$step}"],
         };
     }
@@ -528,6 +530,35 @@ class CodeMartV1Initializer implements AppInitializerInterface
         return [
             'status' => 'success',
             'message' => 'All ' . count(self::REQUIRED_TABLES) . ' tables verified',
+        ];
+    }
+
+    /**
+     * Idempotent demo dataset (upserts only), re-applied on every sys:init.
+     * Runs in every environment; only an explicit CODEMART_SEED_DEMO=false
+     * (services.codemart_seed_demo) turns it off.
+     */
+    private function seedDemoData(): array
+    {
+        $configured = config('services.codemart_seed_demo');
+        $enabled = $configured === null || $configured === ''
+            || filter_var($configured, FILTER_VALIDATE_BOOLEAN);
+
+        if (!$enabled) {
+            return [
+                'status' => 'skipped',
+                'message' => 'Demo seeding disabled (CODEMART_SEED_DEMO=false)',
+            ];
+        }
+
+        $summary = (new CodeMartV1DemoSeeder())->seed(
+            static fn (string $message) => Log::info('[CodeMartV1Init] ' . $message)
+        );
+
+        return [
+            'status' => 'success',
+            'message' => 'Seeded ' . count($summary['accounts']) . ' demo accounts',
+            'counts' => $summary['counts'],
         ];
     }
 

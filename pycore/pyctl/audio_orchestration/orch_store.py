@@ -22,11 +22,13 @@ Task record shape (all JSON-able):
     word_mode: "new_only"|"all", new_only_max_read_count: int,
     virtual_read: [word, ...]        task-scoped virtual read set (never written
                                      back to the backend Word Groups),
-    segments: [{index, start, end, status, output, error}],
+    segments: [{index, start, end, status, output, error, started_at, finished_at}],
     status: draft|planned|generating|done|failed,
     progress: {segment_index, item_index, item_total, message, current_item,
-               cache_hits, laravel_hits, generated, missing},
+               cache_hits, laravel_hits, generated, missing,
+               phase_times: {phase: {started_at, finished_at}}},
     events: [{ts, message}]        capped generation log (viewable in the UI),
+    generation_started_at, generation_finished_at   current/last run (unix s),
     created_at, updated_at
 
 File operations use independent THREAD_BUS state owners and never raise; callers get

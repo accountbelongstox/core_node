@@ -16,13 +16,13 @@
 # =============================================================================
 # Synopsis: Launches Claude Code via Volcano Ark (Doubao) coding endpoint with
 #     the model forced to glm-5.2 everywhere, experimental agent teams
-#     force-enabled, and ultracode opt-in (default No).
+#     force-enabled.
 # Notes:
 #     - API key is read from .secret_keys/.secret_ignore/ARK_API_KEY_1, written
 #       by the Special Software Environment Variables Manager (dd.sh / dd.cmd).
 #     - Volcano Ark /api/coding is the Anthropic-compatible endpoint and serves
 #       glm-5.2 (model is glm-5.2, NOT doubao).
-#     - team is always on; ultracode is opt-in; --dangerously-skip-permissions
+#     - team is always on; --dangerously-skip-permissions
 #       is added for non-root only (root is refused that flag by Claude Code).
 # =============================================================================
 
@@ -32,10 +32,7 @@ set -e
 VOLC_BASE_URL=""
 VOLC_API_KEY=""
 VOLC_MODEL="glm-5.2"
-ultra_settings_json='{"ultracode":true}'
 claude_args=()
-ultra_choice=""
-ultra_enabled=0
 ARK_API_KEY=""
 ARK_BASE_URL=""
 masked_key=""
@@ -55,7 +52,7 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
 
 echo ""
 echo "============================================================"
-echo "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team + opt-in ultracode]"
+echo "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team]"
 echo "============================================================"
 echo ""
 
@@ -151,21 +148,11 @@ fi
 echo "============================================================"
 echo ""
 
-# Build claude args: glm-5.2 always on; ultracode opt-in; skip-permissions for non-root.
+# Build claude args: glm-5.2 always on; skip-permissions for non-root.
 claude_args+=(--model "$VOLC_MODEL")
 
-# Ultracode: opt-in prompt (default Yes).
-read -r -p "Enable ultracode? [Y/n]: " ultra_choice || ultra_choice=""
-if [ "$ultra_choice" != "n" ] && [ "$ultra_choice" != "N" ]; then
-    ultra_enabled=1
-    claude_args+=(--settings "$ultra_settings_json")
-fi
-
-if [ "$ultra_enabled" -eq 1 ]; then
-    echo "Ultracode: enabled (--settings $ultra_settings_json)"
-else
-    echo "Ultracode: off (opted out)"
-fi
+ai_cli_ultracode_prompt
+claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
 
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)

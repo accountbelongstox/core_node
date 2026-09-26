@@ -250,7 +250,7 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { apiManager, getApiBase } from '@/services/ApiManager';
+import { apiManager, currentApiClient, getApiBase } from '@/services/ApiManager';
 import { TaskCenterApiClient } from '@/services/TaskCenterApiClient';
 import type {
   AssistCategoryItem,
@@ -360,20 +360,13 @@ const WORD_VALIDITY_PAGE_SIZE = WORD_VALIDITY_CONFIG.view_page_size;
 const validityPageCache = new Map<string, ValidityQueuePage>();
 const validityPageRequests = new Map<string, Promise<ValidityQueuePage>>();
 
-let taskCenterApi: TaskCenterApiClient | null = null;
 let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let unsubscribeRealtime: (() => void) | null = null;
 let componentMounted = false;
 let validityRevision: number | null = null;
 
 const apiBase = getApiBase;
-const apiClient = (): TaskCenterApiClient => {
-  const baseUrl = apiBase();
-  if (!taskCenterApi || taskCenterApi.getBaseUrl() !== baseUrl) {
-    taskCenterApi = new TaskCenterApiClient(baseUrl);
-  }
-  return taskCenterApi;
-};
+const apiClient = (): TaskCenterApiClient => currentApiClient(TaskCenterApiClient);
 
 const liveCountsForTaskType = (taskType: string): QueueLiveCounts | null => {
   return serverByType.value?.[taskType] || null;

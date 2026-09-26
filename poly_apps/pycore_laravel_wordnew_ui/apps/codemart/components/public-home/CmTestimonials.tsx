@@ -15,7 +15,10 @@ export const CmTestimonials: React.FC<{ items: CmPublicTestimonialData[] }> = ({
   return (
     <section className="cm-testimonials">
       <div className="cm-public-container">
-        <h2>{t('publicHome.testimonials.title')}</h2>
+        <header className="cm-public-section__header">
+          <h2>{t('publicHome.testimonials.title')}</h2>
+          <p className="cm-public-section__lead">{t('publicHome.testimonials.lead')}</p>
+        </header>
         <div className="cm-testimonials__carousel">
           <button type="button" onClick={showPrevious} aria-label={t('common.previous')}><ChevronLeft aria-hidden="true" /></button>
           <figure>

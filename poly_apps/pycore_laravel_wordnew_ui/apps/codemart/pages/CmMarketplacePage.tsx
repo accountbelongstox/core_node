@@ -1,123 +1,203 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { CircleDollarSign, Inbox, RefreshCw, Search } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { CalendarDays, CircleDollarSign, Flag, Layers, ListTodo, RefreshCw, Search, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
 import type { CmTask } from '../api/CmApiTypes';
+import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { useCmPagedList } from '../components/workspace/useCmPagedList';
 
-interface MarketplaceResult {
-  tasks: CmTask[];
-  total: number;
+const DEFAULT_CURRENCY = 'CNY';
+
+interface CmMarketplaceTask extends CmTask {
+  milestone?: { id: number; project_id: number; title: string } | null;
 }
 
-function parseMarketplace(data: unknown): MarketplaceResult {
-  if (!data || typeof data !== 'object') return { tasks: [], total: 0 };
-  const source = data as { tasks?: unknown; pagination?: { total?: unknown } };
-  const tasks = Array.isArray(source.tasks) ? (source.tasks as CmTask[]) : [];
-  const total = typeof source.pagination?.total === 'number' ? source.pagination.total : tasks.length;
-  return { tasks, total };
+interface CmMarketplaceFilters {
+  skills: string;
+  minBudget: string;
+  maxBudget: string;
 }
+
+const EMPTY_FILTERS: CmMarketplaceFilters = { skills: '', minBudget: '', maxBudget: '' };
+
+const extractTasks = (data: { tasks: CmTask[]; pagination: unknown }) => ({
+  items: (Array.isArray(data.tasks) ? data.tasks : []) as CmMarketplaceTask[],
+  totalPages: cmTotalPages(data.pagination as Parameters<typeof cmTotalPages>[0]),
+});
 
 export const CmMarketplacePage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const { hasCapability, refresh } = useCmBootstrap();
-  const canAccept = hasCapability('task.browse');
-  const [search, setSearch] = useState('');
-  const [result, setResult] = useState<MarketplaceResult>({ tasks: [], total: 0 });
-  const [loading, setLoading] = useState(true);
+  const format = useCmFormat();
+  const { bootstrap, hasRole, refresh } = useCmBootstrap();
+  const canAccept = hasRole('developer', 'active');
+  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
+  const notice = useCmNotice();
+  const [keyword, setKeyword] = useState('');
+  const [draft, setDraft] = useState<CmMarketplaceFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<CmMarketplaceFilters>(EMPTY_FILTERS);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [acceptedId, setAcceptedId] = useState<number | null>(null);
 
-  const load = useCallback(async (keyword: string): Promise<void> => {
-    setLoading(true);
-    const response = await cmApi.browseMarketplace(keyword ? { search: keyword } : undefined);
-    if (response.success) {
-      setResult(parseMarketplace(response.data));
-    }
-    setLoading(false);
-  }, []);
+  const fetcher = useCallback((page: number) => {
+    const skillList = cmSplitList(filters.skills);
+    return cmApi.browseMarketplace({
+      page,
+      ...(skillList.length > 0 ? { skills: skillList.join(',') } : {}),
+      ...(filters.minBudget ? { min_budget: Number(filters.minBudget) } : {}),
+      ...(filters.maxBudget ? { max_budget: Number(filters.maxBudget) } : {}),
+    });
+  }, [filters]);
+  const list = useCmPagedList(fetcher, extractTasks, 'marketplace.loadFailed');
 
-  useEffect(() => {
-    void load('');
-  }, [load]);
+  const budgetInvalid = draft.minBudget !== '' && draft.maxBudget !== '' && Number(draft.minBudget) > Number(draft.maxBudget);
+  const filtersActive = filters.skills !== '' || filters.minBudget !== '' || filters.maxBudget !== '' || keyword !== '';
 
-  const accept = async (taskId: number): Promise<void> => {
-    setAcceptingId(taskId);
-    setNotice(null);
-    const response = await cmApi.acceptTask(taskId);
-    setNotice(response.success ? t('marketplace.accepted') : t('marketplace.acceptFailed'));
-    setAcceptingId(null);
-    await load(search);
-    await refresh();
+  const applyFilters = (event: React.FormEvent): void => {
+    event.preventDefault();
+    if (budgetInvalid) return;
+    setFilters({ ...draft });
   };
 
-  const visibleTasks = search
-    ? result.tasks.filter((task) =>
-        task.title.toLowerCase().includes(search.toLowerCase())
-        || (task.description ?? '').toLowerCase().includes(search.toLowerCase()))
-    : result.tasks;
+  const resetFilters = (): void => {
+    setKeyword('');
+    setDraft(EMPTY_FILTERS);
+    setFilters(EMPTY_FILTERS);
+  };
+
+  const accept = async (task: CmMarketplaceTask): Promise<void> => {
+    setAcceptingId(task.id);
+    notice.clear();
+    setAcceptedId(null);
+    const response = await cmApi.acceptTask(task.id);
+    setAcceptingId(null);
+    if (response.success) {
+      notice.success(t('marketplace.acceptedTitle', { title: task.title }));
+      setAcceptedId(task.id);
+      await list.reload();
+      await refresh();
+    } else {
+      notice.error(cmErrorMessage(t, response, 'marketplace.acceptFailed'));
+    }
+  };
+
+  const visibleTasks = useMemo(() => {
+    const needle = keyword.trim().toLowerCase();
+    if (!needle) return list.items;
+    return list.items.filter((task) => (
+      task.title.toLowerCase().includes(needle)
+      || (task.description ?? '').toLowerCase().includes(needle)
+      || (task.required_skills ?? []).some((skill) => skill.toLowerCase().includes(needle))
+    ));
+  }, [keyword, list.items]);
 
   return (
     <main className="cm-workspace-page">
-      <header className="cm-page-heading">
-        <span>{t('marketplace.eyebrow')}</span>
-        <h1>{t('nav.marketplace')}</h1>
-        <p>{t('marketplace.description')}</p>
-      </header>
-      <section className="cm-marketplace-toolbar">
+      <CmPageHeader
+        eyebrowKey="marketplace.eyebrow"
+        titleKey="nav.marketplace"
+        purposeKey="marketplace.description"
+        actions={(
+          <button type="button" className="cm-workspace-button" onClick={() => void list.reload()} disabled={list.loading}>
+            <RefreshCw aria-hidden="true" /> {t('common.refresh')}
+          </button>
+        )}
+      />
+      <form className="cm-marketplace-toolbar" onSubmit={applyFilters}>
         <label>
           <span>{t('marketplace.searchLabel')}</span>
           <div>
             <Search aria-hidden="true" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void load(search);
-              }}
-              placeholder={t('marketplace.searchPlaceholder')}
-            />
+            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder={t('marketplace.searchPlaceholder')} />
           </div>
         </label>
-        <button type="button" className="cm-workspace-button" onClick={() => void load(search)}>
-          <RefreshCw aria-hidden="true" /> {t('common.refresh')}
-        </button>
-      </section>
-      {notice && <p className="cm-contract-note">{notice}</p>}
-      {loading ? (
-        <p className="cm-contract-note">{t('common.loading')}</p>
+        <label>
+          <span>{t('marketplace.skillsLabel')}</span>
+          <div>
+            <Layers aria-hidden="true" />
+            <input value={draft.skills} onChange={(event) => setDraft((current) => ({ ...current, skills: event.target.value }))} placeholder={t('marketplace.skillsPlaceholder')} />
+          </div>
+        </label>
+        <label>
+          <span>{t('marketplace.budgetRange')}</span>
+          <div className="cm-range-inputs">
+            <input type="number" min={0} inputMode="decimal" value={draft.minBudget} onChange={(event) => setDraft((current) => ({ ...current, minBudget: event.target.value }))} placeholder={t('marketplace.minBudget')} aria-label={t('marketplace.minBudget')} aria-invalid={budgetInvalid} />
+            <span aria-hidden="true">–</span>
+            <input type="number" min={0} inputMode="decimal" value={draft.maxBudget} onChange={(event) => setDraft((current) => ({ ...current, maxBudget: event.target.value }))} placeholder={t('marketplace.maxBudget')} aria-label={t('marketplace.maxBudget')} aria-invalid={budgetInvalid} />
+          </div>
+          {budgetInvalid && <small className="cm-field-error">{t('marketplace.budgetRangeInvalid')}</small>}
+        </label>
+        <div className="cm-marketplace-toolbar__actions">
+          <button type="submit" className="cm-workspace-button is-primary" disabled={budgetInvalid || list.loading}>
+            <Search aria-hidden="true" /> {t('marketplace.applyFilters')}
+          </button>
+          {filtersActive && (
+            <button type="button" className="cm-workspace-button" onClick={resetFilters}>
+              <X aria-hidden="true" /> {t('marketplace.clearFilters')}
+            </button>
+          )}
+        </div>
+      </form>
+      {!canAccept && <CmNotice notice={{ tone: 'info', text: t('marketplace.developerRequired') }} />}
+      <CmNotice notice={notice.notice} onDismiss={notice.clear} />
+      {acceptedId !== null && (
+        <p className="cm-inline-action">
+          <Link to={`/codemart/tasks?task=${acceptedId}`} className="cm-workspace-button"><ListTodo aria-hidden="true" /> {t('marketplace.openAccepted')}</Link>
+        </p>
+      )}
+      {list.loading ? (
+        <CmLoadingState />
+      ) : list.error ? (
+        <CmErrorState message={list.error} onRetry={() => void list.reload()} />
       ) : visibleTasks.length === 0 ? (
-        <section className="cm-marketplace-empty">
-          <Inbox aria-hidden="true" />
-          <h2>{t('marketplace.emptyTitle')}</h2>
-          <p>{t('marketplace.emptyBody')}</p>
-        </section>
+        <CmEmptyState
+          title={filtersActive ? t('marketplace.noMatchTitle') : t('marketplace.emptyTitle')}
+          body={filtersActive ? t('marketplace.noMatchBody') : t('marketplace.emptyBody')}
+          action={filtersActive ? <button type="button" className="cm-workspace-button" onClick={resetFilters}>{t('marketplace.clearFilters')}</button> : undefined}
+        />
       ) : (
-        <section className="cm-card-list">
+        <section className="cm-card-list" aria-label={t('nav.marketplace')}>
           {visibleTasks.map((task) => (
             <article key={task.id} className="cm-record-card">
               <div className="cm-record-card__main">
+                {task.milestone?.title && <small className="cm-record-card__kicker">{t('marketplace.milestoneLabel', { title: task.milestone.title })}</small>}
                 <h2>{task.title}</h2>
                 <p>{task.description}</p>
                 <div className="cm-record-card__meta">
-                  <span><CircleDollarSign aria-hidden="true" /> {task.budget_allocation ?? t('common.unavailable')}</span>
-                  <span className="cm-status" data-status={task.status}>{t(`states.task.${task.status}`)}</span>
+                  <CmStatusBadge group="task" status={task.status} />
+                  {task.budget_allocation && (
+                    <span className="cm-record-card__money"><CircleDollarSign aria-hidden="true" /> {format.money(task.budget_allocation, currency)}</span>
+                  )}
+                  {task.due_date && <span><CalendarDays aria-hidden="true" /> {t('tasks.due', { date: format.date(task.due_date) })}</span>}
+                  {task.priority && <span><Flag aria-hidden="true" /> {t(`projectDetail.priorities.${task.priority}`, { defaultValue: task.priority })}</span>}
                 </div>
+                {(task.required_skills ?? []).length > 0 && (
+                  <ul className="cm-chip-list" aria-label={t('marketplace.skillsLabel')}>
+                    {(task.required_skills ?? []).map((skill) => <li key={skill}>{skill}</li>)}
+                  </ul>
+                )}
               </div>
               {canAccept && (
                 <button
                   type="button"
                   className="cm-workspace-button is-primary"
-                  disabled={acceptingId === task.id}
-                  onClick={() => void accept(task.id)}
+                  disabled={acceptingId !== null}
+                  onClick={() => void accept(task)}
                 >
-                  {acceptingId === task.id ? t('common.loading') : t('marketplace.accept')}
+                  {acceptingId === task.id ? t('marketplace.accepting') : t('marketplace.accept')}
                 </button>
               )}
             </article>
           ))}
         </section>
       )}
+      <CmPager page={list.page} totalPages={list.totalPages} disabled={list.loading} onChange={(next) => void list.load(next)} />
     </main>
   );
 };

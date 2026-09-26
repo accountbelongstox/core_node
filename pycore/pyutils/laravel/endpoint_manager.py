@@ -66,6 +66,8 @@ from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 from pycore.pyutils.laravel.identity import (
     LARAVEL_HEALTH_SERVICE,
     build_pycore_identity_headers,
+    laravel_server_namespace,
+    parse_laravel_server_identity,
 )
 from pycore.pyutils.common.laravel_http_transport import (
     create_laravel_http_session,
@@ -108,11 +110,22 @@ _RESOLVING_SIGNAL = "laravel_endpoint_manager.resolving"
 # THREAD_BUS single-flight guard for background health sweeps kicked by
 # list_endpoints/probe_route (never run on the state-owner thread).
 _SWEEPING_SIGNAL = "laravel_endpoint_manager.sweeping"
-# THREAD_BUS signal published by Laravel workers when a diff poll succeeds
-# right after a recorded outage (offline -> online edge). Payload:
-# {"at": epoch_seconds, "base_url": str}. Durable-backlog consumers (audio
-# delivery outbox, queue-head promotion replay) flush on this edge.
+# Reachability edge of every Laravel endpoint, fed by each Laravel HTTP call
+# (laravel_client) and health probe. On an unknown/offline -> online
+# transition, and when the server identity behind an endpoint is learned or
+# changes, the state signal is (re)published and the event is triggered
+# asynchronously with {"at", "base_url", "namespace", "previous_namespace",
+# "server_id", "reason"}; the durable delivery outbox
+# (pyutils/laravel/delivery_outbox.py) reconciles that server on it.
 LARAVEL_ONLINE_SIGNAL = "laravel.endpoint.online"
+LARAVEL_ONLINE_EVENT = "laravel.endpoint.online_edge"
+# Gateway statuses that mean the Laravel application itself is down.
+LARAVEL_OFFLINE_STATUSES = (502, 503, 504)
+# Last server identity observed per endpoint URL (survives restarts, so the
+# delivery namespace of an offline endpoint stays known).
+SERVER_IDENTITY_SECTION = "laravel_servers"
+EDGE_REASON_ONLINE = "online"
+EDGE_REASON_IDENTITY = "identity"
 
 endpoint_cache_store = UserDataStore(
     base_dir=APP_DATA_DIR,
@@ -195,6 +208,8 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
             and isinstance(body, dict)
             and body.get("service") == LARAVEL_HEALTH_SERVICE
         )
+        if result["healthy"]:
+            result["identity"] = parse_laravel_server_identity(body)
         if resp.status_code < 200 or resp.status_code >= 300:
             result["error"] = f"HTTP {resp.status_code}"
         elif not result["healthy"]:
@@ -232,6 +247,120 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         "http_version": http_version,
     })
     return result
+
+
+class LaravelReachability:
+    """In-memory reachability plus the persisted server identity of the
+    configured Laravel endpoints.
+
+    Fed by every ``laravel_client`` request and health probe. Its owner
+    thread only touches in-memory containers (plus a rare identity write),
+    so a report costs one queue hop; the online event itself is dispatched
+    asynchronously. Only configured endpoints (``set_endpoints`` from the
+    catalog load) drive the edge: the same client also reaches e.g. the local
+    OCR bridge.
+    """
+
+    def __init__(self) -> None:
+        self._reachable: Dict[str, bool] = {}
+        self._endpoints: frozenset = frozenset()
+        self._servers: Optional[Dict[str, Dict[str, Any]]] = None
+        init_serialized_owner(self, "laravel_endpoint_manager.reachability", "LaravelReachabilityState")
+
+    @serialized_method
+    def set_endpoints(self, endpoints: List[str]) -> None:
+        self._endpoints = frozenset(_normalize(url) for url in endpoints if url)
+
+    def _server_map(self) -> Dict[str, Dict[str, Any]]:
+        if self._servers is None:
+            stored = endpoint_cache_store.get_section(SERVER_IDENTITY_SECTION) or {}
+            self._servers = {
+                _normalize(url): dict(entry)
+                for url, entry in stored.items()
+                if _normalize(url) and isinstance(entry, dict)
+            }
+        return self._servers
+
+    def _namespace(self, url: str) -> str:
+        return laravel_server_namespace(str((self._server_map().get(url) or {}).get("server_id") or ""), url)
+
+    @serialized_method
+    def _transition(self, url: str, reachable: bool, identity: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        previous = self._reachable.get(url)
+        self._reachable[url] = reachable
+        servers = self._server_map()
+        previous_namespace = self._namespace(url)
+        if reachable and identity is not None:
+            current = servers.get(url) or {}
+            server_id = str(identity.get("server_id") or "")
+            if not current or server_id != str(current.get("server_id") or ""):
+                servers[url] = {"server_id": server_id, "observed_at": time.time()}
+                endpoint_cache_store.set_section(SERVER_IDENTITY_SECTION, servers)
+        namespace = self._namespace(url)
+        configured = url in self._endpoints
+        return {
+            "online_edge": configured and previous is not reachable,
+            "identity_edge": configured and reachable and namespace != previous_namespace,
+            "namespace": namespace,
+            "previous_namespace": previous_namespace,
+            "server": dict(servers.get(url) or {}),
+        }
+
+    def note(self, url: str, reachable: bool, identity: Optional[Dict[str, Any]] = None) -> None:
+        """Record one observed call outcome (and the server identity the
+        response carried, if any); publish the edge on change."""
+        normalized = _normalize(url)
+        if not normalized:
+            return
+        change = self._transition(normalized, bool(reachable), identity)
+        if not change["online_edge"] and not change["identity_edge"]:
+            return
+        if reachable:
+            payload = {
+                "at": time.time(),
+                "base_url": normalized,
+                "namespace": change["namespace"],
+                "previous_namespace": change["previous_namespace"],
+                "server_id": str(change["server"].get("server_id") or ""),
+                "reason": EDGE_REASON_ONLINE if change["online_edge"] else EDGE_REASON_IDENTITY,
+            }
+            THREAD_BUS.signal(LARAVEL_ONLINE_SIGNAL, payload)
+            THREAD_BUS.trigger_event(LARAVEL_ONLINE_EVENT, payload, async_mode=True)
+        else:
+            ColorPrint.yellow(f"[LaravelEndpoints] {normalized} unreachable; durable deliveries wait for the online edge")
+
+    @serialized_method
+    def get(self, url: str) -> Optional[bool]:
+        return self._reachable.get(_normalize(url))
+
+    @serialized_method
+    def namespace(self, url: str) -> str:
+        return self._namespace(_normalize(url))
+
+    @serialized_method
+    def server(self, url: str) -> Dict[str, Any]:
+        normalized = _normalize(url)
+        entry = dict(self._server_map().get(normalized) or {})
+        return {
+            "url": normalized,
+            "namespace": self._namespace(normalized),
+            "server_id": str(entry.get("server_id") or ""),
+            "identified": bool(entry),
+            "reachable": self._reachable.get(normalized),
+        }
+
+    @serialized_method
+    def urls_for(self, namespace: str) -> List[str]:
+        """Configured endpoint URLs of one namespace, reachable ones first."""
+        urls = [url for url in sorted(self._endpoints) if self._namespace(url) == namespace]
+        return sorted(urls, key=lambda url: 0 if self._reachable.get(url) else 1 if self._reachable.get(url) is None else 2)
+
+    @serialized_method
+    def servers(self) -> List[Dict[str, Any]]:
+        return [self.server(url) for url in sorted(self._endpoints)]
+
+
+laravel_reachability = LaravelReachability()
 
 
 class LaravelEndpointManager:
@@ -335,6 +464,7 @@ class LaravelEndpointManager:
                 ColorPrint.blue(
                     "[LaravelEndpoints] Migrated endpoint cache to backend data directory"
                 )
+        laravel_reachability.set_endpoints(endpoints)
         return {
             "backend_endpoints": backend_endpoints,
             "frontend_endpoints": active_frontend,
@@ -418,6 +548,37 @@ class LaravelEndpointManager:
         for url, result in (results or {}).items():
             if url and isinstance(result, dict):
                 self._probe_results[url] = dict(result)
+                laravel_reachability.note(url, bool(result.get("healthy")), result.get("identity"))
+
+    def is_reachable(self, url: str = "") -> Optional[bool]:
+        """Last observed reachability (None = not observed yet)."""
+        return laravel_reachability.get(url or self.get_active_base_url())
+
+    def server_identity(self, url: str = "") -> Dict[str, Any]:
+        """``{url, namespace, server_id, identified, reachable}`` of one
+        endpoint (default: the active one); network-free."""
+        return laravel_reachability.server(url or self.get_active_base_url())
+
+    def delivery_namespace(self, url: str = "") -> str:
+        """Delivery namespace of one endpoint (default: the active one)."""
+        return laravel_reachability.namespace(url or self.get_active_base_url())
+
+    def base_url_for_namespace(self, namespace: str) -> str:
+        """Endpoint to deliver one namespace through: the active endpoint
+        when it serves that server, else a reachable (then unobserved)
+        configured endpoint of it; '' when none is known."""
+        active = self.get_active_base_url()
+        if active and laravel_reachability.namespace(active) == namespace:
+            return active
+        for url in laravel_reachability.urls_for(namespace):
+            if laravel_reachability.get(url) is not False:
+                return url
+        return ""
+
+    def known_servers(self) -> List[Dict[str, Any]]:
+        """Identity + reachability of every configured endpoint."""
+        self._load()
+        return laravel_reachability.servers()
 
     @serialized_method
     def last_probe_result(self, url: str) -> Dict[str, Any]:

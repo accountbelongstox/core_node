@@ -172,6 +172,8 @@ class AppQyV1ArticleManagementService
             }
         }
 
+        app(AppQyV1ResourceIndexService::class)->forgetArticle($article);
+
         $result = AppQyV1Article::runInTransaction(function () use ($article, $category, $documentId): array {
             $articleWordsDeleted = 0;
             $documentDeleted = 0;

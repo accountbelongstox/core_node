@@ -1,98 +1,102 @@
 /**
  * Gemini Image Worker Service
  *
- * Assist-only worker for word-group cover generation. It does not register or
- * pull global image tasks; individual words never own images.
+ * Registered `remote_gemini` worker (capability image) and the single
+ * extension consumer of Gemini image generation:
+ *   - GlobalTask `library_cover` (vocabulary-library cover, AI generate mode)
+ *   - GlobalTask `gemini_image` (explicit prompt-driven image requests)
+ *   - Laravel assist pool `cover` items (background fill of missing covers)
+ * Individual words never own images.
  */
-import { SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
-import { AssistOnlyWorkerBase } from './task-center/AssistOnlyWorkerBase';
-import { generateViaGemini } from './gemini-image-generate';
+import type { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
+import { AssistPollingWorkerBase } from './task-center/AssistPollingWorkerBase';
+import { generateViaGemini, type GeminiGeneratedImage } from './gemini-image-generate';
+import { submitAssistImage, type ImageArtifact } from './assist-cover-pipeline';
+import { LANES } from '@/utils/task-center-lanes';
 import { logger } from '@/utils/logger';
 import {
-  claimAssistItems,
+  LIBRARY_COVER_TASK_TYPES,
+  TASK_CAPABILITY_BY_ROLE,
+  TASK_TYPE_KEYS,
+  taskPromptText,
+  type LibraryCoverTaskPayload,
+} from '@/utils/queue-center-contract';
+import {
   releaseAssistItem,
   type AssistClaimItem,
+  type AssistItemType,
 } from '@/services/assist-image-api';
-import { submitLibraryCover } from './assist-cover-pipeline';
 import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-library';
 
 const LOG = 'Gemini Image';
 const ASSIST_CLAIMER = 'mcp-chrome-gemini-cover';
+const RELEASE_REASON_PREFIX = 'mcp-chrome';
+const GEMINI_PROVIDER = 'gemini';
+const GEMINI_MODEL = 'gemini-web';
 
-class GeminiImageWorkerService extends AssistOnlyWorkerBase<Record<string, unknown>> {
-  protected readonly assistStats = {
-    coversSubmitted: 0,
-    assistFailed: 0,
-    lastAssistRun: null as number | null,
-    lastAssistError: null as string | null,
-    currentAssistItem: null as string | null,
-    currentAssistStage: 'idle',
-  };
-
+class GeminiImageWorkerService extends AssistPollingWorkerBase {
   protected get processorKey(): string {
     return 'gemini_image';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'gemini_image_worker_id_base';
-  }
 
   protected get workerLabel(): string {
     return LOG;
   }
 
-  async start(config: SimpleWorkerConfig): Promise<void> {
-    await super.start({ ...config, pollWait: 0 });
-    this.startAssistPolling();
-    logger.info(LOG, 'Vocabulary-cover polling activated', {
-      apiUrl: config.apiUrl,
-      types: ['cover'],
-      intervalMs: this.assistPollIntervalMs,
-    });
+  protected get capabilities(): WorkerCapability[] {
+    return [TASK_CAPABILITY_BY_ROLE.image];
   }
 
-  protected async executeAssistCycle(): Promise<void> {
-    if (!this.config?.apiUrl) return;
-    this.assistStats.lastAssistRun = Date.now();
-    this.assistStats.lastAssistError = null;
-    this.assistStats.currentAssistStage = 'claiming';
-    this.stats.lastRun = this.assistStats.lastAssistRun;
-    logger.debug(LOG, 'Vocabulary-cover claim cycle started', {
-      apiUrl: this.config.apiUrl,
-      limit: 3,
-    });
-    try {
-      const items = await claimAssistItems(this.config.apiUrl, ['cover'], ASSIST_CLAIMER, 3);
-      this.noteBackendSuccess();
-      if (!items.length) {
-        logger.debug(LOG, 'Vocabulary-cover claim returned no work');
-        return;
-      }
-      logger.info(LOG, `Claimed ${items.length} vocabulary cover(s)`, {
-        items: items.map((item) => ({ id: item.id, name: String(item.payload?.name || '') })),
+  protected get baseProcessorTypes(): ProcessorType[] {
+    return [LANES.REMOTE_GEMINI];
+  }
+
+  protected get pullTaskTypes(): string[] {
+    return [LIBRARY_COVER_TASK_TYPES.generate, TASK_TYPE_KEYS.gemini_image];
+  }
+
+  protected handlesTaskType(taskType: string): boolean {
+    return this.pullTaskTypes.includes(taskType);
+  }
+
+  protected get assistItemTypes(): AssistItemType[] {
+    return ['cover'];
+  }
+
+  protected get assistClaimer(): string {
+    return ASSIST_CLAIMER;
+  }
+
+  protected async executeTask(task: Task): Promise<void> {
+    const payload = (task.payload || {}) as Record<string, unknown>;
+    const prompt = task.task_type === LIBRARY_COVER_TASK_TYPES.generate
+      ? this.libraryCoverPrompt(task.task_id, payload as Partial<LibraryCoverTaskPayload>)
+      : taskPromptText(task.task_type, payload).trim();
+    if (!prompt) {
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: `${task.task_type} task has no prompt`,
       });
-      for (const item of items) {
-        if (!this.getStatus().isRunning) break;
-        await this.processAssistCover(item);
-        await this.delay(1200);
-      }
-    } catch (error: any) {
-      const message = error?.message || String(error);
-      this.noteBackendFailure(error);
-      this.assistStats.lastAssistError = message;
-      this.assistStats.currentAssistStage = 'failed';
-      logger.error(LOG, `Vocabulary-cover cycle failed: ${message}`);
-    } finally {
-      this.assistStats.currentAssistItem = null;
-      this.stats.currentTaskId = null;
-      if (this.assistStats.currentAssistStage !== 'failed') {
-        this.assistStats.currentAssistStage = 'idle';
-      }
+      return;
     }
+
+    const startedAt = Date.now();
+    logger.info(LOG, `Generating ${task.task_type} task ${task.task_id}`, {
+      libraryId: payload.library_id ?? null,
+      promptLength: prompt.length,
+    });
+    const generated = await generateViaGemini(prompt);
+    await this.submitImageTaskResult(
+      task.task_id,
+      generated && this.toArtifact(generated, prompt),
+      startedAt,
+      'Gemini image generation failed',
+    );
   }
 
-  private async processAssistCover(item: AssistClaimItem): Promise<void> {
-    if (!this.config?.apiUrl) return;
+  protected async processAssistItem(item: AssistClaimItem): Promise<void> {
+    const apiUrl = this.config?.apiUrl;
+    if (!apiUrl) return;
     const payload = item.payload || {};
     const name = String(payload.name || '').trim();
     const prompt = vocabularyCoverPromptLibrary.compose({
@@ -101,58 +105,59 @@ class GeminiImageWorkerService extends AssistOnlyWorkerBase<Record<string, unkno
       category: String(payload.category || '').trim(),
       difficulty: String(payload.difficulty || '').trim(),
     });
-    const itemKey = `cover:library:${item.id}`;
-    const started = Date.now();
+    const startedAt = Date.now();
 
-    this.assistStats.currentAssistItem = itemKey;
-    this.assistStats.currentAssistStage = 'gemini_generation';
-    this.stats.currentTaskId = `assist:${itemKey}`;
+    this.setAssistStage('gemini_generation');
     logger.info(LOG, `Generating vocabulary cover#${item.id}`, {
       name,
       promptLength: prompt.length,
     });
-
     const generated = await generateViaGemini(prompt);
     if (!generated) {
-      this.assistStats.assistFailed += 1;
-      this.stats.failed += 1;
+      this.noteAssistOutcome(false);
       logger.warn(LOG, `Gemini failed to generate vocabulary cover#${item.id}`);
-      await releaseAssistItem(this.config.apiUrl, 'cover', item.id, 'mcp-chrome: Gemini cover generation failed');
+      await releaseAssistItem(apiUrl, 'cover', item.id, `${RELEASE_REASON_PREFIX}: Gemini cover generation failed`);
       return;
     }
 
-    const extras = {
-      mime: generated.mime,
-      provider: 'gemini',
-      model: 'gemini-web',
-      latencyMs: Date.now() - started,
-    };
-    this.assistStats.currentAssistStage = 'submitting';
-    // Magic validation + submit + release/outbox policy live in the shared
-    // assist-cover pipeline (single implementation across both image workers).
-    const outcome = await submitLibraryCover({
-      baseUrl: this.config.apiUrl,
-      itemId: item.id,
-      imageBase64: generated.imageBase64,
+    this.setAssistStage('submitting');
+    const outcome = await submitAssistImage({
+      baseUrl: apiUrl,
+      item,
+      artifact: this.toArtifact(generated, prompt),
       claimer: ASSIST_CLAIMER,
-      extras,
-      releaseReasonPrefix: 'mcp-chrome',
+      startedAt,
+      releaseReasonPrefix: RELEASE_REASON_PREFIX,
     });
-    if (outcome === 'submitted') {
-      this.assistStats.coversSubmitted += 1;
-      this.assistStats.currentAssistStage = 'completed';
-      this.stats.translated += 1;
-      logger.info(LOG, `Vocabulary cover#${item.id} submitted`);
-      return;
-    }
-
-    this.assistStats.assistFailed += 1;
-    this.stats.failed += 1;
+    this.noteAssistOutcome(outcome === 'submitted');
     if (outcome === 'outboxed') {
       logger.warn(LOG, `Vocabulary cover#${item.id} queued in the durable outbox`);
     }
   }
 
+  /**
+   * An explicit payload prompt wins; otherwise compose a fresh prompt whose
+   * variation is unique per run, so a regenerate never repeats the last cover.
+   */
+  private libraryCoverPrompt(taskId: string, payload: Partial<LibraryCoverTaskPayload>): string {
+    const explicit = String(payload.prompt || '').trim();
+    if (explicit) return explicit;
+    return vocabularyCoverPromptLibrary.compose({
+      id: Number(payload.library_id) || 0,
+      name: String(payload.name || '').trim(),
+      category: String(payload.category || '').trim(),
+      variation: `${taskId}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    });
+  }
+
+  private toArtifact(generated: GeminiGeneratedImage, prompt: string): ImageArtifact {
+    return {
+      ...generated,
+      provider: GEMINI_PROVIDER,
+      model: GEMINI_MODEL,
+      prompt,
+    };
+  }
 }
 
 export const geminiImageWorkerService = new GeminiImageWorkerService();

@@ -52,6 +52,12 @@ export const orchEn = {
   "phaseResources": "Preparing resources",
   "phaseAssemble": "Assembling segments",
   "phaseDone": "Finished",
+  "runStarted": "Started",
+  "runFinished": "Finished",
+  "runDuration": "Duration",
+  "runElapsed": "Elapsed",
+  "segmentTiming": "Segment timing",
+  "resolvedAt": "Resolved",
   "manifestSynced": "synced",
   "save": "Save",
   "create": "Create",
@@ -128,7 +134,15 @@ export const orchEn = {
   "go": "Go",
   "jumpPage": "Page",
   "expandPages": "Show all pages",
-  "collapsePages": "Collapse pages"
+  "collapsePages": "Collapse pages",
+  "pageTitle": "Audio Orchestration",
+  "pageSubtitle": "Orchestrate and generate study audio from any source: vocabulary books, prompt rewrites and more.",
+  "sourceFilter": "Source",
+  "sourceAll": "All sources",
+  "sourceVocabBook": "Vocabulary book",
+  "sourcePromptRewrite": "Prompt rewrite",
+  "sourceItems": "Source texts",
+  "noSourceItems": "No source texts yet."
 } as const;
 
 export const orchZh = {
@@ -185,6 +199,12 @@ export const orchZh = {
   "phaseResources": "补齐资源",
   "phaseAssemble": "合成段落",
   "phaseDone": "已完成",
+  "runStarted": "开始",
+  "runFinished": "结束",
+  "runDuration": "耗时",
+  "runElapsed": "已用时",
+  "segmentTiming": "段落耗时",
+  "resolvedAt": "补齐于",
   "manifestSynced": "已同步",
   "save": "保存",
   "create": "创建",
@@ -261,5 +281,13 @@ export const orchZh = {
   "go": "跳转",
   "jumpPage": "页码",
   "expandPages": "展开全部页码",
-  "collapsePages": "收起页码"
+  "collapsePages": "收起页码",
+  "pageTitle": "音频编排",
+  "pageSubtitle": "从任意来源编排并生成学习音频：词汇书籍、提示词改写等。",
+  "sourceFilter": "来源",
+  "sourceAll": "全部来源",
+  "sourceVocabBook": "词汇书籍",
+  "sourcePromptRewrite": "提示词改写",
+  "sourceItems": "来源文本",
+  "noSourceItems": "暂无来源文本。"
 } as const;
