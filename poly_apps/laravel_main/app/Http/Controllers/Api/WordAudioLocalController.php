@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Utils\SecretStore;
 use App\Services\WordAudio\WordAudioClient;
+use App\Support\QueueCenterContract;
+use App\Utils\SecretStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,6 +30,8 @@ class WordAudioLocalController extends Controller
         // Determine Forvo key presence the SAME way WordAudioClient does — a plain
         // secret lookup, no network call, and the key value never leaves this method.
         $forvoKeyPresent = trim(SecretStore::getIndexed('FORVO_API_KEY')) !== '';
+        $batchPolicy = QueueCenterContract::wordAudioBatch();
+        $batchEngine = (string) $batchPolicy['engine'];
 
         return response()->json([
             'backend' => 'laravel',
@@ -49,7 +52,12 @@ class WordAudioLocalController extends Controller
                 ],
             ],
             'forvo_key_present' => $forvoKeyPresent,
-            'tts_fallback' => true,
+            'tts_fallback' => false,
+            'tts_engines' => [$batchEngine],
+            'batch_engine' => $batchEngine,
+            'batch_profile' => (string) $batchPolicy['profile'],
+            'batch_device' => (string) $batchPolicy['device'],
+            'batch_size' => (int) $batchPolicy['default_batch_size'],
         ]);
     }
 
@@ -57,7 +65,10 @@ class WordAudioLocalController extends Controller
     {
         $word = trim((string) $request->input('word', ''));
         if ($word === '') {
-            return response()->json(['success' => false, 'error' => 'word is required'], 400);
+            return response()->json([
+                'success' => false,
+                'error_code' => 'WORD_REQUIRED',
+            ], 400);
         }
         $lang = strtolower(trim((string) $request->input('lang', 'en')));
         if ($lang === '') {
@@ -88,7 +99,7 @@ class WordAudioLocalController extends Controller
         return response()->json([
             'success' => false,
             'provider' => null,
-            'message' => "No real pronunciation found for '{$word}' ({$lang}); the TTS fallback would handle it.",
+            'message_code' => 'REAL_PRONUNCIATION_NOT_FOUND',
         ]);
     }
 }

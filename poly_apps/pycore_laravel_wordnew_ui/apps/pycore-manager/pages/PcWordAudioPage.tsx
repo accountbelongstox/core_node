@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { WordAudioStatus, WordAudioTestResponse } from '@/apps/pycore-manager/api';
+import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 
 const OK_BADGE = 'bg-emerald-500/15 text-emerald-500';
 const OFF_BADGE = 'bg-slate-500/15 text-slate-400';
@@ -143,7 +144,7 @@ export default function PcWordAudioPage() {
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t('wordAudioPage.status')}</span>
             <div className="flex items-center gap-2">
               <Badge ok={!!status?.forvo_key_present} okLabel={t('wordAudioPage.configured')} offLabel={t('wordAudioPage.notSet')} />
-              <Badge ok={status?.batch_engine === 'kokoro'} okLabel={t('wordAudioPage.batchReady')} offLabel={t('wordAudioPage.unavailable')} />
+              <Badge ok={status?.batch_engine === QUEUE_CENTER_WORD_AUDIO_BATCH.engine} okLabel={t('wordAudioPage.batchReady')} offLabel={t('wordAudioPage.unavailable')} />
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-[11px]">
@@ -159,12 +160,12 @@ export default function PcWordAudioPage() {
             </div>
             <div>
               <div className="text-slate-400 uppercase tracking-wider flex items-center gap-1"><AudioLines className="w-3 h-3" /> {t('wordAudioPage.batchEngine')}</div>
-              <div className="font-mono text-slate-600 dark:text-slate-300">{status?.batch_engine || status?.tts_engines?.[0] || 'kokoro'}</div>
+              <div className="font-mono text-slate-600 dark:text-slate-300">{status?.batch_engine || status?.tts_engines?.[0] || QUEUE_CENTER_WORD_AUDIO_BATCH.engine}</div>
             </div>
             <div>
               <div className="text-slate-400 uppercase tracking-wider">{t('wordAudioPage.batchPolicy')}</div>
               <div className="font-mono text-slate-600 dark:text-slate-300">
-                {(status?.batch_device || 'cpu').toUpperCase()} · {status?.batch_size || 20}
+                {(status?.batch_device || QUEUE_CENTER_WORD_AUDIO_BATCH.device).toUpperCase()} · {status?.batch_size || QUEUE_CENTER_WORD_AUDIO_BATCH.default_batch_size}
               </div>
             </div>
           </div>
@@ -290,7 +291,7 @@ export default function PcWordAudioPage() {
             ) : (
               <div className="flex items-start gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <MinusCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
-                <span>{result.message || t('wordAudioPage.miss')}</span>
+                <span>{result.message_code === 'REAL_PRONUNCIATION_NOT_FOUND' ? t('wordAudioPage.miss') : (result.message || t('wordAudioPage.miss'))}</span>
               </div>
             )
           ) : (

@@ -178,6 +178,9 @@ class GlobalTaskWorkerResult(TypedDict, total=False):
 
 
 QUEUE_CENTER_SCHEMA_VERSION = int(_CONTRACT_DOCUMENT["schema_version"])
+QUEUE_CENTER_WORD_AUDIO_BATCH: Dict[str, Any] = dict(
+    _CONTRACT_DOCUMENT["word_audio_batch"]
+)
 QUEUE_CENTER_REALTIME: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["realtime"])
 QUEUE_CENTER_REALTIME_EVENTS: Dict[str, str] = {
     str(key): str(value)
@@ -702,6 +705,7 @@ __all__ = [
     "QUEUE_CENTER_CONTROL_NAMES",
     "QUEUE_CENTER_CAPABILITY_CLAIMANTS",
     "QUEUE_CENTER_SCHEMA_VERSION",
+    "QUEUE_CENTER_WORD_AUDIO_BATCH",
     "QUEUE_CENTER_REALTIME",
     "QUEUE_CENTER_REALTIME_EVENTS",
     "QUEUE_CENTER_QUEUE_POSITION_CONTROLS",

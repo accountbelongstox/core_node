@@ -112,7 +112,7 @@ match in PHP. Results return through `submitResult` →
 `pycore/pyctl/queue_center/snapshot_service.py::apply_head_event` →
 `worker.set_cached_task_head(task_id, queue_position)` →
 `AudioTaskQueue.move_to_head`. After the word-audio full-sync change the
-local queue is fed by `_local_source` tasks (`word-full-<md5>`), so a
+local queue is fed by `_local_source` tasks (`word-full-<language>-<md5>`), so a
 Laravel-side `task_id` no longer matches; resolution must be by the
 event's dedup identity (`language`+`md5`/`content_id`), falling back to
 `task_id`.

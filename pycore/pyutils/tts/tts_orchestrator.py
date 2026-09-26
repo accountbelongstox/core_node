@@ -255,7 +255,8 @@ def synthesize(
         )
     # Sentence-audio cache: an identical sentence request (same text/lang/voice/
     # engine/format) returns the previously-synthesized file WITHOUT re-synth.
-    # Word audio is intentionally not cached here (short, edge-first, cheap).
+    # Explicit ad-hoc word requests are not cached here. Queue Center word
+    # audio bypasses this path and uses the Kokoro batch/cache pipeline.
     cache_ext = (output_path.suffix.lstrip(".").lower() or "mp3")
     cache_speaker = cache_instruct = cache_model = cache_speed = ""
     if profile == "sentence":

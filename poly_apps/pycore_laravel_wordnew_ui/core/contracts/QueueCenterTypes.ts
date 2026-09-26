@@ -338,7 +338,6 @@ export interface QueueCenterWorkerMetrics {
 /** Word-audio full-pull status (pycore `word_audio_full_sync`, word_audio section only). */
 export interface QueueCenterWordAudioFullSyncStatus {
   running: boolean;
-  on_start: boolean;
   last_sync_at: number;
   last_result: {
     success?: boolean;

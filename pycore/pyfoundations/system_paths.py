@@ -266,11 +266,12 @@ def get_shared_download_cache_dir() -> Path:
 
 
 def get_edge_tts_voice_cache_dir(lang: str = "en") -> Path:
-    r"""Edge-tts word-audio scratch/cache dir:
+    r"""Edge-tts explicit-test scratch/cache dir:
     ``<shared_cache>/voice_static/voice_words_static/edge-tts/<lang>``.
 
-    Used by the word-audio edge-tts fallback + the TTS test popup so synth
-    scratch files land on the shared ``D:\www\cache`` volume, NEVER the C:
+    Used only by compatibility and explicit TTS test surfaces. Queue Center
+    word audio uses Kokoro batches. Scratch files land on the shared
+    ``D:\www\cache`` volume, NEVER the C:
     ``%TEMP%`` dir. ``lang`` is lower-cased and defaults to ``en``."""
     lang_code = (lang or "en").strip().lower() or "en"
     return _ensure_dir(

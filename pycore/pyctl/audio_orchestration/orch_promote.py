@@ -15,6 +15,7 @@ by default; it is (re)built each time an orchestration manifest resolves.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -24,7 +25,10 @@ _QUEUE_WORD_AUDIO = "word_audio"
 _QUEUE_SENTENCE_AUDIO = "sentence_audio"
 
 
-def _promotion_item(resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _promotion_item(
+    resource: Dict[str, Any],
+    base_url: Optional[str],
+) -> Optional[Dict[str, Any]]:
     """One manifest resource -> ``{queue, item}`` for the library promote.
 
     ``item`` carries the raw identity fields; the canonical dedup key is
@@ -38,7 +42,30 @@ def _promotion_item(resource: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if kind == "sentence":
         return {"queue": _QUEUE_SENTENCE_AUDIO, "item": {"language": language, "text": text}}
     if kind == "word":
-        return {"queue": _QUEUE_WORD_AUDIO, "item": {"language": language, "text": text}}
+        md5 = hashlib.md5(text.lower().encode("utf-8")).hexdigest()
+        resource_key = str(resource.get("resource_id") or md5).strip()
+        task = {
+            "task_id": f"word-orchestration-{language}-{resource_key}",
+            "task_type": _QUEUE_WORD_AUDIO,
+            "payload": {
+                "word": text,
+                "content": text,
+                "language": language,
+                "md5": md5,
+            },
+            "_local_source": "orchestration",
+        }
+        if base_url:
+            task["_laravel_base_url"] = str(base_url)
+        return {
+            "queue": _QUEUE_WORD_AUDIO,
+            "item": {
+                "language": language,
+                "text": text,
+                "md5": md5,
+                "task": task,
+            },
+        }
     return None
 
 
@@ -49,13 +76,14 @@ def promote_missing_to_queue_head(
     """Enqueue-or-move every missing manifest resource to the local queue
     head — the Part1 fill path of the shared audio queue library.
 
-    Never raises, never touches Laravel (``base_url`` is accepted for call
-    compatibility and ignored), and never blocks generation: the resolver
-    still generates the misses itself regardless of the promote result.
+    Never raises or mutates Laravel. Word misses carry a local queue task so a
+    previously unseen identity really enters Part1; the resolver batch-fills
+    the cache before waking the worker, which then consumes the same task as a
+    cache hit. Sentence misses only promote an already queued remote task.
     """
     items_by_queue: Dict[str, List[Dict[str, Any]]] = {}
     for resource in misses:
-        item = _promotion_item(resource)
+        item = _promotion_item(resource, base_url)
         if item is None:
             continue
         items_by_queue.setdefault(item["queue"], []).append(item["item"])

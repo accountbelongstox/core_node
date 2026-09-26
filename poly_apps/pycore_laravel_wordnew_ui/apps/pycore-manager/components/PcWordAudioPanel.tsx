@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
+import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
 import { PcAudioDeliveryOutboxStatus } from './PcAudioDeliveryOutboxStatus';
@@ -27,9 +28,9 @@ export function PcWordAudioPanel(): ReactElement {
   const pending = wordSection.queue.pending;
   const leased = wordSection.queue.leased;
   const queueProgress = worker?.queue_progress;
-  const batchEngine = worker?.batch_engine || worker?.planned_engine || 'kokoro';
-  const batchDevice = worker?.batch_device || 'cpu';
-  const batchSize = worker?.batch_size || 20;
+  const batchEngine = worker?.batch_engine || worker?.planned_engine || QUEUE_CENTER_WORD_AUDIO_BATCH.engine;
+  const batchDevice = worker?.batch_device || QUEUE_CENTER_WORD_AUDIO_BATCH.device;
+  const batchSize = worker?.batch_size || QUEUE_CENTER_WORD_AUDIO_BATCH.default_batch_size;
   const fullSync = wordSection.full_sync ?? null;
   const [fullSyncBusy, setFullSyncBusy] = useState(false);
   const runFullSync = useCallback(async () => {

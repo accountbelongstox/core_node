@@ -540,7 +540,7 @@ class _QueueCenterSnapshotService:
             )
             # Resolve by task_id first, dedup identity fallback: the
             # word_audio lane is filled by pycore's full pull (local
-            # word-full-<md5> tasks), so a wordnew head ticket's Laravel
+            # word-full-<language>-<md5> tasks), so a wordnew head ticket's Laravel
             # task_id may have no local counterpart.
             worker.set_cached_task_head(task_id, queue_position, dedup_key)
             applied.append({

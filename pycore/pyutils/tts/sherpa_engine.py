@@ -3,7 +3,8 @@ Sherpa-ONNX offline TTS engine wrapper.
 
 Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
   pip install sherpa-onnx; optional +cuda wheel via SHERPA_ONNX_CUDA_SPEC.
-  GPU model: kokoro-multi-lang-v1_1 (full); CPU model: kokoro-int8-multi-lang-v1_1.
+  GPU hosts may use the full Kokoro model and CPU-only hosts the int8 model;
+  this wrapper explicitly selects the CPU execution provider for both.
   SHERPA_TTS_MODEL_DIR defaults to <cache>/tts/sherpa.
 
 Pure-offline, CPU, zero-cost, identical on Windows/Linux (`pip install

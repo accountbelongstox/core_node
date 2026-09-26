@@ -71,9 +71,12 @@ $application = Application::configure(basePath: dirname(__DIR__))
         ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']],
     )
     ->withSchedule(function (Schedule $schedule) {
-        $schedule->call([OctaneTimerService::class, 'heartbeat'])
-            ->name('octane-timer-heartbeat')
-            ->everySecond();
+        if (config('octane.server') !== 'swoole') {
+            $schedule->call([OctaneTimerService::class, 'heartbeat'])
+                ->name('octane-timer-heartbeat')
+                ->withoutOverlapping(1)
+                ->everySecond();
+        }
     })
     ->withMiddleware(function (Middleware $middleware) use ($requestForgeryExclusions) {
         // API-only app: never redirect unauthenticated guests to a web login

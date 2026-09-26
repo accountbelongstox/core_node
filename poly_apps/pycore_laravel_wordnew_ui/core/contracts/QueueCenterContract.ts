@@ -46,6 +46,12 @@ export type * from './QueueCenterTypes';
 
 interface ContractDocument {
   schema_version: number;
+  word_audio_batch: {
+    engine: string;
+    profile: string;
+    device: string;
+    default_batch_size: number;
+  };
   http_transfer: QueueCenterHttpTransfer;
   realtime: {
     transport: string;
@@ -206,6 +212,7 @@ const GLOBAL_TASK_WIRE_DTO_FIELDS = {
 
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
+export const QUEUE_CENTER_WORD_AUDIO_BATCH = QUEUE_CENTER_CONTRACT.word_audio_batch;
 export const QUEUE_CENTER_HTTP_TRANSFER = QUEUE_CENTER_CONTRACT.http_transfer;
 export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
 export const QUEUE_CENTER_RELAY = QUEUE_CENTER_CONTRACT.relay;
@@ -478,7 +485,6 @@ export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordA
   const rawLanguages = Array.isArray(value.languages) ? value.languages : [];
   return {
     running: toBoolean(value.running),
-    on_start: toBoolean(value.on_start),
     last_sync_at: toNumber(value.last_sync_at),
     last_result: {
       success: lastResult.success == null ? undefined : toBoolean(lastResult.success),

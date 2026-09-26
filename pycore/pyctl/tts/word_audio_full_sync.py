@@ -14,10 +14,8 @@ Laravel returns.
 
 Startup chain (event_handlers): cache restore -> full pull (background) ->
 drain. Runs only while the persisted Word Audio flag (assist capability
-``tts``) is ON; the persisted ``word_tts_auto.full_sync_on_start`` key
-(default true) — the SAME settings file the UI writes — decides whether the
-pull runs at boot. There is NO CLI/env parameter: the persisted flag is the
-single switch.
+``tts``) is ON. That UI-owned persisted flag is the only switch; there is no
+second startup preference and no CLI/env override.
 """
 
 from __future__ import annotations
@@ -29,15 +27,12 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue, start_bus_task
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyutils.common.queue_center_contract import task_language_priority
-from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_WORD_TTS_AUTO, user_data_store
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 QUEUE_KEY = "word_audio"
-# Persisted startup preference (user_data_store section word_tts_auto).
-FULL_SYNC_ON_START_KEY = "full_sync_on_start"
 # Laravel listing endpoints (read-only dictionary scan).
 _WORDS_PATH = "/api/app_qy_v1/dictionary/words"
 _LANGUAGE_BREAKDOWN_PATH = "/api/app_qy_v1/vocabulary/language-breakdown"
@@ -47,25 +42,6 @@ _REQUEST_TIMEOUT_SECONDS = 30
 # goes through the domain report + outbox (worker_base/execution guards).
 LOCAL_SOURCE_MARKER = "full_sync"
 _LOCAL_TASK_ID_PREFIX = "word-full-"
-
-
-def full_sync_on_start() -> bool:
-    """Startup full-pull decision: the persisted key is the ONLY switch.
-
-    Read DIRECTLY from the settings file (never from the UI process); default
-    True so a Running Word Audio flag implies the full pull at boot.
-    """
-    section = user_data_store.get_section(USER_DATA_SECTION_WORD_TTS_AUTO) or {}
-    value = section.get(FULL_SYNC_ON_START_KEY)
-    return True if value is None else bool(value)
-
-
-def set_full_sync_on_start(enabled: bool) -> None:
-    """Persist the startup full-pull preference (read directly at boot)."""
-    user_data_store.update_section(
-        USER_DATA_SECTION_WORD_TTS_AUTO,
-        {FULL_SYNC_ON_START_KEY: bool(enabled)},
-    )
 
 
 class WordAudioFullSync:
@@ -86,7 +62,6 @@ class WordAudioFullSync:
         queue_count = audio_queue_center.queued_count(QUEUE_KEY)
         return {
             "running": bool(self._running.get()),
-            "on_start": full_sync_on_start(),
             "last_sync_at": self._last_sync_at,
             "last_result": dict(self._last_result),
             "languages": [dict(row) for row in self._languages],
@@ -337,19 +312,15 @@ def activate_word_audio_queue() -> Dict[str, Any]:
         return {"success": False, "error": "WORD_AUDIO_DISABLED"}
     restored = audio_queue_center.restore_from_cache(QUEUE_KEY)
     word_audio_full_sync.record_cache_restore(restored)
-    if full_sync_on_start():
-        word_audio_full_sync.start_background()
+    word_audio_full_sync.start_background()
     audio_queue_center.request_pull(QUEUE_KEY)
     return {"success": True, "restored": restored}
 
 
 __all__ = [
-    "FULL_SYNC_ON_START_KEY",
     "LOCAL_SOURCE_MARKER",
     "QUEUE_KEY",
     "activate_word_audio_queue",
     "WordAudioFullSync",
-    "full_sync_on_start",
-    "set_full_sync_on_start",
     "word_audio_full_sync",
 ]

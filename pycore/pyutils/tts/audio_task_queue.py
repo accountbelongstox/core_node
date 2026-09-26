@@ -82,9 +82,11 @@ class AudioTaskQueue:
     def push(self, task: Dict[str, Any]) -> bool:
         """Add one execution attempt or refresh a queued duplicate's order.
 
-        Whole-Queue dedup: an active ``task_id:retry_count`` key refreshes
-        the single existing copy in place — never a second insertion. A task
-        whose dedup key is a Part1 member lands in Part1 automatically.
+        Whole-Queue dedup is enforced atomically for both the execution-attempt
+        key and canonical audio identity. An active ``task_id:retry_count``
+        key may refresh its single queued copy; a different task id for the
+        same language/content identity is rejected. A task whose dedup key is
+        a Part1 member lands in Part1 automatically.
         """
         task_key = self._task_key(task)
         if task_key and task_key in self._active_keys:
@@ -98,14 +100,17 @@ class AudioTaskQueue:
                     heapq.heapify(self._heap)
                 return False
             return False
+        dedup_key = ""
+        if self._dedup_key_of is not None:
+            dedup_key = str(self._dedup_key_of(task) or "")
+            if dedup_key and dedup_key in self._active_dedup_keys:
+                return False
         order = self._order(task, self._seq)
         heapq.heappush(self._heap, (*order, task))
         if task_key:
             self._active_keys.add(task_key)
-        if self._dedup_key_of is not None:
-            dedup_key = str(self._dedup_key_of(task) or "")
-            if dedup_key:
-                self._active_dedup_keys.add(dedup_key)
+        if dedup_key:
+            self._active_dedup_keys.add(dedup_key)
         self._seq += 1
         return True
 
@@ -271,7 +276,7 @@ class AudioTaskQueue:
 
         Fallback of move_to_head for tickets whose Laravel task_id has no
         local counterpart — e.g. the word_audio lane is filled by pycore's
-        full pull (local ``word-full-<md5>`` tasks), so a wordnew head
+        full pull (local ``word-full-<language>-<md5>`` tasks), so a wordnew head
         notification must be matched by its dedup identity
         (``{language}:{md5}`` / ``{language}:{content_id}``). Same
         whole-Queue semantics: the single existing copy keeps its part rank.

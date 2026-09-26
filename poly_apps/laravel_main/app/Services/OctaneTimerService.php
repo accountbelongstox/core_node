@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\TimerTasks\OctaneTimerTaskInterface;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Octane\Facades\Octane;
@@ -29,11 +30,16 @@ use Laravel\Octane\Facades\Octane;
 class OctaneTimerService
 {
     private const TASK_LEASE_SECONDS = 900;
-    private const STATE_CACHE_PREFIX = 'octane_timer:state:';
+    private const ENABLED_RECHECK_SECONDS = 15;
+    private const MAX_INLINE_TASKS_PER_TICK = 4;
+    private const MAX_INLINE_RUNTIME_SECONDS = 0.25;
+    private const MAX_BACKGROUND_TASKS_PER_TICK = 1;
+    private const BACKGROUND_POOL_LOCK = 'octane_timer:background_pool';
 
     /**
      * Registered tasks (callback storage - cannot be shared across workers)
-     * Format: ['name' => ['callback' => callable, 'interval' => int]]
+     * Format: ['name' => ['callback' => callable, 'interval' => int,
+     *   'execution_mode' => string, 'task_class' => string]]
      */
     protected static array $tasks = [];
 
@@ -49,14 +55,12 @@ class OctaneTimerService
     protected static array $fallbackStore = [];
 
     /**
-     * Read state: Swoole table, then the in-process store (both process-local
-     * or worker-local), then the cross-process heartbeat file — the only tier
-     * a DIFFERENT process than the one ticking can actually see.
+     * Read state from the Swoole table, the in-process store, then the single
+     * cross-process heartbeat snapshot. The old per-key file-cache mirror was
+     * removed because it multiplied every one-second tick into many disk writes.
      */
     protected static function stateGet(string $table, string $key): ?array
     {
-        $shared = null;
-
         if (config('octane.server') === 'swoole') {
             try {
                 $value = Octane::table($table)->get($key);
@@ -65,16 +69,6 @@ class OctaneTimerService
                 }
             } catch (\Throwable $e) {
                 // Not running under Octane-Swoole -- fall through to the store below.
-            }
-        } else {
-            try {
-                $shared = Cache::store('file')->get(self::STATE_CACHE_PREFIX . $table . ':' . $key);
-                if (is_array($shared)) {
-                    self::$fallbackStore["{$table}:{$key}"] = $shared;
-                    return $shared;
-                }
-            } catch (\Throwable $e) {
-                // The heartbeat file below remains the cross-process fallback.
             }
         }
 
@@ -87,9 +81,9 @@ class OctaneTimerService
     }
 
     /**
-     * Write state to the in-process store, the Swoole table (when available),
-     * AND the cross-process heartbeat file — so a read from ANY process, on
-     * ANY backend, sees what the actually-ticking process last wrote.
+     * Write hot state only to memory / Swoole. tick() checkpoints one complete
+     * heartbeat snapshot after scheduling, instead of rewriting the same JSON
+     * document before and after every task.
      */
     protected static function stateSet(string $table, string $key, array $value): void
     {
@@ -101,15 +95,7 @@ class OctaneTimerService
             } catch (\Throwable $e) {
                 // Not running under Octane-Swoole -- the store above already holds it.
             }
-        } else {
-            try {
-                Cache::store('file')->forever(self::STATE_CACHE_PREFIX . $table . ':' . $key, $value);
-            } catch (\Throwable $e) {
-                // The heartbeat file below remains the cross-process fallback.
-            }
         }
-
-        self::writeHeartbeatFile($table, $key, $value);
     }
 
     /** Cross-process state file path (Laravel tmp dir — cross-platform). */
@@ -130,11 +116,22 @@ class OctaneTimerService
             return [];
         }
 
-        $raw = @file_get_contents($path);
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return [];
+        }
+        try {
+            if (!@flock($handle, LOCK_SH)) {
+                return [];
+            }
+            $raw = stream_get_contents($handle);
+            @flock($handle, LOCK_UN);
+        } finally {
+            @fclose($handle);
+        }
         if ($raw === false) {
             return [];
         }
-
         $data = json_decode($raw, true);
         return is_array($data) ? $data : [];
     }
@@ -143,21 +140,47 @@ class OctaneTimerService
      * Best-effort cross-process write. Never throws -- this is a diagnostics
      * mirror, it must never be able to break a tick.
      */
-    protected static function writeHeartbeatFile(string $table, string $key, array $value): void
+    protected static function writeHeartbeatSnapshot(): void
     {
+        $path = '';
+        $dir = '';
+        $handle = false;
+        $snapshot = [];
+        $state = null;
+
         try {
+            foreach (array_keys(self::$tasks) as $name) {
+                $state = self::stateGet('timer_tasks', $name);
+                if (is_array($state)) {
+                    $snapshot["timer_tasks:{$name}"] = $state;
+                }
+            }
+            $state = self::stateGet('timer_state', 'main');
+            if (is_array($state)) {
+                $snapshot['timer_state:main'] = $state;
+            }
+            $snapshot['updated_at'] = time();
+
             $path = self::heartbeatFilePath();
             $dir = dirname($path);
             if (!is_dir($dir)) {
                 @mkdir($dir, 0755, true);
             }
-
-            $all = self::readHeartbeatFile();
-            $all["{$table}:{$key}"] = $value;
-            $all['updated_at'] = time();
-            @file_put_contents($path, json_encode($all), LOCK_EX);
+            $handle = @fopen($path, 'c+b');
+            if ($handle === false || !@flock($handle, LOCK_EX)) {
+                return;
+            }
+            @ftruncate($handle, 0);
+            @rewind($handle);
+            @fwrite($handle, (string) json_encode($snapshot));
+            @fflush($handle);
+            @flock($handle, LOCK_UN);
         } catch (\Throwable $e) {
             // Best-effort -- diagnostics must never break the tick.
+        } finally {
+            if (is_resource($handle)) {
+                @fclose($handle);
+            }
         }
     }
 
@@ -168,13 +191,17 @@ class OctaneTimerService
      * @param callable $callback Task callback function
      * @param int $interval Execution interval in seconds (0 = every tick)
      * @param callable|null $enabled
+     * @param string $executionMode
+     * @param string|null $taskClass
      * @return void
      */
     public static function register(
         string $name,
         callable $callback,
         int $interval = 0,
-        ?callable $enabled = null
+        ?callable $enabled = null,
+        string $executionMode = OctaneTimerTaskInterface::EXECUTION_INLINE,
+        ?string $taskClass = null
     ): void
     {
         $current = self::stateGet('timer_tasks', $name);
@@ -183,6 +210,8 @@ class OctaneTimerService
             'callback' => $callback,
             'interval' => $interval,
             'enabled' => $enabled,
+            'execution_mode' => $executionMode,
+            'task_class' => $taskClass,
         ];
 
         self::stateSet('timer_tasks', $name, [
@@ -193,11 +222,17 @@ class OctaneTimerService
             'error_count' => (int) ($current['error_count'] ?? 0),
             'last_duration' => (float) ($current['last_duration'] ?? 0.0),
             'last_error' => (string) ($current['last_error'] ?? ''),
+            'enabled' => $current['enabled'] ?? null,
+            'enabled_checked_at' => (int) ($current['enabled_checked_at'] ?? 0),
+            'in_flight' => false,
+            'in_flight_at' => 0,
+            'execution_mode' => $executionMode,
         ]);
 
         Log::info("OctaneTimerService: Task registered", [
             'task' => $name,
-            'interval' => $interval
+            'interval' => $interval,
+            'execution_mode' => $executionMode,
         ]);
     }
 

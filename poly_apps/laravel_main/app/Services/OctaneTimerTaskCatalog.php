@@ -16,7 +16,7 @@ final class OctaneTimerTaskCatalog
     {
     }
 
-    public function discover(): array
+    public function discover(bool $resolveEnabled = true): array
     {
         $tasks = [];
         $files = [];
@@ -51,7 +51,8 @@ final class OctaneTimerTaskCatalog
                     'full_class' => $fullClassName,
                     'name' => $instance->getName(),
                     'interval' => $instance->getInterval(),
-                    'enabled' => $instance->isEnabled(),
+                    'enabled' => $resolveEnabled ? $instance->isEnabled() : null,
+                    'execution_mode' => $instance->getExecutionMode(),
                     'file' => basename($file),
                     'instance' => $instance,
                 ];
@@ -74,7 +75,7 @@ final class OctaneTimerTaskCatalog
 
     public function descriptions(): array
     {
-        $tasks = $this->discover();
+        $tasks = $this->discover(true);
 
         foreach ($tasks as &$task) {
             unset($task['instance']);

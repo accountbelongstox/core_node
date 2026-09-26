@@ -511,7 +511,8 @@ export interface SubtitleCacheClearResponse {
 
 // --- Word audio (real pronunciation lookup + Queue Center batch policy) ---- #
 // GET /api/local/word-audio/status reports which real-pronunciation sources are
-// wired. pycore exposes 3 (free_dictionary_api, cambridge_dictionary, forvo);
+// wired. pycore exposes 4 (free_dictionary_api, Wikimedia Commons,
+// Cambridge Dictionary, Forvo);
 // laravel exposes 2 (no cambridge). The Forvo key is never leaked — only its
 // presence is reported. A miss stays a miss; dictionary fill belongs to the
 // separate Kokoro/CPU Queue Center batch lane returned in the policy fields.

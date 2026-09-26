@@ -33,9 +33,8 @@ Companion documents (already implemented):
    pycore's full pull now share ONE definition (live-verified on
    api.si.12gm.com: en 101,201 / zh 30,880 / ja 103 / vi 34 / lo 4).
 4. The `--word-audio-full-sync` CLI/env parameter was REMOVED: the startup
-   full pull is governed ONLY by the persisted
-   `word_tts_auto.full_sync_on_start` key (the same settings file the UI
-   writes).
+   full pull is governed ONLY by the persisted Word Audio capability written
+   by the Queue Center UI. There is no secondary full-sync switch.
 
 ## 2. New binding requirements (user directive, 2026-09-22)
 

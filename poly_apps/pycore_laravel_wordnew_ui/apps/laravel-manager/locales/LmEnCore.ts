@@ -234,7 +234,7 @@ header: {
         vocabulary: "Vocabulary Learning Center",
         ai_tools: "AI Tools Suite",
         ai_management: "AI Management — Gateway, Providers & Rate Limits",
-        word_audio: "Word Audio — Real Pronunciation Sources & Fetch Test",
+        word_audio: "Word Audio — Pronunciation Lookup & Kokoro Batch Policy",
         dev_history: "AI Dev History — Prompts & Sessions",
         mcp: "MCP Manager",
         octane: "Octane Timer Tasks Monitor",

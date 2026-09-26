@@ -5,7 +5,9 @@ Uses sherpa-onnx with the Kokoro-82M multi-lang model (zh/en). Installed by
 117_install_kokoro.sh; falls back to the sherpa offline prerequisite cache.
 
 Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
-  sherpa-onnx pip package; GPU -> kokoro-multi-lang-v1_1; CPU -> kokoro-int8-multi-lang-v1_1.
+  sherpa-onnx pip package; GPU hosts may install kokoro-multi-lang-v1_1 and
+  CPU-only hosts kokoro-int8-multi-lang-v1_1. Runtime inference is pinned to
+  the CPU provider on both host types.
   Model dir: KOKORO_TTS_MODEL_DIR or sherpa cache fallback.
 
 Official: https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html

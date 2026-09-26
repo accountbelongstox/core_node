@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/pycore-manager/api';
 import type { PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '@/apps/pycore-manager/api';
+import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 
 type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image' | 'translation'>;
 
@@ -29,7 +30,7 @@ const CAP_DEFAULT_PRIORITY: Record<DisplayedCapabilityKey, string[]> = {
   // Sentence TTS: qwen3tts-first (high-quality neural voices for sentence audio).
   sentence_tts: ['qwen3tts', 'chattts', 'cosyvoice', 'fishspeech', 'bark', 'voxcpm2', 'kokoro', 'gptsovits', 'f5tts', 'melotts', 'sherpa', 'edge', 'streamelements', 'gtts_web', 'azure'],
   // Queue Center word audio is a static CPU batch policy.
-  word_tts: ['kokoro'],
+  word_tts: [QUEUE_CENTER_WORD_AUDIO_BATCH.engine],
 };
 const CAP_LABEL_KEY: Record<DisplayedCapabilityKey, string> = {
   stt: 'queueCenter.drawer.cap.stt',

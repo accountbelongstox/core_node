@@ -63,7 +63,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
      */
     protected function autoDiscoverAndRegisterTasks(OctaneTimerTaskCatalog $catalog): void
     {
-        $tasks = $catalog->discover();
+        $tasks = $catalog->discover(false);
         $registeredCount = 0;
         $disabledCount = 0;
 
@@ -79,14 +79,6 @@ class OctaneTimerServiceProvider extends ServiceProvider
             try {
                 $task = $definition['instance'];
 
-                if (!$definition['enabled']) {
-                    Log::debug('OctaneTimerServiceProvider: Task is disabled', [
-                        'task' => $definition['name'],
-                        'class' => $definition['class'],
-                    ]);
-                    $disabledCount++;
-                }
-
                 OctaneTimerService::register(
                     $task->getName(),
                     function () use ($task) {
@@ -95,13 +87,16 @@ class OctaneTimerServiceProvider extends ServiceProvider
                     $definition['interval'],
                     static function () use ($task): bool {
                         return $task->isEnabled();
-                    }
+                    },
+                    $definition['execution_mode'],
+                    $definition['full_class']
                 );
 
                 Log::info('OctaneTimerServiceProvider: Task registered', [
                     'task' => $definition['name'],
                     'class' => $definition['class'],
-                    'interval' => $definition['interval'] . 's'
+                    'interval' => $definition['interval'] . 's',
+                    'execution_mode' => $definition['execution_mode'],
                 ]);
 
                 $registeredCount++;

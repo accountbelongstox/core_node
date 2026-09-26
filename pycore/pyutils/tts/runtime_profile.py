@@ -35,6 +35,7 @@ import threading
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORD_AUDIO_BATCH
 from pycore.pyutils.common.model_tiers import gpu_present
 from pycore.pyutils.tts.memory_gate import (
     BYTES_PER_GIB,
@@ -48,9 +49,9 @@ from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 TTS_RUNTIME_PROFILE_ENV = "TTS_RUNTIME_PROFILE"
 
 _EDGE_ENGINE = "edge"
-WORD_BATCH_ENGINE = "kokoro"
-WORD_BATCH_PROFILE = "word_batch"
-WORD_BATCH_DEVICE = "cpu"
+WORD_BATCH_ENGINE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["engine"])
+WORD_BATCH_PROFILE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["profile"])
+WORD_BATCH_DEVICE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["device"])
 _GB = BYTES_PER_GIB
 
 # Pinned engine chains per capability. The word chain is for explicit ad-hoc

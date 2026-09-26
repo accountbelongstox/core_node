@@ -216,7 +216,7 @@ header: {
         vocabulary: "词汇学习中心",
         ai_tools: "AI 工具套件",
         ai_management: "AI 管理 — 网关、提供商与速率限制",
-        word_audio: "单词发音 — 真实发音来源与抓取测试",
+        word_audio: "单词语音 — 真实发音查询与 Kokoro 批处理策略",
         dev_history: "AI 开发记录 — 提示词与会话",
         mcp: "MCP 管理器",
         octane: "Octane 定时任务监控",

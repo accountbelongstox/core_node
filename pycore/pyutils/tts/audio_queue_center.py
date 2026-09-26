@@ -162,7 +162,7 @@ class AudioQueueCenter:
 
         Resolution order: exact task_id first; when the ticket's Laravel
         task_id has no local counterpart (the lane is filled by pycore's
-        full pull — local ``word-full-<md5>`` tasks), fall back to the
+        full pull — local ``word-full-<language>-<md5>`` tasks), fall back to the
         canonical dedup identity carried by the event
         (``{language}:{md5}`` / ``{language}:{content_id}``).
         """
@@ -291,9 +291,11 @@ class AudioQueueCenter:
                 continue
             if queue.push(task):
                 restored += 1
+        claimed = queue.claim_part1(part1_keys)
         ColorPrint.green(
             f"[AudioQueue] {lane} cache restore: tasks={restored} "
-            f"part1_keys={len(part1_keys)} saved_at={snapshot.get('saved_at')} "
+            f"part1_keys={len(part1_keys)} claimed={claimed} "
+            f"saved_at={snapshot.get('saved_at')} "
             f"source={snapshot.get('source')}"
         )
         return {

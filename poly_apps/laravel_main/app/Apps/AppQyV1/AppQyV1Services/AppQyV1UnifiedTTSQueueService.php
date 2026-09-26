@@ -1386,11 +1386,10 @@ class AppQyV1UnifiedTTSQueueService
         // API-first, no local binary. A claimed word is resolved through the
         // real-pronunciation API chain (Free Dictionary API -> Forvo). The
         // interactive request path only enqueues and never waits for this chain.
-        // On a hit storeWordAudioBytes persists the bytes and marks
-        // the row completed. On a miss the row is NEVER synthesized via the local
-        // edge-tts binary: it is delegated to the pycore word_audio task lane
-        // (which runs the same API chain, then its TTS fallback) and the claim is
-        // released. Laravel drives the task; pycore generates.
+        // On a hit storeWordAudioBytes persists the bytes and marks the row
+        // completed. On a miss the row is delegated to the pycore word_audio
+        // lane, whose static Kokoro/CPU batch pipeline owns synthesis; this
+        // legacy Laravel method never synthesizes missing words itself.
         $claimed = $this->coordinator->claimWords(self::PROCESSOR_ID, null, $batchSize);
         $hashesByLanguage = [];
 

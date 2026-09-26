@@ -9,7 +9,7 @@
  *   - Translate      (PcTranslatePage)    — Google vs AI side-by-side translate.
  *   - Image Search   (PcImageSearchPage)  — SerpApi images vs AI render.
  *   - Subtitle Search(PcSubtitleSearchPage)— OpenSubtitles search + download.
- *   - Word Audio     (PcWordAudioPage)    — real word pronunciation + TTS fallback.
+ *   - Word Audio     (PcWordAudioPage)    — real pronunciation lookup + batch policy.
  *   - History        (PcAiHistoryView)    — one feed of ALL usage records.
  *
  * The active sub-tab is reflected in the URL (?tab=…) so the legacy routes

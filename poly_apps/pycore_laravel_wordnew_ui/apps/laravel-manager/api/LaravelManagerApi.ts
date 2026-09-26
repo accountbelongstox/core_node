@@ -99,8 +99,8 @@ class APIService {
 
     this.aiManagement = new AiManagementAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.localAi));
 
-    // Word Audio — real-pronunciation lookup (free_dictionary_api + forvo) with
-    // a TTS last-resort fallback, on the laravel-manager "Word Audio" page.
+    // Word Audio real-pronunciation lookup. Missing dictionary audio belongs to
+    // the separate Queue Center Kokoro/CPU batch lane.
     this.wordAudio = new WordAudioAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.localWordAudio));
 
     // AI Dev History — read-only Claude/Codex/Gemini/Cursor history (localhost).

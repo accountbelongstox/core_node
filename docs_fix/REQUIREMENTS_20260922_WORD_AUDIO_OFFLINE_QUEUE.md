@@ -40,12 +40,11 @@ Goal: pycore becomes self-sufficient for word audio.
 - The UI flag and the pycore flag are the SAME persisted value: the UI may
   change it, pycore reads it directly from the settings file and never
   depends on the UI process.
-- The startup full pull is governed ONLY by the persisted
-  `word_tts_auto.full_sync_on_start` key (default true) in pycore's data
-  directory — NO CLI/env parameter exists (revised 2026-09-22: the
-  `--word-audio-full-sync` parameter was dropped as redundant).
+- The startup full pull is governed ONLY by the persisted Word Audio switch
+  (`assist_laravel.capabilities.tts`). No secondary setting or CLI/env
+  parameter exists.
 - When the flag is Running, the whole chain starts together: cache load →
-  full pull → drain → word batch orchestration (GPU: batch default kokoro).
+  full pull → drain → Kokoro word batches on CPU (including GPU-mode hosts).
 
 ## 2. Measured facts (code scan, 2026-09-22)
 
@@ -111,16 +110,15 @@ Goal: pycore becomes self-sufficient for word audio.
   (`find_cached_many` honored before synthesis; dir
   `get_app_cache_dir()/word_audio`). Hydration keeps cached words queued —
   their Laravel delivery is still pending.
-- GPU/kokoro batch default: already pinned in
-  `pycore/pyutils/tts/runtime_profile.py` — GPU plan `word_batch: (kokoro,)`,
-  `word: (edge, kokoro)`; `pin_runtime_profile()` runs at pycore startup.
+- Static Word Audio batch policy is contract-owned: engine `kokoro`, profile
+  `word_batch`, execution provider `cpu`, default batch size 20. GPU mode still
+  assigns sentence work to the GPU while Kokoro Word Audio stays on CPU.
 
 ### 2.6 Startup full-pull switch
 
 - No CLI/env parameter (revised 2026-09-22: `--word-audio-full-sync` was
-  dropped as redundant). The ONLY startup switch is the persisted key
-  `word_tts_auto.full_sync_on_start` in pycore's user-data store — the same
-  settings file the UI writes.
+  dropped as redundant). The ONLY startup switch is the persisted Word Audio
+  capability that the Queue Center UI writes.
 
 ## 3. Core concepts (binding definitions)
 
@@ -145,8 +143,8 @@ Goal: pycore becomes self-sufficient for word audio.
   `_local_source` marker: just-in-time claim is skipped, delivery goes
   through the domain report (`encode_word_report_task_id`) and the outbox.
 - **Running means everything starts.** With the flag ON, cache load, full
-  pull, drain, and the word batch orchestration (GPU → kokoro, already
-  pinned) start together; no extra user action is needed after a restart.
+  pull, drain, and the Kokoro/CPU word batch orchestration start together;
+  no extra user action is needed after a restart.
 
 ## 4. Public surface additions
 
@@ -160,9 +158,8 @@ Goal: pycore becomes self-sufficient for word audio.
   remaining}` for the UI snapshot.
 - New RPC `ui/queue_center/word_audio_full_sync` — trigger an on-demand
   full pull (same entry as startup) and return the status block.
-- New persisted key `word_tts_auto.full_sync_on_start` (bool, default true) —
-  the startup full-pull preference read directly by pycore; the ONLY switch
-  (no CLI/env parameter).
+- No second full-sync preference: Word Audio On always runs the startup/live
+  full pull; Word Audio Off stops it.
 
 ## 5. Requirements
 
@@ -175,26 +172,24 @@ Goal: pycore becomes self-sufficient for word audio.
   full pull, Laravel intake (M1/M2), local promote (M3), and drain-cycle
   completion boundaries.
 - R3 Full sync (`pycore/pyctl/tts/word_audio_full_sync.py`): per-language
-  paging (`limit=1000`, `start += count` until `total`) of
+  stable keyset paging (`limit=1000`, `cursor_id=next_cursor`) of
   `dictionary/words?filter=without_audio`; languages from
   `language-breakdown`, fallback to contract word_audio languages, final
   fallback `english`. Laravel unreachable → skip silently (cache keeps the
   lane alive). Fill via `promote_local_head` (Part1), then persist the
   snapshot with `source=full_sync`.
-- R4 Full-pull task payload: `{task_id: "word-full-<md5>", word, content,
+- R4 Full-pull task payload: `{task_id: "word-full-<language>-<md5>", word, content,
   language, md5, dict_row_id: <row id>, task_type: "word_audio",
   _laravel_base_url, _local_source: "full_sync"}`.
 - R5 Claim tolerance: `_local_source` tasks skip the remote just-in-time
   claim; the domain report + outbox handle delivery.
-- R6 Startup chain (`event_handlers.py`, after `apply_assist_runtime`):
-  flag ON → `restore_from_cache("word_audio")`; then full pull when
-  `word_tts_auto.full_sync_on_start` is true (background bus task); then
-  `request_pull`. Flag OFF → none of this runs.
+- R6 Startup chain (`event_handlers.py`, before enabling runtime callbacks):
+  flag ON → `restore_from_cache("word_audio")`; then start the background full
+  pull; then `request_pull`. Flag OFF → none of this runs.
 - R7 (REVISED 2026-09-22) No CLI parameter: the startup full pull is
-  governed ONLY by the persisted `word_tts_auto.full_sync_on_start` key
-  (§2.6). The earlier `--word-audio-full-sync` pyservice/argparse plumbing
-  was removed as redundant — pycore reads the same settings file the UI
-  writes.
+  governed ONLY by the persisted Word Audio capability (§2.6). The earlier
+  `--word-audio-full-sync` pyservice/argparse plumbing was removed as
+  redundant.
 - R8 RPC `ui/queue_center/word_audio_full_sync` + registration; controller
   runs the same full-sync entry and returns the status block.
 - R9 Snapshot surface: `snapshot_service.py` word_audio section carries a
@@ -207,12 +202,12 @@ Goal: pycore becomes self-sufficient for word audio.
   `QueueCenterAudioScanTask` note the pycore full-pull consumer contract
   (read-only listing, Part1 fill, report via `encodeTaskId`). No behavior
   change.
-- R12 `config/queue_center_contract.json`: `word_audio_full_sync` block
-  (endpoint, language source, cache file, persisted key) and schema_version
-  32 → 34 (34: env flag entry dropped with R7's revision).
-- R13 Orchestration: no engine change (kokoro batch pin exists); the word
-  batch orchestration lane starts with the Running flag through the
-  existing enable flow; UI surfaces the shared state.
+- R12 `config/queue_center_contract.json`: `word_audio_full_sync` block plus
+  the shared `word_audio_batch` policy (Kokoro/word_batch/CPU/default size),
+  consumed by pycore, Laravel and UI.
+- R13 Orchestration: missing words enter local Part1, are generated through
+  one Kokoro batch call per language, populate the shared word cache, and
+  never fall back to per-word orchestration synthesis.
 
 ## 6. Acceptance criteria
 
@@ -223,9 +218,8 @@ Goal: pycore becomes self-sufficient for word audio.
    with no errors; synthesized audio stages into the outbox; on Laravel
    online the outbox flushes and progress advances.
 3. Flag OFF at boot: no cache restore, no full pull, no drain start.
-4. The startup pull follows ONLY the persisted
-   `word_tts_auto.full_sync_on_start` key (default true) — no CLI/env
-   parameter exists.
+4. The startup pull follows ONLY the persisted Word Audio On/Off value — no
+   secondary setting or CLI/env parameter exists.
 5. UI toggle changes the same persisted flag pycore reads; the Queue Center
    page shows the full-sync status block and the manual sync action works.
 6. A word already present in the queue is never duplicated by a full pull;
@@ -259,14 +253,14 @@ Implemented 2026-09-22 against R1–R13.
 - `pycore/pyctl/tts/word_audio_full_sync.py` (R3/R4, new): singleton
   `word_audio_full_sync`; `run_full_sync(base_url="")` idempotent full pull
   (language-breakdown → contract language priority → `english` fallback;
-  per-language paging `limit=1000`, `start += count` until `total`; Laravel
+  per-language stable keyset paging `limit=1000`, `cursor_id=next_cursor`; Laravel
   unreachable → skip quietly); fill via `promote_local_head` with task
-  payload `{task_id: "word-full-<md5>", task_type: word_audio, payload:
+  payload `{task_id: "word-full-<language>-<md5>", task_type: word_audio, payload:
   {word, content, language, md5, dict_row_id}, _local_source: "full_sync",
   _laravel_base_url}`; snapshot persisted with `source=full_sync` per page;
-  `get_status()` status block; `full_sync_on_start()` reads ONLY the
-  persisted `word_tts_auto.full_sync_on_start` key (default true) directly
-  from the settings file (R7 revision: no env/CLI switch).
+  `get_status()` status block; the persisted Word Audio capability directly
+  gates startup and live activation (R7 revision: no second setting and no
+  env/CLI switch).
 - `pycore/pyctl/tts/laravel_audio_worker_execution.py` (R5):
   `_process_claimed` skips `_ensure_laravel_claim` for `_local_source`
   tasks; new `_post_task_result` guard skips the global result post for
@@ -281,14 +275,13 @@ Implemented 2026-09-22 against R1–R13.
   boundary persists the whole-Queue snapshot (`source=drain`) right after
   `_record_cycle`, so a restart never resurrects consumed tasks.
 - `pycore/pyctl/runtime/event_handlers.py` (R6): `_start_word_audio_boot_chain`
-  after `apply_assist_runtime` — flag (`assist_laravel.capabilities.tts`)
-  ON → `restore_from_cache("word_audio")` → background full pull when the
-  persisted key says so → `request_pull`; flag OFF → none of it runs.
+  before `apply_assist_runtime` enables callbacks — flag
+  (`assist_laravel.capabilities.tts`) ON → `restore_from_cache("word_audio")`
+  → background full pull → `request_pull`; flag OFF → none of it runs.
 - (R7 REVISED 2026-09-22) The `--word-audio-full-sync` parameter was REMOVED
   from `pyservice_entry.sh` (parse/usage/PY_ARGS) and
-  `pycore_module_caller.py` (argparse/env): the persisted
-  `word_tts_auto.full_sync_on_start` key — the same settings file the UI
-  writes — is the single startup switch.
+  `pycore_module_caller.py` (argparse/env): the persisted Word Audio
+  capability written by the Queue Center UI is the single startup switch.
 - `pycore/callmodule/rpc_routes/word_audio_full_sync_routes.py` (R8, new):
   RPC `ui/queue_center/word_audio_full_sync` kicks the background full pull
   and returns the live status block; registered in
@@ -331,17 +324,14 @@ Implemented 2026-09-22 against R1–R13.
 
 - `config/queue_center_contract.json` (R12): new `word_audio_full_sync`
   block (listing endpoint, language source, local-task marker, cache file,
-  RPC, persisted key, snapshot block); `schema_version` 32 → 34
-  (34: env-flag entry dropped with the R7 revision).
+  RPC, persisted key, snapshot block) and `word_audio_batch` policy;
+  current `schema_version` is 36.
 
-### Verification
+### Historical verification note
 
-- `py_compile` passes for every new/changed Python file;
-  `bash -n pyservice_entry.sh` passes; contract JSON parses
-  (`schema_version` 34); `php -l` passes for the Laravel files;
-  `tsc --noEmit` reports zero errors in all changed UI files (the one
-  remaining laravel-manager `GlobalQueuePositionTaskAlias` error is
-  pre-existing at HEAD).
+- The commands recorded by the original 2026-09-22 implementation applied to
+  schema 34. They are historical and do not verify the later schema-36
+  alignment.
 - Live API probe (api.si.12gm.com, 2026-09-22):
   `dictionary/words?filter=without_audio` totals — en 101,201 / zh 30,880 /
   ja 103 / vi 34 / lo 4 — exactly the Vocabulary "No audio" definition and
@@ -356,7 +346,6 @@ Implemented 2026-09-22 against R1–R13.
   position; a Part2 head ticket does not demote the Part1 member; pop →
   complete → drain persist writes `source=drain` with the consumed task
   removed; cache restore dedups against the live queue (no resurrection);
-  `full_sync_on_start()` defaults True; `get_status()` reports the cache
-  block.
+  `get_status()` reports the cache block.
 - §6 acceptance 1–3, 5–6 (runtime boot chains with Laravel online/offline,
   UI toggle round-trip) require verification on a running deployment.

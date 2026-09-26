@@ -121,6 +121,21 @@ final class QueueCenterContract
         return (string) (self::wordValidity()['source_marker'] ?? 'ai_ensure');
     }
 
+    public static function wordAudioBatch(): array
+    {
+        $policy = self::document()['word_audio_batch'] ?? null;
+        if (!is_array($policy)) {
+            throw new RuntimeException('Queue Center word_audio_batch policy is missing');
+        }
+        foreach (['engine', 'profile', 'device', 'default_batch_size'] as $field) {
+            if (!array_key_exists($field, $policy)) {
+                throw new RuntimeException("Queue Center word_audio_batch.{$field} is missing");
+            }
+        }
+
+        return $policy;
+    }
+
     /**
      * Contract-owned endpoint path templates (worker + queue-center plane).
      * Laravel registers these routes; the other three ends render the same

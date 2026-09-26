@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Tuple
 
 from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORD_AUDIO_BATCH
 
 # --------------------------------------------------------------------------- #
 # Environment keys                                                             #
@@ -33,7 +34,7 @@ TTS_STARTUP_SELFCHECK_ENV = "TTS_STARTUP_SELFCHECK"
 # --------------------------------------------------------------------------- #
 MERGE_SEPARATOR_EN = ", "
 MERGE_SEPARATOR_ZH = "，"
-DEFAULT_GROUP_SIZE = 20
+DEFAULT_GROUP_SIZE = int(QUEUE_CENTER_WORD_AUDIO_BATCH["default_batch_size"])
 
 # Silence detection on merged audio: a window whose RMS stays below
 # SILENCE_THRESHOLD_RATIO of the merged clip's peak RMS for at least

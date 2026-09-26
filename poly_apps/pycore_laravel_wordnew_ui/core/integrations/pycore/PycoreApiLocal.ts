@@ -193,12 +193,12 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchHistoryClear, {}) as Promise<SubtitleSearchHistoryClearResponse>,
 
   // --- Word audio (real pronunciation lookup + batch policy) -------------- #
-  // status: which real-pronunciation sources are wired (pycore reports 3:
-  // free_dictionary_api / cambridge_dictionary / forvo — the last key-gated),
+  // status: which real-pronunciation sources are wired (pycore reports Free
+  // Dictionary, Wikimedia Commons, Cambridge Dictionary and key-gated Forvo),
   // whether the Forvo key is present (never the value), and the separate static
   // Kokoro batch policy. test: a REAL live fetch; on a hit the raw
   // audio bytes come back base64-encoded (play as a data: URI), on a clean miss
-  // {success:false, provider:null, message}.
+  // {success:false, provider:null, message_code}.
   getWordAudioStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioStatus, {}) as Promise<WordAudioStatus>,
   testWordAudio: (word: string, lang = 'en') =>

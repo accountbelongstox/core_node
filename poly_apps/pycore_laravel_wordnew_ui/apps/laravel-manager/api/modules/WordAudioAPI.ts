@@ -16,8 +16,8 @@ export type { WordAudioSource, WordAudioStatus } from '../../../../core/contract
  *   POST /test { word, lang }   → WordAudioTestResult (real live fetch)
  *
  * laravel reports 2 real sources (free_dictionary_api, forvo). On a hit the
- * `/test` result carries base64 audio + mime; on a clean miss it carries a
- * message explaining the TTS fallback would handle the word.
+ * `/test` result carries base64 audio + mime. A clean miss stays a lookup miss;
+ * Queue Center owns Kokoro/CPU batch generation for missing dictionary audio.
  */
 
 /** Body for POST /test. */
@@ -40,6 +40,8 @@ export interface WordAudioTestResult {
   meta?: Record<string, any>;
   bytes?: number;
   message?: string;
+  message_code?: string;
+  error_code?: string;
 }
 
 /**
@@ -58,8 +60,7 @@ export class WordAudioAPI extends BaseAPI {
 
   /**
    * Run a real live pronunciation fetch through the existing client. Returns
-   * base64 audio + mime on a hit, or a miss message (TTS fallback) on a clean
-   * miss.
+   * base64 audio + mime on a hit, or a stable miss code on a clean miss.
    */
   async test(word: string, lang: string): Promise<APIResponse<WordAudioTestResult>> {
     return this.post<WordAudioTestResult>('/test', { word, lang });
