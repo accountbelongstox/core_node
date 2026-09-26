@@ -316,6 +316,7 @@ server_manager: {
       auth_required: "服务器管理需要身份验证。请登录后继续。"
     },
 db_manager: {
+      row_actions: "操作",
       auth_required: "数据库管理需要登录。请登录后管理连接、表与备份。",
       credentials: {
         tab: "凭据",
@@ -349,6 +350,35 @@ db_manager: {
         copy: "复制",
         copied: "已复制"
       }
+    },
+libraryCover: {
+      regenerate: "重新生成封面",
+      regenerate_hint: "生成新的 AI 封面（优先 Chrome，Laravel AI 兜底）",
+      research: "重新搜索封面",
+      research_hint: "从网络搜索新的封面图片",
+      retry: "重试封面",
+      failed_default: "封面生成失败。",
+      attempts_other: "（{{count}} 次尝试）",
+      status: {
+        queued: "排队中",
+        processing: "处理中",
+        processing_by: "处理中 · {{handler}}",
+        failed: "失败"
+      },
+      handler: {
+        chrome: "Chrome",
+        laravel_ai: "Laravel AI"
+      },
+      enqueued: "已排队 {{count}} 个封面任务",
+      enqueued_skipped: "已排队 {{count}} 个封面任务，跳过 {{skipped}} 个",
+      enqueue_failed: "封面任务排队失败",
+      retry_queued: "封面已重新排队生成。",
+      retry_failed: "封面重试失败",
+      bulk_regenerate: "重新生成封面（AI）",
+      bulk_regenerate_hint: "为当前显示的所有词库排队 AI 封面任务。",
+      bulk_research: "重新搜索封面",
+      bulk_research_hint: "为当前显示的所有词库排队网络图片搜索。",
+      none_loaded: "未加载词库"
     },
 auth: {
       login_hint: "请登录以继续。",

@@ -38,6 +38,12 @@ export type {
 } from './PycoreApi';
 export type {
   TerminalActionResult,
+  TerminalCapability,
+  TerminalCapabilityName,
+  TerminalControlMode,
+  TerminalDesktopIntegrationAction,
+  TerminalDesktopIntegrationResult,
+  TerminalPlatformProfile,
   TerminalDraftResult,
   TerminalLogEntry,
   TerminalScheduleClearResult,

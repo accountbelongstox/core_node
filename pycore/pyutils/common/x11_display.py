@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from pycore.pyfoundations.desktop_session import (
     DesktopSession,
     ensure_session_environment,
+    xauthority_candidates,
 )
 from pycore.pyfoundations.third_party.api import (
     get_third_package_PIL_Image,
@@ -296,17 +297,19 @@ class X11Display:
         return Image.frombytes("RGB", size, reply.data, "raw", "BGRX")
 
     @staticmethod
-    def _normalize_xauthority(session: DesktopSession) -> None:
+    def _normalized_xauthority(source_path: str, session: DesktopSession) -> str:
         """Give display-less cookies (Xwayland/mutter) an explicit number for python-xlib."""
-        source = Path(session.xauthority) if session.xauthority else None
-        if source is None or not source.is_file() or not session.runtime_dir:
-            return
-        if source.name.startswith(NORMALIZED_XAUTHORITY_PREFIX):
-            return
+        source = Path(source_path)
+        if (
+            not source.is_file()
+            or not session.runtime_dir
+            or source.name.startswith(NORMALIZED_XAUTHORITY_PREFIX)
+        ):
+            return source_path
         display_number = session.display.rpartition(":")[2].split(".", 1)[0].encode()
         entries = xlib_xauth.Xauthority(str(source)).entries
         if not any(entry[2] == b"" for entry in entries):
-            return
+            return source_path
         target = Path(session.runtime_dir) / f"{NORMALIZED_XAUTHORITY_PREFIX}{source.name}"
         if not target.is_file() or target.stat().st_mtime < source.stat().st_mtime:
             chunks: List[bytes] = []
@@ -317,25 +320,38 @@ class X11Display:
                         chunks.append(struct.pack(">H", len(field)) + field)
             target.write_bytes(b"".join(chunks))
             target.chmod(0o600)
-        os.environ["XAUTHORITY"] = str(target)
+        return str(target)
 
     @staticmethod
     def _open() -> Tuple[Optional[X11Connection], Optional[str]]:
         session = ensure_session_environment()
         if not session.display:
             return None, X11_ERROR_DISPLAY_UNSET
-        X11Display._normalize_xauthority(session)
-        try:
-            display = xlib_display.Display(session.display)
-        except (xlib_error.DisplayError, xlib_error.ConnectionClosedError, OSError) as error:
-            x11_activity_log.warning(
-                "connect.failed",
-                display=session.display,
-                error_type=type(error).__name__,
-                error=error,
-            )
-            return None, X11_ERROR_CONNECT_FAILED
-        return X11Connection(display), None
+        sources = dict.fromkeys(
+            path
+            for path in (session.xauthority, *xauthority_candidates(session.runtime_dir))
+            if path and Path(path).is_file()
+        )
+        failures = []
+        for source in sources:
+            os.environ["XAUTHORITY"] = X11Display._normalized_xauthority(source, session)
+            try:
+                display = xlib_display.Display(session.display)
+            except (
+                xlib_error.DisplayError,
+                xlib_error.ConnectionClosedError,
+                xlib_error.XauthError,
+                OSError,
+            ) as error:
+                failures.append(f"{source}: {error}")
+                continue
+            return X11Connection(display), None
+        x11_activity_log.warning(
+            "connect.failed",
+            display=session.display,
+            attempts=failures,
+        )
+        return None, X11_ERROR_CONNECT_FAILED
 
     @staticmethod
     def _fake_motion(connection: X11Connection, x: int, y: int) -> None:

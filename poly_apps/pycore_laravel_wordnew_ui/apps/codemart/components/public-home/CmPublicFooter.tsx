@@ -1,65 +1,58 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 import { useAuthSession } from '../../../../core/auth/useAuthSession';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { CmBrand } from '../CmBrand';
+import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from './cmPublicRoutes';
+import { useCmProtectedNavigate } from './useCmProtectedNavigate';
 
-const PROTECTED_PREFIXES = [
-  '/codemart/dashboard',
-  '/codemart/verification',
-  '/codemart/profile',
-];
+interface CmFooterLink {
+  key: string;
+  to: string;
+  guestOnly?: boolean;
+}
 
-const FOOTER_GROUPS = [
+const FOOTER_GROUPS: Array<{ titleKey: string; links: CmFooterLink[] }> = [
   {
     titleKey: 'publicHome.footer.platformTitle',
     links: [
-      { key: 'publicHome.footer.about', to: '/codemart/about' },
-      { key: 'publicHome.footer.delivery', to: '/codemart/delivery-process' },
-      { key: 'publicHome.footer.download', to: '/codemart/download' },
-      { key: 'publicHome.footer.information', to: '/codemart/information' },
+      { key: 'publicHome.footer.about', to: CM_PUBLIC_ROUTE.about },
+      { key: 'publicHome.footer.delivery', to: CM_PUBLIC_ROUTE.delivery },
+      { key: 'publicHome.footer.showcase', to: CM_PUBLIC_ROUTE.showcase },
+      { key: 'publicHome.footer.download', to: CM_PUBLIC_ROUTE.download },
     ],
   },
   {
     titleKey: 'publicHome.footer.serviceTitle',
     links: [
-      { key: 'publicHome.footer.services', to: '/codemart/services' },
-      { key: 'publicHome.footer.marketplace', to: '/codemart/marketplace' },
-      { key: 'publicHome.footer.estimate', to: '/codemart/estimate' },
+      { key: 'publicHome.footer.services', to: CM_PUBLIC_ROUTE.services },
+      { key: 'publicHome.footer.marketplace', to: CM_PROTECTED_ROUTE.marketplace },
+      { key: 'publicHome.footer.estimate', to: CM_PUBLIC_ROUTE.estimate },
     ],
   },
   {
     titleKey: 'publicHome.footer.accountTitle',
     links: [
-      { key: 'publicHome.footer.dashboard', to: '/codemart/dashboard' },
-      { key: 'publicHome.footer.verification', to: '/codemart/verification' },
-      { key: 'publicHome.footer.account', to: '/codemart/profile' },
+      { key: 'publicHome.footer.register', to: CM_PUBLIC_ROUTE.register, guestOnly: true },
+      { key: 'publicHome.footer.dashboard', to: CM_PROTECTED_ROUTE.dashboard },
+      { key: 'publicHome.footer.verification', to: CM_PROTECTED_ROUTE.verification },
+      { key: 'publicHome.footer.account', to: CM_PROTECTED_ROUTE.profile },
     ],
   },
   {
     titleKey: 'publicHome.footer.legalTitle',
     links: [
-      { key: 'publicHome.footer.privacy', to: '/codemart/privacy' },
-      { key: 'publicHome.footer.terms', to: '/codemart/terms' },
+      { key: 'publicHome.footer.information', to: CM_PUBLIC_ROUTE.information },
+      { key: 'publicHome.footer.privacy', to: CM_PUBLIC_ROUTE.privacy },
+      { key: 'publicHome.footer.terms', to: CM_PUBLIC_ROUTE.terms },
     ],
   },
-] as const;
+];
 
 export const CmPublicFooter: React.FC = () => {
   const { t } = useTranslation('cm');
-  const navigate = useNavigate();
+  const openLink = useCmProtectedNavigate();
   const authenticated = useAuthSession();
   const year = new Date().getFullYear();
-
-  const openLink = (to: string): void => {
-    const requiresSession = PROTECTED_PREFIXES.some((prefix) => to.startsWith(prefix));
-    if (requiresSession && !authenticated) {
-      requestAuthLogin({ source: 'codemart', reason: 'workspace-entry' });
-      return;
-    }
-    navigate(to);
-  };
 
   return (
     <footer className="cm-public-footer">
@@ -71,9 +64,7 @@ export const CmPublicFooter: React.FC = () => {
         {FOOTER_GROUPS.map((group) => (
           <nav key={group.titleKey} aria-label={t(group.titleKey)}>
             <h3>{t(group.titleKey)}</h3>
-            {group.links.map((link) => link.to.startsWith('#') ? (
-              <a key={link.key} href={link.to}>{t(link.key)}</a>
-            ) : (
+            {group.links.filter((link) => !(link.guestOnly && authenticated)).map((link) => (
               <a
                 key={link.key}
                 href={link.to}

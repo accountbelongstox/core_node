@@ -8,6 +8,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
+use App\Apps\AppQyV1\Services\AppQyV1LibraryCoverTaskService;
 use App\Http\Controllers\Controller;
 use App\Providers\PathMapper;
 use App\Traits\ApiResponse;
@@ -24,10 +25,14 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      */
 
     private AppQyV1VocabularyCoverService $coverService;
+    private AppQyV1LibraryCoverTaskService $coverTaskService;
 
-    public function __construct(AppQyV1VocabularyCoverService $coverService)
-    {
+    public function __construct(
+        AppQyV1VocabularyCoverService $coverService,
+        AppQyV1LibraryCoverTaskService $coverTaskService
+    ) {
         $this->coverService = $coverService;
+        $this->coverTaskService = $coverTaskService;
     }
 
     public function getRecommended(Request $request): JsonResponse
@@ -42,11 +47,12 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         // The DB cap (limit * 4, floored) keeps the over-fetch bounded.
         $fetchCap = max($limit * 4, 50);
 
-        $libraries = self::dedupLibraryCollection(
+        $rows = self::dedupLibraryCollection(
             AppQyV1VocabularyLibraryModel::publicRecommended($language, $fetchCap)
-        )
-            ->take($limit)
-            ->map(fn ($library) => $this->transformLibrary($library))
+        )->take($limit);
+        $coverTasks = $this->coverTaskService->activeTasksForLibraries($rows->pluck('id')->all());
+        $libraries = $rows
+            ->map(fn ($library) => $this->transformLibrary($library, $coverTasks))
             ->values();
 
         return $this->success([
@@ -271,9 +277,10 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $total = $deduped->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
 
-        $libraries = $deduped
-            ->slice(($page - 1) * $perPage, $perPage)
-            ->map(fn ($library) => $this->transformLibrary($library))
+        $pageRows = $deduped->slice(($page - 1) * $perPage, $perPage);
+        $coverTasks = $this->coverTaskService->activeTasksForLibraries($pageRows->pluck('id')->all());
+        $libraries = $pageRows
+            ->map(fn ($library) => $this->transformLibrary($library, $coverTasks))
             ->values();
 
         return $this->success([
@@ -351,14 +358,23 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      * One-click cover regeneration through Laravel's OWN AI image gateway
      * (App\Services\AiGateway\AiGateway::generateImage — free-quota providers
      * first: gemini flash image / zhipu cogview / pollinations, then paid,
-     * with multi-key failover + cooldowns). Identical prompts are served from
-     * the on-disk prompt-hash cache; fresh output is written into that cache
-     * before it becomes the cover. Provenance lands on cover_provider /
+     * with multi-key failover + cooldowns). An explicit regenerate always calls
+     * a provider (the prompt-hash cache is not read); fresh output is still
+     * written into that cache before it becomes the cover. Provenance lands on cover_provider /
      * cover_model / cover_latency_ms.
      */
     public function regenerateCoverAi(Request $request, int $libraryId): JsonResponse
     {
         $library = AppQyV1VocabularyLibraryModel::findPublicById($libraryId, true);
+
+        $activeTask = $this->coverTaskService->activeTasksForLibraries([(int) $library->id])[(int) $library->id] ?? null;
+        if ($activeTask !== null) {
+            return $this->conflict(
+                "Library {$library->id} already has a live cover task {$activeTask['task_id']} "
+                . "({$activeTask['task_type']}, status {$activeTask['status']}); wait for it to finish before a synchronous regenerate",
+                ['cover_task' => $activeTask]
+            );
+        }
 
         $prompt = trim((string) $request->input('prompt', ''));
         $promptOverride = null;
@@ -366,7 +382,8 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             $promptOverride = $prompt;
         }
 
-        $result = $this->coverService->regenerateWithAi($library, $promptOverride);
+        set_time_limit(300);
+        $result = $this->coverService->regenerateWithAi($library, $promptOverride, true);
         if (empty($result['success'])) {
             return response()->json([
                 'success' => false,
@@ -771,21 +788,22 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         ];
     }
 
-    private function transformLibrary(AppQyV1VocabularyLibraryModel $library): array
+    /**
+     * @param array<int,array<string,mixed>> $coverTasks library_id => live LibraryCoverTask (preloaded per page)
+     */
+    private function transformLibrary(AppQyV1VocabularyLibraryModel $library, array $coverTasks = []): array
     {
         $cover = $this->coverService->getCoverData($library);
         if (!is_array($cover)) {
             $cover = [];
         }
 
-        // Align with book/poster behavior: image_url is null until the cover is
-        // actually READY, so the UI cover-generation trigger (`!group.imageUrl`)
-        // fires for pending libraries. Previously this fell back to the default
-        // cover URL, which made every library look covered and stalled the whole
-        // vocabulary-cover pipeline. The deterministic (future) URL and the
-        // placeholder stay available in separate fields.
+        // image_url stays null until a cover file exists, so the UI
+        // cover-generation trigger (`!group.imageUrl`) fires for uncovered
+        // libraries; a queued regeneration keeps serving the previous file.
+        // Both URLs carry ?v=<cover_last_generated_at> for cache-busting.
         $coverStatus = $cover['status'] ?? 'pending';
-        $imageUrl = ($coverStatus === 'ready' && isset($cover['url'])) ? $cover['url'] : null;
+        $imageUrl = $cover['image_url'] ?? null;
 
         return [
             'id' => (int) $library->id,
@@ -805,6 +823,10 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'is_recommended' => (bool) $library->is_recommended,
             'tags' => $library->tags ?? [],
             'cover_log' => $cover['log'] ?? null,
+            'cover_provider' => $library->cover_provider,
+            'cover_model' => $library->cover_model,
+            'cover_last_generated_at' => optional($library->cover_last_generated_at)->toIso8601String(),
+            'cover_task' => $coverTasks[(int) $library->id] ?? null,
         ];
     }
 }

@@ -37,9 +37,6 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
     return 'word_validity_web';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'word_validity_web_worker_id_base';
-  }
 
   // capability=null — routed purely by execution_type/task_type.
   protected get capabilities(): WorkerCapability[] {

@@ -8,10 +8,10 @@
 # =============================================================================
 
 # Source smart_permissions.sh and gvar_common.sh for repair functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/smart_permissions.sh"
-source "$SCRIPT_DIR/../common/gvar_common.sh"
-source "$SCRIPT_DIR/../common/arrow_menu.sh"
+PERMISSIONS_REPAIR_MENU_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$PERMISSIONS_REPAIR_MENU_DIR/smart_permissions.sh"
+source "$PERMISSIONS_REPAIR_MENU_DIR/../common/gvar_common.sh"
+source "$PERMISSIONS_REPAIR_MENU_DIR/../common/arrow_menu.sh"
 
 # =============================================================================
 # Comprehensive Permission Repair Functions

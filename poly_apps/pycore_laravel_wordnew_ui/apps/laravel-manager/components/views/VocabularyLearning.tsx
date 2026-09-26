@@ -13,7 +13,10 @@ import {
 import {
   api,
   type DictionaryWordSort,
+  type LibraryCoverMode,
 } from '@/apps/laravel-manager/api';
+import { libraryCoverTaskModel, useLibraryCoverTasks } from '@/apps/laravel-manager/models';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { laravelApi } from '@/core/integrations/laravel';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
@@ -29,6 +32,7 @@ import TranslationHistoryBar from '../vocabulary/tabs/TranslationHistoryBar';
 import TtsPlayerPanel from '../vocabulary/tabs/TtsPlayerPanel';
 import LearningTasksPanel from '../vocabulary/tabs/LearningTasksPanel';
 import LibrariesTab from '../vocabulary/tabs/LibrariesTab';
+import { useLibraryCoverEnqueue } from '../vocabulary/LibraryCoverTaskControls';
 import ArticleManagerTab from '../vocabulary/tabs/ArticleManagerTab';
 import EcdictLookupTab from '../vocabulary/EcdictLookupTab';
 import { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
@@ -108,8 +112,9 @@ const VocabularyLearning: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
   // Per-library cover-retry in flight (keyed by library id).
   const [retryingCovers, setRetryingCovers] = useState<Set<number | string>>(new Set());
-  // Per-library AI cover regeneration in flight (keyed by library id).
-  const [aiCovers, setAiCovers] = useState<Set<number | string>>(new Set());
+  // Per-library cover tasks (generate / search), polled by the model while live.
+  const coverTasks = useLibraryCoverTasks(libraryCoverTaskModel);
+  const enqueueCoverTasks = useLibraryCoverEnqueue();
 
   // Library Words Viewer State — the open flag + active library; all paging,
   // stats and word data now live inside <VocabularyLibraryDetail>.
@@ -167,6 +172,7 @@ const VocabularyLearning: React.FC = () => {
   const toast = useToast();
   const { copy } = useClipboard();
   const t = TRANSLATIONS[lang].vocabulary;
+  const { t: tr } = useTranslation();
 
   // No try/catch — guard with `.catch`. Returns null on failure (settles the
   // loop, keeping the last good stats) which mirrors the original behaviour.
@@ -341,7 +347,9 @@ const VocabularyLearning: React.FC = () => {
 
       if (response.success && response.data) {
         const librariesData = response.data.libraries || response.data || [];
-        setLibraries(Array.isArray(librariesData) ? librariesData : []);
+        const list = Array.isArray(librariesData) ? librariesData : [];
+        setLibraries(list);
+        libraryCoverTaskModel.track(list);
       } else {
         setLibraries([]);
       }
@@ -367,15 +375,15 @@ const VocabularyLearning: React.FC = () => {
     try {
       const response = await api.appQyV1.retryCover({ ids: [Number(id)] });
       if (response.success) {
-        toast.success('Cover queued for regeneration.');
+        toast.success(tr('libraryCover.retry_queued'));
         logSuccess('covers', `Cover retry queued for library #${id}`);
         await loadLibraries();
       } else {
-        toast.error(response.error || 'Failed to retry cover');
+        toast.error(response.error || tr('libraryCover.retry_failed'));
         logError('covers', `Cover retry failed for library #${id}: ${response.error || 'unknown error'}`);
       }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to retry cover');
+      toast.error(error?.message || tr('libraryCover.retry_failed'));
       logError('covers', `Cover retry failed for library #${id}: ${error?.message || error}`);
     } finally {
       setRetryingCovers((prev) => { const n = new Set(prev); n.delete(id); return n; });
@@ -383,33 +391,13 @@ const VocabularyLearning: React.FC = () => {
   };
 
   /**
-   * One-click AI cover regeneration: Laravel's own image gateway generates the
-   * cover synchronously (free-quota providers first), so the card refreshes
-   * with the new image immediately — no mcp-chrome round-trip.
+   * Queue a cover task (generate = AI image, chrome first with Laravel AI
+   * fallback; search = web image search). The model polls until terminal and
+   * the card swaps to the cache-busted cover URL.
    */
-  const handleAiRegenerateCover = async (library: any) => {
-    const id = library?.id;
-    if (id == null) return;
-    setAiCovers((prev) => { const n = new Set(prev); n.add(id); return n; });
-    logInfo('covers', `AI-regenerating cover for library #${id} (${library?.name ?? ''})...`);
-    try {
-      const response = await api.appQyV1.regenerateCoverAi(Number(id));
-      if (response.success) {
-        const payload: any = (response as any).data ?? response;
-        const via = payload?.provider ? ` via ${payload.provider}${payload?.cached ? ' (cache)' : ''}` : '';
-        toast.success(`Cover regenerated${via}.`);
-        logSuccess('covers', `AI cover regenerated for library #${id}${via}`);
-        await loadLibraries();
-      } else {
-        toast.error(response.error || 'AI cover generation failed');
-        logError('covers', `AI cover failed for library #${id}: ${response.error || 'unknown error'}`);
-      }
-    } catch (error: any) {
-      toast.error(error?.message || 'AI cover generation failed');
-      logError('covers', `AI cover failed for library #${id}: ${error?.message || error}`);
-    } finally {
-      setAiCovers((prev) => { const n = new Set(prev); n.delete(id); return n; });
-    }
+  const handleCoverTask = (library: any, mode: LibraryCoverMode) => {
+    if (library?.id == null) return;
+    void enqueueCoverTasks([library.id], mode);
   };
 
   /**
@@ -1065,8 +1053,8 @@ const VocabularyLearning: React.FC = () => {
           loadLibraryWords={loadLibraryWords}
           handleRetryCover={handleRetryCover}
           retryingCovers={retryingCovers}
-          handleAiRegenerateCover={handleAiRegenerateCover}
-          aiCovers={aiCovers}
+          coverTasks={coverTasks}
+          handleCoverTask={handleCoverTask}
           setLibraryToDelete={setLibraryToDelete}
           t={t}
         />

@@ -18,3 +18,11 @@ export const APPQYV1_AI_TOOLS_ROUTES = {
   ttsSentenceAudio: '/ai_tools/tts/sentence/audio',
   ttsQueueItems: '/tts/queue/items',
 } as const;
+
+/** Vocabulary-library cover task routes (enqueue POST / status GET share one path). */
+export const APPQYV1_LIBRARY_COVER_ROUTES = {
+  tasks: '/vocabulary/libraries/cover/tasks',
+} as const;
+
+/** Upper bound of library ids accepted per cover-task request. */
+export const APPQYV1_LIBRARY_COVER_MAX_IDS = 200;

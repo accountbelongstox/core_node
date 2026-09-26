@@ -116,7 +116,8 @@ from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts import audio_queue_cache
-from pycore.pyutils.tts.audio_delivery_outbox import audio_delivery_outbox
+from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_delivery
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 
 
 # TTL for the cached engine probe (tts_status() probes EVERY engine; far too
@@ -205,8 +206,7 @@ class BaseLaravelAudioWorker(
 
     def _on_laravel_online(self, base_url: str) -> None:
         """Flush generated local audio before admitting more remote work."""
-        audio_delivery_outbox.hurry_pending(self.LANE)
-        self._start_outbox_drain()
+        laravel_delivery_outbox.kick(self._delivery_kind)
 
     def __init__(self, laravel_api_url: str = ""):
         """Initialize the worker (idempotent — safe to call repeatedly)."""
@@ -239,8 +239,6 @@ class BaseLaravelAudioWorker(
         # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
         self._cycle_signal = f"laravel_audio_worker.cycle_running.{self.LANE}"
         THREAD_BUS.signal(self._cycle_signal, False)
-        self._outbox_signal = f"laravel_audio_worker.outbox_running.{self.LANE}"
-        THREAD_BUS.signal(self._outbox_signal, False)
 
         # Engine probe cache (60s TTL) — see _engine_plan().
         self._engine_probe_cache: Optional[str] = None
@@ -265,10 +263,9 @@ class BaseLaravelAudioWorker(
         self._cache_dir = str(get_app_cache_dir() / "sentence_audio")
 
         self._initialized = True
-        # Startup flush: rows still waiting out a backoff from a previous
-        # process become ready immediately.
-        audio_delivery_outbox.hurry_pending(self.LANE)
-        self._start_outbox_drain()
+        # Registration only; the outbox flushes rows left by a previous
+        # process when it starts (service startup path).
+        self._delivery_kind = audio_lane_delivery.register(self)
         ColorPrint.green(
             f"{self._log_prefix} Service initialized (worker_id={self.worker_id}, "
             f"enabled={assist_capability_enabled(self.ASSIST_CAPABILITY)})"
@@ -835,10 +832,8 @@ class BaseLaravelAudioWorker(
             "circuit_open": self._circuit_is_open(),
             "result_5xx_streak": self._result_5xx_streak,
             "initialized": self._initialized,
-            "delivery_outbox_running": bool(
-                THREAD_BUS.get_signal(self._outbox_signal, False)
-            ),
-            "delivery_outbox": audio_delivery_outbox.stats(self.LANE),
+            "delivery_outbox_running": laravel_delivery_outbox.running(self._delivery_kind),
+            "delivery_outbox": laravel_delivery_outbox.stats(self._delivery_kind),
             "usable_engines": list(self._usable_engines_cache),
             "planned_engine": (
                 runtime_profile.WORD_BATCH_ENGINE

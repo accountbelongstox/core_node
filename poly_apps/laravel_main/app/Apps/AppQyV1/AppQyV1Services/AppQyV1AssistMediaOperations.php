@@ -142,23 +142,29 @@ trait AppQyV1AssistMediaOperations
         ?string $mime,
         ?string $provider = null,
         ?string $model = null,
-        ?int $latencyMs = null
+        ?int $latencyMs = null,
+        bool $force = false
     ): array {
         $library = AppQyV1VocabularyLibraryModel::findById($libraryId);
         if (!$library) {
-            return ['ok' => false, 'status' => 'not_found', 'error' => 'Library not found', 'http_status' => 404];
+            return ['ok' => false, 'status' => 'not_found', 'error' => "Library {$libraryId} not found", 'http_status' => 404];
         }
 
         if ($library->cover_filename === null || $library->cover_filename === '') {
             // Defensive: claims only hand out requested covers, but a stray
-            // submit must not write to an empty path.
-            return ['ok' => false, 'status' => 'invalid', 'error' => 'Library cover was never requested', 'http_status' => 422];
+            // submit must not write to an empty path. A forced (task-driven)
+            // write initializes the deterministic filename instead.
+            if (!$force) {
+                return ['ok' => false, 'status' => 'invalid', 'error' => 'Library cover was never requested', 'http_status' => 422];
+            }
+            $library->cover_filename = $this->coverService->buildFilename($library);
         }
 
         // Fill-missing, never clobber: already ready with a file -> ack only.
+        // A forced write (explicit regenerate / re-search task) overwrites.
         $mcpSubmitted = self::coverMcpMarkerSupported($library)
             && $library->cover_mcp_submitted_at !== null;
-        if ($mcpSubmitted && $library->cover_status === 'ready' && $this->coverService->hasCoverFile($library->cover_filename)) {
+        if (!$force && $mcpSubmitted && $library->cover_status === 'ready' && $this->coverService->hasCoverFile($library->cover_filename)) {
             $this->clearCoverLease($library);
             return ['ok' => true, 'status' => 'ready', 'already_done' => true, 'http_status' => 200];
         }

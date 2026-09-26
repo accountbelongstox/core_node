@@ -256,8 +256,38 @@ export interface QueueCenterHttpTransfer {
   retry_interval_ms: number;
 }
 
+export interface LibraryCoverContract {
+  task_types: { generate: string; search: string };
+  fallback_grace_seconds: number;
+  fallback_worker_id: string;
+}
+
+export type LibraryCoverMode = keyof LibraryCoverContract['task_types'];
+
+export interface LibraryCoverTaskPayload {
+  library_id: number;
+  mode: LibraryCoverMode;
+  name: string;
+  language?: string;
+  category?: string;
+  description?: string;
+  prompt?: string;
+  search_query?: string;
+}
+
+export interface LibraryCoverTaskResult {
+  image_base64: string;
+  mime: string;
+  provider: string;
+  model?: string;
+  latency_ms?: number;
+  source_url?: string;
+  prompt?: string;
+}
+
 interface ContractDocument {
   schema_version: number;
+  library_cover: LibraryCoverContract;
   http_transfer: QueueCenterHttpTransfer;
   realtime: {
     transport: string;
@@ -400,6 +430,9 @@ export const QUEUE_CENTER_REALTIME_EVENTS = QUEUE_CENTER_CONTRACT.realtime.event
 export const DIFF_DELIVERY = QUEUE_CENTER_CONTRACT.diff_delivery;
 /** Word-validity verification defaults (batch size, languages, source marker, idle cadence). */
 export const WORD_VALIDITY_CONFIG = contractDocument.word_validity;
+/** Library cover routing: AI generate / web search task types and the Laravel AI fallback window. */
+export const LIBRARY_COVER_CONTRACT = QUEUE_CENTER_CONTRACT.library_cover;
+export const LIBRARY_COVER_TASK_TYPES = LIBRARY_COVER_CONTRACT.task_types;
 export const DELIVERY_RECEIPT = QUEUE_CENTER_CONTRACT.delivery_receipt;
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
 export const TASK_STATUS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.statuses.values;

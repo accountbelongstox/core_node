@@ -8,15 +8,19 @@ Per task, three persisted phases:
                  virtual read via orch_words) into ordered per-segment items
                  and the unique word/sentence resource list.
   2. resources — resolve every unique resource REUSING the existing caches
-                 and engines (orch_resources.resolve_audio: pycore cache ->
-                 Laravel -> local synthesis, stored back in the original cache
-                 locations); newly generated clips sync to Laravel through the
-                 durable delivery outbox (orch_resources.synchronize_audio).
+                 and engines (orch_resources.resolve_batch: batch cache scan,
+                 then words through the shared Kokoro batch
+                 kokoro_batch.synthesize_words_to_cache and sentences through
+                 Laravel -> local synthesis); newly generated clips sync to
+                 Laravel through the shared durable delivery outbox
+                 (orch_delivery.synchronize_audio, kind audio_orch.resource).
   3. assemble  — concatenate each segment's resolved items with ffmpeg
                  (re-encode to one uniform mp3) into
                  <user data dir>/audio_orchestration/output/<task_slug>/segment_XXX.mp3.
-                 Output stays local on this machine; nothing is uploaded to
-                 Laravel.
+                 The finished output (task metadata + segments) is queued
+                 for idempotent Laravel upload (orch_delivery, kind
+                 audio_orch.output); undelivered history is backfilled on
+                 every Laravel online edge.
 
 Generation runs on a daemon thread per task; progress is persisted into the
 task record so the UI polls it via the task routes.
@@ -31,10 +35,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffprobe_client
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.common.background_jobs import BackgroundJobs
 
-from pycore.pyctl.audio_orchestration import orch_books, orch_resources, orch_store, orch_words
+from pycore.pyctl.audio_orchestration import (
+    orch_books,
+    orch_events,
+    orch_resources,
+    orch_sources,
+    orch_store,
+    orch_words,
+)
+from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
 
 _generation_jobs = BackgroundJobs("AudioOrchGeneration")
 _GAP_SECONDS = 0.6
@@ -212,6 +225,36 @@ def _ensure_gap_file(ffmpeg: str, staging: Path) -> Optional[Path]:
     return gap if proc.returncode == 0 and gap.is_file() else None
 
 
+def _segment_timeline(
+    items: List[Dict[str, Any]],
+    files: List[Path],
+    gap: Optional[Path],
+    durations: Dict[Path, float],
+) -> List[Dict[str, Any]]:
+    """Clip offsets inside the assembled segment mp3 (concat order: clip,
+    gap, clip, ...). Durations are probed once per clip file per run; an
+    unprobeable clip yields an empty timeline instead of drifting offsets."""
+    for path in [*files, *([gap] if gap is not None else [])]:
+        if path not in durations:
+            durations[path] = float(ffprobe_client.probe(path).duration or 0.0)
+    if any(durations[path] <= 0 for path in files):
+        return []
+    gap_seconds = durations[gap] if gap is not None else 0.0
+    timeline: List[Dict[str, Any]] = []
+    cursor = 0.0
+    for index, (item, path) in enumerate(zip(items, files)):
+        entry: Dict[str, Any] = {
+            "type": str(item.get("kind") or ""),
+            "start_ms": int(round(cursor * 1000)),
+            "end_ms": int(round((cursor + durations[path]) * 1000)),
+        }
+        if item.get("seq") is not None:
+            entry["seq"] = item["seq"]
+        timeline.append(entry)
+        cursor += durations[path] + (gap_seconds if index < len(files) - 1 else 0.0)
+    return timeline
+
+
 def _concat_segment(ffmpeg: str, gap: Optional[Path], files: List[Path], output: Path) -> Optional[str]:
     """Concatenate item files into one mp3 (re-encoded, mono 44.1kHz). Returns
     an error string or None on success."""
@@ -303,19 +346,46 @@ def start_generation(
         # (draft, done) is a fresh run.
         status = str(task.get("status") or "")
         resume = status == "generating" or (status == "failed" and has_resumable_state(task))
-    orch_resources.recover_deliveries()
     if not _generation_jobs.start(task_id, _run_generation, task_id, auth_record, bool(resume)):
         return {"success": False, "error": "generation already running"}
     return {"success": True, "task_id": task_id, "resumed": bool(resume)}
 
 
+def _close_phase(progress: Dict[str, Any], now: float) -> None:
+    """Copy-on-write phase_times with the current phase's timing closed."""
+    progress["phase_times"] = {key: dict(value) for key, value in (progress.get("phase_times") or {}).items()}
+    timing = progress["phase_times"].get(str(progress.get("phase") or ""))
+    if timing is not None and not timing.get("finished_at"):
+        timing["finished_at"] = now
+
+
 def _progress(task: Dict[str, Any], persist: bool = True, **fields: Any) -> None:
     progress = dict(task.get("progress") or {})
+    phase = fields.get("phase")
+    if phase and phase != progress.get("phase"):
+        # Per-phase wall-clock timing ({phase: {started_at, finished_at}});
+        # "done" is the terminal marker, not a timed phase.
+        now = time.time()
+        _close_phase(progress, now)
+        if phase != "done":
+            progress["phase_times"][phase] = {"started_at": now, "finished_at": None}
     progress.update(fields)
     task["progress"] = progress
     task["cancel_requested"] = _generation_jobs.cancelled(str(task.get("task_id") or ""))
     if persist:
         orch_store.save_task(task)
+        orch_events.publish_task_changed(task)
+
+
+def _finish(task: Dict[str, Any], status: str) -> None:
+    """Terminal transition of one run: status + finish time + open phase
+    closed (persisted by the caller's following _progress)."""
+    now = time.time()
+    task["status"] = status
+    task["generation_finished_at"] = now
+    progress = dict(task.get("progress") or {})
+    _close_phase(progress, now)
+    task["progress"] = progress
 
 
 def _run_generation(task_id: str, auth_record: Dict[str, Any], resume: bool = False) -> None:
@@ -326,7 +396,7 @@ def _run_generation(task_id: str, auth_record: Dict[str, Any], resume: bool = Fa
         _generate(task, auth_record, resume=resume)
     except Exception as exc:  # noqa: BLE001
         ColorPrint.red(f"[AudioOrch] generation crashed for {task_id}: {exc}")
-        task["status"] = "failed"
+        _finish(task, "failed")
         _progress(task, message=f"generation crashed: {exc}")
 
 
@@ -334,30 +404,33 @@ def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
     if not _generation_jobs.cancelled(str(task.get("task_id") or "")):
         return False
     orch_resources.release_owner_queue(str(task.get("task_id") or ""))
-    task["status"] = "draft"
+    _finish(task, "draft")
     _progress(task, message="cancelled", **stats)
     return True
 
 
 def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = False) -> None:
     task_id = str(task["task_id"])
-    book = task.get("book") or {}
-    source_key = str(book.get("source_key") or "")
     base_url = str(auth_record.get("base_url") or "") or None
     # Regenerate = replace: start with a clean log. Resume keeps the previous
     # log so the UI still shows what the interrupted run already did.
     if not resume:
         task["events"] = []
-    orch_store.append_task_event(task, f"generation {'resumed' if resume else 'started'} for book {source_key}")
+    orch_store.append_task_event(task, f"generation {'resumed' if resume else 'started'} for {orch_sources.task_label(task)}")
     task["status"] = "generating"
+    # Run timing: a resume keeps the original start; every run clears the
+    # previous finish until it reaches a terminal state again.
+    task["generation_finished_at"] = None
+    if not resume or not task.get("generation_started_at"):
+        task["generation_started_at"] = time.time()
     if not resume:
         task["progress"] = {}
         task["generation_id"] = uuid.uuid4().hex
     elif not task.get("generation_id"):
         task["generation_id"] = uuid.uuid4().hex
     _progress(task, phase="sync", message="syncing book sentences", current_item="")
-    synced = orch_books.ensure_book_sentences(
-        source_key,
+    synced = orch_sources.ensure_task_sentences(
+        task,
         cancel_requested=lambda: _generation_jobs.cancelled(task_id),
         progress_callback=lambda state: _progress(
             task, phase="sync", message="syncing book sentences",
@@ -368,15 +441,15 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         return
     sentences = synced.get("sentences") if isinstance(synced, dict) else None
     if not sentences:
-        task["status"] = "failed"
+        _finish(task, "failed")
         orch_store.append_task_event(task, "sentence sync failed")
-        _progress(task, message=f"no sentences for book {source_key}: {synced.get('error') if isinstance(synced, dict) else 'unknown'}")
+        _progress(task, message=f"no sentences for {orch_sources.task_label(task)}: {synced.get('error') if isinstance(synced, dict) else 'unknown'}")
         return
 
     binary = ffmpeg_runtime.binaries().ffmpeg
     ffmpeg = str(binary) if binary is not None else None
     if not ffmpeg:
-        task["status"] = "failed"
+        _finish(task, "failed")
         orch_store.append_task_event(task, "ffmpeg not found")
         _progress(task, message="ffmpeg not found")
         return
@@ -448,7 +521,10 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             for sentence_pos in range(segment["start"], segment["end"] + 1):
                 if _cancel(task, stats):
                     return
-                items.extend(build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record))
+                items.extend(
+                    {**item, "seq": sentences[sentence_pos].get("seq")}
+                    for item in build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record)
+                )
                 if sentence_pos % 100 == 0:
                     _progress(task, phase="manifest", item_index=sentence_pos + 1,
                               item_total=len(sentences), segment_index=segment["index"], **stats)
@@ -489,6 +565,10 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                 "status": str((previous_segments.get(int(segment["index"])) or {}).get("status") or "pending"),
                 "output": (previous_segments.get(int(segment["index"])) or {}).get("output"),
                 "error": (previous_segments.get(int(segment["index"])) or {}).get("error"),
+                "started_at": (previous_segments.get(int(segment["index"])) or {}).get("started_at"),
+                "finished_at": (previous_segments.get(int(segment["index"])) or {}).get("finished_at"),
+                "timeline": (previous_segments.get(int(segment["index"])) or {}).get("timeline") or [],
+                "duration_ms": (previous_segments.get(int(segment["index"])) or {}).get("duration_ms"),
             }
             for segment in partitioned
         ]
@@ -551,6 +631,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             "provider": str(result.get("provider") or ""),
             "synced": False,
             "sync_queued": False,
+            "resolved_at": time.time(),
         }
         resource_meta[resource["resource_id"]] = meta
         if result.get("status") == "ready" and result.get("audio_path"):
@@ -570,7 +651,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                 # Delivery sync is durable and self-retrying; a transient
                 # outbox/queue failure must never abort the whole generation.
                 try:
-                    sync = orch_resources.synchronize_audio(
+                    sync = orch_delivery.synchronize_audio(
                         {**resource, "audio_path": result["audio_path"], "provider": result.get("provider"),
                          "generation_id": task["generation_id"]},
                         base_url,
@@ -634,6 +715,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     # order; segments whose every item is missing fail without aborting the
     # rest of the task. Resumed runs skip segments already assembled.
     gap = _ensure_gap_file(ffmpeg, staging)
+    clip_durations: Dict[Path, float] = {}
     for segment, items in zip(task["segments"], segment_items):
         if _cancel(task, stats):
             return
@@ -661,6 +743,8 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             orch_store.save_task(task)
             continue
         segment["status"] = "assembling"
+        segment["started_at"] = time.time()
+        segment["finished_at"] = None
         _progress(
             task, phase="assemble",
             message=f"segment {segment['index']}: assembling {len(files)} items",
@@ -668,6 +752,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         )
         output = output_dir / f"segment_{segment['index']:03d}.mp3"
         error = _concat_segment(ffmpeg, gap, files, output)
+        segment["finished_at"] = time.time()
         if _cancel(task, stats):
             return
         if error:
@@ -677,11 +762,14 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         else:
             segment["status"] = "done"
             segment["output"] = str(output)
+            # Per-clip offsets for precise player highlight (W5 `timeline`).
+            segment["timeline"] = _segment_timeline(items, files, gap, clip_durations)
+            segment["duration_ms"] = int(round(float(ffprobe_client.probe(output).duration or 0.0) * 1000)) or None
             orch_store.append_task_event(task, f"segment {segment['index']}: done -> {output.name}")
         orch_store.save_task(task)
 
     failed = [s for s in task["segments"] if s.get("status") == "failed"]
-    task["status"] = "failed" if failed else "done"
+    _finish(task, "failed" if failed else "done")
     orch_store.append_task_event(
         task,
         f"generation finished: {task['status']} "
@@ -695,6 +783,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         output_dir=str(output_dir),
         **stats,
     )
+    orch_delivery.enqueue_task_output(task)
     ColorPrint.green(f"[AudioOrch] task {task_id} finished: {task['status']}")
 
 

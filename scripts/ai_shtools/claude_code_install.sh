@@ -21,7 +21,11 @@
 #      claude.ai front door refuses the request (e.g. HTTP 403).
 #   2. Make claude usable by EVERY user through /usr/local/bin: symlink when the newest
 #      working binary is world-reachable, otherwise copy the self-contained binary (0755).
-#   3. Link the claudeteam launcher into /usr/local/bin.
+#   3. claude_team_install (also called by claudeteamup/claudeagents on every run):
+#      each team item is checked and repaired on its own - python3, tmux, node,
+#      xrandr + a geometry-capable terminal on graphical sessions, the shared dir
+#      .claude/agents_shared, and each launcher link (claudeteam, claudeteamup,
+#      claudeagents + .sh aliases). CCI_CHECK_ONLY=1 reports without changing.
 # "Installed" means a claude binary that actually answers --version (dangling launcher
 # symlinks left behind by pruned native versions do not count).
 
@@ -38,6 +42,13 @@ CCI_INSTALLER_URLS=(
 )
 CCI_VERSION_TIMEOUT_SECONDS="10"
 CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
+CCI_TEAM_UP_SRC="$CCI_LINUXENVS_DIR/claudeteamup.sh"
+CCI_AGENTS_SRC="$CCI_LINUXENVS_DIR/claudeagents.sh"
+CCI_SHARED_DIR="$CCI_CORE_NODE_DIR/.claude/agents_shared"
+CCI_GEOMETRY_EMULATORS=("xfce4-terminal" "konsole" "xterm")
+CCI_EMULATOR_PACKAGE="xfce4-terminal"
+# 1 = only report each team item ([OK]/[MISSING]); never install or link.
+CCI_CHECK_ONLY="${CCI_CHECK_ONLY:-0}"
 CCI_REAL_USER=""
 CCI_REAL_HOME=""
 
@@ -173,6 +184,11 @@ cci_link_into_bin() {
     # as the already-shared /usr/local/bin/claude), a symlink-to-self would break the binary.
     if [ -e "$dest" ] && \
        [ "$(readlink -f "$src" 2>/dev/null)" = "$(readlink -f "$dest" 2>/dev/null)" ]; then
+        echo "[SKIP] $name -> $src"
+        return 0
+    fi
+    if [ "$CCI_CHECK_ONLY" = "1" ]; then
+        echo "[MISSING] link $dest -> $src"
         return 0
     fi
     # Idempotent: nothing to do when the symlink already points at src.
@@ -320,14 +336,88 @@ cci_install_claude_all_users() {
     return 1
 }
 
-# Link the claudeteam launcher (and its .sh alias) for all users.
+# Finest-grained idempotent unit: one binary. Present -> [SKIP]; missing -> install
+# only its package, re-check, and report [OK]/[WARN]. CCI_CHECK_ONLY=1 reports only.
+cci_ensure_binary() {
+    local binary="$1" package="$2" purpose="$3"
+    local resolved=""
+    resolved="$(command -v "$binary" 2>/dev/null || true)"
+    if [ -n "$resolved" ]; then
+        echo "[SKIP] $binary present: $resolved ($purpose)"
+        return 0
+    fi
+    if [ "$CCI_CHECK_ONLY" = "1" ]; then
+        echo "[MISSING] $binary (package $package; $purpose)"
+        return 0
+    fi
+    echo "[INSTALL] $binary missing; installing package $package ($purpose)"
+    cci_pkg_install "$package" || true
+    hash -r 2>/dev/null || true
+    resolved="$(command -v "$binary" 2>/dev/null || true)"
+    if [ -n "$resolved" ]; then
+        echo "[OK] $binary installed: $resolved"
+    else
+        echo "[WARN] $binary still missing after installing $package"
+    fi
+}
+
+# Finest-grained idempotent unit: one directory.
+cci_ensure_dir() {
+    local dir_path="$1" purpose="$2"
+    if [ -d "$dir_path" ]; then
+        echo "[SKIP] dir present: $dir_path ($purpose)"
+        return 0
+    fi
+    if [ "$CCI_CHECK_ONLY" = "1" ]; then
+        echo "[MISSING] dir $dir_path ($purpose)"
+        return 0
+    fi
+    mkdir -p "$dir_path" && echo "[OK] dir created: $dir_path ($purpose)"
+}
+
+# Team prerequisites, one binary at a time: python3 (role catalog), tmux (official
+# split-pane teammates; claudeteamup/claudeagents sessions), node (git guard hook),
+# and on a graphical session xrandr (screen geometry) plus a geometry-capable terminal.
+cci_ensure_team_prereqs() {
+    local emulator=""
+    cci_ensure_binary python3 python3 "role catalog parsing"
+    cci_ensure_binary tmux tmux "agent-team split panes and role sessions"
+    cci_ensure_binary node nodejs "git guard hook .claude/hooks/git_guard.mjs"
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        echo "[SKIP] no graphical display: xrandr and terminal emulator not required"
+        return 0
+    fi
+    cci_ensure_binary xrandr x11-xserver-utils "screen geometry for window placement"
+    for emulator in "${CCI_GEOMETRY_EMULATORS[@]}"; do
+        if command -v "$emulator" >/dev/null 2>&1; then
+            echo "[SKIP] geometry-capable terminal present: $(command -v "$emulator")"
+            return 0
+        fi
+    done
+    cci_ensure_binary "$CCI_EMULATOR_PACKAGE" "$CCI_EMULATOR_PACKAGE" "positioned role windows"
+}
+
+# Link the claudeteam, claudeteamup and claudeagents launchers (and .sh aliases) for
+# all users, one link at a time.
 cci_setup_claudeteam() {
     cci_link_into_bin "$CCI_TEAM_SRC" "claudeteam"
     cci_link_into_bin "$CCI_TEAM_SRC" "claudeteam.sh"
+    cci_link_into_bin "$CCI_TEAM_UP_SRC" "claudeteamup"
+    cci_link_into_bin "$CCI_TEAM_UP_SRC" "claudeteamup.sh"
+    cci_link_into_bin "$CCI_AGENTS_SRC" "claudeagents"
+    cci_link_into_bin "$CCI_AGENTS_SRC" "claudeagents.sh"
 }
 
-# Main entry: install (native, idempotent) -> make claude usable by all users -> link
-# claudeteam. Returns non-zero when the shared claude is still not runnable.
+# Shared team setup used by claude_code_install (dd.sh step 171) and by the
+# claudeteamup/claudeagents launchers: prerequisites, shared dir, launcher links.
+claude_team_install() {
+    cci_ensure_team_prereqs
+    cci_ensure_dir "$CCI_SHARED_DIR" "shared data between roles"
+    cci_setup_claudeteam || true
+}
+
+# Main entry: install (native, idempotent) -> make claude usable by all users ->
+# team prerequisites -> link the team launchers. Returns non-zero when the shared claude is still not runnable.
 claude_code_install() {
     local bin_path=""
 
@@ -347,8 +437,8 @@ claude_code_install() {
     fi
     echo ""
 
-    print_color "[STEP 3/3] Link claudeteam launcher into $CCI_BIN_DIR (all users)" "Info"
-    cci_setup_claudeteam || true
+    print_color "[STEP 3/3] Team setup: prerequisites, shared dir, claudeteam/claudeteamup/claudeagents links" "Info"
+    claude_team_install
     echo ""
 
     hash -r 2>/dev/null || true

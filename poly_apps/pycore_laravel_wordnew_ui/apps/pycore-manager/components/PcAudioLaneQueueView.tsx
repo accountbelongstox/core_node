@@ -18,6 +18,7 @@ import type {
   AudioLaneTrackState,
   AudioLaneTrackedItem,
 } from '@/apps/pycore-manager/api';
+import { absoluteTime, formatElapsed, spanSeconds } from '../utils/pcFormat';
 
 const TRACK_STATES: AudioLaneTrackState[] = ['queued', 'processing', 'done', 'failed'];
 
@@ -63,6 +64,18 @@ function OwnerItems({ items, empty }: { items: AudioLaneTrackedItem[]; empty: st
           <span className="shrink-0 font-mono text-[10px] text-slate-500">{item.language}</span>
           <span className="truncate text-slate-300">{item.text}</span>
           {item.provider && <span className="shrink-0 font-mono text-[10px] text-slate-500">{item.provider}</span>}
+          {item.started_at && (
+            <span
+              className="shrink-0 font-mono text-[10px] text-slate-500"
+              title={[
+                `${t('queueCenter.audioLane.queuedAt')} ${absoluteTime(item.queued_at)}`,
+                `${t('queueCenter.audioLane.startedAt')} ${absoluteTime(item.started_at)}`,
+                `${t('queueCenter.audioLane.finishedAt')} ${absoluteTime(item.finished_at)}`,
+              ].join('\n')}
+            >
+              {formatElapsed(spanSeconds(item.started_at, item.finished_at))}
+            </span>
+          )}
           {item.settled_by && item.state !== 'queued' && (
             <span className="shrink-0 text-[10px] text-slate-500">
               {item.settled_by === 'lane' ? t('queueCenter.audioLane.settledByLane') : t('queueCenter.audioLane.settledByOwner')}

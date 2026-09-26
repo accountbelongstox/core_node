@@ -116,7 +116,6 @@ export function useAiTranslateHub() {
         type: FEATURE_MESSAGE_TYPES.PUTER_TRANSLATE_WORKER,
         action,
         config: {
-          apiUrl: currentEndpoint.value,
           workerName: 'MCP Chrome Puter AI Translate Worker',
           batchSize: 3,
         },

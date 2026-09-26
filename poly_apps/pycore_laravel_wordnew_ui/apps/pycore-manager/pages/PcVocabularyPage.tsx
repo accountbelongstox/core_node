@@ -3,7 +3,8 @@
  * Each tab uses the pycore-manager Laravel API boundary and owns local state.
  *
  * Tabs: Translate / Words / Libraries / Statistics / TTS Queue /
- * Learning Tasks / Audio Orchestration.
+ * Learning Tasks / Offline Dict. Audio Orchestration is its own page
+ * (/pycore-manager/audio-orchestration).
  * The active tab is persisted to localStorage. Every tab guards its own calls
  * and shows its own offline/error banner.
  */
@@ -20,7 +21,6 @@ import VocabLibrariesTab from './vocabulary/VocabLibrariesTab';
 import VocabStatisticsTab from './vocabulary/VocabStatisticsTab';
 import VocabTtsQueueTab from './vocabulary/VocabTtsQueueTab';
 import VocabLearningTasksPanel from './vocabulary/VocabLearningTasksPanel';
-import VocabAudioOrchTab from './vocabulary/orchestration/VocabAudioOrchTab';
 import VocabOfflineDictTab from './vocabulary/VocabOfflineDictTab';
 
 export default function PcVocabularyPage() {
@@ -76,7 +76,6 @@ export default function PcVocabularyPage() {
         {activeTab === 'statistics' && <VocabStatisticsTab />}
         {activeTab === 'tts-queue' && <VocabTtsQueueTab />}
         {activeTab === 'learning' && <VocabLearningTasksPanel />}
-        {activeTab === 'audio-orch' && <VocabAudioOrchTab />}
         {activeTab === 'dictionary' && <VocabOfflineDictTab />}
       </div>
     </div>

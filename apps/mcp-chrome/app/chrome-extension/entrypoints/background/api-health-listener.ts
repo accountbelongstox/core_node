@@ -14,14 +14,16 @@
 import { fetchWithTimeout } from '@/utils/async';
 import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
+import { API_HEALTH_PATHS } from '@/utils/api-paths';
+import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 
 export function initApiHealthListener() {
-  registerRuntimeMessageHandler('api_health_check', async (message: any) => {
+  registerRuntimeMessageHandler(BACKGROUND_MESSAGE_TYPES.API_HEALTH_CHECK, async (message: any) => {
     const base = String(message.url || '').trim().replace(/\/+$/, '');
     const timeoutMs = Number(message.timeoutMs) > 0 ? Number(message.timeoutMs) : 3000;
     const started = Date.now();
     try {
-      const response = await fetchWithTimeout(`${base}/api/health`, timeoutMs, {
+      const response = await fetchWithTimeout(`${base}${API_HEALTH_PATHS.HEALTH}`, timeoutMs, {
         method: 'GET',
         cache: 'no-store',
       });

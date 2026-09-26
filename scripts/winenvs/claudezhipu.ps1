@@ -16,8 +16,8 @@
 
 .DESCRIPTION
     Launches Claude Code via Zhipu AI (GLM) Anthropic-compatible endpoint with
-    the model forced to glm-5.2 everywhere, and experimental agent teams +
-    ultracode force-enabled (like claudeteam).
+    the model forced to glm-5.2 everywhere, and experimental agent teams
+    force-enabled (like claudeteam).
     API key is read from .secret_keys/.secret_ignore/ZHIPUAI_API_KEY_1 (written
     by the Special Software Environment Variables Manager, dd.sh / dd.cmd).
     Zhipu /api/anthropic is the Anthropic-compatible endpoint for Claude Code
@@ -31,8 +31,6 @@ $ErrorActionPreference = "Stop"
 $zhipuBaseUrl = ""
 $zhipuApiKey = ""
 $zhipuModel = "glm-5.2"
-$ultraSettingsJson = $null
-$ultraSettingsFile = $null
 $claudeArgs = $null
 $teammateMode = $null
 $exitCode = 0
@@ -62,17 +60,9 @@ $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 # Windows default: run experimental agent teams in-process (like claudeteam).
 $teammateMode = 'in-process'
 
-# Ultracode via temp settings FILE (Windows PowerShell 5.1 strips the double
-# quotes when handing a JSON literal to a native exe, so `claude --settings
-# {"ultracode":true}` arrives as `{ultracode:true}` -> invalid JSON. --settings
-# also accepts a file path, which sidesteps all shell quoting).
-$ultraSettingsJson = '{"ultracode":true}'
-$ultraSettingsFile = Join-Path $env:TEMP "claudezhipu_ultracode_settings.json"
-[System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
-
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Claude AI (Zhipu AI / GLM) - v4 [glm-5.2 + team + ultracode]" -ForegroundColor Yellow
+Write-Host "Claude AI (Zhipu AI / GLM) - v4 [glm-5.2 + team]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -173,7 +163,6 @@ if ($forceModelEnabled) {
     Write-Host "Model: off (default N) - using the account default model" -ForegroundColor White
 }
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)" -ForegroundColor White
-Write-Host "Ultracode: --settings $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor White
 
 if (-not $zhipuApiKey) {
     Write-Host ""
@@ -189,9 +178,6 @@ if (-not $zhipuApiKey) {
     Write-Host "  $secretDir\ZHIPUAI_API_KEY_1" -ForegroundColor Gray
     Write-Host ""
     $null = Read-Host "Press Enter to exit"
-    if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-        Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-    }
     exit 1
 }
 else {
@@ -200,17 +186,19 @@ else {
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Build claude args: ultracode settings always on; teammate-mode in-process;
+# Build claude args: teammate-mode in-process;
 # skip-permissions (Windows default, like claudeteam); --model only when opted in.
 if ($forceModelEnabled) {
-    $claudeArgs = @("--model", $zhipuModel, "--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+    $claudeArgs = @("--model", $zhipuModel, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 } else {
-    $claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+    $claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 }
+
+$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudezhipu")
 
 # Launch tool
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start Claude AI (Zhipu AI / GLM) [glm-5.2 + team + ultracode]..." -ForegroundColor Yellow
+Write-Host "Press Enter to start Claude AI (Zhipu AI / GLM) [glm-5.2 + team]..." -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 
@@ -221,9 +209,6 @@ if (-not $claudeExecutable) {
     Write-Host "Install via: npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
     Write-Host "Or ensure $env:USERPROFILE\.local\bin\claude.exe exists." -ForegroundColor Yellow
     Write-Host ""
-    if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-        Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-    }
     exit 1
 }
 
@@ -237,11 +222,6 @@ Write-Host ""
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
-}
-
-# Remove the temp settings file (claude reads it only at startup).
-if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
 }
 
 exit $exitCode

@@ -59,15 +59,92 @@ export interface SentenceWorkerTask {
   backend_result_accepted?: boolean;
 }
 
-export interface AudioDeliveryOutboxStatus {
+/** One kind of pycore's shared Laravel delivery outbox (pyutils/laravel/delivery_outbox.py). */
+export interface LaravelDeliveryKindStatus {
+  kind: string;
+  registered: boolean;
   total: number;
   pending: number;
-  pending_domain_upload: number;
-  pending_result: number;
-  pending_history: number;
+  in_flight: number;
   dead_letter: number;
+  delivered_receipts: number;
+  /** Waiting rows per stage: `payload` plus the kind's ordered steps. */
+  by_stage: Record<string, number>;
   oldest_pending_at?: number | null;
   next_retry_at?: number | null;
+  last_error?: string;
+  delivered: number;
+  failures: number;
+  last_delivered_at?: number | null;
+  last_failure?: string;
+  last_failure_at?: number | null;
+  running: boolean;
+  /** True when the kind diffs a local inventory against each Laravel server. */
+  inventory?: boolean;
+  /** Per Laravel server namespace (`server:<id>` or `url:<base>` for a legacy server). */
+  by_namespace?: Record<string, LaravelDeliveryNamespaceStatus>;
+}
+
+/** Last reconnect diff of one kind against one Laravel server. */
+export interface LaravelDeliveryDiffStatus {
+  state?: 'running' | 'done' | 'failed';
+  /** `remote` = Laravel computed the diff; `local` = legacy server, local delivered state. */
+  mode?: 'remote' | 'local';
+  reason?: string;
+  base_url?: string;
+  phase?: string;
+  processed?: number;
+  total?: number;
+  missing?: number;
+  stale?: number;
+  rejected?: number;
+  enqueued?: number;
+  started_at?: number | null;
+  finished_at?: number | null;
+  error?: string;
+}
+
+export interface LaravelDeliveryNamespaceStatus {
+  pending: number;
+  in_flight: number;
+  dead_letter: number;
+  by_stage: Record<string, number>;
+  next_retry_at?: number | null;
+  /** Items this pycore recorded as delivered to that server (local view). */
+  delivered_state: number;
+  last_error?: string;
+  delivered: number;
+  failures: number;
+  last_delivered_at?: number | null;
+  last_failure?: string;
+  last_failure_at?: number | null;
+  diff?: LaravelDeliveryDiffStatus;
+}
+
+/** Identity of one configured Laravel endpoint. */
+export interface LaravelServerIdentity {
+  url: string;
+  namespace: string;
+  server_id: string;
+  identified: boolean;
+  reachable?: boolean | null;
+}
+
+export interface LaravelDeliveryStatus {
+  kinds: Record<string, LaravelDeliveryKindStatus>;
+  servers?: LaravelServerIdentity[];
+  active_namespace?: string;
+  /** Namespaces whose reconnect diff is running. */
+  reconciling?: string[];
+  laravel_online_at?: number | null;
+  laravel_base_url?: string;
+}
+
+/** Per-owner (e.g. orchestration task) delivery counts. */
+export interface LaravelDeliveryOwnerCounts {
+  pending: number;
+  dead_letter: number;
+  delivered: number;
 }
 
 export interface QueueWorkerEvent {
@@ -132,7 +209,7 @@ export interface SentenceAudioAutoStatus {
     enabled?: boolean;
     cycle_running?: boolean;
     delivery_outbox_running?: boolean;
-    delivery_outbox?: AudioDeliveryOutboxStatus;
+    delivery_outbox?: LaravelDeliveryKindStatus;
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
@@ -271,7 +348,7 @@ export interface WordTtsAutoStatus {
     current_task?: WordTtsWorkerTask | null;
     current_tasks?: WordTtsWorkerTask[];
     delivery_outbox_running?: boolean;
-    delivery_outbox?: AudioDeliveryOutboxStatus;
+    delivery_outbox?: LaravelDeliveryKindStatus;
     backend_progress?: {
       current?: number;
       completed?: number;

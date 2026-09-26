@@ -9,6 +9,11 @@
 >   resumable partial;
 > - the sentence Part1 fill, which previously only re-ranked already-queued
 >   rows, now inserts local tasks.
+> - UI files (2026-09-27): `pages/vocabulary/orchestration/*` moved to `pages/audio-orchestration/*`; Audio Orchestration is a standalone,
+>   source-agnostic page `/pycore-manager/audio-orchestration`
+>   (`pages/PcAudioOrchestrationPage.tsx` + `pages/audio-orchestration/`), no
+>   longer a Vocabulary tab (`VocabAudioOrchTab` → `AudioOrchWorkspace`). See
+>   `docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`.
 
 Requirements backup: `DESIGN_20260917_AUDIO_ORCHESTRATION.md`.
 
@@ -19,7 +24,7 @@ Requirements backup: `DESIGN_20260917_AUDIO_ORCHESTRATION.md`.
 | Qy groups and persistent baseline selection | Complete | `LaravelQyAccountAPI.groups`, `OrchAccountSession.wordGroups/selectWordGroup`, group baseline dropdown in `OrchLoginPanel.tsx`; `word_group_id` now reaches the task (`orch_generate.start_generation`) — previously a TypeError (5 args into a 4-param function) |
 | Per-book task action and editable unique names | Complete | Per-item New Task button in `OrchBookPicker.tsx`, `newOrchTaskName` (book + timestamp + uuid), book dropdown in `OrchTaskEditor.tsx` |
 | Per-step new/all word policies | Complete | `build_sentence_items` maps `words_new`/`words_all` to per-step modes (`orch_generate.py`), `select_words` accepts a per-step `word_mode` override (`orch_words.py`); legacy `words` defers to task-level `word_mode` |
-| Manifest, resource reuse, synchronization, final generation | Complete | `_generate` rewritten manifest-first: phase 1 manifest (virtual-read consumed once, persisted), phase 2 per-resource resolve via `orch_resources.resolve_audio` (cache → Laravel → local TTS) + `synchronize_audio` outbox upload for generated clips, phase 3 ffmpeg assemble; `recover_deliveries()` resumed on generation start |
+| Manifest, resource reuse, synchronization, final generation | Complete | `_generate` rewritten manifest-first: phase 1 manifest (virtual-read consumed once, persisted), phase 2 per-resource resolve via `orch_resources.resolve_audio` (cache → Laravel → local TTS) + `orch_delivery.synchronize_audio` (shared Laravel delivery outbox, kind `audio_orch.resource`) for generated clips, phase 3 ffmpeg assemble, then the task output is queued for Laravel upload (kind `audio_orch.output`); the outbox drains on enqueue, at startup and on every Laravel online edge (2026-09-27, R7/R8) |
 | Detailed persistent phase progress UI | Complete | `progress.phase` (manifest/resources/assemble/done) persisted on the task; `OrchTaskList` renders phase label + per-phase resource progress bar and cache/Laravel/generated/synced/missing counters; locales `phaseManifest/phaseResources/phaseAssemble/phaseDone/manifestSynced/wordsOnlyNew` added (`wordsOnlyNew` was referenced but missing) |
 | Word-group dropdown empty after login | Complete | Root cause: groups were read from the BROWSER-side account store while the session lives on the pycore side (`auth.json`), so a pycore-restored session showed "logged in" with an empty dropdown. Groups are now pycore-authoritative: new routes `ui/audio_orch/auth/groups` + `auth/select_group` (`orch_service.auth_groups/auth_select_group`), `orch_store.update_auth` persists `word_groups`/`word_group_id` in the auth record, generation falls back to the stored baseline; missing locales `wordGroupBaseline/wordGroupHint/noWordGroups/groupsLoadFailed/defaultGroup` added; dead browser-side `LaravelQyAccountAPI.groups` / `OrchAccountSession.wordGroups/selectWordGroup` removed |
 | Central cache + batch resolution | Complete | Sentence audio now uses ONLY the central content-addressed `tts_sentence_cache` (the `sentence_audio/<md5>` mirror in `orch_resources` deleted; Laravel downloads are stored into the central cache under the current sentence-engine identity via `sentence_audio_cache.store_result`); words keep the unified `word_audio_cache` base with new `find_cached_many` (one directory scan per language); generation phase 2 runs `orch_resources.resolve_batch` — batch local cache hits first, Laravel/generation only for misses |

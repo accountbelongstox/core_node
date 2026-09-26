@@ -633,8 +633,29 @@ class CodeMartV1AdminService
             'total' => (clone $query)->count(),
             'page' => $page,
             'page_size' => $pageSize,
-            'items' => $query->orderByDesc('id')->forPage($page, $pageSize)->get(),
+            'items' => self::withRefundParties($query->with('payment:id,payer_id,payee_id,project_id,currency')->orderByDesc('id')->forPage($page, $pageSize)->get()),
         ];
+    }
+
+    private static function withRefundParties(\Illuminate\Support\Collection $refunds): array
+    {
+        $users = self::userSummaries($refunds->flatMap(static fn ($refund): array => [
+            (int) $refund->requested_by,
+            (int) ($refund->payment?->payer_id ?? 0),
+            (int) ($refund->payment?->payee_id ?? 0),
+        ])->all());
+
+        return $refunds->map(static function ($refund) use ($users): array {
+            $payment = $refund->payment;
+            $row = $refund->makeHidden('payment')->toArray();
+            $row['requester'] = $users[(int) $refund->requested_by] ?? null;
+            $row['payer'] = $payment ? ($users[(int) $payment->payer_id] ?? null) : null;
+            $row['payee'] = $payment ? ($users[(int) $payment->payee_id] ?? null) : null;
+            $row['project_id'] = $payment?->project_id;
+            $row['currency'] = $payment?->currency;
+
+            return $row;
+        })->values()->all();
     }
 
     public function depositsPage(string $status, int $page, int $pageSize): array
@@ -648,8 +669,20 @@ class CodeMartV1AdminService
             'total' => (clone $query)->count(),
             'page' => $page,
             'page_size' => $pageSize,
-            'items' => $query->orderByDesc('id')->forPage($page, $pageSize)->get(),
+            'items' => self::withDepositUsers($query->orderByDesc('id')->forPage($page, $pageSize)->get()),
         ];
+    }
+
+    private static function withDepositUsers(\Illuminate\Support\Collection $deposits): array
+    {
+        $users = self::userSummaries($deposits->pluck('user_id')->all());
+
+        return $deposits->map(static function ($deposit) use ($users): array {
+            $row = $deposit->toArray();
+            $row['user'] = $users[(int) $deposit->user_id] ?? null;
+
+            return $row;
+        })->values()->all();
     }
 
     /**

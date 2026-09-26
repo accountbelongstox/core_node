@@ -1,15 +1,5 @@
 const serviceContract = require('../../../../../../config/service_contract');
 
-export enum NATIVE_MESSAGE_TYPE {
-  START = 'start',
-  STARTED = 'started',
-  STOP = 'stop',
-  STOPPED = 'stopped',
-  PING = 'ping',
-  PONG = 'pong',
-  ERROR = 'error',
-}
-
 export const NATIVE_SERVER_PORT = serviceContract.port('mcp_chrome');
 
 // Timeout constants (in milliseconds)

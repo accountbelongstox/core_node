@@ -1,49 +1,34 @@
 # -*- coding: utf-8 -*-
-# Shortcut Manager PowerShell Script
-# Checks if desktop shortcut exists and is correct, creates/fixes if needed
+# Window Launcher desktop shortcut check (called by scripts/shells/win/dd.ps1).
+# Writes exactly the .lnk that pycore/pyutils/launcher/desktop_integration.py
+# ensure_desktop_shortcut writes, so neither writer rewrites the other:
+#   TargetPath = GlobalVars.ps1 PYTHON_EXE_PATH, Arguments = -m pycore.pyutils.launcher,
+#   WorkingDirectory = repo root, IconLocation = icon.ico (icon.png, python.exe).
 
-# Get script directory
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$launcherPyPath = Join-Path $scriptDir "launcher.py"
+$ScriptDir = $PSScriptRoot
+$PyutilsDir = Split-Path -Parent $ScriptDir
+$PycoreDir = Split-Path -Parent $PyutilsDir
+$RepoRootDir = Split-Path -Parent $PycoreDir
+$GlobalVarsScript = Join-Path $RepoRootDir "scripts\shells\win\win_common\GlobalVars.ps1"
+$LauncherEntryPath = Join-Path $ScriptDir "__main__.py"
+$ShortcutName = "Window Launcher"
+$ShortcutDescription = "Launch Window Launcher - Multiple Terminal Windows"
+$ShortcutArguments = "-m pycore.pyutils.launcher"
+$ShortcutFileName = "{0}.lnk" -f $ShortcutName
+$IconIcoPath = Join-Path $ScriptDir "icon.ico"
+$IconPngPath = Join-Path $ScriptDir "icon.png"
+$PythonExe = $null
+$IconPath = $null
+$DesktopPath = $null
+$ShortcutPath = $null
+$ShortcutMatches = $false
 
-# Check if launcher.py exists
-if (-not (Test-Path $launcherPyPath)) {
-    Write-Host "Warning: Launcher file not found: $launcherPyPath" -ForegroundColor Yellow
-    exit 1
-}
+. $GlobalVarsScript
+$PythonExe = $Global:PYTHON_EXE_PATH
 
-# Get Windows version (win10 or win11) - must match scripts/shells/win/win_common/GlobalVars.ps1
-function Get-WindowsVersion {
-    $osInfo = Get-CimInstance Win32_OperatingSystem
-    $buildNumber = [int]$osInfo.BuildNumber
-    if ($buildNumber -ge 22000) {
-        return "win11"
-    } else {
-        return "win10"
-    }
-}
-
-# Derived Python path: same as install flow (GlobalVars PYTHON_DIR + python.exe). Use this for shortcut
-# so the shortcut points to the expected install location even before Python is installed.
-function Get-DerivedPythonExePath {
-    $winVersion = Get-WindowsVersion
-    $langCompilerDir = "D:\.dev_$winVersion"
-    $pythonDir = Join-Path $langCompilerDir "python311"
-    return Join-Path $pythonDir "python.exe"
-}
-
-# Get dev environment path
-function Get-DevEnvPath {
-    $winVersion = Get-WindowsVersion
-    $devPath = Join-Path "D:\" ".dev_$winVersion\.winenvs"
-    if (-not (Test-Path $devPath)) {
-        New-Item -ItemType Directory -Path $devPath -Force | Out-Null
-    }
-    return $devPath
-}
-
-# Get desktop path
 function Get-DesktopPath {
+    $shell = $null
+    $desktop = $null
     try {
         $shell = New-Object -ComObject WScript.Shell
         $desktop = $shell.SpecialFolders.Item("Desktop")
@@ -51,203 +36,112 @@ function Get-DesktopPath {
             return $desktop
         }
     } catch {
-        # COM object failed, try other methods
+        $desktop = $null
     }
 
-    # Try USERPROFILE Desktop
     if ($env:USERPROFILE) {
         $desktop = Join-Path $env:USERPROFILE "Desktop"
-        if (Test-Path $desktop) {
+        if (Test-Path -LiteralPath $desktop) {
             return $desktop
         }
     }
-
-    # Try PUBLIC Desktop
     if ($env:PUBLIC) {
         $desktop = Join-Path $env:PUBLIC "Desktop"
-        if (Test-Path $desktop) {
+        if (Test-Path -LiteralPath $desktop) {
             return $desktop
         }
     }
-
-    # Last resort: create Desktop in USERPROFILE
     if ($env:USERPROFILE) {
         $desktop = Join-Path $env:USERPROFILE "Desktop"
-        try {
-            New-Item -ItemType Directory -Path $desktop -Force | Out-Null
-            return $desktop
-        } catch {
-            # Failed to create, return null
-        }
+        New-Item -ItemType Directory -Path $desktop -Force | Out-Null
+        return $desktop
     }
-
     return $null
 }
 
-# Check if shortcut needs update
-function Test-ShortcutNeedsUpdate {
+function Get-ComparablePath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return "" }
+    return [System.IO.Path]::GetFullPath($Path)
+}
+
+function Test-LauncherShortcutMatches {
     param(
-        [string]$ShortcutPath,
-        [string]$PythonExe,
-        [string]$LauncherPyPath,
-        [string]$IconPath,
-        [string]$WorkingDir,
-        [string]$Description
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$TargetPath,
+        [Parameter(Mandatory = $true)][string]$Arguments,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$IconLocation,
+        [Parameter(Mandatory = $true)][string]$Description
     )
-
-    if (-not (Test-Path $ShortcutPath)) {
-        return $true
-    }
-
-    try {
-        $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut($ShortcutPath)
-
-        # Normalize paths for comparison
-        $pythonExeNormalized = (Resolve-Path $PythonExe -ErrorAction SilentlyContinue).Path
-        if (-not $pythonExeNormalized) {
-            $pythonExeNormalized = $PythonExe
-        }
-
-        $shortcutTargetNormalized = (Resolve-Path $shortcut.TargetPath -ErrorAction SilentlyContinue).Path
-        if (-not $shortcutTargetNormalized) {
-            $shortcutTargetNormalized = $shortcut.TargetPath
-        }
-
-        # Compare Python executable
-        if ($shortcutTargetNormalized -ne $pythonExeNormalized) {
-            return $true
-        }
-
-        # Compare arguments (launcher.py path)
-        $expectedArgs = "`"$LauncherPyPath`""
-        if ($shortcut.Arguments -ne $expectedArgs) {
-            return $true
-        }
-
-        $workingDirNormalized = (Resolve-Path $WorkingDir -ErrorAction SilentlyContinue).Path
-        if (-not $workingDirNormalized) {
-            $workingDirNormalized = $WorkingDir
-        }
-
-        $shortcutWorkingDirNormalized = (Resolve-Path $shortcut.WorkingDirectory -ErrorAction SilentlyContinue).Path
-        if (-not $shortcutWorkingDirNormalized) {
-            $shortcutWorkingDirNormalized = $shortcut.WorkingDirectory
-        }
-
-        if ($shortcutWorkingDirNormalized -ne $workingDirNormalized) {
-            return $true
-        }
-
-        # Check icon (handle IconLocation format "path,index")
-        $iconPathPart = ($IconPath -split ',')[0]
-        $shortcutIconPart = ($shortcut.IconLocation -split ',')[0]
-
-        $iconPathNormalized = (Resolve-Path $iconPathPart -ErrorAction SilentlyContinue).Path
-        if (-not $iconPathNormalized) {
-            $iconPathNormalized = $iconPathPart
-        }
-
-        $shortcutIconNormalized = (Resolve-Path $shortcutIconPart -ErrorAction SilentlyContinue).Path
-        if (-not $shortcutIconNormalized) {
-            $shortcutIconNormalized = $shortcutIconPart
-        }
-
-        if ($shortcutIconNormalized -ne $iconPathNormalized) {
-            return $true
-        }
-
-        if ($shortcut.Description -ne $Description) {
-            return $true
-        }
-
-        # All properties match, no update needed
-        return $false
-    } catch {
-        Write-Host "Warning: Could not read shortcut info, will update: $_" -ForegroundColor Yellow
-        return $true
-    }
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($Path)
+    $shortcutIcon = ([string]$shortcut.IconLocation -split ',')[0]
+    return ((Get-ComparablePath $shortcut.TargetPath) -eq (Get-ComparablePath $TargetPath)) -and
+        ([string]$shortcut.Arguments -eq $Arguments) -and
+        ((Get-ComparablePath $shortcut.WorkingDirectory) -eq (Get-ComparablePath $WorkingDirectory)) -and
+        ((Get-ComparablePath $shortcutIcon) -eq (Get-ComparablePath $IconLocation)) -and
+        ([string]$shortcut.Description -eq $Description)
 }
 
-# Main function: Check and ensure shortcut
-function Check-AndEnsureShortcut {
-    $shortcutName = "Window Launcher"
-    $launcherDir = $scriptDir
-
-    # Use derived path (same as install: D:\.dev_win10 or D:\.dev_win11\python311\python.exe) so shortcut
-    # is correct before and after Python is installed. Do not use Get-Command python (WindowsApps stub).
-    $pythonExe = Get-DerivedPythonExePath
-
-    # Use icon.ico if available, then icon.png, otherwise use Python icon
-    $iconIcoPath = Join-Path $launcherDir "icon.ico"
-    $iconPngPath = Join-Path $launcherDir "icon.png"
-    if (Test-Path $iconIcoPath) {
-        $iconPath = $iconIcoPath
-    } elseif (Test-Path $iconPngPath) {
-        $iconPath = $iconPngPath
-    } else {
-        $iconPath = $pythonExe
-    }
-
-    $workingDir = $launcherDir
-    $description = "Launch Window Launcher - Multiple Terminal Windows"
-
-    # Get desktop path and shortcut path
-    $desktopPath = Get-DesktopPath
-
-    if ([string]::IsNullOrWhiteSpace($desktopPath)) {
-        Write-Host "Warning: Could not determine desktop path, skipping shortcut creation" -ForegroundColor Yellow
-        return $false
-    }
-
-    $shortcutPath = Join-Path $desktopPath "$shortcutName.lnk"
-
-    # Check if shortcut exists
-    if (-not (Test-Path $shortcutPath)) {
-        # Shortcut doesn't exist, create it
-        try {
-            $shell = New-Object -ComObject WScript.Shell
-            $shortcut = $shell.CreateShortcut($shortcutPath)
-            $shortcut.TargetPath = $pythonExe
-            $shortcut.Arguments = "`"$launcherPyPath`""
-            $shortcut.WorkingDirectory = $workingDir
-            $shortcut.Description = $description
-            $shortcut.IconLocation = $iconPath
-            $shortcut.Save()
-            Write-Host "Created desktop shortcut: $shortcutName" -ForegroundColor Green
-            return $true
-        } catch {
-            Write-Host "Warning: Failed to create desktop shortcut: $_" -ForegroundColor Yellow
-            return $false
-        }
-    } else {
-        # Shortcut exists, check if it's correct
-        $needsUpdate = Test-ShortcutNeedsUpdate -ShortcutPath $shortcutPath -PythonExe $pythonExe -LauncherPyPath $launcherPyPath -IconPath $iconPath -WorkingDir $workingDir -Description $description
-
-        if ($needsUpdate) {
-            # Shortcut exists but is incorrect, fix it
-            try {
-                $shell = New-Object -ComObject WScript.Shell
-                $shortcut = $shell.CreateShortcut($shortcutPath)
-                $shortcut.TargetPath = $pythonExe
-                $shortcut.Arguments = "`"$launcherPyPath`""
-                $shortcut.WorkingDirectory = $workingDir
-                $shortcut.Description = $description
-                $shortcut.IconLocation = $iconPath
-                $shortcut.Save()
-                Write-Host "Fixed desktop shortcut: $shortcutName" -ForegroundColor Green
-                return $true
-            } catch {
-                Write-Host "Warning: Failed to fix desktop shortcut: $_" -ForegroundColor Yellow
-                return $false
-            }
-        } else {
-            # Shortcut exists and is correct, skip
-            Write-Host "Desktop shortcut already exists and is correct: $shortcutName" -ForegroundColor Cyan
-            return $false
-        }
-    }
+function Set-LauncherShortcut {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$TargetPath,
+        [Parameter(Mandatory = $true)][string]$Arguments,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$IconLocation,
+        [Parameter(Mandatory = $true)][string]$Description
+    )
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($Path)
+    $shortcut.TargetPath = $TargetPath
+    $shortcut.Arguments = $Arguments
+    $shortcut.WorkingDirectory = $WorkingDirectory
+    $shortcut.IconLocation = $IconLocation
+    $shortcut.Description = $Description
+    $shortcut.Save()
 }
 
-# Execute main function (suppress boolean return so it is not printed to the console)
-Check-AndEnsureShortcut | Out-Null
+if (-not (Test-Path -LiteralPath $LauncherEntryPath -PathType Leaf)) {
+    Write-Host "Warning: Launcher entry not found: $LauncherEntryPath" -ForegroundColor Yellow
+    return
+}
+# desktop_integration.py falls back to the running interpreter until this one exists;
+# writing a dangling target here would make the two writers fight.
+if ([string]::IsNullOrWhiteSpace([string]$PythonExe) -or -not (Test-Path -LiteralPath $PythonExe -PathType Leaf)) {
+    Write-Host "Python not installed yet ($PythonExe); skipping the $ShortcutName shortcut." -ForegroundColor Yellow
+    return
+}
+
+if (Test-Path -LiteralPath $IconIcoPath -PathType Leaf) {
+    $IconPath = $IconIcoPath
+} elseif (Test-Path -LiteralPath $IconPngPath -PathType Leaf) {
+    $IconPath = $IconPngPath
+} else {
+    $IconPath = $PythonExe
+}
+
+$DesktopPath = Get-DesktopPath
+if ([string]::IsNullOrWhiteSpace([string]$DesktopPath)) {
+    Write-Host "Warning: Could not determine desktop path, skipping shortcut creation" -ForegroundColor Yellow
+    return
+}
+$ShortcutPath = Join-Path $DesktopPath $ShortcutFileName
+
+try {
+    if (Test-Path -LiteralPath $ShortcutPath) {
+        $ShortcutMatches = Test-LauncherShortcutMatches -Path $ShortcutPath -TargetPath $PythonExe `
+            -Arguments $ShortcutArguments -WorkingDirectory $RepoRootDir -IconLocation $IconPath `
+            -Description $ShortcutDescription
+    }
+    if ($ShortcutMatches) {
+        Write-Host "Desktop shortcut already exists and is correct: $ShortcutName" -ForegroundColor Cyan
+    } else {
+        Set-LauncherShortcut -Path $ShortcutPath -TargetPath $PythonExe -Arguments $ShortcutArguments `
+            -WorkingDirectory $RepoRootDir -IconLocation $IconPath -Description $ShortcutDescription
+        Write-Host "Created/updated desktop shortcut: $ShortcutName" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "Warning: Failed to write desktop shortcut: $($_.Exception.Message)" -ForegroundColor Yellow
+}

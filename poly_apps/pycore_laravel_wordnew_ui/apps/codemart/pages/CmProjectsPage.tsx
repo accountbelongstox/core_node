@@ -1,362 +1,287 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { BriefcaseBusiness, FilePlus2, Inbox, RefreshCw, Sparkles } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, CalendarDays, FilePlus2, Milestone, RefreshCw, Search } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
-import type { CmAiAnalysis, CmProject } from '../api/CmApiTypes';
+import type { CmProject } from '../api/CmApiTypes';
+import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { useCmPagedList } from '../components/workspace/useCmPagedList';
 
-function parseProjects(data: unknown): CmProject[] {
-  if (!data || typeof data !== 'object') return [];
-  const source = data as { projects?: unknown };
-  return Array.isArray(source.projects) ? (source.projects as CmProject[]) : [];
-}
+const COMPLEXITIES = ['simple', 'medium', 'complex', 'very_complex'] as const;
+const BUDGET_TYPES = ['fixed', 'hourly'] as const;
+const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
+const PROJECT_STATUSES = ['draft', 'proposal_review', 'funding_pending', 'open', 'in_progress', 'paused', 'completed', 'cancelled', 'archived'] as const;
+const DEFAULT_CURRENCY = 'CNY';
+const MIN_BUDGET = 100;
+const TITLE_MAX_LENGTH = 255;
+const ALL_STATUSES = '';
 
-const analysisStorageKey = (projectId: number): string => `cm_analysis_${projectId}`;
+type CmStackField = typeof STACK_FIELDS[number];
+type CmCreateField = 'title' | 'description' | 'budget' | 'endDate';
 
-function readStoredAnalysisId(projectId: number): number | null {
-  try {
-    const raw = window.localStorage.getItem(analysisStorageKey(projectId));
-    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeAnalysisId(projectId: number, analysisId: number | null): void {
-  try {
-    if (analysisId === null) {
-      window.localStorage.removeItem(analysisStorageKey(projectId));
-    } else {
-      window.localStorage.setItem(analysisStorageKey(projectId), String(analysisId));
-    }
-  } catch {
-    // storage unavailable: analysis tracking simply resets on reload
-  }
-}
-
-const CmProjectAnalysisPanel: React.FC<{ project: CmProject; onChanged: () => Promise<void> }> = ({ project, onChanged }) => {
-  const { t } = useTranslation('cm');
-  const [analysis, setAnalysis] = useState<CmAiAnalysis | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [revisionNotes, setRevisionNotes] = useState('');
-  const [showRevision, setShowRevision] = useState(false);
-  const pollTimer = useRef<number | null>(null);
-
-  const stopPolling = useCallback((): void => {
-    if (pollTimer.current !== null) {
-      window.clearInterval(pollTimer.current);
-      pollTimer.current = null;
-    }
-  }, []);
-
-  const fetchAnalysis = useCallback(async (analysisId: number): Promise<void> => {
-    const response = await cmApi.getAnalysis(analysisId);
-    if (response.success && response.data) {
-      setAnalysis(response.data);
-      if (response.data.status === 'completed' || response.data.status === 'failed') {
-        stopPolling();
-      }
-    }
-  }, [stopPolling]);
-
-  const startPolling = useCallback((analysisId: number): void => {
-    stopPolling();
-    pollTimer.current = window.setInterval(() => {
-      void fetchAnalysis(analysisId);
-    }, 3000);
-  }, [fetchAnalysis, stopPolling]);
-
-  useEffect(() => {
-    const storedId = readStoredAnalysisId(project.id);
-    if (storedId !== null) {
-      void fetchAnalysis(storedId).then(() => {
-        startPolling(storedId);
-      });
-    }
-    return () => stopPolling();
-  }, [project.id, fetchAnalysis, startPolling, stopPolling]);
-
-  const analyze = async (): Promise<void> => {
-    setBusy(true);
-    setNotice(null);
-    const response = await cmApi.analyzeProject(project.id);
-    if (response.success && response.data) {
-      storeAnalysisId(project.id, response.data.analysis_id);
-      setNotice(t('analysis.started'));
-      await fetchAnalysis(response.data.analysis_id);
-      startPolling(response.data.analysis_id);
-    } else {
-      setNotice(response.error ?? t('analysis.startFailed'));
-    }
-    setBusy(false);
-  };
-
-  const accept = async (): Promise<void> => {
-    if (!analysis) return;
-    setBusy(true);
-    const response = await cmApi.acceptAnalysis(analysis.analysis_id);
-    setNotice(response.success ? t('analysis.accepted') : (response.error ?? t('analysis.acceptFailed')));
-    if (response.success) {
-      storeAnalysisId(project.id, null);
-      await onChanged();
-    }
-    setBusy(false);
-  };
-
-  const requestRevision = async (): Promise<void> => {
-    if (!analysis || !revisionNotes.trim()) return;
-    setBusy(true);
-    const response = await cmApi.requestAnalysisRevision(analysis.analysis_id, revisionNotes.trim());
-    if (response.success) {
-      setNotice(t('analysis.revisionSent'));
-      setShowRevision(false);
-      setRevisionNotes('');
-      setAnalysis(null);
-      startPolling(analysis.analysis_id);
-      void fetchAnalysis(analysis.analysis_id);
-    } else {
-      setNotice(response.error ?? t('analysis.revisionFailed'));
-    }
-    setBusy(false);
-  };
-
-  return (
-    <section className="cm-analysis-panel">
-      {!analysis && (
-        <button type="button" className="cm-workspace-button" disabled={busy} onClick={() => void analyze()}>
-          <Sparkles aria-hidden="true" /> {busy ? t('common.loading') : t('analysis.run')}
-        </button>
-      )}
-      {analysis && (
-        <div className="cm-analysis-result">
-          <p className="cm-contract-note">
-            {t('analysis.statusLabel')}: <span className="cm-status" data-status={analysis.status}>{t(`analysis.statuses.${analysis.status}`, { defaultValue: analysis.status })}</span>
-          </p>
-          {analysis.status === 'completed' && (
-            <>
-              {analysis.proposal && <p className="cm-analysis-proposal">{analysis.proposal}</p>}
-              <div className="cm-record-card__meta">
-                {analysis.estimated_hours !== null && <span>{t('analysis.hours', { hours: analysis.estimated_hours })}</span>}
-                {analysis.estimated_cost !== null && <span>{t('analysis.cost', { cost: analysis.estimated_cost })}</span>}
-              </div>
-              {analysis.recommended_languages && analysis.recommended_languages.length > 0 && (
-                <p className="cm-contract-note">{t('analysis.languages')}: {analysis.recommended_languages.join(', ')}</p>
-              )}
-              {analysis.recommended_frameworks && analysis.recommended_frameworks.length > 0 && (
-                <p className="cm-contract-note">{t('analysis.frameworks')}: {analysis.recommended_frameworks.join(', ')}</p>
-              )}
-              <div className="cm-project-form__actions">
-                <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void accept()}>
-                  {t('analysis.accept')}
-                </button>
-                <button type="button" className="cm-workspace-button" disabled={busy} onClick={() => setShowRevision((value) => !value)}>
-                  {t('analysis.requestRevision')}
-                </button>
-              </div>
-              {showRevision && (
-                <div className="cm-analysis-revision">
-                  <textarea
-                    rows={3}
-                    value={revisionNotes}
-                    onChange={(event) => setRevisionNotes(event.target.value)}
-                    placeholder={t('analysis.revisionPlaceholder')}
-                  />
-                  <button type="button" className="cm-workspace-button is-primary" disabled={busy || !revisionNotes.trim()} onClick={() => void requestRevision()}>
-                    {t('analysis.sendRevision')}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-          {(analysis.status === 'processing' || analysis.status === 'revising') && (
-            <p className="cm-contract-note">{t('analysis.waiting')}</p>
-          )}
-          {analysis.status === 'failed' && (
-            <button type="button" className="cm-workspace-button" disabled={busy} onClick={() => void analyze()}>
-              <Sparkles aria-hidden="true" /> {t('analysis.retry')}
-            </button>
-          )}
-        </div>
-      )}
-      {notice && <p className="cm-contract-note">{notice}</p>}
-    </section>
-  );
-};
+const extractProjects = (data: { projects: CmProject[]; pagination: unknown }) => ({
+  items: Array.isArray(data.projects) ? data.projects : [],
+  totalPages: cmTotalPages(data.pagination as Parameters<typeof cmTotalPages>[0]),
+});
 
 export const CmProjectsPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const { hasCapability, refresh } = useCmBootstrap();
+  const format = useCmFormat();
+  const { hasCapability } = useCmBootstrap();
   const canCreate = hasCapability('project.create');
-  const [projects, setProjects] = useState<CmProject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [publishingId, setPublishingId] = useState<number | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>(ALL_STATUSES);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
 
-  const load = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    const response = await cmApi.getProjects();
-    if (response.success) {
-      setProjects(parseProjects(response.data));
-    }
-    setLoading(false);
-  }, []);
+  const fetcher = useCallback((page: number) => cmApi.getProjects({
+    include_assigned: true,
+    page,
+    ...(status ? { status } : {}),
+    ...(search ? { search } : {}),
+  }), [status, search]);
+  const list = useCmPagedList(fetcher, extractProjects, 'projects.loadFailed');
+  const filtered = status !== ALL_STATUSES || search !== '';
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const applySearch = (event: React.FormEvent): void => {
+    event.preventDefault();
+    setSearch(searchDraft.trim());
+  };
 
-  const publish = async (projectId: number): Promise<void> => {
-    setPublishingId(projectId);
-    setNotice(null);
-    const response = await cmApi.publishProject(projectId);
-    setNotice(response.success ? t('projects.published') : t('projects.publishFailed'));
-    setPublishingId(null);
-    await load();
-    await refresh();
+  const clearFilters = (): void => {
+    setStatus(ALL_STATUSES);
+    setSearch('');
+    setSearchDraft('');
   };
 
   return (
     <main className="cm-workspace-page">
-      <header className="cm-page-heading">
-        <span>{t('projects.eyebrow')}</span>
-        <h1>{t('nav.myProjects')}</h1>
-        <p>{t('projects.description')}</p>
-        {canCreate && (
-          <Link to="/codemart/projects/new" className="cm-workspace-button is-primary">
-            <FilePlus2 aria-hidden="true" /> {t('nav.createProject')}
-          </Link>
+      <CmPageHeader
+        eyebrowKey="projects.eyebrow"
+        titleKey="nav.myProjects"
+        purposeKey="projects.description"
+        actions={(
+          <>
+            <button type="button" className="cm-workspace-button" onClick={() => void list.reload()} disabled={list.loading}>
+              <RefreshCw aria-hidden="true" /> {t('common.refresh')}
+            </button>
+            {canCreate && (
+              <Link to="/codemart/projects/new" className="cm-workspace-button is-primary">
+                <FilePlus2 aria-hidden="true" /> {t('nav.createProject')}
+              </Link>
+            )}
+          </>
         )}
-      </header>
-      {notice && <p className="cm-contract-note">{notice}</p>}
-      {loading ? (
-        <p className="cm-contract-note">{t('common.loading')}</p>
-      ) : projects.length === 0 ? (
-        <section className="cm-marketplace-empty">
-          <BriefcaseBusiness aria-hidden="true" />
-          <h2>{t('projects.emptyTitle')}</h2>
-          <p>{t('projects.emptyBody')}</p>
-        </section>
+      />
+      <form className="cm-filter-bar" onSubmit={applySearch}>
+        <label className="cm-filter-bar__search">
+          <span className="cm-visually-hidden">{t('projects.searchLabel')}</span>
+          <Search aria-hidden="true" />
+          <input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder={t('projects.searchPlaceholder')} />
+        </label>
+        <label>
+          <span className="cm-visually-hidden">{t('projects.statusFilter')}</span>
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value={ALL_STATUSES}>{t('projects.allStatuses')}</option>
+            {PROJECT_STATUSES.map((value) => (
+              <option key={value} value={value}>{t(`states.project.${value}`)}</option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className="cm-workspace-button">{t('projects.searchAction')}</button>
+      </form>
+      {list.loading ? (
+        <CmLoadingState />
+      ) : list.error ? (
+        <CmErrorState message={list.error} onRetry={() => void list.reload()} />
+      ) : list.items.length === 0 ? (
+        filtered ? (
+          <CmEmptyState
+            title={t('projects.noMatchTitle')}
+            body={t('projects.noMatchBody')}
+            action={<button type="button" className="cm-workspace-button" onClick={clearFilters}>{t('marketplace.clearFilters')}</button>}
+          />
+        ) : (
+          <CmEmptyState
+            title={t('projects.emptyTitle')}
+            body={canCreate ? t('projects.emptyBody') : t('projects.emptyBodyNoCreate')}
+            action={canCreate ? <Link to="/codemart/projects/new" className="cm-workspace-button is-primary"><FilePlus2 aria-hidden="true" /> {t('nav.createProject')}</Link> : undefined}
+          />
+        )
       ) : (
-        <section className="cm-card-list">
-          {projects.map((project) => (
+        <section className="cm-card-list" aria-label={t('nav.myProjects')}>
+          {list.items.map((project) => (
             <article key={project.id} className="cm-record-card">
               <div className="cm-record-card__main">
-                <h2>{project.title}</h2>
+                <h2><Link to={`/codemart/projects/${project.id}`} className="cm-record-card__title-link">{project.title}</Link></h2>
                 <p>{project.description}</p>
                 <div className="cm-record-card__meta">
-                  <span>{project.currency ?? ''} {project.budget ?? t('common.unavailable')}</span>
-                  <span className="cm-status" data-status={project.status}>{t(`states.project.${project.status}`)}</span>
+                  <CmStatusBadge group="project" status={project.status} />
+                  {project.budget && <span className="cm-record-card__money">{format.money(project.budget, project.currency)}</span>}
+                  {(project.total_milestones ?? 0) > 0 && (
+                    <span><Milestone aria-hidden="true" /> {t('projects.milestoneProgress', { done: project.completed_milestones ?? 0, total: project.total_milestones ?? 0 })}</span>
+                  )}
+                  {project.created_at && <span><CalendarDays aria-hidden="true" /> {t('projects.createdOn', { date: format.date(project.created_at) })}</span>}
                 </div>
+                <p className="cm-record-card__hint">{t(`projects.nextAction.${project.status}`, { defaultValue: '' })}</p>
               </div>
               <Link to={`/codemart/projects/${project.id}`} className="cm-workspace-button">
-                {t('projects.openDetail')}
+                {t('projects.openDetail')} <ArrowRight aria-hidden="true" />
               </Link>
-              {project.status === 'draft' && canCreate && (
-                <button
-                  type="button"
-                  className="cm-workspace-button is-primary"
-                  disabled={publishingId === project.id}
-                  onClick={() => void publish(project.id)}
-                >
-                  {publishingId === project.id ? t('common.loading') : t('projects.publish')}
-                </button>
-              )}
-              {(project.status === 'draft' || project.status === 'proposal_review') && canCreate && (
-                <CmProjectAnalysisPanel project={project} onChanged={load} />
-              )}
             </article>
           ))}
         </section>
       )}
-      {projects.length === 0 && !loading && canCreate && (
-        <section className="cm-dashboard-section">
-          <Inbox aria-hidden="true" />
-        </section>
-      )}
+      <CmPager page={list.page} totalPages={list.totalPages} disabled={list.loading} onChange={(next) => void list.load(next)} />
     </main>
+  );
+};
+
+const CmFieldLabel: React.FC<{ label: string; required?: boolean; hint?: string }> = ({ label, required = false, hint }) => {
+  const { t } = useTranslation('cm');
+  return (
+    <span>
+      {label}
+      {required ? <span className="cm-required" aria-label={t('common.required')}>*</span> : <small className="cm-field-hint">{hint ?? t('common.optional')}</small>}
+    </span>
   );
 };
 
 export const CmProjectCreatePage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const { hasCapability, refresh } = useCmBootstrap();
+  const navigate = useNavigate();
+  const { bootstrap, hasCapability, refresh } = useCmBootstrap();
+  const notice = useCmNotice();
   const canCreate = hasCapability('project.create');
+  const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [complexity, setComplexity] = useState('medium');
   const [budget, setBudget] = useState('');
-  const [budgetType, setBudgetType] = useState('fixed');
+  const [budgetType, setBudgetType] = useState<string>('fixed');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [stack, setStack] = useState<Record<CmStackField, string>>({ skills: '', languages: '', frameworks: '', databases: '' });
   const [pending, setPending] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  const errors: Partial<Record<CmCreateField, string>> = {};
+  if (!title.trim()) errors.title = t('projectCreate.errors.titleRequired');
+  else if (title.length > TITLE_MAX_LENGTH) errors.title = t('projectCreate.errors.titleTooLong', { max: TITLE_MAX_LENGTH });
+  if (!description.trim()) errors.description = t('projectCreate.errors.descriptionRequired');
+  if (!budget || Number(budget) < MIN_BUDGET) errors.budget = t('projectCreate.errors.budgetMin', { amount: MIN_BUDGET, currency });
+  if (startDate && endDate && endDate <= startDate) errors.endDate = t('projectCreate.errors.endAfterStart');
+  const showError = (field: CmCreateField): string | undefined => (submitted ? errors[field] : undefined);
 
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (!canCreate || pending) return;
+    setSubmitted(true);
+    if (!canCreate || pending || Object.keys(errors).length > 0) return;
     setPending(true);
-    setNotice(null);
+    notice.clear();
     const response = await cmApi.createProject({
-      title,
-      description,
+      title: title.trim(),
+      description: description.trim(),
       complexity,
       budget: Number(budget),
       budget_type: budgetType,
-      currency: 'CNY',
+      currency,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      skills: cmSplitList(stack.skills),
+      languages: cmSplitList(stack.languages),
+      frameworks: cmSplitList(stack.frameworks),
+      databases: cmSplitList(stack.databases),
     });
-    if (response.success) {
-      setNotice(t('projectCreate.created'));
-      setTitle('');
-      setDescription('');
-      setBudget('');
-      await refresh();
-    } else {
-      setNotice(response.error ?? t('projectCreate.createFailed'));
-    }
     setPending(false);
+    if (response.success && response.data) {
+      await refresh();
+      navigate(`/codemart/projects/${response.data.id}`);
+      return;
+    }
+    notice.error(cmErrorMessage(t, response, 'projectCreate.createFailed'));
   };
 
   return (
     <main className="cm-workspace-page">
-      <header className="cm-page-heading">
-        <span>{t('projects.eyebrow')}</span>
-        <h1>{t('projectCreate.title')}</h1>
-        <p>{t('projectCreate.subtitle')}</p>
-      </header>
-      {!canCreate && <p className="cm-contract-note">{t('projectCreate.noCapability')}</p>}
-      {notice && <p className="cm-contract-note">{notice}</p>}
-      <form className="cm-project-form" onSubmit={(event) => void submit(event)}>
-        <label>
-          <span>{t('projectCreate.projectTitle')}</span>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={t('projectCreate.projectTitlePlaceholder')} required />
+      <CmPageHeader eyebrowKey="projects.eyebrow" titleKey="projectCreate.title" purposeKey="projectCreate.subtitle" />
+      {!canCreate && <CmNotice notice={{ tone: 'info', text: t('projectCreate.noCapability') }} />}
+      <ol className="cm-flow-steps" aria-label={t('projectCreate.flowLabel')}>
+        {(['brief', 'analysis', 'escrow', 'delivery'] as const).map((step, index) => (
+          <li key={step} className={index === 0 ? 'is-current' : ''}>
+            <strong>{index + 1}</strong>
+            <span>{t(`projectCreate.flow.${step}`)}</span>
+          </li>
+        ))}
+      </ol>
+      <form className="cm-project-form" onSubmit={(event) => void submit(event)} noValidate>
+        <label className="is-wide">
+          <CmFieldLabel label={t('projectCreate.projectTitle')} required />
+          <input value={title} maxLength={TITLE_MAX_LENGTH} onChange={(event) => setTitle(event.target.value)} placeholder={t('projectCreate.projectTitlePlaceholder')} aria-invalid={Boolean(showError('title'))} />
+          {showError('title') && <small className="cm-field-error">{showError('title')}</small>}
         </label>
         <label className="is-wide">
-          <span>{t('projectCreate.summary')}</span>
-          <textarea rows={7} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={t('projectCreate.summaryPlaceholder')} required />
+          <CmFieldLabel label={t('projectCreate.summary')} required />
+          <textarea rows={7} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={t('projectCreate.summaryPlaceholder')} aria-invalid={Boolean(showError('description'))} />
+          {showError('description') ? <small className="cm-field-error">{showError('description')}</small> : <small className="cm-field-hint">{t('projectCreate.summaryHint')}</small>}
         </label>
         <label>
-          <span>{t('projectCreate.complexity')}</span>
-          <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
-            {['simple', 'medium', 'complex', 'very_complex'].map((value) => (
-              <option key={value} value={value}>{t(`estimate.complexities.${value}`)}</option>
+          <CmFieldLabel label={t('projectCreate.budget')} required />
+          <input type="number" min={MIN_BUDGET} step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder={t('projectCreate.budgetPlaceholder', { amount: MIN_BUDGET, currency })} aria-invalid={Boolean(showError('budget'))} />
+          {showError('budget') && <small className="cm-field-error">{showError('budget')}</small>}
+        </label>
+        <label>
+          <CmFieldLabel label={t('projectCreate.budgetType')} required />
+          <select value={budgetType} onChange={(event) => setBudgetType(event.target.value)}>
+            {BUDGET_TYPES.map((value) => (
+              <option key={value} value={value}>{t(`projectCreate.budgetTypes.${value}`)}</option>
             ))}
           </select>
         </label>
         <label>
-          <span>{t('projectCreate.budget')}</span>
-          <input type="number" min={100} value={budget} onChange={(event) => setBudget(event.target.value)} required />
-        </label>
-        <label>
-          <span>{t('projectCreate.budgetType')}</span>
-          <select value={budgetType} onChange={(event) => setBudgetType(event.target.value)}>
-            <option value="fixed">{t('projectCreate.budgetFixed')}</option>
-            <option value="hourly">{t('projectCreate.budgetHourly')}</option>
+          <CmFieldLabel label={t('projectCreate.complexity')} required />
+          <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
+            {COMPLEXITIES.map((value) => (
+              <option key={value} value={value}>{t(`estimate.complexities.${value}`)}</option>
+            ))}
           </select>
         </label>
+        <span className="cm-project-form__spacer" aria-hidden="true" />
+        <label>
+          <CmFieldLabel label={t('projectCreate.startDate')} />
+          <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+        </label>
+        <label>
+          <CmFieldLabel label={t('projectCreate.endDate')} />
+          <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} aria-invalid={Boolean(showError('endDate'))} />
+          {showError('endDate') && <small className="cm-field-error">{showError('endDate')}</small>}
+        </label>
+        <h2 className="is-wide">{t('projectCreate.stackTitle')}</h2>
+        {STACK_FIELDS.map((field) => (
+          <label key={field}>
+            <CmFieldLabel label={t(`projectCreate.${field}`)} hint={t('projectCreate.listPlaceholder')} />
+            <input
+              value={stack[field]}
+              onChange={(event) => setStack((current) => ({ ...current, [field]: event.target.value }))}
+              placeholder={t(`projectCreate.placeholders.${field}`)}
+            />
+          </label>
+        ))}
+        {(notice.notice || (submitted && Object.keys(errors).length > 0)) && (
+          <div className="is-wide">
+            <CmNotice notice={notice.notice} onDismiss={notice.clear} />
+            {submitted && Object.keys(errors).length > 0 && <CmNotice notice={{ tone: 'error', text: t('projectCreate.errors.fixFields') }} />}
+          </div>
+        )}
         <div className="cm-project-form__actions">
+          <Link to="/codemart/projects" className="cm-workspace-button">{t('common.cancel')}</Link>
           <button type="submit" className="is-primary" disabled={!canCreate || pending}>
-            {pending ? t('common.loading') : t('projectCreate.submit')}
+            {pending ? t('projectCreate.creating') : t('projectCreate.submit')}
           </button>
         </div>
       </form>

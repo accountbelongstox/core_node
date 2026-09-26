@@ -74,10 +74,22 @@ class TerminalStateRepository:
         assignments: List[Tuple[Dict[str, Any], int, str]] = []
         reconciled_windows: List[Dict[str, Any]] = []
         now = _now_iso()
+        live_windows = [copy.deepcopy(window) for window in windows]
+        window_keys = [
+            self._window_key(platform_name, live_window)
+            for live_window in live_windows
+        ]
+        # Numbers still owned by a live window are never handed to another
+        # window in this pass, whatever order the windows arrive in.
+        live_owned_numbers = {
+            int(records_by_window_key[window_key]["terminal_number"])
+            for window_key in window_keys
+            if window_key in records_by_window_key
+            and str(records_by_window_key[window_key].get("slot_version") or "")
+            == SLOT_VERSION
+        }
 
-        for window in windows:
-            live_window = copy.deepcopy(window)
-            window_key = self._window_key(platform_name, live_window)
+        for live_window, window_key in zip(live_windows, window_keys):
             source_record = records_by_window_key.get(window_key)
             record = (
                 source_record
@@ -91,7 +103,7 @@ class TerminalStateRepository:
             ):
                 terminal_number = self._next_slot_number(
                     records,
-                    claimed_terminal_numbers,
+                    claimed_terminal_numbers | live_owned_numbers,
                     reserved_terminal_numbers,
                     platform_name,
                 )

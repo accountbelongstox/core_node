@@ -700,3 +700,42 @@ That contract is canonical for this new scope. This document's implemented shelf
 progress and playback behavior remains authoritative where the new contract
 explicitly reuses it. The new scope is PLANNED and must not be treated as
 implemented until its acceptance audit is recorded in the canonical cross-doc.
+
+---
+
+## 7. Orchestrated audio — home entry, listing, player (2026-09-27, R9)
+
+Requirement and cross-stack record:
+`docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`
+(R9, "W5 contract", "W6 implementation record"). Data: Laravel read API
+`GET /api/app_qy_v1/orch_audio/tasks[/{id}]` (sanctum).
+
+- Home: "Orchestrated Audio" card in the labs grid (`WfNewHomeLabCard`, shared by
+  all five lab cards) opens tab `orch-audio`.
+- Routes (`routing/WordNewHashRoutes.ts`): `#/orch-audio[?source=<id>&page=N]`
+  lists items; `#/orch-audio/<task_key>` plays one. `itemRouteTab` is the single
+  rule for tabs that own sub-path/query hashes (`daily-reading`, `orch-audio`).
+- Listing (`components/orch-audio/WordNewOrchAudioListPage.tsx`): source filter
+  chips from the backend `sources` (counts), paged with the shared `WfNewPager`
+  (also used by `WfNewContentListPage`), login prompt when signed out.
+- Player (`WordNewOrchAudioPlayerPage.tsx`, `useOrchAudioPlayback.ts`): one engine,
+  `services/WordNewBookReaderPlayback.ts`, plays both modes: segment mp3s
+  (orchestrated audio) and per-sentence resources, each modeled as a verse list.
+  Repeat off/all/one, speed, prev/next, per-sentence replay (click a sentence),
+  sentence repeats, words-before-sentence (`readWordCardsForSentence`) and
+  translation lines. The audible sentence is highlighted: sentence mode uses the
+  active verse; segment mode uses the per-segment `timeline` (authoritative),
+  and only falls back to a length-weighted estimate
+  (`WordNewArticlePlaybackHighlighter.segmentSentences`) when a segment has none.
+- Sentences load lazily (`useOrchAudioSentencePages.ts`): the page opens on
+  sentence page 1; further pages load when playback nears a page end (engine
+  page advance), when a segment (or its successor) needs its range, and when the
+  list's end sentinel (`hooks/useWfNewLoadMoreSentinel.ts`, shared with the home
+  content grid) scrolls into view.
+- Resources on the same page: original prompt (prompt_rewrite `source_text`),
+  segments strip, task word resources (clip or speech fallback via
+  `playWordClip`), words of the current sentence
+  (`WordNewDailyReadingCurrentSentenceWords`), and sentence rows
+  (`WordNewBookReaderVerseRow`) whose audio state comes from the shared
+  `hooks/useWordNewSentenceAudioCells.ts` (also used by the book reader).
+- Settings persist per device under `wfnew.orchAudio.player`.

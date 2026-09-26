@@ -57,6 +57,10 @@ FRANKENPHP_APT_KEY_PATH="/etc/apt/keyrings/static-php${FRANKENPHP_APT_PHP_VERSIO
 FRANKENPHP_APT_REPO_LINE="deb [signed-by=${FRANKENPHP_APT_KEY_PATH}] https://pkg.henderkes.com/api/packages/${FRANKENPHP_APT_PHP_VERSION}/debian php-zts main"
 FRANKENPHP_APT_SOURCES_FILE="/etc/apt/sources.list.d/static-php${FRANKENPHP_APT_PHP_VERSION}.list"
 FRANKENPHP_APT_PACKAGES=("frankenphp" "php-zts-pgsql" "php-zts-pdo-pgsql" "php-zts-zip" "php-zts-bcmath" "php-zts-intl" "php-zts-sqlite3" "php-zts-gd" "libnss3-tools")
+# phpredis deb for the apt variant; installed only while the Redis extension
+# is desired (fm_php_redis_extension_desired) and kept out of the variant
+# readiness set so a missing optional package never fails the runtime.
+FRANKENPHP_APT_REDIS_PACKAGE="php-zts-redis"
 
 frankenphp_install_mode_normalize() {
     local raw_mode=""

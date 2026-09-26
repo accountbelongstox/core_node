@@ -228,6 +228,32 @@ class AppQyV1ApiInfo
                 "parameters" => ["library_id"]
             ],
 
+            // Vocabulary-library cover tasks (global queue: chrome worker, Laravel AI fallback)
+            [
+                "path" => "/api/app_qy_v1/vocabulary/libraries/cover/tasks",
+                "method" => "POST",
+                "feature" => "Queue Library Cover Tasks",
+                "description" => "Idempotently queue one cover task per library (mode generate = AI image, search = web image search); returns { tasks, skipped }",
+                "auth_required" => false,
+                "parameters" => ["ids", "mode", "prompt"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/libraries/cover/tasks",
+                "method" => "GET",
+                "feature" => "Library Cover Task Status",
+                "description" => "Flat cover state plus the newest cover task per library; ids = comma-separated library ids (max 200)",
+                "auth_required" => false,
+                "parameters" => ["ids"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/libraries/{libraryId}/cover/ai-regenerate",
+                "method" => "POST",
+                "feature" => "Regenerate Library Cover (Synchronous AI)",
+                "description" => "Synchronously regenerate one library cover through the Laravel AI image gateway (prompt cache bypassed)",
+                "auth_required" => false,
+                "parameters" => ["libraryId", "prompt"]
+            ],
+
             // Vocabulary export + document extraction (2026-06-12)
             [
                 "path" => "/api/app_qy_v1/vocabulary/export/{format}",
@@ -519,6 +545,82 @@ class AppQyV1ApiInfo
                 "description" => "Batch generate TTS audio",
                 "auth_required" => true,
                 "parameters" => ["texts", "language", "voice"]
+            ],
+
+            // Pycore delivery: server identity, Laravel-side diff, batch upload.
+            [
+                "path" => "/api/app_qy_v1/delivery/info",
+                "method" => "GET",
+                "feature" => "Delivery Info",
+                "description" => "Server id, diff kinds, limits and resource index status",
+                "auth_required" => false,
+                "parameters" => []
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/diff",
+                "method" => "POST",
+                "feature" => "Delivery Diff",
+                "description" => "Report which inventory items of one kind are missing or stale on this server",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "kind", "items", "session_id", "chunk_index", "chunk_count"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/batch",
+                "method" => "POST",
+                "feature" => "Delivery Batch Manifest",
+                "description" => "Register a batch of small audio items (word_audio, sentence_audio)",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "kind", "items"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/batch/{batch_id}/content",
+                "method" => "POST",
+                "feature" => "Delivery Batch Content",
+                "description" => "offset-v1 upload of the concatenated batch item bytes",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "upload_protocol", "upload_offset", "upload_length", "audio_sha256", "chunk_sha256"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/batch/{batch_id}",
+                "method" => "GET",
+                "feature" => "Delivery Batch Progress",
+                "description" => "Batch processing progress and per-item results",
+                "auth_required" => false,
+                "parameters" => ["machine_id"]
+            ],
+
+            // Pycore audio-orchestration output (ingest + wordnew read API).
+            [
+                "path" => "/api/app_qy_v1/orch_audio/ingest/tasks",
+                "method" => "POST",
+                "feature" => "Orchestrated Audio Task Ingest",
+                "description" => "Idempotent batch upsert of orchestration task metadata keyed by machine_id + task_id + meta_hash",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "tasks"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/ingest/segment-audio",
+                "method" => "POST",
+                "feature" => "Orchestrated Segment Audio Upload",
+                "description" => "offset-v1 resumable upload of one declared segment mp3 (content-addressed, idempotent)",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "task_id", "index", "upload_protocol", "upload_offset", "upload_length", "audio_sha256", "chunk_sha256"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/tasks",
+                "method" => "GET",
+                "feature" => "Orchestrated Audio List",
+                "description" => "Paged orchestrated audio tasks with source filter",
+                "auth_required" => true,
+                "parameters" => ["source", "q", "page", "per_page"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/tasks/{id}",
+                "method" => "GET",
+                "feature" => "Orchestrated Audio Detail",
+                "description" => "Task, segment playlist, sentences and word resources with audio URLs",
+                "auth_required" => true,
+                "parameters" => ["id", "sentence_page", "sentence_per_page"]
             ],
 
             // Third-party image-assist protocol (mcp-chrome, 60-minute lease)

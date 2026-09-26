@@ -9,7 +9,9 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const BUS_NAME = 'org.corenode.PycoreWindowBridge';
 const OBJECT_PATH = '/org/corenode/PycoreWindowBridge';
-const BRIDGE_VERSION = 1;
+const BRIDGE_VERSION = 2;
+const ACTIVATE_POLL_MS = 20;
+const ACTIVATE_TIMEOUT_MS = 500;
 const X11_DESCRIPTION_PATTERN = /^(0x[0-9a-fA-F]+)/;
 const BRIDGE_INTERFACE = `
 <node>
@@ -113,12 +115,21 @@ class PycoreWindowBridge {
         return JSON.stringify(windows);
     }
 
-    Activate(windowId) {
+    ActivateAsync([windowId], invocation) {
         const window = findWindow(windowId);
-        if (!window)
-            return false;
+        if (!window) {
+            invocation.return_value(new GLib.Variant('(b)', [false]));
+            return;
+        }
         Main.activateWindow(window);
-        return global.display.get_focus_window() === window;
+        const deadline = GLib.get_monotonic_time() + ACTIVATE_TIMEOUT_MS * 1000;
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ACTIVATE_POLL_MS, () => {
+            const focused = global.display.get_focus_window() === window;
+            if (!focused && GLib.get_monotonic_time() < deadline)
+                return GLib.SOURCE_CONTINUE;
+            invocation.return_value(new GLib.Variant('(b)', [focused]));
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     PointerClick(x, y, button) {

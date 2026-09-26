@@ -9,6 +9,7 @@ from pycore.pyctl.queue_center.task_center_service import (
     get_local_task_detail,
     set_queue_center_control,
 )
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
     laravel_word_audio_worker,
@@ -70,23 +71,31 @@ def register_local_task_center_routes(server) -> None:
             ),
         }
 
-    def retry_audio_delivery_handler(params, _request_id, _context):
+    def delivery_status_handler(_params, _request_id, _context):
+        return {"success": True, "data": laravel_delivery_outbox.status()}
+
+    def delivery_retry_handler(params, _request_id, _context):
         request = params if isinstance(params, dict) else {}
-        lane = str(request.get("lane") or "all").strip().lower()
-        if lane not in ("all", "word", "sentence"):
-            return {"success": False, "error": "lane must be all, word, or sentence"}
-        result = {"success": True, "lanes": {}}
-        if lane in ("all", "word"):
-            result["lanes"]["word"] = laravel_word_audio_worker.retry_delivery_outbox()
-        if lane in ("all", "sentence"):
-            result["lanes"]["sentence"] = laravel_sentence_audio_worker.retry_delivery_outbox()
-        return result
+        kind = str(request.get("kind") or "").strip()
+        kinds = laravel_delivery_outbox.kinds()
+        if kind and kind not in kinds:
+            return {"success": False, "error": "unknown delivery kind"}
+        retried = {name: laravel_delivery_outbox.retry_dead_letters(name) for name in ([kind] if kind else kinds)}
+        if request.get("reconcile"):
+            namespace = str(request.get("namespace") or "").strip()
+            if namespace:
+                laravel_delivery_outbox.reconcile(namespace, kinds=[kind] if kind else None)
+            else:
+                laravel_delivery_outbox.reconcile_reachable()
+        laravel_delivery_outbox.kick(kind or None)
+        return {"success": True, "retried": retried, "data": laravel_delivery_outbox.status()}
 
     routes = (
         (route_names.UI_QUEUE_CENTER_SNAPSHOT, snapshot_handler),
         (route_names.UI_QUEUE_CENTER_AUDIO_LANE_STATE, audio_lane_state_handler),
         (route_names.UI_QUEUE_CENTER_EVENT_PAGE, event_page_handler),
-        (route_names.UI_QUEUE_CENTER_RETRY_AUDIO_DELIVERY, retry_audio_delivery_handler),
+        (route_names.UI_LARAVEL_DELIVERY_STATUS, delivery_status_handler),
+        (route_names.UI_LARAVEL_DELIVERY_RETRY, delivery_retry_handler),
         (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),
         (route_names.UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL, local_detail_handler),
     )

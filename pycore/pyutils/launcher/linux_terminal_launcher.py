@@ -57,6 +57,7 @@ import time
 from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyutils.launcher.linux_desktop_user import root_terminal_env
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
 
@@ -138,21 +139,7 @@ class LinuxTerminalLauncher:
         root child cannot write. env_extra (e.g. the Wayland X11-backend vars)
         is merged last so it always wins.
         """
-        env = dict(os.environ)
-        try:
-            is_root = os.geteuid() == 0
-        except AttributeError:
-            is_root = False
-        if is_root:
-            address = env.get("DBUS_SESSION_BUS_ADDRESS", "")
-            if address and "/run/user/0/" not in address:
-                env.pop("DBUS_SESSION_BUS_ADDRESS", None)
-            runtime_dir = env.get("XDG_RUNTIME_DIR", "")
-            if runtime_dir and runtime_dir.rstrip("/") != "/run/user/0":
-                env.pop("XDG_RUNTIME_DIR", None)
-        if env_extra:
-            env.update(env_extra)
-        return env
+        return root_terminal_env(env_extra)
 
     # ------------------------------------------------------------------ #
     # Public surface (mirrors WindowsTerminalLauncher.launch_windows)

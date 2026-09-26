@@ -1,25 +1,20 @@
 /**
  * Shared reactive Laravel API base URL for all popup panels.
- * Stays in sync with the header EndpointDropdown via ApiManager + storage.
+ * ApiManager follows `api_settings` in every context; this ref mirrors it.
  */
 
 import { ref } from 'vue';
-import { apiManager } from '@/services/ApiManager';
-import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { apiManager, getApiBase } from '@/services/ApiManager';
 
-const API_SETTINGS_KEY = STORAGE_KEYS.API_SETTINGS;
-const APP_SETTINGS_KEY = STORAGE_KEYS.APP_SETTINGS;
-
-/** Module-level ref — every useApiEndpoint() consumer shares the same value. */
+/** Module-level ref — every useApiEndpoint() consumer shares the same value (no trailing slash). */
 const apiBaseUrl = ref('');
 
 let globalSyncReady = false;
 
 export async function syncApiEndpoint(): Promise<string> {
   await apiManager.initialize({ autoDetect: false });
-  const url = apiManager.getCurrentBaseUrl();
-  apiBaseUrl.value = url;
-  return url;
+  apiBaseUrl.value = getApiBase();
+  return apiBaseUrl.value;
 }
 
 function ensureGlobalSync(): void {
@@ -27,17 +22,8 @@ function ensureGlobalSync(): void {
   globalSyncReady = true;
 
   apiManager.onEndpointChange(() => {
-    apiBaseUrl.value = apiManager.getCurrentBaseUrl();
+    apiBaseUrl.value = getApiBase();
   });
-
-  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local') return;
-      if (changes[API_SETTINGS_KEY] || changes[APP_SETTINGS_KEY]) {
-        void syncApiEndpoint();
-      }
-    });
-  }
 
   void syncApiEndpoint();
 }
@@ -45,11 +31,8 @@ function ensureGlobalSync(): void {
 export function useApiEndpoint() {
   ensureGlobalSync();
 
-  const apiBaseNormalized = (): string => apiBaseUrl.value.replace(/\/+$/, '');
-
   return {
     apiBaseUrl,
     syncApiEndpoint,
-    apiBaseNormalized,
   };
 }

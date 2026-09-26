@@ -16,7 +16,7 @@
 # =============================================================================
 # Synopsis: Launches Claude Code via Alibaba Cloud Model Studio (Bailian /
 #     DashScope) Anthropic-compatible endpoint with a Qwen model forced into
-#     every slot, and experimental agent teams + ultracode force-enabled
+#     every slot, and experimental agent teams force-enabled
 #     (like claudeteam).
 # Notes:
 #     - API key is read from .secret_keys/.secret_ignore/DASHSCOPE_API_KEY_1,
@@ -34,7 +34,7 @@
 #         * Token Plan:    https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic
 #             model qwen3.6-plus (dedicated Token Plan API Key)
 #       Source: https://help.aliyun.com/en/model-studio/claude-code
-#     - team + ultracode are always on; --dangerously-skip-permissions is added
+#     - team is always on; --dangerously-skip-permissions is added
 #       for non-root only (root is refused that flag by Claude Code).
 # =============================================================================
 
@@ -44,7 +44,6 @@ set -e
 ALI_BASE_URL=""
 ALI_API_KEY=""
 ALI_MODEL="qwen3.6-plus"
-ultra_settings_json='{"ultracode":true}'
 claude_args=()
 DASHSCOPE_API_KEY=""
 DASHSCOPE_ANTHROPIC_BASE_URL=""
@@ -66,7 +65,7 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
 
 echo ""
 echo "============================================================"
-echo "Claude AI (Alibaba Model Studio / Qwen) - v4 [qwen + team + ultracode]"
+echo "Claude AI (Alibaba Model Studio / Qwen) - v4 [qwen + team]"
 echo "============================================================"
 echo ""
 
@@ -147,7 +146,6 @@ export ANTHROPIC_DEFAULT_SONNET_MODEL="$ALI_MODEL"
 echo "API Endpoint: $ANTHROPIC_BASE_URL"
 echo "Model: $ANTHROPIC_MODEL (forced: main + subagents + background)"
 echo "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)"
-echo "Ultracode: --settings $ultra_settings_json (force-enabled)"
 
 if [ -z "$DASHSCOPE_API_KEY" ]; then
     echo ""
@@ -171,16 +169,18 @@ fi
 echo "============================================================"
 echo ""
 
-# Build claude args: ultracode settings always on; skip-permissions for non-root
+# Build claude args: skip-permissions for non-root
 # (root already has full permissions and Claude Code refuses that flag as root).
-claude_args+=(--settings "$ultra_settings_json")
+ai_cli_ultracode_prompt
+claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
+
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
 fi
 
 # Launch tool
 echo "============================================================"
-echo "Press Enter to start Claude AI (Alibaba Model Studio) [qwen + team + ultracode]..."
+echo "Press Enter to start Claude AI (Alibaba Model Studio) [qwen + team]..."
 echo "============================================================"
 read -p "Press Enter to continue..."
 

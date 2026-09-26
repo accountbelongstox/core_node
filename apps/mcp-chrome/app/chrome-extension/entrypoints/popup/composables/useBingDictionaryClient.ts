@@ -3,7 +3,7 @@
  * Handles client service control and configuration (under 200 lines)
  */
 
-import { ref, onUnmounted, watch } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
@@ -22,8 +22,8 @@ export type ServiceMode = 'legacy' | 'worker';
 // Where the last scrape-test results are cached (visible again on reopen).
 const SCRAPE_CACHE_KEY = 'scrape_test_results';
 
+/** Worker settings only: the API base always comes from the global endpoint (api_settings). */
 export interface ClientConfig {
-  apiUrl: string;
   fetchInterval: number;
   batchSize: number;
   mode?: ServiceMode;
@@ -63,7 +63,6 @@ export interface ClientServiceState {
 export function useBingDictionaryClient() {
   const clientMode = ref(false);
   const clientConfig = ref<ClientConfig>({
-    apiUrl: '',
     fetchInterval: 5,  // Default 5 seconds for real-time updates
     batchSize: 10,
     mode: 'worker', // Default to Worker API mode
@@ -82,17 +81,8 @@ export function useBingDictionaryClient() {
   });
 
   // The worker pulls the untranslated queue from laravel_main using the SINGLE
-  // endpoint configured in the header EndpointDropdown (shared useApiEndpoint).
+  // endpoint configured in the header EndpointDropdown; the background resolves it.
   const { apiBaseUrl: currentEndpoint } = useApiEndpoint();
-
-  watch(
-    currentEndpoint,
-    (url) => {
-      const normalized = (url || '').replace(/\/+$/, '');
-      clientConfig.value.apiUrl = normalized;
-    },
-    { immediate: true },
-  );
 
   // Ad-hoc Bing scrape test (default word "hello").
   const testWords = ref('hello');
@@ -136,9 +126,9 @@ export function useBingDictionaryClient() {
   // Fetch ONE page of the untranslated/pending queue from laravel_main (via the
   // worker service). Called on Start (page 1) and by the pager.
   const loadQueueOverview = async (page = 1) => {
-    if (!clientConfig.value.apiUrl) {
-      queueOverview.value.error = 'No endpoint configured in Settings';
-      connectionStatus.value = { state: 'fail', message: 'No endpoint configured in Settings' };
+    if (!currentEndpoint.value) {
+      queueOverview.value.error = getMessage('noEndpointConfigured');
+      connectionStatus.value = { state: 'fail', message: getMessage('noEndpointConfigured') };
       return;
     }
     const target = Math.max(1, Math.floor(page) || 1);
@@ -201,9 +191,7 @@ export function useBingDictionaryClient() {
   // sanitation so unreasonable values can't reach the worker.
   const updateConfig = async (field: string, value: any) => {
     let next = value;
-    if (field === 'apiUrl' && typeof value === 'string') {
-      next = value.trim().replace(/\/+$/, '');
-    } else if (field === 'tabCount') {
+    if (field === 'tabCount') {
       const n = Number(value);
       next = Number.isFinite(n) ? Math.max(1, Math.min(8, Math.round(n))) : 3;
     } else if (field === 'batchSize') {
@@ -218,10 +206,6 @@ export function useBingDictionaryClient() {
       next = value.trim().toLowerCase();
     }
     (clientConfig.value as any)[field] = next;
-    // Editing the endpoint invalidates a previous connection test.
-    if (field === 'apiUrl') {
-      connectionStatus.value = { state: 'idle', message: '' };
-    }
     await saveClientConfig();
     // Real-time settings: when the worker is running, push the change so it takes
     // effect live (no stop/restart). Debounced so dragging a number input doesn't
@@ -252,13 +236,11 @@ export function useBingDictionaryClient() {
     }, 400);
   };
 
-  const applyStoredConfig = (stored?: Partial<ClientConfig>) => {
+  const applyStoredConfig = (stored?: Partial<ClientConfig> & { apiUrl?: string }) => {
     if (!stored) return;
-    const next = {
-      ...clientConfig.value,
-      ...stored,
-      apiUrl: currentEndpoint.value.replace(/\/+$/, ''),
-    };
+    // A legacy persisted apiUrl is ignored; the next save drops it.
+    const { apiUrl: _legacyApiUrl, ...settings } = stored;
+    const next = { ...clientConfig.value, ...settings };
     if (JSON.stringify(next) === JSON.stringify(clientConfig.value)) return;
     clientConfig.value = next;
     pushLiveConfig();
@@ -274,8 +256,8 @@ export function useBingDictionaryClient() {
 
   // Ping the endpoint configured in Settings so the user gets reachability feedback.
   const testConnection = async () => {
-    if (!clientConfig.value.apiUrl) {
-      connectionStatus.value = { state: 'fail', message: 'No endpoint configured in Settings' };
+    if (!currentEndpoint.value) {
+      connectionStatus.value = { state: 'fail', message: getMessage('noEndpointConfigured') };
       return;
     }
     connectionStatus.value = { state: 'testing', message: 'Testing…' };

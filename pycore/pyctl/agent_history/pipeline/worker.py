@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import base64
-import threading
 import time
 import traceback
 from typing import Any, Dict, List, Optional
@@ -9,7 +8,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
-    start_bus_task,
 )
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
@@ -27,15 +25,9 @@ from pycore.pyctl.agent_history.pipeline.article_stages import (
 )
 from pycore.pyctl.agent_history.pipeline.audio_stage import advance_audio_synthesis
 from pycore.pyctl.agent_history.pipeline import audio_rebuild
-from pycore.pyctl.agent_history.pipeline.laravel_stage import (
-    replace_audio_on_laravel,
-    upload_to_laravel,
-)
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
 from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
 import pycore.pyutils.agent_history.article_records as records
-
-_UPLOAD_TICK_RUNNING = threading.Event()
 
 class _RunGate:
     """Own the pipeline run token on one THREAD_BUS-backed state thread."""
@@ -260,133 +252,6 @@ def _fail_item(item, error: Exception, op_service: Any) -> None:
         message=f"Item failed [{error_code}]: {err}",
     )
 
-def _piggyback_upload_tick() -> None:
-    """Advance one minimum step in each Laravel delivery lane.
-
-    Two ordered halves, each record one independent idempotent step (one
-    record's failure never affects the next):
-      1. full submits - generated articles whose upload never succeeded
-         (network reset, endpoint down at stage 5). Retried from the saved
-         record - no regeneration, no extra OpenRouter request. A submit
-         stamps ``uploaded`` and, for already multi-sentence audio,
-         ``rebuild_uploaded`` (Laravel now serves that audio).
-      2. audio replacements - published records whose regenerated
-         multi-sentence audio has not replaced the legacy bytes yet
-         (``rebuild_uploaded`` unset). Stamps ``rebuild_uploaded``.
-
-    Each failed record owns its retry counter and bounded backoff. A failure
-    therefore defers only that record and cannot block later audio forever."""
-    if not laravel_endpoint_manager.resolve():
-        return
-    _drain_initial_uploads()
-    _drain_rebuild_uploads()
-
-
-def tick_upload() -> None:
-    """Advance deferred Laravel delivery independently from local generation."""
-    cfg = get_config()
-    if not cfg.get("enabled") or not cfg.get("extract_as_article"):
-        return
-    if _UPLOAD_TICK_RUNNING.is_set():
-        return
-    _UPLOAD_TICK_RUNNING.set()
-    try:
-        start_bus_task(_run_upload_tick, thread_name="agent-history-upload")
-    except Exception:
-        _UPLOAD_TICK_RUNNING.clear()
-
-
-def _run_upload_tick() -> None:
-    try:
-        _piggyback_upload_tick()
-    finally:
-        _UPLOAD_TICK_RUNNING.clear()
-
-
-def _drain_initial_uploads() -> None:
-    try:
-        pending = records.pending_uploads()
-    except Exception:  # noqa: BLE001 - lane must never break the tick
-        return
-    record = pending[0] if pending else None
-    if not isinstance(record, dict):
-        return
-    record_id = str(record.get("id") or "")
-    if not record_id:
-        return
-    try:
-        audio_bytes = records.read_audio(record_id)
-        audio: Dict[str, Any] = {}
-        if audio_bytes:
-            audio["audio_base64"] = base64.b64encode(audio_bytes).decode("ascii")
-            audio["engine"] = record.get("tts_engine") or "local"
-            audio["model"] = record.get("tts_model")
-            audio["chunked"] = bool(record.get("tts_chunked"))
-        laravel_data = upload_to_laravel(
-            {
-                "title_en": record.get("title_en"),
-                "title_cn": record.get("title_cn"),
-                "reference_cn": record.get("reference_cn"),
-                "article_en": record.get("article_en"),
-            },
-            audio,
-            "",
-            record_id,
-        )
-        records.mark_uploaded(record_id, laravel_data)
-        ColorPrint.green(
-            f"[AgentHistoryPipeline] deferred upload succeeded for record {record_id}: "
-            f"{laravel_data.get('article_id')}"
-        )
-    except Exception as exc:  # noqa: BLE001 - defer only this record
-        records.mark_upload_failed(record_id, str(exc))
-        ColorPrint.gray(f"[AgentHistoryPipeline] upload retry deferred ({record_id}): {exc}")
-
-
-def _drain_rebuild_uploads() -> None:
-    try:
-        pending = records.pending_rebuild_uploads()
-    except Exception:  # noqa: BLE001 - lane must never break the tick
-        return
-    record = pending[0] if pending else None
-    if not isinstance(record, dict):
-        return
-    record_id = str(record.get("id") or "")
-    if not record_id:
-        return
-    try:
-        audio_bytes = records.read_audio(record_id) or b""
-        if not audio_bytes:
-            # The local multi-sentence file is gone - clear the marker so
-            # the rebuild lane regenerates the record instead of the
-            # upload lane retrying an impossible delivery forever.
-            records.clear_rebuild_marker(record_id)
-            return
-        laravel_data = replace_audio_on_laravel(
-            record,
-            audio_bytes,
-        )
-        if laravel_data.get("writeback_pending"):
-            # Laravel has durably accepted the idempotent replacement receipt;
-            # its FrankenPHP writeback continues asynchronously. Mark the
-            # local step complete now so the scheduler does not upload the same
-            # bytes again on every tick.
-            records.mark_rebuild_uploaded(record_id, laravel_data)
-            ColorPrint.gray(
-                f"[AgentHistoryPipeline] rebuilt audio durably accepted by Laravel "
-                f"for record {record_id}; publication is finalizing asynchronously"
-            )
-            return
-        records.mark_rebuild_uploaded(record_id, laravel_data)
-        ColorPrint.green(
-            f"[AgentHistoryPipeline] rebuilt audio replaced on Laravel for record {record_id}: "
-            f"{laravel_data.get('article_id')}"
-        )
-    except Exception as exc:  # noqa: BLE001 - defer only this record
-        records.mark_rebuild_upload_failed(record_id, str(exc))
-        ColorPrint.gray(f"[AgentHistoryPipeline] rebuild upload deferred ({record_id}): {exc}")
-
-
 def _is_item_terminal(item) -> bool:
     """Terminal = done/skipped/cancelled, or failed past the retry cap."""
     if item.status in ("succeeded", "skipped", "cancelled"):
@@ -517,10 +382,12 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         }, audio_bytes)
         
         checkpoint["record_id"] = record["id"]
+        agent_history_delivery.enqueue_record(record["id"])
         op_service.transition_item(item.id, "running", "uploading_laravel", 0.8, checkpoint_json=checkpoint)
         
-    # Stage 5: local completion. Laravel delivery is an independent heartbeat
-    # lane, so an offline backend never gates article or audio generation.
+    # Stage 5: local completion. Laravel delivery is the shared durable
+    # outbox (pipeline/delivery.py), so an offline backend never gates
+    # article or audio generation.
     if item.stage == "uploading_laravel":
         op_service.transition_item(
             item.id,
@@ -539,4 +406,4 @@ def count_words(text: str) -> int:
     return len([w for w in text.split() if w.strip()])
 
 
-__all__ = ["recover_nonterminal_operations", "tick_pipeline", "tick_upload"]
+__all__ = ["recover_nonterminal_operations", "tick_pipeline"]

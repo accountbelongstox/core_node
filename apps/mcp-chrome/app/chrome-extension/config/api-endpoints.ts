@@ -37,7 +37,6 @@ const ENDPOINT_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const DEFAULT_API_HOST = [...LARAVEL_API_LABELS.map((label) => label === '{region}' ? DEFAULT_REGION : label), DEFAULT_ROOT_DOMAIN].join('.');
-export const DEFAULT_API_BASE_URL = `https://${DEFAULT_API_HOST}`;
 
 export const API_ENDPOINTS: ApiEndpoint[] = [
   {

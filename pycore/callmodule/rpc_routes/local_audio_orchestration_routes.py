@@ -42,6 +42,20 @@ def register_local_audio_orchestration_routes(server) -> None:
     def task_create(params, request_id, context):
         return orch_service.task_create(params or {})
 
+    def tasks_list(params, request_id, context):
+        return orch_service.tasks_list(str((params or {}).get("source") or ""))
+
+    def task_submit_text(params, request_id, context):
+        source_ref = params.get("source_ref")
+        return orch_service.submit_text_task(
+            str(params.get("source") or ""),
+            params.get("items"),
+            name=str(params.get("name") or ""),
+            source_ref=source_ref if isinstance(source_ref, dict) else None,
+            generate=params.get("generate") is not False,
+            source_text=str(params.get("source_text") or ""),
+        )
+
     def task_update(params, request_id, context):
         patch = dict(params or {})
         task_id = str(patch.pop("task_id", "") or "")
@@ -100,9 +114,10 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_AUTH_LOGOUT, auth_logout),
         (route_names.UI_AUDIO_ORCH_AUTH_GROUPS, auth_groups),
         (route_names.UI_AUDIO_ORCH_AUTH_SELECT_GROUP, auth_select_group),
-        (route_names.UI_AUDIO_ORCH_TASKS_LIST, orch_service.tasks_list),
+        (route_names.UI_AUDIO_ORCH_TASKS_LIST, tasks_list),
         (route_names.UI_AUDIO_ORCH_TASK_GET, task_get),
         (route_names.UI_AUDIO_ORCH_TASK_CREATE, task_create),
+        (route_names.UI_AUDIO_ORCH_TASK_SUBMIT_TEXT, task_submit_text),
         (route_names.UI_AUDIO_ORCH_TASK_UPDATE, task_update),
         (route_names.UI_AUDIO_ORCH_TASK_DELETE, task_delete),
         (route_names.UI_AUDIO_ORCH_TASK_PLAN, task_plan),

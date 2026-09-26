@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
+import { resolveApiBase } from '@/services/ApiManager';
 
 const LOG = 'Puter Listener';
 
@@ -29,13 +30,10 @@ async function handleMessage(
 ) {
   switch (message.action) {
     case 'start': {
-      if (!message.config?.apiUrl) {
-        return { success: false, error: 'apiUrl is required' };
-      }
       await puterTranslateWorkerService.start({
-        apiUrl: message.config.apiUrl,
-        workerName: message.config.workerName || 'MCP Chrome Puter AI Worker',
-        batchSize: message.config.batchSize ?? 3,
+        apiUrl: await resolveApiBase(),
+        workerName: message.config?.workerName || 'MCP Chrome Puter AI Worker',
+        batchSize: message.config?.batchSize ?? 3,
       });
       return { success: true, message: 'Puter translate worker started' };
     }

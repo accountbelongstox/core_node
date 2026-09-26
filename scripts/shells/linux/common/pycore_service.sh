@@ -110,21 +110,9 @@ pycore_resolve_user() {
 # XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS into the unit. create_systemd_service
 # turns leading KEY=VALUE pairs of the exec command into Environment= lines.
 pycore_build_exec_start() {
-    local uid="" runtime_dir="" prefix=""
-    uid="$(id -u "$PYCORE_SVC_USER" 2>/dev/null || true)"
-    runtime_dir="/run/user/${uid}"
-    if [ -n "$uid" ] && [ -S "${runtime_dir}/bus" ]; then
-        prefix="XDG_RUNTIME_DIR=${runtime_dir} DBUS_SESSION_BUS_ADDRESS=unix:path=${runtime_dir}/bus"
-        if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-            prefix="$prefix WAYLAND_DISPLAY=${WAYLAND_DISPLAY}"
-        elif [ -S "${runtime_dir}/wayland-0" ]; then
-            prefix="$prefix WAYLAND_DISPLAY=wayland-0"
-        fi
-        if [ -n "${DISPLAY:-}" ]; then
-            prefix="$prefix DISPLAY=${DISPLAY}"
-        elif [ -e /tmp/.X11-unix/X0 ]; then
-            prefix="$prefix DISPLAY=:0"
-        fi
+    local prefix=""
+    prefix="$(systemd_desktop_session_env "$PYCORE_SVC_USER")"
+    if [ -n "$prefix" ]; then
         echo "[pycore-service] Desktop session detected for '$PYCORE_SVC_USER'; unit gets session env (tray enabled)."
     fi
     if [ -n "$prefix" ]; then

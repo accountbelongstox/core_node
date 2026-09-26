@@ -23,7 +23,7 @@
     "dev:shared": "bun run --filter chrome-mcp-shared dev",
     "dev:native": "bun run --filter mcp-chrome-bridge dev",
     "dev:extension": "bun run --filter chrome-mcp-server dev",
-    "dev": "bun run --filter chrome-mcp-shared build && (trap 'kill $(jobs -p) 2>/dev/null' EXIT INT TERM; bun run dev:shared & bun run dev:native & bun run dev:extension & wait)",
+    "dev": "node scripts/dev-watch.mjs",
     "register:local": "node scripts/register-local-dev.cjs",
     "unregister:local": "node scripts/unregister-local-dev.cjs",
     "setup:local": "bun run build:all && bun run register:local",

@@ -4,14 +4,14 @@
  * Under 200 lines
  */
 
-import { ref, onUnmounted, watch } from 'vue';
-import { apiManager, getApiBase } from '@/services/ApiManager';
+import { ref, onUnmounted } from 'vue';
+import { currentApiClient, getApiBase } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
+import { WorkerApiClient } from '@/entrypoints/background/api/WorkerApiClient';
 import { logger } from '@/utils/logger';
 import { getMessage } from '@/utils/i18n';
 import { formatTimestamp } from '@/utils/time-helpers';
 import type { CapabilityKey } from '@/utils/task-capabilities';
-import { taskPath } from '@/utils/api-paths';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { LANES } from '@/utils/task-center-lanes';
 import type {
@@ -21,12 +21,14 @@ import type {
 } from '@/utils/queue-center-contract';
 import { TERMINAL_TASK_STATUSES } from '@/utils/queue-center-contract';
 import { queueCenterWakeService } from '@/entrypoints/background/services/task-center/QueueCenterWakeService';
-import { AsyncOperationController, fetchWithTimeout, IntervalController } from '@/utils/async';
+import { AsyncOperationController, IntervalController } from '@/utils/async';
 // Canonical control-protocol types + message constants (shared with background).
 import {
   TASK_CENTER_MSG,
   TASK_CENTER_DEFAULTS,
+  toTaskCenterSettings,
   type TaskCenterConfig,
+  type TaskCenterSettings,
   type TaskCenterStats,
   type ProcessorStatus,
   type BackendHealth,
@@ -58,12 +60,18 @@ export interface TaskStreamHandle {
   close: () => void;
 }
 
+/** The one popup task-detail read: WorkerApiClient.getTaskDetail on the current endpoint. */
+export async function loadTaskDetail(taskId: string): Promise<TaskStreamBundle | null> {
+  const response = await currentApiClient(WorkerApiClient).getTaskDetail(taskId);
+  const data = (response?.data ?? response) as TaskStreamBundle | null;
+  return data?.task ? data : null;
+}
+
 /**
  * Subscribe to shared Queue Center wakes and reconcile one bounded detail row.
  */
 export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandlers): TaskStreamHandle {
   const refreshOperation = new AsyncOperationController<void>();
-  const apiBase = getApiBase().replace(/\/+$/, '');
   let closed = false;
   let unsubscribe: (() => void) | null = null;
 
@@ -71,15 +79,8 @@ export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandle
     if (closed) return Promise.resolve();
     return refreshOperation.run(async () => {
       try {
-        const response = await fetchWithTimeout(
-          `${apiBase}${taskPath(taskId, 'detail')}`,
-          10000,
-          { headers: { 'Cache-Control': 'no-cache' } },
-        );
-        if (!response.ok) throw new Error(`Task detail HTTP ${response.status}`);
-        const json = await response.json();
-        const data = (json?.data ?? json) as TaskStreamBundle;
-        if (closed || !data?.task) return;
+        const data = await loadTaskDetail(taskId);
+        if (closed || !data) return;
         handlers.onInitial?.(data);
         if (TERMINAL_TASK_STATUSES.includes(data.task.status)) {
           closed = true;
@@ -94,7 +95,7 @@ export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandle
     });
   };
 
-  unsubscribe = queueCenterWakeService.subscribe(apiBase, () => { void refresh(); });
+  unsubscribe = queueCenterWakeService.subscribe(getApiBase(), () => { void refresh(); });
   void refresh();
 
   return {
@@ -129,13 +130,13 @@ export interface TaskCenterState {
 
 export function useTaskCenter() {
   const isStarting = ref(false);
+  // Display only: the background resolves the API base and re-points running
+  // workers itself when the endpoint changes.
   const { apiBaseUrl } = useApiEndpoint();
-  const config = ref<TaskCenterConfig>({
-    apiUrl: '',
+  const config = ref<TaskCenterSettings>({
     pollInterval: TASK_CENTER_DEFAULTS.pollInterval,
     processors: {
-      bing_dictionary: {
-        apiUrl: '',
+      [LANES.BING_DICTIONARY]: {
         pollInterval: TASK_CENTER_DEFAULTS.pollInterval,
         batchSize: TASK_CENTER_DEFAULTS.batchSize,
       },
@@ -149,17 +150,7 @@ export function useTaskCenter() {
     activeCapabilities: [],
   });
   const error = ref('');
-  let endpointRequestVersion = 0;
-  let endpointRequestQueue: Promise<void> = Promise.resolve();
   let startRequestVersion = 0;
-
-  watch(apiBaseUrl, (url) => {
-    if (!url) return;
-    config.value.apiUrl = url;
-    if (config.value.processors?.bing_dictionary) {
-      config.value.processors.bing_dictionary.apiUrl = url.replace(/\/+$/, '');
-    }
-  }, { immediate: true });
 
   const statsPolling = new IntervalController();
 
@@ -167,7 +158,9 @@ export function useTaskCenter() {
 
   const saveConfig = async () => {
     try {
-      await chrome.storage.local.set({ [STORAGE_KEYS.TASK_CENTER_CONFIG]: config.value });
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.TASK_CENTER_CONFIG]: toTaskCenterSettings(config.value),
+      });
       logger.debug(LOG, 'Config saved');
     } catch (err) {
       logger.error(LOG, 'Failed to save config', err);
@@ -178,7 +171,11 @@ export function useTaskCenter() {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.TASK_CENTER_CONFIG);
       if (result[STORAGE_KEYS.TASK_CENTER_CONFIG]) {
-        config.value = { ...config.value, ...result[STORAGE_KEYS.TASK_CENTER_CONFIG] };
+        // A legacy persisted apiUrl is ignored; the next save drops it.
+        config.value = toTaskCenterSettings({
+          ...config.value,
+          ...result[STORAGE_KEYS.TASK_CENTER_CONFIG],
+        });
       }
     } catch (err) {
       logger.error(LOG, 'Failed to load config', err);
@@ -188,13 +185,11 @@ export function useTaskCenter() {
   const loadRuntimeProcessorSettings = async () => {
     const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG);
     const stored = (result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG] || {}) as StoredBingWorkerConfig;
-    const apiUrl = config.value.apiUrl.replace(/\/+$/, '');
-    const current = config.value.processors?.[LANES.BING_DICTIONARY] || { apiUrl };
+    const current = config.value.processors?.[LANES.BING_DICTIONARY] || {};
     config.value.processors = {
       ...(config.value.processors || {}),
       [LANES.BING_DICTIONARY]: {
         ...current,
-        apiUrl,
         pollInterval: Math.max(
           1,
           Math.min(3600, Math.round(Number(stored.fetchInterval) || TASK_CENTER_DEFAULTS.pollInterval)),
@@ -220,8 +215,6 @@ export function useTaskCenter() {
     isStarting.value = true;
     try {
       error.value = '';
-      await apiManager.initialize({ autoDetect: false });
-      config.value.apiUrl = apiManager.getCurrentBaseUrl();
       await loadRuntimeProcessorSettings();
       await saveConfig();
       const response = await chrome.runtime.sendMessage({
@@ -281,48 +274,6 @@ export function useTaskCenter() {
     }
   };
 
-  const reconfigureTaskCenter = async () => {
-    if (!state.value.isRunning) return;
-    try {
-      error.value = '';
-      await loadRuntimeProcessorSettings();
-      await saveConfig();
-      const response = await chrome.runtime.sendMessage({
-        type: TASK_CENTER_MSG,
-        action: 'reconfigure',
-        config: {
-          ...config.value,
-          processors: { ...(config.value.processors || {}) },
-          activeCapabilities: [...state.value.activeCapabilities],
-        },
-      });
-      if (!response?.success) {
-        error.value = response?.error || getMessage('endpointSwitchFailed');
-        logger.error(LOG, 'Endpoint reconfiguration failed', response?.error);
-      }
-      await loadState();
-    } catch (err: any) {
-      error.value = err?.message || getMessage('endpointSwitchFailed');
-      logger.error(LOG, 'Endpoint reconfiguration error', err);
-      await loadState();
-    }
-  };
-
-  watch(apiBaseUrl, (url) => {
-    const next = String(url || '').replace(/\/+$/, '');
-    const active = String(state.value.activeApiUrl || '').replace(/\/+$/, '');
-    if (!next || !state.value.isRunning || (active && next === active)) return;
-
-    const version = ++endpointRequestVersion;
-    endpointRequestQueue = endpointRequestQueue.then(async () => {
-      if (version !== endpointRequestVersion) return;
-      await reconfigureTaskCenter();
-    });
-    endpointRequestQueue = endpointRequestQueue.catch((err) => {
-      logger.error(LOG, 'Queued endpoint reconfiguration failed', err);
-    });
-  });
-
   const loadState = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
@@ -358,18 +309,7 @@ export function useTaskCenter() {
     // the true state; resume the live poll whenever the center is running (the
     // background run-intent, not a popup flag, is the source of truth now).
     await loadConfig();
-    if (apiBaseUrl.value) {
-      config.value.apiUrl = apiBaseUrl.value;
-      if (config.value.processors?.[LANES.BING_DICTIONARY]) {
-        config.value.processors[LANES.BING_DICTIONARY].apiUrl = apiBaseUrl.value.replace(/\/+$/, '');
-      }
-    }
     await loadState();
-    const selectedApiUrl = config.value.apiUrl.replace(/\/+$/, '');
-    const activeApiUrl = String(state.value.activeApiUrl || '').replace(/\/+$/, '');
-    if (state.value.isRunning && activeApiUrl && selectedApiUrl && activeApiUrl !== selectedApiUrl) {
-      await reconfigureTaskCenter();
-    }
     if (state.value.isRunning) {
       startStatsPolling();
     }
@@ -381,6 +321,7 @@ export function useTaskCenter() {
 
   return {
     isStarting,
+    apiBaseUrl,
     config,
     state,
     error,

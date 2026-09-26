@@ -28,6 +28,9 @@ RED='\033[31m'
 GREEN='\033[32m'
 NC='\033[0m'
 DIRECTORY_EMPTY=false
+# interactive = ask here; defer = record PROJECT_RESTORE_PENDING in the var
+# store for dd.sh's single pre-menu confirmation; restore = already confirmed.
+PROJECT_VALIDATOR_MODE="${PROJECT_VALIDATOR_MODE:-interactive}"
 
 # Simple output functions
 log() {
@@ -218,9 +221,17 @@ restore_project() {
     if [ "$DIRECTORY_EMPTY" = true ]; then
         warning "Project directory is empty or doesn't exist: $project_root"
 
-        # Ask user for confirmation
-        echo -e "${YELLOW}Do you want to restore the project from the repository? (y/n): ${NC}"
-        prompt_read_default response "n" 30
+        if [ "$PROJECT_VALIDATOR_MODE" = "defer" ]; then
+            set_global_var "PROJECT_RESTORE_PENDING" "$project_root" "false"
+            warning "Project restore is queued for confirmation before the menu"
+            return 0
+        fi
+        if [ "$PROJECT_VALIDATOR_MODE" = "restore" ]; then
+            response="y"
+        else
+            echo -e "${YELLOW}Do you want to restore the project from the repository? (y/n): ${NC}"
+            prompt_read_default response "n" 30
+        fi
 
         if [[ "$response" =~ ^[Yy]$ ]]; then
             log "User confirmed project restoration"
@@ -256,6 +267,7 @@ restore_project() {
 # Adopt an existing project as authoritative: a git working tree OR a tree with
 # package.json is real work -> never restore/re-clone over it (broader than the old
 # package.json+main.js gate, so a transiently-incomplete checkout is not wiped).
+set_global_var "PROJECT_RESTORE_PENDING" "none" "false"
 if [ -d "$CORE_NODE_PROJECT_ROOT" ] && { [ -e "$CORE_NODE_PROJECT_ROOT/.git" ] || [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ]; }; then
     log "Project correctly positioned at: $CORE_NODE_PROJECT_ROOT (adopting; no restore)"
     if [ "${SKIP_PROJECT_PERMISSION_REPAIR:-false}" != "true" ]; then

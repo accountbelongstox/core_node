@@ -1,14 +1,16 @@
 /**
- * Shared Gemini web image generation (start -> status poll), extracted from
- * GeminiImageWorkerService so other workers (the media-image cover lane) can
- * fulfil generation prompts through the same gemini.google.com tab driver.
+ * Shared Gemini web image generation (start -> status poll). The Gemini tool
+ * drives ONE gemini.google.com tab and isolates results by a baseline image
+ * snapshot, so generations are serialized: the global-task pull and the
+ * assist claim cycle of the Gemini image worker may both ask concurrently.
  * Returns null on ANY failure so callers can fall back to another provider.
  */
 import { geminiImageTool } from '../tools/browser/gemini-image';
-import { delay as waitForDelay } from '@/utils/async';
+import { AsyncMutex, delay as waitForDelay } from '@/utils/async';
 
 const GENERATION_TIMEOUT_MS = 110000;
 const POLL_INTERVAL_MS = 3000;
+const generationMutex = new AsyncMutex();
 
 export interface GeminiGeneratedImage {
   imageBase64: string;
@@ -24,8 +26,17 @@ export async function generateViaGemini(prompt: string): Promise<GeminiGenerated
   const trimmed = prompt.trim();
   if (!trimmed) return null;
 
+  const release = await generationMutex.acquire();
+  try {
+    return await generateOnce(trimmed);
+  } finally {
+    release();
+  }
+}
+
+async function generateOnce(prompt: string): Promise<GeminiGeneratedImage | null> {
   const started = await geminiImageTool
-    .start(trimmed, false, GENERATION_TIMEOUT_MS)
+    .start(prompt, false, GENERATION_TIMEOUT_MS)
     .catch(() => null);
   if (!started?.ok || !started.jobId) return null;
 

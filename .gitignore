@@ -431,9 +431,10 @@ java_pid*.hprof
 **/.output/**
 **/.venv/**
 
-# mcp-chrome: build in-tree; ignore legacy external output dir if present
+# mcp-chrome: visible extension build root (config/service_contract.json mcp_chrome.build_output_dir);
+# native/shared outputs are covered by **/dist/
+apps/mcp-chrome/build_output/
 _build_dir/
-# Extension/native/shared build outputs covered by **/.output/** and **/dist/
 
 # Project-specific gradle wrapper directories (distribution cache)
 # Note: gradlew scripts and gradle-wrapper.properties should be committed

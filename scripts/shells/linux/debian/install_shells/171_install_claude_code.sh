@@ -11,7 +11,7 @@
 #      per-user binary sits under a mode-700 home, the self-contained binary is
 #      COPIED into /usr/local/bin (0755) so all users can run it (permission fix
 #      for the root -> regular-users case); otherwise it is symlinked.
-#   3. Sync the claudeteam launcher into /usr/local/bin for all users.
+#   3. claude_team_install: python3/tmux/node (+ xrandr/terminal on desktops), .claude/agents_shared, claudeteam/claudeteamup/claudeagents links - each item idempotent.
 #   4. Install MCP servers and sync MCP config to all AI tools.
 # Steps 1-3 are delegated to the canonical scripts/ai_shtools/claude_code_install.sh;
 # step 4 is delegated to scripts/ai_shtools/mcp_sync_engine.sh. The dd.sh AI & MCP
@@ -48,10 +48,10 @@ MCP_SYNC_ENGINE_LIB="$CORE_NODE_ROOT/scripts/ai_shtools/mcp_sync_engine.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 echo "[$SCRIPT_INDEX] ============================================================"
-echo "[$SCRIPT_INDEX] Install Claude Code (official native) -> all users + claudeteam"
+echo "[$SCRIPT_INDEX] Install Claude Code (official native) -> all users + team setup (claude_team_install)"
 echo "[$SCRIPT_INDEX] ============================================================"
 
-# --- Steps 1-3: native install + all-users binary + claudeteam ---------------
+# --- Steps 1-3: native install + all-users binary + claude_team_install -----
 # Delegate to the canonical native workflow (single source of truth).
 if [ -s "$CLAUDE_CODE_INSTALL_LIB" ]; then
     # shellcheck source=/dev/null
@@ -93,4 +93,4 @@ else
 fi
 
 echo ""
-echo "[$SCRIPT_INDEX] Claude Code provisioning completed (native install + all-users bin + claudeteam + MCP)."
+echo "[$SCRIPT_INDEX] Claude Code provisioning completed (native install + all-users bin + team setup + MCP)."

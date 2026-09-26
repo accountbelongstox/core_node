@@ -15,7 +15,20 @@ DARK_GRAY='\033[0;90m'
 NC='\033[0m' # No Color
 MCP_WATCH_CHOICE="${MCP_CHROME_WATCH_MODE:-}"
 MCP_WATCH_MODE="dev"
+MCP_SERVICE_CHOICE="${MCP_CHROME_AS_SERVICE:-}"
+MCP_SERVICE_ACTION=""
+MCP_SERVICE_MODE="none"
+MCP_SERVICE_NAME=""
+MCP_SERVICE_DESC=""
+MCP_SERVICE_CPU=""
+MCP_SERVICE_MEM=""
+MCP_SERVICE_USER=""
+MCP_SERVICE_EXEC=""
+MCP_SERVICE_SESSION_ENV=""
+MCP_SERVICE_MANAGER=""
+MCP_ARG=""
 MCP_DEV_PID=""
+MCP_SUPERVISOR_PID=""
 MCP_SCRIPT_DIR=""
 MCP_PROJECT_ROOT=""
 MCP_CORE_NODE_ROOT=""
@@ -57,6 +70,15 @@ MCP_LINUX_COMMON_DIR="$MCP_CORE_NODE_ROOT/scripts/shells/linux/common"
 MCP_GVAR_COMMON="$MCP_LINUX_COMMON_DIR/gvar_common.sh"
 MCP_VENV_PYTHON_COMMON="$MCP_LINUX_COMMON_DIR/venv_python_common.sh"
 MCP_SERVICE_CONTRACT_COMMON="$MCP_LINUX_COMMON_DIR/service_contract_common.sh"
+MCP_SERVICE_MANAGER="$MCP_LINUX_COMMON_DIR/systemd_service_manager.sh"
+
+for MCP_ARG in "$@"; do
+    case "$MCP_ARG" in
+        --service) MCP_SERVICE_CHOICE="yes" ;;
+        --no-service) MCP_SERVICE_CHOICE="no" ;;
+        --uninstall-service) MCP_SERVICE_ACTION="uninstall" ;;
+    esac
+done
 
 # WXT imports config/queue_center_contract.json from the repository root
 # directly. Do not copy the task contract here; wxt.config.ts explicitly allows
@@ -69,6 +91,10 @@ source "$MCP_VENV_PYTHON_COMMON"
 source "$MCP_SERVICE_CONTRACT_COMMON"
 MCP_PYTHON_EXE="$VENV_PYTHON3"
 MCP_PORT="$(sc_require ports.mcp_chrome)"
+MCP_SERVICE_NAME="$(sc_require mcp_chrome.service_name)"
+MCP_SERVICE_DESC="$(sc_require mcp_chrome.service_description)"
+MCP_SERVICE_CPU="$(sc_require mcp_chrome.service_cpu_quota)"
+MCP_SERVICE_MEM="$(sc_require mcp_chrome.service_memory_max)"
 
 # Source get_real_user.sh for permission management (only if running as root)
 MCP_COMMON_LIB_DIR="$MCP_LINUX_COMMON_DIR"
@@ -93,12 +119,59 @@ if [ -n "$INVOCATION_ID" ]; then
         exit 127
     fi
     echo "[start.sh] starting shell-owned MCP Chrome watcher"
+    cd "$MCP_PROJECT_ROOT"
     bun run dev &
     MCP_DEV_PID=$!
-    trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
-    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode dev --recover-on-start
-    kill "$MCP_DEV_PID" 2>/dev/null || true
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode dev --recover-on-start &
+    MCP_SUPERVISOR_PID=$!
+    trap 'kill "$MCP_DEV_PID" "$MCP_SUPERVISOR_PID" 2>/dev/null || true' EXIT INT TERM
+    # Either child ending ends the unit; systemd restarts the whole set.
+    wait -n
     exit
+fi
+
+# ======================================
+# Background service (systemd, desktop user, boot auto-start)
+# ======================================
+
+mcp_service_installed() {
+    systemctl cat "$MCP_SERVICE_NAME" >/dev/null 2>&1
+}
+
+mcp_service_run_as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        bash -c "$1" _ "${@:2}"
+    else
+        sudo bash -c "$1" _ "${@:2}"
+    fi
+}
+
+mcp_service_converge() {
+    MCP_SERVICE_USER="$(detect_system_user 2>/dev/null || true)"
+    if [ -z "$MCP_SERVICE_USER" ] || [ "$MCP_SERVICE_USER" = "root" ]; then
+        MCP_SERVICE_USER="${SUDO_USER:-$(id -un)}"
+    fi
+    MCP_SERVICE_SESSION_ENV="$(source "$MCP_SERVICE_MANAGER" >/dev/null 2>&1; systemd_desktop_session_env "$MCP_SERVICE_USER")"
+    MCP_SERVICE_EXEC="/bin/bash $MCP_SCRIPT_DIR/start.sh"
+    if [ -n "$MCP_SERVICE_SESSION_ENV" ]; then
+        MCP_SERVICE_EXEC="$MCP_SERVICE_SESSION_ENV $MCP_SERVICE_EXEC"
+    fi
+    echo -e "${CYAN}  Converging service $MCP_SERVICE_NAME (user: $MCP_SERVICE_USER)...${NC}"
+    mcp_service_run_as_root 'source "$1"; converge_systemd_service "$2" "$3" "$4" "$5" "$6" always 5s "$7" "$8"' \
+        "$MCP_SERVICE_MANAGER" "$MCP_SERVICE_NAME" "$MCP_SERVICE_DESC" "$MCP_SERVICE_EXEC" "$MCP_PROJECT_ROOT" "$MCP_SERVICE_USER" "$MCP_SERVICE_CPU" "$MCP_SERVICE_MEM"
+}
+
+mcp_service_uninstall() {
+    if ! mcp_service_installed; then
+        echo -e "${YELLOW}  Service $MCP_SERVICE_NAME is not installed.${NC}"
+        return
+    fi
+    mcp_service_run_as_root 'source "$1"; remove_systemd_service "$2"' "$MCP_SERVICE_MANAGER" "$MCP_SERVICE_NAME"
+}
+
+if [ "$MCP_SERVICE_ACTION" = "uninstall" ]; then
+    mcp_service_uninstall
+    exit 0
 fi
 
 echo -e "\n${CYAN}========================================${NC}"
@@ -122,9 +195,34 @@ if [ "$HAS_DESKTOP_ENVIRONMENT" = "false" ]; then
     esac
 fi
 
+# Idempotent service choice: an installed unit is converged without asking;
+# otherwise ask once (default No). MCP_CHROME_AS_SERVICE / --service /
+# --no-service pre-answer; unattended runs take the default.
+if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
+    echo -e "${YELLOW}  systemd is not the active init; background service unavailable.${NC}"
+elif mcp_service_installed; then
+    MCP_SERVICE_MODE="converge"
+    echo -e "${GREEN}  Background service $MCP_SERVICE_NAME is installed; it will be converged after the build.${NC}"
+else
+    if [ -z "$MCP_SERVICE_CHOICE" ]; then
+        prompt_read_default MCP_SERVICE_CHOICE "no" 30 "Install MCP Chrome as a background service (auto-start at boot, hot reload)? [y/N] "
+    fi
+    case "$MCP_SERVICE_CHOICE" in
+        y|Y|yes|YES|Yes) MCP_SERVICE_MODE="install" ;;
+    esac
+fi
+
+# The service's watcher writes the same build folder: pause it for this build;
+# convergence starts it again afterwards.
+if [ "$MCP_SERVICE_MODE" = "converge" ] && systemctl is-active --quiet "$MCP_SERVICE_NAME"; then
+    echo -e "${CYAN}  Pausing $MCP_SERVICE_NAME during the build...${NC}"
+    mcp_service_run_as_root 'systemctl stop "$1"' "$MCP_SERVICE_NAME"
+fi
+
 # Unattended chains (dd.sh exports DD_AUTO_CONTINUE=true) must not block on the
-# prompt or park in foreground watch mode: take a one-time build instead.
-if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+# prompt or park in foreground watch mode: take a one-time build instead. The
+# background service owns watch mode when it is installed.
+if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ "$MCP_SERVICE_MODE" != "none" ]; then
     MCP_WATCH_CHOICE="once"
 fi
 if [ -z "$MCP_WATCH_CHOICE" ]; then
@@ -482,7 +580,7 @@ node "$MCP_SCRIPT_DIR/register-local-dev.cjs"
 # Verify system-level registration
 echo ""
 echo -e "${CYAN}  Registration Verification:${NC}"
-mcp_system_manifest_path="/etc/opt/chrome/native-messaging-hosts/com.chromemcp.nativehost.json"
+mcp_system_manifest_path="/etc/opt/chrome/native-messaging-hosts/$(sc_require mcp_chrome.native_host_name).json"
 if [ -f "$mcp_system_manifest_path" ]; then
     echo -e "${GREEN}  [OK] Chrome manifest registered (system-level)${NC}"
     echo -e "${DARK_GRAY}    Location: $mcp_system_manifest_path${NC}"
@@ -534,7 +632,11 @@ echo -e "${GREEN}  [OK] Setup completed successfully!${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
-if [ "$MCP_WATCH_MODE" = "dev" ]; then
+if [ "$MCP_SERVICE_MODE" != "none" ]; then
+    mcp_service_converge
+    echo -e "${GREEN}  Watch mode and Chrome recovery run in service $MCP_SERVICE_NAME (journalctl -u $MCP_SERVICE_NAME -f).${NC}"
+    echo -e "${WHITE}  Remove it with: bash $MCP_SCRIPT_DIR/start.sh --uninstall-service${NC}"
+elif [ "$MCP_WATCH_MODE" = "dev" ]; then
     echo -e "${YELLOW}  Launching watch mode...${NC}"
     echo -e "${WHITE}  Automatic rebuilds enabled. Press Ctrl+C to stop.${NC}"
     echo -e "${CYAN}========================================${NC}"

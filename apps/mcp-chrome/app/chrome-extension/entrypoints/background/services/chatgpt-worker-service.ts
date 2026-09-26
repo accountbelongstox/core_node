@@ -27,9 +27,6 @@ class ChatGptWorkerService extends SimpleWorkerBase {
     return 'chatgpt_web';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'chatgpt_web_worker_id_base';
-  }
 
   // No fast-lane capability — routed purely by task_type (capability=null).
   protected get capabilities(): WorkerCapability[] {

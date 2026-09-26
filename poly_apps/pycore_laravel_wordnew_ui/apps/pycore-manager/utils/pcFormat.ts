@@ -42,3 +42,18 @@ export function absoluteTime(unix?: number | null): string {
   const ms = unix < 1e12 ? unix * 1000 : unix;
   return new Date(ms).toLocaleString(undefined, { hour12: false });
 }
+
+/** Compact elapsed duration label ("8.2s", "3m 5s", "1h 2m"). */
+export function formatElapsed(seconds?: number | null): string {
+  const value = Math.max(0, Number(seconds) || 0);
+  if (value < 60) return `${value.toFixed(value < 10 ? 1 : 0)}s`;
+  const minutes = Math.floor(value / 60);
+  if (minutes < 60) return `${minutes}m ${Math.floor(value % 60)}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/** Seconds between two unix timestamps (seconds); an open end counts to now. */
+export function spanSeconds(start?: number | null, end?: number | null): number | null {
+  if (!start) return null;
+  return Math.max(0, (end || Date.now() / 1000) - start);
+}

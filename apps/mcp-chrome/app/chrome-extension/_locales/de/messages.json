@@ -82,6 +82,33 @@
   "apiCustomUrlPlaceholder": {
     "message": "Geben Sie eine URL ein (z. B. api.example.com)."
   },
+  "apiCustomEndpointDescription": {
+    "message": "Benutzerdefiniert: {0}"
+  },
+  "httpStatusError": {
+    "message": "{0} (HTTP {1})"
+  },
+  "submitRejected": {
+    "message": "Übermittlung abgelehnt"
+  },
+  "submitRejectedStatus": {
+    "message": "Übermittlung abgelehnt ({0})"
+  },
+  "valueNotAvailable": {
+    "message": "k. A."
+  },
+  "latestCodeFileUnreachable": {
+    "message": "laravel_main neueste Datei: Backend nicht erreichbar"
+  },
+  "latestCodeFileLatest": {
+    "message": "Zuletzt geänderte Datei: {0}"
+  },
+  "latestCodeFileModified": {
+    "message": "Geändert: {0}"
+  },
+  "latestCodeFileScan": {
+    "message": "Scan: {0} ({1} ms)"
+  },
   "apiLocalTag": {
     "message": "LOKAL"
   },
@@ -620,9 +647,6 @@
   },
   "endpointNotConfiguredHint": {
     "message": "Nicht festgelegt – konfigurieren Sie es unter Einstellungen → API-Konfiguration"
-  },
-  "endpointSwitchFailed": {
-    "message": "Der laufende API-Endpunkt konnte nicht gewechselt werden"
   },
   "enterPromptFirst": {
     "message": "Geben Sie zunächst eine Eingabeaufforderung ein"
@@ -1928,16 +1952,16 @@
     "message": "Führen Sie ChatGPT-Langform-Audioaufgaben aus"
   },
   "taskCenterCapability_gemini_image_hint": {
-    "message": "Erstellt mit Gemini Umschläge für Vokabelbibliotheken und schreibt sie zurück an Laravel"
+    "message": "Erstellt mit Gemini Cover für Vokabelbibliotheken und angeforderte Bilder und schreibt sie zurück an Laravel"
   },
   "taskCenterCapability_gemini_image_label": {
-    "message": "Generierung von KI-Wortgruppen-Covern"
+    "message": "KI-Generierung von Bibliothekscovern und Bildern"
   },
   "taskCenterCapability_image_hint": {
-    "message": "Durchsucht und schreibt Buchumschläge und Medienplakate über den gemeinsamen Browser-Worker"
+    "message": "Sucht Buchcover, Medienposter und Cover von Vokabelbibliotheken über den gemeinsamen Browser-Worker und schreibt sie zurück"
   },
   "taskCenterCapability_image_label": {
-    "message": "Cover- und Postersuche"
+    "message": "Cover-, Poster- und Bibliothekscover-Suche"
   },
   "taskCenterCapability_notebooklm_hint": {
     "message": "Laravel NotebookLM-Warteschlange in die gemeinsame Browser-Laufzeit mit Zurückschreiben der Ergebnisse"
@@ -1977,6 +2001,12 @@
   },
   "taskCenterCategory_gemini_image": {
     "message": "KI-Bilderzeugung"
+  },
+  "taskCenterCategory_library_cover": {
+    "message": "KI-Bibliothekscover"
+  },
+  "taskCenterCategory_library_cover_search": {
+    "message": "Bibliothekscover-Suche"
   },
   "taskCenterCategory_notebooklm": {
     "message": "NotebookLM-Verarbeitung"
@@ -2367,5 +2397,49 @@
   },
   "youglishPronunciationHint": {
     "message": "Videoaussprache im realen Kontext (YouGlish)"
+  },
+  "startServicePrompt": {
+    "message": "MCP Chrome als Hintergrunddienst installieren (Start bei Anmeldung, Hot Reload)?",
+    "description": "start.ps1 prompt asking whether to install the background logon task"
+  },
+  "startServiceInstalled": {
+    "message": "Hintergrunddienst $TASK$ ist installiert; er wird für diesen Build angehalten und danach abgeglichen.",
+    "description": "start.ps1 notice that the background logon task already exists",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceOwnsWatch": {
+    "message": "Watch-Modus und Chrome-Wiederherstellung laufen in der Hintergrundaufgabe $TASK$.",
+    "description": "start.ps1 notice that the logon task runs the watchers",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceRemoveHint": {
+    "message": "Entfernen mit: powershell -File \"$SCRIPT$\" -UninstallService",
+    "description": "start.ps1 hint for removing the logon task",
+    "placeholders": {
+      "script": {
+        "content": "$1",
+        "example": "C:\\project\\apps\\mcp-chrome\\scripts\\start.ps1"
+      }
+    }
+  },
+  "startSupervisorStarted": {
+    "message": "Chrome-Wiederherstellungsüberwachung gestartet (PID $PID$).",
+    "description": "start.ps1 notice after starting the recovery supervisor",
+    "placeholders": {
+      "pid": {
+        "content": "$1",
+        "example": "1234"
+      }
+    }
   }
 }

@@ -1,0 +1,23 @@
+{
+  "launcher.apps.slot_browser": "浏览器",
+  "launcher.apps.slot_code_editor": "代码编辑器",
+  "launcher.apps.slot_text_editor": "文本编辑器",
+  "launcher.apps.slot_running": "跳过{slot}：{app} 已在运行。",
+  "launcher.apps.slot_disabled": "跳过{slot}：所有候选程序均已在配置中禁用。",
+  "launcher.apps.slot_not_found": "跳过{slot}：{apps} 均无法启动。",
+  "launcher.apps.skip_alternative": "跳过 {app}（浏览器、代码编辑器和文本编辑器各只启动一个）。",
+  "launcher.apps.skip_disabled": "跳过 {app}（已在配置中禁用）。",
+  "launcher.apps.skip_platform": "跳过 {app}（此平台不启动）。",
+  "launcher.apps.skip_running": "跳过 {app}（已在运行）。",
+  "launcher.apps.skip_same_executable": "跳过 {app}（本次运行已启动同一可执行文件）。",
+  "launcher.apps.skip_not_found": "跳过 {app}（未找到可执行文件）。",
+  "launcher.apps.skip_aiassistant_missing": "跳过 {app}（下载目录中未找到 AIAssistant*.exe）。",
+  "launcher.apps.launching": "正在启动 {app}...",
+  "launcher.apps.launching_admin": "正在以管理员身份启动 {app}...",
+  "launcher.apps.launching_terminal": "正在新终端窗口中启动 {app}（{cwd}）...",
+  "launcher.apps.as_desktop_user": "  以桌面用户身份运行：{user}",
+  "launcher.apps.launched": "  已启动：{path}",
+  "launcher.apps.path_missing": "  错误：应用路径不存在：{path}",
+  "launcher.apps.no_terminal": "  错误：未找到可运行 {app} 的终端模拟器。",
+  "launcher.apps.failed": "  启动 {app} 失败：{error}"
+}

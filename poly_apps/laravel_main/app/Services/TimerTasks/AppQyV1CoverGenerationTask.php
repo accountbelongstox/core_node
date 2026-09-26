@@ -15,9 +15,11 @@ use App\Services\UserConfig\UserConfigService;
  * maintenance-only: it recovers stuck rows and never calls an image provider.
  *
  * Every tick (5s) it runs one transactional pass that:
- *   - resets `failed` rows (cover_attempts >= MAX_RETRIES AND cover_finished_at
- *     older than the failed cooldown) back to `pending`, cover_attempts = 0,
- *     clearing the assist lease + cover_error_message for mcp-chrome to reclaim;
+ *   - resets every `failed` row whose cover_finished_at is older than the
+ *     failed cooldown back to `pending`, cover_attempts = 0, clearing the
+ *     assist lease + cover_error_message for mcp-chrome to reclaim (reads no
+ *     longer do this); rows parked by a terminally failed global cover task
+ *     (AppQyV1VocabularyLibraryModel::COVER_TASK_HOLD_PREFIX) are left failed;
  *   - resets `processing` rows stuck older than the assist lease (60 min) back
  *     to `pending`;
  *   - clears stale `assist_claimed_at`/`_by` leases older than 60 min.
@@ -32,12 +34,11 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
     // Public: shared with the assist claim/status endpoints so external
     // workers and the dashboard see the exact pending/retry rules.
     public const BATCH_SIZE = 3;
-    public const MAX_RETRIES = 3;
     // Failed cover claims are immediately eligible for another pull.
     public const RETRY_DELAY_MINUTES = 0;
 
-    // Failed rows at the retry limit are recycled immediately so the queue
-    // never leaves work stranded in a terminal failed bucket.
+    // Failed rows are recycled immediately so the queue never leaves work
+    // stranded in a terminal failed bucket.
     private const FAILED_COOLDOWN_MINUTES = 0;
 
     private const INTERVAL_SECONDS = 5;
@@ -159,7 +160,6 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
         $failedBefore = now()->subMinutes(self::FAILED_COOLDOWN_MINUTES);
 
         return AppQyV1VocabularyLibraryModel::recoverCoverMaintenance(
-            self::MAX_RETRIES,
             $failedBefore,
             $leaseBefore
         );

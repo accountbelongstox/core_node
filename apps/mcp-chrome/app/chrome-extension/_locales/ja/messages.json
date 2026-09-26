@@ -76,6 +76,33 @@
   "apiCustomUrlPlaceholder": {
     "message": "URL を入力します (例: api.example.com)"
   },
+  "apiCustomEndpointDescription": {
+    "message": "カスタム: {0}"
+  },
+  "httpStatusError": {
+    "message": "{0} (HTTP {1})"
+  },
+  "submitRejected": {
+    "message": "送信が拒否されました"
+  },
+  "submitRejectedStatus": {
+    "message": "送信が拒否されました ({0})"
+  },
+  "valueNotAvailable": {
+    "message": "なし"
+  },
+  "latestCodeFileUnreachable": {
+    "message": "laravel_main 最新ファイル: バックエンドに接続できません"
+  },
+  "latestCodeFileLatest": {
+    "message": "最新の変更ファイル: {0}"
+  },
+  "latestCodeFileModified": {
+    "message": "更新日時: {0}"
+  },
+  "latestCodeFileScan": {
+    "message": "スキャン: {0} ({1}ms)"
+  },
   "apiLocalTag": {
     "message": "地元"
   },
@@ -562,9 +589,6 @@
   },
   "endpointNotConfiguredHint": {
     "message": "未設定 — [設定] → [API 設定] で設定します"
-  },
-  "endpointSwitchFailed": {
-    "message": "実行中のAPIエンドポイントの切り替えに失敗しました"
   },
   "enterPromptFirst": {
     "message": "最初にプロンプ​​トを入力してください"
@@ -1791,16 +1815,16 @@
     "message": "ChatGPT の長い形式のオーディオ タスクを実行する"
   },
   "taskCenterCapability_gemini_image_hint": {
-    "message": "Gemini で語彙ライブラリのカバーを生成し、Laravel に書き戻します。"
+    "message": "Gemini で語彙ライブラリのカバーと依頼された画像を生成し、Laravel に書き戻します。"
   },
   "taskCenterCapability_gemini_image_label": {
-    "message": "AI単語グループカバー生成"
+    "message": "AI 語彙ライブラリカバーと画像の生成"
   },
   "taskCenterCapability_image_hint": {
-    "message": "共有ブラウザワーカーを介して本の表紙とメディアポスターを検索して書き戻します"
+    "message": "共有ブラウザワーカーを介して本の表紙、メディアポスター、語彙ライブラリのカバーを検索して書き戻します"
   },
   "taskCenterCapability_image_label": {
-    "message": "表紙とポスターの検索"
+    "message": "表紙・ポスター・語彙ライブラリカバーの検索"
   },
   "taskCenterCapability_notebooklm_hint": {
     "message": "Laravel NotebookLM は結果のライトバックを伴う共有ブラウザー ランタイムへのキューを作成します"
@@ -1840,6 +1864,12 @@
   },
   "taskCenterCategory_gemini_image": {
     "message": "AI画像生成"
+  },
+  "taskCenterCategory_library_cover": {
+    "message": "AI 語彙ライブラリカバー"
+  },
+  "taskCenterCategory_library_cover_search": {
+    "message": "語彙ライブラリカバー検索"
   },
   "taskCenterCategory_notebooklm": {
     "message": "NotebookLM処理"
@@ -2220,5 +2250,49 @@
   },
   "youglishPronunciationHint": {
     "message": "リアルコンテキストビデオの発音 (YouGlish)"
+  },
+  "startServicePrompt": {
+    "message": "MCP Chrome をバックグラウンドサービスとしてインストールしますか（ログオン時に起動、ホットリロード）？",
+    "description": "start.ps1 prompt asking whether to install the background logon task"
+  },
+  "startServiceInstalled": {
+    "message": "バックグラウンドサービス $TASK$ はインストール済みです。このビルド中は一時停止し、完了後に整合します。",
+    "description": "start.ps1 notice that the background logon task already exists",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceOwnsWatch": {
+    "message": "ウォッチモードと Chrome 復旧はバックグラウンドタスク $TASK$ で実行されます。",
+    "description": "start.ps1 notice that the logon task runs the watchers",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceRemoveHint": {
+    "message": "削除するには: powershell -File \"$SCRIPT$\" -UninstallService",
+    "description": "start.ps1 hint for removing the logon task",
+    "placeholders": {
+      "script": {
+        "content": "$1",
+        "example": "C:\\project\\apps\\mcp-chrome\\scripts\\start.ps1"
+      }
+    }
+  },
+  "startSupervisorStarted": {
+    "message": "Chrome 復旧スーパーバイザーを起動しました (PID $PID$)。",
+    "description": "start.ps1 notice after starting the recovery supervisor",
+    "placeholders": {
+      "pid": {
+        "content": "$1",
+        "example": "1234"
+      }
+    }
   }
 }

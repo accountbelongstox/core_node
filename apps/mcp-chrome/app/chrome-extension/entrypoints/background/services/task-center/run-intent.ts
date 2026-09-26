@@ -16,11 +16,14 @@ import {
 } from '@/utils/task-capabilities';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 
-/** Persisted shape. Absent => treated as { running:false, activeCapabilities:[] }. */
+/**
+ * Persisted shape. Absent => treated as { running:false, activeCapabilities:[] }.
+ * It never carries an API base: workers resolve it from ApiManager; a legacy
+ * `apiUrl` field is ignored on read and dropped on the next write.
+ */
 export interface RunIntent {
   running: boolean;
   activeCapabilities: CapabilityKey[];
-  apiUrl?: string;
 }
 
 const STORAGE_KEY = STORAGE_KEYS.TC_RUN_INTENT;
@@ -35,8 +38,7 @@ export async function getRunIntent(): Promise<RunIntent> {
     if (!raw || typeof raw !== 'object') return { ...DEFAULT_INTENT };
     const running = raw.running === true;
     const activeCapabilities = sanitizeCapabilities(raw.activeCapabilities);
-    const apiUrl = typeof raw.apiUrl === 'string' ? raw.apiUrl.trim().replace(/\/+$/, '') : undefined;
-    return { running, activeCapabilities, apiUrl: apiUrl || undefined };
+    return { running, activeCapabilities };
   } catch {
     return { ...DEFAULT_INTENT };
   }
@@ -48,9 +50,6 @@ export async function setRunIntent(intent: RunIntent): Promise<void> {
   const payload: RunIntent = {
     running: intent.running === true,
     activeCapabilities,
-    apiUrl: typeof intent.apiUrl === 'string'
-      ? intent.apiUrl.trim().replace(/\/+$/, '') || undefined
-      : undefined,
   };
   try {
     await chrome.storage.local.set({ [STORAGE_KEY]: payload });

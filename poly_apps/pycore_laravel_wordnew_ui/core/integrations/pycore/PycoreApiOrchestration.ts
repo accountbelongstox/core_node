@@ -9,6 +9,7 @@ import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { orchAccountSession } from './OrchAccountSession';
 import type { QyWordGroup } from '../laravel/LaravelQyAccountAPI';
 import type { AudioLaneKey, AudioLaneTrackCounts, AudioLaneTrackState } from '../../contracts/QueueCenterTypes';
+import type { LaravelDeliveryOwnerCounts } from './PycoreQueueTypes';
 
 export interface OrchBookItem {
   id?: number;
@@ -107,12 +108,42 @@ export interface OrchSegment {
   status?: string;
   output?: string | null;
   error?: string | null;
+  /** Unix seconds of this segment's assembly. */
+  started_at?: number | null;
+  finished_at?: number | null;
+  /** Assembled mp3 length and per-clip offsets (absent on segments assembled before 2026-09-27). */
+  duration_ms?: number | null;
+  timeline?: Array<{ seq?: number; type: 'word' | 'sentence'; start_ms: number; end_ms: number }>;
+}
+
+/** Producer id of an orchestration task (pycore `orch_sources.ORCH_SOURCES`, listed by tasks/list `sources`). */
+export type OrchTaskSource = 'vocab_book' | 'prompt_rewrite' | (string & {});
+/** Where a task's sentence list comes from: a Laravel book or inline submitted text. */
+export type OrchTaskInput = 'book' | 'text';
+
+/** One inline sentence of a text-input task (same shape as the book sentence cache). */
+export interface OrchTextSentence {
+  seq: number;
+  language?: string;
+  text: string;
+  languages?: Record<string, string>;
+}
+
+export type OrchGenerationPhase = 'sync' | 'manifest' | 'resources' | 'assemble';
+
+export interface OrchTiming {
+  started_at?: number | null;
+  finished_at?: number | null;
 }
 
 export interface OrchTaskSummary {
   task_id: string;
   name: string;
   slug: string;
+  source?: OrchTaskSource;
+  input?: OrchTaskInput;
+  /** Opaque origin reference (prompt_rewrite: {prompt_id, tool, os_user, session_id, ts}). */
+  source_ref?: Record<string, unknown>;
   book?: { source_key: string; title?: string; language?: string; target_language?: string };
   segment_mode?: string;
   segment_value?: number;
@@ -124,14 +155,21 @@ export interface OrchTaskSummary {
   progress?: {
     message?: string; segment_index?: number; item_index?: number; item_total?: number;
     output_dir?: string; current_item?: string;
-    phase?: 'sync' | 'manifest' | 'resources' | 'assemble' | 'done';
+    phase?: OrchGenerationPhase | 'done';
     resource_index?: number; resource_total?: number;
     cache_hits?: number; laravel_hits?: number; generated?: number; missing?: number;
     synced?: number;
     sync_pending?: number;
+    /** Laravel upload of this task's output (shared delivery outbox, kind audio_orch.output). */
+    output_delivery?: LaravelDeliveryOwnerCounts;
     /** Live Part1 fill counters of this task per lane queue (word / sentence). */
     lanes?: Partial<Record<AudioLaneKey, AudioLaneTrackCounts>>;
+    /** Wall-clock timing per generation phase (unix seconds). */
+    phase_times?: Partial<Record<OrchGenerationPhase, OrchTiming>>;
   };
+  /** Current / last generation run (unix seconds; finish null while running). */
+  generation_started_at?: number | null;
+  generation_finished_at?: number | null;
   created_at?: number;
   updated_at?: number;
 }
@@ -140,6 +178,7 @@ export interface OrchTask extends OrchTaskSummary {
   pattern?: OrchPatternStep[];
   new_only_max_read_count?: number;
   virtual_read?: string[];
+  sentences?: OrchTextSentence[];
   segments?: OrchSegment[];
   events?: Array<{ ts: number; message: string }>;
 }
@@ -176,6 +215,8 @@ export interface OrchManifestItem {
   synced: boolean;
   sync_queued: boolean;
   has_audio: boolean;
+  /** Unix seconds when this resource was resolved in the last run. */
+  resolved_at?: number | null;
   /** Fill state of this resource in ITS lane queue (tracker of this task). */
   queue_lane?: AudioLaneKey;
   queue_state?: AudioLaneTrackState;
@@ -217,8 +258,8 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchBookSentences, { source_key: sourceKey, refresh }, 180_000) as Promise<OrchBookSentencesResponse>,
 
   // --- orchestration tasks -------------------------------------------------- #
-  orchTasksList: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTasksList, {}) as Promise<{ success: boolean; tasks: OrchTaskSummary[] }>,
+  orchTasksList: (source?: OrchTaskSource) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTasksList, source ? { source } : {}) as Promise<{ success: boolean; tasks: OrchTaskSummary[]; sources?: OrchTaskSource[] }>,
   orchTaskGet: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGet, { task_id: taskId }) as Promise<OrchTask & { success: boolean; error?: string }>,
   orchTaskCreate: (payload: OrchTaskPayload) =>

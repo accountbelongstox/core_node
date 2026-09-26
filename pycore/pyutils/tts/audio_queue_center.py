@@ -407,6 +407,9 @@ class AudioQueueCenter:
                     "provider": "",
                     "error": "",
                     "settled_by": "",
+                    "queued_at": now,
+                    "started_at": None,
+                    "finished_at": None,
                     "updated_at": now,
                 }
                 tracked[key] = entry
@@ -507,6 +510,7 @@ class AudioQueueCenter:
             if entry is not None:
                 entry["state"] = TRACK_PROCESSING
                 entry["settled_by"] = owner
+                entry["started_at"] = now
                 entry["updated_at"] = now
 
     @serialized_method
@@ -565,6 +569,8 @@ class AudioQueueCenter:
             entry["provider"] = str(outcome.get("provider") or entry.get("provider") or "")
             entry["error"] = "" if ok else str(outcome.get("error") or "")[:200]
             entry["settled_by"] = settled_by
+            entry["started_at"] = entry.get("started_at") or now
+            entry["finished_at"] = now
             entry["updated_at"] = now
         self._evict_terminal(lane)
         return released
@@ -667,6 +673,9 @@ class AudioQueueCenter:
             "provider": entry["provider"],
             "error": entry["error"],
             "settled_by": entry["settled_by"],
+            "queued_at": entry.get("queued_at"),
+            "started_at": entry.get("started_at"),
+            "finished_at": entry.get("finished_at"),
             "updated_at": entry["updated_at"],
         }
 
@@ -889,7 +898,8 @@ class AudioQueueCenter:
             return False
         entry["state"] = TRACK_PROCESSING
         entry["settled_by"] = SETTLED_BY_LANE
-        entry["updated_at"] = time.time()
+        entry["started_at"] = time.time()
+        entry["updated_at"] = entry["started_at"]
         return True
 
     def pop_next(self, lane: str) -> Optional[Dict[str, Any]]:

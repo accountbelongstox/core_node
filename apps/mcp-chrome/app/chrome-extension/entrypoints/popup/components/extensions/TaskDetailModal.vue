@@ -107,13 +107,13 @@
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
+  loadTaskDetail,
   subscribeToTaskStream,
   type TaskStreamBundle,
   type TaskStreamEvent,
   type TaskStreamHandle,
 } from '../../composables/useTaskCenter';
-import { getApiBase } from '@/services/ApiManager';
-import { taskPath } from '@/utils/api-paths';
+import { currentApiClient } from '@/services/ApiManager';
 import { WorkerApiClient } from '@/entrypoints/background/api/WorkerApiClient';
 import { getMessage } from '@/utils/i18n';
 import {
@@ -213,8 +213,7 @@ const bumpToTop = async (): Promise<void> => {
   if (bumping.value || bumped.value) return;
   bumping.value = true;
   try {
-    const client = new WorkerApiClient(apiBase());
-    const resp = await client.bumpTask(props.taskId, String(task.value.task_type || ''));
+    const resp = await currentApiClient(WorkerApiClient).bumpTask(props.taskId, String(task.value.task_type || ''));
     if (resp.success) {
       bumped.value = true;
       // Pull the fresh snapshot so contract order / fast badge reflect the bump.
@@ -308,18 +307,11 @@ const upsertEvent = (ev: TaskStreamEvent): void => {
   timeline.value = [...timeline.value, ev];
 };
 
-const apiBase = getApiBase;
-
 /** One-shot refetch via the /detail endpoint after a terminal close. */
 const refetch = async (): Promise<void> => {
   try {
-    const res = await fetch(`${apiBase()}${taskPath(props.taskId, 'detail')}`, {
-      headers: { 'Cache-Control': 'no-cache' },
-    });
-    if (!res.ok) return;
-    const json = await res.json();
-    const data = json?.data ?? json;
-    if (data && data.task) applyBundle(data as TaskStreamBundle);
+    const data = await loadTaskDetail(props.taskId);
+    if (data) applyBundle(data);
   } catch {
     /* terminal refetch is best-effort */
   }

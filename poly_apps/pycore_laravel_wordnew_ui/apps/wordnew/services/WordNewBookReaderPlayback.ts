@@ -1,6 +1,8 @@
 /**
- * WordNewBookReaderPlayback — bilingual sequence playback engine for the book reader.
- * Backend MP3 first; falls back to browser speech (Edge Read Aloud / speechSynthesis).
+ * WordNewBookReaderPlayback — bilingual sequence playback engine shared by the
+ * book reader and the orchestrated audio player (sentences and segment mp3s
+ * are both modeled as verses). Backend MP3 first; falls back to browser speech
+ * (Edge Read Aloud / speechSynthesis).
  */
 import type { WfNewBookVerse } from '../api';
 import type { WfNewReaderPlayStep } from '../api/types/bookProgress';
@@ -36,6 +38,8 @@ export interface WordNewBookReaderPlaybackDeps {
   onVerseActive: (verse: WfNewBookVerse | null) => void;
   onProgress: (verse: WfNewBookVerse, page: number) => void;
   onLiveReadText?: (text: string, lang: string) => void;
+  /** Position of the current backend clip (seconds). */
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
   loadVerses: (chapterIndex: number | null, page: number, opts?: { keepOnError?: boolean; requirePlaying?: boolean }) => Promise<WfNewBookVerse[] | null>;
   getChapterIndex: () => number | null;
   getPage: () => number;
@@ -139,7 +143,11 @@ export class WordNewBookReaderPlayback {
   }
 
   private ensureAudio(): HTMLAudioElement {
-    if (!this.audio) this.audio = new Audio();
+    if (!this.audio) {
+      const audio = new Audio();
+      audio.ontimeupdate = () => this.deps.onTimeUpdate?.(audio.currentTime || 0, audio.duration || 0);
+      this.audio = audio;
+    }
     return this.audio;
   }
 

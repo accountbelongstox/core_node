@@ -7,6 +7,9 @@ import {
 } from '../config/api-endpoints';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { delay, fetchWithTimeout } from '@/utils/async';
+import { API_HEALTH_PATHS } from '@/utils/api-paths';
+import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
+import type { BaseApiClient } from '@/entrypoints/background/api/BaseApiClient';
 
 // Re-export so consumers can import the endpoint type from ApiManager directly.
 export type { ApiEndpoint };
@@ -16,6 +19,15 @@ export interface EndpointStatus {
   isAvailable: boolean;
   responseTime: number;
   lastChecked: number;
+}
+
+interface ApiSettings {
+  userSelectedEndpointId?: string;
+  autoDetectedEndpointId?: string;
+  customEndpoints?: ApiEndpoint[];
+  autoMode?: boolean;
+  /** Id of the write that produced this revision, so a context recognises its own echoes. */
+  writeId?: string;
 }
 
 // A probe must fail this many times in a row before an endpoint flips to
@@ -42,9 +54,11 @@ export class ApiManager {
   // is reachable, upgrading back automatically as better endpoints recover.
   private autoMode = false;
   private readonly storageKey = STORAGE_KEYS.API_SETTINGS;
+  private readonly pendingWrites = new Set<string>();
+  private followingStorage = false;
   private endpointChangeListeners = new Set<() => void>();
 
-  /** Subscribe to endpoint URL changes (same popup + after storage writes). */
+  /** Subscribe to endpoint changes made in this context or in any other context. */
   onEndpointChange(listener: () => void): () => void {
     this.endpointChangeListeners.add(listener);
     return () => this.endpointChangeListeners.delete(listener);
@@ -63,56 +77,92 @@ export class ApiManager {
   async initialize(options: { autoDetect?: boolean; timeout?: number } = {}) {
     const { autoDetect = true, timeout = 3000 } = options;
 
+    this.followStorageChanges();
     const settings = await this.loadSettings();
-    // Load persisted custom endpoints into memory so they participate in
-    // listing, selection, and auto-detect (previously they were ignored).
-    this.customEndpoints = Array.isArray(settings.customEndpoints)
-      ? settings.customEndpoints
-      : [];
+    const isFirstRun = !settings.userSelectedEndpointId
+      && !settings.autoDetectedEndpointId
+      && settings.autoMode !== true;
 
-    this.autoMode = settings.autoMode === true;
-
-    const hasSelection = !!(settings.userSelectedEndpointId || settings.autoDetectedEndpointId);
-    if (!hasSelection && !this.autoMode) {
-      const defaultEndpoint = getDefaultApiEndpoint();
-      if (defaultEndpoint) {
-        this.currentEndpoint = defaultEndpoint;
-        await this.saveSettings({
-          userSelectedEndpointId: DEFAULT_API_ENDPOINT_ID,
-          autoMode: false,
-        });
-        console.log(`[API Manager] First-run default endpoint: ${DEFAULT_API_ENDPOINT_ID}`);
-        return;
-      }
+    if (this.applySettings(settings)) {
+      this.notifyEndpointChange();
     }
 
-    // A manual selection only wins while auto mode is OFF. In auto mode we fall
-    // through to the last auto-detected endpoint (a provisional starting point)
-    // and let the caller re-pick the best available.
-    if (!this.autoMode && settings.userSelectedEndpointId) {
-      const endpoint = this.resolveEndpoint(settings.userSelectedEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        console.log('[API Manager] Using user-selected endpoint:', endpoint.id);
-        return;
-      }
+    if (isFirstRun) {
+      await this.saveSettings({
+        userSelectedEndpointId: DEFAULT_API_ENDPOINT_ID,
+        autoMode: false,
+      });
+      console.log(`[API Manager] First-run default endpoint: ${DEFAULT_API_ENDPOINT_ID}`);
+      return;
     }
 
-    if (settings.autoDetectedEndpointId) {
-      const endpoint = this.resolveEndpoint(settings.autoDetectedEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        console.log('[API Manager] Using auto-detected endpoint:', endpoint.id);
-      }
+    // A resolvable manual selection wins while auto mode is off; never probe it away.
+    if (this.hasManualSelection(settings)) {
+      return;
     }
 
     if (autoDetect) {
       await this.autoDetectEndpoint(timeout);
     }
+  }
 
-    if (!this.currentEndpoint && this.getAllEndpoints().length > 0) {
-      this.currentEndpoint = getDefaultApiEndpoint();
-    }
+  /**
+   * Apply persisted settings to memory without writing or probing. Returns true
+   * when the effective selection (base URL, mode or custom list) changed.
+   */
+  private applySettings(settings: ApiSettings): boolean {
+    const before = this.selectionSignature();
+    this.customEndpoints = Array.isArray(settings.customEndpoints) ? settings.customEndpoints : [];
+    this.autoMode = settings.autoMode === true;
+
+    // A manual selection only wins while auto mode is OFF. In auto mode the last
+    // auto-detected endpoint is a provisional start until the caller re-picks.
+    const selectedEndpoint = this.hasManualSelection(settings)
+      ? this.resolveEndpoint(settings.userSelectedEndpointId as string)
+      : undefined;
+    const detectedEndpoint = settings.autoDetectedEndpointId
+      ? this.resolveEndpoint(settings.autoDetectedEndpointId)
+      : undefined;
+    this.currentEndpoint = selectedEndpoint || detectedEndpoint || getDefaultApiEndpoint();
+
+    return before !== this.selectionSignature();
+  }
+
+  private hasManualSelection(settings: ApiSettings): boolean {
+    return settings.autoMode !== true
+      && !!settings.userSelectedEndpointId
+      && !!this.resolveEndpoint(settings.userSelectedEndpointId);
+  }
+
+  private selectionSignature(): string {
+    return JSON.stringify([
+      this.autoMode,
+      this.currentEndpoint ? buildApiUrl(this.currentEndpoint) : '',
+      this.customEndpoints.map((endpoint) => endpoint.id),
+    ]);
+  }
+
+  /**
+   * Follow `api_settings` writes from every extension context (popup, options,
+   * background) so this context's endpoint never goes stale. Echoes of this
+   * context's own intermediate writes are skipped; the last one is re-applied
+   * (a no-op unless a concurrent initialize() read stale storage).
+   */
+  private followStorageChanges(): boolean {
+    if (this.followingStorage) return true;
+    if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) return false;
+    this.followingStorage = true;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      const change = areaName === 'local' ? changes[this.storageKey] : undefined;
+      if (!change) return;
+      const settings = (change.newValue || {}) as ApiSettings;
+      const ownEcho = !!settings.writeId && this.pendingWrites.delete(settings.writeId);
+      if (ownEcho && this.pendingWrites.size > 0) return;
+      if (this.applySettings(settings)) {
+        this.notifyEndpointChange();
+      }
+    });
+    return true;
   }
 
   /** Resolve an endpoint id against both custom and built-in endpoints. */
@@ -136,7 +186,7 @@ export class ApiManager {
     try {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         const resp: any = await chrome.runtime.sendMessage({
-          type: 'api_health_check',
+          type: BACKGROUND_MESSAGE_TYPES.API_HEALTH_CHECK,
           url: base,
           timeoutMs: timeout,
         });
@@ -151,7 +201,7 @@ export class ApiManager {
 
     // Fallback: direct no-cors reachability probe (opaque; can't read the body).
     try {
-      await fetchWithTimeout(buildApiUrl(endpoint, '/up'), timeout, {
+      await fetchWithTimeout(buildApiUrl(endpoint, API_HEALTH_PATHS.UP), timeout, {
         method: 'GET',
         mode: 'no-cors',
         cache: 'no-store',
@@ -330,28 +380,21 @@ export class ApiManager {
     return Array.from(this.endpointStatuses.values());
   }
 
-  async saveSettings(updates: Partial<{
-    userSelectedEndpointId: string;
-    autoDetectedEndpointId: string;
-    customEndpoints: ApiEndpoint[];
-    autoMode: boolean;
-  }>) {
+  async saveSettings(updates: Omit<ApiSettings, 'writeId'>) {
+    const writeId = crypto.randomUUID();
     try {
       const currentSettings = await this.loadSettings();
-      const newSettings = { ...currentSettings, ...updates };
+      const newSettings: ApiSettings = { ...currentSettings, ...updates, writeId };
 
+      if (this.followStorageChanges()) this.pendingWrites.add(writeId);
       await chrome.storage.local.set({ [this.storageKey]: newSettings });
     } catch (error) {
+      this.pendingWrites.delete(writeId);
       console.error('[API Manager] Failed to save settings:', error);
     }
   }
 
-  async loadSettings(): Promise<{
-    userSelectedEndpointId?: string;
-    autoDetectedEndpointId?: string;
-    customEndpoints?: ApiEndpoint[];
-    autoMode?: boolean;
-  }> {
+  async loadSettings(): Promise<ApiSettings> {
     try {
       const result = await chrome.storage.local.get(this.storageKey);
       return result[this.storageKey] || {};
@@ -402,11 +445,47 @@ export class ApiManager {
 
 export const apiManager = new ApiManager();
 
+let apiManagerReady: Promise<void> | null = null;
+
 /**
- * Current API base URL with any trailing slashes stripped, so callers can append
- * `/api/...` without double-slashing. Single home for the
- * `getCurrentBaseUrl().replace(/\/+$/, '')` idiom shared across the popup.
+ * Load `api_settings` into this context once and start following later
+ * changes. Every async caller (background workers, tools, listeners) awaits
+ * this instead of re-running initialize().
+ */
+export function ensureApiManagerReady(): Promise<void> {
+  if (!apiManagerReady) {
+    apiManagerReady = apiManager.initialize({ autoDetect: false }).catch((error) => {
+      apiManagerReady = null;
+      throw error;
+    });
+  }
+  return apiManagerReady;
+}
+
+/**
+ * The single API base resolver: current endpoint with trailing slashes
+ * stripped, so callers append `/api/...` without double-slashing.
  */
 export function getApiBase(): string {
   return apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
+}
+
+/** getApiBase() after the persisted selection has been loaded in this context. */
+export async function resolveApiBase(): Promise<string> {
+  await ensureApiManagerReady();
+  return getApiBase();
+}
+
+const boundApiClients = new Map<Function, BaseApiClient>();
+
+/** One cached client per class, rebuilt whenever the current API base changes. */
+export function currentApiClient<T extends BaseApiClient>(
+  ClientClass: new (baseUrl: string) => T,
+): T {
+  const baseUrl = getApiBase();
+  const cached = boundApiClients.get(ClientClass) as T | undefined;
+  if (cached && cached.getBaseUrl() === baseUrl) return cached;
+  const client = new ClientClass(baseUrl);
+  boundApiClients.set(ClientClass, client);
+  return client;
 }

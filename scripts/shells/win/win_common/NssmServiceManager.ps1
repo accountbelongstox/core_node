@@ -222,3 +222,41 @@ function Register-NssmService {
     Write-Host "[NssmServiceManager] Service $ServiceName status: $($svc.Status)" -ForegroundColor Green
     return $true
 }
+
+# SCM run state of any Windows service (NSSM, WinSW or native): running | stopped | absent.
+# A service that is starting counts as running so callers never start it twice.
+function Get-ServiceRunState {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $runningStates = @("Running", "StartPending", "ContinuePending")
+    if (-not $svc) { return "absent" }
+    if ($runningStates -contains [string]$svc.Status) { return "running" }
+    return "stopped"
+}
+
+# Idempotent stop + delete of an NSSM-wrapped service (no-op when absent). Needs admin.
+# Returns $true when the service no longer exists afterwards.
+function Remove-NssmService {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $nssmPath = $null
+    if (-not $svc) { return $true }
+
+    Write-Host "[NssmServiceManager] Removing service: $ServiceName" -ForegroundColor Cyan
+    if ([string]$svc.Status -ne "Stopped") {
+        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    }
+    $nssmPath = Find-NssmExe
+    if ($nssmPath) {
+        & $nssmPath remove $ServiceName confirm | Out-Null
+    } else {
+        & sc.exe delete $ServiceName | Out-Null
+    }
+    Start-Sleep -Seconds 1
+    if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+        Write-Host "[NssmServiceManager] Service $ServiceName is still registered (access denied or pending deletion)." -ForegroundColor Yellow
+        return $false
+    }
+    Write-Host "[NssmServiceManager] Service $ServiceName removed." -ForegroundColor Green
+    return $true
+}

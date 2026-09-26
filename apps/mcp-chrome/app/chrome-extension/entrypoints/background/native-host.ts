@@ -63,12 +63,12 @@ function postNativeMessage(connection: chrome.runtime.Port, message: unknown): b
 function getNativeManifestPath(): string {
   const platform = (typeof navigator !== 'undefined' && navigator.platform) || '';
   if (/^Win/i.test(platform)) {
-    return '%USERPROFILE%\\AppData\\Roaming\\Google\\Chrome\\NativeMessagingHosts\\com.chromemcp.nativehost.json';
+    return `%USERPROFILE%\\AppData\\Roaming\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}.json`;
   }
   if (/^Mac/i.test(platform)) {
-    return '~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.chromemcp.nativehost.json';
+    return `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/${HOST_NAME}.json`;
   }
-  return '~/.config/google-chrome/NativeMessagingHosts/com.chromemcp.nativehost.json';
+  return `~/.config/google-chrome/NativeMessagingHosts/${HOST_NAME}.json`;
 }
 
 function scheduleReconnect(port: number): void {

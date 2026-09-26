@@ -1,0 +1,14 @@
+{
+  "launcher.grid.auto_profile": "终端网格：{columns}x{rows}（{profile} 自动布局，屏幕高度 {height}px）",
+  "launcher.grid.below_threshold": "终端网格：{columns}x{rows}（使用配置值；屏幕高度 {height}px 低于自动网格阈值 {threshold}px）",
+  "launcher.grid.auto_off": "终端网格：{columns}x{rows}（使用配置值；自动网格已关闭）",
+  "launcher.grid.disabled": "终端网格：已在配置中禁用",
+  "launcher.grid.state_on": "开",
+  "launcher.grid.state_off": "关",
+  "launcher.grid.menu_auto_grid": "自动网格（{profiles}）：{state}",
+  "launcher.grid.menu_toggle_entry": "1. 切换终端布局（{choices}）",
+  "launcher.grid.menu_current_toggle": "  布局：{toggle}（{choices}）",
+  "launcher.grid.menu_current_auto_grid": "  自动网格（{profiles}）：{state}",
+  "launcher.grid.menu_toggle_item": "{index}. {toggle}（{count} 个窗口）",
+  "launcher.grid.menu_toggle_disable_item": "{index}. {toggle}"
+}

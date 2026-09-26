@@ -31,6 +31,10 @@ $serviceReady = $false
 $service = $null
 $codemartInit = $env:CODEMART_INIT
 $codemartInitAnswer = $null
+$codemartInitDefault = 'no'
+$autoContinueValues = @('1', 'true')
+$autoContinue = $autoContinueValues -contains ([string]$env:DD_AUTO_CONTINUE).Trim().ToLowerInvariant()
+$interactiveSession = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
 . $managerPath
 . $certificateManagerPath
 
@@ -53,6 +57,11 @@ if ($CertificatesOnly) {
     Ensure-FrankenPhpDomainRoutes | Out-Null
     Ensure-FrankenPhpCaddyfile | Out-Null
     Invoke-FrankenPhpReload | Out-Null
+    return
+}
+
+if (-not (Test-AdminPrivileges)) {
+    Write-FrankenPhpLog -Message "Step ${STEP_NUMBER} installs the Windows service $(Get-FrankenPhpServiceName) and its certificate renewal task: re-run it from an elevated (Administrator) PowerShell." -Type 'Error'
     return
 }
 
@@ -89,16 +98,23 @@ if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
     Write-FrankenPhpLog -Message "Octane worker postcondition failed: $workerPath" -Type 'Error'
 }
 
-# Optional: seed CodeMart demo accounts/projects via `php artisan sys:codemartinit`
-# (idempotent). Defaults to N; the CODEMART_INIT environment variable (yes|no)
-# skips the interactive prompt.
+# Optional: force CodeMart demo data via `php artisan sys:codemartinit` (idempotent).
+# sys:init already seeds it unless the environment is production or
+# CODEMART_SEED_DEMO=false. Defaults to N; CODEMART_INIT (yes|no) skips the prompt, and
+# DD_AUTO_CONTINUE=1|true or a non-interactive session takes the default without asking.
 if ([string]::IsNullOrEmpty($codemartInit)) {
-    $codemartInitAnswer = Read-Host 'Initialize CodeMart demo data (php artisan sys:codemartinit)? [y/N]'
-    if ($codemartInitAnswer -match '^(?i:y|yes)$') {
-        $codemartInit = 'yes'
+    if ($autoContinue -or -not $interactiveSession) {
+        $codemartInit = $codemartInitDefault
+        Write-FrankenPhpLog -Message "CodeMart demo data seeding: non-interactive run, using default '$codemartInitDefault'."
     }
     else {
-        $codemartInit = 'no'
+        $codemartInitAnswer = Read-Host 'Force CodeMart demo data seeding (php artisan sys:codemartinit)? [y/N]'
+        if ($codemartInitAnswer -match '^(?i:y|yes)$') {
+            $codemartInit = 'yes'
+        }
+        else {
+            $codemartInit = $codemartInitDefault
+        }
     }
 }
 if ($codemartInit -eq 'yes' -and (Test-Path -LiteralPath $artisanPath -PathType Leaf)) {

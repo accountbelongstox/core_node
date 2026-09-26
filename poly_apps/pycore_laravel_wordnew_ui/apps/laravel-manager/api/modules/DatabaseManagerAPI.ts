@@ -84,7 +84,7 @@ export interface DbBackup {
   created_at: string;
 }
 
-export type DataSyncStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed';
+export type DataSyncStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
 export type DataSyncStepStatus = 'pending' | 'running' | 'completed' | 'skipped' | 'failed';
 
 export interface DataSyncStep {
@@ -129,6 +129,20 @@ export interface DataSyncSessionSnapshot {
       updated: number;
       unchanged: number;
       verified: number;
+      conflicts?: number;
+      tables?: number;
+      skipped_count?: number;
+      skipped?: { table: string; reason: string }[];
+      incomplete?: string[];
+    };
+    resource_results?: {
+      planned_files: number;
+      planned_bytes: number;
+      transferred_files: number;
+      transferred_bytes: number;
+      already_present: number;
+      skipped_count: number;
+      skipped: string[];
     };
     [key: string]: unknown;
   };
@@ -177,6 +191,8 @@ export interface DataSyncProbeResult {
   peer_machine_code?: string | null;
   /** True when both ends answer with the same machine code (same machine). */
   same_machine?: boolean | null;
+  /** True when the peer answers the same synchronization protocol version. */
+  protocol_compatible?: boolean;
   error?: string;
 }
 
@@ -379,13 +395,13 @@ export class DatabaseManagerAPI extends BaseAPI {
     await this.downloadBlob(url, filename || `backup_${id}`);
   }
 
-  async getDataSyncWorkspace(): Promise<{ sessions: DataSyncSession[]; machine_code?: string }> {
-    const res = await this.get<{ sessions: DataSyncSession[]; machine_code?: string }>('sync');
+  async getDataSyncWorkspace(): Promise<{ sessions: DataSyncSession[]; machine_code?: string; protocol_version?: number }> {
+    const res = await this.get<{ sessions: DataSyncSession[]; machine_code?: string; protocol_version?: number }>('sync');
     if (!res.success || !res.data) {
       throw this.syncFailure(res);
     }
-    const data = res.data as { sessions: DataSyncSession[]; machine_code?: string };
-    return { sessions: data.sessions ?? [], machine_code: data.machine_code };
+    const data = res.data as { sessions: DataSyncSession[]; machine_code?: string; protocol_version?: number };
+    return { sessions: data.sessions ?? [], machine_code: data.machine_code, protocol_version: data.protocol_version };
   }
 
   async startDataSync(payload: DataSyncStartRequest): Promise<DataSyncSession> {

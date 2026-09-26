@@ -185,12 +185,16 @@ ensure_php_pdo_pgsql() {
     fi
     if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
         runtime_binary="$(fm_variant_binary)"
-        if [ "$(fm_php_runtime_extensions_ready "$runtime_binary")" != "yes" ] \
+        if [ "$(fm_php_install_extensions_ready "$runtime_binary")" != "yes" ] \
             && [ -n "$PHP_ENSURE_SCRIPT_FRANKENPHP" ] && [ -f "$PHP_ENSURE_SCRIPT_FRANKENPHP" ]; then
             # Auto-resolve through the canonical variant lifecycle (93): the
             # recorded variant is pinned so the mode prompt is skipped, and the
             # missing contract packages install idempotently (e.g. php-zts-gd
             # on the apt variant; ext-gd is required by the Composer tree).
+            # Desired phpredis (Redis endpoint selected) triggers the same
+            # repair: php-zts-redis on apt, a redis-enabled static rebuild on
+            # compile; the prebuilt release already embeds it.
+            RUNTIME_EXTENSIONS_CHANGED="yes"
             echo "FrankenPHP runtime extension contract incomplete. Invoking init-ensure installer:"
             echo "  $PHP_ENSURE_SCRIPT_FRANKENPHP --mode=$(fm_variant)"
             if [ -n "$(fm_variant)" ]; then
@@ -224,6 +228,63 @@ ensure_php_pdo_pgsql() {
         echo "pdo_pgsql installed -> PostgreSQL driver available."
     else
         echo "ERROR: pdo_pgsql remains unavailable after package convergence."
+    fi
+}
+
+# phpredis readiness for LaravelConfig::REDIS_CLIENT. FrankenPHP variants
+# were already repaired by ensure_php_pdo_pgsql (install-time extension set);
+# system PHP installs the distro php-redis package only when missing.
+# Missing phpredis is a warning: Laravel keeps its database path.
+ensure_php_redis() {
+    PHP_REDIS_READY="no"
+    if [ "$REDIS_ENDPOINT_READY" != "yes" ]; then
+        return
+    fi
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        PHP_REDIS_READY="$(fm_embedded_extension_loaded "$(fm_variant_binary)" "$FRANKENPHP_REDIS_PHP_EXTENSION")"
+    else
+        if ! "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
+            echo "PHP redis extension missing. Installing php-redis (system PHP)..."
+            RUNTIME_EXTENSIONS_CHANGED="yes"
+            $USE_SUDO apt-get install -y php-redis
+            if ! "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
+                $USE_SUDO apt-get update -qq
+                $USE_SUDO apt-get install -y php-redis
+            fi
+        fi
+        if "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
+            PHP_REDIS_READY="yes"
+        fi
+    fi
+    if [ "$PHP_REDIS_READY" = "yes" ]; then
+        echo "PHP redis extension (phpredis) ready."
+    else
+        echo "  Warning: phpredis unavailable; Laravel Redis features fall back to the database path."
+        if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+            echo "  Repair: bash $PHP_ENSURE_SCRIPT_FRANKENPHP --mode=$(fm_variant)"
+        fi
+    fi
+}
+
+# Build the Laravel Redis resource index once when it is absent (fresh or
+# newly selected store). The status probe is the single truth: a built index
+# skips the rebuild on every re-run; the rebuild itself is idempotent.
+ensure_laravel_redis_index() {
+    local index_state=""
+
+    if [ "$REDIS_ENDPOINT_READY" != "yes" ] || [ "$PHP_REDIS_READY" != "yes" ]; then
+        return
+    fi
+    index_state="$("$PHP_BIN" artisan $LARAVEL_REDIS_INDEX_COMMAND status 2>/dev/null | grep -o 'resource_index_built=[a-z]*' | head -1)"
+    if [ "$index_state" = "resource_index_built=yes" ]; then
+        echo "Laravel Redis resource index present."
+        return
+    fi
+    echo "Building Laravel Redis resource index (php artisan $LARAVEL_REDIS_INDEX_COMMAND rebuild)..."
+    "$PHP_BIN" artisan $LARAVEL_REDIS_INDEX_COMMAND rebuild
+    index_state="$("$PHP_BIN" artisan $LARAVEL_REDIS_INDEX_COMMAND status 2>/dev/null | grep -o 'resource_index_built=[a-z]*' | head -1)"
+    if [ "$index_state" != "resource_index_built=yes" ]; then
+        echo "  Warning: Redis resource index not confirmed; diffs use the database path until it is rebuilt."
     fi
 }
 

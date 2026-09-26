@@ -1,5 +1,7 @@
 # Laravel Main Machine Data Synchronization
 
+> **Superseded (2026-09-27) by `REQUIREMENTS_20260927_MACHINE_DATA_SYNC_REFACTOR.md` (protocol 5).** No longer valid: multiple concurrent outbound sessions (now one active session per node, and a new start cancels the others); purging terminal sessions (they are now retained compactly); receiver inventory/manifest computed per request (now prepared in the passive node's own ticks and served as artifacts); a bare `https://host` defaulting to port 9000 (it now uses 443); a missing or different table failing the whole session (it is now skipped and reported). Pull mode (fetcher/exporter) and peer cancel are described only in the new document.
+
 ## Scope
 
 This change adds directional synchronization from Laravel Main node A to node B through the Laravel Manager Database Manager page.

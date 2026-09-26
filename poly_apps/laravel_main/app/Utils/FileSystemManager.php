@@ -336,40 +336,80 @@ class FileSystemManager
         return hash_file($algorithm, $mappedPath);
     }
 
-    public static function fileManifest(string $rootPath, ?callable $shouldAbort = null): array
+    /**
+     * Relative path => size + SHA-256 for every readable file below the root.
+     * With a cache path, hashes are reused for files whose size and mtime are
+     * unchanged; the cache is also saved when the scan is aborted midway.
+     */
+    public static function fileManifest(string $rootPath, ?callable $shouldAbort = null, ?string $hashCachePath = null): array
     {
-        $mappedRoot = self::mapExternalPath($rootPath);
+        $cacheContent = $hashCachePath !== null ? self::readFile($hashCachePath, false) : false;
+        $cache = is_string($cacheContent) ? (json_decode($cacheContent, true) ?: []) : [];
+        $nextCache = [];
         $manifest = [];
+        $changed = false;
+        $completed = false;
+
+        try {
+            foreach (self::iterateFiles($rootPath) as $relativePath => $file) {
+                $size = (int) $file->getSize();
+                $mtime = (int) $file->getMTime();
+                $cached = $cache[$relativePath] ?? null;
+                if (is_array($cached) && ($cached[0] ?? null) === $size && ($cached[1] ?? null) === $mtime) {
+                    $hash = (string) $cached[2];
+                } else {
+                    if ($shouldAbort !== null) {
+                        $shouldAbort();
+                    }
+                    $hash = (string) hash_file('sha256', $file->getPathname());
+                    $changed = true;
+                }
+                $nextCache[$relativePath] = [$size, $mtime, $hash];
+                $manifest[$relativePath] = ['size' => $size, 'sha256' => $hash];
+            }
+            $completed = true;
+        } finally {
+            if ($hashCachePath !== null && $completed && ($changed || count($nextCache) !== count($cache))) {
+                self::writeFileAtomic($hashCachePath, (string) json_encode($nextCache, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            } elseif ($hashCachePath !== null && !$completed && $changed) {
+                self::writeFileAtomic($hashCachePath, (string) json_encode($nextCache + $cache, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
+        }
+
+        ksort($manifest, SORT_STRING);
+        return $manifest;
+    }
+
+    /**
+     * Lazily yield every readable file below the root as relative path
+     * (forward slashes) => SplFileInfo, without collecting the tree in memory.
+     *
+     * @return \Generator<string,\SplFileInfo>
+     */
+    public static function iterateFiles(string $rootPath): \Generator
+    {
+        $mappedRoot = rtrim(self::mapExternalPath($rootPath), '/\\');
         $iterator = null;
 
         if (!is_dir($mappedRoot)) {
-            return $manifest;
+            return;
         }
-
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($mappedRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
             \RecursiveIteratorIterator::LEAVES_ONLY
         );
-
         foreach ($iterator as $file) {
-            if ($shouldAbort !== null) {
-                $shouldAbort();
+            if ($file->isFile() && $file->isReadable()) {
+                yield str_replace('\\', '/', substr($file->getPathname(), strlen($mappedRoot) + 1)) => $file;
             }
-            if (!$file->isFile() || !$file->isReadable()) {
-                continue;
-            }
-
-            $absolutePath = $file->getPathname();
-            $relativePath = substr($absolutePath, strlen(rtrim($mappedRoot, '/\\')) + 1);
-            $relativePath = str_replace('\\', '/', $relativePath);
-            $manifest[$relativePath] = [
-                'size' => $file->getSize(),
-                'sha256' => hash_file('sha256', $absolutePath),
-            ];
         }
+    }
 
-        ksort($manifest);
-        return $manifest;
+    public static function writeFileAtomic(string $path, string $content): bool
+    {
+        $staging = $path . '.' . getmypid() . '.tmp';
+
+        return self::writeFile($staging, $content) && self::moveFile($staging, $path);
     }
 
     public static function copy(string $source, string $destination): bool
@@ -465,6 +505,25 @@ class FileSystemManager
         self::fixPermissions($mappedDestination);
         unlink($mappedSource);
         return true;
+    }
+
+    /**
+     * Native in-process move that replaces the destination (atomic on the
+     * same volume); falls back to copy + unlink across volumes.
+     */
+    public static function moveFile(string $source, string $destination): bool
+    {
+        $mappedSource = self::mapExternalPath($source);
+        $mappedDestination = self::mapExternalPath($destination);
+
+        if (!is_file($mappedSource)) {
+            return false;
+        }
+        self::ensureDirectoryExists(dirname($mappedDestination));
+        if (@rename($mappedSource, $mappedDestination)) {
+            return true;
+        }
+        return self::replaceFile($source, $destination);
     }
 
     public static function rename(string $oldPath, string $newPath): bool

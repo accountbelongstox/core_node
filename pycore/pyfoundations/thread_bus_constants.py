@@ -98,6 +98,8 @@ class BusSignals:
     AGENT_HISTORY_SESSIONS_CHANGED = "agent_history.sessions.changed"
     AGENT_HISTORY_PROMPT_NEW = "agent_history.prompt.new"
     AGENT_HISTORY_PROMPT_DERIVED = "agent_history.prompt.derived"
+    AGENT_HISTORY_PROMPT_REWRITTEN = "agent_history.prompt.rewritten"
+    AUDIO_ORCH_TASKS_CHANGED = "audio_orchestration.tasks.changed"
     AGENT_HISTORY_VIDEO_CHANGED = "agent_history.video.changed"
     AGENT_HISTORY_CONFIG_CHANGED = "agent_history.config.changed"
     ARTICLE_PUBLISHED = "article.published"

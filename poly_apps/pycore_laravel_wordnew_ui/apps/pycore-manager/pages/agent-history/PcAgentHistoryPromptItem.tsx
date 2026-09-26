@@ -9,7 +9,9 @@ const PcAgentHistoryPromptItem: React.FC<{
   p: AgentHistoryPrompt;
   labels: { copy: string; copied: string; edit: string; save: string; cancel: string; edited: string };
   onSaved: (id: string, text: string) => void;
-}> = ({ p, labels, onSaved }) => {
+  /** Derived views of this prompt (e.g. the AI rewrite) under the text. */
+  children?: React.ReactNode;
+}> = ({ p, labels, onSaved, children }) => {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(p.text);
   const [saving, setSaving] = React.useState(false);
@@ -73,6 +75,7 @@ const PcAgentHistoryPromptItem: React.FC<{
       ) : (
         <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words max-h-48 overflow-auto">{p.text}</p>
       )}
+      {children}
     </li>
   );
 };

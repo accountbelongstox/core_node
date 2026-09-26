@@ -12,11 +12,11 @@ import {
 } from 'lucide-react';
 
 const STEP_ICONS = {
-  requirement: [ClipboardList, MessageSquareText, Sparkles],
-  cooperation: [Blocks, BadgeCheck, CheckCircle2],
+  brief: [ClipboardList, MessageSquareText, Sparkles],
+  proposal: [Blocks, BadgeCheck, CheckCircle2],
   funding: [Landmark, ShieldCheck, CheckCircle2],
-  delivery: [Code2, MessageSquareText, BadgeCheck],
-  warranty: [ShieldCheck, ClipboardList, CheckCircle2],
+  marketplace: [Code2, MessageSquareText, BadgeCheck],
+  review: [ShieldCheck, ClipboardList, CheckCircle2],
 } as const;
 
 export type CmProcessStepId = keyof typeof STEP_ICONS;

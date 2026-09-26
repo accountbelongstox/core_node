@@ -1,6 +1,7 @@
 import { defineConfig } from 'wxt';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import { resolve } from 'path';
+import { readFileSync, writeFileSync } from 'fs';
+import { join, resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite';
 
 // Load configuration from config.cjs
@@ -8,11 +9,16 @@ const configPath = resolve(__dirname, 'config.cjs');
 const config = require(configPath);
 const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
 const REPOSITORY_ROOT = resolve(__dirname, '../../../..');
+const MCP_CHROME_ROOT = resolve(__dirname, '../..');
+const SERVICE_CONTRACT = JSON.parse(
+  readFileSync(join(REPOSITORY_ROOT, 'config', 'service_contract.json'), 'utf8'),
+);
+const MCP_CHROME_LAYOUT = SERVICE_CONTRACT.mcp_chrome;
 
 // Detect the target browser from the wxt CLI args (this file is plain TS run by
 // the wxt CLI, so process.argv is the only reliable pre-config signal). Used to
-// pick the output dir template: external scripts depend on .output/build_extension
-// staying the Chrome output, so Firefox builds go to .output/build_extension_firefox.
+// pick the output dir template: external scripts depend on the Chrome output
+// directory named in config/service_contract.json (mcp_chrome.*).
 const CLI_ARGS = process.argv;
 const IS_FIREFOX_TARGET = CLI_ARGS.some(
   (arg, i) =>
@@ -58,16 +64,26 @@ const FIREFOX_PERMISSIONS = [
   'alarms',
 ];
 
-// Build in current directory: .output/chrome-mv3 (WXT default, no custom outDir)
-
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  // Output the built extension to <mcp-chrome>/.output/build_extension (Chrome)
-  // or <mcp-chrome>/.output/build_extension_firefox (Firefox). outDir is the
-  // base dir; the static outDirTemplate replaces the default
-  // "{{browser}}-mv{{manifestVersion}}" (chrome-mv3) so there is no extra suffix.
-  outDir: resolve(__dirname, '../../.output'),
-  outDirTemplate: IS_FIREFOX_TARGET ? 'build_extension_firefox' : 'build_extension',
+  // Visible build root <mcp-chrome>/<mcp_chrome.build_output_dir>; the static
+  // outDirTemplate replaces WXT's "{{browser}}-mv{{manifestVersion}}" so dev and
+  // production builds share one unpacked-extension folder.
+  outDir: join(MCP_CHROME_ROOT, MCP_CHROME_LAYOUT.build_output_dir),
+  outDirTemplate: IS_FIREFOX_TARGET
+    ? MCP_CHROME_LAYOUT.firefox_extension_dir
+    : MCP_CHROME_LAYOUT.extension_dir,
+  hooks: {
+    // Production builds leave a stamp the unpacked extension polls to reload
+    // itself; dev (serve) builds are reloaded by WXT's own dev client.
+    'build:done': (wxt) => {
+      if (wxt.config.command !== 'build') return;
+      writeFileSync(
+        join(wxt.config.outDir, MCP_CHROME_LAYOUT.build_stamp_file),
+        JSON.stringify({ buildId: `${Date.now()}` }),
+      );
+    },
+  },
   modules: ['@wxt-dev/module-vue'],
   webExt: {
     // 方案1: 禁用自动启动（推荐）

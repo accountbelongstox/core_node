@@ -31,6 +31,8 @@ return [
         'swift_code' => env('CODEMART_BANK_SWIFT_CODE'),
     ],
 
+    'codemart_seed_demo' => env('CODEMART_SEED_DEMO'),
+
     'workos' => [
         'api_key' => null,
         'client_id' => null,

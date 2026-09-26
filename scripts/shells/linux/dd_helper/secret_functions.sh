@@ -12,16 +12,103 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Secret Functions for dd.sh
+# Secret Functions for dd.sh and standalone launchers.
+# Detection never prompts. Decrypt / re-encrypt are queued through
+# prompt_queue_* (stacked into dd.sh's single pre-menu prompt, or flushed at
+# once when the caller did not defer the queue). Mode menus and passwords are
+# asked only after the user accepted an item.
 # =============================================================================
 
 # Repo root: caller may set CORE_NODE_ROOT_DIR before sourcing; otherwise resolve from this file location.
-_DD_HELPER_SECRETS_DIR=""
+_DD_HELPER_SECRETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -z "${CORE_NODE_ROOT_DIR:-}" ]; then
-    _DD_HELPER_SECRETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     CORE_NODE_ROOT_DIR="$(cd "$_DD_HELPER_SECRETS_DIR/../../../.." && pwd)"
 fi
-source "$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/arrow_menu.sh"
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$_DD_HELPER_SECRETS_DIR/../common/runtime_environment.sh"
+source "$_DD_HELPER_SECRETS_DIR/../common/prompt_common.sh"
+source "$_DD_HELPER_SECRETS_DIR/../common/arrow_menu.sh"
+
+SECRET_ROOT_DIR="$CORE_NODE_ROOT_DIR/.secret_keys"
+SECRET_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_encrypted"
+SECRET_BATCH_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_batch_encrypted"
+SECRET_RAW_DIR="$SECRET_ROOT_DIR/.secret_ignore"
+SECRET_DISGUISE_JS="$CORE_NODE_ROOT_DIR/scripts/disguise.js"
+SECRET_ENCRYPTION_TOOLS_DIR="$CORE_NODE_ROOT_DIR/scripts/encryption_tools"
+SECRET_NODE_INSTALL_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
+SECRET_CACHE_DIR="$CORE_NODE_SECRET_CACHE_DIR"
+# Decryption timestamps expire after 7 days; content-hash baselines never expire.
+SECRET_CACHE_TTL=604800
+SECRET_BUNDLE_FILE=""
+SECRET_BUNDLE_NEEDS_DECRYPT=false
+SECRET_NODE_CMD=""
+SECRET_USE_BATCH=false
+SECRET_PASSWORD=""
+SECRET_PENDING_FILES=()
+SECRET_CHANGED_FILES=()
+SECRET_REENCRYPT_FILES=()
+SECRET_MODE_MENU_ITEMS=(
+    "Batch mode (Bundle) - Fast, single process"
+    "Individual mode (Original) - Multiple processes"
+)
+
+# =============================================================================
+# Secret caches
+# =============================================================================
+
+set_decryption_timestamp_cache() {
+    local filename="$1"
+    local cache_dir="$SECRET_CACHE_DIR/decryption_timestamps"
+    local now=0
+
+    [ -d "$cache_dir" ] || $USE_SUDO mkdir -p "$cache_dir"
+    printf -v now '%(%s)T' -1
+    echo "$now" | $USE_SUDO tee "$cache_dir/${filename}.decrypt_time" >/dev/null 2>&1
+}
+
+# Persistent content-change baseline of an encrypted file.
+set_encrypted_content_hash_cache() {
+    local filename="$1"
+    local encrypted_file="$2"
+    local cache_dir="$SECRET_CACHE_DIR/encrypted_content_hash"
+    local file_hash=""
+
+    [ -s "$encrypted_file" ] || return 0
+    [ -d "$cache_dir" ] || $USE_SUDO mkdir -p "$cache_dir"
+    file_hash="$(sha256sum "$encrypted_file" 2>/dev/null | cut -d' ' -f1)"
+    if [ -n "$file_hash" ]; then
+        echo "$file_hash" | $USE_SUDO tee "$cache_dir/${filename}.enc_hash" >/dev/null 2>&1
+    fi
+}
+
+# Expire decryption timestamps. encrypted_content_hash/*.enc_hash are NOT
+# expired: they are content-change baselines, and a missing baseline would make
+# every file look changed.
+cleanup_secret_cache() {
+    local decrypt_cache_dir="$SECRET_CACHE_DIR/decryption_timestamps"
+    local cache_file=""
+    local file_mtime=0
+    local now=0
+    local cleaned_files=0
+
+    [ -d "$decrypt_cache_dir" ] || return 0
+    printf -v now '%(%s)T' -1
+    for cache_file in "$decrypt_cache_dir"/*.decrypt_time; do
+        [ -s "$cache_file" ] || continue
+        file_mtime="$(stat -c %Y "$cache_file" 2>/dev/null)"
+        [ -n "$file_mtime" ] || file_mtime=0
+        if [ $((now - file_mtime)) -gt "$SECRET_CACHE_TTL" ]; then
+            $USE_SUDO rm -f "$cache_file" 2>/dev/null
+            cleaned_files=$((cleaned_files + 1))
+        fi
+    done
+    if [ "$cleaned_files" -gt 0 ]; then
+        echo -e "\033[33m[SECRET CACHE CLEANUP] Removed $cleaned_files expired secret cache entries\033[0m"
+    fi
+}
+
+# =============================================================================
+# Helpers
+# =============================================================================
 
 read_secret_input() {
     local prompt="$1"
@@ -77,526 +164,376 @@ read_secret_input() {
     echo "$password"
 }
 
-ensure_secret_keys_ready() {
-    local secret_root="$CORE_NODE_ROOT_DIR/.secret_keys"
-    local encrypted_dir="$secret_root/already_encrypted"
-    local batch_encrypted_dir="$secret_root/already_batch_encrypted"
-    local raw_dir="$secret_root/.secret_ignore"
-    local disguise_js="$CORE_NODE_ROOT_DIR/scripts/disguise.js"
-    local node_cmd=""
-    local password=""
+secret_resolve_node() {
+    SECRET_NODE_CMD=""
+    if [ -n "${NODE_BIN:-}" ] && [ -x "$NODE_BIN" ]; then
+        SECRET_NODE_CMD="$NODE_BIN"
+    else
+        SECRET_NODE_CMD="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
+    fi
+    if [ -z "$SECRET_NODE_CMD" ]; then
+        echo -e "\033[31m[SECRETS] Node.js not found; it is required for secret files.\033[0m"
+        echo -e "\033[36m[SECRETS] Install it with: bash $SECRET_NODE_INSTALL_SCRIPT\033[0m"
+        return 1
+    fi
+    echo -e "\033[36m[SECRETS] Using Node.js: $SECRET_NODE_CMD\033[0m"
+}
+
+secret_find_bundle() {
+    SECRET_BUNDLE_FILE=""
+    if [ -d "$SECRET_BATCH_ENCRYPTED_DIR" ]; then
+        SECRET_BUNDLE_FILE="$(find "$SECRET_BATCH_ENCRYPTED_DIR" -type f -name '*.js' 2>/dev/null | head -n 1)"
+    fi
+}
+
+# Batch vs individual mode (arrow menu); only offered when a bundle exists.
+secret_select_mode() {
+    local title="$1"
+
+    SECRET_USE_BATCH=false
+    [ -n "$SECRET_BUNDLE_FILE" ] || return 0
+    arrow_menu_select "$title" SECRET_MODE_MENU_ITEMS 0 -1
+    if [ "$ARROW_MENU_SELECTED_INDEX" = "0" ]; then
+        SECRET_USE_BATCH=true
+    fi
+}
+
+# Reads and confirms SECRET_PASSWORD from /dev/tty.
+secret_read_password() {
+    local label="$1"
     local password_confirm=""
-    local success_count=0
-    local -a pending_files=()
-    local -a files_need_reencrypt=()
-    local base_name=""
-    local raw_file=""
-    local output=""
-    local file_name=""
+
+    SECRET_PASSWORD=""
+    echo -e "\033[36m[$label] Password input is hidden and shows * for each character.\033[0m"
+    SECRET_PASSWORD="$(read_secret_input "Please enter password: ")" || SECRET_PASSWORD=""
+    if [ -z "$SECRET_PASSWORD" ]; then
+        echo -e "\033[33m[$label] Unable to capture password or empty password provided. Skipping.\033[0m"
+        return 1
+    fi
+    password_confirm="$(read_secret_input "Please confirm password: ")" || password_confirm=""
+    if [ "$SECRET_PASSWORD" != "$password_confirm" ]; then
+        SECRET_PASSWORD=""
+        echo -e "\033[31m[$label] Passwords do not match or unable to capture. Skipping.\033[0m"
+        return 1
+    fi
+}
+
+# =============================================================================
+# Detection (no prompts)
+# =============================================================================
+
+# SECRET_PENDING_FILES: encrypted files without a decrypted copy.
+# SECRET_CHANGED_FILES: decrypted names whose encrypted content changed since
+#   the stored baseline (a missing baseline is seeded, never reported).
+# SECRET_BUNDLE_NEEDS_DECRYPT: the bundle holds more files than the raw dir.
+secret_scan_decrypt_state() {
     local enc_file=""
-    local use_batch_mode=""
-    local bundle_file=""
-    local selected_index=0
-    local mode_menu_items=(
-        "Batch mode (Bundle) - Fast, single process"
-        "Individual mode (Original) - Multiple processes"
-    )
+    local base_name=""
+    local current_hash=""
+    local cached_hash=""
+    local cache_file=""
+    local bundle_count=0
+    local raw_count=0
+    local index=0
+    local -a hashed_files=()
+    local -a hashed_names=()
+    local -A current_hashes=()
 
-    if [ ! -d "$raw_dir" ] && [ ! -d "$encrypted_dir" ] && [ ! -d "$batch_encrypted_dir" ]; then
-        return 0
-    fi
-
-    # Clean up expired secret cache entries
-    cleanup_secret_cache
-
-    if [ ! -d "$raw_dir" ]; then
-        if ! mkdir -p "$raw_dir" 2>/dev/null; then
-            echo -e "\033[31m[SECRETS] Failed to create decrypted secrets directory: $raw_dir\033[0m"
-            return 1
-        fi
-    fi
-
-    # Check for encrypted files with content changes (before checking missing files)
-    if [ -d "$encrypted_dir" ]; then
-        get_encrypted_files_needing_redecryption "$encrypted_dir" "$raw_dir"
-        if [ "$SECRET_REDECRYPTION_REQUESTED" = true ]; then
-            # Some encrypted files were updated and user chose to re-decrypt
-            # The function already removed outdated raw files
-            echo -e "\033[36m[CACHE UPDATE] Starting re-decryption after content changes...\033[0m"
-            # Continue with normal decryption flow to decrypt the removed files
-        fi
-    fi
-
-    local has_batch_bundle=false
-    if [ -d "$batch_encrypted_dir" ]; then
-        local bundle_count=$(find "$batch_encrypted_dir" -type f -name '*.js' 2>/dev/null | wc -l)
-        if [ "$bundle_count" -gt 0 ]; then
-            has_batch_bundle=true
-            bundle_file=$(find "$batch_encrypted_dir" -type f -name '*.js' 2>/dev/null | head -n 1)
-        fi
-    fi
+    SECRET_PENDING_FILES=()
+    SECRET_CHANGED_FILES=()
+    SECRET_BUNDLE_NEEDS_DECRYPT=false
 
     while IFS= read -r -d '' enc_file; do
-        base_name="$(basename "$enc_file")"
+        base_name="${enc_file##*/}"
         base_name="${base_name%.js}"
         base_name="${base_name%.JS}"
-        raw_file="$raw_dir/$base_name"
-        if [ ! -s "$raw_file" ]; then
-            pending_files+=("$enc_file")
+        if [ ! -s "$SECRET_RAW_DIR/$base_name" ]; then
+            SECRET_PENDING_FILES+=("$enc_file")
+            continue
         fi
-    done < <(find "$encrypted_dir" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
-
-    local bundle_needs_decrypt=false
-    if [ "$has_batch_bundle" = true ]; then
-        if ! "$node_cmd" "$bundle_file" show 2>/dev/null | grep -q "Password hint:"; then
-            node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
+        if [ ! -s "$SECRET_CACHE_DIR/encrypted_content_hash/${base_name}.enc_hash" ]; then
+            set_encrypted_content_hash_cache "$base_name" "$enc_file"
+            continue
         fi
+        hashed_files+=("$enc_file")
+        hashed_names+=("$base_name")
+    done < <(find "$SECRET_ENCRYPTED_DIR" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
 
-        local bundle_file_count=0
-        if [ -n "$node_cmd" ]; then
-            bundle_file_count=$("$node_cmd" -e "
-                const fs = require('fs');
-                const content = fs.readFileSync('$bundle_file', 'utf8');
-                const match = content.match(/const TOTAL_COUNT = (\d+);/);
-                console.log(match ? match[1] : '0');
-            " 2>/dev/null || echo "0")
+    if [ "${#hashed_files[@]}" -gt 0 ]; then
+        while read -r current_hash enc_file; do
+            current_hashes["$enc_file"]="$current_hash"
+        done < <(sha256sum -- "${hashed_files[@]}" 2>/dev/null)
+    fi
+    for index in "${!hashed_files[@]}"; do
+        cache_file="$SECRET_CACHE_DIR/encrypted_content_hash/${hashed_names[$index]}.enc_hash"
+        cached_hash="$(< "$cache_file")"
+        current_hash="${current_hashes[${hashed_files[$index]}]:-}"
+        if [ -z "$cached_hash" ] || [ -z "$current_hash" ] || [ "$cached_hash" != "$current_hash" ]; then
+            SECRET_CHANGED_FILES+=("${hashed_names[$index]}")
         fi
-
-        local raw_file_count=$(find "$raw_dir" -type f 2>/dev/null | wc -l)
-
-        if [ "$bundle_file_count" -gt 0 ] && [ "$raw_file_count" -lt "$bundle_file_count" ]; then
-            bundle_needs_decrypt=true
-        fi
-    fi
-
-    if [ ${#pending_files[@]} -eq 0 ] && [ "$bundle_needs_decrypt" = false ]; then
-        # No files need decryption, skip to encryption check
-        true
-    else
-        # Files need decryption, proceed with decryption phase
-
-    if [ "$has_batch_bundle" = true ] && [ ${#pending_files[@]} -gt 0 ]; then
-        arrow_menu_select "Secret Decryption Mode" mode_menu_items 0 -1
-        selected_index="$ARROW_MENU_SELECTED_INDEX"
-        case "$selected_index" in
-            0) use_batch_mode="yes" ;;
-            1) use_batch_mode="no" ;;
-        esac
-    elif [ "$has_batch_bundle" = true ]; then
-        use_batch_mode="yes"
-    else
-        use_batch_mode="no"
-    fi
-
-    echo ""
-    echo -e "\033[36m========================================"
-    echo -e "Missing Decrypted Secret Files Detected"
-    echo -e "========================================\033[0m"
-
-    if [ "$use_batch_mode" = "yes" ]; then
-        echo -e "\033[37mDecryption mode: Batch (Bundle) - Fast mode\033[0m"
-        echo -e "\033[37m  Bundle file: $(basename "$bundle_file")\033[0m"
-        echo -e "\033[37m  Output dir: $raw_dir\033[0m"
-    else
-        echo -e "\033[37mDecryption mode: Individual (Original) - Compatible mode\033[0m"
-        echo -e "\033[37mFound ${#pending_files[@]} encrypted files without decrypted copies:\033[0m"
-        echo -e "\033[37m  Encrypted dir: $encrypted_dir\033[0m"
-        echo -e "\033[37m  Raw dir: $raw_dir\033[0m"
-        echo ""
-        echo -e "\033[33mMissing files:\033[0m"
-
-        for enc_file in "${pending_files[@]}"; do
-            local display_name="$(basename "$enc_file")"
-            echo -e "\033[31m  - $display_name\033[0m"
-        done
-    fi
-    echo ""
-
-    read -r -p "Would you like to decrypt all secrets now? (yes/no): " decrypt_choice
-
-    if [[ ! "$decrypt_choice" =~ ^[Yy](es)?$ ]]; then
-        echo -e "\033[33mSkipping decryption. You can decrypt secrets later via the menu.\033[0m"
-        echo ""
-        read -p "Press Enter to continue..."
-        return 0
-    fi
-
-    echo ""
-    echo -e "\033[36mStarting batch decryption...\033[0m"
-    echo ""
-
-    # First, try to use NODE_BIN from gvar_common (absolute path)
-    if [ -n "$NODE_BIN" ] && [ -x "$NODE_BIN" ]; then
-        node_cmd="$NODE_BIN"
-        echo -e "\033[36m[SECRETS] Using Node.js from: $node_cmd\033[0m"
-    else
-        # /usr/local/bin link first, then PATH, gvar constant, var center
-        node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
-        if [ -n "$node_cmd" ]; then
-            echo -e "\033[36m[SECRETS] Using Node.js: $node_cmd\033[0m"
-        else
-            # Node.js not found - provide installation instructions
-            echo -e "\033[31m[SECRETS] Node.js not found!\033[0m"
-            echo -e "\033[33m[SECRETS] Node.js is required to decrypt secret files.\033[0m"
-            echo ""
-            echo -e "\033[36m[SECRETS] To install Node.js, run:\033[0m"
-
-            # Get the install script path (trust-based)
-            local install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
-            echo -e "\033[32m  bash $install_script\033[0m"
-
-            echo ""
-            echo -e "\033[36m[SECRETS] After installing Node.js, please run this script again.\033[0m"
-            echo ""
-            read -p "Press Enter to continue..."
-            return 1
-        fi
-    fi
-
-    echo -e "\033[36m[SECRETS] Password input is hidden and shows * for each character.\033[0m"
-    password="$(read_secret_input "Please enter password: ")"
-    if [ $? -ne 0 ] || [ -z "$password" ]; then
-        echo -e "\033[33m[SECRETS] Unable to capture password or empty password provided. Skipping decryption.\033[0m"
-        return 1
-    fi
-
-    password_confirm="$(read_secret_input "Please confirm password: ")"
-    if [ $? -ne 0 ] || [ -z "$password_confirm" ] || [ "$password" != "$password_confirm" ]; then
-        echo -e "\033[31m[SECRETS] Passwords do not match or unable to capture. Skipping decryption.\033[0m"
-        return 1
-    fi
-
-    if [ "$use_batch_mode" = "yes" ]; then
-        echo ""
-        echo -e "\033[36m[BATCH MODE] Using bundle file for fast decryption...\033[0m"
-        echo -e "\033[36m[BATCH MODE] Bundle: $(basename "$bundle_file")\033[0m"
-        echo ""
-
-        "$node_cmd" "$bundle_file" pwd "$password" "$raw_dir"
-
-        if [ $? -eq 0 ]; then
-            echo ""
-            echo -e "\033[32m[BATCH MODE] All secrets decrypted successfully!\033[0m"
-
-            # Set decryption timestamp cache and encrypted content hash cache for all decrypted files
-            if [ -d "$raw_dir" ]; then
-                while IFS= read -r -d '' raw_file; do
-                    local base_name_for_cache="$(basename "$raw_file")"
-                    set_decryption_timestamp_cache "$base_name_for_cache"
-                    # Keep raw mtime in sync with its per-file encrypted counterpart so the
-                    # timestamp-based encryption check does not falsely flag freshly decrypted files.
-                    local sync_enc_file="$encrypted_dir/$base_name_for_cache.js"
-                    if [ -f "$sync_enc_file" ]; then
-                        touch -r "$sync_enc_file" "$raw_file" 2>/dev/null || true
-                    fi
-                done < <(find "$raw_dir" -type f -print0 2>/dev/null)
-            fi
-
-            # Cache bundle file hash
-            if [ -s "$bundle_file" ]; then
-                local bundle_base_name="$(basename "$bundle_file")"
-                bundle_base_name="${bundle_base_name%.js}"
-                bundle_base_name="${bundle_base_name%.JS}"
-                set_encrypted_content_hash_cache "$bundle_base_name" "$bundle_file"
-            fi
-
-            password=""
-            echo ""
-            read -p "Press Enter to continue..."
-        else
-            echo ""
-            echo -e "\033[31m[BATCH MODE] Batch decryption failed!\033[0m"
-            echo -e "\033[33m[BATCH MODE] Possible reasons:\033[0m"
-            echo -e "\033[33m  - Wrong password\033[0m"
-            echo -e "\033[33m  - Bundle file corrupted\033[0m"
-            echo ""
-            read -p "Press Enter to continue..."
-            return 1
-        fi
-    fi
-
-    if [ "$use_batch_mode" != "yes" ]; then
-        echo ""
-        echo -e "\033[36m[INDIVIDUAL MODE] Decrypting files one by one...\033[0m"
-        echo ""
-
-        for enc_file in "${pending_files[@]}"; do
-            file_name="$(basename "$enc_file")"
-            echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
-
-            "$node_cmd" "$enc_file" pwd "$password" "$raw_dir"
-
-            if [ $? -eq 0 ]; then
-                ((success_count++))
-                echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
-                # Set decryption timestamp cache and encrypted content hash cache
-                local base_name_for_cache="$(basename "$enc_file")"
-                base_name_for_cache="${base_name_for_cache%.js}"
-                base_name_for_cache="${base_name_for_cache%.JS}"
-                set_decryption_timestamp_cache "$base_name_for_cache"
-                set_encrypted_content_hash_cache "$base_name_for_cache" "$enc_file"
-                # Keep raw mtime in sync with its encrypted counterpart so the
-                # timestamp-based encryption check does not falsely flag it.
-                touch -r "$enc_file" "$raw_dir/$base_name_for_cache" 2>/dev/null || true
-            else
-                echo -e "\033[31m[SECRETS]   FAILED\033[0m"
-            fi
-        done
-
-        password=""
-
-        echo ""
-        echo -e "\033[36m========================================"
-        echo -e "Decryption Summary:"
-        echo -e "========================================\033[0m"
-        echo -e "\033[36m  Total files: ${#pending_files[@]}\033[0m"
-        echo -e "\033[32m  Successful:  $success_count\033[0m"
-        echo -e "\033[31m  Failed:      $((${#pending_files[@]} - success_count))\033[0m"
-        echo -e "\033[36m========================================\033[0m"
-        echo ""
-
-        if [ $success_count -eq ${#pending_files[@]} ]; then
-            echo -e "\033[32mSecrets decrypted successfully!\033[0m"
-        else
-            echo -e "\033[33mSome secrets failed to decrypt. You can retry later.\033[0m"
-        fi
-
-        echo ""
-        read -p "Press Enter to continue..."
-    fi
-    fi  # End of decryption phase
-
-    # =========================================================================
-    # Step 2: Check for files that need re-encryption (timestamp comparison)
-    # =========================================================================
-
-    if [ ! -d "$raw_dir" ] || [ ! "$(ls -A "$raw_dir" 2>/dev/null)" ]; then
-        return 0
-    fi
-
-    if [ ! -d "$encrypted_dir" ]; then
-        mkdir -p "$encrypted_dir" 2>/dev/null || true
-    fi
-
-    # Check which files need (re-)encryption using a deterministic timestamp rule:
-    # a raw file needs encryption when it has no encrypted counterpart, or when it
-    # is newer than that counterpart. This does not depend on the secret cache.
-    files_need_reencrypt=()
-    while IFS= read -r -d '' raw_file; do
-        base_name="$(basename "$raw_file")"
-        enc_file="$encrypted_dir/$base_name.js"
-
-        if [ ! -f "$enc_file" ]; then
-            # No encrypted file exists - needs encryption
-            files_need_reencrypt+=("$base_name")
-        elif [ "$raw_file" -nt "$enc_file" ]; then
-            # Raw file is newer than its encrypted counterpart - needs re-encryption
-            files_need_reencrypt+=("$base_name")
-        fi
-    done < <(find "$raw_dir" -type f -print0 2>/dev/null)
-
-    if [ ${#files_need_reencrypt[@]} -eq 0 ]; then
-        return 0
-    fi
-
-    echo ""
-    echo -e "\033[36m========================================"
-    echo -e "Files Need Re-encryption Detected"
-    echo -e "========================================\033[0m"
-    echo -e "\033[37mFound ${#files_need_reencrypt[@]} file(s) that need re-encryption:\033[0m"
-    echo -e "\033[37m  Raw directory:       $raw_dir\033[0m"
-    echo -e "\033[37m  Encrypted directory: $encrypted_dir\033[0m"
-    echo ""
-    echo -e "\033[36mCopyable directory commands:\033[0m"
-    printf '  cd %q\n' "$raw_dir"
-    printf '  cd %q\n' "$encrypted_dir"
-    echo ""
-
-    for base_name in "${files_need_reencrypt[@]}"; do
-        echo -e "\033[33m  - $base_name\033[0m"
     done
-    echo ""
 
-    # Check if batch bundle exists
-    has_batch_bundle=false
-    if [ -d "$batch_encrypted_dir" ]; then
-        bundle_file=$(find "$batch_encrypted_dir" -type f -name '*.js' 2>/dev/null | head -n 1)
-        if [ -n "$bundle_file" ]; then
-            has_batch_bundle=true
+    secret_find_bundle
+    if [ -n "$SECRET_BUNDLE_FILE" ]; then
+        bundle_count="$(grep -o 'const TOTAL_COUNT = [0-9]*' "$SECRET_BUNDLE_FILE" 2>/dev/null | head -n 1 | grep -o '[0-9]*$' || true)"
+        [ -n "$bundle_count" ] || bundle_count=0
+        raw_count="$(find "$SECRET_RAW_DIR" -type f 2>/dev/null | wc -l)"
+        if [ "$bundle_count" -gt 0 ] && [ "$raw_count" -lt "$bundle_count" ]; then
+            SECRET_BUNDLE_NEEDS_DECRYPT=true
         fi
     fi
+}
 
-    if [ "$has_batch_bundle" = true ]; then
-        arrow_menu_select "Secret Encryption Mode" mode_menu_items 0 -1
-        selected_index="$ARROW_MENU_SELECTED_INDEX"
-        case "$selected_index" in
-            0) use_batch_mode="yes" ;;
-            1) use_batch_mode="no" ;;
-        esac
-    else
-        use_batch_mode="no"
+# SECRET_REENCRYPT_FILES: raw files with no encrypted copy or newer than it.
+secret_scan_reencrypt_state() {
+    local raw_file=""
+    local base_name=""
+    local enc_file=""
+
+    SECRET_REENCRYPT_FILES=()
+    [ -d "$SECRET_RAW_DIR" ] || return 0
+    while IFS= read -r -d '' raw_file; do
+        base_name="${raw_file##*/}"
+        enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
+        if [ ! -f "$enc_file" ] || [ "$raw_file" -nt "$enc_file" ]; then
+            SECRET_REENCRYPT_FILES+=("$base_name")
+        fi
+    done < <(find "$SECRET_RAW_DIR" -type f -print0 2>/dev/null)
+}
+
+# =============================================================================
+# Queue handlers
+# =============================================================================
+
+secret_decrypt_accept() {
+    local file_name=""
+    local enc_file=""
+    local raw_file=""
+    local base_name=""
+    local success_count=0
+
+    for file_name in "${SECRET_CHANGED_FILES[@]}"; do
+        if [ -f "$SECRET_RAW_DIR/$file_name" ]; then
+            rm -f "$SECRET_RAW_DIR/$file_name" 2>/dev/null
+            echo -e "\033[36m[CACHE INVALIDATED] Removed outdated decrypted file: $file_name\033[0m"
+        fi
+    done
+    secret_scan_decrypt_state
+    if [ "${#SECRET_PENDING_FILES[@]}" -eq 0 ] && [ "$SECRET_BUNDLE_NEEDS_DECRYPT" = false ]; then
+        echo -e "\033[32m[SECRETS] Nothing to decrypt\033[0m"
+        return 0
     fi
+    if [ -n "$SECRET_BUNDLE_FILE" ] && [ "${#SECRET_PENDING_FILES[@]}" -gt 0 ]; then
+        secret_select_mode "Secret Decryption Mode"
+    elif [ -n "$SECRET_BUNDLE_FILE" ]; then
+        SECRET_USE_BATCH=true
+    else
+        SECRET_USE_BATCH=false
+    fi
+    secret_resolve_node || return 1
+    secret_read_password "SECRETS" || return 1
 
-    prompt_read_default encrypt_choice "no" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "Would you like to re-encrypt these files now? (yes/no) [auto-no in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s]: "
-
-    if [[ ! "$encrypt_choice" =~ ^[Yy](es)?$ ]]; then
-        echo -e "\033[33mSkipping re-encryption. Files remain out of sync.\033[0m"
-        echo ""
+    if [ "$SECRET_USE_BATCH" = true ]; then
+        echo -e "\033[36m[BATCH MODE] Bundle: ${SECRET_BUNDLE_FILE##*/} -> $SECRET_RAW_DIR\033[0m"
+        if "$SECRET_NODE_CMD" "$SECRET_BUNDLE_FILE" pwd "$SECRET_PASSWORD" "$SECRET_RAW_DIR"; then
+            while IFS= read -r -d '' raw_file; do
+                base_name="${raw_file##*/}"
+                set_decryption_timestamp_cache "$base_name"
+                enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
+                if [ -f "$enc_file" ]; then
+                    # Raw mtime follows its encrypted counterpart so the re-encrypt
+                    # check does not flag freshly decrypted files.
+                    touch -r "$enc_file" "$raw_file" 2>/dev/null || true
+                    set_encrypted_content_hash_cache "$base_name" "$enc_file"
+                fi
+            done < <(find "$SECRET_RAW_DIR" -type f -print0 2>/dev/null)
+            base_name="${SECRET_BUNDLE_FILE##*/}"
+            base_name="${base_name%.js}"
+            set_encrypted_content_hash_cache "${base_name%.JS}" "$SECRET_BUNDLE_FILE"
+            echo -e "\033[32m[BATCH MODE] All secrets decrypted successfully!\033[0m"
+        else
+            echo -e "\033[31m[BATCH MODE] Batch decryption failed (wrong password or corrupted bundle)\033[0m"
+        fi
+        SECRET_PASSWORD=""
         return 0
     fi
 
-    node_cmd="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
-    if [ -z "$node_cmd" ]; then
-        echo -e "\033[31m[RE-ENCRYPT] Node.js not found!\033[0m"
+    for enc_file in "${SECRET_PENDING_FILES[@]}"; do
+        file_name="${enc_file##*/}"
+        echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
+        if "$SECRET_NODE_CMD" "$enc_file" pwd "$SECRET_PASSWORD" "$SECRET_RAW_DIR"; then
+            success_count=$((success_count + 1))
+            base_name="${file_name%.js}"
+            base_name="${base_name%.JS}"
+            set_decryption_timestamp_cache "$base_name"
+            set_encrypted_content_hash_cache "$base_name" "$enc_file"
+            touch -r "$enc_file" "$SECRET_RAW_DIR/$base_name" 2>/dev/null || true
+            echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
+        else
+            echo -e "\033[31m[SECRETS]   FAILED\033[0m"
+        fi
+    done
+    SECRET_PASSWORD=""
+    echo -e "\033[36m[SECRETS] Decryption summary: ${#SECRET_PENDING_FILES[@]} total, $success_count successful, $((${#SECRET_PENDING_FILES[@]} - success_count)) failed\033[0m"
+}
+
+# Explicit "no" keeps the old files and refreshes the baselines of changed
+# files (no more notifications until they change again); Enter/timeout keeps
+# everything so the question returns on the next start.
+secret_decrypt_decline() {
+    local reason="$2"
+    local file_name=""
+    local enc_file=""
+
+    if [ "$reason" = "declined" ] && [ "${#SECRET_CHANGED_FILES[@]}" -gt 0 ]; then
+        for file_name in "${SECRET_CHANGED_FILES[@]}"; do
+            enc_file="$SECRET_ENCRYPTED_DIR/$file_name.js"
+            [ -s "$enc_file" ] || enc_file="$SECRET_ENCRYPTED_DIR/$file_name.JS"
+            set_encrypted_content_hash_cache "$file_name" "$enc_file"
+        done
+        echo -e "\033[33m[CACHE UPDATE] Kept existing decrypted files; ${#SECRET_CHANGED_FILES[@]} changed file(s) will not prompt again until their content changes\033[0m"
+    else
+        echo -e "\033[33m[SECRETS] Decryption skipped; it is offered again on the next start or via Linux System Tools -> Clear and Re-decrypt Secret Keys\033[0m"
+    fi
+}
+
+secret_reencrypt_accept() {
+    local base_name=""
+    local raw_file=""
+    local enc_file=""
+    local success_count=0
+
+    secret_scan_reencrypt_state
+    if [ "${#SECRET_REENCRYPT_FILES[@]}" -eq 0 ]; then
+        echo -e "\033[32m[RE-ENCRYPT] Nothing to re-encrypt\033[0m"
+        return 0
+    fi
+    mkdir -p "$SECRET_ENCRYPTED_DIR" 2>/dev/null || true
+    secret_find_bundle
+    secret_select_mode "Secret Encryption Mode"
+    if [ "$SECRET_USE_BATCH" != true ] && [ ! -f "$SECRET_DISGUISE_JS" ]; then
+        echo -e "\033[31m[RE-ENCRYPT] Error: disguise.js not found at: $SECRET_DISGUISE_JS\033[0m"
         return 1
     fi
+    secret_resolve_node || return 1
+    secret_read_password "RE-ENCRYPT" || return 1
 
-    echo -e "\033[36m[RE-ENCRYPT] Password input is hidden and shows * for each character.\033[0m"
-    password="$(read_secret_input "Please enter encryption password: ")"
-    if [ $? -ne 0 ] || [ -z "$password" ]; then
-        echo -e "\033[33m[RE-ENCRYPT] Unable to capture password. Skipping re-encryption.\033[0m"
-        return 1
-    fi
-
-    password_confirm="$(read_secret_input "Please confirm password: ")"
-    if [ $? -ne 0 ] || [ -z "$password_confirm" ] || [ "$password" != "$password_confirm" ]; then
-        echo -e "\033[31m[RE-ENCRYPT] Passwords do not match. Skipping re-encryption.\033[0m"
-        return 1
-    fi
-
-    echo ""
-    echo -e "\033[36m[RE-ENCRYPT] Starting re-encryption...\033[0m"
-    echo ""
-
-    local encryption_tools="$CORE_NODE_ROOT_DIR/scripts/encryption_tools"
-    success_count=0
-
-    if [ "$use_batch_mode" = "yes" ]; then
-        echo -e "\033[36m[BATCH MODE] Updating files in bundle...\033[0m"
-
-        for base_name in "${files_need_reencrypt[@]}"; do
-            raw_file="$raw_dir/$base_name"
+    for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
+        raw_file="$SECRET_RAW_DIR/$base_name"
+        if [ "$SECRET_USE_BATCH" = true ]; then
             echo -e "\033[36m[BATCH MODE]   Processing: $base_name\033[0m"
-
-            if "$node_cmd" "$encryption_tools/bundle_add_file.js" "$bundle_file" "$raw_file" "$password" --replace 2>&1 | grep -q "SUCCESS"; then
-                ((success_count++))
+            if "$SECRET_NODE_CMD" "$SECRET_ENCRYPTION_TOOLS_DIR/bundle_add_file.js" "$SECRET_BUNDLE_FILE" "$raw_file" "$SECRET_PASSWORD" --replace 2>&1 | grep -q "SUCCESS"; then
+                success_count=$((success_count + 1))
                 echo -e "\033[32m[BATCH MODE]     SUCCESS\033[0m"
             else
                 echo -e "\033[31m[BATCH MODE]     FAILED\033[0m"
             fi
-        done
-    else
-        echo -e "\033[36m[INDIVIDUAL MODE] Updating individual encrypted files...\033[0m"
-
-        if [ ! -f "$disguise_js" ]; then
-            echo -e "\033[31m[RE-ENCRYPT] Error: disguise.js not found at: $disguise_js\033[0m"
-            return 1
+            continue
         fi
+        enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
+        echo -e "\033[36m[INDIVIDUAL MODE]   Processing: $base_name\033[0m"
+        if "$SECRET_NODE_CMD" "$SECRET_DISGUISE_JS" "$raw_file" "$SECRET_PASSWORD" "$SECRET_ENCRYPTED_DIR" >/dev/null 2>&1 && [ -f "$enc_file" ]; then
+            success_count=$((success_count + 1))
+            touch -r "$enc_file" "$raw_file" 2>/dev/null || true
+            set_encrypted_content_hash_cache "$base_name" "$enc_file"
+            echo -e "\033[32m[INDIVIDUAL MODE]     SUCCESS\033[0m"
+        else
+            echo -e "\033[31m[INDIVIDUAL MODE]     FAILED\033[0m"
+        fi
+    done
+    SECRET_PASSWORD=""
+    echo -e "\033[36m[RE-ENCRYPT] Summary: ${#SECRET_REENCRYPT_FILES[@]} total, $success_count successful, $((${#SECRET_REENCRYPT_FILES[@]} - success_count)) failed\033[0m"
+}
 
-        for base_name in "${files_need_reencrypt[@]}"; do
-            raw_file="$raw_dir/$base_name"
-            enc_file="$encrypted_dir/$base_name.js"
-            echo -e "\033[36m[INDIVIDUAL MODE]   Processing: $base_name\033[0m"
+secret_reencrypt_decline() {
+    echo -e "\033[33m[RE-ENCRYPT] Skipped; files remain out of sync\033[0m"
+}
 
-            if "$node_cmd" "$disguise_js" "$raw_file" "$password" "$encrypted_dir" >/dev/null 2>&1 && [ -f "$enc_file" ]; then
-                ((success_count++))
-                touch -r "$enc_file" "$raw_file" 2>/dev/null || true
-                set_encrypted_content_hash_cache "$base_name" "$enc_file"
-                echo -e "\033[32m[INDIVIDUAL MODE]     SUCCESS\033[0m"
-            else
-                echo -e "\033[31m[INDIVIDUAL MODE]     FAILED\033[0m"
-            fi
+# =============================================================================
+# Entry points
+# =============================================================================
+
+# Detect secret work and queue it (decrypt first, then re-encrypt).
+ensure_secret_keys_ready() {
+    local enc_file=""
+    local base_name=""
+
+    if [ ! -d "$SECRET_RAW_DIR" ] && [ ! -d "$SECRET_ENCRYPTED_DIR" ] && [ ! -d "$SECRET_BATCH_ENCRYPTED_DIR" ]; then
+        return 0
+    fi
+    cleanup_secret_cache
+    if [ ! -d "$SECRET_RAW_DIR" ] && ! mkdir -p "$SECRET_RAW_DIR" 2>/dev/null; then
+        echo -e "\033[31m[SECRETS] Failed to create decrypted secrets directory: $SECRET_RAW_DIR\033[0m"
+        return 1
+    fi
+
+    secret_scan_decrypt_state
+    if [ "${#SECRET_PENDING_FILES[@]}" -gt 0 ] || [ "${#SECRET_CHANGED_FILES[@]}" -gt 0 ] || [ "$SECRET_BUNDLE_NEEDS_DECRYPT" = true ]; then
+        echo -e "\033[33m[SECRETS] Decryption needed (encrypted: $SECRET_ENCRYPTED_DIR, raw: $SECRET_RAW_DIR)\033[0m"
+        for enc_file in "${SECRET_PENDING_FILES[@]}"; do
+            echo -e "\033[31m  - missing: ${enc_file##*/}\033[0m"
         done
-    fi
-
-    password=""
-
-    echo ""
-    echo -e "\033[36m========================================"
-    echo -e "Re-encryption Summary:"
-    echo -e "========================================\033[0m"
-    echo -e "\033[36m  Total files: ${#files_need_reencrypt[@]}\033[0m"
-    echo -e "\033[32m  Successful:  $success_count\033[0m"
-    echo -e "\033[31m  Failed:      $((${#files_need_reencrypt[@]} - success_count))\033[0m"
-    echo -e "\033[36m========================================\033[0m"
-    echo ""
-
-    if [ $success_count -eq ${#files_need_reencrypt[@]} ]; then
-        echo -e "\033[32mAll files re-encrypted successfully!\033[0m"
+        for base_name in "${SECRET_CHANGED_FILES[@]}"; do
+            echo -e "\033[33m  - changed: $base_name (encrypted content updated)\033[0m"
+        done
+        if [ "$SECRET_BUNDLE_NEEDS_DECRYPT" = true ]; then
+            echo -e "\033[33m  - bundle: ${SECRET_BUNDLE_FILE##*/} holds files missing from the raw dir\033[0m"
+        fi
+        prompt_queue_add "secret_decrypt" "n" \
+            "Decrypt secret files (${#SECRET_PENDING_FILES[@]} missing, ${#SECRET_CHANGED_FILES[@]} changed)" \
+            secret_decrypt_accept secret_decrypt_decline
     else
-        echo -e "\033[33mSome files failed to re-encrypt.\033[0m"
+        echo -e "\033[32m[SECRETS] Decrypted secret files are up to date\033[0m"
     fi
 
-    echo ""
-    read -p "Press Enter to continue..."
+    secret_scan_reencrypt_state
+    if [ "${#SECRET_REENCRYPT_FILES[@]}" -gt 0 ]; then
+        echo -e "\033[33m[SECRETS] ${#SECRET_REENCRYPT_FILES[@]} file(s) need re-encryption:\033[0m"
+        printf '  cd %q\n' "$SECRET_RAW_DIR"
+        printf '  cd %q\n' "$SECRET_ENCRYPTED_DIR"
+        for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
+            echo -e "\033[33m  - $base_name\033[0m"
+        done
+        prompt_queue_add "secret_reencrypt" "n" \
+            "Re-encrypt ${#SECRET_REENCRYPT_FILES[@]} secret file(s) newer than their encrypted copies" \
+            secret_reencrypt_accept secret_reencrypt_decline
+    fi
+    prompt_queue_commit
 }
 
 clear_and_redecrypt_secrets() {
-    local secret_root="$CORE_NODE_ROOT_DIR/.secret_keys"
-    local encrypted_dir="$secret_root/already_encrypted"
-    local raw_dir="$secret_root/.secret_ignore"
     local file_count=0
+    local confirm_choice=""
 
     echo ""
     echo -e "\033[36m========================================"
     echo -e "Clear and Re-decrypt Secret Keys"
     echo -e "========================================\033[0m"
 
-    if [ ! -d "$encrypted_dir" ]; then
-        echo -e "\033[33m[INFO] No encrypted directory found at: $encrypted_dir\033[0m"
+    if [ ! -d "$SECRET_ENCRYPTED_DIR" ]; then
+        echo -e "\033[33m[INFO] No encrypted directory found at: $SECRET_ENCRYPTED_DIR\033[0m"
         echo ""
-        read -p "Press Enter to continue..."
+        read -r -p "Press Enter to continue..."
         return 0
     fi
-
-    if [ ! -d "$raw_dir" ]; then
-        echo -e "\033[33m[INFO] No decrypted directory found. Nothing to clear.\033[0m"
-        echo ""
-        read -p "Press Enter to continue..."
-        return 0
-    fi
-
-    file_count=$(find "$raw_dir" -type f 2>/dev/null | wc -l)
-
-    if [ "$file_count" -eq 0 ]; then
-        echo -e "\033[33m[INFO] No decrypted files found in: $raw_dir\033[0m"
-        echo -e "\033[36m[INFO] Proceeding to decrypt...\033[0m"
-        echo ""
-    else
-        echo -e "\033[37mDecrypted files location: $raw_dir\033[0m"
-        echo -e "\033[37mFound $file_count decrypted file(s)\033[0m"
-        echo ""
-        echo -e "\033[33m[WARNING] This will permanently delete all decrypted secret files!\033[0m"
-        echo -e "\033[33m[WARNING] You will need to re-enter the password to decrypt them again.\033[0m"
-        echo ""
-
+    [ -d "$SECRET_RAW_DIR" ] && file_count=$(find "$SECRET_RAW_DIR" -type f 2>/dev/null | wc -l)
+    if [ "$file_count" -gt 0 ]; then
+        echo -e "\033[37mDecrypted files location: $SECRET_RAW_DIR ($file_count file(s))\033[0m"
+        echo -e "\033[33m[WARNING] This permanently deletes all decrypted secret files; the password is needed to decrypt them again.\033[0m"
         read -r -p "Are you sure you want to clear all decrypted files? (yes/no): " confirm_choice
-
         if [[ ! "$confirm_choice" =~ ^[Yy](es)?$ ]]; then
-            echo -e "\033[32m[CANCELLED] Operation cancelled. No files were deleted.\033[0m"
+            echo -e "\033[32m[CANCELLED] No files were deleted.\033[0m"
             echo ""
-            read -p "Press Enter to continue..."
+            read -r -p "Press Enter to continue..."
             return 0
         fi
-
-        echo ""
-        echo -e "\033[36m[CLEARING] Removing all decrypted files...\033[0m"
-
-        if rm -rf "$raw_dir"/* 2>/dev/null; then
+        if rm -rf "$SECRET_RAW_DIR"/* 2>/dev/null; then
             echo -e "\033[32m[SUCCESS] All decrypted files have been cleared\033[0m"
         else
             echo -e "\033[31m[ERROR] Failed to clear some files\033[0m"
-            echo ""
-            read -p "Press Enter to continue..."
-            return 1
         fi
     fi
-
-    echo ""
-    echo -e "\033[36m[RE-DECRYPT] Starting re-decryption process...\033[0m"
-    echo ""
-
     ensure_secret_keys_ready
-
-    return $?
+    echo ""
+    read -r -p "Press Enter to continue..."
 }

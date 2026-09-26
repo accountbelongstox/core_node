@@ -52,8 +52,9 @@ Goal: pycore becomes self-sufficient for word audio.
 - At startup, when the persisted **Word Audio** flag is ON, pycore pulls
   **ALL dictionary words without audio** from Laravel into the lane queue
   (Part1 fill — pycore self-driven, no Laravel queue mutation) and keeps
-  generating while Laravel is offline; uploads resume through the existing
-  durable `audio_delivery_outbox` when Laravel returns.
+  generating while Laravel is offline; uploads resume through the shared
+  durable Laravel delivery outbox (`pycore/pyutils/laravel/delivery_outbox.py`,
+  kind `audio_lane.word`) when Laravel returns.
 - The queue snapshot is cached locally; on restart pycore loads the queue
   from the cache WITHOUT any remote pull and starts generating immediately
   when Word Audio is Running.
@@ -116,9 +117,12 @@ Goal: pycore becomes self-sufficient for word audio.
   `AppQyV1DictionaryTTSCoordinator::encodeTaskId`. The domain report
   (`POST /api/app_qy_v1/ai_tools/tts/worker/report`) needs only
   `dict_row_id` — the dictionary row `id` from 2.3 covers it.
-- Durable upload on failure/offline: `audio_delivery_outbox`
-  (`pycore/pyutils/tts/audio_delivery_outbox.py`), flushed on Laravel
-  online (`_on_laravel_online`) and at worker init.
+- Durable upload on failure/offline: shared Laravel delivery outbox
+  (`pycore/pyutils/laravel/delivery_outbox.py`, kinds `audio_lane.word` /
+  `audio_lane.sentence`, handler `pycore/pyctl/tts/laravel_audio_delivery.py`),
+  flushed on every Laravel offline -> online edge
+  (`endpoint_manager.LARAVEL_ONLINE_EVENT`), on each worker diff poll
+  (`_on_laravel_online` -> kick) and at worker init. (Updated 2026-09-27, R8.)
 
 ### 2.5 Queue library and caches
 
@@ -287,7 +291,9 @@ Implemented 2026-09-22 against R1–R13.
   local tasks (no global_tasks row exists — the post would 404).
 - `pycore/pyctl/tts/laravel_audio_worker_state.py` (R5): `_normalize`
   carries `_local_source` into the execution info block.
-- `pycore/pyutils/tts/audio_delivery_outbox.py` (R5): the outbox executor
+- `pycore/pyctl/tts/laravel_audio_delivery.py` (R5; was
+  `pyutils/tts/audio_delivery_outbox.py`, merged into the shared delivery
+  outbox 2026-09-27): the audio lane handler
   skips the global result step for `_local_source` deliveries once the
   domain report (encodeTaskId) reached a terminal state — the domain
   report IS the whole delivery for locally sourced words.

@@ -9,7 +9,7 @@
  *   1. probes that status endpoint once (probeStatus) so WfNewApp can flip the
  *      whole app into super-admin mode and surface the badge/entry points, and
  *   2. carries every management call the admin pages make (dictionary word CRUD,
- *      vocabulary libraries, TTS/translation queues, statistics, covers).
+ *      vocabulary libraries, TTS/translation queues, statistics, cover tasks).
  *
  * BASE-URL POLICY — pinned to the PAGE ORIGIN (`${protocol}//${hostname}:9000`),
  * NOT the wfNewEndpoints failover pool. Super permission is decided by the
@@ -34,6 +34,13 @@ import { WfNewAdminPaths, WFNEW_ADMIN_DEBUG_STATUS_PATH } from './WfNewApiPaths'
 import { WFNEW_API_PORT } from './WfNewEndpoints';
 import { loadToken } from './WfNewApiTransport';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
+import { LibraryCoverTaskModel } from '../../../shared/library-cover/LibraryCoverTaskModel';
+import type {
+  LibraryCoverEnqueueRequest,
+  LibraryCoverEnqueueResult,
+  LibraryCoverTask,
+  LibraryCoverTasksResult,
+} from '../../../core/integrations/laravel/LaravelTypes';
 
 // --- super-admin status ------------------------------------------------------ #
 
@@ -140,9 +147,12 @@ export interface WfNewAdminLibraryRow {
   difficulty: string;
   category: string;
   image_url: string | null;
+  cover_url: string | null;
   cover_status: string;
   cover_error: string | null;
+  cover_error_message: string | null;
   cover_attempts: number;
+  cover_task?: LibraryCoverTask | null;
   is_recommended: boolean;
 }
 
@@ -219,6 +229,11 @@ export interface WfNewAdminLangOption { code: string; name: string; native_name?
 function adminBase(): string {
   const { protocol, hostname } = window.location;
   return `${protocol}//${hostname}:${WFNEW_API_PORT}`;
+}
+
+/** Page-origin absolute URL for a backend-relative path. */
+function adminUrl(path: string): string {
+  return `${adminBase()}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 /** Read the live session token (fresh per call so in-session login applies). */
@@ -367,9 +382,13 @@ export const wfNewAdminApi = {
     return deleteJSON(WfNewAdminPaths.learningLibrary(libraryId));
   },
 
-  /** Reset failed/pending covers so the mcp-chrome image worker replaces them. */
-  retryCovers(ids: Array<number | string> | 'all'): Promise<{ reset: number }> {
-    return postJSON(WfNewAdminPaths.coverRetry, ids === 'all' ? { all: true } : { ids });
+  /** Queue cover tasks (generate = AI image, chrome first / Laravel AI fallback; search = web image). */
+  enqueueLibraryCoverTasks(request: LibraryCoverEnqueueRequest): Promise<LibraryCoverEnqueueResult> {
+    return postJSON(WfNewAdminPaths.libraryCoverTasks, request);
+  },
+
+  getLibraryCoverTasks(ids: number[]): Promise<LibraryCoverTasksResult> {
+    return getJSON(WfNewAdminPaths.libraryCoverTaskStatus(ids));
   },
 
   // ---- queues (public) ---- //
@@ -426,3 +445,9 @@ export const wfNewAdminApi = {
     }).then((d) => ({ audio_url: adminAbsUrl(d?.audio_url ?? null) }));
   },
 };
+
+/** Library cover tasks through the pinned admin gateway (polled while a view subscribes). */
+export const wfNewAdminCoverTaskModel = new LibraryCoverTaskModel({
+  enqueue: (request) => wfNewAdminApi.enqueueLibraryCoverTasks(request),
+  status: (ids) => wfNewAdminApi.getLibraryCoverTasks(ids),
+});

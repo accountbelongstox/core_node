@@ -1,6 +1,7 @@
 import { BaseApiClient } from '@/entrypoints/background/api/BaseApiClient';
 import {
   ASSIST_PATHS,
+  DASHBOARD_CODE_LAST_MODIFIED_PATH,
   TASK_CENTER_OVERVIEW_PATH,
   TASK_LIST_PATH,
   VALIDITY_PATHS,
@@ -81,10 +82,20 @@ export interface AssistCategoryPage {
   items: AssistCategoryItem[];
 }
 
+export interface CodeLastModified {
+  last_modified_at: string | null;
+  last_modified_unix: number | null;
+  latest_file: string | null;
+  scanned_at: string | null;
+  scan_ms: number | null;
+  method: string | null;
+}
+
 const READ_OPTIONS = {
   headers: { 'Cache-Control': 'no-cache' },
   retries: 0,
 } as const;
+const INDICATOR_TIMEOUT_MS = 10000;
 
 export class TaskCenterApiClient extends BaseApiClient {
   async listTasks(limit: number, status?: TaskStatus): Promise<TaskRow[]> {
@@ -165,6 +176,16 @@ export class TaskCenterApiClient extends BaseApiClient {
       limit: Number(page.limit ?? limit),
       items: Array.isArray(page.items) ? page.items : [],
     };
+  }
+
+  /** laravel_main's most recently modified source file (popup header indicator). */
+  async codeLastModified(): Promise<CodeLastModified | null> {
+    const response = await this.get<CodeLastModified>(
+      DASHBOARD_CODE_LAST_MODIFIED_PATH,
+      undefined,
+      { ...READ_OPTIONS, timeout: INDICATOR_TIMEOUT_MS },
+    );
+    return response?.success && response.data ? response.data : null;
   }
 
   private async overview(): Promise<{

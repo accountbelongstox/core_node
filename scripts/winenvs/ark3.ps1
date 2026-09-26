@@ -38,6 +38,7 @@ $scriptActualPath = $null
 $item = $null
 $scriptCurrentPath = $null
 $scriptsDirPath = $null
+$aiCliProvisionCommonPath = $null
 $projectRootPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
@@ -72,13 +73,9 @@ $docsGetExit = 0
 $docsGetResult = $null
 $docsUrlFound = $null
 $docsAddResult = $null
-$ultraSettingsJson = $null
-$ultraSettingsFile = $null
 $claudeArgs = $null
 $teammateMode = $null
 $enableTeam = $false
-$enableUltra = $false
-$ultraChoice = $null
 $prevEap = $null
 $hasAgentPlanMcp = $false
 $hasDocsMcp = $false
@@ -95,8 +92,6 @@ $claudeSettingsFile = $null
 $env:DISABLE_AUTOUPDATER = "1"
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
 
-$ultraSettingsJson = '{"ultracode":true}'
-$ultraSettingsFile = Join-Path $env:TEMP "ark3_ultracode_settings.json"
 # Parse -team/--team (opt-in Agent Teams); remaining args forwarded to claude.
 $userArgs = @()
 foreach ($arg in @($args)) {
@@ -131,6 +126,8 @@ if (-not $scriptCurrentPath) {
     }
 }
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
+$aiCliProvisionCommonPath = Join-Path $scriptsDirPath "shells\win\win_common\AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonPath
 $projectRootPath = Split-Path $scriptsDirPath -Parent
 
 # Ensure PATH + absolute pnpm path (Global:PNPM_EXE_PATH from Step4_InstallNodeJS).
@@ -676,14 +673,8 @@ if ($enableTeam) {
 if ($forceModel) {
     $claudeArgs = @("--model", $resolvedModel) + $claudeArgs
 }
-# Ultracode: opt-in prompt (default No).
-$ultraChoice = Read-Host "Enable ultracode? [y/N]"
-if ($ultraChoice -eq 'y' -or $ultraChoice -eq 'Y') {
-    $enableUltra = $true
-    [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
-    $claudeArgs += @("--settings", $ultraSettingsFile)
-}
 
+$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "ark3")
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 if ($usePlainClaude) {
@@ -725,9 +716,5 @@ Write-Host ""
 & claude @claudeArgs
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) { $exitCode = 0 }
-
-if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path -LiteralPath $ultraSettingsFile)) {
-    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
-}
 
 exit $exitCode

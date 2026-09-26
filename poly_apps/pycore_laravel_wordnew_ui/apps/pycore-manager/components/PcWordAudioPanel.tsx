@@ -9,7 +9,7 @@ import { laravelApi, useAudioLaneState } from '@/apps/pycore-manager/api';
 import { normalizeWordAudioFullSyncStatus, QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
-import { PcAudioDeliveryOutboxStatus } from './PcAudioDeliveryOutboxStatus';
+import { PcDeliveryOutboxStatus } from './PcDeliveryOutboxStatus';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
@@ -148,9 +148,8 @@ export function PcWordAudioPanel(): ReactElement {
           </span>
         </div>
 
-          <PcAudioDeliveryOutboxStatus
-            lane="word"
-            running={worker?.delivery_outbox_running}
+          <PcDeliveryOutboxStatus
+            kind="audio_lane.word"
             status={worker?.delivery_outbox}
             onChanged={hub.refreshHub}
           />

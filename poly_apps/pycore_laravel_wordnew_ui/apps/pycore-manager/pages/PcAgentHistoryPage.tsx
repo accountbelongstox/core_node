@@ -35,6 +35,7 @@ import SessionDetailView from './agent-history/SessionDetailView';
 import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel';
 import PcAgentHistoryRecords from './agent-history/PcAgentHistoryRecords';
 import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
+import PcAgentHistoryPromptRewrite, { usePromptRewrites } from './agent-history/PcAgentHistoryPromptRewrite';
 import PcAgentHistoryToolPanel, { type AgentHistoryToolPanelKind } from './agent-history/PcAgentHistoryToolPanel';
 import PcAgentHistoryCachePanel from './agent-history/PcAgentHistoryCachePanel';
 import PcPager from './agent-history/PcPager';
@@ -142,6 +143,7 @@ const PcAgentHistoryPage: React.FC = () => {
   const livePromptMonitor = articleConfig?.live_prompt_monitor === true;
   const promptNewNotify = articleConfig ? articleConfig.prompt_new_notify !== false : true;
   const [statsBump, setStatsBump] = useState(0);
+  const promptRewrites = usePromptRewrites();
   const [toolPanel, setToolPanel] = useState<{ tool: string; kind: AgentHistoryToolPanelKind } | null>(null);
 
   const [tab, setTab] = useState<TabId>(initialUiState.tab);
@@ -674,7 +676,7 @@ const PcAgentHistoryPage: React.FC = () => {
       {error && sessionRows.length === 0 && prompts.length === 0 && tab !== 'cache' ? (
         <div className="text-sm text-red-500 py-8 text-center">{error}</div>
       ) : tab === 'cache' ? (
-        <PcAgentHistoryCachePanel tk={tk} bump={statsBump} />
+        <PcAgentHistoryCachePanel tk={tk} bump={statsBump} rewrites={promptRewrites} />
       ) : tab === 'sessions' ? (
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
           <div className="flex flex-col min-h-0">
@@ -721,7 +723,9 @@ const PcAgentHistoryPage: React.FC = () => {
               <div className="text-sm text-slate-500 py-8 text-center">{tk('empty')}</div>
             ) : (
               prompts.map((p) => (
-                <PcAgentHistoryPromptItem key={p.id} p={p} labels={promptLabels} onSaved={handlePromptSaved} />
+                <PcAgentHistoryPromptItem key={p.id} p={p} labels={promptLabels} onSaved={handlePromptSaved}>
+                  <PcAgentHistoryPromptRewrite rewrite={promptRewrites[p.id]} tk={tk} />
+                </PcAgentHistoryPromptItem>
               ))
             )}
           </div>

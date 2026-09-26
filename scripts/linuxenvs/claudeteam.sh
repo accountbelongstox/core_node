@@ -17,20 +17,16 @@
 #
 # Synopsis:
 #     Launches Claude Code with multiple roles (experimental agent teams) always
-#     on and an opt-in ultracode prompt (default No) (Linux).
+#     on (Linux).
 #
 # Description:
 #     Linux mirror of scripts/winenvs/claudeteam.ps1. Always sets
 #     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
-#     roles). Then prompts "Enable ultracode?" (default No); when enabled it adds
-#     --effort ultracode (session-only xhigh effort + automatic workflow
-#     orchestration; official CLI reference, requires Claude Code v2.1.203+).
-#     The model is the account default (Opus 5.5 since v2.1.280), so no model is
-#     pinned. Any script arguments are appended to the command line.
+#     roles). The model is the account default (Opus 5.5 since v2.1.280), so no
+#     model is pinned. Any script arguments are appended to the command line.
 #
-#     Root safety: when running as root, the --dangerously-skip-permissions flag
-#     is dropped (root already has full permissions and Claude Code refuses that
-#     flag as root), mirroring scripts/linuxenvs/claude1.sh.
+#     Permissions: --permission-mode auto for root and regular users alike.
+#     CLAUDE_AGENTS_GIT_GUARD=1 enables the project git guard hook.
 #
 # Notes:
 #     - Tool Name: Claude AI (Agent Teams)
@@ -43,8 +39,6 @@
 set -e
 
 # Variable declarations (declared at the beginning of the file)
-ultra_choice=""
-ultra_enabled=0
 claude_args=()
 claude_invoke_display=""
 claude_team_args_display=""
@@ -55,6 +49,8 @@ aiCliProvisionCommonPath=""
 
 # Multiple roles: enable experimental agent teams for the session.
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+# Enables the project git guard hook (.claude/hooks/git_guard.mjs).
+export CLAUDE_AGENTS_GIT_GUARD="1"
 
 # Initialize path variables
 scriptSource="${BASH_SOURCE[0]}"
@@ -71,23 +67,11 @@ aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_c
 . "$aiCliProvisionCommonPath"
 ai_cli_provision "claude"
 
-# Ultracode: opt-in prompt, default No. When enabled, ultracode is turned on via
-# the dedicated effort flag "--effort ultracode" (official CLI reference; requires
-# Claude Code v2.1.203+): it starts the session at xhigh effort with automatic
-# workflow orchestration. Session-only - it cannot be persisted (effortLevel /
-# CLAUDE_CODE_EFFORT_LEVEL accept only low/medium/high/xhigh), so it is passed on
-# every launch.
-read -r -p "Enable ultracode? [y/N]: " ultra_choice || ultra_choice=""
-if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
-    ultra_enabled=1
-    claude_args+=(--effort ultracode)
-fi
-
-# Check if running as root - skip --dangerously-skip-permissions flag for root
-# (root already has full permissions and Claude Code refuses that flag as root).
-if [ "$EUID" -ne 0 ]; then
-    claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
-fi
+# Every role runs in auto mode (classifier-reviewed, no prompts), for root and
+# regular users alike; teammates inherit the lead's mode.
+ai_cli_ultracode_prompt
+claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
+claude_args+=(--permission-mode auto)
 
 claude_invoke_display="claude ${claude_args[*]}"
 if [ "$#" -gt 0 ]; then
@@ -99,11 +83,6 @@ echo "============================================================"
 echo "claudeteam.sh"
 echo "============================================================"
 echo "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)"
-if [ "$ultra_enabled" -eq 1 ]; then
-    echo "[INFO] Ultracode: ON (--effort ultracode)"
-else
-    echo "[INFO] Ultracode: off (default N)"
-fi
 echo "[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}"
 echo "============================================================"
 echo ""

@@ -28,6 +28,7 @@ import {
 import { LaravelWorkerLifecycleBase } from './LaravelWorkerLifecycleBase';
 import { ApiError } from '../../api/BaseApiClient';
 import { logger } from '@/utils/logger';
+import { workerIdSessionKey } from '@/utils/storage-keys';
 import { tabController } from '../tab-controller';
 import { LANES } from '@/utils/task-center-lanes';
 import {
@@ -40,7 +41,7 @@ import {
   compareTasksByContract,
   workerResultStatus,
 } from '@/utils/queue-center-contract';
-import type { ProcessorStats } from '@/utils/task-center-types';
+import { TASK_CENTER_DEFAULTS, type ProcessorStats } from '@/utils/task-center-types';
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
 import { queueCenterWakeService } from './QueueCenterWakeService';
 import type { QueueCenterWakeSignal } from './QueueCenterWakeService';
@@ -173,7 +174,9 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
   protected abstract get processorKey(): string;
 
   /** chrome.storage key under which this worker's id is persisted/reused. */
-  protected abstract get workerIdStorageKey(): string;
+  protected get workerIdStorageKey(): string {
+    return workerIdSessionKey(this.processorKey);
+  }
 
   /** Capabilities advertised to the dispatcher (e.g. ['ai_translate']). */
   protected abstract get capabilities(): WorkerCapability[];
@@ -184,11 +187,6 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
   /** Task types pulled via the typed pull route (/api/worker/tasks/{type}/pull).
    * Every type uses the same immediate-return transport. */
   protected abstract get pullTaskTypes(): string[];
-
-  /** False for assist-only workers that do not register with global_tasks. */
-  protected get globalTaskPollingEnabled(): boolean {
-    return true;
-  }
 
   /** Shared processor adapters delegate here instead of duplicating task rules. */
   public canHandleTaskType(taskType: string): boolean {
@@ -275,17 +273,12 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
       apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
       workerName: config.workerName || `MCP Chrome ${this.processorKey} Worker`,
       pollWait: config.pollWait ?? TASK_LIMITS.long_poll_seconds,
-      heartbeatInterval: config.heartbeatInterval ?? 12,
+      heartbeatInterval: config.heartbeatInterval ?? TASK_CENTER_DEFAULTS.heartbeatInterval,
       batchSize: config.batchSize ?? TASK_LIMITS.worker_pull_default,
     };
 
     this.isRunning = true;
     this.connectWorkerApi(this.config.apiUrl);
-    if (!this.globalTaskPollingEnabled) {
-      this.stats.isOnline = true;
-      logger.info(this.workerLabel, 'Assist-only worker started');
-      return;
-    }
     try {
       await this.register();
       this.activateRegisteredWorker();
@@ -321,10 +314,6 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
     // a fresh loop.
     this.needsFastRepoll = false;
     this.stats.isOnline = false;
-    if (!this.globalTaskPollingEnabled) {
-      logger.info(this.workerLabel, 'Assist-only worker stopped');
-      return;
-    }
     if (this.workerClient && prefetchedTasks.length > 0) {
       void this.workerClient.releaseTasks(prefetchedTasks).catch((error) => {
         logger.warn(this.workerLabel, 'Failed to release prefetched tasks during stop', error);
@@ -334,6 +323,19 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
       logger.warn(this.workerLabel, 'Worker unregister failed; heartbeat expiry remains active', error);
     });
     logger.info(this.workerLabel, 'Worker stopped');
+  }
+
+  /**
+   * Move a running worker to another API base, keeping its settings. stop()
+   * unregisters from the old backend and start() waits for the in-flight cycle,
+   * so a claimed task always submits to the backend it came from.
+   */
+  async repoint(apiUrl: string): Promise<void> {
+    const nextApiUrl = apiUrl.trim().replace(/\/+$/, '');
+    if (!this.isRunning || !this.config || !nextApiUrl || this.config.apiUrl === nextApiUrl) return;
+    const config = { ...this.config, apiUrl: nextApiUrl };
+    this.stop();
+    await this.start(config);
   }
 
   protected activateRegisteredWorker(): void {
@@ -715,6 +717,18 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
     return this.prefetchedHeadTasks.splice(0);
   }
 
+  protected delay(ms: number): Promise<void> {
+    return wait(ms);
+  }
+
   protected abstract cycle(): Promise<void>;
+  // Pull-cycle scheduling hooks owned by SimpleWorkerBase.
+  protected abstract applyHeadSignal(signal?: QueueCenterWakeSignal): void;
+  protected abstract scheduleFastRepoll(): void;
+  protected abstract noteFastSignals(pendingUrgent?: number, pendingFast?: number): void;
+  protected abstract updateQueueProgress(
+    taskType: string,
+    progress?: { completed?: number; total?: number } | null,
+  ): void;
 }
 

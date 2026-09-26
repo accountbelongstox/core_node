@@ -15,97 +15,55 @@
 # Linuxenvs Permission and Sync Functions
 # =============================================================================
 
-# Source constants (backup copy)
-source "$DD_HELPER_DIR/constants.sh"
-
-# Build full paths from constants
 LINUXENVS_DIR_PATH="$CORE_NODE_ROOT_DIR/$LINUXENVS_DIR_RELATIVE"
 
-# Linuxenvs Permission and Sync Functions
+# Link every scripts/linuxenvs/*.sh into BIN_DIR_PATH as <name>.sh and <name>.
+# Idempotent: only missing or wrong links are (re)created.
 sync_linuxenvs_to_bin() {
-    local directories=()
-    local directory_labels=()
-    local total_scripts=0
-    local idx=""
+    local script_file=""
+    local filename=""
+    local source_script_path=""
+    local link_path=""
+    local script_count=0
+    local linked_count=0
+    local failed_count=0
+    local -a link_cmd=(ln -sfn)
+    local -a rm_cmd=(rm -f)
 
-    if [ -d "$LINUXENVS_DIR_PATH" ]; then
-        directories+=("$LINUXENVS_DIR_PATH")
-        directory_labels+=("linuxenvs")
-    fi
-
-    if [ ${#directories[@]} -eq 0 ]; then
+    if [ ! -d "$LINUXENVS_DIR_PATH" ]; then
         echo -e "\033[33m[SYNC] No linuxenv directories found. Checked: $LINUXENVS_DIR_PATH\033[0m"
         return
     fi
+    if [ ! -w "$BIN_DIR_PATH" ] && [ -n "$USE_SUDO" ]; then
+        link_cmd=("$USE_SUDO" ln -sfn)
+        rm_cmd=("$USE_SUDO" rm -f)
+    fi
 
-    for idx in "${!directories[@]}"; do
-        local current_dir="${directories[$idx]}"
-        local current_label="${directory_labels[$idx]}"
-        local script_count=0
-        local bin_writable=false
+    echo -e "\033[36m[SYNC] Syncing linuxenvs scripts from $LINUXENVS_DIR_PATH to $BIN_DIR_PATH\033[0m"
+    find "$LINUXENVS_DIR_PATH" -maxdepth 1 -type f -name "*.sh" ! -perm -u=x -exec $USE_SUDO chmod +x {} + 2>/dev/null
 
-        echo -e "\033[36m[SYNC] Syncing $current_label scripts from $current_dir to $BIN_DIR_PATH\033[0m"
-
-        if [ -w "$BIN_DIR_PATH" ]; then
-            bin_writable=true
-        fi
-
-        if ! find "$current_dir" -maxdepth 1 -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null; then
-            find "$current_dir" -maxdepth 1 -type f -name "*.sh" -exec $sudo chmod +x {} \; 2>/dev/null
-        fi
-
-        shopt -s nullglob
-        for script_file in "$current_dir"/*.sh; do
-            if [ ! -s "$script_file" ]; then
+    shopt -s nullglob
+    for script_file in "$LINUXENVS_DIR_PATH"/*.sh; do
+        [ -s "$script_file" ] || continue
+        script_count=$((script_count + 1))
+        filename="${script_file##*/}"
+        source_script_path="$(readlink -f "$script_file" 2>/dev/null || echo "$script_file")"
+        for link_path in "$BIN_DIR_PATH/$filename" "$BIN_DIR_PATH/${filename%.sh}"; do
+            if [ -L "$link_path" ] && [ "$(readlink -f "$link_path")" = "$source_script_path" ]; then
                 continue
             fi
-
-            local filename="$(basename "$script_file")"
-            local basename_without_ext="${filename%.sh}"
-            local source_script_path="$(readlink -f "$script_file" 2>/dev/null || echo "$script_file")"
-            local bin_script_path="$BIN_DIR_PATH/$filename"
-            local bin_link_path="$BIN_DIR_PATH/$basename_without_ext"
-            local link_paths=("$bin_script_path" "$bin_link_path")
-            local link_path=""
-
-            echo -e "\033[33m[SYNC] Processing ($current_label): $filename\033[0m"
-
-            for link_path in "${link_paths[@]}"; do
-                if [ -e "$link_path" ] || [ -L "$link_path" ]; then
-                    if [ "$bin_writable" = true ]; then
-                        rm -f "$link_path" 2>/dev/null
-                    else
-                        $sudo rm -f "$link_path" 2>/dev/null
-                    fi
-                fi
-
-                if [ "$bin_writable" = true ]; then
-                    ln -sf "$source_script_path" "$link_path" 2>/dev/null
-                else
-                    $sudo ln -sf "$source_script_path" "$link_path" 2>/dev/null
-                fi
-
-                if [ -L "$link_path" ] && [ "$(readlink -f "$link_path")" = "$source_script_path" ]; then
-                    echo -e "\033[32m[SYNC]   Linked: $link_path -> $source_script_path\033[0m"
-                else
-                    echo -e "\033[31m[SYNC]   Failed to link: $link_path\033[0m"
-                fi
-            done
-
-            ((script_count++))
+            [ -e "$link_path" ] || [ -L "$link_path" ] && "${rm_cmd[@]}" "$link_path" 2>/dev/null
+            "${link_cmd[@]}" "$source_script_path" "$link_path" 2>/dev/null
+            if [ -L "$link_path" ] && [ "$(readlink -f "$link_path")" = "$source_script_path" ]; then
+                linked_count=$((linked_count + 1))
+                echo -e "\033[32m[SYNC]   Linked: $link_path -> $source_script_path\033[0m"
+            else
+                failed_count=$((failed_count + 1))
+                echo -e "\033[31m[SYNC]   Failed to link: $link_path\033[0m"
+            fi
         done
-        shopt -u nullglob
-
-        if [ $script_count -eq 0 ]; then
-            echo -e "\033[33m[SYNC] No .sh scripts found in $current_dir\033[0m"
-        else
-            echo -e "\033[32m[SYNC] Synced $script_count script(s) from $current_dir\033[0m"
-        fi
-
-        total_scripts=$((total_scripts + script_count))
     done
+    shopt -u nullglob
 
-    if [ $total_scripts -gt 0 ]; then
-        echo -e "\033[32m[SYNC] Completed linking $total_scripts script(s) to $BIN_DIR_PATH\033[0m"
-    fi
+    echo -e "\033[32m[SYNC] $script_count script(s): $linked_count link(s) updated, $failed_count failed, others already correct\033[0m"
 }

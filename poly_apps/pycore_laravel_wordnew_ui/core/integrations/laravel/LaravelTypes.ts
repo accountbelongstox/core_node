@@ -5,6 +5,7 @@ import type {
   PcQueueHandler,
   PcQueueWorker,
 } from '../../contracts/QueueCenterContract';
+import type { GlobalTaskStatus } from '../../contracts/QueueCenterTypes';
 
 export interface LaravelVocabTranslateRequest {
   text: string;
@@ -76,14 +77,64 @@ export interface VocabDictionaryWordRow {
   [k: string]: unknown;
 }
 
+export type LibraryCoverMode = 'generate' | 'search';
+
+export type LibraryCoverHandler = 'chrome' | 'laravel_ai';
+
+/** One global cover task of a vocabulary library (`library_cover` / `library_cover_search`). */
+export interface LibraryCoverTask {
+  task_id: string;
+  task_type: string;
+  mode: LibraryCoverMode;
+  status: GlobalTaskStatus;
+  handler: LibraryCoverHandler | null;
+  assigned_to: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  error: string | null;
+  library_id: number;
+}
+
+export interface LibraryCoverEnqueueRequest {
+  ids: number[];
+  mode: LibraryCoverMode;
+  prompt?: string;
+}
+
+export interface LibraryCoverEnqueueResult {
+  tasks: LibraryCoverTask[];
+  skipped: Array<{ id: number; reason: string }>;
+}
+
+/** Per-library cover state returned by the cover-task status read. */
+export interface LibraryCoverTaskStatus {
+  library_id: number;
+  cover_status: string;
+  cover_url: string | null;
+  image_url: string | null;
+  cover_error_message: string | null;
+  cover_provider: string | null;
+  cover_model: string | null;
+  cover_last_generated_at: string | null;
+  task: LibraryCoverTask | null;
+}
+
+export interface LibraryCoverTasksResult {
+  items: LibraryCoverTaskStatus[];
+}
+
 export interface VocabLibrary {
   id: number;
   name: string;
   language?: string;
   word_count?: number;
   difficulty?: string;
-  cover_url?: string;
+  image_url?: string | null;
+  cover_url?: string | null;
   cover_status?: string;
+  cover_error_message?: string | null;
+  cover_attempts?: number;
+  cover_task?: LibraryCoverTask | null;
   [k: string]: unknown;
 }
 

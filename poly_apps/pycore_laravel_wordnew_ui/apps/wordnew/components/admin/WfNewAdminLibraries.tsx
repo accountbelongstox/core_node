@@ -6,14 +6,14 @@
  * base, never the failover pool):
  *   - getLibraries({language, page, perPage, search})  → paginated card grid
  *   - getLanguageBreakdown()                           → language <select> options
- *   - retryCovers([id])                                → re-queue one AI cover
+ *   - wfNewAdminCoverTaskModel.enqueue([id], mode)     → regenerate / re-search one cover
  *   - deleteLibrary(id)                                → sanctum-gated destroy
  *
  * Card grid (not a table): each library renders its AI cover (absUrl-resolved,
- * gradient fallback on missing/broken image) with cover_status overlay chips,
- * meta rows and an action strip: "view words" (delegates to the app's existing
- * #/library word-browser via onOpenLibrary), "retry cover" (only while the
- * cover isn't completed) and delete (confirm + spinner).
+ * gradient fallback on missing/broken image) with cover status / cover task
+ * overlay chips, meta rows and an action strip: "view words" (delegates to the
+ * app's existing #/library word-browser via onOpenLibrary), "regenerate cover" /
+ * "re-search cover" (disabled while a cover task is live) and delete.
  *
  * The chosen language is persisted in a localStorage key SHARED with the words
  * panel ('wfnew_admin_lang'); the empty 'all' choice is panel-local and never
@@ -24,13 +24,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BookOpen, ChevronLeft, ChevronRight, Image as ImageIcon, LibraryBig,
-  Loader2, RotateCw, Search, Star, Trash2,
+  BookOpen, ChevronLeft, ChevronRight, LibraryBig,
+  Loader2, RotateCw, ScanSearch, Search, Star, Trash2, Wand2,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
-import { wfNewAdminApi } from '../../api';
-import { laravelApi } from '@/core/integrations/laravel';
+import { wfNewAdminApi, wfNewAdminCoverTaskModel } from '../../api';
+import type { LibraryCoverMode } from '@/core/integrations/laravel';
+import {
+  libraryCoverView,
+  useLibraryCoverTasks,
+  type LibraryCoverView,
+} from '../../../../shared/library-cover/LibraryCoverTaskModel';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
@@ -50,6 +55,8 @@ function writeStoredLanguage(lang: string): void {
 }
 
 const CHIP_CLS = 'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 disabled:opacity-40 transition';
+const COVER_BADGE_CLS = 'absolute top-2 right-2 max-w-[70%] truncate text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border';
+const COVER_WAITING_STATUSES = ['pending', 'retry', 'processing'];
 
 interface WfNewAdminLibrariesProps {
   activeTheme: ElementTheme;
@@ -73,10 +80,11 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
   const [data, setData] = useState<WfNewAdminLibrariesPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  /** In-flight per-card actions, keyed `retry-<id>` / `delete-<id>`. */
+  /** In-flight per-card actions, keyed `delete-<id>`. */
   const [busy, setBusy] = useState<Set<string>>(new Set());
-  /** Library ids whose cover <img> failed to load (gradient fallback). */
-  const [brokenCovers, setBrokenCovers] = useState<Set<number>>(new Set());
+  /** Cover URLs whose <img> failed to load (gradient fallback). */
+  const [brokenCovers, setBrokenCovers] = useState<Set<string>>(new Set());
+  const coverTasks = useLibraryCoverTasks(wfNewAdminCoverTaskModel);
 
   // Out-of-order + unmount guards for every list load.
   const reqIdRef = useRef(0);
@@ -129,6 +137,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
       .then((res) => {
         if (!aliveRef.current || id !== reqIdRef.current) return;
         setData(res);
+        wfNewAdminCoverTaskModel.track(res?.libraries ?? []);
         setBrokenCovers(new Set());
       })
       .catch((e: any) => {
@@ -173,20 +182,36 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
     else addToast(String(e?.message || 'Request failed'), 'warning');
   };
 
-  const retryCover = async (lib: WfNewAdminLibraryRow): Promise<void> => {
-    const key = `retry-${lib.id}`;
-    if (busy.has(key)) return;
-    withBusy(key, true);
+  const enqueueCover = async (lib: WfNewAdminLibraryRow, mode: LibraryCoverMode): Promise<void> => {
+    if (wfNewAdminCoverTaskModel.isActive(lib.id)) return;
     try {
-      await laravelApi.prioritizeCovers([Number(lib.id)]);
-      if (!aliveRef.current) return;
-      addToast(trans('admin.lib.coverQueued'), 'success');
-      load();
+      await wfNewAdminCoverTaskModel.enqueue([lib.id], mode);
+      if (aliveRef.current) addToast(trans('admin.lib.coverQueued'), 'success');
     } catch (e: any) {
       if (aliveRef.current) toastActionError(e);
-    } finally {
-      if (aliveRef.current) withBusy(key, false);
     }
+  };
+
+  const coverBadge = (cover: LibraryCoverView): { label: string; tone: string; title?: string } | null => {
+    if (cover.active) {
+      const label = cover.phase === 'processing'
+        ? (cover.handler
+          ? trans('admin.lib.cover.processingBy', { handler: trans(`admin.lib.cover.handler.${cover.handler}`) })
+          : trans('admin.lib.cover.processing'))
+        : trans('admin.lib.cover.queued');
+      return { label, tone: 'border-sky-500/40 bg-sky-500/20 text-sky-300' };
+    }
+    if (cover.coverStatus === 'failed' || cover.phase === 'failed') {
+      return {
+        label: trans('admin.lib.cover.failed'),
+        tone: 'border-rose-500/40 bg-rose-500/20 text-rose-300',
+        title: cover.taskError || cover.errorMessage || undefined,
+      };
+    }
+    if (cover.coverStatus && COVER_WAITING_STATUSES.includes(cover.coverStatus)) {
+      return { label: trans('admin.lib.cover.pending'), tone: 'border-amber-500/40 bg-amber-500/20 text-amber-300' };
+    }
+    return null;
   };
 
   const deleteLib = async (lib: WfNewAdminLibraryRow): Promise<void> => {
@@ -259,11 +284,11 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {libraries.map((lib, i) => {
-            const coverUrl = wfNewAdminApi.absUrl(lib.image_url);
-            const showImg = !!coverUrl && !brokenCovers.has(lib.id);
-            const coverFailed = lib.cover_status === 'failed';
-            const coverPending = lib.cover_status === 'pending' || lib.cover_status === 'generating';
-            const retrying = busy.has(`retry-${lib.id}`);
+            const coverEntry = coverTasks.entries[lib.id];
+            const cover = libraryCoverView(lib, coverEntry);
+            const badge = coverBadge(cover);
+            const coverUrl = wfNewAdminApi.absUrl(cover.imageUrl);
+            const showImg = !!coverUrl && !brokenCovers.has(coverUrl);
             const deleting = busy.has(`delete-${lib.id}`);
             return (
               <motion.div
@@ -280,7 +305,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
                       src={coverUrl as string}
                       alt={lib.name}
                       loading="lazy"
-                      onError={() => setBrokenCovers((prev) => new Set(prev).add(lib.id))}
+                      onError={() => setBrokenCovers((prev) => new Set(prev).add(coverUrl as string))}
                       className="h-28 w-full object-cover"
                     />
                   ) : (
@@ -288,14 +313,9 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
                       <LibraryBig className="w-8 h-8 text-white/25" />
                     </div>
                   )}
-                  {coverFailed && (
-                    <span className="absolute top-2 right-2 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-rose-500/40 bg-rose-500/20 text-rose-300">
-                      {trans('admin.lib.cover.failed')}
-                    </span>
-                  )}
-                  {coverPending && (
-                    <span className="absolute top-2 right-2 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/20 text-amber-300">
-                      {trans('admin.lib.cover.pending')}
+                  {badge && (
+                    <span className={`${COVER_BADGE_CLS} ${badge.tone}`} title={badge.title}>
+                      {badge.label}
                     </span>
                   )}
                 </div>
@@ -327,19 +347,30 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
                   >
                     <BookOpen className="w-3 h-3" /> {trans('admin.lib.view')}
                   </button>
-                  {lib.cover_status !== 'completed' && (
-                    <button
-                      type="button"
-                      onClick={() => retryCover(lib)}
-                      disabled={retrying}
-                      className={CHIP_CLS}
-                    >
-                      {retrying
-                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <ImageIcon className="w-3 h-3" />}
-                      {trans('admin.lib.retryCover')}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => enqueueCover(lib, 'generate')}
+                    disabled={cover.active}
+                    title={trans('admin.lib.regenerateCover')}
+                    aria-label={trans('admin.lib.regenerateCover')}
+                    className={CHIP_CLS}
+                  >
+                    {cover.active && coverEntry?.mode === 'generate'
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <Wand2 className="w-3 h-3" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => enqueueCover(lib, 'search')}
+                    disabled={cover.active}
+                    title={trans('admin.lib.researchCover')}
+                    aria-label={trans('admin.lib.researchCover')}
+                    className={CHIP_CLS}
+                  >
+                    {cover.active && coverEntry?.mode === 'search'
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <ScanSearch className="w-3 h-3" />}
+                  </button>
                   <button
                     type="button"
                     onClick={() => deleteLib(lib)}

@@ -316,6 +316,7 @@ server_manager: {
       auth_required: "Server Manager requires authentication. Please login to continue."
     },
 db_manager: {
+      row_actions: "Actions",
       auth_required: "Database Manager requires login. Please authenticate to manage connections, tables and backups.",
       credentials: {
         tab: "Credentials",
@@ -349,6 +350,36 @@ db_manager: {
         copy: "Copy",
         copied: "Copied"
       }
+    },
+libraryCover: {
+      regenerate: "Regenerate cover",
+      regenerate_hint: "Generate a new AI cover (Chrome first, Laravel AI fallback)",
+      research: "Re-search cover",
+      research_hint: "Search the web for a new cover image",
+      retry: "Retry cover",
+      failed_default: "Cover generation failed.",
+      attempts_one: "({{count}} attempt)",
+      attempts_other: "({{count}} attempts)",
+      status: {
+        queued: "Queued",
+        processing: "Processing",
+        processing_by: "Processing · {{handler}}",
+        failed: "Failed"
+      },
+      handler: {
+        chrome: "Chrome",
+        laravel_ai: "Laravel AI"
+      },
+      enqueued: "{{count}} cover task(s) queued",
+      enqueued_skipped: "{{count}} cover task(s) queued, {{skipped}} skipped",
+      enqueue_failed: "Failed to queue cover task",
+      retry_queued: "Cover queued for regeneration.",
+      retry_failed: "Failed to retry cover",
+      bulk_regenerate: "Regenerate covers (AI)",
+      bulk_regenerate_hint: "Queue an AI cover task for every library shown.",
+      bulk_research: "Re-search covers",
+      bulk_research_hint: "Queue a web image search for every library shown.",
+      none_loaded: "No libraries loaded"
     },
 auth: {
       login_hint: "Sign in to continue.",

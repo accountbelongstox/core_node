@@ -21,6 +21,11 @@ Requirements record: `docs_fix/TASK_20260920_PROMPT_DERIVE_EN_TRAY_TOAST_SOUND.m
   BusSignals.AGENT_HISTORY_PROMPT_DERIVED)`.
 - `pycore/pyctl/agent_history/prompt_derived_cache.py` (new): AtomicJsonStore read-side
   mirror, 1000 entries, route `ui/agent_history/prompt_derived`.
+  **Superseded 2026-09-27 (W2, REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE):**
+  the cache is now the `prompt_derived_cache` instance of the shared
+  `PromptTransformCache` in `prompt_transform_cache.py` (same file/namespace);
+  queue/cache/bus push moved into the shared `PromptTransformWatcher`
+  (`prompt_transform_service.py`) that also drives the prompt EN rewrite feed.
 - Bus/routes: `thread_bus_constants.py`, `thread_bus_routes.py` (SSE whitelist),
   `route_names.py`, `local_agent_history_routes.py`, `ui_service.py` handler.
 - UI: `PycoreEventTopics.ts` (+`agentHistoryPromptDerived`), `PycoreHttpRoutes.ts`,

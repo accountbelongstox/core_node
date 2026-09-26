@@ -17,6 +17,7 @@ use App\Services\TaskProcessors\WordGeminiImageTaskProcessor;
 use App\Services\TaskProcessors\GeminiTextTaskProcessor;
 use App\Services\TaskProcessors\SubtitleSearchTaskProcessor;
 use App\Services\TaskProcessors\PosterTaskProcessor;
+use App\Services\TaskProcessors\LibraryCoverTaskProcessor;
 use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
 use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 use App\Services\TaskProcessors\WordValidityTaskProcessor;
@@ -57,7 +58,7 @@ class TaskManagerService
     private const RESULT_SUBMISSION_LOCK_SECONDS = 900;
     private const RESULT_WRITEBACK_BATCH_LIMIT = 8;
     private const RESULT_WRITEBACK_MAX_ATTEMPTS = 3;
-    private const RESULT_WRITEBACK_STEP = 'result_writeback';
+    public const RESULT_WRITEBACK_STEP = 'result_writeback';
 
     /**
      * Shared audio in-flight lock (contract item 5). A word+language pair is
@@ -138,6 +139,9 @@ class TaskManagerService
             //   - sentence_audio  -> pycore SentenceAudio writeback (remote_sentence_audio).
             $this->processorRegistry->register(new SubtitleSearchTaskProcessor($this));
             $this->processorRegistry->register(new PosterTaskProcessor($this));
+            //   - library_cover / library_cover_search -> forced vocabulary-library
+            //     cover overwrite (remote_gemini / remote_poster).
+            $this->processorRegistry->register(new LibraryCoverTaskProcessor($this));
             $this->processorRegistry->register(new SentenceAudioTaskProcessor($this));
 
             // Dev-history assist: non-English prompt -> English (3 variants + audio).
@@ -1001,6 +1005,116 @@ class TaskManagerService
         }
 
         return $outcome;
+    }
+
+    /**
+     * Claim one still-pending task for a Laravel-side handler that has no
+     * worker row (e.g. the AI fallback). The task goes straight to
+     * processing under $handlerId with the normal timeout lease, so a
+     * concurrent worker pull, the timeout reclaim and the event history all
+     * see an ordinary owned task.
+     */
+    public function claimPendingTaskForServerHandler(string $taskId, string $handlerId): ?GlobalTask
+    {
+        $task = GlobalTask::runInTransaction(function () use ($taskId, $handlerId): ?GlobalTask {
+            $task = GlobalTask::lockByTaskId($taskId);
+            if (!$task || $task->status !== GlobalTask::status('pending')) {
+                return null;
+            }
+
+            $task->status = GlobalTask::status('processing');
+            $task->assigned_to = $handlerId;
+            $task->assigned_at = now();
+            $task->progress = (float) QueueCenterContract::taskProgressStage('accepted');
+            $task->timeout_at = $task->timeout_seconds ? now()->addSeconds($task->timeout_seconds) : null;
+            $task->saveRecord();
+
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('assigned'), $handlerId, (int) $task->retry_count, [
+                'worker_id' => $handlerId,
+                'execution_type' => $task->execution_type,
+                'reason' => 'server_handler',
+            ]);
+
+            return $task;
+        }, self::TRANSACTION_ATTEMPTS);
+
+        if ($task instanceof GlobalTask) {
+            app(QueueSliceDiffService::class)->markChanged((string) $task->task_type);
+        }
+
+        return $task;
+    }
+
+    /**
+     * Complete a task owned by a Laravel-side handler (see
+     * claimPendingTaskForServerHandler). The handler already persisted its
+     * domain result, so no processor runs; ownership is re-checked under lock.
+     */
+    public function completeServerHandledTask(string $taskId, string $handlerId, array $result): bool
+    {
+        $taskType = null;
+        $completed = GlobalTask::runInTransaction(function () use ($taskId, $handlerId, $result, &$taskType): bool {
+            $task = GlobalTask::lockByTaskId($taskId);
+            if (!$task
+                || $task->assigned_to !== $handlerId
+                || !in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
+                return false;
+            }
+
+            $task->status = GlobalTask::status('completed');
+            $task->progress = (float) QueueCenterContract::taskProgressStage('completed');
+            $task->result = $result;
+            $task->error = null;
+            $task->timeout_at = null;
+            $task->completed_at = now();
+            $task->saveRecord();
+            $taskType = (string) $task->task_type;
+
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('completed'), $handlerId, (int) $task->retry_count, [
+                'worker_id' => $handlerId,
+                'execution_type' => $task->execution_type,
+                'reason' => 'server_handler',
+            ]);
+
+            return true;
+        }, self::TRANSACTION_ATTEMPTS);
+
+        if ($completed && $taskType !== null && $taskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($taskType);
+        }
+
+        return $completed;
+    }
+
+    /**
+     * Fail a task owned by a Laravel-side handler with the same retry
+     * semantics as a worker-reported failure: a remaining retry re-queues it
+     * as pending, otherwise it fails permanently. Returns the resulting task
+     * status, or null when the handler no longer owns the task.
+     */
+    public function failServerHandledTask(string $taskId, string $handlerId, string $error): ?string
+    {
+        $taskType = null;
+        $status = GlobalTask::runInTransaction(function () use ($taskId, $handlerId, $error, &$taskType): ?string {
+            $task = GlobalTask::lockByTaskId($taskId);
+            if (!$task
+                || $task->assigned_to !== $handlerId
+                || !in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
+                return null;
+            }
+
+            $outcome = [];
+            $this->failTaskInTransaction($task, null, $error, $handlerId, $outcome, 'server_handler');
+            $taskType = (string) $task->task_type;
+
+            return (string) $task->status;
+        }, self::TRANSACTION_ATTEMPTS);
+
+        if ($status !== null && $taskType !== null && $taskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($taskType);
+        }
+
+        return $status;
     }
 
     /**
@@ -2040,6 +2154,8 @@ class TaskManagerService
                 return null;
 
             case QueueCenterContract::taskTypeKey('gemini_image'):
+            case QueueCenterContract::taskTypeKey('library_cover'):
+            case QueueCenterContract::taskTypeKey('library_cover_search'):
                 $hasImage = !empty($inner['image_base64'])
                     || !empty($result['image_base64'])
                     || !empty($inner['image_url'])

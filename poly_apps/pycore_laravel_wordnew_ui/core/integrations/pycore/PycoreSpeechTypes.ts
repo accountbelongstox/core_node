@@ -648,10 +648,12 @@ export interface AgentHistoryPromptCacheResponse {
   error?: string | null;
 }
 
-// --- AI-derived English prompt feed (Linux prompt-derive watcher) ---------- #
-// Mirrors prompt_derived_cache.py: one unified newest-first feed, written only
-// by the pycore prompt-derive service after a free-tier OpenRouter derivation;
-// pushed live via the agent_history.prompt.derived bus event (item payload).
+// --- AI-transformed English prompt feeds (derive + rewrite watchers) ------- #
+// Mirrors prompt_transform_cache.py: newest-first feeds written only by the
+// pycore prompt transform watchers after a free-tier OpenRouter call; pushed
+// live via agent_history.prompt.derived / agent_history.prompt.rewritten
+// (item payload). derived_text is the transform output; audio_task_id is the
+// audio orchestration task of a rewrite (empty when not submitted).
 export interface AgentHistoryPromptDerivedItem {
   id: string;
   tool: string;
@@ -664,6 +666,7 @@ export interface AgentHistoryPromptDerivedItem {
   model?: string;
   provider?: string;
   derived_at?: string;
+  audio_task_id?: string;
 }
 
 export interface AgentHistoryPromptDerivedResponse {

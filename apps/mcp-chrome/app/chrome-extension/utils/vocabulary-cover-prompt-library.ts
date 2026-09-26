@@ -3,6 +3,8 @@ export interface VocabularyCoverPromptInput {
   name: string;
   category?: string;
   difficulty?: string;
+  /** Any fresh value (e.g. a task id plus nonce) yields a different prompt for the same library. */
+  variation?: string;
 }
 
 const VISUAL_STYLES = [
@@ -204,8 +206,13 @@ export class VocabularyCoverPromptLibrary {
       category ? `subject category ${category}` : '',
       difficulty ? `learning level ${difficulty}` : '',
     ].filter(Boolean).join(', ');
-    const seed = this.hash(`${coverSequence}|${semanticContext}`);
-    const styleDirection = this.buildUniqueStyleDirection(coverSequence);
+    const variation = this.normalize(input.variation || '');
+    const seedKey = `${coverSequence}|${semanticContext}`;
+    const seed = this.hash(variation ? `${seedKey}|${variation}` : seedKey);
+    const styleSequence = variation
+      ? coverSequence + (this.hash(variation) % STYLE_TREATMENT_COUNT)
+      : coverSequence;
+    const styleDirection = this.buildUniqueStyleDirection(styleSequence);
     const scene = this.pick(SCENE_ARCHETYPES, seed, 11);
     const composition = this.pick(COMPOSITIONS, seed, 23);
     const perspective = this.pick(CAMERA_AND_PERSPECTIVE, seed, 37);

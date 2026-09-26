@@ -11,6 +11,6 @@ final class DataSyncAbortException extends \RuntimeException
 {
     public function __construct()
     {
-        parent::__construct('Synchronization session cancelled by the operator.');
+        parent::__construct(DataSyncProtocol::CANCELLED_MESSAGE);
     }
 }

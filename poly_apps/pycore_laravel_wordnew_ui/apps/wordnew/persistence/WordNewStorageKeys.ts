@@ -14,6 +14,7 @@ export const WordNewStorageKeys = {
   WORDNEW_DAILY_READING_PLAYER: 'wfnew.dailyReading.player',
   WORDNEW_DAILY_READING_SCROLL_OFFSETS: 'wfnew.dailyReading.scrollOffsets',
   WORDNEW_DAILY_READING_WORD_GROUP: 'wfnew.dailyReading.wordGroup',
+  WORDNEW_ORCH_AUDIO_PLAYER: 'wfnew.orchAudio.player',
   WORDNEW_SUPER_TOAST: 'wfnew_super_toast',
   WORDNEW_MOCK_AUTH_USERS: 'wfnew_auth_mock_users',
   WORDNEW_MOCK_PREFERENCES: 'wfnew_prefs_mock',

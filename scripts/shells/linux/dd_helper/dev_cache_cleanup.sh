@@ -12,56 +12,42 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Development Tool Cache Cleanup for dd.sh
+# Development Tool Cache + System Log maintenance.
+# dev_cache_cleanup_menu / system_log_limits_menu are Linux System Tools ->
+# Slim & Disk Cleanup items; dd.sh startup only runs system_unwanted_paths_cleanup.
 #
-# Detects oversized developer-tool caches (pip / npm / go / rust) and, for each
-# one over the size threshold, prompts the user [Y/n] before cleaning it.
-# dd.sh only SOURCES this file and calls dev_cache_cleanup_prompt - all logic
-# lives here.
-#
-# Quick "is there cache / how big" + official cleanup commands used below:
-#   pip   : dir -> `pip cache dir` ; size -> du -sh ; clean -> `pip cache purge`
+# dev_cache_cleanup_prompt measures pip / npm / go / rust caches and /var/log
+# in parallel, then offers every oversized item in ONE stacked confirmation
+# (prompt_queue_*): y = all, n = none, 1,3 = listed items.
+#   pip   : dir -> `pip cache dir` ; clean -> `pip cache purge`
 #   npm   : dir -> `npm config get cache` (default ~/.npm) ; clean -> `npm cache clean --force`
 #   go    : dir -> `go env GOCACHE` / `go env GOMODCACHE` ; clean -> `go clean -cache` / `go clean -modcache`
-#   rust  : dirs -> $RUSTUP_HOME (~/.rustup) + $CARGO_HOME (~/.cargo). rustup has
-#           no built-in "cache purge"; only the re-downloadable parts are removed
-#           (rustup/downloads, cargo registry cache/src, cargo git checkouts).
-#           Installed toolchains are kept intact.
-#   /var/log : managed cleanup -> systemd journal `journalctl --vacuum-size`.
-#           Everything without a managed cleanup (rotated/compressed/date-stamped
-#           logs) is deleted directly; remaining large active *.log files are
-#           truncated in place so service file handles stay valid.
+#   rust  : re-downloadable parts only (rustup downloads, cargo registry cache/src,
+#           cargo checkouts); installed toolchains are kept.
+#   /var/log : journal vacuum, delete rotated/compressed/date-stamped logs,
+#           truncate large active *.log in place (file handles stay valid).
 #
-# system_log_limits_apply() idempotently CAPS future log growth (runs without a
-# prompt, prints every action):
-#   journald  : /etc/systemd/journald.conf -> SystemMaxUse=500M, SystemMaxFileSize=50M
-#               (replace value in place, add if missing, skip if already equal),
-#               then restart systemd-journald only when a value actually changed.
-#   logrotate : /etc/logrotate.d/{rsyslog,syslog} -> ensure `size 100M` in each
-#               log block (replace existing size, add after `{` if missing).
-#
-# system_unwanted_paths_cleanup() removes fixed unwanted paths (SYSTEM_UNWANTED_PATHS,
-# e.g. /usr/local/qcloud) with `rm -rf` when present. No prompt.
+# system_log_limits_apply idempotently caps future log growth (no prompt):
+#   journald  : SystemMaxUse=500M, SystemMaxFileSize=50M (restart only on change)
+#   logrotate : /etc/logrotate.d/{rsyslog,syslog} -> `size 100M` in each block.
 # =============================================================================
 
-# Cache size threshold in MB: a cache at or above this size triggers a prompt.
+# Cache size threshold in MB: a cache at or above this size is offered for cleanup.
 DEV_CACHE_SIZE_THRESHOLD_MB="${DEV_CACHE_SIZE_THRESHOLD_MB:-500}"
-
 # /var/log threshold in MB (logs grow naturally, so a larger default than caches).
 VAR_LOG_SIZE_THRESHOLD_MB="${VAR_LOG_SIZE_THRESHOLD_MB:-1024}"
-
-# Set to 1 by _ensure_conf_kv when a journald limit value is actually changed;
-# used to decide whether systemd-journald needs a restart.
+DEV_CACHE_LOG_DIR="/var/log"
+DEV_CACHE_PIP_CMD=""
+DEV_CACHE_NPM_CMD=""
+DEV_CACHE_RUST_TARGETS=()
+# Set to 1 by _ensure_conf_kv when a journald limit value is actually changed.
 _LOGLIMIT_CHANGED=0
-
 # Fixed paths that should not exist on these machines (vendor agents / bloat).
-# Removed unconditionally with `rm -rf` when present. Extend this list as needed.
 SYSTEM_UNWANTED_PATHS=(
     "/usr/local/qcloud"
 )
 
-# Resolve the pip command consistently with the rest of the codebase:
-# prefer pip3, then plain pip, then `python3 -m pip` (mirrors 13_install_default_python.sh).
+# Resolve the pip command: pip3, then pip, then `python3 -m pip`.
 _devcache_resolve_pip() {
     if command -v pip3 >/dev/null 2>&1; then
         echo "pip3"
@@ -69,34 +55,19 @@ _devcache_resolve_pip() {
         echo "pip"
     elif command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then
         echo "python3 -m pip"
-    else
-        echo ""
     fi
 }
 
-# Echo the size of a directory in whole MB (0 when missing/empty).
-# Bounded by `timeout` so a huge/slow tree cannot wedge the scan indefinitely.
+# Echo the size of a directory in whole MB (0 when missing). Bounded by timeout.
 _devcache_dir_size_mb() {
     local target="$1"
     local mb=0
+
     if [ -d "$target" ]; then
-        mb=$(timeout 120 du -sm "$target" 2>/dev/null | cut -f1)
+        mb=$(timeout 120 $USE_SUDO du -sm "$target" 2>/dev/null | cut -f1)
         [ -n "$mb" ] || mb=0
     fi
     echo "$mb"
-}
-
-# Prompt [N/y] (default No, auto-continues after DD_STARTUP_PROMPT_TIMEOUT seconds
-# via the shared prompt_read_default helper, so unattended/terminal runs never
-# block); return 0 only when the user explicitly types y.
-_devcache_confirm() {
-    local prompt="$1"
-    local answer=""
-    prompt_read_default answer "n" "${DD_STARTUP_PROMPT_TIMEOUT:-3}" "$prompt [N/y, auto-N in ${DD_STARTUP_PROMPT_TIMEOUT:-3}s]: "
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-        return 0
-    fi
-    return 1
 }
 
 # Idempotently ensure `key=value` (active) inside [section] of an INI-style file.
@@ -116,9 +87,9 @@ _ensure_conf_kv() {
         return 1
     fi
 
-    active_count=$($sudo grep -Ec "^[[:space:]]*${key}[[:space:]]*=" "$file" 2>/dev/null)
+    active_count=$($USE_SUDO grep -Ec "^[[:space:]]*${key}[[:space:]]*=" "$file" 2>/dev/null)
     [ -n "$active_count" ] || active_count=0
-    current=$($sudo grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" 2>/dev/null | tail -n1 | sed -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//")
+    current=$($USE_SUDO grep -E "^[[:space:]]*${key}[[:space:]]*=" "$file" 2>/dev/null | tail -n1 | sed -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//")
 
     if [ "$active_count" -eq 1 ] && [ "$current" = "$value" ]; then
         echo -e "\033[32m[LOG LIMIT] ${file}: ${key}=${value} already set\033[0m"
@@ -126,7 +97,7 @@ _ensure_conf_kv() {
     fi
 
     tmp="$(mktemp)"
-    $sudo cat "$file" 2>/dev/null | awk -v section="$section" -v key="$key" -v value="$value" '
+    $USE_SUDO cat "$file" 2>/dev/null | awk -v section="$section" -v key="$key" -v value="$value" '
         BEGIN { target="[" section "]"; in_sec=0; done=0; seen_sec=0; keyre="^[[:space:]]*#?[[:space:]]*" key "[[:space:]]*=" }
         /^[[:space:]]*\[.*\][[:space:]]*$/ {
             if (in_sec && !done) { print key "=" value; done=1 }
@@ -147,8 +118,8 @@ _ensure_conf_kv() {
         }
     ' > "$tmp"
 
-    if [ -s "$tmp" ] && ! $sudo cmp -s "$tmp" "$file"; then
-        if $sudo cp "$tmp" "$file"; then
+    if [ -s "$tmp" ] && ! $USE_SUDO cmp -s "$tmp" "$file"; then
+        if $USE_SUDO cp "$tmp" "$file"; then
             _LOGLIMIT_CHANGED=1
             if [ -n "$current" ]; then
                 echo -e "\033[33m[LOG LIMIT] ${file}: ${key} ${current} -> ${value}\033[0m"
@@ -178,7 +149,7 @@ _ensure_logrotate_block_size() {
     fi
 
     tmp="$(mktemp)"
-    $sudo cat "$file" 2>/dev/null | awk -v val="$value" '
+    $USE_SUDO cat "$file" 2>/dev/null | awk -v val="$value" '
         BEGIN { depth=0; size_seen=0 }
         {
             if (depth==0 && index($0,"{")>0) { depth=1; size_seen=0; print; next }
@@ -191,8 +162,8 @@ _ensure_logrotate_block_size() {
         }
     ' > "$tmp"
 
-    if [ -s "$tmp" ] && ! $sudo cmp -s "$tmp" "$file"; then
-        if $sudo cp "$tmp" "$file"; then
+    if [ -s "$tmp" ] && ! $USE_SUDO cmp -s "$tmp" "$file"; then
+        if $USE_SUDO cp "$tmp" "$file"; then
             echo -e "\033[33m[LOG LIMIT] ${file}: enforced 'size ${value}' in log blocks\033[0m"
         else
             echo -e "\033[31m[LOG LIMIT] ${file}: failed to write size limit\033[0m"
@@ -204,16 +175,15 @@ _ensure_logrotate_block_size() {
     return 0
 }
 
-# Entry: remove unwanted system paths (SYSTEM_UNWANTED_PATHS) when present. No prompt.
+# Remove unwanted system paths (SYSTEM_UNWANTED_PATHS) when present. No prompt.
 system_unwanted_paths_cleanup() {
     local p=""
 
-    echo ""
     echo -e "\033[36m[CLEANUP] Checking unwanted system paths...\033[0m"
     for p in "${SYSTEM_UNWANTED_PATHS[@]}"; do
         if [ -e "$p" ] || [ -L "$p" ]; then
             echo -e "\033[33m[CLEANUP] Removing: ${p}\033[0m"
-            if $sudo rm -rf "$p"; then
+            if $USE_SUDO rm -rf "$p"; then
                 echo -e "\033[32m[CLEANUP] Removed: ${p}\033[0m"
             else
                 echo -e "\033[31m[CLEANUP] Failed to remove: ${p}\033[0m"
@@ -225,7 +195,7 @@ system_unwanted_paths_cleanup() {
     return 0
 }
 
-# Entry: idempotently cap system log growth (journald + logrotate). No prompt.
+# Idempotently cap system log growth (journald + logrotate). No prompt.
 system_log_limits_apply() {
     local journald_conf="/etc/systemd/journald.conf"
     local -a logrotate_files=("/etc/logrotate.d/rsyslog" "/etc/logrotate.d/syslog")
@@ -239,12 +209,12 @@ system_log_limits_apply() {
     # ----- journald -----
     if command -v systemctl >/dev/null 2>&1 && [ -d /etc/systemd ]; then
         if [ ! -f "$journald_conf" ]; then
-            printf '[Journal]\n' | $sudo tee "$journald_conf" >/dev/null 2>&1
+            printf '[Journal]\n' | $USE_SUDO tee "$journald_conf" >/dev/null 2>&1
         fi
         _ensure_conf_kv "$journald_conf" "Journal" "SystemMaxUse" "500M"
         _ensure_conf_kv "$journald_conf" "Journal" "SystemMaxFileSize" "50M"
         if [ "$_LOGLIMIT_CHANGED" -eq 1 ]; then
-            if $sudo systemctl restart systemd-journald 2>/dev/null; then
+            if $USE_SUDO systemctl restart systemd-journald 2>/dev/null; then
                 echo -e "\033[32m[LOG LIMIT] systemd-journald restarted (new limits applied)\033[0m"
             else
                 echo -e "\033[33m[LOG LIMIT] could not restart systemd-journald (limits apply on next boot)\033[0m"
@@ -269,221 +239,190 @@ system_log_limits_apply() {
     return 0
 }
 
-# Main entry: scan caches and prompt for cleanup when oversized.
-dev_cache_cleanup_prompt() {
-    local threshold="$DEV_CACHE_SIZE_THRESHOLD_MB"
-    local log_threshold="$VAR_LOG_SIZE_THRESHOLD_MB"
-    local pip_cmd=""
-    local pip_cache_dir=""
-    local npm_cache_dir=""
-    local go_cache=""
-    local go_modcache=""
-    local rustup_home=""
-    local cargo_home=""
-    local log_dir="/var/log"
+# Measure one kind; writes "<size_mb>\t<location>" to <out_file> when present.
+_devcache_measure() {
+    local kind="$1"
+    local out_file="$2"
+    local location=""
     local size=0
-    local total=0
+    local target=""
+
+    case "$kind" in
+        pip)
+            location="$(timeout 30 $DEV_CACHE_PIP_CMD cache dir 2>/dev/null)"
+            ;;
+        npm)
+            location="$(timeout 30 "$DEV_CACHE_NPM_CMD" config get cache 2>/dev/null)"
+            [ -n "$location" ] || location="$HOME/.npm"
+            ;;
+        gobuild)
+            location="$(timeout 30 go env GOCACHE 2>/dev/null)"
+            ;;
+        gomod)
+            location="$(timeout 30 go env GOMODCACHE 2>/dev/null)"
+            ;;
+        rust)
+            for target in "${DEV_CACHE_RUST_TARGETS[@]}"; do
+                size=$((size + $(_devcache_dir_size_mb "$target")))
+            done
+            printf '%s\t%s\n' "$size" "${DEV_CACHE_RUST_TARGETS[*]}" > "$out_file"
+            return
+            ;;
+        varlog)
+            location="$DEV_CACHE_LOG_DIR"
+            ;;
+    esac
+    if [ -n "$location" ] && [ -d "$location" ]; then
+        printf '%s\t%s\n' "$(_devcache_dir_size_mb "$location")" "$location" > "$out_file"
+    fi
+}
+
+# Accept handler (prompt_queue_flush): clean one oversized item. Queue ids are
+# devcache_<kind>.
+_devcache_clean_item() {
+    local kind="${1#devcache_}"
     local target=""
     local logf=""
-    local kind=""
-    local idx=0
-    local -a rust_targets=()
-    local -a pend_kind=()
-    local -a pend_desc=()
 
-    echo ""
-    echo -e "\033[36m[DEV CACHE] Scanning caches (threshold: ${threshold} MB) and ${log_dir} (threshold: ${log_threshold} MB)...\033[0m"
-
-    # ----- scan phase: measure everything, print info, collect oversized items -----
-
-    # pip
-    echo -e "\033[37m[DEV CACHE] measuring pip cache...\033[0m"
-    pip_cmd="$(_devcache_resolve_pip)"
-    if [ -n "$pip_cmd" ]; then
-        pip_cache_dir="$(timeout 30 $pip_cmd cache dir 2>/dev/null)"
-        if [ -n "$pip_cache_dir" ] && [ -d "$pip_cache_dir" ]; then
-            size="$(_devcache_dir_size_mb "$pip_cache_dir")"
-            if [ "$size" -ge "$threshold" ]; then
-                echo -e "\033[33m[DEV CACHE] pip cache: ${size} MB at ${pip_cache_dir} (over threshold)\033[0m"
-                pend_kind+=("pip"); pend_desc+=("pip cache ${size} MB -> ${pip_cmd} cache purge")
+    echo -e "\033[36m[DEV CACHE] Cleaning: ${kind}\033[0m"
+    case "$kind" in
+        pip)
+            if $DEV_CACHE_PIP_CMD cache purge; then
+                echo -e "\033[32m[DEV CACHE] pip cache purged\033[0m"
             else
-                echo -e "\033[37m[DEV CACHE] pip cache: ${size} MB (under threshold, skip)\033[0m"
+                echo -e "\033[31m[DEV CACHE] pip cache purge failed\033[0m"
             fi
-        else
-            echo -e "\033[37m[DEV CACHE] pip cache: empty / none\033[0m"
-        fi
-    else
-        echo -e "\033[37m[DEV CACHE] pip: not installed\033[0m"
-    fi
-
-    # npm
-    echo -e "\033[37m[DEV CACHE] measuring npm cache...\033[0m"
-    local npm_cmd=""
-    npm_cmd="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
-    if [ -n "$npm_cmd" ]; then
-        npm_cache_dir="$(timeout 30 "$npm_cmd" config get cache 2>/dev/null)"
-        [ -n "$npm_cache_dir" ] || npm_cache_dir="$HOME/.npm"
-        if [ -d "$npm_cache_dir" ]; then
-            size="$(_devcache_dir_size_mb "$npm_cache_dir")"
-            if [ "$size" -ge "$threshold" ]; then
-                echo -e "\033[33m[DEV CACHE] npm cache: ${size} MB at ${npm_cache_dir} (over threshold)\033[0m"
-                pend_kind+=("npm"); pend_desc+=("npm cache ${size} MB -> npm cache clean --force")
+            ;;
+        npm)
+            if "$DEV_CACHE_NPM_CMD" cache clean --force; then
+                echo -e "\033[32m[DEV CACHE] npm cache cleaned\033[0m"
             else
-                echo -e "\033[37m[DEV CACHE] npm cache: ${size} MB (under threshold, skip)\033[0m"
+                echo -e "\033[31m[DEV CACHE] npm cache clean failed\033[0m"
             fi
-        else
-            echo -e "\033[37m[DEV CACHE] npm cache: none\033[0m"
-        fi
-    else
-        echo -e "\033[37m[DEV CACHE] npm: not installed\033[0m"
-    fi
-
-    # go (build cache + module cache)
-    echo -e "\033[37m[DEV CACHE] measuring go caches...\033[0m"
-    if command -v go >/dev/null 2>&1; then
-        go_cache="$(timeout 30 go env GOCACHE 2>/dev/null)"
-        if [ -n "$go_cache" ] && [ -d "$go_cache" ]; then
-            size="$(_devcache_dir_size_mb "$go_cache")"
-            if [ "$size" -ge "$threshold" ]; then
-                echo -e "\033[33m[DEV CACHE] go build cache: ${size} MB at ${go_cache} (over threshold)\033[0m"
-                pend_kind+=("gobuild"); pend_desc+=("go build cache ${size} MB -> go clean -cache")
+            ;;
+        gobuild)
+            if go clean -cache; then
+                echo -e "\033[32m[DEV CACHE] go build cache cleaned\033[0m"
             else
-                echo -e "\033[37m[DEV CACHE] go build cache: ${size} MB (under threshold, skip)\033[0m"
+                echo -e "\033[31m[DEV CACHE] go clean -cache failed\033[0m"
             fi
-        fi
-        go_modcache="$(timeout 30 go env GOMODCACHE 2>/dev/null)"
-        if [ -n "$go_modcache" ] && [ -d "$go_modcache" ]; then
-            size="$(_devcache_dir_size_mb "$go_modcache")"
-            if [ "$size" -ge "$threshold" ]; then
-                echo -e "\033[33m[DEV CACHE] go module cache: ${size} MB at ${go_modcache} (over threshold)\033[0m"
-                pend_kind+=("gomod"); pend_desc+=("go module cache ${size} MB -> go clean -modcache")
+            ;;
+        gomod)
+            if go clean -modcache; then
+                echo -e "\033[32m[DEV CACHE] go module cache cleaned\033[0m"
             else
-                echo -e "\033[37m[DEV CACHE] go module cache: ${size} MB (under threshold, skip)\033[0m"
+                echo -e "\033[31m[DEV CACHE] go clean -modcache failed\033[0m"
             fi
-        fi
-    else
-        echo -e "\033[37m[DEV CACHE] go: not installed\033[0m"
-    fi
-
-    # rust (rustup + cargo, re-downloadable parts only)
-    echo -e "\033[37m[DEV CACHE] measuring rust caches...\033[0m"
-    rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
-    cargo_home="${CARGO_HOME:-$HOME/.cargo}"
-    if command -v rustup >/dev/null 2>&1 || [ -d "$rustup_home" ] || [ -d "$cargo_home" ]; then
-        [ -d "$rustup_home/downloads" ] && rust_targets+=("$rustup_home/downloads")
-        [ -d "$cargo_home/registry/cache" ] && rust_targets+=("$cargo_home/registry/cache")
-        [ -d "$cargo_home/registry/src" ] && rust_targets+=("$cargo_home/registry/src")
-        [ -d "$cargo_home/git/checkouts" ] && rust_targets+=("$cargo_home/git/checkouts")
-        if [ "${#rust_targets[@]}" -gt 0 ]; then
-            total=0
-            for target in "${rust_targets[@]}"; do
-                size="$(_devcache_dir_size_mb "$target")"
-                total=$((total + size))
+            ;;
+        rust)
+            for target in "${DEV_CACHE_RUST_TARGETS[@]}"; do
+                echo -e "\033[37m[DEV CACHE]   removing ${target}\033[0m"
+                rm -rf "$target" 2>/dev/null
             done
-            if [ "$total" -ge "$threshold" ]; then
-                echo -e "\033[33m[DEV CACHE] rust re-downloadable cache: ${total} MB (rustup: ${rustup_home}, cargo: ${cargo_home}) (over threshold)\033[0m"
-                pend_kind+=("rust"); pend_desc+=("rust caches ${total} MB -> remove downloads/registry (toolchains kept)")
-            else
-                echo -e "\033[37m[DEV CACHE] rust re-downloadable cache: ${total} MB (under threshold, skip)\033[0m"
+            echo -e "\033[32m[DEV CACHE] rust caches cleared\033[0m"
+            ;;
+        varlog)
+            if command -v journalctl >/dev/null 2>&1; then
+                echo -e "\033[37m[VAR LOG]   vacuuming systemd journal to <=200M\033[0m"
+                $USE_SUDO journalctl --rotate >/dev/null 2>&1
+                $USE_SUDO journalctl --vacuum-size=200M
             fi
-        else
-            echo -e "\033[37m[DEV CACHE] rust: no re-downloadable cache\033[0m"
-        fi
-    else
-        echo -e "\033[37m[DEV CACHE] rust: not installed\033[0m"
-    fi
+            echo -e "\033[37m[VAR LOG]   deleting rotated / compressed / date-stamped logs\033[0m"
+            $USE_SUDO find "$DEV_CACHE_LOG_DIR" -type f \( \
+                -name "*.gz" -o -name "*.xz" -o -name "*.bz2" -o \
+                -name "*.old" -o -name "*.[0-9]" -o -name "*-20??????" \
+            \) -delete 2>/dev/null
+            echo -e "\033[37m[VAR LOG]   truncating large active *.log files (>50M)\033[0m"
+            while IFS= read -r -d '' logf; do
+                $USE_SUDO truncate -s 0 "$logf" 2>/dev/null
+            done < <($USE_SUDO find "$DEV_CACHE_LOG_DIR" -type f -name "*.log" -size +50M -print0 2>/dev/null)
+            echo -e "\033[32m[VAR LOG] ${DEV_CACHE_LOG_DIR} cleaned\033[0m"
+            ;;
+    esac
+}
 
-    # /var/log (system logs need root to size/clean; $sudo provided by dd.sh)
-    echo -e "\033[37m[DEV CACHE] measuring ${log_dir}...\033[0m"
-    if [ -d "$log_dir" ]; then
-        size=$(timeout 120 $sudo du -sm "$log_dir" 2>/dev/null | cut -f1)
-        [ -n "$size" ] || size=0
-        if [ "$size" -ge "$log_threshold" ]; then
-            echo -e "\033[33m[VAR LOG] ${log_dir}: ${size} MB (over threshold)\033[0m"
-            pend_kind+=("varlog"); pend_desc+=("${log_dir} ${size} MB -> journal vacuum + delete rotated + truncate large")
-        else
-            echo -e "\033[37m[VAR LOG] ${log_dir}: ${size} MB (under threshold, skip)\033[0m"
-        fi
-    fi
+# Scan caches in parallel, then offer every oversized item in one confirmation.
+dev_cache_cleanup_prompt() {
+    local measure_dir=""
+    local kind=""
+    local label=""
+    local size=0
+    local location=""
+    local limit=0
+    local rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
+    local cargo_home="${CARGO_HOME:-$HOME/.cargo}"
+    local -a kinds=()
+    local -A labels=(
+        [pip]="pip cache" [npm]="npm cache" [gobuild]="go build cache"
+        [gomod]="go module cache" [rust]="rust re-downloadable cache" [varlog]="$DEV_CACHE_LOG_DIR"
+    )
+    local -A actions=(
+        [npm]="npm cache clean --force" [gobuild]="go clean -cache" [gomod]="go clean -modcache"
+        [rust]="remove downloads/registry (toolchains kept)"
+        [varlog]="journal vacuum + delete rotated + truncate large"
+    )
 
-    # ----- single confirmation for ALL oversized items -----
-    if [ "${#pend_kind[@]}" -eq 0 ]; then
+    echo -e "\033[36m[DEV CACHE] Measuring caches (threshold: ${DEV_CACHE_SIZE_THRESHOLD_MB} MB) and ${DEV_CACHE_LOG_DIR} (threshold: ${VAR_LOG_SIZE_THRESHOLD_MB} MB) in parallel...\033[0m"
+
+    DEV_CACHE_PIP_CMD="$(_devcache_resolve_pip)"
+    DEV_CACHE_NPM_CMD="$(resolve_tool_bin npm 2>/dev/null || command -v npm 2>/dev/null || true)"
+    actions[pip]="${DEV_CACHE_PIP_CMD} cache purge"
+    DEV_CACHE_RUST_TARGETS=()
+    for location in "$rustup_home/downloads" "$cargo_home/registry/cache" "$cargo_home/registry/src" "$cargo_home/git/checkouts"; do
+        [ -d "$location" ] && DEV_CACHE_RUST_TARGETS+=("$location")
+    done
+
+    if [ -n "$DEV_CACHE_PIP_CMD" ]; then kinds+=(pip); else echo -e "\033[37m[DEV CACHE] pip: not installed\033[0m"; fi
+    if [ -n "$DEV_CACHE_NPM_CMD" ]; then kinds+=(npm); else echo -e "\033[37m[DEV CACHE] npm: not installed\033[0m"; fi
+    if command -v go >/dev/null 2>&1; then kinds+=(gobuild gomod); else echo -e "\033[37m[DEV CACHE] go: not installed\033[0m"; fi
+    if [ "${#DEV_CACHE_RUST_TARGETS[@]}" -gt 0 ]; then kinds+=(rust); else echo -e "\033[37m[DEV CACHE] rust: no re-downloadable cache\033[0m"; fi
+    kinds+=(varlog)
+
+    measure_dir="$(mktemp -d)" || return 1
+    for kind in "${kinds[@]}"; do
+        _devcache_measure "$kind" "$measure_dir/$kind" &
+    done
+    wait
+
+    for kind in "${kinds[@]}"; do
+        label="${labels[$kind]}"
+        if [ ! -s "$measure_dir/$kind" ]; then
+            echo -e "\033[37m[DEV CACHE] ${label}: none\033[0m"
+            continue
+        fi
+        IFS=$'\t' read -r size location < "$measure_dir/$kind"
+        limit="$DEV_CACHE_SIZE_THRESHOLD_MB"
+        [ "$kind" = "varlog" ] && limit="$VAR_LOG_SIZE_THRESHOLD_MB"
+        if [ "$size" -ge "$limit" ]; then
+            echo -e "\033[33m[DEV CACHE] ${label}: ${size} MB at ${location} (over threshold)\033[0m"
+            prompt_queue_add "devcache_${kind}" "n" "${label} ${size} MB -> ${actions[$kind]}" _devcache_clean_item
+        else
+            echo -e "\033[37m[DEV CACHE] ${label}: ${size} MB (under threshold, skip)\033[0m"
+        fi
+    done
+    rm -rf "$measure_dir"
+
+    if [ "${#PROMPT_QUEUE_IDS[@]}" -eq 0 ]; then
         echo -e "\033[32m[DEV CACHE] Nothing over threshold - no cleanup needed\033[0m"
-        echo -e "\033[36m[DEV CACHE] Cache check complete\033[0m"
         return 0
     fi
-
-    echo ""
-    echo -e "\033[33m[DEV CACHE] ${#pend_kind[@]} item(s) over threshold:\033[0m"
-    for idx in "${!pend_desc[@]}"; do
-        echo -e "\033[33m  - ${pend_desc[$idx]}\033[0m"
-    done
-    if ! _devcache_confirm "Clean ALL of the above?"; then
-        echo -e "\033[33m[DEV CACHE] Skipped by user\033[0m"
-        echo -e "\033[36m[DEV CACHE] Cache check complete\033[0m"
-        return 0
-    fi
-
-    # ----- cleanup phase: run each pending item with progress -----
-    for idx in "${!pend_kind[@]}"; do
-        kind="${pend_kind[$idx]}"
-        echo -e "\033[36m[DEV CACHE] [$((idx + 1))/${#pend_kind[@]}] Cleaning: ${pend_desc[$idx]}\033[0m"
-        case "$kind" in
-            pip)
-                if $pip_cmd cache purge; then
-                    echo -e "\033[32m[DEV CACHE] pip cache purged\033[0m"
-                else
-                    echo -e "\033[31m[DEV CACHE] pip cache purge failed\033[0m"
-                fi
-                ;;
-            npm)
-                if npm cache clean --force; then
-                    echo -e "\033[32m[DEV CACHE] npm cache cleaned\033[0m"
-                else
-                    echo -e "\033[31m[DEV CACHE] npm cache clean failed\033[0m"
-                fi
-                ;;
-            gobuild)
-                if go clean -cache; then
-                    echo -e "\033[32m[DEV CACHE] go build cache cleaned\033[0m"
-                else
-                    echo -e "\033[31m[DEV CACHE] go clean -cache failed\033[0m"
-                fi
-                ;;
-            gomod)
-                if go clean -modcache; then
-                    echo -e "\033[32m[DEV CACHE] go module cache cleaned\033[0m"
-                else
-                    echo -e "\033[31m[DEV CACHE] go clean -modcache failed\033[0m"
-                fi
-                ;;
-            rust)
-                for target in "${rust_targets[@]}"; do
-                    echo -e "\033[37m[DEV CACHE]   removing ${target}\033[0m"
-                    rm -rf "$target" 2>/dev/null
-                done
-                echo -e "\033[32m[DEV CACHE] rust caches cleared\033[0m"
-                ;;
-            varlog)
-                if command -v journalctl >/dev/null 2>&1; then
-                    echo -e "\033[37m[VAR LOG]   vacuuming systemd journal to <=200M\033[0m"
-                    $sudo journalctl --rotate >/dev/null 2>&1
-                    $sudo journalctl --vacuum-size=200M
-                fi
-                echo -e "\033[37m[VAR LOG]   deleting rotated / compressed / date-stamped logs\033[0m"
-                $sudo find "$log_dir" -type f \( \
-                    -name "*.gz" -o -name "*.xz" -o -name "*.bz2" -o \
-                    -name "*.old" -o -name "*.[0-9]" -o -name "*-20??????" \
-                \) -delete 2>/dev/null
-                echo -e "\033[37m[VAR LOG]   truncating large active *.log files (>50M)\033[0m"
-                while IFS= read -r -d '' logf; do
-                    $sudo truncate -s 0 "$logf" 2>/dev/null
-                done < <($sudo find "$log_dir" -type f -name "*.log" -size +50M -print0 2>/dev/null)
-                echo -e "\033[32m[VAR LOG] ${log_dir} cleaned\033[0m"
-                ;;
-        esac
-    done
-
+    prompt_queue_flush 0 "Clean which items"
     echo -e "\033[36m[DEV CACHE] Cache check complete\033[0m"
-    return 0
+}
+
+dev_cache_cleanup_menu() {
+    printf "\033c"
+    echo "=== Dev Cache & /var/log Cleanup (pip/npm/go/rust + logs) ==="
+    echo ""
+    dev_cache_cleanup_prompt
+    echo ""
+    read -r -p "Press Enter to continue..."
+}
+
+system_log_limits_menu() {
+    printf "\033c"
+    echo "=== System Log Size Limits (journald + logrotate) ==="
+    system_log_limits_apply
+    echo ""
+    read -r -p "Press Enter to continue..."
 }

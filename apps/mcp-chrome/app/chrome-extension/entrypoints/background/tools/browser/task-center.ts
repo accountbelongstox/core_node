@@ -1,5 +1,4 @@
 import { createErrorResponse, createJsonResponse, type ToolResult } from '@/common/tool-handler';
-import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
 import {
   executeTaskCenterCommand,
   executeValidityTestCommand,
@@ -9,7 +8,6 @@ import { TOOL_NAMES } from 'chrome-mcp-shared';
 
 interface TaskCenterToolParams {
   action: 'status' | 'start' | 'stop' | 'set_capability' | 'test_validity';
-  apiBaseUrl?: string;
   capabilities?: CapabilityKey[];
   capability?: CapabilityKey;
   enabled?: boolean;
@@ -23,7 +21,6 @@ class TaskCenterTool {
   name = TOOL_NAMES.BROWSER.TASK_CENTER;
 
   async execute(args: TaskCenterToolParams): Promise<ToolResult> {
-    const apiUrl = String(args.apiBaseUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
     let response: any;
 
     switch (args.action) {
@@ -34,7 +31,6 @@ class TaskCenterTool {
         response = await executeTaskCenterCommand({
           action: 'start',
           config: {
-            apiUrl,
             activeCapabilities: Array.isArray(args.capabilities) ? args.capabilities : [],
           },
         });
@@ -50,7 +46,6 @@ class TaskCenterTool {
           action: 'set_capability',
           capability: args.capability,
           enabled: args.enabled,
-          config: { apiUrl },
         });
         break;
       case 'test_validity':

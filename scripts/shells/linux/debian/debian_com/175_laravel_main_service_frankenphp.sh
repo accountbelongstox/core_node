@@ -45,6 +45,8 @@ SCRIPT_INDEX="175SF"
 . "$LINUX_COMMON_DIR/common_functions.sh"
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/frankenphp_manager.sh"
+# shellcheck source=/dev/null
+. "$LINUX_COMMON_DIR/redis_endpoint_common.sh"
 
 echo "[$SCRIPT_INDEX] frankenphp plane service runtime: runtime-only convergence, then direct FrankenPHP supervision (Octane worker, watch=${OCTANE_WATCH})"
 
@@ -57,6 +59,10 @@ if [ -z "$FM_RUNTIME_BINARY" ]; then
 fi
 
 FRANKENPHP_SITE_HOST="$(fm_site_host)"
+
+# Redis service state only (no installer): start the store 175 selected when
+# it is down; Laravel falls back to its database path while it stays down.
+redis_endpoint_service_state_ensure
 
 cd "$LARAVEL_DIR" || exit 1
 

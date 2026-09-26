@@ -323,6 +323,7 @@ class AppQyV1CoverImageService
                 $files = glob($storageDir . DIRECTORY_SEPARATOR . $pattern);
                 foreach ($files as $file) {
                     if (file_exists($file) && unlink($file)) {
+                        app(AppQyV1ResourceIndexService::class)->forgetStaticPath($file);
                         $deleted++;
                     }
                 }

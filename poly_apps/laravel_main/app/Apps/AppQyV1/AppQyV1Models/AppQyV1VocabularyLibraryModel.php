@@ -73,6 +73,16 @@ class AppQyV1VocabularyLibraryModel extends AppQyV1Model
 
     protected ?string $appTableSuffix = 'vocabulary_libraries';
 
+    /**
+     * assist_claimed_by owner prefix of a global cover task. With a NULL
+     * assist_claimed_at it parks a row whose newest cover task failed for
+     * good: neither the maintenance recovery nor the assist claim retries it.
+     */
+    public const COVER_TASK_HOLD_PREFIX = 'global_task:';
+
+    /** Cover statuses that still wait for a queued cover task. */
+    public const COVER_QUEUED_STATUSES = ['pending', 'processing', 'retry'];
+
     protected $fillable = [
         'name',
         'description',
@@ -176,22 +186,24 @@ class AppQyV1VocabularyLibraryModel extends AppQyV1Model
     }
 
     public static function recoverCoverMaintenance(
-        int $maxRetries,
         $failedBefore,
         $leaseBefore
     ): array {
         $model = new static();
 
         return $model->getConnection()->transaction(static function () use (
-            $maxRetries,
             $failedBefore,
             $leaseBefore
         ): array {
-            $failed = self::query()
+            $failedQuery = self::query()
                 ->whereNotNull('cover_filename')
                 ->where('cover_status', 'failed')
-                ->where('cover_attempts', '>=', $maxRetries)
-                ->where('cover_finished_at', '<=', $failedBefore)
+                ->where(function ($finished) use ($failedBefore): void {
+                    $finished->whereNull('cover_finished_at')
+                        ->orWhere('cover_finished_at', '<=', $failedBefore);
+                });
+            self::excludeTaskHeldCovers($failedQuery);
+            $failed = $failedQuery
                 ->update([
                     'cover_status' => 'pending',
                     'cover_attempts' => 0,
@@ -223,6 +235,24 @@ class AppQyV1VocabularyLibraryModel extends AppQyV1Model
                 'total' => (int) $failed + (int) $processing + (int) $staleLeases,
             ];
         }, 1);
+    }
+
+    private static function excludeTaskHeldCovers($query): void
+    {
+        $query->where(static function ($hold): void {
+            $hold->whereNull('assist_claimed_by')
+                ->orWhereNotNull('assist_claimed_at')
+                ->orWhere('assist_claimed_by', 'not like', self::COVER_TASK_HOLD_PREFIX . '%');
+        });
+    }
+
+    /** Rows among $ids still waiting in a queued cover status. */
+    public static function queuedCoverRowsByIds(array $ids)
+    {
+        return self::query()
+            ->whereIn('id', $ids)
+            ->whereIn('cover_status', self::COVER_QUEUED_STATUSES)
+            ->get();
     }
 
     public static function missingPublicCovers(int $limit)
@@ -430,6 +460,11 @@ class AppQyV1VocabularyLibraryModel extends AppQyV1Model
         return $required ? $query->findOrFail($libraryId) : $query->find($libraryId);
     }
 
+    public static function publicRowsByIds(array $ids)
+    {
+        return self::query()->public()->whereIn('id', $ids)->get();
+    }
+
     public static function publicForLanguage(?string $language, array $columns = ['*'])
     {
         return self::query()->public()->forLanguage($language)->orderBy('id')->get($columns);
@@ -575,6 +610,9 @@ class AppQyV1VocabularyLibraryModel extends AppQyV1Model
                 ->where(function ($lease) use ($leaseMinutes): void {
                     $lease->whereNull('assist_claimed_at')
                         ->orWhere('assist_claimed_at', '<', now()->subMinutes($leaseMinutes));
+                })
+                ->where(static function ($hold): void {
+                    self::excludeTaskHeldCovers($hold);
                 })
                 ->orderByDesc('cover_priority')
                 ->orderBy('cover_last_requested_at')

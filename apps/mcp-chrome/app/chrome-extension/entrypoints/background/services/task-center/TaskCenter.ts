@@ -158,8 +158,9 @@ class TaskCenterService {
     }
   }
 
+  /** Every processor runs on the center-level API base resolved for this run. */
   private processorConfig(processorType: string, config: TaskCenterConfig): ProcessorConfig {
-    return config.processors?.[processorType] || { apiUrl: config.apiUrl };
+    return { ...(config.processors?.[processorType] || {}), apiUrl: config.apiUrl };
   }
 
   private describeProcessorError(error: any): string {

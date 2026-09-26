@@ -54,19 +54,20 @@
 - UI: `AgentHistoryRuntimeStore.ts` (`articlePromptDefaults`), `PcAgentHistoryConfigPanel.tsx` collapsible prompt editors (dirty-ref guard against refresh clobbering, saving identical-to-default stores `""`, "reset to default" clears the override).
 
 ### T4 Learning video moved to vocabulary orchestration
+> 2026-09-27: orchestration is now the standalone `/pycore-manager/audio-orchestration` page; files live under `pages/audio-orchestration/`.
 - `PcVocabularyPage.tsx`: honors `?tab=` URL param (beats localStorage).
-- New `pages/vocabulary/orchestration/OrchLearningVideoPanel.tsx`: same backend `video_*` config via `useAgentHistoryRuntime` / `persistAgentHistoryArticleConfig`, same `PcAgentHistoryVideoLogPanel` — no duplicated logic.
-- `PcAgentHistoryConfigPanel.tsx`: video section removed, replaced by a shortcut link to `/pycore-manager/vocabulary?tab=audio-orch` (new locale keys `videoMovedToOrch` / `openAudioOrch`).
+- New `pages/audio-orchestration/OrchLearningVideoPanel.tsx`: same backend `video_*` config via `useAgentHistoryRuntime` / `persistAgentHistoryArticleConfig`, same `PcAgentHistoryVideoLogPanel` — no duplicated logic.
+- `PcAgentHistoryConfigPanel.tsx`: video section removed, replaced by a shortcut link to `/pycore-manager/audio-orchestration` (originally `/pycore-manager/vocabulary?tab=audio-orch`, which now redirects there) (new locale keys `videoMovedToOrch` / `openAudioOrch`).
 
 ### T4b ffmpeg detection frontend cache
 - `apps/pycore-manager/api/PycoreCache.ts`: generic TTL cache `saveTtlCache` / `loadTtlCache` / `loadTtlCacheStale` (prefix `pycore_ttl_cache:`).
-- `VocabAudioOrchTab.tsx`: `orch.system_status` cached 3h; stale value paints instantly; expiry forces `orchSystemStatus(true)`; a pycore relay device change triggers a fresh probe.
+- `AudioOrchWorkspace.tsx` (formerly `VocabAudioOrchTab.tsx`): `orch.system_status` cached 3h; stale value paints instantly; expiry forces `orchSystemStatus(true)`; a pycore relay device change triggers a fresh probe.
 
 ### T4c Orchestration manifest drill-down panels
 - `orch_generate.py`: manifest persists a new `resource_meta` map (`{resource_id: {source, provider, synced, sync_queued}}`) written in `_resource_done`; `_load_resume_state` reads it back (old manifests without it still resume).
 - `orch_service.py`: new `task_manifest_page(task_id, category, page, page_size)` — pages the manifest's unique resources joined with `resolved` + `resource_meta`; categories all/cache/laravel/generated/synced/missing/pending.
 - Routes: `UI_AUDIO_ORCH_TASK_MANIFEST_PAGE = "ui/audio_orch/task/manifest_page"` in `route_names.py`, registered in `local_audio_orchestration_routes.py`.
-- UI: `PycoreHttpRoutes.ts` + `PycoreApiOrchestration.ts` (`orchTaskManifestPage`, `OrchManifestItem`/`OrchManifestPageResponse` types); new `pages/vocabulary/orchestration/OrchManifestPanel.tsx` (PcFloatingPanel + PcPager + category tabs, 5s live refresh while the task runs; generated rows show the provider, i.e. the qwen TTS base); `OrchTaskList.tsx` stats counters (cache / from Laravel / generated / synced / missing, plus the "x/y audio items" progress) are now buttons opening the panel at the matching category.
+- UI: `PycoreHttpRoutes.ts` + `PycoreApiOrchestration.ts` (`orchTaskManifestPage`, `OrchManifestItem`/`OrchManifestPageResponse` types); new `pages/audio-orchestration/OrchManifestPanel.tsx` (PcFloatingPanel + PcPager + category tabs, 5s live refresh while the task runs; generated rows show the provider, i.e. the qwen TTS base); `OrchTaskList.tsx` stats counters (cache / from Laravel / generated / synced / missing, plus the "x/y audio items" progress) are now buttons opening the panel at the matching category.
 
 ### Verification
 - `npx tsc --noEmit`: zero errors in all touched files; repo total unchanged at 97 pre-existing errors unrelated to this task.

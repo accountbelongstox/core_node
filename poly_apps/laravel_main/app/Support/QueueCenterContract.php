@@ -137,6 +137,64 @@ final class QueueCenterContract
     }
 
     /**
+     * Vocabulary-library cover task routing: mode -> task type, plus the
+     * Laravel AI fallback grace window and the handler id it claims under.
+     */
+    public static function libraryCover(): array
+    {
+        $policy = self::document()['library_cover'] ?? null;
+        if (!is_array($policy)) {
+            throw new RuntimeException('Queue Center library_cover policy is missing');
+        }
+        foreach (['task_types', 'fallback_grace_seconds', 'fallback_worker_id'] as $field) {
+            if (!array_key_exists($field, $policy)) {
+                throw new RuntimeException("Queue Center library_cover.{$field} is missing");
+            }
+        }
+
+        return $policy;
+    }
+
+    /** @return array<string,string> mode => task type */
+    public static function libraryCoverTaskTypes(): array
+    {
+        return array_map('strval', (array) self::libraryCover()['task_types']);
+    }
+
+    /** @return array<int,string> */
+    public static function libraryCoverModes(): array
+    {
+        return array_keys(self::libraryCoverTaskTypes());
+    }
+
+    public static function libraryCoverTaskType(string $mode): string
+    {
+        $taskType = self::libraryCoverTaskTypes()[$mode] ?? null;
+        if (!is_string($taskType) || self::taskTypeDefinition($taskType) === null) {
+            throw new RuntimeException("Unknown Queue Center library_cover mode: {$mode}");
+        }
+
+        return $taskType;
+    }
+
+    public static function libraryCoverMode(string $taskType): ?string
+    {
+        $mode = array_search($taskType, self::libraryCoverTaskTypes(), true);
+
+        return is_string($mode) ? $mode : null;
+    }
+
+    public static function libraryCoverFallbackGraceSeconds(): int
+    {
+        return max(0, (int) self::libraryCover()['fallback_grace_seconds']);
+    }
+
+    public static function libraryCoverFallbackWorkerId(): string
+    {
+        return (string) self::libraryCover()['fallback_worker_id'];
+    }
+
+    /**
      * Contract-owned endpoint path templates (worker + queue-center plane).
      * Laravel registers these routes; the other three ends render the same
      * paths from this block, so a route change starts here.

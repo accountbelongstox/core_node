@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import serverInstance from './server';
 import nativeMessagingHostInstance from './native-messaging-host';
+import { watchOwnBuild } from './util/build-watch';
 
 function shutdown(reason: string, exitCode: number): void {
   void nativeMessagingHostInstance.shutdown(reason, exitCode);
@@ -10,6 +11,8 @@ try {
   serverInstance.setNativeHost(nativeMessagingHostInstance);
   nativeMessagingHostInstance.setServer(serverInstance);
   nativeMessagingHostInstance.start();
+  // A rebuilt host exits; the extension reconnect watchdog starts the new build.
+  watchOwnBuild(__filename, () => shutdown('Native host build changed; restarting on the new build.', 0));
 } catch (error) {
   shutdown('Native host initialization failed.', 1);
 }

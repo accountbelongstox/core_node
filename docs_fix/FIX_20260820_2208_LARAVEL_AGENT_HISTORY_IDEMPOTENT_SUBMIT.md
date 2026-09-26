@@ -57,7 +57,8 @@ idempotency key with a different fingerprint returns HTTP `409` instead of
 mutating an existing logical operation.
 
 Pycore owns the stable key. Its local record ID is derived from the operation
-item instead of a random UUID, and the upload lane sends that record ID as the
+item instead of a random UUID, and the upload lane (since 2026-09-27 kind `agent_history.article` of the shared
+Laravel delivery outbox, `pycore/pyctl/agent_history/pipeline/delivery.py`) sends that record ID as the
 Laravel `idempotency_key` on every retry.
 
 ## Laravel Main implementation

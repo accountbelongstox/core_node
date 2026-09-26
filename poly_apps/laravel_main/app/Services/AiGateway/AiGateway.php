@@ -174,6 +174,12 @@ class AiGateway
         'square' => [1024, 1024], 'landscape' => [1280, 720], 'portrait' => [720, 1280],
     ];
 
+    /** True when at least one image-capable provider is configured and not cooled down. */
+    public static function hasImageProvider(): bool
+    {
+        return self::candidates(null, 'image') !== [];
+    }
+
     /**
      * Generate one image through the unified exit (image-capable providers only,
      * per the registry image flag). Free backends are tried before paid; each

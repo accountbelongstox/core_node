@@ -1,38 +1,70 @@
 /**
- * Assist Cover/Poster Submit Pipeline
+ * Image Submit Pipeline
  *
- * The SHARED outcome handling for an assist cover/poster submit, used by both
- * image workers (media-image and gemini-image) so the release/outbox policy
- * lives in exactly one place:
- *   ok/already_done     -> submitted
- *   'invalid'/'not_found' -> TERMINAL (the bytes can never pass) -> released
- *   anything else (transient) -> durable outbox retry (never lost)
+ * The SHARED image hand-off for both image workers (media-image and
+ * gemini-image). Every producer (Gemini generation, Google/Bing search)
+ * yields one ImageArtifact; this module owns the magic validation and the two
+ * delivery shapes:
+ *   - global tasks (poster / library_cover / library_cover_search /
+ *     gemini_image): the typed result body submitted through the worker client
+ *     (see AssistPollingWorkerBase.submitImageTaskResult)
+ *   - assist plane (cover / poster claims) with the outcome policy:
+ *       ok/already_done     -> submitted
+ *       'invalid'/'not_found' -> TERMINAL (the bytes can never pass) -> released
+ *       anything else (transient) -> durable outbox retry (never lost)
  */
 
 import {
   submitAssistCover,
+  submitAssistPoster,
   releaseAssistItem,
   looksLikeImageBase64,
+  type AssistClaimItem,
   type AssistSubmitResult,
 } from '@/services/assist-image-api';
 import { submitOutbox, type AssistSubmitPayload } from './outbox/submit-outbox';
+import type { LibraryCoverTaskResult } from '@/utils/queue-center-contract';
 import { logger } from '@/utils/logger';
 
-const LOG = 'Assist Pipeline';
+const LOG = 'Image Pipeline';
+const SOURCE_ID_MAX_LENGTH = 512;
 
 export type AssistSubmitOutcome = 'submitted' | 'released' | 'outboxed';
 
-export interface AssistSubmitActions {
-  /** Called once when the backend accepted the artifact (ok / already_done). */
+export interface ImageArtifact {
+  imageBase64: string;
+  mime: string;
+  provider: string;
+  model?: string;
+  sourceUrl?: string;
+  prompt?: string;
+}
+
+/**
+ * Typed global-task result for one image, or null when the bytes fail the
+ * server's magic check (SVG/HTML error page/...) and must not be submitted.
+ */
+export function imageTaskResult(artifact: ImageArtifact, startedAt: number): LibraryCoverTaskResult | null {
+  if (!artifact.imageBase64 || !looksLikeImageBase64(artifact.imageBase64)) return null;
+  const result: LibraryCoverTaskResult = {
+    image_base64: artifact.imageBase64,
+    mime: artifact.mime,
+    provider: artifact.provider,
+    latency_ms: Date.now() - startedAt,
+  };
+  if (artifact.model) result.model = artifact.model;
+  if (artifact.sourceUrl) result.source_url = artifact.sourceUrl;
+  if (artifact.prompt) result.prompt = artifact.prompt;
+  return result;
+}
+
+interface AssistSubmitActions {
   onOk: () => void;
-  /** Terminal-rejection release callback (invalid / not_found). */
   release: () => Promise<void>;
-  /** Durable-outbox payload for transient failures. */
   outboxPayload: AssistSubmitPayload;
 }
 
-/** Shared submit-outcome policy (see module docblock). */
-export async function finalizeAssistSubmit(
+async function finalizeAssistSubmit(
   baseUrl: string,
   result: AssistSubmitResult,
   actions: AssistSubmitActions,
@@ -58,50 +90,68 @@ export async function finalizeAssistSubmit(
   return 'outboxed';
 }
 
-export interface LibraryCoverSubmitParams {
+export interface AssistImageSubmitParams {
   baseUrl: string;
-  itemId: number;
-  imageBase64: string;
+  item: Pick<AssistClaimItem, 'type' | 'id' | 'media_type'>;
+  artifact: ImageArtifact;
   claimer: string;
-  extras: { mime?: string; provider?: string; model?: string; latencyMs?: number };
+  startedAt: number;
   /** Reason prefix for terminal releases, e.g. 'mcp-chrome'. */
   releaseReasonPrefix: string;
 }
 
 /**
- * Validate + submit a vocabulary-library cover with the shared outcome policy.
+ * Validate + submit an assist cover/poster with the shared outcome policy.
  * Returns null when the bytes failed magic validation (caller counts a
  * failure; the claim is already released) — otherwise the outcome.
  */
-export async function submitLibraryCover(
-  params: LibraryCoverSubmitParams,
+export async function submitAssistImage(
+  params: AssistImageSubmitParams,
 ): Promise<AssistSubmitOutcome | null> {
-  const { baseUrl, itemId, imageBase64, claimer, extras, releaseReasonPrefix } = params;
+  const { baseUrl, item, artifact, claimer, startedAt, releaseReasonPrefix } = params;
+  const mediaType = item.type === 'poster'
+    ? (item.media_type === 'subtitle' ? 'subtitle' : 'book')
+    : undefined;
+  const releaseExtra = mediaType ? { media_type: mediaType } : {};
+  const release = (reason: string) => releaseAssistItem(
+    baseUrl,
+    item.type,
+    item.id,
+    `${releaseReasonPrefix}: ${reason}`,
+    releaseExtra,
+  );
 
-  if (!imageBase64 || !looksLikeImageBase64(imageBase64)) {
-    // Bad bytes (SVG/HTML error page/…) would be rejected server-side as
-    // 'invalid' forever — release the claim instead of poisoning the outbox.
-    logger.warn(LOG, `Cover#${itemId} failed magic validation`, {
-      provider: extras.provider || null,
-      mime: extras.mime || null,
+  if (!artifact.imageBase64 || !looksLikeImageBase64(artifact.imageBase64)) {
+    // Bad bytes would be rejected server-side as 'invalid' forever — release
+    // the claim instead of poisoning the outbox.
+    logger.warn(LOG, `Assist ${item.type}#${item.id} failed magic validation`, {
+      provider: artifact.provider,
+      mime: artifact.mime,
+      sourceUrl: artifact.sourceUrl || null,
     });
-    await releaseAssistItem(baseUrl, 'cover', itemId, `${releaseReasonPrefix}: cover image failed magic validation`);
+    await release(`${item.type} image failed magic validation`);
     return null;
   }
 
-  const result = await submitAssistCover(baseUrl, itemId, imageBase64, claimer, extras);
+  const extras = {
+    mime: artifact.mime,
+    provider: artifact.provider,
+    model: artifact.model,
+    sourceId: artifact.sourceUrl?.slice(0, SOURCE_ID_MAX_LENGTH),
+    latencyMs: Date.now() - startedAt,
+  };
+  const { imageBase64 } = artifact;
+  const result = mediaType
+    ? await submitAssistPoster(baseUrl, mediaType, item.id, imageBase64, claimer, extras)
+    : await submitAssistCover(baseUrl, item.id, imageBase64, claimer, extras);
   return finalizeAssistSubmit(baseUrl, result, {
     onOk: () => {
-      logger.info(LOG, `Backend accepted library cover#${itemId}${result.already_done ? ' (already done)' : ''}`, {
+      logger.info(LOG, `Backend accepted ${item.type}#${item.id}${result.already_done ? ' (already done)' : ''}`, {
         status: result.status,
+        provider: artifact.provider,
       });
     },
-    release: () => releaseAssistItem(
-      baseUrl,
-      'cover',
-      itemId,
-      `${releaseReasonPrefix}: submit ${result.status}: ${result.error || 'rejected'}`,
-    ),
-    outboxPayload: { type: 'cover', id: itemId, imageBase64, claimer, extras },
+    release: () => release(`submit ${result.status}: ${result.error || 'rejected'}`),
+    outboxPayload: { type: item.type, media_type: mediaType, id: item.id, imageBase64, claimer, extras },
   });
 }

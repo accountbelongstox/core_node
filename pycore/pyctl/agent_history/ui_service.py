@@ -7,9 +7,10 @@ from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_record_store
 import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
-import pycore.pyctl.agent_history.prompt_derived_cache as prompt_derived_cache
 import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
+from pycore.pyctl.agent_history.ai_sources import OPENROUTER_ATTEMPT_SOURCES
+from pycore.pyctl.agent_history.prompt_transform_cache import prompt_derived_cache, prompt_rewrite_cache
 from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache
 from pycore.pyctl.agent_history.heartbeat import (
     pipeline_env_override,
@@ -35,7 +36,9 @@ from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
 from pycore.pyctl.ai.prompt_derive import (
     CONFIG_KEY_PROMPT_DERIVE_EN,
+    CONFIG_KEY_PROMPT_REWRITE_EN,
     DEFAULT_PROMPT_DERIVE_EN_PROMPT,
+    DEFAULT_PROMPT_REWRITE_EN_PROMPT,
 )
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
@@ -45,7 +48,7 @@ from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 
 
-_AI_USAGE_SOURCES = {"agent_history_article", "agent_history_translate"}
+_AI_USAGE_SOURCES = set(OPENROUTER_ATTEMPT_SOURCES)
 _AI_USAGE_CACHE_KEY = "agent_history.ai_usage_dashboard"
 _AI_USAGE_RETAINED_LIMIT = 5000
 _AI_USAGE_VISIBLE_LIMIT = 400
@@ -138,6 +141,7 @@ def _agent_history_ai_dashboard(config: Dict[str, Any]) -> Dict[str, Any]:
         "provider": "openrouter",
         "model": str(config.get("openrouter_model") or "openrouter/free"),
         "day": day,
+        "sources": list(OPENROUTER_ATTEMPT_SOURCES),
         "rate": rate_status("openrouter").get("status") or {},
         **usage_snapshot,
     }
@@ -273,18 +277,25 @@ def prompt_cache(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": data}
 
 
-def prompt_derived(params: Any, _request_id: str) -> Dict[str, Any]:
-    """Paginated read over the AI-derived English prompt feed.
-
-    Pure read surface: the cache is written only by the Linux prompt-derive
-    watcher (see prompt_derived_cache module contract).
-    """
+def _transform_feed_page(cache: Any, params: Any) -> Dict[str, Any]:
+    """Pure read surface over one prompt transform feed (see
+    prompt_transform_cache module contract)."""
     request = params if isinstance(params, dict) else {}
-    data = prompt_derived_cache.read_page(
+    data = cache.read_page(
         int(request.get("page") or 1),
         int(request.get("page_size") or request.get("pageSize") or 50),
     )
     return {"success": True, "data": data}
+
+
+def prompt_derived(params: Any, _request_id: str) -> Dict[str, Any]:
+    """Paginated read over the Linux AI-derived English prompt feed."""
+    return _transform_feed_page(prompt_derived_cache, params)
+
+
+def prompt_rewritten(params: Any, _request_id: str) -> Dict[str, Any]:
+    """Paginated read over the AI-rewritten English prompt feed."""
+    return _transform_feed_page(prompt_rewrite_cache, params)
 
 
 def _fragment_cursor(config: Dict[str, Any], tool: str) -> Dict[str, Any]:
@@ -432,6 +443,7 @@ def _build_runtime() -> Dict[str, Any]:
             "article_prompt_defaults": {
                 **prompt_defaults(),
                 CONFIG_KEY_PROMPT_DERIVE_EN: DEFAULT_PROMPT_DERIVE_EN_PROMPT,
+                CONFIG_KEY_PROMPT_REWRITE_EN: DEFAULT_PROMPT_REWRITE_EN_PROMPT,
             },
             "article_summary": summary,
             "operation_snapshot": operation,
@@ -561,4 +573,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "prompt_cache", "prompt_derived", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "article_video_media", "article_video_logs", "test_extract", "live_scan", "prompt_cache", "prompt_derived", "prompt_rewritten", "tool_fragment_id_pages", "tool_fragment_page", "invalidate_agent_history_caches"]

@@ -15,11 +15,6 @@
 # Git Functions - Python-based with File Variables
 # =============================================================================
 
-# Source constants (backup copy)
-source "$DD_HELPER_DIR/constants.sh"
-
-# Build full path from constants
-GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 GIT_MANAGEMENT_PY="$CORE_NODE_ROOT_DIR/scripts/git/git_management.py"
 
 # File variables directory (must match scripts/git/git_management_vars.py cache path)

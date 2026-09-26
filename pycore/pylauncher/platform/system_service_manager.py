@@ -19,30 +19,33 @@ All subprocess calls are guarded; nothing here raises. System units need root,
 so commands are run via ``sudo`` when the current process is not root.
 """
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_service_state import (
+    NEXUS_DASH_SERVICE_NAME,
+    STATE_RUNNING,
+    is_elevated,
+    systemd_available,
+    systemd_unit_enabled,
+    systemd_unit_state,
+)
 
-# This file lives at pycore/callmodule/platform/system_service_manager.py, so the
+# This file lives at pycore/pylauncher/platform/system_service_manager.py, so the
 # repo root is 4 parents up.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PYCORE_SERVICE_SH = REPO_ROOT / "scripts" / "shells" / "linux" / "common" / "pycore_service.sh"
 UI_START_SH = REPO_ROOT / "poly_apps" / "pycore_laravel_wordnew_ui" / "scripts" / "start.sh"
 
 PYCORE_UNIT = "pycore"
-UI_UNIT = "ncore-nexus-dash"
-
-
-def _is_root() -> bool:
-    return hasattr(os, "geteuid") and os.geteuid() == 0
+UI_UNIT = NEXUS_DASH_SERVICE_NAME
 
 
 def _sudo_prefix():
     """Return ['sudo'] when not root and sudo exists, else [] (already root)."""
-    if _is_root():
+    if is_elevated():
         return []
     if shutil.which("sudo") is not None:
         return ["sudo"]
@@ -72,21 +75,15 @@ def _run_shell(script_path: Path, script_args, timeout=300):
 
 def is_supported() -> bool:
     """True on Linux with systemctl available (system units are a Linux concept)."""
-    if shutil.which("systemctl") is None:
-        return False
-    return os.path.exists("/run/systemd/system")
+    return systemd_available()
 
 
 def unit_is_enabled(unit: str) -> bool:
-    res = _run(["systemctl", "is-enabled", unit], timeout=10)
-    if res is None or res.returncode != 0:
-        return False
-    return (res.stdout or "").strip() == "enabled"
+    return systemd_unit_enabled(unit)
 
 
 def unit_is_active(unit: str) -> bool:
-    res = _run(["systemctl", "is-active", "--quiet", unit], timeout=10)
-    return res is not None and res.returncode == 0
+    return systemd_unit_state(unit) == STATE_RUNNING
 
 
 def pycore_service_enabled() -> bool:

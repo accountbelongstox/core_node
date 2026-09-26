@@ -7,8 +7,6 @@ import { MEDIA_PATHS } from '@/utils/api-paths';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { md5Hex } from './binary';
 
-export { md5Hex } from './binary';
-
 export const DUOREADER_SHELF_URL = 'https://duoreader.cn/assets/shelf.json';
 export const DUOREADER_WEB_BASE = 'https://web.duoreader.cn';
 // API paths re-exported from the central registry so existing importers keep

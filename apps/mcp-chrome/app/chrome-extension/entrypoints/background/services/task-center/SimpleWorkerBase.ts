@@ -9,7 +9,6 @@ import {
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
 import type { QueueCenterWakeSignal } from './QueueCenterWakeService';
 import { diffTaskSegmentStore } from '@/utils/diff-task-segments';
-import { delay as wait } from '@/utils/async';
 import { tabController } from '../tab-controller';
 import {
   SimpleWorkerRuntimeBase,
@@ -125,7 +124,7 @@ export abstract class SimpleWorkerBase extends SimpleWorkerRuntimeBase {
     }
   }
 
-  private applyHeadSignal(signal?: QueueCenterWakeSignal): void {
+  protected applyHeadSignal(signal?: QueueCenterWakeSignal): void {
     if (signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.word_audio_head
       && signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head) return;
     const rawItems = signal.payload?.items;
@@ -153,7 +152,7 @@ export abstract class SimpleWorkerBase extends SimpleWorkerRuntimeBase {
     );
   }
 
-  private updateQueueProgress(
+  protected updateQueueProgress(
     taskType: string,
     progress?: { completed?: number; total?: number } | null,
   ): void {
@@ -186,7 +185,7 @@ export abstract class SimpleWorkerBase extends SimpleWorkerRuntimeBase {
     }
   }
 
-  private scheduleFastRepoll(): void {
+  protected scheduleFastRepoll(): void {
     if (!this.isRunning) return;
     // Ensure the next poll-loop iteration drains the fast tier immediately,
     // even if the immediate cycle below no-ops because a cycle is in flight.
@@ -321,7 +320,4 @@ export abstract class SimpleWorkerBase extends SimpleWorkerRuntimeBase {
     if (status === TASK_STATUS_BY_ROLE.failed) this.stats.failed++;
   }
 
-  protected delay(ms: number): Promise<void> {
-    return wait(ms);
-  }
 }

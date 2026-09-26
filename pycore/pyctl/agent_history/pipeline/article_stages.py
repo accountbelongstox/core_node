@@ -7,6 +7,7 @@ from pycore.pyctl.ai.ai_free_text import (
     free_text_chat,
     resolve_free_text_model,
 )
+from pycore.pyctl.agent_history.ai_sources import AI_SOURCE_ARTICLE, AI_SOURCE_TRANSLATE
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyctl.agent_history.pipeline.prompt_templates import (
     render_article_cn_prompt,
@@ -49,7 +50,7 @@ def generate_chinese_article(
     res = free_text_chat(
         [{"role": "user", "content": prompt}],
         model=model,
-        source="agent_history_article",
+        source=AI_SOURCE_ARTICLE,
         context=request_context,
     )
     
@@ -96,7 +97,7 @@ def translate_to_english(
     res = free_text_chat(
         [{"role": "user", "content": prompt}],
         model=model,
-        source="agent_history_translate",
+        source=AI_SOURCE_TRANSLATE,
         context=request_context,
     )
     

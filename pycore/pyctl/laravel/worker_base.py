@@ -34,7 +34,6 @@ from typing import Any, Dict, List, Optional, Set
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.diff_task_segments import (
     DATA_LIMIT,
     STAGED_TASK_LIMIT,
@@ -46,10 +45,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyutils.laravel.endpoint_manager import (
-    LARAVEL_ONLINE_SIGNAL,
-    laravel_endpoint_manager,
-)
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
@@ -477,11 +473,9 @@ class BaseLaravelWorkerService:
                 )
             outcome["error"] = error
             return outcome
+        # The offline -> online edge itself is published by laravel_client
+        # (endpoint_manager.LARAVEL_ONLINE_EVENT) for every Laravel consumer.
         self._diff_recovery_state.set({})
-        if recovery:
-            # Offline -> online edge: durable-backlog consumers (audio delivery
-            # outbox, queue-head promotion replay) flush on this signal.
-            THREAD_BUS.signal(LARAVEL_ONLINE_SIGNAL, {"at": time.time(), "base_url": base_url})
         outcome["ok"] = True
         return outcome
 

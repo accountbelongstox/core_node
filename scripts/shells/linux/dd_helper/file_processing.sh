@@ -12,112 +12,121 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# File Processing Functions for dd.sh
+# File Processing Functions for dd.sh: CRLF -> LF and +x for *.sh files.
+# One find per directory. Candidates are files whose inode change time (ctime)
+# is at or after the last run -- ctime also moves for copies that keep an old
+# mtime -- plus any file without the exec bit. A directory whose cache is
+# missing or older than 24h is re-verified completely.
 # =============================================================================
 
+SH_PROCESS_TOTAL_FILES=0
+SH_PROCESS_CANDIDATE_FILES=0
+SH_PROCESS_CHANGED_FILES=0
+
+# Echo seconds elapsed since <start_us> (EPOCHREALTIME without the dot).
+sh_process_elapsed() {
+    local start_us="$1"
+    local now_us="${EPOCHREALTIME/./}"
+    local delta=$((now_us - start_us))
+
+    printf '%d.%02d' "$((delta / 1000000))" "$(((delta % 1000000) / 10000))"
+}
+
+# process_sh_files <dir> [since_epoch]
 process_sh_files() {
     local dir="$1"
-    local start_time=$(date +%s.%N)
-    local total_files=0
-    local converted_files=0
-    local skipped_files=0
-    local files_to_convert=()
-    local files_to_skip=()
-    local files_need_conversion=0
-    local end_time=""
-    local duration=""
+    local since="${2:-0}"
+    local ctime=""
+    local mode=""
+    local path=""
     local file=""
-    local basename_file=""
-    local conversion_status=""
+    local index=0
+    local line_status=""
     local exec_status=""
+    local -a candidates=()
+    local -a crlf_files=()
+    local -a noexec_files=()
+    local -A crlf_set=()
+    local -A noexec_set=()
 
-    echo -e "\033[36m[SCAN] Starting to scan directory: $dir\033[0m"
-    echo -e "\033[33m[INFO] Scanning for .sh files that need conversion...\033[0m"
+    SH_PROCESS_TOTAL_FILES=0
+    SH_PROCESS_CANDIDATE_FILES=0
+    SH_PROCESS_CHANGED_FILES=0
 
-    while IFS= read -r -d '' file; do
-        ((total_files++))
-        check_file_cache "$file"
-        if [ "$FILE_CACHE_HIT" = true ]; then
-            files_to_skip+=("$file")
-            ((skipped_files++))
-        else
-            files_to_convert+=("$file")
+    while IFS=$'\t' read -r -d '' ctime mode path; do
+        SH_PROCESS_TOTAL_FILES=$((SH_PROCESS_TOTAL_FILES + 1))
+        if (( (8#$mode & 8#100) == 0 )); then
+            candidates+=("$path")
+            noexec_files+=("$path")
+            noexec_set["$path"]=1
+        elif [ "${ctime%.*}" -ge "$since" ]; then
+            candidates+=("$path")
         fi
-    done < <(find "$dir" -type f -name "*.sh" -print0)
+    done < <(find "$dir" -type f -name '*.sh' -printf '%C@\t%m\t%p\0' 2>/dev/null)
+    SH_PROCESS_CANDIDATE_FILES="${#candidates[@]}"
 
-    files_need_conversion=${#files_to_convert[@]}
-
-    echo -e "\033[32m[SCAN COMPLETE] Found $total_files .sh files total\033[0m"
-    echo -e "\033[33m[PROCESSING] $files_need_conversion files need processing\033[0m"
-    echo -e "\033[33m[CACHE] $skipped_files files skipped (already converted)\033[0m"
-
-    if [ $files_need_conversion -eq 0 ]; then
-        end_time=$(date +%s.%N)
-        if command -v bc >/dev/null 2>&1; then
-            duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null)
-            if [ -z "$duration" ]; then
-                duration="0"
-            fi
-        else
-            duration=$(awk "BEGIN {printf \"%.2f\", $end_time - $start_time}" 2>/dev/null)
-            if [ -z "$duration" ]; then
-                duration="0"
-            fi
-        fi
-        echo -e "\033[32m[COMPLETE] All files are up to date! Scan completed in ${duration}s\033[0m"
-        return 0
+    if [ "${#candidates[@]}" -gt 0 ]; then
+        mapfile -d '' crlf_files < <(printf '%s\0' "${candidates[@]}" | LC_ALL=C xargs -0 -r grep -lZ $'\r' 2>/dev/null)
     fi
-
-    echo -e "\033[36m[PROCESSING] Processing $files_need_conversion files...\033[0m"
-
-    for file in "${files_to_convert[@]}"; do
-        ((converted_files++))
-        basename_file="$(basename "$file")"
-
-        conversion_status="[OK] line endings"
-        if LC_ALL=C grep -q $'\r' "$file" 2>/dev/null; then
-            if command -v dos2unix >/dev/null 2>&1; then
-                if $sudo dos2unix "$file" >/dev/null 2>&1; then
-                    conversion_status="[OK] dos2unix"
-                else
-                    $sudo sed -i 's/\r$//' "$file"
-                    conversion_status="[OK] sed fallback"
-                fi
-            else
-                $sudo sed -i 's/\r$//' "$file"
-                conversion_status="[OK] sed"
-            fi
-        fi
-
-        exec_status="[OK] exec"
-        if [ ! -x "$file" ]; then
-            if $sudo chmod +x "$file"; then
-                exec_status="[OK] exec"
-            else
-                exec_status="[FAIL] exec"
-            fi
-        fi
-
-        echo -e "\033[33m[$converted_files/$files_need_conversion]\033[0m \033[35m$basename_file\033[0m - $conversion_status, $exec_status"
-        set_file_cache "$file"
+    for file in "${crlf_files[@]}"; do
+        crlf_set["$file"]=1
     done
-
-    end_time=$(date +%s.%N)
-    if command -v bc >/dev/null 2>&1; then
-        duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null)
-        if [ -z "$duration" ]; then
-            duration="unknown"
-        fi
-    else
-        duration=$(awk "BEGIN {printf \"%.2f\", $end_time - $start_time}" 2>/dev/null)
-        if [ -z "$duration" ]; then
-            duration="unknown"
-        fi
+    if [ "${#crlf_files[@]}" -gt 0 ]; then
+        $USE_SUDO sed -i 's/\r$//' "${crlf_files[@]}"
+    fi
+    if [ "${#noexec_files[@]}" -gt 0 ]; then
+        $USE_SUDO chmod +x -- "${noexec_files[@]}"
     fi
 
-    echo -e "\033[32m[COMPLETE] Processing finished! \033[0m"
-    echo -e "\033[32m  - Total files scanned: $total_files\033[0m"
-    echo -e "\033[32m  - Files processed: $converted_files\033[0m"
-    echo -e "\033[32m  - Files skipped (cached): $skipped_files\033[0m"
-    echo -e "\033[32m  - Time taken: ${duration}s\033[0m"
+    for file in "${candidates[@]}"; do
+        [ -n "${crlf_set[$file]:-}" ] || [ -n "${noexec_set[$file]:-}" ] || continue
+        index=$((index + 1))
+        line_status="[OK] line endings"
+        exec_status="[OK] exec"
+        [ -n "${crlf_set[$file]:-}" ] && line_status="[FIXED] CRLF -> LF"
+        if [ -n "${noexec_set[$file]:-}" ]; then
+            exec_status="[FIXED] +x"
+            [ -x "$file" ] || exec_status="[FAIL] exec"
+        fi
+        echo -e "\033[33m  [$index]\033[0m \033[35m${file#"$dir"/}\033[0m - $line_status, $exec_status"
+    done
+    SH_PROCESS_CHANGED_FILES="$index"
+}
+
+# process_project_sh_files <root> <dir>...
+process_project_sh_files() {
+    local root="$1"
+    local dir=""
+    local absolute_dir=""
+    local since_text=""
+    local start_us="${EPOCHREALTIME/./}"
+    local dir_start_us=""
+    local dir_index=0
+    local total_files=0
+    local changed_files=0
+    shift
+
+    echo -e "\033[33m[SCAN] Directories: $*\033[0m"
+    for dir in "$@"; do
+        dir_index=$((dir_index + 1))
+        absolute_dir="$root/$dir"
+        if [ ! -d "$absolute_dir" ]; then
+            echo -e "\033[31m[DIR $dir_index/$#] $absolute_dir not found - skipped\033[0m"
+            continue
+        fi
+        dir_start_us="${EPOCHREALTIME/./}"
+        directory_processing_since "$absolute_dir"
+        if [ "$DIRECTORY_PROCESSING_SINCE" -eq 0 ]; then
+            since_text="full check (no cache or older than 24h)"
+        else
+            printf -v since_text 'changed since %(%Y-%m-%d %H:%M:%S)T' "$DIRECTORY_PROCESSING_SINCE"
+        fi
+        echo -e "\033[36m[DIR $dir_index/$#] $dir: $since_text\033[0m"
+        process_sh_files "$absolute_dir" "$DIRECTORY_PROCESSING_SINCE"
+        set_directory_processing_cache "$absolute_dir"
+        total_files=$((total_files + SH_PROCESS_TOTAL_FILES))
+        changed_files=$((changed_files + SH_PROCESS_CHANGED_FILES))
+        echo -e "\033[32m[DIR $dir_index/$#] $dir: $SH_PROCESS_TOTAL_FILES .sh files, $SH_PROCESS_CANDIDATE_FILES checked, $SH_PROCESS_CHANGED_FILES fixed ($(sh_process_elapsed "$dir_start_us")s)\033[0m"
+    done
+    echo -e "\033[32m[COMPLETE] $total_files .sh files, $changed_files fixed, $(sh_process_elapsed "$start_us")s\033[0m"
 }

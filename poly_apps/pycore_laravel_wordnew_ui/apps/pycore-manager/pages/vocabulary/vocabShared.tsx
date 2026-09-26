@@ -16,7 +16,6 @@ export const VOCAB_TABS = [
   { key: 'statistics', labelKey: 'vocabularyPage.tabs.statistics' },
   { key: 'tts-queue', labelKey: 'vocabularyPage.tabs.ttsQueue' },
   { key: 'learning', labelKey: 'vocabularyPage.tabs.learning' },
-  { key: 'audio-orch', labelKey: 'vocabularyPage.tabs.audioOrch' },
   { key: 'dictionary', labelKey: 'vocabularyPage.tabs.dictionary' },
 ] as const;
 export type VocabTabKey = (typeof VOCAB_TABS)[number]['key'];

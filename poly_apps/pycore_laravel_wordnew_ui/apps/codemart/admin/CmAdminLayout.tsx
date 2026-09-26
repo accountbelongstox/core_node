@@ -1,7 +1,28 @@
 import React, { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { ArrowLeft, LayoutDashboard, Menu, ShieldCheck, Users, WalletCards, FileText, BriefcaseBusiness, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Banknote,
+  BriefcaseBusiness,
+  CircleAlert,
+  CreditCard,
+  History,
+  Inbox,
+  LayoutDashboard,
+  LockKeyhole,
+  LogOut,
+  Menu,
+  MessageSquareQuote,
+  RotateCcw,
+  ShieldCheck,
+  Users,
+  WalletCards,
+  X,
+} from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import { useCmSignOut } from '../auth/useCmSignOut';
+import { CmAccessNotice } from '../components/access/CmAccessNotice';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmChromeControls } from '../components/CmChromeControls';
 import { CmBrand } from '../components/CmBrand';
@@ -11,8 +32,14 @@ const ADMIN_NAV = [
   { id: 'users', path: '/codemart/admin/users', labelKey: 'admin.nav.users', Icon: Users, end: false },
   { id: 'kyc', path: '/codemart/admin/kyc', labelKey: 'admin.nav.kyc', Icon: ShieldCheck, end: false },
   { id: 'deposits', path: '/codemart/admin/deposits', labelKey: 'admin.nav.deposits', Icon: WalletCards, end: false },
-  { id: 'refunds', path: '/codemart/admin/refunds', labelKey: 'admin.nav.refunds', Icon: FileText, end: false },
+  { id: 'refunds', path: '/codemart/admin/refunds', labelKey: 'admin.nav.refunds', Icon: RotateCcw, end: false },
+  { id: 'withdrawals', path: '/codemart/admin/withdrawals', labelKey: 'admin.nav.withdrawals', Icon: Banknote, end: false },
+  { id: 'payments', path: '/codemart/admin/payments', labelKey: 'admin.nav.payments', Icon: CreditCard, end: false },
   { id: 'projects', path: '/codemart/admin/projects', labelKey: 'admin.nav.projects', Icon: BriefcaseBusiness, end: false },
+  { id: 'testimonials', path: '/codemart/admin/testimonials', labelKey: 'admin.nav.testimonials', Icon: MessageSquareQuote, end: false },
+  { id: 'reviewers', path: '/codemart/admin/reviewer-applications', labelKey: 'admin.nav.reviewers', Icon: BadgeCheck, end: false },
+  { id: 'contact', path: '/codemart/admin/contact-messages', labelKey: 'admin.nav.contact', Icon: Inbox, end: false },
+  { id: 'activity', path: '/codemart/admin/activity', labelKey: 'admin.nav.activity', Icon: History, end: false },
 ] as const;
 
 /**
@@ -21,18 +48,27 @@ const ADMIN_NAV = [
  */
 export const CmAdminLayout: React.FC = () => {
   const { t } = useTranslation('cm');
-  const { bootstrap, loading } = useCmBootstrap();
+  const { bootstrap, loading, error, refresh } = useCmBootstrap();
+  const { signOut, signingOut } = useCmSignOut();
   const [menuOpen, setMenuOpen] = useState(false);
+  const userName = bootstrap?.user?.name || bootstrap?.user?.nickname || bootstrap?.user?.username || '';
 
-  if (!loading && bootstrap && !bootstrap.is_admin) {
+  if (loading || (!bootstrap && !error)) {
+    return <div className="cm-page-fallback" role="status">{t('admin.checkingAccess')}</div>;
+  }
+
+  if (!bootstrap?.is_admin) {
     return (
-      <main className="cm-access-gate" data-end="codemart">
-        <section className="cm-access-gate__card">
-          <h1>{t('admin.forbidden')}</h1>
-          <p>{t('admin.forbiddenBody')}</p>
-          <Link to="/codemart/dashboard"><ArrowLeft aria-hidden="true" /> {t('admin.backToWorkspace')}</Link>
-        </section>
-      </main>
+      <CmAccessNotice
+        standalone
+        Icon={bootstrap ? LockKeyhole : CircleAlert}
+        tone={bootstrap ? 'info' : 'warning'}
+        titleKey={bootstrap ? 'admin.forbidden' : 'admin.accessUnavailable'}
+        bodyKey={bootstrap ? 'admin.forbiddenBody' : 'admin.accessUnavailableBody'}
+        hints={bootstrap ? [t('access.denied.hint')] : []}
+        onRetry={bootstrap ? undefined : () => void refresh()}
+        back={{ to: '/codemart/dashboard', label: t('admin.backToWorkspace') }}
+      />
     );
   }
 
@@ -80,12 +116,18 @@ export const CmAdminLayout: React.FC = () => {
               <ArrowLeft aria-hidden="true" />
               <span>{t('admin.backToWorkspace')}</span>
             </Link>
+            <button type="button" className="cm-workspace-nav__link cm-sign-out" onClick={() => void signOut()} disabled={signingOut}>
+              <LogOut aria-hidden="true" />
+              <span>{signingOut ? t('nav.signingOut') : t('nav.signOut')}</span>
+            </button>
           </div>
         </nav>
       </aside>
       <div className="cm-workspace-content">
         <div className="cm-workspace-topbar">
-          <span className="cm-workspace-topbar__title">{t('admin.consoleTitle')}</span>
+          <span className="cm-workspace-topbar__title">
+            {t('admin.consoleTitle')}{userName && ` · ${t('nav.signedInAs', { name: userName })}`}
+          </span>
           <CmChromeControls />
         </div>
         <Outlet />

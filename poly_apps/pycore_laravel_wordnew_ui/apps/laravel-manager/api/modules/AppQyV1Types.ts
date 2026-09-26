@@ -40,6 +40,18 @@ export interface ExtractSentencesResult {
   skipped: number;
 }
 
+// ========== Library cover tasks (shared contract types) ==========
+
+export type {
+  LibraryCoverMode,
+  LibraryCoverHandler,
+  LibraryCoverTask,
+  LibraryCoverEnqueueRequest,
+  LibraryCoverEnqueueResult,
+  LibraryCoverTaskStatus,
+  LibraryCoverTasksResult,
+} from '../../../../core/integrations/laravel/LaravelTypes';
+
 // ========== Cover generation / AI status (Task Center management surface) ==========
 
 /** Per-status counts of the vocabulary-library cover queue. `leased` = covers

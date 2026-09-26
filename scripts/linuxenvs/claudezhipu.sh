@@ -16,13 +16,13 @@
 # =============================================================================
 # Synopsis: Launches Claude Code via Zhipu AI (GLM) Anthropic-compatible
 #     endpoint with the model forced to glm-5.2 everywhere, and experimental
-#     agent teams + ultracode force-enabled (like claudeteam).
+#     agent teams force-enabled (like claudeteam).
 # Notes:
 #     - API key is read from .secret_keys/.secret_ignore/ZHIPUAI_API_KEY_1,
 #       written by the Special Software Environment Variables Manager (dd.sh).
 #     - Zhipu /api/anthropic is the Anthropic-compatible endpoint for Claude
 #       Code (NOT /api/paas/v4 which is OpenAI-compatible).
-#     - team + ultracode are always on; --dangerously-skip-permissions is added
+#     - team is always on; --dangerously-skip-permissions is added
 #       for non-root only (root is refused that flag by Claude Code).
 # =============================================================================
 
@@ -32,7 +32,6 @@ set -e
 ZHIPU_BASE_URL=""
 ZHIPU_API_KEY=""
 ZHIPU_MODEL="glm-5.2"
-ultra_settings_json='{"ultracode":true}'
 claude_args=()
 force_model_choice=""
 force_model_enabled=0
@@ -55,7 +54,7 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
 
 echo ""
 echo "============================================================"
-echo "Claude AI (Zhipu AI / GLM) - v4 [glm-5.2 + team + ultracode]"
+echo "Claude AI (Zhipu AI / GLM) - v4 [glm-5.2 + team]"
 echo "============================================================"
 echo ""
 
@@ -141,7 +140,6 @@ else
     echo "Model: off (default N) - using the account default model"
 fi
 echo "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)"
-echo "Ultracode: --settings $ultra_settings_json (force-enabled)"
 
 if [ -z "$ZHIPUAI_API_KEY" ]; then
     echo ""
@@ -164,19 +162,21 @@ fi
 echo "============================================================"
 echo ""
 
-# Build claude args: ultracode settings always on; skip-permissions for non-root;
+# Build claude args: skip-permissions for non-root;
 # --model only when opted in (like claudeteam).
-claude_args+=(--settings "$ultra_settings_json")
 if [ "$force_model_enabled" -eq 1 ]; then
     claude_args+=(--model "$ZHIPU_MODEL")
 fi
+ai_cli_ultracode_prompt
+claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
+
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
 fi
 
 # Launch tool
 echo "============================================================"
-echo "Press Enter to start Claude AI (Zhipu AI / GLM) [glm-5.2 + team + ultracode]..."
+echo "Press Enter to start Claude AI (Zhipu AI / GLM) [glm-5.2 + team]..."
 echo "============================================================"
 read -p "Press Enter to continue..."
 

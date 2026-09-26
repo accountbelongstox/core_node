@@ -36,9 +36,6 @@ class PromptTranslateWebWorkerService extends SimpleWorkerBase {
     return 'prompt_translate_web';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'prompt_translate_web_worker_id_base';
-  }
 
   // capability=null — routed purely by execution_type/task_type.
   protected get capabilities(): WorkerCapability[] {

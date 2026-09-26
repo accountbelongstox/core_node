@@ -2,7 +2,11 @@ import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI
 import { apiCache } from '../../../../core/integrations/laravel/transport/APICache';
 import { APIResponse } from '../../types';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
-import { APPQYV1_AI_TOOLS_ROUTES } from '../../../../core/contracts/AppQyV1AiToolsContract';
+import {
+  APPQYV1_AI_TOOLS_ROUTES,
+  APPQYV1_LIBRARY_COVER_ROUTES,
+} from '../../../../core/contracts/AppQyV1AiToolsContract';
+import { GLOBAL_TASK_TERMINAL_STATUSES } from '../../../../core/contracts/QueueCenterContract';
 import type { GlobalQueuePositionTaskAlias } from '../../../../core/contracts/QueueCenterContract';
 import type {
   VocabExportFormat,
@@ -14,6 +18,9 @@ import type {
   CoverRetryResult,
   AssistCoverRetryResult,
   AssistStatusData,
+  LibraryCoverEnqueueRequest,
+  LibraryCoverEnqueueResult,
+  LibraryCoverTasksResult,
   AssistPendingSnapshot,
   TranslationHistoryResponse,
   TranslationLanguageOption,
@@ -239,24 +246,25 @@ export class AppQyV1API extends BaseAPI {
   }
 
   /**
-   * POST /vocabulary/libraries/{id}/cover/ai-regenerate — one-click AI cover
-   * regeneration through Laravel's own image gateway (free-quota providers
-   * first: gemini flash image / zhipu cogview / pollinations ...). Prompt-hash
-   * disk cache server-side; an optional prompt override rides along.
-   * On success the cached library list is invalidated so the UI reloads.
+   * POST /vocabulary/libraries/cover/tasks — enqueue one global cover task per
+   * library (`generate` = AI image, chrome first with Laravel AI fallback;
+   * `search` = web image search). Idempotent per library server-side.
    */
-  async regenerateCoverAi(libraryId: number, prompt?: string): Promise<APIResponse<{
-    url: string;
-    provider: string;
-    model: string;
-    cached: boolean;
-  }>> {
-    const payload: { prompt?: string } = {};
-    if (prompt && prompt.trim() !== '') {
-      payload.prompt = prompt.trim();
-    }
-    const response = await this.post(`/vocabulary/libraries/${libraryId}/cover/ai-regenerate`, payload);
+  async enqueueLibraryCoverTasks(payload: LibraryCoverEnqueueRequest): Promise<APIResponse<LibraryCoverEnqueueResult>> {
+    const response = await this.post<LibraryCoverEnqueueResult>(APPQYV1_LIBRARY_COVER_ROUTES.tasks, payload);
     if (response.success) {
+      apiCache.clear('/vocabulary/libraries');
+    }
+    return response;
+  }
+
+  /** GET /vocabulary/libraries/cover/tasks?ids=1,2 — per-library cover state + latest task. */
+  async getLibraryCoverTasks(ids: number[]): Promise<APIResponse<LibraryCoverTasksResult>> {
+    const response = await this.get<LibraryCoverTasksResult>(
+      APPQYV1_LIBRARY_COVER_ROUTES.tasks, { ids: ids.join(',') }, false);
+    const settled = response.data?.items?.some((item) =>
+      item.task !== null && GLOBAL_TASK_TERMINAL_STATUSES.includes(item.task.status));
+    if (settled) {
       apiCache.clear('/vocabulary/libraries');
     }
     return response;

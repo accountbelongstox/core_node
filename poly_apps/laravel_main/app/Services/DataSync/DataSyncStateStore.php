@@ -9,7 +9,8 @@ final class DataSyncStateStore
 {
     private const STORAGE_SUBDIR = 'data-sync/jobs';
     private const LOCKS_SUBDIR = 'data-sync/locks';
-    private const TERMINAL_STATUSES = ['completed', 'failed'];
+
+    public function __construct(private readonly DataSyncArtifactStore $artifacts) {}
 
     public function create(string $role, array $attributes): array
     {
@@ -32,8 +33,8 @@ final class DataSyncStateStore
             'completed_at' => null,
         ], $attributes);
 
-        $this->save($job);
-        return $job;
+        $this->touchActivity((string) $job['id']);
+        return $this->save($job);
     }
 
     public function get(string $id): ?array
@@ -41,22 +42,12 @@ final class DataSyncStateStore
         if (!DataSyncSessionId::valid($id)) {
             return null;
         }
-        $path = $this->jobPath($id);
-        $content = FileSystemManager::readFile($path);
+        $content = FileSystemManager::readFile($this->jobPath($id));
         $job = $content !== false ? json_decode($content, true) : null;
-
-        if (!is_array($job)) {
-            $pendingContent = FileSystemManager::readFile($this->pendingPath($id));
-            $job = $pendingContent !== false ? json_decode($pendingContent, true) : null;
-        }
 
         return is_array($job) ? $job : null;
     }
 
-    /**
-     * Remove every artifact of a session: state, summary, staged pending file,
-     * and any cancel flag left behind in the locks directory.
-     */
     public function delete(string $id): void
     {
         if (!DataSyncSessionId::valid($id)) {
@@ -64,68 +55,56 @@ final class DataSyncStateStore
         }
         FileSystemManager::delete($this->jobPath($id));
         FileSystemManager::delete($this->summaryPath($id));
-        FileSystemManager::delete($this->pendingPath($id));
-        $locksDirectory = rtrim(PathMapper::getBackupDir(self::LOCKS_SUBDIR), '/\\');
-        FileSystemManager::delete($locksDirectory . DIRECTORY_SEPARATOR . $this->safeId($id) . '.cancel');
+        FileSystemManager::delete($this->lockPath($id, 'cancel'));
+        FileSystemManager::delete($this->lockPath($id, 'activity'));
+        FileSystemManager::delete($this->lockPath($id, 'lock'));
+        $this->artifacts->forgetSession($id);
     }
 
+    /**
+     * Terminal sessions are stored compactly (the public summary only) and
+     * their bulk artifacts are removed; only the newest TERMINAL_RETENTION
+     * terminal sessions are retained so finished runs stay visible.
+     */
     public function save(array $job): array
     {
-        $stateJson = null;
-        $summaryJson = null;
+        $id = (string) $job['id'];
         $job['updated_at'] = now()->toIso8601String();
-        $stepCount = count($job['steps'] ?? []);
-        $completedCount = count(array_filter(
-            $job['steps'] ?? [],
-            static fn (array $step): bool => in_array($step['status'] ?? null, ['completed', 'skipped'], true)
-        ));
-        $job['progress'] = $stepCount > 0 ? (int) floor(($completedCount / $stepCount) * 100) : 0;
+        $job['progress'] = $this->progress($job);
+        $terminal = in_array($job['status'] ?? null, DataSyncProtocol::TERMINAL_STATUSES, true);
 
-        // Terminal sessions are purged instead of persisted: the final state
-        // is returned to the caller in memory, and nothing accumulates on disk.
-        if (in_array($job['status'] ?? null, self::TERMINAL_STATUSES, true)) {
-            $this->delete((string) $job['id']);
-            return $job;
+        if ($terminal) {
+            $job['completed_at'] ??= $job['updated_at'];
+            $tokenHash = $job['context']['token_hash']
+                ?? (isset($job['context']['token']) ? hash('sha256', (string) $job['context']['token']) : null);
+            $job = $this->summary($job);
+            if ($tokenHash !== null) {
+                $job['context']['token_hash'] = $tokenHash;
+            }
         }
 
-        $stateJson = (string) json_encode(
-            $job,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-        );
-        $summaryJson = (string) json_encode(
-            $this->summary($job),
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-        );
+        $this->writeJson($this->jobPath($id), $job);
+        $this->writeJson($this->summaryPath($id), $this->summary($job));
 
-        if (!FileSystemManager::writeFile($this->pendingPath((string) $job['id']), $stateJson)) {
-            throw new \RuntimeException('Unable to stage data synchronization state.');
-        }
-        if (!FileSystemManager::writeFile($this->jobPath((string) $job['id']), $stateJson)) {
-            throw new \RuntimeException('Unable to persist data synchronization state.');
-        }
-        FileSystemManager::delete($this->pendingPath((string) $job['id']));
-        if (!FileSystemManager::writeFile($this->summaryPath((string) $job['id']), $summaryJson)) {
-            throw new \RuntimeException('Unable to persist data synchronization summary.');
+        if ($terminal) {
+            FileSystemManager::delete($this->lockPath($id, 'cancel'));
+            FileSystemManager::delete($this->lockPath($id, 'activity'));
+            $this->artifacts->forgetSession($id);
+            $this->pruneTerminal();
         }
 
         return $job;
     }
 
-    public function listSummaries(?string $role = null): array
+    public function listSummaries(): array
     {
         $jobs = [];
 
         foreach ($this->storedJobIds() as $id) {
-            $content = FileSystemManager::readFile($this->summaryPath($id));
-            $job = $content !== false ? json_decode($content, true) : null;
-            if (!is_array($job)) {
-                $fullJob = $this->get($id);
-                $job = $fullJob !== null ? $this->summary($fullJob) : null;
+            $job = $this->readSummary($id);
+            if ($job !== null) {
+                $jobs[] = $job;
             }
-            if ($job === null || ($role !== null && ($job['role'] ?? null) !== $role)) {
-                continue;
-            }
-            $jobs[] = $job;
         }
 
         usort($jobs, static fn (array $left, array $right): int => strcmp(
@@ -145,15 +124,15 @@ final class DataSyncStateStore
         $job['counterpart'] = array_replace($existingCounterpart, $this->counterpart($job, $context));
         $job['context'] = array_filter([
             'source_job_id' => $context['source_job_id'] ?? null,
+            'fetcher_job_id' => $context['fetcher_job_id'] ?? null,
             'awaiting_target' => $context['awaiting_target'] ?? null,
             'local_manifest' => $context['local_manifest'] ?? null,
             'database_results' => $context['database_results'] ?? null,
+            'resource_results' => $context['resource_results'] ?? null,
             'database_checkpoint_index' => $context['database_checkpoint_index'] ?? null,
-            'database_checkpoint_count' => $context['database_checkpoint_count']
-                ?? (isset($context['database_checkpoints']) ? count($context['database_checkpoints']) : null),
+            'database_checkpoint_count' => $context['database_checkpoint_count'] ?? null,
             'resource_checkpoint_index' => $context['resource_checkpoint_index'] ?? null,
-            'resource_checkpoint_count' => $context['resource_checkpoint_count']
-                ?? (isset($context['resource_checkpoints']) ? count($context['resource_checkpoints']) : null),
+            'resource_checkpoint_count' => $context['resource_checkpoint_count'] ?? null,
             'received' => $context['received'] ?? null,
             'cancel_requested' => $context['cancel_requested'] ?? null,
             'ready' => $context['ready'] ?? null,
@@ -174,9 +153,7 @@ final class DataSyncStateStore
             unset($receiver['counterpart']);
         }
 
-        // Driver roles (source pushes, fetcher pulls) observe their passive
-        // counterpart (receiver / exporter) through the peer client.
-        $isDriver = in_array($job['role'] ?? null, ['source', 'fetcher'], true);
+        $isDriver = in_array($job['role'] ?? null, DataSyncProtocol::DRIVER_ROLES, true);
 
         return array_filter([
             'endpoint' => $isDriver
@@ -185,68 +162,47 @@ final class DataSyncStateStore
             'session_id' => $isDriver
                 ? ($context['peer_session_id'] ?? null)
                 : ($context['source_job_id'] ?? $context['fetcher_job_id'] ?? null),
-            'reachable' => $isDriver
-                ? ($context['counterpart_reachable'] ?? null)
-                : null,
-            'observed_at' => $isDriver
-                ? ($context['counterpart_observed_at'] ?? null)
-                : null,
-            'error' => $isDriver
-                ? ($context['counterpart_error'] ?? null)
-                : null,
+            'reachable' => $isDriver ? ($context['counterpart_reachable'] ?? null) : null,
+            'observed_at' => $isDriver ? ($context['counterpart_observed_at'] ?? null) : null,
+            'error' => $isDriver ? ($context['counterpart_error'] ?? null) : null,
             'session' => $isDriver ? $receiver : null,
         ], static fn ($value): bool => $value !== null);
     }
 
-    public function active(string $role): ?array
-    {
-        return $this->activeAll($role)[0] ?? null;
-    }
-
     /**
-     * Lightweight per-tick probe: true when any session summary is in an
-     * active status. Reads summary files only (no full job load, no throw),
-     * so timer tasks can call it every tick to yield during a sync.
+     * Lightweight per-tick probe (summary files only) so timer tasks can
+     * yield while any synchronization session is active.
      */
     public function hasActiveSession(): bool
     {
         foreach ($this->storedJobIds() as $id) {
-            $content = FileSystemManager::readFile($this->summaryPath($id));
-            $summary = $content !== false ? json_decode($content, true) : null;
-            if (
-                is_array($summary)
-                && in_array($summary['status'] ?? null, ['queued', 'running', 'paused'], true)
-            ) {
+            $summary = $this->readSummary($id);
+            if ($summary !== null && in_array($summary['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)) {
                 return true;
             }
         }
         return false;
     }
 
-    public function activeAll(string $role): array
+    /**
+     * @param list<string>|string $roles
+     */
+    public function activeAll(array|string $roles): array
     {
+        $roles = (array) $roles;
         $jobs = [];
 
         foreach ($this->storedJobIds() as $id) {
-            $content = FileSystemManager::readFile($this->summaryPath($id));
-            $summary = $content !== false ? json_decode($content, true) : null;
+            $summary = $this->readSummary($id);
             if (
-                is_array($summary)
-                && (($summary['role'] ?? null) !== $role
-                    || !in_array($summary['status'] ?? null, ['queued', 'running', 'paused'], true))
+                $summary === null
+                || !in_array($summary['role'] ?? null, $roles, true)
+                || !in_array($summary['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)
             ) {
                 continue;
             }
-
             $job = $this->get($id);
-            if ($job === null && is_array($summary)) {
-                throw new \RuntimeException('Active synchronization state is missing or invalid.');
-            }
-            if (
-                $job !== null
-                && ($job['role'] ?? null) === $role
-                && in_array($job['status'] ?? null, ['queued', 'running', 'paused'], true)
-            ) {
+            if ($job !== null && in_array($job['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)) {
                 $jobs[] = $job;
             }
         }
@@ -263,16 +219,11 @@ final class DataSyncStateStore
         $index = (int) ($job['current_step'] ?? 0);
 
         if (!isset($job['steps'][$index])) {
-            return $job;
+            return $this->save($job);
         }
 
-        $job['steps'][$index]['status'] = $status;
-        $job['steps'][$index]['detail'] = $detail;
-        if ($status === 'running' && $job['steps'][$index]['started_at'] === null) {
-            $job['steps'][$index]['started_at'] = now()->toIso8601String();
-        }
-        if ($status === 'completed') {
-            $job['steps'][$index]['completed_at'] = now()->toIso8601String();
+        $job['steps'][$index] = $this->stepState($job['steps'][$index], $status, $detail);
+        if (in_array($status, ['completed', 'skipped'], true)) {
             $job['current_step'] = $index + 1;
         }
 
@@ -282,22 +233,117 @@ final class DataSyncStateStore
     public function markStepByKey(array $job, string $key, string $status, ?string $detail = null): array
     {
         foreach ($job['steps'] as $index => $step) {
-            if (($step['key'] ?? null) !== $key) {
-                continue;
+            if (($step['key'] ?? null) === $key) {
+                $job['steps'][$index] = $this->stepState($step, $status, $detail);
+                break;
             }
-            $job['steps'][$index]['status'] = $status;
-            $job['steps'][$index]['detail'] = $detail;
-            if ($status === 'running' && $job['steps'][$index]['started_at'] === null) {
-                $job['steps'][$index]['started_at'] = now()->toIso8601String();
-            }
-            if ($status === 'completed') {
-                $job['steps'][$index]['started_at'] ??= now()->toIso8601String();
-                $job['steps'][$index]['completed_at'] = now()->toIso8601String();
-            }
-            break;
         }
 
         return $this->save($job);
+    }
+
+    public function touchActivity(string $id): void
+    {
+        FileSystemManager::writeFile($this->lockPath($id, 'activity'), (string) time());
+    }
+
+    public function secondsSinceActivity(array $job): int
+    {
+        $content = FileSystemManager::readFile($this->lockPath((string) $job['id'], 'activity'), false);
+        $last = is_string($content) && ctype_digit(trim($content))
+            ? (int) trim($content)
+            : (int) strtotime((string) ($job['updated_at'] ?? 'now'));
+
+        return max(0, time() - $last);
+    }
+
+    public function lockPath(string $id, string $kind): string
+    {
+        $directory = PathMapper::getBackupDir(self::LOCKS_SUBDIR);
+        return rtrim($directory, '/\\') . DIRECTORY_SEPARATOR . DataSyncSessionId::require($id) . '.' . $kind;
+    }
+
+    private function stepState(array $step, string $status, ?string $detail): array
+    {
+        $now = now()->toIso8601String();
+        $step['status'] = $status;
+        $step['detail'] = $detail;
+        if (in_array($status, ['running', 'completed', 'failed'], true)) {
+            $step['started_at'] ??= $now;
+        }
+        if (in_array($status, ['completed', 'skipped'], true)) {
+            $step['completed_at'] = $now;
+        }
+        return $step;
+    }
+
+    private function progress(array $job): int
+    {
+        $steps = $job['steps'] ?? [];
+        $done = count(array_filter(
+            $steps,
+            static fn (array $step): bool => in_array($step['status'] ?? null, ['completed', 'skipped'], true)
+        ));
+
+        return $steps !== [] ? (int) floor(($done / count($steps)) * 100) : 0;
+    }
+
+    /**
+     * Drops sessions from other protocol versions and all but the newest
+     * terminal sessions.
+     */
+    public function pruneTerminal(): void
+    {
+        $terminal = [];
+
+        foreach ($this->storedJobIds() as $id) {
+            $summary = $this->readSummary($id);
+            if ($summary === null) {
+                continue;
+            }
+            if ((int) ($summary['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+                if (!in_array($summary['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)) {
+                    $this->delete($id);
+                }
+                continue;
+            }
+            if (in_array($summary['status'] ?? null, DataSyncProtocol::TERMINAL_STATUSES, true)) {
+                $terminal[$id] = (string) ($summary['updated_at'] ?? '');
+            }
+        }
+
+        arsort($terminal);
+        foreach (array_slice(array_keys($terminal), DataSyncProtocol::TERMINAL_RETENTION) as $id) {
+            $this->delete((string) $id);
+        }
+
+        $known = array_flip($this->storedJobIds());
+        $locksDirectory = rtrim(PathMapper::getBackupDir(self::LOCKS_SUBDIR), '/\\');
+        foreach (FileSystemManager::scandir($locksDirectory) ?: [] as $entry) {
+            $id = strstr($entry, '.', true);
+            if ($id !== false && DataSyncSessionId::valid($id) && !isset($known[$id])) {
+                FileSystemManager::delete($locksDirectory . DIRECTORY_SEPARATOR . $entry);
+            }
+        }
+    }
+
+    private function readSummary(string $id): ?array
+    {
+        $content = FileSystemManager::readFile($this->summaryPath($id));
+        $summary = $content !== false ? json_decode($content, true) : null;
+        if (is_array($summary)) {
+            return $summary;
+        }
+        $job = $this->get($id);
+        return $job !== null ? $this->summary($job) : null;
+    }
+
+    private function writeJson(string $path, array $value): void
+    {
+        $json = (string) json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        if (!FileSystemManager::writeFileAtomic($path, $json)) {
+            throw new \RuntimeException('Unable to persist data synchronization state.');
+        }
     }
 
     private function storageDirectory(): string
@@ -309,43 +355,28 @@ final class DataSyncStateStore
 
     private function storedJobIds(): array
     {
-        $entries = FileSystemManager::scandir($this->storageDirectory()) ?: [];
         $ids = [];
 
-        foreach ($entries as $entry) {
+        foreach (FileSystemManager::scandir($this->storageDirectory()) ?: [] as $entry) {
             if (
-                !str_ends_with($entry, '.json')
-                || str_ends_with($entry, '.summary.json')
-                || str_ends_with($entry, '.pending.json')
+                str_ends_with($entry, '.json')
+                && !str_ends_with($entry, '.summary.json')
+                && !str_ends_with($entry, '.pending.json')
             ) {
-                continue;
+                $ids[] = substr($entry, 0, -5);
             }
-            $ids[] = substr($entry, 0, -5);
         }
 
-        return $ids;
+        return array_values(array_filter($ids, [DataSyncSessionId::class, 'valid']));
     }
 
     private function jobPath(string $id): string
     {
-        $safeId = $this->safeId($id);
-        return $this->storageDirectory() . DIRECTORY_SEPARATOR . $safeId . '.json';
+        return $this->storageDirectory() . DIRECTORY_SEPARATOR . DataSyncSessionId::require($id) . '.json';
     }
 
     private function summaryPath(string $id): string
     {
-        $safeId = $this->safeId($id);
-        return $this->storageDirectory() . DIRECTORY_SEPARATOR . $safeId . '.summary.json';
-    }
-
-    private function pendingPath(string $id): string
-    {
-        $safeId = $this->safeId($id);
-        return $this->storageDirectory() . DIRECTORY_SEPARATOR . $safeId . '.pending.json';
-    }
-
-    private function safeId(string $id): string
-    {
-        return DataSyncSessionId::require($id);
+        return $this->storageDirectory() . DIRECTORY_SEPARATOR . DataSyncSessionId::require($id) . '.summary.json';
     }
 }

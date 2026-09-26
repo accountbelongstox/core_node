@@ -27,9 +27,6 @@ class PuterTranslateWorkerService extends SimpleWorkerBase {
     return 'puter_translate';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'puter_translate_worker_id_base';
-  }
 
   protected get capabilities(): WorkerCapability[] {
     return [TASK_CAPABILITY_BY_ROLE.puter_translate];

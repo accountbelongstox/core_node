@@ -1,40 +1,37 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 import { useAuthSession } from '../../../../core/auth/useAuthSession';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { CmBrand } from '../CmBrand';
 import { CmChromeControls } from '../CmChromeControls';
+import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from './cmPublicRoutes';
+import { useCmProtectedNavigate } from './useCmProtectedNavigate';
 
 const NAV_ITEMS = [
-  { key: 'nav.projects', to: '/codemart/projects' },
-  { key: 'nav.estimate', to: '/codemart/estimate' },
-  { key: 'nav.services', to: '/codemart/services' },
-  { key: 'nav.developers', to: '/codemart/marketplace' },
-  { key: 'nav.download', to: '/codemart/download' },
-  { key: 'nav.about', to: '/codemart/about' },
+  { key: 'publicHome.nav.services', to: CM_PUBLIC_ROUTE.services },
+  { key: 'publicHome.nav.process', to: CM_PUBLIC_ROUTE.delivery },
+  { key: 'publicHome.nav.showcase', to: CM_PUBLIC_ROUTE.showcase },
+  { key: 'publicHome.nav.estimate', to: CM_PUBLIC_ROUTE.estimate },
+  { key: 'publicHome.nav.about', to: CM_PUBLIC_ROUTE.about },
 ] as const;
 
 export const CmPublicHeader: React.FC = () => {
   const { t } = useTranslation('cm');
-  const navigate = useNavigate();
+  const openProtected = useCmProtectedNavigate();
   const authenticated = useAuthSession();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const openAuthentication = (reason: string): void => {
-    setMenuOpen(false);
-    requestAuthLogin({ source: 'codemart', reason });
-  };
-  const openDashboard = (): void => {
-    setMenuOpen(false);
-    navigate('/codemart/dashboard');
+  const closeMenu = (): void => setMenuOpen(false);
+  const openWorkspace = (): void => {
+    closeMenu();
+    openProtected(CM_PROTECTED_ROUTE.dashboard, 'workspace-entry');
   };
 
   return (
     <header className="cm-public-header">
       <div className="cm-public-container cm-public-header__inner">
-        <Link to="/codemart" className="cm-public-header__brand" aria-label={t('brand.name')}>
+        <Link to={CM_PUBLIC_ROUTE.home} className="cm-public-header__brand" aria-label={t('brand.name')}>
           <CmBrand inverse />
         </Link>
         <button
@@ -49,29 +46,25 @@ export const CmPublicHeader: React.FC = () => {
         </button>
         <div id="cm-public-navigation" className={`cm-public-header__panel ${menuOpen ? 'is-open' : ''}`}>
           <nav className="cm-public-header__nav" aria-label={t('brand.name')}>
-            {NAV_ITEMS.map((item) => item.to.startsWith('#') ? (
-              <a key={item.key} href={item.to} onClick={() => setMenuOpen(false)}>{t(item.key)}</a>
-            ) : (
-              <Link key={item.key} to={item.to} onClick={() => setMenuOpen(false)}>{t(item.key)}</Link>
+            {NAV_ITEMS.map((item) => (
+              <NavLink key={item.key} to={item.to} end onClick={closeMenu}>{t(item.key)}</NavLink>
             ))}
           </nav>
           <div className="cm-public-header__account">
             <CmChromeControls inverse />
             {authenticated ? (
-              <button type="button" onClick={openDashboard}>{t('nav.dashboard')}</button>
+              <button type="button" onClick={openWorkspace}>{t('nav.dashboard')}</button>
             ) : (
               <>
-                <button type="button" onClick={() => openAuthentication('sign-in')}>{t('nav.login')}</button>
-                <button type="button" className="cm-public-header__register" onClick={() => openAuthentication('register')}>
+                <span className="cm-public-header__sign-in">
+                  <Link to={CM_PUBLIC_ROUTE.login} onClick={closeMenu}>{t('nav.login')}</Link>
+                  <Link to={CM_PUBLIC_ROUTE.forgotPassword} className="cm-public-header__forgot" onClick={closeMenu}>
+                    {t('publicAuth.forgot.link')}
+                  </Link>
+                </span>
+                <Link to={CM_PUBLIC_ROUTE.register} className="cm-public-header__register" onClick={closeMenu}>
                   {t('nav.register')}
-                </button>
-                <button
-                  type="button"
-                  className="cm-public-header__register"
-                  onClick={() => openAuthentication('workspace-entry')}
-                >
-                  {t('nav.enterWorkspace')}
-                </button>
+                </Link>
               </>
             )}
           </div>

@@ -29,9 +29,6 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
     return LANES.QWEN_TTS;
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'qwen_tts_worker_id_base';
-  }
 
   protected get capabilities(): WorkerCapability[] {
     return [TASK_CAPABILITY_BY_ROLE.audio];

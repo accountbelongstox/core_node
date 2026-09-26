@@ -129,5 +129,17 @@
     },
     "files": {
         "web_access_config": "web_access_config.json"
+    },
+    "mcp_chrome": {
+        "native_host_name": "com.chromemcp.nativehost",
+        "build_output_dir": "build_output",
+        "extension_dir": "build_extension",
+        "firefox_extension_dir": "build_extension_firefox",
+        "build_stamp_file": "build-stamp.json",
+        "service_name": "ncore-mcp-chrome",
+        "service_description": "Core Node MCP Chrome watcher and recovery supervisor",
+        "service_cpu_quota": "200%",
+        "service_memory_max": "4G",
+        "windows_task_name": "ncore-mcp-chrome"
     }
 }

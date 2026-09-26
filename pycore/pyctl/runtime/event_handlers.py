@@ -29,10 +29,12 @@ from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
 from pycore.pyctl.agent_history.prompt_derive_service import start_prompt_derive_service
+from pycore.pyctl.agent_history.prompt_rewrite_service import start_prompt_rewrite_service
 from pycore.pyctl.agent_history.prompt_notify_service import start_prompt_notify_service
 from pycore.pyctl.queue_center.audio_lane_state import audio_lane_state
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.relay import laravel_relay_agent_service
+from pycore.pyctl.laravel.delivery_service import start_laravel_delivery
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.assist.assist_settings import load_assist_settings
@@ -488,8 +490,10 @@ def register_runtime_workers() -> None:
     service_steps = (
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("audio_lane_state_publisher", audio_lane_state.start),
+        ("laravel_delivery", start_laravel_delivery),
         ("agent_history", register_agent_history_extraction),
         ("prompt_derive_service", start_prompt_derive_service),
+        ("prompt_rewrite_service", start_prompt_rewrite_service),
         ("prompt_notify_service", start_prompt_notify_service),
     )
     if pyservice_mode_service.relay_enabled():

@@ -33,9 +33,6 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
     return 'web_ai_translate';
   }
 
-  protected get workerIdStorageKey(): string {
-    return 'web_ai_translate_worker_id_base';
-  }
 
   // Advertise ONLY ai_translate; the base adds remote_fast via withFastLane.
   protected get capabilities(): WorkerCapability[] {

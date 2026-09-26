@@ -37,6 +37,10 @@ final class LaravelConfig
     public const REDIS_PREFIX = 'core-node-database-';
     public const REDIS_DATABASE = 0;
     public const REDIS_CACHE_DATABASE = 1;
+    public const REDIS_RESOURCE_INDEX_CONNECTION = 'resource_index';
+    public const REDIS_RESOURCE_INDEX_DATABASE = 2;
+    public const REDIS_RESOURCE_INDEX_CONNECT_TIMEOUT = 1.0;
+    public const REDIS_RESOURCE_INDEX_READ_TIMEOUT = 5.0;
     public const REDIS_MAX_RETRIES = 3;
     public const REDIS_BACKOFF_ALGORITHM = 'decorrelated_jitter';
     public const REDIS_BACKOFF_BASE = 100;

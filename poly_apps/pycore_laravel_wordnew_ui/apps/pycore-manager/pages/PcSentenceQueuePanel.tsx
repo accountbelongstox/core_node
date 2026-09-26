@@ -18,12 +18,13 @@ import { usePycoreTaskCenterState } from '../hooks/TaskCenterState';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
-import { PcAudioDeliveryOutboxStatus } from '../components/PcAudioDeliveryOutboxStatus';
+import { PcDeliveryOutboxStatus } from '../components/PcDeliveryOutboxStatus';
 import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
 import { PcAudioLaneFullSyncRow } from '../components/PcAudioLaneFullSyncRow';
 import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { normalizeWordAudioFullSyncStatus, QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { formatElapsed } from '../utils/pcFormat';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
 
@@ -31,14 +32,6 @@ const preview = (text?: string | null, max = 72): string => {
   const t = (text || '').trim();
   if (!t) return '—';
   return t.length > max ? `${t.slice(0, max)}…` : t;
-};
-
-const formatDuration = (seconds?: number | null): string => {
-  const value = Math.max(0, Number(seconds) || 0);
-  if (value < 60) return `${value.toFixed(value < 10 ? 1 : 0)}s`;
-  const minutes = Math.floor(value / 60);
-  const remainder = Math.floor(value % 60);
-  return `${minutes}m ${remainder}s`;
 };
 
 export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
@@ -268,9 +261,8 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
         error={lanes.error}
       />
 
-      <PcAudioDeliveryOutboxStatus
-        lane="sentence"
-        running={snap?.worker?.delivery_outbox_running}
+      <PcDeliveryOutboxStatus
+        kind="audio_lane.sentence"
         status={snap?.worker?.delivery_outbox}
         onChanged={hub.refreshHub}
       />
@@ -288,7 +280,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
                     {t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}
                   </span>
                   <span>{progress}%</span>
-                  <span>{t('queueCenter.sentenceQueue.elapsedLabel')} {formatDuration(task.elapsed_seconds)}</span>
+                  <span>{t('queueCenter.sentenceQueue.elapsedLabel')} {formatElapsed(task.elapsed_seconds)}</span>
                   <span className={task.backend_uploaded ? 'text-emerald-500' : 'text-amber-500'}>
                     {task.backend_uploaded
                       ? t('queueCenter.sentenceQueue.uploadOk')
@@ -358,7 +350,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
                         {row.language} · {t('queueCenter.sentenceQueue.queuePosition')} <b className="text-amber-500">#{row.queue_position ?? 0}</b>
                         {' · '}{t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}
                         {' · '}{progress}%
-                        {elapsedSeconds != null && <>{' · '}{t('queueCenter.sentenceQueue.elapsedLabel')} {formatDuration(elapsedSeconds)}</>}
+                        {elapsedSeconds != null && <>{' · '}{t('queueCenter.sentenceQueue.elapsedLabel')} {formatElapsed(elapsedSeconds)}</>}
                         {' · '}<span className={row.backend_uploaded ? 'text-emerald-500' : processing ? 'text-amber-500' : 'text-slate-400'}>
                           {row.backend_uploaded
                             ? t('queueCenter.sentenceQueue.uploadOk')
@@ -413,7 +405,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
                   {' '}[{ev.kind}] {ev.detail}
                   {ev.text_preview ? ` · "${ev.text_preview}"` : ''}
                   {ev.elapsed_seconds != null && (
-                    <span className="ml-2 text-sky-500">+{formatDuration(ev.elapsed_seconds)}</span>
+                    <span className="ml-2 text-sky-500">+{formatElapsed(ev.elapsed_seconds)}</span>
                   )}
                   {typeof ev.backend_uploaded === 'boolean' && (
                     <span className={`ml-2 ${ev.backend_uploaded ? 'text-emerald-500' : 'text-amber-500'}`}>

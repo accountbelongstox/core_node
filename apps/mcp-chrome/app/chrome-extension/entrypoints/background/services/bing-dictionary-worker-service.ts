@@ -234,7 +234,7 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
     return { success: true, data: { ...lastData, tasks: merged, count: merged.length } };
   }
 
-  private subscribeRealtimeWake(): void {
+  protected subscribeRealtimeWake(): void {
     if (!this.config) return;
     if (this.wakeUnsubscribe) this.wakeUnsubscribe();
     this.wakeUnsubscribe = queueCenterWakeService.subscribe(
@@ -748,7 +748,7 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
    * this worker has tasks to pull. Best-effort: a failure must not block Start
    * (the background scan also enqueues, just more slowly).
    */
-  private async enqueuePending(): Promise<void> {
+  protected async enqueuePending(): Promise<void> {
     if (!this.workerClient || !this.config) return;
     try {
       const resp = await this.workerClient.enqueuePending({

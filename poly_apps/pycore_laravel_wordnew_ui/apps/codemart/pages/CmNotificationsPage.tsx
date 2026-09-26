@@ -1,84 +1,146 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Bell, CheckCheck, RefreshCw } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Check, CheckCheck, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
-import type { CmNotification } from '../api/CmApiTypes';
+import type { CmNotification, CmPage } from '../api/CmApiTypes';
+import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
+import { cmNotificationLink, cmNotificationParams } from '../components/workspace/cmNotificationFormat';
+import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { useCmPagedList } from '../components/workspace/useCmPagedList';
+
+const NOTE_PARAM_KEYS = ['reason', 'notes'] as const;
+const MONEY_PARAM_KEYS = ['amount', 'gross', 'commission'] as const;
+
+const fetchNotifications = (page: number) => cmApi.getNotifications(page);
+const extractNotifications = (data: CmPage<CmNotification>) => ({
+  items: Array.isArray(data.items) ? data.items : [],
+  totalPages: cmTotalPages(data),
+});
 
 export const CmNotificationsPage: React.FC = () => {
   const { t } = useTranslation('cm');
-  const { refresh } = useCmBootstrap();
-  const [notifications, setNotifications] = useState<CmNotification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const format = useCmFormat();
+  const navigate = useNavigate();
+  const { bootstrap, unreadCount, refreshUnread } = useCmBootstrap();
+  const currency = bootstrap?.vocabulary.policy.currency ?? null;
+  const notice = useCmNotice();
+  const list = useCmPagedList(fetchNotifications, extractNotifications, 'notifications.loadFailed');
+  const [readIds, setReadIds] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    const response = await cmApi.getNotifications();
-    if (response.success && response.data) {
-      setNotifications(Array.isArray(response.data.items) ? response.data.items : []);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const isRead = useCallback((item: CmNotification): boolean => item.read || readIds.has(item.id), [readIds]);
 
   const markRead = async (notificationId: number): Promise<void> => {
-    await cmApi.markNotificationRead(notificationId);
-    await load();
-    await refresh();
+    const response = await cmApi.markNotificationRead(notificationId);
+    if (response.success) {
+      setReadIds((current) => new Set(current).add(notificationId));
+      await refreshUnread();
+    } else {
+      notice.error(cmErrorMessage(t, response, 'notifications.markFailed'));
+    }
   };
 
   const markAll = async (): Promise<void> => {
-    await cmApi.markAllNotificationsRead();
-    await load();
-    await refresh();
+    setBusy(true);
+    notice.clear();
+    const response = await cmApi.markAllNotificationsRead();
+    setBusy(false);
+    if (response.success) {
+      notice.success(t('notifications.allMarked'));
+      setReadIds(new Set());
+      await list.reload();
+      await refreshUnread();
+    } else {
+      notice.error(cmErrorMessage(t, response, 'notifications.markFailed'));
+    }
+  };
+
+  const open = async (notification: CmNotification, link: string): Promise<void> => {
+    if (!isRead(notification)) await markRead(notification.id);
+    navigate(link);
+  };
+
+  const paramsFor = (notification: CmNotification): Record<string, unknown> => {
+    const params = cmNotificationParams(t, notification);
+    MONEY_PARAM_KEYS.forEach((key) => {
+      const value = params[key];
+      if ((typeof value === 'string' || typeof value === 'number') && value !== '' && Number.isFinite(Number(value))) {
+        params[key] = format.money(value, currency);
+      }
+    });
+    return params;
   };
 
   return (
     <main className="cm-workspace-page">
-      <header className="cm-page-heading">
-        <span>{t('notifications.eyebrow')}</span>
-        <h1>{t('nav.notifications')}</h1>
-        <p>{t('notifications.description')}</p>
-        <div className="cm-page-heading__actions">
-          <button type="button" className="cm-workspace-button" onClick={() => void load()}>
-            <RefreshCw aria-hidden="true" /> {t('common.refresh')}
-          </button>
-          <button type="button" className="cm-workspace-button" onClick={() => void markAll()}>
-            <CheckCheck aria-hidden="true" /> {t('notifications.markAllRead')}
-          </button>
-        </div>
-      </header>
-      {loading ? (
-        <p className="cm-contract-note">{t('common.loading')}</p>
-      ) : notifications.length === 0 ? (
-        <section className="cm-marketplace-empty">
-          <Bell aria-hidden="true" />
-          <h2>{t('notifications.emptyTitle')}</h2>
-          <p>{t('notifications.emptyBody')}</p>
-        </section>
+      <CmPageHeader
+        eyebrowKey="notifications.eyebrow"
+        titleKey="nav.notifications"
+        purposeKey="notifications.description"
+        actions={(
+          <>
+            <button type="button" className="cm-workspace-button" onClick={() => void list.reload()} disabled={list.loading}>
+              <RefreshCw aria-hidden="true" /> {t('common.refresh')}
+            </button>
+            <button type="button" className="cm-workspace-button is-primary" onClick={() => void markAll()} disabled={busy || unreadCount === 0}>
+              <CheckCheck aria-hidden="true" /> {t('notifications.markAllRead')}
+            </button>
+          </>
+        )}
+      />
+      <p className="cm-inline-summary">{unreadCount > 0 ? t('notifications.unreadSummary', { count: unreadCount }) : t('notifications.allReadSummary')}</p>
+      <CmNotice notice={notice.notice} onDismiss={notice.clear} />
+      {list.loading ? (
+        <CmLoadingState />
+      ) : list.error ? (
+        <CmErrorState message={list.error} onRetry={() => void list.reload()} />
+      ) : list.items.length === 0 ? (
+        <CmEmptyState title={t('notifications.emptyTitle')} body={t('notifications.emptyBody')} />
       ) : (
-        <section className="cm-card-list">
-          {notifications.map((notification) => (
-            <article key={notification.id} className={`cm-record-card ${notification.read ? '' : 'is-unread'}`}>
-              <div className="cm-record-card__main">
-                <h2>{t(notification.title_key, notification.params ?? {})}</h2>
-                {notification.body_key && <p>{t(notification.body_key, notification.params ?? {})}</p>}
-                <div className="cm-record-card__meta">
-                  <span>{notification.created_at ? notification.created_at.slice(0, 16).replace('T', ' ') : ''}</span>
+        <section className="cm-notification-list" aria-label={t('nav.notifications')}>
+          {list.items.map((notification) => {
+            const params = paramsFor(notification);
+            const link = cmNotificationLink(notification);
+            const read = isRead(notification);
+            return (
+              <article key={notification.id} className={`cm-notification ${read ? '' : 'is-unread'}`}>
+                <span className="cm-notification__dot" aria-hidden="true" />
+                <div className="cm-notification__body">
+                  <h2>
+                    {t(notification.title_key, { ...params, defaultValue: t('notifications.fallbackTitle') })}
+                    {!read && <span className="cm-visually-hidden">{t('notifications.unreadLabel')}</span>}
+                  </h2>
+                  {notification.body_key && <p>{t(notification.body_key, { ...params, defaultValue: '' })}</p>}
+                  {NOTE_PARAM_KEYS.map((key) => (
+                    typeof params[key] === 'string' && params[key] !== '' && (
+                      <p key={key} className="cm-notification__note">{t(`notifications.${key}Line`, { value: params[key] })}</p>
+                    )
+                  ))}
+                  <time dateTime={notification.created_at ?? undefined}>{format.dateTime(notification.created_at)}</time>
                 </div>
-              </div>
-              {!notification.read && (
-                <button type="button" className="cm-workspace-button" onClick={() => void markRead(notification.id)}>
-                  {t('notifications.markRead')}
-                </button>
-              )}
-            </article>
-          ))}
+                <div className="cm-notification__actions">
+                  {link && (
+                    <button type="button" className="cm-workspace-button is-small" onClick={() => void open(notification, link)}>
+                      {t('notifications.open')} <ArrowRight aria-hidden="true" />
+                    </button>
+                  )}
+                  {!read && (
+                    <button type="button" className="cm-workspace-button is-small" onClick={() => void markRead(notification.id)} aria-label={t('notifications.markRead')}>
+                      <Check aria-hidden="true" /> {t('notifications.markRead')}
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
+      <CmPager page={list.page} totalPages={list.totalPages} disabled={list.loading} onChange={(next) => { setReadIds(new Set()); void list.load(next); }} />
     </main>
   );
 };

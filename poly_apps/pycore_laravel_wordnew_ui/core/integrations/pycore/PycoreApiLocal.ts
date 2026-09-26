@@ -35,6 +35,7 @@ import type {
   PcTaskRecentResponse,
   PcTaskClearResponse,
   QueueWorkerEventPage,
+  LaravelDeliveryStatus,
 } from './PycoreQueueTypes';
 import type {
   AgentHistoryIndexResponse,
@@ -338,6 +339,12 @@ export const pycoreApiLocal = {
       page: params.page ?? 1,
       page_size: params.pageSize ?? 50,
     }) as Promise<AgentHistoryPromptDerivedResponse>,
+  /** Paginated read over the AI-rewritten English prompt feed (same item shape). */
+  getAgentHistoryPromptRewritten: (params: { page?: number; pageSize?: number } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptRewritten, {
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+    }) as Promise<AgentHistoryPromptDerivedResponse>,
   // --- Tool fragment panels (DIFF ID pages + lazy materialization) -------- #
   getAgentHistoryToolFragmentIdPages: (params: {
     tool: string; kind: AgentHistoryFragmentKind;
@@ -384,8 +391,24 @@ export const pycoreApiLocal = {
       data?: QueueWorkerEventPage;
       error?: string;
     }>,
-  retryAudioDelivery: (lane: 'all' | 'word' | 'sentence' = 'all') =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterRetryAudioDelivery, { lane }),
+  /** Shared Laravel delivery outbox: per-kind status (all pycore -> Laravel deliveries). */
+  laravelDeliveryStatus: () =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelDeliveryStatus, {}) as Promise<{
+      success: boolean;
+      data?: LaravelDeliveryStatus;
+      error?: string;
+    }>,
+  /**
+   * Re-queue dead letters of one kind (or every kind); `reconcile` also re-runs
+   * the Laravel diff of one server `namespace` (default: every reachable server).
+   */
+  retryLaravelDelivery: (kind = '', reconcile = false, namespace = '') =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelDeliveryRetry, { kind, reconcile, namespace }) as Promise<{
+      success: boolean;
+      retried?: Record<string, number>;
+      data?: LaravelDeliveryStatus;
+      error?: string;
+    }>,
   /**
    * Pycore-owned state of both audio lanes (word_audio / sentence_audio, each
    * its own Part1 + Part2 Queue). Same payload as the push topic

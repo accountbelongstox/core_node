@@ -763,6 +763,33 @@
   "apiCustomUrlPlaceholder": {
     "message": "输入 URL（例如 api.example.com）"
   },
+  "apiCustomEndpointDescription": {
+    "message": "自定义：{0}"
+  },
+  "httpStatusError": {
+    "message": "{0}（HTTP {1}）"
+  },
+  "submitRejected": {
+    "message": "提交被拒绝"
+  },
+  "submitRejectedStatus": {
+    "message": "提交被拒绝（{0}）"
+  },
+  "valueNotAvailable": {
+    "message": "无"
+  },
+  "latestCodeFileUnreachable": {
+    "message": "laravel_main 最新文件：后端不可达"
+  },
+  "latestCodeFileLatest": {
+    "message": "最近修改的文件：{0}"
+  },
+  "latestCodeFileModified": {
+    "message": "修改时间：{0}"
+  },
+  "latestCodeFileScan": {
+    "message": "扫描：{0}（{1}ms）"
+  },
   "apiPortPlaceholder": {
     "message": "端口（可选）"
   },
@@ -1136,16 +1163,16 @@
     "message": "已加载 $1 个待处理任务，其中 $2 个可由浏览器处理"
   },
   "taskCenterCapability_image_label": {
-    "message": "搜索封面与海报"
+    "message": "搜索封面、海报与词库封面"
   },
   "taskCenterCapability_image_hint": {
-    "message": "通过共享浏览器处理器搜索并回写图书封面和媒体海报"
+    "message": "通过共享浏览器处理器搜索并回写图书封面、媒体海报和词库封面"
   },
   "taskCenterCapability_gemini_image_label": {
-    "message": "AI 单词组封面生成"
+    "message": "AI 词库封面与图像生成"
   },
   "taskCenterCapability_gemini_image_hint": {
-    "message": "使用 Gemini 生成词库单词组封面并回写 Laravel"
+    "message": "使用 Gemini 生成词库封面及指定图像并回写 Laravel"
   },
   "taskCenterCapability_validity_label": {
     "message": "执行单词有效性与翻译任务"
@@ -1209,6 +1236,12 @@
   },
   "taskCenterCategory_gemini_image": {
     "message": "待 AI 生图"
+  },
+  "taskCenterCategory_library_cover": {
+    "message": "待 AI 生成词库封面"
+  },
+  "taskCenterCategory_library_cover_search": {
+    "message": "待搜索词库封面"
   },
   "taskCenterCategory_gemini_chat": {
     "message": "待 AI 对话"
@@ -2119,9 +2152,6 @@
   "taskCenterStopFailed": {
     "message": "停止任务中心失败"
   },
-  "endpointSwitchFailed": {
-    "message": "切换正在使用的 API 接入点失败"
-  },
   "loadQueueFailed": {
     "message": "加载队列失败"
   },
@@ -2365,6 +2395,50 @@
       },
       "age": {
         "content": "$2"
+      }
+    }
+  },
+  "startServicePrompt": {
+    "message": "是否将 MCP Chrome 安装为后台服务（登录时自动启动，热重载）？",
+    "description": "start.ps1 prompt asking whether to install the background logon task"
+  },
+  "startServiceInstalled": {
+    "message": "后台服务 $TASK$ 已安装；本次编译期间暂停，编译后自动对齐。",
+    "description": "start.ps1 notice that the background logon task already exists",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceOwnsWatch": {
+    "message": "监听模式与 Chrome 恢复由后台任务 $TASK$ 运行。",
+    "description": "start.ps1 notice that the logon task runs the watchers",
+    "placeholders": {
+      "task": {
+        "content": "$1",
+        "example": "ncore-mcp-chrome"
+      }
+    }
+  },
+  "startServiceRemoveHint": {
+    "message": "移除方式：powershell -File \"$SCRIPT$\" -UninstallService",
+    "description": "start.ps1 hint for removing the logon task",
+    "placeholders": {
+      "script": {
+        "content": "$1",
+        "example": "C:\\project\\apps\\mcp-chrome\\scripts\\start.ps1"
+      }
+    }
+  },
+  "startSupervisorStarted": {
+    "message": "Chrome 恢复监督进程已启动（PID $PID$）。",
+    "description": "start.ps1 notice after starting the recovery supervisor",
+    "placeholders": {
+      "pid": {
+        "content": "$1",
+        "example": "1234"
       }
     }
   }

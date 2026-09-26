@@ -12,6 +12,7 @@ from urllib.parse import quote
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
 from pycore.pyctl.task_history.store import append_record
+from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_delivery
 from pycore.pyctl.tts.laravel_audio_worker_state import (
     TASK_OUTCOME_COMPLETED,
     TASK_OUTCOME_FAILED,
@@ -20,44 +21,22 @@ from pycore.pyctl.tts.laravel_audio_worker_state import (
 from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_progress
 from pycore.pyctl.tts.word_audio_service import LARAVEL_WORD_MEDIA_PATH
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import map_bus_tasks, start_bus_task
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
     GLOBAL_TASK_TYPES_BY_KEY,
-    QUEUE_CENTER_DIFF_DELIVERY,
     http_transfer_contract,
 )
 from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
-from pycore.pyutils.tts.audio_delivery_outbox import (
-    AUDIO_DELIVERY_PROCESS_ID,
-    audio_delivery_executor,
-    audio_delivery_outbox,
-)
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
-from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path, save_to_cache
+from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path
 
-_OUTBOX_BATCH_LIMIT = 32
-_OUTBOX_PARALLEL_LIMIT = 4
-# Reconnect recovery is latency-sensitive: a cached sentence should be
-# uploaded on the first reachable cycle, while this short sleep avoids a hot
-# loop when retry_at is in the future.
-_OUTBOX_IDLE_WAIT_SECONDS = 1.0
-_UPLOAD_RETRY_INITIAL_SECONDS = max(
-    1.0,
-    float(QUEUE_CENTER_DIFF_DELIVERY["consumer_upload_retry"]["initial_seconds"]),
-)
-_UPLOAD_RETRY_MAX_SECONDS = max(
-    _UPLOAD_RETRY_INITIAL_SECONDS,
-    float(QUEUE_CENTER_DIFF_DELIVERY["consumer_upload_retry"]["maximum_seconds"]),
-)
 _LANG_INDEX = {
     "en": 1, "zh": 2, "ja": 3, "ko": 4, "vi": 5,
     "lo": 6, "fr": 7, "de": 8, "es": 9,
@@ -86,11 +65,6 @@ def _word_media_url(word: str, language: str, base_url: str) -> str:
 def encode_word_report_task_id(dict_row_id: int, language: str) -> int:
     lang_index = _LANG_INDEX.get(str(language or "").lower(), 0)
     return int(dict_row_id) * 1000 + _TYPE_DIGIT_WORD * 100 + lang_index
-
-
-def _run_audio_delivery(payload: Dict[str, Any]) -> Dict[str, Any]:
-    worker = payload["worker"]
-    return worker._deliver_outbox_row(payload["record"])
 
 
 class LaravelAudioWorkerExecutionMixin:
@@ -494,90 +468,7 @@ class LaravelAudioWorkerExecutionMixin:
         audio_path: str,
         local_task_id: Optional[str],
     ) -> Dict[str, Any]:
-        return audio_delivery_outbox.stage_audio({
-            "lane": self.LANE,
-            "delivery_identity": self._delivery_identity(info),
-            "task_id": info.get("task_id"),
-            "task_type": info.get("task_type") or self.QUEUE_KEY,
-            "attempt": int(info.get("attempt") or 0),
-            "base_url": self._task_base_url(info.get("task_id")),
-            "provider": provider,
-            "info": dict(info),
-            "local_task_id": local_task_id or "",
-            "local_process_id": AUDIO_DELIVERY_PROCESS_ID,
-            "status": "pending",
-            "domain_uploaded": False,
-            "domain_delivery_finished": False,
-            "result_accepted": False,
-            "history_recorded": False,
-        }, audio_path, get_app_cache_dir())
-
-    def _start_outbox_drain(self) -> None:
-        if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._outbox_signal, False):
-            return
-        THREAD_BUS.signal(self._outbox_signal, True)
-        try:
-            start_bus_task(
-                self._drain_delivery_outbox,
-                thread_name=f"{self.LANE}-audio-delivery-outbox",
-            )
-        except Exception as exc:  # noqa: BLE001
-            THREAD_BUS.signal(self._outbox_signal, False)
-            ColorPrint.red(f"{self._log_prefix} outbox start error: {exc}")
-
-    def retry_delivery_outbox(self) -> Dict[str, Any]:
-        retried = audio_delivery_outbox.retry_dead_letters(self.LANE)
-        self._start_outbox_drain()
-        return {"success": True, "retried": retried, "outbox": audio_delivery_outbox.stats(self.LANE)}
-
-    @staticmethod
-    def _unique_ready_deliveries(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """One in-flight delivery per domain identity per batch."""
-        seen = set()
-        unique = []
-        for row in rows:
-            key = str(row.get("delivery_identity") or "") or str(row.get("delivery_id") or "")
-            if key in seen:
-                continue
-            seen.add(key)
-            unique.append(row)
-        return unique
-
-    def _drain_delivery_outbox(self) -> None:
-        try:
-            while not THREAD_BUS.is_shutdown_requested():
-                stats = audio_delivery_outbox.stats(self.LANE)
-                if int(stats.get("pending") or 0) <= 0:
-                    return
-                ready = audio_delivery_outbox.list_ready(self.LANE, _OUTBOX_BATCH_LIMIT)
-                if not ready:
-                    time.sleep(_OUTBOX_IDLE_WAIT_SECONDS)
-                    continue
-                ready = self._unique_ready_deliveries(ready)
-                lane_count = min(_OUTBOX_PARALLEL_LIMIT, len(ready))
-                map_bus_tasks(
-                    _run_audio_delivery,
-                    [{"worker": self, "record": row} for row in ready],
-                    max_workers=lane_count,
-                    thread_prefix=f"{self.LANE.title()}AudioDelivery",
-                )
-        except Exception as exc:  # noqa: BLE001
-            ColorPrint.red(f"{self._log_prefix} outbox cycle error: {exc}")
-        finally:
-            THREAD_BUS.signal(self._outbox_signal, False)
-            if (
-                not THREAD_BUS.is_shutdown_requested()
-                and int(audio_delivery_outbox.stats(self.LANE).get("pending") or 0) > 0
-            ):
-                self._start_outbox_drain()
-
-    def _deliver_outbox_row(self, record: Dict[str, Any]) -> Dict[str, Any]:
-        return audio_delivery_executor.deliver(
-            self,
-            record,
-            _UPLOAD_RETRY_INITIAL_SECONDS,
-            _UPLOAD_RETRY_MAX_SECONDS,
-        )
+        return audio_lane_delivery.stage(self, info, provider, audio_path, local_task_id or "")
 
     def _record_backend_delivery_success(self) -> None:
         if self.LANE == "word":
@@ -684,45 +575,17 @@ class LaravelAudioWorkerExecutionMixin:
             output_dir = Path(self._tmp_dir) / (
                 f"word-batch-{language}-{time.time_ns()}"
             )
-            result = kokoro_batch.synthesize_words(
+            outcomes = kokoro_batch.synthesize_words_to_cache(
                 [info["word"] for _task, info in entries],
                 language,
                 output_dir,
             )
-            for index, (task, info) in enumerate(entries):
-                item = result.items[index] if index < len(result.items) else None
-                if item is None or not item.ok:
-                    task["_batch_audio_error"] = (
-                        item.error if item is not None and item.error
-                        else "Kokoro batch synthesis produced no audio"
-                    )
+            for (task, _info), outcome in zip(entries, outcomes):
+                if not outcome["ok"]:
+                    task["_batch_audio_error"] = outcome["error"]
                     continue
-                output_path = str(item.output_path)
-                valid, detail = validate_mp3(output_path)
-                if not valid:
-                    task["_batch_audio_error"] = f"invalid Kokoro batch audio: {detail}"
-                    continue
-                save_to_cache(
-                    info["word"],
-                    info["language"],
-                    runtime_profile.WORD_BATCH_ENGINE,
-                    output_path,
-                )
-                cache_path = get_cache_path(
-                    info["word"],
-                    info["language"],
-                    runtime_profile.WORD_BATCH_ENGINE,
-                )
-                if os.path.exists(cache_path) and validate_mp3(cache_path)[0]:
-                    try:
-                        os.remove(output_path)
-                    except OSError:
-                        pass
-                    task["_batch_audio_path"] = cache_path
-                    task["_batch_audio_cleanup"] = False
-                else:
-                    task["_batch_audio_path"] = output_path
-                    task["_batch_audio_cleanup"] = True
+                task["_batch_audio_path"] = outcome["audio_path"]
+                task["_batch_audio_cleanup"] = outcome["scratch"]
 
     def _process_claimed_batch(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Claim a queue slice, synthesize it once as a batch, then deliver rows."""
@@ -910,7 +773,6 @@ class LaravelAudioWorkerExecutionMixin:
                     info,
                     mirror=self.LANE != "word",
                 )
-                self._start_outbox_drain()
                 return True
             finally:
                 if cleanup and audio_path:

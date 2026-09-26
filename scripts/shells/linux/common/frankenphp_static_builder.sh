@@ -91,7 +91,7 @@ fm_static_php_extensions() {
     if [ "$(get_var "START_MYSQL" "false")" = "true" ]; then
         exts="${exts},${FRANKENPHP_STATIC_DB_EXT_MYSQL}"
     fi
-    if [ "$(get_var "START_REDIS" "false")" = "true" ]; then
+    if [ "$(fm_php_redis_extension_desired)" = "yes" ]; then
         exts="${exts},${FRANKENPHP_STATIC_DB_EXT_REDIS}"
     fi
     echo "$exts" | tr ',' '\n' | awk 'NF && !seen[$0]++' | paste -sd','

@@ -22,9 +22,12 @@ from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_generate,
     orch_promote,
+    orch_events,
     orch_resources,
+    orch_sources,
     orch_store,
 )
+from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
 
 _LARAVEL_LOGIN = "/api/app_qy_v1/login"
 _LARAVEL_USER = "/api/app_qy_v1/user"
@@ -293,7 +296,7 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
     return steps
 
 
-def _task_summary(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
+def _task_summary(task: Dict[str, Any], pending_counts=None, output_counts=None) -> Dict[str, Any]:
     _recover_task_status(task)
     segments = task.get("segments") or []
     return {
@@ -301,6 +304,9 @@ def _task_summary(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
         "name": task.get("name"),
         "slug": task.get("slug"),
         "book": task.get("book"),
+        "source": orch_sources.task_source(task),
+        "source_ref": task.get("source_ref") or {},
+        "input": orch_sources.task_input(task),
         "segment_mode": task.get("segment_mode"),
         "segment_value": task.get("segment_value"),
         "word_mode": task.get("word_mode"),
@@ -309,7 +315,9 @@ def _task_summary(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
         "resumable": orch_generate.has_resumable_state(task),
         "segments_done": sum(1 for s in segments if s.get("status") == "done"),
         "segments_total": len(segments),
-        "progress": _task_progress(task, pending_counts),
+        "progress": _task_progress(task, pending_counts, output_counts),
+        "generation_started_at": task.get("generation_started_at"),
+        "generation_finished_at": task.get("generation_finished_at"),
         "created_at": task.get("created_at"),
         "updated_at": task.get("updated_at"),
     }
@@ -335,12 +343,18 @@ def resume_interrupted_generations() -> Dict[str, Any]:
     return {"success": True, "resumed": resumed}
 
 
-def tasks_list() -> Dict[str, Any]:
-    orch_resources.recover_deliveries()
-    pending_counts = orch_resources.pending_delivery_counts()
+def tasks_list(source: str = "") -> Dict[str, Any]:
+    pending_counts = orch_delivery.pending_resource_counts()
+    output_counts = orch_delivery.output_counts()
+    source = str(source or "").strip()
     return {
         "success": True,
-        "tasks": [_task_summary(task, pending_counts) for task in orch_store.list_tasks()],
+        "sources": list(orch_sources.ORCH_SOURCES),
+        "tasks": [
+            _task_summary(task, pending_counts, output_counts)
+            for task in orch_store.list_tasks()
+            if not source or orch_sources.task_source(task) == source
+        ],
     }
 
 
@@ -350,6 +364,7 @@ def task_get(task_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "task not found"}
     _recover_task_status(task)
     result = dict(task)
+    result["source"] = orch_sources.task_source(task)
     result["progress"] = _task_progress(task)
     result["running"] = orch_generate.is_running(str(task.get("task_id") or ""))
     result["success"] = True
@@ -362,9 +377,10 @@ def _recover_task_status(task: Dict[str, Any]) -> None:
         task["progress"] = {**(task.get("progress") or {}), "message": "generation interrupted; regenerate resumes from the persisted manifest"}
         orch_store.append_task_event(task, "generation interrupted; persisted manifest, local audio caches and pending deliveries retained")
         orch_store.save_task(task)
+        orch_events.publish_task_changed(task)
 
 
-def _task_progress(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
+def _task_progress(task: Dict[str, Any], pending_counts=None, output_counts=None) -> Dict[str, Any]:
     progress = dict(task.get("progress") or {})
     # Live Part1 fill counters of this task in EACH lane queue (words ->
     # word_audio, sentences -> sentence_audio); tracker-only, O(tracked).
@@ -375,10 +391,13 @@ def _task_progress(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
     generation_id = str(task.get("generation_id") or "")
     if generation_id:
         if pending_counts is None:
-            pending_counts = orch_resources.pending_delivery_counts()
+            pending_counts = orch_delivery.pending_resource_counts()
         pending = pending_counts.get(generation_id, 0)
         progress["synced"] = int(progress.get("synced") or 0) + max(0, int(progress.get("sync_queued") or 0) - pending)
         progress["sync_pending"] = pending
+    if output_counts is None:
+        output_counts = orch_delivery.output_counts([task])
+    progress["output_delivery"] = output_counts.get(task_id) or {"pending": 0, "dead_letter": 0, "delivered": 0}
     return progress
 
 
@@ -396,6 +415,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
     name = str(payload.get("name") or "").strip()
     task = orch_store.create_task({
         "name": name,
+        "source": orch_sources.ORCH_SOURCE_VOCAB_BOOK,
         "book": {
             "source_key": source_key,
             "title": str(book.get("title") or source_key),
@@ -409,6 +429,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
         "new_only_max_read_count": max(0, int(payload.get("new_only_max_read_count") or 0)),
     })
     orch_books.sync_book_sentences(source_key)
+    orch_events.publish_task_changed(task)
     return {"success": True, "task": task}
 
 
@@ -437,6 +458,8 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         elif field == "name":
             value = str(value or "").strip() or task.get("name")
         elif field == "book":
+            if orch_sources.is_text_task(task):
+                continue
             if not isinstance(value, dict) or not str(value.get("source_key") or "").strip():
                 continue
             value = {
@@ -454,24 +477,72 @@ def task_delete(task_id: str) -> Dict[str, Any]:
     task_id = str(task_id or "")
     if orch_generate.is_running(task_id):
         return {"success": False, "error": "task is generating"}
+    task = orch_store.get_task(task_id) or {"task_id": task_id}
     if not orch_store.delete_task(task_id):
         return {"success": False, "error": "task not found"}
     orch_resources.release_owner_queue(task_id)
+    orch_events.publish_task_changed(task, orch_events.TASK_STATUS_DELETED)
     return {"success": True}
+
+
+def _prune_text_tasks(source: str) -> None:
+    """Keep the newest ORCH_TEXT_TASK_RETENTION task records per text source."""
+    tasks = [
+        task for task in orch_store.list_tasks()
+        if orch_sources.task_source(task) == source
+    ]
+    tasks.sort(key=lambda task: int(task.get("created_at") or 0), reverse=True)
+    for task in tasks[orch_sources.ORCH_TEXT_TASK_RETENTION:]:
+        task_delete(str(task.get("task_id") or ""))
+
+
+def submit_text_task(
+    source: str,
+    items: Any,
+    name: str = "",
+    source_ref: Optional[Dict[str, Any]] = None,
+    generate: bool = True,
+    source_text: str = "",
+) -> Dict[str, Any]:
+    """Public submit API for non-book sources: text items -> one task (one
+    segment, sentence_en pattern) -> immediate generation through the normal
+    sentence audio path. ``source_text`` keeps the original text the items
+    were derived from (e.g. the raw prompt of a rewrite)."""
+    source = str(source or "").strip()
+    if source not in orch_sources.ORCH_TEXT_SOURCES:
+        return {"success": False, "error": "ORCH_SOURCE_UNKNOWN"}
+    sentences = orch_sources.build_text_sentences(items)
+    if not sentences:
+        return {"success": False, "error": "ORCH_TEXT_ITEMS_REQUIRED"}
+    language = str(sentences[0].get("language") or "en")
+    task = orch_store.create_task({
+        "name": str(name or "").strip() or f"{source}_{time.strftime('%Y%m%d_%H%M%S')}",
+        "source": source,
+        "source_ref": dict(source_ref or {}),
+        "source_text": str(source_text or ""),
+        "sentences": sentences,
+        "segment_mode": "count",
+        "segment_value": 1,
+        "pattern": [{"type": "sentence_en" if language == "en" else "sentence_zh", "times": 1}],
+        "word_mode": "all",
+        "new_only_max_read_count": 0,
+    })
+    orch_events.publish_task_changed(task)
+    _prune_text_tasks(source)
+    generation = None
+    if generate:
+        generation = orch_generate.start_generation(str(task["task_id"]), use_qy_account=False)
+        if not generation.get("success"):
+            ColorPrint.yellow(f"[AudioOrch] submit_text generation not started for {task['task_id']}: {generation.get('error')}")
+    return {"success": True, "task": task, "generation": generation}
 
 
 def task_plan(task_id: str) -> Dict[str, Any]:
     task = orch_store.get_task(str(task_id or ""))
     if not task:
         return {"success": False, "error": "task not found"}
-    source_key = str((task.get("book") or {}).get("source_key") or "")
-    cached = orch_store.load_book_sentences(source_key)
-    sync = orch_books.sync_states().get(source_key) or {}
-    if sync.get("status") == "running":
-        return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
-    sentences = cached.get("sentences") if isinstance(cached, dict) else None
+    sentences = orch_sources.cached_task_sentences(task)
     if not sentences:
-        orch_books.sync_book_sentences(source_key)
         return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
     plan = orch_generate.plan_task(task, sentences)
     return {"success": True, **plan}
@@ -505,11 +576,15 @@ def task_progress(task_id: str) -> Dict[str, Any]:
     _recover_task_status(task)
     return {
         "success": True,
+        "source": orch_sources.task_source(task),
+        "source_ref": task.get("source_ref") or {},
         "status": task.get("status"),
         "running": orch_generate.is_running(str(task_id or "")),
         "resumable": orch_generate.has_resumable_state(task),
         "progress": _task_progress(task),
         "segments": task.get("segments") or [],
+        "generation_started_at": task.get("generation_started_at"),
+        "generation_finished_at": task.get("generation_finished_at"),
         "events": task.get("events") or [],
     }
 
@@ -588,6 +663,7 @@ def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_
                 "synced": bool(entry.get("synced")),
                 "sync_queued": bool(entry.get("sync_queued")),
                 "has_audio": bool(audio_path),
+                "resolved_at": entry.get("resolved_at"),
             })
     page_size = max(1, min(_MANIFEST_PAGE_MAX, int(page_size or 50)))
     total = len(rows)
@@ -705,6 +781,7 @@ __all__ = [
     "task_create",
     "task_update",
     "task_delete",
+    "submit_text_task",
     "task_plan",
     "task_generate",
     "task_cancel",

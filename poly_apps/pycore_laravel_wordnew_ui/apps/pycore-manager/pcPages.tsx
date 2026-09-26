@@ -6,7 +6,7 @@
 import React, { lazy } from 'react';
 import {
   ListOrdered, AppWindow, FolderSync, Terminal,
-  Settings, Library, Sparkles, History, BookOpen, type LucideIcon,
+  Settings, Library, Sparkles, History, BookOpen, AudioLines, type LucideIcon,
 } from 'lucide-react';
 
 export const PcQueueCenterPage = lazy(() => import('./pages/PcQueueCenterPage'));
@@ -33,6 +33,10 @@ export const PcTaskLogPage = lazy(() => import('./pages/PcTaskLogPage'));
 // shared VocabularyLearning component because pycore-manager has a separate UI
 // composition and does not provide that component's shell contexts.
 export const PcVocabularyPage = lazy(() => import('./pages/PcVocabularyPage'));
+// Source-agnostic Audio Orchestration (vocabulary books, prompt rewrites, ...).
+// Formerly the Vocabulary `?tab=audio-orch` tab; that link redirects here
+// (PC_LEGACY_TAB_REDIRECTS).
+export const PcAudioOrchestrationPage = lazy(() => import('./pages/PcAudioOrchestrationPage'));
 // OKX market data lives ONLY in /vortex (apps/vortex/OkxBacktestPanel.tsx, the
 // "OKX 回测" tab). It is intentionally NOT surfaced in /pycore-manager — the crypto
 // backtest belongs to the Vortex app, not the operator panel. Do not re-add a
@@ -61,6 +65,7 @@ export const PC_PAGES: PcPageDef[] = [
   // Vocabulary - dictionary words / libraries / statistics / translate / TTS
   // queue through the browser-owned Laravel API client.
   { id: 'vocabulary', labelKey: 'nav.vocabulary', Icon: BookOpen, Component: PcVocabularyPage },
+  { id: 'audio-orchestration', labelKey: 'nav.audioOrchestration', Icon: AudioLines, Component: PcAudioOrchestrationPage },
   // "AI & Pycore Capabilities" — Translate / Image Search / Subtitle Search are
   // now sub-tabs inside this page (+ a unified usage-History tab), not separate
   // sidebar entries; their old routes redirect to /ai?tab=… (see PcApp.tsx).
@@ -69,4 +74,15 @@ export const PC_PAGES: PcPageDef[] = [
   { id: 'task-log', labelKey: 'nav.taskLog', Icon: History, Component: PcTaskLogPage },
   // NOTE: no OKX entry here — OKX market/backtest lives only in /vortex (see comment above).
   { id: 'settings', labelKey: 'nav.settings', Icon: Settings, Component: PcSettingsPage, bottom: true },
+];
+
+/** Former in-page tabs that became their own page: `/<page>?tab=<tab>` -> `/<to>`. */
+export interface PcLegacyTabRedirect {
+  page: string;
+  tab: string;
+  to: string;
+}
+
+export const PC_LEGACY_TAB_REDIRECTS: PcLegacyTabRedirect[] = [
+  { page: 'vocabulary', tab: 'audio-orch', to: 'audio-orchestration' },
 ];

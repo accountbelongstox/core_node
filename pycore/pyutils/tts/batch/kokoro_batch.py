@@ -23,13 +23,15 @@ Standalone:
 import os
 import time
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import call_serialized
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
 import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 from pycore.pyutils.common.managed_service import managed_services
+from pycore.pyutils.tts import runtime_profile, word_audio_cache
+from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
@@ -176,8 +178,49 @@ def synthesize_words(
     return result
 
 
+def synthesize_words_to_cache(words: Sequence[str], lang: str, out_dir: Path) -> List[Dict[str, Any]]:
+    """The ONE pinned word-batch entry (word_audio lane + audio orchestration).
+
+    Runs a single Kokoro batch, validates every clip and stores it in the
+    unified word_audio_cache under ``runtime_profile.WORD_BATCH_ENGINE``.
+    Returns one ``{text, ok, audio_path, scratch, provider, error}`` per input
+    word, in order; ``scratch`` marks an ``out_dir`` file the caller owns
+    (only when the cache store failed).
+    """
+    provider = runtime_profile.WORD_BATCH_ENGINE
+    result = synthesize_words(list(words), lang, out_dir)
+    outcomes: List[Dict[str, Any]] = []
+    for index, word in enumerate(words):
+        item = result.items[index] if index < len(result.items) else None
+        outcome: Dict[str, Any] = {
+            "text": word, "ok": False, "audio_path": "", "scratch": False, "provider": provider, "error": "",
+        }
+        outcomes.append(outcome)
+        if item is None or not item.ok:
+            outcome["error"] = item.error if item is not None and item.error else "Kokoro batch synthesis produced no audio"
+            continue
+        output_path = str(item.output_path)
+        valid, detail = validate_mp3(output_path)
+        if not valid:
+            outcome["error"] = f"invalid Kokoro batch audio: {detail}"
+            continue
+        word_audio_cache.save_to_cache(word, lang, provider, output_path)
+        cache_path = word_audio_cache.get_cache_path(word, lang, provider)
+        outcome["ok"] = True
+        if os.path.exists(cache_path) and validate_mp3(cache_path)[0]:
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+            outcome["audio_path"] = cache_path
+        else:
+            outcome["audio_path"] = output_path
+            outcome["scratch"] = True
+    return outcomes
+
+
 if __name__ == "__main__":
     batch_common.run_batch_cli(_ENGINE, synthesize_words)
 
 
-__all__ = ["synthesize_words"]
+__all__ = ["synthesize_words", "synthesize_words_to_cache"]

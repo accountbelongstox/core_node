@@ -347,6 +347,7 @@ class AppQyV1SentenceAudioService
             $this->reconcilePresent($sentence, $relativePath);
             $this->clearLease($sentence);
             $sentence->saveRecord();
+            app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
             return [
                 'ok' => true,
                 'status' => 'completed',
@@ -415,6 +416,7 @@ class AppQyV1SentenceAudioService
             $sentence->tts_status = 'pending';
         }
         $sentence->saveRecord();
+        app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
 
         Log::info('[SentenceAudio] Worker result accepted', [
             'content_id' => $contentId,

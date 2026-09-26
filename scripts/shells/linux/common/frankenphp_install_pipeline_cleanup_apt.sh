@@ -39,7 +39,7 @@ frankenphp_install_pipeline_cleanup_apt() {
     $USE_SUDO systemctl stop frankenphp.service >/dev/null 2>&1
     $USE_SUDO systemctl disable frankenphp.service >/dev/null 2>&1
 
-    for package in "${FRANKENPHP_APT_PACKAGES[@]}"; do
+    for package in "$FRANKENPHP_APT_REDIS_PACKAGE" "${FRANKENPHP_APT_PACKAGES[@]}"; do
         if [ "$(fm_apt_package_installed "$package")" = "yes" ]; then
             echo "[${FRANKENPHP_INSTALL_INDEX}] retiring non-owner apt package: ${package}"
             $USE_SUDO apt-get purge -y "$package"

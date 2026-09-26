@@ -276,7 +276,7 @@
 6. 接线场景必须覆盖：用户将单词引擎分别设为 cosyvoice、melotts、fishspeech、voxcpm2、gptsovits 时，各走对应本地服务；相同配置下句子仍走 Qwen。缺参考音频时显示具体问题，单词引擎设置不得影响句子配置。
 7. RPC 扩展限定于 `local_word_tts_routes.py` 及 `tts_routes.py` 的单词调用路径；`local_tts_status_routes.py` 可展示底层长文本能力，但业务用途仍标为 word。`local_sentence_audio_routes.py` 保留原有 Qwen 接线和协议。通用入口依据既有业务上下文限制候选，句子不能借显式 engine 参数绕过限制；路由里不实现安装或合成业务。
 8. 仅扩展 `word_audio_cache.py` 的 key，纳入 engine、模型 revision、voice/reference 摘要、语言、语速和影响声音的参数；旧缓存保留可读，不能跨模型误命中。`sentence_audio_cache.py` 的键、读取、失效与已有 Qwen 缓存行为保持不变。记录单词实际 engine，不用计划 engine 冒充。
-9. worker 上报复用 `audio_delivery_outbox.py` 与原有重试/去重机制；生成成功和上传成功分状态。长文本只入队一次完整文件，上传重试复用文件，不重新生成。失败不写成功缓存，不确认任务完成。
+9. worker 上报复用共享投递层 `pycore/pyutils/laravel/delivery_outbox.py`（2026-09-27 起取代 `audio_delivery_outbox.py`）与原有重试/去重机制；生成成功和上传成功分状态。长文本只入队一次完整文件，上传重试复用文件，不重新生成。失败不写成功缓存，不确认任务完成。
 10. backend payload 保持现有必需字段，新增信息只在接收端允许处传递；未确认接收契约前不能随意增加服务端必填项。若确需 Laravel 变更，另读 LARAVEL_GUIDE 再作最小改动。
 11. 单词 worker 历史优先记录本次 result 的实际分块统计，兼容旧结果缺字段；不借此改写 Qwen 句子历史协议。默认任务并发不能绕过每服务串行和 single-active 约束；新单词服务不得中断在途 Qwen 句子生成。
 12. 若现有 UI 引擎列表写死，仅更新单词候选和 i18n；句子选择继续现有 Qwen 行为。底层 capability 中的长文本支持与业务 allowed task types 分开表示，不建设新仪表盘。

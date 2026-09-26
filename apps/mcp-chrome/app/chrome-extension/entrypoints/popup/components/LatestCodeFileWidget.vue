@@ -11,29 +11,20 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { apiManager } from '@/services/ApiManager';
-import { DASHBOARD_CODE_LAST_MODIFIED_PATH } from '@/utils/api-paths';
+import { currentApiClient } from '@/services/ApiManager';
+import { TaskCenterApiClient, type CodeLastModified } from '@/services/TaskCenterApiClient';
+import { getMessage } from '@/utils/i18n';
 
 // Poll cadence (10s per the requirement).
 const POLL_MS = 10000;
-const ENDPOINT = DASHBOARD_CODE_LAST_MODIFIED_PATH;
 
-interface LastModified {
-  last_modified_at: string | null;
-  last_modified_unix: number | null;
-  latest_file: string | null;
-  scanned_at: string | null;
-  scan_ms: number | null;
-  method: string | null;
-}
-
-const data = ref<LastModified | null>(null);
+const data = ref<CodeLastModified | null>(null);
 const ok = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const baseName = computed<string>(() => {
   const path = data.value?.latest_file;
-  if (!path) return 'n/a';
+  if (!path) return getMessage('valueNotAvailable');
   const parts = path.split(/[\\/]/);
   return parts[parts.length - 1] || path;
 });
@@ -50,29 +41,21 @@ const rel = computed<string>(() => {
 });
 
 const tooltip = computed<string>(() => {
-  if (!ok.value) return 'laravel_main latest file: backend unreachable';
+  if (!ok.value) return getMessage('latestCodeFileUnreachable');
   const d = data.value;
   const lines = [
-    `Latest changed file: ${d?.latest_file || 'n/a'}`,
-    d?.last_modified_at ? `Modified: ${d.last_modified_at}` : '',
-    d?.method ? `Scan: ${d.method} (${d.scan_ms ?? '?'}ms)` : '',
+    getMessage('latestCodeFileLatest', [d?.latest_file || getMessage('valueNotAvailable')]),
+    d?.last_modified_at ? getMessage('latestCodeFileModified', [d.last_modified_at]) : '',
+    d?.method ? getMessage('latestCodeFileScan', [d.method, String(d.scan_ms ?? '?')]) : '',
   ];
   return lines.filter(Boolean).join('\n');
 });
 
-const apiBase = (): string => (apiManager.getCurrentBaseUrl() || '').replace(/\/+$/, '');
-
 const poll = async (): Promise<void> => {
-  const base = apiBase();
-  if (!base) {
-    ok.value = false;
-    return;
-  }
   try {
-    const resp = await fetch(`${base}${ENDPOINT}`, { cache: 'no-store' });
-    const body = await resp.json().catch(() => null);
-    if (resp.ok && body && body.success && body.data) {
-      data.value = body.data as LastModified;
+    const latest = await currentApiClient(TaskCenterApiClient).codeLastModified();
+    if (latest) {
+      data.value = latest;
       ok.value = true;
     } else {
       ok.value = false;

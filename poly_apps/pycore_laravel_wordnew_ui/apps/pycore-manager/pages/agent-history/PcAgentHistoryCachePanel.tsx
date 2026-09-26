@@ -12,12 +12,14 @@ import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AgentHistoryPromptCacheItem } from '@/apps/pycore-manager/api';
 import { PAGE_SIZE, toolLabel, toolPill } from './presentation';
 import PcPager from './PcPager';
+import PcAgentHistoryPromptRewrite, { type PromptRewriteMap } from './PcAgentHistoryPromptRewrite';
 
 const PcAgentHistoryCachePanel: React.FC<{
   tk: (k: string) => string;
   /** Bumped by the page whenever a prompt-new event arrives. */
   bump: number;
-}> = ({ tk, bump }) => {
+  rewrites: PromptRewriteMap;
+}> = ({ tk, bump, rewrites }) => {
   const [items, setItems] = useState<AgentHistoryPromptCacheItem[]>([]);
   const [namespaces, setNamespaces] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
@@ -103,6 +105,7 @@ const PcAgentHistoryCachePanel: React.FC<{
               <div className="mt-1.5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">
                 {p.text}
               </div>
+              <PcAgentHistoryPromptRewrite rewrite={rewrites[p.id]} tk={tk} />
             </div>
           ))
         )}

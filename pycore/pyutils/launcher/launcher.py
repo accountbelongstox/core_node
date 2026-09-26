@@ -38,17 +38,17 @@ import os
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime, run_background
 
-from pycore.pyutils.launcher.screen_manager import ScreenManager
+from pycore.pyfoundations.pybasecommon.timed_input import stdin_is_interactive
+from pycore.pyutils.launcher.screen_manager import ScreenManager, create_screen_manager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.wt_launcher import WindowsTerminalLauncher
 from pycore.pyutils.launcher.editor_launcher import EditorLauncher
-from pycore.pyutils.launcher.script_generator import ScriptGenerator
-from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.menu import InteractiveMenu
-from pycore.pyfoundations.process_manager import ProcessManager
-from pycore.pyutils.launcher.launch_guard import is_app_running, resolve_launch_path
+from pycore.pyutils.launcher.grid_profile import resolve_terminal_grid
+from pycore.pyutils.launcher.app_slots import launch_configured_apps
+from pycore.pyutils.launcher.service_orchestrator import run_launcher_service_prompts
 
 # ============================================================================
 # Re-exports: implementations split into sibling modules (public API preserved).
@@ -120,7 +120,6 @@ def main():
     # Load configuration and find applications
     config_manager = ConfigManager()
     app_finder = AppFinder()
-    script_generator = ScriptGenerator()
 
     # Fix version names (migrate old format to English) in config only
     apps_config = config_manager.get_applications_config()
@@ -234,13 +233,11 @@ def main():
     measurements_config = config_manager.get_measurements_config()
     calibration_config = config_manager.get_calibration_config()
 
-    if term_config.get('enabled', True) and term_config.get('toggle') != 'DISABLE':
-        # Update grid columns and rows from config
-        grid_columns = term_config.get('columns', 3)
-        grid_rows = term_config.get('rows', 2)
-    else:
-        grid_columns = 0
-        grid_rows = 0
+    # Configured grid, or the resolution profile (2K 5x3 / 4K 6x3) when
+    # terminal.auto_grid is on; the detected screen is reused for the layout.
+    terminal_grid = resolve_terminal_grid(term_config, create_screen_manager())
+    grid_columns = terminal_grid.columns
+    grid_rows = terminal_grid.rows
 
     # Launch based on configuration
     if grid_columns > 0 and grid_rows > 0:
@@ -288,88 +285,21 @@ def main():
             window_chrome_horizontal_px=window_chrome.get('horizontal_padding_px', 24),
             window_chrome_content_scale=window_chrome.get('content_scale', 0.78),
             window_chrome_gap_horizontal_px=window_chrome.get('gap_horizontal_px', 16),
-            window_chrome_gap_vertical_px=window_chrome.get('gap_vertical_px', 24)
+            window_chrome_gap_vertical_px=window_chrome.get('gap_vertical_px', 24),
+            screen_rect=terminal_grid.screen_rect
         )
 
         # Launch windows (idempotent: WindowLauncher tops up only the deficit).
         launcher.launch_windows()
-    else:
-        ColorPrint.plain("Terminal launching is disabled")
 
-    # Launch configured applications using explorer executor (via bat files)
-    apps_config = config_manager.get_applications_config()
-    executor = ExplorerExecutor()
-    process_manager = ProcessManager()
-    launched_exe_paths = set()
+    # One browser (chrome), one code editor (cursor, then codex) and the system
+    # default text editor; running slots are skipped and every app outlives
+    # the launcher.
+    launch_configured_apps(config_manager, app_finder)
 
-    for app_name, app_config in apps_config.items():
-        if not app_config.get('enabled', False):
-            ColorPrint.plain(f"\nSkipping {app_name} (disabled in config).")
-            continue
-
-        # vscode is intentionally not launched by this flow anymore.
-        if app_name == 'vscode':
-            ColorPrint.plain(f"\nSkipping {app_name} (not launched by this flow).")
-            continue
-
-        # Platform gate: wechat/notepad++ launch on Windows only; texteditor is
-        # the Linux default-editor slot (replaces notepad++ there).
-        if not app_finder.is_supported_on_platform(app_name):
-            ColorPrint.plain(f"\nSkipping {app_name} (not launched on this platform).")
-            continue
-
-        launch_as_admin = app_name == 'aiassistant'
-
-        # Resolve path before the running check so chrome stable is not skipped
-        # when only edge (portable chrome.exe) or another chrome variant is open.
-        app_path = resolve_launch_path(app_name, app_config, app_finder)
-        resolved_app_path = None
-        if app_path:
-            try:
-                resolved_app_path = Path(app_path).resolve()
-            except OSError:
-                resolved_app_path = Path(app_path)
-            if resolved_app_path in launched_exe_paths:
-                ColorPrint.plain(f"\nSkipping {app_name} (same executable already launched in this run).")
-                continue
-
-        if is_app_running(app_name, process_manager, app_finder, exe_path=app_path):
-            ColorPrint.plain(f"\nSkipping {app_name} (already running).")
-            continue
-
-        if app_path:
-            launch_label = app_name
-            if app_name == 'edge':
-                launch_label = 'edge (Chrome portable)'
-            ColorPrint.plain(f"\nLaunching {launch_label}{' (as administrator)' if launch_as_admin else ''}...")
-            try:
-                app_path_obj = Path(app_path)
-
-                if app_path_obj.exists():
-                    # Windows: write a launch .bat (legacy/diagnostic) first.
-                    # Linux: skip it (an unrunnable, stray .bat artifact) and just
-                    # launch the binary independently.
-                    if platform.system() == 'Windows' and not launch_as_admin:
-                        temp_bat = script_generator.get_temp_dir() / f'launch_{app_name}.bat'
-                        bat_content = f'@echo off\r\nstart "" "{app_path}"\r\n'
-                        with open(temp_bat, 'w', encoding='utf-8', newline='\r\n') as f:
-                            f.write(bat_content)
-                    if launch_as_admin:
-                        executor.execute_as_admin(app_path)
-                    else:
-                        # Launch independently (explorer on Windows; exec/xdg-open on Linux).
-                        executor.execute_file(app_path, independent=True)
-                    if resolved_app_path is not None:
-                        launched_exe_paths.add(resolved_app_path)
-                    ColorPrint.plain(f"  Launched: {app_path}")
-                else:
-                    ColorPrint.plain(f"  Error: Application path does not exist: {app_path}")
-            except Exception as e:
-                ColorPrint.plain(f"Failed to launch {app_name}: {e}")
-        elif launch_as_admin:
-            ColorPrint.plain(f"\nSkipping {app_name} (no AIAssistant*.exe found in Downloads).")
-        elif app_name in ('chrome', 'chrome_beta', 'edge'):
-            ColorPrint.plain(f"\nSkipping {app_name} (Chrome executable not found).")
+    # Offer laravel_main / mcp-chrome / nexus-dash background services: running
+    # ones are skipped, the rest are started or installed after a timed Y/n.
+    run_launcher_service_prompts(config_manager, interactive=(not no_pause) and stdin_is_interactive())
 
     # Pause to view output, wait for 'y' or Enter to continue.
     # Headless (auto-start) runs skip this pause so the launcher exits on its own.

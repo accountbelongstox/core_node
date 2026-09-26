@@ -14,19 +14,13 @@ import { WordNewDailyReadingEnglishResourceBar } from './WordNewDailyReadingEngl
 import { countSentenceWordsAddedToTargetGroup } from '../../services/WordNewSentenceWordTable';
 import { useAutoCollapseWhilePlaying } from '../../hooks/useAutoCollapseWhilePlaying';
 import { WordNewDailyReadingResourcePreview } from './WordNewDailyReadingResourcePreview';
+import { formatClockTime } from '../../utils/WordNewTimeFormat';
 
 interface Props {
   player: DailyReadingPlayer;
   trans: (k: string, r?: Record<string, string | number>) => string;
   /** Stop playback and navigate back to the wordnew home tab. */
   onGoHome?: () => void;
-}
-
-function fmtTime(sec: number): string {
-  if (!Number.isFinite(sec) || sec <= 0) return '0:00';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, trans, onGoHome }) => {
@@ -104,8 +98,8 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                 />
               </div>
               <div className="flex justify-between text-[10px] font-mono text-zinc-500">
-                <span>{fmtTime(currentTime)}</span>
-                <span>{fmtTime(duration)}</span>
+                <span>{formatClockTime(currentTime)}</span>
+                <span>{formatClockTime(duration)}</span>
               </div>
             </div>
           )}

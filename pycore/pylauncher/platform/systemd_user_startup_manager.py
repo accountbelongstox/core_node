@@ -32,6 +32,9 @@ from pycore.pylauncher.platform.linux_autostart_common import (
     disable_xdg_autostart,
 )
 
+# Targets whose main process is the short-lived window launcher.
+LAUNCHER_EXIT_TARGETS = ("launcher", "both")
+
 
 class SystemdUserStartupManager:
     """Auto-start via the fixed .sh (built by LinuxAutostartScript) + a systemd --user unit."""
@@ -57,6 +60,11 @@ class SystemdUserStartupManager:
 
     def _unit_text(self) -> str:
         sh = str(self.sh_path)
+        # The launcher exits right after spawning its terminal grid, apps and
+        # (for "both") pyservice; the default control-group KillMode would then
+        # kill all of them with the unit. KillMode=process only signals the main
+        # process, so everything the launcher started keeps running.
+        kill_mode = "KillMode=process\n" if self._script.target in LAUNCHER_EXIT_TARGETS else ""
         return (
             "[Unit]\n"
             "Description=PyCore RPC Server auto-start\n"
@@ -65,6 +73,7 @@ class SystemdUserStartupManager:
             "Type=simple\n"
             f'ExecStart=/bin/bash "{sh}"\n'
             "Restart=on-failure\n"
+            f"{kill_mode}"
             "\n"
             "[Install]\n"
             "WantedBy=default.target\n"
@@ -157,9 +166,12 @@ class SystemdUserStartupManager:
         return self.disable() if self.is_enabled() else self.enable()
 
     def refresh(self) -> bool:
-        """If enabled, rewrite the fixed launcher .sh in place (self-heal)."""
+        """If enabled, rewrite the fixed launcher .sh (and a drifted unit) in place (self-heal)."""
         if not self.is_enabled():
             return False
+        if self.unit_path.exists() and self.unit_path.read_text(encoding="utf-8") != self._unit_text():
+            if self._write_unit():
+                self._run(["systemctl", "--user", "daemon-reload"])
         try:
             self._script.write_sh()
             return True
