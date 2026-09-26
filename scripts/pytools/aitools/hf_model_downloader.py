@@ -26,8 +26,6 @@ def setup_hf_environment(cache_dir: Optional[str] = None):
         if cache_dir is None:
             if os.environ.get('HF_HOME'):
                 cache_dir = os.environ['HF_HOME']
-            elif sys.platform == 'win32':
-                cache_dir = r'D:\www\cache\huggingface'
             else:
                 cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
 

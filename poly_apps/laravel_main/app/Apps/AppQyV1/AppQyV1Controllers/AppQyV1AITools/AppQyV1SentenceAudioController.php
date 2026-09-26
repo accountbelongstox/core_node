@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
@@ -24,6 +26,7 @@ use Symfony\Component\HttpFoundation\Response;
  *   POST /api/app_qy_v1/ai_tools/tts/sentence/claim   (compatibility claim)
  *   POST /api/app_qy_v1/ai_tools/tts/sentence/report  (pycore validated report)
  *   GET  /api/app_qy_v1/ai_tools/tts/sentence/audio   (FE file-first resolve)
+ *   GET  /api/app_qy_v1/ai_tools/tts/sentence/without_audio (pycore full pull)
  *
  * Plus the dedicated /static serve route that maps the public sentence-audio
  * URL back onto PathMapper::getAppQyV1SentenceSoundsDir():
@@ -332,6 +335,70 @@ class AppQyV1SentenceAudioController extends Controller
             return response()->json(['success' => false, 'error' => 'Internal error during queue-head update'], 500);
         }
         return response()->json(array_merge(['success' => true], $result), 200);
+    }
+
+    /**
+     * GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio
+     *   ?language=<code>&cursor_id=<id>&limit=<=1000
+     *
+     * READ-ONLY keyset listing of library sentences still lacking audio
+     * (has_audio false or NULL) — the sentence_audio backlog. pycore's sentence
+     * full pull pages it into Part2 (the Laravel backlog part) of its local
+     * sentence_audio Queue (docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md
+     * §5.4) and reports generated audio through /sentence/report by content_id;
+     * it never enqueues into Laravel's queue here. Without `language` it
+     * returns the per-language backlog sizes so the caller can plan the pull.
+     *
+     * Response: { success, data: { language, items:[{id, content_id, text,
+     * language}], next_cursor, has_more, total? } } or
+     * { success, data: { languages:[{language, without_audio}] } }.
+     */
+    public function withoutAudio(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'language' => 'nullable|string|max:20',
+            'cursor_id' => 'nullable|integer|min:0',
+            'limit' => 'nullable|integer|min:1|max:1000',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $validator->errors()->first(),
+            ], 422);
+        }
+        $language = trim((string) $request->query('language', ''));
+        if ($language === '') {
+            $languages = [];
+            foreach (AppQyV1TableMaps::getSupportedLanguages() as $code) {
+                $count = AppQyV1LangSentenceModel::withoutAudioCount((string) $code);
+                if ($count > 0) {
+                    $languages[] = ['language' => (string) $code, 'without_audio' => $count];
+                }
+            }
+            return response()->json(['success' => true, 'data' => ['languages' => $languages]]);
+        }
+        $code = AppQyV1TableMaps::normalizeLangCode($language);
+        $cursor = (int) $request->query('cursor_id', 0);
+        $limit = (int) $request->query('limit', 1000);
+        $rows = AppQyV1LangSentenceModel::withoutAudioKeysetPage($code, $cursor, $limit + 1);
+        $hasMore = $rows->count() > $limit;
+        $rows = $rows->take($limit)->values();
+        $last = $rows->last();
+        $data = [
+            'language' => $code,
+            'items' => $rows->map(static fn ($row): array => [
+                'id' => (int) $row->id,
+                'content_id' => (string) $row->content_id,
+                'text' => (string) $row->text,
+                'language' => (string) ($row->language ?: $code),
+            ])->all(),
+            'next_cursor' => $last !== null ? (int) $last->id : $cursor,
+            'has_more' => $hasMore,
+        ];
+        if ($cursor === 0) {
+            $data['total'] = AppQyV1LangSentenceModel::withoutAudioCount($code);
+        }
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**

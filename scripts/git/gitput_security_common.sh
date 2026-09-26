@@ -150,32 +150,24 @@ test_win_common_files() {
 # Global variable management function
 get_global_var() {
     local key="$1"
-    local global_var_dir
-    
-    # Determine global variable directory (same logic as gvar_common.sh)
-    if [ -d "/mnt/c/Users" ]; then
-        # WSL environment
-        for user_dir in /mnt/c/Users/*; do
-            if [ -d "$user_dir/.core_node/global_var" ]; then
-                global_var_dir="$user_dir/.core_node/global_var"
-                break
-            fi
-        done
-    fi
-    
-    # Fallback to default directory
-    if [ -z "$global_var_dir" ]; then
-        global_var_dir="/usr/core_node/global_var"
-    fi
-    
-    local file_path="$global_var_dir/$key"
-    if [ -f "$file_path" ]; then
-        # Convert file to UTF-8 and remove any null bytes or invalid characters
-        local value=$(iconv -f utf-8 -t utf-8 -c "$file_path" 2>/dev/null | tr -d '\0' | head -n 1)
+    local global_var_dir=""
+    local file_path=""
+    local value=""
+
+    for global_var_dir in \
+        "$CORE_NODE_GLOBAL_VAR_DIR" \
+        "$LEGACY_CORE_NODE_DATA_DIR/global_var" \
+        "$HOME/.core_node/global_var"; do
+        file_path="$global_var_dir/$key"
+        if [ ! -f "$file_path" ]; then
+            continue
+        fi
+        value=$(iconv -f utf-8 -t utf-8 -c "$file_path" 2>/dev/null | tr -d '\0' | head -n 1)
         if [ -n "$value" ]; then
             echo "$value"
+            return 0
         fi
-    fi
+    done
 }
 
 # Function to ensure SSH key permissions are correct
@@ -533,4 +525,3 @@ ensure_ssh_keys_installed() {
 
     return 0
 }
-

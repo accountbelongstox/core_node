@@ -66,6 +66,7 @@ apply_shared_cache_env()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
@@ -249,10 +250,12 @@ if __name__ == '__main__':
         ColorPrint.blue("[Main] TTS self-check gate: running sweep before services start")
         run_selfcheck()
         os.environ.pop(TTS_STARTUP_SELFCHECK_ENV, None)
-    # Pin the global TTS runtime profile (the configurator) BEFORE services
-    # start: after the --tts-selfcheck sweep handed RAM/GPU back, or directly
-    # otherwise. Once pinned it is fixed in memory for the process lifetime.
-    runtime_profile.pin_runtime_profile()
+    # Pin the global TTS runtime profile (the configurator) after the
+    # --tts-selfcheck sweep handed RAM/GPU back. GPU probing (nvidia-smi +
+    # CUDA init) takes 30s+, so it runs in the background: every reader goes
+    # through the locked, idempotent pin_runtime_profile() and waits for it,
+    # while the RPC server and tray bind immediately.
+    start_bus_task(runtime_profile.pin_runtime_profile, thread_name="TtsRuntimeProfilePinThread")
     reload_enabled = True
     if args.no_reload or os.environ.get('PYCORE_NO_RELOAD', '') in ('1', 'true', 'True'):
         reload_enabled = False

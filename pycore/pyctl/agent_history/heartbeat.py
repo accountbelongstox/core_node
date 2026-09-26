@@ -24,6 +24,8 @@ from pycore.pyctl.agent_history.tick_service import (
     agent_history_tick_service,
 )
 from pycore.pyctl.agent_history.video_pipeline import tick_video
+from pycore.pyctl.agent_history.pipeline.worker import recover_nonterminal_operations
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 VIDEO_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_VIDEO_INTERVAL", "2"))
 CALLBACK_VIDEO = "agent_history_video"
@@ -79,6 +81,9 @@ def register_agent_history_extraction() -> None:
     """
     heartbeat = shared_heartbeat_system
     service = agent_history_tick_service
+    # Operation recovery scans the state DB (10s+): background, never on the
+    # route-registration / server-bind path.
+    start_bus_task(recover_nonterminal_operations, thread_name="AgentHistoryOperationRecoveryThread")
     pipeline_on = _config_enabled()
     video_on = bool((user_data_store.get_section("agent_history_article") or {}).get("video_enabled", False))
     extract_on = True

@@ -208,9 +208,9 @@ def _extract_sentence(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any], bool]:
     """Fetch one sentence page; returns (data, next cursor, finished).
 
-    Keyset mode (``after_seq``; no OFFSET / COUNT on Laravel) is used when
-    the server supports it; an older server ignores ``after_seq`` and
-    answers page 1, detected by the missing ``next_after_seq`` — the walk
+    Keyset mode (``after_seq`` + ``after_id``; no OFFSET / COUNT on Laravel)
+    is used when the server supports it; an older server ignores the cursor
+    and answers page 1, detected by the missing ``next_after_seq`` — the walk
     then continues with page numbers.
     """
     params: Dict[str, Any] = {
@@ -220,6 +220,7 @@ def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, A
     }
     if cursor.get("mode") != "page":
         params["after_seq"] = int(cursor.get("after_seq") or 0)
+        params["after_id"] = int(cursor.get("after_id") or 0)
     else:
         params["page"] = int(cursor.get("page") or 1)
     data = _get_page(_LARAVEL_BOOK_DETAIL.format(source_key=quote(source_key, safe="")), params)
@@ -229,7 +230,11 @@ def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, A
     if cursor.get("mode") != "page" and "next_after_seq" in page_data:
         next_after = page_data.get("next_after_seq")
         finished = not bool(page_data.get("has_more")) or next_after is None
-        return data, {"mode": "keyset", "after_seq": int(next_after or 0)}, finished
+        return data, {
+            "mode": "keyset",
+            "after_seq": int(next_after or 0),
+            "after_id": int(page_data.get("next_after_id") or 0),
+        }, finished
     page = int(page_data.get("current_page") or cursor.get("page") or 1)
     last_page = int(page_data.get("last_page") or page)
     return data, {"mode": "page", "page": page + 1}, page >= last_page
@@ -244,7 +249,7 @@ def _fetch_sentences_blocking(source_key: str) -> Dict[str, Any]:
     partial = orch_store.load_book_sentences_partial(source_key) or {}
     sentences: List[Dict[str, Any]] = list(partial.get("sentences") or [])
     source: Dict[str, Any] = dict(partial.get("source") or {})
-    cursor: Dict[str, Any] = dict(partial.get("cursor") or {"mode": "keyset", "after_seq": 0})
+    cursor: Dict[str, Any] = dict(partial.get("cursor") or {"mode": "keyset", "after_seq": 0, "after_id": 0})
     total = int(partial.get("total") or 0)
     attempt_at = int(time.time())
     while True:

@@ -19,22 +19,6 @@
 source "$DD_HELPER_DIR/constants.sh"
 
 determine_global_var_dir() {
-    local default_dir="/usr/core_node/global_var"
-    local wsl_users_path="/mnt/c/Users"
-    
-    [ -d "$wsl_users_path" ] && {
-        for user_dir in "$wsl_users_path"/*; do
-            [ -d "$user_dir" ] && {
-                local potential_dir="$user_dir/.core_node/global_var"
-                [ -d "$potential_dir" ] && {
-                    echo "$potential_dir"
-                    return 0
-                }
-            }
-        done
-    }
-    
-    echo "$default_dir"
+    echo "$GLOBAL_VAR_DIR"
     return 0
 }
-

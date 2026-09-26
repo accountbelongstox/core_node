@@ -1,5 +1,8 @@
 # Queue Timer Tasks → Realtime Query + In-Memory Diff Cache — Design & Progress
 
+> **Note (2026-09-26):** §1 item 2 ("full-sync ... Part1 fill") is corrected by
+> `docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md`: the pycore full pull is a Part2 mirror.
+
 Date: 2026-09-22
 Status: **SUPERSEDED** — implementation proceeded under
 `docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md` (binding design +

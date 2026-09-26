@@ -105,6 +105,7 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
         Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead']);
         Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
+        Route::get('/sentence/without_audio', [AppQyV1SentenceAudioController::class, 'withoutAudio']);
 
         // Voice-variant specs CRUD (per-lang accent/gender voices). Drives the
         // "N voices per sentence/word" default; count is dynamic via

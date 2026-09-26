@@ -37,8 +37,14 @@ param(
 )
 
 $script:PS_CURRENT_DIR = $PSScriptRoot
+$script:SCRIPTS_DIR = Split-Path $script:PS_CURRENT_DIR -Parent
+$script:SHELLS_DIR = Join-Path $script:SCRIPTS_DIR 'shells'
+$script:WIN_DIR = Join-Path $script:SHELLS_DIR 'win'
+$script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR 'win_common'
+$script:SHARED_CACHE_ENV_PATH = Join-Path $script:WIN_COMMON_DIR 'SharedCacheEnv.ps1'
+. $script:SHARED_CACHE_ENV_PATH
 $script:CHROME_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "fix-chrome-compat-shim.ps1"
-$script:CHROME_REPAIR_FALLBACK = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\scripts\chromefix" "fix-chrome-compat-shim.ps1"
+$script:CHROME_REPAIR_FALLBACK = Join-Path (Join-Path $Global:CORE_NODE_DATA_DIR 'scripts\chromefix') 'fix-chrome-compat-shim.ps1'
 
 $repairScript = $script:CHROME_REPAIR_SCRIPT
 if (-not (Test-Path $repairScript)) {

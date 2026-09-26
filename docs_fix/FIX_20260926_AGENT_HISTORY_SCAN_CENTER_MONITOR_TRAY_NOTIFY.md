@@ -350,3 +350,33 @@ needs the operator's decision. Options:
 2. Run the worker as root (the headless path): all users readable, but no tray.
 3. Run the agents as the desktop user.
 (ACLs do not work: agents create files with mode 0600, so the ACL mask on new files is `---`.)
+
+## 16. Added Requirement (2026-09-26, verbatim)
+
+> ``PROMPTsearchTOKEN``` 查找这个提示记事kimi2的实际是在那里，然后升级扫描 文档 目前没有找到提示记，也没有弹窗
+
+### 16.1 Where the Kimi2 prompt actually lives
+
+Typed in `kimi2` (Kimi Code 2.1.1, session `session_25552b6f-debd-4f8a-80cf-b27d39d52367`,
+cwd `/www/programing/core_node`). `HOME` = `/var/_core_node/Users/Kimi2` →
+`/www/www/core_node/Users/Kimi2`. It is recorded twice:
+
+| File | Record | Owner/mode | Readable by worker (`debian`) |
+|---|---|---|---|
+| `.kimi-code/sessions/wd_core_node_a9e430832dd8/session_25552b6f-…/agents/main/wire.jsonl` | `{"type":"turn.prompt","input":[{"type":"text","text":"PROMPTsearchTOKEN"}],"origin":{"kind":"user"}}` | `root 0600`, session dir `root 0700` | no |
+| `.kimi-code/user-history/f1a7733ae1c366bf6980b1f7376148fb.jsonl` (md5 of the work dir) | `{"content":"PROMPTsearchTOKEN"}` | `debian 0777` (pre-existing file) | yes |
+| `.kimi-code/sessions/…/state.json` | `lastPrompt` | `root` | no |
+
+### 16.2 Result
+
+- Scan: **detected**. The running pycore picked it up through `user-history` 43 s after
+  typing (23:29:08 → store written 23:29:51): `prompts.txt` + `prompt_new_cache/kimi.json`,
+  session `kimi__Kimi2__user-history-f1a7733…`. The wire copy (with session/title context)
+  stays unreadable until §15.3 is decided.
+- Popup: **root cause** — `notify-send` (package `libnotify-bin`) is not installed, so
+  `show_system_notification` fell through to the tkinter toast, which did not surface.
+  Fixed in `pycore/pyutils/desktop/system_notification.py`: the Linux path now calls the
+  freedesktop `org.freedesktop.Notifications.Notify` method directly via `gdbus` (GLib, always
+  present on GTK/GNOME/Xfce desktops), then `notify-send`, then the toast. Verified as the worker
+  user with the worker's session environment: the daemon accepted the call (id returned) and the
+  `PROMPTsearchTOKEN` notification was shown through `prompt_notify_service._on_prompt_new`.

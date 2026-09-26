@@ -11,7 +11,10 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const fs = require('fs');
-    const path = require('path');
+const path = require('path');
+const { getAppLogsDir } = require('../foundation/common/system_paths.js');
+const DIRECTORY_SCANNER_LOG_DIR = path.join(getAppLogsDir(), 'directory_scanner');
+const DIRECTORY_SCANNER_ADD_LOG = path.join(DIRECTORY_SCANNER_LOG_DIR, 'adddir.log');
 
     class DirectoryScanner {
         constructor() {
@@ -27,7 +30,8 @@ const fs = require('fs');
         }
 
         writeAddDir(message) {
-            this.writeLog('D:/programing/desktop_icondevelop/temp/log/adddir.log', message);
+            fs.mkdirSync(DIRECTORY_SCANNER_LOG_DIR, { recursive: true });
+            this.writeLog(DIRECTORY_SCANNER_ADD_LOG, message);
         }
 
         scanDirectory(dir) {

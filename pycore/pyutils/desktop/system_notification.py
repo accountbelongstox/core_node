@@ -3,10 +3,11 @@
 
 One call surfaces a notification on the user's desktop:
 
-- Linux/BSD: ``notify-send`` (libnotify CLI over the freedesktop
-  org.freedesktop.Notifications D-Bus API — the official mechanism; tray
-  indicators via AppIndicator/Ayatana SNI cannot display bubbles themselves).
-  Falls back to the tkinter toast stack when notify-send is unavailable.
+- Linux/BSD: the freedesktop ``org.freedesktop.Notifications.Notify`` D-Bus
+  call through ``gdbus`` (GLib, present on every GTK/GNOME/Xfce desktop; tray
+  indicators via AppIndicator/Ayatana SNI cannot display bubbles themselves),
+  then ``notify-send`` (libnotify-bin, often not installed), then the tkinter
+  toast stack.
 - Windows: the THREAD_BUS ``tray.show_notification`` event, handled by the
   owning tray backend (Qt ``QSystemTrayIcon.showMessage`` or the Win32
   ``Shell_NotifyIcon`` NIF_INFO balloon — rendered as a toast by the shell on
@@ -29,6 +30,10 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 TRAY_SHOW_NOTIFICATION_EVENT = "tray.show_notification"
+FDO_NOTIFY_DEST = "org.freedesktop.Notifications"
+FDO_NOTIFY_PATH = "/org/freedesktop/Notifications"
+FDO_NOTIFY_METHOD = "org.freedesktop.Notifications.Notify"
+NOTIFY_APP_NAME = "pycore"
 
 _MESSAGE_CAP = 240
 
@@ -39,6 +44,29 @@ def _display_available() -> bool:
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
+def _gdbus_notify(title: str, message: str, duration_ms: int) -> bool:
+    """freedesktop Notify over the session bus via gdbus (no libnotify needed)."""
+    binary = shutil.which("gdbus")
+    if not binary or not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        return False
+    try:
+        subprocess.Popen(
+            [
+                binary, "call", "--session",
+                "--dest", FDO_NOTIFY_DEST,
+                "--object-path", FDO_NOTIFY_PATH,
+                "--method", FDO_NOTIFY_METHOD,
+                NOTIFY_APP_NAME, "0", "", title, message, "[]", "{}",
+                str(max(1000, int(duration_ms))),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except OSError:
+        return False
+
+
 def _notify_send(title: str, message: str, duration_ms: int) -> bool:
     """freedesktop notification via the libnotify CLI. Linux/Unix only."""
     binary = shutil.which("notify-send")
@@ -46,7 +74,7 @@ def _notify_send(title: str, message: str, duration_ms: int) -> bool:
         return False
     try:
         subprocess.Popen(
-            [binary, "-a", "pycore", "-t", str(max(1000, int(duration_ms))), title, message],
+            [binary, "-a", NOTIFY_APP_NAME, "-t", str(max(1000, int(duration_ms))), title, message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -88,7 +116,7 @@ def show_system_notification(
             pass
         return _toast_fallback(title, message, duration_ms, copy_text)
 
-    if _notify_send(title, message, duration_ms):
+    if _gdbus_notify(title, message, duration_ms) or _notify_send(title, message, duration_ms):
         return True
     return _toast_fallback(title, message, duration_ms, copy_text)
 

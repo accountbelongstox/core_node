@@ -16,11 +16,12 @@ import {
   saveTtlCache,
   type OrchAuthStatus,
   type OrchBookItem,
+  type OrchSyncState,
   type OrchSystemStatus,
   type OrchTask,
   type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
-import { ORCH_L, orchErrorMessage } from './orchShared';
+import { ORCH_L, orchErrorMessage, orchSyncFailureMessage } from './orchShared';
 import { VocabBanner } from '../vocabShared';
 import { SHARED_BASE_URL_CHANGED_EVENT } from '../../../../../core/integrations/laravel/transport/BaseAPI';
 import OrchLoginPanel from './OrchLoginPanel';
@@ -45,6 +46,7 @@ const VocabAudioOrchTab: React.FC = () => {
   const [books, setBooks] = useState<OrchBookItem[]>([]);
   const [cachedSentenceBooks, setCachedSentenceBooks] = useState<Set<string>>(new Set());
   const [pendingSyncs, setPendingSyncs] = useState<Set<string>>(new Set());
+  const [bookSyncStates, setBookSyncStates] = useState<Record<string, OrchSyncState>>({});
   const [booksLoading, setBooksLoading] = useState(false);
   const [booksRefreshing, setBooksRefreshing] = useState(false);
   const [booksError, setBooksError] = useState<string | null>(null);
@@ -90,8 +92,12 @@ const VocabAudioOrchTab: React.FC = () => {
   const loadBooks = useCallback(async (refresh: boolean): Promise<boolean> => {
     if (requestsRef.current.books) return true;
     requestsRef.current.books = true;
-    setBooksLoading(true);
-    setBooksError(null);
+    // Only a user refresh spins the button; background polls stay silent
+    // (pycore's own fetch state drives the spinner via `refreshing`).
+    if (refresh) {
+      setBooksLoading(true);
+      setBooksError(null);
+    }
     try {
       const r = await pycoreApi.orchBooksList(refresh);
       if (!r.success) throw new Error(r.error || ORCH_L.loadFailed);
@@ -99,6 +105,7 @@ const VocabAudioOrchTab: React.FC = () => {
       const cachedKeys = new Set(r.cached_sentence_books || []);
       setCachedSentenceBooks(cachedKeys);
       const syncStates = r.sync_states || {};
+      setBookSyncStates(syncStates);
       setPendingSyncs((prev) => {
         const next = new Set<string>();
         prev.forEach((key) => {
@@ -113,9 +120,10 @@ const VocabAudioOrchTab: React.FC = () => {
         });
         return next;
       });
-      const syncFailure = r.sync?.status === 'failed' ? r.sync.error : null;
-      const sentenceFailure = Object.values(syncStates).find((state) => state.status === 'failed' && state.error)?.error;
-      if (syncFailure || sentenceFailure) setBooksError(String(syncFailure || sentenceFailure));
+      // The banner reflects ONLY the books-list attempt; a new attempt
+      // replaces the old record, and per-book sentence failures render on
+      // their own rows (with Retry) instead of hijacking the list banner.
+      setBooksError(r.sync?.status === 'failed' && !r.refreshing ? orchSyncFailureMessage(r.sync) : null);
       setBooksRefreshing(Boolean(r.refreshing));
       return Boolean(r.refreshing);
     } catch (e) {
@@ -260,12 +268,13 @@ const VocabAudioOrchTab: React.FC = () => {
         books={books}
         cachedSentenceBooks={cachedSentenceBooks}
         pendingSyncs={pendingSyncs}
+        syncStates={bookSyncStates}
         selectedKey={selectedBookKey}
         onSelect={(b) => setSelectedBookKey(b.source_key)}
         onNewTask={(b) => { setSelectedBookKey(b.source_key); setEditorTask(null); setEditorOpen(true); }}
         onRefresh={() => void refreshBooks()}
         onSyncStarted={(key) => setPendingSyncs((prev) => new Set(prev).add(key))}
-        loading={booksLoading}
+        loading={booksLoading || booksRefreshing}
         error={booksError}
       />
 

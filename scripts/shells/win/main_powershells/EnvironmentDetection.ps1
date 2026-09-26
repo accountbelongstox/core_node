@@ -13,9 +13,13 @@
 # Environment Detection Module (Windows PowerShell)
 # All code is in English only.
 
-# Ensure cache directory (centralized via SharedCacheEnv.ps1 $Global:WWW_CACHE_DIR;
-# literal fallback mirrors it for loaders that have not sourced SharedCacheEnv).
-$script:cacheRoot = if ($Global:WWW_CACHE_DIR) { $Global:WWW_CACHE_DIR } else { 'D:\www\cache' }
+# Ensure cache directory through the centralized Windows path constants.
+$script:MAIN_POWERSHELLS_DIR = $PSScriptRoot
+$script:WIN_DIR = Split-Path $script:MAIN_POWERSHELLS_DIR -Parent
+$script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR 'win_common'
+$script:SHARED_CACHE_ENV_PATH = Join-Path $script:WIN_COMMON_DIR 'SharedCacheEnv.ps1'
+. $script:SHARED_CACHE_ENV_PATH
+$script:cacheRoot = $Global:WWW_CACHE_DIR
 if (-not (Test-Path $script:cacheRoot)) {
     New-Item -ItemType Directory -Path $script:cacheRoot -Force | Out-Null
 }

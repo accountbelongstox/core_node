@@ -16,6 +16,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+RUNTIME_ENVIRONMENT="$ROOT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+source "$RUNTIME_ENVIRONMENT"
 
 # Color codes
 RED='\033[0;31m'
@@ -76,7 +78,7 @@ for service in "${services[@]}"; do
     echo "================================================"
 
     local service_file="/etc/systemd/system/${service}.service"
-    local launcher_script="/var/_core_node/unified_manager/temp_scripts/${service}.sh"
+    local launcher_script="$CORE_NODE_UNIFIED_MANAGER_LAUNCHER_DIR/${service}.sh"
 
     # Check if launcher script exists
     if [ ! -f "$launcher_script" ]; then

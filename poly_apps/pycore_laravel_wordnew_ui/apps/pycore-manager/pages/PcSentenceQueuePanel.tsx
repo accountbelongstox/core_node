@@ -20,9 +20,10 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreMa
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
 import { PcAudioDeliveryOutboxStatus } from '../components/PcAudioDeliveryOutboxStatus';
 import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
+import { PcAudioLaneFullSyncRow } from '../components/PcAudioLaneFullSyncRow';
 import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
-import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { normalizeWordAudioFullSyncStatus, QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
 
@@ -253,6 +254,12 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
           </span>
         )}
       </div>
+
+      <PcAudioLaneFullSyncRow
+        lane="sentence_audio"
+        status={normalizeWordAudioFullSyncStatus(lanes.payload?.lanes?.sentence_audio?.full_sync)}
+        enabled={hub.sectionContracts.sentence_audio.toggle.enabled}
+      />
 
       <PcAudioLaneQueueView
         lane="sentence_audio"

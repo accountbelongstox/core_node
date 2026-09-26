@@ -316,6 +316,17 @@ def get_app_cache_dir() -> Path:
     return _ensure_dir(get_system_cache_dir() / 'cache')
 
 
+def get_build_tool_cache_dir(tool_name: str) -> Path:
+    """Get a namespaced cache directory for repository build helper tools."""
+    normalized_name = ''.join(
+        character for character in tool_name.strip().lower()
+        if character.isalnum() or character in ('-', '_')
+    )
+    if not normalized_name:
+        raise ValueError('Tool name must not be empty')
+    return _ensure_dir(get_app_cache_dir() / 'build_tools' / normalized_name)
+
+
 def get_app_config_dir() -> Path:
     r"""
     Get application configuration directory

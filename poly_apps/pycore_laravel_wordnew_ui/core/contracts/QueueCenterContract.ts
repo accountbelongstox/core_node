@@ -494,6 +494,8 @@ export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordA
       stopped: lastResult.stopped == null ? undefined : toBoolean(lastResult.stopped),
       source: toNullableString(lastResult.source) ?? undefined,
       error: toNullableString(lastResult.error) ?? undefined,
+      error_code: toNullableString(lastResult.error_code) ?? undefined,
+      detail: toNullableString(lastResult.detail) ?? undefined,
     },
     languages: rawLanguages
       .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object')

@@ -247,6 +247,8 @@ class GlobalVarManager:
 
     def set(self, key: str, value: Any) -> Path:
         path = self._resolve_key(key)
+        if path.is_dir():
+            raise IsADirectoryError(path)
         textual = "" if value is None else str(value)
         path.write_text(textual, encoding="utf-8")
         return path

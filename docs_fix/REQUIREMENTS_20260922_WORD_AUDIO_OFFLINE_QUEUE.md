@@ -1,5 +1,25 @@
 # Word Audio Offline Queue — Development Requirements
 
+> **Status (2026-09-26): corrected by `docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md` §5.2/§5.4.** Still
+> valid: one persisted flag, cache-first boot, local tasks skip claim/result,
+> outbox delivery, Kokoro/CPU batch policy. Corrections:
+> - **Full pull fills Part2, not Part1.** It is a mirror of Laravel's
+>   word_audio dict-lane backlog (`audio_queue_center.accept_backlog`).
+>   Part1 is reserved for orchestration/manual priority. Old snapshots
+>   migrate at restore.
+> - Local task ids are `full_sync-word-<lang>-<md5>` (was `word-full-…`),
+>   built by the ONE `build_local_task`.
+> - Activation is generic for BOTH lanes: `pyctl/tts/audio_lane_activation.py`
+>   (replaces `activate_word_audio_queue`); boot is
+>   `event_handlers._start_audio_lane_boot_chain`. The sentence lane has its
+>   own full pull (`sentence_audio_full_sync`).
+> - `persist_snapshot` only marks the lane dirty. `AudioQueuePersistThread`
+>   writes debounced (5 s) plus a shutdown flush. `restore_from_cache` runs
+>   once per process.
+> - The full-sync status carries `error_code`/`detail`. The RPC
+>   `ui/queue_center/audio_lane_full_sync {lane}` is the generic entry (the
+>   word route stays for compatibility). `schema_version` is 37.
+
 Date: 2026-09-22
 Scope: `pycore` (queue library, word-audio worker, full-sync module, runtime
 startup, queue-center RPC), `poly_apps/laravel_main` (dictionary listing

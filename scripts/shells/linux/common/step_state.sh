@@ -22,8 +22,8 @@
 # nothing about Windows on the same shared var center), so state files are
 # namespaced per OS under step_state/<OS_VAR_TAG>/ (OS_VAR_TAG comes from
 # runtime_environment.sh, sourced before this file).
-STEP_STATE_DIR="$CORE_NODE_INSTALLER_STATE_DIR/step_state/${OS_VAR_TAG:-UNKNOWN}"
-LEGACY_STEP_STATE_DIR="$GLOBAL_VAR_DIR/step_state/${OS_VAR_TAG:-UNKNOWN}"
+STEP_STATE_DIR="$CORE_NODE_STEP_STATE_DIR/${OS_VAR_TAG:-UNKNOWN}"
+LEGACY_STEP_STATE_DIR="$CORE_NODE_LEGACY_STEP_STATE_DIR/${OS_VAR_TAG:-UNKNOWN}"
 
 # Resolve the state file path for one step.
 # Usage: _step_state_file <namespace> <step>

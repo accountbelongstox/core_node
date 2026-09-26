@@ -21,30 +21,18 @@ import platform
 import argparse
 from typing import Optional, List
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from pycore.pyfoundations.pygvar import GlobalVarManager
+
 
 class GitManager:
     def __init__(self, project_root: str) -> None:
         self.PROJECT_ROOT = Path(project_root)
         self.common_dir = self.PROJECT_ROOT / "scripts" / "shells" / "linux" / "common"
-        self.global_var_dir: Optional[Path] = None
-        self.load_global_vars()
-
-    def load_global_vars(self) -> None:
-        """Load global variables from common directory"""
-        try:
-            if self.common_dir.exists():
-                # Try to find global variable directory
-                possible_dirs = [
-                    self.PROJECT_ROOT / "ncore" / "global_vars",
-                    self.PROJECT_ROOT / ".global_vars",
-                    Path.home() / ".global_vars"
-                ]
-                for possible_dir in possible_dirs:
-                    if possible_dir.exists():
-                        self.global_var_dir = possible_dir
-                        break
-        except Exception as e:
-            self.colored_print("warning", f"Could not load global vars: {e}")
+        self.global_vars = GlobalVarManager()
 
     def get_var(self, var_name: str, default_value: str = "") -> str:
         """Get variable from global vars or environment"""
@@ -54,13 +42,7 @@ class GitManager:
             if env_value:
                 return env_value
             
-            # Try global vars file
-            if self.global_var_dir:
-                var_file = self.global_var_dir / f"{var_name}.var"
-                if var_file.exists():
-                    return var_file.read_text().strip()
-            
-            return default_value
+            return self.global_vars.get(var_name, default_value)
         except Exception:
             return default_value
 

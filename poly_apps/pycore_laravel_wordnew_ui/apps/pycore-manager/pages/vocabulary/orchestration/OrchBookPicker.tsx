@@ -5,14 +5,16 @@
  */
 import React, { useState } from 'react';
 import { BookOpen, Loader2, Plus, RefreshCw } from 'lucide-react';
-import { pycoreApi, type OrchBookItem } from '@/apps/pycore-manager/api';
+import { pycoreApi, type OrchBookItem, type OrchSyncState } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabShared';
-import { ORCH_L, orchErrorMessage } from './orchShared';
+import { ORCH_L, orchErrorMessage, orchSyncFailureMessage } from './orchShared';
 
 const OrchBookPicker: React.FC<{
   books: OrchBookItem[];
   cachedSentenceBooks: Set<string>;
   pendingSyncs: Set<string>;
+  /** Per-book sentence sync attempt (failure shown on that book's row). */
+  syncStates: Record<string, OrchSyncState>;
   selectedKey: string | null;
   onSelect: (book: OrchBookItem) => void;
   onNewTask: (book: OrchBookItem) => void;
@@ -20,15 +22,16 @@ const OrchBookPicker: React.FC<{
   onSyncStarted: (sourceKey: string) => void;
   loading: boolean;
   error: string | null;
-}> = ({ books, cachedSentenceBooks, pendingSyncs, selectedKey, onSelect, onNewTask, onRefresh, onSyncStarted, loading, error }) => {
+}> = ({ books, cachedSentenceBooks, pendingSyncs, syncStates, selectedKey, onSelect, onNewTask, onRefresh, onSyncStarted, loading, error }) => {
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  const syncSentences = async (book: OrchBookItem) => {
+  const syncSentences = async (book: OrchBookItem, refresh = true) => {
     setSyncError(null);
     try {
-      // Relay-safe: pycore answers instantly and fetches in the background;
-      // the parent polls until the book lands in cached_sentence_books.
-      const r = await pycoreApi.orchBookSentences(book.source_key, true);
+      // Relay-safe: pycore answers instantly and fetches in the background
+      // (resuming a failed sync from its saved partial); the parent polls
+      // until the book lands in cached_sentence_books.
+      const r = await pycoreApi.orchBookSentences(book.source_key, refresh);
       if (!r.success) {
         setSyncError(String(r.error || ORCH_L.loadFailed));
         return;
@@ -66,6 +69,8 @@ const OrchBookPicker: React.FC<{
         {books.map((book) => {
           const cached = cachedSentenceBooks.has(book.source_key);
           const syncing = pendingSyncs.has(book.source_key);
+          const syncState = syncStates[book.source_key];
+          const syncFailed = !syncing && syncState?.status === 'failed';
           const selected = selectedKey === book.source_key;
           return (
             <div
@@ -81,8 +86,25 @@ const OrchBookPicker: React.FC<{
                 <p className="text-[11px] text-slate-500">
                   {book.language || 'en'} · {humanInt(book.sentence_count)} {ORCH_L.sentences}
                   {cached && <span className="ml-2 text-emerald-400">· {ORCH_L.sentencesCached}</span>}
-                  {syncing && <span className="ml-2 text-sky-400">· {ORCH_L.syncing}</span>}
+                  {syncing && (
+                    <span className="ml-2 text-sky-400">
+                      · {ORCH_L.syncing}
+                      {syncState?.total ? ` ${humanInt(syncState.fetched)}/${humanInt(syncState.total)}` : ''}
+                    </span>
+                  )}
                 </p>
+                {syncFailed && (
+                  <p className="text-[11px] text-rose-400" title={syncState?.detail || ''}>
+                    {orchSyncFailureMessage(syncState)}
+                    <button
+                      type="button"
+                      onClick={(event) => { event.stopPropagation(); void syncSentences(book); }}
+                      className="ml-2 inline-flex items-center gap-1 rounded border border-rose-500/40 px-1.5 py-0.5 text-[10px] text-rose-300 hover:border-rose-400"
+                    >
+                      <RefreshCw className="w-3 h-3" /> {ORCH_L.retry}
+                    </button>
+                  </p>
+                )}
               </div>
               <button type="button" onClick={(event) => { event.stopPropagation(); onNewTask(book); void syncSentences(book); }}
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-sky-600 px-2 py-1 text-[11px] text-white hover:bg-sky-500">

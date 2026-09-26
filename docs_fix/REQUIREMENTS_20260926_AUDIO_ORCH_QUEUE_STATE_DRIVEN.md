@@ -155,6 +155,14 @@ endpoints; not running on this machine, so changes are derived from code),
   every snapshot read. `persist_snapshot` serialized the whole Queue after
   every full-sync page (≈130 writes of ≈130k tasks). `find_cached_many`
   re-scanned the whole word-cache directory for every task run.
+- M8 **Sentence backlog had no feed.** `DESIGN_20260922_DICT_LANE_LIVE_QUEUE`
+  deleted `QueueCenterAudioScanTask`, and that task was the only producer of
+  the sentence_audio backlog. Its §7 says "sentence_audio stays
+  global_tasks-backed", but nothing enqueued the library backlog any more:
+  about 137k en and 36k zh sentences without audio (measured in
+  `TASK_20260919`) could reach pycore only as on-demand head requests.
+  Laravel also had no listing of sentences without audio
+  (`sentence/missing` lists only live queue rows).
 
 ### 5.2 Queue model (supersedes the 2026-09-22 Part1 definition where it differs)
 
@@ -211,9 +219,13 @@ endpoints; not running on this machine, so changes are derived from code),
   ON transition, used by the UI control, the auto-start helpers, and boot. It
   runs:
   1. restore the lane from the local snapshot;
-  2. start the full pull (word: dictionary without-audio listing →
-     `accept_backlog`; sentence: the FULL_SYNC diff mirror of Laravel's pending
-     `sentence_audio` tasks through `initialize_from_laravel`);
+  2. start the lane's backlog full pull into Part2 (`accept_backlog`), plus the
+     lane worker's FULL_SYNC diff mirror of Laravel's live tasks:
+     - word: the dictionary without-audio listing;
+     - sentence: the new library sentences-without-audio listing (M8).
+
+     Both lanes share `pyctl/tts/audio_lane_full_sync.py::AudioLaneFullSync`
+     and differ only in their listing adapter;
   3. wake the drain.
 - Boot: for every lane whose persisted switch is ON, activate the lane. Also
   load the word-audio cache index in full (all languages) in the background,
@@ -239,10 +251,15 @@ endpoints; not running on this machine, so changes are derived from code),
 
 ### 5.6 Laravel
 
-- `MediaBrowseController::bookDetail` accepts `after_seq` (grain `sentence`,
-  no enrichment). Keyset `seq > after_seq ORDER BY seq LIMIT per_page`, with
-  no OFFSET and no COUNT after the first page. It returns `next_after_seq`
-  and `has_more`.
+- `MediaBrowseController::bookDetail` accepts `after_seq` + `after_id` (grain
+  `sentence`, no enrichment, whole book). Keyset on `(seq, id)` after the
+  cursor, `LIMIT per_page`, with no OFFSET and no COUNT after the first page.
+  It returns `next_after_seq`, `next_after_id` and `has_more`.
+- New read-only `GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio`
+  (`AppQyV1SentenceAudioController::withoutAudio`):
+  - keyset by id over `sentences_{lang}`, where `has_audio` is false or NULL;
+  - without a language it returns the per-language backlog sizes;
+  - it is the sentence full-pull source (M8).
 - Doc comments on the full-pull consumer contract change from "Part1 fill"
   to "Part2 mirror".
 
@@ -253,6 +270,145 @@ endpoints; not running on this machine, so changes are derived from code),
   `word_audio_full_sync` marked as a Part2 fill. `schema_version` goes from
   36 to 37.
 
-## 6. Implementation record
+## 6. Implementation record (2026-09-26)
 
-To be appended after development.
+### pycore — queue library (`pyutils/tts`)
+
+- `audio_queue_center.py`: one Queue per lane (`word_audio`,
+  `sentence_audio`; the lanes never mix).
+  - Part1 tracker (queued/processing/done/failed, owners, provider,
+    `settled_by`).
+  - Owner side: `take_local`, `settle_local`, `tracked_states`,
+    `owner_counts`, `release_owner`.
+  - `accept_backlog` (Part2 mirror), `apply_backlog_order` (Laravel
+    order/prune through the library), `lane_view` / `revision` /
+    `note_state_change`, and `build_local_task` (ONE local-task builder).
+  - `complete(ok, provider, error)`.
+  - Every mutation signals `AUDIO_QUEUE_CHANGED_SIGNAL`.
+  - Snapshot writes are debounced by `AudioQueuePersistThread`, with a
+    shutdown flush.
+  - `restore_from_cache` runs once per process and migrates full-sync keys
+    out of Part1.
+  - Manual promote (`local_source`) creates local tasks for missing items.
+- `audio_task_queue.py`:
+  - maintained Part1 count;
+  - `_smallest` heap-root walk for head previews (no full sort or scan per
+    read);
+  - `take_by_dedup_keys`, `part_view`;
+  - `export_entries` (the snapshot is sorted off the owner thread).
+- `word_audio_cache.py`: `word_audio_cache_index` (full boot load, kept
+  current by every store); `find_cached_many` and `find_cached` use it.
+
+### pycore — lanes, state, orchestration (`pyctl`)
+
+- `tts/audio_lane_activation.py`: `activate_audio_lane` /
+  `activate_enabled_audio_lanes` / `AUDIO_LANE_FULL_SYNC`. Callers:
+  - `task_center_service` (before `apply_assist_runtime`);
+  - `word_tts_auto` and `sentence_audio_auto`;
+  - boot (`event_handlers._start_audio_lane_boot_chain`, which also loads
+    the word-cache index).
+- `tts/audio_lane_full_sync.py` (shared base), `tts/word_audio_full_sync.py`
+  (word adapter, Part2 mirror), `tts/sentence_audio_full_sync.py` (new,
+  sentence adapter).
+- `tts/laravel_audio_worker.py`: `_complete_queued_task` reports the outcome
+  and provider. The order re-alignment goes through
+  `audio_queue_center.apply_backlog_order`.
+- `queue_center/audio_lane_state.py`:
+  - `audio_lane_state` composes the two-lane state;
+  - `AudioLaneStatePublisherThread` pushes `queue_center.audio_lane.changed`
+    (coalesced 0.4 s; heartbeat every 5 s only while a lane works);
+  - it is started as a runtime service step.
+- `queue_center/snapshot_service.py`: `local_audio_state()` (one builder for
+  the snapshot and the push).
+- `queue_center/task_center_service.py`: the control returns `lane_state`;
+  `get_audio_lane_state()`.
+- `audio_orchestration`:
+  - `orch_promote`: word AND sentence misses become local Part1 tasks owned
+    by the task.
+  - `orch_resources.resolve_batch`: cache scan → Part1 fill → per chunk
+    take/generate/settle, with lane-held items awaited then read from the
+    cache. Words use one Kokoro batch per chunk; sentences go Laravel lookup,
+    then local synthesis. `release_owner_queue` runs on cancel and delete.
+  - `orch_generate`: `owner=task_id`, and `delivered_by_lane` counts as
+    synced.
+  - `orch_service`: per-lane owner counters in the task progress, per-row
+    queue state in manifest pages, stable auth error codes.
+  - `orch_books`:
+    - stable `error_code` + `detail`;
+    - a failure belongs to its attempt;
+    - the job records its own running state;
+    - 500-row pages, 45 s timeout, 3 attempts per page;
+    - resumable partial (`orch_store` `book_sentences_partial/`);
+    - keyset paging with page-number fallback.
+- `pyutils/laravel/client.py`: `laravel_failure()` produces the stable
+  Laravel error codes.
+- RPC:
+  - `ui/queue_center/audio_lane_state`;
+  - `ui/queue_center/audio_lane_full_sync {lane}` (the word route stays as
+    the compatibility entry);
+  - `ui/queue_center/promote_local_head` accepts `owner` and creates local
+    tasks.
+
+### UI (`poly_apps/pycore_laravel_wordnew_ui`)
+
+- `apps/pycore-manager/api/AudioLaneStateStore.ts`:
+  - ONE lane-state store (push, RPC, control response; instance + revision
+    guard; relay poll 5 s);
+  - `useAudioLaneState`, `useAudioLaneOwnerViews`.
+- `components/PcAudioLaneQueueView.tsx`: Part1 / Part2 / Queue + tracker +
+  owner items, shared by both lanes and by orchestration.
+- `components/PcAudioLaneFullSyncRow.tsx`: shared full-sync status and action.
+- Queue Center:
+  - `useQueueCenterHub` applies pushed section contracts and word/sentence
+    status;
+  - an older poll never overwrites a newer push;
+  - the control applies the returned `lane_state`.
+- `PcWordAudioPanel` / `PcSentenceQueuePanel` embed the lane view and the
+  full-sync row.
+- Orchestration:
+  - `OrchTaskLaneProgress` (per-task word + sentence lane views) in
+    `OrchTaskList`;
+  - manifest rows show their lane queue state; manual promote passes the
+    task owner.
+- Issue 1:
+  - `VocabAudioOrchTab` shows the books banner only for the books-list
+    attempt, localized by `error_code`;
+  - `OrchBookPicker` shows per-book failure plus Retry (resume);
+  - the spinner reflects only a user refresh plus pycore's
+    `refreshing`.
+- Contracts and types:
+  - `AudioLane*` types in `core/contracts/QueueCenterTypes.ts`;
+  - `lane_state` on the control response;
+  - full-sync `error_code` / `detail`;
+  - `utils/pcErrorCodes.ts`.
+- Locales:
+  - `errorCodes.*`, `queueCenter.audioLane.*` (incl. `fullSync`),
+    `queueCenter.errors.controlFailed`, orchestration `retry` (en + zh);
+  - the dead `wordAudioQueue.fullSync` / `errors.fullSyncFailed` keys were
+    removed.
+
+### Laravel (`poly_apps/laravel_main`)
+
+- `MediaBrowseController::bookDetail`: keyset branch
+  (`buildSentencesKeysetPage`); shared row builder `sentenceEntry`.
+- `AppQyV1SourceSentenceModel::keysetSourcePage`.
+- `AppQyV1SentenceAudioController::withoutAudio` + route
+  `GET /ai_tools/tts/sentence/without_audio`.
+- `AppQyV1LangSentenceModel::withoutAudioKeysetPage` / `withoutAudioCount`.
+- Contract comments: `dictionaryWords` (Part2 mirror) and
+  `QueueCenterService::moveToHead`.
+
+### Contract
+
+- `config/queue_center_contract.json`: `head_parts` rewritten;
+  `word_audio_full_sync` corrected; new `sentence_audio_full_sync` and
+  `audio_lane_state` blocks; `schema_version` 37.
+
+### Verification status
+
+- No tests, builds, services, or type checks were run (project rule:
+  verification only on request). The only check was an early `py_compile`
+  syntax probe of `pyutils/tts/audio_queue_center.py` (before later edits).
+- Runtime acceptance (§4) needs the running deploy and the updated Laravel
+  (the keyset and sentence listing endpoints; pycore falls back to page
+  numbers on an older Laravel).

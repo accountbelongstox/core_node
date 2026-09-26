@@ -1,9 +1,16 @@
 import os
+import sys
 import json
 import subprocess
 import logging
 from typing import List, Dict, Optional
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +34,7 @@ class ApplicationsListParser:
         if not self.script_path.exists():
             raise FileNotFoundError(f"ApplicationsList.ps1 not found: {self.script_path}")
 
-        username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-        core_node_dir = Path('D:/programing/Users') / username / '.core_node'
+        core_node_dir = get_system_cache_dir()
         self.json_exchange_file = core_node_dir / "pybackup" / "applications_list.json"
 
         logger.info(f"ApplicationsListParser initialized")

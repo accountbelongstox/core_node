@@ -57,8 +57,7 @@ const log = {
 
 const LOCAL_DIR = systemPaths.getSystemCacheDir();
 const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, systemPaths.GLOBAL_VAR_DIR_NAME);
-const LEGACY_GLOBAL_VAR_DIRS = systemPaths.getLegacySystemCacheDirs()
-    .map((directory) => path.join(directory, systemPaths.GLOBAL_VAR_DIR_NAME));
+const LEGACY_GLOBAL_VAR_DIRS = systemPaths.getGlobalVarDirs().slice(1);
 
 function mkdir(dirPath) {
     if (!dirPath) return null;
@@ -80,7 +79,9 @@ const algorithm = 'aes-256-cbc';
 const ivLength = 16;
 const encryptedPrefix = 'ENC:';
 
-const fallbackConfigDir = LEGACY_GLOBAL_VAR_DIRS.find((directory) => fs.existsSync(directory)) || null;
+const fallbackConfigDir = LEGACY_GLOBAL_VAR_DIRS.find((directory) => (
+    fs.existsSync(directory) && fs.statSync(directory).isDirectory()
+)) || null;
 
 if (!fs.existsSync(configDir)) {
     try {
@@ -200,7 +201,7 @@ function _setSingleConfigFallback(key, value) {
 function _setSingleConfig(key, value) {
     try {
         const upperKey = key.toUpperCase();
-        const filePath = path.join(configDir, upperKey);
+        const filePath = path.join(configDir, systemPaths.getGlobalVarWriteName(upperKey));
 
         // Encrypt if necessary
         if (typeof value === 'string' && needsEncryption(key)) {
@@ -212,7 +213,11 @@ function _setSingleConfig(key, value) {
 
         // Check if file exists and content is different
         let shouldLog = false;
-        if (fs.existsSync(filePath)) {
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+            log.error(`Config key collides with a directory: ${upperKey}`);
+            return false;
+        }
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
             try {
                 const existingContent = fs.readFileSync(filePath, 'utf8');
                 const isEncryptedValue = isEncrypted(existingContent);
@@ -279,9 +284,10 @@ function setConfig(key, value) {
 function getConfig(key) {
     try {
         const upperKey = key.toUpperCase();
+        const candidateNames = systemPaths.getGlobalVarReadNames(upperKey);
 
         // Hardcoded default values for common configurations
-        const coreNodeDir = getSystemCacheDir();
+        const coreNodeDir = systemPaths.getSystemCacheDir();
         const defaultConfigs = {
             'FILE_CACHE': path.join(coreNodeDir, 'cache', 'files'),
             'BEHAVIOR_CACHE': path.join(coreNodeDir, 'cache', 'behavior'),
@@ -290,14 +296,24 @@ function getConfig(key) {
             'APP_LOG_DIR': path.join(coreNodeDir, 'logs')
         };
 
-        const filePath = path.join(configDir, upperKey);
-        const fallbackFilePath = fallbackConfigDir ? path.join(fallbackConfigDir, upperKey) : null;
+        const primaryName = candidateNames.find((name) => {
+            const candidate = path.join(configDir, name);
+            return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+        });
+        const fallbackName = fallbackConfigDir
+            ? candidateNames.find((name) => {
+                const candidate = path.join(fallbackConfigDir, name);
+                return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+            })
+            : null;
+        const filePath = primaryName ? path.join(configDir, primaryName) : path.join(configDir, candidateNames[0]);
+        const fallbackFilePath = fallbackName ? path.join(fallbackConfigDir, fallbackName) : null;
 
         // Try primary config file first
         let configFilePath = filePath;
         let usesFallback = false;
 
-        if (!fs.existsSync(filePath)) {
+        if (!primaryName) {
             // Try fallback config file
             if (fallbackFilePath && fs.existsSync(fallbackFilePath)) {
                 configFilePath = fallbackFilePath;
@@ -376,9 +392,12 @@ function getConfig(key) {
 
 function getAllKeys() {
     try {
-        const files = fs.readdirSync(configDir);
+        const files = fs.readdirSync(configDir, { withFileTypes: true })
+            .filter((entry) => entry.isFile())
+            .map((entry) => systemPaths.getGlobalVarLogicalName(entry.name))
+            .filter(Boolean);
         log.debug(`Found ${files.length} config keys`);
-        return files;
+        return [...new Set(files)];
     } catch (error) {
         log.error('Error getting config keys:', error);
         return [];
@@ -386,7 +405,7 @@ function getAllKeys() {
 }
 
 function getConfigAll() {
-    const files = fs.readdirSync(configDir);
+    const files = getAllKeys();
     const config = {};
     for (const file of files) {
         const key = file.toUpperCase();
@@ -398,9 +417,9 @@ function getConfigAll() {
 function clearConfig(key) {
     try {
         const upperKey = key.toUpperCase();
-        const filePath = path.join(configDir, upperKey);
+        const filePath = path.join(configDir, systemPaths.getGlobalVarWriteName(upperKey));
 
-        if (fs.existsSync(filePath)) {
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
             fs.writeFileSync(filePath, '', 'utf8');
             log.debug(`Config cleared: ${upperKey}`);
         }
@@ -411,7 +430,7 @@ function clearConfig(key) {
 }
 
 function clearAllConfig() {
-    const files = fs.readdirSync(configDir);
+    const files = getAllKeys();
     for (const file of files) {
         clearConfig(file);
     }

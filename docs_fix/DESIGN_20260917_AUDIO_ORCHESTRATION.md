@@ -1,5 +1,22 @@
 # Audio Orchestration Requirements
 
+> **Status (2026-09-26): partially superseded.** The current binding document
+> for orchestration resources, lane queues, and error surfacing is
+> `docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md`. Corrections to this file:
+> - *Resource manifest and generation.* Missing **words** are not looked up on
+>   Laravel one by one. They fill Part1 of the word_audio Queue and are
+>   generated in Kokoro batches per language. Missing **sentences** fill Part1
+>   of the sentence_audio Queue, then go Laravel lookup → local synthesis.
+>   Each item is taken out of its lane queue before generation and settled
+>   afterwards (one generator per item). Items a lane worker already holds
+>   are awaited.
+> - *Phases UI.* Per-task Part1/Part2/Queue views of both lanes are shown in
+>   the task list; manifest rows carry their lane queue state.
+> - *Actionable errors.* Book/sentence sync failures are stable `error_code`s
+>   (translated in the UI), scoped to one attempt and one book. Raw
+>   exception text is never shown.
+> - *Relay reliability.* Still valid; orchestration routes stay non-blocking.
+
 ## Relay reliability
 
 - Restore responsive Relay transport and resolve `rpc_execution_timeout` on vocabulary status and orchestration requests.

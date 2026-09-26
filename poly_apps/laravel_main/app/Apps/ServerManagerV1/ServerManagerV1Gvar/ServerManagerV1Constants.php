@@ -41,7 +41,6 @@ class ServerManagerV1Constants
             $coreNode ? $coreNode . '/poly_apps' : null,
             PathMapper::mapWebPath('wwwroot') . '/core_node/scripts',
             PathMapper::mapWebPath('wwwroot') . '/core_node/poly_apps',
-            $coreNode ? null : '/www/programing/core_node',
             PathMapper::mapWebPath('laravel_data_dir'),
             '/var/log',
             PathMapper::mapWebPath('nginx'),

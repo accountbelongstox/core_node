@@ -84,6 +84,8 @@ class GlobalVariableManager:
             raise ValueError("Variable key cannot be empty")
 
         var_file = self.vars_dir / key
+        if var_file.is_dir():
+            raise IsADirectoryError(var_file)
 
         # Convert value to string
         if isinstance(value, (dict, list)):
@@ -105,7 +107,7 @@ class GlobalVariableManager:
 
         var_file = self.vars_dir / key
 
-        if var_file.exists():
+        if var_file.is_file():
             try:
                 content = var_file.read_text(encoding='utf-8').strip()
                 return content if content else str(default)
@@ -143,7 +145,7 @@ class GlobalVariableManager:
             return False
 
         var_file = self.vars_dir / key
-        if var_file.exists():
+        if var_file.is_file():
             try:
                 var_file.unlink()
                 return True
@@ -182,7 +184,7 @@ class GlobalVariableManager:
         if not key:
             return False
         var_file = self.vars_dir / key
-        return var_file.exists()
+        return var_file.is_file()
 
     # Convenience methods using VariableKeys
     def write_status(self, status: str) -> None:

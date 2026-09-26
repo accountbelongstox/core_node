@@ -10,7 +10,7 @@ const path = require('path');
 const { getSystemCacheDir } = require('../../../../ncore/foundation/common/system_paths');
 
 // Root user-data dir for all core_node tools (centralized via system_paths:
-// D:\programing\Users\<user>\.core_node on Windows, /var/_core_node on Linux).
+// D:\www\core_node on Windows, the matching WWW tree on Linux).
 function userDataDir() {
   return getSystemCacheDir();
 }

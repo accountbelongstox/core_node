@@ -1,5 +1,11 @@
 # FIX 2026-09-19 — Word-audio upload 404 retry poisoning + f5tts unmanaged-config noise
 
+> **Note (2026-09-26):** The `not_found` terminal-delivery fix still holds
+> (`orch_resources._deliver_owned`). Line references are historical.
+> Orchestration no longer synthesizes word tokens one by one: missing words
+> fill Part1 of the word_audio Queue and are generated in Kokoro batches
+> (`docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md`).
+
 Session follow-up to `FIX_20260919_SILENT_EXITS_CUDA_HF_GATED.md`. Two defects found
 in the audio-orchestration delivery path and the TTS engine chain.
 

@@ -63,6 +63,13 @@
   "persisted_key": "assist_settings capabilities.tts (the pycore-manager Queue Center Word Audio Off/On control) is the only startup and live switch; no secondary setting and no CLI/env parameter",
   "snapshot_block": "queue-center snapshot word_audio section carries full_sync status (running, last_sync_at, last_result, languages, cache_saved_at, queue_count)"
  },
+ "sentence_audio_full_sync": {
+  "description": "pycore sentence-audio full pull: while Sentence Audio is ON pycore mirrors EVERY library sentence without audio into the local sentence_audio Queue as a Part2 backlog mirror (accept_backlog, whole-Queue dedup by {lang}:{content_id}); replaces the retired capacity-bounded sentence scan producer as the backlog feed. Binding doc: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md.",
+  "listing_endpoint": "GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio?language=<code>&cursor_id=<id>&limit=1000 (keyset by id; without language -> {languages:[{language, without_audio}]})",
+  "local_task_marker": "_local_source=full_sync; payload {text, content, language, content_id (Laravel's)}; claim and global result skipped; delivery is the sentence domain report by content_id plus the durable outbox",
+  "cache_file": "get_app_cache_dir()/audio_queue/sentence_audio_queue.json",
+  "persisted_key": "assist_settings capabilities.sentence_audio (the Queue Center Sentence Audio switch)"
+ },
  "audio_lane_state": {
   "description": "State-driven Word Audio / Sentence Audio: pycore owns the lane truth (switch, lifecycle, section contract, Part1/Part2/whole-Queue view, Part1 tracker, worker, outbox, full pull) and pushes it on every change.",
   "topic": "queue_center.audio_lane.changed",
@@ -75,7 +82,8 @@
    "done",
    "failed"
   ],
-  "activation": "one ON chain per lane: restore snapshot -> full pull into Part2 (word: dictionary without_audio listing; sentence: FULL_SYNC diff mirror of pending sentence_audio tasks) -> drain"
+  "activation": "one ON chain per lane: restore snapshot -> full pull into Part2 (word: dictionary without_audio listing; sentence: library sentences without audio listing) + the lane worker's FULL_SYNC diff mirror of Laravel's live tasks -> drain",
+  "full_sync_rpc": "ui/queue_center/audio_lane_full_sync {lane} (ui/queue_center/word_audio_full_sync stays as the word-lane compatibility entry)"
  },
  "dict_lane_queue": {
   "description": "Dict-lane live queues: the backend no longer maintains these queues with timer tasks. Each lane is a live view over its dictionary source query, cached in the FrankenPHP worker's memory and mirrored to the database cache store; every serve runs one ms-level table probe (table length + write counters: PostgreSQL pg_stat_user_tables, fallback COUNT(*)+MAX(updated_at)); unchanged signature serves the cached queue with zero database reads, a changed signature re-fetches only the lane's lite id list and minimally diffs it. global_tasks rows are materialized just-in-time when a worker pulls (POST /api/worker/tasks/{taskType}/pull). Retired timer tasks: appqyv1_word_validity_scan, app_qy_v1_word_translation_scan_task, app_qy_v1_dictionary_translation_task, app_qy_v1_word_translation_filler_task, queue_center_audio_scan, appqyv1_word_media_scan, appqyv1_tts_generation, app_qy_v1_tts_lock_reclaim_task. Binding doc: docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md.",

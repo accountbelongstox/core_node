@@ -153,9 +153,10 @@ class QueueCenterService
      * the existing queued task, assign a monotonic queue_position head ticket,
      * and stage one compact diff notification for the interval publisher.
      *
-     * Part1/Part2 contract (docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md):
-     * externally the queue is ONE whole Queue; internally pycore mirrors it as
-     * Part1+Part2. This Laravel head move is the Part2 fill path — its ONLY
+     * Part1/Part2 contract (docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md
+     * §5.2): each pycore audio lane (word_audio, sentence_audio) is its own
+     * Queue = Part1 (pycore-local priority) + Part2 (Laravel backlog). This
+     * Laravel head move is the Part2 fill path — its ONLY
      * producer is wordnew (AppQyV1AudioGateway). pycore consumes Part2 via
      * Mercure/diff and NEVER pushes head state back to Laravel.
      *

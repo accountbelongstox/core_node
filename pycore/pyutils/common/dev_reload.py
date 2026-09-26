@@ -37,6 +37,11 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import start_bus_task
 
+# Process image start (module is imported by the entry before the boot phase).
+# Files saved after this but before the watcher starts (a long boot) still
+# count as changes, so edits made during boot are never silently skipped.
+PROCESS_IMAGE_STARTED_NS = time.time_ns()
+
 # Directories never worth watching: caches, vendored JS (Vite owns the FE),
 # backups, generated trees. Pruned in-place so os.walk never descends into them.
 _IGNORE_DIR_NAMES = frozenset({
@@ -116,6 +121,11 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
 
     def _run():
         baseline = _snapshot(roots)
+        # Files saved during boot drop out of the baseline -> first scan restarts.
+        baseline = {
+            path: mtime for path, mtime in baseline.items()
+            if mtime <= PROCESS_IMAGE_STARTED_NS
+        }
         ColorPrint.blue(
             f"[reload] dev hot-reload ON - watching {len(baseline)} runtime files under "
             + ", ".join(str(r) for r in roots)

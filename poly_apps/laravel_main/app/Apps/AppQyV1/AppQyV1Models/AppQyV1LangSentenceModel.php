@@ -113,6 +113,41 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         return $map;
     }
 
+    /**
+     * Keyset page of sentences still lacking audio (has_audio false or NULL),
+     * ordered by id: rows with id > $afterId, at most $limit rows. Read-only
+     * listing consumed by the pycore sentence full pull (Part2 backlog mirror
+     * of the sentence_audio lane); no OFFSET and no COUNT per page.
+     */
+    public static function withoutAudioKeysetPage(string $lang, int $afterId, int $limit): Collection
+    {
+        if (!self::tableExists($lang)) {
+            return new Collection();
+        }
+
+        return self::onLang($lang)
+            ->where(static function ($query): void {
+                $query->where('has_audio', false)->orWhereNull('has_audio');
+            })
+            ->where('id', '>', $afterId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get(['id', 'content_id', 'text', 'language']);
+    }
+
+    public static function withoutAudioCount(string $lang): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->where(static function ($query): void {
+                $query->where('has_audio', false)->orWhereNull('has_audio');
+            })
+            ->count();
+    }
+
     public static function countBySqlFilter(string $language, string $whereSql, array $bindings): int
     {
         $model = self::for($language);

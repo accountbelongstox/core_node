@@ -62,6 +62,8 @@ class GitManagementVars:
             # Sanitize key to be a valid filename
             safe_key = self._sanitize_key(key)
             var_file = self.vars_dir / safe_key
+            if var_file.is_dir():
+                raise IsADirectoryError(var_file)
 
             # Write value to file
             with open(var_file, 'w', encoding='utf-8') as f:
@@ -85,7 +87,7 @@ class GitManagementVars:
             safe_key = self._sanitize_key(key)
             var_file = self.vars_dir / safe_key
 
-            if var_file.exists():
+            if var_file.is_file():
                 with open(var_file, 'r', encoding='utf-8') as f:
                     return f.read().strip()
             else:
@@ -106,7 +108,7 @@ class GitManagementVars:
             safe_key = self._sanitize_key(key)
             var_file = self.vars_dir / safe_key
 
-            if var_file.exists():
+            if var_file.is_file():
                 var_file.unlink()
             return True
         except Exception as e:
@@ -123,7 +125,7 @@ class GitManagementVars:
         """
         safe_key = self._sanitize_key(key)
         var_file = self.vars_dir / safe_key
-        return var_file.exists()
+        return var_file.is_file()
 
     def list_vars(self) -> Dict[str, str]:
         """

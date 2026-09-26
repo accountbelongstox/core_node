@@ -1,5 +1,15 @@
 # Audio Orchestration Implementation Progress
 
+> **Status (2026-09-26):** historical record. The rows below describe the
+> 2026-09-17 implementation. Later changes (`docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md` §6) replaced:
+> - `orch_resources.resolve_audio` per resource → `resolve_batch` with
+>   per-lane Part1 take/settle (Kokoro batch for words);
+> - raw `str(exc)` sync errors → `error_code` + `detail` per attempt;
+> - 2000-row sentence pages → 500-row keyset pages with retries and a
+>   resumable partial;
+> - the sentence Part1 fill, which previously only re-ranked already-queued
+>   rows, now inserts local tasks.
+
 Requirements backup: `DESIGN_20260917_AUDIO_ORCHESTRATION.md`.
 
 | Work | State | Evidence |

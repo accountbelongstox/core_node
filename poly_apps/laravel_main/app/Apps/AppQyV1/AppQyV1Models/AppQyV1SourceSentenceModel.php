@@ -124,6 +124,34 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
         return $query->orderBy('grain')->orderBy('seq')->paginate($perPage);
     }
 
+    /**
+     * Keyset page of one source grain ordered by (seq, id): rows strictly after
+     * the (afterSeq, afterId) cursor, at most $limit rows. No OFFSET and no
+     * COUNT — each page costs one bounded index range scan however deep the
+     * walk is (pycore audio-orchestration full sentence sync).
+     */
+    public static function keysetSourcePage(
+        string $sourceKey,
+        string $grain,
+        int $afterSeq,
+        int $afterId,
+        int $limit
+    ): Collection {
+        return self::query()
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->where(static function ($query) use ($afterSeq, $afterId): void {
+                $query->where('seq', '>', $afterSeq)
+                    ->orWhere(static function ($tie) use ($afterSeq, $afterId): void {
+                        $tie->where('seq', $afterSeq)->where('id', '>', $afterId);
+                    });
+            })
+            ->orderBy('seq')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
     public static function languageSample(string $sourceType, string $sourceKey): ?self
     {
         return self::query()

@@ -717,13 +717,9 @@ class AudioQueueCenter:
             "",
             audio_queue_cache.SOURCE_LOCAL_PROMOTE,
         )
-        restored = 0
-        for task in tasks:
-            dedup_key = audio_dedup_key_from_task(task, lane)
-            if dedup_key and queue.has_dedup_key(dedup_key):
-                continue
-            if queue.push(task):
-                restored += 1
+        # ONE owner transaction for the whole snapshot (push dedups on the
+        # whole Queue); per-task round trips stalled boot for minutes.
+        restored = queue.push_many([task for task in tasks if isinstance(task, dict)])
         claimed = queue.claim_part1(part1_keys)
         ColorPrint.green(
             f"[AudioQueue] {lane} cache restore: tasks={restored} "
@@ -773,7 +769,9 @@ class AudioQueueCenter:
             queue = self.queue_for(lane)
             if queue is None:
                 continue
-            tasks = queue.export_tasks() + list(self._taken_tasks(lane))
+            entries = queue.export_entries()
+            entries.sort(key=lambda entry: entry[0])
+            tasks = [task for _order, task in entries] + list(self._taken_tasks(lane))
             audio_queue_cache.save_snapshot(
                 lane,
                 tasks,

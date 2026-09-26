@@ -17,9 +17,9 @@
 .DESCRIPTION
     Maps link path A to target path B:
       1. Detect occupying processes / locked files and abort with a warning.
-      2. If A is a real directory, move the entire directory to B (Move-Item).
-         When B already exists as a directory, remove B then move A to B (source replaces target).
-      3. Remove A when it is an empty directory or stale junction.
+      2. If A is a real directory, move it to B only when B is absent.
+         When B exists, copy only missing content and retain A under a timestamped backup name.
+      3. Remove A only when it is an empty location or stale junction.
       4. Create directory junction A -> B with mklink /J.
 
     Safe to run repeatedly. Uses absolute paths only.
@@ -332,26 +332,30 @@ function Replace-TargetDirectoryWithSourceForPathMapping {
 
     $source = Get-NormalizedPathMappingLocation -Path $SourcePath
     $target = Get-NormalizedPathMappingLocation -Path $TargetPath
+    $sourceParent = Split-Path -Path $source -Parent
+    $sourceLeaf = Split-Path -Path $source -Leaf
+    $backupName = '{0}.migrated_{1}' -f $sourceLeaf, (Get-Date -Format 'yyyyMMddHHmmssfff')
+    $backupPath = Join-Path $sourceParent $backupName
+    $copyOk = $false
 
     if (-not (Test-Path -LiteralPath $target -PathType Container)) {
         Write-PathMapLog -Message "Target is not a directory, cannot replace: $target" -Type "Error"
         return $false
     }
 
-    Write-PathMapLog -Message "Both directories exist; replacing target with source: $target <- $source" -Type "Info"
-
-    if (-not (Remove-PathMappingLinkLocation -Path $target)) {
-        Write-PathMapLog -Message "Failed to remove existing target directory: $target" -Type "Error"
+    Write-PathMapLog -Message "Both directories exist; copying only missing content: $source -> $target" -Type "Info"
+    $copyOk = Copy-MissingPathMappingContent -SourcePath $source -TargetPath $target
+    if (-not $copyOk) {
         return $false
     }
 
     try {
-        Move-Item -LiteralPath $source -Destination $target -Force -ErrorAction Stop
-        Write-PathMapLog -Message "Source directory moved to target: $source -> $target" -Type "Success"
+        Rename-Item -LiteralPath $source -NewName $backupName -ErrorAction Stop
+        Write-PathMapLog -Message "Legacy source retained for recovery: $backupPath" -Type "Success"
         return $true
     }
     catch {
-        Write-PathMapLog -Message "Failed to move source to target $source -> $target : $($_.Exception.Message)" -Type "Error"
+        Write-PathMapLog -Message "Failed to retain legacy source as $backupPath : $($_.Exception.Message)" -Type "Error"
         return $false
     }
 }
@@ -409,7 +413,7 @@ function Move-EntireDirectoryForPathMapping {
         }
     }
 
-    Write-PathMapLog -Message "Target already exists, replacing with source directory: $source -> $target" -Type "Warning"
+    Write-PathMapLog -Message "Target already exists; starting non-overwriting merge: $source -> $target" -Type "Warning"
     return (Replace-TargetDirectoryWithSourceForPathMapping -SourcePath $source -TargetPath $target)
 }
 
@@ -567,8 +571,9 @@ function Sync-LegacyCoreNodeRuntimeData {
     )
 
     $directoryMappings = @()
+    $fileMappings = @()
     $migrationStateDir = Join-Path (Join-Path $CanonicalRoot 'data') 'migration_state'
-    $markerName = 'windows_profile_{0}_v2.complete' -f $UserName
+    $markerName = 'windows_profile_{0}_v3.complete' -f $UserName
     $markerPath = Join-Path $migrationStateDir $markerName
     $sourcePath = ''
     $targetPath = ''
@@ -581,6 +586,7 @@ function Sync-LegacyCoreNodeRuntimeData {
 
     $directoryMappings = @(
         @{ Source = 'config'; Target = 'config' },
+        @{ Source = '.config'; Target = 'config' },
         @{ Source = 'data'; Target = 'data' },
         @{ Source = 'cache'; Target = 'cache' },
         @{ Source = 'logs'; Target = 'logs' },
@@ -592,11 +598,30 @@ function Sync-LegacyCoreNodeRuntimeData {
         @{ Source = '.git_config'; Target = 'git_config' },
         @{ Source = '.scripts'; Target = 'scripts' }
     )
+    $fileMappings = @(
+        @{ Source = '.git_set'; Target = 'git_set' },
+        @{ Source = 'voc_annotator_config.json'; Target = 'voc_annotator_config.json' }
+    )
 
     foreach ($mapping in $directoryMappings) {
         $sourcePath = Join-Path $LegacyRoot $mapping.Source
         $targetPath = Join-Path $CanonicalRoot $mapping.Target
         if (-not (Copy-MissingPathMappingContent -SourcePath $sourcePath -TargetPath $targetPath)) {
+            $allOk = $false
+        }
+    }
+
+    foreach ($mapping in $fileMappings) {
+        $sourcePath = Join-Path $LegacyRoot $mapping.Source
+        $targetPath = Join-Path $CanonicalRoot $mapping.Target
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf) -or (Test-Path -LiteralPath $targetPath)) {
+            continue
+        }
+        try {
+            Copy-Item -LiteralPath $sourcePath -Destination $targetPath -ErrorAction Stop
+        }
+        catch {
+            Write-PathMapLog -Message "Failed to copy legacy file: $sourcePath -> $targetPath : $($_.Exception.Message)" -Type "Error"
             $allOk = $false
         }
     }
@@ -621,7 +646,7 @@ function Sync-LegacyUserCacheData {
     )
 
     $migrationStateDir = Join-Path (Join-Path $RuntimeDataRoot 'data') 'migration_state'
-    $markerName = 'windows_cache_{0}_v2.complete' -f $UserName
+    $markerName = 'windows_cache_{0}_v3.complete' -f $UserName
     $markerPath = Join-Path $migrationStateDir $markerName
     $copyOk = $true
 
@@ -754,21 +779,38 @@ function Get-DefaultUserProfilePathMappings {
     $skipFolderNames = @(".ssh")
     $mappings = @()
     $targetPath = ''
+    $dotDirs = @()
+    $dir = $null
+    $extendedFolderNames = @()
+    $folderName = ''
+    $linkPath = ''
+    $runtimeMigrationOk = $false
+    $cacheMigrationOk = $false
 
-    Sync-LegacyCoreNodeRuntimeData -LegacyRoot $legacyRuntimeRoot -CanonicalRoot $canonicalRuntimeRoot -UserName $UserName | Out-Null
-    Sync-LegacyUserCacheData -LegacyRoot $legacyCacheRoot -CanonicalRoot $canonicalCacheRoot -RuntimeDataRoot $canonicalRuntimeRoot -UserName $UserName | Out-Null
+    $runtimeMigrationOk = Sync-LegacyCoreNodeRuntimeData -LegacyRoot $legacyRuntimeRoot -CanonicalRoot $canonicalRuntimeRoot -UserName $UserName
+    $cacheMigrationOk = Sync-LegacyUserCacheData -LegacyRoot $legacyCacheRoot -CanonicalRoot $canonicalCacheRoot -RuntimeDataRoot $canonicalRuntimeRoot -UserName $UserName
 
-    $mappings += @{
-        Name = '.core_node'
-        LinkPath = Join-Path $profileRoot '.core_node'
-        TargetPath = $canonicalRuntimeRoot
-        OccupyingProcessNames = @()
+    if ($runtimeMigrationOk) {
+        $mappings += @{
+            Name = '.core_node'
+            LinkPath = Join-Path $profileRoot '.core_node'
+            TargetPath = $canonicalRuntimeRoot
+            OccupyingProcessNames = @()
+        }
     }
-    $mappings += @{
-        Name = '.cache'
-        LinkPath = Join-Path $profileRoot '.cache'
-        TargetPath = $canonicalCacheRoot
-        OccupyingProcessNames = @()
+    else {
+        Write-PathMapLog -Message "Runtime data migration failed; .core_node mapping was skipped." -Type "Error"
+    }
+    if ($cacheMigrationOk) {
+        $mappings += @{
+            Name = '.cache'
+            LinkPath = Join-Path $profileRoot '.cache'
+            TargetPath = $canonicalCacheRoot
+            OccupyingProcessNames = @()
+        }
+    }
+    else {
+        Write-PathMapLog -Message "Cache migration failed; .cache mapping was skipped." -Type "Error"
     }
 
     # Dot-prefixed directories (auto-discovered)

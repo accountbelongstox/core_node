@@ -34,6 +34,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.service_contract import root_domain
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 DEFAULT_ROOT_DOMAIN = root_domain()
 
@@ -61,8 +62,7 @@ class DNSPodDDNS:
         self.monitor_thread = None
         
         # Configuration file path
-        username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-        core_node_dir = Path('D:/programing/Users') / username / '.core_node'
+        core_node_dir = get_system_cache_dir()
         self.config_file = core_node_dir / 'dnspod_ddns' / 'config.json'
         self.log_file = core_node_dir / 'dnspod_ddns' / 'ddns.log'
         

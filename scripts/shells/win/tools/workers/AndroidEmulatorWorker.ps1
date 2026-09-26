@@ -14,6 +14,9 @@
 $script:WORKER_DIR = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 $script:TOOLS_DIR = Split-Path -Path $script:WORKER_DIR -Parent
 $script:WIN_DIR = Split-Path -Path $script:TOOLS_DIR -Parent
+$script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR 'win_common'
+$script:SHARED_CACHE_ENV_PATH = Join-Path $script:WIN_COMMON_DIR 'SharedCacheEnv.ps1'
+. $script:SHARED_CACHE_ENV_PATH
 $script:INSTALL_DIR = Join-Path $script:WIN_DIR "install_powershells"
 $script:STUDIO_INSTALLER = Join-Path $script:INSTALL_DIR "Step26_InstallAndroidStudio.ps1"
 $script:PLATFORM_INSTALLER = Join-Path $script:INSTALL_DIR "Step27_InstallAndroidPlatformTools.ps1"
@@ -72,7 +75,7 @@ $script:SCAN_ROOTS = @()
 $script:ALL_DRIVE_ROOTS = @()
 $script:SDK_ROOTS = @()
 $script:AVD_DIRS = @()
-$script:CACHE_DIR = Join-Path "D:\www\core_node\cache\emu_worker"
+$script:CACHE_DIR = Join-Path $Global:CORE_NODE_RUNTIME_CACHE_DIR 'emu_worker'
 $script:CACHE_ADB = Join-Path $script:CACHE_DIR "adb_path.txt"
 $script:CACHE_EMU = Join-Path $script:CACHE_DIR "emu_path.txt"
 $script:CACHE_AVD = Join-Path $script:CACHE_DIR "avd_list.txt"

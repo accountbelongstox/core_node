@@ -14,10 +14,14 @@ from datetime import datetime
 
 # Directory definitions
 ROOT_DIR = Path(__file__).parent / "../.."
+if str(ROOT_DIR.resolve()) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR.resolve()))
+
+from pycore.pyfoundations.system_paths import get_build_tool_cache_dir
+
 LARAVEL_DIR = ROOT_DIR / "poly_apps" / "laravel_main"
 APPS_NAMESPACE_DIR = LARAVEL_DIR / "app" / "Apps"
-USERNAME = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-CACHE_DIR = Path('D:/programing/Users') / USERNAME / '.core_node' / '.laravel_build'
+CACHE_DIR = get_build_tool_cache_dir('laravel')
 CACHE_FILE = CACHE_DIR / "laravel_menu_cache.json"
 
 # Debug flag
