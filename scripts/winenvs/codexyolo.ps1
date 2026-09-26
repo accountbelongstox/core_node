@@ -255,7 +255,7 @@ $codexArgs = @(
     "--config", ('plan_mode_reasoning_effort="{0}"' -f $reasoningEffort),
     "--config", ('agents.default_subagent_model="{0}"' -f $model),
     "--config", ('agents.default_subagent_reasoning_effort="{0}"' -f $reasoningEffort),
-    "--config", "tui.raw_output_mode=true"
+    "--config", "tui.fullscreen_transcript=false"
 )
 $displayArgs = if ($args.Count -gt 0) {
     [string]::Format("; extra args: {0}", ($args -join " "))

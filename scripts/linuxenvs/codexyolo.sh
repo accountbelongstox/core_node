@@ -76,7 +76,7 @@ codex_args=(
     --config "plan_mode_reasoning_effort=\"$reasoning_effort\""
     --config "agents.default_subagent_model=\"$model\""
     --config "agents.default_subagent_reasoning_effort=\"$reasoning_effort\""
-    --config "tui.raw_output_mode=true"
+    --config "tui.fullscreen_transcript=false"
 )
 
 for resume_argument in "$@"; do
