@@ -26,6 +26,7 @@ import subprocess
 import sys
 from typing import Optional
 
+from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
@@ -39,9 +40,7 @@ _MESSAGE_CAP = 240
 
 
 def _display_available() -> bool:
-    if sys.platform == "win32":
-        return True
-    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    return has_graphical_display()
 
 
 def _gdbus_notify(title: str, message: str, duration_ms: int) -> bool:

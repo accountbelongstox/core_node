@@ -3,9 +3,9 @@
 
 import importlib.util
 import os
-import platform
 from typing import Optional
 
+from pycore.pyfoundations.desktop_session import is_headless_linux
 from pycore.pyfoundations.runtime_abi import CUDA_TIERS, TORCH_CPU_INDEX
 from pycore.pyfoundations.python_package_policy import (
     DEPENDENCY_MAP,
@@ -42,10 +42,4 @@ def _module_install_ok(import_name: Optional[str]) -> bool:
 
 def _is_headless_linux() -> bool:
     """Return whether Linux has no active desktop display."""
-    if os.environ.get("PYCORE_FORCE_GUI") == "1":
-        return False
-    if os.environ.get("PYCORE_HEADLESS") == "1":
-        return True
-    if platform.system() != "Linux":
-        return False
-    return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    return is_headless_linux()

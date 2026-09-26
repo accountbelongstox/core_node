@@ -6,7 +6,6 @@ Single source of truth: all configuration in this file (no YAML/loader).
 Used by the callmodule launcher composition and Pyctl runtime services.
 """
 
-import os
 import platform
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from pycore.pyutils.common.service_config import (
     TTS_WORKER_CONCURRENCY,
     UI_ENABLE_TRAY,
 )
+from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
 
@@ -52,7 +52,7 @@ class Config:
     # ==================== UI Configuration ====================
     IS_WINDOWS = platform.system() == 'Windows'
     IS_LINUX = platform.system() == 'Linux'
-    HAS_DISPLAY = bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+    HAS_DISPLAY = has_graphical_display()
     WINDOW_WIDTH = 1400
     WINDOW_HEIGHT = 900
     FRAMELESS = True
