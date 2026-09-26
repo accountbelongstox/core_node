@@ -16,7 +16,6 @@ const parseInstalledPackages = require('./parse/winget_parse_list.js');
 const { isWindows, execCmdResultText, pipeExecCmd } = require('../../common/cmder.js');
 const parseSearchResults = require('./parse/winget_parse_search.js').parseSearchResults;
 const { handleCache, updateCache, sortSearchResults } = require('./parse/winget_parse_utils.js');
-const os = require('os');
 const { normalizeKeywords, calculateMatchScore } = require('./parse/winget_parse_utils.js');
 
 const log = {
@@ -62,12 +61,7 @@ const log = {
 
 
 const process = require('process');
-const homeDir = os.homedir();
-const SCRIPT_NAME = `core_node`
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;
-const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
+const { COMMON_CACHE_DIR } = require('#@global_dir');
 let cacheDir = path.join(COMMON_CACHE_DIR, '.winget');
 
 class WingetManager {

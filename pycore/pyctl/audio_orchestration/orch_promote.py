@@ -62,7 +62,7 @@ def promote_missing_to_queue_head(
     summary: Dict[str, Any] = {"success": True, "queues": {}, "promoted": 0}
     for lane, items in items_by_lane.items():
         result = audio_queue_center.promote_local_head(
-            lane, items, wake=False, owner=owner,
+            lane, items, wake=False, source=LOCAL_SOURCE_ORCHESTRATION, owner=owner,
         )
         summary["queues"][lane] = {
             "requested": len(items),

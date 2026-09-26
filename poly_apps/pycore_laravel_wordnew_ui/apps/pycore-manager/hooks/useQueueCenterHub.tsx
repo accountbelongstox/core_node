@@ -12,13 +12,17 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  applyAudioLaneState,
+  getAudioLaneStoreState,
   normalizeQueueCenterSections,
   queueCenterExchangeApi,
   pycoreApi,
   PYCORE_HTTP_DEFAULTS,
+  useAudioLaneState,
 } from '@/apps/pycore-manager/api';
 import type {
   AssistStatus,
+  AudioLaneStatePayload,
   PcQueueOverview,
   PcTaskRecentResponse,
   QueueCenterControlName,
@@ -38,6 +42,31 @@ import { StorageManager } from '../../../core/persistence';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
+
+/**
+ * Pycore-owned audio lane truth -> hub fields. The pushed payload carries the
+ * SAME section contracts and word/sentence status the exchange snapshot
+ * builds, so applying it can never disagree with a later poll.
+ */
+function laneStatePatch(
+  payload: AudioLaneStatePayload,
+  current: QcSectionContracts,
+): Partial<Pick<QueueCenterHubData, 'sectionContracts' | 'voiceWord' | 'voiceSentence'>> {
+  const pushed = normalizeQueueCenterSections({
+    word_audio: payload.lanes.word_audio?.section_contract,
+    sentence_audio: payload.lanes.sentence_audio?.section_contract,
+  }, null);
+  const patch: Partial<Pick<QueueCenterHubData, 'sectionContracts' | 'voiceWord' | 'voiceSentence'>> = {
+    sectionContracts: {
+      ...current,
+      word_audio: payload.lanes.word_audio?.section_contract ? pushed.word_audio : current.word_audio,
+      sentence_audio: payload.lanes.sentence_audio?.section_contract ? pushed.sentence_audio : current.sentence_audio,
+    },
+  };
+  if (payload.wordAudio) patch.voiceWord = payload.wordAudio as WordTtsAutoStatus;
+  if (payload.sentenceAudio) patch.voiceSentence = payload.sentenceAudio as SentenceAudioAutoStatus;
+  return patch;
+}
 
 export type QueueCenterHubLifecycle = 'idle' | 'loading' | 'ready' | 'stale' | 'degraded' | 'error';
 
@@ -144,6 +173,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     async () => undefined,
   );
   const mounted = useRef(true);
+  const laneStore = useAudioLaneState();
 
   const setAutoRefresh = useCallback((enabled: boolean) => {
     setAutoRefreshState(enabled);
@@ -167,6 +197,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     try {
       const currentRequest = ++requestId.current;
       const now = Date.now();
+      const pollStartedAt = now;
       if (now < offlineRetryAtRef.current) {
         if (!silent) setHub((previous) => ({ ...previous, loading: false }));
         return;
@@ -207,6 +238,12 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
           offlineRetryAtRef.current = 0;
         }
 
+        // A lane push that arrived after this poll started is newer truth:
+        // keep it instead of the exchange's older audio lane fields.
+        const heldLanes = getAudioLaneStoreState();
+        const lanePatch = heldLanes.payload && heldLanes.receivedAt > pollStartedAt
+          ? laneStatePatch(heldLanes.payload, exchange.sectionContracts)
+          : null;
         setHub((previous) => ({
           hubState,
           diagnostics: null,
@@ -233,6 +270,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
             ? t('queueCenter.errors.centerUnavailable')
             : exchange.errors.pycore || null,
           sectionContracts: exchange.sectionContracts,
+          ...(lanePatch ?? {}),
         }));
 
         if (exchange.recent) pycoreTaskCenterState.ingestRecent(exchange.recent);
@@ -280,6 +318,14 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
+
+  // State-driven audio lanes: every pycore push (switch, lifecycle, queue,
+  // full pull, worker) lands in the Word/Sentence Audio sections at once.
+  useEffect(() => {
+    const payload = laneStore.payload;
+    if (!payload) return;
+    setHub((previous) => ({ ...previous, ...laneStatePatch(payload, previous.sectionContracts) }));
+  }, [laneStore.payload]);
 
   const promoteTranslationTask = useCallback((taskId: string, priority: number) => {
     setHub((previous) => {
@@ -345,14 +391,15 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
         laravel_endpoint: enabled ? laravelEndpoint : null,
         timeoutMs: 20_000,
       });
-      if (!response?.success) throw new Error(response?.error || `Could not update ${name}`);
-      void poll(true);
+      if (!response?.success) throw new Error(response?.error || t('queueCenter.errors.controlFailed'));
+      // Audio lanes answer with the authoritative post-transition state.
+      if (!applyAudioLaneState(response.lane_state)) void poll(true);
     } catch (error: unknown) {
       patchSectionEnabled(name, !enabled);
       void poll(true);
       throw error;
     }
-  }, [laravelEndpoint, poll, patchSectionEnabled]);
+  }, [laravelEndpoint, poll, patchSectionEnabled, t]);
 
   const value = useMemo<QueueCenterHubState>(
     () => ({ ...hub, refreshHub, promoteTranslationTask, setControl, autoRefresh, setAutoRefresh }),

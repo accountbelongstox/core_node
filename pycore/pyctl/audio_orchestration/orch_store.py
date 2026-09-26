@@ -50,6 +50,7 @@ _SYNC_STATE_FILE = "sync_state.json"
 _SYSTEM_STATUS_FILE = "system_status.json"
 _TASKS_DIR = "tasks"
 _BOOK_SENTENCES_DIR = "book_sentences"
+_BOOK_SENTENCES_PARTIAL_DIR = "book_sentences_partial"
 _OUTPUT_DIR = "output"
 _TASK_EVENT_CAP = 200
 ORCH_REQUEST_TIMEOUT = 60
@@ -177,6 +178,30 @@ def load_book_sentences(source_key: str) -> Optional[Dict[str, Any]]:
         return None
     record = _read_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json")
     return record if isinstance(record, dict) else None
+
+
+def _partial_path(source_key: str) -> Optional[Path]:
+    safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(source_key or ""))
+    return base_dir() / _BOOK_SENTENCES_PARTIAL_DIR / f"{safe}.json" if safe else None
+
+
+def save_book_sentences_partial(source_key: str, payload: Dict[str, Any]) -> bool:
+    """Persist an in-progress sentence sync (resume point after a failure)."""
+    path = _partial_path(source_key)
+    return _write_json(path, payload) if path is not None else False
+
+
+def load_book_sentences_partial(source_key: str) -> Optional[Dict[str, Any]]:
+    path = _partial_path(source_key)
+    record = _read_json(path) if path is not None else None
+    return record if isinstance(record, dict) else None
+
+
+def delete_book_sentences_partial(source_key: str) -> bool:
+    path = _partial_path(source_key)
+    if path is None or not path.is_file():
+        return True
+    return _delete_json(path)
 
 
 def cached_book_keys() -> List[str]:
@@ -324,6 +349,9 @@ __all__ = [
     "save_book_sentences",
     "load_book_sentences",
     "cached_book_keys",
+    "save_book_sentences_partial",
+    "load_book_sentences_partial",
+    "delete_book_sentences_partial",
     "save_sync_state",
     "load_sync_state",
     "save_system_status",

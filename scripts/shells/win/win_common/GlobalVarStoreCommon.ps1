@@ -150,8 +150,8 @@ function Get-GlobalVar {
     }
     foreach ($name in (Get-GlobalVarReadNames $key)) {
         $filePath = Join-Path $Global:GLOBAL_VAR_DIR $name
-        if (Test-Path $filePath) {
-            $value = Get-Content $filePath -Raw
+        if (Test-Path -LiteralPath $filePath -PathType Leaf) {
+            $value = Get-Content -LiteralPath $filePath -Raw
             if (-not [string]::IsNullOrWhiteSpace($value)) {
                 return $value.Trim()
             }
@@ -192,15 +192,15 @@ function Get-SecretContent {
     $encryptedFile = Join-Path $encryptedDir "$KeyName.js"
 
     # First check if raw file exists
-    if (Test-Path $rawFile) {
-        $content = Get-Content -Path $rawFile -Raw -Encoding UTF8
+    if (Test-Path -LiteralPath $rawFile -PathType Leaf) {
+        $content = Get-Content -LiteralPath $rawFile -Raw -Encoding UTF8
         if (-not [string]::IsNullOrWhiteSpace($content)) {
             return $content.Trim()
         }
     }
 
     # Check if encrypted file exists
-    if (-not (Test-Path $encryptedFile)) {
+    if (-not (Test-Path -LiteralPath $encryptedFile -PathType Leaf)) {
         return $null
     }
 
@@ -289,8 +289,8 @@ function Get-SecretContent {
     }
 
     # Try to read the decrypted file again
-    if (Test-Path $rawFile) {
-        $content = Get-Content -Path $rawFile -Raw -Encoding UTF8
+    if (Test-Path -LiteralPath $rawFile -PathType Leaf) {
+        $content = Get-Content -LiteralPath $rawFile -Raw -Encoding UTF8
         if (-not [string]::IsNullOrWhiteSpace($content)) {
             return $content.Trim()
         }
@@ -350,7 +350,57 @@ function Set-GlobalVar {
     }
 
     $filePath = Join-Path $Global:GLOBAL_VAR_DIR (Get-GlobalVarWriteName $key)
-    Set-Content -Path $filePath -Value $value -Force
+    if (Test-Path -LiteralPath $filePath -PathType Container) {
+        Write-Warning "Global variable key collides with a directory and was not written: $key"
+        return $false
+    }
+    Set-Content -LiteralPath $filePath -Value $value -Force
+    return $true
+}
+
+function Import-LegacyGlobalVarDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LegacyDirectory
+    )
+
+    $currentTag = Get-OsVarTag
+    $sourceFiles = @()
+    $sourceFile = $null
+    $sourceName = ''
+    $targetName = ''
+    $targetPath = ''
+
+    if (-not (Test-Path -LiteralPath $LegacyDirectory -PathType Container)) {
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Global:GLOBAL_VAR_DIR -PathType Container)) {
+        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
+    }
+
+    $sourceFiles = @(Get-ChildItem -LiteralPath $LegacyDirectory -File -ErrorAction SilentlyContinue)
+    foreach ($sourceFile in $sourceFiles) {
+        $sourceName = $sourceFile.Name
+        if ($sourceName -match '^(WIN10|WIN11)_') {
+            if (-not $sourceName.StartsWith("$currentTag`_", [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+            $targetName = $sourceName
+        }
+        elseif ($sourceName -match '^(DEBIAN|UBUNTU|KALI)_[0-9]+_') {
+            continue
+        }
+        else {
+            $targetName = Get-GlobalVarWriteName $sourceName
+        }
+
+        $targetPath = Join-Path $Global:GLOBAL_VAR_DIR $targetName
+        if ((Test-Path -LiteralPath $targetPath -PathType Leaf) -or
+            (Test-Path -LiteralPath $targetPath -PathType Container)) {
+            continue
+        }
+        Copy-Item -LiteralPath $sourceFile.FullName -Destination $targetPath
+    }
 }
 function Get-AllGlobalVars {
     # Ensure directory exists

@@ -333,6 +333,7 @@ def _run_generation(task_id: str, auth_record: Dict[str, Any], resume: bool = Fa
 def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
     if not _generation_jobs.cancelled(str(task.get("task_id") or "")):
         return False
+    orch_resources.release_owner_queue(str(task.get("task_id") or ""))
     task["status"] = "draft"
     _progress(task, message="cancelled", **stats)
     return True
@@ -558,6 +559,12 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                 stats["cache_hits"] += 1
             elif source == "laravel":
                 stats["laravel_hits"] += 1
+            elif result.get("delivered_by_lane"):
+                # A sentence lane worker generated it from this task's Part1
+                # fill and already reported it to Laravel (domain report).
+                stats["generated"] += 1
+                stats["synced"] += 1
+                meta["synced"] = True
             else:
                 stats["generated"] += 1
                 # Delivery sync is durable and self-retrying; a transient
@@ -612,6 +619,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         cancel_requested=lambda: _generation_jobs.cancelled(task_id),
         progress_callback=_resource_done,
         activity_callback=_resource_activity,
+        owner=task_id,
     )
     _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
     if _cancel(task, stats):

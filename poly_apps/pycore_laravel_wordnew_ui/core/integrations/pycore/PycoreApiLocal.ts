@@ -68,7 +68,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
-import type { QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
+import type { AudioLaneStatePayload, QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
@@ -387,13 +387,27 @@ export const pycoreApiLocal = {
   retryAudioDelivery: (lane: 'all' | 'word' | 'sentence' = 'all') =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterRetryAudioDelivery, { lane }),
   /**
-   * LOCAL self-adjust only: fill Part1 of the shared audio queue on the
-   * selected Pycore. NEVER notifies Laravel — wordnew is the sole actor
-   * that moves the Laravel queue head (Part2 path).
+   * Pycore-owned state of both audio lanes (word_audio / sentence_audio, each
+   * its own Part1 + Part2 Queue). Same payload as the push topic
+   * `queue_center.audio_lane.changed`; `owner` scopes the Part1 tracker to one
+   * orchestration task.
+   */
+  audioLaneState: (owner?: string, itemLimit = 10) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAudioLaneState, {
+      owner: owner || '',
+      item_limit: itemLimit,
+    }, 15_000) as Promise<AudioLaneStatePayload>,
+  /**
+   * LOCAL self-adjust only: fill Part1 of the item's lane queue on the
+   * selected Pycore (a missing item gets a local task). NEVER notifies
+   * Laravel — wordnew is the sole actor that moves the Laravel queue head
+   * (Part2 path).
    */
   promoteLocalQueueHead: (payload: {
     queue?: 'word_audio' | 'sentence_audio';
     items: Array<{ kind?: 'word' | 'sentence'; language: string; text: string }>;
+    /** Orchestration task id: the promoted item joins that task's fill view. */
+    owner?: string;
   }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterPromoteLocalHead, payload) as Promise<{
       success: boolean;
@@ -402,9 +416,9 @@ export const pycoreApiLocal = {
     }>,
 
   /**
-   * On-demand word-audio full pull: pycore pulls EVERY dictionary word
-   * without audio into its local word_audio queue (Part1 fill, background).
-   * NEVER mutates Laravel's queue; returns the live sync status block.
+   * On-demand word-audio full pull: pycore mirrors EVERY dictionary word
+   * without audio into its local word_audio queue (Part2 backlog mirror,
+   * background). NEVER mutates Laravel's queue; returns the live status block.
    */
   wordAudioFullSync: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterWordAudioFullSync, {}) as Promise<{

@@ -12,7 +12,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
+const { COMMON_CACHE_DIR } = require('#@global_dir');
 const log = {
     colors: {
         reset: '\x1b[0m',
@@ -56,14 +56,8 @@ const log = {
 
 const process = require('process');
 const gconfig = require('#@gconfig');
-const homeDir = os.homedir();
-const SCRIPT_NAME = `core_node`
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;   
-const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 const cacheDir = path.join(COMMON_CACHE_DIR, '.ffinder');
-const isWindows = os.platform() === 'win32';
+const isWindows = process.platform === 'win32';
 
 class FileFinder {
     constructor() {

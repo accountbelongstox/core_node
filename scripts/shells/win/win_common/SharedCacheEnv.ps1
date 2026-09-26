@@ -17,7 +17,9 @@
 # sets HF_HOME / HF_HUB_CACHE / TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME env vars.
 # Does NOT set deprecated TRANSFORMERS_CACHE (transformers v5 uses HF_HOME only).
 
-$Global:WWW_CACHE_DIR = 'D:\www\cache'
+$Global:WINDOWS_DATA_DRIVE_ROOT = 'D:\'
+$Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'www'
+$Global:WWW_CACHE_DIR = Join-Path $Global:WWW_BASE_DIR 'cache'
 # Canonical cache-root Global consumed by ~20 install_*.ps1 steps and by
 # GlobalVars.ps1 $Global:USER_CACHE_DIR. Mirrors $Global:WWW_CACHE_DIR so the
 # shared cache path is defined ONCE in this central file.

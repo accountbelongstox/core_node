@@ -311,3 +311,42 @@ pycore cannot read `/root` while it runs as `debian`, so prompts of agents start
 (Root's agent prompts must be scanned too; test by actually entering prompts in kimi1 / kimi2 /
 claudeteam etc.; root may scan every other user; non-real (system/service) accounts such as
 `git` are excluded, defined once in the base constants library.)
+
+### 15.1 Findings
+
+- The service is launched by root, but `scripts/shells/linux/common/pyservice_entry.sh` hands the
+  worker to the desktop user (`exec sudo -u "$DESKTOP_USER" …`, needed so the tray can register
+  on that user's D-Bus session bus). The running worker is therefore uid `debian`, not root.
+- Agents run as root (kimi1/kimi2/claudeteam, this Claude Code session) create session files
+  `root 0600`. The data disk (ntfs3) stores Linux ownership, so even slot dirs such as
+  `/var/_core_node/Users/Kimi2` → `/www/www/core_node/Users/Kimi2` get unreadable new files.
+  Live test: `kimi -p "... AHTEST-KIMI2-230513"` in the Kimi2 slot was written as `root 0600`;
+  the `debian` worker saw the change but could not open the file → no prompt.
+- Same extraction run with root read access (scratch store): the Kimi2 marker and root's Claude
+  prompts (incl. a new prompt from another live Claude session) were detected; 910 sources,
+  full rebuild 13.3 s, incremental ≈1 s.
+- Extract-lane starvation: continuous live scans (UI poll + monitor lane, 2–5 s each while Claude
+  sessions keep changing) kept `_extract_busy` set, and the 10 s extract tick returned without
+  work (`extract_count` stayed 0). Fixed: a skipped tick marks `_extract_pending`; the lane
+  holder runs it before releasing.
+
+### 15.2 Implemented
+
+- `system_paths.py`: `AGENT_HISTORY_HUMAN_UID_MIN`, `AGENT_HISTORY_NOLOGIN_SHELLS`,
+  `AGENT_HISTORY_NON_HUMAN_USERS` (git, gitlab-runner, postgres, www-data, … and Windows
+  Public/Default/…), `AGENT_HISTORY_NON_HUMAN_SUFFIXES` (`$` machine accounts).
+- `agent_home_scanner.is_human_account()`: name/suffix list plus the passwd rule
+  (uid 0, or uid ≥ UID_MIN with a login shell); applied to every users-root child.
+  Verified: git/postgres/`DESKTOP-1L9K06N$` excluded; root/debian/slots kept.
+- `tick_service`: extract-lane starvation fix (above).
+
+### 15.3 Open decision: how the worker reads root-owned sessions
+
+A change to `pyservice_entry.sh` to keep only `CAP_DAC_READ_SEARCH` (a read-only permission
+bypass) when dropping to the desktop user was blocked by the assistant's security policy; it
+needs the operator's decision. Options:
+1. Keep the read-only capability on the desktop worker (`setpriv --reuid … --ambient-caps
+   +dac_read_search`): tray keeps working, the scanner reads every user.
+2. Run the worker as root (the headless path): all users readable, but no tray.
+3. Run the agents as the desktop user.
+(ACLs do not work: agents create files with mode 0600, so the ACL mask on new files is `---`.)

@@ -8,6 +8,7 @@
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { orchAccountSession } from './OrchAccountSession';
 import type { QyWordGroup } from '../laravel/LaravelQyAccountAPI';
+import type { AudioLaneKey, AudioLaneTrackCounts, AudioLaneTrackState } from '../../contracts/QueueCenterTypes';
 
 export interface OrchBookItem {
   id?: number;
@@ -19,11 +20,18 @@ export interface OrchBookItem {
   image_url?: string | null;
 }
 
+/** One sync attempt (books list or one book's sentences); a new attempt replaces it. */
 export interface OrchSyncState {
   status?: 'running' | 'done' | 'failed';
   fetched?: number;
   total?: number;
+  /** Stable failure code (translated by the UI); `detail` is diagnostic only. */
+  error_code?: string;
+  detail?: string;
+  /** Legacy raw error text from older pycore builds. */
   error?: string;
+  attempt_at?: number;
+  finished_at?: number;
   updated_at?: number;
 }
 
@@ -121,6 +129,8 @@ export interface OrchTaskSummary {
     cache_hits?: number; laravel_hits?: number; generated?: number; missing?: number;
     synced?: number;
     sync_pending?: number;
+    /** Live Part1 fill counters of this task per lane queue (word / sentence). */
+    lanes?: Partial<Record<AudioLaneKey, AudioLaneTrackCounts>>;
   };
   created_at?: number;
   updated_at?: number;
@@ -166,6 +176,10 @@ export interface OrchManifestItem {
   synced: boolean;
   sync_queued: boolean;
   has_audio: boolean;
+  /** Fill state of this resource in ITS lane queue (tracker of this task). */
+  queue_lane?: AudioLaneKey;
+  queue_state?: AudioLaneTrackState;
+  queue_settled_by?: string;
 }
 
 export interface OrchManifestPageResponse {

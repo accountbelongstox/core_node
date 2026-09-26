@@ -4,8 +4,8 @@
 Routing only: the controller kicks the same full-pull entry as the pycore
 startup chain (REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE R8) on a
 background bus task and returns the live status block. The pull is
-pycore-local: it reads Laravel's without-audio dictionary listing and fills
-Part1 of the shared queue; it NEVER mutates Laravel's queue.
+pycore-local: it reads Laravel's without-audio dictionary listing and mirrors
+it into Part2 of the word_audio Queue; it NEVER mutates Laravel's queue.
 """
 
 from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_CENTER_WORD_AUDIO_FULL_SYNC

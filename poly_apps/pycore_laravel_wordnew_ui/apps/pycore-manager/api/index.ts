@@ -15,6 +15,7 @@ export * from './LlmStatusRuntimeStore';
 export * from './TerminalScheduleStore';
 export * from './PycoreEngineLoadStore';
 export * from './PycoreCache';
+export * from './AudioLaneStateStore';
 export { QueueCenterExchangeAPI, queueCenterExchangeApi } from './PcQueueCenterExchange';
 export type { QueueCenterExchangeResult } from './PcQueueCenterExchange';
 export { LARAVEL_BROWSER_EVENTS, LaravelAPI, laravelApi } from '../../../core/integrations/laravel';

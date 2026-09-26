@@ -260,13 +260,13 @@ class GlobalVarManager:
         names = global_var_read_names(self._namespaced_key(key))
         for name in names:
             path = self._base_dir / name
-            if path.exists():
+            if path.is_file():
                 return path.read_text(encoding="utf-8")
         if self._base_dir == GLOBAL_VARS_DIR:
             for legacy_dir in iter_global_var_dirs()[1:]:
                 for name in names:
                     legacy_path = legacy_dir / name
-                    if legacy_path.exists():
+                    if legacy_path.is_file():
                         return legacy_path.read_text(encoding="utf-8")
         return default
 
@@ -276,7 +276,7 @@ class GlobalVarManager:
         names.update(global_var_read_names(namespaced))
         for name in names:
             path = self._base_dir / name
-            if path.exists():
+            if path.is_file():
                 path.unlink()
 
     def set_json(self, key: str, data: Dict[str, Any]) -> Path:

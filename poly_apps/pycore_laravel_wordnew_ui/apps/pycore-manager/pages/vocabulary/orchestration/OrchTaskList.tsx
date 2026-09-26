@@ -16,6 +16,7 @@ import {
 } from '@/apps/pycore-manager/api';
 import { humanBytes, humanInt, VocabBanner } from '../vocabShared';
 import OrchManifestPanel from './OrchManifestPanel';
+import OrchTaskLaneProgress from './OrchTaskLaneProgress';
 import { ORCH_L, orchErrorMessage } from './orchShared';
 
 function statusBadgeClass(status: string | undefined, running: boolean | undefined): string {
@@ -161,6 +162,10 @@ const OrchTaskList: React.FC<{
             ? Math.round(((progress.resource_index || 0) / progress.resource_total) * 100)
             : 0;
           const expanded = selectedTaskId === task.task_id;
+          // Lanes where this task filled Part1 (missing words / sentences).
+          const fillLanes = (['word_audio', 'sentence_audio'] as const).filter(
+            (lane) => (progress.lanes?.[lane]?.total || 0) > 0,
+          );
           return (
             <div
               key={task.task_id}
@@ -257,6 +262,12 @@ const OrchTaskList: React.FC<{
                   )}
                 </div>
               )}
+              <OrchTaskLaneProgress
+                taskId={task.task_id}
+                active={fillLanes.length > 0 && Boolean(task.running || expanded)}
+                compact={!expanded}
+                lanes={[...fillLanes]}
+              />
               {progress.output_dir && (
                 <p className="mt-1 text-[10px] font-mono text-slate-500 break-all">
                   {ORCH_L.outputDir}: {progress.output_dir}

@@ -14,12 +14,14 @@ from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_launcher import open_path
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
+from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_generate,
+    orch_promote,
     orch_resources,
     orch_store,
 )
@@ -79,7 +81,8 @@ def auth_login(username: str, password: str, access_token: str = "", base_url: s
         body = resp.json() if resp.content else {}
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] login failed: {exc}")
-        return {"success": False, "error": str(exc)}
+        failure = laravel_failure(exc)
+        return {"success": False, "error": failure["error_code"], **failure}
     if resp.status_code != 200 or not isinstance(body, dict):
         message = body.get("error") or body.get("message") if isinstance(body, dict) else None
         return {
@@ -207,10 +210,15 @@ def auth_groups(refresh: bool = False) -> Dict[str, Any]:
         try:
             groups = _fetch_word_groups(record)
         except Exception as exc:  # noqa: BLE001
+            failure = laravel_failure(exc) if not isinstance(exc, RuntimeError) else {
+                "error_code": str(exc) if str(exc).isupper() else "QY_WORD_GROUPS_FAILED",
+                "detail": str(exc)[:200],
+            }
             return {
                 "success": False,
                 "logged_in": True,
-                "error": str(exc),
+                "error": failure["error_code"],
+                "detail": failure.get("detail") or "",
                 "word_groups": record.get("word_groups") if isinstance(record.get("word_groups"), list) else [],
                 "word_group_id": record.get("word_group_id"),
             }
@@ -358,6 +366,12 @@ def _recover_task_status(task: Dict[str, Any]) -> None:
 
 def _task_progress(task: Dict[str, Any], pending_counts=None) -> Dict[str, Any]:
     progress = dict(task.get("progress") or {})
+    # Live Part1 fill counters of this task in EACH lane queue (words ->
+    # word_audio, sentences -> sentence_audio); tracker-only, O(tracked).
+    task_id = str(task.get("task_id") or "")
+    progress["lanes"] = {
+        lane: audio_queue_center.owner_counts(lane, task_id) for lane in AUDIO_QUEUE_LANES
+    }
     generation_id = str(task.get("generation_id") or "")
     if generation_id:
         if pending_counts is None:
@@ -442,6 +456,7 @@ def task_delete(task_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "task is generating"}
     if not orch_store.delete_task(task_id):
         return {"success": False, "error": "task not found"}
+    orch_resources.release_owner_queue(task_id)
     return {"success": True}
 
 
@@ -532,6 +547,7 @@ def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_
     meta = manifest.get("resource_meta") if isinstance(manifest.get("resource_meta"), dict) else {}
     # Unique resources in manifest order (first occurrence wins).
     rows: List[Dict[str, Any]] = []
+    owner = str(task.get("task_id") or "")
     seen: set = set()
     for items in segment_items:
         if not isinstance(items, list):
@@ -578,7 +594,23 @@ def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_
     page_count = max(1, (total + page_size - 1) // page_size)
     page = max(1, min(page_count, int(page or 1)))
     start = (page - 1) * page_size
-    return {**base, "items": rows[start:start + page_size], "total": total, "page": page, "page_count": page_count}
+    page_rows = rows[start:start + page_size]
+    # Lane-queue fill state of each row (queued in Part1 / processing / done /
+    # failed) from the tracker of ITS lane — words and sentences separately.
+    keys_by_lane: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for row in page_rows:
+        lane = orch_promote.resource_lane(row)
+        if lane:
+            keys_by_lane.setdefault(lane, {})[orch_promote.resource_queue_key(row)] = row
+    for lane, by_key in keys_by_lane.items():
+        states = audio_queue_center.tracked_states(lane, list(by_key))
+        for key, row in by_key.items():
+            entry = states.get(key)
+            if entry is not None and owner in entry["owners"] + [entry["settled_by"]]:
+                row["queue_lane"] = lane
+                row["queue_state"] = entry["state"]
+                row["queue_settled_by"] = entry["settled_by"]
+    return {**base, "items": page_rows, "total": total, "page": page, "page_count": page_count}
 
 
 # --------------------------------------------------------------------------- #

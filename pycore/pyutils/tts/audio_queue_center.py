@@ -421,6 +421,7 @@ class AudioQueueCenter:
         wake: bool = True,
         source: str = audio_queue_cache.SOURCE_LOCAL_PROMOTE,
         owner: str = "",
+        local_source: str = "",
     ) -> Dict[str, Any]:
         """M3: pycore self-promotion — FILLS Part1 DIRECTLY.
 
@@ -428,9 +429,11 @@ class AudioQueueCenter:
         Whole-Queue dedup: an item whose single copy already sits in the
         queue is claimed into Part1 (front position wins); an item carrying
         ``task`` that is not queued yet is inserted (landing in Part1 via
-        the membership set). Items neither queued nor carrying a task are
-        skipped. ``owner`` (an orchestration task id) scopes the tracker so
-        the owner's fill progress can be visualized. Never touches Laravel.
+        the membership set). With ``local_source`` (pycore-manager manual
+        promote) items without a task get a local task built for them;
+        otherwise items neither queued nor carrying a task are skipped.
+        ``owner`` (an orchestration task id) scopes the tracker so the
+        owner's fill progress can be visualized. Never touches Laravel.
         """
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
@@ -454,6 +457,8 @@ class AudioQueueCenter:
             keys.add(key)
             meta[key] = {"text": item.get("text"), "language": item.get("language")}
             task = item.get("task")
+            if not isinstance(task, dict) and local_source:
+                task = build_local_task(lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source)
             if isinstance(task, dict):
                 tasks_by_key[key] = task
         if not keys:
@@ -616,12 +621,19 @@ class AudioQueueCenter:
         if queue is None or not owner:
             return 0
         orphaned = self._drop_owner(lane, str(owner))
-        dropped = queue.take_by_dedup_keys(orphaned) if orphaned else {}
-        for task in dropped.values():
+        taken = queue.take_by_dedup_keys(orphaned) if orphaned else {}
+        dropped = 0
+        for task in taken.values():
             queue.complete(task)
+            if str(task.get("_local_source") or "") in (LOCAL_SOURCE_ORCHESTRATION, LOCAL_SOURCE_MANUAL):
+                dropped += 1
+                continue
+            # A Laravel/backlog item claimed into Part1 returns to Part2
+            # (Part1 membership already released) instead of vanishing.
+            queue.push(task)
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         self._notify(lane, "owner_released")
-        return len(dropped)
+        return dropped
 
     def tracked_states(self, lane: str, keys: List[str]) -> Dict[str, Dict[str, Any]]:
         """M3 read: tracker entries for the given keys (absent keys omitted)."""

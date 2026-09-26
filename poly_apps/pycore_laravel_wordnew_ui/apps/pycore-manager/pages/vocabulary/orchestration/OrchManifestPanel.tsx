@@ -9,6 +9,7 @@
  * orch_store manifest, nothing is re-derived on the UI side.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowUpToLine, Loader2 } from 'lucide-react';
 import {
   pycoreApi,
@@ -59,6 +60,7 @@ const OrchManifestPanel: React.FC<{
   running?: boolean;
   onClose: () => void;
 }> = ({ open, taskId, taskName, initialCategory, running, onClose }) => {
+  const { t } = useTranslation('pc');
   const [category, setCategory] = useState<OrchManifestCategory>(initialCategory);
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<OrchManifestItem[]>([]);
@@ -71,24 +73,6 @@ const OrchManifestPanel: React.FC<{
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [promotedIds, setPromotedIds] = useState<Set<string>>(new Set());
 
-  const promoteToHead = useCallback(async (item: OrchManifestItem) => {
-    if (promotingId) return;
-    setPromotingId(item.resource_id);
-    try {
-      const kind = item.kind === 'word' ? 'word' : 'sentence';
-      const response = await pycoreApi.promoteLocalQueueHead({
-        queue: kind === 'word' ? 'word_audio' : 'sentence_audio',
-        items: [{ kind, language: item.language, text: item.text }],
-      });
-      if (!response.success) throw new Error(response.error || ORCH_L.actionFailed);
-      setPromotedIds((prev) => new Set(prev).add(item.resource_id));
-      setError(null);
-    } catch (e) {
-      setError(orchErrorMessage(e, ORCH_L.actionFailed));
-    } finally {
-      setPromotingId(null);
-    }
-  }, [promotingId]);
 
   const load = useCallback(async (cat: OrchManifestCategory, targetPage: number) => {
     setLoading(true);
@@ -106,6 +90,27 @@ const OrchManifestPanel: React.FC<{
       setLoading(false);
     }
   }, [taskId]);
+
+  const promoteToHead = useCallback(async (item: OrchManifestItem) => {
+    if (promotingId) return;
+    setPromotingId(item.resource_id);
+    try {
+      const kind = item.kind === 'word' ? 'word' : 'sentence';
+      const response = await pycoreApi.promoteLocalQueueHead({
+        queue: kind === 'word' ? 'word_audio' : 'sentence_audio',
+        items: [{ kind, language: item.language, text: item.text }],
+        owner: taskId,
+      });
+      if (!response.success) throw new Error(response.error || ORCH_L.actionFailed);
+      setPromotedIds((prev) => new Set(prev).add(item.resource_id));
+      setError(null);
+      void load(category, page);
+    } catch (e) {
+      setError(orchErrorMessage(e, ORCH_L.actionFailed));
+    } finally {
+      setPromotingId(null);
+    }
+  }, [promotingId, category, page, load, taskId]);
 
   useEffect(() => {
     if (!open) return;
@@ -178,6 +183,11 @@ const OrchManifestPanel: React.FC<{
                 </span>
                 {item.provider && (
                   <span className="shrink-0 text-[10px] font-mono text-slate-500">{item.provider}</span>
+                )}
+                {item.queue_state && (
+                  <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] text-indigo-300">
+                    {t('queueCenter.audioLane.part1')} · {t(`queueCenter.audioLane.states.${item.queue_state}`)}
+                  </span>
                 )}
                 {(item.synced || item.sync_queued) && (
                   <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-400">

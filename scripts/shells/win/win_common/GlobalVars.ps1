@@ -167,7 +167,11 @@ $Global:PROGRAMING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNA
 # Unified core_node runtime data root (no dot-prefixed names). Mirrors
 # pycore core_node_dirs / runtime_environment.sh CORE_NODE_DATA_DIR /
 # PathMapper::getCoreNodeRuntimeDir: D:\www\core_node (== Linux /www/www/core_node).
-$Global:USER_DIR = Join-Path "D:\www" "core_node"
+$Global:USER_DIR = Join-Path $Global:WWW_BASE_DIR "core_node"
+$Global:CORE_NODE_DATA_DIR = $Global:USER_DIR
+$Global:CORE_NODE_RUNTIME_CACHE_DIR = Join-Path $Global:CORE_NODE_DATA_DIR "cache"
+$Global:CORE_NODE_RUNTIME_DATA_DIR = Join-Path $Global:CORE_NODE_DATA_DIR "data"
+$env:CORE_NODE_DATA_DIR = $Global:CORE_NODE_DATA_DIR
 $Global:PI_COMMON_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiYolo"
 $Global:PI_KIMI_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiKimi"
 $Global:PI_CLAUDE_CODE_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiClaudeCode"
@@ -222,6 +226,14 @@ if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorActi
     $global:SharedGlobalVarKeys = @()
 }
 . (Join-Path $PSScriptRoot 'GlobalVarStoreCommon.ps1')
+
+$Global:LEGACY_GLOBAL_VAR_DIRS = @(
+    (Join-Path (Join-Path $Global:PROGRAMING_USER_DIR '.core_node') '.global_vars'),
+    (Join-Path (Join-Path $env:USERPROFILE '.core_node') '.global_vars')
+) | Select-Object -Unique
+foreach ($legacyGlobalVarDir in $Global:LEGACY_GLOBAL_VAR_DIRS) {
+    Import-LegacyGlobalVarDirectory -LegacyDirectory $legacyGlobalVarDir
+}
 
 
 # Git related global variables

@@ -9,7 +9,7 @@ import {
   MessageSquareText, RefreshCw, AlertTriangle, Loader2, ChevronDown, ChevronUp, Cpu,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi, ttsConcurrencyAnnotation } from '@/apps/pycore-manager/api';
+import { pycoreApi, ttsConcurrencyAnnotation, useAudioLaneState } from '@/apps/pycore-manager/api';
 import type { SentenceAudioQueueSnapshot, SentenceWorkerTask, TtsStatus } from '@/apps/pycore-manager/api';
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
@@ -19,6 +19,7 @@ import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
 import { PcAudioDeliveryOutboxStatus } from '../components/PcAudioDeliveryOutboxStatus';
+import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
 import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
@@ -42,6 +43,7 @@ const formatDuration = (seconds?: number | null): string => {
 export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
+  const lanes = useAudioLaneState();
   const state = usePycoreTaskCenterState();
   // Snapshot from the SHARED hub (one poll for the whole page).
   const raw = hub.sentenceQueue as any;
@@ -251,6 +253,13 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
           </span>
         )}
       </div>
+
+      <PcAudioLaneQueueView
+        lane="sentence_audio"
+        view={lanes.payload?.lanes?.sentence_audio?.queue}
+        loading={lanes.loading}
+        error={lanes.error}
+      />
 
       <PcAudioDeliveryOutboxStatus
         lane="sentence"

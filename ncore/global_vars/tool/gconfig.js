@@ -11,9 +11,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const path = require('path');
-const os = require('os');
 const fs = require('fs');
-const homeDir = os.homedir();
+const { GLOBAL_VAR_DIR } = require('#@global_dir');
 
 const { getAppName } = require('../libs/app_parameter.js');
 let appname = getAppName();
@@ -29,11 +28,6 @@ const app_config_file = path.join(app_config_dir, 'index.js');
 
 const {importConfigFromJs,setConfig,getConfig,getAllKeys,getConfigAll,getConfigDir} = require('../libs/config_tool.js');
 
-const SCRIPT_NAME = `core_node`
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;
-const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
 const printImportConfig = false
 importConfigFromJs(root_config_file,true,false,printImportConfig);
 importConfigFromJs(app_config_file,true,false,printImportConfig);

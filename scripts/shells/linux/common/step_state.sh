@@ -13,7 +13,7 @@
 # Fine-grained idempotent step state tracking.
 # Every install script registers its sub-steps (repo setup, package install,
 # symlink creation, PATH registration, service enable, ...) individually.
-# A step state file lives at $GLOBAL_VAR_DIR/step_state/<namespace>/<step>
+# A step state file lives under the centralized installer-state directory.
 # and stores a fingerprint. A step is "satisfied" only when the stored
 # fingerprint equals the current one, so changed inputs re-run the step while
 # unchanged ones are skipped - re-running a whole script is always safe.
@@ -22,7 +22,8 @@
 # nothing about Windows on the same shared var center), so state files are
 # namespaced per OS under step_state/<OS_VAR_TAG>/ (OS_VAR_TAG comes from
 # runtime_environment.sh, sourced before this file).
-STEP_STATE_DIR="$GLOBAL_VAR_DIR/step_state/${OS_VAR_TAG:-UNKNOWN}"
+STEP_STATE_DIR="$CORE_NODE_INSTALLER_STATE_DIR/step_state/${OS_VAR_TAG:-UNKNOWN}"
+LEGACY_STEP_STATE_DIR="$GLOBAL_VAR_DIR/step_state/${OS_VAR_TAG:-UNKNOWN}"
 
 # Resolve the state file path for one step.
 # Usage: _step_state_file <namespace> <step>
@@ -36,6 +37,16 @@ _step_state_file() {
     echo "$STEP_STATE_DIR/$safe_namespace/$safe_step"
 }
 
+_legacy_step_state_file() {
+    local namespace="$1"
+    local step="$2"
+    local safe_namespace
+    local safe_step
+    safe_namespace=$(echo "$namespace" | tr -cd '[:alnum:]_-')
+    safe_step=$(echo "$step" | tr -cd '[:alnum:]_-')
+    echo "$LEGACY_STEP_STATE_DIR/$safe_namespace/$safe_step"
+}
+
 # Check whether a step already ran with the exact fingerprint.
 # Usage: step_satisfied <namespace> <step> <fingerprint>
 # Returns 0 when the step must NOT run again.
@@ -44,10 +55,16 @@ step_satisfied() {
     local step="$2"
     local fingerprint="$3"
     local state_file
+    local legacy_state_file
     state_file=$(_step_state_file "$namespace" "$step")
+    legacy_state_file=$(_legacy_step_state_file "$namespace" "$step")
 
     if [ ! -f "$state_file" ]; then
-        return 1
+        if [ -f "$legacy_state_file" ]; then
+            state_file="$legacy_state_file"
+        else
+            return 1
+        fi
     fi
 
     local stored

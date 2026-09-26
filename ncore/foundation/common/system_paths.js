@@ -14,9 +14,9 @@
  * System Paths Module
  *
  * Defines system-wide cache and data directories for core_node applications.
- * Platform-specific paths:
- *   Windows: D:\programing\Users\{username}\.core_node
- *   Linux:   /var/_core_node
+ * Platform-specific runtime data roots:
+ *   Windows: D:\www\core_node
+ *   Linux:   /www/www/core_node on the shared NTFS disk, else /www/core_node
  *
  * Directory Structure:
  *   .core_node/
@@ -34,6 +34,66 @@ const path = require('path');
 
 let _systemCacheDir = null;
 let _xdgCacheHome = null;
+const NTFS_FILE_SYSTEMS = new Set(['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g']);
+const WINDOWS_DATA_DRIVE_ROOT = 'D:\\';
+const WWW_DIR_NAME = 'www';
+const CORE_NODE_DATA_DIR_NAME = 'core_node';
+const CACHE_DIR_NAME = 'cache';
+const GLOBAL_VAR_DIR_NAME = 'global_var';
+const LEGACY_USER_DATA_DIR_NAME = '.core_node';
+const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
+const WINDOWS_WWW_BASE = path.join(WINDOWS_DATA_DRIVE_ROOT, WWW_DIR_NAME);
+const WINDOWS_CORE_NODE_DATA_DIR = path.join(WINDOWS_WWW_BASE, CORE_NODE_DATA_DIR_NAME);
+const WINDOWS_SHARED_CACHE_DIR = path.join(WINDOWS_WWW_BASE, CACHE_DIR_NAME);
+
+function getMountInfo(target) {
+    if (process.platform !== 'linux' || !fs.existsSync('/proc/mounts')) {
+        return null;
+    }
+    try {
+        const lines = fs.readFileSync('/proc/mounts', 'utf8').split('\n');
+        let best = null;
+        for (const line of lines) {
+            const parts = line.split(' ');
+            if (parts.length < 3) {
+                continue;
+            }
+            const mountPoint = parts[1].replace(/\\040/g, ' ');
+            if (target === mountPoint || target.startsWith(mountPoint.replace(/\/$/, '') + '/')) {
+                if (!best || mountPoint.length > best.mountPoint.length) {
+                    best = { mountPoint, source: parts[0], fileSystem: parts[2] };
+                }
+            }
+        }
+        return best;
+    } catch (error) {
+        return null;
+    }
+}
+
+function wwwDataRootMounted() {
+    const wwwMount = getMountInfo('/www');
+    const rootMount = getMountInfo('/');
+    return Boolean(
+        wwwMount &&
+        rootMount &&
+        wwwMount.source !== rootMount.source &&
+        NTFS_FILE_SYSTEMS.has(wwwMount.fileSystem) &&
+        fs.existsSync('/www/www')
+    );
+}
+
+function getLinuxWwwBase() {
+    return wwwDataRootMounted() ? '/www/www' : '/www';
+}
+
+function getLegacySystemCacheDirs() {
+    const directories = [path.join(os.homedir(), LEGACY_USER_DATA_DIR_NAME)];
+    if (process.platform === 'linux') {
+        directories.unshift(LEGACY_LINUX_DATA_DIR);
+    }
+    return directories;
+}
 
 /**
  * User-level XDG cache root (~/.cache on Linux, D:\www\cache on Windows).
@@ -47,9 +107,11 @@ function getXdgCacheHome() {
     let cacheHome = process.env.XDG_CACHE_HOME;
     if (!cacheHome) {
         if (process.platform === 'win32') {
-            cacheHome = 'D:\\www\\cache';
+            cacheHome = WINDOWS_SHARED_CACHE_DIR;
         } else if (process.env.CORE_NODE_CACHE_DIR) {
             cacheHome = path.join(process.env.CORE_NODE_CACHE_DIR, 'xdg');
+        } else if (wwwDataRootMounted()) {
+            cacheHome = path.join(getLinuxWwwBase(), 'cache', 'xdg');
         } else {
             cacheHome = path.join(os.homedir(), '.cache');
         }
@@ -111,28 +173,28 @@ function getSystemCacheDir() {
         return _systemCacheDir;
     }
 
-    let cacheDir;
+    const configuredDir = (process.env.CORE_NODE_DATA_DIR || '').trim();
+    const preferredDir = process.platform === 'win32'
+        ? WINDOWS_CORE_NODE_DATA_DIR
+        : path.join(getLinuxWwwBase(), CORE_NODE_DATA_DIR_NAME);
+    const candidates = configuredDir
+        ? [configuredDir]
+        : process.platform === 'win32'
+            ? [preferredDir]
+            : [preferredDir, LEGACY_LINUX_DATA_DIR, path.join(os.homedir(), CORE_NODE_DATA_DIR_NAME)];
 
-    if (process.platform === 'win32') {
-        const username = process.env.USERNAME || process.env.USER || 'default';
-        cacheDir = path.join('D:\\programing\\Users', username, '.core_node');
-    } else {
-        cacheDir = '/var/_core_node';
-
+    for (const candidate of candidates) {
         try {
-            fs.accessSync('/var', fs.constants.W_OK);
+            fs.mkdirSync(candidate, { recursive: true });
+            fs.accessSync(candidate, fs.constants.W_OK);
+            _systemCacheDir = candidate;
+            return _systemCacheDir;
         } catch (error) {
-            const username = process.env.USERNAME || process.env.USER || 'default';
-            cacheDir = path.join('D:\\programing\\Users', username, '.core_node');
+            continue;
         }
     }
-
-    if (!fs.existsSync(cacheDir)) {
-        fs.mkdirSync(cacheDir, { recursive: true });
-    }
-
-    _systemCacheDir = cacheDir;
-    return cacheDir;
+    _systemCacheDir = preferredDir;
+    return _systemCacheDir;
 }
 
 /**
@@ -271,8 +333,21 @@ const APP_DATA_DIR = getAppDataDir();
 const APP_LOGS_DIR = getAppLogsDir();
 
 module.exports = {
+    WINDOWS_DATA_DRIVE_ROOT,
+    WWW_DIR_NAME,
+    CORE_NODE_DATA_DIR_NAME,
+    CACHE_DIR_NAME,
+    GLOBAL_VAR_DIR_NAME,
+    LEGACY_USER_DATA_DIR_NAME,
+    LEGACY_LINUX_DATA_DIR,
+    WINDOWS_WWW_BASE,
+    WINDOWS_CORE_NODE_DATA_DIR,
+    WINDOWS_SHARED_CACHE_DIR,
     isWsl,
     isDesktopLinux,
+    wwwDataRootMounted,
+    getLinuxWwwBase,
+    getLegacySystemCacheDirs,
     getXdgCacheHome,
     getSystemCacheDir,
     getUiStateCacheDir,

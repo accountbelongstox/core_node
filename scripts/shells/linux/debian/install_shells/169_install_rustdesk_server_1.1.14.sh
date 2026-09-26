@@ -75,7 +75,7 @@ RUSTDESK_CLIENT_LINUX_URL="https://github.com/rustdesk/rustdesk/releases/downloa
 RUSTDESK_CLIENT_WINDOWS_URL="https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_CLIENT_VERSION}/rustdesk-${RUSTDESK_CLIENT_VERSION}-x86_64.exe"
 
 # Version tracking
-APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions/${OS_VAR_TAG:-UNKNOWN}"
+APP_VERSIONS_DIR="$CORE_NODE_APP_VERSIONS_DIR/${OS_VAR_TAG:-UNKNOWN}"
 RUSTDESK_SERVER_INSTALLED_FLAG="$APP_VERSIONS_DIR/rustdesk_server.version"
 
 # Service ports (RustDesk OSS default; Pro uses 21114 for Web Console - not used by OSS)

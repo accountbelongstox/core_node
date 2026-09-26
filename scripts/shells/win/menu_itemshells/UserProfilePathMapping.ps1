@@ -30,8 +30,13 @@ function Show-UserProfilePathMappingMenu {
     Clear-Host
     Write-PathMapLog -Message "User profile path mapping (idempotent, mklink /J junctions)" -Type "Info"
     Write-Host ""
-    Write-Host "  C:\Users\$env:USERNAME\<dot-folder>  ->  D:\programing\Users\$env:USERNAME\<dot-folder>"
-    Write-Host "  (all dot-prefixed folders under the profile, except .ssh)"
+    $profileCoreNodePath = Join-Path $env:USERPROFILE '.core_node'
+    $profileCachePath = Join-Path $env:USERPROFILE '.cache'
+    $programingUserPath = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
+    Write-Host "  $profileCoreNodePath -> $Global:CORE_NODE_DATA_DIR"
+    Write-Host "  $profileCachePath -> $Global:CORE_NODE_CACHE_DIR"
+    Write-Host "  Other profile folders -> $programingUserPath"
+    Write-Host "  (all other dot-prefixed folders under the profile, except .ssh)"
     Write-Host ""
     Write-Host "  Close apps using mapped folders before mapping. Occupied directories are skipped with a warning."
     Write-Host ""

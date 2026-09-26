@@ -11,20 +11,6 @@ $VALIDATION_HELPER_PS1 = Join-Path $PY_TOOLS_DIR "validation_helper.ps1"
 . $GLOBAL_VARS_PS1
 . $VALIDATION_HELPER_PS1
 
-function Get-GlobalVar {
-    param(
-        [string]$Key,
-        [string]$DefaultValue = ""
-    )
-    $normalizedKey = $Key.ToUpper() -replace '[^A-Z0-9_]', '_'
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $normalizedKey
-
-    if (Test-Path $filePath) {
-        return (Get-Content $filePath -Raw).Trim()
-    }
-    return $DefaultValue
-}
-
 Write-Host ""
 Write-Host "==============================================================================="
 Write-Host "  POLY APPS MANAGER - Multi-Project Launcher"

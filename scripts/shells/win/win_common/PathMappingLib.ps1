@@ -513,6 +513,130 @@ function Set-IdempotentDirectoryJunction {
     Write-PathMapLog -Message "Junction created: $link -> $target" -Type "Success"
     return $true
 }
+
+function Copy-MissingPathMappingContent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+        [Parameter(Mandatory = $true)]
+        [string]$TargetPath
+    )
+
+    $source = Get-NormalizedPathMappingLocation -Path $SourcePath
+    $target = Get-NormalizedPathMappingLocation -Path $TargetPath
+    $robocopyArgs = @()
+    $robocopyExitCode = 0
+
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+        return $true
+    }
+
+    New-PathMappingDirectoryIfNotExists -Path $target | Out-Null
+    $robocopyArgs = @(
+        $source,
+        $target,
+        '/E',
+        '/XC',
+        '/XN',
+        '/XO',
+        '/R:1',
+        '/W:1',
+        '/NFL',
+        '/NDL',
+        '/NJH',
+        '/NJS',
+        '/NP'
+    )
+    & robocopy @robocopyArgs | Out-Null
+    $robocopyExitCode = $LASTEXITCODE
+    if ($robocopyExitCode -ge 8) {
+        Write-PathMapLog -Message "Failed to copy missing migration data: $source -> $target (robocopy $robocopyExitCode)" -Type "Error"
+        return $false
+    }
+    return $true
+}
+
+function Sync-LegacyCoreNodeRuntimeData {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LegacyRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$CanonicalRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$UserName
+    )
+
+    $directoryMappings = @()
+    $migrationStateDir = Join-Path (Join-Path $CanonicalRoot 'data') 'migration_state'
+    $markerName = 'windows_profile_{0}_v2.complete' -f $UserName
+    $markerPath = Join-Path $migrationStateDir $markerName
+    $sourcePath = ''
+    $targetPath = ''
+    $allOk = $true
+
+    if ((Test-Path -LiteralPath $markerPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $LegacyRoot -PathType Container)) {
+        return $true
+    }
+
+    $directoryMappings = @(
+        @{ Source = 'config'; Target = 'config' },
+        @{ Source = 'data'; Target = 'data' },
+        @{ Source = 'cache'; Target = 'cache' },
+        @{ Source = 'logs'; Target = 'logs' },
+        @{ Source = 'ui_state'; Target = 'ui_state' },
+        @{ Source = 'pytools'; Target = 'pytools' },
+        @{ Source = 'launch_multiple'; Target = 'launch_multiple' },
+        @{ Source = '.build_global_vars'; Target = 'build_global_vars' },
+        @{ Source = '.app_installed_flag'; Target = 'app_installed_flag' },
+        @{ Source = '.git_config'; Target = 'git_config' },
+        @{ Source = '.scripts'; Target = 'scripts' }
+    )
+
+    foreach ($mapping in $directoryMappings) {
+        $sourcePath = Join-Path $LegacyRoot $mapping.Source
+        $targetPath = Join-Path $CanonicalRoot $mapping.Target
+        if (-not (Copy-MissingPathMappingContent -SourcePath $sourcePath -TargetPath $targetPath)) {
+            $allOk = $false
+        }
+    }
+
+    if ($allOk) {
+        New-PathMappingDirectoryIfNotExists -Path $migrationStateDir | Out-Null
+        Set-Content -LiteralPath $markerPath -Value 'complete' -NoNewline
+    }
+    return $allOk
+}
+
+function Sync-LegacyUserCacheData {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LegacyRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$CanonicalRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$RuntimeDataRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$UserName
+    )
+
+    $migrationStateDir = Join-Path (Join-Path $RuntimeDataRoot 'data') 'migration_state'
+    $markerName = 'windows_cache_{0}_v2.complete' -f $UserName
+    $markerPath = Join-Path $migrationStateDir $markerName
+    $copyOk = $true
+
+    if ((Test-Path -LiteralPath $markerPath -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $LegacyRoot -PathType Container)) {
+        return $true
+    }
+
+    $copyOk = Copy-MissingPathMappingContent -SourcePath $LegacyRoot -TargetPath $CanonicalRoot
+    if ($copyOk) {
+        New-PathMappingDirectoryIfNotExists -Path $migrationStateDir | Out-Null
+        Set-Content -LiteralPath $markerPath -Value 'complete' -NoNewline
+    }
+    return $copyOk
+}
 #endregion
 
 #region Public API
@@ -622,20 +746,47 @@ function Get-DefaultUserProfilePathMappings {
 
     $profileRoot = Join-Path $env:USERPROFILE ""
     $profileRoot = Get-NormalizedPathMappingLocation -Path $profileRoot
-    $programingUserRoot = Join-Path "D:\programing\Users" $UserName
+    $programingUserRoot = Join-Path $Global:PROGRAMING_USERS_DIR $UserName
+    $canonicalRuntimeRoot = $Global:CORE_NODE_DATA_DIR
+    $canonicalCacheRoot = $Global:CORE_NODE_CACHE_DIR
+    $legacyRuntimeRoot = Join-Path $programingUserRoot '.core_node'
+    $legacyCacheRoot = Join-Path $programingUserRoot '.cache'
     $skipFolderNames = @(".ssh")
     $mappings = @()
+    $targetPath = ''
+
+    Sync-LegacyCoreNodeRuntimeData -LegacyRoot $legacyRuntimeRoot -CanonicalRoot $canonicalRuntimeRoot -UserName $UserName | Out-Null
+    Sync-LegacyUserCacheData -LegacyRoot $legacyCacheRoot -CanonicalRoot $canonicalCacheRoot -RuntimeDataRoot $canonicalRuntimeRoot -UserName $UserName | Out-Null
+
+    $mappings += @{
+        Name = '.core_node'
+        LinkPath = Join-Path $profileRoot '.core_node'
+        TargetPath = $canonicalRuntimeRoot
+        OccupyingProcessNames = @()
+    }
+    $mappings += @{
+        Name = '.cache'
+        LinkPath = Join-Path $profileRoot '.cache'
+        TargetPath = $canonicalCacheRoot
+        OccupyingProcessNames = @()
+    }
 
     # Dot-prefixed directories (auto-discovered)
     $dotDirs = @(Get-ChildItem -LiteralPath $profileRoot -Directory -Force -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name.StartsWith('.') -and ($skipFolderNames -notcontains $_.Name) } |
+        Where-Object {
+            $_.Name.StartsWith('.') -and
+            ($skipFolderNames -notcontains $_.Name) -and
+            $_.Name -ne '.core_node' -and
+            $_.Name -ne '.cache'
+        } |
         Sort-Object -Property Name)
 
     foreach ($dir in $dotDirs) {
+        $targetPath = Join-Path $programingUserRoot $dir.Name
         $mappings += @{
             Name = $dir.Name
             LinkPath = $dir.FullName
-            TargetPath = Join-Path $programingUserRoot $dir.Name
+            TargetPath = $targetPath
             OccupyingProcessNames = @(Get-UserProfileDotFolderOccupyingProcessNames -FolderName $dir.Name)
         }
     }
