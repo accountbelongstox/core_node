@@ -10,7 +10,7 @@ SSH_SERVER_INCLUDE_DIRECTIVE="Include /etc/ssh/sshd_config.d/*.conf"
 SSH_SERVER_SYSTEMD_ROOT="/etc/systemd/system"
 SSH_SERVER_SYSTEMD_DROPIN=""
 SSH_SERVER_PORT="${SSH_SERVER_PORT:-22}"
-SSH_SERVER_CLIENT_ALIVE_INTERVAL="${SSH_SERVER_CLIENT_ALIVE_INTERVAL:-60}"
+SSH_SERVER_CLIENT_ALIVE_INTERVAL="${SSH_SERVER_CLIENT_ALIVE_INTERVAL:-15}"
 SSH_SERVER_LOGIN_GRACE_TIME="${SSH_SERVER_LOGIN_GRACE_TIME:-30}"
 SSH_SERVER_PASSWORD_AUTH="${SSH_SERVER_PASSWORD_AUTH:-no}"
 SSH_SERVER_MAX_STARTUPS="${SSH_SERVER_MAX_STARTUPS:-100:30:200}"
@@ -70,13 +70,17 @@ SSH_SERVER_LISTENER_AGE_SECONDS=0
 SSH_SERVER_LISTENER_TITLE=""
 SSH_SERVER_CONFIG_MTIME_EPOCH=0
 SSH_SERVER_NOW_EPOCH=0
-SSH_SERVER_MAX_STARTUPS_BEGIN=""
-SSH_SERVER_MAX_STARTUPS_FULL=""
+SSH_SERVER_RELOAD_STAMP="/run/ncore-sshd-config-reload.stamp"
+SSH_SERVER_LOADED_EPOCH=0
 SSH_SERVER_TMUX_PERSISTENCE_ENABLED="${SSH_SERVER_TMUX_PERSISTENCE_ENABLED:-true}"
 SSH_SERVER_TMUX_SESSION_NAME="${SSH_SERVER_TMUX_SESSION_NAME:-main}"
 SSH_SERVER_TMUX_PROFILE_HOOK="/etc/profile.d/ncore_ssh_tmux_persistence.sh"
 SSH_SERVER_TMUX_OPTOUT_FILE=".ncore-no-auto-tmux"
 SSH_SERVER_TMUX_PERSISTENCE_READY=false
+SSH_SERVER_JOURNALD_DROPIN="/etc/systemd/journald.conf.d/00-core-node-persistent.conf"
+SSH_SERVER_JOURNAL_DIR="/var/log/journal"
+SSH_SERVER_JOURNAL_MACHINE_ID=""
+SSH_SERVER_JOURNAL_PERSISTENT_READY=false
 
 source "$SSH_SERVER_FILE_OPS_COMMON"
 
@@ -210,7 +214,7 @@ ssh_server_ensure_include_precedence() {
 ssh_server_ensure_config_dropin() {
     SSH_SERVER_DROPIN_CHANGED=false
     SSH_SERVER_DROPIN_READY=false
-    printf '%s\n' "$SSH_SERVER_DROPIN_CONTENT" | write_file_if_changed "$SSH_SERVER_CONFIG_DROPIN" "$SSH_SERVER_CONFIG_BACKUP_DIR" 644 root root
+    write_file_if_changed "$SSH_SERVER_CONFIG_DROPIN" "$SSH_SERVER_CONFIG_BACKUP_DIR" 644 root root <<< "$SSH_SERVER_DROPIN_CONTENT"
     SSH_SERVER_DROPIN_CHANGED="$WRITE_FILE_CHANGED"
     SSH_SERVER_DROPIN_READY="$WRITE_FILE_READY"
 }
@@ -402,10 +406,11 @@ ssh_server_ensure_running() {
 
 # Detect whether the running sshd listener still uses an older config. A
 # SIGHUP reload re-execs sshd in place, so the PID start time and systemd
-# timestamps never change; the listener process title is the only live
-# evidence: sshd renders the running MaxStartups as "N of BEGIN-END startups".
-# When the title cannot be parsed, fall back to comparing the listener age
-# against the config mtimes. This makes convergence self-healing instead of
+# timestamps never change, and the "N of BEGIN-END startups" title only
+# reflects MaxStartups (other changed keys stayed unloaded behind it). The
+# load time is the later of the listener start and the reload stamp in /run
+# (tmpfs, cleared with the listener on reboot); any config file newer than it
+# needs a reload. This makes convergence self-healing instead of
 # change-triggered: a previous run that wrote the config but never reloaded
 # (crash, manual edit, interrupted run) is caught and reloaded here.
 ssh_server_refresh_reload_needed() {
@@ -415,8 +420,7 @@ ssh_server_refresh_reload_needed() {
     SSH_SERVER_LISTENER_TITLE=""
     SSH_SERVER_CONFIG_MTIME_EPOCH=0
     SSH_SERVER_NOW_EPOCH="$(date +%s)"
-    SSH_SERVER_MAX_STARTUPS_BEGIN="${SSH_SERVER_MAX_STARTUPS%%:*}"
-    SSH_SERVER_MAX_STARTUPS_FULL="${SSH_SERVER_MAX_STARTUPS##*:}"
+    SSH_SERVER_LOADED_EPOCH=0
 
     if [ "$SSH_SERVER_INIT_SYSTEM" = "systemd" ] && [ -n "$SSH_SERVER_SERVICE_NAME" ]; then
         SSH_SERVER_LISTENER_PID="$(systemctl show --property=MainPID --value "$SSH_SERVER_SERVICE_NAME.service" 2>/dev/null)"
@@ -430,16 +434,16 @@ ssh_server_refresh_reload_needed() {
     fi
 
     SSH_SERVER_LISTENER_TITLE="$(ps -o args= -p "$SSH_SERVER_LISTENER_PID" 2>/dev/null)"
-    if printf '%s' "$SSH_SERVER_LISTENER_TITLE" | grep -q "of ${SSH_SERVER_MAX_STARTUPS_BEGIN}-${SSH_SERVER_MAX_STARTUPS_FULL} startups"; then
-        return
-    fi
-
     SSH_SERVER_LISTENER_AGE_SECONDS="$(ps -o etimes= -p "$SSH_SERVER_LISTENER_PID" 2>/dev/null | tr -d '[:space:]')"
     SSH_SERVER_CONFIG_MTIME_EPOCH="$(stat -c %Y "$SSH_SERVER_CONFIG_FILE" "$SSH_SERVER_CONFIG_DIR"/*.conf 2>/dev/null | sort -rn | head -1)"
-    if [ -n "$SSH_SERVER_LISTENER_AGE_SECONDS" ] && [ -n "$SSH_SERVER_CONFIG_MTIME_EPOCH" ]; then
-        if [ $((SSH_SERVER_NOW_EPOCH - SSH_SERVER_LISTENER_AGE_SECONDS)) -lt "$SSH_SERVER_CONFIG_MTIME_EPOCH" ]; then
-            SSH_SERVER_CONFIG_RELOAD_NEEDED=true
-        fi
+    if [ -n "$SSH_SERVER_LISTENER_AGE_SECONDS" ]; then
+        SSH_SERVER_LOADED_EPOCH=$((SSH_SERVER_NOW_EPOCH - SSH_SERVER_LISTENER_AGE_SECONDS))
+    fi
+    if [ -f "$SSH_SERVER_RELOAD_STAMP" ] && [ "$(stat -c %Y "$SSH_SERVER_RELOAD_STAMP" 2>/dev/null)" -gt "$SSH_SERVER_LOADED_EPOCH" ] 2>/dev/null; then
+        SSH_SERVER_LOADED_EPOCH="$(stat -c %Y "$SSH_SERVER_RELOAD_STAMP")"
+    fi
+    if [ -n "$SSH_SERVER_CONFIG_MTIME_EPOCH" ] && [ "$SSH_SERVER_LOADED_EPOCH" -lt "$SSH_SERVER_CONFIG_MTIME_EPOCH" ]; then
+        SSH_SERVER_CONFIG_RELOAD_NEEDED=true
     fi
 }
 
@@ -454,6 +458,7 @@ ssh_server_apply_changed_config() {
             elif [ "$SSH_SERVER_INIT_SYSTEM" = "sysv" ]; then
                 $USE_SUDO service "$SSH_SERVER_SERVICE_NAME" reload
             fi
+            $USE_SUDO touch "$SSH_SERVER_RELOAD_STAMP"
             ssh_server_refresh_service
         else
             echo "[SSH] Running sshd listener already matches the newest configuration."
@@ -541,5 +546,34 @@ ssh_server_reap_stale_preauth() {
         printf '%s\n' "$SSH_SERVER_STALE_PREAUTH_PIDS" | xargs -r $USE_SUDO kill 2>/dev/null
     else
         echo "[SSH] No stale unauthenticated connections to reap."
+    fi
+}
+
+# Keep the systemd journal on disk. With the Debian default (Storage=auto and
+# no /var/log/journal) every reboot erases the sshd/kernel history, so the
+# reason a session or the whole host went down can no longer be traced.
+# Size limits stay with journald.conf; this drop-in only pins the storage.
+ssh_server_ensure_persistent_journal() {
+    SSH_SERVER_JOURNAL_PERSISTENT_READY=false
+    if [ ! -d /run/systemd/system ] || [ ! -x /usr/bin/journalctl ]; then
+        return
+    fi
+    write_file_if_changed "$SSH_SERVER_JOURNALD_DROPIN" "" 644 root root <<EOF
+[Journal]
+Storage=persistent
+EOF
+    SSH_SERVER_JOURNAL_MACHINE_ID="$(cat /etc/machine-id 2>/dev/null)"
+    if [ "$WRITE_FILE_CHANGED" = true ] || [ ! -d "$SSH_SERVER_JOURNAL_DIR/$SSH_SERVER_JOURNAL_MACHINE_ID" ]; then
+        echo "[SSH] Enabling persistent journal storage..."
+        $USE_SUDO mkdir -p "$SSH_SERVER_JOURNAL_DIR"
+        $USE_SUDO systemd-tmpfiles --create --prefix "$SSH_SERVER_JOURNAL_DIR" 2>/dev/null
+        $USE_SUDO systemctl restart systemd-journald
+        $USE_SUDO journalctl --flush 2>/dev/null
+    fi
+    if [ "$WRITE_FILE_READY" = true ] && [ -d "$SSH_SERVER_JOURNAL_DIR/$SSH_SERVER_JOURNAL_MACHINE_ID" ]; then
+        SSH_SERVER_JOURNAL_PERSISTENT_READY=true
+        echo "[SSH] Persistent journal is active ($SSH_SERVER_JOURNAL_DIR)."
+    else
+        echo "[SSH] Persistent journal could not be enabled."
     fi
 }

@@ -63,6 +63,22 @@ print_header_from_common_functions "Setup persistent SSH remote access"
 # simultaneous window gets its own session and no longer mirrors the first.
 # Immediate manual disable for a user: touch ~/.ncore-no-auto-tmux and detach
 # existing windows with Ctrl-b d (not exit, which would close the shell).
+#
+# FIX RECORD 2026-09-26 (SSH sessions still dropping):
+# Diagnosis: sshd logged "Read error from remote host 116.68.18.105: Connection
+# reset by peer" and the next login came from 116.68.18.40 - the client egress
+# NAT mapping expired and was rebound to a new public IP, which RSTs the old
+# TCP flow. sshd never initiated a disconnect (ClientAliveCountMax 0, no
+# restart, no OOM, no TMOUT, no firewall). The host also rebooted at 19:13, but
+# the volatile journal (no /var/log/journal) had erased every earlier boot, so
+# neither the reboot nor older drops could be traced. PerSourcePenalties
+# (OpenSSH 9.8+, man sshd_config) only refuses NEW connections from the single
+# penalised address (PerSourceNetBlockSize 32) and never affects live sessions.
+# Fix: ClientAliveInterval default lowered 60 -> 15 so the server keeps the
+# client NAT mapping refreshed (each alive request forces a client reply; the
+# 0 count max still never terminates a session), and
+# ssh_server_ensure_persistent_journal() pins journald Storage=persistent so
+# future drops and reboots stay diagnosable.
 
 ssh_server_ensure_package
 
@@ -78,6 +94,7 @@ if [ "$SSH_SERVER_INSTALLED" = true ] && [ "$SSH_SERVER_CONFIG_READY" = true ]; 
         ssh_server_ensure_running
         ssh_server_reap_stale_preauth
         ssh_server_ensure_session_persistence
+        ssh_server_ensure_persistent_journal
         detect_firewall false
         firewall_allow_port "$SSH_SERVER_PORT" "tcp" "SSH remote access"
     fi
@@ -89,7 +106,10 @@ SSH_CONNECTION_IPS="$(hostname -I 2>/dev/null | awk '{$1=$1; print}')"
 
 if [ "$SSH_SERVER_CONFIG_VALID" = true ] && [ "$SSH_SERVER_CONFIG_APPLIED" = true ] && [ "$SSH_SERVER_SERVICE_ACTIVE" = true ] && [ "$SSH_SERVER_SERVICE_ENABLED" = true ] && [ "$SSH_SERVER_RESTART_POLICY_READY" = true ]; then
     print_success_from_common_functions "SSH is configured, enabled, and running."
-    print_info_from_common_functions "Idle sessions have no OpenSSH alive-message termination limit."
+    print_info_from_common_functions "Idle sessions have no OpenSSH alive-message termination limit; alive requests every ${SSH_SERVER_CLIENT_ALIVE_INTERVAL}s keep client NAT mappings fresh."
+    if [ "$SSH_SERVER_JOURNAL_PERSISTENT_READY" = true ]; then
+        print_info_from_common_functions "The journal is persistent; trace past drops with: journalctl -u $SSH_SERVER_SERVICE_NAME -b -1"
+    fi
     print_info_from_common_functions "Unauthenticated connections expire after ${SSH_SERVER_LOGIN_GRACE_TIME}s (LoginGraceTime) and are limited per source (PerSourceMaxStartups $SSH_SERVER_PER_SOURCE_MAX_STARTUPS, MaxStartups $SSH_SERVER_MAX_STARTUPS)."
     print_info_from_common_functions "Stale pre-auth connection holders are reaped on every run."
     print_info_from_common_functions "SSH restarts automatically after process termination."
