@@ -30,6 +30,24 @@ class CodeMartV1EstimateService
     /** Per-platform effort multiplier step. */
     private const PLATFORM_FACTOR = 0.35;
 
+    /** Per-feature effort multiplier step. */
+    private const FEATURE_FACTOR = 0.12;
+
+    /** Effort band around the base estimate. */
+    private const RANGE_LOW = 0.85;
+    private const RANGE_HIGH = 1.25;
+
+    /** Hourly engagements quote a rate band around the tier rate. */
+    private const HOURLY_RATE_LOW = 0.9;
+    private const HOURLY_RATE_HIGH = 1.2;
+
+    public const MIN_PLATFORMS = 1;
+    public const MAX_PLATFORMS = 6;
+    public const MIN_FEATURES = 1;
+    public const MAX_FEATURES = 50;
+    public const DEFAULT_PLATFORMS = 1;
+    public const DEFAULT_FEATURES = 5;
+
     /** Team composition suggested per complexity tier. */
     private const TEAM = [
         CodeMartV1Constants::COMPLEXITY_SIMPLE => ['developer'],
@@ -44,17 +62,20 @@ class CodeMartV1EstimateService
     public function estimate(array $input): array
     {
         $complexity = $input['complexity'];
-        $platforms = max(1, min(6, $input['platforms']));
-        $features = max(1, min(50, $input['features']));
+        $platforms = max(self::MIN_PLATFORMS, min(self::MAX_PLATFORMS, $input['platforms']));
+        $features = max(self::MIN_FEATURES, min(self::MAX_FEATURES, $input['features']));
+        $budgetType = $input['budget_type'] === CodeMartV1Constants::BUDGET_TYPE_HOURLY
+            ? CodeMartV1Constants::BUDGET_TYPE_HOURLY
+            : CodeMartV1Constants::BUDGET_TYPE_FIXED;
 
         $baseHours = self::BASE_HOURS[$complexity];
         $rate = self::HOURLY_RATE[$complexity];
 
         $platformMultiplier = 1 + ($platforms - 1) * self::PLATFORM_FACTOR;
-        $featureMultiplier = 1 + ($features - 1) * 0.12;
+        $featureMultiplier = 1 + ($features - 1) * self::FEATURE_FACTOR;
 
-        $hoursMin = (int) round($baseHours * $platformMultiplier * $featureMultiplier * 0.85);
-        $hoursMax = (int) round($baseHours * $platformMultiplier * $featureMultiplier * 1.25);
+        $hoursMin = (int) round($baseHours * $platformMultiplier * $featureMultiplier * self::RANGE_LOW);
+        $hoursMax = (int) round($baseHours * $platformMultiplier * $featureMultiplier * self::RANGE_HIGH);
 
         $costMin = $hoursMin * $rate;
         $costMax = $hoursMax * $rate;
@@ -62,10 +83,17 @@ class CodeMartV1EstimateService
         $weeksMin = max(1, (int) floor($hoursMin / 120));
         $weeksMax = max($weeksMin + 1, (int) ceil($hoursMax / 100));
 
+        $team = self::TEAM[$complexity];
+        $teamRoles = [];
+        foreach (array_count_values($team) as $role => $count) {
+            $teamRoles[] = ['role' => $role, 'count' => $count];
+        }
+
         return [
             'complexity' => $complexity,
             'platforms' => $platforms,
             'features' => $features,
+            'budget_type' => $budgetType,
             'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
             'estimated_hours_min' => $hoursMin,
             'estimated_hours_max' => $hoursMax,
@@ -73,8 +101,15 @@ class CodeMartV1EstimateService
             'estimated_cost_max' => number_format($costMax, 2, '.', ''),
             'estimated_duration_weeks_min' => $weeksMin,
             'estimated_duration_weeks_max' => $weeksMax,
-            'recommended_team' => self::TEAM[$complexity],
+            'recommended_team' => $team,
+            'team_roles' => $teamRoles,
             'hourly_rate' => number_format($rate, 2, '.', ''),
+            'hourly_rate_min' => $budgetType === CodeMartV1Constants::BUDGET_TYPE_HOURLY
+                ? number_format($rate * self::HOURLY_RATE_LOW, 2, '.', '')
+                : null,
+            'hourly_rate_max' => $budgetType === CodeMartV1Constants::BUDGET_TYPE_HOURLY
+                ? number_format($rate * self::HOURLY_RATE_HIGH, 2, '.', '')
+                : null,
             'platform_commission_rate' => CodeMartV1Constants::PLATFORM_COMMISSION_RATE,
         ];
     }
@@ -82,19 +117,26 @@ class CodeMartV1EstimateService
     public function defaults(): array
     {
         return [
-            'complexities' => [
-                CodeMartV1Constants::COMPLEXITY_SIMPLE,
-                CodeMartV1Constants::COMPLEXITY_MEDIUM,
-                CodeMartV1Constants::COMPLEXITY_COMPLEX,
-                CodeMartV1Constants::COMPLEXITY_VERY_COMPLEX,
-            ],
+            'complexities' => array_keys(self::BASE_HOURS),
             'budget_types' => [
                 CodeMartV1Constants::BUDGET_TYPE_FIXED,
                 CodeMartV1Constants::BUDGET_TYPE_HOURLY,
             ],
             'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
-            'max_platforms' => 6,
-            'max_features' => 50,
+            'platforms' => [
+                'min' => self::MIN_PLATFORMS,
+                'max' => self::MAX_PLATFORMS,
+                'default' => self::DEFAULT_PLATFORMS,
+            ],
+            'features' => [
+                'min' => self::MIN_FEATURES,
+                'max' => self::MAX_FEATURES,
+                'default' => self::DEFAULT_FEATURES,
+            ],
+            'max_platforms' => self::MAX_PLATFORMS,
+            'max_features' => self::MAX_FEATURES,
+            'default_complexity' => CodeMartV1Constants::COMPLEXITY_MEDIUM,
+            'default_budget_type' => CodeMartV1Constants::BUDGET_TYPE_FIXED,
         ];
     }
 }

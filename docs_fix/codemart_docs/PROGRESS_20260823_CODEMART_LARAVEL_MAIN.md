@@ -3,6 +3,10 @@
 Updated: 2026-09-18 (functional-only revision)
 Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 
+> Revision 2026-09-27: a full audit found several functions below missing or
+> broken; statuses marked `superseded` are tracked in
+> `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+
 This record describes only which business functions the CodeMart server
 provides and their status. It contains no code, file, or architecture
 descriptions; the implementation is the authority for those.
@@ -46,26 +50,26 @@ descriptions; the implementation is the authority for those.
   claim an open task). Status: done.
 - Developer submissions with pending review, approved, needs revision, and
   rejected states. Status: done.
-- Reviewer queue and review decisions. Status: done.
+- Reviewer queue and review decisions. Status: superseded (U05, U06).
 
 ## Money and trust
 
 - Wallet summary, transaction history, deposit status, project funding,
-  escrow visibility, and refund requests. Status: done.
+  escrow visibility, and refund requests. Status: superseded (G04-G07, U01, U02, U19).
 - Deposit policy per role is server configuration shown read-only.
   Status: done.
 - Ledger entries are immutable; corrections are compensating entries.
   Status: done.
 - All finance mutations and task acceptance are idempotent: repeated
   requests with the same idempotency key return the prior result.
-  Status: done.
+  Status: superseded (U30).
 - Identity documents are private and authorized, never public paths.
-  Status: done.
+  Status: superseded (G10).
 
 ## Notifications
 
 - Domain notifications (finance, role, project events) with read state.
-  Status: done.
+  Status: superseded (U22: only administrator events were emitted).
 
 ## Public surface support
 
@@ -82,7 +86,7 @@ descriptions; the implementation is the authority for those.
 - KYC submission review with approve/reject. Status: done.
 - Deposit listing and payment confirmation that activates the related
   role; confirmation is idempotent. Status: done.
-- Refund request visibility. Status: done.
+- Refund request visibility. Status: superseded (A01: approve/reject/process).
 - Cross-user project listing and state visibility. Status: done.
 
 ## Data safety

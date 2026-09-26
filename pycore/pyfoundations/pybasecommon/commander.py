@@ -333,6 +333,41 @@ class Commander:
         return Commander.exec_realtime(command, info, cwd, show_output=False)
 
 
+    @staticmethod
+    def run_args(
+        command: List[str],
+        input_text: Optional[str] = None,
+        timeout: float = 10,
+        detach_output: bool = False,
+    ) -> CommandResult:
+        """
+        Run an argv list without a shell, optionally feeding stdin.
+
+        detach_output=True sends stdout/stderr to DEVNULL; required for tools
+        that fork a background owner (xclip, wl-copy) and keep inherited pipes open.
+        """
+        executable = shutil.which(command[0]) if command else None
+        if executable is None:
+            return CommandResult(127, stderr=f"command not found: {command[0] if command else ''}")
+        output_target = subprocess.DEVNULL if detach_output else subprocess.PIPE
+        try:
+            completed = subprocess.run(
+                [executable, *command[1:]],
+                input=input_text,
+                stdout=output_target,
+                stderr=output_target,
+                timeout=timeout,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return CommandResult(124, stderr=f"timeout after {timeout}s: {command[0]}")
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+        return CommandResult(completed.returncode, stdout, stderr, stdout + stderr)
+
+
 # Global instance for convenience
 commander = Commander()
 
@@ -361,6 +396,16 @@ def exec_silent(command: Union[str, List], info: bool = False, cwd: Optional[str
         CommandResult object with all collected data
     """
     return Commander.exec_silent(command, info, cwd, **kwargs)
+
+
+def run_args(
+    command: List[str],
+    input_text: Optional[str] = None,
+    timeout: float = 10,
+    detach_output: bool = False,
+) -> CommandResult:
+    """Run an argv list without a shell; see Commander.run_args."""
+    return Commander.run_args(command, input_text, timeout, detach_output)
 
 
 def exec_check(command: Union[str, List], cwd: Optional[str] = None) -> str:

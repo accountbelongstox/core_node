@@ -8,7 +8,7 @@ so long local synthesis never queues duplicate runs or blocks UI status reads.
 
 import os
 
-from pycore.pyfoundations.agent_home_scanner import unreadable_user_homes
+from pycore.pyctl.agent_history.root_spool import uncovered_unreadable_homes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
@@ -127,7 +127,7 @@ def register_agent_history_extraction() -> None:
     ColorPrint.blue(f"  - {CALLBACK_PIPELINE}: every {PIPELINE_INTERVAL}s ({'on' if pipeline_on else 'off'})")
     ColorPrint.blue(f"  - {CALLBACK_UPLOAD}: every {UPLOAD_INTERVAL}s ({'on' if pipeline_on else 'off'})")
     ColorPrint.blue(f"  - {CALLBACK_VIDEO}: every {VIDEO_INTERVAL}s ({'on' if video_on else 'off'})")
-    unreadable = unreadable_user_homes()
+    unreadable = uncovered_unreadable_homes()
     if unreadable:
         ColorPrint.yellow(
             f"[AgentHistory] homes not readable by this process (prompts there are not scanned): {unreadable}"

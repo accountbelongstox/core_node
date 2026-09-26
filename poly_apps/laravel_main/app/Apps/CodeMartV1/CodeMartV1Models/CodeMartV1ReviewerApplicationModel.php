@@ -16,11 +16,15 @@ class CodeMartV1ReviewerApplicationModel extends CodeMartV1Model
         'user_reviews',
         'similarity_score',
         'completed_at',
+        'revoked_at',
+        'revoked_by',
+        'revoke_reason',
     ];
 
     protected $casts = [
         'similarity_score' => 'decimal:2',
         'completed_at' => 'datetime',
+        'revoked_at' => 'datetime',
     ];
 
     public static function recentForUser(int $userId, int $days): ?self

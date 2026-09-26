@@ -9,6 +9,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperStatsModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,6 +25,7 @@ class CodeMartV1ArchitectCtl extends Controller
     // repaired into dedicated rows by the mutation endpoints.
     private const LEGACY_STATUS_ACTIVE = 'architect';
     private const LEGACY_STATUS_PENDING = 'architect_pending';
+    private const ACTION_ARCHITECT_ASSIGNED = 'architect_assigned';
 
     private function architectRole(int $userId): ?CodeMartV1UserRoleModel
     {
@@ -175,6 +177,7 @@ class CodeMartV1ArchitectCtl extends Controller
         return $this->success([
             'message' => 'Architect application submitted. Please pay additional deposit to complete.',
             'required_deposit' => $requiredDeposit,
+            'deposit' => CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_ARCHITECT),
         ]);
     }
 
@@ -211,8 +214,22 @@ class CodeMartV1ArchitectCtl extends Controller
         }
 
         if (!CodeMartV1ProjectModel::acceptForArchitect((int) $projectId, $user->id)) {
-            return $this->notFound('Project not found or already assigned');
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 'Project not found or already assigned', null, 404);
         }
+
+        CodeMartV1DomainEventService::emit(
+            (int) $user->id,
+            CodeMartV1Constants::RESOURCE_PROJECT,
+            (int) $projectId,
+            self::ACTION_ARCHITECT_ASSIGNED,
+            null,
+            null,
+            [],
+            null,
+            null,
+            null,
+            ['architect_id' => (int) $user->id]
+        );
 
         return $this->success(['message' => 'Project accepted. You can now create tasks for developers.']);
     }
@@ -224,16 +241,24 @@ class CodeMartV1ArchitectCtl extends Controller
 
         $userId = (int) $user->id;
         $architectRole = $this->normalizeLegacyArchitect($userId);
+        $policy = CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_ARCHITECT);
 
-        if (!$architectRole || $architectRole->role_status !== CodeMartV1Constants::ROLE_STATUS_PENDING) {
-            return $this->error('No pending architect application found');
+        if (!$architectRole) {
+            return $this->codedError('architect_application_missing', 'No architect application found', $policy, 404);
+        }
+        if ($architectRole->role_status === CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
+            return $this->success(['role_status' => $architectRole->role_status, 'deposit' => $policy, 'activated' => false]);
+        }
+        if ($architectRole->role_status !== CodeMartV1Constants::ROLE_STATUS_PENDING) {
+            return $this->codedError('architect_application_invalid_state', 'Architect application is not pending', $policy, 409);
         }
 
-        $requiredDeposit = CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT);
-        $architectDeposit = CodeMartV1DepositModel::paidAmountForUser($userId, CodeMartV1Constants::ROLE_ARCHITECT);
-
-        if ($architectDeposit < $requiredDeposit) {
-            return $this->error('Insufficient architect deposit. Required: ' . $requiredDeposit . ', Current: ' . $architectDeposit);
+        // Only an administrator-confirmed (paid) architect-role deposit counts; users cannot self-confirm.
+        if (CodeMartV1DepositModel::paidAmountForUser($userId, CodeMartV1Constants::ROLE_ARCHITECT) <= 0) {
+            return $this->codedError('architect_deposit_not_confirmed', 'No administrator-confirmed architect deposit found', $policy, 409);
+        }
+        if (!$policy['is_sufficient']) {
+            return $this->codedError('architect_deposit_insufficient', 'Confirmed deposits do not cover the architect requirement', $policy, 409);
         }
 
         CodeMartV1ProjectModel::runInTransaction(function () use ($architectRole) {
@@ -243,6 +268,24 @@ class CodeMartV1ArchitectCtl extends Controller
             ]);
         });
 
-        return $this->success(['message' => 'Congratulations! You are now an architect.']);
+        CodeMartV1DomainEventService::emit(
+            $userId,
+            'role',
+            $userId,
+            'architect_activated',
+            CodeMartV1Constants::ROLE_STATUS_PENDING,
+            CodeMartV1Constants::ROLE_STATUS_ACTIVE,
+            [],
+            null,
+            null,
+            null,
+            ['role' => CodeMartV1Constants::ROLE_ARCHITECT, 'paid_amount' => $policy['paid_amount']]
+        );
+
+        return $this->success([
+            'role_status' => CodeMartV1Constants::ROLE_STATUS_ACTIVE,
+            'deposit' => $policy,
+            'activated' => true,
+        ]);
     }
 }

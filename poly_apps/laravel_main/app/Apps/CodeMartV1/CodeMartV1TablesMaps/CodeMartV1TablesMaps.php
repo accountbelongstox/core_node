@@ -13,6 +13,7 @@ class CodeMartV1TablesMaps
     public const NOTIFICATIONS_TABLE = 'codemart_v1_notifications';
     public const ACTIVITIES_TABLE = 'codemart_v1_activities';
     public const TESTIMONIALS_TABLE = 'codemart_v1_testimonials';
+    public const CONTACT_MESSAGES_TABLE = 'codemart_v1_contact_messages';
 
     // Global tables (shared across apps)
     public const USERS_TABLE = 'users';
@@ -192,12 +193,51 @@ class CodeMartV1TablesMaps
     public const CODEMART_TASKS_STATE_REVISION = 'state_revision';
     public const CODEMART_TASKS_REQUIRED_SKILLS = 'required_skills';
     public const CODEMART_TASKS_ASSIGNED_AT = 'assigned_at';
+    public const CODEMART_TASKS_STARTED_AT = 'started_at';
+    public const CODEMART_TASKS_COMPLETED_AT = 'completed_at';
+    public const CODEMART_TASK_SUBMISSIONS_REVIEWED_BY = 'reviewed_by';
+    public const CODEMART_TASK_SUBMISSIONS_REVIEWED_AT = 'reviewed_at';
+    public const CODEMART_CODE_REVIEWS_SECURITY_RATING = 'security_rating';
+    public const CODEMART_CODE_REVIEWS_REVIEW_KIND = 'review_kind';
+    public const CODEMART_CODE_REVIEWS_RECOMMENDATION = 'recommendation';
+    public const CODEMART_CODE_REVIEWS_CODE_SCORE = 'code_score';
+    public const CODEMART_DEVELOPER_STATS_TABLE = 'codemart_v1_developer_stats';
+    public const CODEMART_DEVELOPER_STATS_COMPLETED_TASKS = 'completed_tasks';
     public const CODEMART_AI_ANALYSES_GLOBAL_TASK_ID = 'global_task_id';
     public const CODEMART_AI_ANALYSES_REVISION = 'revision';
     public const CODEMART_AI_ANALYSES_IDEMPOTENCY_KEY = 'idempotency_key';
     public const CODEMART_PAYMENTS_IDEMPOTENCY_KEY = 'idempotency_key';
     public const CODEMART_PAYMENTS_BUSINESS_REF = 'business_ref';
     public const CODEMART_DEPOSITS_IDEMPOTENCY_KEY = 'idempotency_key';
+    public const CODEMART_DEPOSITS_ADMIN_ID = 'admin_id';
+    public const CODEMART_DEPOSITS_ADMIN_NOTES = 'admin_notes';
+    public const CODEMART_DEPOSITS_REVIEWED_AT = 'reviewed_at';
+    public const CODEMART_DEPOSITS_REFUNDED_AT = 'refunded_at';
+    public const CODEMART_REFUNDS_REQUESTED_BY = 'requested_by';
+    public const CODEMART_REFUNDS_ADMIN_ID = 'admin_id';
+    public const CODEMART_REFUNDS_ADMIN_NOTES = 'admin_notes';
+    public const CODEMART_REFUNDS_REVIEWED_AT = 'reviewed_at';
+    public const CODEMART_REFUNDS_IDEMPOTENCY_KEY = 'idempotency_key';
+    public const CODEMART_ESCROWS_ESCROW_TYPE = 'escrow_type';
+    public const CODEMART_ESCROWS_RELEASED_AMOUNT = 'released_amount';
+    public const CODEMART_ESCROWS_REFUNDED_AMOUNT = 'refunded_amount';
+    public const CODEMART_ESCROWS_IDEMPOTENCY_KEY = 'idempotency_key';
+    public const CODEMART_ESCROWS_METADATA = 'metadata';
+
+    // CodeMart V1 Withdrawals table (developer payouts)
+    public const CODEMART_WITHDRAWALS_TABLE = 'codemart_v1_withdrawals';
+    public const CODEMART_WITHDRAWALS_ID = 'id';
+    public const CODEMART_WITHDRAWALS_USER_ID = 'user_id';
+    public const CODEMART_WITHDRAWALS_AMOUNT = 'amount';
+    public const CODEMART_WITHDRAWALS_CURRENCY = 'currency';
+    public const CODEMART_WITHDRAWALS_STATUS = 'status';
+    public const CODEMART_WITHDRAWALS_METHOD = 'method';
+    public const CODEMART_WITHDRAWALS_ACCOUNT_INFO = 'account_info';
+    public const CODEMART_WITHDRAWALS_ADMIN_ID = 'admin_id';
+    public const CODEMART_WITHDRAWALS_ADMIN_NOTES = 'admin_notes';
+    public const CODEMART_WITHDRAWALS_IDEMPOTENCY_KEY = 'idempotency_key';
+    public const CODEMART_WITHDRAWALS_REVIEWED_AT = 'reviewed_at';
+    public const CODEMART_WITHDRAWALS_PAID_AT = 'paid_at';
 
     // CodeMart V1 Notifications table
     public const CODEMART_NOTIFICATIONS_ID = 'id';
@@ -228,4 +268,26 @@ class CodeMartV1TablesMaps
     public const CODEMART_TESTIMONIALS_AVATAR_URL = 'avatar_url';
     public const CODEMART_TESTIMONIALS_APPROVED = 'approved';
     public const CODEMART_TESTIMONIALS_DISPLAY_ORDER = 'display_order';
+    public const CODEMART_TESTIMONIALS_QUOTES = 'quotes';
+    public const CODEMART_TESTIMONIALS_ROLE_LABELS = 'role_labels';
+    public const CODEMART_TESTIMONIALS_STATUS = 'status';
+    public const CODEMART_TESTIMONIALS_USER_ID = 'user_id';
+    public const CODEMART_TESTIMONIALS_PROJECT_ID = 'project_id';
+    public const CODEMART_TESTIMONIALS_MODERATED_BY = 'moderated_by';
+    public const CODEMART_TESTIMONIALS_MODERATED_AT = 'moderated_at';
+
+    // CodeMart V1 Contact messages table (public contact form inbox)
+    public const CODEMART_CONTACT_MESSAGES_ID = 'id';
+    public const CODEMART_CONTACT_MESSAGES_NAME = 'name';
+    public const CODEMART_CONTACT_MESSAGES_EMAIL = 'email';
+    public const CODEMART_CONTACT_MESSAGES_SUBJECT = 'subject';
+    public const CODEMART_CONTACT_MESSAGES_MESSAGE = 'message';
+    public const CODEMART_CONTACT_MESSAGES_STATUS = 'status';
+    public const CODEMART_CONTACT_MESSAGES_HANDLED_BY = 'handled_by';
+    public const CODEMART_CONTACT_MESSAGES_HANDLED_AT = 'handled_at';
+
+    // Additive reviewer-application revocation columns
+    public const CODEMART_REVIEWER_APPLICATIONS_REVOKED_AT = 'revoked_at';
+    public const CODEMART_REVIEWER_APPLICATIONS_REVOKED_BY = 'revoked_by';
+    public const CODEMART_REVIEWER_APPLICATIONS_REVOKE_REASON = 'revoke_reason';
 }

@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 
@@ -21,7 +22,7 @@ class CodeMartV1FileUploadService
 
         try {
             $fileName = $this->generateFileName($imageType);
-            $path = Storage::disk(self::UPLOAD_DISK)->putFileAs(
+            $path = Storage::disk(CodeMartV1Constants::KYC_PRIVATE_DISK)->putFileAs(
                 self::KYC_UPLOAD_PATH,
                 $file,
                 $fileName
@@ -31,6 +32,32 @@ class CodeMartV1FileUploadService
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    /**
+     * Resolve a stored KYC document: new uploads live on the private disk,
+     * documents stored before the private-disk change stay readable from the
+     * legacy public disk.
+     *
+     * @return array{disk:string,path:string}|null
+     */
+    public function locateKycFile(?string $path): ?array
+    {
+        if ($path === null || $path === '') {
+            return null;
+        }
+
+        foreach ([CodeMartV1Constants::KYC_PRIVATE_DISK, CodeMartV1Constants::KYC_LEGACY_PUBLIC_DISK] as $disk) {
+            try {
+                if (Storage::disk($disk)->exists($path)) {
+                    return ['disk' => $disk, 'path' => $path];
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     public function uploadProfileImage(object $file): string|bool
@@ -63,6 +90,65 @@ class CodeMartV1FileUploadService
             return false;
         } catch (\Exception $e) {
             return false;
+        }
+    }
+
+    /**
+     * Store a delivery file (project attachment, submission upload) on the
+     * private disk. Returns the descriptor or null when the file is invalid
+     * or cannot be stored.
+     */
+    public function storePrivateDeliveryFile(object $file, string $directory): ?array
+    {
+        if (!$file || !$file->isValid()) {
+            return null;
+        }
+
+        try {
+            $extension = strtolower((string) $file->getClientOriginalExtension());
+            $storedName = Str::uuid()->toString() . ($extension !== '' ? '.' . $extension : '');
+            $path = Storage::disk(CodeMartV1Constants::DELIVERY_PRIVATE_DISK)->putFileAs($directory, $file, $storedName);
+            if (!is_string($path) || $path === '') {
+                return null;
+            }
+
+            return [
+                'file_name' => $storedName,
+                'original_name' => (string) $file->getClientOriginalName(),
+                'mime_type' => (string) ($file->getMimeType() ?? $file->getClientMimeType()),
+                'size' => (int) $file->getSize(),
+                'path' => $path,
+            ];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    public function privateDeliveryFileExists(?string $path): bool
+    {
+        return is_string($path) && $path !== ''
+            && Storage::disk(CodeMartV1Constants::DELIVERY_PRIVATE_DISK)->exists($path);
+    }
+
+    public function downloadPrivateDeliveryFile(string $path, string $downloadName)
+    {
+        return Storage::disk(CodeMartV1Constants::DELIVERY_PRIVATE_DISK)->download($path, $downloadName);
+    }
+
+    /** First bytes of a private text file (for cheap keyword extraction). */
+    public function readPrivateDeliverySnippet(string $path, int $maxBytes): string
+    {
+        try {
+            $stream = Storage::disk(CodeMartV1Constants::DELIVERY_PRIVATE_DISK)->readStream($path);
+            if (!is_resource($stream)) {
+                return '';
+            }
+            $snippet = (string) fread($stream, $maxBytes);
+            fclose($stream);
+
+            return $snippet;
+        } catch (\Throwable $e) {
+            return '';
         }
     }
 

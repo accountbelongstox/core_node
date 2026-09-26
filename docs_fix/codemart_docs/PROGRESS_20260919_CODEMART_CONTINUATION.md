@@ -3,6 +3,10 @@
 Date: 2026-09-19 (functional-only)
 Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 
+> Revision 2026-09-27: a full audit found several functions below missing or
+> broken; statuses marked `superseded` are tracked in
+> `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+
 This record continues the CodeMart progress records. It describes only
 user-facing functions and their verified status; it contains no code,
 file, or architecture descriptions.

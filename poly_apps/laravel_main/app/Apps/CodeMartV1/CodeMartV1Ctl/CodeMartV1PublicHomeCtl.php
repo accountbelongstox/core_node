@@ -10,6 +10,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class CodeMartV1PublicHomeCtl extends Controller
 {
@@ -21,9 +22,49 @@ class CodeMartV1PublicHomeCtl extends Controller
     ) {
     }
 
-    public function getHome(): JsonResponse
+    public function getHome(Request $request): JsonResponse
     {
-        return $this->success($this->publicHomeService->getHome());
+        return $this->success($this->publicHomeService->getHome(CodeMartV1PublicHomeService::resolveLocale($request)));
+    }
+
+    /**
+     * Redacted public showcase: open marketplace work and completed projects,
+     * without client identity.
+     */
+    public function showcase(Request $request): JsonResponse
+    {
+        $page = max(1, (int) $request->query('page', 1));
+        $pageSize = min(
+            CodeMartV1Constants::MAX_PAGE_SIZE,
+            max(1, (int) $request->query('page_size', CodeMartV1Constants::DEFAULT_PAGE_SIZE))
+        );
+
+        return $this->success($this->publicHomeService->showcase($page, $pageSize));
+    }
+
+    public function contact(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:100',
+            'email' => 'required|email|max:255',
+            'subject' => 'nullable|string|max:255',
+            'message' => 'required|string|min:5|max:5000',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorWithCode(
+                CodeMartV1Constants::ERROR_VALIDATION_FAILED,
+                'Validation failed',
+                422,
+                $validator->errors()
+            );
+        }
+
+        return $this->success(
+            $this->publicHomeService->submitContactMessage($validator->validated()),
+            'Message received',
+            201
+        );
     }
 
     /**
@@ -32,11 +73,12 @@ class CodeMartV1PublicHomeCtl extends Controller
      */
     public function estimate(Request $request): JsonResponse
     {
+        $options = $this->estimateService->defaults();
         $validator = Validator::make($request->all(), [
-            'complexity' => 'required|in:simple,medium,complex,very_complex',
-            'platforms' => 'nullable|integer|min:1|max:6',
-            'features' => 'nullable|integer|min:1|max:50',
-            'budget_type' => 'nullable|in:fixed,hourly',
+            'complexity' => ['required', Rule::in($options['complexities'])],
+            'platforms' => 'nullable|integer|min:' . CodeMartV1EstimateService::MIN_PLATFORMS . '|max:' . CodeMartV1EstimateService::MAX_PLATFORMS,
+            'features' => 'nullable|integer|min:' . CodeMartV1EstimateService::MIN_FEATURES . '|max:' . CodeMartV1EstimateService::MAX_FEATURES,
+            'budget_type' => ['nullable', Rule::in($options['budget_types'])],
         ]);
 
         if ($validator->fails()) {
@@ -45,8 +87,8 @@ class CodeMartV1PublicHomeCtl extends Controller
 
         return $this->success($this->estimateService->estimate([
             'complexity' => (string) $request->input('complexity'),
-            'platforms' => (int) $request->input('platforms', 1),
-            'features' => (int) $request->input('features', 5),
+            'platforms' => (int) $request->input('platforms', CodeMartV1EstimateService::DEFAULT_PLATFORMS),
+            'features' => (int) $request->input('features', CodeMartV1EstimateService::DEFAULT_FEATURES),
             'budget_type' => (string) $request->input('budget_type', CodeMartV1Constants::BUDGET_TYPE_FIXED),
         ]));
     }

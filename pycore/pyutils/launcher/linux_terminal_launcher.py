@@ -18,7 +18,7 @@ The facade itself owns only the strategy: it picks one of two strategies based
 on the session type:
 
   * X11 -- we launch N separate, individually-positioned windows. The robust
-    path needs only a positioner (``wmctrl`` or ``xdotool``) plus ANY emulator:
+    path needs only a positioner (the shared X11 display library) plus ANY emulator:
     each window self-sets a unique title (OSC escape) and the positioner
     moves/sizes it by captured window id, so it works even with qterminal (no
     geometry flag). A geometry-capable emulator (xfce4-terminal / gnome-terminal
@@ -31,7 +31,7 @@ on the session type:
     separate positioned windows ARE still possible through XWayland: a
     single-process emulator launched with its X11 backend (GTK ``GDK_BACKEND``
     / Qt ``QT_QPA_PLATFORM``, per the official GTK/Qt docs) creates X11 windows
-    that ``wmctrl``/``xdotool`` place exactly as on X11. That path is used
+    that the X11 display library places exactly as on X11. That path is used
     whenever a positioner and a suitable emulator exist. Only when it does not
     apply do we fall back to a SINGLE window whose internal PANES form the grid
     (``kitty`` session file or ``tmux`` split panes), or, failing those, N plain
@@ -54,6 +54,7 @@ import subprocess
 import tempfile
 import time
 
+from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
@@ -187,19 +188,14 @@ class LinuxTerminalLauncher:
             ColorPrint.plain("No windows to launch.")
             return []
 
-        # WAYLAND_DISPLAY is set by every Wayland compositor and is the canonical
-        # signal; XDG_SESSION_TYPE is absent/wrong when a compositor starts outside a
-        # display manager (e.g. sway from a VT, mutter-wayland) -- without this a
-        # Wayland session is misread as X11 and wmctrl/xdotool fail silently.
-        is_wayland = (os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
-                      or bool(os.environ.get("WAYLAND_DISPLAY")))
-        positioner = self._placer._find_positioner()              # wmctrl > xdotool > None
+        is_wayland = current_desktop_session().is_wayland
+        positioner = self._placer._find_positioner()              # shared X11/Xwayland display or None
         geom_emu = self._argv._find_x11_emulator()                # geometry-capable, no qterminal
         any_emu = self._argv._find_fallback_emulator_or_none()    # broad list incl. qterminal
 
         # Strategy selection. Separate real windows are the DEFAULT (the user
         # asked for "12 windows"); the paned grid is the automatic fallback.
-        #   1. X11 + a positioner (wmctrl/xdotool) + ANY emulator, and the caller
+        #   1. X11 + a positioner (X11 display library) + ANY emulator, and the caller
         #      did not force paned -> N separate windows positioned BY TITLE.
         #      Title-matching is the only thing that works with qterminal (no
         #      geometry flag) and sidesteps its shared-server-PID problem. Prefer
@@ -257,8 +253,7 @@ class LinuxTerminalLauncher:
             "user@host: cwd" (Kali/Debian bash sets it via PROMPT_COMMAND) before
             any delayed placement runs, so a launcher-set title no longer exists;
           * with >=10 windows the titles "pylauncher-1".."pylauncher-12" collide
-            under wmctrl's case-insensitive SUBSTRING match and xdotool's
-            unanchored regex ("pylauncher-1" also matches "-10/-11/-12").
+            under substring/regex title matching ("pylauncher-1" also matches "-10/-11/-12").
         A window id never changes, so neither effect can misplace the grid. This
         is also what lets qterminal (no --geometry flag, shared server PID) form
         a real grid of separate windows. Title matching remains a fallback only.
@@ -271,7 +266,7 @@ class LinuxTerminalLauncher:
         Args:
             configs: List of 4-tuples (x, y, cols, rows).
             emulator: Emulator to launch (geometry-capable preferred, else any).
-            positioner: 'wmctrl' or 'xdotool'.
+            positioner: 'x11' (shared X11/Xwayland display library).
             delay: Delay between launches in seconds.
             env_extra: Optional env overrides merged over os.environ for the
                 spawned emulator (e.g. the X11-backend-forcing vars used on
@@ -330,7 +325,7 @@ class LinuxTerminalLauncher:
                 if frame is None:
                     frame = self._placer._frame_extents(wid)
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
-                self._placer._place_by_id(positioner, wid, px, py, w, h)
+                self._placer._place_by_id(wid, px, py, w, h)
                 placed.append((wid, px, py, w, h))
                 ColorPrint.plain(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
                       + (f" ({w}x{h}px)" if cell_w else "")
@@ -340,10 +335,7 @@ class LinuxTerminalLauncher:
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
                 ColorPrint.plain(f"  Window {i}: id capture timed out; title-matching "
                       f"{title}")
-                if positioner == "wmctrl":
-                    self._placer._place_by_title_wmctrl(title, px, py, w, h)
-                else:
-                    self._placer._place_by_title_xdotool(title, px, py, w, h)
+                self._placer._place_by_title(title, px, py, w, h)
             time.sleep(delay)
 
         # Re-assert pass: on XWayland the compositor can apply its own map-time
@@ -352,7 +344,7 @@ class LinuxTerminalLauncher:
         if placed:
             time.sleep(0.5)
             for wid, px, py, w, h in placed:
-                self._placer._place_by_id(positioner, wid, px, py, w, h)
+                self._placer._place_by_id(wid, px, py, w, h)
 
         return pids
 
@@ -419,7 +411,7 @@ class LinuxTerminalLauncher:
                 if frame is None:
                     frame = self._placer._frame_extents(wid)
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
-                self._placer._place_by_id(positioner, wid, px, py, w, h)
+                self._placer._place_by_id(wid, px, py, w, h)
                 ColorPrint.plain(f"  Window {i}: {emulator} geometry={geometry} -> "
                       f"id {wid:#010x} @ {px},{py} (pid {proc.pid})")
             else:

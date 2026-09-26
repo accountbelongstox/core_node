@@ -30,17 +30,10 @@ from pycore.pyctl.agent_history.snapshot_cache import (
     read_prompt_catalog_snapshot,
     session_summary,
 )
-from pycore.pyctl.agent_history.antigravity_extractor import AntigravityExtractor
-from pycore.pyctl.agent_history.claude_extractor import ClaudeCodeExtractor
-from pycore.pyctl.agent_history.cline_extractor import ClineExtractor
-from pycore.pyctl.agent_history.codex_extractor import CodexExtractor
-from pycore.pyctl.agent_history.cursor_extractor import CursorExtractor
-from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
-from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
-from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
-from pycore.pyctl.agent_history.pi_extractor import PiExtractor
+import pycore.pyctl.agent_history.root_spool as root_spool
 from pycore.pyctl.agent_history.base_extractor import BaseExtractor
-from pycore.pyfoundations.agent_home_scanner import scan_user_homes, unreadable_user_homes
+from pycore.pyctl.agent_history.extractor_registry import build_extractors
+from pycore.pyfoundations.agent_home_scanner import scan_user_homes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -94,17 +87,7 @@ class AgentHistoryService:
     """Incremental extractor + txt store reader."""
 
     def __init__(self) -> None:
-        self._extractors = [
-            ClaudeCodeExtractor(),
-            CodexExtractor(),
-            PiExtractor(),
-            GeminiExtractor(),
-            CursorExtractor(),
-            KimiExtractor(),
-            AntigravityExtractor(),
-            ClineExtractor(),
-            GenericAgentExtractor(),
-        ]
+        self._extractors = build_extractors()
         # Per-tool source descriptor maps for the live-scan skip cache;
         # mutated only inside the serialized extract queue.
         self._live_scan_descriptors: Dict[str, Dict[str, str]] = {}
@@ -127,7 +110,27 @@ class AgentHistoryService:
                         "tool": extractor.tool(),
                         "user": user,
                     }
+        index_by_tool = {extractor.tool(): idx for idx, extractor in enumerate(self._extractors)}
+        for path, rec in root_spool.read_sources().items():
+            idx = index_by_tool.get(str(rec.get("tool") or ""))
+            if idx is None:
+                continue
+            out[path] = {
+                "source_id": self._source_id(path),
+                "mtime": int(rec.get("mtime") or 0),
+                "bytes": int(rec.get("bytes") or 0),
+                "extractor": idx,
+                "tool": rec["tool"],
+                "user": str(rec.get("user") or ""),
+                "spool": str(rec.get("file") or ""),
+            }
         return out
+
+    def _parse_source(self, path: str, info: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Own parse, or the root spool's parse for sources this process cannot read."""
+        if info.get("spool"):
+            return root_spool.read_sessions(info["spool"])
+        return self._extractors[info["extractor"]].parse_source(path, info["user"])
 
     @staticmethod
     def _source_id(path: str) -> str:
@@ -269,6 +272,7 @@ class AgentHistoryService:
             extractor.tool(): extractor for extractor in self._extractors
         }
         homes = self._live_scan_homes(supported)
+        spooled = root_spool.read_sources()
         changed_tools: List[str] = []
         skipped_tools: List[str] = []
         pending_descriptors: Dict[str, Dict[str, str]] = {}
@@ -283,6 +287,9 @@ class AgentHistoryService:
                     descriptors[str(d.get("path") or "")] = (
                         f"{int(d.get('mtime') or 0)}:{int(d.get('bytes') or 0)}"
                     )
+            for path, rec in spooled.items():
+                if rec.get("tool") == tool:
+                    descriptors[path] = f"{int(rec.get('mtime') or 0)}:{int(rec.get('bytes') or 0)}"
             if descriptors == self._live_scan_baseline(tool):
                 skipped_tools.append(tool)
                 continue
@@ -384,7 +391,7 @@ class AgentHistoryService:
             for path in changed_paths:
                 info = current[path]
                 old_ids = list(prev_sources.get(path, {}).get("session_ids") or [])
-                sessions = self._extractors[info["extractor"]].parse_source(path, info["user"])
+                sessions = self._parse_source(path, info)
                 ids: List[str] = []
 
                 for sess in sessions:
@@ -801,7 +808,8 @@ class AgentHistoryService:
     def get_status(self) -> Dict[str, Any]:
         return {
             "last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {},
-            "unreadable_homes": unreadable_user_homes(),
+            "unreadable_homes": root_spool.uncovered_unreadable_homes(),
+            "root_spool": root_spool.spool_status(),
             "supported_tools": self._live_scan_supported_tools(),
         }
 

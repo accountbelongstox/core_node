@@ -108,6 +108,14 @@ AGENT_HISTORY_NON_HUMAN_USERS = (
 )
 AGENT_HISTORY_NON_HUMAN_SUFFIXES = ('$',)
 
+# Root read helper (Linux): when pyservice drops the worker to the desktop
+# user, a root-side spool process parses only the agent sources that user
+# cannot read (root-owned 0600 transcripts of agents run as root) and writes
+# the parsed sessions here (root-owned, group-readable by the worker only).
+AGENT_HISTORY_ROOT_SPOOL_DIR = '/var/cache/core_node/agent_history_root_spool'
+AGENT_HISTORY_ROOT_SPOOL_INTERVAL_S = 5
+AGENT_HISTORY_ROOT_SPOOL_STALE_S = 60
+
 # Launcher -> isolated profile. (script stem, tool, {platform: root key}, slot)
 # slot ending in '*' is a numbered family (MyBest1..N, auto-created by the
 # script). Verified against scripts/winenvs/*.ps1 + scripts/linuxenvs/*.sh and

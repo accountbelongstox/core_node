@@ -43,7 +43,7 @@ class LinuxTerminalArgv:
     # separate-window X11 path. qterminal is absent (no geometry flag); gnome-terminal
     # is ALSO absent because it dropped --geometry in 3.36 (Ubuntu 20.04+, Debian 12,
     # Kali-with-GNOME) -- keeping it here would silently no-op the geometry path.
-    # gnome-terminal still works via FALLBACK_EMULATORS + the wmctrl/xdotool positioner.
+    # gnome-terminal still works via FALLBACK_EMULATORS + the X11 display positioner.
     X11_EMULATORS = ("xfce4-terminal", "konsole", "xterm")
 
     # Broad emulator list for the fallback paths (tmux-attach window and the
@@ -159,7 +159,7 @@ class LinuxTerminalArgv:
 
         Args:
             emulator: Emulator name (already known to be on PATH).
-            title: Unique window title (used later by wmctrl).
+            title: Unique window title (fallback placement by exact title).
             geometry: X geometry string "<cols>x<rows>+<x>+<y>".
             command: Command string to run inside the terminal (read live from
                 the launcher, so a post-construction reassignment takes effect).

@@ -1,37 +1,28 @@
 # -*- coding: utf-8 -*-
 """
 Linux Window Placer
-X11 window-management primitives + grid geometry math for the terminal grid.
+Grid geometry math plus window placement for the terminal grid launcher.
 
-This is the window-positioning concern split out of ``linux_terminal_launcher``.
-It knows nothing about terminal emulators (no argv construction, no emulator
-discovery) -- only about:
-
-  * enumerating managed top-level window ids (``wmctrl -l`` / ``xdotool``),
-  * resolving the id of a freshly-mapped window by diffing that set,
-  * moving/sizing a window by id OR by title (wmctrl / xdotool),
-  * measuring the window-manager frame extents (``xprop``),
-  * the pure geometry math of a grid: cell pixel size, inter-window gaps,
-    client-rectangle insets, and column-count estimation.
-
-Mirrors the precedent of ``linux_screen_manager.LinuxScreenManager``: a sibling
-Linux X11/Wayland concern, a standalone class, never raises. Every external
-command is guarded by ``shutil.which`` and wrapped in try/except so a missing
-tool or malformed output degrades to a no-op / sane default instead of raising.
-Under Wayland ``wmctrl``/``xdotool``/``xprop`` are unavailable, so the methods
-return empty sets / zero extents / None; the launcher's Wayland path never
-calls them (it uses the single-window paned grid instead).
+Window enumeration, EWMH move/resize and frame extents come from the shared
+X11/Xwayland library ``pyutils.common.x11_display`` (the same library the
+Terminal Control backend uses). This module only adds the pure grid math:
+cell pixel size, inter-window gaps, client-rectangle insets, and column-count
+estimation. Native Wayland clients cannot be positioned; the launcher's
+Wayland path runs X11-backend emulators through Xwayland instead.
 """
 
 import math
-import shutil
-import subprocess
 import time
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.x11_display import x11_display
+
+
+X11_POSITIONER = "x11"
 
 
 class LinuxWindowPlacer:
-    """X11 window-id management and grid geometry math (never raises)."""
+    """Grid geometry math and X11/Xwayland window placement."""
 
     # ------------------------------------------------------------------ #
     # Grid geometry math (pure; no external commands)
@@ -115,106 +106,27 @@ class LinuxWindowPlacer:
 
     @staticmethod
     def _frame_extents(wid):
-        """
-        Return the window-manager frame extents (left, right, top, bottom) in px
-        for window id ``wid`` via ``_NET_FRAME_EXTENTS`` (xprop), or (0,0,0,0)
-        when unknown/undecorated. Used so the gap is measured between window
-        FRAMES (title bar + borders), not just client rectangles.
-        """
-        if not shutil.which("xprop"):
-            return (0, 0, 0, 0)
-        try:
-            out = subprocess.run(
-                ["xprop", "-id", f"0x{wid:x}", "_NET_FRAME_EXTENTS"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if "=" in out.stdout:
-                nums = [int(t) for t in out.stdout.split("=", 1)[1].replace(" ", "").split(",")
-                        if t.strip().lstrip("-").isdigit()]
-                if len(nums) == 4:
-                    return (nums[0], nums[1], nums[2], nums[3])
-        except Exception:
-            pass
-        return (0, 0, 0, 0)
+        """Window-manager frame extents (left, right, top, bottom) for ``wid``, or zeros."""
+        return x11_display.frame_extents(wid)
 
     # ------------------------------------------------------------------ #
-    # Positioner discovery
+    # Positioner discovery and window-id management (shared X11 library)
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _find_positioner():
-        """
-        Return the preferred window positioner available on PATH.
-
-        Prefers ``wmctrl`` (clean title-based move/resize), then ``xdotool``
-        (works headlessly with --sync), else None.
-
-        Returns:
-            str or None: 'wmctrl', 'xdotool', or None.
-        """
-        if shutil.which("wmctrl"):
-            return "wmctrl"
-        if shutil.which("xdotool"):
-            return "xdotool"
-        return None
-
-    # ------------------------------------------------------------------ #
-    # Window-id management
-    # ------------------------------------------------------------------ #
+        """Return 'x11' when the shared X11/Xwayland display can position windows, else None."""
+        return X11_POSITIONER if x11_display.probe()["available"] else None
 
     @staticmethod
     def _list_window_ids():
-        """
-        Return the set of currently-managed top-level window ids (as ints).
-
-        Prefers ``wmctrl -l`` (first column, hex), falling back to ``xdotool``.
-        Diffing this set before vs after a launch identifies the new window
-        without relying on its title or pid -- robust for shells that rewrite
-        their title and for shared-server emulators (qterminal) whose windows
-        do not map to the launching pid. Never raises.
-        """
-        ids = set()
-        if shutil.which("wmctrl"):
-            try:
-                out = subprocess.run(["wmctrl", "-l"], capture_output=True,
-                                     text=True, timeout=5)
-                for line in out.stdout.splitlines():
-                    parts = line.split(None, 1)
-                    if parts:
-                        try:
-                            ids.add(int(parts[0], 16))
-                        except ValueError:
-                            pass
-                return ids
-            except Exception:
-                pass
-        if shutil.which("xdotool"):
-            try:
-                out = subprocess.run(
-                    ["xdotool", "search", "--onlyvisible", "--name", "."],
-                    capture_output=True, text=True, timeout=5,
-                )
-                for tok in out.stdout.split():
-                    try:
-                        ids.add(int(tok))
-                    except ValueError:
-                        pass
-            except Exception:
-                pass
-        return ids
+        """Return the set of managed top-level window ids (ints) from _NET_CLIENT_LIST."""
+        return x11_display.window_ids()
 
     def _resolve_new_window_id(self, snapshot, timeout=3.0, poll=0.05):
         """
         Block up to ``timeout`` seconds until a managed window id appears that is
         not in ``snapshot``; return it (the highest, if several) or None.
-
-        Args:
-            snapshot: Set of window ids (ints) observed before the launch.
-            timeout: Maximum seconds to wait for the new window to map.
-            poll: Polling interval in seconds.
-
-        Returns:
-            int or None: The new window id, or None on timeout.
         """
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -224,113 +136,20 @@ class LinuxWindowPlacer:
             time.sleep(poll)
         return None
 
-    # ------------------------------------------------------------------ #
-    # Placement: by id (primary) and by title (fallback)
-    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _place_by_id(wid, x, y, width=None, height=None):
+        """Move (and optionally size) window id ``wid`` to (x, y) through EWMH."""
+        if not x11_display.move_resize(wid, x, y, width, height):
+            ColorPrint.plain(f"  place: failed to position id {wid:#x}")
 
     @staticmethod
-    def _place_by_id(positioner, wid, x, y, width=None, height=None):
-        """
-        Move (and optionally size) the window id ``wid`` (int) to (x, y).
-
-        Uses ``wmctrl -i -r <id> -e`` (id is exact, no title needed) or
-        ``xdotool windowmove``/``windowsize``. The id is stable, so this is
-        immune to later title changes. Never raises.
-
-        Args:
-            positioner: 'wmctrl' or 'xdotool'.
-            wid: Target window id (int).
-            x, y: Target top-left position in pixels (window-manager frame).
-            width, height: Optional target size in pixels (else size unchanged).
-        """
-        try:
-            if positioner == "wmctrl":
-                w = width if width else -1
-                h = height if height else -1
-                # -i: interpret -r argument as a numeric window id; -1 keeps a dim.
-                subprocess.run(
-                    ["wmctrl", "-i", "-r", f"0x{wid:08x}", "-e",
-                     f"0,{x},{y},{w},{h}"],
-                    capture_output=True, text=True, timeout=5,
-                )
-            else:
-                subprocess.run(
-                    ["xdotool", "windowmove", str(wid), str(x), str(y)],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if width and height:
-                    subprocess.run(
-                        ["xdotool", "windowsize", str(wid), str(width),
-                         str(height)],
-                        capture_output=True, text=True, timeout=5,
-                    )
-        except Exception as e:
-            ColorPrint.plain(f"  place: failed to position id {wid:#x} ({e})")
-
-    @staticmethod
-    def _place_by_title_wmctrl(title, x, y, width=None, height=None):
-        """
-        Move (and optionally size) the window matched by ``title`` via wmctrl.
-
-        Uses ``-F`` for an EXACT, case-sensitive full-title match; without it
-        wmctrl matches the title as a case-insensitive substring, so "pylauncher-1"
-        would also match "pylauncher-10/11/12". Fallback path only (id-based
-        placement is primary and is immune to the shell rewriting the title).
-
-        Args:
-            title: Window title to match (exactly).
-            x, y: Target top-left position in pixels.
-            width, height: Optional target size in pixels (else size unchanged).
-        """
-        w = width if width else -1
-        h = height if height else -1
-        try:
-            # -F exact match; -e <gravity>,<x>,<y>,<w>,<h>; -1 leaves a dim unchanged.
-            subprocess.run(
-                ["wmctrl", "-F", "-r", title, "-e", f"0,{x},{y},{w},{h}"],
-                capture_output=True, text=True, timeout=5,
-            )
-            sized = "" if width is None else f" (size {width}x{height})"
-            ColorPrint.plain(f"  wmctrl: placed {title} -> {x},{y}{sized}")
-        except Exception as e:
-            ColorPrint.plain(f"  wmctrl: failed to place {title} ({e})")
-
-    @staticmethod
-    def _place_by_title_xdotool(title, x, y, width=None, height=None):
-        """
-        Move (and optionally size) the window matched by ``title`` via xdotool.
-
-        Resolves the window id from the title (``search --sync --name``) with an
-        anchored ``^title$`` regex so "pylauncher-1" does not also match
-        "pylauncher-10/11/12" (xdotool's --name is an unanchored regex). Fallback
-        path only -- id-based placement is primary and is immune to the shell
-        rewriting the title before this runs.
-
-        Args:
-            title: Window title to match (exactly, anchored).
-            x, y: Target top-left position in pixels.
-            width, height: Optional target size in pixels.
-        """
-        try:
-            search = subprocess.run(
-                ["xdotool", "search", "--sync", "--name", f"^{title}$"],
-                capture_output=True, text=True, timeout=5,
-            )
-            wids = [w for w in search.stdout.split() if w]
-            if not wids:
-                ColorPrint.plain(f"  xdotool: no window found for title {title}")
-                return
-            for wid in wids:
-                subprocess.run(
-                    ["xdotool", "windowmove", wid, str(x), str(y)],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if width is not None and height is not None:
-                    subprocess.run(
-                        ["xdotool", "windowsize", wid, str(width), str(height)],
-                        capture_output=True, text=True, timeout=5,
-                    )
-            sized = "" if width is None else f" (size {width}x{height})"
-            ColorPrint.plain(f"  xdotool: placed {title} -> {x},{y}{sized}")
-        except Exception as e:
-            ColorPrint.plain(f"  xdotool: failed to place {title} ({e})")
+    def _place_by_title(title, x, y, width=None, height=None):
+        """Fallback: move every window whose title equals ``title`` exactly."""
+        wids = x11_display.find_by_title(title)
+        if not wids:
+            ColorPrint.plain(f"  x11: no window found for title {title}")
+            return
+        for wid in wids:
+            x11_display.move_resize(wid, x, y, width, height)
+        sized = "" if width is None else f" (size {width}x{height})"
+        ColorPrint.plain(f"  x11: placed {title} -> {x},{y}{sized}")

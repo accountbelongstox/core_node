@@ -3,6 +3,10 @@
 Updated: 2026-09-18 (functional-only revision)
 Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 
+> Revision 2026-09-27: a full audit found several functions below missing or
+> broken; statuses marked `superseded` are tracked in
+> `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+
 This record describes only which user-facing functions the CodeMart
 interface provides and their status. It contains no code, file, or
 architecture descriptions; the implementation is the authority for those.
@@ -53,7 +57,7 @@ remain protected by a route gate.
 - KYC review with approve/reject. Status: done.
 - Deposits listing and payment confirmation that activates roles.
   Status: done.
-- Refunds request visibility. Status: done.
+- Refunds request visibility. Status: superseded (A01).
 - Projects cross-user listing and state visibility. Status: done.
 
 The administration console is a separate interface from the user workspace
@@ -70,4 +74,4 @@ and is reachable only with administrator authorization.
 - Every visible text comes from language resources; no hardcoded interface
   strings. Status: done.
 - Registration and login through the shared account, including the optional
-  installation super code that grants administrator rights. Status: done.
+  installation super code that grants administrator rights. Status: superseded (P01, P02: CodeMart registration with role selection was not wired).

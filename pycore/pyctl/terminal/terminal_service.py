@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import platform
 import time
 from typing import Any, Dict, Iterable, Optional
 
@@ -18,31 +17,24 @@ from pycore.pyctl.terminal.terminal_state_repository import (
 )
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.window.terminal_backend import (
+    TERMINAL_HISTORY_DIRECTIONS,
     TERMINAL_SCROLL_MODES,
     TerminalWindowBackend,
 )
+from pycore.pyutils.window.terminal_platform import terminal_backend
 
 
-SYSTEM_NAME = platform.system()
 CLIPBOARD_RESTORE_DELAY_SECONDS = 0.12
 SCROLL_CAPTURE_DELAY_SECONDS = 0.28
-HISTORY_DIRECTIONS = {"up", "down"}
 # Empty submissions still press Enter in the target terminal: pasting a single
 # space is the safest cross-backend equivalent of an empty command line.
 EMPTY_INPUT_TEXT = " "
-
-if SYSTEM_NAME == "Windows":
-    from pycore.pyutils.window.windows_terminal_backend import windows_terminal_backend as terminal_backend
-elif SYSTEM_NAME == "Linux":
-    from pycore.pyutils.window.linux_terminal_backend import linux_terminal_backend as terminal_backend
-else:
-    terminal_backend = None
 
 
 class TerminalService:
     def __init__(
         self,
-        backend: TerminalWindowBackend | None,
+        backend: TerminalWindowBackend,
         state_repository: TerminalStateRepository,
         screenshot_cache: TerminalScreenshotCache,
     ) -> None:
@@ -64,19 +56,8 @@ class TerminalService:
                 normalized_viewer,
                 normalized_visible,
             )
-        if self._backend is None:
-            snapshot = {
-                "success": True,
-                "platform": SYSTEM_NAME.lower(),
-                "session": "unknown",
-                "supported": False,
-                "error_code": "unsupported_platform",
-                "count": 0,
-                "windows": [],
-            }
-        else:
-            snapshot = self._backend.snapshot()
-        platform_name = str(snapshot.get("platform") or SYSTEM_NAME.lower()).lower()
+        snapshot = self._backend.snapshot()
+        platform_name = str(snapshot["platform"]).lower()
         windows = self._state_repository.reconcile_windows(
             platform_name,
             list(snapshot.get("windows") or []),
@@ -128,8 +109,6 @@ class TerminalService:
         return self._state_repository.resolve_window_id(terminal_number)
 
     def activate(self, window_id: str) -> Dict[str, Any]:
-        if self._backend is None:
-            return self._failure("unsupported_platform")
         if not window_id:
             return self._failure("terminal_window_id_required")
         return self._backend.activate(window_id)
@@ -140,8 +119,6 @@ class TerminalService:
         horizontal_ratio: float,
         vertical_ratio: float,
     ) -> Dict[str, Any]:
-        if self._backend is None:
-            return self._failure("unsupported_platform")
         if not window_id:
             return self._failure("terminal_window_id_required")
         if not (
@@ -155,6 +132,9 @@ class TerminalService:
             vertical_ratio,
         )
 
+    def desktop_integration(self, action: str) -> Dict[str, Any]:
+        return self._backend.desktop_integration(action)
+
     def save_draft(self, terminal_number: int, text: str) -> Dict[str, Any]:
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
@@ -165,11 +145,9 @@ class TerminalService:
         window_id: str,
         direction: str,
     ) -> Dict[str, Any]:
-        if self._backend is None:
-            return self._failure("unsupported_platform")
         if not window_id:
             return self._failure("terminal_window_id_required")
-        if direction not in HISTORY_DIRECTIONS:
+        if direction not in TERMINAL_HISTORY_DIRECTIONS:
             return self._failure("terminal_history_direction_invalid")
         activation = self._backend.activate(window_id)
         if not activation.get("success"):
@@ -181,8 +159,6 @@ class TerminalService:
         window_id: str,
         mode: str,
     ) -> Dict[str, Any]:
-        if self._backend is None:
-            return self._failure("unsupported_platform")
         if not window_id:
             return self._failure("terminal_window_id_required")
         if mode not in TERMINAL_SCROLL_MODES:
@@ -235,8 +211,6 @@ class TerminalService:
         terminal_number: int,
         text: str,
     ) -> Dict[str, Any]:
-        if self._backend is None:
-            return self._failure("unsupported_platform")
         if not window_id:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
@@ -252,7 +226,10 @@ class TerminalService:
         log_id = str(pending_log.get("id") or "")
         clipboard_backup = clipboard_manager.get_text()
         backup_text = clipboard_backup if clipboard_backup is not None else ""
-        if not clipboard_manager.set_text(content):
+        if not clipboard_manager.set_text(
+            content,
+            self._backend.paste_uses_primary_selection(),
+        ):
             return self._complete_input(
                 terminal_number,
                 log_id,
@@ -292,8 +269,6 @@ class TerminalService:
         window_id: str,
         terminal_number: int,
     ) -> Dict[str, Any]:
-        if self._backend is None:
-            return self._failure("unsupported_platform")
         if not window_id:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
@@ -324,12 +299,6 @@ class TerminalService:
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
         content = text if text else EMPTY_INPUT_TEXT
-        if self._backend is None:
-            return self._log_rejected_input(
-                terminal_number,
-                content,
-                "unsupported_platform",
-            )
         if not window_id:
             return self._log_rejected_input(
                 terminal_number,

@@ -43,6 +43,22 @@ class CodeMartV1InvoiceModel extends CodeMartV1Model
         return $this->belongsTo(CodeMartV1UserModel::class, 'issued_by');
     }
 
+    public static function userPage(int $userId, ?string $status, int $page, int $pageSize): array
+    {
+        $query = static::query()
+            ->with('payment:id,payer_id,payee_id,amount,currency,status,type,project_id')
+            ->whereIn('payment_id', CodeMartV1PaymentModel::query()
+                ->select('id')
+                ->where('payer_id', $userId)
+                ->orWhere('payee_id', $userId));
+
+        if ($status !== null && $status !== '') {
+            $query->where('status', $status);
+        }
+
+        return self::paginateQuery($query->orderByDesc('id'), 'invoices', $page, $pageSize);
+    }
+
     public function markAsPaid(): void
     {
         $this->update(['status' => 'paid']);

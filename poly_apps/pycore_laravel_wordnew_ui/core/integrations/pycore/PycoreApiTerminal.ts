@@ -8,6 +8,8 @@ import {
 } from './PycoreApiTransport';
 
 
+const TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS = 150_000;
+
 export interface TerminalWindowRect {
   x: number;
   y: number;
@@ -30,7 +32,7 @@ export interface TerminalScreenshotResourceMeta {
   byte_length: number;
   captured_at: number;
   revision: number;
-  resource: { route: string; window_id: string; digest: string };
+  resource: { window_id: string; digest: string };
 }
 
 export interface TerminalLogEntry {
@@ -58,6 +60,14 @@ export interface TerminalScheduleEntry {
   created_at?: string;
 }
 
+export type TerminalControlMode =
+  | 'win32'
+  | 'x11'
+  | 'xwayland'
+  | 'gnome_bridge'
+  | 'portal'
+  | 'none';
+
 export interface TerminalWindowInfo {
   id: string;
   native_id: number | string;
@@ -67,6 +77,8 @@ export interface TerminalWindowInfo {
   process_id: number;
   active: boolean;
   online: boolean;
+  control?: TerminalControlMode;
+  controllable?: boolean;
   terminal_number: number;
   rect: TerminalWindowRect;
   center: TerminalWindowPoint;
@@ -80,12 +92,56 @@ export interface TerminalWindowInfo {
   last_seen_at?: string;
 }
 
+export interface TerminalPlatformProfile {
+  platform: string;
+  distro: string;
+  version: string;
+  codename: string;
+  desktop: string;
+  session: string;
+  xwayland: boolean;
+  supported_profile: boolean;
+}
+
+export interface TerminalCapability {
+  available: boolean;
+  error_code?: string | null;
+  state?: string | null;
+  mode?: string;
+  installed_version?: number;
+  bundled_version?: number;
+  authorized?: boolean;
+  session_active?: boolean;
+}
+
+export type TerminalCapabilityName = 'x11' | 'gnome_bridge' | 'gnome_introspect' | 'portal';
+
+export type TerminalDesktopIntegrationAction =
+  | 'status'
+  | 'install_bridge'
+  | 'enable_bridge'
+  | 'disable_bridge'
+  | 'authorize_portal'
+  | 'revoke_portal';
+
+export interface TerminalDesktopIntegrationResult {
+  success: boolean;
+  error_code?: string | null;
+  action: TerminalDesktopIntegrationAction;
+  platform_profile?: TerminalPlatformProfile;
+  capabilities?: Partial<Record<TerminalCapabilityName, TerminalCapability>>;
+}
+
 export interface TerminalSnapshot {
   success: boolean;
   platform: string;
   session: string;
   supported: boolean;
   error_code?: string | null;
+  notice_code?: string | null;
+  platform_profile?: TerminalPlatformProfile;
+  control_modes?: TerminalControlMode[];
+  capabilities?: Partial<Record<TerminalCapabilityName, TerminalCapability>>;
   count: number;
   online_count: number;
   stored_count: number;
@@ -229,6 +285,14 @@ export const pycoreApiTerminal = {
   ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
     terminal_number: terminalNumber > 0 ? terminalNumber : undefined,
   }) as Promise<TerminalScheduleSyncResult>,
+  runTerminalDesktopIntegration: (
+    action: TerminalDesktopIntegrationAction,
+    timeoutMs = TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
+  ) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalDesktopIntegration,
+    { action },
+    timeoutMs,
+  ) as Promise<TerminalDesktopIntegrationResult>,
   getTerminalContent: (
     terminalNumber: number,
     kind: 'draft' | 'log' | 'schedule',

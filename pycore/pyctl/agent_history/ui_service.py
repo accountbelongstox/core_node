@@ -29,7 +29,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
 from pycore.pyctl.agent_history.pipeline import audio_rebuild
 from pycore.pyctl.agent_history.pipeline.prompt_templates import prompt_defaults
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
-from pycore.pyfoundations.agent_home_scanner import unreadable_user_homes
+from pycore.pyctl.agent_history.root_spool import spool_status, uncovered_unreadable_homes
 from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
@@ -426,7 +426,8 @@ def _build_runtime() -> Dict[str, Any]:
                 }
                 for tool, spec in AGENT_HISTORY_OFFICIAL_HOME_MARKERS.items()
             },
-            "unreadable_homes": unreadable_user_homes(),
+            "unreadable_homes": uncovered_unreadable_homes(),
+            "root_spool": spool_status(),
             "monitor": agent_history_tick_service.get_status_snapshot().get("monitor") or {},
             "article_prompt_defaults": {
                 **prompt_defaults(),

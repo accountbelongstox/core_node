@@ -2,15 +2,19 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Controllers;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ClientProfileModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperProfileModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1AdminService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1RoleRequestService;
 use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class CodeMartV1ProfileCtl extends Controller
 {
@@ -105,6 +109,37 @@ class CodeMartV1ProfileCtl extends Controller
             $this->serializeProfile(CodeMartV1UserModel::findRegistration((int) $user->id)),
             'Profile updated'
         );
+    }
+
+    /**
+     * Existing accounts request an additional self-service role with the same
+     * activation policy as registration.
+     */
+    public function requestRole(Request $request, CodeMartV1RoleRequestService $roleRequestService): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'role_type' => ['required', Rule::in(CodeMartV1RoleRequestService::SELF_SERVICE_ROLES)],
+        ]);
+        if ($validator->fails()) {
+            return $this->errorWithCode(
+                CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE,
+                'Validation failed',
+                422,
+                $validator->errors()
+            );
+        }
+
+        $result = $roleRequestService->request((int) $user->id, (string) $request->input('role_type'));
+        if (CodeMartV1AdminService::isFailure($result)) {
+            return $this->errorWithCode($result['error_code'], $result['message'], $result['http_status']);
+        }
+
+        return $this->success($result, 'Role requested', 201);
     }
 
     private function serializeProfile(CodeMartV1UserModel $userModel): array

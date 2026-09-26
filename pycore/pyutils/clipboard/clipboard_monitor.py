@@ -16,7 +16,7 @@ import time
 from typing import Optional, Callable
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
+from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
 from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
@@ -25,7 +25,6 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 
-pyperclip = get_third_package_pyperclip()
 
 
 class ClipboardMonitor:
@@ -72,7 +71,7 @@ class ClipboardMonitor:
         THREAD_BUS.signal(self._running_signal, True)
 
         # Get initial clipboard content
-        THREAD_BUS.signal(self._content_signal, pyperclip.paste())
+        THREAD_BUS.signal(self._content_signal, get_clipboard_text() or "")
 
         # Start monitor thread
         self.monitor_thread = start_bus_task(
@@ -120,7 +119,7 @@ class ClipboardMonitor:
                 break
 
             # Get current clipboard content
-            current_content = pyperclip.paste()
+            current_content = get_clipboard_text() or ""
 
             # Check if changed
             last_content = THREAD_BUS.get_signal(self._content_signal, "")
@@ -167,7 +166,7 @@ class ClipboardMonitor:
             content: Content to set
             add_to_history: Whether to add to history
         """
-        pyperclip.copy(content)
+        set_clipboard_text(content)
         THREAD_BUS.signal(self._content_signal, content)
 
         if add_to_history:

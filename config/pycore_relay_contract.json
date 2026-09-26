@@ -315,6 +315,13 @@
       "timeout_seconds": 15,
       "retry": "at_most_once_action"
     },
+    "terminal_integration": {
+      "exposure": "relay",
+      "permission": "relay.terminal.control",
+      "payload": "json-object",
+      "timeout_seconds": 150,
+      "retry": "at_most_once_action"
+    },
     "general_read": {
       "exposure": "relay",
       "permission": "relay.route.read",
@@ -499,6 +506,12 @@
       "match": "exact",
       "value": "ui/terminal/scroll",
       "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/desktop_integration",
+      "profile": "terminal_integration",
       "methods": ["POST"]
     },
     {

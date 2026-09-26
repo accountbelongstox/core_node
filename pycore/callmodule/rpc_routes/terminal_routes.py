@@ -7,6 +7,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_CLICK,
     UI_TERMINAL_COMMAND_HISTORY,
     UI_TERMINAL_CONTENT,
+    UI_TERMINAL_DESKTOP_INTEGRATION,
     UI_TERMINAL_DRAFT,
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
@@ -224,6 +225,14 @@ def register_terminal_routes(server) -> None:
             ),
         )
 
+    def desktop_integration_handler(params, request_id, _context):
+        action = str(params.get("action") or "status")
+        return _run_terminal_action(
+            "desktop_integration",
+            request_id,
+            lambda: terminal_service.desktop_integration(action),
+        )
+
     def viewer_demand_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
         visible_window_ids = _string_list_param(params, "visible_window_ids")
@@ -268,6 +277,10 @@ def register_terminal_routes(server) -> None:
     server.post(
         path=UI_TERMINAL_COMMAND_HISTORY,
         handler=command_history_handler,
+    )
+    server.post(
+        path=UI_TERMINAL_DESKTOP_INTEGRATION,
+        handler=desktop_integration_handler,
     )
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)

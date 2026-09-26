@@ -14,6 +14,7 @@ import threading
 from typing import Optional, List, Any
 from pathlib import Path
 
+from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -24,7 +25,6 @@ from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
 )
 from pycore.pyutils.native_ui.step6_tray._types import AppIndicatorMenuItem, build_appindicator_menu_items
 
-import os
 import platform
 
 
@@ -163,12 +163,8 @@ def is_appindicator_recommended() -> bool:
     if not check_appindicator_available():
         return False
 
-    # Check Ubuntu/GNOME desktop via environment
-    desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
-    if 'gnome' in desktop or 'ubuntu' in desktop:
-        return True
-
-    return False
+    session = current_desktop_session()
+    return session.is_gnome or 'ubuntu' in session.desktop_names
 
 
 if __name__ == "__main__":
