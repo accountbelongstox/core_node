@@ -151,6 +151,7 @@ function Read-YesNoDefaultNo {
 }
 
 # Idempotent install-or-update + (re)start of an NSSM-wrapped service.
+# -NoRestart keeps an already running (or starting) service running after the refresh.
 function Register-NssmService {
     param(
         [Parameter(Mandatory = $true)][string]$NssmPath,
@@ -162,7 +163,8 @@ function Register-NssmService {
         [Parameter(Mandatory = $true)][string]$WorkingDirectory,
         [string[]]$EnvironmentExtra = @(),
         [string]$StdoutLog = "",
-        [string]$StderrLog = ""
+        [string]$StderrLog = "",
+        [switch]$NoRestart
     )
 
     $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -210,7 +212,9 @@ function Register-NssmService {
         Write-Host "[NssmServiceManager] Service $ServiceName not found after registration." -ForegroundColor Red
         return $false
     }
-    if ($svc.Status -eq "Running") {
+    if ($NoRestart -and ((Get-ServiceRunState -ServiceName $ServiceName) -eq "running")) {
+        Write-Host "[NssmServiceManager] Service $ServiceName already running -> configuration refreshed, no restart." -ForegroundColor Green
+    } elseif ($svc.Status -eq "Running") {
         Write-Host "[NssmServiceManager] Restarting service: $ServiceName" -ForegroundColor Cyan
         Restart-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
     } else {
@@ -232,6 +236,34 @@ function Get-ServiceRunState {
     if (-not $svc) { return "absent" }
     if ($runningStates -contains [string]$svc.Status) { return "running" }
     return "stopped"
+}
+
+# Host PID of a running Windows service (NSSM/WinSW wrapper or native) plus every
+# descendant PID; empty when the service is absent or stopped. Callers exclude these
+# PIDs from kill sets so a service is never killed as a stale process.
+function Get-ServiceProcessTreeIds {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+    $processTable = @()
+    $treeIds = @()
+    $pendingIds = @()
+    $parentId = 0
+    $childIds = @()
+    if ((-not $serviceInfo) -or ([int]$serviceInfo.ProcessId -le 0)) { return @() }
+
+    $processTable = @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue)
+    $treeIds = @([int]$serviceInfo.ProcessId)
+    $pendingIds = @([int]$serviceInfo.ProcessId)
+    while ($pendingIds.Count -gt 0) {
+        $parentId = $pendingIds[0]
+        $pendingIds = @($pendingIds | Select-Object -Skip 1)
+        $childIds = @($processTable | Where-Object {
+            ([int]$_.ParentProcessId -eq $parentId) -and ($treeIds -notcontains [int]$_.ProcessId)
+        } | ForEach-Object { [int]$_.ProcessId })
+        $treeIds += $childIds
+        $pendingIds += $childIds
+    }
+    return $treeIds
 }
 
 # Idempotent stop + delete of an NSSM-wrapped service (no-op when absent). Needs admin.
@@ -259,4 +291,27 @@ function Remove-NssmService {
     }
     Write-Host "[NssmServiceManager] Service $ServiceName removed." -ForegroundColor Green
     return $true
+}
+
+# Retire an NSSM service from inside its own body, without nssm.exe (a LocalSystem body
+# sees only the machine PATH, while winget installs nssm per user): NSSM reads
+# Parameters\AppExit when the application exits, so "Exit" stops the service instead of
+# restarting it, and the Disabled start type keeps it from starting again. Needs the
+# service account (LocalSystem) or admin. Returns $true when the exit action is "Exit".
+function Disable-NssmService {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $serviceKey = Join-Path "HKLM:\SYSTEM\CurrentControlSet\Services" $ServiceName
+    $parametersKey = Join-Path $serviceKey "Parameters"
+    $appExitKey = Join-Path $parametersKey "AppExit"
+    $appExitItem = $null
+    if (-not (Test-Path -LiteralPath $serviceKey)) { return $false }
+
+    if (-not (Test-Path -LiteralPath $appExitKey)) {
+        New-Item -Path $appExitKey -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+    Set-Item -LiteralPath $appExitKey -Value "Exit" -ErrorAction SilentlyContinue
+    Set-Service -Name $ServiceName -StartupType Disabled -ErrorAction SilentlyContinue
+    $appExitItem = Get-Item -LiteralPath $appExitKey -ErrorAction SilentlyContinue
+    if (-not $appExitItem) { return $false }
+    return ([string]$appExitItem.GetValue("") -eq "Exit")
 }

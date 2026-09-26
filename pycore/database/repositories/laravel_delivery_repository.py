@@ -284,6 +284,18 @@ class LaravelDeliveryRepository:
             self._connection.execute(f"DELETE FROM {LARAVEL_DELIVERY_METRICS_TABLE} WHERE namespace = ?", (source,))
         return moved
 
+    def rename_kind(self, source: str, target: str) -> int:
+        """Fold every row / state entry / metric of a retired kind into the
+        kind that replaced it (collisions keep the target's entry)."""
+        moved = 0
+        with self.transaction():
+            for table in (LARAVEL_DELIVERIES_TABLE, LARAVEL_DELIVERY_STATE_TABLE, LARAVEL_DELIVERY_METRICS_TABLE):
+                moved += self._connection.execute(
+                    f"UPDATE OR IGNORE {table} SET kind = ? WHERE kind = ?", (target, source),
+                ).rowcount
+                self._connection.execute(f"DELETE FROM {table} WHERE kind = ?", (source,))
+        return moved
+
     def namespaces(self) -> List[str]:
         names = set()
         for table in (LARAVEL_DELIVERIES_TABLE, LARAVEL_DELIVERY_METRICS_TABLE):

@@ -9,7 +9,11 @@ steps: domain report (payload, deduped per ``identity``), global task result
 A row belongs to the Laravel server that dispatched the task (namespace of
 its ``base_url``, pinned): its task result can only land there. These kinds
 have no inventory; the server's own task queue is its diff (an undelivered
-task is released at lease timeout and dispatched again).
+task is released at lease timeout and dispatched again). The clip itself is
+also a local audio cache clip (``audio_cache.resource``, every other server):
+``shared_item`` makes the payload step a no-op when that kind already
+delivered the clip to this server, and marks it delivered there when this
+row carried it.
 """
 
 import os
@@ -17,6 +21,7 @@ from functools import partial
 from typing import Any, Dict
 
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
+from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 from pycore.pyutils.laravel.delivery_outbox import (
     DELIVERY_PROCESS_ID,
     OUTCOME_DEAD_LETTER,
@@ -26,6 +31,7 @@ from pycore.pyutils.laravel.delivery_outbox import (
     DeliveryKind,
     laravel_delivery_outbox,
 )
+from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 
 AUDIO_LANE_KIND_PREFIX = "audio_lane."
 AUDIO_LANE_STEPS = ("result", "history")
@@ -77,11 +83,19 @@ class AudioLaneDelivery:
 
     @staticmethod
     def stage(handler: Any, info: Dict[str, Any], provider: str, audio_path: str, local_task_id: str) -> Dict[str, Any]:
+        """Queue the lane row for the dispatching server and publish the clip
+        to the local audio cache kind for every other server."""
         kind = audio_lane_kind(handler.LANE)
         attempt = max(0, int(info.get("attempt") or 0))
-        return laravel_delivery_outbox.enqueue(kind, {
+        clip_kind = str(info.get("kind") or "")
+        clip_text = str((info.get("word") if clip_kind == "word" else None) or info.get("text") or "")
+        clip_variant = str(info.get("variant_key") or "")
+        clip = audio_resource_ledger.entry(clip_kind, info.get("language"), clip_text, audio_path, provider, clip_variant)
+        identity = handler._delivery_identity(info)
+        row = laravel_delivery_outbox.enqueue(kind, {
             "delivery_id": laravel_delivery_outbox.delivery_id(kind, info.get("task_id"), attempt),
-            "identity": handler._delivery_identity(info),
+            "identity": identity,
+            "shared_item": audio_resource_delivery.shared_item(clip) if clip is not None and identity else None,
             "task_id": info.get("task_id"),
             "task_type": info.get("task_type") or handler.QUEUE_KEY,
             "attempt": attempt,
@@ -92,6 +106,14 @@ class AudioLaneDelivery:
             "local_task_id": local_task_id or "",
             "local_process_id": DELIVERY_PROCESS_ID,
         }, payload_file=audio_path)
+        if clip is not None:
+            # The lane row transfers the clip to its own server only when it
+            # has a domain identity; otherwise the cache kind covers it too.
+            audio_resource_delivery.publish(
+                clip_kind, info.get("language"), clip_text, str(row.get("payload_path") or audio_path), provider,
+                clip_variant, skip_namespace=str(row.get("namespace") or "") if identity else "",
+            )
+        return row
 
     def deliver(self, handler: Any, claimed: Dict[str, Any], owner: str) -> Dict[str, Any]:
         delivery_id = str(claimed.get("delivery_id") or "")

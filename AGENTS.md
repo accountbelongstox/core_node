@@ -12,9 +12,9 @@
 
 **Global Precedence:** Global standards in this file take precedence and stack with any specific `.md` guides.
 
-**Git:** No git operations unless explicitly asked.
+**Git:** Read-only git commands (status, diff, log, show, blame, listing forms) are always allowed. Any other git operation only when the user's prompt asks for it.
 
-**Code:** Write code, comments, and logs in English. Do not hardcode language strings; use i18n. Do not create, run, or modify tests. Do not put progress summaries in source files. Declare variables at file top. PowerShell must use Split-Path, Join-Path, or Resolve-Path and must not append strings directly to variables.
+**Code:** Write code, comments, and logs in English. Do not hardcode language strings; use i18n. Do not create or modify tests unless asked. Run tests and verification when the user asks, and on the server (the server-side Laravel role verifies its changes there). Do not put progress summaries in source files. Declare variables at file top. PowerShell must use Split-Path, Join-Path, or Resolve-Path and must not append strings directly to variables.
 
 **Compatibility:** Code must be compatible with Windows and Linux (Ubuntu, Debian, Kali) simultaneously, except for platform-specific scripts (.ps1 / .sh).
 
@@ -27,7 +27,7 @@
 
 **MCP Chrome:** For mcp-chrome modifications, refer to `development-guides/MCP_CHROME_GUIDE.md`.
 
-**Shell:** For shell scripts, refer to `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Shell scripts must use English. Never run builds, tests, services, or verification unless asked. Callers trust resolved PS1/SH references without existence/status checks. Installers repair only missing binaries, files, or pip packages and otherwise run. PowerShell does not parse versions with regex or enforce fine package versions. Hardcode compatibility only at ABI-major boundaries or delegate to pip. Do not use exit codes for return values.
+**Shell:** For shell scripts, refer to `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Shell scripts must use English. Never run builds or services unless asked; run tests and verification when asked or on the server. Callers trust resolved PS1/SH references without existence/status checks. Installers repair only missing binaries, files, or pip packages and otherwise run. PowerShell does not parse versions with regex or enforce fine package versions. Hardcode compatibility only at ABI-major boundaries or delegate to pip. Do not use exit codes for return values.
 
 **Kimi:** When running as a Kimi model, do not use the multi-Agents mode (Agent/AgentSwarm subagents); complete all work directly in the current agent. Use Edit for code changes; never use Write for long content.
 

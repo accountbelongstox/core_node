@@ -3,22 +3,22 @@
 Application slots for the window launcher.
 
 Each slot starts at most ONE application: the browser, the code editor
-(cursor, then codex) and the system default text editor. A slot is skipped
-when any member already runs (any user); otherwise its first member that is
-enabled in config and resolves is launched. The extras (wechat, qq,
-aiassistant) stay config-driven. Every child is detached so it outlives the
-launcher; on a root Linux launcher the desktop GUI apps run as the
-pkexec/sudo caller.
+(cursor, then codex) and the system default text editor. A slot walks its
+members in priority order and is skipped at the first one that already runs
+(any user); otherwise that member is launched when it is enabled in config and
+resolves, so a lower-priority member (running or not) only matters when every
+higher one is disabled or unavailable. The extras (wechat, qq, aiassistant)
+stay config-driven. Every child is detached so it outlives the launcher; on a
+root Linux launcher the desktop GUI apps run as the pkexec/sudo caller.
 """
 
 import os
-import platform
 from pathlib import Path
 from typing import Dict, Optional, Set, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.process_manager import ProcessManager
-from pycore.pyfoundations.pygvar import PROJECT_ROOT
+from pycore.pyfoundations.pygvar import IS_WINDOWS, PROJECT_ROOT
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.launch_guard import is_app_running, resolve_launch_path
@@ -50,8 +50,6 @@ class AppsI18nKeys:
     NO_TERMINAL = 'launcher.apps.no_terminal'
     FAILED = 'launcher.apps.failed'
 
-
-IS_WINDOWS = platform.system() == 'Windows'
 
 BROWSER_SLOT = ('chrome',)
 CODE_EDITOR_SLOT = ('cursor', 'codex')
@@ -104,19 +102,22 @@ class AppSlotLauncher:
             self._launch_extra(app_name)
 
     def _launch_slot(self, slot_label: str, members: Tuple[str, ...]) -> None:
-        supported = [app for app in members if self._app_finder.is_supported_on_platform(app)]
-        for app_name in supported:
+        enabled = []
+        for app_name in members:
+            if not self._app_finder.is_supported_on_platform(app_name):
+                continue
             if self._is_running(app_name):
                 self._say(AppsI18nKeys.SLOT_RUNNING, slot=slot_label, app=app_name)
                 return
-        enabled = [app for app in supported if self._enabled(app)]
-        if not enabled:
-            self._say(AppsI18nKeys.SLOT_DISABLED, slot=slot_label)
-            return
-        for app_name in enabled:
+            if not self._enabled(app_name):
+                continue
+            enabled.append(app_name)
             app_path = self._resolve(app_name)
             if app_path and self._launch(app_name, app_path):
                 return
+        if not enabled:
+            self._say(AppsI18nKeys.SLOT_DISABLED, slot=slot_label)
+            return
         self._say(AppsI18nKeys.SLOT_NOT_FOUND, slot=slot_label, apps=', '.join(enabled))
 
     def _launch_extra(self, app_name: str) -> None:

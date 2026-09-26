@@ -58,36 +58,8 @@ show_permissions_repair_menu() {
     fi
 }
 
-# Function to manage NAT Gateway
-manage_natgateway() {
-    echo "NAT Gateway Configuration"
-    echo ""
-    
-    local natgateway_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/113_natgateway.sh"
-    
-    if [ ! -f "$natgateway_script" ]; then
-        echo "Error: NAT gateway script not found at: $natgateway_script"
-        echo ""
-        echo "Press Enter to continue..."
-        read
-        return
-    fi
-    
-    echo "Launching NAT Gateway configuration..."
-    echo ""
-    
-    if [ ! -x "$natgateway_script" ]; then
-        chmod +x "$natgateway_script"
-    fi
-    
-    bash "$natgateway_script"
-    echo ""
-    echo "NAT Gateway configuration completed."
-    
-    echo ""
-    echo "Press Enter to continue..."
-    read
-}
+# manage_natgateway (NAT Gateway Configuration item) comes from natgateway_helper.sh,
+# loaded with the menu helpers.
 
 # True when the current system is Debian with a major version below 13; used to
 # conditionally show the upgrade menu item.

@@ -96,7 +96,7 @@ class CodeMartV1WalletModel extends CodeMartV1Model
 
     public function transactionPage(int $page, int $pageSize): array
     {
-        $query = $this->transactions();
+        $query = $this->transactions()->getQuery();
         return self::paginateQuery(
             $query->orderByDesc('created_at')->orderByDesc('id'),
             'transactions',

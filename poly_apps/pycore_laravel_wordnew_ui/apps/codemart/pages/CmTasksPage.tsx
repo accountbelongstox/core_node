@@ -59,7 +59,6 @@ const CmTaskSubmitForm: React.FC<{ taskId: number; onSubmitted: () => Promise<vo
       setFileUrls('');
       setUploads([]);
       setInputKey((key) => key + 1);
-      notice.success(t('tasks.submitted'));
       await onSubmitted();
     } else {
       notice.error(cmErrorMessage(t, response, 'tasks.submitFailed'));
@@ -135,6 +134,11 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   const reload = async (): Promise<void> => {
     await load();
     await onChanged();
+  };
+
+  const onSubmitted = async (): Promise<void> => {
+    notice.success(t('tasks.submitted'));
+    await reload();
   };
 
   const transition = async (toStatus: string, reason: string): Promise<boolean> => {
@@ -216,7 +220,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
                 <p>{lastReview.review_notes || lastReview.comments}</p>
               </div>
             )}
-            {task.access.can_submit && <CmTaskSubmitForm taskId={task.id} onSubmitted={reload} />}
+            {task.access.can_submit && <CmTaskSubmitForm taskId={task.id} onSubmitted={onSubmitted} />}
             {!task.access.can_submit && task.status === REVIEW_STATUS && <CmNotice notice={{ tone: 'info', text: t('tasks.inReview') }} />}
             <CmSubmissionsPanel
               taskId={task.id}

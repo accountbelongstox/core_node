@@ -122,7 +122,10 @@ Goal: pycore becomes self-sufficient for word audio.
   `audio_lane.sentence`, handler `pycore/pyctl/tts/laravel_audio_delivery.py`),
   flushed on every Laravel offline -> online edge
   (`endpoint_manager.LARAVEL_ONLINE_EVENT`), on each worker diff poll
-  (`_on_laravel_online` -> kick) and at worker init. (Updated 2026-09-27, R8.)
+  (`_on_laravel_online` -> kick) and when the outbox starts. (Updated
+  2026-09-27, R8.) Rows are pinned to the Laravel server that dispatched the
+  task (namespace of its endpoint); receipts count only inside that server
+  (`REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md` W8).
 
 ### 2.5 Queue library and caches
 

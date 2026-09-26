@@ -54,18 +54,18 @@ workspace, K4 administration console, K5 images.
 | Profile | /codemart/profile | K3 | rough | | |
 | Notifications | /codemart/notifications | K3 | rough | | |
 | Settings | /codemart/settings | K3 | rough | | |
-| Admin overview | /codemart/admin | K4 | rough | | |
-| Admin users + detail | /codemart/admin/users(/:id) | K4 | rough | | |
-| Admin KYC | /codemart/admin/kyc | K4 | rough | | |
-| Admin deposits | /codemart/admin/deposits | K4 | rough | | |
-| Admin refunds | /codemart/admin/refunds | K4 | rough | | |
-| Admin withdrawals | /codemart/admin/withdrawals | K4 | rough | | |
-| Admin payments & escrow | /codemart/admin/payments | K4 | rough | | |
-| Admin projects | /codemart/admin/projects | K4 | rough | | |
-| Admin testimonials | /codemart/admin/testimonials | K4 | rough | | |
-| Admin reviewer applications | /codemart/admin/reviewer-applications | K4 | rough | | |
-| Admin contact messages | /codemart/admin/contact-messages | K4 | rough | | |
-| Admin activity | /codemart/admin/activity | K4 | rough | | |
+| Admin overview | /codemart/admin | K4 | verified | admin/CmAdminPages.tsx, CmAdminShared.tsx, styles/cm-workspace.css (admin section), cm-locales en/zh `admin` | decision dashboard: open queues first with hint + link, clear queues listed, platform totals, project status chips, policy (percent/locale money), terminology glossary, admin-console.webp banner |
+| Admin users + detail | /codemart/admin/users(/:id) | K4 | verified | admin/CmAdminPages.tsx, CmAdminUserDetailPage.tsx | username/name/email/role badges; detail titled by username, role transitions with effect text, shared activity table; suspend/activate tested |
+| Admin KYC | /codemart/admin/kyc | K4 | verified | admin/CmAdminPages.tsx | facts row, private document viewer (blob), approve/reject consequences; tested approve, reject, viewer |
+| Admin deposits | /codemart/admin/deposits | K4 | verified | admin/CmAdminFinancePages.tsx; server CodeMartV1AdminService depositsPage (+user) | usernames, locale money, confirm/reject/refund dialogs state consequences; all three tested |
+| Admin refunds | /codemart/admin/refunds | K4 | verified | admin/CmAdminFinancePages.tsx; server refundsPage (+requester/payer/payee/project/currency) | payer → payee, reason + notes; approve/process/reject tested |
+| Admin withdrawals | /codemart/admin/withdrawals | K4 | verified | admin/CmAdminFinancePages.tsx | method + translated payout fields; approve/pay/reject tested |
+| Admin payments & escrow | /codemart/admin/payments | K4 | verified | admin/CmAdminFinancePages.tsx | tabs with hints, dispute resolve (refund + complete) tested |
+| Admin projects | /codemart/admin/projects | K4 | verified | admin/CmAdminFinancePages.tsx | intervention dialog with effect + required reason; pause/resume tested |
+| Admin testimonials | /codemart/admin/testimonials | K4 | verified | admin/CmAdminModerationPages.tsx | localized role label, publish/hide/sort tested |
+| Admin reviewer applications | /codemart/admin/reviewer-applications | K4 | verified | admin/CmAdminModerationPages.tsx | score %, revoke tested (client2 test application) |
+| Admin contact messages | /codemart/admin/contact-messages | K4 | verified | admin/CmAdminModerationPages.tsx | reply-by-email link, mark handled tested |
+| Admin activity | /codemart/admin/activity | K4 | verified | admin/CmAdminModerationPages.tsx, CmAdminShared.tsx, CmAdminTypes.ts | translated actions/resources/states, resource/action selects, formatted details |
 
 ## 3. Images
 
@@ -93,3 +93,4 @@ Total 16 images, 214 KB. Generator: `apps/codemart/assets/generate_cm_images.py`
 ## 4. Log
 - K1: sign-in page, return path, 401 handling, capability and admin gates, sign-out, auth page polish done; live flow verified (en/zh, 1280/390 px).
 - K2: public pages (home, about, delivery process, services, estimate, showcase, information, privacy, terms, download) rewritten and laid out with shared blocks (CmPublicBlocks.tsx, cmPublicImages.ts via import.meta.glob); en/zh copy; crawled en/zh at 1280/1000/390 and dark mode, no overflow, no raw keys; estimate and contact submit verified; tsc clean. Image notes: service-escrow still shows the word "INVOICE", service-managed shows "90%", hero-escrow uses "$" coins (currency is CNY).
+- K4: administration console polished (12 pages): purpose lines + document titles, locale money/dates, usernames everywhere (server: deposits/refunds lists now include user summaries), translated badges/actions, consequence-stating dialogs, retry/empty states, tables scroll inside cards with sticky actions column, dark mode; all actions tested live as admin in en/zh; 390/1000/1280 px no page overflow; tsc clean; sys:codemartinit re-run.

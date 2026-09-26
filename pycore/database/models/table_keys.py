@@ -32,7 +32,6 @@ class TableKeys:
     COMMON_CONFIG = f"{TableNamespaces.COMMON}.config"
     COMMON_LOGS = f"{TableNamespaces.COMMON}.logs"
     TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
-    JSON_RECORDS = f"{TableNamespaces.COMMON}.json_records"
 
     # ===== Example App Tables =====
     EXAMPLE_USERS = f"{TableNamespaces.APP_EXAMPLE}.users"
@@ -47,6 +46,8 @@ class TableKeys:
     SPEECH_STT_CACHE = f"{TableNamespaces.UTIL_SPEECH}.stt_cache"
     SPEECH_STT_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.stt_config"
     SPEECH_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.config"  # Unified speech config
+    # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).
+    SPEECH_AUDIO_RESOURCES = f"{TableNamespaces.UTIL_SPEECH}.audio_resources"
 
     # ===== Util Clipboard Tables =====
     CLIPBOARD_HISTORY = f"{TableNamespaces.UTIL_CLIPBOARD}.history"

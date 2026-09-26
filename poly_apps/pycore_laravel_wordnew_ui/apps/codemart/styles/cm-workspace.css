@@ -1197,7 +1197,8 @@
   .cm-workspace-mobile-header__controls { display: flex; min-width: 0; align-items: center; gap: 6px; }
   .cm-workspace-mobile-header .cm-chrome-controls__language { padding: 0 6px; }
   .cm-workspace-mobile-header .cm-chrome-controls__language svg { display: none; }
-  .cm-workspace-mobile-header .cm-chrome-controls__language select { max-width: 84px; }
+  .cm-workspace-mobile-header .cm-chrome-controls__language select { max-width: 104px; }
+  .cm-workspace-mobile-header .cm-brand__tagline { display: none; }
   .cm-record-card { align-items: flex-start; flex-direction: column; }
   .cm-record-card__actions { width: 100%; }
   .cm-record-card__actions .cm-workspace-button { flex: 1; }
@@ -1947,7 +1948,8 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
   .cm-workspace-content { height: calc(100vh - 66px); }
 }
 @media (max-width: 420px) {
-  .cm-workspace-mobile-header .cm-chrome-controls__language select { max-width: 64px; }
+  .cm-workspace-mobile-header .cm-brand__name { display: none; }
+  .cm-workspace-mobile-header .cm-chrome-controls__language select { max-width: none; }
 }
 
 .cm-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
@@ -2091,7 +2093,18 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 }
 
 .cm-admin-table .cm-table th { white-space: nowrap; }
-.cm-admin-table .cm-table td { vertical-align: top; }
+.cm-admin-table .cm-table td { vertical-align: top; white-space: nowrap; }
+.cm-admin-table .cm-table td.cm-admin-wide,
+.cm-admin-table .cm-table td.cm-admin-status-cell,
+.cm-admin-table .cm-table td.cm-admin-event { white-space: normal; }
+.cm-admin-table .cm-table td .cm-table-actions { flex-wrap: nowrap; }
+.cm-admin-table[data-actions] .cm-table tr > :last-child {
+  position: sticky;
+  right: 0;
+  background: #ffffff;
+  box-shadow: -8px 0 12px -10px rgb(45 66 90 / 35%);
+}
+.cm-admin-table[data-actions] .cm-table thead tr > :last-child { background: #f6f9fc; }
 .cm-admin-table .cm-table td .cm-status { white-space: nowrap; }
 .cm-admin-nowrap { white-space: nowrap; }
 .cm-admin-wide { min-width: 180px; max-width: 320px; }
@@ -2205,6 +2218,8 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .cm-admin-clear-list svg { width: 16px; height: 16px; }
 
 .cm-admin-counter > svg { width: 18px; height: 18px; color: #6c93c4; }
+.cm-admin-section .cm-admin-counter-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.cm-admin-panel .cm-admin-kv > div { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
 .cm-admin-counter strong { color: #263445; font-size: 24px; font-weight: 650; }
 
 .cm-admin-status-strip { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -2542,6 +2557,8 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .dark .cm-admin-queue__body small { color: #b9a58c; }
 .dark .cm-admin-queue__go { color: #7aa5f8; }
 .dark .cm-admin-flag { background: #3a4a5e; }
+.dark .cm-admin-table[data-actions] .cm-table tr > :last-child { background: #1c242f; }
+.dark .cm-admin-table[data-actions] .cm-table thead tr > :last-child { background: #222c38; }
 
 @media (max-width: 1100px) {
   .cm-admin-heading__image { width: 220px; height: 124px; }
@@ -2551,7 +2568,8 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
   .cm-admin .cm-workspace-page { width: calc(100% - 32px); padding-top: 28px; }
   .cm-admin-heading__image { display: none; }
   .cm-admin .cm-table { display: table; overflow: visible; }
-  .cm-admin-kv > div { grid-template-columns: 1fr; gap: 2px; }
+  .cm-admin-kv > div,
+  .cm-admin-panel .cm-admin-kv > div { grid-template-columns: 1fr; gap: 2px; }
   .cm-admin-inline-form { align-items: stretch; flex-direction: column; }
   .cm-admin-inline-form select,
   .cm-admin-inline-form input,
@@ -2560,6 +2578,7 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 
 @media (max-width: 600px) {
   .cm-admin-toolbar { grid-template-columns: 1fr; padding: 14px; }
+  .cm-admin-table[data-actions] .cm-table tr > :last-child { position: static; box-shadow: none; }
   .cm-admin-queue-grid { grid-template-columns: 1fr; }
   .cm-admin-record { flex-direction: column; }
   .cm-admin-record .cm-record-card__actions { width: 100%; justify-content: flex-start; }

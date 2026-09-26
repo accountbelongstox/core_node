@@ -136,8 +136,9 @@ class LinuxTerminalLauncher:
         is closed" and lose all xfconf preferences -- the argv builder wraps
         xfce4-terminal in dbus-run-session instead), and a foreign
         XDG_RUNTIME_DIR makes gvfs/dbus emit permission errors for paths the
-        root child cannot write. env_extra (e.g. the Wayland X11-backend vars)
-        is merged last so it always wins.
+        root child cannot write. The systemd service markers are always
+        dropped (grid shells outlive the autostart unit). env_extra (e.g. the
+        Wayland X11-backend vars) is merged last so it always wins.
         """
         return root_terminal_env(env_extra)
 
@@ -507,13 +508,15 @@ class LinuxTerminalLauncher:
 
         try:
             subprocess.run(["tmux", "new-session", "-d", "-s", session, shell],
-                           capture_output=True, text=True, timeout=5)
+                           capture_output=True, text=True, timeout=5,
+                           env=self._spawn_env())
             # Add the remaining panes, re-tiling after each split so we never
             # run out of room for the next one.
             for _ in range(count - 1):
                 subprocess.run(
                     ["tmux", "split-window", "-t", session, shell],
                     capture_output=True, text=True, timeout=5,
+                    env=self._spawn_env(),
                 )
                 subprocess.run(
                     ["tmux", "select-layout", "-t", session, "tiled"],

@@ -68,7 +68,7 @@ If an accepted action produced output, a second 5s countdown keeps it on screen 
 
 | File | Change |
 |---|---|
-| `dd.sh` | One ordered load list: `DD_CORE_FILES` (gvar_common, constants, arrow_menu, system_functions) and `DD_HELPER_FILES`. Removed unused path constants, `menu_items`, `sudo`, the skip-scan prompt, the dead installation-mode branches and the `menu_display` fallback. Installation mode is unchanged. |
+| `dd.sh` | Ordered load lists: startup chain `DD_CORE_FILES` (gvar_common, constants, arrow_menu, system_functions) + `DD_HELPER_FILES`; menu chain `DD_MENU_FILES` (main_functions, git_functions, menu_functions, management_and_backup, natgateway_helper, linux_management, menu_display) loaded by `load_dd_menu_helpers` right before the countdown. `menu_display.sh` stays the fallback menu. Removed unused path constants, `sudo`, the skip-scan prompt and the dead installation-mode branches. Installation mode is unchanged. |
 | `common/prompt_common.sh` | `prompt_auto_continue`, `prompt_tty_foreground` (shared probe), `prompt_countdown_read`, `prompt_queue_add/commit/flush`. |
 | `common/fs_perm_helpers.sh` | `repair_owned_tree_777`: one walk; only mismatched entries get `chown`/`chmod` (xargs). |
 | `dd_helper/constants.sh` | Single definition: `DD_SH_TARGET_DIRS`, `DD_MENU_COUNTDOWN_SECONDS=5`, `RESOURCE_LIMITER_SCRIPT_RELATIVE` (now `common/resource_limiter_common.sh`; the old path no longer existed). |
@@ -78,14 +78,14 @@ If an accepted action produced output, a second 5s countdown keeps it on screen 
 | `dd_helper/secret_functions.sh` | Detection vs queued handlers. Self-sufficient when sourced alone (by `scripts/shells/linux/dd.sh`). Bundle count read with grep instead of node. The batch decrypt also refreshes per-file baselines. |
 | `dd_helper/smart_permissions.sh` | Debug output removed. `perms` worker mode (flock), `smart_permissions_report`, log at `$CORE_NODE_INSTALLER_STATE_DIR/dd_startup/permissions.log`. |
 | `dd_helper/dev_cache_cleanup.sh` | Parallel measurement. Per-item stacked confirmation. `dev_cache_cleanup_menu`, `system_log_limits_menu`. |
-| `dd_helper/linux_management.sh` | Slim & Disk Cleanup: + Dev Cache & /var/log Cleanup, + System Log Size Limits. |
-| `dd_helper/menu_functions.sh` | Only real actions remain (`show_ai_mcp_management` replaces the dead `handle_menu_action`). |
+| `dd_helper/linux_management.sh` | Slim & Disk Cleanup: + Dev Cache & /var/log Cleanup, + System Log Size Limits. Inline `manage_natgateway` copy removed; `natgateway_helper.sh` (menu chain) is its single definition. |
+| `dd_helper/menu_functions.sh` | Adds `show_ai_mcp_management`; `handle_menu_action` / `load_saved_values` kept (used by `menu_display.sh`) and delegate to it. |
 | `dd_helper/linuxenvs_sync.sh` | Relinks only wrong links. |
-| `dd_helper/file_download.sh` | `is_file_valid` merged in; the three copy-pasted checks became one loop. |
+| `dd_helper/file_download.sh` | The three copy-pasted checks became one loop; `is_file_valid` stays in `file_validation.sh` (startup chain). |
 | `dd_helper/main_execution.sh` | Removed `print_color`, which conflicted with the AI menu's `print_color(msg, type)`. |
 | `dd_helper/permissions_repair_menu.sh` | No longer overwrites dd.sh `SCRIPT_DIR` when sourced. |
 | `7_project_validator.sh` | `PROJECT_VALIDATOR_MODE=defer|restore`, var `PROJECT_RESTORE_PENDING`. |
-| removed | `main_functions.sh`, `menu_display.sh`, `natgateway_helper.sh`, `file_validation.sh`. |
+| files | No helper file is deleted. `main_functions.sh`, `menu_display.sh`, `natgateway_helper.sh` are in the menu chain (not startup); `file_validation.sh` is in the startup chain because FILE CHECK needs it. |
 
 Measured (read-only): ctime scan of 602 `.sh` files ≈2.5s including the cold `apps/` walk; CR grep 0.4s.
 Every `.sh` currently shows a new ctime because the previous run's `chmod -R` touched them; this happens once.

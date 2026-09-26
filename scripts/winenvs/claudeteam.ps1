@@ -59,7 +59,7 @@ $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.
 Invoke-AiCliProvision -Tool "claude"
 
 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
-$env:CLAUDE_AGENTS_GIT_GUARD = "1"
+$env:CLAUDE_AGENTS_SESSION = "1"
 
 # Windows default: run experimental agent teams in-process.
 $teammateMode = 'in-process'

@@ -10,5 +10,7 @@
   "launcher.grid.menu_current_toggle": "  Toggle: {toggle} ({choices})",
   "launcher.grid.menu_current_auto_grid": "  Auto grid ({profiles}): {state}",
   "launcher.grid.menu_toggle_item": "{index}. {toggle} ({count} windows)",
-  "launcher.grid.menu_toggle_disable_item": "{index}. {toggle}"
+  "launcher.grid.menu_toggle_disable_item": "{index}. {toggle}",
+  "launcher.grid.relayout_done": "Re-arranged {count} open grid terminal(s) onto the {columns}x{rows} layout",
+  "launcher.grid.relayout_hint": "{count} grid terminal(s) already open cannot be re-arranged onto the {columns}x{rows} ({profile} auto profile) layout; close them and run the launcher again to get the full new grid"
 }

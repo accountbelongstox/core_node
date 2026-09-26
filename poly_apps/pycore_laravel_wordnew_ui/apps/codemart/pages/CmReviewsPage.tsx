@@ -81,7 +81,7 @@ const CmCommentField: React.FC<{ label: string; value: string; onChange: (value:
   );
 };
 
-const CmReviewerApplication: React.FC<{ onPassed: () => Promise<void> }> = ({ onPassed }) => {
+const CmReviewerApplication: React.FC<{ onPassed: (message: string) => Promise<void> }> = ({ onPassed }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const [application, setApplication] = useState<CmReviewerApplicationStart | null>(null);
@@ -122,9 +122,8 @@ const CmReviewerApplication: React.FC<{ onPassed: () => Promise<void> }> = ({ on
     setBusy(false);
     if (response.success && response.data) {
       if (response.data.status === PASSED_STATUS) {
-        notice.success(t('reviews.testPassed'));
         setApplication(null);
-        await onPassed();
+        await onPassed(t('reviews.testPassed'));
       } else {
         notice.error(t('reviews.testFailed', { score: response.data.similarity_score }));
         setApplication(null);
@@ -178,7 +177,7 @@ const CmReviewerApplication: React.FC<{ onPassed: () => Promise<void> }> = ({ on
   );
 };
 
-const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChanged: () => Promise<void> }> = ({ submission, onChanged }) => {
+const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChanged: (message: string) => Promise<void> }> = ({ submission, onChanged }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const [quality, setQuality] = useState(DEFAULT_RATING);
@@ -213,8 +212,7 @@ const CmReviewDecisionPanel: React.FC<{ submission: CmReviewSubmission; onChange
     });
     setBusy(false);
     if (response.success) {
-      notice.success(t('reviews.submittedWithScore', { score: response.data?.code_score ?? '' }));
-      await onChanged();
+      await onChanged(t('reviews.submittedWithScore', { score: response.data?.code_score ?? '' }));
     } else {
       notice.error(cmErrorMessage(t, response, 'reviews.submitFailed'));
     }
@@ -281,16 +279,19 @@ const fetchReviews = (page: number) => cmApi.getReviewTasks(page);
 export const CmReviewsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { hasCapability, refresh } = useCmBootstrap();
-  const canReview = hasCapability('review.read');
+  const { hasCapability, hasRole, refresh } = useCmBootstrap();
+  const canReview = hasCapability('review.read') && hasRole('reviewer', 'active');
   const list = useCmPagedList(fetchReviews, extractReviews, 'reviews.loadFailed', canReview);
+  const pageNotice = useCmNotice();
   const [openId, setOpenId] = useState<number | null>(null);
 
-  const onPassed = useCallback(async (): Promise<void> => {
+  const onPassed = useCallback(async (message: string): Promise<void> => {
+    pageNotice.success(message);
     await refresh();
-  }, [refresh]);
+  }, [pageNotice.success, refresh]);
 
-  const onReviewed = async (): Promise<void> => {
+  const onReviewed = async (message: string): Promise<void> => {
+    pageNotice.success(message);
     setOpenId(null);
     await list.reload();
     await refresh();
@@ -308,6 +309,7 @@ export const CmReviewsPage: React.FC = () => {
           </button>
         ) : undefined}
       />
+      <CmNotice notice={pageNotice.notice} onDismiss={pageNotice.clear} />
       {!canReview && <CmReviewerApplication onPassed={onPassed} />}
       {canReview && (
         list.loading ? (

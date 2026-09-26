@@ -71,7 +71,20 @@ $pgReady = $false
 $ip = $null
 $stopPids = @()
 $stopPid = $null
-$prevPhpProcs = $null
+$AllProcesses = @()
+$ProcessById = @{}
+$processEntry = $null
+$phpProc = $null
+$isServeLane = $false
+$isWorkerLane = $false
+$ServiceTreePids = @()
+$ProcessAncestryMaxDepth = 16
+# Stale-process cleanup scope: artisan lanes whose own or ancestor command line references
+# $LaravelDir belong to this app; artisan serve also when it serves $Port.
+$LaravelDirPattern = ((($LaravelDir -split '[\\/]') | ForEach-Object { [regex]::Escape($_) }) -join '[\\/]') + '(?:[\\/"''\s]|$)'
+$ArtisanServePattern = 'artisan\s+serve\b'
+$ArtisanServePortPattern = $null
+$ArtisanWorkerLanePattern = 'artisan\s+(queue:listen|reverb:start|schedule:work)\b'
 $portConns = $null
 $portWaited = 0
 $testListener = $null
@@ -175,15 +188,46 @@ function Set-FrankenPhpForegroundEnvironment {
 }
 
 # Retired NSSM body (LARAVEL_SERVICE_RUN=1): it used to run `composer dev:win` and free
-# port 9000 on every restart, killing the FrankenPHP service. Make NSSM stop the service
-# when this body exits instead of restarting it, and never touch the ports.
+# port 9000 on every restart, killing the FrankenPHP service. It runs as LocalSystem, where
+# nssm.exe is not on PATH, so Disable-NssmService writes NSSM's exit action and the start
+# type directly: NSSM stops the service when this body exits. It never touches the ports.
 function Stop-LegacyServiceBody {
-    $legacyNssm = Find-NssmExe
-    Write-Host "Legacy service $LegacyServiceName is retired; laravel_main runs as $LaravelServiceName." -ForegroundColor Yellow
+    Write-Host "Legacy service $LegacyServiceName is retired; laravel_main runs as the FrankenPHP service (Step175)." -ForegroundColor Yellow
     Write-Host "Run (elevated): powershell -File `"$SelfScript`" --service" -ForegroundColor Yellow
-    if ($legacyNssm) {
-        & $legacyNssm set $LegacyServiceName AppExit Default Exit | Out-Null
+    if (Disable-NssmService -ServiceName $LegacyServiceName) {
+        Write-Host "  $LegacyServiceName disabled; NSSM stops it when this body exits." -ForegroundColor DarkGray
+    } else {
+        Write-Host "  Warning: $LegacyServiceName could not be disabled; remove it with the command above." -ForegroundColor Yellow
     }
+}
+
+# The FrankenPHP service is already running: report it, never restart it.
+function Show-LaravelServiceAlreadyRunning {
+    Write-Host "Service $LaravelServiceName is already running (port $Port); nothing to start, no restart." -ForegroundColor Green
+    Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
+}
+
+# Win32_Process exposes no working directory: a process belongs to a directory when its own
+# or a live ancestor's command line references it (laravel_main\scripts\start.ps1, the
+# artisan serve server.php). A parent created after its child is a reused PID.
+function Test-ProcessOwnedByDirectory {
+    param(
+        [Parameter(Mandatory = $true)]$Process,
+        [Parameter(Mandatory = $true)][hashtable]$ProcessTable,
+        [Parameter(Mandatory = $true)][string]$DirectoryPattern
+    )
+    $current = $Process
+    $parent = $null
+    $depth = 0
+    while ($current -and ($depth -le $ProcessAncestryMaxDepth)) {
+        if ($current.CommandLine -and ($current.CommandLine -match $DirectoryPattern)) { return $true }
+        $parent = $ProcessTable[[int]$current.ParentProcessId]
+        if ((-not $parent) -or ([int]$parent.ProcessId -eq [int]$current.ProcessId)) { return $false }
+        if ($parent.CreationDate -and $current.CreationDate -and ($parent.CreationDate -gt $current.CreationDate)) { return $false }
+        $current = $parent
+        $depth++
+    }
+    return $false
 }
 
 # The access code lives in the external runtime store (PathMapper
@@ -252,8 +296,15 @@ if ($ShowSuperCode) {
 # Shared NSSM helpers (service state, legacy service removal, DevInstaller steps, prompts).
 . $NssmServiceManagerScript
 
+# The retired legacy body retires its own service before any other work.
+if ($IsServiceRun) {
+    Stop-LegacyServiceBody
+    exit 0
+}
+
 $Port = Get-ServiceContractPort -Name "laravel_api_backend"
 $BindHost = Get-ServiceContractHost -Name "any"
+$ArtisanServePortPattern = "artisan\s+serve\b.*--port[=\s]+$Port\b"
 
 function New-InstallationAccessCode {
     $segments = @(
@@ -397,14 +448,8 @@ if ($StatusRequested) {
     exit 0
 }
 
-if ($IsServiceRun) {
-    Stop-LegacyServiceBody
-    exit 0
-}
-
 if ($LaravelServiceState -eq "running") {
-    Write-Host "Service $LaravelServiceName is already running (port $Port); nothing to start, no restart." -ForegroundColor Green
-    Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
+    Show-LaravelServiceAlreadyRunning
     exit 0
 }
 
@@ -647,28 +692,39 @@ try {
     }
 
     # --- Idempotent: stop stale foreground sessions before (re)starting ---
-    # Reached only when the FrankenPHP service is NOT running (checked above), so the
-    # listener on $Port is never the service. Mirrors start.sh ensure_port_free(): kill
-    # stale app processes first, wait for port release, then fall back to netsh reserve
-    # only for Windows dynamic-range conflicts (Hyper-V/WSL2 reserving the port with no
-    # listener process).
+    # The prerequisites above can take minutes while the SCM or the launcher starts the
+    # FrankenPHP service, so its state is re-read right before any kill and its process tree
+    # is never killed. Mirrors start.sh ensure_port_free(): kill stale app processes first,
+    # wait for port release, then fall back to netsh reserve only for Windows dynamic-range
+    # conflicts (Hyper-V/WSL2 reserving the port with no listener process).
+    $LaravelServiceState = Get-ServiceRunState -ServiceName $LaravelServiceName
+    if ($LaravelServiceState -eq "running") {
+        Show-LaravelServiceAlreadyRunning
+        exit 0
+    }
     Write-Host "Ensuring port $Port is free (idempotent restart)..." -ForegroundColor Yellow
     $stopPids = @()
 
-    # (1) Kill any php.exe running artisan serve / queue:listen / reverb:start /
-    #     schedule:work (the artisan serve fallback and the retired dev:win lanes).
-    #     Get-CimInstance gives the full command line to distinguish them.
-    #     schedule:work binds NO port, so the port-based step (2) can never catch a
-    #     stale one -- this command-line match is its ONLY cleanup path.
-    $prevPhpProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -eq 'php.exe' -and $_.CommandLine -and
-        ($_.CommandLine -match 'artisan\s+serve' -or
-         $_.CommandLine -match 'artisan\s+queue:listen' -or
-         $_.CommandLine -match 'artisan\s+reverb:start' -or
-         $_.CommandLine -match 'artisan\s+schedule:work')
+    # (1) php.exe artisan lanes: the artisan serve fallback and the retired dev:win lanes
+    #     (queue:listen / reverb:start / schedule:work). schedule:work binds NO port, so the
+    #     port-based step (2) can never catch a stale one -- this command-line match is its
+    #     ONLY cleanup path. Lanes of this app (see Test-ProcessOwnedByDirectory) and
+    #     artisan serve on $Port are always stopped; the unattended --service run never
+    #     stops another project's lanes, an interactive run also clears unowned worker lanes.
+    $AllProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+    $ProcessById = @{}
+    foreach ($processEntry in $AllProcesses) {
+        $ProcessById[[int]$processEntry.ProcessId] = $processEntry
     }
-    if ($prevPhpProcs) {
-        $stopPids += @($prevPhpProcs | Select-Object -ExpandProperty ProcessId)
+    foreach ($phpProc in @($AllProcesses | Where-Object { ($_.Name -eq 'php.exe') -and $_.CommandLine })) {
+        $isServeLane = ($phpProc.CommandLine -match $ArtisanServePattern)
+        $isWorkerLane = ($phpProc.CommandLine -match $ArtisanWorkerLanePattern)
+        if ((-not $isServeLane) -and (-not $isWorkerLane)) { continue }
+        if ((Test-ProcessOwnedByDirectory -Process $phpProc -ProcessTable $ProcessById -DirectoryPattern $LaravelDirPattern) -or
+            ($isServeLane -and ($phpProc.CommandLine -match $ArtisanServePortPattern)) -or
+            ($isWorkerLane -and (-not $ServiceMode))) {
+            $stopPids += [int]$phpProc.ProcessId
+        }
     }
 
     # (2) Kill processes owning port $Port (a stale foreground frankenphp / artisan serve).
@@ -677,7 +733,10 @@ try {
     ) | Where-Object { $_ } | Select-Object -ExpandProperty OwningProcess -Unique
     if ($portConns) { $stopPids += @($portConns) }
 
-    $stopPids = @($stopPids | Where-Object { $_ -gt 0 } | Sort-Object -Unique)
+    # Never the service's own process tree (WinSW wrapper + children), even when the
+    # service started after the re-check above.
+    $ServiceTreePids = @(Get-ServiceProcessTreeIds -ServiceName $LaravelServiceName)
+    $stopPids = @($stopPids | ForEach-Object { [int]$_ } | Where-Object { ($_ -gt 0) -and ($ServiceTreePids -notcontains $_) } | Sort-Object -Unique)
     if ($stopPids.Count -gt 0) {
         foreach ($stopPid in $stopPids) {
             Stop-Process -Id $stopPid -Force -ErrorAction SilentlyContinue

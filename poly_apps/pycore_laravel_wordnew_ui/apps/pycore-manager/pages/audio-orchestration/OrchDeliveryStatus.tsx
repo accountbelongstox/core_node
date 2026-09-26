@@ -1,7 +1,9 @@
 /**
  * Laravel delivery of orchestration audio (pycore shared delivery outbox):
- * the workspace panel shows the `audio_orch.output` and `audio_orch.resource`
- * kinds; the task row shows the task's own output upload counts.
+ * the workspace panel shows every configured Laravel server (identity,
+ * reachability, running diff) and the `audio_orch.output` /
+ * `audio_cache.resource` (every local word/sentence clip) kinds per server; the task row shows the task's own
+ * output upload counts on the active server.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +14,7 @@ import {
 } from '@/apps/pycore-manager/api';
 import { PcDeliveryOutboxStatus } from '../../components/PcDeliveryOutboxStatus';
 
-const ORCH_DELIVERY_KINDS = ['audio_orch.output', 'audio_orch.resource'] as const;
+const ORCH_DELIVERY_KINDS = ['audio_orch.output', 'audio_cache.resource'] as const;
 
 export const OrchDeliveryPanel: React.FC<{ revision: number }> = ({ revision }) => {
   const { t } = useTranslation('pc');
@@ -32,6 +34,8 @@ export const OrchDeliveryPanel: React.FC<{ revision: number }> = ({ revision }) 
   }, [load, revision]);
 
   if (!status) return null;
+  const servers = status.servers || [];
+  const reconciling = new Set(status.reconciling || []);
   return (
     <div className="space-y-1">
       <p className="text-[10px] text-slate-500">
@@ -39,8 +43,44 @@ export const OrchDeliveryPanel: React.FC<{ revision: number }> = ({ revision }) 
           ? t('queueCenter.deliveryOutbox.laravelOnlineAt', { time: new Date(status.laravel_online_at * 1000).toLocaleString() })
           : t('queueCenter.deliveryOutbox.laravelOffline')}
       </p>
+      {servers.length > 0 && (
+        <ul className="text-[10px] font-mono space-y-0.5">
+          {servers.map((server) => (
+            <li key={server.url} className="flex items-center gap-2 flex-wrap">
+              <span className={server.namespace === status.active_namespace ? 'text-emerald-300' : 'text-slate-400'}>
+                {server.url}
+                {server.namespace === status.active_namespace ? ` (${t('queueCenter.deliveryOutbox.activeServer')})` : ''}
+              </span>
+              <span className={server.reachable ? 'text-emerald-400' : server.reachable === false ? 'text-rose-400' : 'text-slate-500'}>
+                {server.reachable
+                  ? t('queueCenter.deliveryOutbox.serverOnline')
+                  : server.reachable === false
+                    ? t('queueCenter.deliveryOutbox.serverOffline')
+                    : t('queueCenter.deliveryOutbox.serverUnknown')}
+              </span>
+              <span className="text-slate-500">
+                {server.server_id
+                  ? t('queueCenter.deliveryOutbox.serverId', { id: server.server_id.slice(0, 12) })
+                  : server.identified
+                    ? t('queueCenter.deliveryOutbox.legacyServer')
+                    : ''}
+              </span>
+              {reconciling.has(server.namespace) && (
+                <span className="text-sky-300">{t('queueCenter.deliveryOutbox.reconciling')}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {ORCH_DELIVERY_KINDS.map((kind) => (
-        <PcDeliveryOutboxStatus key={kind} kind={kind} status={status.kinds[kind]} onChanged={load} />
+        <PcDeliveryOutboxStatus
+          key={kind}
+          kind={kind}
+          status={status.kinds[kind]}
+          servers={servers}
+          activeNamespace={status.active_namespace}
+          onChanged={load}
+        />
       ))}
     </div>
   );

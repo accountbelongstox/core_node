@@ -57,6 +57,10 @@ $script:ClaudeTeamRows = @()
 $script:ClaudeTeamWtPath = $null
 $script:ClaudeTeamShellPath = $null
 $script:ClaudeTeamScreen = $null
+$script:ClaudeTeamRemoteAny = $false
+$script:ClaudeTeamTeamColumns = 1
+$ClaudeTeamSecretReader = Join-Path (Join-Path (Join-Path $ClaudeTeamScriptsDir "pytools") "special_software_env_manager") "secret_read.py"
+$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4")
 
 function Write-ClaudeTeamStep {
     param([int]$Number, [string]$Title)
@@ -81,9 +85,23 @@ function ConvertTo-ClaudeTeamQuoted {
     return ("'{0}'" -f $Text.Replace("'", "''"))
 }
 
+function ConvertTo-ClaudeTeamBashQuoted {
+    param([string]$Text)
+    return ("'{0}'" -f $Text.Replace("'", "'\''"))
+}
+
+function Get-ClaudeTeamRemoteConfig {
+    param([string]$Role)
+    $entry = @($script:ClaudeTeamCatalog.roles | Where-Object { $_.name -eq $Role }) | Select-Object -First 1
+    if ($entry -and ($entry.PSObject.Properties.Name -contains "remote") -and $entry.remote) {
+        return $entry.remote
+    }
+    return $null
+}
+
 function Get-ClaudeTeamSessionName {
     param([string]$Role)
-    if ($script:ClaudeTeamMode -eq "team") {
+    if (($script:ClaudeTeamMode -eq "team") -and ($null -eq (Get-ClaudeTeamRemoteConfig -Role $Role))) {
         if ($Role -eq $ClaudeTeamLeadRole) {
             return [string]$script:ClaudeTeamCatalog.team.session_name
         }
@@ -156,6 +174,7 @@ function Invoke-ClaudeTeamClaudeProvision {
 }
 
 function Import-ClaudeTeamCatalog {
+    $row = $null
     $docPath = $null
     $docRelative = $null
     $index = 0
@@ -167,7 +186,7 @@ function Import-ClaudeTeamCatalog {
     $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Write-ClaudeTeamLog "OK" ("Catalog: {0} ({1} roles, permission mode {2})" -f $ClaudeTeamCatalogPath, @($script:ClaudeTeamCatalog.roles).Count, $script:ClaudeTeamCatalog.permission_mode)
 
-    foreach ($docRelative in @($script:ClaudeTeamCatalog.requirements_doc, $script:ClaudeTeamCatalog.task_board)) {
+    foreach ($docRelative in @($script:ClaudeTeamCatalog.guide_doc)) {
         $docPath = Join-Path $ClaudeTeamRootDir $docRelative
         if (Test-Path -LiteralPath $docPath) {
             Write-ClaudeTeamLog "OK" ("Orchestration doc: {0}" -f $docPath)
@@ -190,6 +209,9 @@ function Import-ClaudeTeamCatalog {
         } elseif (-not (Test-Path -LiteralPath $agentPath)) {
             $state = "no-agent-file"
             Write-ClaudeTeamLog "WARN" ("Role {0} disabled: agent file missing {1}" -f $role.name, $agentPath)
+        } elseif ($null -ne (Get-ClaudeTeamRemoteConfig -Role $role.name)) {
+            $script:ClaudeTeamRemoteAny = $true
+            Write-ClaudeTeamLog "OK" ("Remote role {0}: ssh <secret {1}> -> tmux {2} in {3} (Remote Control on)" -f $role.name, $role.remote.ssh_secret, (Get-ClaudeTeamSessionName -Role $role.name), $role.remote.root)
         } elseif (($script:ClaudeTeamMode -eq "team") -and ($role.name -ne $ClaudeTeamLeadRole)) {
             $state = "teammate"
             Write-ClaudeTeamLog "OK" ("Teammate type {0} (spawned in-process by the lead on demand): {1}" -f $role.name, $agentPath)
@@ -208,6 +230,14 @@ function Import-ClaudeTeamCatalog {
             Term    = "-"
         }
         $index++
+    }
+    if ($script:ClaudeTeamMode -eq "team") {
+        $index = 0
+        foreach ($row in @($script:ClaudeTeamRows | Where-Object { $_.Enabled })) {
+            $row.Slot = $index
+            $index++
+        }
+        $script:ClaudeTeamTeamColumns = [math]::Max(1, $index)
     }
 }
 
@@ -237,7 +267,7 @@ function Get-ClaudeTeamCell {
     $columns = $grid.columns
     $rows = $grid.rows
     if ($script:ClaudeTeamMode -eq "team") {
-        $columns = 1
+        $columns = $script:ClaudeTeamTeamColumns
         $rows = 1
     }
     $column = $Slot % $columns
@@ -279,30 +309,77 @@ function Get-ClaudeTeamLiveProcess {
 function Get-ClaudeTeamKickoff {
     param([string]$Role)
     $text = [string]$script:ClaudeTeamCatalog.sessions.kickoff
-    if ($script:ClaudeTeamMode -eq "team") {
+    if ($null -ne (Get-ClaudeTeamRemoteConfig -Role $Role)) {
+        $text = [string]$script:ClaudeTeamCatalog.remote.kickoff
+    } elseif ($script:ClaudeTeamMode -eq "team") {
         $text = [string]$script:ClaudeTeamCatalog.team.kickoff
     } elseif ($Role -eq $ClaudeTeamLeadRole) {
         $text = [string]$script:ClaudeTeamCatalog.sessions.kickoff_lead
     }
     $text = $text.Replace("{role}", $Role)
     $text = $text.Replace("{session}", (Get-ClaudeTeamSessionName -Role $Role))
-    $text = $text.Replace("{requirements}", [string]$script:ClaudeTeamCatalog.requirements_doc)
-    $text = $text.Replace("{board}", [string]$script:ClaudeTeamCatalog.task_board)
+    $text = $text.Replace("{guide}", [string]$script:ClaudeTeamCatalog.guide_doc)
+    $text = $text.Replace("{record}", [string]$script:ClaudeTeamCatalog.record_dir)
     $text = $text.Replace("{prefix}", [string]$script:ClaudeTeamCatalog.sessions.session_prefix)
     $text = $text.Replace("{shared}", [string]$script:ClaudeTeamCatalog.shared_dir)
     $text = $text.Replace("{agents_dir}", [string]$script:ClaudeTeamCatalog.agents_dir)
     $text = $text.Replace("{roles}", (Get-ClaudeTeamOtherRoles))
+    $text = $text.Replace("{lead}", (Get-ClaudeTeamSessionName -Role $ClaudeTeamLeadRole))
     return $text
+}
+
+# Remote role: bash command line the server runs (shared idempotent install, then an
+# idempotent tmux -A session running claudeteam.sh with Remote Control on).
+function Get-ClaudeTeamRemoteArgument {
+    param([string]$Role, [string]$Session, $Remote)
+    $root = [string]$Remote.root
+    $sessionsSocket = [string]$script:ClaudeTeamCatalog.sessions.tmux_socket
+    $innerParts = @(
+        (ConvertTo-ClaudeTeamBashQuoted -Text ("{0}/scripts/linuxenvs/claudeteam.sh" -f $root)),
+        "--agent", (ConvertTo-ClaudeTeamBashQuoted -Text $Role),
+        "--name", (ConvertTo-ClaudeTeamBashQuoted -Text $Session),
+        "--remote-control", (ConvertTo-ClaudeTeamBashQuoted -Text $Session)
+    )
+    if (-not $script:ClaudeTeamOptNoKickoff) {
+        $innerParts = $innerParts + @(ConvertTo-ClaudeTeamBashQuoted -Text (Get-ClaudeTeamKickoff -Role $Role))
+    }
+    $inner = "{0}; exec bash -l" -f ($innerParts -join " ")
+    $remoteCommand = ". {0} && claude_team_install; tmux -L {1} new-session -A -s {2} -c {3} -e {4} -e {5} bash -lc {6}" -f `
+        (ConvertTo-ClaudeTeamBashQuoted -Text ("{0}/scripts/ai_shtools/claude_code_install.sh" -f $root)),
+        (ConvertTo-ClaudeTeamBashQuoted -Text $sessionsSocket), (ConvertTo-ClaudeTeamBashQuoted -Text $Session),
+        (ConvertTo-ClaudeTeamBashQuoted -Text $root), "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1", "CLAUDE_AGENTS_SESSION=1",
+        (ConvertTo-ClaudeTeamBashQuoted -Text $inner)
+    return ("bash -lc {0}" -f (ConvertTo-ClaudeTeamBashQuoted -Text $remoteCommand))
 }
 
 function Get-ClaudeTeamEncodedCommand {
     param([string]$Role, [string]$Session)
     $pidPath = Get-ClaudeTeamPidPath -Role $Role
     $kickoffArgument = ""
+    $remoteControlArgument = ""
+    $remote = Get-ClaudeTeamRemoteConfig -Role $Role
+    $sshOptionText = $null
     $scriptLines = $null
     $scriptText = $null
     if (-not $script:ClaudeTeamOptNoKickoff) {
         $kickoffArgument = (" {0}" -f (ConvertTo-ClaudeTeamQuoted -Text (Get-ClaudeTeamKickoff -Role $Role)))
+    }
+    if (($Role -eq $ClaudeTeamLeadRole) -and $script:ClaudeTeamRemoteAny) {
+        $remoteControlArgument = (" --remote-control {0}" -f (ConvertTo-ClaudeTeamQuoted -Text $Session))
+    }
+    if ($null -ne $remote) {
+        $sshOptionText = ($ClaudeTeamSshOptions | ForEach-Object { ConvertTo-ClaudeTeamQuoted -Text $_ }) -join " "
+        $scriptLines = @(
+            '$ErrorActionPreference = ''Continue'''
+            ('Set-Content -LiteralPath {0} -Value $PID -Encoding ascii' -f (ConvertTo-ClaudeTeamQuoted -Text $pidPath))
+            ('$Host.UI.RawUI.WindowTitle = {0}' -f (ConvertTo-ClaudeTeamQuoted -Text $Session))
+            '$pythonCommand = @(Get-Command python.exe, python3.exe, py.exe -ErrorAction SilentlyContinue)[0].Source'
+            ('$sshTarget = (& $pythonCommand {0} {1}) | Select-Object -Last 1' -f (ConvertTo-ClaudeTeamQuoted -Text $ClaudeTeamSecretReader), (ConvertTo-ClaudeTeamQuoted -Text ([string]$remote.ssh_secret)))
+            ('$remoteArgument = {0}' -f (ConvertTo-ClaudeTeamQuoted -Text (Get-ClaudeTeamRemoteArgument -Role $Role -Session $Session -Remote $remote)))
+            ('while ($true) {{ & ssh.exe {0} $sshTarget $remoteArgument; Write-Host {1}; Start-Sleep -Seconds {2} }}' -f $sshOptionText, (ConvertTo-ClaudeTeamQuoted -Text ("[remote] {0} disconnected; reconnecting (Ctrl-C to stop)" -f $Session)), [int]$script:ClaudeTeamCatalog.remote.reconnect_seconds)
+        )
+        $scriptText = $scriptLines -join [Environment]::NewLine
+        return [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($scriptText))
     }
     $scriptLines = @(
         '$ErrorActionPreference = ''Continue'''
@@ -310,7 +387,7 @@ function Get-ClaudeTeamEncodedCommand {
         '$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = ''1'''
         ('$Host.UI.RawUI.WindowTitle = {0}' -f (ConvertTo-ClaudeTeamQuoted -Text $Session))
         ('Set-Location -LiteralPath {0}' -f (ConvertTo-ClaudeTeamQuoted -Text $ClaudeTeamRootDir))
-        ('& {0} --agent {1} --name {2}{3}' -f (ConvertTo-ClaudeTeamQuoted -Text $ClaudeTeamLauncherPath), (ConvertTo-ClaudeTeamQuoted -Text $Role), (ConvertTo-ClaudeTeamQuoted -Text $Session), $kickoffArgument)
+        ('& {0} --agent {1} --name {2}{3}{4}' -f (ConvertTo-ClaudeTeamQuoted -Text $ClaudeTeamLauncherPath), (ConvertTo-ClaudeTeamQuoted -Text $Role), (ConvertTo-ClaudeTeamQuoted -Text $Session), $remoteControlArgument, $kickoffArgument)
     )
     $scriptText = $scriptLines -join [Environment]::NewLine
     return [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($scriptText))
@@ -433,7 +510,7 @@ function Show-ClaudeTeamReport {
     $script:ClaudeTeamRows | Format-Table -AutoSize Role, Session, State, Window, Pid, Pixels, Term | Out-Host
     Write-ClaudeTeamLog "OK" ("PID files: {0}" -f $ClaudeTeamStateDir)
     Write-ClaudeTeamLog "OK" ("Shared project data: {0} (files by path; git grant file git_grant.json)" -f (Join-Path $ClaudeTeamRootDir $script:ClaudeTeamCatalog.shared_dir))
-    Write-ClaudeTeamLog "OK" ("Durable task record: {0}" -f (Join-Path $ClaudeTeamRootDir $script:ClaudeTeamCatalog.task_board))
+    Write-ClaudeTeamLog "OK" ("Handoff reports / reviewer verdicts: {0} (reports, reviews); role memory: {1}" -f (Join-Path $ClaudeTeamRootDir $script:ClaudeTeamCatalog.shared_dir), (Join-Path $ClaudeTeamRootDir ".claude\agent-memory"))
     if ($script:ClaudeTeamMode -eq "team") {
         Write-ClaudeTeamLog "OK" ("Agent-team task lists: {0}\<team>; mailboxes and members: {1}\<team>\inboxes, config.json" -f $ClaudeTeamUserTasksDir, $ClaudeTeamUserTeamsDir)
         Write-ClaudeTeamLog "OK" ("Dispatch: type one task in the {0} window; teammates run in-process (Up/Down in the agent panel, Enter to view)" -f $script:ClaudeTeamCatalog.team.session_name)
@@ -441,7 +518,7 @@ function Show-ClaudeTeamReport {
         Write-ClaudeTeamLog "OK" "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name (/list-agents shows the roster)"
         Write-ClaudeTeamLog "OK" ("Dispatch: type one task in the {0}orchestrator window" -f $script:ClaudeTeamCatalog.sessions.session_prefix)
     }
-    Write-ClaudeTeamLog "OK" "Git: blocked for every role; a user prompt containing allow-git (or 允许git) grants it for 120 min, deny-git revokes"
+    Write-ClaudeTeamLog "OK" "Git: read-only git/gh always allowed; other git/gh commands need a user prompt asking for git work (120 min grant; deny-git revokes)"
     Write-ClaudeTeamLog "OK" "Re-run is idempotent: roles with a live shell PID are skipped"
 }
 

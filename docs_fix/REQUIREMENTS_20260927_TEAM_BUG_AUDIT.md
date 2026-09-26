@@ -23,12 +23,23 @@ Shared dir: `.claude/agents_shared/bug_audit_20260927/`.
   or feature-breaking dead code. AGENTS.md violations (hardcoded UI strings,
   duplicate implementations) are reported as category `rule`. Style nits are
   not reported.
+- R6 Other user sessions keep editing the tree during the audit, and the audit
+  does not stop them. Examples: the W4 delivery layer, the Laravel diff/Redis
+  index, CodeMart pages, the agent roles V2.
+  - Before writing its report, a role re-reads every file modified after 02:10.
+    A finding in such a file is kept only if it still holds, and it is tagged
+    `[in-flight, last read HH:MM]`.
+  - Mid-edit breakage that is gone at the re-read goes under
+    `## In-flight observations`, not in the findings.
+  - The reviewer marks a defect fixed since the report as
+    `REFUTED (fixed in-flight)`.
 
 ## 2. Scopes and ID prefixes
 
 | Role | Scope | Prefix |
 |---|---|---|
-| pycore-runtime | `pycore/` (minus audio-tts paths), `ncore/`, `pymain.py`, `pyservice.*` | PR |
+| pycore-runtime | `pycore/` (minus audio-tts paths), `pymain.py`, `pyservice.*` | PR |
+| ncore (V2 type; split off pycore-runtime after its pass 1 left ncore unread) | `ncore/`, root `main.js`, `ncore_module_caller.js`, `apps/` except `apps/mcp-chrome/` | NC |
 | audio-tts | `pycore/pyutils/tts/`, `pycore/pyctl/tts/`, `pycore/pyctl/audio_orchestration/`, `pycore/pyctl/queue_center/audio_lane*`, `pycore/tts_install_assets/` | AT |
 | laravel-backend | `poly_apps/laravel_main/` (no `vendor/`) | LB |
 | frontend-ui | `poly_apps/pycore_laravel_wordnew_ui/`, `apps/mcp-chrome/` (no `node_modules/`, `dist/`, `build_output/`) | FU |
@@ -61,4 +72,8 @@ Then a Cross-scope section and a Coverage section.
 
 ## 5. Consolidated report
 
-Pending.
+The user halted the audit at about 02:52 ("先输出现在发现的问题到docs fix然后停下").
+- Findings so far: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`. It holds 235 findings: 8 critical, 33 high, 78 medium, 116 low. That includes the pass-2 findings written as the halt arrived, and the ncore report, which ncore kept writing after the stop until 03:06.
+- Full reports and the reviewer verdicts: `docs_fix/bug_audit_20260927/`.
+- Only audio-tts AT-001..AT-040 are verified: 32 CONFIRMED, 8 PLAUSIBLE, 0 REFUTED.
+- The audit resumes only on a new user directive.

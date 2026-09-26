@@ -134,6 +134,8 @@ class AppFinder:
     # Packaged-app executables under WindowsApps are not directly launchable;
     # System32\notepad.exe forwards to the Store Notepad instead.
     WINDOWS_APPS_MARKER = 'windowsapps'
+    # Launcher apps the default-text-editor filters (both platforms) keep.
+    TEXT_EDITOR_APPS = frozenset({'texteditor', 'notepad++'})
 
     # Linux default text editor (freedesktop xdg-mime + desktop entries).
     LINUX_TEXT_MIME = 'text/plain'
@@ -543,7 +545,7 @@ class AppFinder:
         return frozenset(
             binary
             for app_name, spec in self._LINUX_APP_DEFINITIONS.items()
-            if app_name != 'texteditor'
+            if app_name not in self.TEXT_EDITOR_APPS
             for binary in spec.get('binaries', []))
 
     def find_text_editor(self) -> Optional[str]:
@@ -561,11 +563,24 @@ class AppFinder:
             self.save_cache()
         return resolved
 
+    def _windows_non_text_editor_names(self) -> frozenset:
+        """Lower-case exe names of every other launcher app (browsers, IDEs, messengers)."""
+        return frozenset(
+            name.lower()
+            for app_name, spec in self.APP_DEFINITIONS.items()
+            if app_name not in self.TEXT_EDITOR_APPS
+            for name in spec.get('names', []))
+
     def _find_windows_text_editor(self) -> Optional[str]:
-        """Executable of the .txt open verb, else %SystemRoot%\\System32\\notepad.exe."""
+        """Executable of the .txt open verb, else %SystemRoot%\\System32\\notepad.exe.
+
+        Like the Linux desktop-entry filter, an association that points at
+        another launcher app (Code.exe, Cursor.exe, chrome.exe) is declined.
+        """
         associated = self._windows_association_executable(self.WINDOWS_TEXT_EXTENSION)
         if associated and self.WINDOWS_APPS_MARKER not in associated.lower() \
-                and os.path.isfile(associated):
+                and os.path.isfile(associated) \
+                and Path(associated).name.lower() not in self._windows_non_text_editor_names():
             return associated
         system_root = os.environ.get(self.WINDOWS_SYSTEM_ROOT_ENV) or self.WINDOWS_DEFAULT_SYSTEM_ROOT
         notepad = Path(system_root) / self.WINDOWS_SYSTEM_DIR / self.WINDOWS_NOTEPAD_EXE

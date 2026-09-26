@@ -8,12 +8,12 @@ from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realti
 import os
 import shlex
 import shutil
-import platform
 from pathlib import Path
 import subprocess
 
 import ctypes
 
+from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyutils.launcher.linux_desktop_user import (
     desktop_user,
     desktop_user_argv,
@@ -24,10 +24,13 @@ from pycore.pyutils.launcher.linux_desktop_user import (
 from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
 
 
-_IS_WINDOWS = platform.system() == 'Windows'
 _XDG_OPEN = 'xdg-open'
 _WINDOWS_TERMINAL = 'wt'
 _WINDOWS_SHELL = 'cmd.exe'
+# Fixed title prefix of app terminal windows (codex): never a grid cell, so the
+# Windows Terminal grid count (char_size_measurer.count_wt_windows) skips it.
+APP_TERMINAL_TITLE_PREFIX = 'pylauncher-app-'
+_WT_SUPPRESS_APP_TITLE = '--suppressApplicationTitle'
 # Terminal windows keep an interactive shell after the command exits so its
 # last output (errors included) stays readable.
 _LINUX_TERMINAL_INNER = "printf '\\033]0;%s\\007' {title}; cd -- {cwd}; {command}; exec bash -i"
@@ -41,7 +44,7 @@ def _spawn_detached(argv, cwd=None, shell=False, env=None):
     exist on Linux/macOS and accessing them raises AttributeError; POSIX uses
     start_new_session=True (setsid) for the same detach effect.
     """
-    if _IS_WINDOWS:
+    if IS_WINDOWS:
         flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         return subprocess.Popen(argv, cwd=cwd, shell=shell, env=env,
                                 creationflags=flags, close_fds=True)
@@ -98,7 +101,7 @@ class ExplorerExecutor:
         # Using start command with explorer or directly calling via shell
         bat_path_str = str(bat_path.resolve())
 
-        if not _IS_WINDOWS:
+        if not IS_WINDOWS:
             # No .bat on Linux: run a shell script directly, else open the target.
             if bat_path_str.endswith(('.sh', '.bash')):
                 return _spawn_detached(['bash', bat_path_str])
@@ -135,7 +138,7 @@ class ExplorerExecutor:
 
         file_path_str = str(file_path.resolve())
 
-        if not _IS_WINDOWS:
+        if not IS_WINDOWS:
             # Linux/macOS: run the binary directly (or xdg-open a data file),
             # detached so the launched app outlives the launcher process.
             return _open_on_linux(file_path_str, as_desktop_user=as_desktop_user)
@@ -154,7 +157,9 @@ class ExplorerExecutor:
 
         Linux: the grid's emulator argv (dbus-run-session wrapped for a root
         xfce4-terminal) with the detached terminal env. Windows: a new Windows
-        Terminal window, else a classic console via ``start``.
+        Terminal window whose title the app cannot change, else a classic
+        console via ``start``. The window is titled APP_TERMINAL_TITLE_PREFIX
+        + title.
 
         Returns:
             subprocess.Popen, or None when no terminal emulator exists (Linux).
@@ -164,7 +169,8 @@ class ExplorerExecutor:
         # pnpm-global shim only works when invoked by its real path.
         command_str = str(Path(command_path).resolve())
         cwd_str = str(cwd)
-        if not _IS_WINDOWS:
+        window_title = APP_TERMINAL_TITLE_PREFIX + title
+        if not IS_WINDOWS:
             terminal_argv = LinuxTerminalArgv()
             # Single-process emulators first: gnome-terminal hands the window to
             # its already-running server, which ignores this child's env and uid.
@@ -173,7 +179,7 @@ class ExplorerExecutor:
             if emulator is None:
                 return None
             inner = _LINUX_TERMINAL_INNER.format(
-                title=shlex.quote(title), cwd=shlex.quote(cwd_str),
+                title=shlex.quote(window_title), cwd=shlex.quote(cwd_str),
                 command=shlex.quote(command_str))
             argv = terminal_argv._build_titled_argv(emulator, inner)
             return _spawn_detached(argv, cwd=cwd_str, env=terminal_child_env())
@@ -181,11 +187,11 @@ class ExplorerExecutor:
         windows_terminal = shutil.which(_WINDOWS_TERMINAL)
         if windows_terminal:
             return _spawn_detached(
-                [windows_terminal, '-w', '-1', 'new-tab', '--title', title,
-                 '-d', cwd_str, _WINDOWS_SHELL, '/k', command_str],
+                [windows_terminal, '-w', '-1', 'new-tab', '--title', window_title,
+                 _WT_SUPPRESS_APP_TITLE, '-d', cwd_str, _WINDOWS_SHELL, '/k', command_str],
                 cwd=cwd_str)
         return _spawn_detached(
-            _WINDOWS_START_TEMPLATE.format(title=title, cwd=cwd_str, command=command_str),
+            _WINDOWS_START_TEMPLATE.format(title=window_title, cwd=cwd_str, command=command_str),
             cwd=cwd_str)
 
     @staticmethod
@@ -206,7 +212,7 @@ class ExplorerExecutor:
         
         bat_path_str = str(bat_path.resolve())
 
-        if not _IS_WINDOWS:
+        if not IS_WINDOWS:
             if bat_path_str.endswith(('.sh', '.bash')):
                 return _spawn_detached(['bash', bat_path_str])
             return _open_on_linux(bat_path_str)
@@ -241,7 +247,7 @@ class ExplorerExecutor:
         bat_path_str = str(bat_path.resolve())
         working_dir = str(bat_path.parent.resolve())
 
-        if not _IS_WINDOWS:
+        if not IS_WINDOWS:
             if bat_path_str.endswith(('.sh', '.bash')):
                 return _spawn_detached(['bash', bat_path_str], cwd=working_dir)
             return _open_on_linux(bat_path_str)
@@ -278,7 +284,7 @@ class ExplorerExecutor:
 
         file_path_str = str(file_path.resolve())
 
-        if not _IS_WINDOWS:
+        if not IS_WINDOWS:
             return _open_on_linux(file_path_str)
 
         ret = ctypes.windll.shell32.ShellExecuteW(

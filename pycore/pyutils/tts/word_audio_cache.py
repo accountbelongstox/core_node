@@ -6,7 +6,9 @@ Files: ``<app_cache>/word_audio/<lang>/{word}_{provider}.mp3`` — any
 provider's file counts as a hit (newest wins). ``word_audio_cache_index``
 loads the whole cache into memory once at pycore boot (background) and is
 kept current by every store, so batch lookups (audio orchestration manifests)
-are dictionary hits instead of a directory scan per task.
+are dictionary hits instead of a directory scan per task. Every store is
+also recorded in ``audio_resource_ledger`` (the word text is not recoverable
+from the file name).
 """
 import os
 import shutil
@@ -21,10 +23,16 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 
 
 def _get_cache_dir() -> str:
     return str(get_app_cache_dir() / "word_audio")
+
+
+def cache_root() -> Path:
+    """Root of the word cache (one sub-directory per sanitized language)."""
+    return Path(_get_cache_dir())
 
 
 def _safe(value: str) -> str:
@@ -161,6 +169,7 @@ def save_to_cache(word: str, language: str, provider: str, tmp_path: str) -> Non
     except Exception:
         return
     word_audio_cache_index.note_stored(cache_path)
+    audio_resource_ledger.record("word", language, word, cache_path, provider)
 
 
 def find_cached(word: str, language: str) -> Path | None:
@@ -226,4 +235,5 @@ def store_bytes(word: str, language: str, provider: str, content: bytes) -> Path
     temporary.write_bytes(content)
     os.replace(temporary, output)
     word_audio_cache_index.note_stored(str(output))
+    audio_resource_ledger.record("word", language, word, str(output), provider)
     return output

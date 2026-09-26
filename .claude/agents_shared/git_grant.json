@@ -1,0 +1,6 @@
+{
+  "granted_at": "2026-09-26T17:18:26.447Z",
+  "expires_at": "2026-09-26T19:18:26.448Z",
+  "session_id": "25c532cb-ba5c-4eef-a4fb-12e8c433234e",
+  "prompt_excerpt": "docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md 先修正文档 ，对于客户端的通信 ，权限认证使用密钥，注意dd.sh / dd.cmd的连都会调用密钥的解压和安装，比如查看git ssh安装命令，在其他也共用同一套密钥，不要直接对一些方法 ，比如资源上舒心pycore上传资源到laravel改为登陆认证，而是要使用密钥认证。所有不适合 直接 web登陆的都改"
+}

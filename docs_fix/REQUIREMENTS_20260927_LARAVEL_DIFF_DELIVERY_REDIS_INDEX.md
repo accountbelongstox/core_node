@@ -244,17 +244,24 @@ The scripts converge the store, its config, phpredis and the index build.
     only on difference) and the `redis.conf` line (rewrite or append only on
     difference) separately. No restart is needed. It does not change
     Dragonfly or external stores.
-  - `redis_endpoint_maxmemory_ensure` sets `maxmemory` to 25% of
-    `/proc/meminfo` MemTotal, with a 256 MB floor
-    (`REDIS_ENDPOINT_MAXMEMORY_PERCENT` and `_FLOOR_MB`). It updates the live
-    value and the `redis.conf` line only when they differ. The line this
-    script owns follows the marker `# core_node managed: maxmemory` and
-    follows RAM changes. Any explicit non-zero cap without the marker (in
-    `redis.conf` or set live) belongs to an operator: it is kept and never
-    lowered. With `noeviction`, writes fail at the cap instead of exhausting
-    RAM, and W7's diff falls back to DB/disk.
-  - Dragonfly is not covered: step 71 has no Dragonfly config file, so
-    `--maxmemory` stays at Dragonfly's own default (its detected memory).
+  - Memory hard cap (user directive 2026-09-27): Redis and Dragonfly may use
+    at most 10% of system RAM (`REDIS_ENDPOINT_MAXMEMORY_PERCENT=10` of
+    `/proc/meminfo` MemTotal, no floor). The index stores keys and short
+    values only, never file bytes.
+  - `redis_endpoint_maxmemory_ensure` (redis-server) updates the live value
+    and the `redis.conf` line only when they differ. The line this script
+    owns follows the marker `# core_node managed: maxmemory` and follows RAM
+    changes. An explicit cap without the marker is kept only when it is
+    non-zero and not above the hard cap; a higher one is lowered.
+  - `redis_endpoint_dragonfly_maxmemory_ensure` (Dragonfly) writes
+    `--maxmemory=<cap>` and `--proactor_threads=<n>` into the flagfile of the
+    `dragonfly` unit (from `systemctl cat`, default
+    `/etc/dragonfly/dragonfly.conf`), each only when it differs, and restarts
+    the unit only on a change. Dragonfly requires at least 256 MiB per
+    thread, so `n = min(cap / 256 MiB, nproc)`; when 10% of RAM is below
+    256 MiB, the 256 MiB minimum is used and a warning is printed.
+  - With `noeviction`, writes fail at the cap instead of exhausting RAM, and
+    W7's diff falls back to DB/disk.
   - `redis_endpoint_service_state_ensure` is used by the systemd launchers
     `175_laravel_main_service_{frankenphp,nginx}.sh`. It only starts the
     selected store when it is down and never installs anything.
@@ -294,10 +301,11 @@ The scripts converge the store, its config, phpredis and the index build.
   - The index status check runs through the CLI `php` link. If a static
     variant's CLI does not load `redis`, the check reports "not built" and
     only a warning is shown.
-  - `appendonly yes` adds disk writes. Redis memory is capped (see the
-    maxmemory step above; about 0.9 GB on the 3.7 GB server). At the cap,
-    index and cache writes fail until the index is trimmed or the cap is
-    raised. Dragonfly has no cap from these scripts.
+  - `appendonly yes` adds disk writes. Redis and Dragonfly memory is capped
+    at 10% of RAM (see above). At the cap, index and cache writes fail until
+    the index is trimmed; diffs stay correct through the DB/disk fallback.
+  - Dragonfly with the derived `proactor_threads` uses fewer cores than its
+    default (one thread per 256 MiB of cap).
 
 ### W7 implementation record
 
@@ -426,3 +434,192 @@ Risks / limits:
     until the next rebuild; file-backed kinds (sentence, orchestration,
     static) get additions only from diff self-healing and rebuilds (a
     missing index entry never causes a false "missing", only a slower diff).
+
+### W8 implementation record (R1-R4 pycore)
+
+One namespace-aware outbox (`pycore/pyutils/laravel/delivery_outbox.py`),
+one diff/batch client (`pycore/pyutils/laravel/delivery_diff.py`), one
+transport (`laravel_client` + `http_progress_client` + offset-v1
+`laravel_progress_uploader`), one identity model (`identity.py` +
+`endpoint_manager.py`).
+
+- R2 server namespace
+  - `identity.py`: `laravel_server_namespace(server_id, base_url)` =
+    `server:<server_id>`, or `url:<base_url>` for a legacy server without an
+    id; `parse_laravel_server_identity` (health body);
+    `LARAVEL_SERVER_ID_HEADER`.
+  - `endpoint_manager.py`: `LaravelReachability` also keeps the server id per
+    endpoint URL, persisted in `laravel_endpoint_cache.json` section
+    `laravel_servers` (the namespace of an offline endpoint stays known). Fed
+    by every health probe (body `server_id`) and every `laravel_client`
+    response (header `X-Core-Node-Server-Id`). `LARAVEL_ONLINE_EVENT` fires on
+    an offline -> online edge and when the namespace behind a URL changes;
+    payload `{at, base_url, namespace, previous_namespace, server_id,
+    reason}`. New: `server_identity(url)`, `delivery_namespace(url)`,
+    `base_url_for_namespace(ns)` (active endpoint when it serves that
+    server, else a reachable configured one), `known_servers()`.
+  - Schema v2 (`database/schema/laravel_delivery_schema.py`): rows get
+    `namespace` + `item_key` (stored id `<namespace>|<logical id>`);
+    `delivery_state (namespace, kind, item_key, content_hash, receipt)`
+    replaces `delivery_receipts`; metrics keyed `(namespace, kind)`;
+    `delivery_meta` (seed namespace, per-kind seed flag, content-hash
+    cache). Repository methods are namespace-scoped;
+    `adopt_namespace(url_ns, server_ns)` moves rows/state/metrics when a
+    legacy URL namespace is identified as a server.
+  - Migration of un-namespaced state: v1 rows go to the namespace of the
+    endpoint they recorded (`base_url`, then pinned), else to the active
+    endpoint (where v1 would have delivered them). v1 receipts (no server
+    known) are dropped. Domain markers (`orch task.output_delivery`,
+    agent-history `uploaded` / `rebuild_uploaded`) are seeded once into the
+    namespace of the endpoint selected at upgrade time; they are never read
+    again. For a W7 server the seed is irrelevant (the diff decides).
+- R1 diff-driven reconnect
+  - Triggers: online / identity edge of any configured endpoint, endpoint
+    switch (`register_endpoint_change_listener`), outbox start, a kind
+    registered after start, the UI "Re-diff" (`ui/laravel_delivery/retry`
+    `{kind?, reconcile: true, namespace?}`; `backfill` removed).
+  - `reconcile(namespace)`: single flight per server (requests during a run
+    are queued); per inventory kind: `inventory()` -> `{key, hash, record,
+    wire?, diff_kind?}` -> `delivery/diff` (chunked by the server's
+    `delivery/info` limits, resend from `next_index`, progress = processed
+    items, idle window only) -> `need` `missing` into the kind, `stale` into
+    its `stale_kind`; the namespace's delivered-state entries for those keys
+    are dropped first (local state never wins over the server). `rejected`
+    items are not uploaded. Diff status per namespace/kind (`state, mode,
+    phase, processed/total, missing, stale, rejected, enqueued, error`) is in
+    `stats(kind).by_namespace[ns].diff`.
+  - Legacy server (no `server_id`, or `delivery/info` unavailable): kinds
+    with `legacy_reconcile` diff locally against that namespace's delivered
+    state, only for the active endpoint (the previous backfill behavior, now
+    per server). New items fan out to the active and every reachable server.
+  - Kinds:
+
+    | kind | inventory (wire kind, key, hash) | missing / stale | legacy server |
+    | --- | --- | --- | --- |
+    | `audio_cache.resource` (replaces `audio_orch.resource`) | every local word/sentence clip in `audio_resource_ledger`; `word_audio` `<lang>:<md5>[:variant]` / `sentence_audio` `<lang>:<content_id>[:variant]`, presence only | batch upload (W7), single report/fill-missing as fallback | no reconnect diff; new clips still fan out |
+    | `audio_orch.output` | deliverable tasks; `orch_output` `{key: task_id, meta_hash}` (meta_hash cached per output version in `delivery_meta`) | W5 ingest + missing segments | local diff |
+    | `agent_history.article` (+ `article_audio`) | every record; `article` `{key: record_id, sha256}` (mp3 sha cached per size/mtime) | missing -> full submit; stale -> `agent_history.article_audio` replace-audio | local diff |
+    | `audio_lane.word` / `.sentence` | none: rows keep only the server-specific steps (domain report / task result to the dispatching server, local history); the clip is shared with `audio_cache.resource` | - | unchanged |
+- R3 batch + progress: `delivery_diff.upload_batch` = manifest POST ->
+  offset-v1 content through `laravel_progress_uploader` (bytes are
+  progress) -> status poll until `done` (`processed` is progress; only the
+  contract idle window fails); 404/409 re-post the manifest once. The
+  outbox gained `DeliveryKind.deliver_batch` (one call per server group of
+  ready rows; rows it does not answer take `deliver`). Every call uses
+  `activity_timeout=http_transfer_contract()`; the word fill-missing upload
+  lost its fixed 600 s timeout.
+- R4 merge / side effects
+  - Nothing starts at import: `register()` only records a kind; drains,
+    reconcile, the online-edge subscription, migration and the startup
+    flush run from `laravel_delivery_outbox.start()`, called by the runtime
+    step `laravel_delivery` (`pyctl/laravel/delivery_service.py`,
+    `pyctl/runtime/event_handlers.py`), which also registers the
+    orchestration and agent-history kinds (`orch_delivery.register()`,
+    `agent_history_delivery.register()`; no longer in `__init__`). The lane
+    worker constructor no longer writes the outbox (startup flush moved to
+    `start()`).
+  - Deleted: legacy audio-outbox import (`_legacy_audio_rows`,
+    `_legacy_rows`, `LEGACY_AUDIO_*`), the orphaned intermediate store
+    (`pyutils/common/durable_record_store.py`,
+    `database/repositories/json_record_store.py`, `TableKeys.JSON_RECORDS`),
+    receipts table API, `DeliveryKind.backfill` and all kind backfills
+    (`orch_delivery.backfill_outputs`, `_mark_output_delivered`,
+    agent-history `_backfill_*`, `article_records.pending_uploads` /
+    `pending_rebuild_uploads`), duplicate JSON envelope parsers (now
+    `client.laravel_envelope`).
+  - Fixed: `orch_service` called `orch_delivery.output_counts()` without
+    tasks (TypeError); `task_get` now counts only its task.
+- UI: `PcDeliveryOutboxStatus` shows per-server rows (server label, active
+  marker, pending/dead/delivered, diff progress/result, per-server re-diff);
+  `OrchDeliveryPanel` (kinds `audio_orch.output`, `audio_cache.resource`) lists every configured endpoint (URL, online/offline,
+  server id or legacy, diff running). Types `LaravelDeliveryNamespaceStatus`,
+  `LaravelDeliveryDiffStatus`, `LaravelServerIdentity`; API
+  `retryLaravelDelivery(kind, reconcile, namespace)`; i18n
+  `queueCenter.deliveryOutbox.{server,unassigned,activeServer,serverOnline,
+  serverOffline,serverUnknown,serverId,legacyServer,reconciling,reconcile,
+  reconcileTitle,diff.*}` (en/zh).
+
+- Local audio cache clips (lead follow-up): one cache-level kind
+  `audio_cache.resource` (`pyctl/tts/audio_resource_delivery.py`) replaces
+  `audio_orch.resource`; its v2 rows / state / metrics fold into it at start
+  (`DeliveryKind.replaces`, `repository.rename_kind`).
+  - Source of truth: `pyutils/tts/audio_resource_ledger.py`
+    (`APP_CONFIG_DIR/audio_resources.sqlite3`, table
+    `util_speech.audio_resources`, key `(kind, resource_key)` -> newest file,
+    text, language, variant, provider). The word cache file name and the
+    content-addressed sentence cache cannot give back the text, so every
+    producer records the clip: `word_audio_cache.save_to_cache` /
+    `store_bytes`, audio lane staging (retained payload copy, with
+    `variant_key`), orchestration resolution (cache/Laravel hits recorded,
+    generated clips published). One-time bootstrap (outbox meta
+    `audio_cache.ledger_bootstrap`): word cache files `<lang>/{word}_{provider}.mp3`
+    with an unambiguous name (one `_`, letters/digits), every orchestration
+    manifest, the lane task history (last 1000 per lane).
+  - `publish(...)` records the clip and queues it for every target server
+    (no second file copy; the ledger path is durable). The lane stages its row
+    for the dispatching server and publishes the clip for every other server
+    (for its own server too when the row has no domain identity).
+  - No double transfer per server: lane rows carry `shared_item {kind,
+    item_key}`; the outbox treats the lane payload step as done when that
+    server's delivered state already has the clip, and a lane row that
+    uploaded the clip itself (`identity_receipt.uploaded`) writes the clip's
+    delivered state for the cache kind.
+  - Single-clip fallback (legacy server / unbatchable size) uploads the
+    primary variant only; a variant row on a legacy server is settled
+    (`variant_requires_batch`), since such a server receives variants through
+    its own lane tasks.
+
+- Language keys: every `<lang>` of a diff / batch key is built by the one
+  central normalizer `pyfoundations/text_parsing.normalize_language_code`
+  (bare lowercase code; `en-US` / `zh_CN` -> `en` / `zh`; names such as
+  `English` -> `en`, the same name map as Laravel
+  `AppQyV1TableMaps::normalizeLangCode`, plus `cn` -> `zh`), through
+  `audio_resource_ledger.resource_key` (the only language-bearing key
+  builder; article and orch_output keys are ids). Ad-hoc normalizers routed
+  through it: `engine_policy.normalize_tts_language` (its `_LANGUAGE_ALIASES`
+  removed), agent-history `audio_stage._tts_lang_code` (its `_TTS_LANG_MAP`
+  removed; unsupported codes still fall back to `en`), translation
+  `_google_language` (uses the central name map; region codes kept for
+  googletrans). Engine-specific converters (Whisper, PaddleOCR model names)
+  are not language normalizers and stay.
+
+Behavior differences:
+
+- A server switch or a second server now receives the full history it lacks
+  (per its diff), instead of nothing (v1 markers counted globally).
+- Agent history: replace-audio is sent whenever a server's published audio
+  sha differs from the local mp3 (not only for rebuilt multi-sentence
+  records); the article record flags are display only.
+- Orchestration outputs are compared by `meta_hash` on the server; a task
+  whose meta_hash changed (e.g. sentences became available) is re-sent
+  (idempotent upsert).
+- New items fan out to every server currently observed reachable, not only
+  the active one.
+- Agent-history heartbeat no longer backfills each tick; it diffs the active
+  server once per process after the feature is on.
+
+Risks:
+
+- The first reconcile after the upgrade reads every orchestration segment
+  (meta_hash) and every article mp3 (sha256) once; results are cached.
+- `meta_hash` includes cached book sentences; computing it may start a book
+  sentence sync (pre-existing `cached_task_sentences` behavior).
+- Fan-out uploads to every reachable configured server (including e.g. dev
+  servers the UI probed).
+- A legacy URL namespace is adopted into the first server id seen at that
+  URL; a URL that later serves a different server keeps the adopted state
+  (the server's diff corrects it).
+- Sentence cache files produced before the ledger (no text, no lane
+  history entry, no manifest) are not in the inventory; they reach other
+  servers only when a producer records them again.
+- A reconcile of a lane's own server can queue a cache row for a clip whose
+  lane row is still pending (the diff reports it missing): one duplicate
+  idempotent fill-missing upload at most.
+- Every word the Kokoro batch stores (including non-dictionary tokens) is in
+  the ledger and diffed; Laravel answers `rejected no_target`, nothing is
+  uploaded, but each diff carries them.
+- A language outside Laravel's code set still comes back `invalid_key` /
+  `unsupported_language` (not uploaded).
+
+Not run: services, tests, builds, type checks; only `py_compile` and static
+AST name/import checks (no pycore module was imported in a live process).

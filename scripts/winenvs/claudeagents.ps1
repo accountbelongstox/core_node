@@ -25,7 +25,7 @@
 .EXAMPLE
     .\claudeagents.ps1
     .\claudeagents.ps1 -Status
-    .\claudeagents.ps1 -Roles lead,reviewer -NoKickoff
+    .\claudeagents.ps1 -Roles orchestrator,reviewer -NoKickoff
 #>
 
 param(

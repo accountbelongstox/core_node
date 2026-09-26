@@ -125,7 +125,7 @@ export const CmAdminDepositsPage: React.FC = () => {
         />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noDeposits" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.nav.deposits')}>
+        <CmAdminTable label={t('admin.nav.deposits')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>
@@ -245,7 +245,7 @@ export const CmAdminRefundsPage: React.FC = () => {
         />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noRefunds" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.nav.refunds')}>
+        <CmAdminTable label={t('admin.nav.refunds')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>
@@ -378,7 +378,7 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
         />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noWithdrawals" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.nav.withdrawals')}>
+        <CmAdminTable label={t('admin.nav.withdrawals')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>
@@ -485,7 +485,7 @@ const CmAdminPaymentsTable: React.FC = () => {
         />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noPayments" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.payments.tab.payments')}>
+        <CmAdminTable label={t('admin.payments.tab.payments')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>
@@ -632,14 +632,12 @@ export const CmAdminProjectsPage: React.FC = () => {
     const targetLabel = t(`states.project.${target}`, { defaultValue: target });
     action.ask({
       title: t('admin.projects.changeTitle', { title: item.title, status: targetLabel }),
-      body: [
-        t('admin.projects.changeBody', {
-          from: t(`states.project.${item.status}`, { defaultValue: item.status }),
-          to: targetLabel,
-          client: userName(item.client, item.client_id),
-        }),
-        t(`admin.projects.effect.${target}`, { defaultValue: '' }),
-      ].filter(Boolean).join(' '),
+      body: t('admin.projects.changeBody', {
+        from: t(`states.project.${item.status}`, { defaultValue: item.status }),
+        to: targetLabel,
+        client: userName(item.client, item.client_id),
+        effect: t(`admin.projects.effect.${target}`, { defaultValue: '' }),
+      }),
       confirmLabel: t(`admin.projects.action.${target}`, { defaultValue: targetLabel }),
       tone: DANGER_PROJECT_TARGETS.includes(target) ? 'danger' : 'primary',
       reason: 'required',
@@ -664,7 +662,7 @@ export const CmAdminProjectsPage: React.FC = () => {
         <CmAdminSearch labelKey="admin.projects.clientId" value={clientId} onApply={setClientId} icon={false} inputMode="numeric" />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noProjects" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.nav.projects')}>
+        <CmAdminTable label={t('admin.nav.projects')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>

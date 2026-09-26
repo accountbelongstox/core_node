@@ -6,19 +6,16 @@ from typing import Any, Dict, Optional
 
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.text_parsing import SUPPORTED_LANGUAGE_CODES, normalize_language_code
 from pycore.pyutils.tts.queued_synthesis import queued_tts_synthesis
 
 
 _MINIMUM_AUDIO_BYTES = 1024
-_TTS_LANG_MAP = {
-    "EN": "en", "CN": "zh", "JA": "ja", "KO": "ko", "FR": "fr", "DE": "de",
-    "ES": "es", "RU": "ru", "AR": "ar", "PT": "pt", "IT": "it", "TH": "th",
-    "VI": "vi", "HI": "hi", "NL": "nl", "PL": "pl", "TR": "tr", "ID": "id",
-}
 
 
 def _tts_lang_code(target_lang: str) -> str:
-    return _TTS_LANG_MAP.get(str(target_lang or "").upper(), "en")
+    code = normalize_language_code(target_lang)
+    return code if code in SUPPORTED_LANGUAGE_CODES else "en"
 
 
 def advance_audio_synthesis(

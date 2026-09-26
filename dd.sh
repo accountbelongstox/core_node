@@ -52,6 +52,11 @@ SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/3_setting_base.sh"
 PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/7_project_validator.sh"
 DD_SYMLINK_PATH="/usr/local/bin/dd.sh"
 DD_TTY_SETTINGS=""
+SYSTEM_VERSION=""
+
+# Top-level menu state used by menu_display.sh (fallback menu).
+declare -A menu_items
+declare -a menu_order
 
 # Loaded first: env hub (USE_SUDO, var store, prompt queue), constants, menu UI, system helpers.
 DD_CORE_FILES=(
@@ -60,20 +65,27 @@ DD_CORE_FILES=(
     "$COMMON_SHELLS_DIR/arrow_menu.sh"
     "$DD_HELPER_DIR/system_functions.sh"
 )
-# Loaded after privileges, dos2unix and git are ready (dependency order).
+# Startup chain: loaded after privileges, dos2unix and git are ready (dependency order).
 DD_HELPER_FILES=(
     "$DD_HELPER_DIR/cache_functions.sh"
+    "$DD_HELPER_DIR/file_validation.sh"
     "$DD_HELPER_DIR/file_download.sh"
     "$DD_HELPER_DIR/file_processing.sh"
     "$DD_HELPER_DIR/secret_functions.sh"
     "$DD_HELPER_DIR/smart_permissions.sh"
     "$DD_HELPER_DIR/dev_cache_cleanup.sh"
     "$DD_HELPER_DIR/linuxenvs_sync.sh"
+    "$DD_HELPER_DIR/main_execution.sh"
+)
+# Menu chain: not part of the startup steps; loaded when the menu is about to show.
+DD_MENU_FILES=(
+    "$DD_HELPER_DIR/main_functions.sh"
     "$DD_HELPER_DIR/git_functions.sh"
     "$DD_HELPER_DIR/menu_functions.sh"
     "$DD_HELPER_DIR/management_and_backup.sh"
+    "$DD_HELPER_DIR/natgateway_helper.sh"
     "$DD_HELPER_DIR/linux_management.sh"
-    "$DD_HELPER_DIR/main_execution.sh"
+    "$DD_HELPER_DIR/menu_display.sh"
 )
 
 # Common download with progress (used in installation mode and can be reused by bootstrap)
@@ -247,6 +259,16 @@ load_dd_helpers() {
     done
 }
 
+load_dd_menu_helpers() {
+    local index=0
+
+    echo -e "\033[36m[MENU] Loading menu helpers...\033[0m"
+    for index in "${!DD_MENU_FILES[@]}"; do
+        source_file_with_dos2unix "${DD_MENU_FILES[$index]}"
+        echo "[$((index + 1))/${#DD_MENU_FILES[@]}] ${DD_MENU_FILES[$index]##*/} - [OK]"
+    done
+}
+
 # Script paths in the var store (per-OS keys, same names as dd.ps1).
 dd_store_script_paths() {
     echo -e "\033[36m[GLOBAL VARS] Storing script paths...\033[0m"
@@ -372,12 +394,20 @@ main() {
     smart_permissions_report
     echo -e "\033[32m[STARTUP] Ready in $(sh_process_elapsed "$DD_START_US")s\033[0m"
 
+    echo ""
+    load_dd_menu_helpers
+
     prompt_queue_flush "$DD_MENU_COUNTDOWN_SECONDS" "Press Enter to show the menu"
     PROMPT_QUEUE_DEFERRED=false
     if [ "$PROMPT_QUEUE_ACTIONS_RUN" -gt 0 ]; then
         prompt_countdown_read menu_pause "" "$DD_MENU_COUNTDOWN_SECONDS" "Press Enter to show the menu"
     fi
-    show_linux_management_submenu
+    if declare -F show_linux_management_submenu >/dev/null 2>&1; then
+        show_linux_management_submenu
+    else
+        initialize_menu_items
+        show_interactive_menu
+    fi
 }
 
 load_dd_helpers

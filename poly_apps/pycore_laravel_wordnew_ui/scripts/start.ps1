@@ -387,13 +387,24 @@ if (-not $IsServiceRun) {
             } else {
                 $ServiceArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$SelfScript`" -NoBackend -NonInteractive -Port $DevPort"
             }
+            # -Service re-checks right before registering (bun install can take minutes while
+            # another installer registers and starts the service) and never restarts it.
+            if ($Service) {
+                $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName
+                if ($UiServiceState -eq "running") {
+                    Write-Success "Service $UiServiceName is already running; nothing to do (no restart)."
+                    Set-Location -LiteralPath $OriginalDir
+                    exit 0
+                }
+            }
             Write-Info "Registering Windows service $UiServiceName (NSSM)..."
             $ServiceRegistered = Register-NssmService -NssmPath $NssmPath -ServiceName $UiServiceName `
                 -DisplayName $UiServiceDisplayName -Description $UiServiceDesc `
                 -ExePath $PwshServiceExe -Arguments $ServiceArgs -WorkingDirectory $AppRoot `
                 -EnvironmentExtra @("NEXUS_DASH_SERVICE_RUN=1") `
                 -StdoutLog $UiServiceLog `
-                -StderrLog $UiServiceErrLog
+                -StderrLog $UiServiceErrLog `
+                -NoRestart:$Service
 
             if ($ServiceRegistered -and $Service) {
                 $UiServiceState = Get-ServiceRunState -ServiceName $UiServiceName

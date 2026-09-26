@@ -578,6 +578,12 @@ Risks / limits:
 
 ### W4 implementation record (R7 + R8 pycore)
 
+> Superseded in part by W8 (`REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md`
+> "W8 implementation record"): delivery state is namespaced per Laravel
+> server, kind backfills / domain markers / receipts no longer decide
+> delivery (Laravel's diff does), the legacy audio outbox import was
+> removed, and nothing starts at import (`pyctl/laravel/delivery_service.py`).
+
 One delivery layer: `pycore/pyutils/laravel/delivery_outbox.py`
 (`laravel_delivery_outbox`), the upgrade of the former
 `pyutils/tts/audio_delivery_outbox.py` (deleted).

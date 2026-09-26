@@ -45,6 +45,9 @@ CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
 CCI_TEAM_UP_SRC="$CCI_LINUXENVS_DIR/claudeteamup.sh"
 CCI_AGENTS_SRC="$CCI_LINUXENVS_DIR/claudeagents.sh"
 CCI_SHARED_DIR="$CCI_CORE_NODE_DIR/.claude/agents_shared"
+CCI_AGENT_MEMORY_DIR="$CCI_CORE_NODE_DIR/.claude/agent-memory"
+# User settings of the account that runs the role sessions (root included).
+CCI_USER_SETTINGS_PATH="$HOME/.claude/settings.json"
 CCI_GEOMETRY_EMULATORS=("xfce4-terminal" "konsole" "xterm")
 CCI_EMULATOR_PACKAGE="xfce4-terminal"
 # 1 = only report each team item ([OK]/[MISSING]); never install or link.
@@ -382,7 +385,9 @@ cci_ensure_team_prereqs() {
     local emulator=""
     cci_ensure_binary python3 python3 "role catalog parsing"
     cci_ensure_binary tmux tmux "agent-team split panes and role sessions"
-    cci_ensure_binary node nodejs "git guard hook .claude/hooks/git_guard.mjs"
+    cci_ensure_binary node nodejs "project hooks .claude/hooks/*.mjs"
+    cci_ensure_binary bwrap bubblewrap "official Bash sandbox (filesystem isolation)"
+    cci_ensure_binary socat socat "official Bash sandbox (network proxy relay)"
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         echo "[SKIP] no graphical display: xrandr and terminal emulator not required"
         return 0
@@ -410,9 +415,89 @@ cci_setup_claudeteam() {
 
 # Shared team setup used by claude_code_install (dd.sh step 171) and by the
 # claudeteamup/claudeagents launchers: prerequisites, shared dir, launcher links.
+# Finest-grained idempotent unit: one key in the Claude Code user settings
+# (~/.claude/settings.json). Other keys are preserved. Mode "set" writes the value
+# when it differs; mode "warn" only reports when the key currently equals the
+# given value (settings that would block cross-machine teamwork).
+cci_ensure_claude_user_setting() {
+    local mode="$1" key="$2" value_json="$3" purpose="$4"
+    local result=""
+    result="$(python3 - "$CCI_USER_SETTINGS_PATH" "$mode" "$key" "$value_json" "$CCI_CHECK_ONLY" <<'PY'
+import json
+import os
+import sys
+
+path, mode, key, value_json, check_only = sys.argv[1:6]
+value = json.loads(value_json)
+try:
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+except FileNotFoundError:
+    data = {}
+except ValueError:
+    print("INVALID")
+    sys.exit(0)
+current = data.get(key, None)
+if mode == "warn":
+    print("CONFLICT" if current == value else "SKIP")
+    sys.exit(0)
+if current == value:
+    print("SKIP")
+elif check_only == "1":
+    print("MISSING")
+else:
+    data[key] = value
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    print("OK")
+PY
+)"
+    case "$result" in
+        SKIP) echo "[SKIP] Claude user setting $key ($purpose)" ;;
+        OK) echo "[OK] Claude user setting $key=$value_json written to $CCI_USER_SETTINGS_PATH ($purpose)" ;;
+        MISSING) echo "[MISSING] Claude user setting $key=$value_json ($purpose)" ;;
+        CONFLICT) echo "[WARN] Claude user setting $key=$value_json in $CCI_USER_SETTINGS_PATH blocks $purpose; remove it" ;;
+        *) echo "[WARN] $CCI_USER_SETTINGS_PATH is not valid JSON; $key not checked" ;;
+    esac
+}
+
+# Report-only: variables that disable Remote Control (official requirements), so
+# cross-machine SendMessage between role sessions cannot work.
+cci_check_remote_control_env() {
+    local name=""
+    local blocked="0"
+    for name in CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC DISABLE_GROWTHBOOK CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY; do
+        if [ -n "${!name:-}" ]; then
+            echo "[WARN] $name is set in this environment: Remote Control (cross-machine messaging) is unavailable"
+            blocked="1"
+        fi
+    done
+    if [ -n "${ANTHROPIC_BASE_URL:-}" ] && [ "${ANTHROPIC_BASE_URL%/}" != "https://api.anthropic.com" ]; then
+        echo "[WARN] ANTHROPIC_BASE_URL points away from api.anthropic.com: Remote Control is unavailable"
+        blocked="1"
+    fi
+    if [ "$blocked" = "0" ]; then
+        echo "[SKIP] no variable blocks Remote Control"
+    fi
+}
+
+# Claude Code settings the role sessions need on every machine (local and server).
+cci_ensure_team_settings() {
+    cci_ensure_claude_user_setting set crossSessionInbound '"accept"' "deliver messages between role sessions, including across machines"
+    cci_ensure_claude_user_setting warn isolatePeerMachines 'true' "cross-machine SendMessage without per-message approval"
+    cci_ensure_claude_user_setting warn disableRemoteControl 'true' "Remote Control for cross-machine role sessions"
+    cci_check_remote_control_env
+}
+
 claude_team_install() {
     cci_ensure_team_prereqs
     cci_ensure_dir "$CCI_SHARED_DIR" "shared data between roles"
+    cci_ensure_dir "$CCI_SHARED_DIR/reports" "role handoff reports (TeammateIdle gate)"
+    cci_ensure_dir "$CCI_SHARED_DIR/reviews" "reviewer verdicts (TaskCompleted gate)"
+    cci_ensure_dir "$CCI_AGENT_MEMORY_DIR" "per-role agent memory (memory: project)"
+    cci_ensure_team_settings
     cci_setup_claudeteam || true
 }
 

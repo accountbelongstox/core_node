@@ -17,20 +17,10 @@ from pycore.pyctl.assist.task_capability_chains import get_chains
 from pycore.pyctl.task_history.store import append_record
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.text_parsing import LANGUAGE_NAME_TO_CODE
 from pycore.pyutils.translator.dictionary import dictionary_service
 from pycore.pyutils.translator.google_translator import GoogleTranslator
 
-_LANGUAGE_NAME_TO_CODE = {
-    "english": "en",
-    "chinese": "zh",
-    "spanish": "es",
-    "french": "fr",
-    "german": "de",
-    "japanese": "ja",
-    "korean": "ko",
-    "vietnamese": "vi",
-    "lao": "lo",
-}
 _WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
 
 
@@ -39,8 +29,8 @@ def _google_language(language: str, fallback: str) -> str:
     value = str(language or "").strip().lower().replace("_", "-")
     if not value:
         return fallback
-    if value in _LANGUAGE_NAME_TO_CODE:
-        return _LANGUAGE_NAME_TO_CODE[value]
+    if value in LANGUAGE_NAME_TO_CODE:
+        return LANGUAGE_NAME_TO_CODE[value]
     if 2 <= len(value.split("-", 1)[0]) <= 3:
         return value
     return fallback

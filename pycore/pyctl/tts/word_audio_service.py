@@ -52,6 +52,7 @@ from pycore.pyutils.laravel.endpoint_manager import (
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 
 # Laravel word-audio surfaces retained for worker-side task integration.
 _LARAVEL_MISSING_BATCH = "/api/app_qy_v1/word/audio/missing-batch"
@@ -273,7 +274,7 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
         base = base_url or _laravel_base()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured"}
-        resp = laravel_client.post(_LARAVEL_UPLOAD, base_url=base, json=payload, timeout=_BATCH_TIMEOUT)
+        resp = laravel_client.post(_LARAVEL_UPLOAD, base_url=base, json=payload, activity_timeout=http_transfer_contract())
         if resp.status_code != 200:
             try:
                 body = resp.json()

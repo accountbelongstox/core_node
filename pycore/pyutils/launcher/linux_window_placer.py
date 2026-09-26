@@ -142,6 +142,26 @@ class LinuxWindowPlacer:
         if not x11_display.move_resize(wid, x, y, width, height):
             ColorPrint.plain(f"  place: failed to position id {wid:#x}")
 
+    def relayout_windows(self, windows, configs, cell_hint=None):
+        """
+        Move already-open windows onto the leading cells of ``configs`` in reading
+        order (top-to-bottom, left-to-right) with the same cell, gap and frame
+        geometry as a positioned launch. Returns the number of windows moved.
+        """
+        cell_w, cell_h = self._cell_pixel_size(configs)
+        if cell_hint:
+            cell_w = cell_w or cell_hint[0]
+            cell_h = cell_h or cell_hint[1]
+        col_gap, row_gap = self._grid_gaps(cell_w, cell_h)
+        ordered = sorted(windows, key=lambda window: (window.y, window.x, window.xid))
+        moved = 0
+        for window, entry in zip(ordered, configs):
+            frame = self._frame_extents(window.xid)
+            px, py, w, h = self._gap_geometry(entry[0], entry[1], cell_w, cell_h, frame, col_gap, row_gap)
+            self._place_by_id(window.xid, px, py, w, h)
+            moved += 1
+        return moved
+
     @staticmethod
     def _place_by_title(title, x, y, width=None, height=None):
         """Fallback: move every window whose title equals ``title`` exactly."""
