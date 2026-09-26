@@ -1,99 +1,73 @@
 # -*- coding: utf-8 -*-
-"""Audio-orchestration queue-head self-promotion (Part1 fill, LOCAL ONLY).
+"""Audio-orchestration Part1 fill (LOCAL ONLY) for words AND sentences.
 
-When a manifest resolves its resources, the local-cache misses are the set
-this machine still needs. Promoting that set means filling Part1 of this
-machine's shared audio queue (``audio_queue_center``): the lane workers
-drain Part1 before Part2, so the misses are synthesized first instead of
-walking the catalog-order backlog.
+A manifest's local-cache misses are exactly what this machine still needs.
+Each miss enters Part1 of its OWN lane queue — missing words into the
+word_audio Queue, missing sentences into the sentence_audio Queue — as a
+pycore-local task owned by the orchestration task (the tracker owner), so
+the fill is visible per lane (Part1 / Part2 / whole Queue) and per task.
 
-Direction is pycore-local ONLY: the promotion NEVER notifies Laravel.
-wordnew is the sole actor that notifies Laravel of head moves (the Part2
-fill path: wordnew -> Laravel -> Mercure/diff -> pycore). Part1 is empty
-by default; it is (re)built each time an orchestration manifest resolves.
+The resolver then ``take_local``s its items chunk by chunk, generates them,
+and ``settle_local``s the outcome; items a lane worker already popped are
+awaited instead of generated twice. The promotion NEVER notifies Laravel
+(wordnew owns the Part2 path).
+
+Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.2/§5.5.
 """
 
 from __future__ import annotations
 
-import hashlib
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.common.queue_center_contract import audio_dedup_key
+from pycore.pyutils.tts.audio_queue_center import (
+    AUDIO_QUEUE_LANE_BY_KIND,
+    LOCAL_SOURCE_ORCHESTRATION,
+    audio_queue_center,
+    build_local_task,
+)
 
-_QUEUE_WORD_AUDIO = "word_audio"
-_QUEUE_SENTENCE_AUDIO = "sentence_audio"
+
+def resource_lane(resource: Dict[str, Any]) -> str:
+    """The lane (queue) a manifest resource belongs to."""
+    return AUDIO_QUEUE_LANE_BY_KIND.get(str(resource.get("kind") or ""), "")
 
 
-def _promotion_item(
-    resource: Dict[str, Any],
-    base_url: Optional[str],
-) -> Optional[Dict[str, Any]]:
-    """One manifest resource -> ``{queue, item}`` for the library promote.
-
-    ``item`` carries the raw identity fields; the canonical dedup key is
-    computed inside the library with the ONE contract helper (mirroring
-    ``QueueCenterService::dedupKeyFor``)."""
-    kind = str(resource.get("kind") or "")
-    text = str(resource.get("text") or "").strip()
-    language = str(resource.get("language") or "").strip()
-    if not text or not language:
-        return None
-    if kind == "sentence":
-        return {"queue": _QUEUE_SENTENCE_AUDIO, "item": {"language": language, "text": text}}
-    if kind == "word":
-        md5 = hashlib.md5(text.lower().encode("utf-8")).hexdigest()
-        resource_key = str(resource.get("resource_id") or md5).strip()
-        task = {
-            "task_id": f"word-orchestration-{language}-{resource_key}",
-            "task_type": _QUEUE_WORD_AUDIO,
-            "payload": {
-                "word": text,
-                "content": text,
-                "language": language,
-                "md5": md5,
-            },
-            "_local_source": "orchestration",
-        }
-        if base_url:
-            task["_laravel_base_url"] = str(base_url)
-        return {
-            "queue": _QUEUE_WORD_AUDIO,
-            "item": {
-                "language": language,
-                "text": text,
-                "md5": md5,
-                "task": task,
-            },
-        }
-    return None
+def resource_queue_key(resource: Dict[str, Any]) -> str:
+    """Canonical whole-Queue dedup key of one manifest resource (ONE helper)."""
+    return audio_dedup_key(
+        resource_lane(resource),
+        resource.get("language"),
+        resource.get("text"),
+    )
 
 
 def promote_missing_to_queue_head(
     misses: List[Dict[str, Any]],
     base_url: Optional[str] = None,
+    owner: str = "",
 ) -> Dict[str, Any]:
-    """Enqueue-or-move every missing manifest resource to the local queue
-    head — the Part1 fill path of the shared audio queue library.
-
-    Never raises or mutates Laravel. Word misses carry a local queue task so a
-    previously unseen identity really enters Part1; the resolver batch-fills
-    the cache before waking the worker, which then consumes the same task as a
-    cache hit. Sentence misses only promote an already queued remote task.
-    """
-    items_by_queue: Dict[str, List[Dict[str, Any]]] = {}
+    """Fill Part1 of each lane with the task's missing resources (local tasks)."""
+    items_by_lane: Dict[str, List[Dict[str, Any]]] = {}
     for resource in misses:
-        item = _promotion_item(resource, base_url)
-        if item is None:
+        lane = resource_lane(resource)
+        text = str(resource.get("text") or "").strip()
+        language = str(resource.get("language") or "").strip()
+        task = build_local_task(lane, language, text, LOCAL_SOURCE_ORCHESTRATION, base_url=str(base_url or ""))
+        if task is None:
             continue
-        items_by_queue.setdefault(item["queue"], []).append(item["item"])
+        items_by_lane.setdefault(lane, []).append({"language": language, "text": text, "task": task})
 
     summary: Dict[str, Any] = {"success": True, "queues": {}, "promoted": 0}
-    for queue, items in items_by_queue.items():
-        result = audio_queue_center.promote_local_head(queue, items, wake=False)
-        summary["queues"][queue] = {
+    for lane, items in items_by_lane.items():
+        result = audio_queue_center.promote_local_head(
+            lane, items, wake=False, owner=owner,
+        )
+        summary["queues"][lane] = {
             "requested": len(items),
             "promoted": int(result.get("promoted") or 0),
+            "inserted": int(result.get("inserted") or 0),
             "claimed": int(result.get("claimed") or 0),
             "success": bool(result.get("success")),
         }
@@ -101,11 +75,15 @@ def promote_missing_to_queue_head(
         if not result.get("success"):
             summary["success"] = False
         ColorPrint.green(
-            f"[AudioOrch] promoted {queue} head (Part1): requested={len(items)} "
-            f"promoted={summary['queues'][queue]['promoted']} "
-            f"claimed={summary['queues'][queue]['claimed']}"
+            f"[AudioOrch] Part1 fill {lane}: requested={len(items)} "
+            f"promoted={summary['queues'][lane]['promoted']} "
+            f"inserted={summary['queues'][lane]['inserted']} owner={owner or '-'}"
         )
     return summary
 
 
-__all__ = ["promote_missing_to_queue_head"]
+__all__ = [
+    "promote_missing_to_queue_head",
+    "resource_lane",
+    "resource_queue_key",
+]

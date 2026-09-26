@@ -12,6 +12,7 @@ from pycore.pyctl.queue_center.control_service import (
     normalize_control_name,
     record_control_intent,
 )
+from pycore.pyctl.queue_center.audio_lane_state import audio_lane_state
 from pycore.pyctl.queue_center.lane_registry import lane_capability
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.sentence_audio_auto import (
@@ -19,7 +20,8 @@ from pycore.pyctl.tts.sentence_audio_auto import (
 )
 from pycore.pyctl.tts.sentence_audio_auto import warm_engine_after_enable
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
-from pycore.pyctl.tts.word_audio_full_sync import activate_word_audio_queue
+from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
+from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
 
 pydantic = get_third_package_pydantic()
 BaseModel = pydantic.BaseModel
@@ -83,8 +85,10 @@ def set_queue_center_control(
     )
 
     settings = set_assist_capability(capability, enabled)
-    if canonical_name == "word_audio" and enabled:
-        activate_word_audio_queue()
+    if canonical_name in AUDIO_QUEUE_LANES and enabled:
+        # Cache-first: restore + full pull start before the heartbeat
+        # callbacks run their first remote intake.
+        activate_audio_lane(canonical_name)
     runtime = apply_assist_runtime(settings, graceful_stop=req.graceful_stop)
     errors: List[str] = list(runtime.get("errors") or [])
 
@@ -109,10 +113,21 @@ def set_queue_center_control(
         "laravel_endpoint": endpoint,
         "result": result,
     }
+    if canonical_name in AUDIO_QUEUE_LANES:
+        # State-driven UI: return the authoritative post-transition lane
+        # state (the UI applies it instead of an optimistic guess) and push
+        # it to every other open client.
+        audio_queue_center.note_state_change(canonical_name, "control")
+        payload["lane_state"] = audio_lane_state.snapshot()
     if errors:
         payload["error"] = "; ".join(errors)
         payload["errors"] = errors
     return payload
+
+
+def get_audio_lane_state(owner: str = "", item_limit: int = 10) -> Dict[str, Any]:
+    """Two-lane audio state (same payload as the push topic)."""
+    return audio_lane_state.snapshot(owner=str(owner or ""), item_limit=int(item_limit or 10))
 
 
 def get_local_task_detail(task_id: str) -> Dict[str, Any]:

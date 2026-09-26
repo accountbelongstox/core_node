@@ -148,7 +148,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
                 failed += 1
             worker._record_task_result(success, time.monotonic() - started)
         worker._log_cycle_task_result(task, outcome)
-        audio_queue_center.complete(worker.QUEUE_KEY, task)
+        worker._complete_queued_task(task, outcome)
     return {
         "processed": processed,
         "succeeded": succeeded,
@@ -568,6 +568,20 @@ class BaseLaravelAudioWorker(
             queue_position,
         )
 
+    def _complete_queued_task(self, task: Dict[str, Any], outcome: str) -> None:
+        """Report one popped task's terminal outcome to the shared queue library.
+
+        The library releases the whole-Queue dedup/Part1 state and records the
+        outcome for owners watching the item (orchestration fill progress).
+        """
+        audio_queue_center.complete(
+            self.QUEUE_KEY,
+            task,
+            ok=outcome == TASK_OUTCOME_COMPLETED,
+            provider=str(task.get("_terminal_provider") or ""),
+            error=str(task.get("_skip_reason") or task.get("_batch_audio_error") or ""),
+        )
+
     def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
         """Re-align the lane heap with the synced backend pending claim order.
 
@@ -575,8 +589,7 @@ class BaseLaravelAudioWorker(
         were finished or claimed elsewhere, so they are pruned here — before
         the drain would pop them into a doomed just-in-time claim (HTTP 409).
         """
-        self._queue.reorder(ordered_ids)
-        pruned = self._queue.prune_absent(ordered_ids)
+        pruned = audio_queue_center.apply_backlog_order(self.QUEUE_KEY, ordered_ids)["pruned"]
         if pruned:
             ColorPrint.gray(
                 f"{self._log_prefix} pruned {pruned} queued task(s) "
@@ -656,7 +669,9 @@ class BaseLaravelAudioWorker(
             task = audio_queue_center.pop_next(self.QUEUE_KEY)
             if task is None:
                 break
-            audio_queue_center.complete(self.QUEUE_KEY, task)
+            audio_queue_center.complete(
+                self.QUEUE_KEY, task, ok=False, error="lane stopped before processing",
+            )
             dropped.append(task)
         return dropped
 
@@ -704,7 +719,7 @@ class BaseLaravelAudioWorker(
                                 time.monotonic() - float(entry["started"]),
                             )
                         self._log_cycle_task_result(task, outcome)
-                        audio_queue_center.complete(self.QUEUE_KEY, task)
+                        self._complete_queued_task(task, outcome)
             elif concurrency > 1 and len(self._queue) > 1:
                 self._log_event(
                     "parallel",
@@ -742,7 +757,7 @@ class BaseLaravelAudioWorker(
                             failed += 1
                         self._record_task_result(success, time.monotonic() - started)
                     self._log_cycle_task_result(task, outcome)
-                    audio_queue_center.complete(self.QUEUE_KEY, task)
+                    self._complete_queued_task(task, outcome)
 
             if processed == 0:
                 return

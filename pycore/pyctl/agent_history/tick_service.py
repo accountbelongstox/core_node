@@ -69,6 +69,9 @@ class AgentHistoryTickService:
         self._last_summary: Dict[str, Any] = {}
         # Coordinates heartbeat extraction with UI-requested extraction.
         self._extract_busy = threading.Event()
+        # A heartbeat extract tick that met a busy lane; the lane holder runs
+        # it before releasing, so continuous live scans never starve extraction.
+        self._extract_pending = threading.Event()
         # UI-driven realtime scan: throttle + last result (lock-free reads).
         self._live_scan_last_at = 0.0
         self._last_live_scan: Dict[str, Any] = {}
@@ -123,8 +126,9 @@ class AgentHistoryTickService:
         }
 
     def tick_extract(self) -> None:
-        """Heartbeat: incremental history extract only (skipped while busy)."""
+        """Heartbeat: incremental history extract (deferred to the lane holder while busy)."""
         if self._extract_busy.is_set():
+            self._extract_pending.set()
             return
         self._extract_busy.set()
         try:
@@ -237,6 +241,9 @@ class AgentHistoryTickService:
     def _run_requested_live_scan(self, tools: Any) -> None:
         try:
             self._extract_gate.run_live(tools)
+            if self._extract_pending.is_set():
+                self._extract_pending.clear()
+                self._extract_gate.run()
         finally:
             self._extract_busy.clear()
 
@@ -272,6 +279,7 @@ class AgentHistoryTickService:
 
     def _run_extract(self, force: bool = False) -> None:
         self._extract_count += 1
+        self._extract_pending.clear()
         try:
             result = agent_history_service.extract(force=force)
             self._last_summary = result if isinstance(result, dict) else {}

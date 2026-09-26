@@ -25,12 +25,15 @@
 #      the /usr/local/bin all-user install and the claudeteam link stay in one
 #      place. Other CLIs use their official native installer, then pnpm/npm.
 #   2. Prompt for an upgrade only when the published version is newer, defaulting
-#      to N and auto-skipping after AI_CLI_UPGRADE_TIMEOUT_SECONDS.
-# Both steps are no-ops when the CLI is present and current.
+#      to N and auto-skipping after AI_CLI_UPGRADE_TIMEOUT_SECONDS. Claude Code
+#      compares against the official native release channel.
+# Both steps are no-ops when the CLI is present and current. The launcher stops
+# with an error when the CLI is still missing, instead of exec'ing a missing command.
 # =============================================================================
 
 AI_CLI_UPGRADE_TIMEOUT_SECONDS="5"
 AI_CLI_KIMI_INSTALLER_URL="https://code.kimi.com/kimi-code/install.sh"
+AI_CLI_CLAUDE_LATEST_URL="https://downloads.claude.ai/claude-code-releases/latest"
 AI_CLI_PROVISION_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_CLI_CORE_NODE_DIR="$(cd "$AI_CLI_PROVISION_COMMON_DIR/../../../.." && pwd)"
 AI_CLI_CLAUDE_INSTALL_LIB="$AI_CLI_CORE_NODE_DIR/scripts/ai_shtools/claude_code_install.sh"
@@ -65,8 +68,14 @@ ai_cli_installed_version() {
 }
 
 ai_cli_published_version() {
-    local package="$1"
+    local tool="$1"
+    local package="$2"
     local raw_output=""
+    if [ "$tool" = "claude" ] && command -v curl >/dev/null 2>&1; then
+        raw_output="$(curl -fsSL --max-time 10 "$AI_CLI_CLAUDE_LATEST_URL" 2>/dev/null || true)"
+        ai_cli_extract_version "$raw_output"
+        return 0
+    fi
     if command -v pnpm >/dev/null 2>&1; then
         raw_output="$(pnpm view "$package" version 2>/dev/null || true)"
     fi
@@ -101,7 +110,7 @@ ai_cli_native_install() {
             # /usr/local/bin install + claudeteam link), idempotent by itself.
             . "$AI_CLI_CLAUDE_INSTALL_LIB"
             claude_code_install
-            return 0
+            return $?
             ;;
         kimi)
             if command -v curl >/dev/null 2>&1; then
@@ -122,9 +131,12 @@ ai_cli_native_upgrade() {
     case "$tool" in
         claude)
             # Official native updater; DISABLE_AUTOUPDATER only blocks the silent
-            # background updater, so it is cleared for this explicit upgrade.
+            # background updater, so it is cleared for this explicit upgrade. The
+            # canonical workflow then re-syncs the shared /usr/local/bin binary.
             if env -u DISABLE_AUTOUPDATER "$tool" update; then
-                return 0
+                . "$AI_CLI_CLAUDE_INSTALL_LIB"
+                claude_code_install
+                return $?
             fi
             return 1
             ;;
@@ -220,7 +232,7 @@ ai_cli_upgrade_prompt() {
 
     label="$(ai_cli_label "$tool")"
     installed_version="$(ai_cli_installed_version "$tool")"
-    published_version="$(ai_cli_published_version "$package")"
+    published_version="$(ai_cli_published_version "$tool" "$package")"
 
     if ! ai_cli_version_is_newer "$published_version" "$installed_version"; then
         return 0
@@ -251,6 +263,10 @@ ai_cli_upgrade_prompt() {
 ai_cli_provision() {
     local tool="$1"
     ai_cli_install_if_missing "$tool"
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "[ERROR] $(ai_cli_label "$tool") is unavailable; fix the install errors above and re-run."
+        exit 1
+    fi
     ai_cli_upgrade_prompt "$tool"
     return 0
 }

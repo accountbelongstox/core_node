@@ -539,8 +539,8 @@ class _QueueCenterSnapshotService:
                 item.get("md5"),
             )
             # Resolve by task_id first, dedup identity fallback: the
-            # word_audio lane is filled by pycore's full pull (local
-            # word-full-<language>-<md5> tasks), so a wordnew head ticket's Laravel
+            # word_audio lane is mirrored by pycore's full pull (local
+            # full_sync-word-<language>-<md5> tasks), so a wordnew head ticket's Laravel
             # task_id may have no local counterpart.
             worker.set_cached_task_head(task_id, queue_position, dedup_key)
             applied.append({
@@ -625,6 +625,31 @@ class _QueueCenterSnapshotService:
         thread = self._thread
         if thread is not None:
             thread.request_reconnect()
+
+    def local_audio_state(self) -> Dict[str, Any]:
+        """Pycore-owned audio lane state for the state-driven UI push.
+
+        The SAME builders as the exchange snapshot (word/sentence status and
+        the section contracts), so a pushed lane state and a polled snapshot
+        can never disagree.
+        """
+        snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or self._empty_snapshot()
+        word_audio = get_word_audio_status()
+        sentence_audio = get_sentence_audio_status()
+        contracts = self._section_contracts(
+            snapshot,
+            assist_status(include_laravel=False),
+            word_audio,
+            sentence_audio,
+        )
+        return {
+            "wordAudio": word_audio,
+            "sentenceAudio": sentence_audio,
+            "sectionContracts": {
+                "word_audio": contracts.get("word_audio"),
+                "sentence_audio": contracts.get("sentence_audio"),
+            },
+        }
 
     def _with_local_state(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(snapshot)

@@ -4,6 +4,7 @@
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.queue_center.task_center_service import (
     QueueCenterControlRequest,
+    get_audio_lane_state,
     get_queue_center_snapshot,
     get_local_task_detail,
     set_queue_center_control,
@@ -44,6 +45,13 @@ def register_local_task_center_routes(server) -> None:
             "data": get_queue_center_snapshot(bool(request.get("refresh"))),
         }
 
+    def audio_lane_state_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        return get_audio_lane_state(
+            str(request.get("owner") or ""),
+            int(request.get("item_limit") or 10),
+        )
+
     def event_page_handler(params, _request_id, _context):
         request = params if isinstance(params, dict) else {}
         lane = str(request.get("lane") or "").strip().lower()
@@ -76,6 +84,7 @@ def register_local_task_center_routes(server) -> None:
 
     routes = (
         (route_names.UI_QUEUE_CENTER_SNAPSHOT, snapshot_handler),
+        (route_names.UI_QUEUE_CENTER_AUDIO_LANE_STATE, audio_lane_state_handler),
         (route_names.UI_QUEUE_CENTER_EVENT_PAGE, event_page_handler),
         (route_names.UI_QUEUE_CENTER_RETRY_AUDIO_DELIVERY, retry_audio_delivery_handler),
         (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),

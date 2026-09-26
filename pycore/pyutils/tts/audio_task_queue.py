@@ -276,7 +276,7 @@ class AudioTaskQueue:
 
         Fallback of move_to_head for tickets whose Laravel task_id has no
         local counterpart — e.g. the word_audio lane is filled by pycore's
-        full pull (local ``word-full-<language>-<md5>`` tasks), so a wordnew head
+        full pull (local ``full_sync-word-<language>-<md5>`` tasks), so a wordnew head
         notification must be matched by its dedup identity
         (``{language}:{md5}`` / ``{language}:{content_id}``). Same
         whole-Queue semantics: the single existing copy keeps its part rank.
@@ -337,10 +337,56 @@ class AudioTaskQueue:
         return bool(dedup_key and dedup_key in self._active_dedup_keys)
 
     @serialized_method
+    def take_by_dedup_keys(self, dedup_keys: Set[str]) -> Dict[str, Dict[str, Any]]:
+        """Remove queued entries with these canonical keys; return {key: task}.
+
+        Whole-Queue take for an owner that generates the items itself (audio
+        orchestration settles its own Part1 fill): the ONE queued copy leaves
+        the heap exactly like a pop, so no lane worker can generate it a second
+        time. Active keys stay held until ``complete(task)`` — an in-flight
+        identity is still deduped against new intake.
+        """
+        if not dedup_keys or self._dedup_key_of is None or not self._heap:
+            return {}
+        kept: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
+        taken: Dict[str, Dict[str, Any]] = {}
+        for entry in self._heap:
+            task = entry[-1]
+            dedup_key = str(self._dedup_key_of(task) or "") if isinstance(task, dict) else ""
+            if dedup_key and dedup_key in dedup_keys and dedup_key not in taken:
+                taken[dedup_key] = task
+                continue
+            kept.append(entry)
+        if taken:
+            self._heap = kept
+            heapq.heapify(self._heap)
+        return taken
+
+    @serialized_method
     def head_preview(self, limit: int = 1) -> List[Dict[str, Any]]:
         """Read the current queue head value(s) WITHOUT consuming them."""
         count = max(1, int(limit or 1))
-        return [dict(entry[-1]) for entry in sorted(self._heap)[:count]]
+        return [dict(entry[-1]) for entry in heapq.nsmallest(count, self._heap)]
+
+    @serialized_method
+    def part_view(self, limit: int = 10) -> Dict[str, Any]:
+        """Read-only whole-Queue view with the INTERNAL part split made visible.
+
+        Observability only (Queue Center / orchestration visualization): the
+        split is reported, never addressable — every mutation stays
+        whole-Queue. One owner-thread pass; bounded head previews
+        (``heapq.nsmallest``), never a full sort.
+        """
+        count = max(1, int(limit or 1))
+        part1 = [entry for entry in self._heap if entry[0] == PART1_RANK]
+        part2 = [entry for entry in self._heap if entry[0] != PART1_RANK]
+        return {
+            "queued": len(self._heap),
+            "part1": len(part1),
+            "part2": len(part2),
+            "part1_head": [dict(entry[-1]) for entry in heapq.nsmallest(count, part1)],
+            "part2_head": [dict(entry[-1]) for entry in heapq.nsmallest(count, part2)],
+        }
 
     @serialized_method
     def export_tasks(self) -> List[Dict[str, Any]]:

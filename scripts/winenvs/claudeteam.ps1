@@ -71,8 +71,8 @@ $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 
-# Idempotent AI CLI provisioning: install Claude Code with the dd.cmd package
-# manager when the command is missing, then offer an upgrade (default N,
+# Idempotent AI CLI provisioning: install Claude Code with the official native
+# installer when the command is missing, then offer an upgrade (default N,
 # auto-skip after 5 seconds) only when a newer version is published.
 $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 . $aiCliProvisionCommonScript
