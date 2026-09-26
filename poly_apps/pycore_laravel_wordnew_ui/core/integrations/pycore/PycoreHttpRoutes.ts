@@ -12,6 +12,7 @@ export const PYCORE_HTTP_ROUTES = {
   terminalClick: 'ui/terminal/click',
   terminalCommandHistory: 'ui/terminal/command_history',
   terminalContent: 'ui/terminal/content',
+  terminalDesktopIntegration: 'ui/terminal/desktop_integration',
   terminalDraft: 'ui/terminal/draft',
   terminalEnter: 'ui/terminal/enter',
   terminalInput: 'ui/terminal/input',

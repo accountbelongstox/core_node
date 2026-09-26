@@ -380,3 +380,65 @@ cwd `/www/programing/core_node`). `HOME` = `/var/_core_node/Users/Kimi2` →
   present on GTK/GNOME/Xfce desktops), then `notify-send`, then the toast. Verified as the worker
   user with the worker's session environment: the daemon accepted the call (id returned) and the
   `PROMPTsearchTOKEN` notification was shown through `prompt_notify_service._on_prompt_new`.
+
+---
+
+## 17. Added Requirement (2026-09-27, verbatim)
+
+> 扫描 系统文档 中关于实时提示诩显示在UI的文档 ，并推导读取最新逻辑 ，之后，claude code大量提示记事没有读到，实际扫描 本机claudeteam中的提示诩，比如本段，之后升级扫描 代码。并更新windows端，注意每个clade脚本的用户数据目录 不同。搜索官方 文档 。同时查看所有提示记事的缓存备份功能是否完整，所有扫描到的提示诩都在pycore端缓存一份，但不影响其他任何 逻辑 ，也不作为源读取。
+
+### 17.1 Findings
+
+- `claudeteam.sh` keeps the real home, so as root it writes `/root/.claude/projects/<slug>/<id>.jsonl`
+  (`root 0600`); the prompt is a `type=user` entry with `origin.kind=human` (Claude Code 2.1.283),
+  which `ClaudeCodeExtractor` already accepts. The loss is purely permission: the worker runs as
+  `debian` (§15.3), so 13 root Claude sources (67 prompts, incl. this requirement) were never read.
+  Store before the fix: claude = ark1 26 / ark2 24 / mpc 119, root 0.
+- Per-script Claude dirs verified: claude1-5/claudeteam/claude<vendor> = real home `.claude`;
+  claude6/9 = `MyBest*` slots (`D:\.tmp\Users`, `/var/_core_node/Users`); ark1-7 =
+  `CLAUDE_CONFIG_DIR=<slot>/.claude` (`D:\programing\Users\arkN`, `/var/_core_node/Users/arkN`);
+  pi* = `<PI_*_USER_DIR>/.claude`. All sit under a scanned home. Windows real-home dot dirs
+  (`C:\Users\mpc\.claude`, `.codex`, `.kimi-code`, ...) are junctions to
+  `D:\programing\Users\mpc\*`, deduped by realpath.
+- Official docs (code.claude.com `claude-directory`, `settings`, `sessions`): transcripts live in
+  `<CLAUDE_CONFIG_DIR|~/.claude>/projects/<project>/<session>.jsonl`; `cleanupPeriodDays`
+  (default 30) deletes transcripts, subagent dirs, file-history, paste-cache; `history.jsonl` is
+  kept. The JSONL entry format is documented as internal and version-dependent.
+- Backup gap: `prompt_new_cache` only mirrors prompts first seen after a baseline (a schema
+  rebuild emits none), capped at 2000 per tool and 4000 chars — the baseline was never backed
+  up, and sources deleted by `cleanupPeriodDays` lose their prompts.
+
+### 17.2 Implemented
+
+- Root read helper `pycore/pyctl/agent_history/root_spool.py` (operator decision for §15.3:
+  option "root read helper"). `pyservice_entry.sh` starts it as root before dropping the worker
+  to the desktop user; it exits with the worker (parent pid). Each
+  `AGENT_HISTORY_ROOT_SPOOL_INTERVAL_S` it runs the shared extractor registry, keeps only
+  regular files the worker cannot read (mode-bit check along the whole path) that stay inside the
+  home they were found in (realpath containment, `st_nlink == 1`), parses them and writes the
+  parsed sessions to `AGENT_HISTORY_ROOT_SPOOL_DIR` (`root:<worker gid>`, 0750/0640, atomic,
+  `O_NOFOLLOW`, single instance via flock). The worker overlays the spool on its own discovery
+  (`_discover_all`, live-scan descriptors) and reads spooled sessions instead of parsing, so
+  extraction, live scan, prompt-new notifications and the archive are unchanged. The worker never
+  gains privileges. Covered homes drop out of `unreadable_homes`; `root_spool` status is exposed
+  by `get_status` and `ui/agent_history/runtime_get`.
+- `extractor_registry.build_extractors()`: one extractor list for the service and the helper.
+- Full prompt archive `pycore/pyctl/agent_history/prompt_archive.py`: every prompt parsed in an
+  extract pass (baseline, schema rebuilds, new) is appended once to
+  `<store>/prompt_archive/<tool>.jsonl` (full text, pre-edit, key =
+  sha1(tool|os_user|ts|text)), never trimmed. Write-only: nothing reads it; failures only log.
+  `prompt_new_cache` keeps its role (UI feed of new prompts).
+- Windows/Linux slot roots derive from `core_node_dirs` (`LEGACY_WINDOWS_PROGRAMING_USERS_DIR`,
+  new `WINDOWS_TMP_USERS_DIR`, `LEGACY_LINUX_USERS_DIR`); `system_paths` has no drive literals
+  for them anymore.
+
+### 17.3 Verification (2026-09-27)
+
+- `py_compile` on all touched Python files; `bash -n pyservice_entry.sh`: PASS.
+- Helper run as root (parent = short-lived pid): spool `root:debian 0750`, files 0640; exited
+  when the parent exited. As `debian`: 19 spooled sources (claude 13, codex 5, cursor 1 — all
+  root), `_discover_all` + `_parse_source` yield 98 root prompts including this requirement;
+  `uncovered_unreadable_homes() == []`.
+- Archive (scratch dir): 474 Claude rows → 370 unique entries, second pass appends 0.
+- Not done: the running pyservice must be restarted (`./pyservice.sh`) to start the helper and
+  load the new worker code.

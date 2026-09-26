@@ -23,6 +23,7 @@ from script_sections.ark_launcher_section import ArkLauncherSectionGenerator
 from script_sections.pi_launcher_section import PiLauncherSectionGenerator
 from script_sections.kimi_launcher_section import KimiLauncherSectionGenerator
 from utils.secret_manager import LOCAL_SECRET_MANAGER
+from config.claude_launch_args import claude_no_question_bash_args, claude_no_question_ps_args
 
 
 # ---------------------------------------------------------------------------
@@ -632,6 +633,9 @@ Write-Host ""
 
 # Build claude args: teammate mode + permission bypass always; model + ultracode conditional.
 $claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+
+# No non-blocking questions: disable AskUserQuestion and append the blocking-questions rule.
+$claudeArgs += @({claude_no_question_ps_args()})
 
 # Force model everywhere if ANTHROPIC_MODEL is configured; else account default.
 if (-not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_MODEL)) {{

@@ -12,11 +12,11 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.callmodule.rpc_routes.route_names import UI_TERMINAL_SCREENSHOT
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
-from pycore.pyutils.window.screen_capture import capture_screen_regions_png
+from pycore.pyutils.window.screen_capture import encode_capture_png
+from pycore.pyutils.window.terminal_platform import terminal_backend
 
 
 TERMINAL_SCREENSHOT_FRESHNESS_SECONDS = relay_contract.duration(
@@ -39,7 +39,17 @@ TERMINAL_SCREENSHOT_MAX_RESOURCES = relay_contract.limit(
 TERMINAL_SCREENSHOT_CAPTURE_BATCH = relay_contract.limit(
     "terminal_screenshot_capture_batch"
 )
-TERMINAL_SCREENSHOT_RESOURCE_ROUTE = UI_TERMINAL_SCREENSHOT
+
+
+def capture_terminal_regions(
+    regions: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    captured_at = int(time.time() * 1000)
+    images = terminal_backend.capture_windows(regions)
+    return {
+        str(window_id): encode_capture_png(image, captured_at)
+        for window_id, image in images.items()
+    }
 
 
 class TerminalScreenshotCache:
@@ -132,7 +142,7 @@ class TerminalScreenshotCache:
             region_count=len(plan),
         )
         try:
-            captures = capture_screen_regions_png(list(plan.values()))
+            captures = capture_terminal_regions(list(plan.values()))
             self._commit_capture(plan, captures, time.monotonic())
         except Exception as error:
             self._release_capture(plan)
@@ -161,7 +171,7 @@ class TerminalScreenshotCache:
             time.monotonic(),
         )
         if plan:
-            captures = capture_screen_regions_png(list(plan.values()))
+            captures = capture_terminal_regions(list(plan.values()))
             self._commit_capture(plan, captures, time.monotonic())
             capture = captures.get(window_id)
             if (
@@ -457,7 +467,6 @@ class TerminalScreenshotCache:
             "captured_at": int(entry["captured_at"]),
             "revision": int(entry["revision"]),
             "resource": {
-                "route": TERMINAL_SCREENSHOT_RESOURCE_ROUTE,
                 "window_id": str(entry["window_id"]),
                 "digest": digest,
             },

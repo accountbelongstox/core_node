@@ -2,7 +2,12 @@
 
 namespace App\Services\TimerTasks;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectProposalModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Services\UserConfig\UserConfigService;
 
 /**
@@ -21,6 +26,8 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
 {
     private const BATCH_SIZE = 5;
     private const INTERVAL_SECONDS = 5;
+    private const ACTION_COMPLETED = 'completed';
+    private const ACTION_FAILED = 'failed';
 
     public function getName(): string
     {
@@ -46,7 +53,7 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
     {
         try {
             $pending = CodeMartV1AIAnalysisModel::pendingBatch(
-                ['processing', 'revising'],
+                CodeMartV1Constants::ANALYSIS_ACTIVE_STATUSES,
                 self::BATCH_SIZE
             );
 
@@ -96,7 +103,7 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
             return CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis) {
                 $locked = CodeMartV1AIAnalysisModel::lockPendingById(
                     (int) $analysis->id,
-                    ['processing', 'revising']
+                    CodeMartV1Constants::ANALYSIS_ACTIVE_STATUSES
                 );
 
                 if (!$locked) {
@@ -109,7 +116,7 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
                 $project = $analysis->project;
 
                 if (!$project) {
-                    $locked->status = 'failed';
+                    $locked->status = CodeMartV1Constants::AI_ANALYSIS_FAILED;
                     $locked->saveRecord();
 
                     $this->logError("Project not found for analysis", [
@@ -123,7 +130,7 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
                 $keywords = json_decode($locked->keywords ?? '[]', true) ?: [];
                 $recommendations = $this->generateRecommendations($keywords, $project);
 
-                $locked->status = 'completed';
+                $locked->status = CodeMartV1Constants::AI_ANALYSIS_COMPLETED;
                 $locked->recommended_languages = json_encode($recommendations['languages']);
                 $locked->recommended_frameworks = json_encode($recommendations['frameworks']);
                 $locked->recommended_databases = json_encode($recommendations['databases']);
@@ -135,8 +142,39 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
                 $locked->completed_at = now();
                 $locked->saveRecord();
 
-                $project->analysis_status = 'completed';
+                $project->analysis_status = CodeMartV1Constants::PROJECT_ANALYSIS_COMPLETED;
                 $project->saveRecord();
+                CodeMartV1ProjectProposalModel::syncFromAnalysis($locked, CodeMartV1Constants::PROPOSAL_STATUS_PENDING);
+
+                if ($project->status === CodeMartV1Constants::PROJECT_STATUS_DRAFT) {
+                    CodeMartV1ProjectStateService::systemTransition(
+                        $project,
+                        CodeMartV1Constants::PROJECT_STATUS_PROPOSAL_REVIEW,
+                        null,
+                        CodeMartV1ProjectStateService::ACTION_ANALYSIS_COMPLETED,
+                        null,
+                        ['analysis_id' => (int) $locked->id],
+                        false
+                    );
+                }
+
+                CodeMartV1DomainEventService::emit(
+                    null,
+                    CodeMartV1Constants::RESOURCE_ANALYSIS,
+                    (int) $locked->id,
+                    self::ACTION_COMPLETED,
+                    (string) $analysis->status,
+                    CodeMartV1Constants::AI_ANALYSIS_COMPLETED,
+                    [(int) $project->client_id],
+                    CodeMartV1Constants::NOTIFICATION_TYPE_ANALYSIS,
+                    CodeMartV1Constants::NOTIFY_ANALYSIS_COMPLETED,
+                    CodeMartV1Constants::NOTIFY_ANALYSIS_COMPLETED_BODY,
+                    [
+                        'project_id' => (int) $project->id,
+                        'project_title' => (string) $project->title,
+                        'analysis_id' => (int) $locked->id,
+                    ]
+                );
 
                 $this->logInfo("Analysis completed", [
                     'analysis_id' => $locked->id,
@@ -157,10 +195,13 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
             // row cannot loop indefinitely. 'failed' is a valid enum value and
             // is excluded by the exec() poll filter.
             try {
-                CodeMartV1AIAnalysisModel::markPendingFailed(
+                $marked = CodeMartV1AIAnalysisModel::markPendingFailed(
                     (int) $analysis->id,
-                    ['processing', 'revising']
+                    CodeMartV1Constants::ANALYSIS_ACTIVE_STATUSES
                 );
+                if ($marked > 0) {
+                    $this->notifyAnalysisFailed($analysis);
+                }
             } catch (\Throwable $inner) {
                 $this->logError("Failed to mark analysis as failed", [
                     'analysis_id' => $analysis->id,
@@ -170,6 +211,33 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
 
             return ['status' => 'failed', 'error' => $e->getMessage()];
         }
+    }
+
+    private function notifyAnalysisFailed(CodeMartV1AIAnalysisModel $analysis): void
+    {
+        CodeMartV1AIAnalysisModel::markProjectAnalysisFailed((int) $analysis->id, CodeMartV1Constants::PROJECT_ANALYSIS_FAILED);
+        $project = CodeMartV1ProjectModel::findById((int) $analysis->project_id);
+        if (!$project) {
+            return;
+        }
+
+        CodeMartV1DomainEventService::emit(
+            null,
+            CodeMartV1Constants::RESOURCE_ANALYSIS,
+            (int) $analysis->id,
+            self::ACTION_FAILED,
+            (string) $analysis->status,
+            CodeMartV1Constants::AI_ANALYSIS_FAILED,
+            [(int) $project->client_id],
+            CodeMartV1Constants::NOTIFICATION_TYPE_ANALYSIS,
+            CodeMartV1Constants::NOTIFY_ANALYSIS_FAILED,
+            CodeMartV1Constants::NOTIFY_ANALYSIS_FAILED_BODY,
+            [
+                'project_id' => (int) $project->id,
+                'project_title' => (string) $project->title,
+                'analysis_id' => (int) $analysis->id,
+            ]
+        );
     }
 
     /**

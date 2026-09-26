@@ -48,10 +48,12 @@ import {
   mergeTerminalScheduleRuntime,
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
+import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import type {
   TerminalActionResult,
+  TerminalDesktopIntegrationAction,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
   TerminalScreenshotResourceMeta,
@@ -73,10 +75,38 @@ const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   bottom: 'terminal.scrolledBottom',
 };
 const ERROR_TRANSLATION_KEYS: Record<string, string> = {
-  wayland_global_control_unavailable: 'terminal.errors.wayland',
   graphical_session_unavailable: 'terminal.errors.graphicalSession',
-  wmctrl_unavailable: 'terminal.errors.wmctrl',
-  xdotool_unavailable: 'terminal.errors.xdotool',
+  x11_display_unset: 'terminal.errors.x11DisplayUnset',
+  x11_connect_failed: 'terminal.errors.x11Connect',
+  x11_xtest_unavailable: 'terminal.errors.x11Xtest',
+  x11_ewmh_unavailable: 'terminal.errors.x11Ewmh',
+  gnome_bridge_not_gnome: 'terminal.errors.bridgeNotGnome',
+  gnome_bridge_session_bus_unavailable: 'terminal.errors.bridgeNoBus',
+  gnome_bridge_not_installed: 'terminal.errors.bridgeNotInstalled',
+  gnome_bridge_outdated: 'terminal.errors.bridgeOutdated',
+  gnome_bridge_disabled: 'terminal.errors.bridgeDisabled',
+  gnome_bridge_user_extensions_disabled: 'terminal.errors.bridgeUserExtensionsDisabled',
+  gnome_bridge_relogin_required: 'terminal.errors.bridgeRelogin',
+  gnome_bridge_requires_desktop_user: 'terminal.errors.bridgeRootUser',
+  gnome_bridge_source_missing: 'terminal.errors.bridgeSourceMissing',
+  gnome_bridge_settings_failed: 'terminal.errors.bridgeSettings',
+  gnome_bridge_not_applicable: 'terminal.errors.bridgeNotApplicable',
+  gnome_introspect_denied: 'terminal.errors.introspectDenied',
+  gnome_introspect_unavailable: 'terminal.errors.introspectUnavailable',
+  gnome_introspect_not_needed: 'terminal.errors.introspectNotNeeded',
+  portal_unavailable: 'terminal.errors.portalUnavailable',
+  portal_authorization_required: 'terminal.errors.portalAuthorization',
+  portal_request_denied: 'terminal.errors.portalDenied',
+  portal_request_timeout: 'terminal.errors.portalTimeout',
+  portal_stream_unavailable: 'terminal.errors.portalStream',
+  portal_key_unmapped: 'terminal.errors.portalKey',
+  portal_not_applicable: 'terminal.errors.portalNotApplicable',
+  session_bus_unavailable: 'terminal.errors.sessionBus',
+  dbus_timeout: 'terminal.errors.dbusTimeout',
+  terminal_paste_failed: 'terminal.errors.paste',
+  terminal_window_not_controllable: 'terminal.errors.notControllable',
+  terminal_windows_not_controllable: 'terminal.errors.windowsNotControllable',
+  desktop_integration_action_invalid: 'terminal.errors.integrationAction',
   terminal_enumeration_failed: 'terminal.errors.enumeration',
   unsupported_platform: 'terminal.errors.unsupportedPlatform',
   terminal_window_not_found: 'terminal.errors.windowNotFound',
@@ -86,9 +116,7 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_text_required: 'terminal.errors.textRequired',
   terminal_text_too_long: 'terminal.errors.textTooLong',
   terminal_coordinates_unavailable: 'terminal.errors.coordinates',
-  terminal_restore_failed: 'terminal.errors.restore',
   terminal_raise_failed: 'terminal.errors.raise',
-  terminal_pointer_move_failed: 'terminal.errors.pointer',
   terminal_click_failed: 'terminal.errors.click',
   terminal_click_coordinates_invalid: 'terminal.errors.clickCoordinates',
   terminal_history_direction_invalid: 'terminal.errors.historyDirection',
@@ -96,7 +124,6 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_scroll_mode_invalid: 'terminal.errors.scrollMode',
   terminal_scroll_failed: 'terminal.errors.scroll',
   terminal_screenshot_failed: 'terminal.errors.screenshot',
-  terminal_right_click_failed: 'terminal.errors.rightClick',
   terminal_enter_failed: 'terminal.errors.enter',
   terminal_input_failed: 'terminal.errors.input',
   terminal_window_offline: 'terminal.errors.windowOffline',
@@ -397,6 +424,7 @@ const PcTerminalPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionWindowId, setActionWindowId] = useState('');
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const [integrationAction, setIntegrationAction] = useState<TerminalDesktopIntegrationAction | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [scheduleMode, setScheduleMode] = useState<TerminalScheduleEditorMode>(
@@ -751,6 +779,12 @@ const PcTerminalPage: React.FC = () => {
       (windowInfo) => windowInfo.terminal_number === selectedTerminalNumber,
     ) || null
   ), [selectedTerminalNumber, snapshot]);
+  const selectedActionable = Boolean(
+    selectedWindow?.online
+    && selectedWindow.controllable !== false
+    && snapshot?.supported
+    && !actionWindowId,
+  );
   const previewWindow = useMemo(() => (
     snapshot?.windows.find(
       (windowInfo) => windowInfo.terminal_number === previewTerminalNumber,
@@ -934,6 +968,21 @@ const PcTerminalPage: React.FC = () => {
       void refresh(false);
     }
   }, [errorTranslationKey, refresh, loadScreenshotResource]);
+
+  const runDesktopIntegration = useCallback(async (
+    action: TerminalDesktopIntegrationAction,
+  ) => {
+    setIntegrationAction(action);
+    try {
+      await runAction(
+        `terminal:desktop:${action}`,
+        () => pycoreApi.runTerminalDesktopIntegration(action),
+        'terminal.desktop.actionDone',
+      );
+    } finally {
+      if (mountedRef.current) setIntegrationAction(null);
+    }
+  }, [runAction]);
 
   const commitTerminalScheduleDefinitions = useCallback(async (
     windowInfo: TerminalWindowInfo,
@@ -1295,7 +1344,7 @@ const PcTerminalPage: React.FC = () => {
           <button
             type="button"
             onClick={() => void activate(selectedWindow.id)}
-            disabled={Boolean(actionWindowId) || !snapshot?.supported}
+            disabled={!selectedActionable}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
           >
             <MousePointer2 className="h-3.5 w-3.5" />
@@ -1338,11 +1387,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigateHistory('up')}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
         >
           <ArrowUp className="h-4 w-4" />
@@ -1351,11 +1396,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigateHistory('down')}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
         >
           <ArrowDown className="h-4 w-4" />
@@ -1366,11 +1407,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => scrollTerminal('page_up')}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
         >
           <ChevronsUp className="h-4 w-4" />
@@ -1379,11 +1416,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => scrollTerminal('page_down')}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
         >
           <ChevronsDown className="h-4 w-4" />
@@ -1392,11 +1425,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => scrollTerminal('bottom')}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
         >
           <ArrowDownToLine className="h-4 w-4" />
@@ -1407,11 +1436,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => void sendEnter()}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           title={t('terminal.sendEnterHint')}
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-600 px-4 py-3 text-xs font-bold text-white hover:bg-slate-500 disabled:opacity-50"
         >
@@ -1423,11 +1448,7 @@ const PcTerminalPage: React.FC = () => {
         <button
           type="button"
           onClick={() => void sendInput()}
-          disabled={
-            !selectedWindow?.online
-            || Boolean(actionWindowId)
-            || !snapshot?.supported
-          }
+          disabled={!selectedActionable}
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
         >
           {actionWindowId === selectedWindow?.id
@@ -1734,6 +1755,15 @@ const PcTerminalPage: React.FC = () => {
             <span className="truncate text-sm font-semibold">
               {terminalName(windowInfo, t('terminal.untitled'))}
             </span>
+            {windowInfo.online && windowInfo.control && !compactLayout && (
+              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${
+                windowInfo.controllable === false
+                  ? 'bg-amber-500/25 text-amber-200'
+                  : 'bg-white/10 text-slate-300'
+              }`}>
+                {t(`terminal.desktop.control.${windowInfo.control}`)}
+              </span>
+            )}
             <span className={`h-2 w-2 shrink-0 rounded-full ${
               windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
             }`} />
@@ -1745,7 +1775,7 @@ const PcTerminalPage: React.FC = () => {
                 selectTerminal(windowInfo.terminal_number);
                 void activate(windowInfo.id);
               }}
-              disabled={busy || !snapshot?.supported}
+              disabled={busy || !snapshot?.supported || windowInfo.controllable === false}
               className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
               aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
             >
@@ -1791,6 +1821,9 @@ const PcTerminalPage: React.FC = () => {
 
   const snapshotError = snapshot?.error_code
     ? errorTranslationKey(snapshot.error_code)
+    : null;
+  const snapshotNotice = snapshot?.notice_code && snapshot.notice_code !== snapshot.error_code
+    ? errorTranslationKey(snapshot.notice_code)
     : null;
   const live = Boolean(snapshot?.success && snapshot?.supported);
 
@@ -1851,12 +1884,22 @@ const PcTerminalPage: React.FC = () => {
         </span>
       </section>
 
-      {snapshotError && (
-        <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
+      {[snapshotError, snapshotNotice].filter(Boolean).map((translationKey) => (
+        <div
+          key={String(translationKey)}
+          className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+        >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{t(snapshotError)}</span>
+          <span>{t(String(translationKey))}</span>
         </div>
-      )}
+      ))}
+
+      <PcTerminalDesktopIntegration
+        snapshot={snapshot}
+        busyAction={integrationAction}
+        errorTranslationKey={errorTranslationKey}
+        onAction={(action) => void runDesktopIntegration(action)}
+      />
 
       {actionNotice && (
         <div className={`flex items-start gap-2 text-xs rounded-2xl p-3 border ${
@@ -1993,7 +2036,7 @@ const PcTerminalPage: React.FC = () => {
                             selectTerminal(windowInfo.terminal_number);
                             void activate(windowInfo.id);
                           }}
-                          disabled={busy || !snapshot?.supported}
+                          disabled={busy || !snapshot?.supported || windowInfo.controllable === false}
                           className="inline-flex h-4 shrink-0 items-center justify-center gap-1 rounded bg-indigo-600 px-1 text-[8px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
                           aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
                         >

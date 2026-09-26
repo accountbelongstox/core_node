@@ -57,6 +57,8 @@ class CodeMartV1Initializer implements AppInitializerInterface
         'codemart_v1_notifications',
         'codemart_v1_activities',
         'codemart_v1_testimonials',
+        'codemart_v1_contact_messages',
+        'codemart_v1_withdrawals',
     ];
 
     public function __construct()
@@ -188,9 +190,11 @@ class CodeMartV1Initializer implements AppInitializerInterface
         $projectsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'projects');
         $submissionsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'task_submissions');
         $paymentsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'payments');
+        $depositsTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::CODEMARTV1, 'deposits');
 
         $constraintSpecs = [
             ['table' => $projectsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllProjectStatuses()],
+            ['table' => $depositsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllDepositStatuses()],
             ['table' => $tasksTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllTaskStatuses()],
             ['table' => $submissionsTable, 'column' => 'status', 'values' => [
                 CodeMartV1Constants::SUBMISSION_STATUS_PENDING,
@@ -322,11 +326,44 @@ class CodeMartV1Initializer implements AppInitializerInterface
                     'avatar_url' => ['type' => 'string', 'nullable' => true],
                     'approved' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
                     'display_order' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                    'quotes' => ['type' => 'json', 'nullable' => true],
+                    'role_labels' => ['type' => 'json', 'nullable' => true],
+                    'status' => ['type' => 'string', 'nullable' => false, 'default' => 'pending'],
+                    'user_id' => ['type' => 'bigInteger', 'nullable' => true],
+                    'project_id' => ['type' => 'bigInteger', 'nullable' => true],
+                    'moderated_by' => ['type' => 'bigInteger', 'nullable' => true],
+                    'moderated_at' => ['type' => 'timestamp', 'nullable' => true],
                     'created_at' => ['type' => 'timestamp', 'nullable' => true],
                     'updated_at' => ['type' => 'timestamp', 'nullable' => true],
                 ],
                 'indexes' => [
                     ['columns' => ['approved', 'display_order']],
+                    ['columns' => ['status']],
+                    ['columns' => ['user_id']],
+                ],
+            ],
+            'codemart_v1_contact_messages' => [
+                'columns' => [
+                    'id' => ['type' => 'bigIncrements'],
+                    'name' => ['type' => 'string', 'nullable' => false],
+                    'email' => ['type' => 'string', 'nullable' => false],
+                    'subject' => ['type' => 'string', 'nullable' => true],
+                    'message' => ['type' => 'text', 'nullable' => false],
+                    'status' => ['type' => 'string', 'nullable' => false, 'default' => 'new'],
+                    'handled_by' => ['type' => 'bigInteger', 'nullable' => true],
+                    'handled_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['status']],
+                ],
+            ],
+            'codemart_v1_reviewer_applications' => [
+                'columns' => [
+                    'revoked_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'revoked_by' => ['type' => 'bigInteger', 'nullable' => true],
+                    'revoke_reason' => ['type' => 'text', 'nullable' => true],
                 ],
             ],
             // Additive columns on existing tables (data-preserving).
@@ -346,9 +383,25 @@ class CodeMartV1Initializer implements AppInitializerInterface
                     'state_revision' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
                     'required_skills' => ['type' => 'json', 'nullable' => true],
                     'assigned_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'started_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'completed_at' => ['type' => 'timestamp', 'nullable' => true],
                 ],
                 'indexes' => [
                     ['columns' => ['status', 'assigned_to']],
+                ],
+            ],
+            'codemart_v1_task_submissions' => [
+                'columns' => [
+                    'reviewed_by' => ['type' => 'bigInteger', 'nullable' => true],
+                    'reviewed_at' => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['status']],
+                ],
+            ],
+            'codemart_v1_developer_stats' => [
+                'columns' => [
+                    'completed_tasks' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
                 ],
             ],
             'codemart_v1_ai_analyses' => [
@@ -375,8 +428,62 @@ class CodeMartV1Initializer implements AppInitializerInterface
             'codemart_v1_deposits' => [
                 'columns' => [
                     'idempotency_key' => ['type' => 'string', 'nullable' => true],
+                    'admin_id' => ['type' => 'bigInteger', 'nullable' => true],
+                    'admin_notes' => ['type' => 'text', 'nullable' => true],
+                    'reviewed_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'refunded_at' => ['type' => 'timestamp', 'nullable' => true],
                 ],
                 'indexes' => [
+                    ['columns' => ['idempotency_key']],
+                    ['columns' => ['user_id', 'role_type', 'status']],
+                ],
+            ],
+            'codemart_v1_refunds' => [
+                'columns' => [
+                    'requested_by' => ['type' => 'bigInteger', 'nullable' => true],
+                    'admin_id' => ['type' => 'bigInteger', 'nullable' => true],
+                    'admin_notes' => ['type' => 'text', 'nullable' => true],
+                    'reviewed_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'idempotency_key' => ['type' => 'string', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['requested_by']],
+                    ['columns' => ['idempotency_key']],
+                ],
+            ],
+            'codemart_v1_escrows' => [
+                'columns' => [
+                    'escrow_type' => ['type' => 'string', 'nullable' => true],
+                    'released_amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                    'refunded_amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false, 'default' => 0],
+                    'idempotency_key' => ['type' => 'string', 'nullable' => true],
+                    'metadata' => ['type' => 'json', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['project_id', 'escrow_type', 'status']],
+                    ['columns' => ['idempotency_key']],
+                ],
+            ],
+            'codemart_v1_withdrawals' => [
+                'columns' => [
+                    'id' => ['type' => 'bigIncrements'],
+                    'user_id' => ['type' => 'bigInteger', 'nullable' => false],
+                    'amount' => ['type' => 'decimal', 'precision' => 15, 'scale' => 2, 'nullable' => false],
+                    'currency' => ['type' => 'string', 'nullable' => false, 'default' => CodeMartV1Constants::DEFAULT_CURRENCY],
+                    'status' => ['type' => 'string', 'nullable' => false, 'default' => CodeMartV1Constants::WITHDRAWAL_STATUS_PENDING],
+                    'method' => ['type' => 'string', 'nullable' => false],
+                    'account_info' => ['type' => 'json', 'nullable' => true],
+                    'admin_id' => ['type' => 'bigInteger', 'nullable' => true],
+                    'admin_notes' => ['type' => 'text', 'nullable' => true],
+                    'idempotency_key' => ['type' => 'string', 'nullable' => true],
+                    'reviewed_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'paid_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['user_id', 'status']],
+                    ['columns' => ['status']],
                     ['columns' => ['idempotency_key']],
                 ],
             ],
@@ -386,9 +493,14 @@ class CodeMartV1Initializer implements AppInitializerInterface
                     'readability_rating' => ['type' => 'integer', 'nullable' => true],
                     'efficiency_rating' => ['type' => 'integer', 'nullable' => true],
                     'comments' => ['type' => 'text', 'nullable' => true],
+                    'security_rating' => ['type' => 'integer', 'nullable' => true],
+                    'review_kind' => ['type' => 'string', 'nullable' => true],
+                    'recommendation' => ['type' => 'string', 'nullable' => true],
+                    'code_score' => ['type' => 'decimal', 'precision' => 5, 'scale' => 2, 'nullable' => true],
                 ],
                 'indexes' => [
                     ['columns' => ['reviewer_id']],
+                    ['columns' => ['task_submission_id', 'review_kind']],
                 ],
             ],
         ];

@@ -26,6 +26,8 @@ class CodeMartV1PaymentModel extends CodeMartV1Model
         'transaction_id',
         'description',
         'metadata',
+        'idempotency_key',
+        'business_ref',
     ];
 
     protected $casts = [
@@ -71,6 +73,39 @@ class CodeMartV1PaymentModel extends CodeMartV1Model
     public function isPending(): bool
     {
         return $this->status === 'pending';
+    }
+
+    public function isParticipant(int $userId): bool
+    {
+        return (int) $this->payer_id === $userId || (int) $this->payee_id === $userId;
+    }
+
+    public static function findByIdempotencyKey(int $payerId, string $key): ?self
+    {
+        return static::query()->where('payer_id', $payerId)->where('idempotency_key', $key)->first();
+    }
+
+    public static function findByBusinessRef(string $businessRef): ?self
+    {
+        return static::query()->where('business_ref', $businessRef)->first();
+    }
+
+    public static function lockById(int $paymentId): ?self
+    {
+        return static::query()->whereKey($paymentId)->lockForUpdate()->first();
+    }
+
+    public static function adminPage(?string $status, ?string $type, int $page, int $pageSize): array
+    {
+        $query = static::query()->with(['payer:id,username,name', 'payee:id,username,name']);
+        if ($status !== null && $status !== '') {
+            $query->where('status', $status);
+        }
+        if ($type !== null && $type !== '') {
+            $query->where('type', $type);
+        }
+
+        return self::paginateQuery($query->orderByDesc('id'), 'payments', $page, $pageSize);
     }
 
     public static function findDetailed(int $paymentId): ?self

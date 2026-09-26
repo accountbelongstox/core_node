@@ -380,8 +380,8 @@ class CodeMartV1ApiInfo
                 'response' => 'Created refund request object',
                 'feature' => 'Request Refund',
             ],
-            'refunds.approve' => [
-                'path' => '/api/codemart/v1/refunds/{refundId}/approve',
+            'admin.refund-approve' => [
+                'path' => '/api/codemart/v1/admin/refunds/{refundId}/approve',
                 'method' => 'POST',
                 'authentication' => true,
                 'parameters' => [
@@ -390,8 +390,8 @@ class CodeMartV1ApiInfo
                 'response' => 'Approved refund object',
                 'feature' => 'Approve Refund (Admin Only)',
             ],
-            'refunds.process' => [
-                'path' => '/api/codemart/v1/refunds/{refundId}/process',
+            'admin.refund-process' => [
+                'path' => '/api/codemart/v1/admin/refunds/{refundId}/process',
                 'method' => 'POST',
                 'authentication' => true,
                 'parameters' => [
@@ -414,7 +414,8 @@ class CodeMartV1ApiInfo
                 'method' => 'POST',
                 'authentication' => true,
                 'parameters' => [
-                    'amount' => 'numeric|required|min:100',
+                    'role_type' => 'string|nullable|in:developer,client,architect,reviewer',
+                    'amount' => 'numeric|nullable|min:0.01',
                     'payment_method' => 'string|required|in:alipay,wechat,bank_transfer',
                 ],
                 'response' => 'Deposit payment object with payment URL',
@@ -430,15 +431,15 @@ class CodeMartV1ApiInfo
                 'response' => 'Deposit status',
                 'feature' => 'Get Deposit Status',
             ],
-            'deposits.confirm' => [
-                'path' => '/api/codemart/v1/deposits/{depositId}/confirm',
-                'method' => 'POST',
+            'deposits.bank-info' => [
+                'path' => '/api/codemart/v1/deposits/{depositId}/bank-info',
+                'method' => 'GET',
                 'authentication' => true,
                 'parameters' => [
                     'depositId' => 'integer|required',
                 ],
-                'response' => 'Confirmed deposit and updated role status',
-                'feature' => 'Confirm Deposit Payment',
+                'response' => 'Bank transfer instructions and payment reference',
+                'feature' => 'Get Deposit Bank Info',
             ],
             'deposits.history' => [
                 'path' => '/api/codemart/v1/deposits/history',

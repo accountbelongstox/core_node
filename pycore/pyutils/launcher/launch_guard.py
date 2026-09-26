@@ -4,7 +4,7 @@ Idempotent launch guards for the window launcher.
 
 Before starting terminals, applications, or the pycore module, check whether the
 target is already running and skip when it is. Terminal counting mirrors
-193_install_window_launcher_shortcut.sh (Linux wmctrl/pgrep; Windows WT window class).
+193_install_window_launcher_shortcut.sh (Linux X11 client list/pgrep; Windows WT window class).
 """
 
 import platform
@@ -21,6 +21,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
 from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
+from pycore.pyutils.common.x11_display import x11_display
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.char_size_measurer import count_wt_windows
 
@@ -272,12 +273,11 @@ def _count_linux_terminals() -> int:
     count: unrelated terminals -- the launcher's own menu window included --
     must never shrink the deficit, otherwise a 4x3 grid launches fewer than
     12 windows. Falls back to the terminal-class count (152 helper parity)
-    only when wmctrl is unusable.
+    only when no X11/Xwayland display can be enumerated.
     """
-    wmctrl = exec_silent(['wmctrl', '-l'], capture_output=True, text=True)
-    if wmctrl.return_code == 0 and wmctrl.stdout is not None:
-        return sum(1 for line in wmctrl.stdout.splitlines()
-                   if _GRID_TITLE_RE.search(line))
+    windows = x11_display.list_client_windows()
+    if windows is not None:
+        return sum(1 for window in windows if _GRID_TITLE_RE.search(window.title))
 
     ps = exec_silent(['ps', '-e', '-o', 'comm='], capture_output=True, text=True)
     if ps.return_code != 0 or not ps.stdout:

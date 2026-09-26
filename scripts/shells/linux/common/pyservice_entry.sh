@@ -155,6 +155,7 @@ UI_READY=0
 UI_START_ARGS=()
 ORIGINAL_ARGS=("$@")
 WORKER_ENV_ARGS=()
+ROOT_SPOOL_MODULE="pycore.pyctl.agent_history.root_spool"
 
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
@@ -738,6 +739,11 @@ if [[ -n "$DESKTOP_USER" ]]; then
         echo "[i] Desktop session of '$DESKTOP_USER' detected; running the worker as that"
         echo "    user so the system tray can register on the D-Bus session bus."
         build_worker_env_args "$DESKTOP_USER" "$desktop_uid" "$desktop_home"
+        # Root read helper: parses only the agent sessions '$DESKTOP_USER' cannot
+        # read (root-owned 0600) into a root-owned spool the worker reads; it exits
+        # with the worker (parent pid = this shell, replaced by sudo below).
+        echo "[i] Starting the agent-history root read helper for '$DESKTOP_USER'."
+        "$PY" -m "$ROOT_SPOOL_MODULE" --worker-user "$DESKTOP_USER" --parent-pid "$$" &
         exec sudo -u "$DESKTOP_USER" env "${WORKER_ENV_ARGS[@]}" "$PY" "${PY_ARGS[@]}"
     fi
 elif [[ "$(id -u)" == "0" ]]; then

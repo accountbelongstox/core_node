@@ -30,6 +30,33 @@ class CodeMartV1ProjectProposalModel extends CodeMartV1Model
         return $this->belongsTo(CodeMartV1ProjectModel::class, 'project_id');
     }
 
+    /** One proposal row per project mirrors the latest analysis (funding reads estimated_cost). */
+    public static function syncFromAnalysis(CodeMartV1AIAnalysisModel $analysis, string $status): self
+    {
+        $decode = static fn ($value): array => is_array($decoded = json_decode((string) $value, true)) ? $decoded : [];
+
+        return static::query()->updateOrCreate(
+            ['project_id' => $analysis->project_id],
+            [
+                'status' => $status,
+                'recommended_tech_stack' => [
+                    'languages' => $decode($analysis->recommended_languages),
+                    'frameworks' => $decode($analysis->recommended_frameworks),
+                    'databases' => $decode($analysis->recommended_databases),
+                ],
+                'suggested_team_composition' => $decode($analysis->team_composition),
+                'estimated_duration' => $analysis->estimated_hours,
+                'estimated_cost' => $analysis->estimated_cost,
+                'ai_notes' => $analysis->proposal,
+            ]
+        );
+    }
+
+    public static function forProject(int $projectId): ?self
+    {
+        return static::query()->where('project_id', $projectId)->first();
+    }
+
     public function isApproved(): bool
     {
         return $this->status === 'approved';

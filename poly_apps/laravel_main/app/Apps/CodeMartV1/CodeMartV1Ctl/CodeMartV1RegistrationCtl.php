@@ -9,6 +9,8 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PhoneVerificationModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerificationModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1RoleRequestService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1EmailService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1OtpService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
@@ -62,19 +64,22 @@ class CodeMartV1RegistrationCtl extends Controller
         $isSuperAdmin = false;
         if ($registrationCode !== '') {
             $accessCode = trim((string) InstallationAccessCode::value());
-            if ($accessCode !== '' && hash_equals($accessCode, $registrationCode)) {
-                $roleLevel = 100;
-                $roleName = 'Super Administrator';
-                $isSuperAdmin = true;
+            if ($accessCode === '' || !hash_equals($accessCode, $registrationCode)) {
+                return $this->errorWithCode(
+                    CodeMartV1Constants::ERROR_INVALID_REGISTRATION_CODE,
+                    'Invalid registration code',
+                    422
+                );
             }
+            $roleLevel = 100;
+            $roleName = 'Super Administrator';
+            $isSuperAdmin = true;
         }
 
         // A client has no deposit requirement, so the role activates
         // immediately; developer/architect roles stay pending until the
         // server-confirmed deposit activates them.
-        $initialRoleStatus = $request->role_type === CodeMartV1Constants::ROLE_CLIENT
-            ? CodeMartV1Constants::ROLE_STATUS_ACTIVE
-            : CodeMartV1Constants::ROLE_STATUS_PENDING;
+        $initialRoleStatus = CodeMartV1RoleRequestService::initialStatus((string) $request->role_type);
 
         $user = CodeMartV1UserModel::runInTransaction(function () use ($request, $roleName, $roleLevel, $initialRoleStatus) {
             $user = CodeMartV1UserModel::createRecord([
@@ -239,6 +244,15 @@ class CodeMartV1RegistrationCtl extends Controller
                 'verification_status' => 'pending',
             ]);
         });
+
+        CodeMartV1DomainEventService::emit(
+            (int) $user->id,
+            CodeMartV1Constants::RESOURCE_KYC,
+            (int) $kycVerification->id,
+            'kyc_submitted',
+            CodeMartV1Constants::KYC_STATUS_NOT_STARTED,
+            CodeMartV1Constants::KYC_STATUS_PENDING
+        );
 
         return $this->success([
             'kyc_id' => $kycVerification->id,

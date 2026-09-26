@@ -23,6 +23,14 @@ return [
     |
     */
 
+    'codemart_bank_transfer' => [
+        'bank_name' => env('CODEMART_BANK_NAME'),
+        'account_name' => env('CODEMART_BANK_ACCOUNT_NAME'),
+        'account_number' => env('CODEMART_BANK_ACCOUNT_NUMBER'),
+        'branch' => env('CODEMART_BANK_BRANCH'),
+        'swift_code' => env('CODEMART_BANK_SWIFT_CODE'),
+    ],
+
     'workos' => [
         'api_key' => null,
         'client_id' => null,

@@ -3,6 +3,10 @@
 Updated: 2026-09-18 (functional-only revision)
 Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 
+> Revision 2026-09-27: a full audit found several functions below missing or
+> broken; statuses marked `superseded` are tracked in
+> `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+
 This record describes the functional alignment between the CodeMart
 interface and the CodeMart server. It contains no code, file, or
 architecture descriptions; the implementation is the authority for those.
@@ -30,7 +34,7 @@ architecture descriptions; the implementation is the authority for those.
   interface never calculates financial truth locally. Status: aligned.
 - Repeated mutations (task acceptance, deposit confirmation, finance
   transitions) carry a stable idempotency key; the server returns the
-  prior successful result or a precise conflict. Status: aligned.
+  prior successful result or a precise conflict. Status: superseded (U30).
 - The administration console uses the dedicated administration functions
   (overview, users, KYC review, deposits, refunds, projects) and is a
   separate interface from the user workspace. Status: aligned.

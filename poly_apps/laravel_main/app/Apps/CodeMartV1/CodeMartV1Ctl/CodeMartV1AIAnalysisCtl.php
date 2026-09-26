@@ -7,6 +7,12 @@ use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectProposalModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EscrowService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -15,29 +21,139 @@ class CodeMartV1AIAnalysisCtl extends Controller
 {
     use ApiResponse;
 
+    private const ACTION_REQUESTED = 'requested';
+    private const ACTION_REVISION_REQUESTED = 'revision_requested';
+    private const ACTION_ACCEPTED = 'accepted';
+
+    private const TECH_KEYWORDS = [
+        'mobile' => ['mobile', 'app', 'ios', 'android'],
+        'web' => ['web', 'website', 'webapp', 'frontend'],
+        'backend' => ['api', 'backend', 'server', 'database'],
+        'ai' => ['ai', 'machine learning', 'ml', 'nlp'],
+        'ecommerce' => ['shop', 'ecommerce', 'payment', 'cart'],
+        'realtime' => ['realtime', 'chat', 'websocket', 'streaming'],
+    ];
+
+    private CodeMartV1FileUploadService $fileUploadService;
+
+    public function __construct(CodeMartV1FileUploadService $fileUploadService)
+    {
+        $this->fileUploadService = $fileUploadService;
+    }
+
+    private function analysisNotFound(): JsonResponse
+    {
+        return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_FOUND, 'Analysis not found', null, 404);
+    }
+
+    private function failureResponse(array $result): JsonResponse
+    {
+        return $this->codedError(
+            (string) $result['error_code'],
+            (string) ($result['message'] ?? 'Request failed'),
+            $result['details'] ?? null,
+            (int) ($result['http_status'] ?? 400)
+        );
+    }
+
+    private function decodeList($value): array
+    {
+        $decoded = json_decode((string) $value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function formatAnalysis(CodeMartV1AIAnalysisModel $analysis, bool $isLatest): array
+    {
+        return [
+            'analysis_id' => $analysis->id,
+            'project_id' => $analysis->project_id,
+            'status' => $analysis->status,
+            'revision' => (int) ($analysis->revision ?? 1),
+            'is_latest' => $isLatest,
+            'keywords' => $this->decodeList($analysis->keywords),
+            'recommended_languages' => $this->decodeList($analysis->recommended_languages),
+            'recommended_frameworks' => $this->decodeList($analysis->recommended_frameworks),
+            'recommended_databases' => $this->decodeList($analysis->recommended_databases),
+            'team_composition' => $this->decodeList($analysis->team_composition),
+            'estimated_hours' => $analysis->estimated_hours,
+            'estimated_cost' => $analysis->estimated_cost,
+            'complexity_score' => $analysis->complexity_score,
+            'proposal' => $analysis->proposal,
+            'revision_notes' => $analysis->revision_notes,
+            'completed_at' => $analysis->completed_at,
+            'accepted_at' => $analysis->accepted_at,
+        ];
+    }
+
+    /** Owned analysis plus whether it is the project's latest one. */
+    private function ownedAnalysis(int $analysisId, int $userId): ?CodeMartV1AIAnalysisModel
+    {
+        $analysis = CodeMartV1AIAnalysisModel::findWithProject($analysisId);
+        if (!$analysis || !$analysis->project || !$analysis->project->isOwnedBy($userId)) {
+            return null;
+        }
+
+        return $analysis;
+    }
+
+    private function isLatest(CodeMartV1AIAnalysisModel $analysis): bool
+    {
+        $latest = CodeMartV1AIAnalysisModel::latestForProject((int) $analysis->project_id);
+
+        return $latest !== null && (int) $latest->id === (int) $analysis->id;
+    }
+
     public function analyzeProject(Request $request, $projectId): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
         $project = CodeMartV1ProjectModel::findOwnedByClient((int) $projectId, (int) $user->id);
-
         if (!$project) {
-            return $this->notFound('Project not found');
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 'Project not found', null, 404);
+        }
+        if ($project->status !== CodeMartV1Constants::PROJECT_STATUS_DRAFT) {
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, 'Only draft projects can be analyzed', [
+                'status' => $project->status,
+            ], 409);
         }
 
-        if ($project->analysis_status === 'analyzing') {
-            return $this->error('Project is already being analyzed');
+        $latest = CodeMartV1AIAnalysisModel::latestForProject((int) $project->id);
+        if ($latest && in_array($latest->status, CodeMartV1Constants::ANALYSIS_ACTIVE_STATUSES, true)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_IN_PROGRESS, 'Project is already being analyzed', [
+                'analysis_id' => (int) $latest->id,
+            ], 409);
         }
 
-        $analysis = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($project, $projectId) {
-            $project->updateRecord(['analysis_status' => 'analyzing']);
+        $keywords = $this->extractKeywords($project);
+        $analysis = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($project, $keywords, $latest, $user) {
+            $project->updateRecord(['analysis_status' => CodeMartV1Constants::PROJECT_ANALYSIS_ANALYZING]);
 
-            return CodeMartV1AIAnalysisModel::createRecord([
-                'project_id' => $projectId,
-                'status' => 'processing',
-                'keywords' => $this->extractKeywords($project->title, $project->description),
+            $analysis = CodeMartV1AIAnalysisModel::createRecord([
+                'project_id' => $project->id,
+                'status' => CodeMartV1Constants::AI_ANALYSIS_PROCESSING,
+                'keywords' => $keywords,
             ]);
+            if ($latest) {
+                CodeMartV1AIAnalysisModel::query()->whereKey($analysis->id)->update(['revision' => (int) ($latest->revision ?? 1) + 1]);
+            }
+
+            CodeMartV1DomainEventService::emit(
+                (int) $user->id,
+                CodeMartV1Constants::RESOURCE_ANALYSIS,
+                (int) $analysis->id,
+                self::ACTION_REQUESTED,
+                null,
+                CodeMartV1Constants::AI_ANALYSIS_PROCESSING,
+                [],
+                null,
+                null,
+                null,
+                ['project_id' => (int) $project->id]
+            );
+
+            return $analysis;
         });
 
         // No queue/dispatch: the row is left in status 'processing' and the
@@ -54,26 +170,40 @@ class CodeMartV1AIAnalysisCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $analysis = CodeMartV1AIAnalysisModel::findWithProject((int) $analysisId);
-
-        if (!$analysis || $analysis->project->client_id !== $user->id) {
-            return $this->notFound('Analysis not found');
+        $analysis = $this->ownedAnalysis((int) $analysisId, (int) $user->id);
+        if (!$analysis) {
+            return $this->analysisNotFound();
         }
 
+        return $this->success($this->formatAnalysis($analysis, $this->isLatest($analysis)));
+    }
+
+    /** GET /projects/{projectId}/analysis: latest analysis with the proposal row. */
+    public function getProjectAnalysis(Request $request, $projectId): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
+        $project = CodeMartV1ProjectModel::findById((int) $projectId);
+        if (!$project) {
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 'Project not found', null, 404);
+        }
+        if (!$project->isManagedBy((int) $user->id)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'You do not have access to this analysis', null, 403);
+        }
+
+        $analysis = CodeMartV1AIAnalysisModel::latestForProject((int) $project->id);
+
         return $this->success([
-            'analysis_id' => $analysis->id,
-            'project_id' => $analysis->project_id,
-            'status' => $analysis->status,
-            'keywords' => json_decode($analysis->keywords, true),
-            'recommended_languages' => json_decode($analysis->recommended_languages, true),
-            'recommended_frameworks' => json_decode($analysis->recommended_frameworks, true),
-            'recommended_databases' => json_decode($analysis->recommended_databases, true),
-            'team_composition' => json_decode($analysis->team_composition, true),
-            'estimated_hours' => $analysis->estimated_hours,
-            'estimated_cost' => $analysis->estimated_cost,
-            'complexity_score' => $analysis->complexity_score,
-            'proposal' => $analysis->proposal,
-            'completed_at' => $analysis->completed_at,
+            'project_id' => (int) $project->id,
+            'project_status' => $project->status,
+            'analysis_status' => $project->analysis_status,
+            'analysis' => $analysis ? $this->formatAnalysis($analysis, true) : null,
+            'proposal' => CodeMartV1ProjectProposalModel::forProject((int) $project->id),
+            'can_accept' => $analysis !== null
+                && $analysis->status === CodeMartV1Constants::AI_ANALYSIS_COMPLETED
+                && $project->status === CodeMartV1Constants::PROJECT_STATUS_PROPOSAL_REVIEW
+                && $project->isOwnedBy((int) $user->id),
         ]);
     }
 
@@ -82,29 +212,66 @@ class CodeMartV1AIAnalysisCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $analysis = CodeMartV1AIAnalysisModel::findWithProject((int) $analysisId);
-
-        if (!$analysis || $analysis->project->client_id !== $user->id) {
-            return $this->notFound('Analysis not found');
+        $analysis = $this->ownedAnalysis((int) $analysisId, (int) $user->id);
+        if (!$analysis) {
+            return $this->analysisNotFound();
+        }
+        if ($analysis->status !== CodeMartV1Constants::AI_ANALYSIS_COMPLETED) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, 'Analysis not completed yet', [
+                'status' => $analysis->status,
+            ], 409);
+        }
+        if (!$this->isLatest($analysis)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, 'Only the latest analysis can be accepted', null, 409);
         }
 
-        if ($analysis->status !== 'completed') {
-            return $this->error('Analysis not completed yet');
-        }
+        $project = $analysis->project;
+        $result = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis, $project, $user) {
+            $transition = CodeMartV1ProjectStateService::systemTransition(
+                $project,
+                CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
+                (int) $user->id,
+                CodeMartV1ProjectStateService::ACTION_PROPOSAL_ACCEPTED,
+                null,
+                ['analysis_id' => (int) $analysis->id]
+            );
+            if (!$transition['ok']) {
+                return $transition;
+            }
 
-        CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis) {
             $analysis->updateRecord(['accepted_at' => now()]);
+            $project->updateRecord(['analysis_status' => CodeMartV1Constants::PROJECT_ANALYSIS_ACCEPTED]);
+            CodeMartV1ProjectProposalModel::syncFromAnalysis($analysis, CodeMartV1Constants::PROPOSAL_STATUS_APPROVED);
 
-            $analysis->project->updateRecord([
-                'analysis_status' => 'accepted',
-                'status' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
-            ]);
+            CodeMartV1DomainEventService::emit(
+                (int) $user->id,
+                CodeMartV1Constants::RESOURCE_ANALYSIS,
+                (int) $analysis->id,
+                self::ACTION_ACCEPTED,
+                CodeMartV1Constants::AI_ANALYSIS_COMPLETED,
+                CodeMartV1Constants::AI_ANALYSIS_COMPLETED,
+                [],
+                null,
+                null,
+                null,
+                ['project_id' => (int) $project->id]
+            );
+
+            return ['ok' => true];
         });
 
+        if (!$result['ok']) {
+            return $this->failureResponse($result);
+        }
+
+        $fundingAmount = CodeMartV1EscrowService::fundingAmount($project);
+
         return $this->success([
-            'message' => 'Proposal accepted. Please proceed to payment.',
+            'message' => 'Proposal accepted. Please proceed to funding.',
             'project_id' => $analysis->project_id,
-            'payment_amount' => $analysis->estimated_cost * 0.3,
+            'project_status' => $project->status,
+            'funding_amount' => $fundingAmount,
+            'payment_amount' => $fundingAmount,
         ]);
     }
 
@@ -118,44 +285,114 @@ class CodeMartV1AIAnalysisCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
         }
 
-        $analysis = CodeMartV1AIAnalysisModel::findWithProject((int) $analysisId);
-
-        if (!$analysis || $analysis->project->client_id !== $user->id) {
-            return $this->notFound('Analysis not found');
+        $analysis = $this->ownedAnalysis((int) $analysisId, (int) $user->id);
+        if (!$analysis) {
+            return $this->analysisNotFound();
+        }
+        if ($analysis->status !== CodeMartV1Constants::AI_ANALYSIS_COMPLETED || $analysis->accepted_at !== null) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, 'Only a completed, unaccepted analysis can be revised', [
+                'status' => $analysis->status,
+            ], 409);
+        }
+        if (!$this->isLatest($analysis)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, 'Only the latest analysis can be revised', null, 409);
         }
 
-        CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis, $request) {
+        $project = $analysis->project;
+        $notes = (string) $request->input('revision_notes');
+        $result = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis, $project, $notes, $user) {
+            if ($project->status === CodeMartV1Constants::PROJECT_STATUS_PROPOSAL_REVIEW) {
+                $transition = CodeMartV1ProjectStateService::systemTransition(
+                    $project,
+                    CodeMartV1Constants::PROJECT_STATUS_DRAFT,
+                    (int) $user->id,
+                    CodeMartV1ProjectStateService::ACTION_REVISION_REQUESTED,
+                    $notes,
+                    ['analysis_id' => (int) $analysis->id],
+                    false
+                );
+                if (!$transition['ok']) {
+                    return $transition;
+                }
+            } elseif ($project->status !== CodeMartV1Constants::PROJECT_STATUS_DRAFT) {
+                return [
+                    'ok' => false,
+                    'error_code' => CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE,
+                    'http_status' => 409,
+                    'message' => 'The proposal can no longer be revised',
+                    'details' => ['status' => $project->status],
+                ];
+            }
+
             $analysis->updateRecord([
-                'status' => 'revising',
-                'revision_notes' => $request->revision_notes,
+                'status' => CodeMartV1Constants::AI_ANALYSIS_REVISING,
+                'revision_notes' => $notes,
+                'keywords' => $this->extractKeywords($project, $notes),
             ]);
+            CodeMartV1AIAnalysisModel::query()->whereKey($analysis->id)->update([
+                'revision' => (int) ($analysis->revision ?? 1) + 1,
+            ]);
+            $project->updateRecord(['analysis_status' => CodeMartV1Constants::PROJECT_ANALYSIS_REVISING]);
+            CodeMartV1ProjectProposalModel::query()
+                ->where('project_id', $project->id)
+                ->update(['status' => CodeMartV1Constants::PROPOSAL_STATUS_REVISED]);
 
-            $analysis->project->updateRecord(['analysis_status' => 'revising']);
+            CodeMartV1DomainEventService::emit(
+                (int) $user->id,
+                CodeMartV1Constants::RESOURCE_ANALYSIS,
+                (int) $analysis->id,
+                self::ACTION_REVISION_REQUESTED,
+                CodeMartV1Constants::AI_ANALYSIS_COMPLETED,
+                CodeMartV1Constants::AI_ANALYSIS_REVISING,
+                [],
+                null,
+                null,
+                null,
+                ['project_id' => (int) $project->id]
+            );
+
+            return ['ok' => true];
         });
+
+        if (!$result['ok']) {
+            return $this->failureResponse($result);
+        }
 
         // No queue/dispatch: status is 'revising'; the Octane timer
         // (CodeMartV1AIAnalysisTask) re-processes it within ~5s.
         return $this->success(['message' => 'Revision requested. AI will re-analyze with your feedback.']);
     }
 
-    private function extractKeywords(string $title, string $description): string
+    /**
+     * Keyword categories from the project text, its declared stack, the
+     * attachment names, and the first bytes of plain-text attachments.
+     */
+    private function extractKeywords(CodeMartV1ProjectModel $project, string $extraText = ''): string
     {
-        $text = strtolower($title . ' ' . $description);
+        $parts = [(string) $project->title, (string) $project->description, $extraText];
+        foreach (['skills', 'languages', 'frameworks', 'databases'] as $field) {
+            $values = $project->{$field};
+            if (is_array($values)) {
+                $parts[] = implode(' ', array_map('strval', $values));
+            }
+        }
+
+        foreach (CodeMartV1ProjectAttachmentModel::forProject((int) $project->id) as $attachment) {
+            $parts[] = (string) $attachment->original_name;
+            if (str_starts_with((string) $attachment->mime_type, CodeMartV1Constants::ANALYSIS_KEYWORD_TEXT_MIME_PREFIX)) {
+                $parts[] = $this->fileUploadService->readPrivateDeliverySnippet(
+                    (string) $attachment->path,
+                    CodeMartV1Constants::ANALYSIS_KEYWORD_SNIPPET_BYTES
+                );
+            }
+        }
+
+        $text = strtolower(implode(' ', $parts));
         $keywords = [];
-
-        $techKeywords = [
-            'mobile' => ['mobile', 'app', 'ios', 'android'],
-            'web' => ['web', 'website', 'webapp', 'frontend'],
-            'backend' => ['api', 'backend', 'server', 'database'],
-            'ai' => ['ai', 'machine learning', 'ml', 'nlp'],
-            'ecommerce' => ['shop', 'ecommerce', 'payment', 'cart'],
-            'realtime' => ['realtime', 'chat', 'websocket', 'streaming'],
-        ];
-
-        foreach ($techKeywords as $category => $terms) {
+        foreach (self::TECH_KEYWORDS as $category => $terms) {
             foreach ($terms as $term) {
                 if (str_contains($text, $term)) {
                     $keywords[] = $category;
@@ -164,7 +401,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             }
         }
 
-        return json_encode(array_unique($keywords));
+        return json_encode(array_values(array_unique($keywords)));
     }
 
     // AI analysis processing (recommendation engine + proposal text) lives in

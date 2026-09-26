@@ -68,6 +68,19 @@ class CodeMartV1AIAnalysisModel extends CodeMartV1Model
             ->update(['status' => 'failed']);
     }
 
+    public static function latestForProject(int $projectId): ?self
+    {
+        return static::query()->where('project_id', $projectId)->orderByDesc('id')->first();
+    }
+
+    public static function markProjectAnalysisFailed(int $analysisId, string $analysisStatus): void
+    {
+        $analysis = static::query()->with('project')->find($analysisId);
+        if ($analysis && $analysis->project) {
+            $analysis->project->updateRecord(['analysis_status' => $analysisStatus]);
+        }
+    }
+
     public static function findWithProject(int $analysisId): ?self
     {
         return static::query()->with('project')->find($analysisId);

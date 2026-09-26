@@ -14,7 +14,6 @@ NEVER imports back into screenshot.py (avoids circular import within the window 
 """
 
 import hashlib
-import time
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -115,78 +114,63 @@ def capture_screen_region(
         return None
 
 
-def capture_screen_regions_png(
+def grab_screen_regions(
     regions: List[Dict[str, Any]],
-) -> Dict[str, Dict[str, Any]]:
-    captures: Dict[str, Dict[str, Any]] = {}
-    captured_at = int(time.time() * 1000)
+) -> Dict[str, Any]:
+    """Grab screen rectangles with mss; returns {region_id: PIL RGB image}."""
+    images: Dict[str, Any] = {}
     try:
         with mss.mss() as screen_capture:
             for region in regions:
                 region_id = str(region.get("id") or "")
-                left = int(region.get("left") or 0)
-                top = int(region.get("top") or 0)
                 width = int(region.get("width") or 0)
                 height = int(region.get("height") or 0)
                 if not region_id or width <= 0 or height <= 0:
                     continue
-                try:
-                    screenshot = screen_capture.grab({
-                        "left": left,
-                        "top": top,
-                        "width": width,
-                        "height": height,
-                    })
-                    image = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-                    scale = min(
-                        1.0,
-                        TERMINAL_CAPTURE_MAX_WIDTH / width,
-                        TERMINAL_CAPTURE_MAX_HEIGHT / height,
-                    )
-                    if scale < 1.0:
-                        image = image.resize(
-                            (
-                                max(1, int(width * scale)),
-                                max(1, int(height * scale)),
-                            ),
-                            Image.Resampling.BILINEAR,
-                        )
-                    output = BytesIO()
-                    image.save(
-                        output,
-                        format="PNG",
-                        compress_level=TERMINAL_CAPTURE_PNG_COMPRESSION,
-                    )
-                    png_bytes = output.getvalue()
-                    captures[region_id] = {
-                        "mime": "image/png",
-                        "body": png_bytes,
-                        "digest": hashlib.sha256(png_bytes).hexdigest(),
-                        "width": image.width,
-                        "height": image.height,
-                        "captured_at": captured_at,
-                    }
-                    screen_capture_activity_log.success(
-                        "terminal_region.capture.completed",
-                        region_id=region_id,
-                        body=png_bytes,
-                        width=image.width,
-                        height=image.height,
-                    )
-                except Exception as error:
-                    screen_capture_activity_log.warning(
-                        "terminal_region.capture.failed",
-                        region_id=region_id,
-                        error_type=type(error).__name__,
-                        error=error,
-                    )
+                screenshot = screen_capture.grab({
+                    "left": int(region.get("left") or 0),
+                    "top": int(region.get("top") or 0),
+                    "width": width,
+                    "height": height,
+                })
+                images[region_id] = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
     except Exception as error:
         screen_capture_activity_log.warning(
             "terminal_capture.unavailable",
             error_type=type(error).__name__,
             error=error,
         )
-    return captures
+    return images
+
+
+def encode_capture_png(image: "Image.Image", captured_at: int) -> Dict[str, Any]:
+    """Downscale to the terminal preview limits and encode as a digest-addressed PNG."""
+    width, height = image.size
+    scale = min(
+        1.0,
+        TERMINAL_CAPTURE_MAX_WIDTH / max(1, width),
+        TERMINAL_CAPTURE_MAX_HEIGHT / max(1, height),
+    )
+    if scale < 1.0:
+        image = image.resize(
+            (max(1, int(width * scale)), max(1, int(height * scale))),
+            Image.Resampling.BILINEAR,
+        )
+    output = BytesIO()
+    image.convert("RGB").save(
+        output,
+        format="PNG",
+        compress_level=TERMINAL_CAPTURE_PNG_COMPRESSION,
+    )
+    png_bytes = output.getvalue()
+    return {
+        "mime": "image/png",
+        "body": png_bytes,
+        "digest": hashlib.sha256(png_bytes).hexdigest(),
+        "width": image.width,
+        "height": image.height,
+        "captured_at": captured_at,
+    }
 
 
 def get_primary_monitor_size() -> Optional[Tuple[int, int]]:

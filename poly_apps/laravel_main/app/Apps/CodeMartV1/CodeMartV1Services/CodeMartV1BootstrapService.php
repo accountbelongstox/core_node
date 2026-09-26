@@ -31,7 +31,13 @@ class CodeMartV1BootstrapService
         $roleStatusMap = $user->roleStatusMap();
         $activeRoles = $user->getActiveRoles();
         $isAdmin = $user->rolelevel >= 10;
-        $capabilities = $this->deriveCapabilities($activeRoles, $isAdmin);
+        $requestableRoles = $this->requestableRoles($roleStatusMap);
+        $capabilities = $this->deriveCapabilities(
+            $activeRoles,
+            $isAdmin,
+            $requestableRoles !== [],
+            CodeMartV1TestimonialService::isEligible($userId)
+        );
 
         return [
             'contract_version' => CodeMartV1Constants::CONTRACT_VERSION,
@@ -49,21 +55,49 @@ class CodeMartV1BootstrapService
             'is_super_admin' => $user->rolelevel >= 100,
             'roles' => $roleStatusMap,
             'capabilities' => $capabilities,
-            'onboarding' => $this->buildOnboarding($user, $roleStatusMap),
+            'onboarding' => $this->buildOnboarding($user, $roleStatusMap, $requestableRoles),
             'profile' => $this->buildProfile($user),
             'vocabulary' => CodeMartV1Constants::contractVocabulary(),
             'counters' => $this->buildCounters($userId, $activeRoles, $isAdmin),
         ];
     }
 
-    private function deriveCapabilities(array $activeRoles, bool $isAdmin): array
+    /**
+     * Self-service roles the user may still request (never held, or rejected).
+     */
+    private function requestableRoles(array $roleStatusMap): array
     {
+        $requestable = [];
+        foreach (CodeMartV1RoleRequestService::SELF_SERVICE_ROLES as $roleType) {
+            $status = $roleStatusMap[$roleType] ?? null;
+            if ($status === null || $status === CodeMartV1Constants::ROLE_STATUS_REJECTED) {
+                $requestable[] = $roleType;
+            }
+        }
+
+        return $requestable;
+    }
+
+    private function deriveCapabilities(
+        array $activeRoles,
+        bool $isAdmin,
+        bool $canRequestRole = false,
+        bool $canCreateTestimonial = false
+    ): array {
         $capabilities = [
             CodeMartV1Constants::CAPABILITY_ONBOARDING_READ,
             CodeMartV1Constants::CAPABILITY_PROFILE_READ,
             CodeMartV1Constants::CAPABILITY_NOTIFICATION_READ,
             CodeMartV1Constants::CAPABILITY_PROJECT_READ,
         ];
+
+        if ($canRequestRole) {
+            $capabilities[] = CodeMartV1Constants::CAPABILITY_ROLE_REQUEST;
+        }
+
+        if ($canCreateTestimonial) {
+            $capabilities[] = CodeMartV1Constants::CAPABILITY_TESTIMONIAL_CREATE;
+        }
 
         if (in_array(CodeMartV1Constants::ROLE_CLIENT, $activeRoles, true)) {
             $capabilities[] = CodeMartV1Constants::CAPABILITY_PROJECT_CREATE;
@@ -74,12 +108,15 @@ class CodeMartV1BootstrapService
             $capabilities[] = CodeMartV1Constants::CAPABILITY_TASK_BROWSE;
             $capabilities[] = CodeMartV1Constants::CAPABILITY_TASK_READ;
             $capabilities[] = CodeMartV1Constants::CAPABILITY_FINANCE_READ;
+            $capabilities[] = CodeMartV1Constants::CAPABILITY_FINANCE_WITHDRAW;
         }
 
         if (in_array(CodeMartV1Constants::ROLE_ARCHITECT, $activeRoles, true)) {
             $capabilities[] = CodeMartV1Constants::CAPABILITY_ARCHITECT_READ;
             $capabilities[] = CodeMartV1Constants::CAPABILITY_TASK_BROWSE;
             $capabilities[] = CodeMartV1Constants::CAPABILITY_TASK_READ;
+            $capabilities[] = CodeMartV1Constants::CAPABILITY_FINANCE_READ;
+            $capabilities[] = CodeMartV1Constants::CAPABILITY_FINANCE_WITHDRAW;
         }
 
         if (in_array(CodeMartV1Constants::ROLE_REVIEWER, $activeRoles, true)) {
@@ -103,7 +140,7 @@ class CodeMartV1BootstrapService
      * Explicit onboarding steps with completion and next-step truth. The UI
      * never derives onboarding state from missing fields.
      */
-    private function buildOnboarding(CodeMartV1UserModel $user, array $roleStatusMap): array
+    private function buildOnboarding(CodeMartV1UserModel $user, array $roleStatusMap, array $requestableRoles = []): array
     {
         $emailVerified = $user->email_verified_at !== null || !empty($user->email);
         $phoneVerified = $user->hasVerifiedPhone();
@@ -139,6 +176,7 @@ class CodeMartV1BootstrapService
                 'key' => 'role_request',
                 'completed' => $roleStatusMap !== [],
                 'blocked' => false,
+                'requestable_roles' => $requestableRoles,
             ],
             [
                 'key' => 'phone_verification',
@@ -175,6 +213,7 @@ class CodeMartV1BootstrapService
             'phone_verified' => $phoneVerified,
             'kyc_status' => $kycStatus,
             'deposit_required' => $depositRequired,
+            'requestable_roles' => $requestableRoles,
             'steps' => $steps,
             'next_step' => $nextStep,
             'complete' => $nextStep === null,
@@ -242,12 +281,16 @@ class CodeMartV1BootstrapService
             ->count();
 
         $wallet = CodeMartV1WalletModel::query()->where('user_id', $userId)->first();
-        $protectedFunds = CodeMartV1EscrowModel::query()
-            ->where(function ($query) use ($userId): void {
-                $query->where('payer_id', $userId)->orWhere('payee_id', $userId);
-            })
-            ->where('status', CodeMartV1Constants::ESCROW_STATUS_HELD)
-            ->sum('amount');
+        $protectedFunds = CodeMartV1EscrowModel::sumRemaining(
+            CodeMartV1EscrowModel::query()
+                ->where(function ($query) use ($userId): void {
+                    $query->where('payer_id', $userId)->orWhere('payee_id', $userId);
+                })
+                ->whereIn('status', [
+                    CodeMartV1Constants::ESCROW_STATUS_HELD,
+                    CodeMartV1Constants::ESCROW_STATUS_DISPUTED,
+                ])
+        );
 
         return [
             'active_projects' => $activeProjects,

@@ -1,6 +1,6 @@
 # CodeMart Functional Design
 
-Date: 2026-08-23 (functional-only revision: 2026-09-18)
+Date: 2026-08-23 (functional-only revision: 2026-09-18; gap-completion revision: 2026-09-27)
 
 This document describes only the product and functional design of CodeMart.
 It intentionally contains no code, file, or architecture descriptions; the
@@ -9,6 +9,7 @@ implementation is the authority for those. Related progress records:
 - `PROGRESS_20260823_CODEMART_PYCORE_UI.md`
 - `PROGRESS_20260823_CODEMART_LARAVEL_MAIN.md`
 - `PROGRESS_20260823_CODEMART_INTEGRATION.md`
+- `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md` (gap audit and completion tracker; authoritative status)
 
 ## 1. Product decision
 
@@ -49,14 +50,25 @@ Included:
   acceptance;
 - developer task workspace and submission;
 - reviewer qualification status, review queue, and review submission;
-- wallet summary, transaction history, deposit status, project funding,
-  escrow visibility, invoice visibility, and refund requests;
+- wallet summary, transaction history, per-role deposit status, project
+  funding into escrow, escrow release on approval, invoice list, refund
+  requests and their status, and developer withdrawals;
+- project, milestone, and task state transitions with explicit actions
+  (start, block, pause, resume, cancel, complete, archive);
+- project attachments and client review of task submissions;
+- role request for existing accounts and CodeMart registration with role
+  selection, plus password reset;
+- testimonial submission by clients of completed projects;
+- public showcase of open work and completed projects, and a contact form;
 - public project-estimate calculator driven by server policy;
 - profile, verification, notifications, and localized error states;
 - public informational pages (About, Delivery process, Services, Privacy,
   Terms, Information);
-- a separate administration console (users, KYC review, deposits, refunds,
-  projects, role management);
+- a separate administration console (overview, users with detail, role
+  management, KYC review with private document viewer, deposits, refunds,
+  withdrawals, payments and disputes, projects with intervention,
+  testimonials, reviewer applications, contact messages, policy, activity
+  log);
 - multi-language UI with a language switcher and dark/light mode;
 - responsive web and mobile layouts, with Capacitor app build support.
 
@@ -135,8 +147,10 @@ Public surface:
 | About CodeMart | Mission, platform description, and delivery roles |
 | Delivery process | The five delivery stages explained for visitors |
 | Services | Managed delivery, task marketplace, independent review, escrow and invoicing |
-| Project estimate | Interactive server-calculated budget, duration, effort, and team estimate |
-| Information | Contact, platform status, and legal notes for this installation |
+| Project estimate | Interactive server-calculated budget, duration, effort, and team estimate; options come from server policy |
+| Showcase | Open marketplace work and completed projects, without client identity |
+| Register | CodeMart account creation with role selection and optional super code; password reset entry |
+| Information | Contact form, platform status, and legal notes for this installation |
 | Privacy | Data collection, usage, storage protection, and user rights |
 | Terms | Accounts, delivery commitments, payments/refunds, acceptable use |
 
@@ -151,8 +165,9 @@ User workspace (authenticated):
 | My tasks | Accepted or assigned tasks | task.read |
 | Reviews | Reviewer queue and review actions | review.read |
 | Architect | Eligibility, application, and assignments | architect.read |
-| Wallet | Balances, deposits, transactions | finance.read |
-| Verification | Server-owned onboarding steps and status | onboarding.read |
+| Project detail | Overview, attachments, analysis, milestones, tasks, submissions review, state actions | project.read |
+| Wallet | Balances, per-role deposits, transactions, payments, invoices, refunds, withdrawals | finance.read |
+| Verification | Server-owned onboarding steps, email, phone, identity, role request | onboarding.read |
 | Profile | Account, roles, and professional profile | profile.read |
 | Notifications | Domain notifications with read state | notification.read |
 | Settings | Language and appearance preferences | Authenticated |
@@ -162,11 +177,18 @@ Administration console (separate interface, administrator only):
 | Page | Purpose |
 | --- | --- |
 | Overview | Platform totals and pending-work counters |
-| Users | User search and CodeMart role status management |
-| KYC review | Pending identity submissions with approve/reject |
-| Deposits | Deposit listing and payment confirmation that activates roles |
-| Refunds | Refund request visibility |
-| Projects | Cross-user project listing and state visibility |
+| Users | User search, filters, detail view, and role status transitions with reason |
+| KYC review | Pending identity submissions with private document viewer, approve, reject with reason |
+| Deposits | Deposit listing, confirmation that activates roles, rejection, and refund |
+| Refunds | Refund requests with approve, reject, and process |
+| Withdrawals | Developer withdrawal requests with approve, reject, and mark paid |
+| Payments | Payments and escrows, disputed payments with resolution |
+| Projects | Cross-user project listing and administrator intervention (pause, resume, cancel, archive) |
+| Testimonials | Moderation: approve, hide, order |
+| Reviewer applications | Qualification results and revocation |
+| Contact messages | Visitor messages and handling |
+| Policy | Read-only deposit, commission, and qualification policy |
+| Activity | Immutable audit log of state transitions and administrator actions |
 
 Unauthorized pages are absent from navigation and still protected by a route
 gate; hiding navigation is never the only authorization.
@@ -228,7 +250,9 @@ Administrator flow:
 Login with administrator authorization (or register with the super code)
 -> open the administration console -> review pending KYC submissions
 -> confirm deposit payments to activate roles
--> manage user role status -> monitor projects, refunds, and totals
+-> manage user role status -> approve/reject/process refunds and withdrawals
+-> resolve disputed payments -> intervene in projects -> moderate testimonials
+-> review the activity log
 ```
 
 ## 8. Money and trust rules
@@ -241,7 +265,18 @@ Login with administrator authorization (or register with the super code)
 - Escrow release requires an allowed project state and an authorized actor.
 - Refund approval and processing are different, administrator-reviewed
   transitions.
-- Identity documents are private and never exposed as public paths.
+- Identity documents are private and never exposed as public paths; only
+  administrators stream them.
+- A deposit becomes paid only through administrator confirmation (or a
+  payment-gateway callback); users can never confirm their own deposit.
+- Project funding moves the accepted amount from the client wallet into
+  escrow; client approval of a task releases its amount minus commission
+  to the developer.
+- A refund is processed by debiting the payee (or escrow) and crediting the
+  payer; a payment can have only one open refund.
+- Withdrawals freeze funds on request and settle on administrator payment.
+- Every state transition records an activity entry and notifies the
+  affected parties.
 
 ## 9. Completion criteria
 

@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -32,6 +33,7 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
         'reference_urls',
         'total_milestones',
         'completed_milestones',
+        'published_at',
     ];
 
     protected $casts = [
@@ -43,6 +45,7 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
         'start_date' => 'date',
         'end_date' => 'date',
         'budget' => 'decimal:2',
+        'published_at' => 'datetime',
     ];
 
     public function client(): BelongsTo
@@ -63,6 +66,58 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
     public function attachments(): HasMany
     {
         return $this->hasMany(CodeMartV1ProjectAttachmentModel::class, 'project_id');
+    }
+
+    public function latestAnalysis(): HasOne
+    {
+        return $this->hasOne(CodeMartV1AIAnalysisModel::class, 'project_id')->latestOfMany();
+    }
+
+    public function isOwnedBy(int $userId): bool
+    {
+        return (int) $this->client_id === $userId;
+    }
+
+    /** Client or assigned architect: may plan milestones/tasks and review deliverables. */
+    public function isManagedBy(int $userId): bool
+    {
+        return (int) $this->client_id === $userId
+            || ($this->architect_id !== null && (int) $this->architect_id === $userId);
+    }
+
+    /** owner | architect | assignee | null (no relation). */
+    public function accessRoleFor(int $userId): ?string
+    {
+        if ($this->isOwnedBy($userId)) {
+            return CodeMartV1Constants::TRANSITION_ACTOR_OWNER;
+        }
+        if ($this->architect_id !== null && (int) $this->architect_id === $userId) {
+            return CodeMartV1Constants::ROLE_ARCHITECT;
+        }
+        if (CodeMartV1TaskModel::projectHasAssignee((int) $this->id, $userId)) {
+            return CodeMartV1Constants::TRANSITION_ACTOR_ASSIGNEE;
+        }
+
+        return null;
+    }
+
+    public function acceptsWork(): bool
+    {
+        return in_array($this->status, CodeMartV1Constants::PROJECT_MARKETPLACE_STATUSES, true);
+    }
+
+    /** Manager ids (client and architect) for notifications. */
+    public function managerIds(): array
+    {
+        return array_values(array_filter([
+            (int) $this->client_id,
+            $this->architect_id !== null ? (int) $this->architect_id : 0,
+        ]));
+    }
+
+    public static function lockById(int $projectId): ?self
+    {
+        return static::query()->whereKey($projectId)->lockForUpdate()->first();
     }
 
     public function currentMilestone(): HasOne
@@ -143,7 +198,11 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
 
     public static function findDetailed(int $projectId): ?self
     {
-        return static::query()->with(['milestones.tasks', 'attachments'])->find($projectId);
+        return static::query()->with([
+            'milestones' => fn ($query) => $query->orderBy('order')->orderBy('id'),
+            'milestones.tasks' => fn ($query) => $query->orderBy('order')->orderBy('id'),
+            'attachments',
+        ])->find($projectId);
     }
 
     public static function findOwnedByClient(int $projectId, int $clientId): ?self

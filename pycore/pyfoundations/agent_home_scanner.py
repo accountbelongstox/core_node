@@ -12,7 +12,8 @@ Homes are deduped by file identity (st_dev, st_ino), so bind mounts and
 symlink aliases of the same tree (e.g. /www/programing == /mnt/<disk>/programing)
 are scanned once. Homes the process cannot read (e.g. /root while pycore runs
 as a desktop user) are reported by unreadable_user_homes() instead of being
-silently dropped.
+silently dropped; on Linux the root spool helper
+(pycore.pyctl.agent_history.root_spool) parses those sources for the worker.
 """
 
 from __future__ import annotations
