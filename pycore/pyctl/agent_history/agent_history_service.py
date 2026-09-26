@@ -38,12 +38,10 @@ from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
 from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
 from pycore.pyctl.agent_history.pi_extractor import PiExtractor
-from pycore.pyfoundations.agent_home_scanner import scan_user_homes
+from pycore.pyctl.agent_history.base_extractor import BaseExtractor
+from pycore.pyfoundations.agent_home_scanner import scan_user_homes, unreadable_user_homes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import (
-    AGENT_HISTORY_LIVE_SCAN_TOOLS,
-    AGENT_HISTORY_OFFICIAL_HOME_MARKERS,
-)
+from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
@@ -55,10 +53,11 @@ from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 MATERIALIZE_CAP = 100
 ID_PAGE_SIZE_CAP = 1000
 EXTRACT_PROBE_SOURCE_CAP = 25
-EXTRACTOR_SCHEMA_REVISION = "2026-08-21.2"
+EXTRACTOR_SCHEMA_REVISION = "2026-09-26.2"
 TOOL_EXTRACT_PROBE_CACHE_PREFIX = "agent_history.extract_probe."
 PROMPT_NEW_EVENT_CAP = 20
 PROMPT_NEW_TEXT_SNIPPET = 200
+PROMPT_ID_HASH_LEN = 12
 SESSION_ID_FIELDS = (
     "id",
     "tool",
@@ -244,14 +243,19 @@ class AgentHistoryService:
             self._live_scan_descriptors[tool] = baseline
         return baseline
 
+    def _live_scan_supported_tools(self) -> List[str]:
+        """Live-scan supported set: every registered extractor (single source of truth)."""
+        return sorted({str(extractor.tool()) for extractor in self._extractors})
+
     def _live_scan_inner(self, tools: Optional[List[str]]) -> Dict[str, Any]:
+        supported_set = set(self._live_scan_supported_tools())
         requested = [
             str(tool).strip().lower()
-            for tool in (tools or AGENT_HISTORY_LIVE_SCAN_TOOLS)
+            for tool in (tools or sorted(supported_set))
             if str(tool).strip()
         ]
-        supported = [tool for tool in requested if tool in AGENT_HISTORY_LIVE_SCAN_TOOLS]
-        unsupported = [tool for tool in requested if tool not in AGENT_HISTORY_LIVE_SCAN_TOOLS]
+        supported = [tool for tool in requested if tool in supported_set]
+        unsupported = [tool for tool in requested if tool not in supported_set]
         extractor_by_tool = {
             extractor.tool(): extractor for extractor in self._extractors
         }
@@ -379,6 +383,11 @@ class AgentHistoryService:
                     detail = dict(sess)
                     detail["id"] = sid
                     detail["file"] = f"{txt.safe_id(sid)}.txt"
+                    detail["prompts"] = [
+                        p for p in (detail.get("prompts") or [])
+                        if not BaseExtractor.is_injected_prompt(p.get("text") or "")
+                    ]
+                    detail["prompt_count"] = len(detail["prompts"])
                     self._assign_prompt_ids(detail, sid)
                     self._apply_edits(detail.get("prompts") or [], edits)
                     txt.write_session(sid, detail)
@@ -467,7 +476,9 @@ class AgentHistoryService:
                 {"generated_at": generated_at, **summary},
                 async_mode=True,
             )
-            self._emit_prompt_new(new_prompts, generated_at)
+            # A schema rebuild re-derives every id: it is a new baseline, not news.
+            if not extractor_schema_changed:
+                self._emit_prompt_new(new_prompts, generated_at)
             return summary
         except Exception as e:
             summary = {"error": str(e)}
@@ -765,7 +776,11 @@ class AgentHistoryService:
         return {"id": prompt_id, "text": text, "edited": True}
 
     def get_status(self) -> Dict[str, Any]:
-        return {"last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {}}
+        return {
+            "last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {},
+            "unreadable_homes": unreadable_user_homes(),
+            "supported_tools": self._live_scan_supported_tools(),
+        }
 
     def read_tool_statistics(
         self,
@@ -891,13 +906,26 @@ class AgentHistoryService:
 
     @staticmethod
     def _assign_prompt_ids(detail: Dict[str, Any], session_id: str) -> None:
+        """Content-stable ids: a prompt keeps its id when the source is
+        trimmed/rotated or earlier entries are filtered, so a genuinely new
+        prompt can never inherit a known id (index ids masked new prompts)."""
+        counts: Dict[str, int] = {}
         for i, p in enumerate(detail.get("prompts") or []):
-            p["id"] = f"{session_id}#{i}"
+            digest = hashlib.sha1(
+                f"{int(p.get('ts') or 0)}|{p.get('text') or ''}".encode("utf-8")
+            ).hexdigest()[:PROMPT_ID_HASH_LEN]
+            counts[digest] = counts.get(digest, 0) + 1
+            suffix = "" if counts[digest] == 1 else f"-{counts[digest]}"
+            p["id"] = f"{session_id}#{digest}{suffix}"
+            p["legacy_id"] = f"{session_id}#{i}"
 
     @staticmethod
     def _apply_edits(prompts: List[Dict[str, Any]], edits: Dict[str, Dict[str, str]]) -> None:
         for p in prompts:
             pid = p.get("id") or ""
+            if pid not in edits:
+                pid = p.pop("legacy_id", "") or pid
+            p.pop("legacy_id", None)
             if pid and pid in edits and edits[pid].get("text") is not None:
                 p["text"] = edits[pid]["text"]
                 p["edited"] = True

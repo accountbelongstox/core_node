@@ -27,7 +27,6 @@ from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
 import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 from pycore.pyutils.tts.audio_utils import samples_to_mp3
-from pycore.pyutils.tts.tts_text_sanitize import sanitize_tts_text
 
 _MODEL_QUEUE = "tts.kokoro.model"
 _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, "KokoroTTSModelThread")
@@ -80,30 +79,18 @@ def _synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> b
     tts = _get_tts()
     if tts is None:
         return False
-    text = sanitize_tts_text(text)
-    if not text:
-        ColorPrint.yellow("[kokoro-tts] text empty after sanitization; skipped")
+    generated = sherpa_engine._generate_samples(
+        tts,
+        text,
+        sherpa_engine._speaker_id("KOKORO_TTS_SID"),
+        speed,
+        True,
+        "kokoro",
+        "kokoro-tts",
+    )
+    if generated is None:
         return False
-    try:
-        sid = int(os.environ.get("KOKORO_TTS_SID", os.environ.get("SHERPA_TTS_SID", "0")) or "0")
-    except ValueError:
-        sid = 0
-    try:
-        try:
-            audio = tts.generate(text, sid, speed=float(speed))
-        except TypeError:
-            sherpa = get_third_package_sherpa_onnx()
-            gen = sherpa.GenerationConfig()
-            gen.sid = sid
-            gen.speed = float(speed)
-            audio = tts.generate(text, gen)
-    except Exception as e:
-        ColorPrint.red(f"[kokoro-tts] generate failed: {e}")
-        return False
-    samples = getattr(audio, "samples", None)
-    sample_rate = getattr(audio, "sample_rate", 22050)
-    if samples is None:
-        return False
+    samples, sample_rate = generated
     return samples_to_mp3(samples, sample_rate, output_mp3)
 
 

@@ -147,24 +147,14 @@ $chromeMcpConfig = $null
 $chromeMcpProperty = $null
 $mcpJson = $null
 $previousLocation = $null
-$upgradeChoice = $null
 $modelPick = $null
 $modelDeadline = $null
 $modelKey = $null
 $mcpInstallChoice = $null
 $pnpmCommand = $null
+$aiCliProvisionCommonScript = $null
 $nodeCommand = $null
 $kimiCommand = $null
-$currentVersionOutput = $null
-$latestVersionOutput = $null
-$currentVersionTokens = @()
-$latestVersionTokens = @()
-$versionSeparators = @()
-$versionToken = $null
-$versionCandidate = $null
-$currentVersion = $null
-$latestVersion = $null
-$versionGapLarge = $false
 $kimiModel = "@@DEFAULT_MODEL@@"
 $kimiModelLabel = "kimi k3 256K"
 $providerArgs = @()
@@ -287,47 +277,12 @@ if ([string]::IsNullOrWhiteSpace($kimiApiKey)) {
     Write-Host "[WARN] KIMI_API_KEY_@@FILE_NUMBER@@ is empty; provider setup will fail." -ForegroundColor Yellow
 }
 
-# Version check + optional pnpm upgrade (default N).
-$versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
-if ($null -ne $pnpmCommand) {
-    $currentVersionOutput = (& $kimiCommand.Source --version 2>$null | Out-String).Trim()
-    $latestVersionOutput = (& $pnpmCommand.Source view "@moonshot-ai/kimi-code" version 2>$null | Out-String).Trim()
-    $currentVersionTokens = $currentVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($versionToken in $currentVersionTokens) {
-        $versionCandidate = $versionToken.Trim()
-        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $versionCandidate = $versionCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($versionCandidate, [ref]$currentVersion)) {
-            break
-        }
-    }
-    $latestVersionTokens = $latestVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($versionToken in $latestVersionTokens) {
-        $versionCandidate = $versionToken.Trim()
-        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $versionCandidate = $versionCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($versionCandidate, [ref]$latestVersion)) {
-            break
-        }
-    }
-}
-if (($null -ne $currentVersion) -and ($null -ne $latestVersion) -and ($latestVersion -gt $currentVersion)) {
-    $versionGapLarge = ($latestVersion.Major -gt $currentVersion.Major) -or
-        (($latestVersion.Major -eq $currentVersion.Major) -and ($latestVersion.Minor -gt $currentVersion.Minor))
-}
-if ($versionGapLarge) {
-    Write-Host "Upgrade Kimi Code CLI via pnpm? [y/N]: " -ForegroundColor Yellow -NoNewline
-    $upgradeChoice = Read-Host
-}
-if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
-    Write-Host "[INFO] Upgrading Kimi Code CLI via pnpm..." -ForegroundColor Cyan
-    & $pnpmCommand.Source add -g "@@NPM_PACKAGE@@"
-    Write-Host "[INFO] Kimi Code CLI pnpm upgrade command completed." -ForegroundColor Green
-} elseif ($versionGapLarge) {
-    Write-Host "[INFO] Kimi Code CLI upgrade skipped." -ForegroundColor DarkGray
-}
+# Version check + optional upgrade, shared with every other launcher
+# (scripts/shells/win/win_common/AiCliProvisionCommon.ps1): prompts only when a
+# newer version is published, defaults to N and auto-skips after 5 seconds.
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonScript
+Invoke-AiCliUpgradePrompt -Tool "kimi"
 
 # Model selection (default 1 = kimi k3 256K / @@DEFAULT_MODEL@@; auto-selects after 5s).
 Write-Host "Select model (default 1 = kimi k3 256K / @@DEFAULT_MODEL@@; auto-select in 5 seconds):" -ForegroundColor Yellow
@@ -562,13 +517,10 @@ _SH_TEMPLATE = r'''#!/bin/bash
 # Secrets: KIMI_API_KEY_@@FILE_NUMBER@@ (required),
 #   KIMI_BASE_URL_@@FILE_NUMBER@@ (optional --base-url override).
 
-upgrade_choice=""
 model_pick=""
 mcp_install_choice=""
 kimi_installer_url="https://code.kimi.com/kimi-code/install.sh"
-current_version_output=""
-latest_version_output=""
-version_gap_large="0"
+ai_cli_provision_common_path=""
 script_dir_path=""
 script_source_path=""
 scripts_dir_path=""
@@ -744,44 +696,12 @@ if [ -z "$kimi_api_key" ]; then
     echo "[WARN] KIMI_API_KEY_@@FILE_NUMBER@@ is empty; provider setup will fail."
 fi
 
-# Version check + optional upgrade via the official native installer (default N).
-if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
-    current_version_output="$(kimi --version 2>/dev/null || true)"
-    latest_version_output="$(pnpm view @moonshot-ai/kimi-code version 2>/dev/null || true)"
-    version_gap_large="$(node -e '
-const currentInput = process.argv[1];
-const latestInput = process.argv[2];
-const parseVersion = (value) => {
-    const tokens = value.trim().split(/\s+/);
-    for (const token of tokens) {
-        const candidate = token.startsWith("v") ? token.slice(1) : token;
-        const parts = candidate.split(".");
-        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
-        if (valid) {
-            return parts.map(Number);
-        }
-    }
-    return null;
-};
-const current = parseVersion(currentInput);
-const latest = parseVersion(latestInput);
-const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
-const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
-process.stdout.write(large ? "1" : "0");
-' "$current_version_output" "$latest_version_output" 2>/dev/null || true)"
-fi
-if [ "$version_gap_large" = "1" ]; then
-    printf '\033[33mUpgrade Kimi Code CLI? [y/N]: \033[0m'
-    read -r upgrade_choice || upgrade_choice=""
-fi
-if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
-    echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
-    curl -fsSL "$kimi_installer_url" | bash
-    hash -r
-    echo "[INFO] Kimi Code CLI native upgrade command completed."
-elif [ "$version_gap_large" = "1" ]; then
-    echo "[INFO] Kimi Code CLI upgrade skipped."
-fi
+# Version check + optional upgrade, shared with every other launcher
+# (scripts/shells/linux/common/ai_cli_provision_common.sh): prompts only when a
+# newer version is published, defaults to N and auto-skips after 5 seconds.
+ai_cli_provision_common_path="$core_node_path/scripts/shells/linux/common/ai_cli_provision_common.sh"
+. "$ai_cli_provision_common_path"
+ai_cli_upgrade_prompt "kimi"
 
 # Model selection (default 1 = kimi k3 256K / @@DEFAULT_MODEL@@; auto-selects after 5s).
 echo "Select model (default 1 = kimi k3 256K / @@DEFAULT_MODEL@@; auto-select in 5 seconds):"

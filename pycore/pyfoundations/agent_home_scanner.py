@@ -2,10 +2,17 @@
 """Agent home directory scan center (base library).
 
 Single source of truth for "which user homes may hold local AI agent history".
-Covers the real user home plus every per-slot isolated profile root used by
-the scripts/winenvs launchers (kimi1/kimi2 -> D:\\.tmp\\Users\\KimiN, codex1 ->
-D:\\programing\\Users\\Codex1, pi* -> D:\\programing\\Users\\Pi*, etc.). Linux
-roots come from AGENT_HISTORY_USERS_ROOTS_LINUX. All functions never raise.
+Roots come ONLY from system_paths: AGENT_SLOT_USERS_ROOTS (per-launcher slot
+roots, see AGENT_LAUNCHER_SLOT_PROFILES) plus the OS-level user roots.
+
+Supported hosts: Windows 10/11 (native roots) and Linux (Ubuntu / Debian /
+Kali, incl. WSL and dual-boot NTFS data disks via get_shared_windows_users_roots).
+
+Homes are deduped by file identity (st_dev, st_ino), so bind mounts and
+symlink aliases of the same tree (e.g. /www/programing == /mnt/<disk>/programing)
+are scanned once. Homes the process cannot read (e.g. /root while pycore runs
+as a desktop user) are reported by unreadable_user_homes() instead of being
+silently dropped.
 """
 
 from __future__ import annotations
@@ -13,117 +20,146 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Tuple
 
+try:
+    import pwd
+    PWD_AVAILABLE = True
+except ImportError:
+    PWD_AVAILABLE = False
+
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
 from pycore.pyfoundations.system_paths import (
+    AGENT_HISTORY_HUMAN_UID_MIN,
+    AGENT_HISTORY_NOLOGIN_SHELLS,
+    AGENT_HISTORY_NON_HUMAN_SUFFIXES,
+    AGENT_HISTORY_NON_HUMAN_USERS,
     AGENT_HISTORY_OFFICIAL_HOME_MARKERS,
     AGENT_HISTORY_USERS_ROOTS_ENV,
     AGENT_HISTORY_USERS_ROOTS_LINUX,
     AGENT_HISTORY_USERS_ROOTS_WINDOWS,
+    AGENT_SLOT_USERS_ROOTS,
     get_shared_windows_users_roots,
 )
 
+_PLATFORM_KEY = "win32" if sys.platform == "win32" else "linux"
+_READ_MODE = os.R_OK | os.X_OK
+
+
+def path_identity(path: str) -> Tuple[int, int] | str:
+    """(st_dev, st_ino) of a path; realpath when the FS reports no inode."""
+    if not os.path.exists(path):
+        return os.path.realpath(path)
+    st = os.stat(path)
+    if st.st_ino:
+        return (st.st_dev, st.st_ino)
+    return os.path.realpath(path)
+
+
+def _expand_root(template: str) -> Path:
+    if template.startswith("<data>"):
+        return get_core_node_data_dir() / template[len("<data>/"):]
+    if template.startswith("~"):
+        return Path.home() / template[2:]
+    return Path(template)
+
+
+def agent_history_slot_users_roots() -> List[Path]:
+    """Per-slot users-roots for this platform, from AGENT_SLOT_USERS_ROOTS."""
+    roots: List[Path] = []
+    for spec in AGENT_SLOT_USERS_ROOTS.values():
+        for template in spec.get(_PLATFORM_KEY) or ():
+            roots.append(_expand_root(template))
+    return roots
+
 
 def agent_history_users_roots() -> List[Path]:
-    """Users-root directories to scan, platform-split, env-overridable.
-
-    On Linux the native roots are extended with the Windows user-data roots
-    reachable through a mounted NTFS data disk (or /mnt/<drive> under WSL), so
-    a dual-boot machine shares the SAME agent history (kimi/codex/pi/claude
-    per-slot profiles under D:\\programing\\Users and D:\\.tmp\\Users) instead
-    of scanning an empty Linux-only view.
-    """
+    """Users-root directories to scan, platform-split, env-overridable."""
     override = os.environ.get(AGENT_HISTORY_USERS_ROOTS_ENV, "").strip()
     if override:
-        return [
-            Path(item.strip())
-            for item in override.split(os.pathsep)
-            if item.strip()
-        ]
-    if sys.platform == "win32":
-        return [Path(item) for item in AGENT_HISTORY_USERS_ROOTS_WINDOWS]
-    roots = [Path(item) for item in AGENT_HISTORY_USERS_ROOTS_LINUX]
+        return [Path(item.strip()) for item in override.split(os.pathsep) if item.strip()]
+    os_roots = AGENT_HISTORY_USERS_ROOTS_WINDOWS if _PLATFORM_KEY == "win32" else AGENT_HISTORY_USERS_ROOTS_LINUX
+    roots = [Path(item) for item in os_roots]
+    roots.extend(agent_history_slot_users_roots())
     roots.extend(get_shared_windows_users_roots())
     return roots
 
 
-def scan_user_homes() -> Dict[str, str]:
-    """Map of home path -> OS user name for every scannable home.
+def _passwd_by_home() -> Dict[str, Tuple[int, str]]:
+    """home dir -> (uid, shell) from the local account database (POSIX)."""
+    if not PWD_AVAILABLE:
+        return {}
+    return {os.path.realpath(e.pw_dir): (e.pw_uid, e.pw_shell) for e in pwd.getpwall()}
 
-    Includes the current process home, each existing users-root that holds
-    profiles directly (e.g. /root), and one level of per-slot profile dirs
-    under each users-root (slot names are discovered, never hardcoded).
-    """
-    homes: Dict[str, str] = {}
-    seen: set[str] = set()
 
-    def add(path: Path, user: str) -> None:
-        try:
-            if not path.is_dir():
-                return
-            real = str(path.resolve())
-        except OSError:
-            return
-        if real in seen:
-            return
-        seen.add(real)
-        homes[str(path)] = user
+def is_human_account(name: str, path: Path, accounts: Dict[str, Tuple[int, str]]) -> bool:
+    """False for system/service/machine accounts (constants in system_paths)."""
+    if name in AGENT_HISTORY_NON_HUMAN_USERS or name.endswith(AGENT_HISTORY_NON_HUMAN_SUFFIXES):
+        return False
+    account = accounts.get(os.path.realpath(path))
+    if account is None:
+        return True
+    uid, shell = account
+    if uid == 0:
+        return True
+    return uid >= AGENT_HISTORY_HUMAN_UID_MIN and shell not in AGENT_HISTORY_NOLOGIN_SHELLS
 
+
+def _readable_dir(path: Path) -> bool:
+    return os.path.isdir(path) and os.access(path, _READ_MODE)
+
+
+def _is_home_root(root: Path) -> bool:
+    """A root that itself carries agent markers (or is /root) is a home."""
+    if str(root) == "/root":
+        return True
+    return any(os.path.exists(root / marker) for marker in _all_marker_dirs())
+
+
+def _candidate_homes() -> List[Tuple[Path, str]]:
+    accounts = _passwd_by_home()
     home = Path.home()
     user = os.environ.get("USERNAME") or os.environ.get("USER") or home.name
-    add(home, user)
-
+    candidates: List[Tuple[Path, str]] = [(home, user)]
     for root in agent_history_users_roots():
-        try:
-            if not root.is_dir():
-                continue
-            children = sorted(root.iterdir())
-        except OSError:
+        if not os.path.isdir(root):
             continue
-        # A root that itself carries agent markers (or is /root) is a home,
-        # not a container of slot profiles -- never descend into it.
-        if str(root) == "/root" or any(
-            (root / marker).exists() for marker in _all_marker_dirs()
-        ):
-            add(root, root.name)
+        if not os.access(root, _READ_MODE):
+            candidates.append((root, root.name))
             continue
-        for child in children:
-            if child.name.startswith("."):
+        if _is_home_root(root):
+            candidates.append((root, root.name))
+            continue
+        for child in sorted(root.iterdir()):
+            if child.name.startswith(".") or not os.path.isdir(child):
                 continue
-            add(child, child.name)
+            if is_human_account(child.name, child, accounts):
+                candidates.append((child, child.name))
+    return candidates
+
+
+def scan_user_homes() -> Dict[str, str]:
+    """Map of readable home path -> OS user / slot name, identity-deduped."""
+    homes: Dict[str, str] = {}
+    seen: set = set()
+    for path, user in _candidate_homes():
+        if not _readable_dir(path):
+            continue
+        key = path_identity(str(path))
+        if key in seen:
+            continue
+        seen.add(key)
+        homes[str(path)] = user
     return homes
 
 
-def official_tool_homes(tool: str, home: str) -> List[str]:
-    """Official config dirs for a tool inside one home (env override first).
-
-    Order: rooted official env var (KIMI_CODE_HOME / CODEX_HOME /
-    CLAUDE_CONFIG_DIR) -> official default dir names in the home. Missing
-    dirs are skipped; the caller falls back to a machine scan when empty.
-    """
-    spec = AGENT_HISTORY_OFFICIAL_HOME_MARKERS.get(str(tool or "").strip().lower())
-    if spec is None:
-        return []
+def unreadable_user_homes() -> List[str]:
+    """Existing homes the scanning process cannot read (permission gap)."""
     out: List[str] = []
-    seen: set[str] = set()
-
-    def add(path: str) -> None:
-        if not os.path.isdir(path):
-            return
-        real = os.path.realpath(path)
-        if real in seen:
-            return
-        seen.add(real)
-        out.append(path)
-
-    env_key = str(spec.get("env") or "")
-    if env_key:
-        env_value = os.environ.get(env_key, "").strip()
-        if env_value and os.path.isabs(env_value):
-            add(env_value)
-    for name in spec.get("dirs") or ():
-        add(os.path.join(home, name))
-    return out
+    for path, _user in _candidate_homes():
+        if os.path.isdir(path) and not os.access(path, _READ_MODE):
+            out.append(str(path))
+    return sorted(set(out))
 
 
 def _all_marker_dirs() -> List[str]:
@@ -134,7 +170,10 @@ def _all_marker_dirs() -> List[str]:
 
 
 __all__ = [
+    "agent_history_slot_users_roots",
     "agent_history_users_roots",
+    "is_human_account",
+    "path_identity",
     "scan_user_homes",
-    "official_tool_homes",
+    "unreadable_user_homes",
 ]

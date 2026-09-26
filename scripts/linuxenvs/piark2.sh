@@ -163,7 +163,7 @@ FORWARD_ARGS=("${PARSED_ARGS[@]}")
 
 if [ "$MODE" = "claude" ]; then
     PROVIDER="anthropic"
-    MODEL="claude-opus-4-8"
+    MODEL="claude-opus-5-5"
     ENABLED_MODELS="$CLAUDE_MODELS"
     PI_USER_DIR="$PI_CLAUDE_CODE_USER_DIR"
     PI_AGENT_DIR="$PI_CLAUDE_CODE_AGENT_DIR"

@@ -15,8 +15,20 @@ const OPERATION_REFRESH_MIN_MS = 5000;
 const OPERATION_EVENT_DEBOUNCE_MS = 250;
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
+export interface AgentHistoryToolSupport {
+  platforms: string[];
+  verified: string;
+}
+
 export interface AgentHistoryRuntimeState {
   articleConfig: Record<string, any> | null;
+  /** Backend tool registry in display order (single source: system_paths). */
+  supportedTools: string[];
+  toolSupport: Record<string, AgentHistoryToolSupport>;
+  /** Homes pycore cannot read (permission gap, e.g. /root vs desktop user). */
+  unreadableHomes: string[];
+  /** PYCORE_AGENT_HISTORY_ENABLED override; null when the config switch rules. */
+  pipelineEnvOverride: boolean | null;
   configStoragePath: string;
   articlePromptDefaults: Record<string, string> | null;
   articleSummary: Record<string, any> | null;
@@ -32,6 +44,10 @@ export interface AgentHistoryRuntimeState {
 
 let state: AgentHistoryRuntimeState = {
   articleConfig: null,
+  supportedTools: [],
+  toolSupport: {},
+  unreadableHomes: [],
+  pipelineEnvOverride: null,
   configStoragePath: '',
   articlePromptDefaults: null,
   articleSummary: null,
@@ -50,6 +66,7 @@ const recovered = pycoreRouteRecoveryStore.read<AgentHistoryRuntimeState>(
 );
 if (recovered?.data) {
   state = {
+    ...state,
     ...recovered.data,
     configStoragePath: String(recovered.data.configStoragePath || ''),
     configLoading: false,
@@ -68,6 +85,9 @@ let runtimeUnsubscribers: Array<() => void> = [];
 let consumerCount = 0;
 let lastOperationReadAt = 0;
 let configMutationTail: Promise<void> = Promise.resolve();
+// Bumped on every local config write; a runtime snapshot requested before the
+// latest write must not overwrite the config (stale-revert guard).
+let configMutationSeq = 0;
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -120,10 +140,12 @@ export function persistAgentHistoryArticleConfig(
   configPatch: Record<string, unknown>,
 ): Promise<AgentHistoryConfigSaveResult> {
   const patchValue = { ...configPatch };
+  configMutationSeq += 1;
   const optimistic = { ...(state.articleConfig || {}), ...patchValue };
   patch({ articleConfig: optimistic, configError: null });
   const execute = async (): Promise<AgentHistoryConfigSaveResult> => {
     const response = await pycoreApi.saveAgentHistoryArticleConfig(patchValue);
+    configMutationSeq += 1;
     if (response.success && response.data) {
       patch({ articleConfig: response.data, configError: null, authoritative: true });
       return response;
@@ -139,6 +161,7 @@ export function persistAgentHistoryArticleConfig(
 export async function refreshAgentHistoryRuntime(): Promise<void> {
   if (runtimeFlight) return runtimeFlight;
   patch({ configLoading: true, operationLoading: true });
+  const requestedAtSeq = configMutationSeq;
   runtimeFlight = pycoreApi.getAgentHistoryRuntime()
     .then((response) => {
       runtimeRefreshing = response.refreshing === true;
@@ -154,8 +177,19 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
         patch({ configError: error, operationError: error });
         return;
       }
+      const configStale = requestedAtSeq !== configMutationSeq;
       patch({
-        articleConfig: response.data.article_config || null,
+        articleConfig: configStale ? state.articleConfig : (response.data.article_config || null),
+        supportedTools: Array.isArray(response.data.supported_tools)
+          ? response.data.supported_tools.map(String)
+          : state.supportedTools,
+        toolSupport: (response.data.tool_support as Record<string, AgentHistoryToolSupport>) || state.toolSupport,
+        unreadableHomes: Array.isArray(response.data.unreadable_homes)
+          ? response.data.unreadable_homes.map(String)
+          : [],
+        pipelineEnvOverride: typeof response.data.pipeline_env_override === 'boolean'
+          ? response.data.pipeline_env_override
+          : null,
         configStoragePath: String(response.data.article_config_storage_path || ''),
         articlePromptDefaults: (response.data.article_prompt_defaults as Record<string, string>) || null,
         articleSummary: response.data.article_summary || null,
@@ -163,7 +197,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
         aiDashboard: response.data.ai_dashboard || null,
         configError: null,
         operationError: null,
-        authoritative: true,
+        authoritative: !configStale || state.authoritative,
       });
       lastOperationReadAt = Date.now();
     })
@@ -284,6 +318,21 @@ function startAgentHistoryRuntime(): void {
         if (!PIPELINE_SCOPES.has(scope)) return;
         applyOperationEvent(payload || {});
         scheduleOperationRefresh();
+      },
+    ),
+    // Config changed on any surface (tray, another tab, API): the event
+    // carries the authoritative user-facing keys, applied without a refetch.
+    pycoreEventBus.subscribe(
+      PYCORE_EVENT_TOPICS.agentHistoryConfigChanged,
+      (payload: any) => {
+        const config = payload?.config;
+        if (!config || typeof config !== 'object') return;
+        configMutationSeq += 1;
+        patch({
+          articleConfig: { ...(state.articleConfig || {}), ...config },
+          configError: null,
+          authoritative: true,
+        });
       },
     ),
     pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => {

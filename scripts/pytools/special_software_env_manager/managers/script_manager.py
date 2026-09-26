@@ -369,7 +369,7 @@ class ScriptManager:
         load_lines = []
         export_lines = []
         summary_lines = []
-        upgrade_section = self.linux_generator.generate_cli_upgrade_prompt_section(
+        provision_section = self.linux_generator.generate_cli_provision_section(
             command_prefix
         )
 
@@ -419,7 +419,7 @@ echo "{display_name} #{file_number} - v4 [team + opt-in ultracode]"
 echo "============================================================"
 echo ""
 
-{upgrade_section}
+{provision_section}
 
 scriptSource="${{BASH_SOURCE[0]}}"
 if [ -L "$scriptSource" ]; then
@@ -512,7 +512,7 @@ exec claude "${{claude_args[@]}}" "$@"
         """Generate v4-style PowerShell launcher script content"""
         load_lines = []
         summary_lines = []
-        upgrade_section = self.windows_generator.generate_cli_upgrade_prompt_section(
+        provision_section = self.windows_generator.generate_cli_provision_section(
             command_prefix
         )
 
@@ -571,7 +571,7 @@ Write-Host "{display_name} #{file_number} - v4 [team + opt-in ultracode]" -Foreg
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-{upgrade_section}
+{provision_section}
 
 $scriptActualPath = $PSCommandPath
 $item = Get-Item -LiteralPath $PSCommandPath

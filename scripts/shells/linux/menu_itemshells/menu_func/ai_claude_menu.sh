@@ -41,7 +41,7 @@ get_claude_config() {
 
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Name="ANTHROPIC_MODEL"
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_DisplayName="ANTHROPIC_MODEL"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Description="Default model (optional, e.g. claude-opus-4-8)"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Description="Default model (optional, e.g. claude-opus-5-5)"
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_IsSecret="false"
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_InputType="Text"
 }

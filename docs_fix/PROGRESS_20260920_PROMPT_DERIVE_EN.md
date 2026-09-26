@@ -103,3 +103,11 @@ Requirements record: `docs_fix/TASK_20260920_PROMPT_DERIVE_EN_TRAY_TOAST_SOUND.m
 ## Known scope notes
 
 - End-to-end run of the derive service requires a Linux host; on Windows it logs a skip line.
+
+---
+Follow-up (2026-09-26): `docs_fix/FIX_20260926_AGENT_HISTORY_SCAN_CENTER_MONITOR_TRAY_NOTIFY.md`
+implements the missing piece of B6/B7 for NEW prompts: a tray/desktop notification now fires on
+every `agent_history.prompt.new` event (both platforms; freedesktop notify-send on Linux, Qt
+showMessage / Win32 NIF_INFO balloon on Windows, tkinter toast fallback), gated by the new
+`prompt_new_notify` config flag with a tray-menu toggle. The derive-path toast/sound (Linux-only,
+post-AI-derivation) remains a separate surface.

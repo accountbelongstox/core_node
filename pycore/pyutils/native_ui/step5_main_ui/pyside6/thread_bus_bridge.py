@@ -58,6 +58,7 @@ class ThreadBusBridgeMixin(QObject):
     _thread_bus_minimize_signal = Signal()
     _thread_bus_maximize_signal = Signal()
     _thread_bus_update_tray_menu_signal = Signal(object)  # menu items (list of dicts)
+    _thread_bus_tray_notification_signal = Signal(dict)  # {title, message, duration_ms}
     _thread_bus_subtitle_mode_signal = Signal(bool)  # subtitle compact mode: True=enter, False=exit
     _thread_bus_tray_menu_signature = {'value': None}
 
@@ -83,6 +84,7 @@ class ThreadBusBridgeMixin(QObject):
         self._thread_bus_minimize_signal.connect(self._do_minimize_window)
         self._thread_bus_maximize_signal.connect(self._do_maximize_window)
         self._thread_bus_update_tray_menu_signal.connect(self._do_update_tray_menu)
+        self._thread_bus_tray_notification_signal.connect(self._do_show_tray_notification)
         self._thread_bus_subtitle_mode_signal.connect(self._do_subtitle_mode)
 
         # Determine namespace: use thread_bus_namespace if provided, else use app_id, else 'ui'
@@ -110,6 +112,7 @@ class ThreadBusBridgeMixin(QObject):
         # the independent pystray tray registers its own 'tray.update_menu' handler).
         if self.config.enable_tray:
             THREAD_BUS.register_event_handler('tray.update_menu', self._on_thread_bus_update_tray_menu)
+            THREAD_BUS.register_event_handler('tray.show_notification', self._on_thread_bus_tray_notification)
             last_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
             if isinstance(last_payload, dict):
                 menu_items = last_payload.get('menu_items')
@@ -261,6 +264,24 @@ class ThreadBusBridgeMixin(QObject):
             self.main_window.toggle_maximize()
 
     @Slot(object)
+    def _on_thread_bus_tray_notification(self, event_data):
+        """Tray notification event (any thread) -> marshal into the Qt main thread."""
+        if isinstance(event_data, dict):
+            self._thread_bus_tray_notification_signal.emit(event_data)
+
+    def _do_show_tray_notification(self, payload):
+        """Show a tray balloon/toast via QSystemTrayIcon.showMessage (Qt thread)."""
+        if not self.system_tray:
+            return
+        try:
+            self.system_tray.show_message(
+                str(payload.get('title') or ''),
+                str(payload.get('message') or ''),
+                duration=int(payload.get('duration_ms') or 5000),
+            )
+        except Exception as exc:
+            ColorPrint.yellow(f"[PySide6Framework] Tray notification failed: {exc}")
+
     def _do_update_tray_menu(self, menu_items):
         """Rebuild the native tray menu (Qt main thread)."""
         if self.system_tray:

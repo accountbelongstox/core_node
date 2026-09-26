@@ -89,6 +89,7 @@ else:
 
 # Tray notification callback message id (icon -> our window)
 WM_TRAYICON = (win32con.WM_USER + 20) if WIN32_AVAILABLE else 0
+WM_SHOW_BALLOON = (win32con.WM_USER + 21) if WIN32_AVAILABLE else 0
 _MENU_ID_BASE = 1024
 
 
@@ -412,6 +413,10 @@ class Win32SystemTray:
                     self._tray_timing_log("thread_bus_trigger_returned", timing)
             return 0
 
+        if msg == WM_SHOW_BALLOON:
+            self._drain_balloon_queue()
+            return 0
+
         if msg == win32con.WM_COMMAND:
             cmd_id = wparam & 0xFFFF
             signal = self._id_to_signal.get(cmd_id)
@@ -436,6 +441,42 @@ class Win32SystemTray:
 
         return win32gui.DefWindowProc(hwnd, msg, wparam, lparam)
 
+    # ---------- balloon notification ----------
+
+    def request_balloon(self, title: str, message: str, duration_ms: int = 5000):
+        """Thread-safe entry: queue a balloon and marshal to the tray thread.
+
+        Shell_NotifyIcon NIF_INFO balloon on the owned icon (legacy but still
+        rendered by the shell as a toast on Windows 10+). One balloon at a time
+        per taskbar — newer requests replace the queued one.
+        """
+        self._balloon_pending = {
+            "title": str(title or self.app_name)[:63],
+            "message": str(message or "")[:255],
+            "duration_ms": max(1000, min(int(duration_ms or 5000), 30000)),
+        }
+        try:
+            if self.hwnd:
+                win32gui.PostMessage(self.hwnd, WM_SHOW_BALLOON, 0, 0)
+        except Exception:
+            pass
+
+    def _drain_balloon_queue(self):
+        pending = getattr(self, "_balloon_pending", None)
+        self._balloon_pending = None
+        if not pending or not self.hwnd:
+            return
+        try:
+            flags = win32gui.NIF_INFO
+            nid = (
+                self.hwnd, 0, flags, 0, 0, "",
+                pending["message"], pending["duration_ms"], pending["title"],
+                win32gui.NIIF_INFO,
+            )
+            win32gui.Shell_NotifyIcon(win32gui.NIM_MODIFY, nid)
+        except Exception as e:
+            ColorPrint.yellow(f"[Win32Tray] Balloon failed: {e}")
+
     # ---------- THREAD_BUS ----------
 
     def _register_thread_bus_handlers(self):
@@ -453,8 +494,18 @@ class Win32SystemTray:
                 self.menu_items = items  # rebuilt on next right-click (GUI-thread safe)
                 ColorPrint.blue("[Win32Tray] Menu updated")
 
+        def handle_notification(event_data):
+            if not isinstance(event_data, dict):
+                return
+            self.request_balloon(
+                event_data.get("title") or self.app_name,
+                event_data.get("message") or "",
+                event_data.get("duration_ms") or 5000,
+            )
+
         THREAD_BUS.register_event_handler("tray.request_stop", handle_stop, priority=10)
         THREAD_BUS.register_event_handler("tray.update_menu", handle_update, priority=10)
+        THREAD_BUS.register_event_handler("tray.show_notification", handle_notification, priority=10)
         ColorPrint.blue("[Win32Tray] THREAD_BUS event handlers registered")
 
         latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)

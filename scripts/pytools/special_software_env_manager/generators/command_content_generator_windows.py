@@ -7,21 +7,7 @@ This is the Windows-specific version of CommandContentGenerator.ps1
 
 from typing import Any, Dict, List
 
-from generators import CliUpgradeConfig, CommandContentGeneratorBase
-
-
-WINDOWS_CLI_UPGRADE_ACTIONS = {
-    'claude': '''Write-Host "[INFO] Upgrading Claude Code..." -ForegroundColor Cyan
-    & $upgradeCliCommand.Source update
-    Write-Host "[INFO] Claude Code upgrade command completed." -ForegroundColor Green''',
-    'codex': '''Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
-    & $upgradePackageManager.Source add --global "@openai/codex@latest"
-    Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green''',
-    'kimi': '''Write-Host "[INFO] Upgrading Kimi Code CLI with the official native installer..." -ForegroundColor Cyan
-    $upgradeInstallerContent = Invoke-RestMethod -Uri "https://code.kimi.com/kimi-code/install.ps1"
-    Invoke-Expression $upgradeInstallerContent
-    Write-Host "[INFO] Kimi Code CLI native upgrade command completed." -ForegroundColor Green''',
-}
+from generators import CommandContentGeneratorBase
 
 
 class WindowsCommandContentGenerator(CommandContentGeneratorBase):
@@ -310,84 +296,9 @@ if (Test-Path $codexConfigHelper) {
 
 """
 
-    def _render_cli_upgrade_prompt_section(
-        self,
-        command_prefix: str,
-        tool_config: CliUpgradeConfig,
-    ) -> str:
-        """Render a PowerShell version-aware upgrade section."""
-        action = WINDOWS_CLI_UPGRADE_ACTIONS[command_prefix]
-        template = r'''
-#region Version-Aware CLI Upgrade
-function Invoke-VersionAwareCliUpgrade {
-$upgradeChoice = $null
-$upgradeCliCommand = Get-Command __COMMAND__ -ErrorAction SilentlyContinue
-$upgradePackageManager = Get-Command pnpm -ErrorAction SilentlyContinue
-$upgradeCurrentOutput = $null
-$upgradeLatestOutput = $null
-$upgradeCurrentTokens = @()
-$upgradeLatestTokens = @()
-$upgradeSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
-$upgradeToken = $null
-$upgradeCandidate = $null
-$upgradeCurrentVersion = $null
-$upgradeLatestVersion = $null
-$upgradeVersionGapLarge = $false
-$upgradeInstallerContent = $null
-
-if (($null -ne $upgradeCliCommand) -and ($null -ne $upgradePackageManager)) {
-    $upgradeCurrentOutput = (& $upgradeCliCommand.Source --version 2>$null | Out-String).Trim()
-    $upgradeLatestOutput = (& $upgradePackageManager.Source view "__PACKAGE__" version 2>$null | Out-String).Trim()
-    $upgradeCurrentTokens = $upgradeCurrentOutput.Split($upgradeSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($upgradeToken in $upgradeCurrentTokens) {
-        $upgradeCandidate = $upgradeToken.Trim()
-        if ($upgradeCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $upgradeCandidate = $upgradeCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($upgradeCandidate, [ref]$upgradeCurrentVersion)) {
-            break
-        }
-    }
-    $upgradeLatestTokens = $upgradeLatestOutput.Split($upgradeSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($upgradeToken in $upgradeLatestTokens) {
-        $upgradeCandidate = $upgradeToken.Trim()
-        if ($upgradeCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $upgradeCandidate = $upgradeCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($upgradeCandidate, [ref]$upgradeLatestVersion)) {
-            break
-        }
-    }
-}
-if (($null -ne $upgradeCurrentVersion) -and ($null -ne $upgradeLatestVersion) -and ($upgradeLatestVersion -gt $upgradeCurrentVersion)) {
-    $upgradeVersionGapLarge = ($upgradeLatestVersion.Major -gt $upgradeCurrentVersion.Major) -or
-        (($upgradeLatestVersion.Major -eq $upgradeCurrentVersion.Major) -and ($upgradeLatestVersion.Minor -gt $upgradeCurrentVersion.Minor))
-}
-if ($upgradeVersionGapLarge) {
-    Write-Host "__PROMPT__" -ForegroundColor Yellow -NoNewline
-    $upgradeChoice = Read-Host
-}
-if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
-    __ACTION__
-} elseif ($upgradeVersionGapLarge) {
-    Write-Host "[INFO] CLI upgrade skipped." -ForegroundColor DarkGray
-}
-}
-
-Invoke-VersionAwareCliUpgrade
-#endregion
-
-'''
-        return (
-            template.replace('__COMMAND__', tool_config.command)
-            .replace('__PACKAGE__', tool_config.package)
-            .replace('__PROMPT__', tool_config.prompt)
-            .replace('__ACTION__', action)
-        )
-
-    def generate_codex_upgrade_prompt_section(self) -> str:
-        """Generate the Codex version-aware upgrade section."""
-        return self.generate_cli_upgrade_prompt_section('codex')
+    def generate_codex_provision_section(self) -> str:
+        """Generate the Codex provisioning section (install if missing + upgrade)."""
+        return self.generate_cli_provision_section('codex')
 
     def generate_codex_personalized_config_section(self, has_codex_model: bool) -> str:
         """Codex-only: write ~/.codex/config.toml (model + latest features) and a
@@ -757,7 +668,7 @@ pause
         # and a Python helper writes ~/.codex/config.toml (wire_api=chat) to stop the
         # OpenAI WebSocket fallback that ignores OPENAI_BASE_URL. Other tools: MyBest dir.
         is_codex = (command_prefix or "").lower() == "codex"
-        cli_upgrade_section = self.generate_cli_upgrade_prompt_section(command_prefix)
+        cli_provision_section = self.generate_cli_provision_section(command_prefix)
         if is_codex:
             custom_user_dir_section = self.generate_codex_user_dir_section(file_number)
             codex_config_section = self.generate_codex_config_call_section()
@@ -768,9 +679,9 @@ pause
         # Codex: upgrade prompt at the SCRIPT START (before path/env); config
         # section after env loading. Path-init replaces the custom user dir.
         if is_codex:
-            return f"""{header}{file_name_display}{cli_upgrade_section}{custom_user_dir_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+            return f"""{header}{file_name_display}{cli_provision_section}{custom_user_dir_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
-        return f"""{header}{file_name_display}{cli_upgrade_section}{custom_user_dir_section}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+        return f"""{header}{file_name_display}{cli_provision_section}{custom_user_dir_section}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

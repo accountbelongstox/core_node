@@ -1,5 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Claude Code extractor — mirrors Laravel ClaudeCodeExtractor."""
+"""Claude Code extractor — mirrors Laravel ClaudeCodeExtractor.
+
+Human prompts (verified on Claude Code 2.1.283):
+- ``type=user`` entries whose ``origin.kind`` is "human" (or absent on older
+  builds), excluding ``isMeta``, sidechain (subagent task) and injected
+  harness text;
+- ``type=attachment`` with ``attachment.type=queued_command`` and
+  ``origin.kind=human``: prompts typed while a turn is running are absorbed
+  mid-turn and never written as a user entry.
+The same text recorded both ways within PROMPT_DEDUPE_WINDOW_S is kept once.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +19,9 @@ from glob import glob
 from typing import Any, Dict, List, Optional
 
 from pycore.pyctl.agent_history.base_extractor import BaseExtractor, MAX_TURNS
+
+HUMAN_ORIGIN_KIND = "human"
+PROMPT_DEDUPE_WINDOW_S = 300
 
 
 class ClaudeCodeExtractor(BaseExtractor):
@@ -36,6 +49,18 @@ class ClaudeCodeExtractor(BaseExtractor):
             return [sess] if sess else []
         sess = self._parse_session(path, user)
         return [sess] if sess else []
+
+    @staticmethod
+    def _is_human(origin: Any) -> bool:
+        if isinstance(origin, dict) and origin.get("kind"):
+            return str(origin.get("kind")) == HUMAN_ORIGIN_KIND
+        return True
+
+    def _add_prompt(self, prompts: List[Dict[str, Any]], ts: int, text: str) -> None:
+        for p in prompts[-8:]:
+            if p["text"] == self.truncate(text) and abs(int(p["ts"] or 0) - ts) <= PROMPT_DEDUPE_WINDOW_S:
+                return
+        prompts.append({"ts": ts, "text": self.truncate(text)})
 
     def _parse_session(self, file: str, user: str) -> Optional[Dict[str, Any]]:
         entries = self.load_jsonl(file)
@@ -71,13 +96,27 @@ class ClaudeCodeExtractor(BaseExtractor):
                 title = str(e.get("title") or e.get("message") or title)
                 continue
 
+            if etype == "attachment":
+                att = e.get("attachment") or {}
+                if att.get("type") != "queued_command" or not self._is_human(att.get("origin")):
+                    continue
+                text = str(att.get("prompt") or "").strip()
+                if text and not self.is_injected_prompt(text) and not is_side:
+                    self._add_prompt(prompts, ts, text)
+                    turns.append(self.turn(ts, "user", text, is_side))
+                continue
+
             if etype == "user":
                 kind, text = self.classify_user_claude(e)
                 text = text.strip()
                 if not text:
                     continue
+                if kind == "prompt" and (e.get("isMeta") or not self._is_human(e.get("origin"))):
+                    kind = "meta"
                 if kind == "prompt":
-                    prompts.append({"ts": ts, "text": self.truncate(text)})
+                    if not is_side:
+                        # Sidechain user entries are AI-dispatched subagent tasks.
+                        self._add_prompt(prompts, ts, text)
                     turns.append(self.turn(ts, "user", text, is_side))
                 elif kind == "tool_result":
                     turns.append(self.turn(ts, "tool_result", text, is_side))
@@ -130,7 +169,7 @@ class ClaudeCodeExtractor(BaseExtractor):
         last = 0
         for d in rows:
             text = str(d.get("display") or "").strip()
-            if not text:
+            if not text or self.is_injected_prompt(text):
                 continue
             ts = self.ts_to_epoch(d.get("timestamp"))
             if ts > 0:

@@ -48,6 +48,8 @@ SENTENCE_MERGE_RATIO = 0.85
 _ENGINE_POLICY_OVERRIDES: Dict[str, Dict[str, Any]] = {
     "cosyvoice": {"owner": "native", "soft_limit": 200, "hard_limit": 400},
     "fishspeech": {"owner": "project", "soft_limit": 200, "hard_limit": 400},
+    "kokoro": {"owner": "project", "soft_limit": 72, "hard_limit": 80},
+    "sherpa": {"owner": "project", "soft_limit": 72, "hard_limit": 80},
     "voxcpm2": {"owner": "project", "soft_limit": 200, "hard_limit": 400},
     "gptsovits": {"owner": "native", "soft_limit": 200, "hard_limit": 400},
     "melotts": {"owner": "native", "soft_limit": 200, "hard_limit": 400},
@@ -228,7 +230,7 @@ def split_text(text: str, policy: Optional[ChunkPolicy] = None) -> List[TextChun
             units.append(sentence)
             continue
         clauses = [
-            piece.strip() for piece in _CLAUSE_SPLIT_RE.split(sentence) if piece.strip()
+            piece.strip() for piece in CLAUSE_SPLIT_RE.split(sentence) if piece.strip()
         ]
         if len(clauses) > 1:
             units.extend(clauses)

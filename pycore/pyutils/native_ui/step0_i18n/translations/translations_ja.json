@@ -48,11 +48,13 @@
       "code_sync": "コード同期",
       "code_sync_distribute": "配信を開始",
       "code_sync_skip_update": "更新をスキップ",
-      "prompt_derive_sound": "プロンプト派生サウンド"
+      "prompt_derive_sound": "プロンプト派生サウンド",
+      "prompt_new_notify": "新規プロンプト通知"
     }
   },
   "toast": {
-    "prompt_derived_title": "Linux（Debian）の新しいプロンプト"
+    "prompt_derived_title": "Linux（Debian）の新しいプロンプト",
+    "prompt_new_title": "新しいエージェントプロンプト"
   },
   "loading": {
     "text": "読み込み中...",

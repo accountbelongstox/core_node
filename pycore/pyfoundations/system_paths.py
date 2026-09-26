@@ -48,35 +48,145 @@ from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foun
 
 # --------------------------------------------------------------------------- #
 # Agent-history scan constants (directory scan center, see
-# pycore/pyfoundations/agent_home_scanner.py). Roots below may host per-slot
-# isolated agent profiles: scripts/winenvs launchers point USERPROFILE/HOME at
-# D:\programing\Users\<Slot> or D:\.tmp\Users\<Slot> (kimi1/kimi2, codex1,
-# pi*), and GlobalVars.ps1 defines PROGRAMING_USERS_DIR = D:\programing\Users.
-# Linux roots are defined explicitly so the same scan covers Linux hosts.
+# pycore/pyfoundations/agent_home_scanner.py). Single source of truth for every
+# path the launcher scripts isolate agent profiles into; the scanner derives its
+# users-roots from AGENT_LAUNCHER_SLOT_PROFILES, never from a second list.
 # Override/extend via PYCORE_AGENT_HISTORY_USERS_ROOTS (os.pathsep-separated).
 # --------------------------------------------------------------------------- #
 AGENT_HISTORY_USERS_ROOTS_ENV = 'PYCORE_AGENT_HISTORY_USERS_ROOTS'
-AGENT_HISTORY_USERS_ROOTS_WINDOWS = (
-    'D:/programing/Users',
-    'D:/.tmp/Users',
-    'C:/Users',
+
+# Users-root keys. '<data>' expands to core_node_dirs.get_core_node_data_dir()
+# (shells: CORE_NODE_DATA_DIR / GlobalVars.ps1 PROGRAMING_USERS_DIR); '~' is
+# the scanning process home.
+AGENT_SLOT_ROOT_PROGRAMING = 'programing'
+AGENT_SLOT_ROOT_TMP = 'tmp'
+AGENT_SLOT_ROOT_KIMI_FALLBACK = 'kimi_fallback'
+AGENT_SLOT_ROOT_OPENAI_TMP = 'openai_tmp'
+AGENT_SLOT_USERS_ROOTS = {
+    AGENT_SLOT_ROOT_PROGRAMING: {
+        'win32': ('D:/programing/Users',),
+        'linux': ('<data>/Users',),
+    },
+    AGENT_SLOT_ROOT_TMP: {
+        'win32': ('D:/.tmp/Users',),
+        'linux': ('/var/_core_node/Users',),
+    },
+    AGENT_SLOT_ROOT_KIMI_FALLBACK: {
+        'win32': (),
+        'linux': ('~/.kimi_slots',),
+    },
+    AGENT_SLOT_ROOT_OPENAI_TMP: {
+        'win32': (),
+        'linux': ('/tmp/Users',),
+    },
+}
+# OS-level user roots (real accounts), scanned on every host.
+AGENT_HISTORY_USERS_ROOTS_WINDOWS = ('C:/Users',)
+AGENT_HISTORY_USERS_ROOTS_LINUX = ('/home', '/root')
+
+# Non-human accounts are never scanned as agent users. Linux: an account is
+# human when uid == 0 or (uid >= AGENT_HISTORY_HUMAN_UID_MIN, login.defs
+# UID_MIN) with a login shell; the name list also covers service accounts
+# that own a /home dir (git, gitlab-runner, ...). Windows: built-in profile
+# dirs and machine accounts (name ending in '$', e.g. DESKTOP-XXXX$).
+AGENT_HISTORY_HUMAN_UID_MIN = 1000
+AGENT_HISTORY_NOLOGIN_SHELLS = (
+    '/usr/sbin/nologin', '/sbin/nologin', '/bin/false', '/usr/bin/false',
 )
-AGENT_HISTORY_USERS_ROOTS_LINUX = (
-    '/home',
-    '/root',
+AGENT_HISTORY_NON_HUMAN_USERS = (
+    'git', 'gitlab-runner', 'gitea', 'nobody', 'www-data', 'postgres',
+    'mysql', 'redis', 'frankenphp', 'Debian-gdm', 'gdm', 'sshd', 'syslog',
+    'messagebus', 'dnsmasq', 'docker', 'ollama', 'lost+found',
+    'Public', 'Default', 'Default User', 'All Users', 'DefaultAppPool',
+    'WDAGUtilityAccount', 'defaultuser0',
+)
+AGENT_HISTORY_NON_HUMAN_SUFFIXES = ('$',)
+
+# Launcher -> isolated profile. (script stem, tool, {platform: root key}, slot)
+# slot ending in '*' is a numbered family (MyBest1..N, auto-created by the
+# script). Verified against scripts/winenvs/*.ps1 + scripts/linuxenvs/*.sh and
+# GlobalVars.ps1 / gvar_system_common.sh on 2026-09-26. Scripts that keep the
+# real home (claude1-5, claudeteam, claude<vendor>, codexyolo, kimiyolo,
+# agyyolo, ssh*) are covered by the OS-level user roots.
+_P = AGENT_SLOT_ROOT_PROGRAMING
+_T = AGENT_SLOT_ROOT_TMP
+AGENT_LAUNCHER_SLOT_PROFILES = (
+    ('kimi1', 'kimi', {'win32': _T, 'linux': _T}, 'Kimi1'),
+    ('kimi2', 'kimi', {'win32': _T, 'linux': _T}, 'Kimi2'),
+    ('codex1', 'codex', {'win32': _P, 'linux': _T}, 'Codex1'),
+    ('codex2', 'codex', {'win32': _T, 'linux': _T}, 'MyBest*'),
+    ('claude6', 'claude', {'win32': _T, 'linux': _T}, 'MyBest*'),
+    ('claude9', 'claude', {'win32': _T, 'linux': _T}, 'MyBest*'),
+    ('ark1-7', 'claude', {'win32': _P, 'linux': _T}, 'ark*'),
+    ('openai1', 'codex', {'linux': AGENT_SLOT_ROOT_OPENAI_TMP}, '<timestamp>'),
+    ('piyolo/piark*', 'pi', {'win32': _P, 'linux': _P}, 'PiYolo'),
+    ('pikimiyolo', 'pi', {'win32': _P, 'linux': _P}, 'PiKimi'),
+    ('piclaodecode', 'pi', {'win32': _P, 'linux': _P}, 'PiClaudeCode'),
+    ('picodex', 'pi', {'win32': _P, 'linux': _P}, 'PiCodex'),
+    ('pivolcagent', 'pi', {'win32': _P, 'linux': _P}, 'PiVolcAgent'),
+    ('pivolccoding', 'pi', {'win32': _P, 'linux': _P}, 'PiVolcCoding'),
+    ('kimi1/kimi2 fallback', 'kimi', {'linux': AGENT_SLOT_ROOT_KIMI_FALLBACK}, 'Kimi*'),
+)
+del _P, _T
+
+# Per-tool official home spec + support matrix (one table, no second list).
+# Key order is the UI display order (pipeline SUPPORTED_TOOLS derives from it).
+# env: official override var; dirs: default dirs relative to home;
+# platforms: fully supported hosts; verified: on-disk format version the
+# extractor was validated against (2026-09-26); anything newer is parsed
+# best-effort with the same layout.
+AGENT_HISTORY_PLATFORMS = ('win32', 'linux')
+AGENT_HISTORY_OFFICIAL_HOME_MARKERS = {
+    'agent': {'env': '', 'dirs': ('.agent',),
+              'platforms': AGENT_HISTORY_PLATFORMS,
+              'verified': 'generic .agent history'},
+    'pi': {'env': '', 'dirs': ('.pi',),
+           'platforms': AGENT_HISTORY_PLATFORMS,
+           'verified': 'Pi session format version 3'},
+    'claude': {'env': 'CLAUDE_CONFIG_DIR', 'dirs': ('.claude',),
+               'platforms': AGENT_HISTORY_PLATFORMS,
+               'verified': 'Claude Code 2.1.283 projects/*.jsonl + history.jsonl'},
+    'codex': {'env': 'CODEX_HOME', 'dirs': ('.codex',),
+              'platforms': AGENT_HISTORY_PLATFORMS,
+              'verified': 'Codex CLI 0.155.0 rollout-*.jsonl'},
+    'cursor': {'env': '', 'dirs': ('.cursor',),
+               'platforms': AGENT_HISTORY_PLATFORMS,
+               'verified': 'agent-transcripts jsonl + state.vscdb (no official spec)'},
+    'gemini': {'env': 'GEMINI_CLI_HOME', 'dirs': ('.gemini',),
+               'platforms': AGENT_HISTORY_PLATFORMS,
+               'verified': 'Gemini CLI tmp/<hash>/chats + logs.json'},
+    'kimi': {'env': 'KIMI_CODE_HOME', 'dirs': ('.kimi-code', '.kimi'),
+             'platforms': AGENT_HISTORY_PLATFORMS,
+             'verified': 'Kimi Code wire protocol 1.5 (turn.prompt origin.kind)'},
+    'antigravity': {'env': '', 'dirs': ('.gemini',),
+                    'platforms': AGENT_HISTORY_PLATFORMS,
+                    'verified': '.gemini/antigravity/brain artifacts'},
+    'cline': {'env': '', 'dirs': ('.vscode',),
+              'platforms': AGENT_HISTORY_PLATFORMS,
+              'verified': 'VS Code globalStorage tasks/*/api_conversation_history.json'},
+}
+
+# Harness-injected text recorded under the user role (not typed by a human).
+# Shared by every extractor so AI/system text never becomes a "prompt".
+AGENT_HISTORY_INJECTED_PROMPT_PREFIXES = (
+    '<system-reminder>',
+    '<notification',
+    '<task-notification>',
+    '<local-command-',
+    '<command-name>',
+    '<command-message>',
+    '<bash-input>',
+    '<bash-stdout>',
+    '<environment_context>',
+    '<user_instructions>',
+    '<turn_aborted>',
+    '<subagent_notification>',
+    '<git-context>',
+    '# AGENTS.md instructions for ',
+    'Caveat: The messages below were generated by the user while running local commands',
 )
 
-# Official per-tool config/home locations, checked inside every scanned home
-# before falling back to a machine-wide marker scan. `env` is the official
-# override variable (rooted paths only); `dirs` are the official default
-# directory names relative to the user's home.
-AGENT_HISTORY_OFFICIAL_HOME_MARKERS = {
-    'kimi': {'env': 'KIMI_CODE_HOME', 'dirs': ('.kimi-code', '.kimi')},
-    'codex': {'env': 'CODEX_HOME', 'dirs': ('.codex',)},
-    'pi': {'env': '', 'dirs': ('.pi',)},
-    'claude': {'env': 'CLAUDE_CONFIG_DIR', 'dirs': ('.claude',)},
-}
-AGENT_HISTORY_LIVE_SCAN_TOOLS = ('kimi', 'codex', 'pi', 'claude')
+
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
     """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
     etc. is installed). Mirrors gvar_common.sh get_dev_compile_base() and PHP
@@ -900,5 +1010,12 @@ __all__ = [
     'AGENT_HISTORY_USERS_ROOTS_WINDOWS',
     'AGENT_HISTORY_USERS_ROOTS_LINUX',
     'AGENT_HISTORY_OFFICIAL_HOME_MARKERS',
-    'AGENT_HISTORY_LIVE_SCAN_TOOLS',
+    'AGENT_HISTORY_PLATFORMS',
+    'AGENT_HISTORY_INJECTED_PROMPT_PREFIXES',
+    'AGENT_HISTORY_HUMAN_UID_MIN',
+    'AGENT_HISTORY_NOLOGIN_SHELLS',
+    'AGENT_HISTORY_NON_HUMAN_USERS',
+    'AGENT_HISTORY_NON_HUMAN_SUFFIXES',
+    'AGENT_SLOT_USERS_ROOTS',
+    'AGENT_LAUNCHER_SLOT_PROFILES',
 ]

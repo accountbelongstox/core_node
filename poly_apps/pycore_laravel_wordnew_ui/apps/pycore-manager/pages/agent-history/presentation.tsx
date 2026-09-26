@@ -4,10 +4,6 @@ import { User as UserIcon, Bot, Wrench, Brain, Cpu } from 'lucide-react';
 /** Shared presentational vocabulary for the dev-history surfaces (badges, roles). */
 
 export const PAGE_SIZE = 50;
-export const AGENT_HISTORY_TOOLS = [
-  'agent', 'pi', 'claude', 'codex', 'cursor', 'gemini',
-  'kimi', 'antigravity', 'cline',
-] as const;
 
 export const TOOL_LABELS: Record<string, string> = {
   claude: 'Claude',

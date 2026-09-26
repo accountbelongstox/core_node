@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
+from pycore.pyctl.agent_history.pipeline.config import SUPPORTED_TOOLS, get_config, save_config
 from pycore.pyctl.agent_history.pipeline.worker import (
     tick_pipeline as pipeline_tick,
     tick_upload as upload_tick,
@@ -21,10 +22,20 @@ EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", s
 PIPELINE_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_PIPELINE_INTERVAL", str(DEFAULT_INTERVAL)))
 UPLOAD_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_UPLOAD_INTERVAL", str(DEFAULT_INTERVAL)))
 LIVE_SCAN_MIN_INTERVAL = float(os.environ.get("PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL", "5"))
+# Realtime prompt monitor = persisted switch + UI presence.
+# - ON/OFF is the config key `live_prompt_monitor` (authoritative, shared by
+#   every tab and surface; changes broadcast AGENT_HISTORY_CONFIG_CHANGED).
+# - A mounted UI renews a presence lease with every poll (cadence served to
+#   the UI as `poll_interval`); the lane scans only while ON and present, so
+#   no UI means no 5s lane (2026-09-19 invariant). `release` ends it at once.
+LIVE_MONITOR_POLL_SECONDS = max(1.0, LIVE_SCAN_MIN_INTERVAL)
+LIVE_MONITOR_LEASE_SECONDS = LIVE_MONITOR_POLL_SECONDS * 3
+CONFIG_KEY_LIVE_MONITOR = "live_prompt_monitor"
 
 CALLBACK_EXTRACT = "agent_history_extraction"
 CALLBACK_PIPELINE = "agent_history_pipeline"
 CALLBACK_UPLOAD = "agent_history_upload"
+CALLBACK_LIVE_MONITOR = "agent_history_live_monitor"
 
 
 class _ExtractGate:
@@ -61,6 +72,9 @@ class AgentHistoryTickService:
         # UI-driven realtime scan: throttle + last result (lock-free reads).
         self._live_scan_last_at = 0.0
         self._last_live_scan: Dict[str, Any] = {}
+        self._live_scan_seq = 0
+        # UI presence lease (monotonic deadline); ON/OFF lives in config.
+        self._presence_until = 0.0
         # Snapshot for UI polls — plain attribute reads never wait on a lane.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
@@ -83,6 +97,7 @@ class AgentHistoryTickService:
             "upload_count": int(self._upload_count),
             "last": dict(self._last_summary) if isinstance(self._last_summary, dict) else {},
             "last_live_scan": dict(self._last_live_scan) if isinstance(self._last_live_scan, dict) else {},
+            "monitor": self._monitor_snapshot(),
             "interval": DEFAULT_INTERVAL,
             "extract_interval": EXTRACT_INTERVAL,
             "pipeline_interval": PIPELINE_INTERVAL,
@@ -135,28 +150,89 @@ class AgentHistoryTickService:
         finally:
             self._extract_busy.clear()
 
-    def request_live_scan(self, tools: Any = None) -> Dict[str, Any]:
-        """Queue a UI-driven realtime scan (throttled, shares the extract gate)."""
+    @staticmethod
+    def _monitor_config() -> Dict[str, Any]:
+        config = get_config()
+        tools = [
+            tool for tool in (config.get("enabled_tools") or [])
+            if tool in SUPPORTED_TOOLS
+        ]
+        return {"enabled": bool(config.get(CONFIG_KEY_LIVE_MONITOR, True)), "tools": tools}
+
+    def _monitor_snapshot(self) -> Dict[str, Any]:
+        monitor = self._monitor_config()
+        remaining = max(0.0, round(float(self._presence_until) - time.monotonic(), 3))
+        return {
+            "enabled": monitor["enabled"],
+            "tools": monitor["tools"],
+            "present": remaining > 0.0,
+            "active": monitor["enabled"] and remaining > 0.0 and bool(monitor["tools"]),
+            "lease_remaining": remaining,
+            "interval": LIVE_SCAN_MIN_INTERVAL,
+            "poll_interval": LIVE_MONITOR_POLL_SECONDS,
+            "scan_seq": int(self._live_scan_seq),
+        }
+
+    def tick_live_monitor(self) -> None:
+        """Heartbeat lane: scan while the switch is ON and a UI is present.
+
+        Shares the scan cadence with UI polls through _live_scan_last_at: a
+        UI-driven scan within the last interval satisfies this tick, so the two
+        channels never double-scan.
+        """
         now = time.monotonic()
+        if float(self._presence_until) <= now or self._extract_busy.is_set():
+            return
+        if now - float(self._live_scan_last_at) < LIVE_SCAN_MIN_INTERVAL:
+            return
+        monitor = self._monitor_config()
+        if not monitor["enabled"] or not monitor["tools"]:
+            return
+        self._start_live_scan(monitor["tools"], "AgentHistoryLiveMonitorThread")
+
+    def _start_live_scan(self, tools: Any, thread_name: str) -> None:
+        self._extract_busy.set()
+        self._live_scan_last_at = time.monotonic()
+        start_bus_task(self._run_requested_live_scan, tools, thread_name=thread_name)
+
+    def request_live_scan(
+        self,
+        tools: Any = None,
+        enabled: Any = None,
+        release: bool = False,
+    ) -> Dict[str, Any]:
+        """UI poll: renew presence, optionally flip the persisted switch, scan.
+
+        ``enabled`` persists the switch (every tab/surface converges through
+        AGENT_HISTORY_CONFIG_CHANGED). ``release`` ends presence immediately
+        (page unmount). ``last`` is returned only with its ``scan_seq`` so a
+        client never re-applies an old result.
+        """
+        if enabled is not None:
+            save_config({CONFIG_KEY_LIVE_MONITOR: bool(enabled)})
+        if release:
+            self._presence_until = 0.0
+            self._publish_snapshot()
+            return {"queued": False, "released": True, "monitor": self._monitor_snapshot()}
+        self._presence_until = time.monotonic() + LIVE_MONITOR_LEASE_SECONDS
+        monitor = self._monitor_config()
+        base = {"last": dict(self._last_live_scan)}
+        if enabled is False or (enabled is None and not tools and not monitor["enabled"]):
+            return {**base, "queued": False, "monitor": self._monitor_snapshot()}
         if self._extract_busy.is_set():
-            return {"queued": False, "busy": True, "last": dict(self._last_live_scan)}
-        elapsed = now - float(self._live_scan_last_at)
+            return {**base, "queued": False, "busy": True, "monitor": self._monitor_snapshot()}
+        elapsed = time.monotonic() - float(self._live_scan_last_at)
         if self._last_live_scan and elapsed < LIVE_SCAN_MIN_INTERVAL:
             return {
+                **base,
                 "queued": False,
                 "busy": False,
                 "throttled": True,
                 "retry_after": round(LIVE_SCAN_MIN_INTERVAL - elapsed, 3),
-                "last": dict(self._last_live_scan),
+                "monitor": self._monitor_snapshot(),
             }
-        self._extract_busy.set()
-        self._live_scan_last_at = now
-        start_bus_task(
-            self._run_requested_live_scan,
-            tools,
-            thread_name="AgentHistoryLiveScanThread",
-        )
-        return {"queued": True, "busy": False}
+        self._start_live_scan(tools or monitor["tools"] or None, "AgentHistoryLiveScanThread")
+        return {**base, "queued": True, "busy": False, "monitor": self._monitor_snapshot()}
 
     def _run_requested_live_scan(self, tools: Any) -> None:
         try:
@@ -167,7 +243,9 @@ class AgentHistoryTickService:
     def _run_live_scan(self, tools: Any = None) -> Dict[str, Any]:
         try:
             result = agent_history_service.live_scan(tools)
-            self._last_live_scan = result if isinstance(result, dict) else {}
+            self._live_scan_seq += 1
+            self._last_live_scan = {**result, "scan_seq": self._live_scan_seq} if isinstance(result, dict) else {}
+            self._publish_snapshot()
             if result.get("changed"):
                 ColorPrint.gray(
                     f"[AgentHistory] live scan: changed={result.get('changed_tools')} "

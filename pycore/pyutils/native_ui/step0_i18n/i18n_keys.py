@@ -63,9 +63,11 @@ class I18nKeys:
     TRAY_MENU_CODE_SYNC_DISTRIBUTE = "tray.menu.code_sync_distribute"
     TRAY_MENU_CODE_SYNC_SKIP_UPDATE = "tray.menu.code_sync_skip_update"
     TRAY_MENU_PROMPT_DERIVE_SOUND = "tray.menu.prompt_derive_sound"
+    TRAY_MENU_PROMPT_NEW_NOTIFY = "tray.menu.prompt_new_notify"
 
     # Toast keys
     TOAST_PROMPT_DERIVED_TITLE = "toast.prompt_derived_title"
+    TOAST_PROMPT_NEW_TITLE = "toast.prompt_new_title"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

@@ -75,3 +75,11 @@ Status: **Implementation complete (2026-09-19)** — static checks pass; runtime
   2. Stat buttons open floating panels with working pagination; page bottom never auto-scrolls.
   3. 立即刷新 forces a rescan and fresh statistics; unchanged agents are reported as skipped in the live-scan response.
   4. Windows run covers `D:\programing\Users` and `D:\.tmp\Users` slots (Linux roots verified by smoke test).
+
+---
+Follow-up (2026-09-26): `docs_fix/FIX_20260926_AGENT_HISTORY_SCAN_CENTER_MONITOR_TRAY_NOTIFY.md`
+supersedes two details of this design/progress: (1) the live-scan tool set is no longer limited
+to kimi/codex/pi/claude — it derives from the extractor registry; (2) the realtime monitor toggle
+is now bound to backend state (lease-based `agent_history_live_monitor` lane) instead of being a
+pure UI-side poll, and the scan center covers the native Linux slot root
+`<core_node_data_dir>/Users` (scripts/linuxenvs kimi1/kimi2/pi*/codex1/MyBest* slots).

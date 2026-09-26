@@ -8,14 +8,17 @@ so long local synthesis never queues duplicate runs or blocks UI status reads.
 
 import os
 
+from pycore.pyfoundations.agent_home_scanner import unreadable_user_homes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.agent_history.tick_service import (
     CALLBACK_EXTRACT,
+    CALLBACK_LIVE_MONITOR,
     CALLBACK_PIPELINE,
     CALLBACK_UPLOAD,
     EXTRACT_INTERVAL,
+    LIVE_SCAN_MIN_INTERVAL,
     PIPELINE_INTERVAL,
     UPLOAD_INTERVAL,
     agent_history_tick_service,
@@ -26,18 +29,32 @@ VIDEO_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_VIDEO_INTERVAL", "2"))
 CALLBACK_VIDEO = "agent_history_video"
 
 
-def _config_enabled() -> bool:
-    config = user_data_store.get_section("agent_history_article") or {}
-    env_enabled = os.environ.get("PYCORE_AGENT_HISTORY_ENABLED")
+ENV_PIPELINE_ENABLED = "PYCORE_AGENT_HISTORY_ENABLED"
+
+
+def pipeline_env_override() -> bool | None:
+    """Env override of the pipeline switch (None when not set)."""
+    env_enabled = os.environ.get(ENV_PIPELINE_ENABLED)
     if env_enabled is None:
-        return bool(config.get("enabled", False))
+        return None
     return env_enabled.strip().lower() not in ("0", "false", "no")
+
+
+def _config_enabled() -> bool:
+    override = pipeline_env_override()
+    if override is not None:
+        return override
+    config = user_data_store.get_section("agent_history_article") or {}
+    return bool(config.get("enabled", False))
 
 
 def set_agent_history_callbacks_enabled(pipeline_enabled: bool) -> None:
     """Apply independent pipeline and video lanes from persisted config."""
     heartbeat = shared_heartbeat_system
     config = user_data_store.get_section("agent_history_article") or {}
+    override = pipeline_env_override()
+    if override is not None:
+        pipeline_enabled = override
     video_enabled = bool(config.get("video_enabled", False))
     heartbeat.enable_callback(CALLBACK_EXTRACT)
     if pipeline_enabled:
@@ -72,6 +89,14 @@ def register_agent_history_extraction() -> None:
         interval=EXTRACT_INTERVAL,
         enabled=extract_on,
     )
+    # Realtime monitor lane: self-gates on the persisted live_prompt_monitor
+    # switch + UI presence lease; always registered, idle without a UI.
+    heartbeat.register_callback(
+        name=CALLBACK_LIVE_MONITOR,
+        callback=service.tick_live_monitor,
+        interval=max(1, int(LIVE_SCAN_MIN_INTERVAL)),
+        enabled=True,
+    )
     heartbeat.register_callback(
         name=CALLBACK_PIPELINE,
         callback=service.tick_pipeline,
@@ -93,6 +118,12 @@ def register_agent_history_extraction() -> None:
 
     ColorPrint.green("[Callmodule] Registered agent history extract + pipeline + upload + video callbacks")
     ColorPrint.blue(f"  - {CALLBACK_EXTRACT}: every {EXTRACT_INTERVAL}s ({'on' if extract_on else 'off'})")
+    ColorPrint.blue(f"  - {CALLBACK_LIVE_MONITOR}: every {int(LIVE_SCAN_MIN_INTERVAL)}s (lease-gated)")
     ColorPrint.blue(f"  - {CALLBACK_PIPELINE}: every {PIPELINE_INTERVAL}s ({'on' if pipeline_on else 'off'})")
     ColorPrint.blue(f"  - {CALLBACK_UPLOAD}: every {UPLOAD_INTERVAL}s ({'on' if pipeline_on else 'off'})")
     ColorPrint.blue(f"  - {CALLBACK_VIDEO}: every {VIDEO_INTERVAL}s ({'on' if video_on else 'off'})")
+    unreadable = unreadable_user_homes()
+    if unreadable:
+        ColorPrint.yellow(
+            f"[AgentHistory] homes not readable by this process (prompts there are not scanned): {unreadable}"
+        )

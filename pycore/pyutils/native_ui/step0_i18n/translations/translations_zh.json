@@ -48,11 +48,13 @@
       "code_sync": "代码同步",
       "code_sync_distribute": "开始分发",
       "code_sync_skip_update": "跳过更新",
-      "prompt_derive_sound": "提示词推导提示音"
+      "prompt_derive_sound": "提示词推导提示音",
+      "prompt_new_notify": "新提示词通知"
     }
   },
   "toast": {
-    "prompt_derived_title": "当前 Linux（Debian）系统新提示词"
+    "prompt_derived_title": "当前 Linux（Debian）系统新提示词",
+    "prompt_new_title": "新的 Agent 提示词"
   },
   "loading": {
     "text": "加载中...",

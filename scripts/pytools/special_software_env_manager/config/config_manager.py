@@ -37,7 +37,7 @@ class ConfigManager:
                     },
                     {
                         'Name': 'ANTHROPIC_MODEL',
-                        'Description': 'Default model (optional, e.g. claude-opus-4-8); empty = account default',
+                        'Description': 'Default model (optional, e.g. claude-opus-5-5); empty = account default',
                         'Required': False
                     },
                 ],

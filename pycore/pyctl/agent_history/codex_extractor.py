@@ -20,10 +20,14 @@ class CodexExtractor(BaseExtractor):
         if not os.path.isdir(root):
             return []
         out: List[Dict[str, Any]] = []
-        sessions_dir = os.path.join(root, "sessions")
-        if os.path.isdir(sessions_dir):
-            for file in self._find_rollouts(sessions_dir):
-                out.append(self.descriptor(file))
+        # Official layout: sessions/YYYY/MM/DD/rollout-*.jsonl; archived sessions
+        # move to archived_sessions/ with the same file shape (openai/codex
+        # codex-rs/rollout: SESSIONS_SUBDIR / ARCHIVED_SESSIONS_SUBDIR).
+        for subdir in ("sessions", "archived_sessions"):
+            sessions_dir = os.path.join(root, subdir)
+            if os.path.isdir(sessions_dir):
+                for file in self._find_rollouts(sessions_dir):
+                    out.append(self.descriptor(file))
         history = os.path.join(root, "history.jsonl")
         if os.path.isfile(history):
             out.append(self.descriptor(history))
@@ -82,7 +86,9 @@ class CodexExtractor(BaseExtractor):
                 text = self._extract_response_text(payload.get("content") or [])
                 if not text.strip():
                     continue
-                if role == "user":
+                if role == "user" and self.is_injected_prompt(text):
+                    turns.append(self.turn(ts, "system", text))
+                elif role == "user":
                     prompts.append({"ts": ts, "text": self.truncate(text)})
                     turns.append(self.turn(ts, "user", text))
                 else:
@@ -133,7 +139,7 @@ class CodexExtractor(BaseExtractor):
         last = 0
         for d in rows:
             text = str(d.get("text") or d.get("display") or "").strip()
-            if not text:
+            if not text or self.is_injected_prompt(text):
                 continue
             ts = self.ts_to_epoch(d.get("ts") or d.get("timestamp"))
             if ts > 0:

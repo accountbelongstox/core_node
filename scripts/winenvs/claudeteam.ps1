@@ -14,23 +14,22 @@
 .SYNOPSIS
     Launches Claude Code with multiple roles (experimental agent teams) always on,
     an opt-in ultracode prompt (default No), and - when ultracode is enabled - an
-    opt-in prompt (default Yes) to force Opus 4.8 everywhere.
+    opt-in prompt (default Yes) to force Opus 5.5 everywhere.
 
 .DESCRIPTION
     Always sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session
     (multiple roles). Then prompts "Enable ultracode?" (default No); when enabled it
     adds --effort ultracode (session-only xhigh effort + automatic workflow
     orchestration; official CLI reference, requires Claude Code v2.1.203+) and
-    prompts "Use Opus 4.8 1M as the ultracode model?" (default Yes). If accepted,
-    the pinned Opus 4.8 id plus the 1M-context suffix ("claude-opus-4-8[1m]") is
-    forced for the main session, subagents and the background Haiku/Sonnet slots,
-    running:
-    claude --effort ultracode --model claude-opus-4-8[1m] --dangerously-skip-permissions
+    prompts "Use Opus 5.5 as the ultracode model?" (default Yes). If accepted,
+    the pinned Opus 5.5 id ("claude-opus-5-5") is forced for the main session,
+    subagents and the background Haiku/Sonnet slots, running:
+    claude --effort ultracode --model claude-opus-5-5 --dangerously-skip-permissions
     The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL
     pins subagents/agent-teams; ANTHROPIC_DEFAULT_OPUS_MODEL /
     ANTHROPIC_DEFAULT_SONNET_MODEL / ANTHROPIC_DEFAULT_HAIKU_MODEL redirect the
-    opus/sonnet/haiku aliases + background traffic to Opus 4.8 too. Claude Code
-    interprets the [1m] suffix client-side as the 1M-context selector. Using
+    opus/sonnet/haiku aliases + background traffic to Opus 5.5 too. Opus 5.5
+    serves the full 1M-context window by default (no [1m] variant). Using
     --effort (not an inline --settings JSON) avoids PowerShell native-exe quote
     mangling. When ultracode is declined, Claude runs on the account default model.
     Any script arguments are appended to that command line.
@@ -48,6 +47,7 @@ $scriptPath = $null
 $scriptsDirPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
+$aiCliProvisionCommonScript = $null
 $windowsPathFunctionScript = $null
 $forceModel = $null
 $ultraChoice = $null
@@ -71,11 +71,18 @@ $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 
+# Idempotent AI CLI provisioning: install Claude Code with the dd.cmd package
+# manager when the command is missing, then offer an upgrade (default N,
+# auto-skip after 5 seconds) only when a newer version is published.
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonScript
+Invoke-AiCliProvision -Tool "claude"
+
 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 
-# Pinned Opus 4.8 id plus the "[1m]" 1M-context suffix; Claude Code interprets the
-# suffix client-side as the 1M-context selector (official model-config reference).
-$forceModel = 'claude-opus-4-8[1m]'
+# Pinned Opus 5.5 id. Opus 5.5 serves the full 1M-context window by default, so the
+# older "[1m]" variant suffix (still required by Opus 4.6 / Sonnet 4.6) is not used.
+$forceModel = 'claude-opus-5-5'
 
 # Windows default: run experimental agent teams in-process.
 $teammateMode = 'in-process'
@@ -92,8 +99,8 @@ $enableUltra = (($ultraChoice -eq 'y') -or ($ultraChoice -eq 'Y'))
 
 if ($enableUltra) {
     # Ultracode model: only asked when ultracode is enabled, default Yes. Forces
-    # Opus 4.8 with the 1M-context window everywhere.
-    $modelChoice = Read-Host "Use Opus 4.8 1M ($forceModel) as the ultracode model everywhere? [Y/n]"
+    # Opus 5.5 everywhere.
+    $modelChoice = Read-Host "Use Opus 5.5 ($forceModel) as the ultracode model everywhere? [Y/n]"
     $forceOpusEnabled = (($modelChoice -ne 'n') -and ($modelChoice -ne 'N'))
 }
 

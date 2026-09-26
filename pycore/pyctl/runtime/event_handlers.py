@@ -29,6 +29,7 @@ from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
 from pycore.pyctl.agent_history.prompt_derive_service import start_prompt_derive_service
+from pycore.pyctl.agent_history.prompt_notify_service import start_prompt_notify_service
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.relay import laravel_relay_agent_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
@@ -55,6 +56,7 @@ from pycore.pylauncher.tray_menu import (
     TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL,
     TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
     TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL,
+    TRAY_TOGGLE_PROMPT_NEW_NOTIFY_SIGNAL,
 )
 from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
 from pycore.pylauncher.tray_codesync_cache import (
@@ -313,9 +315,34 @@ def register_event_handlers(
             enabled = not bool(get_config().get("prompt_derive_sound", True))
             save_config({"prompt_derive_sound": enabled})
             ColorPrint.green(f"[Tray] Prompt derive sound: {'ON' if enabled else 'OFF'}")
-            update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
         except Exception as e:
             ColorPrint.red(f"[Tray] Prompt derive sound toggle failed: {e}")
+
+    def handle_tray_toggle_prompt_new_notify(event_data):
+        """Flip the new-prompt tray/desktop notification flag.
+
+        Same agent-history config key (prompt_new_notify) the WEB UI settings
+        persist, so the tray menu and the web settings operate one switch; the
+        prompt-notify watcher reads it before every notification.
+        """
+        try:
+            from pycore.pyctl.agent_history.pipeline.config import get_config, save_config
+            enabled = not bool(get_config().get("prompt_new_notify", True))
+            save_config({"prompt_new_notify": enabled})
+            ColorPrint.green(f"[Tray] Prompt new notification: {'ON' if enabled else 'OFF'}")
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Prompt new notification toggle failed: {e}")
+
+    def handle_agent_history_config_changed(event_data):
+        """Single tray-refresh path for agent-history switches changed by any
+        surface (tray click, WEB UI tab, API): the menu mirrors the config."""
+        changed = set((event_data or {}).get("changed") or []) if isinstance(event_data, dict) else set()
+        if not changed & {"prompt_derive_sound", "prompt_new_notify"}:
+            return
+        try:
+            update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Agent-history menu refresh failed: {e}")
 
     def handle_language_changed(event_data):
         """
@@ -366,6 +393,10 @@ def register_event_handlers(
         TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL, handle_tray_toggle_code_sync_skip_update)
     THREAD_BUS.register_event_handler(
         TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL, handle_tray_toggle_prompt_derive_sound)
+    THREAD_BUS.register_event_handler(
+        TRAY_TOGGLE_PROMPT_NEW_NOTIFY_SIGNAL, handle_tray_toggle_prompt_new_notify)
+    THREAD_BUS.register_event_handler(
+        BusSignals.AGENT_HISTORY_CONFIG_CHANGED, handle_agent_history_config_changed)
     # Fallback: only fires when the PySide6 backend is selected but no system tray exists
     THREAD_BUS.register_event_handler('tray.native_unavailable', handle_native_tray_unavailable)
     # Language switch (UI settings / bus): persist + rebuild tray texts
@@ -450,6 +481,7 @@ def register_runtime_workers() -> None:
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("agent_history", register_agent_history_extraction),
         ("prompt_derive_service", start_prompt_derive_service),
+        ("prompt_notify_service", start_prompt_notify_service),
     )
     if pyservice_mode_service.relay_enabled():
         service_steps = (

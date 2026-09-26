@@ -18,7 +18,7 @@
 # Synopsis:
 #     Launches Claude Code with multiple roles (experimental agent teams) always
 #     on, an opt-in ultracode prompt (default No), and - when ultracode is enabled
-#     - an opt-in prompt (default Yes) to force Opus 4.8 everywhere (Linux).
+#     - an opt-in prompt (default Yes) to force Opus 5.5 everywhere (Linux).
 #
 # Description:
 #     Linux mirror of scripts/winenvs/claudeteam.ps1. Always sets
@@ -26,16 +26,15 @@
 #     roles). Then prompts "Enable ultracode?" (default No); when enabled it adds
 #     --effort ultracode (session-only xhigh effort + automatic workflow
 #     orchestration; official CLI reference, requires Claude Code v2.1.203+) and
-#     prompts "Use Opus 4.8 1M as the ultracode model?" (default Yes). If accepted,
-#     the pinned Opus 4.8 id plus the 1M-context suffix ("claude-opus-4-8[1m]") is
-#     forced for the main session, subagents and the background Haiku/Sonnet slots,
-#     running:
-#         claude --effort ultracode --model claude-opus-4-8[1m] --dangerously-skip-permissions [args...]
+#     prompts "Use Opus 5.5 as the ultracode model?" (default Yes). If accepted,
+#     the pinned Opus 5.5 id ("claude-opus-5-5") is forced for the main session,
+#     subagents and the background Haiku/Sonnet slots, running:
+#         claude --effort ultracode --model claude-opus-5-5 --dangerously-skip-permissions [args...]
 #     The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL
 #     pins subagents/agent-teams; ANTHROPIC_DEFAULT_OPUS_MODEL /
 #     ANTHROPIC_DEFAULT_SONNET_MODEL / ANTHROPIC_DEFAULT_HAIKU_MODEL redirect the
-#     opus/sonnet/haiku aliases + background traffic to Opus 4.8 too. Claude Code
-#     interprets the [1m] suffix client-side as the 1M-context selector. When
+#     opus/sonnet/haiku aliases + background traffic to Opus 5.5 too. Opus 5.5
+#     serves the full 1M-context window by default (no [1m] variant). When
 #     ultracode is declined, Claude runs on the account default model. Any script
 #     arguments are appended to that command line.
 #
@@ -54,7 +53,7 @@
 set -e
 
 # Variable declarations (declared at the beginning of the file)
-force_model="claude-opus-4-8[1m]"
+force_model="claude-opus-5-5"
 ultra_choice=""
 ultra_enabled=0
 model_choice=""
@@ -62,9 +61,28 @@ force_opus_enabled=0
 claude_args=()
 claude_invoke_display=""
 claude_team_args_display=""
+scriptSource=""
+scriptCurrentPath=""
+scriptsDirPath=""
+aiCliProvisionCommonPath=""
 
 # Multiple roles: enable experimental agent teams for the session.
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+
+# Initialize path variables
+scriptSource="${BASH_SOURCE[0]}"
+if [ -L "$scriptSource" ]; then
+    scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
+fi
+scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
+scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+
+# Idempotent AI CLI provisioning: install Claude Code with the canonical dd.sh
+# workflow when the command is missing, then offer an upgrade (default N,
+# auto-skip after 5 seconds) only when a newer version is published.
+aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
+. "$aiCliProvisionCommonPath"
+ai_cli_provision "claude"
 
 # Ultracode: opt-in prompt, default No. When enabled, ultracode is turned on via
 # the dedicated effort flag "--effort ultracode" (official CLI reference; requires
@@ -79,11 +97,11 @@ if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
 fi
 
 # Ultracode model: only asked when ultracode is enabled, default Yes. Forces Opus
-# 4.8 with the 1M-context window everywhere. "$force_model" is the pinned Opus 4.8
-# id plus the "[1m]" suffix ("claude-opus-4-8[1m]"), which Claude Code interprets
-# client-side as the 1M-context selector (official model-config reference).
+# 5.5 everywhere. "$force_model" is the pinned Opus 5.5 id ("claude-opus-5-5"); Opus 5.5
+# serves the full 1M-context window by default, so the older "[1m]" variant suffix
+# (still required by Opus 4.6 / Sonnet 4.6) must not be appended.
 if [ "$ultra_enabled" -eq 1 ]; then
-    read -r -p "Use Opus 4.8 1M (${force_model}) as the ultracode model everywhere? [Y/n]: " model_choice || model_choice=""
+    read -r -p "Use Opus 5.5 (${force_model}) as the ultracode model everywhere? [Y/n]: " model_choice || model_choice=""
     if [ "$model_choice" != "n" ] && [ "$model_choice" != "N" ]; then
         force_opus_enabled=1
     fi
@@ -91,7 +109,7 @@ fi
 
 if [ "$force_opus_enabled" -eq 1 ]; then
     # Env vars cover the model slots that have no CLI flag (official model-config
-    # reference); values are the pinned Opus 4.8 1M model:
+    # reference); values are the pinned Opus 5.5 model:
     #   - CLAUDE_CODE_SUBAGENT_MODEL     : all subagents / agent teams / workflow agents
     #   - ANTHROPIC_DEFAULT_OPUS_MODEL   : the "opus" alias (and opusplan in plan mode)
     #   - ANTHROPIC_DEFAULT_SONNET_MODEL : the "sonnet" alias (and opusplan execution)
