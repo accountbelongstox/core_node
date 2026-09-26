@@ -39,7 +39,13 @@ from pycore.pyfoundations.system_info import (
 )
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.core_node_dirs import (
+    LEGACY_LINUX_USERS_DIR as _LEGACY_LINUX_USERS_DIR,
+    LEGACY_WINDOWS_PROGRAMING_DIR_NAME as _PROGRAMING_DIR_NAME,
+    LEGACY_WINDOWS_PROGRAMING_USERS_DIR as _WINDOWS_PROGRAMING_USERS_DIR,
+    LEGACY_WINDOWS_USERS_DIR_NAME as _USERS_DIR_NAME,
     NTFS_FSTYPES as _NTFS_FSTYPES,
+    WINDOWS_TMP_DIR_NAME as _WINDOWS_TMP_DIR_NAME,
+    WINDOWS_TMP_USERS_DIR as _WINDOWS_TMP_USERS_DIR,
     get_core_node_data_dir as _get_core_node_data_dir,
     read_global_var as _read_global_var_center,
     www_data_root_mounted as _www_data_root_mounted,
@@ -64,12 +70,12 @@ AGENT_SLOT_ROOT_KIMI_FALLBACK = 'kimi_fallback'
 AGENT_SLOT_ROOT_OPENAI_TMP = 'openai_tmp'
 AGENT_SLOT_USERS_ROOTS = {
     AGENT_SLOT_ROOT_PROGRAMING: {
-        'win32': ('D:/programing/Users',),
-        'linux': ('<data>/Users',),
+        'win32': (_WINDOWS_PROGRAMING_USERS_DIR,),
+        'linux': ('<data>/' + _USERS_DIR_NAME,),
     },
     AGENT_SLOT_ROOT_TMP: {
-        'win32': ('D:/.tmp/Users',),
-        'linux': ('/var/_core_node/Users',),
+        'win32': (_WINDOWS_TMP_USERS_DIR,),
+        'linux': (_LEGACY_LINUX_USERS_DIR,),
     },
     AGENT_SLOT_ROOT_KIMI_FALLBACK: {
         'win32': (),
@@ -654,14 +660,17 @@ def get_shared_windows_users_roots() -> List[Path]:
         for mp in mount_points:
             base = Path(mp)
             candidates.extend((
-                base / 'programing' / 'Users',
-                base / '.tmp' / 'Users',
-                base / 'Users',
+                base / _PROGRAMING_DIR_NAME / _USERS_DIR_NAME,
+                base / _WINDOWS_TMP_DIR_NAME / _USERS_DIR_NAME,
+                base / _USERS_DIR_NAME,
             ))
         return [p for p in candidates if p.is_dir()]
     for mp in _iter_ntfs_mount_points():
         base = Path(mp)
-        candidates.extend((base / 'programing' / 'Users', base / '.tmp' / 'Users'))
+        candidates.extend((
+            base / _PROGRAMING_DIR_NAME / _USERS_DIR_NAME,
+            base / _WINDOWS_TMP_DIR_NAME / _USERS_DIR_NAME,
+        ))
     out: List[Path] = []
     seen: set = set()
     for p in candidates:
