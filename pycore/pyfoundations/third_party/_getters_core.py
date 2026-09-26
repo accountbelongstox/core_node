@@ -441,6 +441,26 @@ def get_third_package_pyperclip():
     return _lazy_import('pyperclip', 'import pyperclip')
 
 
+def get_third_package_Xlib_module(submodule: str):
+    """Get one python-xlib submodule such as 'display' or 'ext.xtest' (lazy load)."""
+    cache_key = f'Xlib.{submodule}'
+    if cache_key not in _PACKAGE_CACHE:
+        _lazy_import('Xlib', 'import Xlib')
+        _PACKAGE_CACHE[cache_key] = importlib.import_module(cache_key)
+    return _PACKAGE_CACHE[cache_key]
+
+
+def get_third_package_jeepney_module(submodule: str = ''):
+    """Get jeepney or one of its submodules such as 'io.blocking' (lazy load)."""
+    root = _lazy_import('jeepney', 'import jeepney')
+    if not submodule:
+        return root
+    cache_key = f'jeepney.{submodule}'
+    if cache_key not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE[cache_key] = importlib.import_module(cache_key)
+    return _PACKAGE_CACHE[cache_key]
+
+
 # Google Translate API packages
 def get_third_package_googletrans():
     """Get googletrans package (lazy load)"""

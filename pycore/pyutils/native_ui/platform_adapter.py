@@ -43,6 +43,7 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from pathlib import Path
 
+from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
@@ -131,15 +132,10 @@ class PlatformAdapter:
         Returns:
             True if an X11 or Wayland display is available
         """
-        display = os.environ.get('DISPLAY')
-        if display:
-            ColorPrint.blue(f"[PlatformAdapter] X11 display detected: {display}")
-            return True
-        wayland = os.environ.get('WAYLAND_DISPLAY')
-        session_type = os.environ.get('XDG_SESSION_TYPE', '').lower()
-        if wayland or session_type == 'wayland':
+        session = current_desktop_session()
+        if session.has_display:
             ColorPrint.blue(
-                f"[PlatformAdapter] Wayland session detected: {wayland or session_type}")
+                f"[PlatformAdapter] Display session detected: {session.session_type}")
             return True
         ColorPrint.yellow("[PlatformAdapter] No display server detected (headless mode)")
         return False
@@ -170,8 +166,8 @@ class PlatformAdapter:
                 # Prefer AppIndicator on Ubuntu/GNOME desktop for native tray
                 # (Ubuntu 26.04 ships the appindicator extension by default;
                 # Debian 13 GNOME needs gnome-shell-extension-appindicator).
-                desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').lower()
-                if 'ubuntu' in desktop or 'gnome' in desktop:
+                session = current_desktop_session()
+                if session.is_gnome or 'ubuntu' in session.desktop_names:
                     caps.recommended_tray_backend = TrayBackend.APPINDICATOR
                 else:
                     caps.recommended_tray_backend = TrayBackend.PYSTRAY

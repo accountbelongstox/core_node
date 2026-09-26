@@ -15,7 +15,6 @@ Features:
 """
 
 import os
-import re
 import sys
 import platform
 import stat
@@ -23,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.desktop_session import LINUX_DISTRO, current_desktop_session
 
 import string
 import sys
@@ -429,54 +429,13 @@ def is_wsl() -> bool:
 
 
 def is_desktop_linux() -> bool:
-    """
-    Check if running on desktop Linux (has display server)
-
-    Returns:
-        bool: True if running on desktop Linux
-    """
-    # Check for display environment variables
-    if os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'):
-        return True
-
-    # Check for desktop session
-    if os.environ.get('DESKTOP_SESSION') or os.environ.get('XDG_SESSION_TYPE'):
-        return True
-
-    return False
+    """Return whether a Linux desktop display is available."""
+    return current_desktop_session().has_display
 
 
 def get_linux_distro_info() -> Tuple[str, str]:
-    """
-    Get Linux distribution name and version
-
-    Returns:
-        Tuple[str, str]: (distro_name, version)
-            e.g., ('ubuntu', '24.04') or ('debian', '12')
-    """
-    distro_name = 'linux'
-    version = ''
-
-    # Try to read /etc/os-release
-    if os.path.exists('/etc/os-release'):
-        with open('/etc/os-release', 'r') as f:
-            content = f.read()
-
-            # Extract ID (distro name)
-            id_match = re.search(r'^ID=([^\n]+)$', content, re.MULTILINE)
-            if id_match:
-                distro_name = id_match.group(1).strip().strip('"').lower()
-
-            # Extract VERSION_ID (version number)
-            version_match = re.search(r'^VERSION_ID=([^\n]+)$', content, re.MULTILINE)
-            if version_match:
-                version = version_match.group(1).strip().strip('"')
-
-    # Remove decimal points for version (24.04 -> 24)
-    if version and '.' in version:
-        version = version.split('.')[0]
-
-    return distro_name, version
+    """Return (distro_id, major_version), e.g. ('ubuntu', '26') or ('debian', '13')."""
+    return LINUX_DISTRO.distro_id, LINUX_DISTRO.version_major
 
 
 def get_mounted_drives() -> List[Path]:

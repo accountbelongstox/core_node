@@ -143,6 +143,8 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_pynput,
     get_third_package_keyboard,
     get_third_package_pyperclip,
+    get_third_package_Xlib_module,
+    get_third_package_jeepney_module,
     get_third_package_googletrans,
     get_third_package_googletrans_Translator,
     get_third_package_httpx,
@@ -357,6 +359,8 @@ __all__ = [
     'get_third_package_pynput',
     'get_third_package_keyboard',
     'get_third_package_pyperclip',
+    'get_third_package_Xlib_module',
+    'get_third_package_jeepney_module',
     # Google Translate API
     'get_third_package_googletrans',
     'get_third_package_googletrans_Translator',

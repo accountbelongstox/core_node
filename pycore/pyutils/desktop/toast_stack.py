@@ -27,10 +27,10 @@ Usage:
 
 import queue
 import sys
-import os
 import threading
 from typing import List, Optional
 
+from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
@@ -71,7 +71,7 @@ def desktop_toast_available() -> bool:
     if sys.platform == "win32":
         return True
     if sys.platform.startswith("linux"):
-        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+        return has_graphical_display()
     return False
 
 

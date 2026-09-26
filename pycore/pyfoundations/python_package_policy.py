@@ -65,6 +65,8 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "pynput": "pynput",
     "keyboard": "keyboard",
     "pyperclip": "pyperclip",
+    "Xlib": "python-xlib",
+    "jeepney": "jeepney",
     "googletrans": "googletrans",
     "httpx": "httpx",
     "okx": "python-okx",
