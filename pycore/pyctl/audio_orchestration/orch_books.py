@@ -14,12 +14,12 @@ first sync and old tasks can be regenerated without re-fetching.
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.common.background_jobs import BackgroundJobs
 
 from pycore.pyctl.audio_orchestration import orch_store
@@ -27,8 +27,14 @@ from pycore.pyctl.audio_orchestration import orch_store
 _LARAVEL_BOOKS = "/api/app_qy_v1/media/books"
 _LARAVEL_BOOK_DETAIL = "/api/app_qy_v1/media/books/{source_key}"
 _BOOKS_PAGE_SIZE = 100
-_SENTENCES_PAGE_SIZE = 2000
-_REQUEST_TIMEOUT = orch_store.ORCH_REQUEST_TIMEOUT
+# Small sentence pages: Laravel answers each page with bounded work (keyset
+# after_seq when supported), and a failure costs one page, not the book.
+_SENTENCES_PAGE_SIZE = 500
+_PAGE_TIMEOUT_SECONDS = 45
+_PAGE_ATTEMPTS = 3
+_PAGE_RETRY_DELAYS_SECONDS = (2.0, 5.0)
+_RETRY_WAIT_SIGNAL = "audio_orchestration.page_retry.wait"
+BOOKS_SYNC_KEY = "books"
 
 # Background fetch jobs (UI calls return immediately — relay-safe — while these
 # threads do the multi-page Laravel walk; state is visible via sync_state).
@@ -40,88 +46,129 @@ _ZH_CHARS_PER_SECOND = 4.5
 _SENTENCE_GAP_SECONDS = 1.0
 
 
+class _PageFailure(Exception):
+    """One Laravel page failed after every retry (carries the stable code)."""
+
+    def __init__(self, failure: Dict[str, Any]) -> None:
+        super().__init__(str(failure.get("error_code") or "LARAVEL_REQUEST_FAILED"))
+        self.failure = failure
+
+
 def _job_running(key: str) -> bool:
     return _sync_jobs.running(key)
 
 
+def _attempt_state(status: str, **fields: Any) -> Dict[str, Any]:
+    """One sync attempt's state. A new attempt REPLACES the previous record,
+    so an old failure never outlives the next attempt."""
+    return {"status": status, **fields}
+
+
 def sync_states() -> Dict[str, Any]:
+    """Persisted sync states; a 'running' record without a live job (process
+    restart mid-fetch) is closed as interrupted — resumable from its partial."""
     states = orch_store.load_sync_state()
-    for key, state in states.items():
+    for key, state in list(states.items()):
         if state.get("status") == "running" and not _job_running(key):
-            current = orch_store.load_sync_state().get(key) or {}
-            states[key] = current
-            if current.get("status") == "running":
-                states[key] = {**current, "status": "failed", "error": "book_sync_interrupted"}
-                orch_store.save_sync_state(key, states[key])
+            states[key] = {**state, "status": "failed", "error_code": "BOOK_SYNC_INTERRUPTED", "detail": ""}
+            orch_store.save_sync_state(key, states[key])
     return states
 
 
-def _start_job(key: str, target) -> None:
-    _sync_jobs.start(key, target)
+def _get_page(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """GET one Laravel page with bounded retries; returns the ``data`` dict.
+
+    Raises ``_PageFailure`` with a stable error code after the last attempt.
+    """
+    failure: Dict[str, Any] = {}
+    for attempt in range(_PAGE_ATTEMPTS):
+        if attempt:
+            THREAD_BUS.wait_signal(_RETRY_WAIT_SIGNAL, timeout=_PAGE_RETRY_DELAYS_SECONDS[min(attempt, len(_PAGE_RETRY_DELAYS_SECONDS)) - 1])
+        try:
+            response = laravel_client.get(path, params=params, timeout=_PAGE_TIMEOUT_SECONDS)
+        except Exception as exc:  # noqa: BLE001 - classified and retried
+            failure = laravel_failure(exc)
+            continue
+        if response.status_code != 200:
+            failure = laravel_failure(status_code=response.status_code)
+            if response.status_code < 500 and response.status_code != 429:
+                break
+            continue
+        body = response.json() if response.content else None
+        data = body.get("data") if isinstance(body, dict) else None
+        if isinstance(data, dict):
+            return data
+        failure = {"error_code": "LARAVEL_BAD_RESPONSE", "detail": "missing data", "status": response.status_code}
+    raise _PageFailure(failure)
 
 
-def _fetch_books_blocking() -> Dict[str, Any]:
+def _fetch_books_blocking() -> List[Dict[str, Any]]:
     """Full multi-page books fetch (runs on a background thread only)."""
     items: List[Dict[str, Any]] = []
     page = 1
     while True:
-        resp = laravel_client.get(
-            _LARAVEL_BOOKS,
-            params={"page": page, "per_page": _BOOKS_PAGE_SIZE},
-            timeout=_REQUEST_TIMEOUT,
-        )
-        if resp.status_code != 200:
-            raise RuntimeError(f"HTTP {resp.status_code}")
-        body = resp.json()
-        data = body.get("data") if isinstance(body, dict) else None
-        page_items = data.get("items") if isinstance(data, dict) else None
-        if not isinstance(page_items, list) or not page_items:
+        data = _get_page(_LARAVEL_BOOKS, {"page": page, "per_page": _BOOKS_PAGE_SIZE})
+        page_items = data.get("items") if isinstance(data.get("items"), list) else []
+        if not page_items:
             break
         items.extend(page_items)
-        orch_store.save_sync_state("books", {
-            "status": "running", "fetched": len(items),
-        })
+        orch_store.save_sync_state(BOOKS_SYNC_KEY, _attempt_state(
+            "running", fetched=len(items), attempt_at=int(time.time()),
+        ))
         last_page = int(data.get("last_page") or page)
         if page >= last_page:
             break
         page += 1
-    if not orch_store.save_books_cache(items):
-        return {"success": False, "error": "books_cache_write_failed", "items": items}
-    return {"items": items, "fetched_at": int(time.time())}
+    return items
 
 
 def _books_job() -> None:
+    started = int(time.time())
+    orch_store.save_sync_state(BOOKS_SYNC_KEY, _attempt_state("running", fetched=0, attempt_at=started))
     try:
-        result = _fetch_books_blocking()
-        orch_store.save_sync_state("books", {
-            "status": "failed" if result.get("success") is False else "done",
-            "fetched": len(result["items"]), "error": result.get("error"),
-        })
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] books fetch failed: {exc}")
-        orch_store.save_sync_state("books", {
-            "status": "failed", "error": str(exc),
-        })
+        items = _fetch_books_blocking()
+    except _PageFailure as failure:
+        ColorPrint.yellow(f"[AudioOrch] books fetch failed: {failure.failure}")
+        orch_store.save_sync_state(BOOKS_SYNC_KEY, _attempt_state(
+            "failed", attempt_at=started, finished_at=int(time.time()),
+            error_code=failure.failure.get("error_code"), detail=failure.failure.get("detail") or "",
+        ))
+        return
+    if not orch_store.save_books_cache(items):
+        orch_store.save_sync_state(BOOKS_SYNC_KEY, _attempt_state(
+            "failed", attempt_at=started, finished_at=int(time.time()),
+            error_code="BOOKS_CACHE_WRITE_FAILED", detail="",
+        ))
+        return
+    orch_store.save_sync_state(BOOKS_SYNC_KEY, _attempt_state(
+        "done", fetched=len(items), attempt_at=started, finished_at=int(time.time()),
+    ))
+
+
+def _start_books_job() -> bool:
+    # The job records its own 'running' state once registered, so a
+    # concurrent sync_states() never mistakes it for an interrupted run.
+    return _sync_jobs.start(BOOKS_SYNC_KEY, _books_job)
 
 
 def fetch_books(refresh: bool = False) -> Dict[str, Any]:
     """Relay-safe books listing: always answers from the local cache instantly.
     ``refresh=True`` (or an empty cache) starts a background Laravel fetch whose
-    progress is readable through sync_state; the UI polls for the result."""
+    progress is readable through ``sync``; the UI polls while it runs. ``sync``
+    describes ONLY the books-list attempt (per-book sentence syncs are
+    reported per book)."""
     cached = orch_store.load_books_cache()
-    state = orch_store.load_sync_state().get("books") or {}
-    running = _job_running("books")
+    state = sync_states().get(BOOKS_SYNC_KEY) or {}
+    running = _job_running(BOOKS_SYNC_KEY)
     if (refresh or (not cached.get("items") and state.get("status") != "failed")) and not running:
-        orch_store.save_sync_state("books", {"status": "running", "fetched": 0})
-        _start_job("books", _books_job)
-        running = True
+        running = _start_books_job() or _job_running(BOOKS_SYNC_KEY)
     return {
         "success": True,
         "cached": True,
         "items": cached.get("items") or [],
         "fetched_at": cached.get("fetched_at") or 0,
         "refreshing": running,
-        "sync": orch_store.load_sync_state().get("books") or state,
+        "sync": orch_store.load_sync_state().get(BOOKS_SYNC_KEY) or state,
     }
 
 
@@ -158,32 +205,52 @@ def _extract_sentence(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     }
 
 
+def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any], bool]:
+    """Fetch one sentence page; returns (data, next cursor, finished).
+
+    Keyset mode (``after_seq``; no OFFSET / COUNT on Laravel) is used when
+    the server supports it; an older server ignores ``after_seq`` and
+    answers page 1, detected by the missing ``next_after_seq`` — the walk
+    then continues with page numbers.
+    """
+    params: Dict[str, Any] = {
+        "grain": "sentence",
+        "per_page": _SENTENCES_PAGE_SIZE,
+        "include_enrichment": "0",
+    }
+    if cursor.get("mode") != "page":
+        params["after_seq"] = int(cursor.get("after_seq") or 0)
+    else:
+        params["page"] = int(cursor.get("page") or 1)
+    data = _get_page(_LARAVEL_BOOK_DETAIL.format(source_key=quote(source_key, safe="")), params)
+    page_data = data.get("sentences") if isinstance(data.get("sentences"), dict) else None
+    if page_data is None:
+        raise _PageFailure({"error_code": "BOOK_SENTENCE_PAGE_MISSING", "detail": "", "status": 200})
+    if cursor.get("mode") != "page" and "next_after_seq" in page_data:
+        next_after = page_data.get("next_after_seq")
+        finished = not bool(page_data.get("has_more")) or next_after is None
+        return data, {"mode": "keyset", "after_seq": int(next_after or 0)}, finished
+    page = int(page_data.get("current_page") or cursor.get("page") or 1)
+    last_page = int(page_data.get("last_page") or page)
+    return data, {"mode": "page", "page": page + 1}, page >= last_page
+
+
 def _fetch_sentences_blocking(source_key: str) -> Dict[str, Any]:
-    """Full multi-page sentence fetch (background thread or generation only)."""
-    sentences: List[Dict[str, Any]] = []
-    source: Dict[str, Any] = {}
-    page = 1
+    """Resumable multi-page sentence fetch (background thread or generation).
+
+    Progress persists after every page (``orch_store`` partial), so a failed
+    or interrupted sync resumes where it stopped instead of restarting.
+    """
+    partial = orch_store.load_book_sentences_partial(source_key) or {}
+    sentences: List[Dict[str, Any]] = list(partial.get("sentences") or [])
+    source: Dict[str, Any] = dict(partial.get("source") or {})
+    cursor: Dict[str, Any] = dict(partial.get("cursor") or {"mode": "keyset", "after_seq": 0})
+    total = int(partial.get("total") or 0)
+    attempt_at = int(time.time())
     while True:
-        resp = laravel_client.get(
-            _LARAVEL_BOOK_DETAIL.format(source_key=quote(source_key, safe="")),
-            params={
-                "grain": "sentence",
-                "per_page": _SENTENCES_PAGE_SIZE,
-                "page": page,
-                "include_enrichment": "0",
-            },
-            timeout=_REQUEST_TIMEOUT,
-        )
-        if resp.status_code != 200:
-            raise RuntimeError(f"HTTP {resp.status_code}")
-        body = resp.json()
-        data = body.get("data") if isinstance(body, dict) else None
-        if not isinstance(data, dict):
-            raise RuntimeError("unexpected response shape")
+        data, next_cursor, finished = _sentence_page(source_key, cursor)
         if not source and isinstance(data.get("source"), dict):
             source = data["source"]
-        if not isinstance(data.get("sentences"), dict):
-            return {"success": False, "error": "book_sentence_page_missing"}
         page_data = data["sentences"]
         items = page_data.get("items") if isinstance(page_data.get("items"), list) else []
         for item in items:
@@ -191,16 +258,18 @@ def _fetch_sentences_blocking(source_key: str) -> Dict[str, Any]:
                 sentence = _extract_sentence(item)
                 if sentence is not None:
                     sentences.append(sentence)
-        total = int(page_data.get("total") or 0)
-        orch_store.save_sync_state(source_key, {
-            "status": "running", "fetched": len(sentences), "total": total,
+        total = int(page_data.get("total") or total or 0)
+        if not items and not finished:
+            raise _PageFailure({"error_code": "BOOK_SENTENCE_PAGE_INCOMPLETE", "detail": "", "status": 200})
+        cursor = next_cursor
+        orch_store.save_book_sentences_partial(source_key, {
+            "source": source, "sentences": sentences, "cursor": cursor, "total": total,
         })
-        last_page = int(page_data.get("last_page") or page)
-        if not items and page < last_page:
-            return {"success": False, "error": "book_sentence_page_incomplete"}
-        if page >= last_page:
+        orch_store.save_sync_state(source_key, _attempt_state(
+            "running", fetched=len(sentences), total=total, attempt_at=attempt_at,
+        ))
+        if finished:
             break
-        page += 1
     payload = {
         "source_key": source_key,
         "title": str(source.get("title") or source.get("original_name") or source_key),
@@ -209,22 +278,28 @@ def _fetch_sentences_blocking(source_key: str) -> Dict[str, Any]:
         "sentences": sentences,
     }
     if not orch_store.save_book_sentences(source_key, payload):
-        return {"success": False, "error": "book_sentence_cache_write_failed"}
+        raise _PageFailure({"error_code": "BOOK_SENTENCE_CACHE_WRITE_FAILED", "detail": "", "status": 0})
+    orch_store.delete_book_sentences_partial(source_key)
     return {"success": True, **payload}
 
 
 def _sentences_job(source_key: str) -> None:
+    started = int(time.time())
     try:
         payload = _fetch_sentences_blocking(source_key)
-        orch_store.save_sync_state(source_key, {
-            "status": "failed" if payload.get("success") is False else "done",
-            "fetched": len(payload.get("sentences") or []), "error": payload.get("error"),
-        })
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] sentence sync failed for {source_key}: {exc}")
-        orch_store.save_sync_state(source_key, {
-            "status": "failed", "error": str(exc),
-        })
+    except _PageFailure as failure:
+        ColorPrint.yellow(f"[AudioOrch] sentence sync failed for {source_key}: {failure.failure}")
+        partial = orch_store.load_book_sentences_partial(source_key) or {}
+        orch_store.save_sync_state(source_key, _attempt_state(
+            "failed", attempt_at=started, finished_at=int(time.time()),
+            fetched=len(partial.get("sentences") or []), total=int(partial.get("total") or 0),
+            error_code=failure.failure.get("error_code"), detail=failure.failure.get("detail") or "",
+        ))
+        return
+    orch_store.save_sync_state(source_key, _attempt_state(
+        "done", attempt_at=started, finished_at=int(time.time()),
+        fetched=len(payload.get("sentences") or []), total=len(payload.get("sentences") or []),
+    ))
 
 
 def sync_book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any]:
@@ -232,13 +307,12 @@ def sync_book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any
     runs the (long) Laravel walk on a background thread. Never raises."""
     source_key = str(source_key or "").strip()
     if not source_key:
-        return {"success": False, "error": "source_key is required"}
+        return {"success": False, "error": "BOOK_SOURCE_KEY_REQUIRED"}
     cached = orch_store.load_book_sentences(source_key)
     has_cache = bool(
         cached and isinstance(cached.get("sentences"), list) and cached["sentences"]
     )
     running = _job_running(source_key)
-    state = orch_store.load_sync_state().get(source_key) or {}
     if (refresh or not has_cache) and not running:
         running = _sync_jobs.start(source_key, _sync_sentences, source_key) or _job_running(source_key)
     state = orch_store.load_sync_state().get(source_key) or {}
@@ -260,16 +334,21 @@ def sync_book_sentences(source_key: str, refresh: bool = False) -> Dict[str, Any
 
 
 def _sync_sentences(source_key: str) -> None:
-    orch_store.save_sync_state(source_key, {"status": "running", "fetched": 0})
+    partial = orch_store.load_book_sentences_partial(source_key) or {}
+    orch_store.save_sync_state(source_key, _attempt_state(
+        "running", fetched=len(partial.get("sentences") or []), total=int(partial.get("total") or 0),
+        attempt_at=int(time.time()),
+    ))
     _sentences_job(source_key)
 
 
 def ensure_book_sentences(source_key: str, cancel_requested=None, progress_callback=None) -> Dict[str, Any]:
     """Blocking sentence fetch for GENERATION (worker thread, no relay
-    deadline). Uses the cache when present; otherwise fetches inline."""
+    deadline). Uses the cache when present; otherwise runs the resumable
+    background sync and waits for it."""
     source_key = str(source_key or "").strip()
     if not source_key:
-        return {"success": False, "error": "book_source_key_required"}
+        return {"success": False, "error": "BOOK_SOURCE_KEY_REQUIRED"}
     if not _job_running(source_key):
         cached = orch_store.load_book_sentences(source_key)
         if cached and isinstance(cached.get("sentences"), list) and cached["sentences"]:
@@ -283,11 +362,11 @@ def ensure_book_sentences(source_key: str, cancel_requested=None, progress_callb
         THREAD_BUS.wait_signal("audio_orchestration.sentences.wait", timeout=1)
     state = orch_store.load_sync_state().get(source_key) or {}
     if state.get("status") == "failed":
-        return {"success": False, "error": state.get("error") or "book_sentence_sync_failed"}
+        return {"success": False, "error": state.get("error_code") or "BOOK_SENTENCE_SYNC_FAILED"}
     cached = orch_store.load_book_sentences(source_key)
     if cached and isinstance(cached.get("sentences"), list) and cached["sentences"]:
         return {"success": True, "cached": True, **cached}
-    return {"success": False, "error": "book_sentences_empty"}
+    return {"success": False, "error": "BOOK_SENTENCES_EMPTY"}
 
 
 def estimate_sentence_seconds(sentence: Dict[str, Any]) -> float:

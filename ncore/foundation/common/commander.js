@@ -14,10 +14,10 @@ const { execSync, spawn, spawnSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const { getSystemCacheDir } = require('./system_paths');
-const homeDir = os.homedir();
+const { getSystemCacheDir, getAppLogsDir } = require('./system_paths');
 const username = process.env.USERNAME || process.env.USER || 'default';
 const coceCacheDir = getSystemCacheDir();
+const commandLogDir = path.join(getAppLogsDir(), 'command');
 fs.mkdirSync(coceCacheDir, { recursive: true });
 const cacheFilePath = path.join(coceCacheDir, '.shell_cache.json');
 const cachePowerShellFile = path.join(coceCacheDir, '.powershell_path_cache.json');
@@ -66,17 +66,12 @@ const fileOverflowMode = {};
 function appendToLog(type, message) {
     const MAX_LOG_SIZE = 50 * 1024 * 1024;
     function getLogFilePath(type) {
-        const homeDir = os.homedir();
-        const SCRIPT_NAME = 'core_node';
-        const LOCAL_DIR = os.platform() === 'win32' ? path.join(homeDir, `.${SCRIPT_NAME}`) : `/usr/${SCRIPT_NAME}`;
-        const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
-        const LOG_DIR = path.join(COMMON_CACHE_DIR, '.command_logs');
-        [LOCAL_DIR, COMMON_CACHE_DIR, LOG_DIR].forEach(dir => {
+        [commandLogDir].forEach(dir => {
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
             }
         });
-        const logPath = path.join(LOG_DIR, `${type}.log`);
+        const logPath = path.join(commandLogDir, `${type}.log`);
         if (!fs.existsSync(logPath)) {
             fs.writeFileSync(logPath, '', 'utf8');
         }
@@ -688,4 +683,3 @@ module.exports = {
     isSuccessOutput,
     checkCmdSuccess
 };
-

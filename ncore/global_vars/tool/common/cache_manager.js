@@ -12,15 +12,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const { COMMON_CACHE_DIR } = require('#@global_dir');
 
 // Constants
-const homeDir = os.homedir();
-const SCRIPT_NAME = 'core_node';
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;
-const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 const CACHE_VALID_TIME = 24 * 60 * 60 * 1000; // 24 hours
 
 /**

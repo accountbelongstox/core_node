@@ -12,14 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
-
-const homeDir = os.homedir();
-const SCRIPT_NAME = `core_node`
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;
-const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
+const { COMMON_CACHE_DIR } = require('#@global_dir');
 let cacheDir = path.join(COMMON_CACHE_DIR, '.apt');
 
 const log = {

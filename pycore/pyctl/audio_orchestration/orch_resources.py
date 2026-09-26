@@ -17,7 +17,12 @@ from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.audio_delivery_outbox import AUDIO_DELIVERY_PROCESS_ID, audio_delivery_outbox
-from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.tts.audio_queue_center import (
+    AUDIO_QUEUE_LANES,
+    TRACK_DONE,
+    TRACK_FAILED,
+    audio_queue_center,
+)
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.engine_policy import (
@@ -41,6 +46,12 @@ _delivery_jobs = BackgroundJobs("AudioOrchDelivery")
 # different words at the same time instead of one serial chain.
 RESOLVE_PARALLEL_WORKERS = 4
 RESOLVE_CHUNK_SIZE = 40
+# Word misses are taken and batch-synthesized in bounded chunks so a lane
+# worker draining the same Part1 can share the work item by item.
+WORD_BATCH_CHUNK_SIZE = 200
+# Upper bound for waiting on items a lane worker already popped.
+LANE_SETTLE_TIMEOUT_SECONDS = 900.0
+_LANE_WAIT_SIGNAL = "audio_orchestration.lane_settle.wait"
 LARAVEL_AUDIO_HEALTH_TTL_SECONDS = 30.0
 
 
@@ -184,6 +195,37 @@ def resolve_audio(
     return {"audio_path": audio_path, "source": "cache" if result.get("cached") else "generated", "provider": provider, "status": "ready"}
 
 
+def _await_lane_settled(
+    lane: str,
+    keys: List[str],
+    cancel_requested: Optional[Callable[[], bool]],
+    activity: Optional[Callable[[str], None]],
+) -> Dict[str, Dict[str, Any]]:
+    """Wait for items a lane worker (or another owner) is processing.
+
+    Returns ``{key: tracker entry}`` for keys that reached a terminal state;
+    keys still pending at the deadline (or on cancel) are omitted so the
+    caller resolves them itself.
+    """
+    pending = set(keys)
+    settled: Dict[str, Dict[str, Any]] = {}
+    deadline = time.monotonic() + LANE_SETTLE_TIMEOUT_SECONDS
+    while pending and time.monotonic() < deadline:
+        if cancel_requested is not None and cancel_requested():
+            break
+        states = audio_queue_center.tracked_states(lane, sorted(pending))
+        for key in list(pending):
+            entry = states.get(key)
+            if entry is None or entry["state"] in (TRACK_DONE, TRACK_FAILED):
+                settled[key] = entry or {}
+                pending.discard(key)
+        if pending:
+            if activity is not None:
+                activity(f"waiting for {len(pending)} item(s) in progress on the {lane} lane")
+            THREAD_BUS.wait_signal(_LANE_WAIT_SIGNAL, timeout=1)
+    return settled
+
+
 def resolve_batch(
     resources: List[Dict[str, Any]],
     staging: Path,
@@ -191,18 +233,31 @@ def resolve_batch(
     cancel_requested: Optional[Callable[[], bool]] = None,
     progress_callback: Optional[Callable[[int, Dict[str, Any], Dict[str, Any]], None]] = None,
     activity_callback: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
+    owner: str = "",
 ) -> Dict[str, Dict[str, Any]]:
-    """Resolve the whole manifest: local caches first in BATCH (one word-cache
-    directory scan per language + content-addressed sentence stats), then
-    Laravel / local generation for the misses only. Returns
-    {resource_id: result}; cancelled before the remaining misses are touched
-    when cancel_requested() turns True."""
+    """Resolve the whole manifest (binding: REQUIREMENTS_20260926 §5.5).
+
+    1. Local caches first in BATCH (word-cache index + content-addressed
+       sentence stats).
+    2. Every miss fills Part1 of ITS lane (words -> word_audio Queue,
+       sentences -> sentence_audio Queue) as a local task owned by ``owner``.
+    3. Chunk by chunk the resolver ``take_local``s its items, generates them
+       (words: one Kokoro batch per language; sentences: Laravel lookup, then
+       local synthesis) and ``settle_local``s the outcome; items a lane worker
+       already popped are awaited, then read from the cache — one generator
+       per item.
+    Returns ``{resource_id: result}``; stops before untouched misses when
+    ``cancel_requested()`` turns True (the owner's queued items are released).
+    """
     items = list(resources)
     results: Dict[str, Dict[str, Any]] = {}
     completed = 0
     sentence_directory = sentence_audio_cache.cache_dir() if any(item["kind"] == "sentence" for item in items) else None
     speaker, instruct, model, speed = sentence_tts_cache_identity(None, None, None)
     engines_by_lang = {}
+
+    def _cancelled() -> bool:
+        return cancel_requested is not None and cancel_requested()
 
     def _completed(resource, result) -> None:
         nonlocal completed
@@ -211,15 +266,18 @@ def resolve_batch(
         if progress_callback is not None:
             progress_callback(completed, resource, result)
 
+    def _activity(resource: Dict[str, Any], stage: str) -> None:
+        if activity_callback is not None:
+            activity_callback(resource, {"stage": stage})
+
     words_by_lang: Dict[str, List[Dict[str, Any]]] = {}
     for resource in items:
         if resource["kind"] == "word":
             words_by_lang.setdefault(str(resource["language"]), []).append(resource)
     for language, group in words_by_lang.items():
-        if cancel_requested is not None and cancel_requested():
+        if _cancelled():
             return results
-        if activity_callback is not None:
-            activity_callback(group[0], {"stage": f"scanning local word audio cache ({language})"})
+        _activity(group[0], f"scanning local word audio cache ({language})")
         hits = word_audio_cache.find_cached_many(
             [entry["text"] for entry in group], language,
             cancel_requested=cancel_requested,
@@ -228,7 +286,7 @@ def resolve_batch(
             )) if activity_callback is not None else None,
         )
         for resource in group:
-            if cancel_requested is not None and cancel_requested():
+            if _cancelled():
                 return results
             path = hits.get(str(resource["text"]).strip().lower())
             if path is not None and validate_mp3(str(path))[0]:
@@ -237,10 +295,10 @@ def resolve_batch(
                 })
 
     for scan_index, resource in enumerate(items, 1):
-        if cancel_requested is not None and cancel_requested():
+        if _cancelled():
             return results
-        if scan_index % 100 == 0 and activity_callback is not None:
-            activity_callback(resource, {"stage": f"scanning local audio caches: {scan_index}/{len(items)}"})
+        if scan_index % 100 == 0:
+            _activity(resource, f"scanning local audio caches: {scan_index}/{len(items)}")
         if resource["kind"] != "sentence" or resource["resource_id"] in results:
             continue
         language = resource["language"]
@@ -256,45 +314,50 @@ def resolve_batch(
                 break
 
     misses = [resource for resource in items if resource["resource_id"] not in results]
+    if not misses:
+        return results
 
-    # Queue-head self-promotion (Part1 fill, LOCAL ONLY): the cache misses
-    # are exactly what this machine still needs, so fill Part1 of the shared
-    # audio queue — this machine's lane workers drain them before Part2.
-    # Never notifies Laravel; generation proceeds regardless.
-    if misses:
-        try:
-            orch_promote.promote_missing_to_queue_head(misses, base_url)
-        except Exception as error:  # noqa: BLE001
-            ColorPrint.yellow(f"[AudioOrch] queue-head promotion skipped: {error}")
+    # Part1 fill (LOCAL ONLY): each miss enters ITS lane's Part1 as a task
+    # owned by this orchestration task. Never notifies Laravel.
+    orch_promote.promote_missing_to_queue_head(misses, base_url, owner)
+    queue_key = {resource["resource_id"]: orch_promote.resource_queue_key(resource) for resource in misses}
+    deferred: Dict[str, List[Dict[str, Any]]] = {"word_audio": [], "sentence_audio": []}
 
-    # Word misses use the SAME pinned Kokoro batch policy as the persistent
-    # word-audio lane. They are never fanned out through per-word synthesize().
-    word_misses_by_language: Dict[str, List[Dict[str, Any]]] = {}
-    for resource in misses:
-        if resource["kind"] == "word":
-            word_misses_by_language.setdefault(
-                str(resource["language"]), []
-            ).append(resource)
-    for language, group in word_misses_by_language.items():
-        if cancel_requested is not None and cancel_requested():
-            return results
-        if activity_callback is not None:
-            activity_callback(group[0], {
-                "stage": (
-                    f"batch generating missing word audio with "
-                    f"{runtime_profile.WORD_BATCH_ENGINE} ({language})"
-                ),
-            })
+    def _claim(lane: str, chunk: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Take this owner's items; lane-held ones are deferred (awaited)."""
+        claim = audio_queue_center.take_local(lane, [queue_key[r["resource_id"]] for r in chunk], owner)
+        inflight = set(claim["inflight"])
+        own: List[Dict[str, Any]] = []
+        for resource in chunk:
+            if queue_key[resource["resource_id"]] in inflight:
+                deferred[lane].append(resource)
+            else:
+                own.append(resource)
+        return own
+
+    def _settle(lane: str, pairs: List[tuple]) -> None:
+        audio_queue_center.settle_local(lane, {
+            queue_key[resource["resource_id"]]: {
+                "ok": result.get("status") == "ready",
+                "provider": result.get("provider") or "",
+                "error": result.get("error") or "",
+            }
+            for resource, result in pairs
+        }, owner)
+
+    def _word_batch(language: str, group: List[Dict[str, Any]]) -> None:
+        """Pinned Kokoro batch for this owner's word misses (never per-word)."""
+        _activity(group[0], (
+            f"batch generating missing word audio with "
+            f"{runtime_profile.WORD_BATCH_ENGINE} ({language})"
+        ))
         output_dir = staging / "word_batch" / language
-        batch_result = kokoro_batch.synthesize_words(
-            [resource["text"] for resource in group],
-            language,
-            output_dir,
-        )
+        batch_result = kokoro_batch.synthesize_words([resource["text"] for resource in group], language, output_dir)
+        pairs = []
         for index, resource in enumerate(group):
             item = batch_result.items[index] if index < len(batch_result.items) else None
             if item is None or not item.ok or not validate_mp3(str(item.output_path))[0]:
-                _completed(resource, {
+                result = {
                     "source": "missing",
                     "status": "failed",
                     "provider": runtime_profile.WORD_BATCH_ENGINE,
@@ -302,60 +365,108 @@ def resolve_batch(
                         item.error if item is not None and item.error
                         else "Kokoro batch synthesis produced no valid audio"
                     ),
-                })
-                continue
-            word_audio_cache.save_to_cache(
-                resource["text"],
-                language,
-                runtime_profile.WORD_BATCH_ENGINE,
-                str(item.output_path),
-            )
-            cache_path = word_audio_cache.get_cache_path(
-                resource["text"],
-                language,
-                runtime_profile.WORD_BATCH_ENGINE,
-            )
-            audio_path = cache_path if validate_mp3(cache_path)[0] else str(item.output_path)
-            _completed(resource, {
-                "audio_path": audio_path,
-                "source": "generated",
-                "provider": runtime_profile.WORD_BATCH_ENGINE,
-                "status": "ready",
-            })
+                }
+            else:
+                word_audio_cache.save_to_cache(
+                    resource["text"], language, runtime_profile.WORD_BATCH_ENGINE, str(item.output_path),
+                )
+                cache_path = word_audio_cache.get_cache_path(
+                    resource["text"], language, runtime_profile.WORD_BATCH_ENGINE,
+                )
+                result = {
+                    "audio_path": cache_path if validate_mp3(cache_path)[0] else str(item.output_path),
+                    "source": "generated",
+                    "provider": runtime_profile.WORD_BATCH_ENGINE,
+                    "status": "ready",
+                }
+            pairs.append((resource, result))
+        _settle("word_audio", pairs)
+        for resource, result in pairs:
+            _completed(resource, result)
 
-    misses = [resource for resource in misses if resource["resource_id"] not in results]
-    if word_misses_by_language:
-        audio_queue_center.request_pull("word_audio")
-    if any(resource["kind"] == "sentence" for resource in misses):
-        audio_queue_center.request_pull("sentence_audio")
+    word_misses_by_language: Dict[str, List[Dict[str, Any]]] = {}
+    for resource in misses:
+        if resource["kind"] == "word":
+            word_misses_by_language.setdefault(str(resource["language"]), []).append(resource)
+    for language, group in word_misses_by_language.items():
+        for chunk_start in range(0, len(group), WORD_BATCH_CHUNK_SIZE):
+            if _cancelled():
+                break
+            own = _claim("word_audio", group[chunk_start:chunk_start + WORD_BATCH_CHUNK_SIZE])
+            if own:
+                _word_batch(language, own)
 
     def _engine_exclusions(resource: Dict[str, Any]) -> tuple:
-        # Remaining misses are sentences; rotate their model chain across the
-        # bounded resolver lanes. Word misses were completed in one batch above.
+        # Sentences rotate their model chain across the bounded resolver lanes.
         return rotated_engine_exclusions(
             str(resource["kind"]), resource["language"], resource["resource_id"],
         )
 
-    def _resolve_miss(resource: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_miss(resource: Dict[str, Any], cache_checked: bool = True) -> Dict[str, Any]:
         try:
             return resolve_audio(
-                resource, staging, base_url=base_url, cache_checked=True,
+                resource, staging, base_url=base_url, cache_checked=cache_checked,
                 excluded_engines=_engine_exclusions(resource),
             )
         except Exception as error:
             ColorPrint.red(f"[AudioOrch] resource={resource['resource_id']} failed: {error}")
             return {"source": "missing", "status": "failed", "error": str(error)}
 
-    for chunk_start in range(0, len(misses), RESOLVE_CHUNK_SIZE):
-        if cancel_requested is not None and cancel_requested():
+    sentence_misses = [resource for resource in misses if resource["kind"] == "sentence"]
+    for chunk_start in range(0, len(sentence_misses), RESOLVE_CHUNK_SIZE):
+        if _cancelled():
             break
-        chunk = misses[chunk_start:chunk_start + RESOLVE_CHUNK_SIZE]
-        if activity_callback is not None:
-            activity_callback(chunk[0], {"stage": f"resolving audio resources: {chunk_start + 1}-{chunk_start + len(chunk)}/{len(misses)}"})
-        chunk_results = map_bus_tasks(_resolve_miss, chunk, max_workers=RESOLVE_PARALLEL_WORKERS)
-        for resource, result in zip(chunk, chunk_results):
+        own = _claim("sentence_audio", sentence_misses[chunk_start:chunk_start + RESOLVE_CHUNK_SIZE])
+        if not own:
+            continue
+        _activity(own[0], (
+            f"resolving sentence audio: {chunk_start + 1}-{chunk_start + len(own)}/{len(sentence_misses)}"
+        ))
+        chunk_results = map_bus_tasks(_resolve_miss, own, max_workers=RESOLVE_PARALLEL_WORKERS)
+        pairs = list(zip(own, chunk_results))
+        _settle("sentence_audio", pairs)
+        for resource, result in pairs:
             _completed(resource, result)
+
+    # Items a lane worker already popped: await its outcome, then read the
+    # shared cache. A lane-settled sentence was already reported to Laravel
+    # by the sentence lane (domain report); words are synchronized by us.
+    for lane, waiting in deferred.items():
+        if not waiting or _cancelled():
+            continue
+        settled = _await_lane_settled(
+            lane,
+            [queue_key[resource["resource_id"]] for resource in waiting],
+            cancel_requested,
+            lambda stage, first=waiting[0]: _activity(first, stage),
+        )
+        for resource in waiting:
+            if _cancelled():
+                break
+            entry = settled.get(queue_key[resource["resource_id"]]) or {}
+            # Cache first: the lane worker stores its output in the shared
+            # cache; only a failed/timed-out lane item is generated here.
+            result = _resolve_miss(resource, cache_checked=False)
+            if entry.get("state") == TRACK_DONE and result.get("status") == "ready" and result.get("source") == "cache":
+                result = {
+                    **result,
+                    "source": "generated",
+                    "provider": str(entry.get("provider") or result.get("provider") or ""),
+                    "delivered_by_lane": lane == "sentence_audio",
+                }
+            _completed(resource, result)
+
+    if _cancelled():
+        release_owner_queue(owner)
     return results
+
+
+def release_owner_queue(owner: str) -> None:
+    """Drop the owner's still-queued Part1 items from both lane queues."""
+    if not owner:
+        return
+    for lane in AUDIO_QUEUE_LANES:
+        audio_queue_center.release_owner(lane, owner)
 
 
 def _deliver(record: Dict[str, Any], progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:

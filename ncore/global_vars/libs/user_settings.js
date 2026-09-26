@@ -22,7 +22,7 @@ class UserSettings {
         this.isWindows = process.platform === 'win32';
         
         // Centralized per-user state dir (see system_paths.getSystemCacheDir):
-        // D:\programing\Users\<user>\.core_node on Windows, /var/_core_node on Linux.
+        // D:\www\core_node on Windows; the matching shared WWW tree on Linux.
         this.configDir = getSystemCacheDir();
         this.configFile = path.join(this.configDir, 'settings.json');
         this.syncDir = path.join(this.configDir, '.sync');

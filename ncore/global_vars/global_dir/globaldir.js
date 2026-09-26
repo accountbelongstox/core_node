@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { getAppName } = require('../libs/app_parameter.js');
+const systemPaths = require('../../foundation/common/system_paths.js');
 let appname = getAppName() || '';
 const hasAppName = typeof appname === 'string' && appname.trim().length > 0;
 const effectiveAppName = hasAppName ? appname : 'default_app';
@@ -70,48 +71,16 @@ const osVersion = (() => {
 const LANG_COMPILER_DIRNAME = `.dev_${osVersion}`;
 const APP_INSTALL_NAME = `applications_${osVersion}`
 
-// Single JS definition of the Linux WWW base (dual-boot extra-level rule:
-// when the data-disk ROOT (Windows D:\) is mounted at /www, the SAME logical
-// tree gains ONE EXTRA LEVEL on Linux: D:\www == /www/www). Detection mirrors
-// the shell runtime_environment.sh CORE_NODE_WWW_BASE and pycore
-// core_node_dirs.www_data_root_mounted: /www/www exists AND the device backing
-// /www differs from the device backing /. Never re-implement this inline in
-// other modules -- read WWW_BASE / mapWebPath from here.
-function mountSource(target) {
-    try {
-        const lines = fs.readFileSync('/proc/mounts', 'utf8').split('\n');
-        let best = null;
-        for (const line of lines) {
-            const parts = line.split(' ');
-            if (parts.length < 2) continue;
-            const mountPoint = parts[1].replace(/\\040/g, ' ');
-            if (target === mountPoint || target.startsWith(mountPoint.replace(/\/$/, '') + '/')) {
-                if (!best || mountPoint.length > best[0].length) {
-                    best = [mountPoint, parts[0]];
-                }
-            }
-        }
-        return best ? best[1] : null;
-    } catch (error) {
-        return null;
-    }
-}
-function wwwDataRootMounted() {
-    if (os.platform() === 'win32' || !fs.existsSync('/www/www')) {
-        return false;
-    }
-    const wwwSrc = mountSource('/www');
-    const rootSrc = mountSource('/');
-    return Boolean(wwwSrc && rootSrc && wwwSrc !== rootSrc);
-}
-const WWW_BASE = wwwDataRootMounted() ? '/www/www' : '/www';
+const WWW_BASE = isWinodws
+    ? systemPaths.WINDOWS_WWW_BASE
+    : systemPaths.getLinuxWwwBase();
 function mapWebPath(sub = '') {
     return sub ? path.join(WWW_BASE, sub) : WWW_BASE;
 }
 
 let DATA_DRIVER, DATA_DIR;
 if (os.platform() === 'win32') {
-    DATA_DRIVER = fs.existsSync('D:\\') ? 'D:\\' : 'C:\\';
+    DATA_DRIVER = systemPaths.WINDOWS_DATA_DRIVE_ROOT;
     DATA_DIR = path.join(DATA_DRIVER, `wwwroot`);
 } else {
     DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : null;
@@ -127,24 +96,20 @@ if (os.platform() === 'win32') {
     }
 }
 
-const LANG_COMPILER_DIR = DATA_DRIVER
-    ? path.join(DATA_DRIVER, LANG_COMPILER_DIRNAME)
-    : path.join(LOCAL_DIR, LANG_COMPILER_DIRNAME);
 const BASEDIR = getCwd();
 const CWD = BASEDIR;
 const APPS_DIR = path.join(BASEDIR, 'apps');
 const APP_DIR = path.join(BASEDIR, 'apps', effectiveAppName);
-const CACHE_DIR = path.join(BASEDIR, '.cache');
+const LOCAL_DIR = systemPaths.getSystemCacheDir();
+const USER_DIR = homeDir;
+const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, systemPaths.GLOBAL_VAR_DIR_NAME);
+const COMMON_CACHE_DIR = path.join(LOCAL_DIR, systemPaths.CACHE_DIR_NAME, 'ncore');
+const CACHE_DIR = COMMON_CACHE_DIR;
 const APP_CACHE_DIR = path.join(CACHE_DIR, effectiveAppName);
-const LOG_DIR = path.join(CACHE_DIR, '.logs');
-const SCRIPT_NAME = `core_node`
-const USER_DIR = isWinodws
-    ? homeDir
-    : `/var/`;
-const PRIMARY_LOCAL_DIR = isWinodws
-    ? path.join(USER_DIR, `.${SCRIPT_NAME}`)
-    : `/var/_${SCRIPT_NAME}`;
-const FALLBACK_LOCAL_DIR = path.join(homeDir, `.${SCRIPT_NAME}`);
+const LOG_DIR = path.join(LOCAL_DIR, 'logs', 'ncore');
+const LANG_COMPILER_DIR = DATA_DRIVER
+    ? path.join(DATA_DRIVER, LANG_COMPILER_DIRNAME)
+    : path.join(LOCAL_DIR, LANG_COMPILER_DIRNAME);
 
 // Directory creation with permission handling
 function mkdir(dirPath) {
@@ -161,17 +126,6 @@ function mkdir(dirPath) {
         throw error;
     }
 }
-
-// Try to create primary directory, fall back if permission denied
-let LOCAL_DIR = PRIMARY_LOCAL_DIR;
-if (!mkdir(PRIMARY_LOCAL_DIR)) {
-    console.warn(`[GLOBAL_DIR] Cannot create ${PRIMARY_LOCAL_DIR}, using fallback: ${FALLBACK_LOCAL_DIR}`);
-    LOCAL_DIR = FALLBACK_LOCAL_DIR;
-    mkdir(LOCAL_DIR);
-}
-
-let GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
-const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const ROOT_APP_STATIC_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `static_${effectiveAppName.toLowerCase()}`) : null;
@@ -249,7 +203,8 @@ module.exports = {
     DATA_DRIVER,
     WWW_BASE,
     mapWebPath,
-    wwwDataRootMounted,
+    wwwDataRootMounted: systemPaths.wwwDataRootMounted,
+    USER_DIR,
     APP_DATA_DIR,
     APP_DATA_CACHE_DIR,
     APP_TMP_DIR,

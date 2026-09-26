@@ -2,15 +2,20 @@
 """RPC entry for pycore-manager LOCAL queue-head promotion (Part1 fill).
 
 Routing only: the controller forwards the promote to the shared audio
-queue library, which fills Part1 directly and dedups against the whole
-Queue. This path NEVER notifies Laravel — wordnew is the sole actor that
-notifies Laravel of head moves (the Part2 fill path).
+queue library, which fills Part1 of the item's lane directly (a missing item
+gets a local manual task), and dedups against the whole Queue. This path
+NEVER notifies Laravel — wordnew is the sole actor that notifies Laravel of
+head moves (the Part2 fill path).
 """
 
 from typing import Any, Dict, List
 
 from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyutils.tts.audio_queue_center import (
+    AUDIO_QUEUE_LANES,
+    LOCAL_SOURCE_MANUAL,
+    audio_queue_center,
+)
 
 _KIND_LANES = {"word": "word_audio", "sentence": "sentence_audio"}
 
@@ -38,6 +43,6 @@ def register_local_queue_head_routes(server) -> None:
         lane = _resolve_lane(params, items)
         if lane not in AUDIO_QUEUE_LANES or not items:
             return {"success": False, "error": "queue (or item kind) and items are required"}
-        return audio_queue_center.promote_local_head(lane, items)
+        return audio_queue_center.promote_local_head(lane, items, local_source=LOCAL_SOURCE_MANUAL)
 
     server.post(path=UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD, handler=promote_handler)

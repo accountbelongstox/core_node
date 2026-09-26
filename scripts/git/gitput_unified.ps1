@@ -198,8 +198,8 @@ function Get-GlobalVar {
     $username = $env:USERNAME
     $globalVarDir = Join-Path "D:\www\core_node" "global_var"
     $filePath = Join-Path $globalVarDir $Key
-    if (Test-Path $filePath) {
-        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
+    if (Test-Path -LiteralPath $filePath -PathType Leaf) {
+        $content = Get-Content -LiteralPath $filePath -Encoding UTF8 -TotalCount 1
         return $content -replace "`0", ""
     }
     return $null

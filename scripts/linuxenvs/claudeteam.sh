@@ -17,26 +17,16 @@
 #
 # Synopsis:
 #     Launches Claude Code with multiple roles (experimental agent teams) always
-#     on, an opt-in ultracode prompt (default No), and - when ultracode is enabled
-#     - an opt-in prompt (default Yes) to force Opus 5.5 everywhere (Linux).
+#     on and an opt-in ultracode prompt (default No) (Linux).
 #
 # Description:
 #     Linux mirror of scripts/winenvs/claudeteam.ps1. Always sets
 #     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
 #     roles). Then prompts "Enable ultracode?" (default No); when enabled it adds
 #     --effort ultracode (session-only xhigh effort + automatic workflow
-#     orchestration; official CLI reference, requires Claude Code v2.1.203+) and
-#     prompts "Use Opus 5.5 as the ultracode model?" (default Yes). If accepted,
-#     the pinned Opus 5.5 id ("claude-opus-5-5") is forced for the main session,
-#     subagents and the background Haiku/Sonnet slots, running:
-#         claude --effort ultracode --model claude-opus-5-5 --dangerously-skip-permissions [args...]
-#     The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL
-#     pins subagents/agent-teams; ANTHROPIC_DEFAULT_OPUS_MODEL /
-#     ANTHROPIC_DEFAULT_SONNET_MODEL / ANTHROPIC_DEFAULT_HAIKU_MODEL redirect the
-#     opus/sonnet/haiku aliases + background traffic to Opus 5.5 too. Opus 5.5
-#     serves the full 1M-context window by default (no [1m] variant). When
-#     ultracode is declined, Claude runs on the account default model. Any script
-#     arguments are appended to that command line.
+#     orchestration; official CLI reference, requires Claude Code v2.1.203+).
+#     The model is the account default (Opus 5.5 since v2.1.280), so no model is
+#     pinned. Any script arguments are appended to the command line.
 #
 #     Root safety: when running as root, the --dangerously-skip-permissions flag
 #     is dropped (root already has full permissions and Claude Code refuses that
@@ -53,11 +43,8 @@
 set -e
 
 # Variable declarations (declared at the beginning of the file)
-force_model="claude-opus-5-5"
 ultra_choice=""
 ultra_enabled=0
-model_choice=""
-force_opus_enabled=0
 claude_args=()
 claude_invoke_display=""
 claude_team_args_display=""
@@ -96,34 +83,6 @@ if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
     claude_args+=(--effort ultracode)
 fi
 
-# Ultracode model: only asked when ultracode is enabled, default Yes. Forces Opus
-# 5.5 everywhere. "$force_model" is the pinned Opus 5.5 id ("claude-opus-5-5"); Opus 5.5
-# serves the full 1M-context window by default, so the older "[1m]" variant suffix
-# (still required by Opus 4.6 / Sonnet 4.6) must not be appended.
-if [ "$ultra_enabled" -eq 1 ]; then
-    read -r -p "Use Opus 5.5 (${force_model}) as the ultracode model everywhere? [Y/n]: " model_choice || model_choice=""
-    if [ "$model_choice" != "n" ] && [ "$model_choice" != "N" ]; then
-        force_opus_enabled=1
-    fi
-fi
-
-if [ "$force_opus_enabled" -eq 1 ]; then
-    # Env vars cover the model slots that have no CLI flag (official model-config
-    # reference); values are the pinned Opus 5.5 model:
-    #   - CLAUDE_CODE_SUBAGENT_MODEL     : all subagents / agent teams / workflow agents
-    #   - ANTHROPIC_DEFAULT_OPUS_MODEL   : the "opus" alias (and opusplan in plan mode)
-    #   - ANTHROPIC_DEFAULT_SONNET_MODEL : the "sonnet" alias (and opusplan execution)
-    #   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : the "haiku"/background quick-task slot
-    export CLAUDE_CODE_SUBAGENT_MODEL="$force_model"
-    export ANTHROPIC_DEFAULT_OPUS_MODEL="$force_model"
-    export ANTHROPIC_DEFAULT_SONNET_MODEL="$force_model"
-    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$force_model"
-    # --model pins the main interactive model (highest-precedence startup selector).
-    claude_args+=(--model "$force_model")
-    # Light note shown only when the user opted in.
-    echo "[NOTE] ${force_model} forced for main session, subagents and background (Haiku/Sonnet) slots - background tasks run on Opus too (higher cost/latency)."
-fi
-
 # Check if running as root - skip --dangerously-skip-permissions flag for root
 # (root already has full permissions and Claude Code refuses that flag as root).
 if [ "$EUID" -ne 0 ]; then
@@ -144,11 +103,6 @@ if [ "$ultra_enabled" -eq 1 ]; then
     echo "[INFO] Ultracode: ON (--effort ultracode)"
 else
     echo "[INFO] Ultracode: off (default N)"
-fi
-if [ "$force_opus_enabled" -eq 1 ]; then
-    echo "[INFO] Ultracode model: ${force_model} (main session + subagents + background Haiku/Sonnet slots)"
-else
-    echo "[INFO] Ultracode model: account default"
 fi
 echo "[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}"
 echo "============================================================"

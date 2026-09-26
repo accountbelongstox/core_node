@@ -15,8 +15,10 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
+const { LOG_DIR } = require('#@global_dir');
 
 const initialWorkingDirectory = process.cwd();
+const commandLogDir = path.join(LOG_DIR, 'command');
 
 
 // Track if files are in overflow mode (size > MAX_LOG_SIZE)
@@ -25,17 +27,12 @@ const fileOverflowMode = {};
 function appendToLog(type, message) {
     const MAX_LOG_SIZE = 50 * 1024 * 1024;
     function getLogFilePath(type) {
-        const homeDir = os.homedir();
-        const SCRIPT_NAME = 'core_node';
-        const LOCAL_DIR = os.platform() === 'win32' ? path.join(homeDir, `.${SCRIPT_NAME}`) : `/usr/${SCRIPT_NAME}`;
-        const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
-        const LOG_DIR = path.join(COMMON_CACHE_DIR, '.command_logs');
-        [LOCAL_DIR, COMMON_CACHE_DIR, LOG_DIR].forEach(dir => {
+        [commandLogDir].forEach(dir => {
             if (!fs.existsSync(dir)) {
                 fs.mkdirSync(dir, { recursive: true });
             }
         });
-        const logPath = path.join(LOG_DIR, `${type}.log`);
+        const logPath = path.join(commandLogDir, `${type}.log`);
         if (!fs.existsSync(logPath)) {
             fs.writeFileSync(logPath, '', 'utf8');
         }

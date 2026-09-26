@@ -12,10 +12,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const crypto = require('crypto');
-const { getSystemCacheDir } = require('../../foundation/common/system_paths');
-const homeDir = os.homedir();
+const systemPaths = require('../../foundation/common/system_paths');
 const log = {
     colors: {
         reset: '\x1b[0m',
@@ -57,15 +55,10 @@ const log = {
     }
 };
 
-const SCRIPT_NAME = `core_node`
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;
-const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
-
-// Fallback directory for when we don't have permission to write to /usr/
-const FALLBACK_LOCAL_DIR = path.join(homeDir, `.${SCRIPT_NAME}`);
-const FALLBACK_GLOBAL_VAR_DIR = path.join(FALLBACK_LOCAL_DIR, 'global_var');
+const LOCAL_DIR = systemPaths.getSystemCacheDir();
+const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, systemPaths.GLOBAL_VAR_DIR_NAME);
+const LEGACY_GLOBAL_VAR_DIRS = systemPaths.getLegacySystemCacheDirs()
+    .map((directory) => path.join(directory, systemPaths.GLOBAL_VAR_DIR_NAME));
 
 function mkdir(dirPath) {
     if (!dirPath) return null;
@@ -80,27 +73,14 @@ function mkdir(dirPath) {
     }
 }
 
-// Try to create the primary directory, fall back to user home if permission denied
-let actualGlobalVarDir = GLOBAL_VAR_DIR;
-if (!mkdir(GLOBAL_VAR_DIR)) {
-    log.warn(`Cannot create ${GLOBAL_VAR_DIR}, using fallback: ${FALLBACK_GLOBAL_VAR_DIR}`);
-    mkdir(FALLBACK_GLOBAL_VAR_DIR);
-    actualGlobalVarDir = FALLBACK_GLOBAL_VAR_DIR;
-}
-
 // Global configuration settings
-const configDir = actualGlobalVarDir;
+const configDir = GLOBAL_VAR_DIR;
 const encryptionKey = crypto.scryptSync('K8x#mP9$vL2@nQ5^wR7&jD3*fH6', 'core_node_salt', 32);
 const algorithm = 'aes-256-cbc';
 const ivLength = 16;
 const encryptedPrefix = 'ENC:';
 
-// Fallback configuration directory for permission issues
-let fallbackConfigDir = null;
-if (configDir !== FALLBACK_GLOBAL_VAR_DIR) {
-    fallbackConfigDir = FALLBACK_GLOBAL_VAR_DIR;
-    mkdir(fallbackConfigDir);
-}
+const fallbackConfigDir = LEGACY_GLOBAL_VAR_DIRS.find((directory) => fs.existsSync(directory)) || null;
 
 if (!fs.existsSync(configDir)) {
     try {
@@ -213,44 +193,8 @@ function _stringifyValue(value) {
 }
 
 function _setSingleConfigFallback(key, value) {
-    if (!fallbackConfigDir) {
-        log.error(`No fallback config directory available for ${key}`);
-        return false;
-    }
-
-    try {
-        const upperKey = key.toUpperCase();
-        const filePath = path.join(fallbackConfigDir, upperKey);
-
-        // Encrypt if necessary
-        if (typeof value === 'string' && needsEncryption(key)) {
-            value = encryptValue(value);
-        }
-
-        // Convert value to string format for storage
-        const stringValue = _stringifyValue(value);
-
-        // Check if file exists and content is different
-        let shouldLog = false;
-        if (fs.existsSync(filePath)) {
-            const existingContent = fs.readFileSync(filePath, 'utf8');
-            const isEncryptedValue = isEncrypted(existingContent);
-            shouldLog = (existingContent !== stringValue) && !isEncryptedValue;
-        }
-
-        // Write to file, overwriting if exists
-        fs.writeFileSync(filePath, stringValue, 'utf8');
-
-        // Only log if content changed
-        if (shouldLog) {
-            log.debug(`Config updated (fallback): ${upperKey} = ${stringValue}`);
-        }
-
-        return true;
-    } catch (error) {
-        log.error(`Error setting fallback config for ${key}:`, error);
-        return false;
-    }
+    log.error(`Canonical global variable directory is not writable for ${key}: ${configDir}`);
+    return false;
 }
 
 function _setSingleConfig(key, value) {

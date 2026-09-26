@@ -202,6 +202,7 @@ export const PYCORE_HTTP_ROUTES = {
   queueCenterRetryAudioDelivery: 'ui/queue_center/retry_audio_delivery',
   queueCenterPromoteLocalHead: 'ui/queue_center/promote_local_head',
   queueCenterWordAudioFullSync: 'ui/queue_center/word_audio_full_sync',
+  queueCenterAudioLaneState: 'ui/queue_center/audio_lane_state',
   speechHistoryHistory: 'ui/speech_history/history',
   speechHistoryHistoryFile: 'ui/speech_history/history_file',
   speechHistoryHistoryReveal: 'ui/speech_history/history_reveal',

@@ -1,6 +1,7 @@
 import i18n from '../../../../../core/i18n/UiI18n';
 import { orchEn } from '../../../pc-locales/OrchLocales';
 import type { OrchPatternStepType } from '@/apps/pycore-manager/api';
+import { pcErrorCodeMessage } from '../../../utils/pcErrorCodes';
 
 type OrchLabels = { [K in keyof typeof orchEn]: string };
 
@@ -28,7 +29,14 @@ export function orchErrorMessage(error: unknown, fallback: string = ORCH_L.actio
   if (message === 'QY_ACCOUNT_MACHINE_SYNC_PENDING') return ORCH_L.machineSyncPending;
   if (message === 'QY_ACCOUNT_LOGOUT_PENDING') return ORCH_L.logoutPending;
   if (message === 'QY_ACCOUNT_LOGOUT_TARGET_CHANGED') return ORCH_L.logoutTargetChanged;
-  return message || fallback;
+  return pcErrorCodeMessage(message) || message || fallback;
+}
+
+/** Localized message of one persisted sync attempt failure ({error_code, detail}). */
+export function orchSyncFailureMessage(state: { error_code?: string; detail?: string; error?: string } | null | undefined): string {
+  return pcErrorCodeMessage(state?.error_code, state?.detail)
+    || pcErrorCodeMessage(state?.error)
+    || ORCH_L.loadFailed;
 }
 
 /** minutes:seconds for plan/preview estimates. */

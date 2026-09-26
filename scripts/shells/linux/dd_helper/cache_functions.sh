@@ -22,10 +22,14 @@ RAW_FILE_MODIFIED_AFTER_DECRYPTION=false
 ENCRYPTED_CONTENT_CHANGED=false
 ENCRYPTED_CONTENT_BASELINE_EXISTS=false
 SECRET_REDECRYPTION_REQUESTED=false
+FILE_CACHE_DIR="$CORE_NODE_INSTALLER_CACHE_DIR/file_cache"
+BEHAVIOR_CACHE_DIR="$CORE_NODE_INSTALLER_CACHE_DIR/behavior_cache"
+DIRECTORY_PROCESSING_CACHE_DIR="$CORE_NODE_INSTALLER_CACHE_DIR/dir_processing_cache"
+SECRET_CACHE_DIR="$CORE_NODE_INSTALLER_CACHE_DIR/secret_cache"
 
 check_file_cache() {
     local file_path="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/file_cache"
+    local cache_dir="$FILE_CACHE_DIR"
     local cache_key=""
     local cache_file=""
     local cached_mtime=""
@@ -58,7 +62,7 @@ check_file_cache() {
 
 set_file_cache() {
     local file_path="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/file_cache"
+    local cache_dir="$FILE_CACHE_DIR"
     
     if [ ! -d "$cache_dir" ]; then
         $sudo mkdir -p "$cache_dir"
@@ -76,7 +80,7 @@ set_file_cache() {
 
 check_behavior_cache() {
     local behavior_name="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/behavior_cache"
+    local cache_dir="$BEHAVIOR_CACHE_DIR"
     local cache_expiry_seconds=300
     local current_time=$(date +%s)
     local cache_file=""
@@ -110,7 +114,7 @@ check_behavior_cache() {
 
 set_behavior_cache() {
     local behavior_name="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/behavior_cache"
+    local cache_dir="$BEHAVIOR_CACHE_DIR"
     local current_time=$(date +%s)
 
     if [ ! -d "$cache_dir" ]; then
@@ -123,7 +127,7 @@ set_behavior_cache() {
 }
 
 cleanup_behavior_cache() {
-    local cache_dir="$GLOBAL_VAR_DIR/behavior_cache"
+    local cache_dir="$BEHAVIOR_CACHE_DIR"
     local cache_expiry_seconds=300
     local current_time=$(date +%s)
     local cleaned_files=0
@@ -153,7 +157,7 @@ cleanup_behavior_cache() {
 }
 
 cleanup_file_cache() {
-    local cache_dir="$GLOBAL_VAR_DIR/file_cache"
+    local cache_dir="$FILE_CACHE_DIR"
     local cleaned_files=0
 
     if [ ! -d "$cache_dir" ]; then
@@ -188,7 +192,7 @@ cleanup_file_cache() {
 
 check_directory_processing_cache() {
     local dir_path="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
+    local cache_dir="$DIRECTORY_PROCESSING_CACHE_DIR"
     local cache_expiry_seconds=86400  # 24 hours
     local current_time=$(date +%s)
     local cache_key=""
@@ -251,7 +255,7 @@ check_directory_processing_cache() {
 
 set_directory_processing_cache() {
     local dir_path="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
+    local cache_dir="$DIRECTORY_PROCESSING_CACHE_DIR"
     local current_time=$(date +%s)
     
     if [ ! -d "$cache_dir" ]; then
@@ -272,7 +276,7 @@ set_directory_processing_cache() {
 }
 
 cleanup_directory_processing_cache() {
-    local cache_dir="$GLOBAL_VAR_DIR/dir_processing_cache"
+    local cache_dir="$DIRECTORY_PROCESSING_CACHE_DIR"
     local cache_expiry_seconds=86400  # 24 hours
     local current_time=$(date +%s)
     local cleaned_files=0
@@ -311,7 +315,7 @@ cleanup_directory_processing_cache() {
 # Store decryption timestamp for a file
 set_decryption_timestamp_cache() {
     local filename="$1"
-    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/decryption_timestamps"
+    local cache_dir="$SECRET_CACHE_DIR/decryption_timestamps"
     local current_time=$(date +%s)
 
     if [ ! -d "$cache_dir" ]; then
@@ -326,7 +330,7 @@ set_decryption_timestamp_cache() {
 check_raw_file_modified_after_decryption() {
     local filename="$1"
     local raw_file="$2"
-    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/decryption_timestamps"
+    local cache_dir="$SECRET_CACHE_DIR/decryption_timestamps"
     local cache_file="$cache_dir/${filename}.decrypt_time"
     local decryption_time=""
     local raw_file_mtime=""
@@ -359,7 +363,7 @@ check_raw_file_modified_after_decryption() {
 set_encrypted_content_hash_cache() {
     local filename="$1"
     local encrypted_file="$2"
-    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash"
+    local cache_dir="$SECRET_CACHE_DIR/encrypted_content_hash"
 
     if [ ! -d "$cache_dir" ]; then
         $sudo mkdir -p "$cache_dir"
@@ -379,7 +383,7 @@ set_encrypted_content_hash_cache() {
 check_encrypted_content_changed() {
     local filename="$1"
     local encrypted_file="$2"
-    local cache_dir="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash"
+    local cache_dir="$SECRET_CACHE_DIR/encrypted_content_hash"
     local cache_file="$cache_dir/${filename}.enc_hash"
     local cached_hash=""
     local current_hash=""
@@ -411,7 +415,7 @@ check_encrypted_content_changed() {
 # Check whether a persistent content-change baseline exists for a file
 encrypted_content_baseline_exists() {
     local filename="$1"
-    local cache_file="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash/${filename}.enc_hash"
+    local cache_file="$SECRET_CACHE_DIR/encrypted_content_hash/${filename}.enc_hash"
 
     ENCRYPTED_CONTENT_BASELINE_EXISTS=false
     if [ -s "$cache_file" ]; then
@@ -530,7 +534,7 @@ get_encrypted_files_needing_redecryption() {
 
 # Cleanup expired secret cache entries
 cleanup_secret_cache() {
-    local cache_base_dir="$GLOBAL_VAR_DIR/secret_cache"
+    local cache_base_dir="$SECRET_CACHE_DIR"
     local cache_expiry_seconds=604800  # 7 days
     local current_time=$(date +%s)
     local cleaned_files=0

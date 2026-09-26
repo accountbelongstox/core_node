@@ -347,6 +347,9 @@ export interface QueueCenterWordAudioFullSyncStatus {
     stopped?: boolean;
     source?: string;
     error?: string;
+    /** Stable failure code (translated by the UI; `detail` is diagnostic only). */
+    error_code?: string;
+    detail?: string;
   };
   languages: Array<{
     language: string;
@@ -402,6 +405,88 @@ export interface QueueCenterControlResponse {
   graceful_stop?: boolean;
   error?: string;
   result?: unknown;
+  /** Audio lanes: authoritative post-transition lane state (apply, never guess). */
+  lane_state?: AudioLaneStatePayload;
+}
+
+/** Audio lane queue key: each lane owns its own Queue = Part1 + Part2. */
+export type AudioLaneKey = 'word_audio' | 'sentence_audio';
+export type AudioLaneTrackState = 'queued' | 'processing' | 'done' | 'failed';
+
+export interface AudioLaneQueueRow {
+  task_id: string;
+  text: string;
+  language: string;
+  local_source: string;
+}
+
+export interface AudioLaneTrackedItem {
+  key: string;
+  text: string;
+  language: string;
+  state: AudioLaneTrackState;
+  owners: string[];
+  source: string;
+  provider: string;
+  error: string;
+  settled_by: string;
+  updated_at: number;
+}
+
+export type AudioLaneTrackCounts = Record<AudioLaneTrackState, number> & { total?: number };
+
+/** Read-only Part1 / Part2 / whole-Queue view of ONE lane (pycore-owned). */
+export interface AudioLaneQueueView {
+  lane: AudioLaneKey;
+  revision: number;
+  queued: number;
+  part1: number;
+  part2: number;
+  taken: number;
+  part1_head: AudioLaneQueueRow[];
+  part2_head: AudioLaneQueueRow[];
+  tracked: AudioLaneTrackCounts;
+  owner: {
+    id: string;
+    counts: AudioLaneTrackCounts;
+    total: number;
+    items: AudioLaneTrackedItem[];
+  } | null;
+}
+
+export interface AudioLaneWorkerState {
+  cycle_running: boolean;
+  processing: number;
+  queued: number;
+  total_claimed: number;
+  total_succeeded: number;
+  total_failed: number;
+  planned_engine?: string | null;
+  current_keys: string[];
+  event_revision: number;
+  delivery_outbox: Record<string, unknown>;
+  delivery_outbox_running: boolean;
+}
+
+export interface AudioLaneState {
+  lane: AudioLaneKey;
+  switch: { enabled: boolean; running: boolean };
+  queue: AudioLaneQueueView;
+  worker: AudioLaneWorkerState;
+  section_contract: unknown;
+  full_sync?: QueueCenterWordAudioFullSyncStatus;
+}
+
+/** Push topic `queue_center.audio_lane.changed` and RPC `ui/queue_center/audio_lane_state`. */
+export interface AudioLaneStatePayload {
+  success: boolean;
+  instance: string;
+  revision: number;
+  generated_at: number;
+  lanes: Record<AudioLaneKey, AudioLaneState>;
+  wordAudio?: unknown;
+  sentenceAudio?: unknown;
+  error?: string;
 }
 
 export interface PcQueueOverview {

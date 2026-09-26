@@ -5,7 +5,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi, pycoreApi, useAudioLaneState } from '@/apps/pycore-manager/api';
 import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
@@ -13,10 +13,14 @@ import { PcAudioDeliveryOutboxStatus } from './PcAudioDeliveryOutboxStatus';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
+import { PcAudioLaneQueueView } from './PcAudioLaneQueueView';
+import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
 
 export function PcWordAudioPanel(): ReactElement {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
+  const lanes = useAudioLaneState();
+  const wordLane = lanes.payload?.lanes?.word_audio;
   const [expanded, setExpanded] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_EXPANDED) === '1');
   const [actionError, setActionError] = useState<string | null>(null);
   const wordSection = hub.sectionContracts.word_audio;
@@ -31,7 +35,12 @@ export function PcWordAudioPanel(): ReactElement {
   const batchEngine = worker?.batch_engine || worker?.planned_engine || QUEUE_CENTER_WORD_AUDIO_BATCH.engine;
   const batchDevice = worker?.batch_device || QUEUE_CENTER_WORD_AUDIO_BATCH.device;
   const batchSize = worker?.batch_size || QUEUE_CENTER_WORD_AUDIO_BATCH.default_batch_size;
-  const fullSync = wordSection.full_sync ?? null;
+  // Pushed lane state is the freshest truth; the section contract is the fallback.
+  const fullSync = wordLane?.full_sync ?? wordSection.full_sync ?? null;
+  const fullSyncError = fullSync?.last_result?.success === false
+    ? pcErrorCodeMessage(fullSync.last_result.error_code, fullSync.last_result.detail)
+      || t('queueCenter.wordAudioQueue.errors.fullSyncFailed')
+    : null;
   const [fullSyncBusy, setFullSyncBusy] = useState(false);
   const runFullSync = useCallback(async () => {
     if (fullSyncBusy) return;
@@ -39,14 +48,16 @@ export function PcWordAudioPanel(): ReactElement {
     setActionError(null);
     try {
       const response = await pycoreApi.wordAudioFullSync();
-      if (!response.success) throw new Error(response.error || t('queueCenter.wordAudioQueue.errors.fullSyncFailed'));
-      await hub.refreshHub();
+      if (!response.success) {
+        throw new Error(pcErrorCodeMessage(response.error) || t('queueCenter.wordAudioQueue.errors.fullSyncFailed'));
+      }
+      // Progress arrives through the lane-state push (state-driven).
     } catch (error: any) {
       setActionError(error?.message || t('queueCenter.wordAudioQueue.errors.fullSyncFailed'));
     } finally {
       setFullSyncBusy(false);
     }
-  }, [fullSyncBusy, hub, t]);
+  }, [fullSyncBusy, t]);
   const eventPage = useQueueWorkerEventPage(
     'word',
     expanded,
@@ -155,8 +166,8 @@ export function PcWordAudioPanel(): ReactElement {
               <span className="font-mono">
                 {t('queueCenter.wordAudioQueue.fullSync.queued', { count: fullSync.queue_count })}
               </span>
-              {fullSync.last_result?.error && (
-                <span className="text-rose-400">{fullSync.last_result.error}</span>
+              {fullSyncError && (
+                <span className="text-rose-400" title={fullSync.last_result?.detail || ''}>{fullSyncError}</span>
               )}
             </>
           ) : (
@@ -168,6 +179,13 @@ export function PcWordAudioPanel(): ReactElement {
             {t('queueCenter.wordAudioQueue.fullSync.action')}
           </button>
         </div>
+
+        <PcAudioLaneQueueView
+          lane="word_audio"
+          view={wordLane?.queue}
+          loading={lanes.loading}
+          error={lanes.error}
+        />
 
         <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-500 flex gap-2 flex-wrap">
           <span>{t('queueCenter.wordAudioQueue.pycoreWorker')}</span>
