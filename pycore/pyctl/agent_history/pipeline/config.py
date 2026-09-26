@@ -3,16 +3,31 @@ from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_records
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 from pycore.pyutils.common.user_data_store import user_data_store
 
 _SECTION = "agent_history_article"
+RUNTIME_CACHE_KEY = "agent_history.runtime"
+MIN_RAW_WORDS_RANGE = (120, 2000)
 
-# Supported tool keys (extractor tool() values). The UI renders checkboxes in
-# this order; only checked tools are planned into the article pipeline.
-SUPPORTED_TOOLS: List[str] = [
-    "agent", "pi", "claude", "codex", "cursor", "gemini",
-    "kimi", "antigravity", "cline",
-]
+# Supported tool keys (extractor tool() values) in UI display order; derived
+# from the single per-tool table in system_paths. The UI receives this list
+# from the backend (runtime `supported_tools`) instead of keeping its own.
+SUPPORTED_TOOLS: List[str] = list(AGENT_HISTORY_OFFICIAL_HOME_MARKERS)
+
+# User-facing keys: a change is broadcast as AGENT_HISTORY_CONFIG_CHANGED so
+# every surface bound to them (WEB UI tabs, tray menu, notify/derive
+# watchers) converges without polling. Worker cursor writes stay silent.
+USER_CONFIG_KEYS = (
+    "enabled", "enabled_tools", "reference_lang", "target_lang",
+    "min_raw_words", "openrouter_model", "video_enabled", "video_username",
+    "video_batch_name", "video_concurrency", "prompt_article_cn",
+    "prompt_translate_en", "prompt_derive_en", "prompt_derive_sound",
+    "prompt_new_notify", "live_prompt_monitor",
+)
 
 def _default_cursor() -> Dict[str, Any]:
     defaults = user_data_store.get_default_section(_SECTION)
@@ -142,16 +157,20 @@ def mark_tool_live_item_completed(
 
 def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
     cfg = get_config()
+    before = {key: cfg.get(key) for key in USER_CONFIG_KEYS}
     for key in (
         "enabled", "extract_as_article", "reference_lang", "target_lang",
         "min_raw_words", "openrouter_model",
         "live_listen", "phase", "video_enabled", "video_username",
         "video_batch_name", "video_concurrency",
         "prompt_article_cn", "prompt_translate_en", "prompt_derive_en",
-        "prompt_derive_sound",
+        "prompt_derive_sound", "prompt_new_notify", "live_prompt_monitor",
     ):
         if key in patch:
             cfg[key] = patch[key]
+    low, high = MIN_RAW_WORDS_RANGE
+    raw_words = str(cfg.get("min_raw_words") or "").strip()
+    cfg["min_raw_words"] = max(low, min(high, int(raw_words) if raw_words.isdigit() else low))
     if "enabled_tools" in patch:
         cfg["enabled_tools"] = normalize_enabled_tools(patch.get("enabled_tools"))
     cfg["video_username"] = str(cfg.get("video_username") or "").strip()[:255]
@@ -180,6 +199,14 @@ def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
         elif cfg.get("phase") == "done":
             cfg["phase"] = "live"
     user_data_store.set_section(_SECTION, cfg)
+    changed = [key for key in USER_CONFIG_KEYS if before.get(key) != cfg.get(key)]
+    if changed:
+        status_snapshot_cache.invalidate_prefix(RUNTIME_CACHE_KEY)
+        THREAD_BUS.trigger_event(
+            BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
+            {"changed": changed, "config": {key: cfg.get(key) for key in USER_CONFIG_KEYS}},
+            async_mode=True,
+        )
     return cfg
 
 

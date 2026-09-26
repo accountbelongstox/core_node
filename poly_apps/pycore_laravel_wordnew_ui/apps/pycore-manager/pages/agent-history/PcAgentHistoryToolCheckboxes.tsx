@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AgentHistoryToolStatistics } from '@/apps/pycore-manager/api';
-import { AGENT_HISTORY_TOOLS, TOOL_LABELS } from './presentation';
+import { TOOL_LABELS } from './presentation';
+import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
 import type { AgentHistoryToolPanelKind } from './PcAgentHistoryToolPanel';
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'empty' | 'fail';
@@ -21,6 +22,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
   onSelect: (tool: string) => void;
   onOpenToolHistory?: (tool: string, kind: AgentHistoryToolPanelKind) => void;
 }> = ({ tk, enabledTools, selectedTool, refreshRevision, onToggle, onSelect, onOpenToolHistory }) => {
+  const { supportedTools, toolSupport } = useAgentHistoryRuntime();
   const [status, setStatus] = useState<Record<string, TestStatus>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [statistics, setStatistics] = useState<Record<string, AgentHistoryToolStatistics>>({});
@@ -132,13 +134,15 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
     <div className="space-y-1">
       <div className="text-xs text-slate-500">{tk('monitoredTools')}</div>
       <div className="flex flex-wrap gap-2">
-        {AGENT_HISTORY_TOOLS.map((tool) => {
+        {supportedTools.map((tool) => {
           const checked = enabledTools.includes(tool);
           const err = errors[tool];
           return (
             <div
               key={tool}
-              title={err || undefined}
+              title={err || (toolSupport[tool]
+                ? `${toolSupport[tool].platforms.join(' / ')} · ${toolSupport[tool].verified}`
+                : undefined)}
               className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs select-none transition-colors ${
                 selectedTool === tool ? 'ring-2 ring-indigo-500/30 ' : ''
               }${

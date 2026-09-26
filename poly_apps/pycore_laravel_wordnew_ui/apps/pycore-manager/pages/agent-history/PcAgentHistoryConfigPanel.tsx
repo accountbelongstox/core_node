@@ -8,13 +8,9 @@ import {
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
 import PcAgentHistoryAiPanel from './PcAgentHistoryAiPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
-import { AGENT_HISTORY_TOOLS } from './presentation';
 import type { AgentHistoryToolPanelKind } from './PcAgentHistoryToolPanel';
 import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
 
-const REFERENCE_LANGUAGE = 'CN';
-const TARGET_LANGUAGE = 'EN';
-const AGENT_HISTORY_TOOL_SET = new Set<string>(AGENT_HISTORY_TOOLS);
 
 /**
  * Article config panel — master ON/OFF toggle bound to config.enabled (backend
@@ -49,6 +45,8 @@ const PcAgentHistoryConfigPanel: React.FC<{
     configError,
     configStoragePath,
     authoritative,
+    supportedTools,
+    pipelineEnvOverride,
   } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -57,21 +55,24 @@ const PcAgentHistoryConfigPanel: React.FC<{
   const [enabledTools, setEnabledTools] = useState<string[]>(restoredEnabledTools);
   const toolsHydrated = useRef(false);
 
+  const minRawWordsDirty = useRef(false);
+
   useEffect(() => {
     if (!articleCfg) return;
-    setEnabled(!!articleCfg.enabled);
-    setMinRawWords(Number(articleCfg.min_raw_words || 200));
+    setEnabled(pipelineEnvOverride ?? !!articleCfg.enabled);
+    if (!minRawWordsDirty.current) setMinRawWords(Number(articleCfg.min_raw_words || 200));
     if (!authoritative) return;
+    const known = new Set(supportedTools);
     const tools = Array.isArray(articleCfg.enabled_tools)
       ? (articleCfg.enabled_tools as unknown[])
         .map(String)
-        .filter((tool) => AGENT_HISTORY_TOOL_SET.has(tool))
+        .filter((tool) => known.size === 0 || known.has(tool))
       : [];
     setEnabledTools(tools);
     const initialHydration = !toolsHydrated.current;
     toolsHydrated.current = true;
     onEnabledToolsChange?.(tools, initialHydration);
-  }, [articleCfg, authoritative, onEnabledToolsChange]);
+  }, [articleCfg, authoritative, onEnabledToolsChange, pipelineEnvOverride, supportedTools]);
 
   useEffect(() => {
     if (!authoritative) setEnabledTools(restoredEnabledTools);
@@ -119,12 +120,10 @@ const PcAgentHistoryConfigPanel: React.FC<{
     await persistConfig({
         extract_as_article: enabled,
         enabled,
-        reference_lang: REFERENCE_LANGUAGE,
-        target_lang: TARGET_LANGUAGE,
         min_raw_words: minRawWords,
-        live_listen: true,
         enabled_tools: enabledTools,
     });
+    minRawWordsDirty.current = false;
   };
 
   const handleToolToggle = (tool: string, checked: boolean) => {
@@ -150,11 +149,12 @@ const PcAgentHistoryConfigPanel: React.FC<{
             type="button"
             role="switch"
             aria-checked={enabled}
-            disabled={busy}
+            disabled={busy || pipelineEnvOverride !== null}
+            title={pipelineEnvOverride !== null ? tk('pipelineEnvOverride') : undefined}
             onClick={() => {
               const on = !enabled;
               setEnabled(on);
-              void persistConfig({ enabled: on, extract_as_article: on, live_listen: true });
+              void persistConfig({ enabled: on, extract_as_article: on });
             }}
             className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
               enabled ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-white/15'
@@ -212,7 +212,10 @@ const PcAgentHistoryConfigPanel: React.FC<{
             {tk('minRawWords')}
             <div className="relative">
               <input type="number" min={120} max={2000} value={minRawWords}
-                onChange={(e) => setMinRawWords(Number(e.target.value) || 200)}
+                onChange={(e) => {
+                  minRawWordsDirty.current = true;
+                  setMinRawWords(Number(e.target.value) || 200);
+                }}
                 className={`${inputCls} pr-14`} />
               <span className="pointer-events-none absolute right-2 top-1/2 mt-0.5 -translate-y-1/2 text-[11px] text-slate-400">
                 {tk('words')}

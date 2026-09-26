@@ -99,6 +99,7 @@ class BusSignals:
     AGENT_HISTORY_PROMPT_NEW = "agent_history.prompt.new"
     AGENT_HISTORY_PROMPT_DERIVED = "agent_history.prompt.derived"
     AGENT_HISTORY_VIDEO_CHANGED = "agent_history.video.changed"
+    AGENT_HISTORY_CONFIG_CHANGED = "agent_history.config.changed"
     ARTICLE_PUBLISHED = "article.published"
     CODE_SYNC_UPDATE = "code_sync_update"
     COREBOOK_AUTOFLOW = "corebook_autoflow"

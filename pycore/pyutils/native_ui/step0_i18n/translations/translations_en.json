@@ -48,11 +48,13 @@
       "code_sync": "Code Sync",
       "code_sync_distribute": "Start distributing",
       "code_sync_skip_update": "Skip update",
-      "prompt_derive_sound": "Prompt derive sound"
+      "prompt_derive_sound": "Prompt derive sound",
+      "prompt_new_notify": "New prompt notification"
     }
   },
   "toast": {
-    "prompt_derived_title": "New prompt on Linux (Debian)"
+    "prompt_derived_title": "New prompt on Linux (Debian)",
+    "prompt_new_title": "New agent prompt"
   },
   "loading": {
     "text": "Loading...",

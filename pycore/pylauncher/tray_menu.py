@@ -34,6 +34,7 @@ TRAY_SET_LANGUAGE_SIGNAL = "tray_action_set_language"
 TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL = "tray_action_toggle_code_sync_distribute"
 TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL = "tray_action_toggle_code_sync_skip_update"
 TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL = "tray_action_toggle_prompt_derive_sound"
+TRAY_TOGGLE_PROMPT_NEW_NOTIFY_SIGNAL = "tray_action_toggle_prompt_new_notify"
 
 
 def build_code_sync_submenu() -> List[TrayMenuItem]:
@@ -189,6 +190,24 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
             submenu=build_code_sync_submenu(),
         ),
     ])
+
+    # New-prompt tray/desktop notification toggle (Windows + Linux): flips the
+    # agent-history config flag (prompt_new_notify) the WEB UI settings operate;
+    # the prompt-notify watcher reads it before every notification.
+    def get_prompt_new_notify_state():
+        try:
+            from pycore.pyctl.agent_history.pipeline.config import get_config
+            return "[X]" if bool(get_config().get("prompt_new_notify", True)) else "[ ]"
+        except Exception:
+            return "[X]"
+
+    menu_items.append(
+        TrayMenuItem(
+            text=I18nKeys.TRAY_MENU_PROMPT_NEW_NOTIFY,
+            action_signal=TRAY_TOGGLE_PROMPT_NEW_NOTIFY_SIGNAL,
+            state_getter=get_prompt_new_notify_state,
+        )
+    )
 
     # Linux only: toggle installing pycore (+ the dashboard UI) as systemd system
     # services so they start on boot. ON installs BOTH units; OFF removes ONLY the

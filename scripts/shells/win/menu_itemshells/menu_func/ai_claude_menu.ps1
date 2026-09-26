@@ -48,7 +48,7 @@ function Get-ClaudeConfig {
             @{
                 Name = "ANTHROPIC_MODEL"
                 DisplayName = "ANTHROPIC_MODEL"
-                Description = "Default model (optional, e.g. claude-opus-4-8)"
+                Description = "Default model (optional, e.g. claude-opus-5-5)"
                 IsSecret = $false
                 InputType = "Text"
             }

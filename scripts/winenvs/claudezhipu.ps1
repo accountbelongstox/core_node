@@ -47,6 +47,7 @@ $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $claudeLaunchCommonScript = $null
+$aiCliProvisionCommonScript = $null
 $claudeExecutable = $null
 $forceModelChoice = $null
 $forceModelEnabled = $false
@@ -100,6 +101,13 @@ $claudeLaunchCommonScript = Join-Path $winCommonDirPath "ClaudeLaunchCommon.ps1"
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 . $claudeLaunchCommonScript
+
+# Idempotent AI CLI provisioning: install Claude Code with the dd.cmd package
+# manager when the command is missing, then offer an upgrade (default N,
+# auto-skip after 5 seconds) only when a newer version is published.
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonScript
+Invoke-AiCliProvision -Tool "claude"
 
 # Load environment variables from secret files
 $secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"

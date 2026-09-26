@@ -222,7 +222,7 @@ foreach ($candidatePath in $piCandidates) {
 
 if ($mode -eq 'claude') {
     $provider = 'anthropic'
-    $model = 'claude-opus-4-8'
+    $model = 'claude-opus-5-5'
     $enabledModels = $claudeModels
     $piUserDir = $Global:PI_CLAUDE_CODE_USER_DIR
     $piAgentDir = $Global:PI_CLAUDE_CODE_AGENT_DIR

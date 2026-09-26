@@ -19,6 +19,13 @@ skipped). Legacy wires instead carry both roles via
 {"type":"context.append_message","message":{"role","content":[{type,text}]}};
 when turn.prompt events exist the mirrored append_message user turns are
 dropped to avoid duplicates.
+
+Only human input is a prompt: wire protocol 1.5 tags every user-role record
+with ``origin.kind`` -- "user" is typed input, while "system_trigger"
+(subagent task text written by the main AI, agents/agent-*/wire.jsonl),
+"task" (background-task notifications) and "injection" (system reminders)
+are kept as ``system`` turns and never become prompts. Records without
+``origin`` (older wires) fall back to the shared injected-prefix filter.
 """
 
 from __future__ import annotations
@@ -28,6 +35,8 @@ from glob import glob
 from typing import Any, Dict, List, Optional
 
 from pycore.pyctl.agent_history.base_extractor import BaseExtractor, MAX_TURNS
+
+HUMAN_ORIGIN_KIND = "user"
 
 
 class KimiExtractor(BaseExtractor):
@@ -93,6 +102,11 @@ class KimiExtractor(BaseExtractor):
         parts = file.replace("\\", "/").split("/")
         return "agents" in parts and "main" not in parts
 
+    def _is_human(self, origin: Any, text: str) -> bool:
+        if isinstance(origin, dict) and origin.get("kind"):
+            return str(origin.get("kind")) == HUMAN_ORIGIN_KIND
+        return not self.is_injected_prompt(text)
+
     def _parse_wire(self, file: str, user: str) -> Optional[Dict[str, Any]]:
         entries = self.load_jsonl(file)
         if not entries:
@@ -121,13 +135,16 @@ class KimiExtractor(BaseExtractor):
         prompts: List[Dict[str, Any]] = []
         prompt_turns: List[Dict[str, Any]] = []
         legacy_user_turns: List[Dict[str, Any]] = []
+        legacy_prompts: List[Dict[str, Any]] = []
         legacy_assistant_turns: List[Dict[str, Any]] = []
         assistant_parts: Dict[str, Dict[str, Any]] = {}
         first_ts = 0
         last_ts = 0
+        has_prompt_events = False
         for e in entries:
             etype = str(e.get("type") or "")
             if etype in ("turn.prompt", "turn.steer"):
+                has_prompt_events = True
                 text = self.stringify_content(e.get("input")).strip()
                 if text:
                     ts = self.ts_to_epoch(e.get("time")) or mtime
@@ -135,8 +152,11 @@ class KimiExtractor(BaseExtractor):
                         last_ts = max(last_ts, ts)
                         if first_ts == 0:
                             first_ts = ts
-                    prompts.append({"ts": ts, "text": self.truncate(text)})
-                    prompt_turns.append(self.turn(ts, "user", text, is_sub))
+                    if self._is_human(e.get("origin"), text) and not is_sub:
+                        prompts.append({"ts": ts, "text": self.truncate(text)})
+                        prompt_turns.append(self.turn(ts, "user", text, is_sub))
+                    else:
+                        prompt_turns.append(self.turn(ts, "system", text, is_sub))
                 continue
             if etype == "context.append_loop_event":
                 ev = e.get("event") or {}
@@ -176,14 +196,21 @@ class KimiExtractor(BaseExtractor):
                 if first_ts == 0:
                     first_ts = ts
             if role == "user":
-                legacy_user_turns.append(self.turn(ts, "user", text, is_sub))
+                human = self._is_human(msg.get("origin"), text) and not is_sub
+                legacy_user_turns.append(self.turn(ts, "user" if human else "system", text, is_sub))
+                if human:
+                    legacy_prompts.append({"ts": ts, "text": self.truncate(text)})
             else:
                 legacy_assistant_turns.append(self.turn(ts, "assistant", text, is_sub))
 
         # Newer CLIs mirror prompts as turn.prompt AND context.append_message;
         # prefer turn.prompt and drop the mirrored duplicates. Legacy sessions
         # (no turn.prompt events) keep the append_message user turns.
-        user_turns = prompt_turns or legacy_user_turns
+        if has_prompt_events:
+            user_turns = prompt_turns
+        else:
+            user_turns = legacy_user_turns
+            prompts = legacy_prompts
         turns = user_turns + [
             self.turn(bucket["ts"], "assistant", "\n\n".join(bucket["texts"]), is_sub)
             for bucket in assistant_parts.values()
@@ -220,7 +247,7 @@ class KimiExtractor(BaseExtractor):
         turns: List[Dict[str, Any]] = []
         for d in rows:
             text = str(d.get("content") or "").strip()
-            if not text or text.startswith("/"):
+            if not text or text.startswith("/") or self.is_injected_prompt(text):
                 continue
             ts = self.ts_to_epoch(d.get("timestamp")) or mtime
             prompts.append({"ts": ts, "text": self.truncate(text)})

@@ -20,18 +20,21 @@ Config (all optional):
 
 import os
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
 from pycore.pyutils.tts.audio_utils import samples_to_mp3
+from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.tts_text_sanitize import sanitize_tts_text
 
 _MODEL_QUEUE = "tts.sherpa.model"
 _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, "SherpaTTSModelThread")
 _MODEL_WORKER.start()
+_KOKORO_PHONEMIZER_LANGUAGE_ENV = "SHERPA_KOKORO_LANG"
+_KOKORO_PHONEMIZER_LANGUAGE_DEFAULT = "en-gb-x-rp"
 _tts: Any = None
 
 
@@ -50,27 +53,45 @@ def _find(root: Path, pattern: str) -> Optional[Path]:
 
 
 def _kokoro_lexicons(model_root: Path) -> List[Path]:
-    """Kokoro multi-lang lexicons to load: us-en + zh by default.
+    """Kokoro multi-lang lexicons to load: gb-en + zh by default.
 
     The official package ships BOTH lexicon-us-en.txt and lexicon-gb-en.txt,
     whose headwords overlap ~159k (both literally start with `kokoro`), and
     sherpa logs "Duplicated word ... Ignore it." for every overlap at load —
     pure noise: the FIRST loaded pronunciation wins. Upstream guidance
     (k2-fsa sherpa-onnx kokoro docs): pass only the lexicons you need.
-    SHERPA_KOKORO_LEXICON_GB=1 swaps us-en for gb-en (British G2P also avoids
-    the U+025A phoneme the v1_1 vocab lacks); SHERPA_KOKORO_LEXICONS=a,b gives
-    a full explicit filename list."""
+    The configured phonemizer dialect selects the matching English lexicon;
+    SHERPA_KOKORO_LEXICONS=a,b gives a full explicit filename list."""
     all_lex = sorted(model_root.rglob("lexicon-*.txt"))
     explicit = (os.environ.get("SHERPA_KOKORO_LEXICONS") or "").strip()
     if explicit:
         wanted = {name.strip() for name in explicit.split(",") if name.strip()}
         return [path for path in all_lex if path.name in wanted]
-    use_gb = (os.environ.get("SHERPA_KOKORO_LEXICON_GB") or "").strip() == "1"
+    configured_language = _kokoro_phonemizer_language().lower()
+    use_gb = (
+        configured_language.startswith("en-gb")
+        or (os.environ.get("SHERPA_KOKORO_LEXICON_GB") or "").strip() == "1"
+    )
     picked = [
         path for path in all_lex
         if path.name != ("lexicon-us-en.txt" if use_gb else "lexicon-gb-en.txt")
     ]
     return picked or all_lex
+
+
+def _kokoro_phonemizer_language() -> str:
+    return (
+        os.environ.get(_KOKORO_PHONEMIZER_LANGUAGE_ENV)
+        or _KOKORO_PHONEMIZER_LANGUAGE_DEFAULT
+    ).strip()
+
+
+def _speaker_id(primary_env: str = "SHERPA_TTS_SID") -> int:
+    raw_value = os.environ.get(primary_env, os.environ.get("SHERPA_TTS_SID", "0")) or "0"
+    try:
+        return int(raw_value)
+    except ValueError:
+        return 0
 
 
 def _build_config(model_root: Path) -> Any:
@@ -107,6 +128,8 @@ def _build_config(model_root: Path) -> Any:
             data_dir=str(_find(model_root, "espeak-ng-data") or model_root),
             dict_dir=str(_find(model_root, "dict") or ""),
         )
+        if hasattr(kokoro, "lang"):
+            kokoro.lang = _kokoro_phonemizer_language()
         return sherpa.OfflineTtsConfig(
             model=sherpa.OfflineTtsModelConfig(kokoro=kokoro, provider="cpu")
         )
@@ -152,37 +175,97 @@ def available() -> bool:
     return root.is_dir() and _find(root, "*.onnx") is not None and _find(root, "tokens.txt") is not None
 
 
+def _generate_one(
+    tts: Any,
+    text: str,
+    sid: int,
+    speed: float,
+    is_kokoro: bool,
+    log_prefix: str,
+) -> Optional[Tuple[Any, int]]:
+    sherpa = get_third_package_sherpa_onnx()
+    if sherpa is None:
+        return None
+    try:
+        generation_config = sherpa.GenerationConfig()
+        generation_config.sid = sid
+        generation_config.speed = float(speed)
+        if is_kokoro:
+            generation_config.extra = {
+                "lang": _kokoro_phonemizer_language(),
+            }
+        audio = tts.generate(text, generation_config)
+    except (AttributeError, TypeError):
+        try:
+            audio = tts.generate(text, sid, speed=float(speed))
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.red(f"[{log_prefix}] generate failed: {exc}")
+            return None
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.red(f"[{log_prefix}] generate failed: {exc}")
+        return None
+
+    samples = getattr(audio, "samples", None)
+    sample_rate = int(getattr(audio, "sample_rate", 22050) or 22050)
+    if samples is None:
+        return None
+    return samples, sample_rate
+
+
+def _generate_samples(
+    tts: Any,
+    text: str,
+    sid: int,
+    speed: float,
+    is_kokoro: bool,
+    engine: str,
+    log_prefix: str,
+) -> Optional[Tuple[Any, int]]:
+    cleaned = sanitize_tts_text(text)
+    if not cleaned:
+        ColorPrint.yellow(f"[{log_prefix}] text empty after sanitization; skipped")
+        return None
+
+    samples, sample_rate, error, stats = chunked_synthesis.synthesize_samples_chunked(
+        engine,
+        cleaned,
+        lambda chunk: _generate_one(
+            tts,
+            chunk,
+            sid,
+            speed,
+            is_kokoro,
+            log_prefix,
+        ),
+    )
+    if samples is None:
+        ColorPrint.red(f"[{log_prefix}] generate failed: {error or 'no audio'}")
+        return None
+    if stats.get("chunked"):
+        ColorPrint.gray(
+            f"[{log_prefix}] generated {stats['chunk_count']} ordered text chunks"
+        )
+    return samples, sample_rate
+
+
 def _synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
     """Synthesize `text` to `output_mp3` (offline). Returns False on failure."""
     tts = _get_tts()
     if tts is None:
         return False
-    # VITS drops the WHOLE word on one unknown token (lexicon.cc
-    # ConvertTokensToIds) — strip unpronounceable characters caller-side.
-    text = sanitize_tts_text(text)
-    if not text:
-        ColorPrint.yellow("[sherpa-tts] text empty after sanitization; skipped")
+    root = model_dir()
+    generated = _generate_samples(
+        tts,
+        text,
+        _speaker_id(),
+        speed,
+        bool(_kokoro_lexicons(root)),
+        "sherpa",
+        "sherpa-tts",
+    )
+    if generated is None:
         return False
-    try:
-        sid = int(os.environ.get("SHERPA_TTS_SID", "0") or "0")
-    except ValueError:
-        sid = 0
-    try:
-        try:
-            audio = tts.generate(text, sid, speed=float(speed))
-        except TypeError:
-            sherpa = get_third_package_sherpa_onnx()
-            gen = sherpa.GenerationConfig()
-            gen.sid = sid
-            gen.speed = float(speed)
-            audio = tts.generate(text, gen)
-    except Exception as e:
-        ColorPrint.red(f"[sherpa-tts] generate failed: {e}")
-        return False
-    samples = getattr(audio, "samples", None)
-    sample_rate = getattr(audio, "sample_rate", 22050)
-    if samples is None:
-        return False
+    samples, sample_rate = generated
     return samples_to_mp3(samples, sample_rate, output_mp3)
 
 

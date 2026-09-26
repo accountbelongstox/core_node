@@ -7,25 +7,7 @@ This is the Linux-specific version of CommandContentGenerator.ps1
 
 from typing import Any, Dict, List
 
-from generators import CliUpgradeConfig, CommandContentGeneratorBase
-
-
-LINUX_CLI_UPGRADE_ACTIONS = {
-    'claude': '''echo "[INFO] Upgrading Claude Code..."
-    claude update
-    hash -r
-    echo "[INFO] Claude Code upgrade command completed."''',
-    'codex': '''echo "[INFO] Upgrading Codex CLI with pnpm..."
-    pnpm add --global @openai/codex@latest
-    hash -r
-    echo "[INFO] Codex CLI upgrade command completed."''',
-    'kimi': '''if command -v curl >/dev/null 2>&1; then
-        echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
-        curl -fsSL "https://code.kimi.com/kimi-code/install.sh" | bash
-        hash -r
-        echo "[INFO] Kimi Code CLI native upgrade command completed."
-    fi''',
-}
+from generators import CommandContentGeneratorBase
 
 
 class LinuxCommandContentGenerator(CommandContentGeneratorBase):
@@ -102,72 +84,9 @@ fi
 
 """
 
-    def _render_cli_upgrade_prompt_section(
-        self,
-        command_prefix: str,
-        tool_config: CliUpgradeConfig,
-    ) -> str:
-        """Render a bash version-aware upgrade section."""
-        action = LINUX_CLI_UPGRADE_ACTIONS[command_prefix]
-        template = r'''
-#region Version-Aware CLI Upgrade
-run_version_aware_cli_upgrade() {
-local upgrade_choice=""
-local upgrade_current_output=""
-local upgrade_latest_output=""
-local upgrade_version_gap_large="0"
-
-if command -v __COMMAND__ >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
-    upgrade_current_output="$(__COMMAND__ --version 2>/dev/null || true)"
-    upgrade_latest_output="$(pnpm view __PACKAGE__ version 2>/dev/null || true)"
-    upgrade_version_gap_large="$(node -e '
-const currentInput = process.argv[1];
-const latestInput = process.argv[2];
-const parseVersion = (value) => {
-    const tokens = value.trim().split(/\s+/);
-    for (const token of tokens) {
-        const candidate = token.startsWith("v") ? token.slice(1) : token;
-        const parts = candidate.split(".");
-        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
-        if (valid) {
-            return parts.map(Number);
-        }
-    }
-    return null;
-};
-const current = parseVersion(currentInput);
-const latest = parseVersion(latestInput);
-const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
-const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
-process.stdout.write(large ? "1" : "0");
-' "$upgrade_current_output" "$upgrade_latest_output" 2>/dev/null || true)"
-fi
-if [ "$upgrade_version_gap_large" = "1" ]; then
-    printf '\033[33m__PROMPT__\033[0m'
-    read -r upgrade_choice || upgrade_choice=""
-fi
-if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
-    __ACTION__
-elif [ "$upgrade_version_gap_large" = "1" ]; then
-    echo "[INFO] CLI upgrade skipped."
-fi
-}
-
-run_version_aware_cli_upgrade
-unset -f run_version_aware_cli_upgrade
-#endregion
-
-'''
-        return (
-            template.replace('__COMMAND__', tool_config.command)
-            .replace('__PACKAGE__', tool_config.package)
-            .replace('__PROMPT__', tool_config.prompt)
-            .replace('__ACTION__', action)
-        )
-
-    def generate_codex_linux_upgrade_section(self) -> str:
-        """Generate the Codex version-aware upgrade section."""
-        return self.generate_cli_upgrade_prompt_section('codex')
+    def generate_codex_linux_provision_section(self) -> str:
+        """Generate the Codex provisioning section (install if missing + upgrade)."""
+        return self.generate_cli_provision_section('codex')
 
     def generate_codex_linux_config_section(self) -> str:
         """Codex-only: write ~/.codex/config.toml + global AGENTS.md (idempotent).
@@ -317,7 +236,7 @@ echo ""
         # and a Python helper writes ~/.codex/config.toml (wire_api=chat) to stop the
         # OpenAI WebSocket fallback. Other tools: MyBest dir.
         is_codex = (command_prefix or "").lower() == "codex"
-        cli_upgrade_section = self.generate_cli_upgrade_prompt_section(command_prefix)
+        cli_provision_section = self.generate_cli_provision_section(command_prefix)
         if is_codex:
             user_directory_section = self.generate_codex_linux_user_dir_section(file_number)
             codex_config_section = self.generate_codex_linux_config_call_section()
@@ -567,9 +486,9 @@ read
 
         # Codex: upgrade prompt at SCRIPT START; config section after env; no user dir.
         if is_codex:
-            return f"""{header}{file_name_display}{cli_upgrade_section}{user_directory_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+            return f"""{header}{file_name_display}{cli_provision_section}{user_directory_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
-        return f"""{header}{file_name_display}{cli_upgrade_section}{user_directory_section}{path_resolution}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+        return f"""{header}{file_name_display}{cli_provision_section}{user_directory_section}{path_resolution}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

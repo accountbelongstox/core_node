@@ -60,12 +60,18 @@ def engine_model_id(engine: str) -> str:
     return runtime_engine_model(name)
 
 
-# Chunk-capable engines (capability, not per-task usage): qwen3tts runs its own
-# sentence pipeline; voxcpm2/melotts chunk server-side; fishspeech chunks in the
-# bridge; cosyvoice/gptsovits apply the client-side protective guard. Per-task
-# chunked/chunk_count stats come from the synthesis result, never from this flag.
+# This reports chunking capability, not whether one task used multiple chunks.
 _CHUNK_CAPABLE_ENGINES = frozenset(
-    ("qwen3tts", "voxcpm2", "melotts", "fishspeech", "cosyvoice", "gptsovits")
+    (
+        "qwen3tts",
+        "voxcpm2",
+        "melotts",
+        "fishspeech",
+        "cosyvoice",
+        "gptsovits",
+        "kokoro",
+        "sherpa",
+    )
 )
 
 

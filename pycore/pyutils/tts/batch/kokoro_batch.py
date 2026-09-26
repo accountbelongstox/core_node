@@ -27,14 +27,13 @@ from typing import Any, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import call_serialized
-from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
+import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
-from pycore.pyutils.tts.tts_text_sanitize import sanitize_tts_text
 
 _ENGINE = "kokoro"
 _SYNTH_TIMEOUT_S = 900.0
@@ -43,39 +42,28 @@ _MERGED_ENV = "KOKORO_BATCH_MERGED"
 
 
 def _merged_enabled() -> bool:
-    return (os.environ.get(_MERGED_ENV) or "").strip().lower() in ("1", "true", "yes", "on")
+    return (os.environ.get(_MERGED_ENV) or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def _speaker_id() -> int:
-    try:
-        return int(os.environ.get("KOKORO_TTS_SID", os.environ.get("SHERPA_TTS_SID", "0")) or "0")
-    except ValueError:
-        return 0
+    return sherpa_engine._speaker_id("KOKORO_TTS_SID")
 
 
 def _generate_on_owner(tts: Any, text: str, sid: int, speed: float) -> Optional[Tuple[Any, int]]:
-    text = sanitize_tts_text(text)
-    if not text:
-        return None
-    try:
-        try:
-            audio = tts.generate(text, sid, speed=float(speed))
-        except TypeError:
-            sherpa = get_third_package_sherpa_onnx()
-            if sherpa is None:
-                return None
-            gen = sherpa.GenerationConfig()
-            gen.sid = sid
-            gen.speed = float(speed)
-            audio = tts.generate(text, gen)
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.red(f"[kokoro-batch] generate failed ({text[:40]}...): {exc}")
-        return None
-    samples = getattr(audio, "samples", None)
-    sample_rate = int(getattr(audio, "sample_rate", 22050) or 22050)
-    if samples is None:
-        return None
-    return samples, sample_rate
+    return sherpa_engine._generate_samples(
+        tts,
+        text,
+        sid,
+        speed,
+        True,
+        "kokoro",
+        "kokoro-batch",
+    )
 
 
 def _generate_merged_on_owner(merged_text: str, speed: float) -> Optional[Tuple[Any, int]]:

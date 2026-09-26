@@ -126,7 +126,8 @@ def _notify_desktop(tool: str, derived: str, config: Dict[str, Any]) -> None:
         message=derived,
         copy_text=derived,
     )
-    if bool(config.get("prompt_derive_sound", True)):
+    # Re-read at playback time: a toggle made during a slow derivation applies.
+    if bool(get_config().get("prompt_derive_sound", True)):
         play_notification_sound()
 
 

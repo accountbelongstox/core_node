@@ -591,6 +591,20 @@ export interface AgentHistoryLiveScanResult {
   changed?: boolean;
   scanned_at?: string;
   error?: string;
+  scan_seq?: number;
+}
+
+/** Backend monitor state: `enabled` mirrors config live_prompt_monitor,
+ *  `present` is the UI presence lease, `active` = scanning now. */
+export interface AgentHistoryMonitorState {
+  enabled: boolean;
+  tools: string[];
+  present: boolean;
+  active: boolean;
+  lease_remaining: number;
+  interval: number;
+  poll_interval: number;
+  scan_seq: number;
 }
 
 export interface AgentHistoryLiveScanResponse {
@@ -601,6 +615,7 @@ export interface AgentHistoryLiveScanResponse {
     throttled?: boolean;
     retry_after?: number;
     last?: AgentHistoryLiveScanResult;
+    monitor?: AgentHistoryMonitorState;
   };
   error?: string | null;
 }

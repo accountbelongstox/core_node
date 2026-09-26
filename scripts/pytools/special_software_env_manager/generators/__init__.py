@@ -4,8 +4,7 @@ Generators Module
 Contains command content generators for Windows and Linux.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from abc import ABC
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -17,32 +16,43 @@ from script_sections.ssh_command_generator import SSHCommandGenerator
 from script_sections.user_directory_section import UserDirectorySectionGenerator
 
 
-@dataclass(frozen=True)
-class CliUpgradeConfig:
-    """Shared metadata for a version-aware CLI upgrade prompt."""
+# Tools provisioned by the shared launcher helpers (install if missing + upgrade
+# prompt). The tool table itself lives in the helpers, so packages and upgrade
+# commands are defined once per platform, never duplicated in generated scripts.
+CLI_PROVISION_TOOLS = ('claude', 'codex', 'kimi')
 
-    command: str
-    package: str
-    prompt: str
+LINUX_CLI_PROVISION_SECTION = '''
+#region AI CLI Provisioning (install if missing + idempotent upgrade prompt)
+aiCliProvisionSource="${BASH_SOURCE[0]}"
+aiCliProvisionScriptsDir=""
+aiCliProvisionCommonPath=""
+if [ -L "$aiCliProvisionSource" ]; then
+    aiCliProvisionSource="$(readlink -f "$aiCliProvisionSource" 2>/dev/null || echo "$aiCliProvisionSource")"
+fi
+aiCliProvisionScriptsDir="$(cd "$(dirname "$aiCliProvisionSource")/.." && pwd)"
+aiCliProvisionCommonPath="$aiCliProvisionScriptsDir/shells/linux/common/ai_cli_provision_common.sh"
+. "$aiCliProvisionCommonPath"
+ai_cli_provision "__TOOL__"
+#endregion
 
+'''
 
-CLI_UPGRADE_CONFIGS = {
-    'claude': CliUpgradeConfig(
-        command='claude',
-        package='@anthropic-ai/claude-code',
-        prompt="Upgrade Claude Code via 'claude update'? [N/y]: ",
-    ),
-    'codex': CliUpgradeConfig(
-        command='codex',
-        package='@openai/codex',
-        prompt="Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]: ",
-    ),
-    'kimi': CliUpgradeConfig(
-        command='kimi',
-        package='@moonshot-ai/kimi-code',
-        prompt='Upgrade Kimi Code CLI with the official native installer? [N/y]: ',
-    ),
+WINDOWS_CLI_PROVISION_SECTION = '''
+#region AI CLI Provisioning (install if missing + idempotent upgrade prompt)
+$aiCliProvisionActualPath = $PSCommandPath
+$aiCliProvisionItem = Get-Item -LiteralPath $PSCommandPath
+$aiCliProvisionScriptsDir = $null
+$aiCliProvisionCommonPath = $null
+if ($aiCliProvisionItem -and $aiCliProvisionItem.LinkType) {
+    $aiCliProvisionActualPath = $aiCliProvisionItem.Target
 }
+$aiCliProvisionScriptsDir = Split-Path (Split-Path $aiCliProvisionActualPath -Parent) -Parent
+$aiCliProvisionCommonPath = Join-Path $aiCliProvisionScriptsDir "shells\\win\\win_common\\AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonPath
+Invoke-AiCliProvision -Tool "__TOOL__"
+#endregion
+
+'''
 
 
 class CommandContentGeneratorBase(ABC):
@@ -105,25 +115,26 @@ class CommandContentGeneratorBase(ABC):
     def _has_kimi_var(self, variables: List[Dict[str, Any]]) -> bool:
         return self._has_variable(variables, 'KIMI_API_KEY')
 
-    def generate_cli_upgrade_prompt_section(self, command_prefix: str) -> str:
-        """Generate a version-aware upgrade section for a supported CLI."""
-        normalized_prefix = (command_prefix or '').lower()
-        tool_config = CLI_UPGRADE_CONFIGS.get(normalized_prefix)
-        if tool_config is None:
-            return ''
-        return self._render_cli_upgrade_prompt_section(normalized_prefix, tool_config)
+    def generate_cli_provision_section(self, command_prefix: str) -> str:
+        """Generate the shared provisioning section for a supported CLI.
 
-    @abstractmethod
-    def _render_cli_upgrade_prompt_section(
-        self,
-        command_prefix: str,
-        tool_config: CliUpgradeConfig,
-    ) -> str:
-        """Render a platform-specific version-aware upgrade section."""
-        raise NotImplementedError
+        The emitted section only locates and sources the platform helper
+        (ai_cli_provision_common.sh / AiCliProvisionCommon.ps1), which installs
+        the CLI when missing and prompts for an upgrade when a newer version is
+        published (default N, auto-skip after 5 seconds).
+        """
+        normalized_prefix = (command_prefix or '').lower()
+        if normalized_prefix not in CLI_PROVISION_TOOLS:
+            return ''
+        template = (
+            WINDOWS_CLI_PROVISION_SECTION if self.platform == 'windows'
+            else LINUX_CLI_PROVISION_SECTION
+        )
+        return template.replace('__TOOL__', normalized_prefix)
+
 
 __all__ = [
-    'CliUpgradeConfig',
+    'CLI_PROVISION_TOOLS',
     'CommandContentGeneratorBase',
     'WindowsCommandContentGenerator',
     'LinuxCommandContentGenerator',

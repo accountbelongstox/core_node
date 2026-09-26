@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+
+from pycore.pyfoundations.system_paths import AGENT_HISTORY_INJECTED_PROMPT_PREFIXES
 
 MAX_TURNS = 5000
 MAX_TEXT = 20000
@@ -108,6 +109,11 @@ class BaseExtractor(ABC):
             return "\n".join(p for p in parts if p)
         return ""
 
+    @staticmethod
+    def is_injected_prompt(text: str) -> bool:
+        """True for harness/system text recorded under the user role."""
+        return str(text or "").lstrip().startswith(AGENT_HISTORY_INJECTED_PROMPT_PREFIXES)
+
     def truncate(self, text: str) -> str:
         if len(text) <= MAX_TEXT:
             return text
@@ -181,9 +187,11 @@ class BaseExtractor(ABC):
                     chunks.append(str(block.get("text", "")))
                 elif btype == "image":
                     chunks.append("[image]")
-            kind = "tool_result" if is_tool_result else "prompt"
-            return kind, "\n".join(c for c in chunks if c)
+            text = "\n".join(c for c in chunks if c)
+            if is_tool_result:
+                return "tool_result", text
+            return ("meta" if self.is_injected_prompt(text) else "prompt"), text
         text = content if isinstance(content, str) else self.stringify_content(content)
-        if re.match(r"^\s*<(command-name|command-message|local-command|bash-input)", text or ""):
+        if self.is_injected_prompt(text):
             return "meta", text or ""
         return "prompt", text or ""

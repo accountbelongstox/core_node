@@ -55,6 +55,7 @@ import type {
   AgentHistoryToolFragmentIdPagesResponse,
   AgentHistoryToolFragmentPageResponse,
   AgentHistoryLiveScanResponse,
+  AgentHistoryMonitorState,
   AgentHistoryPromptCacheResponse,
   AgentHistoryPromptDerivedResponse,
 } from './PycoreSpeechTypes';
@@ -293,6 +294,11 @@ export const pycoreApiLocal = {
         article_summary?: Record<string, unknown>;
         operation_snapshot?: Record<string, unknown> | null;
         ai_dashboard?: Record<string, unknown> | null;
+        supported_tools?: string[];
+        tool_support?: Record<string, { platforms: string[]; verified: string }>;
+        unreadable_homes?: string[];
+        pipeline_env_override?: boolean | null;
+        monitor?: AgentHistoryMonitorState;
       };
       error?: string | null;
     }>,
@@ -313,9 +319,12 @@ export const pycoreApiLocal = {
   /** Probe one tool: parse its newest history source and return the latest prompt. */
   testAgentHistoryToolExtract: (tool: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
-  /** UI-driven realtime scan of checked tools (server throttles to its cadence). */
-  liveScanAgentHistory: (tools: string[]) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryLiveScan, { tools }) as Promise<AgentHistoryLiveScanResponse>,
+  /** Realtime monitor poll: renews the backend UI-presence lease and scans the
+   *  configured tools while `live_prompt_monitor` is ON (server-throttled).
+   *  `release` ends presence at once (page unmount). The ON/OFF switch itself
+   *  is the persisted config key, saved through the article config route. */
+  liveScanAgentHistory: (params: { tools?: string[]; release?: boolean } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryLiveScan, params) as Promise<AgentHistoryLiveScanResponse>,
   /** Paginated read over the pycore-side new-prompt cache (read-only mirror). */
   getAgentHistoryPromptCache: (params: { tool?: string; page?: number; pageSize?: number } = {}) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptCache, {

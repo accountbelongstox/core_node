@@ -6,11 +6,16 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database } from 'lucide-react';
+import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database, BellRing, BellOff, ShieldAlert } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import {
+  getAgentHistoryRuntimeState,
+  persistAgentHistoryArticleConfig,
+  useAgentHistoryRuntime,
+} from '@/apps/pycore-manager/api';
 import type {
   AgentHistoryPrompt,
   AgentHistoryPromptIdItem,
@@ -24,7 +29,7 @@ import {
   agentHistoryPageTableStore,
   type AgentHistoryPageTable,
 } from '@/apps/pycore-manager/persistence/AgentHistoryPageTableStore';
-import { AGENT_HISTORY_TOOLS, PAGE_SIZE, toolLabel } from './agent-history/presentation';
+import { PAGE_SIZE, toolLabel } from './agent-history/presentation';
 import SessionRow from './agent-history/SessionRow';
 import SessionDetailView from './agent-history/SessionDetailView';
 import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel';
@@ -48,9 +53,15 @@ type HeaderState = {
 };
 
 const STORE_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
-const MONITORED_AGENT_TOOLS = new Set<string>(AGENT_HISTORY_TOOLS);
-const LIVE_SCAN_POLL_MS = 5000;
-const LIVE_SCAN_TOOLS = new Set<string>(['kimi', 'codex', 'pi', 'claude']);
+// Poll retry delay used only until the backend has served its poll_interval.
+const LIVE_SCAN_RETRY_MS = 5000;
+
+/** Tool known to the backend registry (persisted runtime snapshot); accept
+ *  everything before the first snapshot so restored state is not dropped. */
+function knownTool(tool: string): boolean {
+  const tools = getAgentHistoryRuntimeState().supportedTools;
+  return tools.length === 0 || tools.includes(tool);
+}
 const RELAY_PROMPT_NEW_EVENT = String(
   (RELAY_CONTRACT.events as Record<string, string>).agent_history_prompt_new || '',
 );
@@ -96,14 +107,13 @@ function readUiState(): AgentHistoryUiState {
     sessionPage: stored.sessionPage,
     promptPage: stored.promptPage,
     selectedId: String(stored.selectedId || ''),
-    selectedTool: MONITORED_AGENT_TOOLS.has(String(stored.selectedTool || ''))
+    selectedTool: knownTool(String(stored.selectedTool || ''))
       ? String(stored.selectedTool)
       : '',
     enabledTools: Array.isArray(stored.enabledTools)
-      ? stored.enabledTools.map(String).filter((tool) => MONITORED_AGENT_TOOLS.has(tool))
+      ? stored.enabledTools.map(String).filter(knownTool)
       : [],
     live: stored.live !== false,
-    livePromptMonitor: stored.livePromptMonitor !== false,
     taskPeriod: stored.taskPeriod === 'history' ? 'history' : 'today',
   };
 }
@@ -125,7 +135,12 @@ const PcAgentHistoryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [live, setLive] = useState(initialUiState.live);
-  const [livePromptMonitor, setLivePromptMonitor] = useState(initialUiState.livePromptMonitor);
+  // Backend-owned switches (config live_prompt_monitor / prompt_new_notify):
+  // read from the runtime store, written through the config route, and kept
+  // in sync across tabs + tray by the agent_history.config.changed push.
+  const { articleConfig, unreadableHomes } = useAgentHistoryRuntime();
+  const livePromptMonitor = articleConfig?.live_prompt_monitor === true;
+  const promptNewNotify = articleConfig ? articleConfig.prompt_new_notify !== false : true;
   const [statsBump, setStatsBump] = useState(0);
   const [toolPanel, setToolPanel] = useState<{ tool: string; kind: AgentHistoryToolPanelKind } | null>(null);
 
@@ -160,10 +175,9 @@ const PcAgentHistoryPage: React.FC = () => {
       selectedTool,
       enabledTools,
       live,
-      livePromptMonitor,
       taskPeriod,
     });
-  }, [enabledTools, filterTool, filterUser, live, livePromptMonitor, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
+  }, [enabledTools, filterTool, filterUser, live, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
 
   const loadSessionPage = useCallback(async (force = false) => {
     setSessionLoading(true);
@@ -367,33 +381,39 @@ const PcAgentHistoryPage: React.FC = () => {
     };
   }, [live, livePromptMonitor, tab, loadSessionPage, loadPromptPage]);
 
-  // Realtime prompt monitor (default ON): while checked, poll the pycore
-  // live-scan route every 5s for the checked local agents (kimi/codex/pi/
-  // claude supported server-side); unchanged agents are skipped server-side
-  // and new prompts arrive via the agent_history.prompt.new push.
+  // Realtime prompt monitor: ON/OFF is the backend config switch; while ON
+  // this page renews the backend UI-presence lease at the backend-served
+  // poll_interval, and pycore scans the configured agents on its own lane.
+  // A scan result is applied once (scan_seq), never re-applied from a
+  // throttled reply; unmount releases presence immediately.
   useEffect(() => {
     if (!livePromptMonitor) return;
-    const tools = enabledTools.filter((tool) => LIVE_SCAN_TOOLS.has(tool));
-    if (tools.length === 0) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastSeq = -1;
+    let pollMs = LIVE_SCAN_RETRY_MS;
     const tick = async () => {
       try {
-        const res = await pycoreApi.liveScanAgentHistory(tools);
-        if (!cancelled && res.success && res.data?.last?.changed) {
-          setStatsBump((value) => value + 1);
+        const res = await pycoreApi.liveScanAgentHistory();
+        const seq = Number(res.data?.last?.scan_seq ?? -1);
+        const interval = Number(res.data?.monitor?.poll_interval || 0);
+        if (interval > 0) pollMs = interval * 1000;
+        if (!cancelled && res.success && seq > lastSeq) {
+          if (lastSeq >= 0 && res.data?.last?.changed) setStatsBump((value) => value + 1);
+          lastSeq = seq;
         }
       } catch {
         // Scan failures surface via the page error state on explicit refresh.
       }
-      if (!cancelled) timer = setTimeout(() => void tick(), LIVE_SCAN_POLL_MS);
+      if (!cancelled) timer = setTimeout(() => void tick(), pollMs);
     };
-    timer = setTimeout(() => void tick(), LIVE_SCAN_POLL_MS);
+    void tick();
     return () => {
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
+      void pycoreApi.liveScanAgentHistory({ release: true }).catch(() => {});
     };
-  }, [enabledTools, livePromptMonitor]);
+  }, [livePromptMonitor]);
 
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -520,12 +540,28 @@ const PcAgentHistoryPage: React.FC = () => {
               type="checkbox"
               className="accent-sky-600"
               checked={livePromptMonitor}
-              onChange={(event) => setLivePromptMonitor(event.target.checked)}
+              onChange={(event) => {
+                void persistAgentHistoryArticleConfig({ live_prompt_monitor: event.target.checked });
+              }}
               aria-label={tk('livePromptMonitor')}
             />
             <Radar className={`w-3.5 h-3.5 ${livePromptMonitor ? 'animate-pulse' : ''}`} />
             {tk('livePromptMonitor')}
           </label>
+          <button
+            type="button"
+            onClick={() => void persistAgentHistoryArticleConfig({ prompt_new_notify: !promptNewNotify })}
+            title={tk('promptNewNotifyHint')}
+            aria-pressed={promptNewNotify}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              promptNewNotify
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                : 'border-slate-300 dark:border-white/10 text-slate-500'
+            }`}
+          >
+            {promptNewNotify ? <BellRing className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+            {tk('promptNewNotify')}
+          </button>
           <button
             type="button"
             onClick={() => setLive((v) => !v)}
@@ -549,6 +585,16 @@ const PcAgentHistoryPage: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {unreadableHomes.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+          <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            {tk('unreadableHomes')}
+            <span className="ml-1 font-mono">{unreadableHomes.join(', ')}</span>
+          </span>
+        </div>
+      )}
 
       {header.generatedAt && (
         <div className="text-xs font-mono text-slate-400">

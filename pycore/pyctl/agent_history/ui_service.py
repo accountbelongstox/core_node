@@ -11,8 +11,12 @@ import pycore.pyctl.agent_history.prompt_derived_cache as prompt_derived_cache
 import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache
-from pycore.pyctl.agent_history.heartbeat import set_agent_history_callbacks_enabled
+from pycore.pyctl.agent_history.heartbeat import (
+    pipeline_env_override,
+    set_agent_history_callbacks_enabled,
+)
 from pycore.pyctl.agent_history.pipeline.config import (
+    RUNTIME_CACHE_KEY,
     SUPPORTED_TOOLS,
     get_config,
     get_tool_backfill_target,
@@ -25,6 +29,8 @@ from pycore.pyctl.agent_history.pipeline.config import (
 from pycore.pyctl.agent_history.pipeline import audio_rebuild
 from pycore.pyctl.agent_history.pipeline.prompt_templates import prompt_defaults
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
+from pycore.pyfoundations.agent_home_scanner import unreadable_user_homes
+from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
 from pycore.pyctl.ai.prompt_derive import (
@@ -238,7 +244,17 @@ def live_scan(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
     raw_tools = request.get("tools") or []
     tools = [str(item) for item in raw_tools] if isinstance(raw_tools, list) else []
-    return {"success": True, "data": agent_history_tick_service.request_live_scan(tools)}
+    # `enabled` persists the live_prompt_monitor switch; every poll renews the
+    # UI presence lease; `release` (page unmount) ends presence immediately.
+    enabled = request.get("enabled")
+    if enabled is not None:
+        enabled = bool(enabled)
+    data = agent_history_tick_service.request_live_scan(
+        tools,
+        enabled=enabled,
+        release=bool(request.get("release")),
+    )
+    return {"success": True, "data": data}
 
 
 def prompt_cache(params: Any, _request_id: str) -> Dict[str, Any]:
@@ -356,7 +372,7 @@ def status(params: Any, _request_id: str) -> Dict[str, Any]:
 
 def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
     result = status_snapshot_cache.get_background(
-        "agent_history.runtime", _build_runtime, ttl_seconds=3.0,
+        RUNTIME_CACHE_KEY, _build_runtime, ttl_seconds=3.0,
     )
     return {**(result["snapshot"] or {"success": True, "data": {}}), "refreshing": result["refreshing"]}
 
@@ -401,6 +417,17 @@ def _build_runtime() -> Dict[str, Any]:
         "data": {
             "article_config": config,
             "article_config_storage_path": str(user_data_store.path),
+            "pipeline_env_override": pipeline_env_override(),
+            "supported_tools": list(SUPPORTED_TOOLS),
+            "tool_support": {
+                tool: {
+                    "platforms": list(spec.get("platforms") or ()),
+                    "verified": str(spec.get("verified") or ""),
+                }
+                for tool, spec in AGENT_HISTORY_OFFICIAL_HOME_MARKERS.items()
+            },
+            "unreadable_homes": unreadable_user_homes(),
+            "monitor": agent_history_tick_service.get_status_snapshot().get("monitor") or {},
             "article_prompt_defaults": {
                 **prompt_defaults(),
                 CONFIG_KEY_PROMPT_DERIVE_EN: DEFAULT_PROMPT_DERIVE_EN_PROMPT,

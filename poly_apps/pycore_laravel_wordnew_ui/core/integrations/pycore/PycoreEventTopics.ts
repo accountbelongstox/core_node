@@ -6,6 +6,7 @@ export const PYCORE_EVENT_TOPICS = {
   agentHistoryPromptNew: 'agent_history.prompt.new',
   agentHistoryPromptDerived: 'agent_history.prompt.derived',
   agentHistoryVideoChanged: 'agent_history.video.changed',
+  agentHistoryConfigChanged: 'agent_history.config.changed',
   articlePublished: 'article.published',
   codeSyncLog: 'code_sync_log',
   codeSyncUpdate: 'code_sync_update',

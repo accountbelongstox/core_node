@@ -20,6 +20,8 @@ import wave
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
+
 _CHUNKING_PATH = (
     Path(__file__).resolve().parents[2] / "tts_install_assets" / "tts_text_chunking.py"
 )
@@ -161,4 +163,85 @@ def synthesize_chunked(
             pass
 
 
-__all__ = ["guard_policy", "synthesize_chunked"]
+def synthesize_samples_chunked(
+    engine: str,
+    text: str,
+    synthesize_one: Callable[[str], Optional[Tuple[Any, int]]],
+    *,
+    pause_ms: Optional[int] = None,
+) -> Tuple[Optional[Any], int, Optional[str], Dict[str, Any]]:
+    stats: Dict[str, Any] = {"engine": engine, "chunked": False, "chunk_count": 0}
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return None, 0, "empty text", stats
+
+    chunking = _chunking()
+    policy = chunking.default_policy(engine)
+    try:
+        chunks = chunking.split_text(cleaned, policy)
+    except Exception as exc:  # noqa: BLE001
+        return None, 0, f"split failed: {exc}", stats
+    if not chunks:
+        return None, 0, "empty text", stats
+
+    np = get_third_package_numpy()
+    if np is None:
+        return None, 0, "numpy unavailable", stats
+
+    stats["chunk_count"] = len(chunks)
+    stats["chunked"] = len(chunks) > 1
+    sample_rate = 0
+    sample_parts = []
+    for chunk in chunks:
+        generated = synthesize_one(chunk.text)
+        if generated is None:
+            return (
+                None,
+                0,
+                f"chunk {chunk.index + 1}/{len(chunks)} failed",
+                stats,
+            )
+        raw_samples, raw_sample_rate = generated
+        samples = np.asarray(raw_samples, dtype=np.float32).reshape(-1)
+        current_sample_rate = int(raw_sample_rate or 0)
+        if samples.size == 0 or current_sample_rate <= 0:
+            return (
+                None,
+                0,
+                f"chunk {chunk.index + 1}/{len(chunks)} returned invalid audio",
+                stats,
+            )
+        if not np.isfinite(samples).all():
+            return (
+                None,
+                0,
+                f"chunk {chunk.index + 1}/{len(chunks)} returned non-finite audio",
+                stats,
+            )
+        if sample_rate and current_sample_rate != sample_rate:
+            return (
+                None,
+                0,
+                f"chunk {chunk.index + 1}/{len(chunks)} sample rate changed",
+                stats,
+            )
+        sample_rate = current_sample_rate
+        sample_parts.append(samples)
+
+    if len(sample_parts) == 1:
+        return sample_parts[0], sample_rate, None, stats
+
+    resolved_pause_ms = int(policy.pause_ms if pause_ms is None else pause_ms)
+    pause = np.zeros(
+        max(0, sample_rate * resolved_pause_ms // 1000),
+        dtype=np.float32,
+    )
+    combined_parts = []
+    for index, samples in enumerate(sample_parts):
+        if index and pause.size:
+            combined_parts.append(pause)
+        combined_parts.append(samples)
+    return np.concatenate(combined_parts), sample_rate, None, stats
+
+
+__all__ = ["guard_policy", "synthesize_chunked", "synthesize_samples_chunked"]

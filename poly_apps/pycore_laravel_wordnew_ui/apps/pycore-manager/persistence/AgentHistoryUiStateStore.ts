@@ -15,7 +15,6 @@ export interface AgentHistoryUiState {
   selectedTool: string;
   enabledTools: string[];
   live: boolean;
-  livePromptMonitor: boolean;
   taskPeriod: AgentHistoryTaskPeriod;
 }
 
@@ -30,7 +29,6 @@ const DEFAULT_STATE: AgentHistoryUiState = {
   selectedTool: '',
   enabledTools: [],
   live: true,
-  livePromptMonitor: true,
   taskPeriod: 'today',
 };
 
@@ -51,7 +49,6 @@ function normalizeState(value: AgentHistoryUiState): AgentHistoryUiState {
     selectedTool: String(value.selectedTool || ''),
     enabledTools: Array.isArray(value.enabledTools) ? value.enabledTools.map(String) : [],
     live: value.live !== false,
-    livePromptMonitor: value.livePromptMonitor !== false,
     taskPeriod: value.taskPeriod === 'history' ? 'history' : 'today',
   };
 }
