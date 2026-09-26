@@ -18,8 +18,13 @@
 # Does NOT set deprecated TRANSFORMERS_CACHE (transformers v5 uses HF_HOME only).
 
 $Global:WINDOWS_DATA_DRIVE_ROOT = 'D:\'
+$Global:WINDOWS_PROGRAMING_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'programing'
+$Global:WINDOWS_PROGRAMING_USERS_DIR = Join-Path $Global:WINDOWS_PROGRAMING_DIR 'Users'
 $Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'www'
 $Global:WWW_CACHE_DIR = Join-Path $Global:WWW_BASE_DIR 'cache'
+$Global:CORE_NODE_DATA_DIR = Join-Path $Global:WWW_BASE_DIR 'core_node'
+$Global:CORE_NODE_RUNTIME_CACHE_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'cache'
+$Global:CORE_NODE_RUNTIME_DATA_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'data'
 # Canonical cache-root Global consumed by ~20 install_*.ps1 steps and by
 # GlobalVars.ps1 $Global:USER_CACHE_DIR. Mirrors $Global:WWW_CACHE_DIR so the
 # shared cache path is defined ONCE in this central file.
@@ -70,6 +75,14 @@ if (-not $env:CORE_NODE_CACHE_DIR) {
     $env:CORE_NODE_CACHE_DIR = $Global:WWW_CACHE_DIR
 }
 $Global:CORE_NODE_CACHE_DIR = $env:CORE_NODE_CACHE_DIR
+if ($env:CORE_NODE_DATA_DIR) {
+    $Global:CORE_NODE_DATA_DIR = $env:CORE_NODE_DATA_DIR
+    $Global:CORE_NODE_RUNTIME_CACHE_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'cache'
+    $Global:CORE_NODE_RUNTIME_DATA_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'data'
+}
+else {
+    $env:CORE_NODE_DATA_DIR = $Global:CORE_NODE_DATA_DIR
+}
 
 if (-not $env:HF_HOME) {
     $env:HF_HOME = Join-Path $Global:WWW_CACHE_DIR 'huggingface'

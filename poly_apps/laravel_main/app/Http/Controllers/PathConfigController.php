@@ -28,7 +28,7 @@ class PathConfigController extends Controller
      */
     private function pathMappings(): array
     {
-        $coreNode = PathMapper::getCoreNodeDir() ?: '/www/programing/core_node';
+        $coreNode = PathMapper::getCoreNodeDir();
         $staticDir = PathMapper::mapWebPath('wwwroot') . '/laravel_db/static';
 
         return [

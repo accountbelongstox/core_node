@@ -15,8 +15,9 @@ const path = require('path');
 const readline = require('readline');
 const yaml = require('js-yaml');
 const env = require('../../../ncore/gvar/libs/env.js');
+const systemPaths = require('../../../ncore/foundation/common/system_paths.js');
 
-const GLOBAL_VAR_DIR="/usr/core_node/global_var"
+const GLOBAL_VAR_DIR = systemPaths.getGlobalVarDirs()[0];
 const INSTALL_MODE = getValByGlobalVar(`INSTALL_MODE`);
 const DOCKER_FULL = env.getEnvValue(`DOCKER_FULL`);
 const DOCKER_BASE = env.getEnvValue(`DOCKER_BASE`);
@@ -52,11 +53,14 @@ if (!fs.existsSync(OUTPUT_DIR)) {
 }
 
 function getValByGlobalVar(file) {
-  const filePath = path.join(GLOBAL_VAR_DIR, file);
-  if (!fs.existsSync(filePath)) {
-    return '';
+  const candidateNames = systemPaths.getGlobalVarReadNames(file);
+  for (const candidateName of candidateNames) {
+    const filePath = path.join(GLOBAL_VAR_DIR, candidateName);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
   }
-  return fs.readFileSync(filePath, 'utf8');
+  return '';
 }
 
 // Read and parse docker-compose file

@@ -22,6 +22,10 @@ from pycore.pyutils.common.strtools.normalization import to_bool
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS as shared_thread_bus
 from pycore.pyfoundations.machine_id import INVALID_SMBIOS_UUIDS, SMBIOS_UUID_RE
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir as _get_core_node_data_dir
+from pycore.pyfoundations.system_paths import (
+    get_shared_download_cache_dir as _get_shared_download_cache_dir,
+)
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread as SharedSerializedWorkerThread,
     call_serialized as shared_call_serialized,
@@ -487,20 +491,6 @@ def _ensure_dir(path: Path) -> Path:
     return path
 
 
-def _www_data_base() -> str:
-    """Linux WWW base honoring the dual-boot extra level: /www/www when /www is
-    the root of a mounted data disk (the Windows D:\\ root), else /www. stdlib
-    mirror of pycore.pyfoundations.core_node_dirs.get_linux_www_base (codesync
-    runs standalone without importing the pycore package)."""
-    try:
-        if os.path.isdir('/www/www') and os.path.ismount('/www'):
-            if os.stat('/www').st_dev != os.stat('/').st_dev:
-                return '/www/www'
-    except OSError:
-        pass
-    return '/www'
-
-
 def get_app_data_dir() -> Path:
     """Per-user persistent data dir — identical to pycore.system_paths.get_app_data_dir():
     <core_node_data_dir>/data (Windows D:\\www\\core_node; Linux /www/www/core_node
@@ -511,40 +501,12 @@ def get_app_data_dir() -> Path:
             return Path(fn())
         except Exception:
             pass
-    if sys.platform == "win32":
-        # Mirror pycore.pyfoundations.core_node_dirs (kept stdlib-only so
-        # codesync runs standalone without importing the pycore package).
-        cache = _ensure_dir(Path('D:/www/core_node'))
-    else:
-        cache = None
-        for shared in (Path(_www_data_base()) / 'core_node', Path("/var/_core_node")):
-            try:
-                _ensure_dir(shared)
-            except Exception:
-                pass
-            if shared.is_dir() and os.access(shared, os.W_OK):
-                cache = shared
-                break
-        if cache is None:
-            cache = _ensure_dir(Path.home() / "core_node")
-    return _ensure_dir(cache / "data")
+    return _ensure_dir(_get_core_node_data_dir() / "data")
 
 
 def get_codesync_cache_dir() -> Path:
     """CodeSync runtime cache, isolated from the Pycore application cache."""
-    env_val = os.environ.get('CORE_NODE_CACHE_DIR')
-    if env_val:
-        return _ensure_dir(Path(env_val) / 'codesync')
-    if sys.platform == 'win32':
-        return _ensure_dir(Path('D:/www/cache') / 'codesync')
-    shared = Path('/var/_core_node/cache')
-    try:
-        _ensure_dir(shared)
-    except Exception:
-        pass
-    if shared.is_dir() and os.access(shared, os.W_OK):
-        return _ensure_dir(shared / 'codesync')
-    return _ensure_dir(Path.home() / 'core_node' / 'cache' / 'codesync')
+    return _ensure_dir(_get_shared_download_cache_dir() / 'codesync')
 
 
 # The committed peer list — the SHIPPED DEFAULT (baseline), read-only at runtime.

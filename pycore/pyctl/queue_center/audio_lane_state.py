@@ -8,7 +8,7 @@ each lane its own Queue = Part1 + Part2). This module composes it:
   * switch      persisted lane capability + heartbeat callback running
   * queue       whole / Part1 / Part2 view + Part1 tracker (audio_queue_center)
   * worker      lane worker status (cycle, counters, outbox)
-  * full_sync   word-audio full pull status (word lane)
+  * full_sync   the lane's backlog full-pull status (both lanes)
   * contract    the Queue Center section contract (same builder as the
                 exchange snapshot)
 
@@ -32,8 +32,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.queue_center.lane_registry import lane_callback_name
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.tts.audio_lane_activation import lane_enabled
-from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
+from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 from pycore.pyutils.tts.audio_queue_center import (
     AUDIO_QUEUE_CHANGED_SIGNAL,
@@ -95,9 +94,8 @@ class AudioLaneState:
                 "delivery_outbox_running": bool(worker.get("delivery_outbox_running")),
             },
             "section_contract": (local.get("sectionContracts") or {}).get(lane),
+            "full_sync": AUDIO_LANE_FULL_SYNC[lane].get_status(),
         }
-        if lane == "word_audio":
-            state["full_sync"] = word_audio_full_sync.get_status()
         return state
 
     def snapshot(self, owner: str = "", item_limit: int = _QUEUE_ITEM_LIMIT, advance: bool = False) -> Dict[str, Any]:
@@ -126,7 +124,7 @@ class AudioLaneState:
 
     def lanes_active(self) -> bool:
         """True while any lane works (drain cycle or full pull in flight)."""
-        if word_audio_full_sync.get_status().get("running"):
+        if any(full_sync.get_status().get("running") for full_sync in AUDIO_LANE_FULL_SYNC.values()):
             return True
         local = queue_center_snapshot_service.local_audio_state()
         for key in ("wordAudio", "sentenceAudio"):

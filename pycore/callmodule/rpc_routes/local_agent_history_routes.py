@@ -3,12 +3,10 @@
 
 from pycore.callmodule.rpc_routes import route_names
 import pycore.pyctl.agent_history.ui_service as agent_history_ui_service
-from pycore.pyctl.agent_history.pipeline.worker import recover_nonterminal_operations
 
 
 def register_local_agent_history_routes(server) -> None:
     """Register thin Agent History controller adapters."""
-    recover_nonterminal_operations()
     routes = (
         (route_names.UI_AGENT_HISTORY_INDEX, agent_history_ui_service.index),
         (route_names.UI_AGENT_HISTORY_PROMPTS, agent_history_ui_service.prompts),

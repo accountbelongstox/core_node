@@ -8,8 +8,9 @@ pycore boot) runs the same chain, so both lanes behave identically:
   1. restore the lane's whole Queue from the local snapshot (once per
      process; cache-first, Laravel may be offline);
   2. start the full pull of the lane's server backlog into Part2
-     (word: dictionary without-audio listing; sentence: the FULL_SYNC diff
-     mirror of Laravel's pending sentence_audio tasks);
+     (word: dictionary without-audio listing; sentence: library sentences
+     without audio) and the lane worker's FULL_SYNC diff mirror of Laravel's
+     live tasks;
   3. wake the drain.
 
 A lane whose persisted switch is OFF is never activated.
@@ -19,8 +20,16 @@ from typing import Any, Dict
 
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyctl.queue_center.lane_registry import lane_capability
+from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
+from pycore.pyctl.tts.sentence_audio_full_sync import sentence_audio_full_sync
 from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
 from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+
+# ONE full-pull owner per lane (each lane its own Queue = Part1 + Part2).
+AUDIO_LANE_FULL_SYNC: Dict[str, AudioLaneFullSync] = {
+    "word_audio": word_audio_full_sync,
+    "sentence_audio": sentence_audio_full_sync,
+}
 
 
 def lane_enabled(lane: str) -> bool:
@@ -37,12 +46,10 @@ def activate_audio_lane(lane: str) -> Dict[str, Any]:
     if not lane_enabled(lane):
         return {"success": False, "error_code": "AUDIO_LANE_DISABLED", "lane": lane}
     restored = audio_queue_center.restore_from_cache(lane)
-    if lane == "word_audio":
-        word_audio_full_sync.record_cache_restore(restored)
-        word_audio_full_sync.start_background()
-        audio_queue_center.request_pull(lane)
-    else:
-        audio_queue_center.request_pull(lane, prefer_remote=True)
+    full_sync = AUDIO_LANE_FULL_SYNC[lane]
+    full_sync.record_cache_restore(restored)
+    full_sync.start_background()
+    audio_queue_center.request_pull(lane, prefer_remote=True)
     audio_queue_center.note_state_change(lane, "activated")
     return {"success": True, "lane": lane, "restored": restored}
 
@@ -57,6 +64,7 @@ def activate_enabled_audio_lanes() -> Dict[str, Any]:
 
 
 __all__ = [
+    "AUDIO_LANE_FULL_SYNC",
     "activate_audio_lane",
     "activate_enabled_audio_lanes",
     "lane_enabled",

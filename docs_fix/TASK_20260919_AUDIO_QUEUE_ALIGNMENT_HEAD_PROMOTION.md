@@ -1,5 +1,14 @@
 # Audio Queue Alignment and Queue-Head Promotion — Development Requirements
 
+> **Status (2026-09-26):**
+> - R4 (pycore → Laravel head/batch promotion, `queue_head_client`) was
+>   retracted by `REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md`;
+>   the module is deleted.
+> - R1/R2 targeted `QueueCenterAudioScanTask`, which was later deleted
+>   (`DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md` §4.3). The sentence backlog is
+>   now fed by pycore's sentence full pull (`docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md` §5.4).
+> - R3 (Laravel head/batch endpoint for wordnew) remains.
+
 Date: 2026-09-19
 Scope: `poly_apps/laravel_main` (queue center, audio scan, gateways), `pycore` (audio workers, audio orchestration), `config/queue_center_contract.json`.
 

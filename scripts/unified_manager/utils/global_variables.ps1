@@ -1,12 +1,19 @@
 # Unified Global Variable Manager - PowerShell Implementation
 # Centralized variable storage system for Windows
-# Stores variables in: D:\programing\Users\{username}\.core_node\.build_global_vars
+# Stores variables in: <core_node_data_dir>\build_global_vars
 # Format: filename=key, file_content=value
 
 # Variable declarations - all at top
 $Script:GlobalVarsDir = $null
 $Script:VariableKeys = @{}
 $Script:StatusValues = @{}
+$Script:UnifiedManagerDir = Split-Path $PSScriptRoot -Parent
+$Script:ScriptsDir = Split-Path $Script:UnifiedManagerDir -Parent
+$Script:RepoRoot = Split-Path $Script:ScriptsDir -Parent
+$Script:ShellsDir = Join-Path $Script:ScriptsDir 'shells'
+$Script:WindowsShellsDir = Join-Path $Script:ShellsDir 'win'
+$Script:WinCommonDir = Join-Path $Script:WindowsShellsDir 'win_common'
+$Script:SharedCacheEnvPath = Join-Path $Script:WinCommonDir 'SharedCacheEnv.ps1'
 
 # Initialize variable keys (centralized definitions)
 $Script:VariableKeys = @{
@@ -52,14 +59,19 @@ function Initialize-GlobalVariables {
     Initialize the global variables directory
     #>
 
-    # Delegate to the canonical GlobalVars.ps1 $Global:USER_DIR when available;
-    # else mirror its value (D:\programing\Users\<user>\.core_node).
-    $baseDir = if ($Global:USER_DIR) {
-        $Global:USER_DIR
-    } else {
-        Join-Path (Join-Path 'D:\programing\Users' $env:USERNAME) '.core_node'
+    $baseDir = ''
+
+    if ($Global:CORE_NODE_DATA_DIR) {
+        $baseDir = $Global:CORE_NODE_DATA_DIR
     }
-    $Script:GlobalVarsDir = Join-Path $baseDir '.build_global_vars'
+    elseif ($env:CORE_NODE_DATA_DIR) {
+        $baseDir = $env:CORE_NODE_DATA_DIR
+    }
+    else {
+        . $Script:SharedCacheEnvPath
+        $baseDir = Join-Path $Global:WWW_BASE_DIR 'core_node'
+    }
+    $Script:GlobalVarsDir = Join-Path $baseDir 'build_global_vars'
 
     # Ensure directory exists
     if (-not (Test-Path $Script:GlobalVarsDir)) {
@@ -98,6 +110,10 @@ function Write-GlobalVar {
     }
 
     $VarFile = Join-Path $Script:GlobalVarsDir $Key
+
+    if (Test-Path -LiteralPath $VarFile -PathType Container) {
+        throw "Variable key collides with a directory: $Key"
+    }
 
     # Convert value to string
     if ($Value -is [hashtable] -or $Value -is [array] -or $Value -is [PSCustomObject]) {
@@ -145,9 +161,9 @@ function Read-GlobalVar {
 
     $VarFile = Join-Path $Script:GlobalVarsDir $Key
 
-    if (Test-Path $VarFile) {
+    if (Test-Path -LiteralPath $VarFile -PathType Leaf) {
         try {
-            $Content = Get-Content $VarFile -Raw -Encoding utf8 -ErrorAction Stop
+            $Content = Get-Content -LiteralPath $VarFile -Raw -Encoding utf8 -ErrorAction Stop
             if ($Content) {
                 return $Content.Trim()
             }
@@ -257,9 +273,9 @@ function Remove-GlobalVar {
     }
 
     $VarFile = Join-Path $Script:GlobalVarsDir $Key
-    if (Test-Path $VarFile) {
+    if (Test-Path -LiteralPath $VarFile -PathType Leaf) {
         try {
-            Remove-Item $VarFile -Force
+            Remove-Item -LiteralPath $VarFile -Force
             return $true
         }
         catch {
@@ -351,7 +367,7 @@ function Test-GlobalVar {
     }
 
     $VarFile = Join-Path $Script:GlobalVarsDir $Key
-    return Test-Path $VarFile
+    return Test-Path -LiteralPath $VarFile -PathType Leaf
 }
 
 # Convenience functions using standard variable keys

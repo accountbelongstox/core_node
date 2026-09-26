@@ -6,6 +6,12 @@ import json
 import time
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 # Win32 API constants
 SM_XVIRTUALSCREEN = 76
 SM_YVIRTUALSCREEN = 77
@@ -61,8 +67,7 @@ CHAR_WIDTH = MEASURED_COLUMNS_WIDTH_PX / MEASURED_COLUMNS   # pixels per column 
 CHAR_HEIGHT = MEASURED_ROWS_HEIGHT_PX / MEASURED_ROWS       # pixels per row = 485/164 ≈ 2.9573
 
 # Temp directory for batch files
-USERNAME = os.getenv('USERNAME') or os.getenv('USER')
-TEMP_DIR = Path('D:/programing/Users') / USERNAME / '.core_node' / 'launch_multiple'
+TEMP_DIR = get_system_cache_dir() / 'launch_multiple'
 
 def get_screen_dimensions():
     """Get virtual desktop dimensions (entire OS desktop across all monitors)"""
@@ -142,10 +147,8 @@ def get_screen_dimensions():
 
 def get_cache_path():
     """Get cache file path"""
-    username = os.getenv('USERNAME') or os.getenv('USER')
-    cache_dir = Path('D:/programing/Users') / username / '.core_node' / 'launch_multiple'
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / 'char_size_cache.json'
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    return TEMP_DIR / 'char_size_cache.json'
 
 def load_char_size_cache():
     """Load character size cache from file"""
@@ -203,8 +206,7 @@ def measure_char_size_from_test_window():
     test_pos_y = 100
     
     # Create test bat file
-    username = os.getenv('USERNAME') or os.getenv('USER')
-    temp_dir = Path('D:/programing/Users') / username / '.core_node' / 'launch_multiple'
+    temp_dir = TEMP_DIR
     temp_dir.mkdir(parents=True, exist_ok=True)
     
     test_bat = temp_dir / 'test_window.bat'
@@ -401,4 +403,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

@@ -69,7 +69,9 @@ _service: Any = None
 
 def _bootstrap_cache_env() -> None:
     """Set CORE_NODE_CACHE_DIR before pycore import (system_paths needs it on Windows)."""
-    cache_root = (os.environ.get("CORE_NODE_CACHE_DIR") or r"D:\www\cache").strip()
+    _ensure_project_paths()
+    from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
+    cache_root = str(get_shared_download_cache_dir())
     os.environ.setdefault("CORE_NODE_CACHE_DIR", cache_root)
     os.environ.setdefault("HF_HOME", str(Path(cache_root) / "huggingface"))
     os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "3600")
@@ -1136,7 +1138,7 @@ def main() -> None:
     parser.add_argument(
         "--verify-weights",
         action="store_true",
-        help="Audit local D:/www/cache/pycore/qwen3tts/weights integrity",
+        help="Audit local centralized Qwen3-TTS weights integrity",
     )
     parser.add_argument(
         "--engine",

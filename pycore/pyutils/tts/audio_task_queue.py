@@ -17,6 +17,8 @@ from pycore.pyutils.common.queue_center_contract import task_language_tier_rank
 # / pycore-manager promotes) always sit IN FRONT of Part2 (Laravel head).
 PART1_RANK = 0
 PART2_RANK = 1
+# Upper bound of heap entries walked for one part_view head preview.
+_PART_VIEW_WALK_CAP = 5000
 
 
 class AudioTaskQueue:
@@ -53,6 +55,10 @@ class AudioTaskQueue:
         # shared by reference so membership updates apply without copying).
         self._dedup_key_of = dedup_key_of
         self._part1_keys: Set[str] = part1_keys if part1_keys is not None else set()
+        # Observability counter of heap entries holding Part1 rank: kept
+        # incrementally on push/pop, recomputed once after re-rank paths.
+        self._part1_count = 0
+        self._part1_count_valid = True
         init_serialized_owner(
             self,
             f"tts.audio_queue.{queue_name}",
@@ -88,6 +94,23 @@ class AudioTaskQueue:
         same language/content identity is rejected. A task whose dedup key is
         a Part1 member lands in Part1 automatically.
         """
+        return self._push_owned(task)
+
+    @serialized_method
+    def push_many(self, tasks: List[Dict[str, Any]]) -> int:
+        """Bulk push in ONE owner transaction (cache restore of 10^5+ tasks).
+
+        Same whole-Queue dedup as push(); returns the number inserted. Avoids
+        one cross-thread round trip per task, which stalled boot for minutes.
+        """
+        inserted = 0
+        for task in tasks or ():
+            if isinstance(task, dict) and self._push_owned(task):
+                inserted += 1
+        return inserted
+
+    def _push_owned(self, task: Dict[str, Any]) -> bool:
+        """push() body; runs only on the owner thread."""
         task_key = self._task_key(task)
         if task_key and task_key in self._active_keys:
             for index, entry in enumerate(self._heap):
@@ -98,6 +121,7 @@ class AudioTaskQueue:
                 if order < entry[:4]:
                     self._heap[index] = (*order, dict(task))
                     heapq.heapify(self._heap)
+                    self._part1_count_valid = False
                 return False
             return False
         dedup_key = ""
@@ -107,6 +131,8 @@ class AudioTaskQueue:
                 return False
         order = self._order(task, self._seq)
         heapq.heappush(self._heap, (*order, task))
+        if order[0] == PART1_RANK:
+            self._part1_count += 1
         if task_key:
             self._active_keys.add(task_key)
         if dedup_key:
@@ -119,7 +145,10 @@ class AudioTaskQueue:
         """Pop the current queue head or return None."""
         if not self._heap:
             return None
-        return heapq.heappop(self._heap)[-1]
+        entry = heapq.heappop(self._heap)
+        if entry[0] == PART1_RANK:
+            self._part1_count -= 1
+        return entry[-1]
 
     @serialized_method
     def complete(self, task: Dict[str, Any]) -> None:
@@ -196,6 +225,7 @@ class AudioTaskQueue:
             changed += 1
         if changed:
             heapq.heapify(self._heap)
+            self._part1_count_valid = False
         return changed
 
     @serialized_method
@@ -243,6 +273,7 @@ class AudioTaskQueue:
         if pruned:
             self._heap = kept
             heapq.heapify(self._heap)
+            self._part1_count_valid = False
         return pruned
 
     @serialized_method
@@ -267,6 +298,7 @@ class AudioTaskQueue:
             task["queue_position"] = position
             self._heap[index] = (*self._order(task, entry[3]), task)
             heapq.heapify(self._heap)
+            self._part1_count_valid = False
             return True
         return False
 
@@ -297,6 +329,7 @@ class AudioTaskQueue:
             task["queue_position"] = position
             self._heap[index] = (*self._order(task, entry[3]), task)
             heapq.heapify(self._heap)
+            self._part1_count_valid = False
             return True
         return False
 
@@ -324,6 +357,7 @@ class AudioTaskQueue:
                 changed += 1
         if changed:
             heapq.heapify(self._heap)
+            self._part1_count_valid = False
         return changed
 
     @serialized_method
@@ -360,13 +394,33 @@ class AudioTaskQueue:
         if taken:
             self._heap = kept
             heapq.heapify(self._heap)
+            self._part1_count_valid = False
         return taken
+
+    def _smallest(self, count: int) -> List[Tuple[int, int, int, int, Dict[str, Any]]]:
+        """INTERNAL: the ``count`` smallest heap entries in pop order.
+
+        Walks the heap tree from the root (O(count log count)) instead of
+        scanning or sorting the whole heap.
+        """
+        result: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
+        if not self._heap or count <= 0:
+            return result
+        frontier: List[Tuple[Tuple[int, int, int, int], int]] = [(self._heap[0][:4], 0)]
+        size = len(self._heap)
+        while frontier and len(result) < count:
+            _order, index = heapq.heappop(frontier)
+            result.append(self._heap[index])
+            for child in (2 * index + 1, 2 * index + 2):
+                if child < size:
+                    heapq.heappush(frontier, (self._heap[child][:4], child))
+        return result
 
     @serialized_method
     def head_preview(self, limit: int = 1) -> List[Dict[str, Any]]:
         """Read the current queue head value(s) WITHOUT consuming them."""
         count = max(1, int(limit or 1))
-        return [dict(entry[-1]) for entry in heapq.nsmallest(count, self._heap)]
+        return [dict(entry[-1]) for entry in self._smallest(count)]
 
     @serialized_method
     def part_view(self, limit: int = 10) -> Dict[str, Any]:
@@ -374,29 +428,37 @@ class AudioTaskQueue:
 
         Observability only (Queue Center / orchestration visualization): the
         split is reported, never addressable — every mutation stays
-        whole-Queue. One owner-thread pass; bounded head previews
-        (``heapq.nsmallest``), never a full sort.
+        whole-Queue. Counts are maintained (recomputed once after re-rank
+        paths); head previews walk the heap root (Part1 entries always sort
+        first), never a full scan per read.
         """
         count = max(1, int(limit or 1))
-        part1 = [entry for entry in self._heap if entry[0] == PART1_RANK]
-        part2 = [entry for entry in self._heap if entry[0] != PART1_RANK]
+        if not self._part1_count_valid:
+            self._part1_count = sum(1 for entry in self._heap if entry[0] == PART1_RANK)
+            self._part1_count_valid = True
+        part1 = self._part1_count
+        walked_part1 = min(part1, _PART_VIEW_WALK_CAP)
+        head = self._smallest(walked_part1 + count)
         return {
             "queued": len(self._heap),
-            "part1": len(part1),
-            "part2": len(part2),
-            "part1_head": [dict(entry[-1]) for entry in heapq.nsmallest(count, part1)],
-            "part2_head": [dict(entry[-1]) for entry in heapq.nsmallest(count, part2)],
+            "part1": part1,
+            "part2": len(self._heap) - part1,
+            "part1_head": [dict(entry[-1]) for entry in head[:min(part1, count)]],
+            "part2_head": (
+                [dict(entry[-1]) for entry in head[walked_part1:walked_part1 + count]]
+                if walked_part1 == part1 else []
+            ),
         }
 
     @serialized_method
-    def export_tasks(self) -> List[Dict[str, Any]]:
-        """INTERNAL: the whole Queue as ONE list in exact pop order.
+    def export_entries(self) -> List[Tuple[Tuple[int, int, int, int], Dict[str, Any]]]:
+        """INTERNAL: ``(order, task copy)`` of every queued entry, unsorted.
 
-        Queue-cache persistence only (the Part1/Part2 split stays internal:
-        part membership travels separately as the dedup-key set, and pop
-        order already encodes part_rank first).
+        Queue-cache persistence only: the caller sorts by ``order`` off the
+        owner thread (pop order already encodes part_rank first), so a large
+        backlog snapshot never stalls the drain.
         """
-        return [dict(entry[-1]) for entry in sorted(self._heap)]
+        return [(entry[:4], dict(entry[-1])) for entry in self._heap]
 
     def __len__(self) -> int:
         return len(self._heap)

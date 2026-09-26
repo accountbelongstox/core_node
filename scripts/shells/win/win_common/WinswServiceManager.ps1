@@ -30,6 +30,9 @@
 # release binary is fetched directly from GitHub Releases and cached, mirroring how
 # Ensure-Nssm resolves nssm.exe.
 
+$script:SharedCacheEnvPath = Join-Path $PSScriptRoot 'SharedCacheEnv.ps1'
+. $script:SharedCacheEnvPath
+
 # Pinned stable release (WinSW-x64.exe is the self-contained x64 build -- no local
 # .NET Framework/Core dependency, matching nssm.exe's standalone nature).
 $Global:WinswReleaseTag = "v2.12.0"
@@ -38,7 +41,7 @@ $Global:WinswAssetName = "WinSW-x64.exe"
 # Resolve a cached WinSW-x64.exe under <cache>\pycore\tools\winsw. Returns $null if not found.
 function Find-WinswExe {
     param([Parameter(Mandatory = $true)][string]$RepoRootDir)
-    $winswCacheRoot = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
+    $winswCacheRoot = $Global:CORE_NODE_CACHE_DIR
     $cacheDir = Join-Path $winswCacheRoot 'pycore\tools\winsw'
     $cachedExe = Join-Path $cacheDir $Global:WinswAssetName
     if (Test-Path -LiteralPath $cachedExe) { return $cachedExe }
@@ -52,7 +55,7 @@ function Ensure-Winsw {
     $existing = Find-WinswExe -RepoRootDir $RepoRootDir
     if ($existing) { return $existing }
 
-    $winswCacheRoot = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
+    $winswCacheRoot = $Global:CORE_NODE_CACHE_DIR
     $cacheDir = Join-Path $winswCacheRoot 'pycore\tools\winsw'
     if (-not (Test-Path -LiteralPath $cacheDir)) { New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null }
     $targetExe = Join-Path $cacheDir $Global:WinswAssetName

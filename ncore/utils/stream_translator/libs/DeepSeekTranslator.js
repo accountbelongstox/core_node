@@ -15,6 +15,7 @@ const path = require('path');
 const fs = require('fs');
 const logger = require('./Logger.js');
 const { Worker } = require('worker_threads');
+const { getSharedDownloadCacheDir } = require('../../../foundation/common/system_paths.js');
 
 class DeepSeekTranslator {
     constructor(options = {}) {
@@ -34,7 +35,7 @@ class DeepSeekTranslator {
         // Prefer pre-downloaded local weights (Step36 idempotent install) over a lazy
         // HF download at translator runtime. Staging mirrors pycore system_paths
         // get_local_data_dir(): <CORE_NODE_CACHE_DIR>/pycore/deepseek-vl (or DEEPSEEK_VL_DIR).
-        const cacheDir = process.env.CORE_NODE_CACHE_DIR || (process.platform === 'win32' ? 'D:/www/cache' : '/var/_core_node/cache');
+        const cacheDir = getSharedDownloadCacheDir();
         const staging = process.env.DEEPSEEK_VL_DIR || path.join(cacheDir, 'pycore', 'deepseek-vl');
         const weightsDir = path.join(staging, 'weights');
         const sentinel = path.join(staging, '.model_installed');

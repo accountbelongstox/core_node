@@ -27,8 +27,12 @@ else:
 # Add parent directory to path for imports
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
+core_node_dir = Path(__file__).resolve().parents[2]
+if str(core_node_dir) not in sys.path:
+    sys.path.insert(0, str(core_node_dir))
 
 from git_management_vars import GitManagementVars, GitVarKeys
+from pycore.pyfoundations.core_node_dirs import read_global_var
 
 
 class GitManagement:
@@ -895,11 +899,9 @@ class GitManagement:
     def _get_region_setting(self) -> str:
         """Get the region setting from global vars"""
         try:
-            # Try to read from existing global vars system
-            global_var_file = Path("/var/_core_node/global_var/SELECTED_REGION")
-            if global_var_file.exists():
-                with open(global_var_file, 'r') as f:
-                    return f.read().strip()
+            value = read_global_var("SELECTED_REGION")
+            if value:
+                return value
         except Exception:
             pass
 

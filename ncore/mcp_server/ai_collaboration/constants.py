@@ -4,7 +4,14 @@ Defines configuration for multi-AI collaboration service
 """
 
 import platform
+import sys
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
 
 class AICollaborationConstants:
     SERVICE_NAME = "ai_collaboration"
@@ -22,11 +29,7 @@ class AICollaborationConstants:
     IS_WINDOWS = SYSTEM_NAME == 'Windows'
     IS_LINUX = SYSTEM_NAME == 'Linux'
 
-    if IS_WINDOWS:
-        USER_HOME = Path.home()
-        DATA_ROOT = USER_HOME / ".core_node" / "mcp_server" / SERVICE_NAME
-    else:
-        DATA_ROOT = Path("/var/_core_node/mcp_server") / SERVICE_NAME
+    DATA_ROOT = get_core_node_data_dir() / "mcp_server" / SERVICE_NAME
 
     # SQLite database for cross-client sharing
     DB_FILE = DATA_ROOT / "ai_collaboration.db"

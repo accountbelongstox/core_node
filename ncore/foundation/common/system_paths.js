@@ -45,6 +45,22 @@ const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
 const WINDOWS_WWW_BASE = path.join(WINDOWS_DATA_DRIVE_ROOT, WWW_DIR_NAME);
 const WINDOWS_CORE_NODE_DATA_DIR = path.join(WINDOWS_WWW_BASE, CORE_NODE_DATA_DIR_NAME);
 const WINDOWS_SHARED_CACHE_DIR = path.join(WINDOWS_WWW_BASE, CACHE_DIR_NAME);
+const SHARED_GLOBAL_VAR_KEYS = new Set([
+    'POSTGRES_PASSWORD',
+    'MERCURE_PUBLISHER_JWT',
+    'MERCURE_SUBSCRIBER_JWT',
+    'DNSPOD_API_TOKEN',
+    'DNSPOD_EMAIL',
+    'TAILSCALE_DOMAIN_1',
+    'DOMAIN_API_REGION_PREFIX',
+    'DOMAIN_UI_BINDING',
+    'START_WEB_SERVER',
+    'WEB_SERVER_PLANE',
+    'PHP_RUNTIME_PLANE',
+    'SELECTED_REGION',
+    'GIT_PUSH_BRANCH',
+    'GIT_UPDATE_TYPE'
+]);
 
 function getMountInfo(target) {
     if (process.platform !== 'linux' || !fs.existsSync('/proc/mounts')) {
@@ -95,6 +111,72 @@ function getLegacySystemCacheDirs() {
     return directories;
 }
 
+function normalizeGlobalVarKey(key) {
+    return String(key || '').toUpperCase().replace(/[^A-Z0-9_]/g, '');
+}
+
+function getOsVarTag() {
+    if (process.platform === 'win32') {
+        const build = Number(os.release().split('.')[2] || 0);
+        return build >= 22000 ? 'WIN11' : 'WIN10';
+    }
+    if (process.platform === 'linux') {
+        try {
+            const values = {};
+            const lines = fs.readFileSync('/etc/os-release', 'utf8').split('\n');
+            for (const line of lines) {
+                const separator = line.indexOf('=');
+                if (separator > 0) {
+                    values[line.slice(0, separator)] = line.slice(separator + 1).replace(/^"|"$/g, '');
+                }
+            }
+            const distribution = String(values.ID || 'LINUX').toUpperCase();
+            const majorVersion = String(values.VERSION_ID || '0').split('.')[0];
+            return `${distribution}_${majorVersion}`;
+        } catch (error) {
+            return 'LINUX_0';
+        }
+    }
+    return process.platform.toUpperCase();
+}
+
+function getGlobalVarWriteName(key) {
+    const normalized = normalizeGlobalVarKey(key);
+    return SHARED_GLOBAL_VAR_KEYS.has(normalized)
+        ? normalized
+        : `${getOsVarTag()}_${normalized}`;
+}
+
+function getGlobalVarReadNames(key) {
+    const normalized = normalizeGlobalVarKey(key);
+    return SHARED_GLOBAL_VAR_KEYS.has(normalized)
+        ? [normalized]
+        : [`${getOsVarTag()}_${normalized}`, normalized];
+}
+
+function getGlobalVarLogicalName(fileName) {
+    const normalized = normalizeGlobalVarKey(fileName);
+    const currentPrefix = `${getOsVarTag()}_`;
+    const taggedMatch = normalized.match(/^(WIN10|WIN11|[A-Z]+_[0-9]+)_(.+)$/);
+    if (normalized.startsWith(currentPrefix)) {
+        return normalized.slice(currentPrefix.length);
+    }
+    if (taggedMatch) {
+        return null;
+    }
+    return normalized;
+}
+
+function getGlobalVarDirs() {
+    const canonicalDir = path.join(getSystemCacheDir(), GLOBAL_VAR_DIR_NAME);
+    const directories = [canonicalDir];
+    for (const baseDir of getLegacySystemCacheDirs()) {
+        directories.push(path.join(baseDir, GLOBAL_VAR_DIR_NAME));
+        directories.push(path.join(baseDir, '.global_vars'));
+    }
+    return [...new Set(directories)];
+}
+
 /**
  * User-level XDG cache root (~/.cache on Linux, D:\www\cache on Windows).
  * @returns {string}
@@ -123,6 +205,30 @@ function getXdgCacheHome() {
 
     _xdgCacheHome = cacheHome;
     return cacheHome;
+}
+
+function getSharedDownloadCacheDir() {
+    const configuredDir = (process.env.CORE_NODE_CACHE_DIR || '').trim();
+    const preferredDir = process.platform === 'win32'
+        ? WINDOWS_SHARED_CACHE_DIR
+        : wwwDataRootMounted()
+            ? path.join(getLinuxWwwBase(), CACHE_DIR_NAME)
+            : path.join(LEGACY_LINUX_DATA_DIR, CACHE_DIR_NAME);
+    const candidates = configuredDir
+        ? [configuredDir]
+        : [preferredDir, path.join(os.homedir(), CORE_NODE_DATA_DIR_NAME, CACHE_DIR_NAME)];
+    let cacheDir = preferredDir;
+    for (const candidate of candidates) {
+        try {
+            fs.mkdirSync(candidate, { recursive: true });
+            fs.accessSync(candidate, fs.constants.W_OK);
+            cacheDir = candidate;
+            break;
+        } catch (error) {
+            continue;
+        }
+    }
+    return cacheDir;
 }
 
 /**
@@ -343,12 +449,20 @@ module.exports = {
     WINDOWS_WWW_BASE,
     WINDOWS_CORE_NODE_DATA_DIR,
     WINDOWS_SHARED_CACHE_DIR,
+    SHARED_GLOBAL_VAR_KEYS,
     isWsl,
     isDesktopLinux,
     wwwDataRootMounted,
     getLinuxWwwBase,
     getLegacySystemCacheDirs,
+    normalizeGlobalVarKey,
+    getOsVarTag,
+    getGlobalVarWriteName,
+    getGlobalVarReadNames,
+    getGlobalVarLogicalName,
+    getGlobalVarDirs,
     getXdgCacheHome,
+    getSharedDownloadCacheDir,
     getSystemCacheDir,
     getUiStateCacheDir,
     getAppCacheDir,

@@ -19,6 +19,7 @@ _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
+from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 
 _QWEN25_DEFAULT_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
 
@@ -47,7 +48,7 @@ def test_model(model_name=None, test_prompt=None):
     """
     model_name = _resolve_model(model_name)
     try:
-        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
+        os.environ.setdefault('HF_HOME', str(get_shared_download_cache_dir() / 'huggingface'))
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
         print('[RUN] Importing transformers...')

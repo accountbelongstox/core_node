@@ -103,6 +103,12 @@ import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
 
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.system_paths import get_system_cache_dir, get_xdg_cache_home
+
 
 # --------------------------------------------------------------------------- #
 # Lightweight terminal colors (no external dependency)
@@ -168,8 +174,7 @@ class PythonEnvBackup:
         if user_data_dir:
             self.user_data_dir = Path(user_data_dir).resolve()
         else:
-            username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-            self.user_data_dir = Path('D:/programing/Users') / username / '.core_node'
+            self.user_data_dir = get_system_cache_dir()
 
         # Default backup root = sibling folder of the core_node project.
         self.backup_root = (Path(backup_root).resolve() if backup_root
@@ -194,14 +199,7 @@ class PythonEnvBackup:
             elif os.environ.get("HUGGINGFACE_HUB_CACHE"):
                 hf_path = Path(os.environ["HUGGINGFACE_HUB_CACHE"]).resolve()
             else:
-                try:
-                    from pycore.pyfoundations.system_paths import get_xdg_cache_home
-                    hf_path = get_xdg_cache_home() / "huggingface"
-                except Exception:
-                    if sys.platform == "win32":
-                        hf_path = Path(r"D:\www\cache\huggingface")
-                    else:
-                        hf_path = Path.home() / ".cache" / "huggingface"
+                hf_path = get_xdg_cache_home() / "huggingface"
             self.sources.append({"name": "hf_model_cache", "path": str(hf_path)})
 
         # openai-whisper model cache (D:\www\cache\whisper on Windows or $XDG_CACHE_HOME/whisper).
@@ -213,14 +211,7 @@ class PythonEnvBackup:
             elif os.environ.get("XDG_CACHE_HOME"):
                 wh_path = Path(os.environ["XDG_CACHE_HOME"]).resolve() / "whisper"
             else:
-                try:
-                    from pycore.pyfoundations.system_paths import get_xdg_cache_home
-                    wh_path = get_xdg_cache_home() / "whisper"
-                except Exception:
-                    if sys.platform == "win32":
-                        wh_path = Path(r"D:\www\cache\whisper")
-                    else:
-                        wh_path = Path.home() / ".cache" / "whisper"
+                wh_path = get_xdg_cache_home() / "whisper"
             self.sources.append({"name": "whisper_model_cache", "path": str(wh_path)})
 
     # -- shared helpers ----------------------------------------------------- #

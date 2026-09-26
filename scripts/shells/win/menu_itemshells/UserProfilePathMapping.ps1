@@ -27,12 +27,14 @@ $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "
 
 #region Main
 function Show-UserProfilePathMappingMenu {
-    Clear-Host
-    Write-PathMapLog -Message "User profile path mapping (idempotent, mklink /J junctions)" -Type "Info"
-    Write-Host ""
     $profileCoreNodePath = Join-Path $env:USERPROFILE '.core_node'
     $profileCachePath = Join-Path $env:USERPROFILE '.cache'
     $programingUserPath = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
+    $ok = $false
+
+    Clear-Host
+    Write-PathMapLog -Message "User profile path mapping (idempotent, mklink /J junctions)" -Type "Info"
+    Write-Host ""
     Write-Host "  $profileCoreNodePath -> $Global:CORE_NODE_DATA_DIR"
     Write-Host "  $profileCachePath -> $Global:CORE_NODE_CACHE_DIR"
     Write-Host "  Other profile folders -> $programingUserPath"

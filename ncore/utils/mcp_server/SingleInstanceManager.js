@@ -25,7 +25,7 @@ const globalDir = require('#@global_dir');
  * suitable for CLI/server applications
  *
  * How it works:
- * 1. Lock file stored in D:\programing\Users\{username}\.core_node\locks (Windows) or /var/_core_node/locks (Linux)
+ * 1. Lock file stored under the centralized core_node runtime data directory.
  * 2. Heartbeat updates lock file every 5 seconds with timestamp
  * 3. On startup, checks if lock file was updated within last 6 seconds
  * 4. If lock file is older than 6 seconds, assumes previous instance crashed and takes over
@@ -48,8 +48,7 @@ const globalDir = require('#@global_dir');
  * // Lock will be automatically released on exit
  *
  * Lock files location:
- * - Linux: /var/_core_node/locks/ (primary) or ~/.core_node/locks/ (fallback)
- * - Windows: D:\programing\Users\{username}\.core_node\locks\
+ * - Linux and Windows: <core_node_data_dir>/locks/
  *
  * @class SingleInstanceManager
  */
@@ -66,7 +65,7 @@ class SingleInstanceManager {
 
     /**
      * Get default lock directory from global_dir configuration
-     * Uses D:\programing\Users\{username}\.core_node\locks (Windows) or /var/_core_node/locks (Linux)
+     * Uses <core_node_data_dir>/locks through global_dir.LOCAL_DIR.
      */
     getDefaultLockDir() {
         const localDir = globalDir.LOCAL_DIR;

@@ -41,15 +41,14 @@ $Colors = @{
     Reset = "Gray"
 }
 
-# Import global variable management library
-. (Join-Path $ScriptPath "utils\global_variables.ps1")
-
 # Ensure common GlobalVars loaded so $Global:PYTHON_EXE_PATH is available
 if (-not $Global:PYTHON_EXE_PATH) {
     $GlobalVarsPath = Join-Path $RootDir "scripts\shells\win\win_common\GlobalVars.ps1"
     if (Test-Path -LiteralPath $GlobalVarsPath) { . $GlobalVarsPath }
 }
 
+# Import global variable management library after the common path constants.
+. (Join-Path $ScriptPath "utils\global_variables.ps1")
 
 
 # Logging functions

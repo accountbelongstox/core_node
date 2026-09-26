@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # Make pycore importable so ADB resolves via the centralized system_paths
-# module (D:\programing\Users\<user>\.core_node\scrcpy\adb.exe on Windows).
+# module (D:\www\core_node\scrcpy\adb.exe on Windows).
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))

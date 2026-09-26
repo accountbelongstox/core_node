@@ -258,6 +258,11 @@ class MediaBrowseController extends Controller
             // Books v3.1: scope verses to a single chapter (book -> chapter -> verses).
             'chapter_index' => 'nullable|integer|min:0',
             'include_enrichment' => 'nullable|boolean',
+            // Keyset cursor (grain=sentence, no enrichment, whole book): the
+            // pycore audio-orchestration full sentence sync walks deep books
+            // without OFFSET/COUNT per page.
+            'after_seq' => 'nullable|integer|min:0',
+            'after_id' => 'nullable|integer|min:0',
         ]);
 
         $book = Book::findBySourceKey($source_key);
@@ -281,11 +286,26 @@ class MediaBrowseController extends Controller
         $grain = $validated['grain'] ?? 'sentence';
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 500;
         $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
+        $includeEnrichment = $request->boolean('include_enrichment', true);
+        $keyset = array_key_exists('after_seq', $validated) && $validated['after_seq'] !== null
+            && $grain === 'sentence' && !$includeEnrichment && $chapterIndex === null;
+        if ($keyset) {
+            return $this->success([
+                'source' => $source,
+                'chapter_index' => null,
+                'sentences' => $this->buildSentencesKeysetPage(
+                    $source_key,
+                    (int) $validated['after_seq'],
+                    (int) ($validated['after_id'] ?? 0),
+                    $perPage
+                ),
+            ]);
+        }
         $languages = $this->sourceLanguages($sourceType, $source);
         $adaptation = $this->resolveChapterIndex($sourceType, $source_key, $languages, $chapterIndex, $grain);
         $sentences = $this->buildSentencesPaginator(
             $source_key, $grain, $perPage, $adaptation['slot_index'],
-            $request->boolean('include_enrichment', true)
+            $includeEnrichment
         );
 
         $payload = [
@@ -494,56 +514,9 @@ class MediaBrowseController extends Controller
         // per slot, i.e. O(rows x languages) round-trips for a 500-verse chapter).
         $preload = $this->preloadLangRows($paginator->getCollection());
 
-        $paginator->through(function (SourceSentence $link) use ($preload, $includeEnrichment) {
-            // Books v3.1: resolve the slot's primary-language sentence from the
-            // per-language store via lang_content_ids; the full per-language map
-            // is exposed under `languages`. The legacy shared `sentence` relation
-            // was removed, so a slot with no v3 correspondence resolves to the
-            // per-language row (or null) — never the dropped shared table.
-            $v3 = $this->resolveSlotPrimary($link, $preload, $includeEnrichment);
-            $sentence = $v3 !== null
-                ? $v3['row']
-                : $link->langSentence($link->primary_language ?: 'en');
-
-            // Slot metadata carries the verse's real reference (e.g. "1:1") + book
-            // for sources seeded as one book with chapter-per-sub-book (the Bible).
-            $meta = is_array($link->metadata) ? $link->metadata : [];
-
-            if (!$includeEnrichment) {
-                return [
-                    'seq' => $link->seq,
-                    'chapter_index' => $link->chapter_index,
-                    'text' => $sentence->text ?? null,
-                    'language' => $sentence->language ?? null,
-                    'languages' => $v3['languages'] ?? [],
-                ];
-            }
-
-            $entry = [
-                'grain' => $link->grain,
-                'seq' => $link->seq,
-                'seg_index' => $link->seg_index,
-                'sub_idx' => $link->sub_idx,
-                'start_sec' => $link->start_sec,
-                'end_sec' => $link->end_sec,
-                'ref' => $meta['ref'] ?? null,
-                'book' => $meta['book'] ?? null,
-                'text' => $sentence->text ?? null,
-                'language' => $sentence->language ?? null,
-                'explanation' => $sentence->explanation ?? null,
-                'grammar' => $sentence->grammar ?? null,
-                'ai_commentary' => $sentence->ai_commentary ?? null,
-                'special_usage' => $sentence->special_usage ?? null,
-                'audio' => $sentence->audio ?? null,
-                'occurrence_count' => $sentence->occurrence_count ?? null,
-            ];
-            if ($v3 !== null) {
-                $entry['corr_id'] = $link->corr_id;
-                $entry['chapter_index'] = $link->chapter_index;
-                $entry['languages'] = $v3['languages'];
-            }
-            return $entry;
-        });
+        $paginator->through(
+            fn (SourceSentence $link): array => $this->sentenceEntry($link, $preload, $includeEnrichment)
+        );
 
         return [
             'items' => $paginator->items(),
@@ -552,6 +525,91 @@ class MediaBrowseController extends Controller
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
         ];
+    }
+
+    /**
+     * Keyset sentence page (grain=sentence, no enrichment): rows after the
+     * (after_seq, after_id) cursor, one bounded range scan per page. `total`
+     * is counted once, on the first page (cursor 0/0) only.
+     *
+     * @return array{items:array<int,array<string,mixed>>,per_page:int,has_more:bool,next_after_seq:?int,next_after_id:?int,total?:int}
+     */
+    private function buildSentencesKeysetPage(string $sourceKey, int $afterSeq, int $afterId, int $perPage): array
+    {
+        $rows = SourceSentence::keysetSourcePage($sourceKey, 'sentence', $afterSeq, $afterId, $perPage + 1);
+        $hasMore = $rows->count() > $perPage;
+        $rows = $rows->take($perPage)->values();
+        $preload = $this->preloadLangRows($rows);
+        $last = $rows->last();
+        $page = [
+            'items' => $rows->map(fn (SourceSentence $link): array => $this->sentenceEntry($link, $preload, false))->all(),
+            'per_page' => $perPage,
+            'has_more' => $hasMore,
+            'next_after_seq' => $last !== null ? (int) $last->seq : null,
+            'next_after_id' => $last !== null ? (int) $last->id : null,
+        ];
+        if ($afterSeq === 0 && $afterId === 0) {
+            $page['total'] = SourceSentence::countForSourceKeyGrain($sourceKey, 'sentence');
+        }
+        return $page;
+    }
+
+    /**
+     * One sentence slot row for the book sentence endpoints.
+     *
+     * @param array<string,array<string,LangSentence>> $preload
+     * @return array<string,mixed>
+     */
+    private function sentenceEntry(SourceSentence $link, array $preload, bool $includeEnrichment): array
+    {
+        // Books v3.1: resolve the slot's primary-language sentence from the
+        // per-language store via lang_content_ids; the full per-language map
+        // is exposed under `languages`. The legacy shared `sentence` relation
+        // was removed, so a slot with no v3 correspondence resolves to the
+        // per-language row (or null) — never the dropped shared table.
+        $v3 = $this->resolveSlotPrimary($link, $preload, $includeEnrichment);
+        $sentence = $v3 !== null
+            ? $v3['row']
+            : $link->langSentence($link->primary_language ?: 'en');
+
+        // Slot metadata carries the verse's real reference (e.g. "1:1") + book
+        // for sources seeded as one book with chapter-per-sub-book (the Bible).
+        $meta = is_array($link->metadata) ? $link->metadata : [];
+
+        if (!$includeEnrichment) {
+            return [
+                'seq' => $link->seq,
+                'chapter_index' => $link->chapter_index,
+                'text' => $sentence->text ?? null,
+                'language' => $sentence->language ?? null,
+                'languages' => $v3['languages'] ?? [],
+            ];
+        }
+
+        $entry = [
+            'grain' => $link->grain,
+            'seq' => $link->seq,
+            'seg_index' => $link->seg_index,
+            'sub_idx' => $link->sub_idx,
+            'start_sec' => $link->start_sec,
+            'end_sec' => $link->end_sec,
+            'ref' => $meta['ref'] ?? null,
+            'book' => $meta['book'] ?? null,
+            'text' => $sentence->text ?? null,
+            'language' => $sentence->language ?? null,
+            'explanation' => $sentence->explanation ?? null,
+            'grammar' => $sentence->grammar ?? null,
+            'ai_commentary' => $sentence->ai_commentary ?? null,
+            'special_usage' => $sentence->special_usage ?? null,
+            'audio' => $sentence->audio ?? null,
+            'occurrence_count' => $sentence->occurrence_count ?? null,
+        ];
+        if ($v3 !== null) {
+            $entry['corr_id'] = $link->corr_id;
+            $entry['chapter_index'] = $link->chapter_index;
+            $entry['languages'] = $v3['languages'];
+        }
+        return $entry;
     }
 
     /**

@@ -1,5 +1,25 @@
 # Audio Queue-Head Part1/Part2 Split — Development Requirements
 
+> **Status (2026-09-26): refined by `docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md` §5.2.** Still valid:
+> Queue = Part1 + Part2 per lane, whole-Queue dedup/operation, the ordering
+> key, the direction Laravel → pycore, and R0–R5/R7/R8. Corrections:
+> - **Visualization allowed.** §3 "external abstraction = ONE Queue" and
+>   acceptance check 2 no longer forbid SHOWING the split. The library exposes
+>   a read-only Part1/Part2/Queue view (`lane_view`) and a Part1 tracker.
+>   Actors still never ADDRESS a part.
+> - **Part1 = pycore-local priority only** (orchestration misses +
+>   pycore-manager manual promote). The pycore full pull of the Laravel
+>   backlog lands in **Part2** (`accept_backlog`), not Part1.
+> - **Sentence Part1 was unfinished.** `orch_promote` only re-ranked
+>   already-queued sentence rows. Sentence misses now enter Part1 as local
+>   tasks (`build_local_task`), like words.
+> - **One generator per item.** Orchestration `take_local`s / `settle_local`s
+>   its own Part1 items. Lane workers report `complete(ok, provider)`.
+> - R6: the manifest move-to-head creates a local task for a missing item and
+>   passes the task as owner.
+> - §8 R0 names: `queue_snapshot` is now a thin view over `lane_view`, and
+>   `export_tasks` became `export_entries`.
+
 Date: 2026-09-22
 Scope: `pycore` (audio workers, audio orchestration, queue-center RPC),
 `poly_apps/laravel_main` (queue center), `poly_apps/pycore_laravel_wordnew_ui`

@@ -24,13 +24,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         }
 
         try {
-            // Get root directory - use getCoreNodeDir() which returns the correct path
             $rootDir = \App\Providers\PathMapper::getCoreNodeDir();
-
-            // Fallback if getCoreNodeDir returns null
-            if (!$rootDir || !is_dir($rootDir)) {
-                $rootDir = '/www/programing/core_node';
-            }
 
             // Scan all application directories
             $apps = [];
@@ -298,7 +292,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $serviceStatus = $this->checkSystemdService($serviceName);
 
             // Check launcher script
-            $launcherPath = "/var/_core_node/unified_manager/temp_scripts/{$serviceName}.sh";
+            $launcherPath = \App\Providers\PathMapper::getUnifiedManagerLauncherDir() . DIRECTORY_SEPARATOR . "{$serviceName}.sh";
             $launcherExists = file_exists($launcherPath);
 
             // Check nginx proxy
@@ -758,7 +752,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $status = $this->checkSystemdService($serviceName);
 
             // Check launcher script
-            $launcherPath = "/var/_core_node/unified_manager/temp_scripts/{$serviceName}.sh";
+            $launcherPath = \App\Providers\PathMapper::getUnifiedManagerLauncherDir() . DIRECTORY_SEPARATOR . "{$serviceName}.sh";
             $launcherExists = file_exists($launcherPath);
 
             return $this->success([

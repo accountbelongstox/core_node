@@ -53,6 +53,7 @@ GITEE_HOST_REFRESH_SH="$SCRIPT_PATH/gitee_host_refresh.sh"
 GITPUT_SECURITY_COMMON="$SCRIPT_PATH/gitput_security_common.sh"
 GITPUT_REPOSITORY_STATE="$SCRIPT_PATH/gitput_repository_state.sh"
 GITPUT_SYNC_COMMON="$SCRIPT_PATH/gitput_sync_common.sh"
+RUNTIME_ENVIRONMENT="$CORE_NODE_DIR/scripts/shells/linux/common/runtime_environment.sh"
 
 # SSH key variables
 SSH_DIR="$HOME/.ssh"
@@ -96,6 +97,7 @@ GITEE_PUSH_PROMPT="Push this branch to the Gitee backup? [N/y]: "
 GITEE_FORCE_PUSH_PROMPT="Force push to Gitee as a backup? [Y/n]: "
 
 source "$ARROW_MENU_SCRIPT"
+source "$RUNTIME_ENVIRONMENT"
 source "$GITHUB_HOST_REFRESH_SH"
 source "$GITEE_HOST_REFRESH_SH"
 source "$GITPUT_SECURITY_COMMON"

@@ -12,10 +12,15 @@ import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from pathlib import Path
-import platform
 import json
 import threading
 import re
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from pycore.pyfoundations.system_paths import get_app_cache_dir
 
 
 INLINE_VIEW_SUFFIXES = {
@@ -28,21 +33,8 @@ FILE_SERVER_VOICE_API = 'voice_audio_v1'
 DEFAULT_PORT = 16888
 
 
-def get_system_cache_dir():
-    if platform.system() == 'Windows':
-        username = os.environ.get('USERNAME') or os.environ.get('USER') or 'default'
-        cache_dir = Path('D:/programing/Users') / username / '.core_node'
-    else:
-        shared = Path('/var/_core_node')
-        if shared.is_dir() and os.access(shared, os.W_OK):
-            cache_dir = shared
-        else:
-            cache_dir = Path.home() / '.core_node'
-    return cache_dir
-
-
 def get_voice_words_static_dir():
-    target = get_system_cache_dir() / 'cache' / VOICE_WORDS_STATIC_SUBDIR
+    target = get_app_cache_dir() / VOICE_WORDS_STATIC_SUBDIR
     target.mkdir(parents=True, exist_ok=True)
     return target
 

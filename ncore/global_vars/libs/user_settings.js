@@ -12,22 +12,36 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const logger = require('#@logger');
-const { getSystemCacheDir } = require('../../foundation/common/system_paths');
+const {
+    getSystemCacheDir,
+    getAppConfigDir,
+    getAppDataDir
+} = require('../../foundation/common/system_paths');
 
 class UserSettings {
     constructor() {
         // Determine OS and set appropriate paths
         this.isWindows = process.platform === 'win32';
-        
-        // Centralized per-user state dir (see system_paths.getSystemCacheDir):
-        // D:\www\core_node on Windows; the matching shared WWW tree on Linux.
-        this.configDir = getSystemCacheDir();
+
+        this.legacyConfigDir = getSystemCacheDir();
+        this.configDir = getAppConfigDir();
         this.configFile = path.join(this.configDir, 'settings.json');
-        this.syncDir = path.join(this.configDir, '.sync');
+        this.legacyConfigFile = path.join(this.legacyConfigDir, 'settings.json');
+        this.syncDir = path.join(getAppDataDir(), 'settings_sync');
 
         this.ensureDirectories();
+        this.importLegacySettings();
+    }
+
+    importLegacySettings() {
+        if (fs.existsSync(this.configFile) || !fs.existsSync(this.legacyConfigFile)) {
+            return;
+        }
+        if (!fs.statSync(this.legacyConfigFile).isFile()) {
+            return;
+        }
+        fs.copyFileSync(this.legacyConfigFile, this.configFile, fs.constants.COPYFILE_EXCL);
     }
 
     // Ensure required directories exist
@@ -43,7 +57,7 @@ class UserSettings {
     // Load settings from JSON file
     loadSettings() {
         try {
-            if (fs.existsSync(this.configFile)) {
+            if (fs.existsSync(this.configFile) && fs.statSync(this.configFile).isFile()) {
                 return JSON.parse(fs.readFileSync(this.configFile, 'utf8'));
             }
             return {};
@@ -70,7 +84,7 @@ class UserSettings {
         try {
             const filePath = path.join(this.syncDir, key);
             if (value === undefined) {
-                if (fs.existsSync(filePath)) {
+                if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
                     fs.unlinkSync(filePath);
                 }
             } else {

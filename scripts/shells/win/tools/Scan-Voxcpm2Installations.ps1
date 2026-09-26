@@ -31,6 +31,10 @@ $skipCount = 0
 $dirCount = 0
 $canonicalPath = $null
 $knownPaths = [System.Collections.Generic.List[string]]::new()
+$winDir = Split-Path $PSScriptRoot -Parent
+$winCommonDir = Join-Path $winDir 'win_common'
+$sharedCacheEnvPath = Join-Path $winCommonDir 'SharedCacheEnv.ps1'
+. $sharedCacheEnvPath
 
 function Write-ScanLine {
     param(
@@ -202,7 +206,7 @@ Write-ScanLine '============================================================' ([
 Write-ScanLine ("{0}  max depth : {1}" -f $scriptIndex, $MaxDepth) ([ConsoleColor]::DarkGray)
 Write-ScanLine ("{0}  drives    : {1}" -f $scriptIndex, ($Drives -join ', ')) ([ConsoleColor]::DarkGray)
 
-$canonicalPath = 'D:\www\cache\pycore\voxcpm2'
+$canonicalPath = Join-Path $Global:PYCORE_LOCAL_DATA_DIR 'voxcpm2'
 $knownPaths.Add($canonicalPath)
 $knownPaths.Add('C:\www\cache\pycore\voxcpm2')
 if ($env:VOXCPM2_DIR) { $knownPaths.Add($env:VOXCPM2_DIR) }
@@ -213,7 +217,7 @@ $userProfile = $env:USERPROFILE
 if ($userProfile) {
     $knownPaths.Add((Join-Path $userProfile '.cache\pycore\voxcpm2'))
     $knownPaths.Add((Join-Path $userProfile '.core_node\cache\pycore\voxcpm2'))
-    $knownPaths.Add('D:\www\core_node\cache\pycore\voxcpm2')
+    $knownPaths.Add((Join-Path $Global:CORE_NODE_RUNTIME_CACHE_DIR 'pycore\voxcpm2'))
 }
 
 Write-ScanLine ("{0} [..] probing known canonical paths ..." -f $scriptIndex) ([ConsoleColor]::DarkGray)

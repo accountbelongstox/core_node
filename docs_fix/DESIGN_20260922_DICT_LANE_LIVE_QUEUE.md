@@ -1,5 +1,17 @@
 # Dict-Lane Live Queue — Timer-Free Cached Queue Architecture
 
+> **Status (2026-09-26):** Laravel dict-lane design still valid. Corrections
+> from `docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md`:
+> - §7 "sentence_audio stays global_tasks-backed" left the sentence library
+>   backlog WITHOUT a feed, because `QueueCenterAudioScanTask` (deleted in
+>   §4.3) was its producer. The feed is now pycore's sentence full pull from
+>   the new read-only `GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio`
+>   (Part2 mirror of the sentence_audio Queue).
+> - pycore mirrors the word_audio lane into **Part2**. Local full-pull task
+>   ids are `full_sync-word-<lang>-<md5>` (the §2.4/R8 text says
+>   `word-full-…`).
+> - `schema_version` is now 37.
+
 Date: 2026-09-22
 Status: design (binding for implementation)
 Scope: `poly_apps/laravel_main` (dict-lane queue bottom layer, timer task

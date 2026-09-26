@@ -47,6 +47,44 @@ class PathMapper
         'GIT_UPDATE_TYPE',
     ];
 
+    /** Path constant center. SYNC: pycore core_node_dirs.py /
+     * ncore system_paths.js / SharedCacheEnv.ps1 / runtime_environment.sh. */
+    public const WINDOWS_DATA_DRIVE_ROOT = 'D:\\';
+    public const WWW_DIR_NAME = 'www';
+    public const LINUX_WWW_ROOT = '/www';
+    public const CORE_NODE_DATA_DIR_NAME = 'core_node';
+    public const CACHE_DIR_NAME = 'cache';
+    public const GLOBAL_VAR_DIR_NAME = 'global_var';
+    public const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
+    public const LEGACY_USER_DATA_DIR_NAME = '.core_node';
+    public const LEGACY_GLOBAL_VAR_DIR_NAME = '.global_vars';
+    public const LEGACY_WINDOWS_PROGRAMING_USERS_DIR = self::WINDOWS_DATA_DRIVE_ROOT . 'programing\\Users';
+    public const UNIFIED_MANAGER_DIR_NAME = 'unified_manager';
+    public const UNIFIED_MANAGER_LAUNCHER_DIR_NAME = 'temp_scripts';
+    public const WINDOWS_TMP_DIR_NAME = '.tmp';
+    private const NTFS_FILE_SYSTEMS = ['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'];
+
+    private static function windowsWwwBase(): string
+    {
+        return self::WINDOWS_DATA_DRIVE_ROOT . self::WWW_DIR_NAME;
+    }
+
+    /** Linux WWW base honoring the dual-boot extra level (/www/www vs /www). */
+    private static function linuxWwwBase(): string
+    {
+        $nested = self::LINUX_WWW_ROOT . '/' . self::WWW_DIR_NAME;
+        return self::wwwNtfsRootMounted() ? $nested : self::LINUX_WWW_ROOT;
+    }
+
+    private static function userHomeDir(): string
+    {
+        $home = (string) (getenv('HOME') ?: getenv('USERPROFILE') ?: '');
+        if ($home === '' && function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
+            $home = (string) (posix_getpwuid(posix_geteuid())['dir'] ?? '');
+        }
+        return rtrim($home, '/\\');
+    }
+
     /**
      * Map web path based on environment (PHP version of gvar_common.sh map_web_path)
      * 
@@ -64,7 +102,7 @@ class PathMapper
         
         // Get base path - Windows uses fixed D:\www, Linux uses environment-aware mapping
         if ($isWindows) {
-            $basePath = "D:\\www";
+            $basePath = self::windowsWwwBase();
         } else {
             // Linux: the web/data base is what the shell installer DETECTED + PERSISTED
             // (cross-language source of truth), else a full blkid/blockdev/findmnt
@@ -81,15 +119,15 @@ class PathMapper
             $dataBase = self::getBaseDataDirectory();
             $wwwPathVar = self::readPersistedVar('WWW_PATH');
             if (self::isWSL()) {
-                $basePath = $dataBase . '/www';
+                $basePath = $dataBase . '/' . self::WWW_DIR_NAME;
             } elseif ($wwwPathVar !== '' && is_dir($wwwPathVar)) {
                 $basePath = $wwwPathVar;
             } elseif (self::wwwNtfsRootMounted()) {
-                $basePath = '/www/www';
-            } elseif ($dataBase === '/' || $dataBase === '/www') {
-                $basePath = '/www';
+                $basePath = self::linuxWwwBase();
+            } elseif ($dataBase === '/' || $dataBase === self::LINUX_WWW_ROOT) {
+                $basePath = self::LINUX_WWW_ROOT;
             } else {
-                $basePath = $dataBase . '/www';
+                $basePath = $dataBase . '/' . self::WWW_DIR_NAME;
             }
         }
         
@@ -119,7 +157,7 @@ class PathMapper
             // /www/www/cache on a dual-boot Linux (extra level), /www/cache on a
             // Linux-only machine. NOTE: getSharedDownloadCacheDir() keeps the
             // native /var/_core_node/cache for the Linux-only case.
-            'cache' => $basePath . $separator . 'cache',
+            'cache' => $basePath . $separator . self::CACHE_DIR_NAME,
             // Development tooling roots (node/python/go/...). See getDevCompileParts().
             'compile_dir' => $compileDir,
             'dev_system' => $compileDir,
@@ -236,28 +274,69 @@ class PathMapper
      *   Windows:              D:\www\core_node
      *   Linux NTFS dual-boot: /www/www/core_node  (== D:\www\core_node)
      *   Linux native:         /www/core_node
-     * CORE_NODE_DATA_DIR (already exported) wins on every platform. */
+     * CORE_NODE_DATA_DIR (already exported) wins on every platform. Linux
+     * falls back to the legacy /var/_core_node, then ~/core_node, only when
+     * the preferred dir is not writable (mirrors get_core_node_data_dir). */
     public static function getCoreNodeRuntimeDir(): string
     {
+        static $resolved = null;
         $env = trim((string) getenv('CORE_NODE_DATA_DIR'));
+        $candidates = [];
         if ($env !== '') {
             return rtrim($env, '/\\');
         }
         if (self::isWindows()) {
-            return 'D:\\www\\core_node';
+            return self::windowsWwwBase() . '\\' . self::CORE_NODE_DATA_DIR_NAME;
         }
-        return (self::wwwNtfsRootMounted() ? '/www/www' : '/www') . '/core_node';
+        if ($resolved !== null) {
+            return $resolved;
+        }
+        $candidates = [
+            self::linuxWwwBase() . '/' . self::CORE_NODE_DATA_DIR_NAME,
+            self::LEGACY_LINUX_DATA_DIR,
+        ];
+        foreach ($candidates as $candidate) {
+            self::ensureDirectory($candidate);
+            if (is_dir($candidate) && is_writable($candidate)) {
+                $resolved = $candidate;
+                return $resolved;
+            }
+        }
+        $home = self::userHomeDir();
+        $resolved = $home !== '' ? $home . '/' . self::CORE_NODE_DATA_DIR_NAME : $candidates[0];
+        return $resolved;
     }
 
-    /** Var-center directory candidates (canonical first, legacy second).
-     * Mirrors pycore core_node_dirs.iter_global_var_dirs: pre-relocation
-     * installs keep var files at /var/_core_node/global_var. */
+    /** Unified manager launcher/wrapper script dir:
+     * <core_node_data_dir>/unified_manager/temp_scripts (mirrors
+     * unified_config.sh TEMP_SCRIPT_DIR). */
+    public static function getUnifiedManagerLauncherDir(): string
+    {
+        return self::getCoreNodeRuntimeDir() . DIRECTORY_SEPARATOR . self::UNIFIED_MANAGER_DIR_NAME
+            . DIRECTORY_SEPARATOR . self::UNIFIED_MANAGER_LAUNCHER_DIR_NAME;
+    }
+
+    /** Var-center directory candidates (canonical first, legacy after).
+     * Mirrors pycore core_node_dirs.iter_global_var_dirs. */
     private static function globalVarDirectories(): array
     {
-        return [
-            self::getCoreNodeRuntimeDir() . '/global_var',
-            '/var/_core_node/global_var',
-        ];
+        $home = self::userHomeDir();
+        $user = (string) (getenv('USERNAME') ?: getenv('USER') ?: 'default');
+        $dirs = [self::getCoreNodeRuntimeDir() . DIRECTORY_SEPARATOR . self::GLOBAL_VAR_DIR_NAME];
+        if (self::isWindows()) {
+            $dirs[] = self::LEGACY_WINDOWS_PROGRAMING_USERS_DIR . '\\' . $user . '\\'
+                . self::LEGACY_USER_DATA_DIR_NAME . '\\' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
+            if ($home !== '') {
+                $dirs[] = $home . '\\' . self::LEGACY_USER_DATA_DIR_NAME . '\\' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
+            }
+        } else {
+            $dirs[] = self::LEGACY_LINUX_DATA_DIR . '/' . self::GLOBAL_VAR_DIR_NAME;
+            if ($home !== '') {
+                $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . self::GLOBAL_VAR_DIR_NAME;
+                $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
+            }
+        }
+        return array_values(array_unique($dirs));
     }
 
     /** OS tag for per-OS var-center keys: DEBIAN_13, UBUNTU_26, WIN10, WIN11.
@@ -347,16 +426,23 @@ class PathMapper
      * in core_node_dirs.www_data_root_mounted (system_paths.py delegates). */
     private static function wwwNtfsRootMounted(): bool
     {
-        if (!is_dir('/www/www')) {
-            return false;
+        static $mounted = null;
+        $root = self::LINUX_WWW_ROOT;
+        if ($mounted !== null) {
+            return $mounted;
         }
-        $fsWww = (string) strtok(self::shellTrim('findmnt -n -o FSTYPE --target /www'), "\r\n");
-        if (!in_array($fsWww, ['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'], true)) {
-            return false;
+        $mounted = false;
+        if (self::isWindows() || !is_dir($root . '/' . self::WWW_DIR_NAME)) {
+            return $mounted;
         }
-        $srcWww = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target /www'), "\r\n");
+        $fsWww = (string) strtok(self::shellTrim('findmnt -n -o FSTYPE --target ' . escapeshellarg($root)), "\r\n");
+        if (!in_array($fsWww, self::NTFS_FILE_SYSTEMS, true)) {
+            return $mounted;
+        }
+        $srcWww = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target ' . escapeshellarg($root)), "\r\n");
         $srcRoot = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target /'), "\r\n");
-        return $srcWww !== '' && $srcRoot !== '' && $srcWww !== $srcRoot;
+        $mounted = $srcWww !== '' && $srcRoot !== '' && $srcWww !== $srcRoot;
+        return $mounted;
     }
 
     /** Cross-OS shared model cache when /www is the mounted NTFS/data disk
@@ -369,10 +455,10 @@ class PathMapper
     {
         $wwwPathVar = self::readPersistedVar('WWW_PATH');
         $candidate = null;
-        if ($wwwPathVar !== '' && $wwwPathVar !== '/www' && is_dir($wwwPathVar)) {
-            $candidate = rtrim($wwwPathVar, '/') . '/cache';
+        if ($wwwPathVar !== '' && $wwwPathVar !== self::LINUX_WWW_ROOT && is_dir($wwwPathVar)) {
+            $candidate = rtrim($wwwPathVar, '/') . '/' . self::CACHE_DIR_NAME;
         } elseif (self::wwwNtfsRootMounted()) {
-            $candidate = '/www/www/cache';
+            $candidate = self::linuxWwwBase() . '/' . self::CACHE_DIR_NAME;
         }
         if ($candidate === null) {
             return null;
@@ -412,7 +498,7 @@ class PathMapper
         if (self::pathHostsProject($val)) {
             return $val;
         }
-        if ($val === '/www' || $val === '/mnt/d') {
+        if ($val === self::LINUX_WWW_ROOT || $val === '/mnt/d') {
             return $val;
         }
         if (self::isRealDistinctMount($val)) {
@@ -420,7 +506,7 @@ class PathMapper
             $rootFree = @disk_free_space('/');
             $diskFree = ($diskFree === false) ? 0.0 : (float) $diskFree;
             $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
-            return $diskFree > $rootFree ? $val : '/www';
+            return $diskFree > $rootFree ? $val : self::LINUX_WWW_ROOT;
         }
         return null;
     }
@@ -504,7 +590,7 @@ class PathMapper
         }
         $rootFree = @disk_free_space('/');
         $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
-        return $rootFree >= $bestFree ? '/www' : $bestPath;
+        return $rootFree >= $bestFree ? self::LINUX_WWW_ROOT : $bestPath;
     }
 
     /**
@@ -620,7 +706,7 @@ class PathMapper
             } else {
                 $suffix = 'win' . $release;
             }
-            return ['D:', $suffix];
+            return [rtrim(self::WINDOWS_DATA_DRIVE_ROOT, '\\'), $suffix];
         }
 
         [$sysName, $sysVersion] = self::getSystemNameVersion();
@@ -801,8 +887,8 @@ class PathMapper
      */
     private static function getBaseTempDir(): string
     {
-        if (self::isWindows() && is_dir('D:\\')) {
-            $base = 'D:\\.tmp';
+        if (self::isWindows() && is_dir(self::WINDOWS_DATA_DRIVE_ROOT)) {
+            $base = self::WINDOWS_DATA_DRIVE_ROOT . self::WINDOWS_TMP_DIR_NAME;
             self::ensureDirectory($base);
             return $base;
         }
@@ -1555,9 +1641,9 @@ class PathMapper
         if ($envVal !== false && trim($envVal) !== '') {
             $base = rtrim(trim($envVal), '/\\');
         } elseif (self::isWindows()) {
-            $base = 'D:\\www\\cache';
+            $base = self::windowsWwwBase() . '\\' . self::CACHE_DIR_NAME;
         } else {
-            $base = self::linuxCrossOsCacheDir() ?? '/var/_core_node/cache';
+            $base = self::linuxCrossOsCacheDir() ?? self::LEGACY_LINUX_DATA_DIR . '/' . self::CACHE_DIR_NAME;
         }
         $full = $base;
         if ($subPath !== null && $subPath !== '') {

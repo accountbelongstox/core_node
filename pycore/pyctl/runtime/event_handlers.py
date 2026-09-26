@@ -418,6 +418,13 @@ def register_event_handlers(
     register_runtime_workers()
 
 
+def _run_audio_lane_boot_chain() -> None:
+    try:
+        _start_audio_lane_boot_chain()
+    except Exception as exc:
+        ColorPrint.red(f"[EventHandlers] Runtime step audio_lane_boot_chain failed: {exc}")
+
+
 def _start_audio_lane_boot_chain() -> None:
     """Audio-lane boot chain (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN §5.4).
 
@@ -471,7 +478,9 @@ def register_runtime_workers() -> None:
             ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
     if "audio_lane_boot_chain" not in _RUNTIME_STEPS_COMPLETED:
         try:
-            _start_audio_lane_boot_chain()
+            # Background: restoring 10^5+ cached tasks must never delay the
+            # HTTP server bind or the tray (restart looked like a dead port).
+            start_bus_task(_run_audio_lane_boot_chain, thread_name="AudioLaneBootChainThread")
             _RUNTIME_STEPS_COMPLETED.add("audio_lane_boot_chain")
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step audio_lane_boot_chain failed: {exc}")

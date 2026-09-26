@@ -52,12 +52,16 @@ $preferLocalMergeOnFailure = $false
 $targetForcePushChoice = "N"
 $CommitMessageTimeoutSeconds = 3  # Auto-continue with the default commit message after this many idle seconds
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
+$globalVarsPath = Join-Path $winCommonDir 'GlobalVars.ps1'
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
 $githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
 . $githubHostRefreshScript
 $giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
 . $giteeHostRefreshScript
+if (-not $Global:GLOBAL_VAR_DIR) {
+    . $globalVarsPath
+}
 
 # Initialize skip encrypt cache
 function Initialize-SkipEncryptCache {
@@ -188,21 +192,6 @@ function Test-WinCommonFiles {
     
     Write-Host ""
     return $missingFiles.Count -eq 0
-}
-
-# Global variable management function
-function Get-GlobalVar {
-    param (
-        [string]$Key
-    )
-    $username = $env:USERNAME
-    $globalVarDir = Join-Path "D:\www\core_node" "global_var"
-    $filePath = Join-Path $globalVarDir $Key
-    if (Test-Path -LiteralPath $filePath -PathType Leaf) {
-        $content = Get-Content -LiteralPath $filePath -Encoding UTF8 -TotalCount 1
-        return $content -replace "`0", ""
-    }
-    return $null
 }
 
 # Function to detect platform and distribution

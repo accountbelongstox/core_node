@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import tempfile
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
+
 # Add MCP imports after package installation check
 mcp = None
 PIL = None
@@ -107,8 +113,7 @@ class URLRateLimiter:
     def __init__(self):
         """Initialize rate limiter with cache directory"""
         # Use user's home directory for cache
-        self.user_dir = Path.home()
-        self.cache_dir = self.user_dir / ".core_node" / "placeholder_image_generator"
+        self.cache_dir = get_core_node_data_dir() / "placeholder_image_generator"
         self._ensure_cache_directory()
         print(f"[RATE_LIMITER] Cache directory: {self.cache_dir}")
 
@@ -188,8 +193,7 @@ class PlaceholderDatabase:
     """Manages JSON database for placeholder image records"""
 
     def __init__(self):
-        self.user_dir = Path.home()
-        self.db_dir = self.user_dir / ".core_node" / "mcp_server" / "placeholder_images"
+        self.db_dir = get_core_node_data_dir() / "mcp_server" / "placeholder_images"
         self.db_file = self.db_dir / "placeholder_records.json"
         self._ensure_db_directory()
         self._load_database()

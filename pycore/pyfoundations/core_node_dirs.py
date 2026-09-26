@@ -47,7 +47,16 @@ WINDOWS_DATA_DRIVE_ROOT = 'D:/'
 WINDOWS_WWW_DIR_NAME = 'www'
 WINDOWS_WWW_BASE = str(Path(WINDOWS_DATA_DRIVE_ROOT) / WINDOWS_WWW_DIR_NAME)
 WINDOWS_CORE_NODE_DATA_DIR = str(Path(WINDOWS_WWW_BASE) / CORE_NODE_DATA_DIR_NAME)
+LEGACY_WINDOWS_PROGRAMING_DIR_NAME = 'programing'
+LEGACY_WINDOWS_USERS_DIR_NAME = 'Users'
+LEGACY_WINDOWS_PROGRAMING_USERS_DIR = str(
+    Path(WINDOWS_DATA_DRIVE_ROOT)
+    / LEGACY_WINDOWS_PROGRAMING_DIR_NAME
+    / LEGACY_WINDOWS_USERS_DIR_NAME
+)
 LEGACY_LINUX_DATA_DIR = '/var/_core_node'
+UNIFIED_MANAGER_DIR_NAME = 'unified_manager'
+UNIFIED_MANAGER_LAUNCHER_DIR_NAME = 'temp_scripts'
 LEGACY_LINUX_GLOBAL_VAR_DIR = LEGACY_LINUX_DATA_DIR + '/' + GLOBAL_VAR_DIR_NAME
 
 
@@ -162,6 +171,12 @@ def get_global_var_dir() -> Path:
     return _ensure_dir(Path.home() / CORE_NODE_DATA_DIR_NAME / GLOBAL_VAR_DIR_NAME)
 
 
+def get_unified_manager_launcher_dir() -> Path:
+    """Unified manager launcher/wrapper scripts:
+    <core_node_data_dir>/unified_manager/temp_scripts."""
+    return _ensure_dir(get_core_node_data_dir() / UNIFIED_MANAGER_DIR_NAME / UNIFIED_MANAGER_LAUNCHER_DIR_NAME)
+
+
 def iter_global_var_dirs() -> List[Path]:
     r"""Read-fallback chain for the var center, canonical location first.
 
@@ -174,7 +189,12 @@ def iter_global_var_dirs() -> List[Path]:
     dirs: List[Path] = [get_global_var_dir()]
     if sys.platform == 'win32':
         username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
-        dirs.append(Path('D:/programing/Users') / username / '.core_node' / '.global_vars')
+        dirs.append(
+            Path(LEGACY_WINDOWS_PROGRAMING_USERS_DIR)
+            / username
+            / '.core_node'
+            / '.global_vars'
+        )
         dirs.append(Path.home() / '.core_node' / '.global_vars')
     else:
         dirs.append(Path(LEGACY_LINUX_GLOBAL_VAR_DIR))
@@ -300,6 +320,9 @@ __all__ = [
     'WINDOWS_WWW_DIR_NAME',
     'WINDOWS_WWW_BASE',
     'WINDOWS_CORE_NODE_DATA_DIR',
+    'LEGACY_WINDOWS_PROGRAMING_DIR_NAME',
+    'LEGACY_WINDOWS_USERS_DIR_NAME',
+    'LEGACY_WINDOWS_PROGRAMING_USERS_DIR',
     'LEGACY_LINUX_DATA_DIR',
     'LEGACY_LINUX_GLOBAL_VAR_DIR',
     'NTFS_FSTYPES',
@@ -307,6 +330,9 @@ __all__ = [
     'get_linux_www_base',
     'get_core_node_data_dir',
     'get_global_var_dir',
+    'get_unified_manager_launcher_dir',
+    'UNIFIED_MANAGER_DIR_NAME',
+    'UNIFIED_MANAGER_LAUNCHER_DIR_NAME',
     'iter_global_var_dirs',
     'get_os_var_tag',
     'global_var_write_name',

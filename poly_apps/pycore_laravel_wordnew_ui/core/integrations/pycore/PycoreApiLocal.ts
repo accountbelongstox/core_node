@@ -68,7 +68,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
-import type { AudioLaneStatePayload, QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
+import type { AudioLaneKey, AudioLaneStatePayload, QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
@@ -416,13 +416,15 @@ export const pycoreApiLocal = {
     }>,
 
   /**
-   * On-demand word-audio full pull: pycore mirrors EVERY dictionary word
-   * without audio into its local word_audio queue (Part2 backlog mirror,
-   * background). NEVER mutates Laravel's queue; returns the live status block.
+   * On-demand full pull of one audio lane's Laravel backlog (word: dictionary
+   * words without audio; sentence: library sentences without audio) into
+   * Part2 of that lane's local Queue (background). NEVER mutates Laravel's
+   * queue; progress arrives through the lane-state push.
    */
-  wordAudioFullSync: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterWordAudioFullSync, {}) as Promise<{
+  audioLaneFullSync: (lane: AudioLaneKey) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAudioLaneFullSync, { lane }) as Promise<{
       success: boolean;
+      running?: boolean;
       status?: QueueCenterWordAudioFullSyncStatus;
       error?: string;
     }>,
