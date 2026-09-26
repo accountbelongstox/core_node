@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
+import pycore.pyctl.agent_history.prompt_archive as prompt_archive
 import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_statistics import (
     agent_history_statistics,
@@ -202,6 +203,14 @@ class AgentHistoryService:
             async_mode=True,
         )
 
+    @staticmethod
+    def _archive_prompts(prompts: List[Dict[str, Any]]) -> None:
+        """Write-only backup of every scanned prompt; never read back, never fatal."""
+        try:
+            prompt_archive.archive_prompts(prompts)
+        except Exception as e:
+            ColorPrint.yellow(f"[AgentHistory] Prompt archive write skipped: {e}")
+
     def live_scan(self, tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """UI-driven realtime scan (shares the extract serialization queue)."""
         return call_serialized(
@@ -360,6 +369,7 @@ class AgentHistoryService:
                 str(p.get("id") or "") for p in prompts if p.get("id")
             }
             new_prompts: List[Dict[str, Any]] = []
+            archive_prompts: List[Dict[str, Any]] = []
 
             for path in removed_paths:
                 for sid in prev_sources.get(path, {}).get("session_ids") or []:
@@ -389,6 +399,18 @@ class AgentHistoryService:
                     ]
                     detail["prompt_count"] = len(detail["prompts"])
                     self._assign_prompt_ids(detail, sid)
+                    archive_prompts.extend(
+                        {
+                            "tool": sess["tool"],
+                            "os_user": sess["os_user"],
+                            "project": sess.get("project") or "",
+                            "session_id": sid,
+                            "source": src_path,
+                            "ts": p.get("ts") or 0,
+                            "text": p.get("text") or "",
+                        }
+                        for p in detail.get("prompts") or []
+                    )
                     self._apply_edits(detail.get("prompts") or [], edits)
                     txt.write_session(sid, detail)
 
@@ -476,6 +498,7 @@ class AgentHistoryService:
                 {"generated_at": generated_at, **summary},
                 async_mode=True,
             )
+            self._archive_prompts(archive_prompts)
             # A schema rebuild re-derives every id: it is a new baseline, not news.
             if not extractor_schema_changed:
                 self._emit_prompt_new(new_prompts, generated_at)
