@@ -29,18 +29,20 @@ Windows-only code paths, so importing this module on Linux is safe.
 import ctypes
 import json
 import os
-import platform
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 from pycore.pyutils.common.terminal_identifiers import WINDOWS_TERMINAL_HOST_CLASS
+from pycore.pyutils.launcher.explorer_executor import APP_TERMINAL_TITLE_PREFIX
 
 # Win32 API constants
 _WM_CLOSE = 0x0010
+_WINDOW_TITLE_CHARS = 512
 # Two calibration sizes; far enough apart that the per-cell delta dominates any
 # 1px rounding error. Both must be valid Windows Terminal --size values.
 _CALIB_SIZE_A = (80, 25)
@@ -72,11 +74,7 @@ class _RECT(ctypes.Structure):
 # handle-truncation bug the old launch_multiple_terminals.py had.
 # WINFUNCTYPE exists only on Windows; keep the import of this module Linux-safe.
 _WNDENUMPROC = (ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
-                if platform.system() == "Windows" else None)
-
-
-def _is_windows():
-    return platform.system() == "Windows"
+                if IS_WINDOWS else None)
 
 
 def _user32():
@@ -84,10 +82,15 @@ def _user32():
 
 
 def count_wt_windows():
-    """Return the number of open Windows Terminal top-level windows."""
-    if not _is_windows():
+    """Return the number of open Windows Terminal top-level windows.
+
+    Launcher app terminals (APP_TERMINAL_TITLE_PREFIX titles, e.g. codex) are
+    not grid cells and are left out.
+    """
+    if not IS_WINDOWS:
         return 0
-    return len(_enum_wt_hwnds())
+    return sum(1 for hwnd in _enum_wt_hwnds()
+               if not _window_title(hwnd).startswith(APP_TERMINAL_TITLE_PREFIX))
 
 
 def _enum_wt_hwnds():
@@ -107,6 +110,16 @@ def _enum_wt_hwnds():
     user32.EnumWindows.restype = ctypes.c_bool
     user32.EnumWindows(proc, 0)
     return found
+
+
+def _window_title(hwnd):
+    """Return a window's caption text ('' when it has none)."""
+    user32 = _user32()
+    buf = ctypes.create_unicode_buffer(_WINDOW_TITLE_CHARS)
+    user32.GetWindowTextW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.GetWindowTextW(hwnd, buf, _WINDOW_TITLE_CHARS)
+    return buf.value
 
 
 def _window_rect(hwnd):
@@ -134,7 +147,7 @@ def _close_window(hwnd):
 
 def _system_dpi():
     """System DPI (96 = 100%). Falls back to 96 on older Windows / errors."""
-    if not _is_windows():
+    if not IS_WINDOWS:
         return 96
     try:
         return int(_user32().GetDpiForSystem())
@@ -222,7 +235,7 @@ class CharSizeMeasurer:
                 calibration windows). Defaults to the PYCORE_LAUNCHER_RECALIBRATE
                 env var (1 = force).
         """
-        if not _is_windows():
+        if not IS_WINDOWS:
             return None
         if force is None:
             force = os.environ.get('PYCORE_LAUNCHER_RECALIBRATE', '') == '1'

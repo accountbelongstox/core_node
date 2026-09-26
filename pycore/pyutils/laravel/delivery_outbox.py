@@ -145,6 +145,8 @@ class DeliveryKind:
     seed_markers: Optional[InventoryProvider] = None
     diff_kind: str = ""
     stale_kind: str = ""
+    # Retired kinds whose rows / state / metrics fold into this kind.
+    replaces: Tuple[str, ...] = ()
     on_delivered: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None
     ready: Optional[Callable[[], bool]] = None
     permanent_error: Optional[Callable[[str], bool]] = None
@@ -251,6 +253,7 @@ class LaravelDeliveryOutbox:
     def _start_background(self) -> None:
         self._migrate_v1()
         for name in self.kinds():
+            self._fold_replaced(name)
             self._seed(name)
             # Rows still waiting out a backoff of a previous process become
             # ready at once.
@@ -306,6 +309,14 @@ class LaravelDeliveryOutbox:
             ColorPrint.cyan(f"[LaravelDelivery] kind={kind} seeded {seeded} delivered markers into {namespace}")
 
     @serialized_method
+    def _fold_replaced(self, kind: str) -> None:
+        definition = self._kinds.get(kind)
+        for retired in (definition.replaces if definition else ()):
+            moved = self._repository().rename_kind(retired, kind)
+            if moved:
+                ColorPrint.cyan(f"[LaravelDelivery] folded {moved} entries of retired kind {retired} into {kind}")
+
+    @serialized_method
     def _seed_namespace(self, kind: str) -> str:
         repo = self._repository()
         return "" if repo.meta(META_SEEDED_PREFIX + kind) else repo.meta(META_SEED_NAMESPACE)
@@ -323,21 +334,23 @@ class LaravelDeliveryOutbox:
         do not re-read every file after a restart. Without ``compute`` a
         miss answers ''."""
         meta_key = f"{META_HASH_PREFIX}{scope}:{key}"
-        cached = self._meta(meta_key)
+        cached = self.meta_value(meta_key)
         if cached.startswith(f"{signature}{NAMESPACE_SEPARATOR}"):
             return cached[len(signature) + 1:]
         if compute is None:
             return ""
         value = str(compute() or "")
-        self._set_meta(meta_key, f"{signature}{NAMESPACE_SEPARATOR}{value}")
+        self.set_meta_value(meta_key, f"{signature}{NAMESPACE_SEPARATOR}{value}")
         return value
 
     @serialized_method
-    def _meta(self, key: str) -> str:
+    def meta_value(self, key: str) -> str:
+        """Small persisted outbox-side value (e.g. a kind's one-time
+        bootstrap marker)."""
         return self._repository().meta(key)
 
     @serialized_method
-    def _set_meta(self, key: str, value: str) -> None:
+    def set_meta_value(self, key: str, value: str) -> None:
         self._repository().set_meta(key, value)
 
     # ------------------------------------------------------------------ #
@@ -353,6 +366,7 @@ class LaravelDeliveryOutbox:
             start_bus_task(self._activate, kind.name, thread_name=f"LaravelDeliveryActivate-{kind.name[:16]}")
 
     def _activate(self, kind: str) -> None:
+        self._fold_replaced(kind)
         self._seed(kind)
         self.hurry_pending(kind)
         self.reconcile(reason=RECONCILE_REASON_KIND, kinds=[kind])
@@ -463,6 +477,15 @@ class LaravelDeliveryOutbox:
             kind, namespace, identity, str(row["delivery_id"]), sha256, SIBLING_SCAN_LIMIT,
         )
         if row.get("identity_delivered"):
+            return siblings
+        shared = row.get("shared_item") or {}
+        if shared.get("kind") and shared.get("item_key") and self._repository().get_state(
+            namespace, str(shared["kind"]), str(shared["item_key"]),
+        ):
+            # The same clip already reached this server through the kind
+            # that owns it (e.g. the audio cache batch): no second transfer.
+            row["identity_delivered"] = True
+            row["identity_receipt"] = {"uploaded": True, "error": "", "via": str(shared["kind"])}
             return siblings
         receipt = self._repository().get_state(namespace, kind, identity)
         if receipt and (not sha256 or not receipt["content_hash"] or receipt["content_hash"] == sha256):
@@ -644,6 +667,13 @@ class LaravelDeliveryOutbox:
         elif definition is not None and definition.receipts == RECEIPTS_IDENTITY and identity and row.get("identity_delivered"):
             self._repository().put_state(
                 namespace, kind, identity, str(row.get("payload_sha256") or ""), dict(row.get("identity_receipt") or {}), now,
+            )
+        shared = row.get("shared_item") or {}
+        if shared.get("kind") and shared.get("item_key") and (row.get("identity_receipt") or {}).get("uploaded"):
+            # This row carried the clip itself: the owning kind sees it as
+            # delivered to this server and does not upload it again.
+            self._repository().put_state(
+                namespace, str(shared["kind"]), str(shared["item_key"]), "", {"via": kind}, now,
             )
         self._repository().delete(str(delivery_id))
         self._repository().note_metrics(namespace, kind, now, True, "", False)

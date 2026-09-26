@@ -11,6 +11,8 @@ import os
 import sys
 import time
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 IS_WINDOWS = os.name == 'nt'
 if IS_WINDOWS:
     import msvcrt
@@ -86,16 +88,13 @@ def _read_line_windows(timeout_sec: float):
 def ask_yes_no_timed(prompt: str, timeout_sec: float, default_yes: bool = True,
                      interactive: bool = True) -> bool:
     """Ask a yes/no question; the default wins on timeout or when not interactive."""
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
+    ColorPrint.plain(prompt, end='', flush=True)
     if not interactive or timeout_sec <= 0:
-        sys.stdout.write('\n')
-        sys.stdout.flush()
+        ColorPrint.plain('', flush=True)
         return default_yes
     line = read_line_with_timeout(timeout_sec)
     if line is None:
-        sys.stdout.write('\n')
-        sys.stdout.flush()
+        ColorPrint.plain('', flush=True)
         return default_yes
     answer = line.strip().lower()
     if answer in YES_ANSWERS:

@@ -12,7 +12,6 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
@@ -21,7 +20,7 @@ from pycore.pyfoundations.core_node_dirs import read_global_var
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import run_args
 from pycore.pyfoundations.pybasecommon.timed_input import ask_yes_no_timed
-from pycore.pyfoundations.pygvar import PROJECT_ROOT, TMP_DIR
+from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS, PROJECT_ROOT, TMP_DIR
 from pycore.pyfoundations.service_contract import host, port, value
 from pycore.pyfoundations.system_service_state import (
     LARAVEL_FRANKENPHP_SERVICE_NAME,
@@ -38,23 +37,23 @@ from pycore.pyfoundations.system_service_state import (
     SYSTEMCTL_COMMAND,
     http_text_contains,
     is_elevated,
-    process_cmdline_contains,
+    process_matches,
     shell_execute_runas,
     sudo_available,
     systemd_available,
-    systemd_unit_enabled,
     systemd_unit_state,
     tcp_port_open,
     windows_service_state,
     windows_task_state,
 )
+from pycore.pyutils.launcher.config_manager import (
+    DEFAULT_SERVICES_PROMPT_ENABLED,
+    DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC,
+    SERVICES_PROMPT_ENABLED_KEY,
+    SERVICES_PROMPT_TIMEOUT_KEY,
+)
 from pycore.pyutils.launcher.launcher_text import launcher_text
-
-IS_WINDOWS = os.name == 'nt'
-IS_LINUX = sys.platform.startswith('linux')
-
-SERVICES_PROMPT_ENABLED_KEY = 'prompt_enabled'
-SERVICES_PROMPT_TIMEOUT_KEY = 'prompt_timeout_sec'
+from pycore.pyutils.launcher.linux_desktop_user import SYSTEMD_INVOCATION_ENV, drop_service_markers
 
 REPO_ROOT = Path(PROJECT_ROOT)
 LARAVEL_SCRIPTS_DIR = REPO_ROOT / 'poly_apps' / 'laravel_main' / 'scripts'
@@ -74,8 +73,11 @@ NGINX_PLANE = 'nginx'
 
 LOOPBACK_HOST = host('loopback')
 LARAVEL_BACKEND_PORT = port('laravel_api_backend')
-NEXUS_DASH_HEALTH_URL = f"http://{LOOPBACK_HOST}:{port('nexus_dash_frontend')}/pycore-manager"
+NEXUS_DASH_PORT = port('nexus_dash_frontend')
+NEXUS_DASH_HEALTH_URL = f"http://{LOOPBACK_HOST}:{NEXUS_DASH_PORT}/pycore-manager"
 NEXUS_DASH_HEALTH_TEXT = 'Nexus Dash'
+# Any vite dev/preview server on the dashboard port (pyservice's or the unit's) is the dashboard.
+NEXUS_DASH_VITE_MARKERS = (f'vite --port {NEXUS_DASH_PORT}', f'vite preview --port {NEXUS_DASH_PORT}')
 MCP_CHROME_SERVICE_NAME = value('mcp_chrome.service_name')
 MCP_CHROME_TASK_NAME = value('mcp_chrome.windows_task_name')
 
@@ -88,9 +90,6 @@ PRIVILEGE_INVOKER = 'invoker'
 WINDOWS_KIND_SERVICE = 'service'
 WINDOWS_KIND_TASK = 'task'
 
-# start.sh scripts treat INVOCATION_ID as "running as the systemd unit body".
-SYSTEMD_UNIT_ENV = 'INVOCATION_ID'
-CHILD_ENV_DROPPED = frozenset({SYSTEMD_UNIT_ENV, 'JOURNAL_STREAM'})
 ENV_COMMAND = 'env'
 BASH_COMMAND = 'bash'
 TAIL_FOLLOW_COMMAND = ('tail', '-f')
@@ -121,12 +120,10 @@ class ServiceI18nKeys:
     SKIPPED = 'launcher.services.skipped'
     START_REQUESTED = 'launcher.services.start_requested'
     START_FAILED = 'launcher.services.start_failed'
-    ENABLE_FAILED = 'launcher.services.enable_failed'
     INSTALLING = 'launcher.services.installing'
     LAUNCHING = 'launcher.services.launching'
     LOG_PATH = 'launcher.services.log_path'
     STATUS_COMMAND = 'launcher.services.status_command'
-    SCRIPT_MISSING = 'launcher.services.script_missing'
     PRIVILEGE_REQUIRED = 'launcher.services.privilege_required'
     MANUAL_COMMAND = 'launcher.services.manual_command'
     ELEVATION_PROMPT = 'launcher.services.elevation_prompt'
@@ -137,7 +134,8 @@ class ServiceI18nKeys:
 class BackgroundServiceSpec:
     key: str
     name_key: str
-    linux_units: Tuple[str, ...]
+    # The only unit that is started or installed; linux_running_only_units merely prove it runs.
+    linux_unit: str
     linux_script: Path
     linux_install_args: Tuple[str, ...]
     linux_install_env: Tuple[Tuple[str, str], ...]
@@ -150,6 +148,7 @@ class BackgroundServiceSpec:
     windows_install_args: Tuple[str, ...]
     windows_install_env: Tuple[Tuple[str, str], ...]
     windows_install_elevated: bool
+    linux_running_only_units: Tuple[str, ...] = ()
     tcp_probe_port: int = 0
     http_probe_url: str = ''
     http_probe_text: str = ''
@@ -158,20 +157,22 @@ class BackgroundServiceSpec:
     installer_markers: Tuple[str, ...] = ()
 
 
-def _laravel_linux_units() -> Tuple[str, ...]:
+def _laravel_plane_units() -> Tuple[str, str]:
+    """Return (configured web-plane unit, opposite-plane unit)."""
     # Mirrors web_server_plane() in global_var_store.sh: anything but nginx is frankenphp.
     plane = read_global_var(START_WEB_SERVER_KEY) or read_global_var(WEB_SERVER_PLANE_KEY) or ''
     if plane.strip().lower() == NGINX_PLANE:
-        return (LARAVEL_NGINX_SERVICE_NAME, LARAVEL_FRANKENPHP_SERVICE_NAME, LARAVEL_LEGACY_SERVICE_NAME)
-    return (LARAVEL_FRANKENPHP_SERVICE_NAME, LARAVEL_NGINX_SERVICE_NAME, LARAVEL_LEGACY_SERVICE_NAME)
+        return LARAVEL_NGINX_SERVICE_NAME, LARAVEL_FRANKENPHP_SERVICE_NAME
+    return LARAVEL_FRANKENPHP_SERVICE_NAME, LARAVEL_NGINX_SERVICE_NAME
 
 
 def build_service_specs() -> Tuple[BackgroundServiceSpec, ...]:
+    laravel_unit, laravel_opposite_unit = _laravel_plane_units() if IS_LINUX else ('', '')
     return (
         BackgroundServiceSpec(
             key='laravel_main',
             name_key=ServiceI18nKeys.NAME_LARAVEL_MAIN,
-            linux_units=_laravel_linux_units() if IS_LINUX else (),
+            linux_unit=laravel_unit,
             linux_script=LARAVEL_SCRIPTS_DIR / LINUX_START_SCRIPT,
             linux_install_args=('--service', '--no-ui', '--skip-ssh'),
             linux_install_env=(('DD_AUTO_CONTINUE', '1'), ('CODEMART_INIT', 'no'), ('AS_SERVICE', 'yes')),
@@ -185,20 +186,29 @@ def build_service_specs() -> Tuple[BackgroundServiceSpec, ...]:
             windows_install_args=('--service',),
             windows_install_env=(('CODEMART_INIT', 'no'), ('DD_AUTO_CONTINUE', '1')),
             windows_install_elevated=True,
+            # A stale opposite-plane unit is removed by the 175 install, and the legacy
+            # ncore-laravel-main body reruns the full 175 init: neither is ever started.
+            linux_running_only_units=(laravel_opposite_unit, LARAVEL_LEGACY_SERVICE_NAME) if IS_LINUX else (),
             tcp_probe_port=LARAVEL_BACKEND_PORT,
+            # Every foreground path (175, run_runtime.sh, start_service.sh) ends in one of these.
+            running_markers=(
+                'debian_com/laravel_runtime_frankenphp.sh',
+                'debian_com/laravel_runtime_nginx.sh',
+                'debian_com/175_laravel_main_start_npx_fallback.sh',
+                'debian_com/175_laravel_main_start_php_serve.sh',
+            ),
             installer_markers=(
                 'laravel_main/scripts/start.sh --service',
                 'laravel_main/scripts/start.sh --no-service',
-                '175_laravel_main_start.sh --service',
-                '175_laravel_main_start.sh --no-service',
-                'laravel_main/scripts/start.ps1 --service',
+                '175_laravel_main_start.sh',
+                'laravel_main/scripts/start.ps1',
                 'Step175_LaravelMainStart.ps1',
             ),
         ),
         BackgroundServiceSpec(
             key='mcp_chrome',
             name_key=ServiceI18nKeys.NAME_MCP_CHROME,
-            linux_units=(MCP_CHROME_SERVICE_NAME,),
+            linux_unit=MCP_CHROME_SERVICE_NAME,
             linux_script=MCP_CHROME_SCRIPTS_DIR / LINUX_START_SCRIPT,
             linux_install_args=('--service',),
             linux_install_env=(('MCP_CHROME_AS_SERVICE', 'yes'), ('DD_AUTO_CONTINUE', '1')),
@@ -227,7 +237,7 @@ def build_service_specs() -> Tuple[BackgroundServiceSpec, ...]:
         BackgroundServiceSpec(
             key='nexus_dash',
             name_key=ServiceI18nKeys.NAME_NEXUS_DASH,
-            linux_units=(NEXUS_DASH_SERVICE_NAME,),
+            linux_unit=NEXUS_DASH_SERVICE_NAME,
             linux_script=NEXUS_DASH_SCRIPTS_DIR / LINUX_START_SCRIPT,
             linux_install_args=('--service', '--no-backend', '--dev', '--non-interactive'),
             linux_install_env=(('DD_AUTO_CONTINUE', '1'),),
@@ -242,10 +252,14 @@ def build_service_specs() -> Tuple[BackgroundServiceSpec, ...]:
             windows_install_elevated=True,
             http_probe_url=NEXUS_DASH_HEALTH_URL,
             http_probe_text=NEXUS_DASH_HEALTH_TEXT,
+            running_markers=NEXUS_DASH_VITE_MARKERS,
+            # --non-interactive / -NoBackend: the dashboard start pyservice.sh / pyservice.ps1 performs.
             installer_markers=(
                 'pycore_laravel_wordnew_ui/scripts/start.sh --service',
                 'pycore_laravel_wordnew_ui/scripts/start.sh --no-service',
+                'pycore_laravel_wordnew_ui/scripts/start.sh --non-interactive',
                 'pycore_laravel_wordnew_ui/scripts/start.ps1 -Service',
+                'pycore_laravel_wordnew_ui/scripts/start.ps1 -NoBackend',
             ),
         ),
     )
@@ -256,13 +270,13 @@ def run_launcher_service_prompts(config_manager, interactive: bool) -> None:
     services_config = config_manager.get_services_config()
     ColorPrint.plain('')
     ColorPrint.cyan(launcher_text.get(ServiceI18nKeys.HEADER))
-    if not services_config[SERVICES_PROMPT_ENABLED_KEY]:
+    if not services_config.get(SERVICES_PROMPT_ENABLED_KEY, DEFAULT_SERVICES_PROMPT_ENABLED):
         ColorPrint.gray(launcher_text.get(ServiceI18nKeys.PROMPTS_DISABLED))
         return
     if not IS_WINDOWS and not IS_LINUX:
         ColorPrint.yellow(launcher_text.get(ServiceI18nKeys.UNSUPPORTED_PLATFORM))
         return
-    timeout_sec = services_config[SERVICES_PROMPT_TIMEOUT_KEY]
+    timeout_sec = services_config.get(SERVICES_PROMPT_TIMEOUT_KEY, DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC)
     systemd = IS_LINUX and systemd_available()
     for spec in build_service_specs():
         _handle_service(spec, systemd, timeout_sec, interactive)
@@ -274,7 +288,7 @@ def _handle_service(spec: BackgroundServiceSpec, systemd: bool, timeout_sec: flo
     if state == STATE_RUNNING:
         ColorPrint.green(launcher_text.get(ServiceI18nKeys.ALREADY_RUNNING, name=name))
         return
-    if process_cmdline_contains(spec.installer_markers):
+    if process_matches(spec.installer_markers):
         ColorPrint.yellow(launcher_text.get(ServiceI18nKeys.IN_PROGRESS, name=name))
         return
     prompt = launcher_text.get(_prompt_key(state, systemd), name=name, seconds=timeout_sec)
@@ -313,16 +327,12 @@ def _manager_state(spec: BackgroundServiceSpec, systemd: bool) -> Tuple[str, str
         return windows_service_state(spec.windows_name), spec.windows_name
     if not systemd:
         return STATE_ABSENT, ''
-    stopped_unit = ''
-    for unit in spec.linux_units:
-        unit_state = systemd_unit_state(unit)
-        if unit_state == STATE_RUNNING:
-            return STATE_RUNNING, unit
-        if unit_state == STATE_STOPPED and not stopped_unit:
-            stopped_unit = unit
-    if stopped_unit:
-        return STATE_STOPPED, stopped_unit
-    return STATE_ABSENT, spec.linux_units[0]
+    unit_state = systemd_unit_state(spec.linux_unit)
+    if unit_state != STATE_RUNNING:
+        for unit in spec.linux_running_only_units:
+            if systemd_unit_state(unit) == STATE_RUNNING:
+                return STATE_RUNNING, unit
+    return unit_state, spec.linux_unit
 
 
 def _probe_running(spec: BackgroundServiceSpec, systemd: bool) -> bool:
@@ -331,7 +341,7 @@ def _probe_running(spec: BackgroundServiceSpec, systemd: bool) -> bool:
     # With systemd the unit is authoritative: another program (e.g. a container) may hold the port.
     if spec.tcp_probe_port and not systemd and tcp_port_open(LOOPBACK_HOST, spec.tcp_probe_port, TCP_PROBE_TIMEOUT_SEC):
         return True
-    return process_cmdline_contains(spec.running_markers, spec.running_excluded_markers)
+    return process_matches(spec.running_markers, spec.running_excluded_markers)
 
 
 def _start_installed(spec: BackgroundServiceSpec, name: str, target: str) -> None:
@@ -342,12 +352,6 @@ def _start_installed(spec: BackgroundServiceSpec, name: str, target: str) -> Non
     if privilege is None:
         _print_privilege_hint(name, [SUDO_COMMAND, SYSTEMCTL_COMMAND, 'start', target])
         return
-    if not systemd_unit_enabled(target):
-        enable_result = run_args([*privilege, SYSTEMCTL_COMMAND, 'enable', target], timeout=COMMAND_TIMEOUT_SEC)
-        if not enable_result.success:
-            ColorPrint.yellow(launcher_text.get(
-                ServiceI18nKeys.ENABLE_FAILED, name=name, service=target, detail=enable_result.combined.strip(),
-            ))
     start_result = run_args([*privilege, SYSTEMCTL_COMMAND, 'start', '--no-block', target], timeout=COMMAND_TIMEOUT_SEC)
     _report_start(name, target, start_result.success, start_result.combined.strip(),
                   shlex.join([SYSTEMCTL_COMMAND, 'status', target]))
@@ -380,9 +384,6 @@ def _report_start(name: str, target: str, success: bool, detail: str, status_com
 
 def _install_linux(spec: BackgroundServiceSpec, name: str, unit: str, systemd: bool) -> None:
     script = spec.linux_script
-    if not script.is_file():
-        ColorPrint.red(launcher_text.get(ServiceI18nKeys.SCRIPT_MISSING, name=name, path=script))
-        return
     install_args = spec.linux_install_args if systemd else spec.linux_unmanaged_args
     install_env = spec.linux_install_env if systemd else spec.linux_unmanaged_env
     env_prefix = [ENV_COMMAND, *(f'{env_name}={env_value}' for env_name, env_value in install_env)]
@@ -392,8 +393,8 @@ def _install_linux(spec: BackgroundServiceSpec, name: str, unit: str, systemd: b
         manual_prefix = [SUDO_COMMAND] if spec.linux_privilege == PRIVILEGE_ROOT else []
         _print_privilege_hint(name, [*manual_prefix, *env_prefix, *script_command])
         return
-    runs_as_invoker = not privilege and not is_elevated()
-    argv = [*privilege, *env_prefix, *_cgroup_escape_prefix(runs_as_invoker), *script_command]
+    # The scope wraps the privilege prefix so no sudo parent is left in the launcher's cgroup.
+    argv = [*_cgroup_escape_prefix(not is_elevated()), *privilege, *env_prefix, *script_command]
     log_path = _service_log_path(spec.key)
     _spawn_detached(argv, script.parent, _child_env(()), log_path)
     ColorPrint.cyan(launcher_text.get(ServiceI18nKeys.INSTALLING if systemd else ServiceI18nKeys.LAUNCHING, name=name))
@@ -407,9 +408,6 @@ def _install_linux(spec: BackgroundServiceSpec, name: str, unit: str, systemd: b
 
 def _install_windows(spec: BackgroundServiceSpec, name: str) -> None:
     script = spec.windows_script
-    if not script.is_file():
-        ColorPrint.red(launcher_text.get(ServiceI18nKeys.SCRIPT_MISSING, name=name, path=script))
-        return
     argv = [POWERSHELL_EXE, *POWERSHELL_FILE_ARGS, str(script), *spec.windows_install_args]
     log_path = _service_log_path(spec.key)
     if spec.windows_install_elevated and not is_elevated():
@@ -460,7 +458,7 @@ def _install_privilege_prefix(spec: BackgroundServiceSpec, systemd: bool) -> Opt
 def _cgroup_escape_prefix(user_scope: bool) -> List[str]:
     # Under a systemd unit (e.g. the login auto-start), the unit's cgroup is
     # killed when the launcher exits; a transient scope keeps the child alive.
-    if SYSTEMD_UNIT_ENV not in os.environ or shutil.which(SYSTEMD_RUN_COMMAND) is None:
+    if SYSTEMD_INVOCATION_ENV not in os.environ or shutil.which(SYSTEMD_RUN_COMMAND) is None:
         return []
     prefix = [SYSTEMD_RUN_COMMAND, *SYSTEMD_RUN_SCOPE_ARGS]
     if user_scope:
@@ -474,7 +472,9 @@ def _print_privilege_hint(name: str, command: List[str]) -> None:
 
 
 def _child_env(extra: Iterable[Tuple[str, str]]) -> dict:
-    env = {env_name: env_value for env_name, env_value in os.environ.items() if env_name not in CHILD_ENV_DROPPED}
+    # start.sh scripts treat INVOCATION_ID as "running as the systemd unit body".
+    env = dict(os.environ)
+    drop_service_markers(env)
     env.update(extra)
     return env
 

@@ -1,21 +1,21 @@
 {
-  "schema_version": 3,
+  "schema_version": 5,
   "permission_mode": "auto",
-  "requirements_doc": "docs_fix/REQUIREMENTS_20260927_CLAUDE_AGENT_ROLES_V2.md",
-  "task_board": "docs_fix/TASK_20260927_CLAUDE_TEAM_BOARD.md",
+  "guide_doc": "development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md",
+  "record_dir": "docs_fix",
   "agents_dir": ".claude/agents",
   "shared_dir": ".claude/agents_shared",
   "sessions": {
     "session_prefix": "ct-",
     "tmux_socket": "claudeteam",
-    "kickoff_lead": "You are the orchestrator, session {session}. The roles are independent sessions that coordinate through cross-session messaging. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task: split it by write scope and record it in {board}. Dispatch each part with SendMessage to {prefix}<role>, setting notify_when_idle. Send finished work to {prefix}reviewer before closing it. Put shared files in {shared} and send their paths, not their contents. Read {requirements} now, confirm the roster, then wait for the user's task.",
-    "kickoff": "You are the {role} role, session {session}, one of the independent role sessions that coordinate through cross-session messaging. Read {requirements} and your section of {board}. Run ListAgents to see the other {prefix}<role> sessions. Send your ordered plan for your open tasks to {prefix}orchestrator with SendMessage, then wait for its go. Report results and blockers to {prefix}orchestrator the same way. Put shared files in {shared}. Stay inside your write scope."
+    "kickoff_lead": "You are the orchestrator, session {session}. The roles are independent sessions that coordinate through cross-session messaging. Your binding guide is {guide}. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task, record it in {record}, split it by the guide's role scopes, and create tasks as [<role>] subject. Dispatch each part with SendMessage to {prefix}<role> with notify_when_idle, route finished work to {prefix}reviewer for a verdict, and read {shared}/reports instead of transcripts. Read the guide now, confirm the roster, then wait for the user's task.",
+    "kickoff": "You are the {role} role, session {session}, one of the independent role sessions that coordinate through cross-session messaging. Read your agent instructions and your development guide, and {guide} section 8 for boundaries. Run ListAgents, tell {prefix}orchestrator you are ready, and wait for its tasks. Report with SendMessage, hand files over as paths in {shared}, and write {shared}/reports/{role}.md before going idle."
   },
   "team": {
     "session_name": "ca-orchestrator",
     "tmux_socket": "claudeagents",
     "teammate_mode_linux": "tmux",
-    "kickoff": "You are the orchestrator (team lead), session {session}, in agent-teams mode. The user will give you one task. Split it into shared tasks by write scope and dependency. Spawn teammates from the agent types in {agents_dir}, but only the roles the task needs: {roles}. Name each teammate exactly after its agent type, and give it the task-specific context in its spawn prompt. Have teammates plan first for risky changes. Send finished work to the reviewer teammate before marking it complete. Record decisions in {board}, and put shared files in {shared}. Wait for your teammates to finish before you synthesize. Read {requirements} now, then wait for the user's task."
+    "kickoff": "You are the orchestrator (team lead), session {session}, in agent-teams mode. Your binding guide is {guide}. The user will give you one task: record it in {record}, split it by the guide's role scopes and dependencies, create tasks as [<role>] subject, and spawn only the roles the task needs from the agent types in {agents_dir} ({roles}), each named exactly after its type, with the task context in its spawn prompt. Tasks complete only after the reviewer's approved verdict; read {shared}/reports for handoffs. Read the guide now, then wait for the user's task."
   },
   "grid": {
     "columns": 5,
@@ -40,6 +40,14 @@
     {
       "name": "laravel",
       "enabled": true
+    },
+    {
+      "name": "laravel-remote",
+      "enabled": false,
+      "remote": {
+        "ssh_secret": "SSH_CONNECTION_1",
+        "root": "/www/programing/core_node"
+      }
     },
     {
       "name": "shell",
@@ -82,5 +90,8 @@
       "enabled": true
     }
   ],
-  "orchestrator_guide": "development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md"
+  "remote": {
+    "reconnect_seconds": 5,
+    "kickoff": "You are the {role} role, session {session}, running on the laravel-main server over SSH with Remote Control on. Your binding guide is {guide} (section 8 for boundaries). Develop in this server checkout and test directly on this server. Run ListAgents, tell {lead} (another machine; cross-session messaging through Remote Control) that you are ready, and wait for its tasks. Report with SendMessage including the changed-file list, and write {shared}/reports/{role}.md before going idle."
+  }
 }

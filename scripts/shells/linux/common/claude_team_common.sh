@@ -38,12 +38,14 @@ CLAUDE_TEAM_BIN_DIR="/usr/local/bin"
 CLAUDE_TEAM_TOTAL_STEPS="9"
 CLAUDE_TEAM_ATTACH_WAIT_SECONDS="6"
 CLAUDE_TEAM_LEAD_ROLE="orchestrator"
-CLAUDE_TEAM_GIT_GUARD_ENV="CLAUDE_AGENTS_GIT_GUARD=1"
+CLAUDE_TEAM_GIT_GUARD_ENV="CLAUDE_AGENTS_SESSION=1"
 CLAUDE_TEAM_AGENT_TEAMS_ENV="CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1"
 CLAUDE_TEAM_USER_TEAMS_DIR="$HOME/.claude/teams"
 CLAUDE_TEAM_USER_TASKS_DIR="$HOME/.claude/tasks"
 CLAUDE_TEAM_GEOMETRY_EMULATORS=("${CCI_GEOMETRY_EMULATORS[@]}")
 CLAUDE_TEAM_UNPOSITIONED_EMULATORS=("gnome-terminal" "ptyxis" "qterminal" "x-terminal-emulator")
+CLAUDE_TEAM_SECRET_READER="$CLAUDE_TEAM_ROOT_DIR/scripts/pytools/special_software_env_manager/secret_read.py"
+CLAUDE_TEAM_SSH_OPTIONS="-t -o ServerAliveInterval=30 -o ServerAliveCountMax=4"
 
 CLAUDE_TEAM_MODE="sessions"
 CLAUDE_TEAM_ENTRY_PATH=""
@@ -62,8 +64,8 @@ CLAUDE_TEAM_GRAPHICAL="0"
 CLAUDE_TEAM_IS_WAYLAND="0"
 
 CLAUDE_TEAM_PERMISSION_MODE="auto"
-CLAUDE_TEAM_REQUIREMENTS_DOC=""
-CLAUDE_TEAM_TASK_BOARD=""
+CLAUDE_TEAM_GUIDE_DOC=""
+CLAUDE_TEAM_RECORD_DIR=""
 CLAUDE_TEAM_AGENTS_DIR=""
 CLAUDE_TEAM_SHARED_DIR=""
 CLAUDE_TEAM_SESSION_PREFIX="ct-"
@@ -74,6 +76,9 @@ CLAUDE_TEAM_TEAM_SESSION_NAME="ca-orchestrator"
 CLAUDE_TEAM_TEAM_SOCKET="claudeagents"
 CLAUDE_TEAM_TEAM_TEAMMATE_MODE="tmux"
 CLAUDE_TEAM_TEAM_KICKOFF=""
+CLAUDE_TEAM_REMOTE_KICKOFF=""
+CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS="5"
+CLAUDE_TEAM_REMOTE_ANY="0"
 CLAUDE_TEAM_TMUX_SOCKET=""
 CLAUDE_TEAM_GRID_COLUMNS="4"
 CLAUDE_TEAM_GRID_ROWS="2"
@@ -99,6 +104,8 @@ CLAUDE_TEAM_ROLE_NAMES=()
 CLAUDE_TEAM_ROLE_SLOTS=()
 CLAUDE_TEAM_ROLE_ENABLED=()
 CLAUDE_TEAM_ROLE_LAUNCH=()
+CLAUDE_TEAM_ROLE_REMOTE_SECRET=()
+CLAUDE_TEAM_ROLE_REMOTE_ROOT=()
 CLAUDE_TEAM_ROW_SESSION_STATE=()
 CLAUDE_TEAM_ROW_WINDOW_STATE=()
 CLAUDE_TEAM_ROW_PIXELS=()
@@ -134,7 +141,7 @@ claude_team_tmux() {
 }
 
 claude_team_session_name() {
-    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+    if [ "$CLAUDE_TEAM_MODE" = "team" ] && ! claude_team_role_is_remote "$1"; then
         if [ "$1" = "$CLAUDE_TEAM_LEAD_ROLE" ]; then
             printf '%s' "$CLAUDE_TEAM_TEAM_SESSION_NAME"
         else
@@ -143,6 +150,23 @@ claude_team_session_name() {
         return 0
     fi
     printf '%s%s' "$CLAUDE_TEAM_SESSION_PREFIX" "$1"
+}
+
+claude_team_role_index() {
+    local index=""
+    for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
+        if [ "${CLAUDE_TEAM_ROLE_NAMES[$index]}" = "$1" ]; then
+            printf '%s' "$index"
+            return 0
+        fi
+    done
+    return 1
+}
+
+claude_team_role_is_remote() {
+    local index=""
+    index="$(claude_team_role_index "$1")" || return 1
+    [ -n "${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]:-}" ]
 }
 
 claude_team_attach_command() {
@@ -219,6 +243,8 @@ claude_team_load_catalog() {
     local field_a=""
     local field_b=""
     local field_c=""
+    local field_d=""
+    local field_e=""
     if [ ! -f "$CLAUDE_TEAM_CATALOG_PATH" ]; then
         claude_team_log ERROR "Role catalog missing: $CLAUDE_TEAM_CATALOG_PATH"
         return 1
@@ -243,24 +269,30 @@ for key, value in data.items():
     elif not isinstance(value, list):
         emit(key, value)
 for index, role in enumerate(data.get("roles", [])):
-    print("R\t%d\t%s\t%s" % (index, role.get("name", ""), "1" if role.get("enabled", True) else "0"))
+    remote = role.get("remote") or {}
+    print("R\t%d\t%s\t%s\t%s\t%s" % (index, role.get("name", ""), "1" if role.get("enabled", True) else "0",
+                                     remote.get("ssh_secret", "-"), remote.get("root", "-")))
 PY
 )" || return 1
 
     CLAUDE_TEAM_ROLE_NAMES=()
     CLAUDE_TEAM_ROLE_SLOTS=()
     CLAUDE_TEAM_ROLE_ENABLED=()
-    while IFS=$'\t' read -r kind field_a field_b field_c; do
+    CLAUDE_TEAM_ROLE_REMOTE_SECRET=()
+    CLAUDE_TEAM_ROLE_REMOTE_ROOT=()
+    while IFS=$'\t' read -r kind field_a field_b field_c field_d field_e; do
         if [ "$kind" = "R" ]; then
             CLAUDE_TEAM_ROLE_SLOTS+=("$field_a")
             CLAUDE_TEAM_ROLE_NAMES+=("$field_b")
             CLAUDE_TEAM_ROLE_ENABLED+=("$field_c")
+            CLAUDE_TEAM_ROLE_REMOTE_SECRET+=("${field_d#-}")
+            CLAUDE_TEAM_ROLE_REMOTE_ROOT+=("${field_e#-}")
             continue
         fi
         case "$field_a" in
             permission_mode) CLAUDE_TEAM_PERMISSION_MODE="$field_b" ;;
-            requirements_doc) CLAUDE_TEAM_REQUIREMENTS_DOC="$field_b" ;;
-            task_board) CLAUDE_TEAM_TASK_BOARD="$field_b" ;;
+            guide_doc) CLAUDE_TEAM_GUIDE_DOC="$field_b" ;;
+            record_dir) CLAUDE_TEAM_RECORD_DIR="$field_b" ;;
             agents_dir) CLAUDE_TEAM_AGENTS_DIR="$field_b" ;;
             shared_dir) CLAUDE_TEAM_SHARED_DIR="$field_b" ;;
             sessions_session_prefix) CLAUDE_TEAM_SESSION_PREFIX="$field_b" ;;
@@ -271,6 +303,8 @@ PY
             team_tmux_socket) CLAUDE_TEAM_TEAM_SOCKET="$field_b" ;;
             team_teammate_mode_linux) CLAUDE_TEAM_TEAM_TEAMMATE_MODE="$field_b" ;;
             team_kickoff) CLAUDE_TEAM_TEAM_KICKOFF="$field_b" ;;
+            remote_kickoff) CLAUDE_TEAM_REMOTE_KICKOFF="$field_b" ;;
+            remote_reconnect_seconds) CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS="$field_b" ;;
             grid_columns) CLAUDE_TEAM_GRID_COLUMNS="$field_b" ;;
             grid_rows) CLAUDE_TEAM_GRID_ROWS="$field_b" ;;
             grid_top_offset_px) CLAUDE_TEAM_GRID_TOP_OFFSET="$field_b" ;;
@@ -310,13 +344,12 @@ claude_team_validate_roles() {
     local role=""
     local agent_path=""
     local doc_path=""
-    for doc_path in "$CLAUDE_TEAM_REQUIREMENTS_DOC" "$CLAUDE_TEAM_TASK_BOARD"; do
-        if [ -f "$CLAUDE_TEAM_ROOT_DIR/$doc_path" ]; then
-            claude_team_log OK "Orchestration doc: $CLAUDE_TEAM_ROOT_DIR/$doc_path"
-        else
-            claude_team_log WARN "Orchestration doc missing: $CLAUDE_TEAM_ROOT_DIR/$doc_path"
-        fi
-    done
+    if [ -f "$CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_GUIDE_DOC" ]; then
+        claude_team_log OK "Orchestration guide (binding): $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_GUIDE_DOC"
+    else
+        claude_team_log WARN "Orchestration guide missing: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_GUIDE_DOC"
+    fi
+    claude_team_log OK "Living record (non-binding): $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_RECORD_DIR"
     for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
         role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
         agent_path="$CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_AGENTS_DIR/$role.md"
@@ -342,6 +375,12 @@ claude_team_validate_roles() {
             claude_team_log WARN "Role $role disabled: agent file missing $agent_path"
             continue
         fi
+        if [ -n "${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}" ]; then
+            CLAUDE_TEAM_ROLE_LAUNCH[$index]="1"
+            CLAUDE_TEAM_REMOTE_ANY="1"
+            claude_team_log OK "Remote role $role: ssh <secret ${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}> -> tmux ${CLAUDE_TEAM_SESSIONS_SOCKET}/$(claude_team_session_name "$role") in ${CLAUDE_TEAM_ROLE_REMOTE_ROOT[$index]} (Remote Control on)"
+            continue
+        fi
         if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
             CLAUDE_TEAM_ROW_SESSION_STATE[$index]="teammate"
             CLAUDE_TEAM_ROW_WINDOW_STATE[$index]="lead-pane"
@@ -351,6 +390,25 @@ claude_team_validate_roles() {
         CLAUDE_TEAM_ROLE_LAUNCH[$index]="1"
         claude_team_log OK "Session role $role (slot $((CLAUDE_TEAM_ROLE_SLOTS[$index] + 1))): $agent_path"
     done
+    claude_team_assign_team_slots
+}
+
+claude_team_assign_team_slots() {
+    local index=""
+    local next_slot="0"
+    if [ "$CLAUDE_TEAM_MODE" != "team" ]; then
+        return 0
+    fi
+    for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
+        if [ "${CLAUDE_TEAM_ROLE_LAUNCH[$index]}" = "1" ]; then
+            CLAUDE_TEAM_ROLE_SLOTS[$index]="$next_slot"
+            next_slot=$((next_slot + 1))
+        fi
+    done
+    if [ "$next_slot" -gt 1 ]; then
+        CLAUDE_TEAM_GRID_COLUMNS="$next_slot"
+        claude_team_log OK "Team window grid: ${next_slot}x1 (orchestrator + remote roles)"
+    fi
 }
 
 claude_team_detect_screen() {
@@ -453,7 +511,9 @@ claude_team_other_roles() {
 claude_team_kickoff_for() {
     local role="$1"
     local text=""
-    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+    if claude_team_role_is_remote "$role"; then
+        text="$CLAUDE_TEAM_REMOTE_KICKOFF"
+    elif [ "$CLAUDE_TEAM_MODE" = "team" ]; then
         text="$CLAUDE_TEAM_TEAM_KICKOFF"
     elif [ "$role" = "$CLAUDE_TEAM_LEAD_ROLE" ]; then
         text="$CLAUDE_TEAM_SESSIONS_KICKOFF_LEAD"
@@ -462,12 +522,13 @@ claude_team_kickoff_for() {
     fi
     text="${text//\{role\}/$role}"
     text="${text//\{session\}/$(claude_team_session_name "$role")}"
-    text="${text//\{requirements\}/$CLAUDE_TEAM_REQUIREMENTS_DOC}"
-    text="${text//\{board\}/$CLAUDE_TEAM_TASK_BOARD}"
+    text="${text//\{guide\}/$CLAUDE_TEAM_GUIDE_DOC}"
+    text="${text//\{record\}/$CLAUDE_TEAM_RECORD_DIR}"
     text="${text//\{prefix\}/$CLAUDE_TEAM_SESSION_PREFIX}"
     text="${text//\{shared\}/$CLAUDE_TEAM_SHARED_DIR}"
     text="${text//\{agents_dir\}/$CLAUDE_TEAM_AGENTS_DIR}"
     text="${text//\{roles\}/$(claude_team_other_roles)}"
+    text="${text//\{lead\}/$(claude_team_session_name "$CLAUDE_TEAM_LEAD_ROLE")}"
     printf '%s' "$text"
 }
 
@@ -496,13 +557,20 @@ claude_team_start_sessions() {
             CLAUDE_TEAM_ROW_SESSION_STATE[$index]="stopped"
             continue
         fi
-        printf -v role_command '%q --agent %q --name %q' "$CLAUDE_TEAM_LAUNCHER_PATH" "$role" "$session"
-        if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
-            role_command="$role_command --teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE"
-        fi
-        if [ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ]; then
-            printf -v quoted_kickoff '%q' "$(claude_team_kickoff_for "$role")"
-            role_command="$role_command $quoted_kickoff"
+        if claude_team_role_is_remote "$role"; then
+            role_command="$(claude_team_remote_command "$index" "$session")"
+        else
+            printf -v role_command '%q --agent %q --name %q' "$CLAUDE_TEAM_LAUNCHER_PATH" "$role" "$session"
+            if [ "$role" = "$CLAUDE_TEAM_LEAD_ROLE" ] && [ "$CLAUDE_TEAM_REMOTE_ANY" = "1" ]; then
+                role_command="$role_command --remote-control $session"
+            fi
+            if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+                role_command="$role_command --teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE"
+            fi
+            if [ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ]; then
+                printf -v quoted_kickoff '%q' "$(claude_team_kickoff_for "$role")"
+                role_command="$role_command $quoted_kickoff"
+            fi
         fi
         if claude_team_tmux new-session -d -s "$session" -c "$CLAUDE_TEAM_ROOT_DIR" \
             -x "$CLAUDE_TEAM_CELL_COLS" -y "$CLAUDE_TEAM_CELL_ROWS" \
@@ -511,6 +579,7 @@ claude_team_start_sessions() {
             CLAUDE_TEAM_ROW_SESSION_STATE[$index]="started"
             started="1"
             claude_team_log START "Session $session: cwd=$CLAUDE_TEAM_ROOT_DIR size=${CLAUDE_TEAM_CELL_COLS}x${CLAUDE_TEAM_CELL_ROWS} env=$CLAUDE_TEAM_AGENT_TEAMS_ENV,$CLAUDE_TEAM_GIT_GUARD_ENV"
+            claude_team_role_is_remote "$role" && claude_team_log START "  remote: ssh <secret ${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}> -> root from claudeteam (fallback ${CLAUDE_TEAM_ROLE_REMOTE_ROOT[$index]}): claude_team_install (incl. crossSessionInbound=accept); tmux -A $session; claudeteam --agent $role --remote-control $session (auto-reconnect ${CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS}s)"
             claude_team_log START "  command: claudeteam.sh --agent $role --name $session$([ "$CLAUDE_TEAM_MODE" = "team" ] && printf ' --teammate-mode %s' "$CLAUDE_TEAM_TEAM_TEAMMATE_MODE")$([ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ] && printf ' <kickoff>') (permission mode $CLAUDE_TEAM_PERMISSION_MODE)"
         else
             CLAUDE_TEAM_ROW_SESSION_STATE[$index]="failed"
@@ -523,6 +592,41 @@ claude_team_start_sessions() {
         claude_team_tmux set-option -g mouse on >/dev/null 2>&1 || true
         claude_team_log OK "tmux socket $CLAUDE_TEAM_TMUX_SOCKET: set-titles on (#S), mouse on"
     fi
+}
+
+# Remote role: a local tmux session keeps an ssh -t connection (reconnecting every
+# remote.reconnect_seconds) to the server, where the same tmux session name is
+# attached or created (-A: idempotent). The server first runs the shared idempotent
+# claude_team_install, then claudeteam.sh with Remote Control on, so cross-machine
+# SendMessage reaches it (official: both ends need Remote Control). The ssh target
+# is resolved at runtime from the secret store and never printed.
+claude_team_remote_command() {
+    local index="$1"
+    local session="$2"
+    local role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
+    local secret="${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}"
+    local fallback_root="${CLAUDE_TEAM_ROLE_REMOTE_ROOT[$index]}"
+    local inner=""
+    local quoted_kickoff=""
+    local remote_cmd=""
+    local local_cmd=""
+    printf -v inner 'claudeteam --agent %q --name %q --remote-control %q' "$role" "$session" "$session"
+    if [ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ]; then
+        printf -v quoted_kickoff '%q' "$(claude_team_kickoff_for "$role")"
+        inner="$inner $quoted_kickoff"
+    fi
+    inner="$inner; exec bash -l"
+    # On the server: locate core_node through the linked claudeteam command (falls back
+    # to the catalog root on a first run), run the shared idempotent install, then
+    # attach or create the role's tmux session running claudeteam.
+    printf -v remote_cmd '%s ROOT=%q; %s . "$ROOT/scripts/ai_shtools/claude_code_install.sh" && claude_team_install; tmux -L %q new-session -A -s %q -c "$ROOT" -e %q -e %q bash -lc %q' \
+        'R="$(readlink -f "$(command -v claudeteam 2>/dev/null)" 2>/dev/null)";' "$fallback_root" \
+        'if [ -n "$R" ]; then ROOT="$(cd "$(dirname "$R")/../.." && pwd)"; fi;' \
+        "$CLAUDE_TEAM_SESSIONS_SOCKET" "$session" "$CLAUDE_TEAM_AGENT_TEAMS_ENV" "$CLAUDE_TEAM_GIT_GUARD_ENV" "$inner"
+    printf -v local_cmd 'conn="$(python3 %q %q)" || exit 1; while :; do ssh %s "$conn" %q; echo "[remote] %s disconnected; reconnecting in %ss (Ctrl-C to stop)"; sleep %q; done' \
+        "$CLAUDE_TEAM_SECRET_READER" "$secret" "$CLAUDE_TEAM_SSH_OPTIONS" "bash -lc $(printf '%q' "$remote_cmd")" \
+        "$session" "$CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS" "$CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS"
+    printf '%s' "$local_cmd"
 }
 
 claude_team_client_count() {
@@ -607,7 +711,7 @@ claude_team_open_windows() {
 claude_team_print_shared_data() {
     local team_dir=""
     claude_team_log OK "Shared project data: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR (files by path; git grant file git_grant.json)"
-    claude_team_log OK "Durable task record: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_TASK_BOARD"
+    claude_team_log OK "Handoff reports: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR/reports ; reviewer verdicts: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR/reviews ; role memory: $CLAUDE_TEAM_ROOT_DIR/.claude/agent-memory"
     if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
         claude_team_log OK "Agent-team task lists: $CLAUDE_TEAM_USER_TASKS_DIR/<team>/ ; mailboxes and members: $CLAUDE_TEAM_USER_TEAMS_DIR/<team>/{inboxes,config.json}"
         for team_dir in $(ls -1dt "$CLAUDE_TEAM_USER_TEAMS_DIR"/session-* 2>/dev/null | head -n 3); do
@@ -618,7 +722,7 @@ claude_team_print_shared_data() {
         claude_team_log OK "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name (/list-agents shows the roster)"
         claude_team_log OK "Dispatch: type one task in the ${CLAUDE_TEAM_SESSION_PREFIX}${CLAUDE_TEAM_LEAD_ROLE} window; it dispatches to ${CLAUDE_TEAM_SESSION_PREFIX}<role> sessions and gets idle notices"
     fi
-    claude_team_log OK "Git: blocked for every role; a user prompt containing allow-git (or 允许git) grants it for 120 min, deny-git revokes"
+    claude_team_log OK "Git: read-only git/gh always allowed; other git/gh commands need a user prompt asking for git work (120 min grant; deny-git revokes)"
 }
 
 claude_team_print_report() {

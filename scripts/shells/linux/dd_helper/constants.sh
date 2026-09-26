@@ -46,6 +46,9 @@ CORE_NODE_TMP_DIR="$CORE_NODE_DATA_DIR/_tmp"
 DD_SH_TARGET_DIRS=("apps" "ncore" "scripts")
 
 # Script Paths (relative to CORE_NODE_ROOT_DIR)
+GITPUT_UNIFIED_SCRIPT_RELATIVE="scripts/git/gitput_unified.sh"
+ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/common/linux-router/lnxrouter.sh"
+SYNC_ALL_MCP_SCRIPT_RELATIVE="scripts/ai_shtools/sync_all_mcp_servers.sh"
 SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/special_software_env_manager.sh"
 SERVICE_MANAGER_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/service_manager.sh"
 INSTALL_TEST_MENU_SCRIPT_RELATIVE="scripts/shells/linux/common/install_test_menu.sh"

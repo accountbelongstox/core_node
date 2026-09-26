@@ -46,6 +46,8 @@ class GridI18nKeys:
     MENU_CURRENT_AUTO_GRID = 'launcher.grid.menu_current_auto_grid'
     MENU_TOGGLE_ITEM = 'launcher.grid.menu_toggle_item'
     MENU_TOGGLE_DISABLE_ITEM = 'launcher.grid.menu_toggle_disable_item'
+    RELAYOUT_DONE = 'launcher.grid.relayout_done'
+    RELAYOUT_HINT = 'launcher.grid.relayout_hint'
 
 
 @dataclass(frozen=True)

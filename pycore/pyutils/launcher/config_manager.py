@@ -10,9 +10,22 @@ from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.launcher.grid_profile import (
+    DEFAULT_AUTO_GRID,
+    DEFAULT_GRID_COLUMNS,
+    DEFAULT_GRID_ROWS,
+    DEFAULT_TOGGLE,
+    TERMINAL_TOGGLE_GRIDS,
+    normalize_toggle,
+)
 from pycore.pyutils.common.user_data_store import user_data_store
 
 _SECTION = "launcher"
+SERVICES_SECTION = 'services'
+SERVICES_PROMPT_ENABLED_KEY = 'prompt_enabled'
+SERVICES_PROMPT_TIMEOUT_KEY = 'prompt_timeout_sec'
+DEFAULT_SERVICES_PROMPT_ENABLED = True
+DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC = 5
 
 class ConfigManager:
     """Manage launcher configuration"""
@@ -66,19 +79,19 @@ class ConfigManager:
         default_config = {
             'terminal': {
                 'enabled': True,
-                'columns': 3,
-                'rows': 2,
-                'toggle': 'X6',  # X4, X6, X8, X12, X15, X18, DISABLE
+                'columns': DEFAULT_GRID_COLUMNS,
+                'rows': DEFAULT_GRID_ROWS,
+                'toggle': DEFAULT_TOGGLE,
                 # Resolution grid: 2K screens use 5x3, 4K use 6x3; smaller
                 # screens keep columns/rows above.
-                'auto_grid': True
+                'auto_grid': DEFAULT_AUTO_GRID
             },
             # Background services offered after the window layout
             # (laravel_main, mcp-chrome watcher, nexus-dash UI): each prompt
             # auto-answers Yes after prompt_timeout_sec.
-            'services': {
-                'prompt_enabled': True,
-                'prompt_timeout_sec': 5
+            SERVICES_SECTION: {
+                SERVICES_PROMPT_ENABLED_KEY: DEFAULT_SERVICES_PROMPT_ENABLED,
+                SERVICES_PROMPT_TIMEOUT_KEY: DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC
             },
             'measurements': {
                 'columns': 67,
@@ -116,6 +129,7 @@ class ConfigManager:
                     ColorPrint.plain(f"Warning: Failed to migrate launcher config: {e}")
             user_config = user_data_store.get_section(_SECTION)
             self._merge_config(default_config, user_config)
+            self._migrate_legacy_toggle(default_config)
             self._ensure_all_apps_in_config(default_config)
             self._remove_paths_from_config(default_config)
             return default_config
@@ -126,12 +140,7 @@ class ConfigManager:
                     user_config = json.load(f)
                     # Merge with defaults
                     self._merge_config(default_config, user_config)
-                    # Migrate legacy X16 (4x4) toggle to X12 (4x3).
-                    term = default_config.get('terminal', {})
-                    if term.get('toggle') == 'X16':
-                        term['toggle'] = 'X12'
-                        term['columns'] = 4
-                        term['rows'] = 3
+                    self._migrate_legacy_toggle(default_config)
                     # Ensure all apps from APP_DEFINITIONS are in config
                     self._ensure_all_apps_in_config(default_config)
                     # Remove all 'path' fields from applications (paths belong in cache, not config)
@@ -142,6 +151,15 @@ class ConfigManager:
         
         return default_config
     
+    @staticmethod
+    def _migrate_legacy_toggle(config):
+        """Map a retired toggle (X16) to its replacement preset and grid size."""
+        term = config.get('terminal', {})
+        toggle = normalize_toggle(term.get('toggle', DEFAULT_TOGGLE))
+        if toggle != term.get('toggle') and toggle in TERMINAL_TOGGLE_GRIDS:
+            term['toggle'] = toggle
+            term['columns'], term['rows'] = TERMINAL_TOGGLE_GRIDS[toggle]
+
     def _merge_config(self, default, user):
         """Merge user config into default config"""
         for key, value in user.items():
@@ -218,7 +236,7 @@ class ConfigManager:
     
     def get_services_config(self):
         """Get background-service prompt configuration"""
-        return self.config.get('services', {})
+        return self.config.get(SERVICES_SECTION, {})
 
     def get_measurements_config(self):
         """Get measurements configuration"""

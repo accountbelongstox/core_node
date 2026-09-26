@@ -45,13 +45,19 @@ REDIS_ENDPOINT_CONFIG_DIRECTIVES=(
     "hash-max-listpack-value 128"
     "appendonly yes"
 )
-# maxmemory cap: share of MemTotal with a floor. With noeviction, writes fail
-# at the cap (Laravel falls back to DB/disk) instead of exhausting host RAM.
-# The marker comment identifies the cap this script owns; any other explicit
-# cap is an operator decision and is kept.
-REDIS_ENDPOINT_MAXMEMORY_PERCENT=25
-REDIS_ENDPOINT_MAXMEMORY_FLOOR_MB=256
+# maxmemory hard cap for Redis and Dragonfly: share of MemTotal. The index
+# stores keys and short values only. With noeviction, writes fail at the cap
+# (Laravel falls back to DB/disk) instead of exhausting host RAM. The marker
+# comment identifies the cap this script owns; a lower explicit cap is kept,
+# a higher one is lowered to the hard cap.
+REDIS_ENDPOINT_MAXMEMORY_PERCENT=10
 REDIS_ENDPOINT_MAXMEMORY_MARKER="# core_node managed: maxmemory"
+# Dragonfly reads flags from the flagfile of its systemd unit (not redis.conf)
+# and requires maxmemory >= 256 MiB per proactor thread, so the thread count
+# is derived from the cap.
+REDIS_ENDPOINT_DRAGONFLY_FLAGFILE_DEFAULT="/etc/dragonfly/dragonfly.conf"
+REDIS_ENDPOINT_DRAGONFLY_THREAD_MIN_MB=256
+REDIS_ENDPOINT_DRAGONFLY_CHANGED="no"
 
 redis_endpoint_resolve() {
     REDIS_ENDPOINT_HOST="$(sc_get hosts.loopback)"
@@ -171,32 +177,83 @@ redis_endpoint_directive_ensure() {
     fi
 }
 
-# Desired cap in bytes: MemTotal * percent, never below the floor.
+# Hard cap in bytes: MemTotal * percent.
 redis_endpoint_maxmemory_bytes() {
     local total_kb=""
-    local cap_bytes=0
-    local floor_bytes=0
 
     total_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)"
-    floor_bytes=$((REDIS_ENDPOINT_MAXMEMORY_FLOOR_MB * 1024 * 1024))
-    if [ -n "$total_kb" ]; then
-        cap_bytes=$((total_kb * 1024 / 100 * REDIS_ENDPOINT_MAXMEMORY_PERCENT))
+    echo $(( ${total_kb:-0} * 1024 / 100 * REDIS_ENDPOINT_MAXMEMORY_PERCENT ))
+}
+
+# Flagfile the dragonfly unit starts with (default package path otherwise).
+redis_endpoint_dragonfly_flagfile() {
+    local flagfile=""
+
+    flagfile="$(systemctl cat "$REDIS_ENDPOINT_DRAGONFLY_UNIT" 2>/dev/null | grep -o -- '--flagfile=[^ ]*' | head -1)"
+    echo "${flagfile#--flagfile=}" | grep . || echo "$REDIS_ENDPOINT_DRAGONFLY_FLAGFILE_DEFAULT"
+}
+
+# Set one --name=value flag in the Dragonfly flagfile only when it differs.
+redis_endpoint_dragonfly_flag_ensure() {
+    local flagfile="$1"
+    local name="$2"
+    local value="$3"
+
+    if $USE_SUDO grep -qxF -- "--${name}=${value}" "$flagfile" 2>/dev/null; then
+        return
     fi
-    if [ "$cap_bytes" -lt "$floor_bytes" ]; then
-        cap_bytes="$floor_bytes"
+    $USE_SUDO mkdir -p "$(dirname "$flagfile")"
+    $USE_SUDO touch "$flagfile"
+    $USE_SUDO sed -i "/^--${name}=/d" "$flagfile"
+    printf -- '--%s=%s\n' "$name" "$value" | $USE_SUDO tee -a "$flagfile" >/dev/null
+    REDIS_ENDPOINT_DRAGONFLY_CHANGED="yes"
+    echo "  Dragonfly flagfile: --${name}=${value} (${flagfile})"
+}
+
+# Dragonfly: cap maxmemory at the hard cap and derive proactor_threads so the
+# cap satisfies Dragonfly's per-thread minimum; restart only on a change.
+redis_endpoint_dragonfly_maxmemory_ensure() {
+    local flagfile=""
+    local desired=""
+    local thread_min_bytes=0
+    local threads=1
+    local cpus=1
+
+    if ! command -v dragonfly >/dev/null 2>&1; then
+        return
     fi
-    echo "$cap_bytes"
+    REDIS_ENDPOINT_DRAGONFLY_CHANGED="no"
+    flagfile="$(redis_endpoint_dragonfly_flagfile)"
+    desired="$(redis_endpoint_maxmemory_bytes)"
+    thread_min_bytes=$((REDIS_ENDPOINT_DRAGONFLY_THREAD_MIN_MB * 1024 * 1024))
+    if [ "$desired" -lt "$thread_min_bytes" ]; then
+        echo "  Warning: ${REDIS_ENDPOINT_MAXMEMORY_PERCENT}% of RAM is below Dragonfly's ${REDIS_ENDPOINT_DRAGONFLY_THREAD_MIN_MB} MiB minimum; using the minimum."
+        desired="$thread_min_bytes"
+    fi
+    cpus="$(nproc 2>/dev/null || echo 1)"
+    threads=$((desired / thread_min_bytes))
+    if [ "$threads" -gt "$cpus" ]; then
+        threads="$cpus"
+    fi
+    redis_endpoint_dragonfly_flag_ensure "$flagfile" "maxmemory" "$desired"
+    redis_endpoint_dragonfly_flag_ensure "$flagfile" "proactor_threads" "$threads"
+    if [ "$REDIS_ENDPOINT_DRAGONFLY_CHANGED" = "yes" ] && systemctl is-active --quiet "$REDIS_ENDPOINT_DRAGONFLY_UNIT" 2>/dev/null; then
+        echo "  Restarting Dragonfly to apply the memory cap..."
+        $USE_SUDO systemctl restart "$REDIS_ENDPOINT_DRAGONFLY_UNIT" 2>/dev/null || true
+        redis_endpoint_wait_ready
+    fi
 }
 
 # Converge the managed maxmemory cap (live + redis.conf, each only when it
-# differs). An explicit cap not owned by this script (unmarked non-zero
-# redis.conf line, or a non-zero live value without our marker) is kept.
+# differs). An explicit cap not owned by this script is kept only when it is
+# non-zero and not above the hard cap.
 redis_endpoint_maxmemory_ensure() {
     local conf="$1"
     local desired=""
     local live=""
     local managed="no"
     local conf_value=""
+    local operator_cap=""
 
     desired="$(redis_endpoint_maxmemory_bytes)"
     live="$(timeout 3 redis-cli -h "$REDIS_ENDPOINT_HOST" -p "$REDIS_ENDPOINT_PORT" --raw CONFIG GET maxmemory 2>/dev/null | sed -n 2p)"
@@ -206,11 +263,15 @@ redis_endpoint_maxmemory_ensure() {
     if [ -f "$conf" ]; then
         conf_value="$($USE_SUDO awk '/^maxmemory[ \t]/ {print $2}' "$conf" 2>/dev/null | tail -1)"
     fi
-    if [ "$managed" != "yes" ] \
-        && { { [ -n "$conf_value" ] && [ "$conf_value" != "0" ]; } \
-            || { [ -n "$live" ] && [ "$live" != "0" ] && [ "$live" != "$desired" ]; }; }; then
-        echo "  Redis maxmemory: operator cap kept (live ${live:-unknown}, config ${conf_value:-unset})."
-        return
+    if [ "$managed" != "yes" ]; then
+        operator_cap="$conf_value"
+        if [ -z "$operator_cap" ] || [ "$operator_cap" = "0" ]; then
+            operator_cap="$live"
+        fi
+        if [ -n "$operator_cap" ] && [ "$operator_cap" != "0" ] && [ "$operator_cap" -le "$desired" ] 2>/dev/null; then
+            echo "  Redis maxmemory: operator cap ${operator_cap} kept (within the ${REDIS_ENDPOINT_MAXMEMORY_PERCENT}% hard cap)."
+            return
+        fi
     fi
     if [ -n "$live" ] && [ "$live" != "$desired" ]; then
         timeout 10 redis-cli -h "$REDIS_ENDPOINT_HOST" -p "$REDIS_ENDPOINT_PORT" CONFIG SET maxmemory "$desired" >/dev/null 2>&1
@@ -223,15 +284,19 @@ redis_endpoint_maxmemory_ensure() {
     fi
 }
 
-# Apply the Laravel index contract to a local redis-server. Dragonfly and
-# external stores are reported only (Dragonfly never evicts unless started
-# in cache mode; listpack tuning does not apply; step 71 owns no Dragonfly
-# config file, so its --maxmemory stays at Dragonfly's own default).
+# Apply the Laravel index contract to a local redis-server; a local Dragonfly
+# gets the memory hard cap through its flagfile (it never evicts unless
+# started in cache mode; listpack tuning does not apply). External stores are
+# reported only.
 redis_endpoint_config_ensure() {
     local conf=""
     local directive=""
 
     if [ "$REDIS_ENDPOINT_READY" != "yes" ]; then
+        return
+    fi
+    if [ "$REDIS_ENDPOINT_KIND" = "dragonfly" ]; then
+        redis_endpoint_dragonfly_maxmemory_ensure
         return
     fi
     if [ "$REDIS_ENDPOINT_KIND" != "redis" ] || ! command -v redis-cli >/dev/null 2>&1; then

@@ -28,6 +28,7 @@ from pycore.pyctl.audio_orchestration import (
     orch_store,
 )
 from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
+from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 
 _LARAVEL_LOGIN = "/api/app_qy_v1/login"
 _LARAVEL_USER = "/api/app_qy_v1/user"
@@ -344,7 +345,7 @@ def resume_interrupted_generations() -> Dict[str, Any]:
 
 
 def tasks_list(source: str = "") -> Dict[str, Any]:
-    pending_counts = orch_delivery.pending_resource_counts()
+    pending_counts = audio_resource_delivery.pending_counts()
     output_counts = orch_delivery.output_counts()
     source = str(source or "").strip()
     return {
@@ -391,7 +392,7 @@ def _task_progress(task: Dict[str, Any], pending_counts=None, output_counts=None
     generation_id = str(task.get("generation_id") or "")
     if generation_id:
         if pending_counts is None:
-            pending_counts = orch_delivery.pending_resource_counts()
+            pending_counts = audio_resource_delivery.pending_counts()
         pending = pending_counts.get(generation_id, 0)
         progress["synced"] = int(progress.get("synced") or 0) + max(0, int(progress.get("sync_queued") or 0) - pending)
         progress["sync_pending"] = pending

@@ -72,6 +72,40 @@ SUPPORTED_LANGUAGE_CODES = (
     "zu",
 )
 _SUPPORTED_LANGUAGE_SET = frozenset(SUPPORTED_LANGUAGE_CODES)
+# Language names and product aliases -> code; same names as Laravel
+# AppQyV1TableMaps::normalizeLangCode ("cn" is the reference-language alias).
+LANGUAGE_NAME_TO_CODE = {
+    "english": "en",
+    "chinese": "zh",
+    "cn": "zh",
+    "japanese": "ja",
+    "korean": "ko",
+    "vietnamese": "vi",
+    "lao": "lo",
+    "russian": "ru",
+    "greek": "el",
+    "arabic": "ar",
+    "hebrew": "he",
+    "thai": "th",
+    "french": "fr",
+    "german": "de",
+    "spanish": "es",
+    "italian": "it",
+    "portuguese": "pt",
+    "hindi": "hi",
+}
+
+
+def normalize_language_code(language: Optional[str], default: str = "en") -> str:
+    """The ONE language code normalizer: bare lowercase code for a code, a
+    regional code (``en-US`` / ``zh_CN`` -> ``en`` / ``zh``) or a language name
+    (``English`` -> ``en``); ``default`` when empty. Laravel resource keys
+    (``<lang>:...``) compare this form exactly."""
+    value = str(language or "").strip().lower().replace("_", "-")
+    if not value:
+        return default
+    code = LANGUAGE_NAME_TO_CODE.get(value) or value.split("-", 1)[0]
+    return LANGUAGE_NAME_TO_CODE.get(code, code) or default
 
 
 def normalize_language_codes(codes, primary: Optional[str] = None) -> List[str]:

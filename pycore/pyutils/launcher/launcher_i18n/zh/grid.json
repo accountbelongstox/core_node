@@ -10,5 +10,7 @@
   "launcher.grid.menu_current_toggle": "  布局：{toggle}（{choices}）",
   "launcher.grid.menu_current_auto_grid": "  自动网格（{profiles}）：{state}",
   "launcher.grid.menu_toggle_item": "{index}. {toggle}（{count} 个窗口）",
-  "launcher.grid.menu_toggle_disable_item": "{index}. {toggle}"
+  "launcher.grid.menu_toggle_disable_item": "{index}. {toggle}",
+  "launcher.grid.relayout_done": "已将 {count} 个已打开的网格终端重新排列到 {columns}x{rows} 布局",
+  "launcher.grid.relayout_hint": "已打开的 {count} 个网格终端无法重新排列到 {columns}x{rows}（{profile} 自动布局）；请关闭这些终端后重新运行启动器以获得完整的新网格"
 }

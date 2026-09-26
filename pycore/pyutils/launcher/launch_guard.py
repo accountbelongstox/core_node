@@ -19,7 +19,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
 from pycore.pyfoundations.process_manager import ProcessManager
-from pycore.pyfoundations.system_service_state import tcp_port_open
+from pycore.pyfoundations.system_service_state import process_matches, tcp_port_open
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.common.x11_display import x11_display
 from pycore.pyutils.launcher.app_finder import AppFinder
@@ -260,38 +260,27 @@ def is_cmdline_process_running(
     process_names: Iterable[str] = (),
     owner_names: Iterable[str] = (),
 ) -> bool:
-    """True when any process (any user) matches by name, argv[0] basename or argv marker.
-
-    Names compare case-insensitively; argv is compared with '/' separators so
-    one marker covers Windows and POSIX paths. owner_names limits the argv
-    checks to processes with those names. Processes whose command line is not
-    readable (other users on Windows, zombies) only match by name.
-    """
-    psutil = get_third_package_psutil()
-    markers = tuple(arg_markers)
-    basenames = {name.lower() for name in exe_basenames}
-    wanted_names = {name.lower() for name in process_names}
-    owners = {name.lower() for name in owner_names}
-    for proc in psutil.process_iter(['name', 'cmdline']):
-        name = (proc.info.get('name') or '').lower()
-        if name in wanted_names:
-            return True
-        if owners and name not in owners:
-            continue
-        cmdline = [part.replace('\\', '/') for part in (proc.info.get('cmdline') or [])]
-        if not cmdline:
-            continue
-        if cmdline[0].rsplit('/', 1)[-1].lower() in basenames:
-            return True
-        if any(marker in part for part in cmdline for marker in markers):
-            return True
-    return False
+    """True when any process (any user) matches by name, argv[0] basename or argv marker."""
+    return process_matches(
+        markers=arg_markers,
+        exe_basenames=exe_basenames,
+        process_names=process_names,
+        owner_names=owner_names,
+    )
 
 
 # Title marker every grid window carries (re-asserted each prompt by the grid
 # shell rc written by LinuxTerminalLauncher._grid_shell_inner, so the
 # shell's own PS1 title escape cannot erase it).
-_GRID_TITLE_RE = re.compile(r'pylauncher-\d+')
+GRID_TITLE_RE = re.compile(r'pylauncher-\d+')
+
+
+def list_linux_grid_windows():
+    """Open GRID terminal windows (title carries pylauncher-NN), or None without an X11/Xwayland display."""
+    windows = x11_display.list_client_windows()
+    if windows is None:
+        return None
+    return [window for window in windows if GRID_TITLE_RE.search(window.title)]
 
 
 def _count_linux_terminals() -> int:
@@ -303,9 +292,9 @@ def _count_linux_terminals() -> int:
     12 windows. Falls back to the terminal-class count (152 helper parity)
     only when no X11/Xwayland display can be enumerated.
     """
-    windows = x11_display.list_client_windows()
-    if windows is not None:
-        return sum(1 for window in windows if _GRID_TITLE_RE.search(window.title))
+    grid_windows = list_linux_grid_windows()
+    if grid_windows is not None:
+        return len(grid_windows)
 
     ps = exec_silent(['ps', '-e', '-o', 'comm='], capture_output=True, text=True)
     if ps.return_code != 0 or not ps.stdout:

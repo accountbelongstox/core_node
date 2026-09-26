@@ -286,7 +286,8 @@ def main():
             window_chrome_content_scale=window_chrome.get('content_scale', 0.78),
             window_chrome_gap_horizontal_px=window_chrome.get('gap_horizontal_px', 16),
             window_chrome_gap_vertical_px=window_chrome.get('gap_vertical_px', 24),
-            screen_rect=terminal_grid.screen_rect
+            screen_rect=terminal_grid.screen_rect,
+            auto_profile=terminal_grid.profile
         )
 
         # Launch windows (idempotent: WindowLauncher tops up only the deficit).

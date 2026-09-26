@@ -54,7 +54,7 @@
   "direction": "Laravel -> pycore only. pycore never sends head state to Laravel."
  },
  "word_audio_full_sync": {
-  "description": "pycore word-audio full pull: while Word Audio is ON pycore mirrors EVERY dictionary word without audio (the Laravel word_audio dict-lane live view) into the local word_audio Queue as a Part2 backlog mirror (accept_backlog, whole-Queue dedup) and keeps generating while Laravel is offline; uploads resume through the durable audio_delivery_outbox. Binding docs: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md, corrected by docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md.",
+  "description": "pycore word-audio full pull: while Word Audio is ON pycore mirrors EVERY dictionary word without audio (the Laravel word_audio dict-lane live view) into the local word_audio Queue as a Part2 backlog mirror (accept_backlog, whole-Queue dedup) and keeps generating while Laravel is offline; uploads resume through the shared Laravel delivery outbox (pycore/pyutils/laravel/delivery_outbox.py). Binding docs: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md, corrected by docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md.",
   "listing_endpoint": "GET /api/app_qy_v1/dictionary/words?language=<lang>&filter=without_audio&cursor_id=<id>&limit=1000 (stable keyset paging)",
   "language_source": "GET /api/app_qy_v1/vocabulary/language-breakdown, fallback: contract word_audio language priority, final fallback: english",
   "local_task_marker": "_local_source=full_sync (task_id full_sync-word-<lang>-<md5>); locally sourced tasks skip the just-in-time Laravel claim and the global result post; delivery is the domain report (encodeTaskId: dict_row_id*1000 + 1*100 + langIndex) plus the durable outbox",

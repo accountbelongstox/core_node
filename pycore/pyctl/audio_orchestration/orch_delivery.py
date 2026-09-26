@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Audio orchestration kinds of the shared Laravel delivery outbox.
+"""Audio orchestration kind of the shared Laravel delivery outbox.
 
-  * ``audio_orch.resource`` - manifest word/sentence clips in the Laravel
-    word/sentence audio stores. Inventory = every resolved manifest clip of
-    every task (W7 diff kinds ``word_audio`` / ``sentence_audio``, presence
-    only); small clips go through the W7 batch upload, a legacy server gets
-    the per-clip domain report (and no reconnect diff, as before).
   * ``audio_orch.output``   - assembled task output (task metadata + every
     finished segment mp3), for every source, uploaded idempotently to the
     Laravel orchestration ingest (W5 contract). Inventory = every deliverable
@@ -13,11 +8,12 @@
     ``orch_output``; a legacy server diffs locally against its delivered
     state).
 
-Every Laravel server (namespace) is completed on its own; nothing here
-decides delivery from a local marker.
+Manifest word/sentence clips are local audio cache clips: they go through
+the cache-level kind ``audio_cache.resource`` (``pyctl/tts/
+audio_resource_delivery.py``). Every Laravel server (namespace) is completed
+on its own; nothing here decides delivery from a local marker.
 """
 
-import base64
 import hashlib
 import json
 from pathlib import Path
@@ -25,16 +21,8 @@ from typing import Any, Dict, Iterator, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
-from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
-from pycore.pyutils.laravel.delivery_diff import (
-    BATCH_STORED_STATUSES,
-    BATCH_TERMINAL_REJECTIONS,
-    DIFF_KIND_ORCH_OUTPUT,
-    DIFF_KIND_SENTENCE_AUDIO,
-    DIFF_KIND_WORD_AUDIO,
-    laravel_delivery_diff_client,
-)
+from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ORCH_OUTPUT
 from pycore.pyutils.laravel.delivery_outbox import (
     OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
@@ -42,42 +30,25 @@ from pycore.pyutils.laravel.delivery_outbox import (
     DeliveryKind,
     laravel_delivery_outbox,
 )
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import get_pycore_machine_id
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyctl.audio_orchestration import orch_sources, orch_store
-from pycore.pyctl.tts import word_audio_service
 
 
-RESOURCE_KIND = "audio_orch.resource"
 OUTPUT_KIND = "audio_orch.output"
-SENTENCE_REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
 OUTPUT_DELIVERABLE_STATUSES = ("done", "failed")
-DELIVERY_WORKER_ID = "pycore-audio-orchestration"
-RESOURCE_BATCH_LIMIT = 200
 # W5 contract (REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md).
 ORCH_AUDIO_INGEST_TASKS_PATH = "/api/app_qy_v1/orch_audio/ingest/tasks"
 ORCH_AUDIO_INGEST_SEGMENT_PATH = "/api/app_qy_v1/orch_audio/ingest/segment-audio"
 ORCH_AUDIO_MAX_SENTENCES = 5000
 ORCH_AUDIO_MAX_RESOURCES = 2000
 ORCH_AUDIO_MAX_SOURCE_TEXT = 200000
-RESOURCE_DIFF_KINDS = {"word": DIFF_KIND_WORD_AUDIO, "sentence": DIFF_KIND_SENTENCE_AUDIO}
 
 
 class OrchDelivery:
-    """Register and feed the orchestration delivery kinds."""
+    """Register and feed the orchestration output kind."""
 
     def register(self) -> None:
-        laravel_delivery_outbox.register(DeliveryKind(
-            name=RESOURCE_KIND,
-            deliver=self._deliver_resource,
-            deliver_batch=self._deliver_resources,
-            inventory=self._resource_inventory,
-            parallel=1,
-            batch_limit=RESOURCE_BATCH_LIMIT,
-            retry_initial_seconds=5.0,
-            retry_max_seconds=300.0,
-        ))
         laravel_delivery_outbox.register(DeliveryKind(
             name=OUTPUT_KIND,
             deliver=self._deliver_output,
@@ -90,163 +61,6 @@ class OrchDelivery:
             retry_initial_seconds=5.0,
             retry_max_seconds=300.0,
         ))
-
-    # ------------------------------------------------------------------ #
-    # manifest resources                                                  #
-    # ------------------------------------------------------------------ #
-    @staticmethod
-    def resource_key(resource: Dict[str, Any]) -> str:
-        """W7 ``word_audio`` / ``sentence_audio`` key of one clip."""
-        language = str(resource.get("language") or "en").strip().lower() or "en"
-        text = str(resource.get("text") or "")
-        if resource.get("kind") == "sentence":
-            return f"{language}:{media_content_id(text)}"
-        return f"{language}:{hashlib.md5(text.strip().lower().encode('utf-8')).hexdigest()}"
-
-    def _resource_record(self, resource: Dict[str, Any], generation_id: str) -> Dict[str, Any]:
-        diff_kind = RESOURCE_DIFF_KINDS[str(resource["kind"])]
-        key = self.resource_key(resource)
-        item_key = laravel_delivery_outbox.item_key(diff_kind, key)
-        return {
-            "delivery_id": laravel_delivery_outbox.delivery_id(RESOURCE_KIND, item_key, ""),
-            "item_key": item_key,
-            "state_kind": RESOURCE_KIND,
-            "content_hash": "",
-            "resource": {
-                field: resource.get(field)
-                for field in ("kind", "language", "text", "provider", "resource_id")
-            },
-            "payload_path": str(resource.get("audio_path") or ""),
-            "group_key": generation_id,
-        }
-
-    def synchronize_audio(self, resource: Dict[str, Any], base_url: Optional[str]) -> Dict[str, Any]:
-        """Queue one newly generated clip for every target server (the
-        generation's endpoint first)."""
-        record = self._resource_record(resource, str(resource.get("generation_id") or ""))
-        namespace = laravel_endpoint_manager.delivery_namespace(base_url or "")
-        rows = [
-            laravel_delivery_outbox.enqueue(RESOURCE_KIND, record, payload_file=str(resource["audio_path"]), namespace=name)
-            for name in [namespace, *[name for name in laravel_delivery_outbox.target_namespaces() if name != namespace]]
-        ]
-        if rows[0].get("already_delivered"):
-            return {"success": True, "queued": False, "already_uploaded": True}
-        return {"success": True, "queued": True, "delivery_id": rows[0]["delivery_id"]}
-
-    def _resource_inventory(self) -> Iterator[Dict[str, Any]]:
-        seen = set()
-        for task in orch_store.list_tasks():
-            manifest = orch_store.load_manifest(str(task.get("task_id") or ""))
-            resolved = manifest.get("resolved") if isinstance(manifest.get("resolved"), dict) else {}
-            meta = manifest.get("resource_meta") if isinstance(manifest.get("resource_meta"), dict) else {}
-            generation_id = str(manifest.get("generation_id") or "")
-            for items in manifest.get("segment_items") or []:
-                for item in items or []:
-                    resource_id = str(item.get("resource_id") or "")
-                    audio_path = str(resolved.get(resource_id) or "")
-                    if item.get("kind") not in RESOURCE_DIFF_KINDS or not item.get("text") or resource_id in seen:
-                        continue
-                    if not audio_path or not Path(audio_path).is_file():
-                        continue
-                    seen.add(resource_id)
-                    resource = {
-                        **item, "audio_path": audio_path,
-                        "provider": str((meta.get(resource_id) or {}).get("provider") or "") or "cache",
-                    }
-                    yield {
-                        "key": self.resource_key(resource),
-                        "diff_kind": RESOURCE_DIFF_KINDS[str(item["kind"])],
-                        "hash": "",
-                        "record": self._resource_record(resource, generation_id),
-                    }
-
-    @staticmethod
-    def pending_resource_counts() -> Dict[str, int]:
-        return {
-            key: entry["pending"] + entry["dead_letter"]
-            for key, entry in laravel_delivery_outbox.counts_by_group(RESOURCE_KIND).items()
-        }
-
-    @staticmethod
-    def _deliver_resources(claimed: List[Dict[str, Any]], owners: Dict[str, str]) -> Dict[str, Dict[str, Any]]:
-        """W7 batch upload (one request + one offset-v1 content stream per
-        server batch); rows it does not take fall back to the single upload."""
-        base_url = str(claimed[0].get("base_url") or "")
-        server_id = str(laravel_endpoint_manager.server_identity(base_url).get("server_id") or "")
-        outcomes: Dict[str, Dict[str, Any]] = {}
-        by_kind: Dict[str, List[Dict[str, Any]]] = {}
-        for row in claimed:
-            resource = row["resource"]
-            diff_kind = RESOURCE_DIFF_KINDS[str(resource["kind"])]
-            payload = Path(str(row.get("payload_path") or ""))
-            if not payload.is_file():
-                outcomes[row["delivery_id"]] = {"status": OUTCOME_DEAD_LETTER, "error": "cached audio is missing"}
-                continue
-            if not laravel_delivery_diff_client.supports(base_url, server_id, diff_kind):
-                continue
-            content = payload.read_bytes()
-            if not laravel_delivery_diff_client.batchable(base_url, server_id, len(content)):
-                continue
-            item = {
-                "key": str(row["item_key"]).split(":", 1)[1],
-                "content": content,
-                "provider": resource.get("provider") or "cache",
-                "delivery_id": row["delivery_id"],
-            }
-            item["cleaned_word" if resource["kind"] == "word" else "text"] = resource["text"]
-            by_kind.setdefault(diff_kind, []).append(item)
-        for diff_kind, items in by_kind.items():
-            for batch in laravel_delivery_diff_client.split_batches(base_url, server_id, items):
-                result = laravel_delivery_diff_client.upload_batch(base_url, diff_kind, batch)
-                for item in batch:
-                    status = (result.get("results") or {}).get(item["key"], "")
-                    if not result.get("success"):
-                        outcomes[item["delivery_id"]] = {"status": OUTCOME_RETRY, "error": str(result.get("error") or "")}
-                    elif status in BATCH_STORED_STATUSES or status in BATCH_TERMINAL_REJECTIONS:
-                        # no_target / invalid: the server has no row to fill
-                        # for it; terminal, not retry-poison.
-                        outcomes[item["delivery_id"]] = {"status": OUTCOME_DONE, "batch_status": status}
-                    else:
-                        outcomes[item["delivery_id"]] = {"status": OUTCOME_RETRY, "error": f"batch item {status or 'unreported'}"}
-        return outcomes
-
-    @staticmethod
-    def _deliver_resource(claimed: Dict[str, Any], owner: str) -> Dict[str, Any]:
-        resource = claimed["resource"]
-        base_url = claimed.get("base_url")
-        payload_path = Path(str(claimed.get("payload_path") or ""))
-        if not payload_path.is_file():
-            return {"status": OUTCOME_DEAD_LETTER, "error": "cached audio is missing"}
-        payload = payload_path.read_bytes()
-        if resource["kind"] == "sentence":
-            receipt = laravel_progress_uploader.upload(
-                SENTENCE_REPORT_PATH, payload,
-                base_url=base_url,
-                params={"content_id": media_content_id(resource["text"]), "text": resource["text"],
-                        "language": resource["language"], "worker_id": DELIVERY_WORKER_ID,
-                        "success": "true", "provider": resource.get("provider") or "cache"},
-                reason="audio_orchestration_manifest",
-            )
-            if not receipt.get("upload_complete"):
-                raise RuntimeError("sentence_upload_incomplete")
-            return {"status": OUTCOME_DONE}
-        word_audio_service.word_audio_media(
-            resource["text"], resource["language"], base_url=base_url, metadata_only=True,
-        )
-        receipt = word_audio_service.upload_word_audio({
-            "md5": hashlib.md5(resource["text"].strip().lower().encode("utf-8")).hexdigest(),
-            "lang": resource["language"], "provider": resource.get("provider") or "cache",
-            "cleaned_word": resource["text"],
-            "audio_base64": base64.b64encode(payload).decode("ascii"),
-        }, base_url=base_url)
-        receipt_status = (receipt.get("data") or {}).get("status")
-        if receipt_status == "not_found":
-            # No dictionary row for this (lang, md5): fill-missing does not
-            # apply to arbitrary book tokens; terminal, not retry-poison.
-            ColorPrint.gray(f"[AudioOrch] delivery={claimed['delivery_id']} word not in dictionary; no fill needed")
-        elif not receipt.get("success") or receipt_status not in ("stored", "exists"):
-            raise RuntimeError(str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete"))
-        return {"status": OUTCOME_DONE}
 
     # ------------------------------------------------------------------ #
     # task output                                                         #
@@ -497,4 +311,4 @@ class OrchDelivery:
 orch_delivery = OrchDelivery()
 
 
-__all__ = ["OUTPUT_KIND", "RESOURCE_KIND", "orch_delivery"]
+__all__ = ["OUTPUT_KIND", "orch_delivery"]

@@ -16,13 +16,12 @@ import os
 from pathlib import Path
 from typing import Dict
 
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyfoundations.pygvar import IS_WINDOWS
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 
-IS_WINDOWS = os.name == 'nt'
 LAUNCHER_I18N_DIR = Path(__file__).parent / 'launcher_i18n'
 DEFAULT_LANGUAGE = 'en'
 LANGUAGE_ENV = 'PYCORE_LAUNCHER_LANG'
-SYSTEM_SETTINGS_SECTION = 'system_settings'
 LANGUAGE_SETTING_KEY = 'lang'
 LANGUAGE_CODE_LENGTH = 2
 CATALOG_GLOB = '*.json'
@@ -51,7 +50,7 @@ class LauncherText:
     def _resolve_language(self) -> str:
         candidates = [
             os.environ.get(LANGUAGE_ENV, ''),
-            str(user_data_store.get_section(SYSTEM_SETTINGS_SECTION).get(LANGUAGE_SETTING_KEY) or ''),
+            str(user_data_store.get_section(USER_DATA_SECTION_SYSTEM_SETTINGS).get(LANGUAGE_SETTING_KEY) or ''),
             self._os_language(),
             os.environ.get('LANG', ''),
         ]

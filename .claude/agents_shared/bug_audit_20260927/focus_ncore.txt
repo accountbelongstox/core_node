@@ -1,0 +1,17 @@
+ncore/mcp_server/placeholder_image_generator/main.py
+ncore/mcp_server/ai_collaboration/constants.py
+ncore/foundation/common/system_paths.js
+ncore/utils/watchf.js
+ncore/utils/mcp_server/SingleInstanceManager.js
+ncore/global_vars/libs/user_settings.js
+ncore/global_vars/libs/config_tool.js
+ncore/utils/stream_translator/libs/DeepSeekTranslator.js
+ncore/utils/dev_tool/lang_deploy/libs/commander.js
+ncore/global_vars/tool/soft-install/winget/winget.js
+ncore/foundation/common/commander.js
+ncore/global_vars/tool/soft-install/linux-apt/apt_utils.js
+ncore/global_vars/tool/gconfig.js
+ncore/global_vars/tool/common/ffinder.js
+ncore/global_vars/tool/common/cache_manager.js
+ncore/global_vars/global_dir/globaldir.js
+ncore/utils/rpc/http_rpc/libs/StaticPathResolver.js

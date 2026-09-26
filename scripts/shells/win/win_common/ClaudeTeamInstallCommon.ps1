@@ -33,9 +33,13 @@ $ClaudeTeamInstallStateBaseDir = Join-Path $env:LOCALAPPDATA "core_node"
 $ClaudeTeamInstallStateDir = Join-Path $ClaudeTeamInstallStateBaseDir "claude_team"
 $ClaudeTeamInstallWinEnvsDir = Join-Path $ClaudeTeamInstallScriptsDir "winenvs"
 $ClaudeTeamInstallBinaries = @(
-    @{ Command = "node.exe"; WingetId = "OpenJS.NodeJS.LTS"; Purpose = "git guard hook .claude/hooks/git_guard.mjs" },
+    @{ Command = "node.exe"; WingetId = "OpenJS.NodeJS.LTS"; Purpose = "project hooks .claude/hooks/*.mjs" },
+    @{ Command = "git.exe"; WingetId = "Git.Git"; Purpose = "Git for Windows: official recommendation, enables the Bash tool (Git Bash)" },
     @{ Command = "wt.exe"; WingetId = "Microsoft.WindowsTerminal"; Purpose = "positioned role windows (console fallback without it)" }
 )
+$ClaudeTeamInstallAgentMemoryDir = Join-Path $ClaudeTeamInstallClaudeDir "agent-memory"
+$ClaudeTeamInstallReportsDir = Join-Path $ClaudeTeamInstallSharedDir "reports"
+$ClaudeTeamInstallReviewsDir = Join-Path $ClaudeTeamInstallSharedDir "reviews"
 
 function Write-ClaudeTeamInstallLog {
     param([string]$Level, [string]$Message)
@@ -114,5 +118,8 @@ function Invoke-ClaudeTeamInstall {
     }
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallStateDir -Purpose "role PID files" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallSharedDir -Purpose "shared data between roles" -CheckOnly ([bool]$CheckOnly)
+    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReportsDir -Purpose "role handoff reports (TeammateIdle gate)" -CheckOnly ([bool]$CheckOnly)
+    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReviewsDir -Purpose "reviewer verdicts (TaskCompleted gate)" -CheckOnly ([bool]$CheckOnly)
+    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallAgentMemoryDir -Purpose "per-role agent memory (memory: project)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamPathEntry -CheckOnly ([bool]$CheckOnly)
 }

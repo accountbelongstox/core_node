@@ -26,7 +26,7 @@ const IDENTITY_TYPES = [
 ] as const;
 const DEFAULT_CURRENCY = 'CNY';
 
-const CmEmailVerification: React.FC<{ email: string | null; onVerified: () => Promise<void> }> = ({ email, onVerified }) => {
+const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message: string) => Promise<void> }> = ({ email, onVerified }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const [address, setAddress] = useState(email ?? '');
@@ -42,8 +42,7 @@ const CmEmailVerification: React.FC<{ email: string | null; onVerified: () => Pr
     setBusy(false);
     if (response.success) {
       setToken('');
-      notice.success(t('verification.emailVerified'));
-      await onVerified();
+      await onVerified(t('verification.emailVerified'));
     } else {
       notice.error(cmErrorMessage(t, response, 'verification.emailFailed'));
     }
@@ -71,7 +70,7 @@ const CmEmailVerification: React.FC<{ email: string | null; onVerified: () => Pr
   );
 };
 
-const CmPhoneVerification: React.FC<{ onVerified: () => Promise<void> }> = ({ onVerified }) => {
+const CmPhoneVerification: React.FC<{ onVerified: (message: string) => Promise<void> }> = ({ onVerified }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const [phone, setPhone] = useState('');
@@ -107,8 +106,7 @@ const CmPhoneVerification: React.FC<{ onVerified: () => Promise<void> }> = ({ on
     if (response.success) {
       setOtpCode('');
       setCodeSent(false);
-      notice.success(t('verification.phoneVerified'));
-      await onVerified();
+      await onVerified(t('verification.phoneVerified'));
     } else {
       notice.error(cmErrorMessage(t, response, 'verification.phoneFailed'));
     }
@@ -148,7 +146,7 @@ const CmPhoneVerification: React.FC<{ onVerified: () => Promise<void> }> = ({ on
   );
 };
 
-const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: () => Promise<void> }> = ({ rejected, onSubmitted }) => {
+const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) => Promise<void> }> = ({ rejected, onSubmitted }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const [identityType, setIdentityType] = useState<string>(ID_CARD);
@@ -189,8 +187,7 @@ const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: () => Promise<void> 
     const response = await cmApi.uploadKycDocuments(formData, (percentage) => setProgress(percentage));
     setProgress(null);
     if (response.success) {
-      notice.success(t('verification.kycSubmitted'));
-      await onSubmitted();
+      await onSubmitted(t('verification.kycSubmitted'));
     } else {
       notice.error(cmErrorMessage(t, response, 'verification.kycFailed'));
     }
@@ -246,29 +243,24 @@ const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: () => Promise<void> 
   );
 };
 
-const CmRoleRequest: React.FC<{ roles: string[]; onRequested: () => Promise<void> }> = ({ roles, onRequested }) => {
+const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, depositNeeded: boolean) => Promise<void> }> = ({ roles, onRequested }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { bootstrap } = useCmBootstrap();
   const notice = useCmNotice();
   const [busyRole, setBusyRole] = useState<string | null>(null);
-  const [depositNeeded, setDepositNeeded] = useState(false);
 
   const request = async (roleType: string): Promise<void> => {
     setBusyRole(roleType);
     notice.clear();
-    setDepositNeeded(false);
     const response = await cmApi.requestRole(roleType);
     setBusyRole(null);
     if (response.success && response.data) {
       const roleLabel = t(`roles.${response.data.role_type}`, { defaultValue: response.data.role_type });
-      if (response.data.next_step === 'deposit') {
-        setDepositNeeded(true);
-        notice.success(t('verification.roleRequestedDeposit', { role: roleLabel, amount: format.money(response.data.deposit_amount ?? 0, bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY) }));
-      } else {
-        notice.success(t('verification.roleRequested', { role: roleLabel, status: t(`states.role.${response.data.role_status}`, { defaultValue: response.data.role_status }) }));
-      }
-      await onRequested();
+      const depositNeeded = response.data.next_step === 'deposit';
+      await onRequested(depositNeeded
+        ? t('verification.roleRequestedDeposit', { role: roleLabel, amount: format.money(response.data.deposit_amount ?? 0, bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY) })
+        : t('verification.roleRequested', { role: roleLabel, status: t(`states.role.${response.data.role_status}`, { defaultValue: response.data.role_status }) }), depositNeeded);
     } else {
       notice.error(cmErrorMessage(t, response, 'verification.roleRequestFailed'));
     }
@@ -290,7 +282,6 @@ const CmRoleRequest: React.FC<{ roles: string[]; onRequested: () => Promise<void
         ))}
       </div>
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
-      {depositNeeded && <Link to="/codemart/wallet" className="cm-workspace-button">{t('verification.openWalletDeposit')}</Link>}
     </section>
   );
 };
@@ -412,10 +403,19 @@ export const CmVerificationPage: React.FC = () => {
     void loadRegistration();
   }, [loadRegistration]);
 
+  const pageNotice = useCmNotice();
+  const [showWalletLink, setShowWalletLink] = useState(false);
+
   const refreshAll = useCallback(async (): Promise<void> => {
     await refresh();
     await loadRegistration();
   }, [refresh, loadRegistration]);
+
+  const completed = useCallback(async (message: string, depositNeeded = false): Promise<void> => {
+    pageNotice.success(message);
+    setShowWalletLink(depositNeeded);
+    await refreshAll();
+  }, [pageNotice.success, refreshAll]);
 
   const header = <CmPageHeader eyebrowKey="verification.eyebrow" titleKey="nav.verification" purposeKey="verification.description" />;
 
@@ -438,6 +438,8 @@ export const CmVerificationPage: React.FC = () => {
   return (
     <main className="cm-workspace-page">
       {header}
+      <CmNotice notice={pageNotice.notice} onDismiss={pageNotice.clear} />
+      {showWalletLink && <p className="cm-inline-action"><Link to="/codemart/wallet" className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link></p>}
       <div className="cm-verification-layout">
         <aside className="cm-section-card cm-verification-summary">
           <h2><ShieldCheck aria-hidden="true" /> {t('verification.stepsTitle')}</h2>
@@ -464,15 +466,15 @@ export const CmVerificationPage: React.FC = () => {
           </dl>
         </aside>
         <div className="cm-verification-main">
-          {!onboarding.email_verified && <CmEmailVerification email={bootstrap.user.email} onVerified={refreshAll} />}
-          {!phoneVerified && <CmPhoneVerification onVerified={refreshAll} />}
+          {!onboarding.email_verified && <CmEmailVerification email={bootstrap.user.email} onVerified={completed} />}
+          {!phoneVerified && <CmPhoneVerification onVerified={completed} />}
           {kycStatus === 'pending' && (
             <section className="cm-section-card">
               <h2><IdCard aria-hidden="true" /> {t('verification.kycTitle')}</h2>
               <CmNotice notice={{ tone: 'info', text: t('verification.kycPendingNote') }} />
             </section>
           )}
-          {KYC_OPEN_STATUSES.has(kycStatus) && <CmKycForm rejected={kycStatus === 'rejected'} onSubmitted={refreshAll} />}
+          {KYC_OPEN_STATUSES.has(kycStatus) && <CmKycForm rejected={kycStatus === 'rejected'} onSubmitted={completed} />}
           {Object.keys(onboarding.deposit_required).length > 0 && (
             <section className="cm-section-card">
               <h2><ShieldCheck aria-hidden="true" /> {t('verification.depositTitle')}</h2>
@@ -490,7 +492,7 @@ export const CmVerificationPage: React.FC = () => {
               </div>
             </section>
           )}
-          {hasCapability('role.request') && requestableRoles.length > 0 && <CmRoleRequest roles={requestableRoles} onRequested={refreshAll} />}
+          {hasCapability('role.request') && requestableRoles.length > 0 && <CmRoleRequest roles={requestableRoles} onRequested={completed} />}
           {hasCapability('testimonial.create') && <CmTestimonialForm />}
         </div>
       </div>

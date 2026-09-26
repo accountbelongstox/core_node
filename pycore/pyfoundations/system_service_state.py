@@ -12,14 +12,12 @@ import os
 import re
 import shutil
 import socket
-import subprocess
 import urllib.request
 from typing import Iterable, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import run_args
+from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
-
-IS_WINDOWS = os.name == 'nt'
 
 STATE_RUNNING = 'running'
 STATE_STOPPED = 'stopped'
@@ -46,6 +44,9 @@ SUDO_COMMAND = 'sudo'
 SUDO_NON_INTERACTIVE_FLAG = '-n'
 SUDO_PROBE_COMMAND = 'true'
 SUDO_PROBE_TIMEOUT_SEC = 10
+# setsid detaches the probe from the launcher's terminal session, as the detached installers are.
+SETSID_COMMAND = 'setsid'
+SETSID_WAIT_FLAG = '--wait'
 QUERY_TIMEOUT_SEC = 15
 HTTP_READ_LIMIT_BYTES = 65536
 SHELL_EXECUTE_RUNAS_VERB = 'runas'
@@ -118,18 +119,40 @@ def _normalize_command_text(text: str) -> str:
     return text.replace('\\', '/').lower()
 
 
-def process_cmdline_contains(markers: Iterable[str], excluded_markers: Iterable[str] = ()) -> bool:
+def process_matches(
+    markers: Iterable[str] = (),
+    excluded_markers: Iterable[str] = (),
+    exe_basenames: Iterable[str] = (),
+    process_names: Iterable[str] = (),
+    owner_names: Iterable[str] = (),
+) -> bool:
+    """True when any process (any user) matches by name, argv[0] basename or command-line marker.
+
+    Case-insensitive with '/' separators; markers may span arguments. excluded_markers
+    veto a command line, owner_names limit command-line checks to those process names,
+    and an unreadable command line (other users on Windows, zombies) matches by name only.
+    """
     wanted = [_normalize_command_text(marker) for marker in markers]
     excluded = [_normalize_command_text(marker) for marker in excluded_markers]
-    if not wanted:
+    basenames = {name.lower() for name in exe_basenames}
+    names = {name.lower() for name in process_names}
+    owners = {name.lower() for name in owner_names}
+    if not wanted and not basenames and not names:
         return False
     psutil = get_third_package_psutil()
-    for process in psutil.process_iter(['cmdline']):
-        cmdline = process.info.get('cmdline')
+    for process in psutil.process_iter(['name', 'cmdline']):
+        name = (process.info.get('name') or '').lower()
+        if name in names:
+            return True
+        if owners and name not in owners:
+            continue
+        cmdline = [_normalize_command_text(part) for part in (process.info.get('cmdline') or [])]
         if not cmdline:
             continue
-        command_text = _normalize_command_text(' '.join(cmdline))
-        if any(marker in command_text for marker in wanted) and not any(marker in command_text for marker in excluded):
+        command_text = ' '.join(cmdline)
+        if any(marker in command_text for marker in excluded):
+            continue
+        if cmdline[0].rsplit('/', 1)[-1] in basenames or any(marker in command_text for marker in wanted):
             return True
     return False
 
@@ -142,18 +165,12 @@ def is_elevated() -> bool:
 
 def sudo_available() -> bool:
     """True when sudo runs without a password from a detached (tty-less) session."""
-    if shutil.which(SUDO_COMMAND) is None:
-        return False
-    completed = subprocess.run(
-        [SUDO_COMMAND, SUDO_NON_INTERACTIVE_FLAG, SUDO_PROBE_COMMAND],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+    return run_args(
+        [SETSID_COMMAND, SETSID_WAIT_FLAG, SUDO_COMMAND, SUDO_NON_INTERACTIVE_FLAG, SUDO_PROBE_COMMAND],
+        input_text='',
         timeout=SUDO_PROBE_TIMEOUT_SEC,
-        check=False,
-    )
-    return completed.returncode == 0
+        detach_output=True,
+    ).success
 
 
 def shell_execute_runas(executable: str, parameters: str, directory: Optional[str]) -> bool:

@@ -393,8 +393,8 @@ export const CmAdminListState: React.FC<{
 };
 
 /** Table that scrolls horizontally inside its own card instead of widening the page. */
-export const CmAdminTable: React.FC<{ children: React.ReactNode; label?: string }> = ({ children, label }) => (
-  <div className="cm-admin-table" role="region" aria-label={label} tabIndex={0}>
+export const CmAdminTable: React.FC<{ children: React.ReactNode; label?: string; actions?: boolean }> = ({ children, label, actions = false }) => (
+  <div className="cm-admin-table" data-actions={actions || undefined} role="region" aria-label={label} tabIndex={0}>
     <table className="cm-table">{children}</table>
   </div>
 );
@@ -448,19 +448,31 @@ export const CmAdminUserLink: React.FC<{
   );
 };
 
-/** Key/value details with translated labels (`admin.fields.<key>`) and humanized fallbacks. */
+const MONEY_FIELDS = ['amount', 'gross', 'commission', 'remaining_amount', 'paid_amount'];
+const ROLE_FIELDS = ['role', 'role_type', 'actor_role'];
+
+/** Key/value details with translated labels (`admin.fields.<key>`), roles, money and lists formatted. */
 export const CmAdminKeyValues: React.FC<{ value: Record<string, unknown> | null | undefined; omit?: readonly string[] }> = ({ value, omit = [] }) => {
   const { t } = useTranslation('cm');
+  const format = useCmAdminFormat();
   const entries = value && typeof value === 'object'
     ? Object.entries(value).filter(([key, entry]) => !omit.includes(key) && entry !== null && entry !== '')
     : [];
   if (entries.length === 0) return <>{t('common.unavailable')}</>;
+  const display = (key: string, entry: unknown): string => {
+    if (MONEY_FIELDS.includes(key) && (typeof entry === 'string' || typeof entry === 'number')) return format.money(entry);
+    if (ROLE_FIELDS.includes(key) && typeof entry === 'string') return t(`roles.${entry}`, { defaultValue: cmAdminHumanize(entry) });
+    if (typeof entry === 'boolean') return t(entry ? 'admin.yes' : 'admin.no');
+    if (Array.isArray(entry)) return entry.map((item) => (typeof item === 'string' ? t(`admin.fields.${item}`, { defaultValue: cmAdminHumanize(item) }) : JSON.stringify(item))).join(', ');
+    if (typeof entry === 'object') return JSON.stringify(entry);
+    return String(entry);
+  };
   return (
     <dl className="cm-admin-kv">
       {entries.map(([key, entry]) => (
         <div key={key}>
           <dt>{t(`admin.fields.${key}`, { defaultValue: cmAdminHumanize(key) })}</dt>
-          <dd>{typeof entry === 'object' ? JSON.stringify(entry) : String(entry)}</dd>
+          <dd>{display(key, entry)}</dd>
         </div>
       ))}
     </dl>

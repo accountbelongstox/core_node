@@ -206,7 +206,7 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
         />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noReviewerApplications" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.nav.reviewers')}>
+        <CmAdminTable label={t('admin.nav.reviewers')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>

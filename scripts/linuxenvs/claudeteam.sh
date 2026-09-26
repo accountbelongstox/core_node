@@ -49,8 +49,9 @@ aiCliProvisionCommonPath=""
 
 # Multiple roles: enable experimental agent teams for the session.
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
-# Enables the project git guard hook (.claude/hooks/git_guard.mjs).
-export CLAUDE_AGENTS_GIT_GUARD="1"
+# Marks a role session: enables the project hooks .claude/hooks/git_guard.mjs and
+# .claude/hooks/team_gate.mjs (TaskCreated / TaskCompleted / TeammateIdle).
+export CLAUDE_AGENTS_SESSION="1"
 
 # Initialize path variables
 scriptSource="${BASH_SOURCE[0]}"

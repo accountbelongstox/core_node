@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.text_parsing import normalize_language_code
 from pycore.pyfoundations.serialized_worker import (
     SerializedValue,
     SerializedWorkerThread,
@@ -87,23 +88,6 @@ _LOCALE_BY_LANG = {
     "th": "th-TH",
     "vi": "vi-VN",
     "lo": "lo-LA",
-}
-_LANGUAGE_ALIASES = {
-    "english": "en",
-    "chinese": "zh",
-    "spanish": "es",
-    "french": "fr",
-    "german": "de",
-    "italian": "it",
-    "portuguese": "pt",
-    "russian": "ru",
-    "arabic": "ar",
-    "hindi": "hi",
-    "thai": "th",
-    "vietnamese": "vi",
-    "lao": "lo",
-    "japanese": "ja",
-    "korean": "ko",
 }
 _LANGUAGES_BY_ENGINE = {
     "edge": frozenset(_LOCALE_BY_LANG),
@@ -309,9 +293,7 @@ def is_word_text(text: str) -> bool:
 
 
 def normalize_tts_language(language: Optional[str]) -> str:
-    value = str(language or "en").strip().lower().replace("_", "-") or "en"
-    code = value.split("-", 1)[0]
-    return _LANGUAGE_ALIASES.get(code, code)
+    return normalize_language_code(language)
 
 
 def tts_locale(language: Optional[str]) -> str:

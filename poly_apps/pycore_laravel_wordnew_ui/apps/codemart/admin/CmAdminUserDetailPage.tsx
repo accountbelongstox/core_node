@@ -73,6 +73,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
         user: detail?.account.username ?? numericId,
         from: t(`states.role.${role.role_status}`, { defaultValue: role.role_status }),
         to: targetLabel,
+        effect: t(`admin.userDetail.effect.${target}`, { defaultValue: '' }),
       }),
       confirmLabel: t(`admin.userDetail.transition.${target}`, { defaultValue: targetLabel }),
       tone: reasonRequired ? 'danger' : 'primary',
@@ -165,7 +166,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
             {detail.roles.length === 0 ? (
               <p className="cm-contract-note">{t('admin.userDetail.noRoles')}</p>
             ) : (
-              <CmAdminTable>
+              <CmAdminTable actions>
                 <thead>
                   <tr>
                     <th>{t('admin.columnRole')}</th>

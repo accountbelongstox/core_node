@@ -11,9 +11,10 @@ Per task, three persisted phases:
                  and engines (orch_resources.resolve_batch: batch cache scan,
                  then words through the shared Kokoro batch
                  kokoro_batch.synthesize_words_to_cache and sentences through
-                 Laravel -> local synthesis); newly generated clips sync to
-                 Laravel through the shared durable delivery outbox
-                 (orch_delivery.synchronize_audio, kind audio_orch.resource).
+                 Laravel -> local synthesis); every resolved clip is recorded
+                 in the local clip ledger and newly generated clips are queued
+                 for every Laravel server through the cache-level kind
+                 (audio_resource_delivery.publish, kind audio_cache.resource).
   3. assemble  — concatenate each segment's resolved items with ffmpeg
                  (re-encode to one uniform mp3) into
                  <user data dir>/audio_orchestration/output/<task_slug>/segment_XXX.mp3.
@@ -38,6 +39,8 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffprobe_client
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.common.background_jobs import BackgroundJobs
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
@@ -48,6 +51,7 @@ from pycore.pyctl.audio_orchestration import (
     orch_words,
 )
 from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
+from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 
 _generation_jobs = BackgroundJobs("AudioOrchGeneration")
 _GAP_SECONDS = 0.6
@@ -636,6 +640,13 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         resource_meta[resource["resource_id"]] = meta
         if result.get("status") == "ready" and result.get("audio_path"):
             resolved[resource["resource_id"]] = str(result["audio_path"])
+            if source in ("cache", "laravel"):
+                # Local clip of this Laravel server's or the cache's audio:
+                # other servers get it through the cache kind's diff.
+                audio_resource_ledger.record(
+                    resource["kind"], resource["language"], resource["text"],
+                    str(result["audio_path"]), str(result.get("provider") or source),
+                )
             if source == "cache":
                 stats["cache_hits"] += 1
             elif source == "laravel":
@@ -651,10 +662,11 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                 # Delivery sync is durable and self-retrying; a transient
                 # outbox/queue failure must never abort the whole generation.
                 try:
-                    sync = orch_delivery.synchronize_audio(
-                        {**resource, "audio_path": result["audio_path"], "provider": result.get("provider"),
-                         "generation_id": task["generation_id"]},
-                        base_url,
+                    sync = audio_resource_delivery.publish(
+                        resource["kind"], resource["language"], resource["text"], str(result["audio_path"]),
+                        str(result.get("provider") or ""),
+                        group_key=str(task["generation_id"]),
+                        first_namespace=laravel_endpoint_manager.delivery_namespace(base_url or ""),
                     )
                     if sync.get("queued"):
                         stats["sync_queued"] += 1

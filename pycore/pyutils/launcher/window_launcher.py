@@ -26,14 +26,17 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import platform
-
+from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS
 from pycore.pyutils.launcher.screen_manager import create_screen_manager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.wt_launcher import WindowsTerminalLauncher
 from pycore.pyutils.launcher.editor_launcher import EditorLauncher
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
+from pycore.pyutils.launcher.grid_profile import GridI18nKeys
+from pycore.pyutils.launcher.launcher_text import launcher_text
+from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.launch_guard import (
+    list_linux_grid_windows,
     compute_terminal_deficit,
     count_open_terminals,
     is_app_running,
@@ -54,13 +57,14 @@ class WindowLauncher:
                  window_chrome_title_bar_px=None, window_chrome_horizontal_px=None,
                  window_chrome_content_scale=None,
                  window_chrome_gap_horizontal_px=None, window_chrome_gap_vertical_px=None,
-                 screen_rect=None):
+                 screen_rect=None, auto_profile=''):
         """
         Initialize window launcher.
 
         Args:
             grid_columns, grid_rows: Grid size.
             screen_rect: (x, y, width, height) already detected; None = detect on launch.
+            auto_profile: Name of the resolution auto-grid profile that set the grid ('' = configured grid).
             measured_columns, measured_rows, measured_width_px, measured_height_px: Ratio calibration.
             calibration_actual_height, calibration_term_rows: Height calibration.
             window_chrome_title_bar_px: Reserve px for title bar (default 56).
@@ -73,6 +77,7 @@ class WindowLauncher:
         self.grid_columns = grid_columns or 3
         self.grid_rows = grid_rows or 2
         self.screen_rect = screen_rect
+        self.auto_profile = auto_profile
 
         # Use provided calibration or defaults
         self.calibration_actual_height = calibration_actual_height or 485
@@ -113,11 +118,12 @@ class WindowLauncher:
         # their own windows). The Linux backend mirrors the WindowsTerminalLauncher
         # and ScreenManager interfaces, so the rest of this class is unchanged.
         self.screen_manager = create_screen_manager()
-        if platform.system() == "Linux":
+        if IS_LINUX:
             self.wt_launcher = LinuxTerminalLauncher()
         else:
             self.wt_launcher = WindowsTerminalLauncher(self.script_generator)
         self.editor_launcher = EditorLauncher(self.script_generator)
+        self.window_placer = LinuxWindowPlacer()
 
     def _resolve_screen_rect(self):
         if self.screen_rect is not None:
@@ -143,7 +149,7 @@ class WindowLauncher:
             return
         self._char_size_resolved = True
 
-        if platform.system() == "Windows":
+        if IS_WINDOWS:
             try:
                 measured = CharSizeMeasurer.measure()
                 if measured:
@@ -279,7 +285,7 @@ class WindowLauncher:
         """
         # "Ubuntu terminals" here means WSL inside Windows Terminal - a Windows-only
         # concept. On Linux every window is a native terminal, so reserve none.
-        if platform.system() != "Windows":
+        if not IS_WINDOWS:
             return 0
         # 4x3 (12) grid is pure Windows Terminal (no WSL reservation); smaller
         # grids still reserve 2 Ubuntu terminals as before.
@@ -305,6 +311,7 @@ class WindowLauncher:
             list: List of created batch file paths
         """
         grid_total = self.grid_columns * self.grid_rows
+        open_terminals = 0
 
         if limit is None:
             open_terminals = count_open_terminals()
@@ -332,16 +339,18 @@ class WindowLauncher:
         # the cell-step hints (fields 6-7) to size deficit top-up windows (a
         # single-row subset has no spacing to derive the cell height from); the
         # Windows backend unpacks exactly 4 fields, so it gets a 4-tuple view.
-        if platform.system() == "Linux":
+        if IS_LINUX:
             windows_config = list(windows)
         else:
             windows_config = [(x, y, term_cols, term_rows)
                               for x, y, term_cols, term_rows, _, _, _, _ in windows]
 
-        # Top-up cap: launch only the first `limit` cells (the deficit), so a grid
-        # that already has some terminals open is completed rather than duplicated.
+        # Top-up cap: launch only `limit` cells (the deficit), so a grid that
+        # already has some terminals open is completed rather than duplicated.
+        # Open grid terminals that could be re-placed take the leading cells.
+        first_cell = self._relayout_open_terminals(windows, open_terminals) if open_terminals > 0 else 0
         if limit is not None and limit >= 0:
-            windows_config = windows_config[:limit]
+            windows_config = windows_config[first_cell:first_cell + limit]
 
         # Counts follow the (possibly capped) config, not the full grid.
         total_windows = len(windows_config)
@@ -351,13 +360,28 @@ class WindowLauncher:
         bat_files = self.wt_launcher.launch_windows(windows_config, delay, ubuntu_count)
 
         wt_count = total_windows - ubuntu_count
-        terminal_label = "native terminal" if platform.system() == "Linux" else "Windows Terminal"
+        terminal_label = "native terminal" if IS_LINUX else "Windows Terminal"
         ColorPrint.plain(f"\nAll {total_windows} terminal windows launched:")
         ColorPrint.plain(f"  - {wt_count} {terminal_label} windows")
         if ubuntu_count > 0:
             ColorPrint.plain(f"  - {ubuntu_count} Ubuntu terminals")
 
         return bat_files
+
+    def _relayout_open_terminals(self, windows, open_terminals):
+        """Move open grid terminals (Linux X11/XWayland) onto the leading cells of ``windows``; return how many moved."""
+        grid_windows = list_linux_grid_windows() if IS_LINUX else None
+        if not grid_windows:
+            if self.auto_profile:
+                ColorPrint.plain(launcher_text.get(
+                    GridI18nKeys.RELAYOUT_HINT, count=open_terminals, columns=self.grid_columns,
+                    rows=self.grid_rows, profile=self.auto_profile))
+            return 0
+        cell_hint = (windows[0][6], windows[0][7])
+        moved = self.window_placer.relayout_windows(grid_windows, windows, cell_hint)
+        ColorPrint.plain(launcher_text.get(
+            GridI18nKeys.RELAYOUT_DONE, count=moved, columns=self.grid_columns, rows=self.grid_rows))
+        return moved
 
     def launch_editors(self, app_name, delay=0.2, file_paths=None):
         """

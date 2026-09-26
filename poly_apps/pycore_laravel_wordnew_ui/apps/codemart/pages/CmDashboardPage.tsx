@@ -69,7 +69,7 @@ const METRICS: CmMetric[] = [
   { id: 'escrowFunds', capability: 'project.create', route: '/codemart/projects', Icon: ShieldCheck, tone: 'green', value: (b, f) => f.money(b.counters.protected_funds, b.counters.currency) },
   { id: 'myOpenTasks', capability: 'task.read', route: '/codemart/tasks', Icon: ListTodo, tone: 'violet', value: (b, f) => f.number(b.counters.my_open_tasks) },
   { id: 'marketplaceTasks', capability: 'task.browse', route: '/codemart/marketplace', Icon: Code2, tone: 'blue', value: (b, f) => f.number(b.counters.open_marketplace_tasks) },
-  { id: 'pendingReviews', capability: 'review.read', route: '/codemart/reviews', Icon: ClipboardCheck, tone: 'amber', value: (b, f) => f.number(b.counters.pending_reviews) },
+  { id: 'pendingReviews', capability: 'review.read', roles: ['reviewer'], route: '/codemart/reviews', Icon: ClipboardCheck, tone: 'amber', value: (b, f) => f.number(b.counters.pending_reviews) },
   { id: 'walletBalance', capability: 'finance.read', route: '/codemart/wallet', Icon: WalletCards, tone: 'green', value: (b, f) => f.money(b.counters.wallet_balance, b.counters.currency) },
   { id: 'unread', capability: 'notification.read', route: '/codemart/notifications', Icon: Bell, tone: 'amber', value: (b, f) => f.number(b.counters.unread_notifications) },
 ];
@@ -151,7 +151,7 @@ const CmDashboardPage: React.FC = () => {
   const heldRoles = ROLE_ORDER.filter((role) => hasRole(role));
   const showProjects = hasCapability('project.read') && (hasRole('client') || hasRole('architect'));
   const showTasks = hasCapability('task.read');
-  const showReviews = hasCapability('review.read');
+  const showReviews = hasCapability('review.read') && hasRole('reviewer', 'active');
   const showNotifications = hasCapability('notification.read');
 
   const projects = useCmPagedList(fetchProjects, extractProjects, 'projects.loadFailed', showProjects);
@@ -224,7 +224,7 @@ const CmDashboardPage: React.FC = () => {
         <section className="cm-onboarding-card">
           <div className="cm-onboarding-card__text">
             <span>{t('dashboard.nextStepLabel')}</span>
-            <h2>{t(`verification.steps.${nextStep}`, { defaultValue: nextStep })}</h2>
+            <h2>{t(`dashboard.stepTitles.${nextStep}`, { defaultValue: t(`verification.steps.${nextStep}`, { defaultValue: nextStep }) })}</h2>
             <p>{t(`dashboard.stepHints.${nextStep}`, { defaultValue: t('dashboard.stepHints.default') })}</p>
             <div className="cm-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t('dashboard.progressLabel', { done: doneSteps, total: onboarding.steps.length })}>
               <span style={{ width: `${progress}%` }} />

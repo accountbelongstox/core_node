@@ -5,12 +5,9 @@ Handles screen dimension detection across all monitors
 """
 
 import ctypes
-import platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS
 from pycore.pyutils.launcher.linux_screen_manager import LinuxScreenManager
-
-IS_WINDOWS = platform.system() == "Windows"
-IS_LINUX = platform.system() == "Linux"
 
 # Win32 API constants
 SM_XVIRTUALSCREEN = 76

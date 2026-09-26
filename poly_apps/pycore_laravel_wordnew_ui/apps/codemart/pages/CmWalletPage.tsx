@@ -54,6 +54,11 @@ function extractPage<T>(data: CmListPage<T>) {
   return { items: Array.isArray(data.items) ? data.items : [], totalPages: cmTotalPages(data) };
 }
 
+const OUTGOING_DIRECTION = 'out';
+const isOutgoing = (transaction: CmWalletTransaction): boolean => (
+  transaction.metadata?.direction === OUTGOING_DIRECTION || Number(transaction.amount) < 0
+);
+
 const fetchPayments = (page: number) => cmApi.getPayments(page);
 const fetchInvoices = (page: number) => cmApi.getInvoices(page);
 const fetchRefunds = (page: number) => cmApi.getRefunds(page);
@@ -118,7 +123,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
       const data = infoResponse.data;
       setInfo(data);
       setLoadError(null);
-      setRoleType((current) => current || data.roles.find((role) => !role.is_sufficient)?.role_type || data.role_type || data.roles[0]?.role_type || '');
+      setRoleType((current) => (data.roles.some((role) => role.role_type === current && !role.is_sufficient) ? current : data.roles.find((role) => !role.is_sufficient)?.role_type ?? ''));
     } else {
       setLoadError(cmErrorMessage(t, infoResponse, 'wallet.depositLoadFailed'));
     }
@@ -131,7 +136,8 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
   }, [load]);
 
   const currency = info?.currency ?? '';
-  const selectedRole = info?.roles.find((role) => role.role_type === roleType) ?? null;
+  const payableRoles = (info?.roles ?? []).filter((role) => !role.is_sufficient);
+  const selectedRole = payableRoles.find((role) => role.role_type === roleType) ?? null;
   const amountInvalid = amount !== '' && !(Number(amount) > 0);
 
   const showBankInfo = async (depositId: number): Promise<void> => {
@@ -200,14 +206,15 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
         </div>
       )}
       {Number(info.pending_amount) > 0 && <CmNotice notice={{ tone: 'info', text: t('wallet.pendingAmount', { amount: format.money(info.pending_amount, currency) }) }} />}
-      {info.roles.length > 0 && (
+      {info.roles.length > 0 && payableRoles.length === 0 && <CmNotice notice={{ tone: 'success', text: t('wallet.allDepositsPaid') }} />}
+      {payableRoles.length > 0 && (
         <>
           <h3>{t('wallet.depositCreateTitle')}</h3>
           <form className="cm-project-form cm-inline-form" onSubmit={(event) => void createDeposit(event)} noValidate>
             <label>
               <span>{t('wallet.columnRole')}</span>
               <select value={roleType} onChange={(event) => changeInput(() => setRoleType(event.target.value))}>
-                {info.roles.map((role) => (
+                {payableRoles.map((role) => (
                   <option key={role.role_type} value={role.role_type}>{t(`roles.${role.role_type}`, { defaultValue: role.role_type })}</option>
                 ))}
               </select>
@@ -590,7 +597,7 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
                   {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
                   {transaction.description && <small className="cm-cell-note">{transaction.description}</small>}
                 </td>
-                <td className={`is-num ${Number(transaction.amount) < 0 ? 'is-negative' : 'is-positive'}`}>{format.money(transaction.amount, currency)}</td>
+                <td className={`is-num ${isOutgoing(transaction) ? 'is-negative' : 'is-positive'}`}>{isOutgoing(transaction) ? '−' : '+'}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
                 <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
                 <td><CmStatusBadge group="transaction" status={transaction.status} /></td>
                 <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>

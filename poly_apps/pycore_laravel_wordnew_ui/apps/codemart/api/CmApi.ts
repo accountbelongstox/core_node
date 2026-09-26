@@ -4,7 +4,8 @@ import {
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
 import { cmHandleUnauthorized } from '../auth/cmAuthSession';
-import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
+import type { APIRequestConfig, APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
+import { clearCoordinatedRequests } from '../../../core/network/RequestCoordinator';
 import { setAuthToken } from '../../../core/auth/AuthSession';
 import type {
   CmAiAnalysis,
@@ -132,6 +133,19 @@ export class CmApi extends BaseAPI {
     return response;
   }
 
+  /** Writes invalidate the short-lived shared GET coalescing so the next read reflects the change. */
+  protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
+    const response = await super.request<T>(config, retryCount);
+    if (config.method !== 'GET') clearCoordinatedRequests();
+    return response;
+  }
+
+  private async uploadFresh<T>(url: string, formData: FormData, onProgress: (percentage: number) => void): Promise<APIResponse<T>> {
+    const response = await this.uploadWithProgress<T>(url, formData, onProgress);
+    clearCoordinatedRequests();
+    return response;
+  }
+
   private postIdempotent<T>(url: string, data: unknown, idempotencyKey: string): Promise<APIResponse<T>> {
     return this.request<T>({ url, method: 'POST', data, headers: { [IDEMPOTENCY_HEADER]: idempotencyKey } });
   }
@@ -228,7 +242,7 @@ export class CmApi extends BaseAPI {
   async uploadProjectAttachment(projectId: number, file: File, onProgress: (percentage: number) => void): Promise<APIResponse<CmAttachment>> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.uploadWithProgress<CmAttachment>(`projects/${projectId}/attachments`, formData, onProgress);
+    return this.uploadFresh<CmAttachment>(`projects/${projectId}/attachments`, formData, onProgress);
   }
 
   async downloadProjectAttachment(projectId: number, attachment: CmAttachment): Promise<APIResponse<null>> {
@@ -443,7 +457,7 @@ export class CmApi extends BaseAPI {
   }
 
   async uploadKycDocuments(formData: FormData, onProgress: (percentage: number) => void = () => {}): Promise<APIResponse<unknown>> {
-    return this.uploadWithProgress<unknown>('auth/upload-kyc-documents', formData, onProgress);
+    return this.uploadFresh<unknown>('auth/upload-kyc-documents', formData, onProgress);
   }
 }
 

@@ -26,7 +26,9 @@ Builds on: `scripts/linuxenvs/claudeteam.sh`, `scripts/winenvs/claudeteam.ps1`
   default (AGENTS.md: no git operations unless asked). Roles avoid write
   conflicts by directory ownership instead.
 
-## 2. Role count: 7
+## 2. Role count: 7 (superseded 2026-09-27)
+
+> Superseded: the roles are now defined in `REQUIREMENTS_20260927_CLAUDE_AGENT_ROLES_V2.md` (13 roles; the lead is `orchestrator`). The table below is kept for history.
 
 Derived from the 107 `docs_fix` documents. They cluster into these domains:
 relay/RPC/codesync/terminal control/agent history (pycore runtime);
@@ -128,7 +130,7 @@ Sources: the official docs, read 2026-09-27:
 - `/hooks`
 
 Changes to the earlier sections:
-- §3 R7 is superseded: roles now always run in `bypassPermissions`.
+- §3 R7 is superseded: roles run with `--permission-mode auto` (final decision, Round 2 status below).
 - §3 R1 is extended: there are two entry points instead of one.
 
 - R10 **Two launchers, one shared library per OS.**

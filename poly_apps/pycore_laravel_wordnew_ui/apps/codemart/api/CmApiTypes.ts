@@ -398,6 +398,7 @@ export interface CmWalletTransaction {
   amount: string;
   balance_after: string | null;
   description: string | null;
+  metadata?: { direction?: string } & Record<string, unknown> | null;
   status: string;
   created_at: string | null;
 }
