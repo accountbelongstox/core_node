@@ -406,6 +406,8 @@ export const pycoreApiLocal = {
   promoteLocalQueueHead: (payload: {
     queue?: 'word_audio' | 'sentence_audio';
     items: Array<{ kind?: 'word' | 'sentence'; language: string; text: string }>;
+    /** Orchestration task id: the promoted item joins that task's fill view. */
+    owner?: string;
   }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterPromoteLocalHead, payload) as Promise<{
       success: boolean;

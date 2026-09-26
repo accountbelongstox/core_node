@@ -43,6 +43,11 @@ def register_local_queue_head_routes(server) -> None:
         lane = _resolve_lane(params, items)
         if lane not in AUDIO_QUEUE_LANES or not items:
             return {"success": False, "error": "queue (or item kind) and items are required"}
-        return audio_queue_center.promote_local_head(lane, items, local_source=LOCAL_SOURCE_MANUAL)
+        return audio_queue_center.promote_local_head(
+            lane,
+            items,
+            owner=str(params.get("owner") or ""),
+            local_source=LOCAL_SOURCE_MANUAL,
+        )
 
     server.post(path=UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD, handler=promote_handler)
