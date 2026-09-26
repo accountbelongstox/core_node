@@ -30,14 +30,12 @@ from pycore.pyctl.agent_history.heartbeat import (
 )
 from pycore.pyctl.agent_history.prompt_derive_service import start_prompt_derive_service
 from pycore.pyctl.agent_history.prompt_notify_service import start_prompt_notify_service
+from pycore.pyctl.queue_center.audio_lane_state import audio_lane_state
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.relay import laravel_relay_agent_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
-from pycore.pyctl.assist.assist_settings import (
-    assist_capability_enabled,
-    load_assist_settings,
-)
+from pycore.pyctl.assist.assist_settings import load_assist_settings
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 from pycore.pyctl.queue_center.lane_registry import (
     LANE_REGISTRY,
@@ -49,7 +47,8 @@ from pycore.pyctl.tts.sentence_audio_auto import (
 from pycore.pyctl.tts.word_tts_auto import (
     restore_persisted_auto_start as restore_word_audio_settings,
 )
-from pycore.pyctl.tts.word_audio_full_sync import activate_word_audio_queue
+from pycore.pyctl.tts.audio_lane_activation import activate_enabled_audio_lanes
+from pycore.pyutils.tts.word_audio_cache import word_audio_cache_index
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
 from pycore.pylauncher.tray_menu import (
     TRAY_SET_LANGUAGE_SIGNAL,
@@ -419,17 +418,17 @@ def register_event_handlers(
     register_runtime_workers()
 
 
-def _start_word_audio_boot_chain() -> None:
-    """Word-audio boot chain (REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE R6).
+def _start_audio_lane_boot_chain() -> None:
+    """Audio-lane boot chain (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN §5.4).
 
-    Runs only while the persisted Word Audio flag (assist capability ``tts``)
-    is ON: (a) restore the lane queue from the local cache, (b) run the full
-    pull in a background bus task, (c) wake the drain. The Word Audio flag is
-    the only switch; flag OFF means none of this runs.
+    For every audio lane (word_audio, sentence_audio) whose persisted switch
+    is ON: (a) restore the lane's whole Queue from the local cache, (b) start
+    the full pull of the server backlog in the background, (c) wake the
+    drain. The local word-audio cache index loads in full in the background
+    regardless of the switches (orchestration uses it too).
     """
-    if not assist_capability_enabled("tts"):
-        return
-    activate_word_audio_queue()
+    word_audio_cache_index.start_background_load()
+    activate_enabled_audio_lanes()
 
 
 def register_runtime_workers() -> None:
@@ -470,15 +469,16 @@ def register_runtime_workers() -> None:
             _RUNTIME_STEPS_COMPLETED.add(step_name)
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
-    if "word_audio_boot_chain" not in _RUNTIME_STEPS_COMPLETED:
+    if "audio_lane_boot_chain" not in _RUNTIME_STEPS_COMPLETED:
         try:
-            _start_word_audio_boot_chain()
-            _RUNTIME_STEPS_COMPLETED.add("word_audio_boot_chain")
+            _start_audio_lane_boot_chain()
+            _RUNTIME_STEPS_COMPLETED.add("audio_lane_boot_chain")
         except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step word_audio_boot_chain failed: {exc}")
+            ColorPrint.red(f"[EventHandlers] Runtime step audio_lane_boot_chain failed: {exc}")
     apply_assist_runtime(assist_settings)
     service_steps = (
         ("queue_center_snapshot", queue_center_snapshot_service.start),
+        ("audio_lane_state_publisher", audio_lane_state.start),
         ("agent_history", register_agent_history_extraction),
         ("prompt_derive_service", start_prompt_derive_service),
         ("prompt_notify_service", start_prompt_notify_service),

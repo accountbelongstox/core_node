@@ -12,33 +12,34 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Canonical Claude Code install workflow (Linux). Single source of truth shared by
-# the dd.sh AI & MCP Management menu and the install_shells 129 step. Source this
-# file, then call claude_code_install. The workflow:
-#   1. Install Claude Code via the OFFICIAL NATIVE installer (idempotent: skipped if
-#      claude already works).
-#   2. Make claude usable by EVERY user (regular users + root): the native build is a
-#      single self-contained ELF and per-user homes are mode 700, so a /usr/local/bin
-#      symlink would be unreachable by other users. When the resolved binary is not
-#      world-reachable the self-contained binary is COPIED into /usr/local/bin (0755)
-#      so all users can run it; when it IS reachable it is symlinked (so native
-#      auto-updates track).
-#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh, the Linux
-#      mirror of scripts/winenvs/claudeteam.ps1) into /usr/local/bin too.
-#      claudeteam launches Claude Code with multiple roles (experimental agent
-#      teams) and ultracode enabled by default.
-#
-# Privilege model:
-#   - root / writable bin dir : link directly (root is already in sudo mode).
-#   - regular user            : use sudo for the /usr/local/bin writes.
+# the dd.sh AI & MCP Management menu, the install_shells 171 step and every claude*
+# launcher (via ai_cli_provision). Source this file, then call claude_code_install:
+#   1. Idempotently install missing prerequisites, then Claude Code itself through the
+#      OFFICIAL NATIVE installer, run as the real user (get_real_user) so the per-user
+#      install lands in that user's home. claude.ai/install.sh is tried first; its
+#      official CDN target (downloads.claude.ai bootstrap.sh) is the fallback when the
+#      claude.ai front door refuses the request (e.g. HTTP 403).
+#   2. Make claude usable by EVERY user through /usr/local/bin: symlink when the newest
+#      working binary is world-reachable, otherwise copy the self-contained binary (0755).
+#   3. Link the claudeteam launcher into /usr/local/bin.
+# "Installed" means a claude binary that actually answers --version (dangling launcher
+# symlinks left behind by pruned native versions do not count).
 
 # scripts/ai_shtools/claude_code_install.sh -> core_node root is two levels up.
 CCI_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CCI_CORE_NODE_DIR="$(cd "$CCI_SCRIPT_DIR/../.." && pwd)"
 CCI_LINUXENVS_DIR="$CCI_CORE_NODE_DIR/scripts/linuxenvs"
+CCI_REAL_USER_LIB="$CCI_CORE_NODE_DIR/scripts/shells/linux/common/get_real_user.sh"
 CCI_BIN_DIR="/usr/local/bin"
 CCI_EXEC="claude"
-CCI_NATIVE_INSTALL_URL="https://claude.ai/install.sh"
+CCI_INSTALLER_URLS=(
+    "https://claude.ai/install.sh"
+    "https://downloads.claude.ai/claude-code-releases/bootstrap.sh"
+)
+CCI_VERSION_TIMEOUT_SECONDS="10"
 CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
+CCI_REAL_USER=""
+CCI_REAL_HOME=""
 
 # Fallback print_color when run standalone (the main menu provides the real one).
 if ! command -v print_color >/dev/null 2>&1; then
@@ -48,15 +49,115 @@ if ! command -v print_color >/dev/null 2>&1; then
     }
 fi
 
-# Run a /usr/local/bin write with sudo only when the bin dir is not writable.
-cci_bin_sudo() {
-    if [ -w "$CCI_BIN_DIR" ]; then
+# Run a privileged command directly as root, otherwise through sudo.
+cci_sudo() {
+    if [ "$(id -u)" -eq 0 ]; then
         "$@"
     elif command -v sudo >/dev/null 2>&1; then
         sudo "$@"
     else
         "$@"
     fi
+}
+
+# Run a /usr/local/bin write with sudo only when the bin dir is not writable.
+cci_bin_sudo() {
+    if [ -w "$CCI_BIN_DIR" ]; then
+        "$@"
+    else
+        cci_sudo "$@"
+    fi
+}
+
+# Resolve the real (interactive) user through the shared get_real_user helper when
+# running as root; a regular user installs for themselves.
+cci_resolve_real_user() {
+    if [ -n "$CCI_REAL_USER" ]; then
+        return 0
+    fi
+    if [ "$(id -u)" -eq 0 ]; then
+        . "$CCI_REAL_USER_LIB" >/dev/null 2>&1
+        CCI_REAL_USER="$(get_real_user 2>/dev/null | tail -n 1)"
+        CCI_REAL_HOME="$(get_real_user_home 2>/dev/null | tail -n 1)"
+    fi
+    if [ -z "$CCI_REAL_USER" ] || [ -z "$CCI_REAL_HOME" ] || [ ! -d "$CCI_REAL_HOME" ]; then
+        CCI_REAL_USER="$(id -un)"
+        CCI_REAL_HOME="$HOME"
+    fi
+}
+
+# Run a command as the real user (root -> regular user), otherwise as the current
+# user. Root installing for itself is allowed explicitly by the official installer.
+cci_run_as_real_user() {
+    if [ "$(id -u)" -eq 0 ] && [ "$CCI_REAL_USER" != "root" ] && [ "$CCI_REAL_USER" != "$(id -un)" ]; then
+        if command -v runuser >/dev/null 2>&1; then
+            runuser -u "$CCI_REAL_USER" -- env HOME="$CCI_REAL_HOME" USER="$CCI_REAL_USER" LOGNAME="$CCI_REAL_USER" "$@"
+        else
+            su -s /bin/bash "$CCI_REAL_USER" -c "$(printf '%q ' env HOME="$CCI_REAL_HOME" USER="$CCI_REAL_USER" LOGNAME="$CCI_REAL_USER" "$@")"
+        fi
+    else
+        env CLAUDE_INSTALL_ALLOW_SUDO=1 "$@"
+    fi
+}
+
+# Install packages with whichever system package manager is present.
+cci_pkg_install() {
+    if command -v apt-get >/dev/null 2>&1; then
+        cci_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" || {
+            cci_sudo apt-get update -y
+            cci_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+        }
+    elif command -v dnf >/dev/null 2>&1; then
+        cci_sudo dnf install -y "$@"
+    elif command -v yum >/dev/null 2>&1; then
+        cci_sudo yum install -y "$@"
+    elif command -v apk >/dev/null 2>&1; then
+        cci_sudo apk add --no-cache "$@"
+    elif command -v pacman >/dev/null 2>&1; then
+        cci_sudo pacman -S --noconfirm --needed "$@"
+    elif command -v zypper >/dev/null 2>&1; then
+        cci_sudo zypper --non-interactive install "$@"
+    else
+        echo "[WARN] No supported package manager found to install: $*"
+        return 1
+    fi
+}
+
+# Idempotently install only the tools the official native installer needs and lacks
+# (downloader, sha256sum, CA bundle; Alpine additionally needs libgcc/libstdc++/ripgrep).
+cci_ensure_prereqs() {
+    local missing=()
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        missing+=(curl)
+    fi
+    command -v sha256sum >/dev/null 2>&1 || missing+=(coreutils)
+    if [ ! -s /etc/ssl/certs/ca-certificates.crt ] && [ ! -s /etc/pki/tls/certs/ca-bundle.crt ]; then
+        missing+=(ca-certificates)
+    fi
+    if [ -f /etc/alpine-release ]; then
+        command -v rg >/dev/null 2>&1 || missing+=(ripgrep)
+        [ -e /usr/lib/libstdc++.so.6 ] || missing+=(libstdc++ libgcc)
+    fi
+    if [ "${#missing[@]}" -eq 0 ]; then
+        return 0
+    fi
+    echo "[PREREQ] Installing missing tools: ${missing[*]}"
+    cci_pkg_install "${missing[@]}" || true
+}
+
+# Download a URL to a file with curl or wget.
+cci_download() {
+    local url="$1" dest="$2"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --retry 2 -o "$dest" "$url"
+    else
+        wget -q -O "$dest" "$url"
+    fi
+}
+
+# Print the "x.y.z" version a claude binary reports, or nothing when it does not run.
+cci_claude_version() {
+    timeout "$CCI_VERSION_TIMEOUT_SECONDS" "$1" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
 }
 
 # Symlink a source script/binary into /usr/local/bin as <name> (and make it
@@ -81,7 +182,7 @@ cci_link_into_bin() {
     fi
     cci_bin_sudo mkdir -p "$CCI_BIN_DIR"
     cci_bin_sudo chmod +x "$src" 2>/dev/null || true
-    cci_bin_sudo ln -sf "$src" "$dest"
+    cci_bin_sudo ln -sfn "$src" "$dest"
     echo "[LINK] $name -> $src"
 }
 
@@ -118,65 +219,72 @@ cci_others_can_access() {
     esac
 }
 
-# Locate the claude binary on this machine. PATH first, then EVERY user's native
-# per-user install location (root AND all regular users), then the shared /usr/local/bin
-# copy LAST. Searching other users' homes is essential when 129 runs as root but claude
-# was installed by a regular user under /home/<user>/.local/bin - otherwise the install is
-# not detected (re-runs the installer) and there is no source to sync to all users.
+# Locate the newest WORKING claude binary on this machine: the real user's and the
+# current user's native launchers, root and every /home user, the PATH hit, the shared
+# /usr/local/bin copy and the apt/dnf package. Candidates that fail --version (e.g. a
+# launcher whose version directory was pruned) are ignored.
 cci_find_claude() {
-    local c candidate
-    c="$(command -v claude 2>/dev/null)"
-    if [ -n "$c" ]; then
-        printf '%s' "$c"
-        return 0
-    fi
+    local candidate="" version="" best="" best_version=""
+    cci_resolve_real_user
     for candidate in \
+        "$CCI_REAL_HOME/.local/bin/claude" \
         "$HOME/.local/bin/claude" \
-        "$HOME/.claude/local/claude" \
         "/root/.local/bin/claude" \
-        "/root/.claude/local/claude" \
         /home/*/.local/bin/claude \
-        /home/*/.claude/local/claude \
-        "$CCI_BIN_DIR/$CCI_EXEC"; do
-        if [ -x "$candidate" ]; then
-            printf '%s' "$candidate"
-            return 0
+        "$(command -v claude 2>/dev/null)" \
+        "$CCI_BIN_DIR/$CCI_EXEC" \
+        "/usr/bin/claude" \
+        "$CCI_REAL_HOME/.claude/local/claude" \
+        "$HOME/.claude/local/claude"; do
+        [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+        version="$(cci_claude_version "$candidate")"
+        [ -n "$version" ] || continue
+        if [ -z "$best" ] || [ "$(printf '%s\n%s\n' "$best_version" "$version" | sort -V | tail -n 1)" != "$best_version" ]; then
+            best="$candidate"
+            best_version="$version"
         fi
     done
+    if [ -n "$best" ]; then
+        printf '%s' "$best"
+        return 0
+    fi
     return 1
 }
 
-# Run the official native installer, unless claude already works (idempotent). "Installed"
-# means a working claude found ANYWHERE (current PATH, the shared bin, or ANY user's native
-# home) - not just the running user's PATH; otherwise running as root re-installs even when
-# a regular user already has it. When skipped, the caller still syncs the bin to all users.
+# Run the official native installer as the real user, unless a working claude already
+# exists anywhere (idempotent). Falls back to the official CDN bootstrap URL when the
+# claude.ai front door fails; the installer is saved to a file first so an HTTP error
+# never pipes an empty or HTML body into bash.
 cci_install_native() {
-    local existing
+    local existing="" installer="" url="" rc=1
     existing="$(cci_find_claude 2>/dev/null || true)"
-    if [ -n "$existing" ] && timeout 10 "$existing" --version >/dev/null 2>&1; then
+    if [ -n "$existing" ]; then
         echo "[SKIP] claude already installed ($existing); skipping native install (bin still synced to all users below)."
         return 0
     fi
-    echo "[INSTALL] Running official native installer: $CCI_NATIVE_INSTALL_URL"
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$CCI_NATIVE_INSTALL_URL" | bash
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "$CCI_NATIVE_INSTALL_URL" | bash
-    else
-        echo "[ERROR] Neither curl nor wget is available to fetch the installer."
-        return 1
-    fi
+    cci_ensure_prereqs
+    installer="$(mktemp)"
+    for url in "${CCI_INSTALLER_URLS[@]}"; do
+        echo "[INSTALL] Fetching official native installer: $url"
+        if cci_download "$url" "$installer" && head -n 1 "$installer" | grep -q '^#!'; then
+            chmod 0644 "$installer"
+            echo "[INSTALL] Running official native installer as $CCI_REAL_USER ($CCI_REAL_HOME)"
+            if cci_run_as_real_user bash -c 'cd "$HOME" && bash "$1"' _ "$installer"; then
+                rc=0
+                break
+            fi
+        fi
+        echo "[WARN] Official native installer failed from $url"
+    done
+    rm -f "$installer"
+    return "$rc"
 }
 
-# Make claude usable by EVERY user (regular users + root), fixing the common
-# permission problem: the native installer is per-user (~/.local/...) and the
-# resolved binary lives under a mode-700 home (/root or /home/<user>), so a
-# /usr/local/bin symlink is unreachable by anyone but the owner.
-#
-# The modern native build is a single self-contained executable, so when the
-# resolved target is not world-reachable we COPY it into /usr/local/bin (0755) --
-# that works for all users without exposing the owner's home. When the target IS
-# already world-reachable we keep a symlink so native auto-updates are tracked.
+# Make claude usable by EVERY user (regular users + root). Per-user native installs
+# live under mode-700 homes, so a /usr/local/bin symlink would be unreachable by
+# anyone but the owner. The native build is a single self-contained executable, so
+# when the resolved target is not world-reachable it is COPIED into /usr/local/bin
+# (0755); when it IS world-reachable a symlink is kept so native updates are tracked.
 # Idempotent: skips when the shared copy is already identical.
 cci_install_claude_all_users() {
     local src="$1"
@@ -186,31 +294,26 @@ cci_install_claude_all_users() {
     resolved="$(readlink -f "$src" 2>/dev/null || echo "$src")"
 
     if cci_others_can_access "$resolved"; then
-        # Reachable by everyone: symlink to the stable launcher (tracks updates).
         cci_link_into_bin "$src" "$CCI_EXEC" "keep"
-        echo "[OK] claude reachable by all users via symlink: $dest -> $resolved"
+        echo "[OK] claude reachable by all users via: $dest -> $resolved"
         return 0
     fi
 
-    echo "[FIX] claude lives under a non-world-readable home ($resolved);"
-    echo "      installing a shared copy in $CCI_BIN_DIR so every user can run it."
     if [ ! -f "$resolved" ]; then
-        echo "[WARN] Resolved claude is not a regular file; linking instead (may be owner-only)."
-        cci_link_into_bin "$src" "$CCI_EXEC" "keep"
+        echo "[ERROR] Resolved claude is not a regular file: $resolved"
         return 1
     fi
 
-    # Idempotent: nothing to do when the shared binary already matches.
     if [ -f "$dest" ] && [ ! -L "$dest" ] && cmp -s "$resolved" "$dest"; then
         echo "[OK] Shared claude already up to date: $dest"
         return 0
     fi
 
+    echo "[FIX] $resolved is under a non-world-readable home; copying it into $CCI_BIN_DIR for all users."
     cci_bin_sudo mkdir -p "$CCI_BIN_DIR"
     cci_bin_sudo rm -f "$dest"
     if cci_bin_sudo cp -f "$resolved" "$dest" && cci_bin_sudo chmod 0755 "$dest"; then
         echo "[COPY] Installed shared claude for all users: $dest"
-        echo "       (self-contained native binary; re-run this installer to refresh after updates)"
         return 0
     fi
     echo "[ERROR] Failed to install shared claude at $dest"
@@ -219,62 +322,42 @@ cci_install_claude_all_users() {
 
 # Link the claudeteam launcher (and its .sh alias) for all users.
 cci_setup_claudeteam() {
-    if [ -s "$CCI_TEAM_SRC" ]; then
-        cci_link_into_bin "$CCI_TEAM_SRC" "claudeteam"
-        cci_link_into_bin "$CCI_TEAM_SRC" "claudeteam.sh"
-    else
-        echo "[WARN] claudeteam.sh not found at: $CCI_TEAM_SRC"
-        return 1
-    fi
+    cci_link_into_bin "$CCI_TEAM_SRC" "claudeteam"
+    cci_link_into_bin "$CCI_TEAM_SRC" "claudeteam.sh"
 }
 
-# Main entry: install (native, idempotent) -> make claude usable by all users -> link claudeteam.
+# Main entry: install (native, idempotent) -> make claude usable by all users -> link
+# claudeteam. Returns non-zero when the shared claude is still not runnable.
 claude_code_install() {
     local bin_path=""
 
-    # Step 1: official native install (idempotent).
-    print_color "[STEP 1/3] Install Claude Code (official native installer)" "Info"
-    cci_install_native
+    cci_resolve_real_user
+
+    print_color "[STEP 1/3] Install Claude Code (official native installer, user: $CCI_REAL_USER)" "Info"
+    cci_install_native || echo "[ERROR] Every official native installer source failed."
     echo ""
 
-    # Step 2: make claude usable by all users (regular users + root), fixing
-    # permissions / mode-700 home issues by copying the self-contained binary
-    # into the shared bin when a symlink would not be reachable.
     print_color "[STEP 2/3] Install claude into $CCI_BIN_DIR for all users" "Info"
     bin_path="$(cci_find_claude || true)"
     if [ -z "$bin_path" ]; then
-        echo "[ERROR] Could not locate the claude binary after installation."
+        echo "[ERROR] Could not locate a working claude binary after installation."
     else
         echo "[FOUND] claude binary: $bin_path"
-        # Link to the stable launcher path (keep), so native updates are tracked.
-        cci_link_into_bin "$bin_path" "$CCI_EXEC" "keep"
-        # The native installer is per-user (~/.local/bin). When run as root that
-        # is /root/.local (mode 700) -> unreachable by other users, so the
-        # "all users" link would silently fail for everyone but the owner.
-        if cci_others_can_access "$bin_path"; then
-            echo "[OK] $bin_path is reachable and executable by all users."
-        else
-            echo "[WARNING] $bin_path is NOT traversable/executable by other users"
-            echo "          (likely under a mode-700 home such as /root/.local/bin)."
-            echo "          A plain symlink in $CCI_BIN_DIR would not resolve that path."
-            echo "          For true all-user access, install claude into a shared prefix"
-            echo "          (e.g. 'npm install -g @anthropic-ai/claude-code') or deliberately"
-            echo "          relax the path permissions."
-        fi
-        cci_install_claude_all_users "$bin_path"
+        cci_install_claude_all_users "$bin_path" || true
     fi
     echo ""
 
-    # Step 3: link the claudeteam launcher for all users.
     print_color "[STEP 3/3] Link claudeteam launcher into $CCI_BIN_DIR (all users)" "Info"
-    cci_setup_claudeteam
+    cci_setup_claudeteam || true
     echo ""
 
-    if timeout 10 "$CCI_BIN_DIR/$CCI_EXEC" --version >/dev/null 2>&1; then
+    hash -r 2>/dev/null || true
+    if [ -n "$(cci_claude_version "$CCI_BIN_DIR/$CCI_EXEC")" ]; then
         echo "[OK] claude is installed and runnable from $CCI_BIN_DIR/$CCI_EXEC."
-    else
-        echo "[WARN] claude did not report a version from $CCI_BIN_DIR/$CCI_EXEC."
+        return 0
     fi
+    echo "[WARN] claude did not report a version from $CCI_BIN_DIR/$CCI_EXEC."
+    return 1
 }
 
 # Allow direct execution (./claude_code_install.sh) in addition to sourcing.

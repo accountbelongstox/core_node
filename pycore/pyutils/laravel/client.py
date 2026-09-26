@@ -56,6 +56,42 @@ _BODY_SUMMARY_MAX = 200
 _DEFAULT_TIMEOUT = 30.0
 
 
+LARAVEL_ERROR_TIMEOUT = "LARAVEL_TIMEOUT"
+LARAVEL_ERROR_UNREACHABLE = "LARAVEL_UNREACHABLE"
+LARAVEL_ERROR_HTTP = "LARAVEL_HTTP_ERROR"
+LARAVEL_ERROR_BAD_RESPONSE = "LARAVEL_BAD_RESPONSE"
+LARAVEL_ERROR_REQUEST_FAILED = "LARAVEL_REQUEST_FAILED"
+_TIMEOUT_ERROR_NAMES = ("Timeout", "TimedOut", "ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout")
+_UNREACHABLE_ERROR_NAMES = ("ConnectionError", "ConnectError", "NetworkError", "RemoteProtocolError", "ProxyError", "SSLError")
+_BAD_RESPONSE_ERROR_NAMES = ("JSONDecodeError", "ValueError", "DecodingError")
+
+
+def laravel_failure(error: Any = None, status_code: int = 0) -> Dict[str, Any]:
+    """Stable ``{error_code, detail, status}`` for a failed Laravel call.
+
+    ONE classification for every UI-facing pycore->Laravel failure: callers
+    persist/return ``error_code`` (translated by the UI) and keep the raw text
+    only as a short ``detail`` — raw requests/httpx exception text is never a
+    user-facing message.
+    """
+    if status_code:
+        return {
+            "error_code": LARAVEL_ERROR_HTTP,
+            "detail": f"HTTP {int(status_code)}",
+            "status": int(status_code),
+        }
+    names = [cls.__name__ for cls in type(error).__mro__] if isinstance(error, BaseException) else []
+    if any(name.endswith(_TIMEOUT_ERROR_NAMES) for name in names):
+        code = LARAVEL_ERROR_TIMEOUT
+    elif any(name in _UNREACHABLE_ERROR_NAMES for name in names):
+        code = LARAVEL_ERROR_UNREACHABLE
+    elif any(name in _BAD_RESPONSE_ERROR_NAMES for name in names):
+        code = LARAVEL_ERROR_BAD_RESPONSE
+    else:
+        code = LARAVEL_ERROR_REQUEST_FAILED
+    return {"error_code": code, "detail": _short_err(error) if error is not None else "", "status": 0}
+
+
 def _short_err(err: Any) -> str:
     """One-line condenser for requests exceptions (consolidates 4 prior copies)."""
     msg = str(err)

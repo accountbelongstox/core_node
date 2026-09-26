@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
-"""Word-audio startup full sync: pull EVERY dictionary word without audio
-from Laravel into the shared queue (Part1 fill, pycore self-driven).
+"""Word-audio full pull: mirror EVERY dictionary word without audio from
+Laravel into the shared queue (Part2 mirror of the dict-lane backlog).
 
-Binding requirements: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md.
+Binding requirements: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md,
+corrected by docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.2.
 
-Direction is pycore-local ONLY: the pull reads Laravel's dictionary listing
-(GET /api/app_qy_v1/dictionary/words?filter=without_audio) and fills Part1
-through the shared queue library (``audio_queue_center.promote_local_head``,
-whole-Queue dedup). It NEVER mutates Laravel's queue — no enqueue, no head
-ticket. Delivery of the generated audio is the existing domain report +
-durable outbox path, so work produced while Laravel is offline uploads when
-Laravel returns.
+The pull reads Laravel's dictionary listing
+(GET /api/app_qy_v1/dictionary/words?filter=without_audio) — the live view of
+Laravel's word_audio dict lane — and mirrors it into Part2 through
+``audio_queue_center.accept_backlog`` (whole-Queue dedup). Part1 stays the
+pycore-local priority lane (orchestration / manual promote). It NEVER mutates
+Laravel's queue. Delivery is the domain report + durable outbox path, so work
+produced while Laravel is offline uploads when Laravel returns.
 
-Startup chain (event_handlers): cache restore -> full pull (background) ->
-drain. Runs only while the persisted Word Audio flag (assist capability
-``tts``) is ON. That UI-owned persisted flag is the only switch; there is no
-second startup preference and no CLI/env override.
+Activation (``audio_lane_activation``): cache restore -> full pull
+(background) -> drain, only while the persisted Word Audio flag (assist
+capability ``tts``) is ON.
 """
 
 from __future__ import annotations
@@ -27,10 +27,14 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue, start_bus_task
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyutils.common.queue_center_contract import task_language_priority
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
-from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.tts.audio_queue_center import (
+    LOCAL_SOURCE_FULL_SYNC,
+    audio_queue_center,
+    build_local_task,
+)
 
 QUEUE_KEY = "word_audio"
 # Laravel listing endpoints (read-only dictionary scan).
@@ -40,8 +44,7 @@ _PAGE_LIMIT = 1000
 _REQUEST_TIMEOUT_SECONDS = 30
 # Locally sourced task marker: no global_task row exists to claim; delivery
 # goes through the domain report + outbox (worker_base/execution guards).
-LOCAL_SOURCE_MARKER = "full_sync"
-_LOCAL_TASK_ID_PREFIX = "word-full-"
+LOCAL_SOURCE_MARKER = LOCAL_SOURCE_FULL_SYNC
 
 
 class WordAudioFullSync:
@@ -98,14 +101,16 @@ class WordAudioFullSync:
             return {"success": True, "running": True, "status": self.get_status()}
         if not self._running.compare_and_set(False, True):
             return {"success": True, "running": True, "status": self.get_status()}
+        audio_queue_center.note_state_change(QUEUE_KEY, "full_sync_started")
         try:
             result = self._pull_all(base_url or laravel_endpoint_manager.get_active_base_url())
         except Exception as exc:  # noqa: BLE001 - startup/RPC entry never raises
             ColorPrint.yellow(f"[WordAudioFullSync] full pull failed: {exc}")
-            result = {"success": False, "error": str(exc)}
+            result = {"success": False, **laravel_failure(exc)}
         finally:
             self._running.set(False)
         self._last_result = dict(result)
+        audio_queue_center.note_state_change(QUEUE_KEY, "full_sync_finished")
         if assist_capability_enabled("tts"):
             audio_queue_center.request_pull(QUEUE_KEY)
         result["status"] = self.get_status()
@@ -232,6 +237,7 @@ class WordAudioFullSync:
                     f"[WordAudioFullSync] {language_name} listing HTTP "
                     f"{response.status_code}; skipped"
                 )
+                self._last_result = {"success": False, **laravel_failure(status_code=response.status_code)}
                 break
             payload = response.json()
             data = payload.get("data") if isinstance(payload, dict) else None
@@ -258,69 +264,41 @@ class WordAudioFullSync:
         language_code: str,
         rows: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """One listing page -> M3 Part1 fill (whole-Queue dedup inside)."""
-        items: List[Dict[str, Any]] = []
+        """One listing page -> M2 Part2 backlog mirror (whole-Queue dedup inside)."""
+        tasks: List[Dict[str, Any]] = []
         for row in rows:
             word = str(row.get("content") or "").strip()
             md5 = str(row.get("md5") or "").strip()
             row_id = row.get("id")
             if not word or not md5 or row_id in (None, ""):
                 continue
-            task = {
-                "task_id": f"{_LOCAL_TASK_ID_PREFIX}{language_code}-{md5}",
-                "task_type": QUEUE_KEY,
-                "payload": {
-                    "word": word,
-                    "content": word,
-                    "language": language_code,
-                    "md5": md5,
-                    "dict_row_id": int(row_id),
-                },
-                # LOCAL marker: never claimed against Laravel's global_tasks;
-                # delivery is the domain report (encodeTaskId) + outbox.
-                "_local_source": LOCAL_SOURCE_MARKER,
-                "_laravel_base_url": base_url,
-            }
-            items.append({
-                "language": language_code,
-                "text": word,
-                "md5": md5,
-                "task": task,
-            })
-        if not items:
+            # LOCAL marker: never claimed against Laravel's global_tasks;
+            # delivery is the domain report (encodeTaskId) + outbox.
+            task = build_local_task(
+                QUEUE_KEY,
+                language_code,
+                word,
+                LOCAL_SOURCE_MARKER,
+                base_url=base_url,
+                extra_payload={"md5": md5, "dict_row_id": int(row_id)},
+            )
+            if task is not None:
+                tasks.append(task)
+        if not tasks:
             return {"success": True, "inserted": 0}
-        result = audio_queue_center.promote_local_head(
+        return audio_queue_center.accept_backlog(
             QUEUE_KEY,
-            items,
-            wake=False,
+            tasks,
             source=audio_queue_cache.SOURCE_FULL_SYNC,
         )
-        return result
 
 
 word_audio_full_sync = WordAudioFullSync()
 
 
-def activate_word_audio_queue() -> Dict[str, Any]:
-    """Apply the complete persisted ON transition immediately.
-
-    Every UI control path uses this same entry: restore the durable queue,
-    start the configured full pull, then wake the batch drain. Repeated calls
-    are safe because restore and full pull both use whole-Queue dedup.
-    """
-    if not assist_capability_enabled("tts"):
-        return {"success": False, "error": "WORD_AUDIO_DISABLED"}
-    restored = audio_queue_center.restore_from_cache(QUEUE_KEY)
-    word_audio_full_sync.record_cache_restore(restored)
-    word_audio_full_sync.start_background()
-    audio_queue_center.request_pull(QUEUE_KEY)
-    return {"success": True, "restored": restored}
-
-
 __all__ = [
     "LOCAL_SOURCE_MARKER",
     "QUEUE_KEY",
-    "activate_word_audio_queue",
     "WordAudioFullSync",
     "word_audio_full_sync",
 ]

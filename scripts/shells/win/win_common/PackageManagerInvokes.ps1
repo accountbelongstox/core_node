@@ -3926,7 +3926,8 @@ function Invoke-PowerShellCommand {
         "C:\Program Files",
         "C:\Program Files (x86)",
         $env:USERPROFILE,
-        "$env:USERPROFILE\bin"
+        "$env:USERPROFILE\bin",
+        "$env:USERPROFILE\.local\bin"
     )
     $searchPaths += $systemPaths
 
@@ -4002,7 +4003,8 @@ function Invoke-PowerShellCommand {
         "C:\Program Files",
         "C:\Program Files (x86)",
         $env:USERPROFILE,
-        "$env:USERPROFILE\bin"
+        "$env:USERPROFILE\bin",
+        "$env:USERPROFILE\.local\bin"
     )
     $searchPaths += $systemPaths
     

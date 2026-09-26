@@ -22,6 +22,7 @@ from pycore.pyctl.assist.assist_settings import (
     set_assist_capability,
 )
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
+from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
 
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
@@ -121,6 +122,8 @@ def apply_auto_start(
             ColorPrint.yellow(f"[SentenceAudioAuto] live speaker apply failed ({exc})")
 
     settings = set_assist_capability("sentence_audio", bool(enabled))
+    if enabled:
+        activate_audio_lane("sentence_audio")
     runtime = apply_assist_runtime(settings)
     errors = list(runtime.get("errors") or [])
 

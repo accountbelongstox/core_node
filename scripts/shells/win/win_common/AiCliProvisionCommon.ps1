@@ -18,17 +18,27 @@
 #   scripts/shells/linux/common/ai_cli_provision_common.sh
 #
 # Invoke-AiCliProvision -Tool <tool> runs two idempotent steps:
-#   1. Install the CLI when the command is missing, with the same package manager
-#      the dd.cmd installer uses for it (ApplicationsList.ps1 registers
-#      ClaudeCode as InstallType "pnpm" with PackageId @anthropic-ai/claude-code,
-#      installed through "pnpm add --global"); Kimi keeps its native installer.
+#   1. Install the CLI when it is missing. Claude Code and Kimi use their official
+#      native installers (Claude: claude.ai/install.ps1, falling back to its
+#      official CDN target when the claude.ai front door refuses the request);
+#      Claude's %USERPROFILE%\.local\bin is repaired into the user PATH. Other CLIs
+#      and failed native installs fall back to pnpm/npm.
 #   2. Prompt for an upgrade only when the published version is newer, defaulting
 #      to N and auto-skipping after $AiCliUpgradeTimeoutSeconds.
-# Both steps are no-ops when the CLI is present and current.
+# Both steps are no-ops when the CLI is present and current; the launcher stops
+# with an error when the CLI is still missing.
 # =============================================================================
 
 $AiCliUpgradeTimeoutSeconds = 5
 $AiCliKimiInstallerUrl = "https://code.kimi.com/kimi-code/install.ps1"
+$AiCliClaudeInstallerUrls = @(
+    "https://claude.ai/install.ps1",
+    "https://downloads.claude.ai/claude-code-releases/bootstrap.ps1"
+)
+$AiCliClaudeLatestUrl = "https://downloads.claude.ai/claude-code-releases/latest"
+$AiCliClaudeBinDir = Join-Path (Join-Path $env:USERPROFILE ".local") "bin"
+$AiCliClaudeExe = Join-Path $AiCliClaudeBinDir "claude.exe"
+$AiCliClaudeInstallerFile = Join-Path ([System.IO.Path]::GetTempPath()) "claude-code-install.ps1"
 $AiCliPackages = @{
     "claude" = "@anthropic-ai/claude-code"
     "codex"  = "@openai/codex"
@@ -68,13 +78,81 @@ function Get-AiCliVersion {
     return $null
 }
 
+function Add-AiCliUserPath {
+    param([string]$Directory)
+
+    $userPath = $null
+    $userEntries = @()
+    $processEntries = @()
+
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
+        return
+    }
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $userEntries = @(($userPath -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($userEntries -notcontains $Directory) {
+        [Environment]::SetEnvironmentVariable("Path", ((@($Directory) + $userEntries) -join ';'), "User")
+        Write-Host "[PATH] Added $Directory to the user PATH." -ForegroundColor Green
+    }
+    $processEntries = @(($env:Path -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($processEntries -notcontains $Directory) {
+        $env:Path = (@($Directory) + $processEntries) -join ';'
+    }
+}
+
+function Invoke-AiCliClaudeNativeInstall {
+    $installerUrl = $null
+    $installerContent = $null
+    $powerShellExe = $null
+    $installerExitCode = 1
+
+    $powerShellExe = (Get-Process -Id $PID).Path
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    foreach ($installerUrl in $AiCliClaudeInstallerUrls) {
+        try {
+            Write-Host "[INSTALL] Fetching official native installer: $installerUrl" -ForegroundColor Cyan
+            $installerContent = Invoke-RestMethod -Uri $installerUrl -ErrorAction Stop
+            if (($installerContent -isnot [string]) -or ($installerContent -match '<html')) {
+                throw "unexpected installer content"
+            }
+            Set-Content -LiteralPath $AiCliClaudeInstallerFile -Value $installerContent -Encoding UTF8
+            # Child process: the official installer calls exit on failure, which would
+            # otherwise terminate the calling launcher.
+            & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $AiCliClaudeInstallerFile
+            $installerExitCode = $LASTEXITCODE
+            Remove-Item -LiteralPath $AiCliClaudeInstallerFile -Force -ErrorAction SilentlyContinue
+            Add-AiCliUserPath -Directory $AiCliClaudeBinDir
+            if (($installerExitCode -eq 0) -and (Test-Path -LiteralPath $AiCliClaudeExe)) {
+                return $true
+            }
+            Write-Host "[WARN] Official native installer failed from $installerUrl (exit code $installerExitCode)" -ForegroundColor Yellow
+        }
+        catch {
+            Write-Host "[WARN] Official native installer failed from $installerUrl`: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    return $false
+}
+
 function Get-AiCliPublishedVersion {
-    param([string]$Package)
+    param(
+        [string]$Tool,
+        [string]$Package
+    )
 
     $packageManagerCommand = $null
     $publishedOutput = $null
     $publishedVersion = $null
 
+    if ($Tool -eq "claude") {
+        try {
+            $publishedOutput = [string](Invoke-RestMethod -Uri $AiCliClaudeLatestUrl -TimeoutSec 10 -ErrorAction Stop)
+            return (Get-AiCliVersion -VersionText $publishedOutput)
+        }
+        catch {
+            return $null
+        }
+    }
     $packageManagerCommand = Get-Command pnpm -ErrorAction SilentlyContinue
     if ($null -ne $packageManagerCommand) {
         $publishedOutput = (& $packageManagerCommand.Source view $Package version 2>$null | Out-String).Trim()
@@ -151,6 +229,9 @@ function Invoke-AiCliNativeInstall {
 
     $installerContent = $null
 
+    if ($Tool -eq "claude") {
+        return (Invoke-AiCliClaudeNativeInstall)
+    }
     if ($Tool -eq "kimi") {
         try {
             $installerContent = Invoke-RestMethod -Uri $AiCliKimiInstallerUrl
@@ -200,6 +281,9 @@ function Install-AiCliIfMissing {
 
     if (-not $AiCliPackages.ContainsKey($Tool)) {
         return
+    }
+    if ($Tool -eq "claude") {
+        Add-AiCliUserPath -Directory $AiCliClaudeBinDir
     }
     if ($null -ne (Get-Command $Tool -ErrorAction SilentlyContinue)) {
         return
@@ -265,7 +349,7 @@ function Invoke-AiCliUpgradePrompt {
     $toolLabel = $AiCliLabels[$Tool]
     $installedOutput = (& $toolCommand.Source --version 2>$null | Out-String).Trim()
     $installedVersion = Get-AiCliVersion -VersionText $installedOutput
-    $publishedVersion = Get-AiCliPublishedVersion -Package $toolPackage
+    $publishedVersion = Get-AiCliPublishedVersion -Tool $Tool -Package $toolPackage
 
     if (($null -eq $installedVersion) -or ($null -eq $publishedVersion)) {
         return
@@ -292,5 +376,9 @@ function Invoke-AiCliProvision {
     param([string]$Tool)
 
     Install-AiCliIfMissing -Tool $Tool
+    if ($AiCliPackages.ContainsKey($Tool) -and ($null -eq (Get-Command $Tool -ErrorAction SilentlyContinue))) {
+        Write-Host "[ERROR] $($AiCliLabels[$Tool]) is unavailable; fix the install errors above and re-run." -ForegroundColor Red
+        exit 1
+    }
     Invoke-AiCliUpgradePrompt -Tool $Tool
 }

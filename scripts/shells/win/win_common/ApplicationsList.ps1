@@ -1246,20 +1246,21 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         )
     }
     ClaudeCode = @{
-        PackageId         = "@anthropic-ai/claude-code"
+        PackageId         = ""
         Exec              = "claude.exe"
         Name              = "ClaudeCode"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description       = "Anthropic Claude Code - AI-powered development assistant"
-        InstallType       = "pnpm"
+        InstallType       = "powershell"
         ForceToInstallDir = $false
         VerifySuffix      = "--version"
         AdditionalKeywords = @("claude", "claude-code")
         EnvVars           = @(
             @{
-                Type = @("Path")
+                Type = @("AddExec")
             }
         )
+        PowerShellCommand = "try { irm https://claude.ai/install.ps1 | iex } catch { irm https://downloads.claude.ai/claude-code-releases/bootstrap.ps1 | iex }"
     }
     OpenClaw = @{
         PackageId           = "openclaw"

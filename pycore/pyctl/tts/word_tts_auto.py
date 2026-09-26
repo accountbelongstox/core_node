@@ -18,7 +18,7 @@ from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_word_audio_worker,
 )
-from pycore.pyctl.tts.word_audio_full_sync import activate_word_audio_queue
+from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
 from pycore.pyctl.tts.sentence_audio_auto import AUTO_TTS_CONCURRENCY_KEY
 
 
@@ -72,7 +72,7 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
 
     settings = set_assist_capability("tts", bool(enabled))
     if enabled:
-        activate_word_audio_queue()
+        activate_audio_lane("word_audio")
     runtime = apply_assist_runtime(settings)
     errors = list(runtime.get("errors") or [])
 
