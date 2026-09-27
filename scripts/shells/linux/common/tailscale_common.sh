@@ -212,8 +212,8 @@ if self_node:
 for peer in (data.get("Peer") or {}).values():
     nodes.append(peer)
 
-row_fmt = "%-18s %-32s %-8s %-15s %-26s %-7s %-5s %s"
-print(row_fmt % ("HOSTNAME", "DNS NAME", "OS", "IPV4", "IPV6", "ONLINE", "EXIT", "CONNECTION"))
+row_fmt = "%-18s %-32s %-8s %-15s %-26s %-7s %-20s %-5s %s"
+print(row_fmt % ("HOSTNAME", "DNS NAME", "OS", "IPV4", "IPV6", "ONLINE", "LAST SEEN", "EXIT", "CONNECTION"))
 for peer in nodes:
     v4, v6 = split_ips(peer)
     print(row_fmt % (
@@ -223,6 +223,7 @@ for peer in nodes:
         v4 or "-",
         v6 or "-",
         "yes" if peer.get("Online") else "no",
+        peer.get("LastSeen", "") or "-",
         "yes" if peer.get("ExitNode") else "no",
         connection_label(peer),
     ))
@@ -278,8 +279,13 @@ ts_open_url() {
 
 # Print (and, on a desktop session, open) the two documented panels: the
 # cloud admin console (every device in the tailnet) and the local device web
-# interface (Quad100, this device only, tailscaled >= v1.56).
+# interface (Quad100, this device only, tailscaled >= v1.56). The local UI is
+# opened only once the backend is Running (the device-web-interface doc: "the
+# daemon must be running and connected"), matching the Windows counterpart
+# (Show-TailscalePanel's BackendState -eq Running gate).
 ts_show_panel() {
+    local backend=""
+
     echo "Tailnet admin console (all devices, cloud panel):"
     echo "  $TAILSCALE_ADMIN_CONSOLE_URL"
     echo ""
@@ -288,9 +294,16 @@ ts_show_panel() {
     echo ""
 
     if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] && command -v xdg-open >/dev/null 2>&1; then
-        echo "Opening both in the default browser..."
+        echo "Opening the admin console in the default browser..."
         ts_open_url "$TAILSCALE_ADMIN_CONSOLE_URL"
-        ts_open_url "$TAILSCALE_LOCAL_WEB_URL"
+        backend="unknown"
+        is_tailscale_installed && backend="$(ts_backend_state)"
+        if [ "$backend" = "Running" ]; then
+            echo "Opening the local device web interface in the default browser..."
+            ts_open_url "$TAILSCALE_LOCAL_WEB_URL"
+        else
+            echo "Local device web interface needs the daemon connected (state: $backend); skipped. It serves $TAILSCALE_LOCAL_WEB_URL once Tailscale is Running (v1.56.0+)."
+        fi
     else
         echo "No desktop session detected; open the URLs above manually."
     fi
@@ -311,7 +324,7 @@ Tailscale management (Linux) - direct-call dispatcher usage:
   tailscale_common.sh panel     Print + open the admin console and local (Quad100) panels
   tailscale_common.sh help      This message
 
-Menu: dd.sh > Linux Management > Tailscale Management.
+Menu: dd.sh > Linux Management > Linux System Tools > Tailscale Management.
 Install/uninstall: scripts/shells/linux/debian/install_shells/97_install_tailscale.sh.
 
 Official docs:

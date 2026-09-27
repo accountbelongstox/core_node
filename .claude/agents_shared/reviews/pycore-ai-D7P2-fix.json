@@ -1,0 +1,67 @@
+{
+  "task_id": "pycore-ai-D7P2-fix",
+  "role": "pycore-ai",
+  "reviewer": "pycore-lead",
+  "round": 1,
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "head": "24674d1a6",
+  "scope_reviewed": "The fix hunks are 5bbb23682..HEAD on the 7 changed files. B1 is in 4ddb4be8e (laravel_audio_worker_state.py only), and B2-B4 are in 2f31f9cd3. 0b6f362e3, 7a23f57d0 and 24674d1a6 touch no pycore-ai path. The working tree equals HEAD for every pycore path, for config/queue_center_contract.json and for AppQyV1WordMediaController.php. The D7P2 hunks (74e7770..5bbb23682) were judged in pycore-ai-D7P2.json and are not judged again here. All 7 files are inside pycore-ai's entry in the path map.",
+  "summary": "changes_requested. B1, B3 and B4 are functionally confirmed by an independent in-process probe (47/47 PASS). B2 is only partly done. The retry poison from the 4xx status is fixed, but the requirement's clause 'include the contract rejection_code WORD_NOT_FOUND' is not implemented. The shared rule never reads the rejection code, and WORD_NOT_FOUND is used only as the skip label, so a WORD_NOT_FOUND rejection that does not arrive as a 4xx still retries forever. Round 2 also carries a comment-only and alias cleanup in the new hunks (AGENTS.md, PYTHON_PYCORE.md section 1).",
+  "findings": {
+    "pycore-ai-D7P2-B1": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "laravel_audio_worker_state.py:572 is_local = bool(info.get('_local_source')), and :592 'elif not md5 and not is_local'. info['_local_source'] is the stripped task field (:511), so a blank value is not local.",
+        "Probe: _normalize(build_local_task(...)) for the orchestration and manual sources returns md5 '' and no error, and the payload carries cleaned_word 'hello' and no md5 key. _delivery_identity is '', so the clip goes through the audio_cache.resource kind (B2's path). resource_key gives 'en:text:hello', and word_md5 of that key is ''. A local task with md5 keeps it. A Laravel task without md5, and one with a blank _local_source, still get 'word_audio payload carried no md5'. A local task without a word still errors.",
+        "Downstream readers of info['md5'] tolerate '': kokoro_batch.synthesize_words_to_cache (laravel_audio_worker_execution.py:582, then save_to_cache with md5 ''), _build_success_result :537, and the laravel_audio_delivery.stage clip_md5 :90. _post_task_result and the deliver result step skip local tasks (laravel_audio_worker_execution.py:558, laravel_audio_delivery.py:180-184)."
+      ],
+      "notes": [
+        "Deviation from the letter, accepted: the exemption keys on _local_source alone, not '_local_source and payload.cleaned_word'. build_local_task (audio_queue_center.py:115-160) is the only producer that sets _local_source, and it always sets cleaned_word for a word, so the two checks agree today (probe INFO: a hand-built local task without md5 or cleaned_word also passes)."
+      ]
+    },
+    "pycore-ai-D7P2-B2": {
+      "claimed": "done",
+      "result": "partial",
+      "evidence": [
+        "Done: audio_resource_delivery.py:64-95 adds one shared rule, is_terminal_delivery_rejection(detail, status_code), with RETRYABLE_4XX_HTTP_STATUSES (408, 409, 425, 429). laravel_audio_delivery.py:61-64 _terminal_report_error delegates to it. The import direction (laravel_audio_delivery -> audio_resource_delivery) is unchanged, so there is no cycle. The truth table matches the pre-refactor expression on 16 samples.",
+        "Done: at audio_resource_delivery.py:364-379, an md5-less word with a non-throttling 4xx returns {'status': OUTCOME_DONE, 'skipped': 'WORD_NOT_FOUND'}. The probe runs the real _deliver_resource with upload_word_audio and word_audio_media patched. The LDRI-11 400 body, an errorWithCode 404 and a 422 settle DONE, and no md5 is sent. 408/409/425/429/500/502/503, a transport error, 'laravel endpoint not configured' and a 200 success=false stay retryable. A word with md5 and a 400 still raises as before, and the not_found branch is unchanged.",
+        "Not done: the clause 'include the contract rejection_code WORD_NOT_FOUND'. The source issue (pycore-ai-D7P2 B2) says 'Once LDRI-11 lands, the contract rejection WORD_NOT_FOUND must also end the row.' The helper takes only detail and status_code and never reads the rejection code, and WORD_NOT_FOUND_REJECTION_CODE (:64) appears only as the skip label (:378). Contract word_identity.fallback_when_md5_absent says a word not in the dictionary 'is rejected with rejection_code', and LDRI-11's verify says it 'returns the reject code'. Neither pins an HTTP status. This controller already answers some outcomes with 200 plus success/data.status (AppQyV1WordMediaController.php:209-217). Probe: {'success': False, 'error_code': 'WORD_NOT_FOUND', 'error': 'Word not found'} with no http_status raises RuntimeError('Word not found'), so the row retries every 300 s at most, forever. That is the poison B2 exists to remove."
+      ],
+      "required_fix": "Recognize the rejection code independent of the HTTP status. Add an error_code argument to is_terminal_delivery_rejection that returns True when it equals WORD_NOT_FOUND_REJECTION_CODE. At :366-368, pass receipt.get('error_code') and also treat receipt_status == WORD_NOT_FOUND_REJECTION_CODE (data.status) as terminal. Keep every other branch as it is. The domain-report path passes no code, so its truth table does not change. Re-run the same in-process probe, adding the no-status WORD_NOT_FOUND case and a data.status 'WORD_NOT_FOUND' case."
+    },
+    "pycore-ai-D7P2-B3": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "word_audio_cache.py:128 adds the _pending map, and :132 adds _load_finished, which is set only in _finish_load (:191) and never reset. note_stored (:244-245) writes live only when the load has finished or the language is installed, and otherwise writes to _pending. _install (:166-175) pops pending entries and merges them newest-wins. _finish_load (:178-191) folds leftover pending languages in. The decision does not depend on _loading (checked in the source).",
+        "Probe on a temporary cache root (_get_cache_dir and migrate_legacy_names patched, nothing written to the app data dir). A store before the load leaves lookup_many None, and find_cached_many falls back to the scan and finds all three words (the D7P2 regression scenario). Then the REAL load_all ran on a thread with the 'fr' scan gated. 'en' was already live. A concurrent store into 'fr' during its scan kept 'fr' None, and find_cached fell back to the scan. A language directory created mid-load stayed pending. After the gate was released, 'fr' held the scan result plus the pending store, the mid-load language was folded in at finish, a post-load new language went live at once, and _pending ended empty.",
+        "Every writer of the word cache calls note_stored: save_to_cache (:273), store_bytes (:336) and kokoro_batch through save_to_cache. The one load_all caller is the boot chain (event_handlers.py:453), guarded once by _RUNTIME_STEPS_COMPLETED."
+      ]
+    },
+    "pycore-ai-D7P2-B4": {
+      "claimed": "done",
+      "result": "confirmed_with_cleanup",
+      "evidence": [
+        "audio_queue_center.py:94 AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS = 180.0 is the default of wait_for_restore (:822-823). capability_sync.py:22-26 and audio_lane_full_sync.py:32-35 import it. No other 180.0 literal and no _AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS remain under pycore/ or pyapps/.",
+        "Both call sites log a False return with ColorPrint.yellow (capability_sync.py:34-39, audio_lane_full_sync.py:124-129). ColorPrint was already imported at the top of both files.",
+        "Probe: all three modules hold the identical object, and the signature default is that same object."
+      ],
+      "notes": [
+        "audio_lane_full_sync.py:49 keeps RESTORE_WAIT_TIMEOUT_SECONDS as a class alias, and :124 and :128 read the alias. The item asks for the shared constant at that call site. The member's report says 'grep confirmed no leftover references to the old per-file constant names', which is inaccurate. This is part of the round-2 cleanup (issues[1])."
+      ]
+    }
+  },
+  "issues": [
+    "B2 (requirement clause and contract, blocking): pycore/pyctl/tts/audio_resource_delivery.py:71-95 and :364-379. The contract rejection_code WORD_NOT_FOUND is not recognized; it is only the skip label. An md5-less word rejected with error_code WORD_NOT_FOUND (or data.status WORD_NOT_FOUND) on a non-4xx response raises RuntimeError and retries forever (probe: no-status WORD_NOT_FOUND gives RuntimeError('Word not found')). Fix: give is_terminal_delivery_rejection an error_code argument (True when it equals WORD_NOT_FOUND_REJECTION_CODE), and at :366-368 pass receipt.get('error_code'), also treating receipt_status == WORD_NOT_FOUND_REJECTION_CODE as terminal. The domain-report caller passes no code, so its behavior is unchanged.",
+    "Rules cleanup in the new hunks (comments and alias only, same round): (a) audio_queue_center.py:89 adds a non-ASCII section sign 'R6/§5.4' (PYTHON_PYCORE.md section 1 'ASCII only'); write 'R6 section 5.4'. (b) audio_queue_center.py:91-93 '(was duplicated in capability_sync.py and audio_lane_full_sync.py)' and audio_resource_delivery.py:370 '(LDRI-11: word/audio/upload still requires md5)' are change-history or transient-status notes (AGENTS.md 'no progress summaries in source files'); drop them. (c) audio_lane_full_sync.py:47-49: remove the class alias RESTORE_WAIT_TIMEOUT_SECONDS and use AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS directly at :124 and :128 (B4 'use it at audio_lane_full_sync.py:121'; centralized constants, one name)."
+  ],
+  "non_blocking": [
+    "B2 (inherited from the shared rule, group decision): 401 and 403 count as terminal. An md5-less clip rejected with 401/403 during the client-key rollout settles as done (probe INFO). On a remote-diff server, the next Laravel diff re-opens a missing item (delivery_outbox.py:533-536); on a legacy local-diff server it does not. The requirement asks for exactly this rule ('4xx except 408/409/425/429', reuse _terminal_report_error), so it stays as it is until the group decides to exclude 401/403 for both callers.",
+    "B2: audio_resource_delivery.py:64 mirrors the contract rejection_code as a literal. Switch to a queue_center_contract accessor for word_identity.fallback_when_md5_absent.rejection_code once pycore-runtime exports one. None exists yet (queue_center_contract.py:582-583 only documents the key format).",
+    "B2: RETRYABLE_4XX_HTTP_STATUSES (audio_resource_delivery.py:68) repeats the pre-existing tuple in pycore/pyutils/tts/qwen/client.py:608 (qwen engine queue retry). pyutils cannot import pyctl. If the two should share one definition, move the tuple to a pyutils or pyfoundations constant as a later item.",
+    "B1: laravel_audio_worker_state.py:572 exempts every _local_source task, not only one that carries payload.cleaned_word. This is harmless while build_local_task is the only local producer. Tighten it only if another producer appears.",
+    "B3: word_audio_cache.py:166-175 _install no longer merges the current live mapping, and _begin_load accepts a second load after _load_finished (probe INFO: True). The boot chain runs load_all once, so this does not occur today. If a reload is ever added, keep the live-mapping merge or refuse the reload.",
+    "B4: AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS is imported by name from two modules but is not in audio_queue_center.__all__ (:1045-1063). Add it when the file is next touched.",
+    "Carried from p

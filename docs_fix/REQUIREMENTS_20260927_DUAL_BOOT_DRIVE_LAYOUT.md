@@ -300,6 +300,43 @@ D: is 1907.7 GB with 245 GB free.
 - Shrinking D: that far needs at least that much free space on D: first, which means cleaning class A and part of class B.
 - Nothing is deleted without explicit user approval. Before deleting the Linux-written trees, run a read-only `chkdsk D: /scan` first.
 
+## 8. P1b audit result (workflow `linux-ntfs-writers-audit`)
+
+The full plan is in `.claude/agents_shared/reports/p1b_linux_ntfs_audit.md`: 165 items, the writer of every D: artifact, 16 fix groups, the keep-on-NTFS list, the cleanup-after-fix list and the gaps.
+
+| Group | Owner lane | Scope |
+|---|---|---|
+| G1 contract | ca-orchestrator | move `frankenphp_root_posix` to ext4; add `pip` to `cache_subdirs`; decide the Linux-only state root (`legacy_linux_data_dir` `/var/_core_node`) |
+| G2 P1-fixup | this session (consolidated D24–D30 round) | the P1 reads of removed contract keys made `CN_TREE_CACHE_ROOT` empty; `PIP_CACHE_DIR`/`XDG_CACHE_HOME` to ext4; `PYTHONPYCACHEPREFIX` |
+| G3 local root | shell-linux | `runtime_environment.sh` `CORE_NODE_LOCAL_DIR` (ext4, fail closed on NTFS); fix the stale `/www/core_node` data dir that created `D:\core_node` |
+| G4–G10 | shell-linux | literal `/www/core_node` fallbacks; temp dirs to `GLOBAL_TEMP_DIR`; launchers/unified-manager state to the local root; service logs to `/var/log` + `RequiresMountsFor=/www`; installer caches (uv.toml, pnpm cache-dir, `GEM_SPEC_CACHE`, `check_global_packages.js`); toolchains (Android SDK, DeepSeek) to the compile dir; `_build_dir` |
+| G11 | shell-linux | Linux `project_tree_common.sh` (counterpart of `ProjectTreeCommon.ps1`) wired into composer/start helpers; rollout after P6 |
+| G12 | mcp-chrome / dingdoudou owners | tree ensure before `bun`/`pnpm install` |
+| G13 | wordnew | start scripts: tree ensure, logs, Caddyfile, gradle cache |
+| G14 | pycore-laravel | deploy scripts tree ensure; Linux compiled caches off NTFS; PathMapper mirrors; `_build_dir` factory |
+| G15 | pycore | `system_paths.py` compile base / XDG / pip mirrors; whisper `download_root`; `scrcpy` per-OS dir |
+| G16 | ncore | `globaldir.js` created `D:\.dev_debian13`, `D:\.dev_linux` and `/www/static_*`; XDG mirror; `config_loader.js` cwd cache |
+
+Artifact attribution:
+- `D:\.dev_debian13` and `D:\.dev_linux` come from ncore `globaldir.js`.
+- `D:\core_node` comes from the stale `CORE_NODE_DATA_DIR` in `runtime_environment.sh`.
+- `D:\www\cache\*` desktop and tool caches come from `XDG_CACHE_HOME=/www/www/cache`.
+- `D:\.Trash-*` comes from GUI deletes (fixed by the trash blocker).
+- `D:\.cache\.check` comes from `check_global_packages.js`.
+- `D:\programing\_build_dir` comes from `smart_permissions.sh`, on every `dd.sh` start.
+- `D:\_debian_13` was created on Windows at 16:11:57; its creator is unknown.
+
+User decision (2026-09-27): before P6, Linux uses the per-project runtime bind immediately.
+- At start, Linux binds ext4 `<trees_root.linux>/<ns>/<dir>` over the plain in-repo `node_modules`/`vendor`/`.venv`, guarded by `mountpoint -q`. This needs sudo.
+- It applies while Windows has no E: and the repo entries are plain directories, so it does not depend on the P6 junction-translation proof.
+- G11 is therefore not gated on P6 for plain directories. Only the Windows-junction path (E: present) waits for P6.
+
+Remaining decisions for the user:
+- Gitea data, Laravel `storage/logs` and `storage/framework` shared by both OSes, pycore app logs dir, the Laravel tmp dir, and the fishspeech editable install.
+- Cleanup approvals after the fixes (listed in the plan).
+
+To verify on the Linux host: `readlink -f /var/_core_node; findmnt -T /var/_core_node`. Linux writes reached `D:\www\core_node\Users\Kimi2`, which suggests `/var/_core_node` links into `/www`.
+
 ## 6. Status log
 
 - 2026-09-27: P0 recorded. D1 to D3 were delivered earlier in this session.

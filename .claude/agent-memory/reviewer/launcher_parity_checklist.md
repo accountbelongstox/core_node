@@ -35,6 +35,12 @@ Gaps that both owners' ledgers marked "aligned" in the D13 parity check (shell-w
   - A Windows fix that removes `<session>.pid` only after `& claude` misses the remote pane branch: `Invoke-ClaudeTeamRemoteLoop` returns on errors, and its documented stop is Ctrl-C.
   - It also misses terminating errors.
   - Require try/finally around the whole pane body. Linux does not need it, because its pane process exits.
+  - The accepted fix shape (approved in G1 round 2):
+    - the finally calls Remove-ClaudeTeamPidFile, which removes the file only when it holds $PID;
+    - a PS `try` creates no new scope, so dot-sourcing inside it is safe;
+    - PS runs finally on Ctrl-C.
+  - Residual gap to check: the PID file is written in Initialize-ClaudeTeamPane before the `try` starts.
+  - When the owner reports "no edits this invocation", find the fix commit with `git diff <last-reviewed-backup>..HEAD` (G1 r2: 0b6f362e3). Check `git diff -w`, because a try-wrap shows as a large reindent.
 - **Same-round counterpart work makes "pending" rows stale.**
   - Owners often write "Linux has the identical bug" from an older snapshot.
   - Before accepting a pending row or a cross-scope request, check the counterpart code with `git show <latest backup>:file` and the working tree, and check its ledger.

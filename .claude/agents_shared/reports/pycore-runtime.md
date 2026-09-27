@@ -80,12 +80,74 @@ scope, so both were implemented here rather than deferred. Diff base for review:
     files/dirs are created normally.
   - EOL: `git diff --numstat` equals `--ignore-space-at-eol` for both files; `agent_history_txt.py` stayed all-CRLF (453/453 lines), `prompt_archive.py` stayed all-LF (137/137 lines) — no line-ending churn, no header re-added.
 
+### Round 2 (review `.claude/agents_shared/reviews/pycore-assist-D7-fix.json`, `issues[0]`): done (awaiting review)
+
+- Blocking issue: `prompt_archive.py:121-128` re-implemented the same
+  `os.name == "nt"` skip / `os.chmod` try / `ColorPrint.yellow` log sequence that this same
+  change had just added as `agent_history_txt.py:45-54` `_restrict_mode` — a duplicate
+  implementation (AGENTS.md "reuse or upgrade existing components" / "remove duplicate
+  implementations"; PYTHON_PYCORE.md "shared libraries over copies").
+- Fix, one shared public helper, kept in `agent_history_txt.py` (chosen over `root_spool.py`
+  because it sits next to `SPOOL_DIR_MODE`/`SPOOL_FILE_MODE`'s only other two call sites,
+  `_restricted_dir` and `_atomic_write`, in the same module):
+  - `agent_history_txt._restrict_mode` renamed to public `restrict_mode(path, mode, label)`;
+    both of its existing call sites (`_restricted_dir`, `_atomic_write`) updated to the new
+    name. Docstring gained one line noting it is shared by both stores.
+  - `prompt_archive.py` imports `restrict_mode` alongside `store_dir` from
+    `agent_history_txt` and replaces the inline block with
+    `if has_root_only: restrict_mode(path, root_spool.SPOOL_FILE_MODE, "Prompt archive")`.
+  - Now-unused imports dropped from `prompt_archive.py`: `import os` and
+    `from pycore.pyfoundations.pybasecommon.color_print import ColorPrint`. The log message
+    is unchanged byte-for-byte (`label` fills the position the literal "Prompt archive" held).
+  - Folded in the review's non-blocking docstring-duplication note in the same edit: the
+    3-line inline comment that repeated the module docstring paragraph (`:21-26`) is now one
+    line, `# See ``ARCHIVE_ROOT_ONLY_FIELD`` in the module docstring above.`
+  - Decision recorded per the review's non-blocking item: no `chown` is applied anywhere in
+    either file. The non-root worker process must keep append/write access to files it
+    creates, so it cannot chown them to `root` even if it wanted to; only the mode is
+    tightened. This is unchanged behavior, carried over from the round-1 fix.
+  - The other non-blocking items (`_tighten_mode`-style `st_uid`-gated chmod to avoid a
+    yellow log line on every `store_dir()`/`sessions_dir()` call against a store owned by
+    another uid; chmod-before-`os.replace` ordering in `_atomic_write`) are left as filed —
+    optional, and out of the round-2 blocking scope.
+- Re-verification:
+  - `grep -rn "_restrict_mode\b" .` (whole repo) → empty; no caller depended on the old
+    private name.
+  - `grep -rn "restrict_mode" pycore/pyctl/agent_history` → exactly the one definition in
+    `agent_history_txt.py` and its three call sites (two in `agent_history_txt.py`, one in
+    `prompt_archive.py`).
+  - `grep -rn 0o666 pycore/pyctl/agent_history` → empty.
+  - `py_compile` on `prompt_archive.py`, `agent_history_txt.py`, `agent_history_service.py`,
+    `root_spool.py` → all OK.
+  - Free RAM checked before verification: 3.63 GB (>= the 3 GB guard), so both scratch runs
+    from round 1 were re-executed rather than skipped:
+    - Windows (native `python`, monkeypatched `_SHARED_STATE_DIR`/`_LEGACY_DIR` to a fresh
+      `tempfile.mkdtemp()`): `store_dir`/`sessions_dir`/`write_state`/`write_prompts` and
+      `archive_prompts` (one ordinary batch, one `ARCHIVE_ROOT_ONLY_FIELD=True` batch) all
+      complete with no exception; chmod is skipped (`os.name == "nt"` branch taken).
+    - WSL Debian (`wsl.exe -d Debian -- python3 <scratchpad>/verify_d7p2_round2_wsl.py`, same
+      script, POSIX repo path, fresh temp dir, no repo state touched): a batch with no
+      root-only prompt leaves its `.jsonl` at the umask default (`0o644`, not `0o666` and not
+      restricted); a batch with one `ARCHIVE_ROOT_ONLY_FIELD=True` prompt restricts that
+      tool's `.jsonl` to `0o640` (`root_spool.SPOOL_FILE_MODE`); `store_dir()` is `0o750`
+      (`root_spool.SPOOL_DIR_MODE`); printed `ALL_OK` on both platforms.
+  - EOL unchanged: `git diff --numstat 74e7770` still equals `--ignore-space-at-eol` for both
+    files (32/7 `agent_history_txt.py`, 22/14 `prompt_archive.py` after round 2, up from
+    round 1's 29/7 and 29/11). Byte counts: `agent_history_txt.py` 456/456 lines all `\r\n`;
+    `prompt_archive.py` 127/127 lines all `\n`. No BOM, no header re-added.
+
 ### Cross-scope notes
 
-- None. Both files (`prompt_archive.py`, `agent_history_txt.py`) are inside
+- None new. Both files (`prompt_archive.py`, `agent_history_txt.py`) are inside
   `pycore/pyctl/agent_history/`, which the current (D22) map assigns to pycore-runtime; no
   other role's path was touched. `agent_history_service.py` (the caller) was read but not
   edited, per the M-1 instruction to keep that line.
+- Carried over from the round-1 review's `cross_scope` (informational, not fixed here — not
+  in pycore-runtime's write scope): `scripts/shells/linux/common/scan_shared_cache.sh:169-170`
+  (`chmod -R a+rX $SHARED_ROOT`) re-widens `pycore/.ai_state/agent_history` to world-readable.
+  It is a manual utility with no caller in the repo, and `store_dir()` re-tightens the
+  directory on its next call, so this does not block round 2. For the orchestrator to route
+  to shell-linux: exclude `pycore/.ai_state` from that recursive chmod.
 - Pre-existing, unrelated: `pycore/pyctl/assist/capability_sync.py`,
   `pycore/pyctl/tts/{audio_lane_full_sync,audio_resource_delivery,laravel_audio_delivery}.py`
   and `pycore/pyutils/tts/{audio_queue_center,word_audio_cache}.py` show as modified in the
@@ -98,11 +160,13 @@ No pycore or Laravel service was started, stopped or restarted for this task; th
 changed modules only affect agent-history extraction, which the next pycore start or the
 next `extract()`/`live_scan()` call picks up.
 
-Changed files (this task):
+Changed files (this task, rounds 1+2):
 - `pycore/pyctl/agent_history/prompt_archive.py`
 - `pycore/pyctl/agent_history/agent_history_txt.py`
 
-Blockers: none. Next owner: reviewer, for `.claude/agents_shared/reviews/pycore-assist-D7-fix.json`.
+Blockers: none. Round 1's single blocking issue (`issues[0]`, the duplicate chmod helper) is
+fixed and re-verified above. Next owner: reviewer, for round 2 of
+`.claude/agents_shared/reviews/pycore-assist-D7-fix.json`.
 
 ## pycore-runtime-D7
 

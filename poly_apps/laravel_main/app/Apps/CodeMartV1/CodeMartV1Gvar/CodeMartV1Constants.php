@@ -15,6 +15,12 @@ class CodeMartV1Constants
     public const ROLE_STATUS_ACTIVE = 'active';
     public const ROLE_STATUS_SUSPENDED = 'suspended';
     public const ROLE_STATUS_REJECTED = 'rejected';
+    public const ROLE_STATUSES = [
+        self::ROLE_STATUS_PENDING,
+        self::ROLE_STATUS_ACTIVE,
+        self::ROLE_STATUS_SUSPENDED,
+        self::ROLE_STATUS_REJECTED,
+    ];
 
     // Deposit Amounts (CNY)
     public const DEPOSIT_DEVELOPER = 5000;
@@ -780,12 +786,7 @@ class CodeMartV1Constants
             'contract_version' => self::CONTRACT_VERSION,
             'min_supported_ui_version' => self::MIN_SUPPORTED_UI_VERSION,
             'states' => [
-                'role' => [
-                    self::ROLE_STATUS_PENDING,
-                    self::ROLE_STATUS_ACTIVE,
-                    self::ROLE_STATUS_SUSPENDED,
-                    self::ROLE_STATUS_REJECTED,
-                ],
+                'role' => self::ROLE_STATUSES,
                 'project' => self::getAllProjectStatuses(),
                 'task' => self::getAllTaskStatuses(),
                 'submission' => self::getAllSubmissionStatuses(),

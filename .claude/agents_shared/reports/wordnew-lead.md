@@ -88,3 +88,22 @@
   - LDRI-22-timer uses `purgeExpired(): int`.
 - Changed files (mine): the verdict file and this report section.
 - Next owner: wordnew-laravel (G1 round 2).
+
+## Review wordnew-laravel-G1 (round 2)
+
+- Verdict: approved, with issues []. File: `.claude/agents_shared/reviews/wordnew-laravel-G1.json`.
+- The round 2 hunks are in the user's sweep commit `0b6f362e3`, and the working tree is clean for the G1 files.
+- LDRI-22: `batchExpired` is now `return $state === null || (int) ($state['updated_at'] ?? 0) < $cutoff;`. The API is unchanged: `public function purgeExpired(): int`. I re-ran `purge_verify.php` natively (`deleteNative` is now in HEAD): it returned 4, then 0. The idle processing batch was removed, and the fresh processing batch was kept.
+- MCHR-27b: `coverImageUrl` now returns `versionedCoverUrl($library)`. Both recommendation list GETs make 0 writes, and image_url is identical for 8/8 and 6/6 rows. No path under app/ calls `getCoverData` now. That is safe: both listings are public-only, `seedMissingCovers` covers lazy init, and the claim order is `cover_last_requested_at` ascending.
+- Report and memory: the text now says LF (`.gitattributes eol=lf`). No file was converted.
+- Checks: php -l passes on 4 files, and `route:list --path=app_qy_v1` shows 329 routes. Live, /api/health, recommendations and libraries all returned 200. Free RAM was 3.68 GB.
+- Non-blocking:
+  - the member's report and memory still say `deleteNative` and the round 1 changes are uncommitted, and that delete is sudo-rm only;
+  - carried from round 1: the srv-07b per-language ensure ruling and LDRI-28 risk (a).
+- Cross-scope (to pycore-laravel via the orchestrator):
+  - LDRI-22-timer uses `purgeExpired(): int`;
+  - the MoviePosterStore/WordGeminiImageTaskProcessor index hooks;
+  - the stale `AppQyV1CoverGenerationTask` comments;
+  - `rename()` is still sudo-only.
+- Changed files (mine): the verdict file and this report section.
+- Blockers: none. Next owner: orchestrator (G1 is complete; route the cross-scope items and the srv-07b ruling).

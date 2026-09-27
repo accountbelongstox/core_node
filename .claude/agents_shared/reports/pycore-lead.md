@@ -382,3 +382,23 @@
 - Cross-scope, for shell-linux via the orchestrator (informational): `scan_shared_cache.sh:169-170` `chmod -R a+rX` re-widens the store.
 - Changed files (this task): the verdict file and this report only.
 - Blockers: issues[0]. Next owner: pycore-runtime (round 2).
+
+## Review pycore-ai-D7P2-fix (round 1, member pycore-ai)
+
+- Verdict: approved. File: `.claude/agents_shared/reviews/pycore-ai-D7P2-fix.json`. Base 74e7770. The fix hunks are 5bbb23682..HEAD: B1 is in 4ddb4be8e and B2-B4 are in 2f31f9cd3. HEAD is 0b6f362e3, and the working tree is clean for pycore-ai paths.
+- B1: `laravel_audio_worker_state.py:572,592` makes md5 required only for Laravel-sourced tasks. A local md5-less task normalizes with md5 '' and keys as 'en:text:hello'. A Laravel task without md5 still errors.
+- B2: `audio_resource_delivery.py:64-95` adds one shared rule, `is_terminal_delivery_rejection`, and `laravel_audio_delivery.py:61-64` delegates to it (the truth table is unchanged). In `_deliver_resource` (:364-379), an md5-less 4xx now settles DONE/WORD_NOT_FOUND, except 408/409/425/429. It was verified through the real `_deliver_resource` with the upload patched (the LDRI-11 400 body and the 404 errorWithCode shape).
+- B3: `word_audio_cache.py` adds a `_pending` map and a `_load_finished` flag. The unloaded-language false-miss regression is gone: lookup_many returns None and the directory scan finds all words. The install merge, the mid-load new language and the post-load new language all behave correctly.
+- B4: the constant is defined once, `audio_queue_center.py:94` AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS, which is also the default of `wait_for_restore`. `capability_sync.py:34-39` and `audio_lane_full_sync.py:124-129` import it and log a timeout.
+- Non-blocking (recorded in the verdict):
+  - Recognize error_code WORD_NOT_FOUND independent of the HTTP status.
+  - Replace the local WORD_NOT_FOUND literal with a contract accessor (needs pycore-runtime).
+  - 401/403 count as terminal in the shared rule; decide this as a group item.
+  - B1 checks _local_source only.
+  - `_install` no longer merges a live mapping, which matters only if load_all runs again.
+  - The class alias in `audio_lane_full_sync.py:47-49`, and the constant is not in `__all__`.
+  - `audio_queue_center.py:89` adds a non-ASCII section sign, and there are history notes at :92-93 and `audio_resource_delivery.py:370`.
+- Checks: ast/py_compile on all 7 files. The EOL gate is clean (100% CRLF at every revision, and numstat matches with and without --ignore-space-at-eol). Boundaries are clean. The probe `scratchpad/d7p2_fix_probe.py` ran in-process at 3.23 GB free RAM, with the network patched and a temporary cache dir: 33/33 PASS, and no python.exe was left running. Nothing was built, tested or restarted, and no git writes were made.
+- Decision: approved rather than changes_requested, because every stated behavior is met and probed. The open points are cleanups whose failure modes do not occur with the current producers.
+- Changed files (this task): the verdict file and this report only.
+- Blockers: none. Next owner: pycore-lead (group merge). The follow-ups ride with pycore-ai-G1 and the pycore-runtime queue_center_contract export.

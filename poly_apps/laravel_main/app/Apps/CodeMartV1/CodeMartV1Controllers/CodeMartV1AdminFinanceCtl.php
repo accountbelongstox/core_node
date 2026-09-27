@@ -67,7 +67,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->approveRefund($refundId, $adminId, $notes),
-            'Refund approved'
+            __('codemart.messages.refund_approved')
         );
     }
 
@@ -76,7 +76,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->rejectRefund($refundId, $adminId, $notes),
-            'Refund rejected',
+            __('codemart.messages.refund_rejected'),
             true
         );
     }
@@ -96,7 +96,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
                     'idempotent_replay' => $result['replayed'],
                 ];
             },
-            'Refund processed'
+            __('codemart.messages.refund_processed')
         );
     }
 
@@ -105,7 +105,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->rejectDeposit($depositId, $adminId, $notes),
-            'Deposit rejected',
+            __('codemart.messages.deposit_rejected'),
             true
         );
     }
@@ -115,7 +115,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->refundDeposit($depositId, $adminId, $notes),
-            'Deposit refunded'
+            __('codemart.messages.deposit_refunded')
         );
     }
 
@@ -136,7 +136,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->approveWithdrawal($withdrawalId, $adminId, $notes),
-            'Withdrawal approved'
+            __('codemart.messages.withdrawal_approved')
         );
     }
 
@@ -145,7 +145,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->rejectWithdrawal($withdrawalId, $adminId, $notes),
-            'Withdrawal rejected',
+            __('codemart.messages.withdrawal_rejected'),
             true
         );
     }
@@ -155,7 +155,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
         return $this->adminAction(
             $request,
             fn (int $adminId, ?string $notes) => $this->financeService->payWithdrawal($withdrawalId, $adminId, $notes),
-            'Withdrawal marked as paid'
+            __('codemart.messages.withdrawal_paid')
         );
     }
 
@@ -204,7 +204,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
     public function resolveDispute(Request $request, int $paymentId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'resolution' => 'required|in:' . CodeMartV1Constants::DISPUTE_RESOLUTION_REFUND . ',' . CodeMartV1Constants::DISPUTE_RESOLUTION_COMPLETE,
+            'resolution' => 'required|in:' . implode(',', CodeMartV1Constants::DISPUTE_RESOLUTIONS),
         ]);
         if ($validator->fails() && AuthHelper::requireAdmin($request)) {
             return $this->codedError('validation_failed', __('codemart.messages.validation_failed'), $validator->errors(), 422);
@@ -218,7 +218,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
                 $adminId,
                 $notes
             ),
-            'Dispute resolved'
+            __('codemart.messages.dispute_resolved')
         );
     }
 }

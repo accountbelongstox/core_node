@@ -277,6 +277,20 @@ show_app_install_menu() {
     read -r -p "Press Enter to continue..."
 }
 
+# Function to show Tailscale Management menu (status, devices, restart, panel;
+# install/reconfigure delegates to 97_install_tailscale.sh). See
+# scripts/shells/linux/common/tailscale_common.sh for the shared logic.
+show_tailscale_management_menu() {
+    local tailscale_menu_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/tailscale_menu.sh"
+    if [ -s "$tailscale_menu_script" ]; then
+        bash "$tailscale_menu_script"
+    else
+        echo "Error: tailscale_menu.sh not found at $tailscale_menu_script"
+        echo ""
+        read -r -p "Press Enter to continue..."
+    fi
+}
+
 # Slim GPU->CPU: run the torch + onnxruntime CPU guards (idempotent). On a host with
 # no NVIDIA GPU these switch CUDA builds back to CPU and purge nvidia-* wheels,
 # reclaiming disk; with a GPU (or already CPU) they no-op. See common/*_cpu_guard.sh.
@@ -574,6 +588,7 @@ show_linux_system_tools_submenu() {
             "Show System Information"
             "RustDesk Server Install Info (Key & Ports)"
             "APP Install"
+            "Tailscale Management (status, devices, restart, panel)"
             "Slim & Disk Cleanup (scan, caches, logs, GPU/Snap/Apache slim)"
             "Management & Backup"
             "User Management"
@@ -604,9 +619,10 @@ show_linux_system_tools_submenu() {
             5) show_system_information ;;
             6) show_rustdesk_install_info ;;
             7) show_app_install_menu ;;
-            8) show_slim_disk_submenu ;;
-            9) show_management_and_backup ;;
-            10) show_linux_user_management_menu ;;
+            8) show_tailscale_management_menu ;;
+            9) show_slim_disk_submenu ;;
+            10) show_management_and_backup ;;
+            11) show_linux_user_management_menu ;;
         esac
     done
 }

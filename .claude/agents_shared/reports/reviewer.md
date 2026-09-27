@@ -90,6 +90,7 @@
 | shell-linux-1 | shell-linux | D10/D11/D13 Linux launchers, claude_team_install, SPL-101..112 | changes_requested (round 1, 17:19) | Spec §1-§6 items are present. bash -n passes on 6 files, all LF; shellcheck is not installed. Hand-recomputed packing: 213x52 gives 4 tabs, 227x57 gives 3, 284x72 gives 2. Lead >= 100x30 and roles >= 60x15 everywhere, every enabled role is placed once, and laravel-remote runs only as its ssh-loop pane. No settings/hooks/catalog/agents edits. 7 blockers, listed below. |
 | pycore-ai-D7 | pycore-ai | PRAO-07 prompt_derive source defaults use the central ai_sources ids | approved (round 1) | inspect.signature re-run: the defaults equal AI_SOURCE_PROMPT_DERIVE and AI_SOURCE_PROMPT_REWRITE. py_compile passes, and numstat is 3/2 both plain and with EOL ignored (LF only). The literal-grep hits at :31/:45 are the CONFIG_KEY_* template keys, so they are kept correctly. Non-blocking: derive is not in OPENROUTER_ATTEMPT_SOURCES (R3; pycore-assist if the panel should list it); a sideways pyctl/ai to agent_history import (required by the item); out of scope, pyutils/common/queue_center_contract.py has working-tree EOL churn (47/15 plain against 40/8 with EOL ignored), which belongs to its owner. |
 | shell-windows-G1 | shell-windows (group leader) | D13-WIN-BLOCKERS (the 6 shell-windows-1 blockers) + D13-WIN-CATALOG-LEDGER (window:false, SPW-020/023/025/036) | changes_requested (round 1, 20:45) | Base 74e7770; this round's hunks via 8f95a2a24..HEAD. The parser reports 0 errors in 5 files, all LF. Blockers 2-6 are confirmed; the grid hand-check at 2560x1600 gives 3 columns (max area) vs 4 (aspect 2.5), as reported. window:false rows get no tab, pane or wt segment. 2 blockers: the remote pane path keeps the PID file, and SPW-036 is stale pending-linux. |
+| shell-windows-G1 (r2) | shell-windows (group leader) | r1: remote-pane PID cleanup; SPW-036 status | approved (round 2, 21:10) | Both blockers are fixed in 0b6f362e3 (reviewed via 2f31f9cd3..HEAD 24674d1a6; base 74e7770). claudeteam.ps1:122-206 wraps the remote loop and the local `& claude` in one try/finally with Remove-ClaudeTeamPidFile, which runs only when the file holds $PID. SPW-036 is aligned, and the align request is withdrawn. The parser reports 0 errors in 5 files. CR count 0 in the tree, HEAD and the base. ClaudeTeamCommon/InstallCommon are unchanged since round 1. Non-blocking: 5 cleanups (see the JSON). |
 | laravel-api-D7-fix | pycore-lead | laravel-api-D7-B1 deferred to pycore-laravel with a validated native-delete patch | changes_requested (round 1, 20:37) | The deferral is correct: app/Utils belongs to pycore-laravel, and pycore-lead has no temporary-writer clause. The item is still open: FileSystemManager.php:602-636 is unchanged (mtime 15:59) and still sudo-only on Windows. A read-only link probe on PHP 8.5.2 CLI and FrankenPHP php-cli 8.5.11 confirms that a junction gives is_link=false and filetype 'unknown', and that RDI hasChildren is false for junctions and dir links, so the lstat filetype()==='dir' guard is right. Illuminate deleteDirectory (Filesystem.php:751) uses the unsafe isDir&&!isLink guard, so not reusing it is justified. Base 74e7770, head 2f31f9cd3. Same precedent as pycore-runtime-D7P2-fix. |
 
 ## Open blockers
@@ -102,17 +103,15 @@
     - prune verification: back-date scratch sessions to before 2026-09-26T15:04:41+00:00, in the same ISO format, and record the deviation from the item cap;
     - print every *_created flag.
   - Out of this task: `app/Support/{ContractDocument,QueueCenterContract}.php` in 2f31f9cd3 (20:30-20:31) needs its own task review.
-- shell-windows-G1 (leader shell-windows), round 1. Full notes are in `reviews/shell-windows-G1.json`.
-  1. `claudeteam.ps1:112-115`: the remote role pane returns without calling `Remove-ClaudeTeamPidFile`. This covers the loop's error returns (`ClaudeTeamCommon.ps1:1750-1762`) and its documented Ctrl-C stop (`:1766`). The idle -NoExit shell keeps `<session>.pid`, so the remote role shows running forever. Fix: wrap the pane body (the remote loop and `& claude`) in try/finally with `Remove-ClaudeTeamPidFile`, then extend SPW-023.
-  2. SPW-036 `pending-linux` is stale. Linux implements window:false: `claude_team_common.sh:458` emits it, `:609-611` sets no-window, and place_order skips those rows at `:1107`/`:1119`. `linux.md:45` records it aligned. Set SPW-036 to aligned and withdraw the cross-scope align request (`reports/shell-windows.md:364-374`). The orchestrator should NOT open `[shell-linux] align: SPW-036`.
-  - Non-blocking:
-    - ClaudeTeamCommon.ps1 still re-derives the root, winenvs and .claude paths that ClaudeTeamInstallCommon.ps1 declares;
+- shell-windows-G1 (leader shell-windows): closed, approved in round 2 (21:10). Full notes are in `reviews/shell-windows-G1.json`. Both round-1 blockers are fixed.
+  - Non-blocking cleanups left for a later task:
+    - ClaudeTeamCommon.ps1:25-29/:39 re-derive paths that ClaudeTeamInstallCommon.ps1 already declares;
     - the standalone args duplicate `Get-ClaudeTeamRoleClaudeArguments`;
-    - the header comment at `:18-20` and the log at `:1626` are stale;
+    - stale text at `:18-20`, `:342-345` and `:1626`;
+    - the PID file is written in Initialize-ClaudeTeamPane before the try block;
     - legacy `<mode>-<role>.pid` files are never removed;
-    - the inline 1 s tolerances should be one constant.
-  - shell-windows-1 blockers 1-6 are resolved by G1, except for the remote-pane gap above.
-- shell-windows-1 (owner shell-windows), round 1. Full notes are in `reviews/shell-windows-1.json`. Superseded by shell-windows-G1.
+    - the 1 s tolerances should be one constant.
+- shell-windows-1 (owner shell-windows), round 1. Full notes are in `reviews/shell-windows-1.json`. Superseded by shell-windows-G1, which is now approved.
   - Re-checked at 17:27 against DESIGN §3.1/§3.2 (17:24). The code is unchanged, so the verdict is still changes_requested. §3.2 supersedes my pending-linux request for the one-lead rule: Linux aligns it in SPL-110, so no align task is needed. §3.1 makes blocker 5 binding: switch to max area, column fill and lead-top.
   1. The idle pane shell counts as running forever: `ClaudeTeamCommon.ps1:1541`, `claudeteam.ps1:161-170`, and the `--name` map, which includes the shells. SPW-023 is also mislabeled "aligned" for the idle respawn.
   2. Only one hardcoded `session_env.lead` name is removed (`:1557-1560`).

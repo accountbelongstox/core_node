@@ -360,3 +360,52 @@ Alignment request for shell-windows (task shell-linux-1):
 
 - None.
 - Next owner: the reviewer (shell-linux-G1 verdict).
+
+## shell-linux-11: Tailscale management (D29) in dd.sh > Linux Management
+
+- Status: done, awaiting reviewer.
+- Source: `docs_fix` D29 (user request via dd.cmd/dd.sh menus), official-docs spec supplied in the task text (tailscale.com KB/docs + pkg.go.dev/tailscale.com/ipn/ipnstate, all URLs checked 2026-09-27). Windows counterpart: `scripts/shells/win/win_common/TailscaleCommon.ps1` (already existed on disk when this task started, see "Pre-existing state" below).
+
+### Pre-existing state found at task start
+
+Both `scripts/shells/linux/common/tailscale_common.sh` (this task's target file) and the Windows `TailscaleCommon.ps1` were already present and fully implemented on disk (git log: commit `7a23f57d0` "win0.0.1", an auto-commit, not something this run wrote). `97_install_tailscale.sh` was already updated to source the common library instead of declaring its own `TAILSCALE_SERVICE`/`is_tailscale_installed()`. None of the following existed yet, so this run did only the remaining, unfinished part of the task:
+- no menu wiring anywhere (the library's own doc comment already pointed at a `menu_itemshells/tailscale_menu.sh` that did not exist);
+- no parity ledger row (neither `linux.md` nor `windows.md` had a Tailscale row);
+- no `shell-linux-11` report section.
+
+### Changed files (this run)
+
+- `scripts/shells/linux/menu_itemshells/tailscale_menu.sh` (new): arrow-menu wrapper, paths resolved from its own location (matches `app_install_menu.sh`'s style). Items: Status, List Devices, Restart Service, Open Panel, Install/Reconfigure (delegates to `97_install_tailscale.sh`, not duplicated), Help, Back. Every action calls straight into `tailscale_common.sh`'s public functions (`ts_show_status`, `ts_show_devices`, `ts_restart_service`, `ts_show_panel`, `ts_show_help`); no logic re-implemented here.
+- `scripts/shells/linux/dd_helper/linux_management.sh` (not owned by the running dd.sh/menu_display.sh/permissions_repair_menu.sh lane, so free to edit): new `show_tailscale_management_menu()` wrapper (same `bash "<script>"` pattern as `show_app_install_menu`); new item "Tailscale Management (status, devices, restart, panel)" inserted into `show_linux_system_tools_submenu`'s `menu_items` array (position 8, between "APP Install" and "Slim & Disk Cleanup"); the `case` block's indices 8-10 were shifted to 9-11 to match. `upgrade_idx`/`back_idx` are computed from `${#menu_items[@]}` at runtime, so they needed no change.
+- `scripts/shells/linux/common/tailscale_common.sh`: one wording fix only, no logic change -- `ts_show_help`'s menu path corrected from "dd.sh > Linux Management > Tailscale Management" to "dd.sh > Linux Management > Linux System Tools > Tailscale Management" (the actual path, now that the item is wired in).
+- `.claude/agents_shared/shell_parity/linux.md`: new row `SPL-118`.
+
+No other file needed a change: `97_install_tailscale.sh` already reused the common library correctly, and `network_detect_common.sh`'s pre-existing `net_detect_tailscale_ipv4()` is already the one IPv4 source `ts_show_status` calls -- no second implementation was added anywhere.
+
+### Menu placement decision (no queued item needed)
+
+The task listed `dd_helper/menu_display.sh` and `dd_helper/permissions_repair_menu.sh` as files the running dd.sh plan owns (do not edit), but `dd_helper/linux_management.sh` -- the file that actually defines `show_linux_management_submenu()` and `show_linux_system_tools_submenu()` -- is a separate file in the same directory and was NOT on that list. Verified this by reading `menu_display.sh` itself: it only wires "Linux Management" -> `show_linux_management_submenu`, which is defined in `linux_management.sh`. So the entry went into `linux_management.sh`'s existing "Linux System Tools" submenu (alongside "NAT Gateway Configuration", "RustDesk Server Install Info", etc.), which needed no queued hook-in.
+
+### Verification
+
+- `bash -n` passes on all four touched/added files; all confirmed LF-only (0 CR via `tr -cd '\r' | wc -c`, not `grep -c` per this repo's own CRLF pitfall).
+- WSL Debian (`wsl.exe -d Debian`, systemd active per `/etc/wsl.conf` `[boot] systemd=true`, repo reachable at `/mnt/d/programing/core_node`), Tailscale NOT installed there (`command -v tailscale` empty) -- confirmed with `command -v tailscale && echo FOUND || echo NOTFOUND` after an earlier `which`-based probe gave a misleading `rc=0` (this minimal Debian image has no `which`, only the bash builtin `command -v` is reliable here):
+  - `bash tailscale_common.sh status` -> `CLI installed: no`, `Service unit: tailscaled.service not found` (rc 0, no exit-code-as-return-value).
+  - `bash tailscale_common.sh devices` -> `Tailscale is not installed; no devices to list.`
+  - `bash tailscale_common.sh restart` -> `Tailscale is not installed; nothing to restart.` (confirms no restart is attempted when absent -- read-only-safe).
+  - `bash tailscale_common.sh panel` -> printed both documented URLs (admin console + Quad100 local UI) and correctly skipped `xdg-open` ("No desktop session detected"; `HAS_DESKTOP_ENVIRONMENT` unset in this shell).
+  - `bash tailscale_common.sh help` -> dispatcher usage + the five official doc links.
+  - `DD_AUTO_CONTINUE=1 timeout 10 bash tailscale_menu.sh` -> exits immediately with rc 0 (arrow_menu.sh's non-interactive probe returns the back index without blocking, confirming the new menu script is safe to invoke from a non-TTY/CI context).
+- Per the task's explicit instruction, no `tailscale up`/`down`/`set`/`restart` was ever actually run against a live install (none was installed here to run it against in the first place); every call above is read-only or a documented no-op.
+
+### Parity ledger
+
+- New row `SPL-118` in `linux.md`: `aligned` against `scripts/shells/win/win_common/TailscaleCommon.ps1` (`Get-TailscaleInstallInfo`, `Show-TailscaleStatus`, `Show-TailscaleDevices`, `Restart-TailscaleServiceElevated`, `Show-TailscalePanel`, `-Action Status|Devices|Restart|Panel|Help`) -- read side by side with the Linux file; both implement the same official-docs command set (status --json BackendState, the Self+Peer device table with the same connection-label precedence direct/peer-relay/relay, the two documented panels, `systemctl restart tailscaled` / `Restart-Service -Name Tailscale`).
+- No `pending-windows` row was left: Windows already had the full counterpart on disk before this task started.
+- Not actioned (informational only, no alignment task needed): `.claude/agents_shared/shell_parity/windows.md` has no Tailscale row of its own yet (verified by reading it -- only an unrelated `SPW-034` entry matched the grep). Since the Linux row here already documents both sides as aligned, shell-windows does not need to change any code; it may want its own ledger entry pointing back at `SPL-118` for its own bookkeeping, but that is house-keeping, not a required change.
+- `ListAgents` in this session shows only `core-node-e9` (busy) and `ct-laravel-remote` (idle) -- no `shell-windows`/`ct-shell-windows` peer to message directly, matching what shell-linux-G1's report already noted about this environment. Recording the above here instead, per the task's third option ("in a workflow write it in your result").
+
+### Blockers
+
+- None.
+- Next owner: the reviewer (shell-linux-11 verdict).

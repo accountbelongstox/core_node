@@ -9,6 +9,8 @@
 | shell-windows-G1 | D13 group task: fixed the 6 reviews/shell-windows-1.json blockers (idle-shell liveness, session_env.lead clear, standalone `--agent` role spec, `--name` session filter, max-area/column-fill grid, duplicate constants) and D22 schema-7 `window:false` service-role support | done, awaiting reviewer |
 | amend-windows | D27 amendment: dual-boot layout dropped the tree root/subdir on both OSes; `SharedCacheEnv.ps1` re-worked to `CN_CACHE_ROOT`/`CN_CACHE_SUBDIR_NAMES` under `CN_TOOL_ROOT`, `.cn_volume` marker relocated to the drive root, no junction logic on Windows | done, awaiting reviewer |
 | shell-windows-10 | Answer the D27 question ("/opt/core_node_trees/www/core_node_trees, what is it for, remove if useless") for the Windows side; re-verify shell-windows-9 was not regressed | done (investigation only; no code changes needed on the Windows side) |
+| shell-windows-10 (D29) | Tailscale management: common library + Windows Management menu entry (status/devices/restart/panel), verified live against the running install, parity checked against shell-linux's own already-built counterpart | done, awaiting reviewer |
+| amend-windows-d28d30 | D28/D30 lane: verified `SharedCacheEnv.ps1` + new `ProjectTreeCommon.ps1` against the current contract (namespaces/tool_root/cache_root/trees_root/toolchain_env_file), re-ran the 7-state junction scratch test, updated the stale SPW-035 ledger row | done, awaiting reviewer (no code changes needed -- files were already correct) |
 
 ## shell-windows-2: D12a desktop icon organizer
 
@@ -388,13 +390,26 @@ Non-blocking (reviewer-accepted or informational; not required this round, left 
 
 **Review round 1 correction:** the original write-up here claimed SPW-036 (`window:false` service roles) was `pending-linux` and asked the orchestrator to open `[shell-linux] align: SPW-036 window:false service-role catalog support`. That was wrong: Linux already implements `window:false` -- `claude_team_common.sh:458` (the python parser emits `window`), `:609-611` (`claude_team_validate_roles` sets `no-window` state with no `ROW_ACTION`) and `claude_team_place_order` `:1107`/`:1119` (skips rows that are not `place`) -- landed in the same backup commit `4ddb4be8e`, and `linux.md:45` already records SPW-036 `aligned` (task `shell-linux-G1`). The ledger row is now `aligned` (see `windows.md` SPW-036). **This alignment request is withdrawn; no `[shell-linux] align: SPW-036 ...]` task is needed.**
 
+### Second confirmation pass (this invocation, HEAD `24674d1a6`)
+
+This session was dispatched the same reviews/shell-windows-G1.json round-1 issues again. `git status` on the three write-scope files plus `windows.md` and this report was already clean going in (0b6f362e3/2f31f9cd3/4ddb4be8e already carried the round-1 fixes above; the later `7a23f57d0`/`24674d1a6` commits touch unrelated files only, confirmed by `git log 8f95a2a24..HEAD` and per-commit `--stat` on those two hashes), so no new edits were needed. Independently re-ran the checks the two blocking issues require, starting from a fresh read of the working files rather than trusting the prior write-up:
+
+- `claudeteam.ps1:110-206`: the pane body (remote-loop branch and local-claude branch alike) is wrapped in one `try { ... } finally { if ($null -ne $paneRow) { Remove-ClaudeTeamPidFile -Session $paneRow.Session } } ` -- confirmed by re-reading the file top to bottom; `Remove-ClaudeTeamPidFile` appears exactly once (the `finally` block), not also at the old post-`& claude` call site.
+- `windows.md` SPW-036: reads `aligned (Linux: claude_team_load_catalog, claude_team_validate_roles, claude_team_place_order)`; grep for `pending-linux` near SPW-036 and for the old `claude_team_load_catalog does not emit roles[].window` text: no hits.
+- This report: grep for `align: SPW-036`: only the historical withdrawal narrative above remains, no active alignment request.
+- `[System.Management.Automation.Language.Parser]::ParseFile` re-run on all three write-scope files: **0 errors**.
+- Line endings: `claudeteam.ps1`, `ClaudeTeamCommon.ps1`, `ClaudeTeamInstallCommon.ps1` all still 0 CR bytes (LF-only).
+- Grep for `$teammateMode`, `$ClaudeTeamInstallCatalogPath =`, `$ClaudeTeamInstallUserClaudeDir =` across `scripts/`: `$teammateMode` has no hits in `claudeteam.ps1`/`ClaudeTeamCommon.ps1` (the remaining hits are the unrelated `ark*.ps1`/`claude1..5.ps1`/`claudealibaba.ps1`/`claudedeepseek.ps1`/`claudevolc.ps1`/`claudezhipu.ps1` standalone launchers and the `special_software_env_manager` codegen templates that produce them, none in this task's write scope); the two Install-prefixed constants are each declared exactly once, in `ClaudeTeamInstallCommon.ps1`.
+
+No further edits were made; the fixes and their round-1 write-up above already reflect the current, correct state. No `.claude/agents_shared/reviews/shell-windows-G1.json` update to `approved` has appeared yet (still the `changes_requested` verdict from the round this section addresses), and no `reviewer` teammate/session was reachable via `ListAgents` in this invocation (peers were `core-node-e9` and `ct-laravel-remote` only) to message directly, so the outcome is recorded here for the orchestrator to route to the reviewer for re-check.
+
 ### Blockers
 
 None.
 
 ### Next owner
 
-Reviewer, for `shell-windows-G1`.
+Reviewer, for `shell-windows-G1` (round-1 fixes independently re-confirmed above; awaiting an `approved` verdict).
 
 ## shell-windows-10: "/opt/core_node_trees" question (D27) + shell-windows-9 re-verification
 
@@ -435,3 +450,53 @@ None for the Windows side. The Linux-side cleanup above needs a `[shell-linux] a
 ### Next owner
 
 `core-node-e9` continues its fenced dual-boot-layout lane (including the newer D28/D30 `core_node_compiler` design). Orchestrator: please route the SPW-035 Linux alignment to `shell-linux` when it creates a session. Reviewer: nothing new to review under `shell-windows-10` (investigation only); `shell-windows-9` stays `done, awaiting reviewer`.
+
+## shell-windows-10 (D29): Tailscale management menu
+
+Note on the id: this run's dispatched task was also labeled `shell-windows-10`, colliding with the D27 "/opt/core_node_trees" investigation already recorded above under that same id. Both are genuine, unrelated pieces of work; rather than overwrite that section this one is filed as `shell-windows-10 (D29)` (matching the table row) so neither write-up is lost. Flagging the id reuse for the orchestrator's numbering, not asking about it.
+
+User request (D29, verbatim, Chinese): "dd.cmd sh中的菜单中的liunx/windows管理中加入tailscale的管理，如果本机安装，则添加重记服务，打开面板，显示所有devices IP状态等等，搜索官方文档。加入公共脚本直接调用。" -- add Tailscale management to the Linux/Windows management menus; if installed locally, add a restart-service action, an open-panel action, and show every device's IP/status; search the official docs; put it in a common/shared script called directly. Reading B9: "重记服务" = restart the service (typo for 重启/重启记).
+
+### What was already there when this task started
+
+Both the Windows implementation and its Linux counterpart already existed in the working tree before this run touched anything (git commit `0b6f362e3`, "win0.0.1", already carries `TailscaleCommon.ps1` and the `WindowsManagementManager.ps1` wiring; the Linux `tailscale_common.sh`/`tailscale_menu.sh`/`linux_management.sh` wiring is likewise already committed, "linux0.1"). Neither side's own ledger or report had a Tailscale row yet, so this task's real remaining work was: verify the existing Windows code against the official-docs spec and against what shell-linux already built, fix anything wrong, and close the parity/reporting loop that a previous attempt at this same task apparently did not finish.
+
+### Verification (Windows side)
+
+- `[System.Management.Automation.Language.Parser]::ParseFile` on `TailscaleCommon.ps1` and `WindowsManagementManager.ps1`: 0 errors on both. Both files are ASCII with LF line endings (0 `\r` bytes).
+- Read-only live run against the real, already-installed Tailscale on this machine (service `Tailscale` was `Running` before this task started; this task never started, stopped or restarted it, and never ran `tailscale up`/`down`/`set`):
+  - `-Action Help`: prints the dispatcher usage.
+  - `-Action Status`: correctly resolved `C:\Program Files\Tailscale\tailscale.exe`, `Service 'Tailscale': Running (StartType: Automatic)`, `Backend state: Running`, the real version, tailnet name, this node's two `TailscaleIPs`, `Peers on tailnet: 4`, and the logs path.
+  - `-Action Devices`: printed a 5-peer + self table with real HostName/Owner/OS/IPv4/IPv6/Online/LastSeen/ExitNode/Connection data; the currently-online self row correctly showed the documented zero-time `LastSeen` value (`0001-01-01T00:00:00Z`) rather than a blank or an error, confirming `Get-TailscaleDeviceRow` handles that ipnstate edge case the way the spec describes it.
+  - Deliberately not run: `-Action Restart` (explicitly forbidden this task) and `-Action Panel` (opens a browser tab; the task's verification scope was parsers, `-Action Help`/usage and read-only status calls, so it was reviewed by reading the code instead of executed).
+- Code review against the official-docs command table found no defects: install-detection order (`%ProgramFiles%\Tailscale\tailscale.exe` -> PATH -> the `Tailscale` service's own `Win32_Service.PathName` directory) matches the MSI-install-dir doc's documented fallback chain; "installed" requires both the exe and the service, matching the spec's install_detection rule; the not-installed message only prints the doc URL and the `Tailscale.Tailscale` winget id, it never runs an install; `Restart-TailscaleServiceElevated` checks `$Global:IS_RUN_ADMIN` (from `GlobalVars.ps1`, already dot-sourced through `CommonFunc.ps1`) and relaunches itself elevated rather than failing silently; `Show-TailscalePanel` opens the admin console unconditionally and the local Quad100 URL only when `BackendState -eq 'Running'`, matching the device-web-interface doc's "daemon must be running and connected" note; every JSON field read goes through the Strict-Mode-safe `Get-TailscaleJsonProperty` (GlobalVars.ps1 sets `Set-StrictMode -Version Latest`, and `ConvertFrom-Json`'s shape varies by Tailscale version); IPv4/IPv6 are classified by the presence of `:`, not array order, per the ipnstate doc's caveat that `TailscaleIPs` order is not part of the schema; no `exit` statements anywhere in the file.
+- No changes were needed to `TailscaleCommon.ps1` or `WindowsManagementManager.ps1` themselves; both were already correct.
+
+### Parity (ledger: `.claude/agents_shared/shell_parity/windows.md`)
+
+Read shell-linux's already-committed counterpart (`scripts/shells/linux/common/tailscale_common.sh`, `scripts/shells/linux/menu_itemshells/tailscale_menu.sh`, and the `dd_helper/linux_management.sh` wiring) function by function against the Windows code and the spec, rather than assuming either "pending-linux" or "aligned" from the task text alone (the task text predates the discovery that Linux had already built its side).
+
+- **SPW-037** (`aligned`): the core feature -- install detection (CLI + service both present), `Status`, `Devices`, `Restart` (with elevation on Windows / `sudo` on Linux), `Panel` (admin console always, local web UI conditionally), never installs and never touches login state -- is already symmetric: Linux's `is_tailscale_installed`/`ts_service_unit_exists`/`ts_backend_state`/`ts_show_status`/`ts_show_devices`/`ts_restart_service`/`ts_show_panel`/`ts_show_help` mirror the Windows functions one for one, cite the same official-doc sources, and are wired into the "Linux Management" menu the same way `WindowsManagementManager.ps1` wires the Windows entry. No alignment task needed for this row.
+- **SPW-038** (`pending-linux`): Windows's device table has a `LastSeen` column (SPW-037); Linux's `ts_show_devices` python formatter (`tailscale_common.sh` ~208-229) does not print one. Counterpart request: add a `LAST SEEN` column reading `peer.get("LastSeen") or ""` verbatim (so the zero-time case prints the same as Windows) to the `row_fmt`/print loop.
+- **SPW-039** (`pending-linux`): Windows's `Show-TailscalePanel` opens the local Quad100 web UI only when `BackendState` is `Running` (per the device-web-interface doc); Linux's `ts_show_panel` opens both URLs unconditionally whenever a desktop session + `xdg-open` are present, with no backend-state check. Counterpart request: gate the `ts_open_url "$TAILSCALE_LOCAL_WEB_URL"` call on `[ "$(ts_backend_state)" = "Running" ]`, printing a one-line skip message naming the actual state otherwise.
+
+No live `shell-linux` teammate or `ct-shell-linux` session was reachable via `ListAgents` (only `core-node-e9` and `ct-laravel-remote` were listed as peers), so SPW-038/SPW-039 are recorded here per the parity protocol's third option, for the orchestrator to open as `[shell-linux] align: SPW-038 ts_show_devices LastSeen column` and `[shell-linux] align: SPW-039 ts_show_panel backend-state gate`.
+
+### Choices made (no questions asked)
+
+- Recorded SPW-037 as `aligned` rather than following the task text's "pending-linux with the exact counterpart request" literally for the whole feature: the task text was written before either side's ledger recorded this work, but the Linux counterpart was already fully built and committed by the time this task ran, so a blanket `pending-linux` on the whole feature would have been factually wrong. Split out the two real, narrow content gaps actually found (SPW-038, SPW-039) as `pending-linux` instead, each with its own exact counterpart request, which is what the "no blanket pending-* without a real alignment need" spirit of the parity rules calls for.
+- Did not exercise `-Action Panel` or `-Action Restart` against the real installed Tailscale, per the task's explicit "never restart Tailscale or change its login" instruction and its narrower verification scope (parsers, `--help`/usage, read-only status calls); both were verified by code review instead.
+
+### Changed files
+
+- `.claude/agents_shared/shell_parity/windows.md` (SPW-037, SPW-038, SPW-039).
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row).
+- No changes to `TailscaleCommon.ps1` or `WindowsManagementManager.ps1`: both were already correct and complete.
+
+### Blockers
+
+None. SPW-038/SPW-039 need `[shell-linux] align: ...` tasks from the orchestrator before they can move from `pending-linux` to `aligned`.
+
+### Next owner
+
+Reviewer, for `shell-windows-10 (D29)`. Then shell-linux for the SPW-038/SPW-039 alignment (two small content additions to an already-working file).
